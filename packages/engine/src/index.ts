@@ -287,6 +287,7 @@ export {
   CAMPAIGN_ACCEPT,
   CAMPAIGN_NEXT_NODE_INSTRUCTION,
   campaignChoiceKey,
+  campaignModularSetIds,
   campaignResultOf,
   createCampaignLog,
   grantsOf,

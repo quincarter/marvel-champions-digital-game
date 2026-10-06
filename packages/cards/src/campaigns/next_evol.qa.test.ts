@@ -22,9 +22,10 @@
  *   would have recorded, for the tests that only need a setup (Morlock searches, Hope Summers's choice, players + 1).
  */
 import { describe, expect, it } from "vitest";
-import { CORE_STARTER_DECKS, type CardId, type PlayModes } from "@mc/content";
+import { CORE_STARTER_DECKS, WAVE7_SCENARIOS, type CardId, type PlayModes } from "@mc/content";
 import {
   applyCampaignResult,
+  campaignModularSetIds,
   campaignResultOf,
   createCampaignLog,
   createGame,
@@ -231,11 +232,16 @@ const offeredTitles = (choices: readonly CampaignPendingChoice[]): readonly stri
 // Real-game helpers
 // ---------------------------------------------------------------------------------------------------------------
 
-/** A scenario's game exactly as the campaign card harness builds it (unsettled); `modularSetIds` is the builder's pick. */
-function build(composed: CampaignLog, modularSetIds?: readonly string[]) {
+/**
+ * A scenario's game exactly as the campaign card harness builds it (unsettled). `picked` is the builder's modular pick;
+ * the campaign's required sets are added to it (`campaignModularSetIds`), as a client's launch path does.
+ */
+function build(composed: CampaignLog, picked?: readonly string[]) {
   const start = startGameFromLog(DEF, composed);
   const removed = composed.removedFromCampaign.map((face) => face.cardId);
   if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
+  const recommended = WAVE7_SCENARIOS.find((scenario) => scenario.id === start.scenarioId)!.recommendedModularSetIds;
+  const modularSetIds = campaignModularSetIds(start, recommended, picked);
   const config = wave7Scenario(start.scenarioId, {
     players: start.input.seats.map((seat) => ({
       identityCardId: seat.identityCardId,
@@ -1096,38 +1102,54 @@ describe("a 4-player leg (MC40 pp. 9, 11, 14)", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// 8. The known gap: a CampaignDefinition cannot name a required modular set (MC40 p. 14)
+// 8. Black Tom Cassidy is required for the campaign Juggernaut (MC40 p. 14)
 // ---------------------------------------------------------------------------------------------------------------
 
-describe("Black Tom Cassidy is required for the campaign Juggernaut (MC40 p. 14; the known gap)", () => {
+// MC40 p. 14: "The Black Tom Cassidy set can be removed from this scenario and/or added to other scenarios when using
+// the scenario customization rules, but it is required when playing Juggernaut in campaign mode." The node names the
+// set (`CampaignNode.requiredModularSetIds`) and the builder folds it into its modular pick (`campaignModularSetIds`).
+describe("Black Tom Cassidy is required for the campaign Juggernaut (MC40 p. 14)", () => {
   const atThree = (): CampaignLog =>
     walk(STANDARD, 2, [
       ["Gear Up", ["40192b"]],
       ["Mission Prep", ["40193b"]],
     ]);
+  const inGame = (state: GameState, code: string): number => everywhere(state, code).length;
 
-  it("passed (the builder's default and an explicit pick agree): each player is dealt one of Black Tom or a Willow", () => {
+  it("passed (the builder's default and an explicit pick agree): each player is dealt one of Black Tom or a Willow, and the set is in the game once", () => {
     for (const modular of [undefined, ["black_tom_cassidy"]] as const) {
       const { state } = setup(atThree(), "Assemble the Team", { ...(modular ? { modular } : {}) });
       expect(
         dealtCodes(state).map((cardsDealt) => cardsDealt.length),
         String(modular),
       ).toEqual([1, 1]);
+      expect(inGame(state, BLACK_TOM), String(modular)).toBe(1);
+      expect(inGame(state, WILLOW), String(modular)).toBe(4);
     }
   }, 60_000);
 
-  it("not passed (another modular set picked): nothing is dealt and nothing fails, so the campaign scenario silently loses Black Tom", () => {
+  it("not passed (another modular set picked): the set is in the game anyway, beside the pick, and Black Tom and the Willows are dealt", () => {
     const { state } = setup(atThree(), "Assemble the Team", { modular: ["bomb_scare"] });
-    expect(dealtCodes(state)).toEqual([[], []]);
-    expect(count(encounterDeckCodes(state), BLACK_TOM)).toBe(0);
-    expect(count(encounterDeckCodes(state), WILLOW)).toBe(0);
+    const dealt = dealtCodes(state);
+    expect(dealt.map((cardsDealt) => cardsDealt.length)).toEqual([1, 1]);
+    for (const [card] of dealt) expect([BLACK_TOM, WILLOW]).toContain(card);
+    expect(inGame(state, BLACK_TOM)).toBe(1);
+    expect(inGame(state, WILLOW)).toBe(4);
+    // The pick is added to, not replaced: Bomb Scare (01109) is in the game as well.
+    expect(inGame(state, "01109")).toBeGreaterThan(0);
   }, 60_000);
 
-  // MC40 p. 14: Black Tom Cassidy "is required when playing Juggernaut in campaign mode". The campaign start (what the
-  // builder is handed) names no such set, so nothing makes a game builder include it: owner `game-rules-architect`
-  // (a `CampaignNode` field for a required modular set, §3.43).
-  it.fails("the campaign's start of scenario 3 names the Black Tom Cassidy set among the sets it requires", () => {
+  it("the campaign's start of scenario 3 names the Black Tom Cassidy set among the sets it requires", () => {
     const start = startGameFromLog(DEF, compose(atThree(), taking("Assemble the Team")).value);
-    expect([...start.encounterSets.deck, ...start.encounterSets.setAside]).toContain("black_tom_cassidy");
+    expect(start.requiredModularSetIds).toEqual(["black_tom_cassidy"]);
+    expect(start.input.requiredModularSetIds).toEqual(["black_tom_cassidy"]);
+    // A constraint on the modular choice, not a composed set: composing it would shuffle the set in twice.
+    expect([...start.encounterSets.deck, ...start.encounterSets.setAside]).not.toContain("black_tom_cassidy");
+  });
+
+  it("no other scenario of the campaign requires a modular set", () => {
+    for (const node of DEF.graph.nodes) {
+      expect(node.requiredModularSetIds ?? [], node.id).toEqual(node.id === "juggernaut" ? ["black_tom_cassidy"] : []);
+    }
   });
 });

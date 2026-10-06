@@ -851,8 +851,24 @@ order; "choose" is the block every scenario prints, described under the table.
   is 0–2 unless something raised her hit points; with 0 recorded there is no choice to make.
 - **Scenario 3's facedown cards.** One Black Tom Cassidy and 1 per player Creeping Willow (four copies exist) are
   taken from the encounter deck, so players + 1 cards for players seats: every player gets one and exactly one goes
-  back. Black Tom Cassidy is therefore **required** in the campaign's Juggernaut (p. 14); the node always composes the
-  set, and the client does not offer to swap it out (§5.2).
+  back. Black Tom Cassidy is therefore **required** in the campaign's Juggernaut (p. 14,
+  `docs/campaign-modes/markdown/mc40_next_evolution.md`: "The Black Tom Cassidy set can be removed from this scenario
+  and/or added to other scenarios when using the scenario customization rules, but it is required when playing
+  Juggernaut in campaign mode"), and the client does not offer to swap it out (§5.2).
+  - **How the definition says so:** `CampaignNode.requiredModularSetIds: ["black_tom_cassidy"]` on the scenario 3 node,
+    plain data. It is not a `composeEncounterSets` op: that adds a set's cards beside whatever the builder shuffled
+    in, and Black Tom Cassidy is already Juggernaut's recommended set, so composing it would put the set in twice.
+  - **How a game start reads it:** `startGameFromLog` returns `requiredModularSetIds` (empty for every other node);
+    the builder passes `campaignModularSetIds(start, recommended, picked)` as the scenario's modular sets; and the
+    list is frozen into `CampaignGameInput.requiredModularSetIds`, where `createGame` refuses (`invalid_setup`) a game
+    in which no card of a required set exists.
+  - **When the caller also picks sets:** required sets are added to the pick, never replaced by it, and a set named
+    twice is in the game once. With nothing picked, the scenario's recommendation is used.
+  - **The count:** a required set is one of the scenario's modular sets, not an extra one. Juggernaut prints "One
+    modular encounter set (Black Tom Cassidy)" (40121a Contents, MC40 p. 14), so in the campaign that one slot is
+    taken and the default is exactly that set. `campaignModularSetIds` does not trim: a different pick for Juggernaut
+    comes back as two sets, which the wave builders accept and the app's entry point (`playableScenario`'s exact-count
+    check) refuses. A picker offers the scenario's count minus the required sets (none here).
 - **Scenario 5 in expert mode** resolves Stryfe II's own When Revealed first (scenario setup: each player ends with a
   PSIONIC attachment, §3.37), then this block's discard-until-reveal for every player.
 - **Prohibited card:** Hope Summers 40204 (§1.19). **Campaign cards** 190–203 enter a game only by instruction.

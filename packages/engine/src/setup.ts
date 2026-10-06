@@ -1087,6 +1087,25 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     );
   }
 
+  // A campaign's required modular set (`CampaignNode.requiredModularSetIds`; MC40 p. 14: "required when playing
+  // Juggernaut in campaign mode") must be in the game: a builder that left it out is refused here rather than the
+  // campaign's setup instructions finding none of its cards and quietly doing nothing.
+  for (const setId of config.campaign?.requiredModularSetIds ?? []) {
+    const present = Object.values(instances).some((instance) => {
+      const card = pool[instance.cardId];
+      return (
+        card !== undefined &&
+        (("encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId)) ||
+          ("specificTo" in card && card.specificTo?.encounterSetId === setId))
+      );
+    });
+    if (!present) {
+      return invalid(
+        `the campaign requires the ${setId} modular set in ${config.campaign?.nodeId}, and no card of it is in the game`,
+      );
+    }
+  }
+
   // RRG 1.8 "Double-Sided Card" (p. 17): a "Standard Mode Only" / "Expert Mode Only" card shows the face of the mode
   // being played, wherever it starts (docs/phase7-wave4.md §3.18). Every instance exists by now.
   if (config.difficulty === "expert") {

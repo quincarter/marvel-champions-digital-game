@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A campaign scenario can name the modular sets it requires (CampaignNode.requiredModularSetIds): the game start hands them to the builder, campaignModularSetIds adds them to the picked sets, and createGame refuses a campaign game without one; NeXt Evolution''s Juggernaut requires Black Tom Cassidy (MC40 p. 14)'
+time: 2026-10-06T00:46:40.896678-04:00

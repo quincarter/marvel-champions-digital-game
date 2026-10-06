@@ -374,6 +374,7 @@ export function resolveBetweenGames(
     seats: run.working.seats.map(seatInputOf),
     seed,
     ...(run.setAsideCards.length > 0 ? { setAsideCards: run.setAsideCards } : {}),
+    ...(requiredModularSetIdsOf(node).length > 0 ? { requiredModularSetIds: requiredModularSetIdsOf(node) } : {}),
   };
   const attempt: CampaignAttempt = {
     nodeId: node.id,
@@ -482,6 +483,45 @@ export interface CampaignGameStart {
    * `GameSetupConfig.setAside` (design note on `composeEncounterSets`, above).
    */
   readonly encounterSets: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
+  /**
+   * The modular sets the campaign requires in this scenario (`CampaignNode.requiredModularSetIds`; MC40 p. 14), each
+   * once, in the definition's order; empty when the node requires none. Unlike `encounterSets` these are not extra
+   * cards to add: they are a constraint on the scenario builder's modular choice. Pass the builder
+   * `campaignModularSetIds(start, …)` as its modular sets; a client shows these as fixed and does not offer to swap
+   * them.
+   */
+  readonly requiredModularSetIds: readonly string[];
+}
+
+/** A node's required modular sets, each once, in the order the definition lists them. */
+const requiredModularSetIdsOf = (node: CampaignNode): readonly string[] => [
+  ...new Set(node.requiredModularSetIds ?? []),
+];
+
+/**
+ * The modular sets to build a campaign game with: the campaign's required sets first, then the caller's choice
+ * without the sets already listed. `picked` is what the players (or a test) chose and `recommended` is the scenario's
+ * own recommendation (`Scenario.recommendedModularSetIds`), used when nothing was picked.
+ *
+ * - The node requires nothing: `picked` comes back untouched (`undefined` stays `undefined`, so a builder keeps its
+ *   own default, a random pool draw included).
+ * - The node requires sets: they are **added to** the choice, never replaced by it, and a set named twice (required
+ *   and picked, or picked twice) is in the result once.
+ *
+ * The count is not trimmed. A required set is one of the scenario's modular sets, so it fills one of the scenario's
+ * modular slots: with nothing picked, Juggernaut's recommendation is Black Tom Cassidy itself and the result is that
+ * one set. A caller that picks a different set for a one-set scenario gets both back, which is one more than the
+ * scenario's count; a builder that enforces the count refuses it. A picker should therefore offer only the slots the
+ * required sets leave (the scenario's count minus `start.requiredModularSetIds.length`; none for Juggernaut, MC40
+ * p. 14).
+ */
+export function campaignModularSetIds(
+  start: Pick<CampaignGameStart, "requiredModularSetIds">,
+  recommended: readonly string[],
+  picked?: readonly string[],
+): readonly string[] | undefined {
+  if (start.requiredModularSetIds.length === 0) return picked;
+  return [...new Set([...start.requiredModularSetIds, ...(picked ?? recommended)])];
 }
 
 export function startGameFromLog(definition: CampaignDefinition, log: CampaignLog): CampaignGameStart {
@@ -496,6 +536,7 @@ export function startGameFromLog(definition: CampaignDefinition, log: CampaignLo
     scenarioId: node.scenario.kind === "fixed" ? node.scenario.scenarioId : null,
     villain: attempt.composedVillain,
     encounterSets: attempt.composedEncounterSets,
+    requiredModularSetIds: requiredModularSetIdsOf(node),
   };
 }
 

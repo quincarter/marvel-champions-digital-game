@@ -24,6 +24,7 @@ import {
   createCampaignLog,
   createGame,
   resolveBetweenGames,
+  campaignModularSetIds,
   startGameFromLog,
   validateDeck,
   type CampaignChoiceAnswer,
@@ -1469,12 +1470,65 @@ describe("NEXT_EVOL_CAMPAIGN_DEFINITION: campaign cards and the prohibited card 
   });
 });
 
-describe("NEXT_EVOL_CAMPAIGN_DEFINITION: known gaps", () => {
-  // MC40 p. 14: Black Tom Cassidy "is required when playing Juggernaut in campaign mode". A `CampaignDefinition` has no
-  // way to name a scenario's required modular set (`composeEncounterSets` into the deck would shuffle the set in twice
-  // beside the builder's own recommended pick), so the game builder must pass it, and without it scenario 3's
-  // facedown deal finds no cards and does nothing.
-  it.todo(
-    "a campaign Juggernaut cannot be built without the Black Tom Cassidy set (needs a required-modular-set field)",
-  );
+describe("NEXT_EVOL_CAMPAIGN_DEFINITION: Black Tom Cassidy is required in scenario 3 (MC40 p. 14)", () => {
+  // MC40 p. 14: "The Black Tom Cassidy set can be removed from this scenario and/or added to other scenarios when using
+  // the scenario customization rules, but it is required when playing Juggernaut in campaign mode." The node names the
+  // set (`requiredModularSetIds`), not `composeEncounterSets`: composing it into the deck would shuffle the set in
+  // twice beside the builder's own recommended pick.
+  const juggernautGame = (modularSetIds: readonly string[] | undefined) => {
+    const composed = compose(
+      afterWins(STANDARD, SEATS, [
+        ["Gear Up", []],
+        ["Mission Prep", []],
+      ]),
+      taking("Assemble the Team"),
+    ).log;
+    const start = startGameFromLog(DEF, composed);
+    const config = wave7Scenario("juggernaut", {
+      players: start.input.seats.map((seat) => ({
+        identityCardId: seat.identityCardId,
+        deck: [...seat.deck],
+        aspects: seat.aspects,
+      })),
+      seed: start.input.seed,
+      modes: composed.modes,
+      ...(modularSetIds ? { modularSetIds } : {}),
+    });
+    return { start, created: createGame({ ...config, campaign: start.input }, WAVE7_DEPS) };
+  };
+  const recommended = WAVE7_SCENARIOS.find((scenario) => scenario.id === "juggernaut")!.recommendedModularSetIds;
+
+  it("only scenario 3's node names a required modular set, and its start hands it to the builder", () => {
+    for (const node of DEF.graph.nodes) {
+      expect(node.requiredModularSetIds ?? [], node.id).toEqual(node.id === "juggernaut" ? ["black_tom_cassidy"] : []);
+    }
+    const { start } = juggernautGame(undefined);
+    expect(start.requiredModularSetIds).toEqual(["black_tom_cassidy"]);
+    expect(start.input.requiredModularSetIds).toEqual(["black_tom_cassidy"]);
+  });
+
+  it("a campaign Juggernaut cannot be built without the Black Tom Cassidy set", () => {
+    const { created } = juggernautGame(["bomb_scare"]);
+    expect(created.ok).toBe(false);
+    if (created.ok) return;
+    expect(created.error.code).toBe("invalid_setup");
+    expect(created.error.message).toContain("black_tom_cassidy");
+  });
+
+  it("the builder's modular sets through campaignModularSetIds: Black Tom Cassidy once by default, and added to another pick", () => {
+    const { start } = juggernautGame(undefined);
+    // Juggernaut's one recommended set is Black Tom Cassidy itself (40121a Contents), so the default is that one set.
+    expect(campaignModularSetIds(start, recommended)).toEqual(["black_tom_cassidy"]);
+    expect(campaignModularSetIds(start, recommended, ["black_tom_cassidy"])).toEqual(["black_tom_cassidy"]);
+    expect(campaignModularSetIds(start, recommended, ["bomb_scare"])).toEqual(["black_tom_cassidy", "bomb_scare"]);
+    for (const picked of [undefined, ["bomb_scare"]]) {
+      const { created } = juggernautGame(campaignModularSetIds(start, recommended, picked));
+      expect(created.ok, String(picked)).toBe(true);
+      if (!created.ok) continue;
+      const copies = (code: string) =>
+        Object.values(created.state.instances).filter((instance) => (instance.cardId as string) === code).length;
+      expect(copies("40132"), String(picked)).toBe(1); // Black Tom Cassidy
+      expect(copies("40133"), String(picked)).toBe(4); // Creeping Willow
+    }
+  });
 });

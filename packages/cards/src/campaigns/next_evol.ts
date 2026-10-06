@@ -42,9 +42,10 @@
  *   extra card on top of the opening hand.
  * - **Black Tom Cassidy** (p. 14, scenario 3): the card and 1 per player Creeping Willow are taken from the encounter
  *   deck into the set-aside area, a random one is dealt facedown to each player (the seeded RNG, `encounterSetAside` with
- *   `random`), and the remaining card is shuffled into the encounter deck. The set must be in the encounter deck: the
- *   campaign requires it for Juggernaut and nothing in the definition can say so (see the report; the game builder
- *   passes it as the scenario's modular set).
+ *   `random`), and the remaining card is shuffled into the encounter deck. The set must be in the encounter deck: "it
+ *   is required when playing Juggernaut in campaign mode", so the node names it (`requiredModularSetIds`). The game
+ *   builder passes `campaignModularSetIds(start, …)` as the scenario's modular sets, and `createGame` refuses a
+ *   scenario 3 without a card of the set.
  * - **Hope Summers's damage** (pp. 14-18): recorded by Victory in scenarios 3 and 4 (`hopeDamage3`, `hopeDamage4`),
  *   and in scenarios 4 and 5 the first player decides for the group between that much damage on her ("place", not
  *   "deal") or that much threat on Teleported Away / Stryfe's Grasp. Nothing to choose at 0.
@@ -109,6 +110,7 @@ import { healToFull, healWithFacedownCard, hpRecord, hpSet } from "./expert-help
 
 const NEXT_EVOL_ID = campaignId("next_evol");
 const CAMPAIGN_SET = encounterSetId("next_evol_campaign");
+const BLACK_TOM_CASSIDY_SET = encounterSetId("black_tom_cassidy");
 
 const MORLOCK = trait("MORLOCK");
 const PSIONIC = trait("PSIONIC");
@@ -868,6 +870,9 @@ export const NEXT_EVOL_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "juggernaut",
         label: "Scenario #3 - Juggernaut",
         scenario: { kind: "fixed", scenarioId: scenarioId("juggernaut") },
+        // MC40 p. 14: "The Black Tom Cassidy set can be removed from this scenario and/or added to other scenarios when
+        // using the scenario customization rules, but it is required when playing Juggernaut in campaign mode."
+        requiredModularSetIds: [BLACK_TOM_CASSIDY_SET],
         setup: [
           ...earnedEnvironments(
             "mc40.s3.setup",

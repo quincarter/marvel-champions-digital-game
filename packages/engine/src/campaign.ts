@@ -112,6 +112,20 @@ export interface CampaignNode {
    * Feeds `CampaignGameInput`, not the log, except where an op writes the log as well (step 5 records the villain).
    */
   readonly composition?: readonly CampaignInstruction[];
+  /**
+   * Modular encounter sets this campaign requires in the node's scenario, by encounter set id. MC40 p. 14: "The Black
+   * Tom Cassidy set can be removed from this scenario and/or added to other scenarios when using the scenario
+   * customization rules, but it is required when playing Juggernaut in campaign mode."
+   *
+   * Not `composeEncounterSets`: that op adds a set's cards to the game *beside* whatever the scenario builder shuffled
+   * in, and a required modular set is usually the scenario's own recommended one, so composing it would put the set in
+   * twice. This field instead constrains the builder's modular choice: `startGameFromLog` hands it on
+   * (`CampaignGameStart.requiredModularSetIds`), `campaignModularSetIds` folds it into the caller's picks, and it is
+   * frozen into `CampaignGameInput.requiredModularSetIds`, where `createGame` refuses a game that holds no card of a
+   * required set. A required set counts as one of the scenario's modular sets (it is not an extra one). Absent or
+   * empty: the builder's choice is free, as it was before this field existed.
+   */
+  readonly requiredModularSetIds?: readonly string[];
   readonly setup: readonly CampaignInstruction[];
   readonly victory: readonly CampaignInstruction[];
   /**
@@ -1120,6 +1134,12 @@ export interface CampaignGameInput {
    * alongside `GameSetupConfig.setAside`. Absent when no op named any, so every earlier game input is unchanged.
    */
   readonly setAsideCards?: readonly CardId[];
+  /**
+   * `CampaignNode.requiredModularSetIds`, copied here so the requirement is part of the game's own replay baseline:
+   * `createGame` refuses a config in which no card of one of these sets exists. Absent when the node requires none,
+   * so every earlier game input is unchanged.
+   */
+  readonly requiredModularSetIds?: readonly string[];
 }
 
 /**
