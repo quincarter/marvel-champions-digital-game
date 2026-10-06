@@ -15,10 +15,12 @@ import {
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
+import { titlesNaming } from "../titles.js";
 import {
   cardBackOf,
   cardOf,
   characterProfile,
+  currentName,
   isPlayerCardType,
   titleShowing,
   getInstance,
@@ -544,8 +546,13 @@ function reportResults(ctx: Ctx, frame: Frame<"event">, happened: boolean): void
 function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
   const event = frame.event;
   switch (event.kind) {
-    case "dealDamage":
-      return applyDamage(ctx, event, frame.frameId);
+    case "dealDamage": {
+      // The response window reads the frame's event: it carries the target as it took the damage.
+      const stamped = asDamaged(ctx.state, event);
+      if (stamped !== event)
+        updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: stamped } : f));
+      return applyDamage(ctx, stamped, frame.frameId);
+    }
     case "healDamage": {
       const before = getInstance(ctx.state, event.targetInstanceId)?.damage ?? 0;
       healDamage(ctx, event.targetInstanceId, event.amount, event.sourceInstanceId ?? null);
@@ -1002,6 +1009,20 @@ export function excessDamageOf(
   if (measured <= 0) return 0;
   const source = event.sourceInstanceId;
   return measured + (event.fromAttack && source !== null ? excessDamageBonus(ctx.state, ctx.deps, source) : 0);
+}
+
+/**
+ * The damage event carrying its target as it is about to take the damage (`TargetSnapshot`): read by the damage's
+ * response window, after a replacement on the defeat it causes may have turned the target to another face. Unchanged
+ * for damage that will not be dealt (no amount, or a target that has left play).
+ */
+export function asDamaged(state: GameState, event: DamageEvent): DamageEvent {
+  if (event.amount <= 0 || event.targetAsDamaged || !cardsInPlay(state).includes(event.targetInstanceId)) return event;
+  const name = currentName(state, event.targetInstanceId);
+  return {
+    ...event,
+    targetAsDamaged: { ...(name !== undefined ? { name } : {}), titles: titlesNaming(state, event.targetInstanceId) },
+  };
 }
 
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */

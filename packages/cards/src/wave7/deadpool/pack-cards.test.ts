@@ -836,7 +836,7 @@ describe("Mulligan (44048): cannot be played after another card this phase; Acti
     expect(playRefused(played.state, "44048", 3, P2)).toBe(false);
     expect(playRefused(played.state, "44048", 3, P1)).toBe(true);
   });
-  it.fails("[engine gap] a card played in an earlier turn of the same player phase stops it (no this-phase-by-player predicate: playedThisTurn is emptied at turn end)", () => {
+  it("a card played in an earlier turn of the same player phase stops it (the phase outlasts the turn)", () => {
     const base = heroGame([DEADPOOL, SPIDER_MAN]);
     const played = playCard(base, "44045", 4, {}, P1);
     const turned = driveEventsPicking(DEPS, played.state, firstLegal, endTurn(P1));
@@ -1019,15 +1019,15 @@ describe("Plot Convenience (44050): any player may attach an aspect card from ha
     expect(playerOf(r.state, P1).hand).not.toContain(b.id);
     expect(hereOf(r.state, s.id)).not.toContain(b.id);
   });
-  // `takeIntoHand` makes the taker the owner (Captured by Hydra's rule for a card with no owner, applied to every card):
-  // Q53 = A keeps the owner, so a borrowed card is discarded to its owner's pile. No primitive moves a card into
-  // another player's hand and leaves its owner alone (`moveCards` "hand" goes to the owner's own hand).
-  it.fails("[engine gap] two players (Q53 = A): a card taken that way goes to its owner's discard pile when it is used to pay", () => {
+  // RRG 1.8 "Ownership and Control" (p. 31): "That card is discarded from a player's hand, it is placed in its
+  // owner's discard pile." The taker holds and may spend the card; it stays its owner's (`takeIntoHand.keepOwner`).
+  it("two players (Q53 = A): a card taken that way goes to its owner's discard pile when it is used to pay", () => {
     const s = stage([DEADPOOL, SPIDER_MAN]);
     const b = bank(s.state, s.id, POOL_EVENT, P1);
     const took = take(b.state, s.id, { targets: { banked: b.id } }, P2).state;
-    // P2 plays Bob (cost 2) off-turn?: an ally cannot be; the borrowed card pays a Break Time-free check: discard via
-    // payment for P2's own Mulligan (an Action event, cost 3), the borrowed card first among the three.
+    expect(inst(took, b.id).ownerId).toBe(P1);
+    expect(inst(took, b.id).controllerId).toBe(P2);
+    // P2 pays for their own Mulligan (an Action event, cost 3, playable off-turn) with the borrowed card first.
     const card = conjure(took, P2, "44048");
     const others = playerOf(card.state, P2)
       .hand.filter((id) => id !== card.id && id !== b.id)
@@ -1035,6 +1035,15 @@ describe("Plot Convenience (44050): any player may attach an aspect card from ha
     const paid = driveEventsPicking(DEPS, card.state, firstLegal, play(P2, card.id, [b.id, ...others]));
     expect(playerOf(paid.state, P1).discard).toContain(b.id);
     expect(playerOf(paid.state, P2).discard).not.toContain(b.id);
+    for (const id of others) expect(playerOf(paid.state, P2).discard).toContain(id);
+  });
+  it("the owner taking their own card back is unchanged: it is theirs, in their hand", () => {
+    const s = stage([DEADPOOL, SPIDER_MAN]);
+    const b = bank(s.state, s.id, POOL_EVENT, P1);
+    const r = take(b.state, s.id, { targets: { banked: b.id } }, P1);
+    expect(playerOf(r.state, P1).hand).toContain(b.id);
+    expect(inst(r.state, b.id).ownerId).toBe(P1);
+    expect(inst(r.state, b.id).controllerId).toBe(P1);
   });
   it("the controller may use it during the other player's turn", () => {
     const s = stage([DEADPOOL, SPIDER_MAN]);

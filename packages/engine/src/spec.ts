@@ -1174,6 +1174,13 @@ export type Predicate =
   /** The game is at this phase (and step): "during step one of the villain phase". */
   | { readonly kind: "gameStep"; readonly phase: GameStep["phase"]; readonly step?: GameStep["kind"] }
   /**
+   * "During your turn": a player turn is in progress and `player` names the active player (RRG 1.8 "Active Player",
+   * p. 6: "The player taking their turn during the player phase is the active player"). False in the villain phase and
+   * between phases. Read by a rule's `while` with the rule's speaker as "you", so an obligation in a player's play area
+   * names that player (docs/phase7-wave7.md §4.1, 44032).
+   */
+  | { readonly kind: "turnOf"; readonly player: PlayerRef }
+  /**
    * The card is attached to something: "If you cannot, this card gains surge" (Goblin Glider) asks whether its
    * "attach to" found a host. RRG 1.8 "Attach To" (p. 8): legality is checked as the card would be attached, and a
    * card that cannot attach is discarded — its "When Revealed" still resolves, and reads this.
@@ -1198,6 +1205,19 @@ export type Predicate =
    */
   | {
       readonly kind: "playedThisTurn";
+      readonly player: PlayerRef;
+      readonly cards: TargetQuery;
+      readonly atLeast?: number;
+    }
+  /**
+   * "If you have played another card this phase" (Mulligan, `deadpool` 44048): at least `atLeast` (default 1) of the
+   * cards `player` played this phase (`GameState.playedByPlayerThisPhase`) match `cards`, read wherever those cards
+   * are now. The player phase is one phase across every player's turn (RRG 1.8 "Player Phase", p. 34), so a card
+   * played in an earlier turn of it counts, as one played during another player's turn does. A card being played is
+   * recorded when its play commits: its own play restriction is read before that and does not see it.
+   */
+  | {
+      readonly kind: "playedThisPhase";
       readonly player: PlayerRef;
       readonly cards: TargetQuery;
       readonly atLeast?: number;
@@ -2516,8 +2536,20 @@ export type EffectSpec =
    * becomes its owner. RRG 1.8 "Ownership and Control" (p. 31): "When a player takes control of a campaign-specific or
    * scenario-specific player card [...] that player becomes the owner of that card until the game ends or another player
    * takes control of that card." Its home becomes theirs, so a discard goes to their discard pile.
+   *
+   * `keepOwner`: "Add 1 card attached here to your hand" used by a player who does not own the card (Plot Convenience,
+   * `deadpool` 44050; docs/phase7-wave7.md §4.1 Q53 = A): the card goes to `player`'s hand and stays its owner's. That
+   * player controls it there (RRG 1.8 "Ownership and Control", p. 31: "A player controls the cards in their own
+   * out-of-play areas") and may play or spend it; when it is discarded from that hand, or is an event that was played,
+   * "it is placed in its owner's discard pile" (the same entry), and so it is when it leaves play after being played.
+   * A card with no owner still takes `player` as its owner, as above.
    */
-  | { readonly kind: "takeIntoHand"; readonly cards: CardSelector; readonly player: PlayerRef }
+  | {
+      readonly kind: "takeIntoHand";
+      readonly cards: CardSelector;
+      readonly player: PlayerRef;
+      readonly keepOwner?: true;
+    }
   /**
    * Playing a card from hand from inside an ability. `player` chooses a card their hand holds that `filter` matches
    * and that can be played this way; `optional` is "you may". Exactly one of the two cost modes is set:

@@ -299,6 +299,7 @@ export function beginPlayerPhase(ctx: Ctx): void {
   // Setup's damage, or the villain phase's (its end-of-round effects included), is not the player phase's.
   clearDamageTakenThisPhase(ctx);
   clearCharacterActsThisPhase(ctx);
+  clearPlayedByPlayerThisPhase(ctx);
   // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
   // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
   const order = playerPhaseTurnOrder(
@@ -333,6 +334,16 @@ export function beginPlayerPhase(ctx: Ctx): void {
 function clearCharacterActsThisPhase(ctx: Ctx): void {
   if (ctx.state.characterActsThisPhase === undefined) return;
   const { characterActsThisPhase: _acts, ...rest } = ctx.state;
+  ctx.state = rest;
+}
+
+/**
+ * "…if you have played another card this phase" (`GameState.playedByPlayerThisPhase`): nobody has yet. Removed at the
+ * two phase boundaries with the phase's other records, never between two players' turns.
+ */
+function clearPlayedByPlayerThisPhase(ctx: Ctx): void {
+  if (ctx.state.playedByPlayerThisPhase === undefined) return;
+  const { playedByPlayerThisPhase: _played, ...rest } = ctx.state;
   ctx.state = rest;
 }
 
@@ -490,6 +501,7 @@ function finishPlayerPhase(ctx: Ctx): void {
   ctx.state = { ...ctx.state, playedThisPhase: {} };
   clearDamageTakenThisPhase(ctx);
   clearCharacterActsThisPhase(ctx);
+  clearPlayedByPlayerThisPhase(ctx);
   // RRG 1.8 "End of Player Phase" (p. 18) step 5, "Resolve any 'when/after the [player] phase ends' effects", as an event
   // when an ability listens (docs/phase7-wave3.md §3.2); its apply step then resolves the delayed effects below.
   const ending: TriggerEvent = { kind: "phaseEnding", phase: "player" };

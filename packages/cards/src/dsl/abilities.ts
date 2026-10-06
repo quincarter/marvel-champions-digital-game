@@ -915,12 +915,19 @@ export const maxSustainedDamage = (
  * docs/phase7-wave5.md §4.1 Q70): `constant(cannotResolveTriggeredAbilities(query("identity", { hostOfSelf: true }),
  * { identityFace: "hero" }))`. Every bold-timing ability on a matching card (actions and resources included) is neither
  * offered nor resolved; `timings` narrows it to those timing words.
+ *
+ * "Other players cannot resolve player card abilities during your turn." (The Merc with the Mouth, `deadpool` 44032):
+ * `cannotResolveTriggeredAbilities({}, { player: otherPlayers(), playerCards: true, while: duringTurnOf() })`. `player`
+ * scopes it to abilities those players would resolve, whoever controls the card; `playerCards` to player cards (RRG
+ * 1.8 "Player Card", p. 33). An event is played, not triggered from play: pair it with `cannotPlay` over events.
  */
 export const cannotResolveTriggeredAbilities = (
   on: TargetQuery,
   opts: {
     readonly identityFace?: Form;
     readonly timings?: readonly AbilityTimingWord[];
+    readonly player?: PlayerRef;
+    readonly playerCards?: true;
     readonly while?: Predicate;
   } = {},
 ): ConstantPart =>
@@ -929,6 +936,8 @@ export const cannotResolveTriggeredAbilities = (
     on,
     ...(opts.identityFace ? { identityFace: opts.identityFace } : {}),
     ...(opts.timings ? { timings: opts.timings } : {}),
+    ...(opts.player ? { player: opts.player } : {}),
+    ...(opts.playerCards ? { playerCards: true as const } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
@@ -1227,6 +1236,17 @@ export const excludedFromPlayerSideSchemeLimit = (
  */
 export const entersPlayExhausted = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   rules: [{ kind: "entersPlayExhausted", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Exhaust each ally you control." printed as a constant, with no "When Revealed" heading (The Merc with the Mouth,
+ * `deadpool` 44032; docs/phase7-wave7.md §4.1): `constant(keepsExhausted(query("ally", { controller: "you" })))`. A
+ * standing instruction (RRG 1.8 "Ability", p. 4): between frames every matching ready card in play is exhausted, so it
+ * covers the cards in play when this card enters, a card that enters play, and one that comes under your control. Pair
+ * it with a `cannotReady` rule when the card also says they cannot ready; alone, a card readied by the ready step is
+ * exhausted again at once.
+ */
+export const keepsExhausted = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "keepsExhausted", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
  * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`

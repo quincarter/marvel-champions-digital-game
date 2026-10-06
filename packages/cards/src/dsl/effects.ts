@@ -1810,11 +1810,22 @@ export const lookAtTopOfScenarioDeckThenPlace = (name: string, viewer: PlayerRef
   ];
 };
 
-/** "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md §3.10. */
-export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): EffectSpec => ({
+/**
+ * "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md
+ * §3.10; the taker becomes the card's owner. `keepOwner`: the card goes to `player`'s hand and stays its owner's
+ * (Plot Convenience, `deadpool` 44050, used by a player who does not own the attached card; docs/phase7-wave7.md §4.1
+ * Q53): discarded or spent from that hand, or played as an event, it goes to its owner's discard pile (RRG 1.8
+ * "Ownership and Control", p. 31).
+ */
+export const takeIntoHand = (
+  from: CardSelector,
+  player: PlayerRef = you,
+  opts: { readonly keepOwner?: true } = {},
+): EffectSpec => ({
   kind: "takeIntoHand",
   cards: from,
   player,
+  ...(opts.keepOwner ? { keepOwner: true as const } : {}),
 });
 
 /**

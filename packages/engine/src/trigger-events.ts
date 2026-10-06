@@ -11,6 +11,23 @@ import type { MainSchemeAdvancedBy, ZoneId } from "./state.js";
  * when it resolves through the stack (RRG "Ability: Simultaneous Timing
  * Priority").
  */
+/**
+ * What a pattern's `targetIs` reads of an event's target as the event happened, when the event itself may have changed
+ * it before an "after" ability is read (the family of `cardLeavesPlay.traits` and `characterDefeated.
+ * attachedInstanceIds`). A response reads the game as its triggering condition happened: the clauses of the query this
+ * carries are matched against it, every other clause against the card as it now is (`resolve/triggers.ts`).
+ *
+ * Carried today: the names. To carry more (the statuses an enemy held as an attack began, for "attacks and damages a
+ * confused enemy"), add an optional field here, fill it where the event is stamped, and read it in `snapshotClauses`
+ * beside the name clauses; an absent field falls back to the live card, so events stamped before it stay valid.
+ */
+export interface TargetSnapshot {
+  /** The name it was showing (`currentName`; `TargetQuery.name`). Absent for a card with none. */
+  readonly name?: string;
+  /** The titles (and subtitle) naming it (`titlesNaming`; `TargetQuery.titled`). */
+  readonly titles: readonly string[];
+}
+
 export type TriggerEventBody =
   | {
       readonly kind: "dealDamage";
@@ -74,6 +91,12 @@ export type TriggerEventBody =
        * no defeating player (`sourcePlayerOf`). What applies to any damage still applies: a tough status card absorbs it.
        */
       readonly noPlayer?: true;
+      /**
+       * The target as it took this damage (`TargetSnapshot`), stamped as the damage is applied, so it is absent in the
+       * damage's interrupt window and present in its response window. "After Deadpool takes damage" still names him
+       * when that damage turned him to his alter-ego side before the response is read (docs/phase7-wave7.md §3.79).
+       */
+      readonly targetAsDamaged?: TargetSnapshot;
     }
   | {
       readonly kind: "healDamage";

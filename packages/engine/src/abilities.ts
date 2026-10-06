@@ -822,6 +822,17 @@ export type RuleSpec =
    */
   | { readonly kind: "entersPlayExhausted"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Exhaust each ally you control." printed with no timing trigger (docs/phase7-wave7.md §4.1, 44032): text without a
+   * bold trigger is a constant ability (RRG 1.8 "Ability", p. 4), so it is a standing instruction while its card is in
+   * play, not a one-time effect. A continuous rule in the family of `keepsGivingStatus`, applied between frames: every
+   * card in play that `target` matches and that is ready becomes exhausted, logged `cardExhausted` once (an exhausted
+   * card is not exhausted again, RRG 1.8 "Exhausted", p. 19). It covers a card already in play when the rule's card
+   * enters, one that enters play, and one that changes control into the query (RRG 1.8 "Ownership and Control", p. 31:
+   * a character that changes control "remains in the same state", and then this applies). `target` is matched from the
+   * rule's speaker, as `cannotReady` is. Nothing is readied when the rule stops applying.
+   */
+  | { readonly kind: "keepsExhausted"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose." / "Damage you
    * deal using your basic attack power (ATK) can be divided among enemies as you choose." (Wasp's Giant form). Matching
    * characters may use `basicAttack.divide` / `basicThwart.divide`. FAQ "Wasp (#1C)" (RRG 1.8 p. 61): the targets are
@@ -888,12 +899,23 @@ export type RuleSpec =
    * printed in; an alter-ego's abilities stay usable. A forced ability it stops is not initiated: "cannot" is absolute
    * (RRG 1.8 "'Cannot'", p. 11), and a forced ability that cannot resolve is skipped as one with no valid target is
    * (RRG 1.8 "Forced", p. 20).
+   *
+   * `player`: "Other players cannot resolve player card abilities during your turn" (docs/phase7-wave7.md §4.1,
+   * 44032): only an ability one of these players would resolve is stopped, whoever controls its card (so another
+   * player's use of an "any player may trigger this" ability on your card is stopped, and your own is not). The players
+   * are read from the rule's speaker. An ability no player resolves (a forced ability on a card of the scenario's that
+   * speaks to nobody) is never stopped by a rule with `player`. `playerCards`: only an ability on a player card (RRG
+   * 1.8 "Player Card", p. 33; `select.ts isPlayerCard`), so an encounter card's abilities stay usable. A forced
+   * ability on a player card is stopped like any other: the Forced entry (p. 20) makes initiation mandatory, and "If
+   * two rules conflict, the rule with 'cannot' takes precedence" (p. 11).
    */
   | {
       readonly kind: "cannotResolveTriggeredAbilities";
       readonly on: TargetQuery;
       readonly identityFace?: Form;
       readonly timings?: readonly AbilityTimingWord[];
+      readonly player?: PlayerRef;
+      readonly playerCards?: true;
       readonly while?: Predicate;
     }
   /**

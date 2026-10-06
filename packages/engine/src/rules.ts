@@ -867,14 +867,17 @@ export const cannotTriggerAction = (
 
 /**
  * Whether a triggered ability with this trigger, on this card, cannot be resolved (`cannotResolveTriggeredAbilities`;
- * Induced Panic). A trigger with no bold timing word (a constant, When Revealed, …) is never stopped. `rules` lets a
- * caller that checks many abilities read the active rules once.
+ * Induced Panic). A trigger with no bold timing word (a constant, When Revealed, …) is never stopped. `resolver` is
+ * the player who would resolve the ability (null when no player would), read by a rule scoped to players (`player`:
+ * "Other players cannot resolve player card abilities during your turn"). `rules` lets a caller that checks many
+ * abilities read the active rules once.
  */
 export function triggeredAbilityForbidden(
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   trigger: AbilityTriggerSpec,
+  resolver: PlayerId | null,
   rules: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] = activeRules(
     state,
     deps,
@@ -884,8 +887,13 @@ export function triggeredAbilityForbidden(
   if (rules.length === 0) return false;
   const word = timingWordOf(trigger);
   if (word === null) return false;
-  return rules.some(({ rule, context }) => {
+  return rules.some((active) => {
+    const { rule, context } = active;
     if (rule.timings && !rule.timings.includes(word)) return false;
+    if (rule.player !== undefined) {
+      if (resolver === null || !rulePlayers(state, { player: rule.player }, active).includes(resolver)) return false;
+    }
+    if (rule.playerCards === true && !isPlayerCard(state, id)) return false;
     if (rule.identityFace !== undefined) {
       const seat = state.players.find((p) => p.identity.instanceId === id);
       if (seat?.identity.form !== rule.identityFace) return false;

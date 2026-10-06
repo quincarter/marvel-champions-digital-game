@@ -992,6 +992,11 @@ export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
 /**
+ * "During your turn" (The Merc with the Mouth, `deadpool` 44032): a player turn is in progress and `player` (default
+ * `you`) is the active player (RRG 1.8 "Active Player", p. 6). As a rule's `while`, "you" is the rule's speaker.
+ */
+export const duringTurnOf = (player: PlayerRef = { kind: "controller" }): Predicate => ({ kind: "turnOf", player });
+/**
  * "The first [card type] played each round" (Steve Rogers, Living Legend: "Reduce the cost of the first ally
  * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally that player
  * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
@@ -1084,6 +1089,22 @@ export const inCampaignLogField = (field: string, seat?: PlayerRef): Pick<Target
  */
 export const playedThisTurn = (cards: TargetQuery, opts: { player?: PlayerRef; atLeast?: number } = {}): Predicate => ({
   kind: "playedThisTurn",
+  player: opts.player ?? you,
+  cards,
+  ...(opts.atLeast !== undefined ? { atLeast: opts.atLeast } : {}),
+});
+
+/**
+ * "If you have played another card this phase" (Mulligan, `deadpool` 44048): at least `atLeast` (default 1) of the
+ * cards `player` played this phase match `cards`, wherever those cards are now. Unlike `playedThisTurn` it outlasts
+ * the turn: the player phase is one phase (RRG 1.8 "Player Phase", p. 34), and an Action event may be played during
+ * another player's turn. As a `playOnlyIf` it is read before the card's own play is recorded.
+ */
+export const playedThisPhase = (
+  cards: TargetQuery,
+  opts: { player?: PlayerRef; atLeast?: number } = {},
+): Predicate => ({
+  kind: "playedThisPhase",
   player: opts.player ?? you,
   cards,
   ...(opts.atLeast !== undefined ? { atLeast: opts.atLeast } : {}),

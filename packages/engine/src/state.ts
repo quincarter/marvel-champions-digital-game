@@ -929,6 +929,16 @@ export interface GameState {
    */
   readonly playedThisTurn?: Readonly<Record<string, readonly InstanceId[]>>;
   /**
+   * The cards each player has played **this phase**, in order: "You cannot play this card if you have played another
+   * card this phase" (Mulligan, `deadpool` 44048; docs/phase7-wave7.md §7.3). `playedThisTurn` is emptied when a turn
+   * ends and `playedThisPhase` counts titles across every player, so neither sees a card this player played in an
+   * earlier turn of the same player phase (an Action event may be played during another player's turn, RRG 1.8
+   * "Action", p. 6). Written when a play commits, in either phase; removed at every phase boundary, where
+   * `playedThisPhase` is emptied (the player phase is one phase across every turn, RRG 1.8 "Player Phase", p. 34).
+   * Absent until a phase's first play, so an older save reads as nothing played.
+   */
+  readonly playedByPlayerThisPhase?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
    * The scenario's own out-of-play game areas by name (`ZoneId scenarioArea`; The Collection, docs/phase7-wave3.md
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
    */

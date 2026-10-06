@@ -56,7 +56,7 @@ import {
   on,
   option,
   playOnlyIf,
-  playedThisTurn,
+  playedThisPhase,
   printedCostOf,
   putIntoPlay,
   query,
@@ -100,11 +100,12 @@ import { NEXT_EVOL_PRECON_CABLE_DECK } from "../next_evol/precon-cable-deck.js";
  *   reads the attack's `defender` slot through its bind: an ally of any player, or the identity of any other player. A
  *   defender who has left play by then still counts (the character did defend, RRG "Defend, Defense", p. 16).
  * - **Mulligan (44048)**: "You cannot play this card if you have played another card this phase" is a `playOnlyIf`
- *   over `GameState.playedThisTurn`, which is the player's turn, not the phase: a card played in an earlier turn of
- *   the same player phase is not seen (engine gap, pinned `it.fails` in the test: no this-phase-by-player predicate).
+ *   over `playedThisPhase`, the player's own plays this phase: a card they played in an earlier turn of the same
+ *   player phase, or during another player's turn, counts (RRG 1.8 "Player Phase", p. 34: one phase).
  * - **Deadpool Corps Ship (44049)**: the cost deals the player 1 facedown encounter card; any 'Pool ally in hand.
  * - **Plot Convenience (44050)**: `triggerableBy: eachPlayer`; the triggering player attaches from their hand or takes
- *   any attached card into their own hand, whoever owns it (Q53 = A, `takeIntoHand`). The data's constant ref ("Any
+ *   any attached card into their own hand, whoever owns it, and it stays its owner's (Q53 = A, `takeIntoHand` with
+ *   `keepOwner`; spent or discarded from that hand it goes to its owner's discard pile, RRG 1.8 p. 31). The data's constant ref ("Any
  *   player may trigger this ability.") is part of the Action. An aspect card includes 'Pool (spec §3.73).
  * - **Ambush (44051), Distraction (44054)**: crisis icon and "Max 1 per ..." are data.
  * - **Bazooka (44052)**: Restricted is data; discarding it is the cost, the icons are read as the attack resolves.
@@ -215,7 +216,7 @@ export const DEADPOOL_PACK_CARDS: AbilityRegistry = defineAbilities({
     ifThen(ANOTHER_DEFENDS, draw(1)),
   ),
 
-  "44048.mulligan-constant": constant(playOnlyIf(not(playedThisTurn(ANY_PLAYED_CARD)))),
+  "44048.mulligan-constant": constant(playOnlyIf(not(playedThisPhase(ANY_PLAYED_CARD)))),
   "44048.mulligan-action": action(discardFromHand(handSizeOf()), drawUpTo(handSizeOf())),
 
   "44049.deadpool-corps-ship-action": action(
@@ -233,7 +234,7 @@ export const DEADPOOL_PACK_CARDS: AbilityRegistry = defineAbilities({
       ]),
       option("Add 1 card attached here to your hand", { when: CAN_TAKE_FROM_HERE }, [
         chooseCards("banked", { kind: "ref", ref: each(FACEDOWN_HERE) }, { min: 1, max: 1 }),
-        takeIntoHand(cards(chosen("banked"))),
+        takeIntoHand(cards(chosen("banked")), you, { keepOwner: true }),
       ]),
     ),
   ),

@@ -4,19 +4,23 @@ import {
   attachCard,
   blanksTextBox,
   boost,
+  cannotResolveTriggeredAbilities,
   cards,
   confuse,
   constant,
   damageOn,
   defineAbilities,
   discard,
+  duringTurnOf,
   forcedResponse,
   heal,
   ifThen,
+  keepsExhausted,
   moveCards,
   named,
   not,
   on,
+  otherPlayers,
   placeThreat,
   query,
   reportFact,
@@ -41,18 +45,16 @@ const YOUR_ALLIES = query("ally", { controller: "you" });
  *   three plain sentences are one standing constant and the data keeps them in one `-constant` ref. "Exhaust each ally
  *   you control" is therefore a STANDING instruction, not a one-time reveal effect (contrast Sowing Discord 40161,
  *   "When Revealed: Exhaust each ally you control"): allies already in play are exhausted while the obligation is in
- *   play, and so is an ally that enters play or comes under your control; the next sentence stops them readying. The
- *   ref carries what the engine can express: allies you control cannot ready, and enter play exhausted. NOT SCRIPTED,
- *   three engine gaps (two pinned with `it.fails` in the test file): (a) "Other players cannot resolve player card
- *   abilities during your turn" needs a predicate for whose turn it is (`Predicate` has `gameStep` but no active
- *   player), so the ban (`cannotResolveTriggeredAbilities` on other players' player cards, `while` it is the holder's
- *   turn) cannot be written; (b) the standing exhaust of allies ALREADY in play when the Merc enters, and of an ally
- *   that changes control to you while it is in play: `entersPlayExhausted` covers neither (a card that changes
- *   controller has not entered play), a `stateCheckFromEntering` (ready ally you control -> exhaust it) needs its own
- *   ref and a ref carries one ability, and no rule kind keeps a card exhausted the way `keepsGivingStatus` keeps a
- *   status. Needed: a rule such as `keepsExhausted { target, while? }` applied between frames beside
- *   `applyKeptStatuses` (a level check: every matching ready character in play becomes exhausted, logged as a
- *   constant's doing), or a data ref for a standing check. The Forced Response: after the player phase ends, the Merc
+ *   play, and so is an ally that enters play or comes under your control; the next sentence stops them readying.
+ *   `keepsExhausted` is that standing instruction (a level read between frames: allies already in play, and one that
+ *   changes control to you); `entersPlayExhausted` stays beside it so an ally entering play is never ready, even
+ *   inside the effect that put it into play; `cannotReady` keeps them so. "Other players cannot resolve player card
+ *   abilities during your turn" is two rules, both `while` it is your turn (`duringTurnOf`, "you" being the player
+ *   whose play area the obligation is in): `cannotResolveTriggeredAbilities` scoped to the other players and to
+ *   player cards (Actions, interrupts, responses and resource abilities, forced or not: RRG 1.8 "'Cannot'", p. 11,
+ *   takes precedence over "Forced", p. 20; whoever controls the card, so another player's use of your Plot
+ *   Convenience is stopped too), and `cannotPlay` over their events, whose abilities resolve by being played.
+ *   Encounter cards' abilities, your own, and everything outside your turn are untouched. The Forced Response: after the player phase ends, the Merc
  *   player is asked (`reportFact`, spec Q50: online a text message or an open microphone counts, otherwise, and
  *   always on one device or solo, the client asks) whether they talked; "no" discards this card.
  * - **Butler (44033)**: his scheme threat goes on Involuntary Procedures while it is in play, else on the main scheme
@@ -67,8 +69,11 @@ const YOUR_ALLIES = query("ally", { controller: "you" });
  */
 export const DEADPOOL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "44032.the-merc-with-the-mouth-constant": constant(
-    rule({ kind: "cannotReady", target: YOUR_ALLIES }),
+    keepsExhausted(YOUR_ALLIES),
     rule({ kind: "entersPlayExhausted", target: YOUR_ALLIES }),
+    rule({ kind: "cannotReady", target: YOUR_ALLIES }),
+    cannotResolveTriggeredAbilities({}, { player: otherPlayers(), playerCards: true, while: duringTurnOf() }),
+    rule({ kind: "cannotPlay", player: otherPlayers(), cards: query("event"), while: duringTurnOf() }),
   ),
   "44032.the-merc-with-the-mouth-forced-response": forcedResponse(
     on.phaseEnding("player"),

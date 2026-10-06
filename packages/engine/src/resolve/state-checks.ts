@@ -17,6 +17,7 @@ import type { AbilityRegistry, RuleSpec } from "../abilities.js";
 import {
   discardStatusCards,
   endLastingEffect,
+  exhaustCard,
   giveStatus,
   setActiveVillain,
   type StatusDiscarded,
@@ -100,6 +101,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   clearForbiddenStatuses(ctx);
   // …and a constant "you are confused" keeps its character holding the status (White Queen; docs/phase7-wave6.md §3.9).
   applyKeptStatuses(ctx);
+  // …and a constant "exhaust each ally you control" keeps those cards exhausted (docs/phase7-wave7.md §4.1, 44032).
+  applyKeptExhaustion(ctx);
   // …and a card the first player controls follows the first player token (the Milano; §3.13).
   applyFirstPlayerControl(ctx);
   // …and an upgrade on a card another player controls is controlled by that player (RRG 1.8 p. 31).
@@ -252,6 +255,30 @@ function applyKeptStatuses(ctx: Ctx): void {
     for (const id of cardsInPlay(ctx.state)) {
       if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
       while (giveStatus(ctx, id, rule.status, by, "constant"));
+    }
+  }
+}
+
+/**
+ * "Exhaust each ally you control." as a constant (`RuleSpec keepsExhausted`; RRG 1.8 "Ability", p. 4: text with no
+ * bold timing trigger is a constant ability, active while its card is in play). A level like `applyKeptStatuses`: every
+ * pass between frames exhausts each matching ready card in play, so the rule's first observation exhausts the cards
+ * already there, and a card that enters play or changes control into the query is exhausted before the next frame
+ * resolves. An exhausted card is left alone (RRG 1.8 "Exhausted", p. 19), so each card is logged once per readying.
+ * Nothing is readied when the rule stops applying.
+ */
+function applyKeptExhaustion(ctx: Ctx): void {
+  if (
+    !hasRuleKind(ctx.deps.abilities, "keepsExhausted") &&
+    !scenarioHasRule(ctx, "keepsExhausted") &&
+    !ctx.state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "keepsExhausted")
+  )
+    return;
+  for (const { rule, speakerContext } of activeRules(ctx.state, ctx.deps, "keepsExhausted")) {
+    for (const id of cardsInPlay(ctx.state)) {
+      if (ctx.state.instances[id]?.exhausted !== false) continue;
+      if (!matchesQuery(ctx.state, id, rule.target, speakerContext)) continue;
+      exhaustCard(ctx, id);
     }
   }
 }

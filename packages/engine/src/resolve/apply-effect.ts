@@ -2657,7 +2657,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const patch: LeavePatch = {
           faceup: true,
           controllerId: playerId,
-          ...(instance.ownerId !== playerId ? { ownerId: playerId } : {}),
+          // `keepOwner`: another player's card stays its owner's in this hand (RRG 1.8 "Ownership and Control", p. 31).
+          ...(instance.ownerId !== playerId && (effect.keepOwner !== true || instance.ownerId === null)
+            ? { ownerId: playerId }
+            : {}),
         };
         // The new owner comes with the move, after any "when it leaves play" interrupt, which sees the card as it was;
         // `leavePlay` applies `patch` once the card has left, now or after its interrupts (wave 5 §4.1 Q17, Q35), and

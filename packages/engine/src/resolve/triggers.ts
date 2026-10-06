@@ -22,6 +22,7 @@ import {
   activeRules,
   type ActiveRule,
   cardsInPlay,
+  characterNames,
   controllerOf,
   type EffectContext,
   evaluate,
@@ -32,6 +33,7 @@ import {
   uncontrolledYouOf,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
+import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
 import type { Form, GameState } from "../state.js";
@@ -227,6 +229,21 @@ function matchesRest(
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
       if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
+    } else if (event.kind === "dealDamage" && event.targetAsDamaged !== undefined) {
+      // "After Deadpool takes damage": who the target was as it took the damage (`TargetSnapshot`), since the damage
+      // may have turned an identity to its other side before this is read (RRG 1.8 "Identity", p. 23: a title names
+      // only the side showing it). Only the top-level name clauses are read from the snapshot; the rest, and a name
+      // inside `anyOf`/`not`, read the card as it now is.
+      const { name, titled, ...rest } = query;
+      const was = event.targetAsDamaged;
+      const id = event.targetInstanceId;
+      if (name !== undefined && was.name !== name) return false;
+      if (
+        titled !== undefined &&
+        !characterNames(state, titled, context).some((wanted) => snapshotTitledAs(state, id, was.titles, wanted))
+      )
+        return false;
+      if (!matchesQuery(state, id, rest, context)) return false;
     } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }
   if (pattern.sourceIs) {
@@ -396,8 +413,10 @@ export function candidatesFor(
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
       // "You cannot resolve triggered abilities in your hero's printed text box" (Induced Panic): neither offered nor,
       // when forced, initiated (`cannotResolveTriggeredAbilities`).
+      // A rule scoped to players ("other players cannot resolve player card abilities") is read below, once the
+      // player who would resolve this one is known.
       noTriggers ??= activeRules(state, deps, "cannotResolveTriggeredAbilities");
-      if (triggeredAbilityForbidden(state, deps, id, trigger, noTriggers)) continue;
+      if (triggeredAbilityForbidden(state, deps, id, trigger, null, noTriggers)) continue;
       // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
       if (definition.playCostReduction) continue;
       // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13), nor does one a card
@@ -409,6 +428,7 @@ export function candidatesFor(
       if (named) {
         for (const playerId of named) {
           if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
+          if (triggeredAbilityForbidden(state, deps, id, trigger, playerId, noTriggers)) continue;
           if (offeredTo(state, deps, id, ref.id, definition, event, playerId)) {
             found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: playerId, definition }, forced));
           }
@@ -426,6 +446,7 @@ export function candidatesFor(
           ? state.firstPlayerId
           : (uncontrolledYouOf(state, id) ??
             (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
+      if (acting !== null && triggeredAbilityForbidden(state, deps, id, trigger, acting, noTriggers)) continue;
       // "Hero Response" on an encounter card gates the player who resolves it (docs/phase7-wave6.md §3.11).
       if (!formSatisfied(state, acting, trigger.form)) continue;
       if (!conditionHolds(state, deps, trigger, id, acting, event)) continue;
@@ -668,6 +689,8 @@ function inHandCandidates(
           if (!definition || definition.activeIn !== "hand") continue;
           const trigger = definition.trigger;
           if (trigger.kind !== timing || trigger.forced !== forced) continue;
+          // "Other players cannot resolve player card abilities during your turn": one used from a hand included.
+          if (triggeredAbilityForbidden(state, deps, id, trigger, player.playerId)) continue;
           if (!formSatisfied(state, player.playerId, trigger.form)) continue;
           if (!conditionHolds(state, deps, trigger, id, player.playerId, event)) continue;
           if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
@@ -786,9 +809,10 @@ export function stillOffered(
   } else if (cardsInPlay(state).includes(id)) {
     if (!activeAbilityRefs(state, id, deps).some((ref) => ref.id === candidate.abilityId)) return false;
     const noTriggers = activeRules(state, deps, "cannotResolveTriggeredAbilities");
-    if (triggeredAbilityForbidden(state, deps, id, trigger, noTriggers)) return false;
+    if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) return false;
   } else if (definition.activeIn === "hand") {
     if (!controllerId || !getPlayer(state, controllerId)?.hand.includes(id)) return false;
+    if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId)) return false;
   } else if (!answersFromOutOfPlay(event, id)) {
     return false; // it left play while the forced tier resolved
   }

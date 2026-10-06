@@ -67,6 +67,30 @@ export function identityCardTitledAs(card: HeroIdentityCard, name: string): bool
   return card.name === name || card.alterEgo.faceName === name || heroTitles.includes(name);
 }
 
+/**
+ * The plain names the character `id` answers to right now, as `characterTitledAs` reads them: the title it is showing,
+ * and for a character that is not an identity its subtitle. Empty for a facedown card. Carried on an event as the
+ * target's names when the event happened (`TargetSnapshot.titles`), so an "after" ability still finds a character
+ * whose faceup side has changed since.
+ */
+export function titlesNaming(state: GameState, id: InstanceId): readonly string[] {
+  const instance = getInstance(state, id);
+  const card: AnyCard | undefined = cardOf(state, id);
+  if (!instance || !card || instance.facedownAs) return [];
+  const isIdentity = card.type === "hero_identity" && state.players.some((p) => p.identity.instanceId === id);
+  const title = titleShowing(state, id);
+  const subtitle = !isIdentity && "subtitle" in card && typeof card.subtitle === "string" ? card.subtitle : undefined;
+  return [...(title !== undefined ? [title] : []), ...(subtitle !== undefined ? [subtitle] : [])];
+}
+
+/**
+ * `characterTitledAs` against the names a character had when an event happened (`TargetSnapshot.titles`). A
+ * "Hero/Alter-ego" name is one identity card by both of its sides, whichever is up, so it is read from the card.
+ */
+export function snapshotTitledAs(state: GameState, id: InstanceId, titles: readonly string[], name: string): boolean {
+  return slashName(name) ? characterTitledAs(state, id, name) : titles.includes(name);
+}
+
 /** Whether the character `id` is named by `name` right now (see the module docblock). Facedown cards have no title. */
 export function characterTitledAs(state: GameState, id: InstanceId, name: string): boolean {
   const instance = getInstance(state, id);

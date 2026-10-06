@@ -174,6 +174,11 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         } else {
           moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
         }
+        // In its owner's out-of-play area it is its owner's to control again (RRG 1.8 "Ownership and Control", p. 31:
+        // "A player controls the cards in their own out-of-play areas"), whoever played it.
+        if (ownerId && mustInstance(ctx.state, frame.instanceId).controllerId !== ownerId) {
+          updateInstance(ctx, frame.instanceId, (i) => ({ ...i, controllerId: ownerId }));
+        }
       }
       announce(ctx, { kind: "cardPlayed", instanceId: frame.instanceId, playerId: frame.playerId });
       return;

@@ -781,7 +781,11 @@ function resourceAbilityFault(
   if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
   }
-  if (triggeredAbilityForbidden(state, deps, instanceId, definition.trigger)) {
+  // The player who resolves a resource ability is its card's controller, also when it generates "for any player" and
+  // another player spends it (RRG 1.8 "Ownership and Control", p. 31); the payer on a card no player controls.
+  if (
+    triggeredAbilityForbidden(state, deps, instanceId, definition.trigger, controllerOf(state, instanceId) ?? playerId)
+  ) {
     return { code: "no_valid_target", message: `${abilityId} cannot be resolved right now` };
   }
   // "…generate a [wild] resource for any player" (the Milano; docs/phase7-wave3.md §3.13); any player's, for an
@@ -2889,6 +2893,11 @@ export function commitPlay(
       ...ctx.state.playedByPlayerThisRound,
       [byPlayer]: (ctx.state.playedByPlayerThisRound[byPlayer] ?? 0) + 1,
     },
+    // "…if you have played another card this phase" (`Predicate playedThisPhase`): this player's plays, in any phase.
+    playedByPlayerThisPhase: {
+      ...ctx.state.playedByPlayerThisPhase,
+      [playerId]: [...(ctx.state.playedByPlayerThisPhase?.[playerId] ?? []), cardInstanceId],
+    },
     // "…if you have played a [Thwart] event this turn" (docs/phase7-wave3.md §3.24); only during a player's turn.
     ...(turnInProgress(ctx.state)
       ? {
@@ -3577,7 +3586,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
     return engineError("no_valid_target", "that ability cannot be triggered right now", command);
   }
   // "You cannot resolve triggered abilities in your hero's printed text box" (`cannotResolveTriggeredAbilities`).
-  if (triggeredAbilityForbidden(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger)) {
+  if (triggeredAbilityForbidden(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger, command.playerId)) {
     return engineError("no_valid_target", "that ability cannot be resolved right now", command);
   }
   if (actionConditionUnmet(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
@@ -3602,6 +3611,16 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (!named && controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);
+  }
+  // An encounter card may be triggered by any player (RRG 1.8 "Action", p. 6), except one attached to a player's card:
+  // RRG 1.8 "Attachment" (p. 8), "Only the player who controls the card to which that attachment is attached can
+  // trigger abilities or pay costs on that attachment." One attached to an enemy or a scheme, which no player controls,
+  // stays any player's. Text that names who may trigger it (`triggerableBy`) replaces this as it does the rule above.
+  if (!named && controller === null && instance.attachedTo !== null) {
+    const hostController = controllerOf(ctx.state, instance.attachedTo);
+    if (hostController !== null && hostController !== command.playerId) {
+      return engineError("no_valid_target", "only the player it is attached to can use that card", command);
+    }
   }
   // An obligation is controlled by nobody, but RRG 1.8 "Obligation" (p. 30): "Only the player with the obligation in
   // their play area can trigger abilities or pay costs on that obligation" (MC10 p. 17 says the same of its Alter-Ego

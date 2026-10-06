@@ -2458,6 +2458,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return (
         state.step.phase === predicate.phase && (predicate.step === undefined || state.step.kind === predicate.step)
       );
+    case "turnOf":
+      return (
+        state.step.phase === "player" &&
+        state.step.kind === "turn" &&
+        resolvePlayers(state, predicate.player, context).includes(state.step.activePlayerId)
+      );
     case "isAttached": {
       const [id] = resolveRef(state, predicate.of, context);
       return id !== undefined && getInstance(state, id)?.attachedTo !== null && getInstance(state, id) !== undefined;
@@ -2477,6 +2483,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const [playerId] = resolvePlayers(state, predicate.player, context);
       if (playerId === undefined) return false;
       const played = state.playedThisTurn?.[playerId] ?? [];
+      const matching = played.filter((id) => matchesQuery(state, id, predicate.cards, context)).length;
+      return matching >= (predicate.atLeast ?? 1);
+    }
+    case "playedThisPhase": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      if (playerId === undefined) return false;
+      const played = state.playedByPlayerThisPhase?.[playerId] ?? [];
       const matching = played.filter((id) => matchesQuery(state, id, predicate.cards, context)).length;
       return matching >= (predicate.atLeast ?? 1);
     }

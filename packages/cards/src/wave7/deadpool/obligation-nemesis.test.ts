@@ -372,12 +372,31 @@ describe("The Merc with the Mouth (44032): the obligation", () => {
       expect(isIn(playerOf(state, P1).playArea, merc.id)).toBe(true);
       expect(inst(state, hopeOf(state)).exhausted).toBe(true);
     });
-    it("only YOUR allies: the Merc is another player's, so Hope (under the first player's control) is readied", () => {
+    it("only YOUR allies: the Merc is another player's, so Hope (under the first player's control) is readied in the ready step", () => {
       const base = baseGame([SPIDER_MAN, DEADPOOL]);
       expect(inst(base, hopeOf(base)).controllerId).toBe(P1);
       const merc = withMerc(patchInstance(base, hopeOf(base), { exhausted: true }), P2);
-      const { state } = run(merc.state, saying("yes"), ...endPhase(merc.state));
-      expect(inst(state, hopeOf(state)).exhausted).toBe(false);
+      const { events: log } = run(merc.state, saying("yes"), ...endPhase(merc.state));
+      const hope = hopeOf(base);
+      const readied = log.findIndex((e) => e.type === "cardReadied" && e.instanceId === hope);
+      const passed = log.findIndex((e) => e.type === "controllerChanged" && e.instanceId === hope);
+      expect(readied).toBeGreaterThanOrEqual(0);
+      expect(readied).toBeLessThan(passed);
+      expect(log.slice(0, passed).filter((e) => e.type === "cardExhausted" && e.instanceId === hope)).toEqual([]);
+    });
+    it("an ally that comes under your control is exhausted: Hope follows the first player token to the Merc player", () => {
+      // RRG 1.8 "Ownership and Control" (p. 31): she changes control in the state she is in (ready), and the standing
+      // "Exhaust each ally you control" then reads her under her new controller.
+      const base = baseGame([SPIDER_MAN, DEADPOOL]);
+      const hope = hopeOf(base);
+      const merc = withMerc(base, P2);
+      const { state, events: log } = run(merc.state, saying("yes"), ...endPhase(merc.state));
+      expect(state.firstPlayerId).toBe(P2);
+      expect(inst(state, hope).controllerId).toBe(P2);
+      expect(inst(state, hope).exhausted).toBe(true);
+      const mine = log.filter((e) => "instanceId" in e && e.instanceId === hope).map((e) => e.type);
+      expect(mine.slice(mine.indexOf("controllerChanged"))).toEqual(["controllerChanged", "cardExhausted"]);
+      expect(events(log, "cardExhausted").filter((e) => e.instanceId === hope)).toHaveLength(1);
     });
     it("an ally put into play while the Merc is in your play area enters exhausted; without it, ready", () => {
       const hand = moveToHand(heroGame(), P1, DOGPOOL).state;
@@ -560,8 +579,33 @@ describe("The Merc with the Mouth (44032): the obligation", () => {
     it("control: without the Merc another player may play an Action event during Deadpool's turn", () => {
       expect(webKick(false).ok).toBe(true);
     });
-    it.fails("ENGINE GAP (no predicate for whose turn it is): with the Merc in play P2's Action is refused during P1's turn", () => {
+    it("with the Merc in play P2's Action event is refused during P1's turn", () => {
       expect(webKick(true).ok).toBe(false);
+    });
+    it("outside the Merc player's turn nothing is stopped: P2 plays the Action event in their own turn", () => {
+      const base = heroGame([DEADPOOL, SPIDER_MAN]);
+      const turned = run(withMerc(base).state, firstLegal, endTurn(P1)).state;
+      expect(turned.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P2 });
+      const given = moveToHand(turned, P2, WEB_KICK);
+      const id = given.ids[0]!;
+      const pay = payWith(given.state, P2, 3, [id]);
+      const paid = pay.reduce((acc, p) => patchInstance(acc, p, { cardId: "01088" as never }), given.state);
+      expect(applyCommand(paid, play(P2, id, pay), DEPS).ok).toBe(true);
+    });
+    it("the Merc in P2's play area stops P1 during P2's turn, and not P2 during P1's", () => {
+      const base = heroGame([SPIDER_MAN, DEADPOOL]);
+      const merc = withMerc(base, P2);
+      // P1's turn: the Merc player (P2) offers an Action event off-turn, which nothing forbids.
+      const mine = moveToHand(merc.state, P2, "44003");
+      expect(applyCommand(mine.state, play(P2, mine.ids[0]!, []), DEPS).ok).toBe(true);
+      // P2's turn: P1's Action event is refused.
+      const turned = run(merc.state, firstLegal, endTurn(P1)).state;
+      expect(turned.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P2 });
+      const given = moveToHand(turned, P1, WEB_KICK);
+      const id = given.ids[0]!;
+      const pay = payWith(given.state, P1, 3, [id]);
+      const paid = pay.reduce((acc, p) => patchInstance(acc, p, { cardId: "01088" as never }), given.state);
+      expect(applyCommand(paid, play(P1, id, pay), DEPS).ok).toBe(false);
     });
     it("the Merc player's own abilities are untouched in their own turn", () => {
       const base = heroGame([DEADPOOL, SPIDER_MAN]);
@@ -572,7 +616,7 @@ describe("The Merc with the Mouth (44032): the obligation", () => {
   });
 
   describe("Standing exhaust (owner ruling 2026-10-05: no When Revealed header): allies already in play are exhausted", () => {
-    it.fails("ENGINE GAP (no rule keeps a character exhausted; a stateCheck needs its own ref): an ally already in play and ready is exhausted once the Merc is in play", () => {
+    it("an ally already in play and ready is exhausted once the Merc is in play", () => {
       const base = baseGame();
       const hope = instancesOf(base, HOPE)[0]!;
       expect(inst(base, hope).exhausted).toBe(false);
@@ -767,10 +811,19 @@ describe("Involuntary Procedures (44034): the side scheme", () => {
       expect(playerOf(state, P1).eliminated).toBe(false);
     });
     // §3.79: "Involuntary Procedures gains its threat from this damage". The response is read after the replacement,
-    // when he is already Wade Wilson, so "Deadpool" no longer names him and the threat is not placed (it stays 6).
-    it.fails("ENGINE GAP/RULES Q: the regenerating damage itself is 'Deadpool taking damage': 1 threat is placed", () => {
+    // when he is already Wade Wilson; the damage event carries who took it (`dealDamage.targetAsDamaged`).
+    it("the regenerating damage itself is 'Deadpool taking damage': 1 threat is placed", () => {
       const side = withProcedures(6);
       const { state } = playFixture(side.state, "44003", 0);
+      expect(threatOf(state, side.id)).toBe(7);
+      expect(formOf(state)).toBe("alterEgo");
+    });
+    it("damage Wade Wilson takes afterwards still places nothing", () => {
+      const side = withProcedures(6);
+      const turned = playFixture(side.state, "44003", 0).state;
+      const { state } = playFixture(patchInstance(turned, identityOf(turned), { damage: 0 }), "44006", 1);
+      expect(formOf(state)).toBe("alterEgo");
+      expect(damageOn(state)).toBe(4);
       expect(threatOf(state, side.id)).toBe(7);
     });
   });
@@ -888,18 +941,28 @@ describe("Tabula Rasa 16 (44035): the attachment", () => {
       const go = useIt(tab.state, tab.id, "01089", 2);
       expect(applyCommand(go.state, go.command, DEPS).ok).toBe(false);
     });
-    // RRG "Attachment" (p. 8): "Only the player who controls the card to which that attachment is attached can trigger
-    // abilities or pay costs on that attachment." The engine lets any player use it.
-    it.fails("ENGINE GAP: two players: the Spider-Man seat cannot use it (it is not attached to their identity)", () => {
-      const tab = tabulaOn(baseGame([DEADPOOL, SPIDER_MAN]), P1);
-      const hand = resourceHand(tab.state, P2, "01089", 2);
+    // RRG 1.8 "Attachment" (p. 8): "Only the player who controls the card to which that attachment is attached can
+    // trigger abilities or pay costs on that attachment."
+    const byPlayer = (on: PlayerId, actor: PlayerId) => {
+      const tab = tabulaOn(baseGame([DEADPOOL, SPIDER_MAN]), on);
+      const hand = resourceHand(tab.state, actor, "01089", 2);
       const command = use(
-        P2,
+        actor,
         tab.id,
         TABULA_ACTION,
         hand.ids.map((fromHand) => ({ fromHand })),
       );
-      expect(applyCommand(hand.state, command, DEPS).ok).toBe(false);
+      return applyCommand(hand.state, command, DEPS);
+    };
+    it("two players: the Spider-Man seat cannot use it (it is not attached to their identity)", () => {
+      const refused = byPlayer(P1, P2);
+      expect(refused.ok).toBe(false);
+      expect(!refused.ok && refused.error.code).toBe("no_valid_target");
+      expect(byPlayer(P1, P1).ok).toBe(true);
+    });
+    it("two players: attached to the Spider-Man seat's identity, that player uses it and Deadpool's cannot", () => {
+      expect(byPlayer(P2, P2).ok).toBe(true);
+      expect(byPlayer(P2, P1).ok).toBe(false);
     });
   });
   describe("Boost: attach Tabula Rasa 16 to your identity", () => {
