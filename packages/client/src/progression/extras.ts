@@ -399,6 +399,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/mojo/battle.mp3": "Tyrant's Prime Time",
   "scenarios/mojo/villain-loses.mp3": "The Show Is Cancelled",
   "scenarios/mojo/villain-wins.mp3": "Renewed for Another Season",
+  "scenarios/morlock-siege/battle.mp3": "Beneath the City",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
