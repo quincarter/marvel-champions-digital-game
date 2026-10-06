@@ -76,6 +76,7 @@ export default defineConfig({
         "break-time.spec.ts",
         "angel-form.spec.ts",
         "off-turn-action.spec.ts",
+        "which-ability.spec.ts",
       ],
     },
   ],

@@ -14,6 +14,7 @@ import type { FormSource } from "../../view/change-form-choice.js";
 import type { InPlayCostChoiceState } from "../../view/in-play-cost-choice.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
+import type { EventAbilityOption } from "../../view/event-ability-choice.js";
 import type { PaymentState } from "../../view/payment-model.js";
 import { aimedAt } from "../../view/play-aim.js";
 
@@ -79,6 +80,11 @@ export type Selection =
    */
   | { readonly kind: "choosingForm"; readonly sources: readonly FormSource[] }
   /**
+   * An event with more than one usable Action ability was played (RRG 1.8 "Event", p. 18): which one is the player's
+   * call, asked before anything is paid (`view/event-ability-choice.ts`). Cancel puts the card back with nothing spent.
+   */
+  | { readonly kind: "choosingAbility"; readonly entry: LegalAction; readonly options: readonly EventAbilityOption[] }
+  /**
    * An either/or cost branch, or how many counters an "up to N" cost removes, needs choosing before payment can
    * even be priced — a branch changes what the cost *is* (docs/phase7-wave3.md §3.32, §3.36), so this happens
    * before, not during, the payment mode (`view/cost-choice-model.ts`).
@@ -131,6 +137,10 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
   }
   if (selection.kind === "choosingController") {
     return "rest";
+  }
+  if (selection.kind === "choosingAbility") {
+    const { action } = selection.entry;
+    return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
   }
   if (selection.kind === "confirmingPlay") {
     // The card being asked about wears the ring; everything else steps back, as in any other open decision.

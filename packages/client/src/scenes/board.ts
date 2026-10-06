@@ -343,6 +343,13 @@ export class BoardScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-T", () => {
       if (!binding.blocked() && this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
     });
+    // 1 to 3 answer "Which one?" (a played event with several usable Action abilities).
+    ["ONE", "TWO", "THREE"].forEach((key, index) => {
+      this.input.keyboard?.on(`keydown-${key}`, () => {
+        const option = this.#controller.abilityChoice()?.options[index];
+        if (option && !binding.blocked()) void this.#controller.chooseEventAbility(option.abilityId);
+      });
+    });
     bindGamepad(this, binding);
     // A wheel/trackpad gesture over the hand scrolls it, on any layout that
     // needs scrolling at all — the tabbed board is the only one that ever
