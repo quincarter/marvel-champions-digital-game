@@ -34,6 +34,7 @@ import {
   type PaymentSource,
   type PlayerId,
 } from "@mc/engine";
+import { thwartUsesAtk } from "./attacker-choice.js";
 import { schemePanel } from "./board-model.js";
 import { cardName } from "./names.js";
 import type { PaymentView } from "./payment-model.js";
@@ -106,7 +107,7 @@ export function schemeFinishHint(state: GameState, deps: EngineDeps, playerId: P
   };
 }
 
-/** The best legal basic thwart's own THW against the main scheme, or 0 when none is legal — shared by
+/** The best legal basic thwart's own THW (its ATK against an assault scheme) against the main scheme, or 0 when none is legal — shared by
  * `schemeFinishHint` and `schemeCloseHint`, whose safe actions both offer "Thwart first −N". */
 function bestThwartOf(
   state: GameState,
@@ -124,7 +125,12 @@ function bestThwartOf(
   return thwartMatches.reduce((max, entry) => {
     const action = entry.action;
     return action.kind === "basicThwart"
-      ? Math.max(max, characterProfile(state, action.instanceId, deps)?.thw ?? 0)
+      ? Math.max(
+          max,
+          (thwartUsesAtk(state, deps, [mainSchemeInstanceId])
+            ? characterProfile(state, action.instanceId, deps)?.atk
+            : characterProfile(state, action.instanceId, deps)?.thw) ?? 0,
+        )
       : max;
   }, 0);
 }
