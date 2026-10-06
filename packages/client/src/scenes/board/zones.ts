@@ -42,6 +42,8 @@ import {
   environmentStripRoom,
   isCompactEnvironment,
 } from "../../view/environment-layout.js";
+import { POOL_DEPS } from "../../content/pool.js";
+import { otherSeatAbilityCards, type OtherSeatAbilityCard } from "../../view/other-seat-abilities.js";
 import { seatLineOffsets, teamLayout, type TeamLayout } from "../../view/team-layout.js";
 import { encounterPileSlots, pileChipsOf, setAsideLines } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
@@ -896,7 +898,18 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const { scene } = ctx;
   const g = scene.add.graphics();
   paintPanel(g, rect, "rail", "rest");
-  const layout = teamLayout(rect, model.team.length);
+  // Cards another seat controls that this player may use now ("any player" Actions), as chips under that seat's row.
+  const { game, legal } = appSession().store.state;
+  const usable = game
+    ? otherSeatAbilityCards(game, legal?.actions ?? null, model.perspectiveId, POOL_DEPS).filter(
+        (card) => ctx.controller.abilityLine(card.instanceId) !== null,
+      )
+    : [];
+  const layout = teamLayout(
+    rect,
+    model.team.length,
+    model.team.map((seat) => !seat.eliminated && usable.some((card) => card.seatId === seat.playerId)),
+  );
   if (layout.header) label(scene, rect.x + 8, rect.y + 6, "other heroes", typeRole.label, surface.ink.hex, ink.label);
 
   model.team.forEach((seat, index) => {
@@ -932,12 +945,45 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
         }),
       );
     }
+    const strip = layout.chips[index];
+    if (strip)
+      drawSeatChips(
+        ctx,
+        strip,
+        usable.filter((card) => card.seatId === seat.playerId),
+      );
     if (rings) {
       for (const slot of beside.slots) {
         const badge = badges.find((candidate) => slot.key === `${candidate.key}@${seat.identityInstanceId}`);
         if (badge) drawTeamUpRing(scene, slot, badge, rings);
       }
     }
+  });
+}
+
+/** One chip per usable card, side by side under the seat's row: "▶ Plot Convenience". A tap opens it in Inspect. */
+function drawSeatChips(ctx: BoardDrawContext, strip: Rect, cards: readonly OtherSeatAbilityCard[]): void {
+  const { scene } = ctx;
+  const gap = 4;
+  const width = (strip.width - gap * (cards.length - 1)) / cards.length;
+  cards.forEach((card, index) => {
+    const chip: Rect = { x: strip.x + index * (width + gap), y: strip.y, width, height: strip.height };
+    const g = scene.add.graphics();
+    paintPanel(g, chip, "card", targetState(ctx.controller.selection, card.instanceId));
+    fitText(
+      scene.add
+        .text(
+          chip.x + 6,
+          chip.y + chip.height / 2,
+          `\u25b6 ${card.name}`,
+          textStyle(typeRole.label, signal.heal.hex, 1),
+        )
+        .setOrigin(0, 0.5),
+      width - 12,
+      typeRole.label.size,
+    );
+    ctx.frame.hitRects.set(card.instanceId, chip);
+    ctx.makeTapTarget(chip, card.instanceId, () => ctx.inspect(card.instanceId));
   });
 }
 

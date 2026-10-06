@@ -368,13 +368,10 @@ test("Plot Convenience (44050): the player who owns it attaches an aspect card f
 });
 
 // "Any player may trigger this ability" (Plot Convenience's printed text; script `triggerableBy: eachPlayer`; engine
-// test precon-e2e.test.ts "Plot Convenience across two players"). On Spider-Man's turn the board shows Deadpool only as
-// a summary row with "Act", which switches the board to Deadpool's own seat; another seat's play area is not drawn,
-// so Plot Convenience is not a tile Spider-Man can tap. The engine does list it (`legal-other-players-cards.test.ts`),
-// but only for a player who can attach or take: in this fixture Spider-Man holds no aspect card and nothing is attached
-// yet, so his entry is illegal ("its condition is not met"). Pinned until the client draws another seat's usable cards
-// and the fixture gives the second player an aspect card.
-test.fixme("Plot Convenience (44050): another player triggers it from their own turn", async ({ page }) => {
+// test precon-e2e.test.ts "Plot Convenience across two players"). On Spider-Man's turn the board shows Deadpool as a
+// summary row; the card the engine lists for Spider-Man is a chip on that row ("view/other-seat-abilities.ts"), which
+// opens in Inspect like any card. The fixture gives Spider-Man a Justice ally (Daredevil) to attach.
+test("Plot Convenience (44050): another player triggers it from their own turn", async ({ page }) => {
   test.setTimeout(240_000);
   await launch(page, "plotConvenience");
   await dismissRecap(page);
@@ -384,16 +381,39 @@ test.fixme("Plot Convenience (44050): another player triggers it from their own 
   if (confirm) await press(page, false, confirm.x, confirm.y);
   await settle(page, { quietMs: 800, maxMs: 4000 });
   await dismissRecap(page);
-  const legal = await page.evaluate(async () => {
-    const { appSession } = (await import("/src/session.ts")) as unknown as {
-      appSession: () => { store: { state: any } };
+  const phone = page.viewportSize()!.width < 600;
+  if (phone) await boardPress(page, /^team$/i);
+  await shot(page, "plot-convenience-chip");
+  // Spider-Man's turn: Deadpool's Plot Convenience is a chip on his row, and tapping it opens the card.
+  await boardPress(page, /^▶ plot convenience$/i);
+  await boardPress(page, /^plot convenience/i, "InspectOverlay", 600);
+  for (let step = 0; step < 4 && (await pending(page)) === null; step++)
+    await settle(page, { quietMs: 400, maxMs: 1500 });
+  for (let step = 0; step < 3 && (await pending(page)) !== null; step++) {
+    const open = (await pending(page))!;
+    expect(["chooseOne", "chooseCards"]).toContain(open.prompt.kind);
+    await shot(page, `plot-convenience-spider-${step}`);
+    await answer(page);
+  }
+  await waitFor(async () => ((await pending(page)) === null ? true : null), "the game continues", 15000);
+  const plot = await instanceOfCode(page, "44050");
+  expect(plot.attachments.length, "one card is under Plot Convenience").toBe(1);
+  const under = await stateOf(page, (g) => {
+    const attached =
+      g.instances[Object.entries<any>(g.instances).find(([, i]) => i.cardId === "44050")![0]].attachments[0];
+    return {
+      code: g.instances[attached].cardId,
+      faceup: g.instances[attached].faceup,
+      owner: g.players.findIndex((pl: any) => pl.playerId === g.instances[attached].ownerId),
+      inSpiderHand: g.players[1].hand.includes(attached),
     };
-    const a = appSession().store.state.legal?.actions;
-    return (a?.legal ?? []).some(
-      (e: any) => e.action.kind === "useAbility" && /plot-convenience/.test(e.action.abilityId),
-    );
   });
-  expect(legal, "Spider-Man's turn offers Deadpool's Plot Convenience").toBe(true);
+  expect(under, "Spider-Man's Daredevil sits facedown under it, out of his hand").toEqual({
+    code: "01058",
+    faceup: false,
+    owner: 1,
+    inSpiderHand: false,
+  });
 });
 
 test("Git Gud (44028): with no previous-game fact it costs 2 less (free), and the board offers no way to say the player won", async ({

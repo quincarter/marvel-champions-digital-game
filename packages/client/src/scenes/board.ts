@@ -190,6 +190,7 @@ export class BoardScene extends Phaser.Scene {
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
+    hasTile: (id) => this.#frame.focusRects.has(focusKey({ kind: "card", instanceId: id })),
     // A ring on the tab being shown is a stop at the end of the focus route; Enter opens its panel.
     teamUpKeys: () =>
       [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("teamUp:")).map((key) => key.slice(7)),

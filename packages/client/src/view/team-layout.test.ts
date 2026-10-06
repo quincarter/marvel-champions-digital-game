@@ -50,3 +50,17 @@ describe("teamLayout", () => {
     expect(detail + 11).toBeLessThanOrEqual(TEAM_ROW_MIN);
   });
 });
+
+describe("teamLayout chip strips", () => {
+  it("gives a seat with usable cards a 24px strip under its row and shifts the rows below it", () => {
+    const plain = teamLayout(panel(400), 2);
+    expect(plain.chips).toEqual([null, null]);
+    const withChips = teamLayout(panel(400), 2, [true, false]);
+    const first = withChips.rows[0]!;
+    expect(withChips.chips[0]).toEqual({ x: first.x, y: first.y + first.height + 2, width: first.width, height: 24 });
+    expect(withChips.chips[1]).toBeNull();
+    expect(withChips.rows[1]!.y).toBeGreaterThanOrEqual(withChips.chips[0]!.y + 24);
+    const last = withChips.rows[1]!;
+    expect(last.y + last.height).toBeLessThanOrEqual(panel(400).y + panel(400).height);
+  });
+});

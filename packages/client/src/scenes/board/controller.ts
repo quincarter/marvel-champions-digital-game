@@ -88,6 +88,8 @@ export interface BoardControllerHost {
   holdOn(hint: Hint, actions: { onSafe: () => void; onAnyway: () => void }): void;
   /** The Team-Up pairs whose ring is on the table now (each a stop at the end of the idle focus route), and what Enter on one does. */
   teamUpKeys?(): readonly string[];
+  /** True when the card has a tile or chip on screen right now (it has a focus rect). */
+  hasTile?(id: InstanceId): boolean;
   openTeamUp?(pairKey: string): void;
 }
 
@@ -304,7 +306,12 @@ export class BoardController {
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
     return focusOrder(
-      { kind: "idle", hand: model.hand.map((card) => card.instanceId), teamUps: this.#host.teamUpKeys?.() ?? [] },
+      {
+        kind: "idle",
+        hand: model.hand.map((card) => card.instanceId),
+        teamUps: this.#host.teamUpKeys?.() ?? [],
+        ...(this.#host.hasTile ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) } : {}),
+      },
       marks,
     );
   }

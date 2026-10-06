@@ -62,7 +62,15 @@ export function deadpoolQaConfig(which: DeadpoolQaCard): SessionConfig {
     players: setup.twoPlayers ? [deadpool, { starterDeckId: "core-spider-man-justice" }] : [deadpool],
     seed: 3,
     stack: {
-      ...(which === "merc" ? {} : { players: { 0: ids("44017", setup.code) } }),
+      ...(which === "merc"
+        ? {}
+        : {
+            players: {
+              0: ids("44017", setup.code),
+              // Plot Convenience is legal for a second player only with an aspect card to attach: a Justice ally.
+              ...(which === "plotConvenience" ? { 1: ids("01058") } : {}),
+            },
+          }),
       ...(setup.encounter ? { encounter: ids(...setup.encounter) } : {}),
     },
   };
