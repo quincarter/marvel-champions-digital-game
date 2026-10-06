@@ -403,6 +403,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/morlock-siege/villain-loses.mp3": "The Morlocks Stand",
   "scenarios/morlock-siege/villain-wins.mp3": "Teeth in the Tunnel",
   "scenarios/on-the-run/battle.mp3": "The Hunt for Hope",
+  "scenarios/on-the-run/villain-wins.mp3": "Iron Monolith",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
