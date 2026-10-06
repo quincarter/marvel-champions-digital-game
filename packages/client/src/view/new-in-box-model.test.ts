@@ -53,6 +53,21 @@ describe("boxPages", () => {
     }
   });
 
+  it("lists NeXt Evolution's new entries by group", () => {
+    const p = page("cycle7");
+    expect(ids(p.keywords)).toEqual(["assault", "linked"]);
+    expect(ids(p.heroMechanics)).toEqual([
+      "actionsOtherTurns",
+      "perPlayerCost",
+      "playerSideScheme",
+      "poolAspect",
+      "psiBlades",
+      "specialists",
+      "threeFaceIdentity",
+    ]);
+    expect(ids(p.scenarioMechanics)).toEqual(["hopeSummers", "routed", "setupAttachments"]);
+  });
+
   it("lists Mutant Genesis' new entries by group", () => {
     const p = page("cycle6");
     expect(ids(p.keywords)).toEqual(["amplify", "find", "teamwork", "temporary"]);

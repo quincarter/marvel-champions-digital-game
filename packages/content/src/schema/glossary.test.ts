@@ -202,6 +202,27 @@ describe("wave 6 mechanics (guided mode section 3.14)", () => {
     "longshot",
   ] as const;
 
+  it("every wave 7 concept id has a sourced concept entry in cycle7", () => {
+    for (const id of [
+      "playerSideScheme",
+      "perPlayerCost",
+      "poolAspect",
+      "specialists",
+      "threeFaceIdentity",
+      "psiBlades",
+      "hopeSummers",
+      "actionsOtherTurns",
+      "routed",
+      "setupAttachments",
+    ] as const) {
+      const entry = glossaryEntry(id);
+      expect(entry?.kind, id).toBe("concept");
+      expect(entry?.introducedIn, id).toBe("cycle7");
+      expect(entry?.sources.length, id).toBeGreaterThan(0);
+    }
+    expect(glossaryEntry("actionsOtherTurns")?.appliesToCore).toBe(true);
+  });
+
   it("every wave 6 concept id has a concept entry", () => {
     for (const id of WAVE_6_IDS) {
       expect(glossaryEntry(id)?.kind, id).toBe("concept");
@@ -344,6 +365,7 @@ describe("introducedIn (the How to play hub's 'New in this box' pages)", () => {
     const marked = GLOSSARY_ENTRIES.filter((e) => e.appliesToCore);
     for (const entry of marked) expect(["core", "later"], entry.id).not.toContain(entry.introducedIn);
     expect(marked.map((e) => e.id).sort()).toEqual([
+      "actionsOtherTurns",
       "counters",
       "encounterDeckEmpty",
       "labeledAbility",
