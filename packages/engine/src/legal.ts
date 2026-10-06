@@ -634,7 +634,14 @@ function evaluateAbility(
   return withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
 }
 
-/** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */
+/**
+ * Action abilities the player could trigger, as candidates for `evaluateAbility` to probe through the `useAbility`
+ * command: on cards they control, on cards nobody controls (encounter cards), and on any card in play, another
+ * player's included, whose ability names them (`triggerableBy`: "Any player may trigger this ability"). Who is named
+ * comes from `triggeringPlayers`, which the command reads too. The command stays the judge of the rest (an attachment
+ * on another player's card, an obligation, a "cannot", the form, the limit, the cost), so a candidate it refuses is
+ * listed as illegal with its reason, never as legal.
+ */
 function actionAbilities(
   state: GameState,
   deps: EngineDeps,

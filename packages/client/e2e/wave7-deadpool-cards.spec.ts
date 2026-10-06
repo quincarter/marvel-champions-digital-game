@@ -369,10 +369,11 @@ test("Plot Convenience (44050): the player who owns it attaches an aspect card f
 
 // "Any player may trigger this ability" (Plot Convenience's printed text; script `triggerableBy: eachPlayer`; engine
 // test precon-e2e.test.ts "Plot Convenience across two players"). On Spider-Man's turn the board shows Deadpool only as
-// a summary row with "Act", which switches the board to Deadpool's own seat, and the engine's legal list for Spider-Man
-// holds no `useAbility` for a card Deadpool controls (`packages/engine/src/legal.ts` `actionAbilities`: "on cards they
-// control"). So a second player cannot attach to or take from Plot Convenience through the board. Pinned until the
-// engine enumerates `triggerableBy` abilities and the client draws another seat's play area as targets.
+// a summary row with "Act", which switches the board to Deadpool's own seat; another seat's play area is not drawn,
+// so Plot Convenience is not a tile Spider-Man can tap. The engine does list it (`legal-other-players-cards.test.ts`),
+// but only for a player who can attach or take: in this fixture Spider-Man holds no aspect card and nothing is attached
+// yet, so his entry is illegal ("its condition is not met"). Pinned until the client draws another seat's usable cards
+// and the fixture gives the second player an aspect card.
 test.fixme("Plot Convenience (44050): another player triggers it from their own turn", async ({ page }) => {
   test.setTimeout(240_000);
   await launch(page, "plotConvenience");
