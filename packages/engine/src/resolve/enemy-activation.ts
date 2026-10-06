@@ -353,7 +353,14 @@ function threatInsteadOfDamage(
   };
 }
 
-/** Records a defender on the attack procedure and its event, and announces the defense. */
+/**
+ * Records a defender on the attack procedure and its event, and announces the defense.
+ *
+ * An attack declined at step 2 is recorded as undefended, which is what a boost card turned up in step 3 reads. A
+ * "(defense)" ability used after that still makes the hero the defender (RRG 1.8 "Defend, Defense", p. 15), so the
+ * record is withdrawn here: an "undefended attack" reader after this point sees a defended attack. `basic` alone
+ * decides whether DEF is subtracted; a labeled defense passes false and never undoes the declined step into one.
+ */
 export function setDefender(
   ctx: Ctx,
   frame: Frame<"enemyAttack">,
@@ -371,7 +378,11 @@ export function setDefender(
   if (frame.eventFrameId) {
     updateFrame(ctx, frame.eventFrameId, (f) =>
       f.kind === "event" && f.event.kind === "enemyAttack"
-        ? { ...f, event: { ...f.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer } }
+        ? {
+            ...f,
+            event: { ...f.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer },
+            ...((f.vars.undefended ?? 0) > 0 ? { vars: { ...f.vars, undefended: 0 } } : {}),
+          }
         : f,
     );
     addFrameSlots(ctx, frame.eventFrameId, { [DEFENDER_SLOT]: [defenderId] });
