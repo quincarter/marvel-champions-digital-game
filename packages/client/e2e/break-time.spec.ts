@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { handInstanceFor, settle, waitFor } from "./helpers.js";
+import { activeScenes, focusRect, handInstanceFor, pressUntil, settle, waitFor } from "./helpers.js";
 import { installWave6Helpers, visibleTexts } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
-import { SHOT, boardUp, facts, payWith, playFromHand, press } from "./x-men-helpers.js";
+import { SHOT, bringIntoView, boardUp, facts, payWith, playFromHand, press } from "./x-men-helpers.js";
 
 /**
  * Deadpool's Break Time (44046) asks "How many minutes were you away?" (docs/phase7-wave7.md §3.83), a `reportFact`
@@ -116,6 +116,66 @@ test("Break Time: a player answers the minutes-away question with the stepper, a
       .map((event) => event.amount);
   });
   expect(reported, "the engine was told 29 minutes").toEqual([29]);
+});
+
+/**
+ * Inspect on Break Time (3 per player) in a two-player game: the scaled price leads ("6"), the printed rate explains it
+ * ("3 per player", "× 2 players"), and Play carries the price. The design frames are 08B, L06B and 14B.
+ */
+test("Break Time's Inspect shows 3 per player × 2 players as 6", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await installWave6Helpers(page);
+  await openApp(page);
+  await page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as { appSession: () => { store: unknown } };
+    const { startBreakTimeDevGame } = (await import(
+      /* @vite-ignore */ "/src/store/dev-break-time-game.ts"
+    )) as unknown as { startBreakTimeDevGame: (store: unknown, players: number) => Promise<void> };
+    await startBreakTimeDevGame(appSession().store, 2);
+    const scenes = (
+      window as unknown as {
+        __mcGame: {
+          scene: {
+            getScenes: (a: boolean) => { sys: { settings: { key: string } } }[];
+            stop: (k: string) => void;
+            start: (k: string) => void;
+          };
+        };
+      }
+    ).__mcGame.scene;
+    for (const s of scenes.getScenes(true)) scenes.stop(s.sys.settings.key);
+    scenes.start("Board");
+  });
+  await boardUp(page);
+  const card = (await handInstanceFor(page, BREAK_TIME))!;
+  expect(card, "Break Time is in Deadpool's hand").not.toBeNull();
+  await bringIntoView(page, `card:${card}`);
+  const rect = (await focusRect(page, `card:${card}`))!;
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const inspectOpen = async (): Promise<boolean> => (await activeScenes(page)).includes("InspectOverlay");
+  await pressUntil(
+    page,
+    () => (phone ? page.touchscreen.tap(cx, cy) : page.mouse.click(cx, cy, { button: "right" })),
+    inspectOpen,
+    "Inspect opens",
+    { minWaitMs: 3000 },
+  );
+  await settle(page, { quietMs: 400, maxMs: 2000 });
+  const texts = (await visibleTexts(page)).filter((t) => t.scene === "InspectOverlay").map((t) => t.text.trim());
+  const lower = texts.map((t) => t.toLowerCase().replace(/\s+/g, " "));
+  expect(lower, "the badge leads with the scaled price").toContain("6");
+  expect(
+    lower.some((t) => t.includes("3 per player")),
+    "the printed rate",
+  ).toBe(true);
+  expect(lower, "the player count").toContain("× 2 players");
+  expect(
+    lower.some((t) => /^play( it)?$/.test(t)) && lower.filter((t) => t === "6").length >= 2,
+    "Play carries the price",
+  ).toBe(true);
+  if (SHOT) await page.screenshot({ path: `${SHOT}/per-player-cost-${info.project.name}.png` });
 });
 
 const payOpen = async (page: Page): Promise<boolean> =>

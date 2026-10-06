@@ -11,6 +11,7 @@
  * legality: the message and the target list come from the engine.
  */
 
+import { perPlayerCostOf, type PerPlayerCost } from "./per-player-cost.js";
 import type { AbilityId, AnyCard, KeywordInstance, ResourceIconType } from "@mc/content";
 import { keywordLabel } from "./keyword-label.js";
 import { glossaryEntry } from "@mc/content";
@@ -27,6 +28,7 @@ import {
   locateCard,
   maxHitPoints,
   playCostOf,
+  printedCostOf,
   printedResources,
   remainingHitPoints,
   selfDamageThreshold,
@@ -162,8 +164,13 @@ export interface InspectModel {
   readonly name: string;
   /** "Event · Attack · Justice" — type, first traits, aspect. */
   readonly typeLine: string;
-  /** The printed cost, or null for a card that has none. */
+  /**
+   * The printed cost in this game, or null for a card that has none. A per player cost is already scaled (2 per
+   * player in a 2-player game is 4): the badge prints this, and `perPlayerCost` says where it came from.
+   */
   readonly cost: number | null;
+  /** The per player icon on the cost, worded for the badge and the cost line; null for a flat cost. */
+  readonly perPlayerCost: PerPlayerCost | null;
   /**
    * What it costs to play right now (`playCostOf`): `cost` unless something on the table changes the price. What a
    * Play button prints, since the table charges this and not the scan's pip. Equals `cost` with no game behind the sheet.
@@ -289,6 +296,7 @@ export function inspectModel(
       name: pile ? pile.name : cardName(state, instanceId),
       typeLine: pile ? `Facedown · ${pile.count} card${pile.count === 1 ? "" : "s"}` : "Facedown",
       cost: null,
+      perPlayerCost: null,
       currentCost: null,
       priceNote: null,
       resourceNote: null,
@@ -349,7 +357,8 @@ export function inspectModel(
         ? faceNameOf(card, face)
         : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
-    cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    cost: "cost" in card && typeof card.cost === "number" ? printedCostOf(state, card) : null,
+    perPlayerCost: perPlayerCostOf(state, card),
     currentCost: currentCostFor(state, perspectiveId, instanceId, card, deps),
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     resourceNote:
@@ -655,6 +664,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       name: "Unknown card",
       typeLine: "",
       cost: null,
+      perPlayerCost: null,
       currentCost: null,
       priceNote: null,
       resourceNote: null,
@@ -694,6 +704,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     name: faceNameOf(card, face),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    perPlayerCost: perPlayerCostOf(null, card),
     currentCost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,

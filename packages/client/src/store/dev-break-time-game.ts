@@ -35,8 +35,14 @@ export const BREAK_TIME_DEV_CONFIG: SessionConfig = {
   stack: { players: { 0: ids(BREAK_TIME_CARD) } },
 };
 
-export async function startBreakTimeDevGame(store: SessionStore): Promise<void> {
-  await store.start(BREAK_TIME_DEV_CONFIG);
+/** The same game with a second hero beside Deadpool, so Break Time's 3 per player costs 3 × 2 = 6. */
+export const BREAK_TIME_TWO_PLAYER_DEV_CONFIG: SessionConfig = {
+  ...BREAK_TIME_DEV_CONFIG,
+  players: [...BREAK_TIME_DEV_CONFIG.players, { starterDeckId: "core-spider-man-justice" }],
+};
+
+export async function startBreakTimeDevGame(store: SessionStore, players: 1 | 2 = 1): Promise<void> {
+  await store.start(players === 2 ? BREAK_TIME_TWO_PLAYER_DEV_CONFIG : BREAK_TIME_DEV_CONFIG);
   for (let step = 0; step < 20; step++) {
     const turn = await nextTurn(store);
     const game = store.state.game;
