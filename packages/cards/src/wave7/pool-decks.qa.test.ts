@@ -21,6 +21,7 @@ import { createGame, validateDeck, unscriptedCards, type GameState } from "@mc/e
 import {
   PLAYABLE_CARDS,
   cardId,
+  exportDecklistText,
   parseDecklistText,
   parseMarvelCdbDeckJson,
   type AnyCard,
@@ -341,19 +342,8 @@ describe("the 'Pool setup rule: Dreadpool set 1 shuffled in, 6 set aside, exactl
 });
 
 describe("sharing: each fixture round-trips through the app's pasted-decklist text", () => {
-  /** The format of the client's `exportDecklistText` (`packages/client/src/view/deck-import-model.ts`), rebuilt here since @mc/cards never imports the client. */
-  const exportText = (deck: DeckContents): string => {
-    const names = new Map<string, number>();
-    for (const l of deck.cards) {
-      const name = card(l.cardId as string).name;
-      names.set(name, (names.get(name) ?? 0) + l.quantity);
-    }
-    return [
-      `Hero: ${card(deck.identityCardId as string).name}`,
-      ...deck.aspects.map((a) => `Aspect: ${a.charAt(0).toUpperCase()}${a.slice(1)}`),
-      ...[...names.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, n]) => `${n}x ${name}`),
-    ].join("\n");
-  };
+  /** The app's own exporter (`@mc/content`, which the client's `exportDecklistText` calls). */
+  const exportText = (deck: DeckContents): string => exportDecklistText(deck, PLAYABLE_CARDS);
   const byTitleCount = (deck: DeckContents): [string, number][] => {
     const m = new Map<string, number>();
     for (const l of deck.cards)
@@ -361,7 +351,6 @@ describe("sharing: each fixture round-trips through the app's pasted-decklist te
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
   };
 
-  const TEXT_OK = ["domino-pool", "adam-warlock-pool"];
   const textRoundTrip = (deck: PoolFixture) => {
     const result = parseDecklistText(exportText(contentsOf(deck)), PLAYABLE_CARDS);
     if (!result.ok) throw new Error(JSON.stringify(result.problems.map((p) => p.code)));
@@ -371,18 +360,8 @@ describe("sharing: each fixture round-trips through the app's pasted-decklist te
     expect(verdict(result.contents)).toEqual({ ok: true });
   };
 
-  test.each(POOL_FIXTURE_DECKS.filter((d) => TEXT_OK.includes(d.id)).map((d) => [d.id, d] as const))(
-    "text export then import: %s",
-    (_id, deck) => textRoundTrip(deck),
-  );
-
-  // PIN (defect, reported in docs/phase7-wave7-qa-pool-decks.md): the app's own text export names cards by title, and a
-  // title shared with another card in the pool (Deadpool's ally "Cable" and the identity Cable; Spider-Man's
-  // "Web-Shooter"; "Hulk", "Hawkeye", "Mind Scan") is refused on import as `ambiguous_card_name`. test.fails: this
-  // passes while the defect stands and goes red when exported text of these decks imports.
-  test.fails.each(POOL_FIXTURE_DECKS.filter((d) => !TEXT_OK.includes(d.id)).map((d) => [d.id, d] as const))(
-    "text export then import (ambiguous titles, defect): %s",
-    (_id, deck) => textRoundTrip(deck),
+  test.each(POOL_FIXTURE_DECKS.map((d) => [d.id, d] as const))("text export then import: %s", (_id, deck) =>
+    textRoundTrip(deck),
   );
 
   /** A MarvelCDB-shaped deck (`slots` by code, `meta` aspects): the by-id way to share a deck, which never has the title problem. */
@@ -408,9 +387,9 @@ describe("sharing: each fixture round-trips through the app's pasted-decklist te
     },
   );
 
-  // PIN (defect): MarvelCDB's meta holds two aspects; for Adam the importer fills the other two from the deck's aspect
-  // cards, but its `CORE_ASPECT_NAMES` leaves 'Pool out, so a meta that names two non-'Pool aspects cannot recover 'Pool.
-  test.fails("Adam Warlock: meta naming Justice and Leadership recovers 'Pool and Protection from the cards", () => {
+  // MarvelCDB's meta holds two aspects; for Adam the importer fills the other two from the deck's aspect cards, 'Pool
+  // included (it once left 'Pool out of its aspect list).
+  test("Adam Warlock: meta naming Justice and Leadership recovers 'Pool and Protection from the cards", () => {
     const result = parseMarvelCdbDeckJson(
       marvelCdbOf(contentsOf(ADAM_WARLOCK_POOL), ["justice", "leadership"]),
       PLAYABLE_CARDS,

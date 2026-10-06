@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "../data/core/cards.js";
 import { CORE_STARTER_DECKS } from "../data/core/starterDecks.js";
+import { PLAYABLE_CARDS } from "../data/index.js";
 import { MTS_CARDS } from "../data/mts/cards.js";
 import { SM_CARDS } from "../data/sm/cards.js";
 import { parseMarvelCdbDeckJson, parseMarvelCdbDeckJsonText, type MarvelCdbDeckJson } from "./from-marvelcdb-json.js";
@@ -303,5 +304,65 @@ describe("parseMarvelCdbDeckJsonText", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.problems[0]!.message).toContain("too_many_cards");
+  });
+});
+
+describe("the 'Pool aspect (wave 7 QA finding 2)", () => {
+  const aspectOfCard = (id: string) => (PLAYABLE_CARDS.find((c) => c.id === id) as { aspect?: string }).aspect;
+  const byAspect = (aspect: string) =>
+    PLAYABLE_CARDS.find((c) => aspectOfCard(c.id as string) === aspect && c.type === "event")!.id as string;
+  const [justice, leadership, protection, pool] = ["justice", "leadership", "protection", "pool"].map(byAspect) as [
+    string,
+    string,
+    string,
+    string,
+  ];
+  const deck = (heroCode: string, slots: Record<string, number>, meta?: Record<string, string>) => ({
+    id: 1,
+    name: "fixture",
+    hero_code: heroCode,
+    slots,
+    ...(meta ? { meta: JSON.stringify(meta) } : {}),
+  });
+  const aspectsOf = (raw: unknown): string[] => {
+    const result = parseMarvelCdbDeckJson(raw, PLAYABLE_CARDS);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems.map((p) => p.message)));
+    return [...result.contents.aspects];
+  };
+
+  test("a Deadpool deck whose meta names 'Pool keeps it", () => {
+    expect(aspectsOf(deck("44001a", { "44013": 3, "44046": 1 }, { aspect: "pool" }))).toEqual(["pool"]);
+  });
+
+  test("a Core hero choosing 'Pool keeps it", () => {
+    expect(aspectsOf(deck("01001a", { "44013": 3, "01008": 2 }, { aspect: "pool" }))).toEqual(["pool"]);
+  });
+
+  test.each([
+    ["justice then leadership", { aspect: "justice", aspect2: "leadership" }],
+    ["leadership then justice", { aspect: "leadership", aspect2: "justice" }],
+    ["protection then justice", { aspect: "protection", aspect2: "justice" }],
+    ["pool then justice", { aspect: "pool", aspect2: "justice" }],
+    ["justice then pool", { aspect: "justice", aspect2: "pool" }],
+    ["pool only", { aspect: "pool" }],
+    ["no meta", undefined],
+  ] as const)("Adam Warlock with 'Pool among four aspects, meta %s", (_label, meta) => {
+    const slots = { [justice]: 1, [leadership]: 1, [protection]: 1, [pool]: 1 };
+    expect([...aspectsOf(deck("21031a", slots, meta as Record<string, string> | undefined))].sort()).toEqual([
+      "justice",
+      "leadership",
+      "pool",
+      "protection",
+    ]);
+  });
+
+  test("Adam Warlock with no meta and only three aspects among his cards stays unresolved", () => {
+    const result = parseMarvelCdbDeckJson(
+      deck("21031a", { [justice]: 1, [leadership]: 1, [protection]: 1 }),
+      PLAYABLE_CARDS,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems.some((p) => p.code === "missing_aspect")).toBe(true);
   });
 });

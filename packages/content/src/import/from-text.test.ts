@@ -2,7 +2,11 @@ import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "../data/core/cards.js";
 import { CORE_STARTER_DECKS } from "../data/core/starterDecks.js";
 import { SM_CARDS } from "../data/sm/cards.js";
+import { PLAYABLE_CARDS } from "../data/index.js";
+import type { DeckContents } from "../schema/decks.js";
+import { cardId } from "../schema/ids.js";
 import { parseDecklistText } from "./from-text.js";
+import { exportDecklistText } from "./to-text.js";
 
 const spiderManJustice = CORE_STARTER_DECKS.find((d) => d.name.startsWith("Spider-Man"))!;
 const blackPanther = CORE_STARTER_DECKS.find((d) => d.name.startsWith("Black Panther"))!;
@@ -159,7 +163,7 @@ describe("parseDecklistText", () => {
   });
 
   test("a duplicated card line totals rather than overwrites", () => {
-    const text = "Hero: Spider-Man\nAspect: Justice\n1x Web-Shooter\n1x Web-Shooter\n";
+    const text = "Hero: Spider-Man (01001a)\nAspect: Justice\n1x Web-Shooter\n1x Web-Shooter\n";
     const result = parseDecklistText(text, CORE_CARDS);
     if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
     const webShooter = result.contents.cards.find((c) => c.cardId === "01008");
@@ -243,6 +247,123 @@ describe("parseDecklistText", () => {
         ok: true,
         deckName: "Web Heads",
       });
+    });
+  });
+});
+
+describe("same-titled cards (Deadpool's pool: wave 7 QA finding 1)", () => {
+  const entries = (cards: readonly { cardId: string; quantity: number }[]) =>
+    Object.fromEntries(cards.map((c) => [c.cardId, c.quantity]));
+  const parse = (text: string) => parseDecklistText(text, PLAYABLE_CARDS);
+  const ok = (text: string) => {
+    const result = parse(text);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems.map((p) => p.message)));
+    return result;
+  };
+
+  test("a code suffix picks the card: Deadpool's ally 'Cable' beside the hero Cable", () => {
+    const result = ok("Hero: Deadpool\nAspect: Pool\n1x Cable (44002)\n");
+    expect(entries(result.contents.cards)).toEqual({ "44002": 1 });
+  });
+
+  test("a pack suffix picks the card when the pack tells them apart, and the code form is case-insensitive", () => {
+    expect(entries(ok("Hero: Deadpool\nAspect: Pool\n1x Cable (Deadpool)\n").contents.cards)).toEqual({ "44002": 1 });
+    expect(entries(ok("Hero: Deadpool\nAspect: Pool\n1x Web-Shooter (SM)\n").contents.cards)).toEqual({ "27039": 1 });
+    expect(entries(ok("Hero: Deadpool\nAspect: Pool\n1x Web-Shooter (01008)\n").contents.cards)).toEqual({
+      "01008": 1,
+    });
+  });
+
+  test("a pack name that picks nothing falls back to the bare title, as pasted MarvelCDB text would", () => {
+    const result = ok("Hero: Spider-Man (01001a)\nAspect: Justice\n2x Web-Shooter (Core Set)\n");
+    expect(entries(result.contents.cards)).toEqual({ "01008": 2 });
+  });
+
+  test("a bare title naming the deck's own hero identity is not a deck card: 'Hulk' the ally in a Hulk-free list", () => {
+    const result = ok("Hero: Spider-Man (01001a)\nAspect: Aggression\n1x Hulk\n");
+    expect(entries(result.contents.cards)).toEqual({ "01050": 1 });
+  });
+
+  test("a bare title is resolved by the cards legal for this hero: Web-Shooter is Spider-Man's own", () => {
+    expect(entries(ok("Hero: Spider-Man (01001a)\nAspect: Justice\n2x Web-Shooter\n").contents.cards)).toEqual({
+      "01008": 2,
+    });
+    expect(entries(ok("Hero: Spider-Man\nAspect: Justice\n1x Backflip\n1x Web-Shooter\n").contents.cards)).toEqual({
+      "01008": 1,
+      "01003": 1,
+    });
+  });
+
+  test("an encounter card sharing a title with a player card is not a candidate: Mind Scan", () => {
+    const result = ok("Hero: Cable\nAspect: Leadership\n1x Mind Scan\n");
+    expect(entries(result.contents.cards)).toEqual({ "40003": 1 });
+  });
+
+  test("a title that really cannot be told apart is refused, naming the candidates and how to write it", () => {
+    const result = parse("Hero: Spider-Man (01001a)\nAspect: Justice\n1x Hawkeye\n");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const [problem] = result.problems;
+    expect(problem!.code).toBe("ambiguous_card_name");
+    expect(problem!.message).toContain("Hawkeye (01066)");
+    expect(problem!.message).toContain("Hawkeye (03012)");
+    expect(problem!.message).toContain("Hawkeye (04011)");
+    expect(problem!.message).not.toContain("04001a");
+    expect(problem!.message).toContain("with its code");
+  });
+
+  test("the suggested spelling then imports", () => {
+    expect(entries(ok("Hero: Spider-Man (01001a)\nAspect: Justice\n1x Hawkeye (03012)\n").contents.cards)).toEqual({
+      "03012": 1,
+    });
+  });
+
+  test("two heroes sharing a name: refused with both codes unless the list or a suffix settles it", () => {
+    const refused = parse("Hero: Spider-Man\nAspect: Justice\n1x Hawkeye (03012)\n");
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.problems[0]!.message).toContain("Spider-Man (01001a)");
+    expect(refused.problems[0]!.message).toContain("Spider-Man (27030a)");
+    expect(ok("Hero: Spider-Man (27030a)\nAspect: Justice\n1x Hawkeye (03012)\n").contents.identityCardId).toBe(
+      "27030a",
+    );
+    expect(ok("Hero: Spider-Man\nAspect: Justice\n1x Backflip\n").contents.identityCardId).toBe("01001a");
+  });
+
+  test("a bare and a suffixed line for the same card add up", () => {
+    const result = ok("Hero: Spider-Man (01001a)\nAspect: Justice\n1x Web-Shooter\n1x Web-Shooter (01008)\n");
+    expect(entries(result.contents.cards)).toEqual({ "01008": 2 });
+  });
+
+  describe("export then import gives back the identical deck", () => {
+    const deckOf = (identity: string, aspects: string[], lines: Record<string, number>): DeckContents => ({
+      identityCardId: cardId(identity),
+      aspects: aspects as DeckContents["aspects"],
+      cards: Object.entries(lines).map(([id, quantity]) => ({ cardId: cardId(id), quantity })),
+    });
+    const COLLISIONS: readonly [string, DeckContents][] = [
+      ["Cable (Deadpool's ally; hero Cable exists)", deckOf("44001a", ["pool"], { "44002": 1, "44046": 1 })],
+      ["Hulk (ally; hero Hulk exists)", deckOf("01001a", ["aggression"], { "01050": 2, "01008": 2 })],
+      ["Hawkeye (three allies and a hero)", deckOf("01001a", ["leadership"], { "01066": 1, "03012": 1, "04011": 1 })],
+      ["Web-Shooter (two heroes' own)", deckOf("27030a", ["justice"], { "27039": 2 })],
+      ["Mind Scan (event and treachery)", deckOf("40001a", ["leadership"], { "40003": 2 })],
+      ["Captain Marvel (ally in two aspects)", deckOf("01001a", ["leadership"], { "23013": 1, "04032": 1 })],
+      [
+        "Spider-Man (basic allies in four packs)",
+        deckOf("01040a", ["protection"], { "13019": 1, "27017": 1, "31022": 1, "27011": 1 }),
+      ],
+    ];
+    test.each(COLLISIONS)("%s", (_label, deck) => {
+      const text = exportDecklistText(deck, PLAYABLE_CARDS);
+      const result = ok(text);
+      expect(result.contents.identityCardId).toBe(deck.identityCardId);
+      expect(result.contents.aspects).toEqual(deck.aspects);
+      expect(entries(result.contents.cards)).toEqual(entries(deck.cards));
+    });
+
+    test("only a title that needs help gets a suffix; the rest stay bare", () => {
+      const text = exportDecklistText(deckOf("44001a", ["pool"], { "44002": 1, "44046": 1 }), PLAYABLE_CARDS);
+      expect(text.split("\n")).toEqual(["Hero: Deadpool", "Aspect: Pool", "1x Break Time", "1x Cable"]);
     });
   });
 });

@@ -36,8 +36,16 @@
 import type { AnyCard } from "../schema/cards/index.js";
 import type { CoreAspect } from "../schema/aspects.js";
 import type { DeckCardEntry } from "../schema/decks.js";
+import type { CardId } from "../schema/ids.js";
 import { CATALOG_REPRINTS } from "../data/catalog.js";
-import { indexByName, normalizeName, splitByQuantityInSet } from "./pool-index.js";
+import {
+  cardMatchesToken,
+  describeCandidates,
+  indexByName,
+  normalizeName,
+  resolveTitleCopies,
+  splitTitleSuffix,
+} from "./pool-index.js";
 import {
   MAX_IMPORT_LINES,
   MAX_IMPORT_TEXT_LENGTH,
@@ -47,7 +55,11 @@ import {
   type ImportResult,
 } from "./types.js";
 
-const problem = (code: ImportProblem["code"], message: string): ImportProblem => ({ code, message });
+const problem = (code: ImportProblem["code"], message: string, cardIds?: readonly CardId[]): ImportProblem => ({
+  code,
+  message,
+  ...(cardIds ? { cardIds } : {}),
+});
 
 const HERO_LINE = /^\s*(?:hero|identity)\s*:\s*(.+?)\s*$/i;
 const ASPECT_LINE = /^\s*aspect\s*:\s*(.+?)\s*$/i;
@@ -245,14 +257,36 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
   const byName = names;
   let identityCard: AnyCard | null = null;
   if (heroName) {
-    const candidates = (byName.get(normalizeName(heroName)) ?? []).filter((card) => card.type === "hero_identity");
+    const isIdentity = (card: AnyCard) => card.type === "hero_identity";
+    let candidates = (byName.get(normalizeName(heroName)) ?? []).filter(isIdentity);
+    // `Hero: Spider-Man (27030a)`: a code or pack suffix picks one of several identities sharing a name.
+    const suffix = candidates.length === 0 ? splitTitleSuffix(heroName) : null;
+    if (suffix) {
+      const titled = (byName.get(normalizeName(suffix.title)) ?? []).filter(isIdentity);
+      const picked = titled.filter((card) => cardMatchesToken(card, suffix.token));
+      candidates = picked.length > 0 ? picked : titled;
+      heroName = suffix.title;
+    }
+    if (candidates.length > 1) {
+      // Two heroes can share a name (both Spider-Men): the identity whose own set has the most of this list's titles.
+      const listed = new Set(cardLines.map((line) => normalizeName(splitTitleSuffix(line.name)?.title ?? line.name)));
+      const score = (identity: AnyCard) =>
+        new Set(
+          [...listed].filter((title) =>
+            (byName.get(title) ?? []).some((card) => "aspect" in card && card.aspect === `hero:${identity.id}`),
+          ),
+        ).size;
+      const scored = candidates.map((card) => [card, score(card)] as const).sort((x, y) => y[1] - x[1]);
+      if (scored[0]![1] > 0 && scored[0]![1] > scored[1]![1]) candidates = [scored[0]![0]];
+    }
     if (candidates.length === 0) {
       problems.push(problem("unknown_identity", `No hero identity named "${heroName}" is in the card pool.`));
     } else if (candidates.length > 1) {
       problems.push(
         problem(
           "ambiguous_card_name",
-          `More than one hero identity is named "${heroName}"; import by MarvelCDB id instead.`,
+          `More than one hero identity is named "${heroName}": ${describeCandidates(candidates)}. Write the one you mean with its code, like "Hero: ${heroName} (${candidates[0]!.id})", or import by MarvelCDB id.`,
+          candidates.map((card) => card.id),
         ),
       );
     } else {
@@ -260,15 +294,21 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
     }
   }
 
-  const merged = new Map<string, { quantity: number; raw: string }>();
+  const context = { identity: identityCard, aspects };
+  const merged = new Map<string, { quantity: number; raw: string; name: string }>();
   for (const line of cardLines) {
     const key = normalizeName(line.name);
     const existing = merged.get(key);
-    merged.set(key, { quantity: (existing?.quantity ?? 0) + Number(line.quantityText), raw: line.raw });
+    merged.set(key, {
+      quantity: (existing?.quantity ?? 0) + Number(line.quantityText),
+      raw: line.raw,
+      name: line.name,
+    });
   }
 
-  const cards: DeckCardEntry[] = [];
-  for (const [key, { quantity, raw }] of merged) {
+  const totals = new Map<string, number>();
+  const addCard = (cardId: string, quantity: number) => totals.set(cardId, (totals.get(cardId) ?? 0) + quantity);
+  for (const [key, { quantity, raw, name }] of merged) {
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_LINE_QUANTITY) {
       problems.push(
         problem(
@@ -278,7 +318,22 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
       );
       continue;
     }
-    const matches = byName.get(key) ?? [];
+    // `Title (44002)` / `Title (Deadpool)`: a suffix picks among cards sharing the title. A title that really ends
+    // in a parenthetical is matched whole first.
+    let matches = byName.get(key) ?? [];
+    let suffixed = false;
+    let label = name;
+    if (matches.length === 0) {
+      const suffix = splitTitleSuffix(name);
+      if (suffix) {
+        const titled = byName.get(normalizeName(suffix.title)) ?? [];
+        const picked = titled.filter((card) => cardMatchesToken(card, suffix.token));
+        // An unrecognized suffix (a pack name from a MarvelCDB export) just falls back to the bare title.
+        matches = picked.length > 0 ? picked : titled;
+        suffixed = picked.length > 0;
+        label = suffix.title;
+      }
+    }
     // A pasted name could also name the identity itself (some exports repeat
     // it in the card section) or an encounter card sharing a title; that's
     // left for `validateDeck` (`identity_in_deck` / `not_a_player_card`) —
@@ -288,30 +343,24 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
       continue;
     }
     if (matches.length === 1) {
-      cards.push({ cardId: matches[0]!.id, quantity });
+      addCard(matches[0]!.id, quantity);
       continue;
     }
-    // A pool that keeps a MarvelCDB reprint as its own card (Sinister Motives' 27050 "Young Love" reprints 27019)
-    // has two same-named entries for one printed card; count the pasted copies as the original, as the MarvelCDB
-    // JSON import does for a reprint code.
-    const originals = new Set(matches.map((card) => CATALOG_REPRINTS[card.id] ?? card.id));
-    const original = originals.size === 1 ? matches.find((card) => originals.has(card.id)) : undefined;
-    if (original) {
-      cards.push({ cardId: original.id, quantity });
-      continue;
-    }
-    const split = splitByQuantityInSet(matches, quantity);
+    const split = resolveTitleCopies(matches, quantity, context, CATALOG_REPRINTS);
     if (!split) {
+      const candidates = matches.filter((card) => card.type !== "hero_identity" && "aspect" in card);
       problems.push(
         problem(
           "ambiguous_card_name",
-          `"${matches[0]!.name}" is printed as ${matches.length} different cards (codes ${matches.map((c) => c.id).join(", ")}), and the listed quantity (${quantity}) doesn't match splitting it their printed way; import by MarvelCDB id instead.`,
+          `"${label}" is printed as ${matches.length} different cards and this decklist doesn't say which one${suffixed ? " (even with that pack)" : ""}: ${describeCandidates(candidates.length > 0 ? candidates : matches)}. Write the one you mean with its code, like "${quantity}x ${label} (${(candidates[0] ?? matches[0]!).id})", or import by MarvelCDB id.`,
+          matches.map((card) => card.id),
         ),
       );
       continue;
     }
-    for (const [cardId, qty] of split) cards.push({ cardId, quantity: qty });
+    for (const [cardId, qty] of split) addCard(cardId, qty);
   }
+  const cards: DeckCardEntry[] = [...totals].map(([cardId, quantity]) => ({ cardId: cardId as CardId, quantity }));
 
   if (problems.length > 0 || !identityCard) {
     return { ok: false, problems };

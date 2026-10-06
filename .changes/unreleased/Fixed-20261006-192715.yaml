@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Deck sharing: the app''s text export writes a title shared by several cards with its code (1x Cable (44002)) and the importer reads that suffix, a pack, or the deck''s own hero and aspects to pick the card, so every exported deck re-imports as itself; the MarvelCDB importer now knows the ''Pool aspect'
+time: 2026-10-06T19:27:15.380848-04:00
