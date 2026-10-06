@@ -54,6 +54,16 @@ import {
   GAMBIT_PACK,
   ROGUE_CYCLE,
   ROGUE_PACK,
+  NEXT_EVOL_CYCLE,
+  NEXT_EVOL_PACK,
+  PSYLOCKE_CYCLE,
+  PSYLOCKE_PACK,
+  ANGEL_CYCLE,
+  ANGEL_PACK,
+  X23_CYCLE,
+  X23_PACK,
+  DEADPOOL_CYCLE,
+  DEADPOOL_PACK,
   MSM_CYCLE,
   MSM_PACK,
   MTS_CYCLE,
@@ -109,6 +119,9 @@ import {
   WAVE5_STARTER_DECKS,
   WAVE6_ENCOUNTER_SETS,
   WAVE6_STARTER_DECKS,
+  WAVE7_ENCOUNTER_SETS,
+  WAVE7_SCENARIOS,
+  WAVE7_STARTER_DECKS,
   MUT_GEN_SCENARIOS,
   MOJO_SCENARIOS,
   WSP_CYCLE,
@@ -140,6 +153,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WAVE4_ENCOUNTER_SETS,
   ...WAVE5_ENCOUNTER_SETS,
   ...WAVE6_ENCOUNTER_SETS,
+  ...WAVE7_ENCOUNTER_SETS,
 ];
 
 /**
@@ -175,6 +189,8 @@ export const POOL_SCENARIOS: readonly Scenario[] = [
   // Mutant Genesis' five and MojoMania's three (MaGog, Spiral, Mojo): the other cycle 6 hero packs define no scenarios.
   ...MUT_GEN_SCENARIOS,
   ...MOJO_SCENARIOS,
+  // NeXt Evolution's five (Morlock Siege, On the Run, Juggernaut, Mister Sinister, Stryfe): the four hero packs define none.
+  ...WAVE7_SCENARIOS,
 ];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
@@ -186,6 +202,7 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE4_STARTER_DECKS,
   ...WAVE5_STARTER_DECKS,
   ...WAVE6_STARTER_DECKS,
+  ...WAVE7_STARTER_DECKS,
 ];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
@@ -239,6 +256,11 @@ export const POOL_PACKS: readonly Pack[] = [
   MOJO_PACK,
   GAMBIT_PACK,
   ROGUE_PACK,
+  NEXT_EVOL_PACK,
+  PSYLOCKE_PACK,
+  ANGEL_PACK,
+  X23_PACK,
+  DEADPOOL_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -292,6 +314,11 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [MOJO_PACK, MOJO_CYCLE],
   [GAMBIT_PACK, GAMBIT_CYCLE],
   [ROGUE_PACK, ROGUE_CYCLE],
+  [NEXT_EVOL_PACK, NEXT_EVOL_CYCLE],
+  [PSYLOCKE_PACK, PSYLOCKE_CYCLE],
+  [ANGEL_PACK, ANGEL_CYCLE],
+  [X23_PACK, X23_CYCLE],
+  [DEADPOOL_PACK, DEADPOOL_CYCLE],
 ];
 
 /**

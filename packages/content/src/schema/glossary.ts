@@ -73,7 +73,17 @@ export type GlossaryEntryKind = "keyword" | "status" | "concept";
  * Some entries are older than the box they were written for (Counters, labeled abilities, damage costs): those keep
  * the box that prompted them and carry `appliesToCore`, so How to play lists them under that box and under Core rules.
  */
-export type GlossaryBoxId = "core" | "wave1" | "cycle1" | "cycle3" | "cycle4" | "cycle5" | "cycle6" | "mojo" | "later";
+export type GlossaryBoxId =
+  | "core"
+  | "wave1"
+  | "cycle1"
+  | "cycle3"
+  | "cycle4"
+  | "cycle5"
+  | "cycle6"
+  | "mojo"
+  | "cycle7"
+  | "later";
 
 /** Which "New in this box" group a concept belongs under: a hero's own mechanic, or a scenario's. Keywords have their own group. */
 export type MechanicGroup = "hero" | "scenario";
@@ -275,9 +285,9 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   find: { box: "cycle6" },
   teamwork: { box: "cycle6" },
   temporary: { box: "cycle6" },
-  assault: { box: "later" },
+  assault: { box: "cycle7" },
   discount: { box: "later" },
-  linked: { box: "later" },
+  linked: { box: "cycle7" },
   prerequisite: { box: "later" },
   starting: { box: "later" },
   vulnerable: { box: "later" },

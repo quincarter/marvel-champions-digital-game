@@ -190,7 +190,7 @@ describe("heroAspectsOf", () => {
   test("lists only aspects an actual deck uses, in CHOOSABLE_ASPECTS order", () => {
     const decks = POOL_STARTER_DECKS.map((starter) => deckFromStarterDeck(starter, "poolv1"));
     const aspects = heroAspectsOf(decks);
-    expect(aspects).toEqual(["aggression", "justice", "leadership", "protection"]);
+    expect(aspects).toEqual(["aggression", "justice", "leadership", "protection", "pool"]);
   });
 
   test("empty with no decks", () => {

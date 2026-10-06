@@ -40,6 +40,7 @@ export const BOXES: readonly BoxDef[] = [
   { id: "cycle5", name: "Sinister Motives", unlockKey: "cycle5" },
   { id: "cycle6", name: "Mutant Genesis", unlockKey: "cycle6" },
   { id: "mojo", name: "MojoMania", unlockKey: "cycle6" },
+  { id: "cycle7", name: "NeXt Evolution", unlockKey: "cycle7" },
 ];
 
 /** The small line under a row that points at the entry's other home: its box, or the Core rules page. */

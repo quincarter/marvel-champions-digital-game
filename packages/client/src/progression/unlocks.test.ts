@@ -62,7 +62,15 @@ describe("the unlock path", () => {
         expect(heroes).toContain(reward.identityCardId);
       }
     }
-    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen", "mojo"]);
+    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual([
+      "trors",
+      "gmw",
+      "mts",
+      "sm",
+      "mut_gen",
+      "mojo",
+      "next_evol",
+    ]);
   });
 
   it("MojoMania opens and unlocks by hand with Mutant Genesis' wave (its cycle), and brings no cast of its own", () => {
