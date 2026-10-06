@@ -78,6 +78,7 @@ export default defineConfig({
         "off-turn-action.spec.ts",
         "which-ability.spec.ts",
         "routed-tucked.spec.ts",
+        "assault-thwart-preview.spec.ts",
       ],
     },
   ],

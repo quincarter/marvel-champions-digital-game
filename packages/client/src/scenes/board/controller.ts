@@ -13,7 +13,13 @@ import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalA
 import { paymentFor, tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
-import { powerEntries, powerSources, type PowerKind, type PowerSource } from "../../view/attacker-choice.js";
+import {
+  assaultThwartSuffix,
+  powerEntries,
+  powerSources,
+  type PowerKind,
+  type PowerSource,
+} from "../../view/attacker-choice.js";
 import {
   eventAbilityOptions,
   needsEventAbilityChoice,
@@ -161,7 +167,7 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
   }
   if (ref.kind === "basicThwart") {
     return {
-      label: `${cardName(state, ref.instanceId)} — Thwart${statSuffix(state, ref.instanceId, "THW")}`,
+      label: `${cardName(state, ref.instanceId)} — Thwart${thwartStat(state, action, ref.instanceId)}`,
       name: cardName(state, ref.instanceId),
       instanceId: ref.instanceId,
     };
@@ -190,6 +196,12 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
 function statSuffix(state: GameState, instanceId: InstanceId, label: "ATK" | "THW"): string {
   const value = characterPanel(state, instanceId, POOL_DEPS).stats.find((stat) => stat.label === label)?.value;
   return value && value !== "—" ? ` ${value}` : "";
+}
+
+/** " 2", or the assault wording (" 2 · ATK 3 vs assault") when the legal schemes include one with assault. */
+function thwartStat(state: GameState, action: LegalAction, id: InstanceId): string {
+  const suffix = assaultThwartSuffix(powerSources(state, [action], "thwart", POOL_DEPS)[0]!);
+  return suffix === null ? statSuffix(state, id, "THW") : ` ${suffix}`;
 }
 
 export class BoardController {
