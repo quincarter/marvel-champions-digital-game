@@ -660,6 +660,230 @@ const COLOSSUS_TRYIT: Lesson = {
   ],
 };
 
+/** True while the perspective player's identity shows hero face `index` (a three-face identity's own numbering). */
+function heroFaceIs(index: number): LessonPredicate {
+  return ({ game, perspectiveId }) => {
+    const identity = game.players.find((p) => p.playerId === perspectiveId)?.identity;
+    return identity?.form === "hero" && identity.heroFormIndex === index;
+  };
+}
+
+/**
+ * Psylocke: flip a Psi-Knife to its Psi-Katana side. The opening is Betsy Braddock with both permanent blades already
+ * attached, Knife side up (her Setup, `wave7/psylocke/psylocke/identity.ts`). Using a basic power offers Psi-Energy
+ * Control as an interrupt, so the flip happens before the attack's value is read: a Katana adds +1 ATK and piercing to
+ * a basic attack (`wave7/psylocke/psylocke/support-upgrades-allies.ts`), and shows the restricted keyword.
+ */
+const PSYLOCKE_TRYIT: Lesson = {
+  id: "mechanic-tryit-psylocke",
+  title: "Psylocke: Psi-Knife and Psi-Katana",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Two blades, two sides",
+        body:
+          "Psylocke starts with two permanent [[psiBlades|Psi-Knife]] upgrades already attached. Each is double-sided: " +
+          "the Knife side gives +1 THW, the Katana side gives +1 ATK and piercing to a basic attack.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Psylocke",
+        body: "Psi-Energy Control is printed on her hero side, so [[flip|flip]] from Betsy Braddock to Psylocke first.",
+        doThis: "Flip to Psylocke",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "attack",
+      anchor: { kind: "action", id: "attack" },
+      copy: {
+        title: "Attack, and flip a blade",
+        body:
+          "Attack Rhino with her basic power. Psi-Energy Control may flip one blade before the attack resolves: accept " +
+          "it to flip a Psi-Knife to its Katana side, so this attack gets +1 ATK and piercing.",
+        tip: "Accept Psi-Energy Control when it is offered.",
+        short: "Attack, then accept Psi-Energy Control.",
+        doThis: "Attack, then accept Psi-Energy Control",
+      },
+      mode: "await",
+      completes: seenAndSettled("cardFlipped"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "The Katana is restricted",
+        body:
+          "The flipped blade now shows its Psi-Katana side, which is [[restricted|restricted]]: it counts toward your " +
+          "limit of two restricted cards. Flip it back with Psi-Energy Control on a later basic power, or flip the " +
+          "other blade instead.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+/**
+ * Angel: change between three faces. Warren Worthington III (alter-ego), Angel (hero face 0) and Archangel (hero face
+ * 1, `wave7/angel/angel/identity.ts`): the engine's `changeForm` names the face (`to: { heroForm: n }`), which the
+ * board's "Which form?" picker asks for. A change between two hero faces spends the once-per-round change too, so the
+ * second change waits for round 2.
+ */
+const ANGEL_TRYIT: Lesson = {
+  id: "mechanic-tryit-angel",
+  title: "Angel: three faces",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "One identity, three faces",
+        body:
+          "Angel's identity folds into three faces: Warren Worthington III, Angel and Archangel. See " +
+          "[[threeFaceIdentity|Three-sided identities]]. Each hero face has its own stats.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "to-archangel",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Change to Archangel",
+        body:
+          "[[flip|Flip]] from Warren and the board asks which hero face. Pick Archangel: stronger ATK, no THW, and an " +
+          "[[acceleration|acceleration]] icon that adds threat each round.",
+        tip: "Pick Archangel in the Which form? list.",
+        short: "Change form, then pick Archangel.",
+        doThis: "Flip, then pick Archangel",
+      },
+      mode: "await",
+      completes: heroFaceIs(1),
+      gate: FULL_GATE,
+    },
+    {
+      id: "end-turn",
+      anchor: { kind: "action", id: "endTurn" },
+      copy: {
+        title: "Once each round",
+        body:
+          "A change between any two faces uses your once-per-round change, hero face to hero face included. End your " +
+          "turn and the next round gives you another.",
+        doThis: "End your turn",
+      },
+      mode: "await",
+      completes: playerPhaseOfRound(2),
+      gate: FULL_GATE,
+    },
+    {
+      id: "to-angel",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Change to Angel",
+        body: "Change form again and pick Angel. He is back to THW 2 and ATK 1.",
+        short: "Change form, then pick Angel.",
+        doThis: "Flip, then pick Angel",
+      },
+      mode: "await",
+      completes: heroFaceIs(0),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Read the face showing",
+        body: "Cards that name a face read the one showing now. Pick the face that fits the turn.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+const BUILD_SUPPORT = cardId("40027");
+const PSIMITAR = cardId("40029");
+
+/**
+ * Cable: player side schemes and their limit. Soldier X's Setup (`wave7/next_evol/cable/identity.ts`) put Call for
+ * Backup into play, so the lesson flips him and thwarts it; Build Support from his hand is a second player side scheme,
+ * and with 1 or 2 players only one may be in play (RRG p. 34), so playing it asks which to discard, a plain discard and
+ * not a defeat (`playerSideSchemeLimitDiscard`).
+ */
+const CABLE_TRYIT: Lesson = {
+  id: "mechanic-tryit-cable",
+  title: "Cable: player side schemes",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "A scheme of your own",
+        body:
+          "Cable's Soldier X setup put Call for Backup into play. A [[playerSideScheme|player side scheme]] sits beside " +
+          "the main scheme with threat on it, and you thwart it like any side scheme.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Cable",
+        body: "Basic powers are used in hero form, so [[flip|flip]] from Nathan Summers to Cable first.",
+        doThis: "Flip to Cable",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "thwart",
+      anchor: { kind: "action", id: "thwart" },
+      copy: {
+        title: "Thwart Call for Backup",
+        body:
+          "Thwart the side scheme with Cable. Remove all its threat to defeat it and its When Defeated text happens. " +
+          "One thwart will not finish it, and that is fine.",
+        short: "Thwart Call for Backup.",
+        doThis: "Tap Thwart, then Call for Backup",
+      },
+      mode: "await",
+      completes: seenAndSettled("threatRemoved"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "limit",
+      anchor: { kind: "card", code: BUILD_SUPPORT },
+      copy: {
+        title: "The limit is one",
+        body:
+          "With 1 or 2 players only one player side scheme can be in play. Play Build Support and discard one of the " +
+          "two. That discard is not a defeat, so no When Defeated text happens.",
+        tip: "Either scheme may go.",
+        doThis: "Play Build Support, then pick one to discard",
+        doThisTabbed: "Tap Build Support, then Play",
+        payWith: [{ kind: "handCard", code: PSIMITAR, doThis: "Tap Psimitar, then Pay" }],
+      },
+      mode: "await",
+      completes: seenAndSettled("playerSideSchemeLimitDiscard"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Defeat them instead",
+        body:
+          "Defeating a player side scheme is how you cash in its When Defeated text, and Cable readies after he defeats " +
+          "one. Discarding at the limit just clears the room.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
@@ -668,4 +892,7 @@ export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> =
   gambit: GAMBIT_TRYIT,
   rogue: ROGUE_TRYIT,
   colossus: COLOSSUS_TRYIT,
+  psylocke: PSYLOCKE_TRYIT,
+  angel: ANGEL_TRYIT,
+  cable: CABLE_TRYIT,
 };

@@ -152,6 +152,51 @@ const COLOSSUS: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Psylocke (`psylocke-justice`): she starts as Betsy Braddock with both permanent Psi-Knives already attached to her
+ *   identity (her Setup, `wave7/psylocke/psylocke/identity.ts`), Knife side up. The lesson flips her to hero form and
+ *   uses her basic attack on Rhino, accepting Psi-Energy Control to flip one blade to its Katana side.
+ */
+const PSYLOCKE: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "psylocke-justice" }],
+    seed: 4202,
+  },
+};
+
+/**
+ * - Angel (`angel-protection`): he starts as Warren Worthington III. The lesson changes him to Archangel (his board's
+ *   "Which form?" picker asks which hero face), then, after round 1's villain phase, to Angel (hero face 0) in round 2.
+ */
+const ANGEL: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "angel-protection" }],
+    seed: 4203,
+  },
+};
+
+/**
+ * - Cable (`cable-leadership`): he starts as Nathan Summers; Soldier X's setup takes the first side scheme listed,
+ *   Call for Backup, into play (3 threat solo). The dealt hand holds Build Support (a second player side scheme, cost 1)
+ *   and Psimitar (an energy resource that pays for it). The lesson flips him, thwarts Call for Backup once, then plays
+ *   Build Support at the limit of one.
+ */
+const CABLE: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "cable-leadership" }],
+    seed: 4201,
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
@@ -159,4 +204,7 @@ export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTr
   gambit: GAMBIT,
   rogue: ROGUE,
   colossus: COLOSSUS,
+  psylocke: PSYLOCKE,
+  angel: ANGEL,
+  cable: CABLE,
 };
