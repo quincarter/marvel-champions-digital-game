@@ -125,15 +125,15 @@ export function unknownTokens(text: string): string[] {
  */
 export function parseTraits(raw: string | null | undefined): string[] {
   if (!raw) return [];
-  const guarded = raw.replace(/(?:[A-Za-z]\.)+[A-Za-z](?=\.)/g, (m) => m.replaceAll(".", "\u0000") + "\u0001");
+  const guarded = raw.replace(/(?:[A-Za-z]\.)+[A-Za-z](?=\.)/g, (m) => m.replaceAll(".", "\uE000") + "\uE001");
   const out: string[] = [];
   for (const part of guarded.split(".")) {
     const trait = part.trim();
     if (!trait) continue;
     out.push(
       trait
-        .replace(/\u0001$/, ".")
-        .replaceAll("\u0000", ".")
+        .replace(/\uE001$/, ".")
+        .replaceAll("\uE000", ".")
         .toUpperCase(),
     );
   }
