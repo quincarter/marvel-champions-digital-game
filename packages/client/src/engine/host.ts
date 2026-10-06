@@ -22,6 +22,7 @@ import type {
   GameEvent,
   GameState,
   LegalActions,
+  OutsideFacts,
   PlayerId,
   SetupStack,
   TableRules,
@@ -131,6 +132,13 @@ export interface SessionConfig {
    * plain game, additive like `stack`.
    */
   readonly guided?: SavedGuidedRun;
+  /**
+   * Facts from outside the game, one entry per seat in seat order (`PlayerSetup.outsideFacts`; docs/phase7-wave7.md
+   * §4.1 Q48): the profile's last finished result, stamped by `EngineSessionCore#start` from the game history for a
+   * plain game. Stored with the save, so a resume, a replay and an export rebuild the same game. Absent when the
+   * history has no finished game and for every guided run, which stays deterministic; additive like `modes`.
+   */
+  readonly outsideFacts?: readonly OutsideFacts[];
   /**
    * The table's own rules (`GameSetupConfig.tableRules`; today "a hero and an ally with the same name can't both be in
    * play"), as the game was created with them: sent straight through `scenarioFor` into setup, so they are part of the

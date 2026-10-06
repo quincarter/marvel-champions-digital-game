@@ -14,29 +14,50 @@ import { boardUp, facts, payWith, playFromHand, press } from "./x-men-helpers.js
 
 const SHOTS = process.env.E2E_SHOTS ?? "";
 
-const launch = async (page: Page, which: string): Promise<void> => {
+/** `wonBefore`: the player's profile already holds a finished win (a stored game marked won) when the game starts. */
+const launch = async (page: Page, which: string, wonBefore = false): Promise<void> => {
   await installWave6Helpers(page);
   await openApp(page);
-  await page.evaluate(async (w) => {
-    const { appSession } = (await import("/src/session.ts")) as unknown as { appSession: () => { store: unknown } };
-    const mod = (await import(/* @vite-ignore */ "/src/store/dev-qa-deadpool-game.ts")) as unknown as {
-      startDeadpoolQaGame: (store: unknown, which: string) => Promise<void>;
-    };
-    await mod.startDeadpoolQaGame(appSession().store, w);
-    const scenes = (
-      window as unknown as {
-        __mcGame: {
-          scene: {
-            getScenes: (a: boolean) => { sys: { settings: { key: string } } }[];
-            stop: (k: string) => void;
-            start: (k: string) => void;
-          };
+  await page.evaluate(
+    async ({ w, won }) => {
+      const { appSession } = (await import("/src/session.ts")) as unknown as {
+        appSession: () => {
+          store: { start: (c: unknown) => Promise<void>; listSaves: () => Promise<{ id: string }[]> };
         };
+      };
+      if (won) {
+        const { IdbGameStorage } = (await import(/* @vite-ignore */ "/src/engine/idb-game-storage.ts")) as unknown as {
+          IdbGameStorage: new () => { setStatus: (id: string, status: string) => Promise<void> };
+        };
+        await appSession().store.start({
+          scenarioId: "rhino",
+          difficulty: "standard",
+          players: [{ starterDeckId: "core-spider-man-justice" }],
+          seed: 1,
+        });
+        const earlier = (await appSession().store.listSaves())[0]!;
+        await new IdbGameStorage().setStatus(earlier.id, "won");
       }
-    ).__mcGame.scene;
-    for (const s of scenes.getScenes(true)) scenes.stop(s.sys.settings.key);
-    scenes.start("Board");
-  }, which);
+      const mod = (await import(/* @vite-ignore */ "/src/store/dev-qa-deadpool-game.ts")) as unknown as {
+        startDeadpoolQaGame: (store: unknown, which: string) => Promise<void>;
+      };
+      await mod.startDeadpoolQaGame(appSession().store, w);
+      const scenes = (
+        window as unknown as {
+          __mcGame: {
+            scene: {
+              getScenes: (a: boolean) => { sys: { settings: { key: string } } }[];
+              stop: (k: string) => void;
+              start: (k: string) => void;
+            };
+          };
+        }
+      ).__mcGame.scene;
+      for (const s of scenes.getScenes(true)) scenes.stop(s.sys.settings.key);
+      scenes.start("Board");
+    },
+    { w: which, won: wonBefore },
+  );
   await boardUp(page);
 };
 
@@ -393,20 +414,26 @@ test("Git Gud (44028): with no previous-game fact it costs 2 less (free), and th
 });
 
 // Git Gud: "If you did not win your previous game of Marvel Champions, this costs 2 less" (script: `not(outsideFact
-// ("wonPreviousGame"))`; spec Q48: the client reads the seat's profile history and snapshots it into
-// `PlayerSetup.outsideFacts` at setup). The client never does: `SessionConfig`/`CorePlayer` carry no `outsideFacts`,
-// `session-core.ts` `scenarioFor` passes none, and nothing reads `view/results-history.ts` into setup. Every player is
-// treated as having not won, so a player who won last time still pays 0. Pinned until the setup path exists.
-test.fixme("Git Gud (44028): a player whose previous game was a win pays the full 2", async ({ page }) => {
+// ("wonPreviousGame"))`; spec Q48: the seat's profile history is snapshotted into `PlayerSetup.outsideFacts` at setup).
+// The player's profile holds a finished win (a stored game marked won), then the staged game starts.
+test("Git Gud (44028): a player whose previous game was a win pays the full 2", async ({ page }) => {
   test.setTimeout(240_000);
-  await launch(page, "gitGud");
-  const card = (await handInstanceFor(page, "44028"))!;
+  await launch(page, "gitGud", true);
   const seatWon = await page.evaluate(async () => {
     const { appSession } = (await import("/src/session.ts")) as unknown as {
       appSession: () => { store: { state: any } };
     };
     return appSession().store.state.game.players[0].outsideFacts?.wonPreviousGame ?? null;
   });
-  expect(seatWon, "setup snapshots the seat's profile history into outsideFacts").not.toBeNull();
-  expect(card).toBeTruthy();
+  expect(seatWon, "setup snapshots the seat's profile history into outsideFacts").toBe(true);
+  const card = (await handInstanceFor(page, "44028"))!;
+  await playFromHand(
+    page,
+    false,
+    card,
+    async () => (await boardHas(page, /^play it$/i)) || (await boardHas(page, /^pay$/i)),
+  );
+  await shot(page, "git-gud-won-prompt");
+  expect(await boardHas(page, /^pay$/i), "the full 2 must be paid").toBe(true);
+  expect(await boardHas(page, /^2→0$/), "no 2 → 0 reduction after a win").toBe(false);
 });
