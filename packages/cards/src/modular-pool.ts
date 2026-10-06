@@ -24,12 +24,14 @@ import {
   WAVE4_SCENARIOS,
   WAVE5_SCENARIOS,
   WAVE6_SCENARIOS,
+  WAVE7_SCENARIOS,
   WAVE1_ENCOUNTER_SETS,
   WAVE2_ENCOUNTER_SETS,
   WAVE3_ENCOUNTER_SETS,
   WAVE4_ENCOUNTER_SETS,
   WAVE5_ENCOUNTER_SETS,
   WAVE6_ENCOUNTER_SETS,
+  WAVE7_ENCOUNTER_SETS,
   setAsideModularSetCountFor,
   type AnyCard,
   type CardId,
@@ -49,6 +51,7 @@ export const PLAYABLE_ENCOUNTER_SETS: readonly EncounterSet[] = [
       ...WAVE4_ENCOUNTER_SETS,
       ...WAVE5_ENCOUNTER_SETS,
       ...WAVE6_ENCOUNTER_SETS,
+      ...WAVE7_ENCOUNTER_SETS,
     ].map((set) => [set.id as string, set] as const),
   ).values(),
 ];
@@ -88,9 +91,19 @@ export function isModularChoice(set: EncounterSet, scenario: Scenario): boolean 
     !set.campaignSpecific &&
     !set.extraModular &&
     !set.autoIncluded &&
+    !SCENARIO_BOUND_SET_IDS.has(set.id) &&
     !scenario.encounterSetIds.includes(set.id)
   );
 }
+
+/**
+ * Sets that are never a modular choice because the scenarios that use them bring them in themselves. Hope Summers
+ * (MC40 p. 5, "required when playing" Juggernaut, Mister Sinister and Stryfe; docs/phase7-wave7.md §1.12): her card has
+ * the setup keyword and "if Hope Summers leaves play, the players lose the game", so shuffling her into any other
+ * scenario is not a choice the game offers. The spec calls the set `extraModular`, which the data does not carry and
+ * which would offer her at every scenario, so the exclusion lives here until that is settled.
+ */
+export const SCENARIO_BOUND_SET_IDS: ReadonlySet<string> = new Set(["hope_summers"]);
 
 /** Every scenario of the playable pool, in wave order. */
 export const PLAYABLE_SCENARIO_RECORDS: readonly Scenario[] = [
@@ -101,6 +114,7 @@ export const PLAYABLE_SCENARIO_RECORDS: readonly Scenario[] = [
   ...WAVE4_SCENARIOS,
   ...WAVE5_SCENARIOS,
   ...WAVE6_SCENARIOS,
+  ...WAVE7_SCENARIOS,
 ];
 
 /** Every set some scenario names as its Standard or Expert set: never a modular choice anywhere (RRG 1.8 pp. 40, 19). */
@@ -150,6 +164,7 @@ export function modularPickProblem(
   if (!set) return `${id} is not an encounter set`;
   if (set.extraModular) return `${id} is an extra modular set and never counts as one (Q43)`;
   if (set.autoIncluded) return `${id} is included by a setup condition, never chosen (wave 7 Q44)`;
+  if (SCENARIO_BOUND_SET_IDS.has(id)) return `${id} is brought in by the scenarios that require it, never chosen`;
   if (scenarioOwnSetIds(scenario).has(id)) return `${id} is already part of ${scenario.name}`;
   if (set.classification !== undefined || DIFFICULTY_SET_IDS.has(id))
     return `${id} is a Standard or Expert set, never a modular choice (RRG pp. 40, 19)`;

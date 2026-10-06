@@ -31,9 +31,8 @@ export interface Wave7ScenarioOptions extends Omit<CoreScenarioOptions, "cardPoo
 }
 
 /**
- * Every encounter set a game can name (`chooseModularSets` checks picks against these). `PLAYABLE_ENCOUNTER_SETS` does
- * not list wave 7's sets yet (adding them would offer Military Grade and the rest at every earlier scenario), so they
- * are added here, for this builder only.
+ * Every encounter set a game can name (`chooseModularSets` checks picks against these): the playable pool's sets,
+ * which already list wave 7's (the union keeps this builder usable on its own).
  */
 const ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...new Map([...PLAYABLE_ENCOUNTER_SETS, ...WAVE7_ENCOUNTER_SETS].map((set) => [set.id as string, set])).values(),
@@ -217,8 +216,6 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
  * A NeXt Evolution scenario's `GameSetupConfig` from its emitted `Scenario` record (`morlock-siege`, `on-the-run`,
  * `juggernaut`, `mister-sinister`, `stryfe`). Throws "not yet supported: <reason>" for a scenario that cannot be built
  * correctly yet (`NOT_YET_SUPPORTED`), and for any other id: Core's scenarios are built by `wave6Scenario`.
- *
- * Not wired into `playable/`: that would make these scenarios selectable before any wave 7 card is scripted.
  */
 export function wave7Scenario(scenarioId: string, options: Wave7ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(scenarioId, options.setupOptions);

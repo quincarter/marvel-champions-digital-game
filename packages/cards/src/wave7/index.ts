@@ -2,11 +2,9 @@
  * Wave 7 (PLAN.md Phase 7 / docs/phase7-wave7.md): cycle 7, NeXt Evolution (`next_evol`, Cable and Domino with the
  * five-scenario campaign box) and the four hero packs `psylocke`, `angel`, `x23` and `deadpool`.
  *
- * **Scaffold only: no wave 7 card is scripted.** Each pack's registry is merged from empty per-group modules
- * (`<pack>/<hero>/{identity,events,support-upgrades-allies,obligation-nemesis}.ts`, one module per scenario and
- * modular set), so parallel scripting agents never share a file. Scripting a group is filling its module; nothing here
- * changes. The wave is not joined to `playable/`: the five packs stay in the legality test's `UNSCRIPTED_WAVE7_PACKS`
- * and `wave7Scenario` is not offered to the client until the packs are scripted (the client's `pool.ts` is a later step).
+ * Every pack is scripted (each pack's registry is merged from per-group modules, one module per scenario and modular
+ * set, so parallel scripting agents never share a file) and the wave is joined to `playable/` (`PLAYABLE_ABILITIES`,
+ * `playableScenario`, `playableStarterDeckSetup`).
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";

@@ -46,11 +46,9 @@ const PRECONS: readonly StarterDeck[] = [
 const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set();
 
 /**
- * Wave 7 packs in the pool whose kits are not scripted yet (docs/phase7-wave7.md): their precons are legal but cannot
- * be seated, which the client reports through `unscriptedCards` (it blocks such a deck at the seat). Remove a pack
- * from this set when its kit is scripted.
+ * Wave 7 packs in the pool whose kits are not scripted yet (docs/phase7-wave7.md): none.
  */
-const UNSCRIPTED_WAVE7_PACKS: ReadonlySet<string> = new Set(["next_evol", "psylocke", "angel", "x23", "deadpool"]);
+const UNSCRIPTED_WAVE7_PACKS: ReadonlySet<string> = new Set();
 
 /** Every pack whose precons are legal but cannot be seated yet. */
 const UNSCRIPTED_PACKS: ReadonlySet<string> = new Set([...UNSCRIPTED_WAVE6_PACKS, ...UNSCRIPTED_WAVE7_PACKS]);
