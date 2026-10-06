@@ -609,7 +609,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     hp: 4,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {

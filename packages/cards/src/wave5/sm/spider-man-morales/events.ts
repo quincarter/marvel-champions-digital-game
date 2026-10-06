@@ -42,8 +42,8 @@ import {
 } from "../../../dsl/index.js";
 
 /** Every S.H.I.E.L.D. card the S.H.I.E.L.D.-tactic events name — an exact trait match (docs/phase7-wave5.md's own
- * "Spider" precedent, FAQ p. 62: matched by the printed trait itself, not a substring or a related trait like
- * "S.H.I.E.L.D. TACTIC"/"S.H.I.E.L.D. SPY"). Any player-card category with the trait qualifies (this precon alone
+ * "Spider" precedent, FAQ p. 62: matched by the printed trait itself, not a substring). Cards printed
+ * "S.H.I.E.L.D. Tactic." or "S.H.I.E.L.D. Spy." carry two traits, so they match too. Any player-card category with the trait qualifies (this precon alone
  * prints it on a support, `27036`/`27044`/`27045`, and an ally, `27040`/`27047`). */
 const SHIELD_CARD = query(["ally", "upgrade", "support"], { trait: trait("S.H.I.E.L.D.") });
 

@@ -742,11 +742,7 @@ describe("NeXt Evolution aspect and basic cards, from a Core hero's deck", () =>
       expect(hasTraitOn(hope.state, hope.id, "GENIUS")).toBe(true);
       expect(hasTraitOn(hope.state, hope.id, "AVENGER")).toBe(false);
     });
-    // FINDING (card data, Core 01010b and the same shape in ~10 packs): Carol Danvers' printed trait line "S.H.I.E.L.D.
-    // Soldier." is stored as the single trait "S.H.I.E.L.D. SOLDIER" (`scripts/marvelcdb/text.ts` `parseTraits` documents
-    // the intended split into "S.H.I.E.L.D." and "SOLDIER", but a dotted acronym followed by a space is not split), so
-    // "your identity has the SOLDIER trait" is false for her alter-ego face. Owner: card-data-pipeline.
-    it.fails("40023 Mission Leader: Carol Danvers (alter-ego face) is a SOLDIER too, so it costs 1", () => {
+    it("40023 Mission Leader: Carol Danvers (alter-ego face) is a SOLDIER too, so it costs 1", () => {
       const ego = openedCrossHero("40023");
       const given = moveToHand(ego, P1, "40023");
       const id = given.ids[0]!;
