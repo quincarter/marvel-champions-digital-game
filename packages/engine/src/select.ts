@@ -694,13 +694,34 @@ export function isPlayerCard(state: GameState, id: InstanceId | null): boolean {
   return instance.controllerId !== null && card !== undefined && isPlayerCardType(card);
 }
 
-export function cardsInPlay(state: GameState): readonly InstanceId[] {
+/**
+ * RRG 1.8 "In Play and Out of Play" (p. 23): "Facedown cards attached to in-play cards are out of play." A card attached
+ * facedown (`attachCard`'s `facedown`, a swap into a facedown attachment's place) is on its host but not in play: its
+ * text is inactive, no ability counts or targets it as an upgrade, ally or support "you control", and it neither enters
+ * nor leaves play as it comes and goes. It still goes where its host's attachments go when the host leaves play (RRG
+ * 1.8 "Leaves Play", p. 27), its owner may look at it (`visibility.ts`), and an ability that names it finds it: a
+ * `TargetQuery` asking for `facedown: true` (`selectTargets`), "the cards attached here" (`TargetRef attachmentsOf`),
+ * "you may play the event attached here" (`playableAttachments`). The same standing as a tucked card (RRG 1.8 "Tuck",
+ * p. 45). Not a facedown card in play in a role (`FacedownRole` `minion`), nor a loose facedown card in a play area.
+ */
+export function isFacedownAttachment(state: GameState, id: InstanceId): boolean {
+  const instance = getInstance(state, id);
+  return instance !== undefined && instance.attachedTo !== null && instance.facedownAs?.kind === "blank";
+}
+
+/** The walk behind `cardsInPlay`, in table order; `withFacedownAttachments` keeps the out-of-play facedown attachments. */
+function cardsOnTable(state: GameState, withFacedownAttachments: boolean): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
   const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
   const ids: InstanceId[] = [...villains, state.mainScheme.instanceId];
   // A card attached to an attachment is in play too, however deep (docs/phase7-wave5.md §4.1 Q50).
   const attachmentsOf = (id: InstanceId): void => {
     for (const attachment of getInstance(state, id)?.attachments ?? []) {
+      // A facedown attachment is out of play (p. 23), and nothing attaches to a card out of play.
+      if (isFacedownAttachment(state, attachment)) {
+        if (withFacedownAttachments) ids.push(attachment);
+        continue;
+      }
       ids.push(attachment);
       attachmentsOf(attachment);
     }
@@ -721,6 +742,16 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   }
   for (const id of state.villainArea) withAttachments(id);
   return ids;
+}
+
+/** Every card in play. A facedown attachment is not (`isFacedownAttachment`, RRG 1.8 p. 23). */
+export function cardsInPlay(state: GameState): readonly InstanceId[] {
+  return cardsOnTable(state, false);
+}
+
+/** The facedown cards attached to cards in play: out of play, on their hosts (`isFacedownAttachment`). */
+export function facedownAttachments(state: GameState): readonly InstanceId[] {
+  return cardsOnTable(state, true).filter((id) => isFacedownAttachment(state, id));
 }
 
 /** A card a "find" names, and the deck it is in (null outside a deck). */
@@ -1048,7 +1079,10 @@ export function explainQuery(
   // "An ally with a weapon attachment upgrade" (docs/phase7-wave3.md §3.40): the other direction of `host`.
   if (query.hasAttachment !== undefined) {
     const wanted = query.hasAttachment;
-    if (!instance.attachments.some((attached) => matchesQuery(state, attached, wanted, context)))
+    // A facedown attachment is out of play (RRG 1.8 p. 23): no "with an upgrade attached" unless facedown ones are asked for.
+    const counts = (attached: InstanceId): boolean =>
+      wanted.facedown === true || !isFacedownAttachment(state, attached);
+    if (!instance.attachments.some((attached) => counts(attached) && matchesQuery(state, attached, wanted, context)))
       return "missingAttachment";
   }
   // "Attach it to another character": only a host that can take that card (`cannotHaveAttachments`).
@@ -1710,8 +1744,14 @@ export function characterNames(state: GameState, spec: CharacterNames, context: 
   });
 }
 
+/**
+ * The cards in play matching `query`. RRG 1.8 "In Play and Out of Play" (p. 23): "Card abilities only interact with,
+ * and can only target, cards that are in play (unless the ability text specifically refers to an out-of-play area)", so
+ * a query that asks for facedown cards (`facedown: true`: "each facedown card attached here") also reads the facedown
+ * attachments, which are out of play; no other query sees them.
+ */
 export const selectTargets = (state: GameState, query: TargetQuery, context: EffectContext): readonly InstanceId[] =>
-  cardsInPlay(state).filter((id) => matchesQuery(state, id, query, context));
+  cardsOnTable(state, query.facedown === true).filter((id) => matchesQuery(state, id, query, context));
 
 /**
  * The players who may trigger an action, interrupt or response that names them (`triggerableBy`, docs/phase7-wave6.md

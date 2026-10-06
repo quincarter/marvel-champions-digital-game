@@ -348,6 +348,8 @@ export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
+  facedownAttachments,
+  isFacedownAttachment,
   cardTypeOf,
   categoriesOf,
   chosenFromList,

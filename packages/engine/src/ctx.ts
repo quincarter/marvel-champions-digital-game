@@ -266,6 +266,15 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
     instance = { ...instance, attachedTo };
     ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
   }
+  // A facedown attachment (out of play, RRG 1.8 "In Play and Out of Play", p. 23) is itself again once it is off its
+  // host for any zone but another host: it is no longer a facedown card on a card. RRG 1.8 "Ownership and Control"
+  // (p. 31): "A player controls the cards in their own out-of-play areas." Turned faceup as a facedown card leaving
+  // play is (`leaveNow`); a caller whose zone shows another face (a deck) sets it after the move.
+  if (from?.kind === "attachment" && to.kind !== "attachment" && instance.facedownAs?.kind === "blank") {
+    const controllerId = instance.ownerId !== null && "playerId" in to ? to.playerId : instance.controllerId;
+    instance = { ...instance, facedownAs: null, faceup: true, controllerId };
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
+  }
   // "If this card was revealed from the encounter deck" (docs/phase7-wave6.md §3.64): a card dealt facedown straight
   // off an encounter deck remembers it until it leaves the players' dealt encounter cards.
   const dealtFromDeck =

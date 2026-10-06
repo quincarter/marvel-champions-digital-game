@@ -22,7 +22,7 @@ import type { EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getInstance, mustInstance } from "../query.js";
 import { canHaveAttached, cannotBeUnattached } from "../rules.js";
-import { cardsInPlay, controllerOf } from "../select.js";
+import { cardsInPlay, controllerOf, isFacedownAttachment } from "../select.js";
 import type { GameState } from "../state.js";
 
 /**
@@ -68,6 +68,9 @@ export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown 
   if (!wasInPlay && ownerId !== null && controllerId !== ownerId)
     updateInstance(ctx, id, (i) => ({ ...i, controllerId: ownerId }));
   if (facedown) updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
+  else if (isFacedownAttachment(ctx.state, id))
+    // A facedown attachment attached faceup to a host is itself again, and in play (RRG 1.8 p. 23).
+    updateInstance(ctx, id, (i) => ({ ...i, faceup: true, facedownAs: null }));
   else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
   settleUpgradeControl(ctx, id, heldByHost ? ownerId : mustInstance(ctx.state, id).controllerId);
   return true;

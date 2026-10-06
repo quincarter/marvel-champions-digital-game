@@ -51,6 +51,7 @@ import {
   deckDiscardsSlot,
   gliderMainSchemeId,
   handCountTowardHandSize,
+  isFacedownAttachment,
   matchesQuery,
   ofPermanentCardsSet,
   traitsOf,
@@ -1228,6 +1229,8 @@ export function leavingWithHost(
   const events: TriggerEvent[] = [];
   for (const attachment of getInstance(ctx.state, hostId)?.attachments ?? []) {
     if (!ctx.state.instances[attachment] || leavingFrameFor(ctx.state, attachment)) continue;
+    // Out of play already (RRG 1.8 p. 23): it goes with its host, but it does not leave play.
+    if (isFacedownAttachment(ctx.state, attachment)) continue;
     if (stays?.(attachment)) continue;
     const blocked = staysInPlayWithoutHost(ctx, attachment);
     const discarded = () =>
@@ -1399,6 +1402,15 @@ function leaveNow(
   discarded: boolean,
   withHost = false,
 ): void {
+  // A facedown attachment is out of play (RRG 1.8 "In Play and Out of Play", p. 23), so it does not leave play: it goes
+  // where it is sent as a tucked card does, faceup into a discard pile, with no discard "from play", nothing to hear it
+  // and no in-play state to clear. `relocateCard` makes it itself again as it comes off its host.
+  if (isFacedownAttachment(ctx.state, id)) {
+    const to: ZoneId = removedAsDoubleSided(ctx.state, id, requested.kind) ? { kind: "removedFromGame" } : requested;
+    if (discarded) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    moveCard(ctx, id, to, position);
+    return;
+  }
   // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
   const losesBy = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);

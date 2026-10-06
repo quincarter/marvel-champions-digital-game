@@ -77,8 +77,8 @@ const SELF_FACTOR = ifElse(
  * - **Self Confidence / Control / Preservation (44025-44027)**: "sustained less than 5" is at most 4 damage on your
  *   identity right now; triple with none. The printed resource is multiplied (1, so 3 / 2 / 1).
  * - **Armed to the Teeth (44009)**: the search is the response; the Action swaps the attachment with a WEAPON upgrade
- *   you control (RRG "Swap", p. 42). Collection rule: spec Q47 = A. Engine gap: a facedown attachment is out of play
- *   (RRG "Out of Play") but `cardsInPlay` counts it, so `swapCards` refuses ("bothInPlay"); the test pins that.
+ *   you control (RRG "Swap", p. 42). Collection rule: spec Q47 = A. The facedown attachment is out of play (RRG "In
+ *   Play and Out of Play", p. 23), so this is a swap between an in-play card and an out-of-play one.
  * - **Headpool (44014)**: the minion must still be in play, so the response needs the attack not to have defeated it.
  * - **It Ain't Over... (44011)**: +2 target threat per token on the attached main scheme (data host `mainScheme`).
  * - **Git Gud (44028)**: the cost reduction is read in hand (spec Q48: absent means did not win). The forced interrupt

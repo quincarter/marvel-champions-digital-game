@@ -17,6 +17,12 @@
  *   and its `cardEntersPlay` is announced (the enter-play keywords are that event's apply step).
  * Two out-of-play cards (Eidetic Memory, `silk`, erratum RRG 1.8 p. 69) just exchange places and orientations.
  *
+ * A facedown card attached to a card in play is out of play (RRG 1.8 "In Play and Out of Play", p. 23:
+ * `isFacedownAttachment`), so swapping it with a card in play is the play-area / out-of-play-area swap above: the
+ * in-play card leaves play and becomes the facedown attachment ("swapped cards maintain the orientation ... faceup or
+ * facedown ... of the original card": facedown, with no title or text there), and the facedown one enters play faceup,
+ * ready, in the other's place.
+ *
  * Not built (refused, logged `swapRefused`): two cards both in play (no printed card does it), and identities, villains
  * and main schemes, which have their own swaps (`swapIdentity`, `swapVillain`).
  */
@@ -111,8 +117,8 @@ export function swapCards(
   const request = { kind: "swap", with: incoming, ...(sourceCardId !== undefined ? { sourceCardId } : {}) } as const;
   if (waitsForLeaveInterrupts(ctx, outgoing, request, going)) return "waiting";
 
-  const outFaceup = mustInstance(ctx.state, outgoing).faceup;
-  const inFaceup = mustInstance(ctx.state, incoming).faceup;
+  const { faceup: outFaceup, facedownAs: outRole } = mustInstance(ctx.state, outgoing);
+  const { faceup: inFaceup, facedownAs: inRole } = mustInstance(ctx.state, incoming);
   if (leavePlay(ctx, outgoing, into.zone, "bottom", false, undefined, sourceCardId) !== "left")
     return refuse("cannotLeavePlay", [outgoing]);
   moveCard(ctx, incoming, out.zone);
@@ -121,6 +127,7 @@ export function swapCards(
   updateInstance(ctx, incoming, (i) => ({
     ...i,
     faceup: outFaceup,
+    facedownAs: outRole,
     exhausted: false,
     controllerId: minion ? null : controller,
     engagedWith,
@@ -131,7 +138,9 @@ export function swapCards(
     placeAt(ctx, outgoing, into.index);
     // A separate deck shows what its own rules say (`syncSeparateDeckTop`, run by `placeAt`); elsewhere it takes the
     // orientation the other card had there.
-    if (landed.kind !== "separateDeck") updateInstance(ctx, outgoing, (i) => ({ ...i, faceup: inFaceup }));
+    // In a facedown attachment's place it is one itself (`inRole`), out of play.
+    if (landed.kind !== "separateDeck")
+      updateInstance(ctx, outgoing, (i) => ({ ...i, faceup: inFaceup, facedownAs: inRole }));
   }
   emit(ctx, {
     type: "cardsSwapped",
@@ -164,8 +173,8 @@ function exchangeSameTitle(ctx: Ctx, outgoing: InstanceId, incoming: InstanceId)
 function exchangeOutOfPlay(ctx: Ctx, a: InstanceId, b: InstanceId): SwapOutcome {
   const at = placeOf(ctx, a)!;
   const bt = placeOf(ctx, b)!;
-  const aFaceup = mustInstance(ctx.state, a).faceup;
-  const bFaceup = mustInstance(ctx.state, b).faceup;
+  const { faceup: aFaceup, facedownAs: aRole } = mustInstance(ctx.state, a);
+  const { faceup: bFaceup, facedownAs: bRole } = mustInstance(ctx.state, b);
   moveCard(ctx, a, bt.zone);
   moveCard(ctx, b, at.zone);
   // In one zone, placing the lower index first leaves the higher one where it belongs.
@@ -175,11 +184,13 @@ function exchangeOutOfPlay(ctx: Ctx, a: InstanceId, b: InstanceId): SwapOutcome 
   ];
   placements.sort((x, y) => x[1] - y[1]);
   for (const [id, index] of placements) placeAt(ctx, id, index);
-  for (const [id, faceup] of [
-    [a, bFaceup],
-    [b, aFaceup],
+  // A facedown attachment's orientation is its blank role as well as its face (`isFacedownAttachment`).
+  for (const [id, faceup, facedownAs] of [
+    [a, bFaceup, bRole],
+    [b, aFaceup, aRole],
   ] as const) {
-    if (locateCard(ctx.state, id)?.kind !== "separateDeck") updateInstance(ctx, id, (i) => ({ ...i, faceup }));
+    if (locateCard(ctx.state, id)?.kind !== "separateDeck")
+      updateInstance(ctx, id, (i) => ({ ...i, faceup, facedownAs }));
   }
   emit(ctx, {
     type: "cardsSwapped",
