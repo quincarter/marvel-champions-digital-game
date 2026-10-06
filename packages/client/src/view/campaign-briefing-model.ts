@@ -49,6 +49,9 @@ export interface BriefingNoteCopy {
   readonly status: "done" | "later";
   readonly title: string;
   readonly detail: string;
+  /** Read instead of `detail` on a retry, when the attempt repeated an earlier pick without asking (a `choose` with
+   * `repeatOnRetry`, MC40 p. 7), so a row never says "the group picks" for a pick nobody is asked to make. */
+  readonly repeatDetail?: string;
   readonly citation?: string;
 }
 
@@ -474,7 +477,12 @@ export function handledRowsOf(
   briefingNotes?: readonly BriefingNoteCopy[],
 ): readonly HandledRow[] {
   if (briefingNotes && briefingNotes.length > 0) {
-    return briefingNotes.map((note, index) => ({ key: `note:${index}`, ...note }));
+    const repeated = attempt.steps.some((step) => step.choices.some((choice) => choice.repeated === true));
+    return briefingNotes.map(({ repeatDetail, ...note }, index) => ({
+      key: `note:${index}`,
+      ...note,
+      detail: repeated && repeatDetail ? repeatDetail : note.detail,
+    }));
   }
   return genericHandledRowsOf(attempt, record, cardName, definition, nodeIds);
 }

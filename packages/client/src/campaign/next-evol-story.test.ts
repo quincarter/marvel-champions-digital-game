@@ -36,6 +36,17 @@ describe("NeXt Evolution's story (MC40)", () => {
     }
   });
 
+  test("a note about a side scheme pick has repeat copy that does not say the group picks", () => {
+    const pickNotes = story.issues
+      .flatMap((issue) => issue.briefingNotes ?? [])
+      .filter((note) => /pick/.test(note.detail));
+    expect(pickNotes.length).toBeGreaterThan(0);
+    for (const note of pickNotes) {
+      expect(note.repeatDetail, note.title).toBeTruthy();
+      expect(note.repeatDetail, note.title).not.toMatch(/group picks/i);
+    }
+  });
+
   test("stage lines exist for exactly the stages a scenario flips through", () => {
     // The Marauders (issues 1 and 2) stay at one stage; Juggernaut, Sinister and Stryfe flip to II or III.
     expect(Object.keys(story.issues[0]!.stageLines)).toEqual([]);

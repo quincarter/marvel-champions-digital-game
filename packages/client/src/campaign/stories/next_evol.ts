@@ -45,37 +45,37 @@ const PAGES: readonly ComicPage[] = [
   // Construction site: the retreat, the rooftop watcher, the Nasty Boys' deal, X-Force closing in.
   page("02-construction", [
     { x: 55, y: 48, w: 1230, h: 465 },
-    { x: 120, y: 140, w: 1630, h: 735 },
+    { x: 120, y: 515, w: 1630, h: 360 },
     { x: 55, y: 893, w: 960, h: 760 },
-    { x: 1045, y: 938, w: 700, h: 805 },
+    { x: 998, y: 938, w: 752, h: 805 },
   ]),
   // The interrogation: Harpoon, Psylocke, Hope, and the call for a teleport.
   page("03-harpoon", [
     { x: 60, y: 45, w: 880, h: 650 },
     { x: 840, y: 85, w: 910, h: 705 },
     { x: 58, y: 745, w: 825, h: 975 },
-    { x: 885, y: 845, w: 455, h: 815 },
-    { x: 1215, y: 870, w: 535, h: 850 },
+    { x: 882, y: 842, w: 458, h: 845 },
+    { x: 1340, y: 870, w: 410, h: 850 },
   ]),
   // Omaha: three small panels over one big one.
   page("04-omaha", [
-    { x: 60, y: 55, w: 400, h: 375 },
-    { x: 480, y: 55, w: 500, h: 375 },
-    { x: 1010, y: 55, w: 735, h: 375 },
-    { x: 0, y: 430, w: 1800, h: 1370 },
+    { x: 48, y: 55, w: 412, h: 740 },
+    { x: 480, y: 55, w: 508, h: 740 },
+    { x: 1008, y: 55, w: 738, h: 790 },
+    { x: 0, y: 795, w: 1800, h: 1005 },
   ]),
   // The orphanage basement and the elevator down.
   page("05-elevator", [
     { x: 58, y: 48, w: 1142, h: 725 },
     { x: 1222, y: 48, w: 525, h: 725 },
-    { x: 55, y: 790, w: 650, h: 740 },
-    { x: 730, y: 790, w: 1020, h: 735 },
+    { x: 55, y: 790, w: 652, h: 962 },
+    { x: 730, y: 790, w: 1018, h: 962 },
   ]),
   // The portal: three tall panels, then Stryfe's.
   page("06-portal", [
     { x: 58, y: 52, w: 412, h: 1350 },
-    { x: 382, y: 85, w: 445, h: 1510 },
-    { x: 762, y: 142, w: 325, h: 1530 },
+    { x: 470, y: 85, w: 358, h: 1510 },
+    { x: 830, y: 142, w: 256, h: 1530 },
     { x: 1085, y: 85, w: 715, h: 1650 },
   ]),
   // Stryfe beaten and the way home.
@@ -151,6 +151,8 @@ export const NEXT_EVOL_STORY: CampaignStory = {
           status: "done",
           title: "Your side scheme comes into play",
           detail: "The group picks one player side scheme. It enters play and its encounter card is shuffled in.",
+          repeatDetail:
+            "The side scheme you picked last time comes into play again, with its encounter card shuffled in. Nothing is asked.",
           citation: "MC40 p. 9",
         },
         {
@@ -213,6 +215,8 @@ export const NEXT_EVOL_STORY: CampaignStory = {
           status: "later",
           title: "A new side scheme, a new environment",
           detail: "A scheme you did not choose before. Defeat it to earn its environment for every issue after.",
+          repeatDetail:
+            "The scheme you picked last time comes back. Defeat it to earn its environment for every issue after.",
           citation: "MC40 p. 7",
         },
       ],
