@@ -106,7 +106,7 @@ const PROTECTION: AspectGuide = {
 const POOL: AspectGuide = {
   aspect: "pool",
   name: "'Pool",
-  tagline: "Chaos, allies and a messy deck",
+  tagline: "Big swings, at a price",
   whatItsFor:
     "[[poolAspect|'Pool]] is the fifth aspect, from the Deadpool pack: chatty [[ally|allies]], odd events and " +
     "upgrades that heal or hit hard, and a few that cost you something. It counts as an aspect everywhere a card " +
@@ -117,7 +117,7 @@ const POOL: AspectGuide = {
   ],
   signatureCardCodes: [cardId("44013"), cardId("44017"), cardId("44029")],
   preconId: starterDeckId("deadpool-pool"),
-  tipLine: "Choosing it adds the Dreadpool set. 'Pool cards in other decks do not.",
+  tipLine: "Pick it for wild, risky cards. It adds extra Dreadpool enemy cards to the villain's deck.",
 };
 
 const BASIC: AspectGuide = {
