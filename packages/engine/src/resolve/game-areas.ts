@@ -41,6 +41,7 @@ import {
 } from "../state.js";
 import { cardsMatch } from "../unique.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
+import { waitingSetupCardsEnterPlay } from "./setup-cards.js";
 
 const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
   ctx.state = { ...ctx.state, gameAreas };
@@ -401,6 +402,9 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
  * into play without `reveal` is noted there: RRG 1.8 Appendix II step 12c (p. 51) resolves its Setup and When Revealed
  * abilities after main scheme 1B's (`resolveVillainSetupAbilities`; docs/phase7-wave7.md §3.42). One that card text
  * reveals resolves its When Revealed here, once, and is not noted.
+ *
+ * Once the villains of one effect are all in play, a setup-keyword attachment that waited for one enters play
+ * (`GameState.setupCardsAwaitingHost`, `setup-cards.ts`).
  */
 export function addVillains(
   ctx: Ctx,
@@ -460,6 +464,8 @@ export function addVillains(
     else if (ctx.state.villainsEnteringAtSetup)
       ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };
   }
+  // RRG 1.8 Appendix II step 11 (p. 51): a setup-keyword attachment that found no villain in play now has one.
+  if (entered.length > 0) waitingSetupCardsEnterPlay(ctx);
   return { frames, entered };
 }
 

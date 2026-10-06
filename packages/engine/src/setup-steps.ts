@@ -27,15 +27,10 @@ import {
   undefeatedVillains,
   villainOf,
 } from "./query.js";
-import {
-  announce,
-  applyEnterPlayKeywords,
-  enterPlayOnReveal,
-  gameAbilityFrames,
-  shuffleSeparateDeck,
-} from "./resolve/index.js";
+import { announce, applyEnterPlayKeywords, gameAbilityFrames, shuffleSeparateDeck } from "./resolve/index.js";
 import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
+import { encounterSetupCardEntersPlay, waitingSetupCardsEnterPlay } from "./resolve/setup-cards.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 
@@ -148,8 +143,12 @@ export const stepAfterVillainSetupAbilities = (state: GameState, after: GameStep
  * Revealed has fully resolved, which is why this is a flow step and not part of the batch `resolveScenarioSetup` pushes
  * (that batch is built before 12a has chosen anyone). Each villain still in play resolves its Setup and then its When
  * Revealed once, in the order they entered, and the window closes.
+ *
+ * A step 11 setup card still waiting for a card to attach to (`GameState.setupCardsAwaitingHost`) is settled first: no
+ * later villain can enter inside the window.
  */
 export function resolveVillainSetupAbilities(ctx: Ctx): void {
+  waitingSetupCardsEnterPlay(ctx, true);
   const entered = ctx.state.villainsEnteringAtSetup ?? [];
   const { villainsEnteringAtSetup: _closed, ...rest } = ctx.state;
   ctx.state = rest;
@@ -259,13 +258,15 @@ function stackDecks(ctx: Ctx): void {
  * player's play area under their control (`enterPlayOnReveal`); the scenario still owns it. Its own text decides
  * whether it then follows the first player token (`controlledByFirstPlayer`) and whether it counts against the ally
  * limit (`excludedFromAllyLimit`).
+ *
+ * An attachment found there with no card to attach to, in a game whose villains all start set aside, waits for the
+ * villain that step 12a puts into play (`resolve/setup-cards.ts`).
  */
 function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-      enterPlayOnReveal(ctx, id, revealingPlayerId);
+      encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
     }
   }
   for (const player of ctx.state.players) {

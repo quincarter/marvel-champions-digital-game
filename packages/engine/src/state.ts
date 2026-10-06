@@ -973,6 +973,13 @@ export interface GameState {
    * docs/phase7-wave7.md §3.42.
    */
   readonly villainsEnteringAtSetup?: readonly InstanceId[];
+  /**
+   * Setup-keyword cards RRG 1.8 Appendix II step 11 (p. 51) took out of an encounter deck that could not enter play yet:
+   * attachments with no card to attach to, because every villain started set aside (`villainsEnteringAtSetup`). They
+   * wait faceup in `encounterSetAside`, in the order step 11 found them, and enter play when a villain does
+   * (`resolve/setup-cards.ts`). **Absent** unless a card is waiting, and never present once step 12c has begun.
+   */
+  readonly setupCardsAwaitingHost?: readonly InstanceId[];
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

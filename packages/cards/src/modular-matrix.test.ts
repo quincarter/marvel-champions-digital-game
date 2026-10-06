@@ -397,9 +397,9 @@ function setupProblems(state: GameState): string[] {
 }
 
 /**
- * A game whose villains start set aside (On the Run) pauses at Appendix II step 12c for the Setup text's villain choice,
- * and the setup-keyword cards of step 11 are put into play only once that choice resolves. Read the set's cards after
- * setup, answering the choice with the first legal option.
+ * A game whose villains start set aside (On the Run) pauses inside Appendix II step 12 for its Setup text's choices, and
+ * a step 11 setup-keyword card that attaches to the villain enters play only once step 12a has put the villain into
+ * play. Read the set's cards after setup, answering each choice with the first legal option.
  */
 function settleSetup(state: GameState): GameState {
   return settle(state, firstLegal, (current) => current.step.phase !== "setup", PLAYABLE_DEPS);
@@ -447,13 +447,7 @@ describe("modular set x scenario: every pairing builds", () => {
           for (const outcome of outcomes) {
             all.push(outcome);
             // Includes F3: a set's setup-keyword cards (the Milano) start in play in every scenario.
-            for (const problem of outcome.problems) {
-              // Known finding, pinned in `playable/wave7-playable.test.ts` (`it.fails`): On the Run leaves a modular set's
-              // setup-keyword cards in the encounter deck instead of putting them into play (RRG 1.8 Appendix II step 11).
-              if (scenario.id === "on-the-run" && problem.endsWith("has the setup keyword and did not start in play"))
-                continue;
-              failures.push(`${outcome.set}: ${problem}`);
-            }
+            for (const problem of outcome.problems) failures.push(`${outcome.set}: ${problem}`);
           }
         });
         // Any problem is a failure.

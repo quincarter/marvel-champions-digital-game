@@ -166,10 +166,11 @@ describe("the NeXt Evolution campaign cards stay campaign-only against the whole
   });
 });
 
-describe("known finding: On the Run and the setup keyword (RRG 1.8 Appendix II step 11, p. 51)", () => {
-  // A card with the setup keyword begins the game in play. With On the Run's villains starting set aside
-  // (`villainsStartSetAside`), Flight (40151) is turned faceup but stays in the encounter deck. Morlock Siege puts it in play.
-  const flightInPlay = (scenarioId: string): boolean => {
+describe("On the Run and the setup keyword (RRG 1.8 Appendix II step 11, p. 51)", () => {
+  // A card with the setup keyword begins the game in play. On the Run's villains start set aside
+  // (`villainsStartSetAside`), so Flight (40151, "Attach to the villain") has no villain at step 11: it waits, set aside,
+  // and attaches when Gotta Get Away 1A puts the villain into play. Morlock Siege's villain is in play at step 11.
+  const flightOnTheVillain = (scenarioId: string): boolean => {
     const config = playableScenario(scenarioId, {
       seed: 1,
       players: [{ starterDeckId: "core-spider-man-justice" }],
@@ -178,14 +179,16 @@ describe("known finding: On the Run and the setup keyword (RRG 1.8 Appendix II s
     const created = createGame(config, PLAYABLE_DEPS);
     if (!created.ok) throw new Error(created.error.message);
     const state = settle(created.state, firstLegal, (s) => s.step.phase !== "setup", PLAYABLE_DEPS);
-    return cardsInPlay(state).some((id) => state.instances[id]!.cardId === "40151");
+    const flight = cardsInPlay(state).find((id) => state.instances[id]!.cardId === "40151");
+    const villains = state.villains.filter((villain) => !villain.defeated).map((villain) => villain.instanceId);
+    return flight !== undefined && villains.includes(state.instances[flight]!.attachedTo!);
   };
 
   it("Morlock Siege: Flight begins in play", () => {
-    expect(flightInPlay("morlock-siege")).toBe(true);
+    expect(flightOnTheVillain("morlock-siege")).toBe(true);
   });
 
-  it.fails("On the Run: Flight begins in play", () => {
-    expect(flightInPlay("on-the-run")).toBe(true);
+  it("On the Run: Flight begins in play", () => {
+    expect(flightOnTheVillain("on-the-run")).toBe(true);
   });
 });
