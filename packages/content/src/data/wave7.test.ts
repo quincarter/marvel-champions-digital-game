@@ -391,4 +391,17 @@ describe("wave 7 data fixes (scan-confirmed curation and parser gaps)", () => {
     expect(restrictions(c)).toEqual({ maxPerHost: 1 });
     expect(abilityIds(c)).toEqual(["44051.ambush-interrupt"]);
   });
+
+  it('"I Got This" (44021) is one Hero Action ref: its four icon lines are the body, not four constants', () => {
+    expect(abilityIds(DEADPOOL_CARDS.find((c) => c.id === "44021") as unknown as Loose)).toEqual([
+      "44021.i-got-this-action",
+    ]);
+  });
+
+  it("The Merc with the Mouth (44032) prints no When Revealed: one standing constant and the forced response", () => {
+    expect(abilityIds(DEADPOOL_CARDS.find((c) => c.id === "44032") as unknown as Loose)).toEqual([
+      "44032.the-merc-with-the-mouth-constant",
+      "44032.the-merc-with-the-mouth-forced-response",
+    ]);
+  });
 });

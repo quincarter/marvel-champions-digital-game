@@ -533,13 +533,7 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: If the following icons are on 1 or more cards in play:\n[crisis] — Deal 3 damage to an enemy.\n[acceleration] — Remove 2 threat from a scheme.\n[amplify] — Ready an ally you control.\n[hazard] — Draw 1 card.",
       current: "Hero Action: If the following icons are on 1 or more cards in play:\n[crisis] — Deal 3 damage to an enemy.\n[acceleration] — Remove 2 threat from a scheme.\n[amplify] — Ready an ally you control.\n[hazard] — Draw 1 card.",
     },
-    abilities: [
-      { id: abilityId("44021.i-got-this-action") },
-      { id: abilityId("44021.i-got-this-constant") },
-      { id: abilityId("44021.i-got-this-constant-2") },
-      { id: abilityId("44021.i-got-this-constant-3") },
-      { id: abilityId("44021.i-got-this-constant-4") },
-    ],
+    abilities: [{ id: abilityId("44021.i-got-this-action") }],
   },
   {
     id: cardId("44022"),

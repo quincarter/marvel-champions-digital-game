@@ -19,6 +19,9 @@ import { DEADPOOL_ABILITIES } from "./deadpool/index.js";
 import { DEADPOOL_IDENTITY } from "./deadpool/identity.js";
 import { DREADPOOL } from "./deadpool/dreadpool.js";
 import { DEADPOOL_EVENTS } from "./deadpool/events.js";
+import { DEADPOOL_PACK_CARDS } from "./deadpool/pack-cards.js";
+import { DEADPOOL_SUPPORT_UPGRADES_ALLIES } from "./deadpool/support-upgrades-allies.js";
+import { DEADPOOL_OBLIGATION_NEMESIS } from "./deadpool/obligation-nemesis.js";
 import { NEXT_EVOL_ABILITIES } from "./next_evol/index.js";
 import { CABLE_EVENTS } from "./next_evol/cable/events.js";
 import { CABLE_IDENTITY } from "./next_evol/cable/identity.js";
@@ -317,13 +320,61 @@ const SCRIPTED_MODULES: Readonly<
         "44023",
       ],
       registry: DEADPOOL_EVENTS,
-      skipped: {
-        "44021.i-got-this-constant":
-          "card-data fix: the four icon lines are the body of the one Hero Action, scripted in 44021.i-got-this-action",
-        "44021.i-got-this-constant-2": "card-data fix: see 44021.i-got-this-constant",
-        "44021.i-got-this-constant-3": "card-data fix: see 44021.i-got-this-constant",
-        "44021.i-got-this-constant-4": "card-data fix: see 44021.i-got-this-constant",
-      },
+      skipped: {},
+    },
+    {
+      module: "deadpool/pack-cards",
+      cardIds: [
+        "44031",
+        "44043",
+        "44044",
+        "44045",
+        "44046",
+        "44047",
+        "44048",
+        "44049",
+        "44050",
+        "44051",
+        "44052",
+        "44053",
+        "44054",
+        "44055",
+        "44056",
+        "44057",
+        "44058",
+      ],
+      registry: DEADPOOL_PACK_CARDS,
+      skipped: {},
+    },
+    {
+      module: "deadpool/support-upgrades-allies",
+      cardIds: [
+        "44002",
+        "44007",
+        "44008",
+        "44009",
+        "44010",
+        "44011",
+        "44013",
+        "44014",
+        "44015",
+        "44016",
+        "44024",
+        "44025",
+        "44026",
+        "44027",
+        "44028",
+        "44029",
+        "44030",
+      ],
+      registry: DEADPOOL_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
+    },
+    {
+      module: "deadpool/obligation-nemesis",
+      cardIds: ["44032", "44033", "44034", "44035", "44036"],
+      registry: DEADPOOL_OBLIGATION_NEMESIS,
+      skipped: {},
     },
   ],
   x23: [

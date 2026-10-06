@@ -992,10 +992,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   // The same for a *triggered* lead-in: "Response: After Lockheed enters play, if you are in:" (Lockheed `mut_gen`
   // 32032, Kitty's Room 32033, Quick Shift 32040). A line that carries an ability header and ends in a colon owns the
   // bullet lines after it, so the bullets are part of that one ability instead of constant clauses of their own.
+  // The same for icon-led clauses ("[crisis] — Deal 3 damage to an enemy." under "Hero Action: If the following icons
+  // are on 1 or more cards in play:", "I Got This" `deadpool` 44021; Magic Blast, Luck Be a Lady, Husk): one
+  // ability whose body lists its branches on separate printed lines.
+  const isListLine = (l: string) => l.startsWith("•") || /^\[[a-z_]+\]\s+[—–-]\s/.test(l);
   for (let i = lines.length - 1; i > 0; i--) {
-    if (!(lines[i] as string).startsWith("•")) continue;
+    if (!isListLine(lines[i] as string)) continue;
     let j = i;
-    while (j > 0 && (lines[j - 1] as string).startsWith("•")) j--;
+    while (j > 0 && isListLine(lines[j - 1] as string)) j--;
     const owner = lines[j - 1] as string;
     if (j === 0 || !owner.endsWith(":") || findHeaders(owner).length === 0) continue;
     lines.splice(j - 1, i - j + 2, [owner, ...lines.slice(j, i + 1)].join(" "));

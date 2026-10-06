@@ -470,3 +470,20 @@ describe("extraConstantFrom splits a standing rule off the tail of a triggered b
     expect(parsed.unclassified).toHaveLength(1);
   });
 });
+
+describe("icon-led list lines belong to the triggered ability that introduces them", () => {
+  it('"I Got This" (deadpool 44021) is one action ability, not an action plus four constants', () => {
+    const text =
+      "Hero Action: If the following icons are on 1 or more cards in play:\n[crisis] — Deal 3 damage to an enemy.\n[acceleration] — Remove 2 threat from a scheme.\n[amplify] — Ready an ally you control.\n[hazard] — Draw 1 card.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toHaveLength(1);
+    expect(parsed.abilities[0]?.kind).toBe("action");
+    expect(parsed.abilities[0]?.text).toContain("[hazard] — Draw 1 card.");
+  });
+
+  it("an icon-led line after a line that does not end in a colon stays its own clause", () => {
+    const parsed = parseCardText("Hero Action: Draw 1 card.\n[energy] — Heal 1 damage.", { villainNames: new Set() });
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["action", "constant"]);
+  });
+});
