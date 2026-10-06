@@ -59,6 +59,18 @@ import {
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
+import {
+  pressReportControl,
+  reportAnswerOf,
+  reportControlEnabled,
+  reportControlLabel,
+  reportControlsOf,
+  reportNumberEntryOf,
+  reportValueOf,
+  reportValueText,
+  type ReportControl,
+  type ReportNumberEntry,
+} from "../view/report-fact-entry.js";
 import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
@@ -264,7 +276,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // A new choice clears the previous selection.
     if (choice.choiceId !== this.#choiceId) {
       this.#choiceId = choice.choiceId;
-      this.#selected = [...initialChoiceSelection(choice)];
+      const report = reportNumberEntryOf(choice);
+      this.#selected = report ? [...reportAnswerOf(report, report.start)] : [...initialChoiceSelection(choice)];
       this.#focus = null;
     }
     this.#maxSelections = choice.maxSelections;
@@ -528,6 +541,29 @@ export class ChoiceOverlay extends Phaser.Scene {
           height: listHeight,
         },
         choice,
+      );
+      this.#drawCommit(sheet, commitTop, choice);
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
+
+    // A whole-number report (Break Time's minutes away) has no options to list: a stepper stands in for them.
+    const reportEntry = reportNumberEntryOf(choice);
+    if (reportEntry) {
+      const controls = reportControlsOf(reportEntry);
+      this.#route = [
+        ...controls.map((control): ChoiceFocusTarget => ({ kind: "report", control })),
+        ...choiceFocusOrder([], false),
+      ];
+      this.#drawReportStepper(
+        { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: Math.max(hit.target * 3, listHeight) },
+        reportEntry,
+        controls,
       );
       this.#drawCommit(sheet, commitTop, choice);
       this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
@@ -1046,6 +1082,67 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /** The payment sheet's own view of the current picks, or null when this is not a payment prompt. */
+  /**
+   * The stepper for a whole-number report: a big "7 min" between a minus and a plus, then quick picks below. The
+   * value lives in `#selected` (the number's digits, the engine's own answer form), so Confirm sends it unchanged.
+   */
+  #drawReportStepper(area: Rect, entry: ReportNumberEntry, controls: readonly ReportControl[]): void {
+    const value = reportValueOf(entry, this.#selected);
+    const side = hit.primary;
+    const stepRow: Rect = { x: area.x, y: area.y, width: area.width, height: side };
+    const place = (control: ReportControl, rect: Rect): void => {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: reportControlLabel(control),
+          type: typeRole.barTitle,
+          rect,
+          enabled: reportControlEnabled(entry, value, control),
+          reason: control === "minus" ? "0 is the least" : "that is the most",
+          selected: control.startsWith("set:") && Number(control.slice(4)) === value,
+          onClick: () => this.#pressReport(entry, control),
+        }),
+      );
+      this.#focusRects.set(choiceFocusKey({ kind: "report", control }), rect);
+    };
+    place("minus", { x: stepRow.x, y: stepRow.y, width: side, height: side });
+    place("plus", { x: stepRow.x + stepRow.width - side, y: stepRow.y, width: side, height: side });
+    const number = this.add
+      .text(
+        stepRow.x + stepRow.width / 2,
+        stepRow.y + side / 2,
+        reportValueText(entry, value),
+        textStyle(typeRole.barTitle, surface.ink.hex),
+      )
+      .setOrigin(0.5, 0.5);
+    fitText(number, Math.max(40, stepRow.width - side * 2 - 16), typeRole.barTitle.size);
+
+    const picks = controls.filter((control) => control.startsWith("set:"));
+    const gap = 6;
+    const perRow = Math.max(1, Math.min(picks.length, Math.floor((area.width + gap) / (hit.target + 20 + gap))));
+    const cell = (area.width - gap * (perRow - 1)) / perRow;
+    label(this, area.x, stepRow.y + side + 10, "quick picks", typeRole.label, surface.ink.hex, ink.label);
+    const pickTop = stepRow.y + side + 30;
+    picks.forEach((control, index) => {
+      const col = index % perRow;
+      const row = Math.floor(index / perRow);
+      place(control, {
+        x: area.x + col * (cell + gap),
+        y: pickTop + row * (hit.target + gap),
+        width: cell,
+        height: hit.target,
+      });
+    });
+  }
+
+  #pressReport(entry: ReportNumberEntry, control: ReportControl): void {
+    if (this.#motion.leaving) return;
+    this.#selected = [
+      ...reportAnswerOf(entry, pressReportControl(entry, reportValueOf(entry, this.#selected), control)),
+    ];
+    this.#rebuild();
+  }
+
   #paymentSheet(choice: PendingChoice): PaymentSheetView | null {
     const game = appSession().store.state.game;
     return game ? paymentSheetView(game, choice, this.#selected, POOL_DEPS) : null;
@@ -1317,6 +1414,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (!focus) return;
     if (focus.kind === "reveal") {
       this.#reveal(choice);
+      return;
+    }
+    if (focus.kind === "report") {
+      const entry = reportNumberEntryOf(choice);
+      if (entry) this.#pressReport(entry, focus.control as ReportControl);
       return;
     }
     if (focus.kind === "option") {

@@ -20,6 +20,8 @@ export type ChoiceFocusTarget =
   | { readonly kind: "decline" }
   /** The privacy cover over a look-at's cards in a hot-seat game (`view/look-at-choice.ts`, Q74). */
   | { readonly kind: "reveal" }
+  /** One control of a whole-number report's stepper (`view/report-fact-entry.ts`): "minus", "plus" or "set:<n>". */
+  | { readonly kind: "report"; readonly control: string }
   /** The bottom guide strip's own controls (`ui/guide-strip.ts`), when one is drawn over this sheet (guided mode
    * lesson 4's defend step, §3.10/§7 accessibility fix) — appended by `ChoiceOverlay` itself, after the sheet's
    * own route, since `PendingChoice` carries nothing about the guide. `"guidePrimary"` only appears when the
@@ -123,7 +125,11 @@ export function canConfirmChoice(
 
 /** One string per focusable thing on the sheet, so a rect can be looked up by what it is. */
 export const choiceFocusKey = (target: ChoiceFocusTarget): string =>
-  target.kind === "option" ? `option:${target.optionId}` : target.kind;
+  target.kind === "option"
+    ? `option:${target.optionId}`
+    : target.kind === "report"
+      ? `report:${target.control}`
+      : target.kind;
 
 /** True when two targets name the same thing, so focus survives a rebuild — and a card moving between rows. */
 export const sameChoiceTarget = (a: ChoiceFocusTarget | null, b: ChoiceFocusTarget | null): boolean =>

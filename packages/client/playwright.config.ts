@@ -73,6 +73,7 @@ export default defineConfig({
         "uncanny-controller.spec.ts",
         "any-number-cost.spec.ts",
         "tap-redraw.spec.ts",
+        "break-time.spec.ts",
       ],
     },
   ],
