@@ -305,13 +305,23 @@ describe("Doctor Strange pack cards", () => {
     // after Warning is spent. Core has only two Advances.
     const staged = stackEncounterDeck(hero, ADVANCE, ADVANCE, "01104");
     const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
-    const declared = answer(atDeclare, [identity], DRS_DEPS); // basic defense: printed DEF 2 against Rhino's ATK 2
+    // Undefended: Rhino's ATK 2 with a 0-icon boost card would deal 2, and Warning takes 1 of it.
+    const undefended = answer(atDeclare, ["decline"], DRS_DEPS);
     const option = `${warning}:09021.warning-interrupt`;
-    const after = settle(declared, picking(option), (s) => s.step.kind === "turn", DRS_DEPS);
-    // Rhino's 2 ATK vs. Doctor Strange's printed 2 DEF would already deal 0 damage; Warning's own -1 has nothing
-    // left to reduce, so the only fully unambiguous signal here is that the card was actually used (discarded).
+    expect(undefended.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
+    const after = settle(undefended, picking(option), (s) => s.step.kind === "turn", DRS_DEPS);
     expect(playerOf(after, P1).discard).toContain(warning);
-    expect(inst(after, identity).damage).toBe(0);
+    expect(inst(after, identity).damage).toBe(1);
+    // A basic defense (printed DEF 2 against ATK 2) leaves 0 damage: not "any amount of damage" (RRG 1.8 "Damage",
+    // p. 14), so there is no window to play Warning in and it stays in hand.
+    const defended = settle(
+      answer(atDeclare, [identity], DRS_DEPS),
+      picking(option),
+      (s) => s.step.kind === "turn",
+      DRS_DEPS,
+    );
+    expect(playerOf(defended, P1).hand).toContain(warning);
+    expect(inst(defended, identity).damage).toBe(0);
   });
 
   it("The Sorcerer Supreme: +1 hand size while in hero form, none in alter-ego form", () => {

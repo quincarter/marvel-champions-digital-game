@@ -384,6 +384,29 @@ function conditionHolds(
   return evaluate(state, trigger.while, { selfInstanceId: id, controllerId: playerId, event, bindings: {}, deps });
 }
 
+/**
+ * Whether the event is an amount of nothing: 0 threat to place or 0 damage to deal. Such an event opens no window and
+ * sets off no "each time" effect (owner rulings 2026-10-05 for threat and 2026-10-06 for damage, docs/phase7-wave7.md
+ * §4.1).
+ *
+ * - **Threat.** A placement of 0 threat places none (villain phase step one with no acceleration; `applyPlaceThreat`
+ *   does nothing for it): "when any amount of threat would be placed" and "after threat is placed" have not happened.
+ *   Maintainer reading: the RRG does not define "any amount" for threat.
+ * - **Damage.** RRG 1.8 "Damage" (p. 14) words every step around damage as "any amount of damage" ("would deal/be
+ *   dealt", "would take", "takes", "after … deals/is dealt/takes"), and "Tough" (p. 44) the same ("would take any
+ *   amount of damage"; `toughResolvesFirst` and `applyDamage` leave the status card alone at 0, as the p. 9 and p. 44
+ *   notes on a basic defense that covers the whole attack require). So damage whose amount is 0 as it would be dealt
+ *   (a 0 ATK attack, an attack a defender's DEF covered, an X of 0) has no "would" window, is neither dealt nor
+ *   taken, and nothing answers it afterwards. The attack it came from still happened: "after [enemy] attacks",
+ *   "after [character] defends" and retaliate key off the attack, not the damage (p. 9 step 6, "Retaliate X", p. 38).
+ * - **Damage an interrupt prevented in full.** Its window did open (the amount was positive); `preventDamage` then
+ *   took the event's amount to 0, so its response window does not open: nothing was damaged. Damage a tough status
+ *   card, a constant or "cannot take damage" stopped keeps its amount: it was dealt and not taken (RRG 1.8 "Prevent",
+ *   p. 35), so "after … takes damage" reads the `amount` result (absent) and "after you deal damage" the event's own.
+ */
+const nothingToAnswer = (event: TriggerEvent): boolean =>
+  (event.kind === "placeThreat" || event.kind === "dealDamage") && event.amount <= 0;
+
 export function candidatesFor(
   state: GameState,
   deps: EngineDeps,
@@ -393,12 +416,7 @@ export function candidatesFor(
 ): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
-  // A placement of 0 threat places none (villain phase step one with no acceleration; `applyPlaceThreat` does
-  // nothing for it): "when any amount of threat would be placed" and "after threat is placed" have not happened, so
-  // neither window opens. The damage side reads "any amount" the same way for a tough status card (RRG 1.8 "Tough",
-  // p. 44: "would take any amount of damage"; `toughResolvesFirst` ignores 0 damage). Maintainer reading: the RRG
-  // does not define "any amount" for threat.
-  if (event.kind === "placeThreat" && event.amount <= 0) return [];
+  if (nothingToAnswer(event)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
   if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return [];
@@ -761,6 +779,7 @@ export function eachTimeEffectsFor(
   return state.lastingEffects.filter(
     (effect): effect is Extract<LastingEffect, { kind: "eachTime" }> =>
       effect.kind === "eachTime" &&
+      !nothingToAnswer(event) &&
       effect.scope.selfInstanceId !== null &&
       matchesPattern(
         state,
