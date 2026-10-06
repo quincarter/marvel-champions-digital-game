@@ -15,7 +15,7 @@ The rulings used are general:
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------ |
 | RRG "Labeled Ability" (p. 26), "Stun, Stunned" (p. 41)                                                                                                     | A stunned or confused hero using a labeled ability: canceled in full, costs paid, status removed                | Six tests in "Stunned and confused heroes ..."                                          | Pass         |
 | Ruling August 13, 2026 - Ruling 1 (a stunned Attack event was still "played")                                                                              | Telekinetic Blast stunned: the event is in the discard pile, its cost paid                                      | same                                                                                    | Pass         |
-| RRG "Move" (p. 30): threat moved off a scheme "is considered to be removed"                                                                                | Temporal Leap under Back to the Future                                                                          | "Temporal Leap cannot move threat off the main scheme ..."                              | Pass         |
+| RRG "Move" (p. 30): threat moved off a scheme "is considered to be removed"                                                                                | Temporal Leap under Back to the Future                                                                          | "Temporal Leap is not offered while Back to the Future ..."                              | Pass         |
 | RRG "Target" (p. 42): a target that "cannot take damage" is not valid for an ability whose only effect on it is damage; owner ruling 2026-10-05 (spec 4.1) | Back to the Future's damage bans against every damaging card of the box                                         | Four `it.fails` (finding F1) and the passing damage-is-barred test                      | **Bug** (F1) |
 | RRG "Hinder X" (p. 22); spec 4.1, 2026-10-05 amendment of Q30                                                                                              | Temporal Leap returning Making Green (40134): 2 + 2 hinder + 4 moved = 8, not revealed                          | "Temporal Leap returns Making Green ..."                                                | Pass         |
 | RRG "Acceleration Icon" (p. 5)                                                                                                                             | Technovirus Resurgence's printed acceleration icon while attached to Purge                                      | "Technovirus Resurgence's printed acceleration icon"                                    | Pass         |
@@ -49,8 +49,8 @@ Tests, by group (all in the one file):
   and Rifle's exhaust and energy happen, A Good Workout's discard does not), the status card is removed.
 - **Technovirus Purge, Back to the Future, Temporal Leap.** Domino cannot thwart Purge (basic or by Right Place);
   Cable's Mind Scan is offered only Back to the Future under it; Diamondback skips a minion engaged with the Cable player
-  and hits the villain and her own; Temporal Leap under Back to the Future (cost paid, move barred, stage completes);
-  Temporal Leap with a hinder scheme; the F1 targeting cases below.
+  and hits the villain and her own; Temporal Leap under Back to the Future (not offered, a forced command refused,
+  nothing spent, stage completes); Temporal Leap with a hinder scheme; the F1 targeting cases below.
 - **Three responses to one defeat.** Cable's response, Graymalkin and Forced Amnesia each resolve once; the scheme is in the
   display once, Forced Amnesia beside it and not counted; each can be declined alone.
 - **Stryfe at lethal damage.** His own cancel defeats him and the event still does nothing.
@@ -82,15 +82,21 @@ Telekinetic Blast cannot target the villain" proves only that the damage is 0 (i
 that the villain is refused as a target. Thwarts are already correct: Mind Scan under Back to the Future is never offered the main
 scheme or Purge. When F1 is fixed, delete the four `.fails`; they turn red on their own.
 
-Observation, not a bug: with Back to the Future in play Temporal Leap is still offered and its cost is paid (removed from the game, a side scheme
-returned), after which the move is barred and the stage completes anyway. That is what RRG "Move" and "Cost" give. See question 1.
+Temporal Leap under Back to the Future (corrected 2026-10-06 to the owner's ruling, `docs/phase7-wave7.md` §4.1): the
+first pass recorded that the upgrade was still offered and its cost paid (removed from the game, a side scheme returned)
+before the move was barred. That was the built behavior, and the ruling overrules it. Threat moved off a scheme is
+removed from it, so with removal barred the move has no source (RRG "Move", p. 30) and the interrupt cannot be used:
+it is not offered, a command for it is refused, and nothing is spent. The engine now judges the source of every
+`moveThreat` at initiation (`resolve/target-validity.ts`), so the card script did not change. The same holds under a
+crisis icon (pinned in `cable/support-upgrades-allies.test.ts`).
 
 ## 5. Question for the owner
 
-1. **Temporal Leap while Back to the Future (or a crisis icon) bars removing threat from the main scheme.** The upgrade is
-   offered and its cost is spent for no effect.
-   - A (recommended): leave as built. The cost is paid first (RRG "Cost", "Move"), a player who accepts a useless interrupt loses the card.
-   - B: do not offer it when the move cannot be made.
+1. **Temporal Leap while Back to the Future (or a crisis icon) bars removing threat from the main scheme.**
+   **Answered 2026-10-06: B, not offered.** Moving threat removes it first; with removal barred the card cannot be
+   used and its cost is not paid. Built and pinned (see §4).
+   - A (was recommended, overruled): leave as built, the cost paid for no effect.
+   - B (the ruling): do not offer it when the move cannot be made.
 
 ## 6. Not covered, said plainly
 

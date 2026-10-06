@@ -2116,8 +2116,8 @@ no side scheme in the victory display the cost cannot be paid and the ability is
 The apply step then finds the threat below the target and the stage is not completed. **Verify:** a player card
 hears the event (the "only when an ability listens" gate reads upgrades in play); fewer than 4 threat above the
 target still saves the stage; a stage whose target was passed by more than 4 is still completed; "cannot remove
-threat from the main scheme" rules (crisis icons do not apply to a move by a card ability; `threatCannotBeRemoved`
-does) are honored. §4.2 Q30.
+threat from the main scheme" rules are honored, a crisis icon included (owner ruling 2026-10-06, §4.1: a move removes
+the threat first, so the card is not offered when it cannot leave; built in `move-threat-source.test.ts`). §4.2 Q30.
 
 ### 3.55 A player-deck discard as an event the discarded card can answer
 

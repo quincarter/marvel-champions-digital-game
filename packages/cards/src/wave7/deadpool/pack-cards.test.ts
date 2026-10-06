@@ -1590,25 +1590,27 @@ describe("Blackout (44053): Hero Action, spend 1 resource to move 1 threat to an
     expect(threatOf(r.state, mainOf(r.state))).toBe(4);
     expect(countersOn(r.state, g.card, "energy")).toBe(1);
   });
-  // The opening choice is judged against the effects that follow it, but the spend (a choice) comes between them and
-  // counts as a part of the Action of its own (`hasIndependentPart`), so with no valid scheme the Action still starts,
-  // asks for the payment and then moves nothing: the resource is lost. No token is placed, and the scheme keeps its threat.
-  it.fails("[engine gap] the only threat is on the main scheme under a crisis icon: no source exists, so the Action cannot be started", () => {
+  // Owner ruling 2026-10-06 (docs/phase7-wave7.md §4.1; RRG 1.8 "Move", p. 30): with no scheme the threat can leave,
+  // the Action cannot be started. The payment stands between the choice and the removal, so the script's `while`
+  // (`canRemoveThreatFrom`) says it.
+  const onlyMainUnderCrisis = () => {
     const g = stage([ENERGY_CARD]);
     const quiet = patchInstance(patchInstance(g.state, g.scheme, { threat: 0 }), mainOf(g.state), { threat: 5 });
     const grasp = quiet.villainArea.find((id) => codeOf(quiet, id) === "40168a")!;
-    const only = patchInstance(quiet, grasp, { threat: 0 });
-    expect(threatOf(only, mainOf(only))).toBe(5);
-    expect(useRefused(only, g.card, BLACKOUT)).toBe(true);
+    return { ...g, state: patchInstance(quiet, grasp, { threat: 0 }) };
+  };
+  it("the only threat is on the main scheme under a crisis icon: no source exists, so the Action cannot be started", () => {
+    const g = onlyMainUnderCrisis();
+    expect(threatOf(g.state, mainOf(g.state))).toBe(5);
+    expect(useRefused(g.state, g.card, BLACKOUT)).toBe(true);
   });
-  it("in that case nothing moves: no token, the main scheme keeps its threat (the resource is lost)", () => {
-    const g = stage([ENERGY_CARD]);
-    const quiet = patchInstance(patchInstance(g.state, g.scheme, { threat: 0 }), mainOf(g.state), { threat: 5 });
-    const grasp = quiet.villainArea.find((id) => codeOf(quiet, id) === "40168a")!;
-    const only = patchInstance(quiet, grasp, { threat: 0 });
-    const r = driveEventsPicking(DEPS, only, says({}), use(P1, g.card, BLACKOUT));
-    expect(threatOf(r.state, mainOf(r.state))).toBe(5);
-    expect(countersOn(r.state, g.card, "energy")).toBe(0);
+  it("in that case nothing is spent: the resource stays in hand, no token, the main scheme keeps its threat", () => {
+    const g = onlyMainUnderCrisis();
+    const result = applyCommand(g.state, use(P1, g.card, BLACKOUT), DEPS);
+    expect(result.ok).toBe(false);
+    expect(playerOf(g.state, P1).hand).toHaveLength(1);
+    expect(threatOf(g.state, mainOf(g.state))).toBe(5);
+    expect(countersOn(g.state, g.card, "energy")).toBe(0);
   });
   it("a scheme defeated by the move (1 threat) still gets its token", () => {
     const g = stage([ENERGY_CARD]);

@@ -1118,6 +1118,17 @@ export type Predicate =
       readonly active?: true;
     }
   | { readonly kind: "exists"; readonly query: TargetQuery }
+  /**
+   * Threat can be removed from at least one of the schemes `scheme` names by this ability's card, used by its
+   * controller, in a removal that is not a thwart: no crisis icon (unless `ignoreCrisis`, as on `removeThreat`) and no
+   * `threatCannotBeRemoved` rule stops it (`threatRemovalBlocked`, the check the removal makes as it applies). Whether
+   * a scheme holds threat is the ref's to say (`{ hasThreat: true }`). For an ability whose removal the engine cannot
+   * judge at initiation because a payment stands between the choice of scheme and the removal ("Spend a [type]
+   * resource → move 1 threat from a scheme to the matching space here", Blackout, `deadpool` 44053): `while:
+   * canRemoveThreatFrom(each(a scheme with threat))`. RRG 1.8 "Cost" (p. 13): a cost cannot be paid when the effect
+   * has no valid target.
+   */
+  | { readonly kind: "canRemoveThreatFrom"; readonly scheme: TargetRef; readonly ignoreCrisis?: true }
   | { readonly kind: "counterAtLeast"; readonly of: TargetRef; readonly counterType: string; readonly amount: number }
   | { readonly kind: "damagedAtLeast"; readonly of: TargetRef; readonly amount: number }
   | { readonly kind: "not"; readonly of: Predicate }

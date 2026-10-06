@@ -278,18 +278,40 @@ describe("Cable: Back to the Future and Temporal Leap", () => {
     return accepting("40013.temporal-leap-interrupt")(s);
   };
 
-  // RRG "Move" (p. 32, "If threat is moved off a scheme, the moved threat is considered to be removed from that scheme")
-  // with Back to the Future (40033): "The Cable player cannot remove threat from schemes other than Back to the Future."
-  // Temporal Leap's cost (removed from the game, a side scheme put into play) is paid, and the move it then makes is
-  // barred, so the stage completes anyway and the revived scheme gets no threat from it.
-  it("Temporal Leap cannot move threat off the main scheme while Back to the Future bars the Cable player (RRG 'Move')", () => {
+  // RRG "Move" (p. 30): "If threat is moved off a scheme, the moved threat is considered to be removed from that
+  // scheme", and "If there is no valid source or destination for a move, the move cannot be made." Back to the Future
+  // (40033): "The Cable player cannot remove threat from schemes other than Back to the Future." Owner ruling
+  // 2026-10-06 (docs/phase7-wave7.md 4.1): the move has no source, so Temporal Leap cannot be used. It is not offered,
+  // a command for it is refused, and its cost (removed from the game, a side scheme put into play) is not paid.
+  it("Temporal Leap is not offered while Back to the Future bars the Cable player; forced, it is refused and nothing is spent", () => {
     const { state, leap } = leapUnderBttf(true);
-    const run = runVillainPhase(state, leapPick);
-    const afterLeap = run.snapshots.find((s) => s.pendingChoice?.prompt.kind === "declareDefender")!;
-    expect(afterLeap.removedFromGame).toContain(leap); // the cost was paid
-    expect(afterLeap.villainArea.map((id) => codeOf(afterLeap, id))).toContain(PURGE);
-    expect(threat(afterLeap, purgeOf(afterLeap))).toBe(5); // no 4 threat arrived
-    expect(afterLeap.mainScheme.stageIndex).toBe(1); // the completion went ahead
+    const offered = new Set<string>();
+    const seeing: Picker = (s) => {
+      if (s.pendingChoice?.prompt.kind === "chooseTriggers")
+        for (const o of s.pendingChoice.options) offered.add(o.optionId);
+      return leapPick(s);
+    };
+    const run = runVillainPhase(state, seeing);
+    expect(hasOffer(offered, "40013.temporal-leap-interrupt")).toBe(false);
+    const after = run.snapshots.find((s) => s.pendingChoice?.prompt.kind === "declareDefender")!;
+    expect(after.mainScheme.stageIndex).toBe(1); // the completion went ahead
+    expect(after.removedFromGame).not.toContain(leap); // the cost was not paid
+    expect(inst(after, leap).attachedTo).toBe(identityOf(after));
+    expect(after.victoryDisplay.map((id) => codeOf(after, id))).toEqual([PURGE]); // no side scheme came back
+    // Forced: naming the interrupt at the first prompt of the villain phase is refused, and the state is untouched.
+    const first = run.snapshots[0]!;
+    const forced = applyCommand(
+      first,
+      {
+        type: "resolveChoice",
+        playerId: first.pendingChoice!.playerId,
+        choiceId: first.pendingChoice!.choiceId,
+        selectedOptionIds: [`${leap}:40013.temporal-leap-interrupt`],
+      },
+      WAVE7_DEPS,
+    );
+    expect(forced.ok).toBe(false);
+    expect(first.removedFromGame).not.toContain(leap);
   });
 
   // Owner ruling 2026-10-05 (docs/phase7-wave7.md 4.1, amending Q30) and RRG "Hinder X" (p. 22): a side scheme returning

@@ -384,12 +384,17 @@ describe("§3.51 another hero is barred", () => {
     expect([threat(after.state, table.purge), threat(after.state, table.other)]).toEqual([6, 5]);
   });
 
-  it("threat it would move off the scheme stays (RRG p. 30: moved off is removed); moving threat on is not barred", () => {
+  // Owner ruling 2026-10-06 (docs/phase7-wave7.md §4.1): a move whose source's threat cannot be removed cannot be made
+  // (RRG 1.8 "Move", p. 30), so the ability is not initiated and the card stays in hand.
+  it("it cannot move threat off the scheme (RRG p. 30: moved off is removed): the event is refused; moving threat on is not barred", () => {
     const table = start();
     const state = p2Turn(table.state);
-    const off = play(state, SHIFT_OFF, P2).state;
-    expect([threat(off, table.purge), threat(off, table.main)]).toEqual([6, 6]);
-    const on = play(off, SHIFT_ON, P2).state;
+    const given = giveCard(state, P2, SHIFT_OFF.id);
+    const refused = applyCommand(given.state, playCommand(P2, given.id), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(mustPlayer(given.state, P2).hand).toContain(given.id);
+    const on = play(state, SHIFT_ON, P2).state;
     expect([threat(on, table.purge), threat(on, table.main)]).toEqual([8, 4]);
     // The named identity moves it off.
     const mine = play(table.state, SHIFT_OFF).state;

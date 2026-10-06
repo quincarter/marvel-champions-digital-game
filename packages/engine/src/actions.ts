@@ -128,7 +128,7 @@ import {
 } from "./resolve/index.js";
 import { limitReached } from "./resolve/ability.js";
 import { thwartBlockedOn } from "./resolve/event.js";
-import { abilityLacksValidTarget } from "./resolve/target-validity.js";
+import { abilityLacksValidTarget, abilityTargetFault, TARGET_FAULT_MESSAGE } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { addFrameSlots, eventFrame } from "./resolve/frames.js";
 import {
@@ -2648,7 +2648,10 @@ function eventActionFault(
   if (actionConditionUnmet(ctx.state, ctx.deps, action.definition, id, playerId))
     return { code: "no_valid_target", message: "this event's condition is not met", note: "its condition is not met" };
   // RRG 1.8 "Target" (pp. 42–43): no valid target, no play (the main scheme, for a "(thwart)" while patrolled; §3.5).
-  if (abilityLacksValidTarget(ctx.state, ctx.deps, action.definition, id, playerId))
+  const fault = abilityTargetFault(ctx.state, ctx.deps, action.definition, id, playerId);
+  if (fault === "moveSource")
+    return { code: "no_valid_target", message: TARGET_FAULT_MESSAGE.moveSource, note: "it has no threat to move" };
+  if (fault !== null)
     return { code: "no_valid_target", message: "this event has no valid target", note: "it has no valid target" };
   return null;
 }
@@ -3576,9 +3579,8 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (actionConditionUnmet(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability cannot be triggered: its condition is not met", command);
   }
-  if (abilityLacksValidTarget(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
-    return engineError("no_valid_target", "that ability has no valid target", command);
-  }
+  const fault = abilityTargetFault(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId);
+  if (fault !== null) return engineError("no_valid_target", TARGET_FAULT_MESSAGE[fault], command);
   // "Play the ally here as if it was in your hand" (Med Lab; docs/phase7-wave6.md §3.57): nothing tucked there could be
   // played and paid for now.
   if (tuckedPlayUnavailable(ctx, definition, command.cardInstanceId, command.playerId)) {

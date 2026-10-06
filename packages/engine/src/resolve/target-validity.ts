@@ -20,10 +20,16 @@
  * (a patrol minion engaging in between, the analogue of ruling Apr 30, 2026 (2)), and `threatRemovalBlocked` then
  * stops the removal as it applies.
  *
+ * A move of threat is judged by its source (`canMoveThreatFrom`, `moveThreatLacksSource`): RRG 1.8 "Move" (p. 30), "If
+ * there is no valid source or destination for a move, the move cannot be made", and threat moved off a scheme is
+ * removed from it, so a scheme its threat cannot be removed from is no source (owner ruling 2026-10-06,
+ * docs/phase7-wave7.md §4.1).
+ *
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
- * `attack`, `discardFromPlay`, `flipCard` aimed straight at the slot) is assumed able to affect the target: the
- * "multiple effects" bullet makes the target valid if any one effect can, so an effect this module cannot judge never
- * makes a target invalid. An attack that also stuns its target keeps a target that cannot take its damage.
+ * `attack`, `discardFromPlay`, `flipCard` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
+ * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
+ * cannot judge never makes a target invalid. An attack that also stuns its target keeps a target that cannot take its
+ * damage.
  */
 
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
@@ -82,6 +88,25 @@ export const canRemoveThreatFrom = (
   source: InstanceId | null,
   ignoreCrisis = false,
 ): boolean => threatRemovalBlocked(state, deps, schemeId, source, false, ignoreCrisis) === null;
+
+/**
+ * Whether threat can be moved off this scheme by an effect of `source`: it holds threat, and that threat can be
+ * removed. RRG 1.8 "Move" (p. 30): "If threat is moved off a scheme, the moved threat is considered to be removed from
+ * that scheme", and "If there is no valid source or destination for a move, the move cannot be made." So a crisis icon,
+ * a `threatCannotBeRemoved` rule and a scheme with no threat each leave no source; a scheme holding less than the
+ * amount named is still one (the move takes what is there). `removingPlayerId`: the player using the ability, as
+ * `moveThreat` reads it when it applies (`threatRemoverOf`); absent, the source's controller.
+ */
+export const canMoveThreatFrom = (
+  state: GameState,
+  deps: EngineDeps,
+  schemeId: InstanceId,
+  source: InstanceId | null,
+  removingPlayerId: PlayerId | null = null,
+): boolean =>
+  (getInstance(state, schemeId)?.threat ?? 0) > 0 &&
+  threatRemovalBlocked(state, deps, schemeId, source, false, false, null, null, false, false, removingPlayerId) ===
+    null;
 
 /** Whether `value` names `slot` anywhere (a `{ kind: "slot" }` ref or an `inSlot` query). */
 function refersToSlot(value: unknown, slot: string): boolean {
@@ -239,6 +264,12 @@ function effectCanAffect(
   id: InstanceId,
   context: EffectContext,
 ): boolean | undefined {
+  if (effect.kind === "moveThreat") {
+    // The scheme the threat leaves is the move's source; a slot it only arrives on is not judged.
+    const { from, ...others } = effect;
+    if (!isSlotRef(from, slot) || refersToSlot(others, slot)) return undefined;
+    return canMoveThreatFrom(state, deps, id, context.selfInstanceId);
+  }
   if (!isJudged(effect)) return undefined;
   const { target, ...rest } = effect;
   if (!isSlotRef(target, slot) || refersToSlot(rest, slot)) return undefined;
@@ -397,7 +428,13 @@ function choiceCandidates(
 }
 
 /**
- * Whether this player-initiated ability cannot be initiated for want of a valid target: RRG 1.8 "Target" (p. 42),
+ * Why an ability cannot be initiated: `target`, no valid target for it; `moveSource`, no scheme its move of threat
+ * could take the threat from (`moveThreatLacksSource`).
+ */
+export type TargetFault = "target" | "moveSource";
+
+/**
+ * Why this player-initiated ability cannot be initiated for want of a valid target, or null: RRG 1.8 "Target" (p. 42),
  * "If an ability or game function requires one or more targets, that ability or game function can only be initiated
  * if it has at least one valid target", and "Choose (Game Element)" (p. 12), "If a player card ability requires the
  * choosing of one or more targets, and there are no valid targets for any part of the ability, the ability cannot be
@@ -412,26 +449,26 @@ function choiceCandidates(
  * Only abilities a player initiates ask this (`playCard`, `useAbility`, the play-from-hand effects and optional
  * interrupts and responses): an encounter card or a forced ability resolves as far as it can.
  */
-export function abilityLacksValidTarget(
+export function abilityTargetFault(
   state: GameState,
   deps: EngineDeps,
   definition: AbilityDefinition | undefined,
   sourceId: InstanceId,
   playerId: PlayerId | null,
   event: TriggerEvent | null = null,
-): boolean {
-  if (!definition) return false;
+): TargetFault | null {
+  if (!definition) return null;
   // RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it
   // has no valid target for a thwart." The attempt discards the confused card (`labelCancels`, `resolve/ability.ts`).
   if (definition.label?.includes("thwart") && playerId !== null) {
     const identity = getPlayer(state, playerId)?.identity.instanceId;
-    if (identity && statusActive(state, identity, "confused", deps)) return false;
+    if (identity && statusActive(state, identity, "confused", deps)) return null;
   }
   // RRG 1.8 "Stun, Stunned" (p. 41): "A stunned character can attempt to attack or use an attack ability even if it has
   // no valid target for an attack." The attempt discards the stunned card (`labelCancels`, `resolve/ability.ts`).
   if (definition.label?.includes("attack") && playerId !== null) {
     const identity = getPlayer(state, playerId)?.identity.instanceId;
-    if (identity && statusActive(state, identity, "stunned", deps)) return false;
+    if (identity && statusActive(state, identity, "stunned", deps)) return null;
   }
   const context: EffectContext = {
     selfInstanceId: sourceId,
@@ -444,12 +481,14 @@ export function abilityLacksValidTarget(
   // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
   // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
   // docs/phase7-wave5.md §4.1 Q48, Q50).
-  if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return false;
+  if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return null;
   // And for an unlabeled ability whose attack effect names a stunned character as attacking (an ally's own "it
   // attacks"): the attempt discards the stunned card instead (`attack` in `apply-effect.ts`).
-  if (playerId !== null && namesStunnedAttacker(state, deps, definition.effects, context)) return false;
-  const judge = targetsCanBeInvalid(state, deps, playerId);
+  if (playerId !== null && namesStunnedAttacker(state, deps, definition.effects, context)) return null;
   const effects = definition.effects;
+  // A move's source is judged whatever is in play: a scheme with no threat is no source.
+  const moves = effects.some((effect) => effect.kind === "moveThreat");
+  const judge = moves || targetsCanBeInvalid(state, deps, playerId);
   // The opening choices that are required and have nothing to choose. Only the choices before the ability's first
   // other effect are read: a later one chooses among what the effects before it leave (a card one of them drew or
   // discarded), which cannot be known until they resolve, so it is judged as it resolves.
@@ -462,12 +501,30 @@ export function abilityLacksValidTarget(
     const rest = effects.slice(index + 1);
     if (choiceCandidates(state, deps, effect, rest, context, judge).length === 0) dead.push(effect.slot);
   }
-  if (dead.length > 0 && !hasIndependentPart(effects, dead)) return true;
-  if (tuckNamesNoCard(state, deps, effects, context)) return true;
-  if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return true;
-  if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return true;
-  return judge && fixedTargetsAllInvalid(state, deps, effects, context);
+  // Read before the dead choices so a move with no source says so (`TARGET_FAULT_MESSAGE`).
+  if (moves && moveThreatLacksSource(state, deps, effects, context)) return "moveSource";
+  if (dead.length > 0 && !hasIndependentPart(effects, dead)) return "target";
+  if (tuckNamesNoCard(state, deps, effects, context)) return "target";
+  if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return "target";
+  if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return "target";
+  return judge && fixedTargetsAllInvalid(state, deps, effects, context) ? "target" : null;
 }
+
+/** Whether this player-initiated ability cannot be initiated for want of a valid target (`abilityTargetFault`). */
+export const abilityLacksValidTarget = (
+  state: GameState,
+  deps: EngineDeps,
+  definition: AbilityDefinition | undefined,
+  sourceId: InstanceId,
+  playerId: PlayerId | null,
+  event: TriggerEvent | null = null,
+): boolean => abilityTargetFault(state, deps, definition, sourceId, playerId, event) !== null;
+
+/** What a refused ability is told (`EngineError.message`, `legalActions`' "Why illegal?"), per fault. */
+export const TARGET_FAULT_MESSAGE: Readonly<Record<TargetFault, string>> = {
+  target: "that ability has no valid target",
+  moveSource: "there is no scheme this could move threat from: threat cannot be removed from it, or it has none",
+};
 
 /**
  * "That attack removes threat from the main scheme instead of dealing damage" (`modifyAttack.removesThreatFrom`,
@@ -498,6 +555,54 @@ function attackThreatRemovalInvalid(
       )
     );
   });
+}
+
+/**
+ * "… → move 4 threat from the main scheme to that side scheme": an ability that moves threat has the scheme the threat
+ * leaves as its target, and cannot be initiated while no move it makes has a source (owner ruling 2026-10-06,
+ * docs/phase7-wave7.md §4.1). RRG 1.8 "Move" (p. 30): "If there is no valid source or destination for a move, the move
+ * cannot be made", the moved threat being "considered to be removed from that scheme"; "Cost" (p. 13): the cost cannot
+ * be paid without a valid target, so nothing is spent. As for `attackThreatRemovalInvalid`, whatever else the ability
+ * does (the card removing itself from the game, the destination entering play) does not make the source valid: those
+ * are the printed cost, scripted as effects.
+ *
+ * Only the moves the ability always makes are read (its own effect list, not a branch, an option or post-"then" text):
+ *
+ * - **a named source** ("the main scheme", "that scheme"): valid if `canMoveThreatFrom` it, the first card in play the
+ *   ref names being the source, as `moveThreat` applies it; a ref that names nothing right now, or reads a binding, is
+ *   not judged;
+ * - **a chosen source** (a required `chooseTarget` among the choices that open the ability): valid if one of the
+ *   candidates is a source, and only those are offered as it resolves (`requestTargetChoice`). A later choice chooses
+ *   among what the effects before it leave, so it is judged as it resolves.
+ *
+ * The ability cannot be initiated when at least one of its moves can be judged and none of the judged ones has a
+ * source. The destination is not judged here: it is often chosen or put into play as the ability resolves.
+ */
+function moveThreatLacksSource(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  const verdicts: boolean[] = [];
+  const inPlay = cardsInPlay(state);
+  const isSource = (id: InstanceId): boolean =>
+    canMoveThreatFrom(state, deps, id, context.selfInstanceId, context.controllerId);
+  const firstOther = effects.findIndex((effect) => !isChoice(effect));
+  const opening = effects.slice(0, firstOther === -1 ? effects.length : firstOther);
+  for (const effect of effects) {
+    if (effect.kind !== "moveThreat") continue;
+    if (effect.from.kind === "slot") {
+      const slot = effect.from.slot;
+      const choice = opening.find((other) => other.kind === "chooseTarget" && other.slot === slot);
+      if (choice?.kind !== "chooseTarget" || !isRequiredChoice(choice) || readsBindings(choice.query)) continue;
+      verdicts.push(selectTargets(state, choice.query, context).some(isSource));
+    } else if (!readsBindings(effect.from)) {
+      const [named] = resolveRef(state, effect.from, context).filter((id) => inPlay.includes(id));
+      if (named !== undefined) verdicts.push(isSource(named));
+    }
+  }
+  return verdicts.length > 0 && !verdicts.some(Boolean);
 }
 
 /** Whether a "(thwart)" ability's threat removal has a scheme this player can thwart, where that can be told now. */

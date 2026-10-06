@@ -13,6 +13,7 @@ import {
   attachCard,
   boostIconsOn,
   canPayResources,
+  canRemoveThreatFrom,
   cancelWhenRevealed,
   cannotActivate,
   cards,
@@ -253,9 +254,11 @@ export const DEADPOOL_PACK_CARDS: AbilityRegistry = defineAbilities({
   ),
 
   "44053.blackout-action": heroAction(
-    { while: exists(HAS_THREAT) },
-    // The scheme comes first: with no scheme the threat can be taken from (a crisis icon on the main scheme), the Action
-    // cannot be started and nothing is spent. The removal is the amount paid (1, or 0 if the payment was declined).
+    // With no scheme the threat can be taken from (the only threat on the main scheme under a crisis icon) the Action
+    // cannot be started and nothing is spent: the payment stands between the choice and the removal, so the gate says
+    // it (owner ruling 2026-10-06, docs/phase7-wave7.md §4.1; RRG 1.8 "Move", p. 30).
+    { while: canRemoveThreatFrom(each(HAS_THREAT)) },
+    // The scheme comes first. The removal is the amount paid (1, or 0 if the payment was declined).
     chooseTarget("scheme", HAS_THREAT),
     chooseOne(...TYPES.map((type) => spendAs(type, [type], 2))),
     removeThreat(varOf("spent.made"), chosen("scheme"), { bind: "moved" }),

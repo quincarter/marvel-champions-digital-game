@@ -68,6 +68,7 @@ const GRAYMALKIN = "40007";
 const BREAKIN = "40131"; // Captive Hope: an encounter side scheme, staged (3 threat per player when revealed)
 const PLAYER_SCHEMES = ["40018", "40019", "40020", "40027"];
 const MORLOCK_SCHEME = "40084"; // an encounter side scheme (3 threat) of the Morlock Siege scenario
+const TERRITORIAL_CONTROL = "40087"; // a Morlock Siege side scheme with a crisis icon
 
 type Seat = typeof CABLE | typeof SPIDER_MAN;
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
@@ -962,6 +963,42 @@ describe("Temporal Leap (40013)", () => {
     const run = villainPhase(g.state, { accept: [TEMPORAL_LEAP] });
     expect(hasOffer(run.offered, TEMPORAL_LEAP)).toBe(false);
     expect(inst(run.state, g.leap).attachedTo).not.toBeNull();
+  });
+
+  // Owner ruling 2026-10-06 (docs/phase7-wave7.md §4.1): threat moved off a scheme is removed from it (RRG "Move",
+  // p. 30), and under a crisis icon a player card cannot remove threat from the main scheme (RRG "Crisis Icon", p. 14),
+  // so the move has no source and the interrupt cannot be used: its cost is not paid.
+  it("under a crisis icon (Territorial Control) it is not offered, a command for it is refused, and nothing is spent", () => {
+    const g = leapGame(1);
+    const crisis = encounterCardInVillainArea(g.state, TERRITORIAL_CONTROL, 4);
+    const run = villainPhase(crisis.state, { accept: [TEMPORAL_LEAP], choose: PURGE });
+    expect(hasOffer(run.offered, TEMPORAL_LEAP)).toBe(false);
+    const s = afterInterrupt(run);
+    expect(s.mainScheme.stageIndex).toBe(1);
+    expect(inst(s, g.leap).attachedTo).toBe(g.cable);
+    expect(s.removedFromGame).not.toContain(g.leap);
+    expect(s.victoryDisplay.map((id) => codeOf(s, id))).toEqual([PURGE]);
+    // Forced: naming the interrupt at the first prompt of the villain phase is refused.
+    const [first] = run.snapshots;
+    const forced = applyCommand(
+      first!,
+      {
+        type: "resolveChoice",
+        playerId: first!.pendingChoice!.playerId,
+        choiceId: first!.pendingChoice!.choiceId,
+        selectedOptionIds: [`${g.leap}:${TEMPORAL_LEAP}`],
+      },
+      WAVE7_DEPS,
+    );
+    expect(forced.ok).toBe(false);
+  });
+
+  it("the control for that: the same table without the crisis scheme offers it", () => {
+    const g = leapGame(1);
+    const plain = encounterCardInVillainArea(g.state, MORLOCK_SCHEME, 4);
+    const run = villainPhase(plain.state, { accept: [TEMPORAL_LEAP], choose: PURGE });
+    expect(hasOffer(run.offered, TEMPORAL_LEAP)).toBe(true);
+    expect(afterInterrupt(run).removedFromGame).toContain(g.leap);
   });
 
   it("moves 4 even when it takes the stage under the target only just: a stage 6 or more over the target still completes", () => {

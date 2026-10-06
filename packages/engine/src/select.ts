@@ -66,6 +66,7 @@ import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { attachHostCandidates } from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
 import { uniqueEntryBlocker } from "./unique.js";
+import { threatRemovalBlocked } from "./resolve/event.js";
 import { canHaveAttached, cannotFlip, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
 import {
   currentActivationFrameId,
@@ -2342,6 +2343,25 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "exists":
       return selectTargets(state, predicate.query, context).length > 0;
+    case "canRemoveThreatFrom": {
+      const deps = context.deps ?? DEFAULT_DEPS;
+      return resolveRef(state, predicate.scheme, context).some(
+        (id) =>
+          threatRemovalBlocked(
+            state,
+            deps,
+            id,
+            context.selfInstanceId,
+            false,
+            predicate.ignoreCrisis === true,
+            null,
+            null,
+            false,
+            false,
+            context.controllerId,
+          ) === null,
+      );
+    }
     case "counterAtLeast": {
       const [id] = resolveRef(state, predicate.of, context);
       const counters = id ? (getInstance(state, id)?.counters[predicate.counterType] ?? 0) : 0;

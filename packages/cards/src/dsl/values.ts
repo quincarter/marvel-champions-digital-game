@@ -778,6 +778,18 @@ export const canPayResources = (
   ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
 });
 /**
+ * Threat can be removed from at least one scheme `scheme` names by this card, in a removal that is not a thwart: no
+ * crisis icon (unless `ignoreCrisis`) and no "threat cannot be removed" rule stops it (engine `canRemoveThreatFrom`).
+ * Gates an ability whose payment stands between choosing the scheme and the removal, which the engine cannot judge at
+ * initiation: `{ while: canRemoveThreatFrom(each(query("scheme", { hasThreat: true }))) }` (Blackout, `deadpool`
+ * 44053). An ability that opens with its choice and removal, or a `moveThreat`, needs no gate: the engine judges it.
+ */
+export const canRemoveThreatFrom = (scheme: TargetRef, opts: { readonly ignoreCrisis?: boolean } = {}): Predicate => ({
+  kind: "canRemoveThreatFrom",
+  scheme,
+  ...(opts.ignoreCrisis ? { ignoreCrisis: true as const } : {}),
+});
+/**
  * `player` could pay `spendDifferentResources(count, …)`: `count` resources of `count` different types (a wild being
  * any one type). Director's Directions (`mojo` 39033), pending default Q51: `option("Spend 2 different resources",
  * { when: canSpendDifferentResources(2) }, spendDifferentResources(2, "spent"))`.
