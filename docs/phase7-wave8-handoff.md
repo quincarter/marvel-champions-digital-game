@@ -192,3 +192,25 @@ committed. Nine follow the proposed default; **Q9 does not**.
   p. 11). No "extreme" mode.
 - **Q10 = A.** Standard III may replace the Standard set on any scenario that uses it, not only Age of Apocalypse
   scenarios (MC45 p. 3).
+
+## Heart of the Empire's two sides (owner's scans, 2026-10-07)
+
+This answers the data survey's open question 1 and schema gap 8. The owner sent both sides of box card 104; both read
+"APOCALYPSE (4/15)", so it is one physical card of the `apocalypse` set. Read by the main session from the scans.
+
+- **104A, Heart of the Empire** (side scheme, starting threat 2, no per player icon, one acceleration icon). Flavor:
+  "Before you can challenge Apocalypse, you must fight your way through his tower." Text: "Threat cannot be removed
+  from this scheme while a **Prelate** minion is in play. **When Defeated**: The first player reveals a random
+  set-aside **Prelate** minion. Deal each other player an encounter card. Flip this card over." This matches the raw
+  record 45104a.
+- **104B, The Towering Citadel** (side scheme, starting threat 3, no per player icon, two acceleration icons). Text:
+  "Threat cannot be removed from this scheme while a **Prelate** minion is in play. **When Defeated**: The first
+  player reveals a random set-aside **Prelate** minion. Deal each other player an encounter card. Reveal The Tyrant's
+  Throne side scheme and remove this card from the game." **MarvelCDB has no record of this face**: raw 45104a's
+  `linked_card` is 45105b No Longer Worthy, which is wrong (No Longer Worthy is the back of The Tyrant's Throne
+  45105a). The `aoa` curation has to add 45104b by hand, citing these scans.
+- The 104B scan is saved as `assets/card-art/bundles/cards/45104b.png` (WebP inside, 1030×710; the other scans are
+  about 419 wide, so the art step may want to scale it). 45104a's scan was already there. No manifest row was added
+  to `assets/card-art/hall-of-heroes-manifest.tsv` for 45104b.
+- For the spec (pass 1b, Apocalypse scenario): the chain is Heart of the Empire → flips to The Towering Citadel →
+  reveals The Tyrant's Throne (45105a) → flips and reveals No Longer Worthy (45105b).
