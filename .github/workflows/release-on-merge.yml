@@ -132,12 +132,15 @@ jobs:
           fi
 
           # release/next is owned by this job and rebuilt from main on every run, so it is force-pushed.
+          # `pnpm install` installed the repo's hooks (`core.hooksPath .githooks`), and the pre-push hook runs the
+          # whole Playwright suite. That gate is for contributors' pushes; this commit only batches changelog
+          # fragments onto code main already has, so the hooks are skipped.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B release/next
           git add -A
-          git commit -m "chore(release): ${TAG}"
-          git push --force origin release/next
+          git commit --no-verify -m "chore(release): ${TAG}"
+          git push --no-verify --force origin release/next
 
           BODY_FILE=$(mktemp)
           {
@@ -170,7 +173,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -a "${TAG}" -m "Release ${TAG}"
-            git push origin "${TAG}"
+            git push --no-verify origin "${TAG}"
           fi
           VERSION="${TAG#v}"
           echo "Releasing ${TAG}."
