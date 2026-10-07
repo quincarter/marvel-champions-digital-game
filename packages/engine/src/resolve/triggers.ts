@@ -403,6 +403,19 @@ function conditionHolds(
 }
 
 /**
+ * Whether a use of this card's ability is still resolving (`notWhileResolving`): the frame paying for it, or any
+ * effects frame of it, is on the stack. Every frame an ability's effects push for their branches and replacements
+ * carries the ability's id and card, so this holds from the moment the ability is initiated until its last effect
+ * has resolved, across whatever it starts in between (an attack, with its own windows).
+ */
+const abilityResolving = (state: GameState, id: InstanceId, ability: AbilityId): boolean =>
+  state.stack.some(
+    (frame) =>
+      (frame.kind === "effects" && frame.selfInstanceId === id && frame.abilityId === ability) ||
+      (frame.kind === "ability" && frame.instanceId === id && frame.abilityId === ability),
+  );
+
+/**
  * Whether the event is an amount of nothing: 0 threat to place or 0 damage to deal. Such an event opens no window and
  * sets off no "each time" effect (owner rulings 2026-10-05 for threat and 2026-10-06 for damage, docs/phase7-wave7.md
  * §4.1).
@@ -417,13 +430,20 @@ function conditionHolds(
  *   (a 0 ATK attack, an attack a defender's DEF covered, an X of 0) has no "would" window, is neither dealt nor
  *   taken, and nothing answers it afterwards. The attack it came from still happened: "after [enemy] attacks",
  *   "after [character] defends" and retaliate key off the attack, not the damage (p. 9 step 6, "Retaliate X", p. 38).
- * - **Damage an interrupt prevented in full.** Its window did open (the amount was positive); `preventDamage` then
- *   took the event's amount to 0, so its response window does not open: nothing was damaged. Damage a tough status
- *   card, a constant or "cannot take damage" stopped keeps its amount: it was dealt and not taken (RRG 1.8 "Prevent",
- *   p. 35), so "after … takes damage" reads the `amount` result (absent) and "after you deal damage" the event's own.
+ * - **Damage an interrupt prevented in full.** Its interrupt window did open (the amount was positive), and once
+ *   `preventDamage` has taken the event's `amount` to 0 no further interrupt is gathered for it: nothing is left that
+ *   "would" be taken. Afterwards the damage was dealt and not taken (RRG 1.8 "Prevent", p. 35: "the amount of damage
+ *   'dealt' is not reduced"), exactly as damage a tough status card, a constant or "cannot take damage" stopped: the
+ *   event carries `dealt` (positive) and `taken` (0), its response window opens, "after X deals / is dealt damage"
+ *   fires and "after X takes damage" does not (owner ruling 2026-10-07, overruling the 2026-10-06 reading that a full
+ *   prevention left nothing to answer). So an interrupt reads `amount`, and a response or an "each time" effect reads
+ *   the amount dealt.
  */
-const nothingToAnswer = (event: TriggerEvent): boolean =>
-  (event.kind === "placeThreat" || event.kind === "dealDamage") && event.amount <= 0;
+const nothingToAnswer = (event: TriggerEvent, timing: WindowTiming): boolean => {
+  if (event.kind === "placeThreat") return event.amount <= 0;
+  if (event.kind !== "dealDamage") return false;
+  return (timing === "interrupt" ? event.amount : (event.dealt ?? event.amount)) <= 0;
+};
 
 export function candidatesFor(
   state: GameState,
@@ -465,7 +485,7 @@ function gatherCandidates(
 ): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
-  if (nothingToAnswer(event)) return [];
+  if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
   if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return [];
@@ -517,6 +537,7 @@ function gatherCandidates(
       // "Hero Response" on an encounter card gates the player who resolves it (docs/phase7-wave6.md §3.11).
       if (!formSatisfied(state, acting, trigger.form)) continue;
       if (!conditionHolds(state, deps, trigger, id, acting, event)) continue;
+      if (trigger.notWhileResolving === true && abilityResolving(state, id, ref.id)) continue;
       const limitPlayer =
         controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
@@ -828,7 +849,7 @@ export function eachTimeEffectsFor(
   return state.lastingEffects.filter(
     (effect): effect is Extract<LastingEffect, { kind: "eachTime" }> =>
       effect.kind === "eachTime" &&
-      !nothingToAnswer(event) &&
+      !nothingToAnswer(event, "response") &&
       effect.scope.selfInstanceId !== null &&
       matchesPattern(
         state,

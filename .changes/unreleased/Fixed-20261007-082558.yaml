@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Hidden in the Clutter makes one attack only (owner ruling 2026-10-07): it no longer triggers again while its own Forced Interrupt is resolving, so a defender''s retaliate lands on the attached enemy instead of restarting the attack until the defender was out of hit points; a trigger can now be marked notWhileResolving'
+time: 2026-10-07T08:25:58.492923-04:00

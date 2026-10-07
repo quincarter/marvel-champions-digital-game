@@ -2094,7 +2094,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const pending = target.event.amount;
       const prevented = effect.amount === undefined ? pending : Math.min(pending, Math.max(0, value(effect.amount)));
       if (prevented <= 0) return;
-      setFrame(ctx, { ...target, event: { ...target.event, amount: pending - prevented } });
+      // Prevented damage is still dealt (RRG 1.8 "Prevent", p. 35): the event keeps the amount dealt beside the amount
+      // left to take, so "after X deals damage" still has its answer when this prevents all of it.
+      setFrame(ctx, {
+        ...target,
+        event:
+          target.event.kind === "dealDamage"
+            ? { ...target.event, amount: pending - prevented, dealt: target.event.dealt ?? pending }
+            : { ...target.event, amount: pending - prevented },
+      });
       if (target.event.kind === "dealDamage") {
         emit(ctx, {
           type: "damagePrevented",
@@ -2123,7 +2131,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (target?.kind !== "event" || target.event.kind !== "dealDamage" || target.cancelled) return;
       const added = value(effect.amount);
       if (added <= 0) return;
-      setFrame(ctx, { ...target, event: { ...target.event, amount: target.event.amount + added } });
+      const { dealt } = target.event;
+      setFrame(ctx, {
+        ...target,
+        event: {
+          ...target.event,
+          amount: target.event.amount + added,
+          // Already partly prevented: the increase is dealt on top of what was dealt before the prevention.
+          ...(dealt !== undefined ? { dealt: dealt + added } : {}),
+        },
+      });
       emit(ctx, { type: "damageIncreased", targetInstanceId: target.event.targetInstanceId, amount: added });
       return;
     }

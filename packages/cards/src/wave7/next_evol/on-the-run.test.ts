@@ -45,9 +45,11 @@ vi.setConfig({ testTimeout: 120_000 });
 
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 const CAPTAIN_MARVEL = { starterDeckId: "core-captain-marvel-leadership" } as const;
+/** Black Panther's hero side prints retaliate 1. */
+const BLACK_PANTHER = { starterDeckId: "core-black-panther-protection" } as const;
 const ONE = [SPIDER_MAN] as const;
 const TWO = [SPIDER_MAN, CAPTAIN_MARVEL] as const;
-type Seats = readonly (typeof SPIDER_MAN | typeof CAPTAIN_MARVEL)[];
+type Seats = readonly (typeof SPIDER_MAN | typeof CAPTAIN_MARVEL | typeof BLACK_PANTHER)[];
 
 /** Standard-set boost cards that print no boost icon and no Boost ability, so a villain phase adds exactly its stat. */
 const BLANK_BOOSTS = ["01186", "01186", "01187", "01187", "01186", "01187"] as const;
@@ -709,6 +711,75 @@ describe("Hidden in the Clutter (40106)", () => {
       expect(inst(run.state, identityOf(run.state, P2)).damage).toBe(1);
       expect(inst(run.state, identityOf(run.state, P1)).damage).toBe(0);
       expect(inEncounterDiscard(run.state, id)).toBe(true);
+    });
+
+    // Owner ruling 2026-10-07 (docs/phase7-wave7.md 4.1): one attack only. The card does not trigger again while its
+    // own Forced Interrupt resolves (`notWhileResolving`), so the defender's retaliate is dealt to the enemy itself.
+    describe("against a defender with retaliate (Black Panther, retaliate 1)", () => {
+      const PANTHER = [BLACK_PANTHER] as const;
+
+      it("the script marks the interrupt as not triggering during its own resolution", () => {
+        expect(ON_THE_RUN["40106.hidden-in-the-clutter-forced-interrupt"]?.trigger).toMatchObject({
+          kind: "interrupt",
+          forced: true,
+          notWhileResolving: true,
+        });
+      });
+
+      it("exactly one attack is made, the retaliate damage lands on the enemy, and the card is discarded", () => {
+        const { state, id, riptide } = setup(PANTHER);
+        const loaded = patchInstance(state, id, { damage: 1 });
+        const run = drive(loaded, {}, basicAttack(loaded, P1, riptide));
+        expect(resolved(run.events, "attackResolved", riptide)).toHaveLength(1);
+        // Black Panther's 2 was placed on the card (1 + 2 = 3), once; nothing was placed there after that.
+        expect(events(run.events, "damagePlaced").map((e) => [e.targetInstanceId, e.amount])).toEqual([[id, 2]]);
+        // Riptide's ATK 1, once.
+        expect(inst(run.state, heroOf(run.state)).damage).toBe(1);
+        // Retaliate 1, on Riptide itself.
+        expect(inst(run.state, riptide).damage).toBe(1);
+        expect(inEncounterDiscard(run.state, id)).toBe(true);
+        expect(inst(run.state, riptide).attachments).not.toContain(id);
+      });
+
+      it("a stunned enemy: the stun replaces the attack, so there is no retaliate, and the card stays attached", () => {
+        const { state, id, riptide } = setup(PANTHER);
+        // Two stunned cards because the Marauder minions are steady here.
+        const loaded = patchInstance(patchInstance(state, id, { damage: 1 }), riptide, {
+          statuses: { stunned: 2, confused: 0, tough: 0 },
+        });
+        const run = drive(loaded, {}, basicAttack(loaded, P1, riptide));
+        expect(resolved(run.events, "attackResolved", riptide)).toEqual([]);
+        expect(inst(run.state, riptide).statuses.stunned).toBe(0);
+        expect(inst(run.state, heroOf(run.state)).damage).toBe(0);
+        expect(inst(run.state, riptide).damage).toBe(0);
+        expect(inst(run.state, id).damage).toBe(3);
+        expect(inst(run.state, id).attachedTo).toBe(riptide);
+        expect(inEncounterDiscard(run.state, id)).toBe(false);
+      });
+
+      it("after its attack the card is gone, so the next hit lands on the enemy and starts nothing", () => {
+        const { state, id, riptide } = setup(PANTHER);
+        const loaded = patchInstance(state, id, { damage: 1 });
+        const first = drive(loaded, {}, basicAttack(loaded, P1, riptide));
+        const readied = patchInstance(first.state, heroOf(first.state), { exhausted: false });
+        const second = drive(readied, {}, basicAttack(readied, P1, riptide));
+        expect(resolved(second.events, "attackResolved", riptide)).toEqual([]);
+        expect(events(second.events, "damagePlaced")).toEqual([]);
+        expect(inst(second.state, heroOf(second.state)).damage).toBe(1);
+      });
+
+      it("retaliate that defeats the enemy during the attack: one attack, and the card leaves play with it", () => {
+        const { state, id, riptide } = setup(PANTHER);
+        const lastHitPoint = remainingHitPoints(state, riptide, WAVE7_DEPS)! - 1;
+        const loaded = patchInstance(patchInstance(state, id, { damage: 1 }), riptide, { damage: lastHitPoint });
+        const run = drive(loaded, {}, basicAttack(loaded, P1, riptide));
+        expect(resolved(run.events, "attackResolved", riptide)).toHaveLength(1);
+        expect(inst(run.state, heroOf(run.state)).damage).toBe(1);
+        expect(allMinions(run.state)).not.toContain(riptide);
+        expect(inEncounterDiscard(run.state, riptide)).toBe(true);
+        expect(inEncounterDiscard(run.state, id)).toBe(true);
+        expect(piles(run.state).discard.filter((card) => card === id)).toHaveLength(1);
+      });
     });
 
     it("damage no player dealt: no attack is made and the card is still discarded (Q11 = A)", () => {

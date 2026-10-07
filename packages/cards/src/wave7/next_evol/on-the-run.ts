@@ -181,8 +181,14 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
   // here, attached enemy attacks the player who dealt the damage just placed here. Then, discard this card.
   // Reading (rules question 1): the discard goes with the 3-damage threshold, as Armored Rhino Suit's does; below 3 the
   // card stays and keeps absorbing. With no dealing player the attack is skipped and the card is still discarded (Q11 = A).
+  // One attack only (owner ruling 2026-10-07, docs/phase7-wave7.md 4.1): the attack and the discard are one resolution,
+  // and the card does not trigger again inside it (`notWhileResolving`). Damage the attack sends back at the enemy (the
+  // defender's retaliate, an "after you defend, deal damage" response) is therefore not redirected: it is dealt to the
+  // attached enemy itself, and the card is discarded when the attack has ended, as printed. Redirecting it without
+  // starting a second attack would instead leave damage on a card that is leaving, which protects the enemy for nothing.
   "40106.hidden-in-the-clutter-forced-interrupt": forcedInterrupt(
     on.damage("host"),
+    { notWhileResolving: true },
     instead(
       placeDamage(eventAmount, self),
       andThen(

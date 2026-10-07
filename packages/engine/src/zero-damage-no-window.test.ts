@@ -70,7 +70,7 @@ const TOOK = forced(
   { on: "dealDamage", targetIs: ANY_CHARACTER, requireResults: { amount: 1 } },
   [mark({ kind: "eventTarget" }, "took")],
 );
-/** "After you deal any amount of damage to an enemy": the event's own amount, damage dealt (p. 35). */
+/** "After you deal any amount of damage to an enemy": damage dealt (p. 35). */
 const YOU_DEAL = forced(
   "you-deal.forced-response",
   "response",
@@ -78,7 +78,7 @@ const YOU_DEAL = forced(
     on: "dealDamage",
     sourceIs: { controller: "you", categories: ["identity", "event"] },
     targetIs: { categories: ["enemy"] },
-    eventAtLeast: { amount: 1 },
+    eventAtLeast: { dealt: 1 },
   },
   [mark({ kind: "self" }, "youDealt")],
 );
@@ -396,14 +396,15 @@ describe("2. damage brought to 0 before it is taken", () => {
     expect(counter(state, s.watch, "damages")).toBe(1);
   });
 
-  it("an interrupt prevents all of it: the 'would' window opened, then nothing answers the damage afterwards", () => {
+  // Owner ruling 2026-10-07 (`dealt-vs-taken.test.ts`): prevented damage was dealt, as damage a tough card stops is.
+  it("an interrupt prevents all of it: the 'would' window opened, the damage was dealt and not taken (p. 35)", () => {
     const s = setup({ atk: 3, also: [EVACUATE_CARD] });
     const { state, events, session } = villainAttacks(s);
     expect(damageWindows(events, "interrupt")).toHaveLength(1);
-    expect(damageWindows(events, "response")).toEqual([]);
+    expect(damageWindows(events, "response")).toHaveLength(1);
     expect(of(events, "damagePrevented")).toMatchObject([{ targetInstanceId: s.hero, amount: 3, reason: "effect" }]);
     expect(of(events, "damageDealt")).toEqual([]);
-    expect(seen(state, s.hero)).toEqual({ would: 1, dealt: 0, took: 0 });
+    expect(seen(state, s.hero)).toEqual({ would: 1, dealt: 1, took: 0 });
     expect(mustInstance(state, s.hero).damage).toBe(0);
     // The attack resolved; it did not "attack and damage" (RRG 1.8 "Prevent", p. 35).
     expect(counter(state, s.watch, "attacked")).toBe(1);
@@ -504,10 +505,10 @@ describe("3. the attack still happens at 0 damage", () => {
     expectReplays(session);
   });
 
-  it("simultaneous damage where an interrupt prevents one character's share: only the other is answered", () => {
+  it("simultaneous damage where an interrupt prevents one character's share: that share was dealt, only the other taken", () => {
     const s = setup({ ally: true, also: [SHELTER_CARD] });
     const { state, events, session } = play(s.state, BLAST);
-    expect(seen(state, s.ally!)).toEqual({ would: 1, dealt: 0, took: 0 });
+    expect(seen(state, s.ally!)).toEqual({ would: 1, dealt: 1, took: 0 });
     expect(mustInstance(state, s.ally!).damage).toBe(0);
     expect(seen(state, s.hero)).toEqual({ would: 1, dealt: 1, took: 1 });
     expect(mustInstance(state, s.hero).damage).toBe(2);

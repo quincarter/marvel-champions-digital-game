@@ -449,7 +449,23 @@ function schemeDefeatDestination(state: GameState, deps: EngineDeps, schemeId: I
  * resolves, `thwartAmount` (`select.ts`) gives the amount it is about to remove.
  */
 const resolvedAmount = (event: TriggerEvent, vars: Vars): TriggerEvent =>
-  event.kind === "thwart" ? { ...event, amount: vars.threatRemoved ?? 0 } : event;
+  event.kind === "thwart"
+    ? { ...event, amount: vars.threatRemoved ?? 0 }
+    : event.kind === "dealDamage"
+      ? damageDealtAndTaken(event, vars)
+      : event;
+
+/**
+ * Resolved damage carries what was dealt and what was taken, the two amounts "after X deals damage" and "after X
+ * takes damage" read (RRG 1.8 "Prevent", p. 35; owner ruling 2026-10-07, docs/phase7-wave7.md §4.1). Dealt is the
+ * event's `dealt` when an interrupt prevented any of it, else its `amount`; taken is the frame's `amount` result, which
+ * only damage actually placed on the target writes (`recordDamageTaken`, a `damageGroup` member's vars).
+ */
+const damageDealtAndTaken = (event: DamageEvent, vars: Vars): DamageEvent => ({
+  ...event,
+  dealt: event.dealt ?? event.amount,
+  taken: vars.amount ?? 0,
+});
 
 const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
   Object.keys(vars).length === 0 ? event : { ...event, results: vars };
@@ -1018,10 +1034,13 @@ export function excessDamageOf(
 /**
  * The damage event carrying its target as it is about to take the damage (`TargetSnapshot`): read by the damage's
  * response window, after a replacement on the defeat it causes may have turned the target to another face. Unchanged
- * for damage that will not be dealt (no amount, or a target that has left play).
+ * for damage that is not dealt (0 as it would be dealt, or a target that has left play).
  */
 export function asDamaged(state: GameState, event: DamageEvent): DamageEvent {
-  if (event.amount <= 0 || event.targetAsDamaged || !cardsInPlay(state).includes(event.targetInstanceId)) return event;
+  // Damage an interrupt prevented in full was still dealt (`dealt`), and its "after X is dealt damage" responses read
+  // the target as it was dealt to; damage of 0 as it would be dealt (`amount` 0, no `dealt`) is not.
+  const dealt = event.dealt ?? event.amount;
+  if (dealt <= 0 || event.targetAsDamaged || !cardsInPlay(state).includes(event.targetInstanceId)) return event;
   const name = currentName(state, event.targetInstanceId);
   const statuses = getInstance(state, event.targetInstanceId)?.statuses;
   return {

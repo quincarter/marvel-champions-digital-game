@@ -39,6 +39,7 @@ chosen from Core and waves 1-7. No engine, card or client source was changed.
 3. **Hidden in the Clutter loops against retaliate (card interaction, as printed).** "Then, discard this card" comes after the attack,
    so Black Panther's retaliate 1 damages the attached minion during it; the damage lands on the card again and the minion attacks
    again, until the defender is out of hit points. Pinned in part 2. Likely the same in paper; owner to confirm.
+   Overruled on 2026-10-07 (see the update below).
 
 ## Collateral sweep
 
@@ -54,3 +55,18 @@ Spiral, Teleported Away, Phased and Confused and the Norman Osborn / Green Gobli
 Rise from the Ashes and the Hela / Escape the Museum / Odin's Torment / Horror defeat replacements; the "you" reader on Delusion of Collusion and Stryfe's own attachments.
 
 **Update (same day):** finding 1 is fixed. Loki 06028 reads the discarded card wherever it is and is healed on a treachery; his test no longer passes when he is defeated. Left as built and unchecked against the RRG: with an empty encounter deck the discard pile is reshuffled in, no card is discarded and Loki is defeated.
+
+**Update 2026-10-07: findings 2 and 3 are resolved by the owner's rulings (`docs/phase7-wave7.md` section 4.1).**
+
+- **Finding 2, resolved (option A).** "After X deals / is dealt damage" fires after a tough status card and after a
+  prevention alike; "after X takes damage" and "attacks and damages" fire after neither. A damage event now carries the
+  amount dealt and the amount taken (RRG "Prevent", p. 35), and each response reads one of them. Section 4b drives it:
+  with tough and with Telekinetic Force Field 40034 Power Stone 16149 moves to She-Hulk, and Vibranium Armor 01152
+  ("after the villain takes damage") does not answer in either. The scan the finding lacked is
+  `docs/dealt-vs-taken-audit.md`: 3 responses read damage dealt (Power Stone, Challenge Accepted 19028, Schadenfreude
+  16032; all three changed), 19 read damage taken (unchanged), and 64 interrupts read the pending amount (unchanged).
+- **Finding 3, resolved: one attack only.** Hidden in the Clutter 40106 does not trigger again while its own Forced
+  Interrupt is still resolving (the attack it started, then its discard). The defender's retaliate damage is therefore
+  not redirected: it is dealt to the attached enemy itself, and the card is discarded once the attack ends. Section 8a:
+  against Black Panther the Hydra Mercenary attacks once, Black Panther takes 1, the minion takes 1 and the card is in
+  the discard pile. A stun still replaces the attack and leaves the card attached.

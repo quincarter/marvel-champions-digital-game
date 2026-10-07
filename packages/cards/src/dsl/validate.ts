@@ -289,6 +289,23 @@ const VICTORY_DISPLAY_UNREAD_RULES: readonly string[] = [
 const patternKinds = (pattern: EventPattern): readonly string[] =>
   typeof pattern.on === "string" ? [pattern.on] : pattern.on;
 
+/**
+ * A response to damage says which of the two amounts its card's text reads: damage **dealt** ("after X deals / is dealt
+ * damage": `eventAtLeast.dealt`, `on.damage`'s `dealt`) or damage **taken** ("after X takes damage": the `amount`
+ * result or `eventAtLeast.taken`, `on.damage`'s `taken`). RRG 1.8 "Prevent" (p. 35) tells them apart, so a pattern that
+ * names neither would silently pick one (docs/dealt-vs-taken-audit.md).
+ */
+function unreadDamage(pattern: EventPattern): readonly string[] {
+  const reads = (part: EventPattern): boolean =>
+    part.eventAtLeast?.dealt !== undefined ||
+    part.eventAtLeast?.taken !== undefined ||
+    part.requireResults?.amount !== undefined;
+  if (!patternKinds(pattern).includes("dealDamage") || reads(pattern)) return [];
+  const alternatives = (pattern.anyOf ?? []).filter((alternative) => patternKinds(alternative).includes("dealDamage"));
+  if (alternatives.length > 0 && alternatives.every(reads)) return [];
+  return ['a response to damage says whether it reads damage dealt or damage taken (on.damage\'s "dealt" or "taken")'];
+}
+
 function unlistedAlternativeKinds(pattern: EventPattern): readonly string[] {
   const listed = patternKinds(pattern);
   return (pattern.anyOf ?? []).flatMap((alternative) => [
@@ -307,6 +324,7 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   // the outer pattern does not list would never be reached (`on.either` builds the list).
   if ((trigger.kind === "interrupt" || trigger.kind === "response") && trigger.on)
     problems.push(...unlistedAlternativeKinds(trigger.on));
+  if (trigger.kind === "response" && trigger.on) problems.push(...unreadDamage(trigger.on));
   if (trigger.kind === "constant" && definition.effects.length > 0) problems.push("a constant ability has no effects");
   if (definition.generates !== undefined && trigger.kind !== "resource")
     problems.push("only resource abilities generate resources");

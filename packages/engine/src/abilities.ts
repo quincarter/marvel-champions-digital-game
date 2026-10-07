@@ -105,6 +105,11 @@ export interface EventPattern {
   /**
    * Numbers the event itself carries must be at least this, in both windows: `{ boostIcons: 1 }` for "cancel the boost
    * icons on that card", which cannot trigger on a card with none (FAQ "Attacrobatics (#6)", p. 59).
+   *
+   * On a `dealDamage` response, `{ dealt: N }` is "after X deals / is dealt N or more damage" and `{ taken: N }` (the
+   * `amount` result under `requireResults`) "after X takes N or more damage": the two amounts RRG 1.8 "Prevent" (p. 35)
+   * tells apart, stamped on the resolved event (`TriggerEvent dealDamage.dealt`, `.taken`). Its `amount` is what was
+   * left to take once the interrupts had prevented or increased it, which is neither.
    */
   readonly eventAtLeast?: Readonly<Record<string, number>>;
   /**
@@ -327,6 +332,17 @@ export type AbilityTriggerSpec =
        * its own earlier event (`enemyActivating`) and needs no marker.
        */
       readonly would?: boolean;
+      /**
+       * This ability does not trigger again while an earlier use of it by the same card is still resolving: while that
+       * use's effects are on the stack, the card is not gathered for it, forced or not. Off by default, because the
+       * RRG has no such general rule: an ability may trigger again from an event its own resolution causes, and cards
+       * rely on it. Set by a script whose ability starts something that would set the same ability off again before
+       * it has finished ("attached enemy attacks … Then, discard this card", Hidden in the Clutter, `next_evol` 40106:
+       * the defender's retaliate during that attack would otherwise be redirected onto the card and start a second
+       * attack before the first one's discard; owner ruling 2026-10-07, docs/phase7-wave7.md §4.1). The event that
+       * would have triggered it resolves as if the ability were not there.
+       */
+      readonly notWhileResolving?: boolean;
     }
   | {
       readonly kind: "response";
@@ -338,6 +354,8 @@ export type AbilityTriggerSpec =
       readonly firstPlayerOnly?: boolean;
       /** Who may trigger it, when not forced: see the action trigger's `triggerableBy` (docs/phase7-wave6.md §3.11). */
       readonly triggerableBy?: PlayerRef;
+      /** Not while an earlier use of it by the same card is still resolving: see the interrupt trigger's own. */
+      readonly notWhileResolving?: boolean;
     }
   | { readonly kind: "whenRevealed" }
   | { readonly kind: "whenDefeated" }

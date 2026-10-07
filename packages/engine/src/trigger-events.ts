@@ -38,7 +38,28 @@ export type TriggerEventBody =
   | {
       readonly kind: "dealDamage";
       readonly targetInstanceId: InstanceId;
+      /**
+       * The damage this event is still to deal: what it was created with, less what "prevent N of that damage"
+       * interrupts have prevented and plus what "increase that damage" interrupts have added. 0 as the event is
+       * created is 0 damage as it would be dealt, which opens no window at all (owner ruling 2026-10-06).
+       */
       readonly amount: number;
+      /**
+       * The damage **dealt** (RRG 1.8 "Prevent", p. 35: "the amount of damage that character 'takes' is reduced, but
+       * the amount of damage 'dealt' is not reduced"): `amount` plus everything an interrupt prevented. Written by
+       * `preventDamage` the first time it takes anything off `amount`, kept in step by `increaseDamage`, and stamped on
+       * every resolved event, so in an interrupt window an absent `dealt` means "`amount`, nothing prevented yet".
+       * "After X deals damage / is dealt damage" reads this (owner ruling 2026-10-07, docs/phase7-wave7.md §4.1): a
+       * positive amount reached the damage-dealing process, whether or not a tough status card, a prevention, a
+       * constant reduction or "cannot take damage" then kept the target from taking it.
+       */
+      readonly dealt?: number;
+      /**
+       * The damage **taken**: what was placed on the target, after preventions, constant reductions and caps, a tough
+       * status card and "cannot take damage". Stamped on the resolved event only (absent in the interrupt window) and
+       * always equal to its `results.amount` (absent there when 0). "After X takes damage" reads it.
+       */
+      readonly taken?: number;
       readonly sourceInstanceId: InstanceId | null;
       /** Damage from an attack; defense, retaliate and overkill key off this. */
       readonly fromAttack: boolean;

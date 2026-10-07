@@ -92,10 +92,10 @@ import {
  * (`resolve/triggers.ts`'s `matchesPattern`): matching `playerIs: "controller"` with no explicit `usesAttackedPlayer`
  * scoping would be a no-op filter here, so it is omitted rather than written for no effect.
  *
- * **The Power Stone's Forced Response is scripted as a raw `EventPattern`,** not `on.damage`, because the
- * "3 or more damage … with a single attack" clause needs `eventAtLeast: { amount: 3 }` alongside `targetIs:
- * { hostOfSelf: true }` and `fromAttack: true` — the exact shape `packages/engine/src/power-stone.test.ts`
- * (docs/phase7-wave3.md §3.19) already proved. No DSL builder wraps this specific combination; composed inline.
+ * **The Power Stone's Forced Response** is `on.damage("host", { fromAttack: true, dealt: 3 })`: "deals
+ * 3 or more damage … with a single attack" is damage **dealt** (RRG 1.8 "Prevent", p. 35; owner ruling 2026-10-07,
+ * docs/dealt-vs-taken-audit.md), so the stone moves when a tough status card or a prevention kept the attached
+ * character from taking it. The shape `packages/engine/src/power-stone.test.ts` (docs/phase7-wave3.md §3.19) proves.
  *
  * **DSL builders added this pass:** `resolveSpecialsOf` (`dsl/effects.ts`) — the engine's `resolveSpecials` already
  * carried an `of: TargetRef` field (a card named directly, not found by query) for exactly this shape, needed
@@ -335,10 +335,9 @@ export const NEBULA = defineAbilities({
 
   // "Setup. Attach to the villain." is data-driven (module docblock). Permanent (data).
   // Forced Response: After a hero or villain deals 3 or more damage to attached character with a single attack,
-  // attach Power Stone to the attacking hero or villain (module docblock: raw `EventPattern`, matches
-  // `power-stone.test.ts`).
+  // attach Power Stone to the attacking hero or villain (module docblock: damage dealt, not taken).
   "16149.power-stone-forced-response": forcedResponse(
-    { on: "dealDamage", targetIs: { hostOfSelf: true }, fromAttack: true, eventAtLeast: { amount: 3 } },
+    on.damage("host", { fromAttack: true, dealt: 3 }),
     attachCard(self, eventSource),
   ),
 });

@@ -6,7 +6,8 @@
  *
  * Sources: RRG 1.8 "Damage" (p. 14, the nine-step order), "Tough" (p. 44), "Prevent" (p. 35), "Retaliate X" (p. 38),
  * "Defense" and "Defender" (pp. 14-15), "Attack (Enemy Activation)" (p. 9), "You/Your". A `// FINDING` comment marks a
- * case whose result surprises against the printed text; the "after you deal damage" difference (4b) is the open question.
+ * case whose result surprises against the printed text. 4b and the Hidden in the Clutter retaliate case (8a) are written to
+ * the owner's 2026-10-07 rulings (docs/phase7-wave7.md §4.1).
  */
 import { cardId } from "@mc/content";
 import {
@@ -216,15 +217,21 @@ describe("5. A defender without DEF and defense between players (RRG pp. 14-15)"
   });
 });
 
-describe("4b. Tough, prevention and the 'after deals damage' responses (open question, docs/phase7-wave7-qa-rulings.md)", () => {
+describe("4b. 'After deals damage' fires after tough and after prevention alike; 'after takes damage' after neither (owner ruling 2026-10-07)", () => {
   const POWER_STONE = "16149";
   const FORCE_FIELD = "40034";
-  /** She-Hulk (ATK 3) attacks Rhino with Power Stone attached; `prepare` changes Rhino first. */
+  const VIBRANIUM_ARMOR = "01152";
+  /**
+   * She-Hulk (ATK 3) attacks Rhino carrying Power Stone ("after a hero deals 3 or more damage to attached character")
+   * and Vibranium Armor ("after the villain takes damage, give it a tough status card"); `prepare` changes Rhino first.
+   * `drive` replays each game's command log and requires the same state.
+   */
   function stoneAttack(prepare: (s: GameState, rhino: InstanceId) => GameState) {
     const base = game("rhino", ["core-she-hulk-aggression", "core-spider-man-justice"], ["the_doomsday_chair"]);
     const rhino = villainOf(base);
     const stone = attachEncounter(base, POWER_STONE, rhino);
-    const staged = prepare(stone.state, rhino);
+    const armor = attachEncounter(stone.state, VIBRANIUM_ARMOR, rhino);
+    const staged = prepare(armor.state, rhino);
     const run = drive(
       staged,
       {},
@@ -241,27 +248,33 @@ describe("4b. Tough, prevention and the 'after deals damage' responses (open que
     patchInstance(s, rhino, { statuses: { ...inst(s, rhino).statuses, tough: 1 } });
   const withoutTough = (s: GameState, rhino: InstanceId) =>
     patchInstance(s, rhino, { statuses: { ...inst(s, rhino).statuses, tough: 0 } });
+  const armorAnswered = (run: Run) => resolvedAbilities(run.events).some((a) => a.startsWith(`${VIBRANIUM_ARMOR}.`));
 
-  it("control, no tough or prevention: She-Hulk deals 3, Power Stone moves to her ('after a hero deals 3 or more damage')", () => {
+  it("control, no tough or prevention: She-Hulk deals 3 and Rhino takes 3: Power Stone moves to her and Vibranium Armor gives Rhino a tough card", () => {
     const g = stoneAttack(withoutTough);
     expect(damageOn(g.run.state, g.rhino)).toBe(3);
     expect(inst(g.run.state, g.stone).attachedTo).toBe(g.hero);
+    expect(armorAnswered(g.run)).toBe(true);
+    expect(inst(g.run.state, g.rhino).statuses.tough).toBe(1);
   });
 
-  // FINDING 2 (the open question): the two ways of preventing all 3 damage differ. RRG "Prevent" (p. 35): prevented damage
-  // is still "dealt" (only "taken" is reduced), and "Tough" (p. 44) prevents all damage, so by the RRG both cases should
-  // behave the same for an "after ... deals damage" response. Today tough still fires it and a prevention interrupt does not.
-  it("PINNED, today's behavior: Rhino has tough, all 3 damage is prevented, tough is spent and Power Stone STILL moves ('after dealt' fires)", () => {
+  // RRG "Prevent" (p. 35): prevented damage is still dealt, only "taken" is reduced; "Tough" (p. 44) prevents the same way.
+  it("Rhino has tough: the status card is spent, 3 was dealt and 0 taken: Power Stone moves, Vibranium Armor does not answer", () => {
     const g = stoneAttack(withTough);
     expect(damageOn(g.run.state, g.rhino)).toBe(0);
-    expect(inst(g.run.state, g.rhino).statuses.tough).toBe(0);
     expect(inst(g.run.state, g.stone).attachedTo).toBe(g.hero);
+    expect(armorAnswered(g.run)).toBe(false);
+    expect(inst(g.run.state, g.rhino).statuses.tough).toBe(0);
   });
 
-  it("PINNED, today's behavior: Telekinetic Force Field 40034 prevents all 3 damage and Power Stone stays ('after dealt' does not fire)", () => {
+  it("Telekinetic Force Field 40034 prevents all 3: 3 was dealt and 0 taken: Power Stone moves all the same, Vibranium Armor does not answer", () => {
     const g = stoneAttack((s, rhino) => attachEncounter(withoutTough(s, rhino), FORCE_FIELD, rhino).state);
     expect(damageOn(g.run.state, g.rhino)).toBe(0);
-    expect(inst(g.run.state, g.stone).attachedTo).toBe(g.rhino);
+    expect(inst(g.run.state, g.stone).attachedTo).toBe(g.hero);
+    expect(armorAnswered(g.run)).toBe(false);
+    expect(inst(g.run.state, g.rhino).statuses.tough).toBe(0);
+    // The Force Field prevented 2 or more and is discarded by its own text.
+    expect(codes(g.run.state, cardsInPlay(g.run.state))).not.toContain(FORCE_FIELD);
   });
 });
 
@@ -509,15 +522,16 @@ describe("8a. Hidden in the Clutter 40106 per the owner's rulings", () => {
     expect(damageOn(run.state, g.minion)).toBe(0);
   });
 
-  // FINDING 3 (a card interaction, as the printed text reads): "Then, discard this card" comes after the attack, so a
-  // defender with retaliate (Black Panther, retaliate 1 on his hero face) damages the attached enemy during that attack;
-  // the damage is placed on the card again (still attached, at least 3 here) and the minion attacks again. The loop ends
-  // only when the defender's hit points do. Pinned as built; whether paper play would break the loop is for the owner.
-  it("FINDING: against Black Panther (retaliate 1) the card loops: the minion attacks P2 over and over until P2 is out of hit points", () => {
+  // Owner ruling 2026-10-07 (finding 3 of the write-up, overruling the loop built before): the Forced Interrupt starts
+  // one attack and discards the card as part of that resolution, and the card does not trigger again inside it. Black
+  // Panther's retaliate 1 is dealt during the attack, so it is not redirected: it lands on the minion itself.
+  /** A Hydra Mercenary (3 hit points, ATK 1) engaged with P1, the card on it holding 2; Black Panther (P2) hits it for 2. */
+  function againstRetaliate(stunned: number) {
     const base = game("rhino", ["core-spider-man-justice", "core-black-panther-protection"], ["the_doomsday_chair"]);
     const minion = withMinion(base, HYDRA_MERCENARY, { player: P1 });
     const clutter = attachEncounter(minion.state, CLUTTER, minion.id);
     let s = patchInstance(clutter.state, clutter.id, { damage: 2 });
+    s = patchInstance(s, minion.id, { statuses: { stunned, confused: 0, tough: 0 } });
     s = stackEncounterDeck(passToP2(s), "01186");
     const run = drive(
       s,
@@ -530,8 +544,31 @@ describe("8a. Hidden in the Clutter 40106 per the owner's rulings", () => {
       },
     );
     const attacks = run.events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === minion.id);
-    expect(attacks.length).toBeGreaterThan(1);
-    expect(heroDamage(run.state, P2)).toBe(attacks.length);
+    return { run, attacks, minion: minion.id, clutter: clutter.id };
+  }
+
+  it("against Black Panther (retaliate 1): one attack only, his retaliate lands on the minion itself, and the card is discarded", () => {
+    const g = againstRetaliate(0);
+    expect(g.attacks).toHaveLength(1);
+    expect(g.attacks[0]).toEqual(expect.objectContaining({ targetInstanceId: identityOf(g.run.state, P2) }));
+    // The Hydra Mercenary's ATK 1, once.
+    expect(heroDamage(g.run.state, P2)).toBe(1);
+    expect(heroDamage(g.run.state, P1)).toBe(0);
+    // Black Panther's 2 went onto the card (2 + 2 = 4); his retaliate 1 is on the minion.
+    expect(damageOn(g.run.state, g.minion)).toBe(1);
+    expect(cardsInPlay(g.run.state)).toContain(g.minion);
+    expect(inst(g.run.state, g.clutter).attachedTo).toBeNull();
+    expect(cardsInPlay(g.run.state)).not.toContain(g.clutter);
+  });
+
+  it("against Black Panther with the minion stunned: the stun replaces the attack, so no retaliate; the card stays with 4 damage", () => {
+    const g = againstRetaliate(1);
+    expect(g.attacks).toHaveLength(0);
+    expect(inst(g.run.state, g.minion).statuses.stunned).toBe(0);
+    expect(heroDamage(g.run.state, P2)).toBe(0);
+    expect(damageOn(g.run.state, g.minion)).toBe(0);
+    expect(inst(g.run.state, g.clutter).attachedTo).toBe(g.minion);
+    expect(damageOn(g.run.state, g.clutter)).toBe(4);
   });
 
   it("a stun replaces the resulting attack (the stun is removed instead) and the card stays attached", () => {

@@ -82,6 +82,13 @@ export interface AbilityOptions {
    */
   readonly would?: boolean;
   /**
+   * On an interrupt or response that must not trigger again while an earlier use of it by the same card is still
+   * resolving (the engine trigger's `notWhileResolving`): Hidden in the Clutter's "attached enemy attacks … Then,
+   * discard this card" makes one attack, whatever damage that attack sends back at the enemy (owner ruling
+   * 2026-10-07). Leave it off otherwise: nothing in the RRG stops an ability from triggering during its own resolution.
+   */
+  readonly notWhileResolving?: boolean;
+  /**
    * Star-Lord's "What could go wrong?" (`stld` 17001a; docs/phase7-wave3.md §3.20): on an `interrupt` trigger, makes
    * it a cost modifier the player opts into while playing a matching card (`playCard.costReductionAbilities`)
    * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
@@ -271,6 +278,7 @@ const triggered =
         ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
         ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
         ...(kind === "interrupt" && options.would ? { would: true } : {}),
+        ...(options.notWhileResolving ? { notWhileResolving: true } : {}),
       },
       options,
       effects,
@@ -2024,17 +2032,30 @@ export const on = {
    */
   cardPlayed: (what: TargetQuery): EventPattern => pattern("cardPlayed", { targetIs: what }),
   /**
-   * "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). `consequential`:
-   * "When X would take any amount of consequential damage" (Field Agent, `sm` 27044) — an ally's consequential damage
-   * from an attack or a thwart alike (`EventPattern.consequential`, docs/phase7-wave5.md §4.1 Q62); `false` excludes it.
-   * `indirect`: "After a friendly character takes any amount of indirect damage" — that character's assigned share of
-   * indirect damage (RRG 1.8 "Indirect Damage", p. 24; `EventPattern.indirect`), from an ability, a cost or an enemy
-   * attack that deals indirect damage; `false` excludes it.
+   * A character's damage: "When X would take / be dealt damage" for an interrupt, and for a response one of two
+   * readings, chosen by the card's printed verb (RRG 1.8 "Prevent", p. 35: prevented damage is dealt and not taken;
+   * owner ruling 2026-10-07, docs/phase7-wave7.md §4.1; every script's reading is in docs/dealt-vs-taken-audit.md):
+   *
+   * - `dealt`: "After X **is dealt** damage" / "after [someone] **deals** damage to X". The damage reached the
+   *   damage-dealing process, whether or not a tough status card, a prevention, a constant reduction or "cannot take
+   *   damage" then stopped it. A number is "N or more damage" as dealt (`dealDamage.dealt`).
+   * - `taken`: "After X **takes** / **suffers** damage", "is damaged", "damage is placed here": at least 1 damage was
+   *   placed on it (the damage's `amount` result, the event's `taken`).
+   *
+   * A response must pass one of the two (`validateDefinition`). An interrupt passes neither: nothing has been dealt
+   * or taken yet, and it reads the pending amount.
+   *
+   * `consequential`: "When X would take any amount of consequential damage" (Field Agent, `sm` 27044) — an ally's
+   * consequential damage from an attack or a thwart alike (`EventPattern.consequential`, docs/phase7-wave5.md §4.1
+   * Q62); `false` excludes it. `indirect`: "After a friendly character takes any amount of indirect damage" — that
+   * character's assigned share of indirect damage (RRG 1.8 "Indirect Damage", p. 24; `EventPattern.indirect`), from an
+   * ability, a cost or an enemy attack that deals indirect damage; `false` excludes it.
    */
   damage: (
     to: Who,
     opts: {
       readonly fromAttack?: boolean;
+      readonly dealt?: true | number;
       readonly taken?: boolean;
       readonly consequential?: boolean;
       readonly indirect?: boolean;
@@ -2046,6 +2067,7 @@ export const on = {
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
       opts.consequential !== undefined ? { consequential: opts.consequential } : {},
       opts.indirect !== undefined ? { indirect: opts.indirect } : {},
+      opts.dealt !== undefined ? { eventAtLeast: { dealt: opts.dealt === true ? 1 : opts.dealt } } : {},
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
   /**
@@ -2074,14 +2096,15 @@ export const on = {
    * that player's identity"). Known gap: an upgrade attached to a *different* friendly character is not an
    * extension either, and this query still counts it (no printed card needs the case yet). "Deal" is damage
    * **dealt**, not taken: prevention reduces what the target takes, "but the amount of damage 'dealt' is not
-   * reduced" (RRG 1.8 "Prevent", p. 35), so the event's own amount is read (`eventAtLeast`), not its `amount` result.
+   * reduced" (RRG 1.8 "Prevent", p. 35), so the event's `dealt` is read, not its `amount` result: damage a tough
+   * status card or a prevention stopped in full still counts (owner ruling 2026-10-07).
    */
   youDealDamage: (to: Who): EventPattern =>
     pattern(
       "dealDamage",
       { sourceIs: { controller: "you", categories: ["identity", "event", "resource", "upgrade"] } },
       asTarget(to),
-      { eventAtLeast: { amount: 1 } },
+      { eventAtLeast: { dealt: 1 } },
     ),
   /** "When threat would be placed on a scheme" / "after placing threat here". */
   threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", where ? asTarget(where) : {}),

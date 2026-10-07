@@ -27,7 +27,7 @@ const STONE_MOVES = stubAbility("stone.response", {
   trigger: {
     kind: "response",
     forced: true,
-    on: { on: "dealDamage", targetIs: { hostOfSelf: true }, fromAttack: true, eventAtLeast: { amount: 3 } },
+    on: { on: "dealDamage", targetIs: { hostOfSelf: true }, fromAttack: true, eventAtLeast: { dealt: 3 } },
   },
   effects: [{ kind: "attach", card: { kind: "self" }, to: { kind: "eventSource" } }],
 });
