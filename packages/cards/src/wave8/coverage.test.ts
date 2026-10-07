@@ -10,6 +10,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
+import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
@@ -51,6 +52,14 @@ const SCRIPTED_MODULES: Readonly<
     }>
   >
 > = {
+  aoa: [
+    {
+      module: "dystopian-nightmare",
+      cardIds: ["45072", "45073", "45074"],
+      registry: DYSTOPIAN_NIGHTMARE,
+      skipped: {},
+    },
+  ],
   jubilee: [{ module: "jubilee/identity", cardIds: ["47001a", "47001b"], registry: JUBILEE_IDENTITY, skipped: {} }],
   ncrawler: [
     { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
