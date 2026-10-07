@@ -462,26 +462,16 @@ describe("3b. Would-be-defeated replacements resolve before any is-defeated inte
     return { state: staged, loki: loki.id, tracer: tracer.id };
   }
 
-  // FINDING 1 (not caused by today's rulings, exposed by them): Loki's replacement tests the discarded card with
-  // `refMatches(chosen("flipped"), query("treachery"))`, which only matches cards in play (no `anywhere`), and the discarded
-  // card is in the encounter discard pile, so Loki is never healed. His own test (wave1/thor/nemesis.test.ts "survives,
-  // healed") passes vacuously: a defeated minion's damage is also 0. Printed text: "If that card is a treachery, heal
-  // all damage from Loki instead." Expected: Loki stays in play with 0 damage and Spider-Tracer never fires.
-  it.fails("FINDING: Loki 06028 reveals a treachery (Advance): he should be healed instead and Spider-Tracer should never fire", () => {
+  // Loki's replacement reads the discarded card's type wherever it is (`anywhere`): "If that card is a treachery, heal
+  // all damage from Loki instead." He stays in play with 0 damage and Spider-Tracer never fires.
+  it("Loki 06028 discards a treachery (Advance): he is healed instead and Spider-Tracer never fires", () => {
     const g = lokiTable("01186");
     const run = drive(g.state, {}, attack(g.state, g.loki));
     expect(cardsInPlay(run.state)).toContain(g.loki);
     expect(damageOn(run.state, g.loki)).toBe(0);
+    expect(defeatWindows(run.events, g.loki).map((w) => w.would)).toEqual([true]);
     expect(hasResolved(run.events, TRACER_INTERRUPT)).toBe(false);
     expect(mainThreat(run.state)).toBe(5);
-  });
-
-  it("today's behavior of that card (FINDING 1): the treachery is discarded, Loki is defeated anyway and Spider-Tracer removes 3 threat (5 to 2)", () => {
-    const g = lokiTable("01186");
-    const run = drive(g.state, {}, attack(g.state, g.loki));
-    expect(defeatWindows(run.events, g.loki).map((w) => w.would)).toEqual([true, false]);
-    expect(cardsInPlay(run.state)).not.toContain(g.loki);
-    expect(mainThreat(run.state)).toBe(2);
   });
 
   it("Loki reveals a non-treachery (Hydra Mercenary): the would resolves without replacing, then the later tier runs: he is defeated and Spider-Tracer removes 3 threat", () => {

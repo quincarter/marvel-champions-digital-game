@@ -1,6 +1,8 @@
-import { activeEncounterDeck } from "@mc/engine";
+import { activeEncounterDeck, activeEncounterDeckId, cardsInPlay } from "@mc/engine";
+import type { GameEvent, GameState, InstanceId } from "@mc/engine";
 import {
   answer,
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
@@ -88,21 +90,67 @@ describe("Thor nemesis set", () => {
     return { state: inPlay, strike, energyCard, loki };
   }
 
-  it("survives, healed, when the discarded card is a treachery", () => {
-    const { state, strike, energyCard, loki } = lokiOneHitFromDefeat("06030"); // Trickster, a treachery
-    // Lightning Strike deals 1 damage (X=1, paid with the Energy card alone) to the villain and each minion
-    // engaged with Thor, lethal to Loki — his own Forced Interrupt discards the top encounter card (Trickster, a
-    // treachery here) and heals him instead of letting the defeat happen.
-    const played = runThor(state, play(P1, strike, [energyCard]));
-    const after = settle(played, firstLegal, undefined, THOR_DEPS);
+  /** Plays Lightning Strike on the brink Loki; the events are those of the play, which resolves without a prompt. */
+  function strikeLoki(top: string, prepare: (s: GameState) => GameState = (s) => s) {
+    const set = lokiOneHitFromDefeat(top);
+    const state = prepare(set.state);
+    const topId = activeEncounterDeck(state).deck[0]!;
+    const { state: after, events } = applyOk(state, play(P1, set.strike, [set.energyCard]), THOR_DEPS);
+    return { ...set, topId, after: settle(after, firstLegal, undefined, THOR_DEPS), events };
+  }
+  /** Windows opened for a defeat of `id`: `would` true is the replacement tier, false the "is defeated" tier. */
+  const defeatWindows = (events: readonly GameEvent[], id: InstanceId) =>
+    events.flatMap((e) =>
+      e.type === "windowOpened" && e.event.kind === "characterDefeated" && e.event.instanceId === id
+        ? [e.would === true]
+        : [],
+    );
+
+  it("survives, healed, when the discarded card is a treachery: still in play, engaged, 0 damage, no defeat", () => {
+    const { after, events, loki, topId: trickster } = strikeLoki("06030"); // Trickster, a treachery
+    expect(cardsInPlay(after)).toContain(loki);
     expect(inst(after, loki).damage).toBe(0);
+    expect(inst(after, loki).engagedWith).toBe(P1);
+    expect(activeEncounterDeck(after).discard).toContain(trickster);
+    expect(activeEncounterDeck(after).discard).not.toContain(loki);
+    // Only the "would be defeated" tier opened; the "is defeated" tier (Spider-Tracer's) never did.
+    expect(defeatWindows(events, loki)).toEqual([true]);
   });
 
-  it("is defeated normally when the discarded card is not a treachery", () => {
-    const { state, strike, energyCard, loki } = lokiOneHitFromDefeat("01186"); // ADVANCE, not a treachery
-    const played = runThor(state, play(P1, strike, [energyCard]));
-    const after = settle(played, firstLegal, undefined, THOR_DEPS);
-    expect(activeEncounterDeck(after).discard).toContain(loki);
+  it("is defeated normally when the discarded card is not a treachery: the replacement did not apply", () => {
+    const { after, events, loki, topId } = strikeLoki("01101"); // Hydra Mercenary, a minion: not a treachery
+    expect(cardsInPlay(after)).not.toContain(loki);
+    expect(activeEncounterDeck(after).discard).toContain(topId);
+    expect(defeatWindows(events, loki)[0]).toBe(true); // the replacement was offered, and did not replace
+  });
+
+  it("a treachery with When Revealed text (Advance) is only discarded, not revealed: Loki is healed and the text never resolves", () => {
+    const { after, events, loki, topId } = strikeLoki("01186");
+    expect(cardsInPlay(after)).toContain(loki);
+    expect(inst(after, loki).damage).toBe(0);
+    expect(activeEncounterDeck(after).discard).toContain(topId);
+    expect(events.some((e) => e.type === "abilityResolved" && String(e.abilityId) === "01186.when-revealed")).toBe(
+      false,
+    );
+  });
+
+  it("with an empty encounter deck the discard pile is reshuffled in and nothing is discarded, so Loki is defeated (as built)", () => {
+    const { after, loki } = strikeLoki("06030", (s) => {
+      const piles = activeEncounterDeck(s);
+      return {
+        ...s,
+        encounterDecks: {
+          ...s.encounterDecks,
+          [activeEncounterDeckId(s)]: { deck: [], discard: [...piles.deck, ...piles.discard] },
+        },
+      };
+    });
+    expect(after.pendingChoice).toBeNull();
+    // Pinned as built (reported to the owner): the empty deck is refilled from the discard pile, but no card is
+    // discarded from it by Loki's effect, so with no treachery found he is defeated and the whole pile is the deck.
+    expect(cardsInPlay(after)).not.toContain(loki);
+    expect(activeEncounterDeck(after).discard).toEqual([]);
+    expect(activeEncounterDeck(after).deck).toHaveLength(33);
   });
 
   it("Frost Giant: stuns a character the villain's attack damages, via its boost ability", () => {

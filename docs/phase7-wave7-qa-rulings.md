@@ -52,3 +52,5 @@ deadpool}`, `wave7/next_evol/cable`, `telepathy`: 48 files, 1931 passed, none re
 
 Spiral, Teleported Away, Phased and Confused and the Norman Osborn / Green Goblin would-markers; Too Stubborn to Die, "I Got Better",
 Rise from the Ashes and the Hela / Escape the Museum / Odin's Torment / Horror defeat replacements; the "you" reader on Delusion of Collusion and Stryfe's own attachments.
+
+**Update (same day):** finding 1 is fixed. Loki 06028 reads the discarded card wherever it is and is healed on a treachery; his test no longer passes when he is defeated. Left as built and unchecked against the RRG: with an empty encounter deck the discard pile is reshuffled in, no card is discarded and Loki is defeated.
