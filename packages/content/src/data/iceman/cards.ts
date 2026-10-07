@@ -147,8 +147,8 @@ export const ICEMAN_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Hero Response: After you resolve your \"Freeze!\" ability, exhaust this card → draw 1 card. If that card has an Ice trait, ready Iceman.",
-      current: "Hero Response: After you resolve your \"Freeze!\" ability, exhaust this card → draw 1 card. If that card has an Ice trait, ready Iceman.",
+      printed: "Hero Response: After you resolve your \"Freeze!\" ability, exhaust this card → draw 1 card. If that card has the ICE trait, ready Iceman.",
+      current: "Hero Response: After you resolve your \"Freeze!\" ability, exhaust this card → draw 1 card. If that card has the ICE trait, ready Iceman.",
     },
     flavor: "\"Anyone remember when I used to throw snowballs at Magneto?\" —Iceman",
     abilities: [{ id: abilityId("46005.cryokinetic-perception-response") }],
