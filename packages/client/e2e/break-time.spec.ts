@@ -127,13 +127,19 @@ test("Break Time: the break timer counts wall-clock time and End break reports t
   expect(await stepperValue(page), "the stepper is not the default").toBeNull();
 
   await page.clock.fastForward("03:20");
-  await settle(page, { quietMs: 400, maxMs: 3000 });
   // Wall time between the prompt opening and this read also counts (that is the point), so on a slow machine the
-  // clock may have passed 3:59: read the minutes off the clock and hold the heal line and the report to them.
-  const later = await sheetTexts(page);
-  const clock = later.map((t) => /^(\d+):[0-5]\d$/.exec(t.trim())).find((m) => m !== null);
-  expect(clock, "the clock shows minutes and seconds").toBeTruthy();
-  const minutes = Number(clock![1]);
+  // clock may have passed 3:59: read the minutes off the clock and hold the heal line and the report to them. The
+  // digits redraw on a half-second timer, so wait for the jump to show rather than reading once.
+  const readClock = async (): Promise<{ texts: string[]; minutes: number } | null> => {
+    const texts = await sheetTexts(page);
+    const match = texts.map((t) => /^(\d+):[0-5]\d$/.exec(t.trim())).find((m) => m !== null);
+    if (!match) return null;
+    const read = Number(match[1]);
+    return read >= 3 ? { texts, minutes: read } : null;
+  };
+  const shown = await waitFor(readClock, "the clock shows the 3 minutes jumped", 15000);
+  const later = shown.texts;
+  const minutes = shown.minutes;
   expect(minutes, "at least the 3 minutes jumped").toBeGreaterThanOrEqual(3);
   expect(
     later.some((t) => new RegExp(`^Heal ${minutes} from each identity$`, "i").test(t.trim())),
