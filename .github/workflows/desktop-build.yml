@@ -3,7 +3,7 @@
 # Tauri bundles with the host's own toolchain (Xcode, webkit2gtk, MSVC +
 # WebView2), so one machine cannot produce all three: each OS builds its own.
 # `bundle.targets: "all"` in src-tauri/tauri.conf.json then yields
-#   macOS    .app + .dmg, one universal binary (Apple silicon + Intel)
+#   macOS    .app + .dmg, one per architecture (Apple silicon, Intel)
 #   Linux    .deb, .rpm and .AppImage (x86_64)
 #   Windows  .msi and an NSIS -setup.exe (x64). Windows 11 ships WebView2, and
 #            the installer fetches it on the rare machine that lacks it.
@@ -55,18 +55,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS (universal)
+          # One build per architecture, not a universal binary: Tauri embeds the whole of `dist/` (card art and
+          # music, over a gigabyte) in the executable, so a universal binary carries it twice and its .dmg passes
+          # GitHub's 2 GiB limit on a release asset (v0.16.0).
+          - name: macOS (Apple silicon)
             os: macos-latest
-            args: --target universal-apple-darwin
-            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            artifact: macos-aarch64
+            args: --target aarch64-apple-darwin
+            rust-targets: aarch64-apple-darwin
+          - name: macOS (Intel)
+            os: macos-latest
+            artifact: macos-x64
+            args: --target x86_64-apple-darwin
+            rust-targets: x86_64-apple-darwin
           - name: Linux (x86_64)
             # The oldest supported Ubuntu, so the AppImage and .deb run on
             # older glibc too, not only on the newest distro.
             os: ubuntu-22.04
+            artifact: linux-x64
             args: ""
             rust-targets: ""
           - name: Windows 11 (x64)
             os: windows-latest
+            artifact: windows-x64
             args: ""
             rust-targets: ""
 
@@ -94,6 +105,8 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: packages/client/src-tauri -> target
+          # The two macOS builds share an OS but not a target, so each keeps its own cache.
+          key: ${{ matrix.artifact }}
 
       - run: pnpm install --frozen-lockfile
 
@@ -164,7 +177,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: marvel-champions-${{ matrix.os }}
+          name: marvel-champions-${{ matrix.artifact }}
           if-no-files-found: error
           path: |
             packages/client/src-tauri/target/**/release/bundle/dmg/*.dmg
