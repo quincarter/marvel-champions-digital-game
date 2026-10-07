@@ -86,3 +86,26 @@ The PR's checklist is the live record.
 - The RRG markdown conversion can put a page's entries under the wrong product heading; check the PDF page.
 - Agents do not commit unless told to: an uncommitted change in the working tree is unverified agent output. One
   engine agent at a time; at most three agents in all, on files that do not overlap.
+
+## Printed decklist cards from the owner
+
+Read by the main session from the owner's photo of each pack's decklist card; the data step that writes the starter
+deck checks its list against these.
+
+### Iceman Hero Pack (received 2026-10-07)
+
+Every title and quantity matches `packages/content/raw/marvelcdb/iceman.json` positions 2 to 28 (checked by script
+against the photo's transcription). The card spells 46005 "Cyrokinetic Perception"; MarvelCDB has "Cryokinetic
+Perception" (the photo is soft, so the printed spelling is unconfirmed).
+
+- **Hero cards:** 2 Frostbite ×6, 3 Snow Clone ×2, 4 Power Belt, 5 Cryokinetic Perception, 6 Ice Slide, 7 Frozen
+  Solid ×2, 8 Ice Wall, 9 Arctic Attack ×2, 10 Ice Blast ×2, 11 Chill Out! ×3 (21 cards; 15 without the six
+  Frostbite, which the spec has to place: in the deck or set aside)
+- **Aggression:** 12 Shark-Girl, 13 Glob, 14 Suppressing Fire ×3, 15 Surprise Move ×3, 16 Take That! ×3, 17 Looking
+  for Trouble ×3, 18 Keep Up the Pressure (15)
+- **Basic:** 19 Shadowcat, 20 Beak, 21 Team-Building Exercise ×3, 22 Recuperation ×3, 23 The Power in All of Us ×2
+  (10)
+- **Obligation:** 24 Hot-Headed
+- **Nemesis set:** 25 Pyro, 26 Playing with Fire, 27 Pyro's Flamethrower, 28 Burn! ×2
+- Not on the decklist card: 29 to 32 (Sauron, Sauron Lives!, Life Drain, The Eye of Sauron ×3), the pack's modular
+  set.
