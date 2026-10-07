@@ -101,6 +101,17 @@ function setupKeywordCardIds(sets: readonly string[]): CardId[] {
 }
 
 /**
+ * Scenarios whose own printed text sets setup-keyword cards aside and names when they come in, so RRG 1.8 Appendix II
+ * step 11 (p. 51) leaves them aside (`GameSetupConfig.setAsideUntilCalled`; docs/phase7-wave7.md §4.1 Q20 = B,
+ * docs/setup-keyword-set-aside-audit.md). Mister Sinister, MC40 p. 16: "The setup keyword on the Flight (151), Super
+ * Strength (155), and Telepathy (159) attachments is ignored in this scenario because these cards are set aside
+ * during setup." Each stage 2B attaches its own set's attachment.
+ */
+const SET_ASIDE_UNTIL_CALLED: Readonly<Record<string, NonNullable<GameSetupConfig["setAsideUntilCalled"]>>> = {
+  "mister-sinister": { encounterSetIds: ["flight", "super_strength", "telepathy"] },
+};
+
+/**
  * A `WAVE7_SCENARIOS` record's `GameSetupConfig`, modeled on `wave6/setup.ts`'s `buildSingleVillain`.
  *
  * - `expertVillains` (the Marauders' B faces) replaces the villain in expert mode.
@@ -162,6 +173,7 @@ function buildScenario(scenario: Scenario, options: Wave7ScenarioOptions): GameS
     // Sets a setup condition includes (Dreadpool, when a seat chose the 'Pool aspect): the engine decides.
     autoIncludedSets: autoIncludedSetsOf(ENCOUNTER_SETS, WAVE7_CARDS),
     ...(setAside.length > 0 ? { setAside } : {}),
+    ...(SET_ASIDE_UNTIL_CALLED[scenario.id] ? { setAsideUntilCalled: SET_ASIDE_UNTIL_CALLED[scenario.id] } : {}),
     ...(scenario.separateDecks || setSeparateDecks(sets).length > 0
       ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }
       : {}),

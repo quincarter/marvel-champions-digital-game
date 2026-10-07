@@ -250,19 +250,31 @@ function stackDecks(ctx: Ctx): void {
 
 /**
  * RRG Appendix II step 11: every card with the setup keyword begins the game in play. "Search each deck and the set
- * aside area" (RRG 1.8 p. 51): a player's permanent cards were set aside before step 1 (docs/phase7-wave6.md §3.74), so
- * a "Permanent. Setup." card (the campaign condition upgrades, MC10 p. 7) is found there, after that player's deck.
- * Only permanent player cards: the nemesis set waiting in the same area is never swept.
+ * aside area" (RRG 1.8 p. 51), read in that order: the encounter decks, each player's deck with that player's own
+ * set-aside cards, then the encounter set-aside area.
  *
- * An ally found in the encounter deck (an encounter set's own ally, docs/phase7-wave7.md §3.25) enters play in the first
- * player's play area under their control (`enterPlayOnReveal`); the scenario still owns it. Its own text decides
- * whether it then follows the first player token (`controlledByFirstPlayer`) and whether it counts against the ally
- * limit (`excludedFromAllyLimit`).
- *
- * An attachment found there with no card to attach to, in a game whose villains all start set aside, waits for the
- * villain that step 12a puts into play (`resolve/setup-cards.ts`).
+ * - A player's permanent cards were set aside before step 1 (docs/phase7-wave6.md §3.74), so a "Permanent. Setup." card
+ *   (the campaign condition upgrades, MC10 p. 7) is found in their own set-aside area, after their deck. Only permanent
+ *   player cards: the nemesis set waiting in the same area is never swept.
+ * - An ally found in the encounter deck (an encounter set's own ally, docs/phase7-wave7.md §3.25) enters play in the
+ *   first player's play area under their control (`enterPlayOnReveal`); the scenario still owns it. Its own text decides
+ *   whether it then follows the first player token (`controlledByFirstPlayer`) and whether it counts against the ally
+ *   limit (`excludedFromAllyLimit`).
+ * - A card in the encounter set-aside area enters play as one found in an encounter deck does, under the first player
+ *   when its type needs a player (docs/phase7-wave7.md §4.1 Q20 = B), unless the scenario's own text keeps it aside
+ *   until called (`ScenarioRules.setAsideUntilCalled`; MC40 p. 16). The area is read as it stood when step 11 began, so
+ *   a deck's card held there for a host is not found twice. A set-aside villain is not a card with keywords until it
+ *   is in play (`addVillain`), so none is taken.
+ * - A campaign-specific card there is the campaign's supply, not a card the scenario set aside: no printed step puts it
+ *   in the set-aside area, it is brought from outside the game so that the instruction or ability naming it can find
+ *   it (`CampaignOp` `composeEncounterSets` `into: "setAside"`, `setAsideCards`; MC21's Norn Stone, handed out by a
+ *   side scheme's When Defeated). It is never taken. A campaign card a player has earned begins in play from that
+ *   player's own deck or set-aside cards, above.
+ * - An attachment with no card to attach to, in a game whose villains all start set aside, waits for the villain that
+ *   step 12a puts into play (`resolve/setup-cards.ts`), wherever step 11 found it.
  */
 function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
+  const setAsideAtStart = [...ctx.state.encounterSetAside];
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
@@ -284,6 +296,29 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
       announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId: player.playerId });
     }
   }
+  for (const id of setAsideAtStart) {
+    if (!hasKeyword(ctx.state, id, "setup") || isSetAsideUntilCalled(ctx.state, id)) continue;
+    encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
+  }
+}
+
+/**
+ * Whether step 11 leaves this card of the encounter set-aside area where it is: the scenario's own text keeps it aside
+ * (`ScenarioRules.setAsideUntilCalled`), or it is a campaign-specific card, the campaign's supply.
+ */
+function isSetAsideUntilCalled(state: GameState, id: InstanceId): boolean {
+  const card = mustCardOf(state, id);
+  if ("specificTo" in card && card.specificTo?.kind === "campaign") return true;
+  const rule = state.scenarioRules.setAsideUntilCalled;
+  if (!rule) return false;
+  if (rule.cardIds?.includes(card.id)) return true;
+  const sets = rule.encounterSetIds ?? [];
+  if (sets.length === 0) return false;
+  const own: readonly string[] = [
+    ...("encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : []),
+    ...("specificTo" in card && card.specificTo ? [card.specificTo.encounterSetId as string] : []),
+  ];
+  return own.some((setId) => sets.includes(setId));
 }
 
 /**

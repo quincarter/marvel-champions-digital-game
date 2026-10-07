@@ -1,5 +1,5 @@
 /**
- * RRG 1.8 Appendix II step 11 (p. 51) for a card found in an encounter deck: "Search each deck and the set aside area
+ * RRG 1.8 Appendix II step 11 (p. 51) for a card found in an encounter deck or in the encounter set-aside area: "Search each deck and the set aside area
  * for any cards with the setup keyword and put them into play", and "Setup (Keyword)" (p. 40): "A card with the setup
  * keyword begins the game in play."
  *
@@ -8,7 +8,8 @@
  * attach to yet. The RRG does not say what becomes of it. "Attach To" (p. 8) discards a card that cannot attach, which
  * would leave a setup-keyword card out of play at the start of the game, against the keyword's own definition; so it
  * is read as still owing its entry: taken out of the deck at step 11 as every setup card is, held in the set-aside
- * area, and put into play as soon as a card it can attach to is in play (the moment a villain enters, `addVillains`).
+ * area (one found there stays where it is), and put into play as soon as a card it can attach to is in play (the
+ * moment a villain enters, `addVillains`).
  * One still waiting when step 12c begins (`resolveVillainSetupAbilities`) is tried a last time and then follows
  * "Attach To" like any other.
  *
@@ -41,11 +42,14 @@ const setWaiting = (ctx: Ctx, waiting: readonly InstanceId[]): void => {
   ctx.state = waiting.length > 0 ? { ...rest, setupCardsAwaitingHost: waiting } : rest;
 };
 
-/** Step 11 for one setup-keyword card of an encounter deck: it enters play, or waits for the villain to. */
+/**
+ * Step 11 for one setup-keyword card of an encounter deck or of the encounter set-aside area: it enters play, or waits
+ * for the villain to.
+ */
 export function encounterSetupCardEntersPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId): void {
   updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
   if (ctx.state.villainsEnteringAtSetup !== undefined && !hasHost(ctx, id, playerId)) {
-    moveCard(ctx, id, { kind: "encounterSetAside" });
+    if (!ctx.state.encounterSetAside.includes(id)) moveCard(ctx, id, { kind: "encounterSetAside" });
     setWaiting(ctx, [...(ctx.state.setupCardsAwaitingHost ?? []), id]);
     return;
   }

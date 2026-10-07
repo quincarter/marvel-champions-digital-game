@@ -38,6 +38,7 @@ import {
   type SeparateDeckState,
   type VillainState,
   type SetAsideModularSet,
+  type SetAsideUntilCalled,
   type StackedDecks,
   type TableRules,
 } from "./state.js";
@@ -294,6 +295,14 @@ export interface GameSetupConfig {
    * no owner until a player takes it (RRG 1.8 "Ownership and Control", p. 31).
    */
   readonly setAside?: readonly CardId[];
+  /**
+   * Set-aside cards whose setup keyword does not put them into play at RRG 1.8 Appendix II step 11 (p. 51), because
+   * the scenario's own printed text sets them aside and names when they come in (`SetAsideUntilCalled`): Mister
+   * Sinister's three Superpower sets (MC40 p. 16), the Milano at Escape the Museum. Every other setup-keyword card in
+   * the encounter set-aside area enters play at step 11. The scenario builder states it; kept in `ScenarioRules`.
+   * Absent or empty: no card is held back.
+   */
+  readonly setAsideUntilCalled?: SetAsideUntilCalled;
   /**
    * Encounter sets no one picks, each in the game exactly when its `when` holds (docs/phase7-wave7.md §3.74, §4 Q44).
    * Deadpool insert, "Using the 'Pool Aspect": "When setting up a game in which at least one player is using the 'Pool
@@ -622,6 +631,17 @@ function linkedCardsByTitle(cards: readonly AnyCard[]): ReadonlyMap<string, read
     }
   }
   return byTitle;
+}
+
+/** `GameSetupConfig.setAsideUntilCalled` as `ScenarioRules` keeps it: only the lists that name something, or nothing. */
+function setAsideUntilCalledOf(rule: SetAsideUntilCalled | undefined): SetAsideUntilCalled | undefined {
+  const cardIds = rule?.cardIds ?? [];
+  const encounterSetIds = rule?.encounterSetIds ?? [];
+  if (cardIds.length === 0 && encounterSetIds.length === 0) return undefined;
+  return {
+    ...(cardIds.length > 0 ? { cardIds } : {}),
+    ...(encounterSetIds.length > 0 ? { encounterSetIds } : {}),
+  };
 }
 
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
@@ -1127,6 +1147,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       if (card && modeOnlyFlipped(card, "expert")) instances[id] = { ...instance, flipped: true };
     }
   }
+  for (const cardId of config.setAsideUntilCalled?.cardIds ?? [])
+    if (!pool[cardId]) return invalid(`setAsideUntilCalled names unknown card ${cardId}`);
+  const untilCalled = setAsideUntilCalledOf(config.setAsideUntilCalled);
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -1156,6 +1179,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }
         : {}),
+      ...(untilCalled ? { setAsideUntilCalled: untilCalled } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     ...(config.tableRules?.sameNameHeroAllyConflict ? { tableRules: { sameNameHeroAllyConflict: true } } : {}),

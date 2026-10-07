@@ -172,7 +172,8 @@ export const NEBULA = defineAbilities({
   // Main scheme: The Art of Evasion → Warp Drive Initiated (16091a/16091b–16092a/16092b) ------------------------
 
   // The Art of Evasion 1A — Setup: Put Nebula's Ship and the Milano into play. "Attach the Power Stone to Nebula"
-  // is the engine's own setup-keyword default (module docblock) — not scripted. Discard the top 2[per_hero] cards
+  // is the engine's own setup-keyword default (module docblock) — not scripted, and the Milano's setup keyword has
+  // already put it into play from the set-aside area at step 11, so the Milano half finds none. Discard the top 2[per_hero] cards
   // of the encounter deck, then attach each Technique attachment discarded this way to Nebula.
   "16091a.setup": setup(
     selectCards("ship", encounterCards(["deck"], { name: "Nebula's Ship" })),

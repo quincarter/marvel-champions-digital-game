@@ -526,6 +526,26 @@ export interface ScenarioRules {
    * save reads unchanged.
    */
   readonly setupInstructions?: readonly ScenarioSetupInstruction[];
+  /**
+   * `GameSetupConfig.setAsideUntilCalled`: cards RRG 1.8 Appendix II step 11 (p. 51) leaves in the set-aside area
+   * although they have the setup keyword. Absent in every game without such a scenario rule.
+   */
+  readonly setAsideUntilCalled?: SetAsideUntilCalled;
+}
+
+/**
+ * Cards a scenario's own printed text sets aside and brings in later, so their setup keyword does not put them into
+ * play at RRG 1.8 Appendix II step 11 (p. 51). Step 11 reads "Search each deck and the set aside area for any cards
+ * with the setup keyword and put them into play", and a scenario may say otherwise for its own cards: MC40 p. 16, "The
+ * setup keyword on the Flight, Super Strength, and Telepathy attachments is ignored in this scenario because these
+ * cards are set aside during setup" (docs/phase7-wave7.md §4.1 Q20; docs/setup-keyword-set-aside-audit.md). A card is
+ * named by its id or by an encounter set it belongs to (`encounterSetIds`, or `specificTo`'s set for a player-typed
+ * scenario card). Only the encounter set-aside area is read against it; a deck's cards and a player's own set-aside
+ * cards are never held back.
+ */
+export interface SetAsideUntilCalled {
+  readonly cardIds?: readonly CardId[];
+  readonly encounterSetIds?: readonly string[];
 }
 
 /**

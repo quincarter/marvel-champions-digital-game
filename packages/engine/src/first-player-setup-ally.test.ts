@@ -22,8 +22,8 @@
  *   and stays in play. Without the control rule it is still there, and goes to the encounter discard pile.
  * - "Ally Limit" (p. 7): an ally that does not count is neither counted nor offered for the discard.
  *
- * Step 11 as written also searches the encounter set-aside area (docs/phase7-wave7.md §4.1 Q20 = B); that is a later
- * task, and nothing here depends on those cards being skipped.
+ * Step 11 as written also searches the encounter set-aside area (docs/phase7-wave7.md §4.1 Q20 = B); that half is
+ * pinned in `setup-keyword-set-aside.test.ts`, and nothing here sets a setup-keyword card aside.
  */
 
 import { flat, type AllyCard, type CardId } from "@mc/content";

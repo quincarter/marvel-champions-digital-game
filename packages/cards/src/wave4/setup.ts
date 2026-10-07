@@ -324,6 +324,10 @@ function buildHoodSingleVillain(
     encounterDeck: wave4EncounterCardsOf(sets),
     players: seatsOf(options.players),
     setAsideModularSets,
+    // 1A: "Choose 7 modular encounter sets and set them aside ... Choose 1 of those sets at random, then shuffle it
+    // into the encounter deck": a set comes in whole, by that text. A setup-keyword card in one stays aside with its
+    // set (open for the owner: docs/setup-keyword-set-aside-audit.md, category (c)).
+    setAsideUntilCalled: { encounterSetIds: setAsideSetIds },
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     includeIdentitySets: true,
     requireIdentitySets: true,

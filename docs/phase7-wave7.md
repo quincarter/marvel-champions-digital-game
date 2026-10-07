@@ -1526,8 +1526,9 @@ setup keyword and their own "Attach to the villain".
 rest of the set, obligations included (Telepathy's two), joins the encounter deck and the deck is shuffled once;
 the third set never leaves the set-aside area; the granted trait is read by the set's treacheries
 (`traitGrants`, `abilities.ts`); steady and retaliate 1 are constant keyword grants; the stat boxes apply. In
-scenario 4 the setup keyword must not put the three attachments into play (§4.2 Q20): `putSetupCardsIntoPlay` reads
-encounter decks and players' permanent set-aside cards, never `encounterSetAside`, so today it does not.
+scenario 4 the setup keyword must not put the three attachments into play (§4.2 Q20): step 11 now sweeps the encounter
+set-aside area (Q20 = B, built 2026-10-07), and the scenario's builder names the three sets in `setAsideUntilCalled`
+(audit: `docs/setup-keyword-set-aside-audit.md`).
 
 ### 3.30 Damage rules that read the attacker or the attack's keywords
 

@@ -125,8 +125,9 @@ export const MISTER_SINISTER: AbilityRegistry = defineAbilities({
 
   // Sinister Intent 1A — Setup: Set aside the Flight, Super Strength, and Telepathy encounter sets. Put Hope Summers into
   // play under the first player's control. Both are the scenario builder's: the sets are `Scenario.setAsideCardIds`, and
-  // Hope Summers' setup keyword puts her into play at Appendix II step 11 (Q20 = B: the set-aside attachments' own setup
-  // keyword is exempted by this scenario's rule, MC40 p. 16, so they stay aside).
+  // Hope Summers' setup keyword puts her into play at Appendix II step 11. Step 11 also searches the set-aside area
+  // (Q20 = B); the three attachments stay there because the builder states this scenario's rule (MC40 p. 16: their
+  // setup keyword "is ignored in this scenario") as `setAsideUntilCalled` (`../setup.ts`).
   "40139a.setup": coveredByEngineRule(),
   // 1B — When Revealed: Remove 1 random stage 2 from the game. Then advance to a random stage 2A.
   "40139b.when-revealed": whenRevealed(removeMainSchemeStages(2), shuffleMainSchemeStageGroup(2), advanceMainScheme()),

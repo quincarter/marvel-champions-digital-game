@@ -113,7 +113,8 @@ export const BADOON = defineAbilities({
 
   // Terrestrial Invasion 1A — Setup: Put the Badoon Ship environment and the Milano support into play. Badoon Ship
   // starts in the encounter deck (found by name there); the Milano is a scenario-specific card that starts set
-  // aside (`../setup.ts`'s `scenarioSpecificSetAside`), found by name in the set-aside area instead.
+  // aside (`../setup.ts`'s `scenarioSpecificSetAside`). Its own setup keyword has already put it into play from there
+  // at Appendix II step 11 (RRG 1.8 p. 51; docs/setup-keyword-set-aside-audit.md), so the Milano half finds none.
   "16061a.setup": setup(
     selectCards("ship", encounterCards(["deck"], { name: "Badoon Ship" })),
     putIntoPlay(chosen("ship"), firstPlayer),
