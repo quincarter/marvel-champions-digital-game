@@ -19,6 +19,7 @@ import {
   modifyAttack,
   on,
   query,
+  stun,
   theVillain,
   whenRevealed,
   you,
@@ -724,6 +725,25 @@ describe("Hidden in the Clutter (40106)", () => {
       expect(inEncounterDiscard(run.state, id)).toBe(true);
       expect(inst(run.state, riptide).damage).toBe(0);
       // Only Riptide's own activation of the villain phase: the card made no second attack (nobody to attack).
+      expect(resolved(run.events, "attackResolved", riptide)).toHaveLength(1);
+    });
+
+    it("stunned host, damage no player dealt: no attack, the stun card is kept, the card is discarded", () => {
+      // The encounter card stuns each minion (after the villain phase's own activations) and then deals 5 to each: no
+      // player dealt the damage, so there is no attack for the stun to replace.
+      const deps = {
+        abilities: {
+          ...WAVE7_ABILITIES,
+          "40110.when-revealed": whenRevealed(stun(each(query("minion"))), dealDamage(5, each(query("minion")))),
+        },
+      };
+      const { state, id, riptide } = setup();
+      const run = round(state, { reveals: ["40110"], deps, alterEgo: true });
+      expect(events(run.events, "damagePlaced").map((e) => [e.targetInstanceId, e.amount])).toEqual([[id, 5]]);
+      expect(inEncounterDiscard(run.state, id)).toBe(true);
+      expect(inst(run.state, riptide).damage).toBe(0);
+      // The card made no attack, so the stun card it was given is still there; Riptide's only attack is the villain phase's.
+      expect(inst(run.state, riptide).statuses.stunned).toBe(1);
       expect(resolved(run.events, "attackResolved", riptide)).toHaveLength(1);
     });
   });

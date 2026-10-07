@@ -56,6 +56,7 @@ import {
   printedHpOf,
   putIntoPlay,
   query,
+  refMatches,
   selectCards,
   self,
   setRemainingHitPoints,
@@ -188,11 +189,18 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
         ifThen(
           damagedAtLeast(self, 3),
           // Owner ruling 2026-10-06 (docs/phase7-wave7.md 4.1): a stun that replaces the attack leaves the card attached
-          // (the sequence did not complete); the attack is still attempted so the stun is discarded.
-          ifThen(isStunned(host), enemyAttack(host, { against: controllerOf(eventSource) }), [
+          // (the sequence did not complete); the attack is still attempted so the stun is discarded. That holds only when
+          // a player dealt the damage (the source has a controlling player), so there is an attack for the stun to
+          // replace. With no dealing player no attack is attempted (empty `against`, no stun spent) and the card is
+          // discarded, stunned host or not (Q11 = A).
+          ifThen(
+            allOf(
+              isStunned(host),
+              refMatches(eventSource, query([], { controlledBy: eachPlayer }), { anywhere: true }),
+            ),
             enemyAttack(host, { against: controllerOf(eventSource) }),
-            discard(self),
-          ]),
+            [enemyAttack(host, { against: controllerOf(eventSource) }), discard(self)],
+          ),
         ),
       ),
     ),
