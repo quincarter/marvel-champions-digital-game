@@ -11,6 +11,8 @@ import {
   payPayment,
   costResourceRequirement,
   planCost,
+  deckTopCostReduction,
+  deckTopPlayOf,
   playableFromAttachment,
   playCostModifier,
   priceOrNull,
@@ -372,9 +374,12 @@ function windowEventCost(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCan
     0,
     printed + playCostModifier(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId, null),
   );
+  // Played from the top of the deck, less its permission's reduction (`playableTopOfDeck`, docs/phase7-wave8.md §3.49).
   const reduced = Math.max(
     0,
-    modified - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
+    modified -
+      costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId) -
+      deckTopCostReduction(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
   );
   // The ability's own resources, a computed X included (`resourcesEqualTo`), as `planCost` will ask for them.
   const abilityCost = costResourceRequirement(
@@ -739,8 +744,11 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
   spendCostCounters(ctx, frame);
   const controller = candidate?.controllerId;
   if (!candidate || !controller) return;
-  // Still in hand, or still on a host that lets it be played "as if it were in your hand" (`inHandCandidates`).
+  // Still in hand, still on a host that lets it be played "as if it were in your hand", or still the top card of the
+  // deck under a `playableTopOfDeck` permission not used since it was offered (`inHandCandidates`).
+  const deckTop = deckTopPlayOf(ctx.state, ctx.deps, controller, candidate.instanceId);
   if (
+    !deckTop &&
     !mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId) &&
     !playableFromAttachment(ctx.state, ctx.deps, controller, candidate.instanceId)
   )
@@ -756,12 +764,12 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     costChoicesFor(frame, candidate),
     null,
     undefined,
-    0,
+    deckTop?.costReduction ?? 0,
     selection,
     answered(frame, candidate).event,
   );
   if (isPriceFault(priced)) return;
-  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced);
+  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced, deckTop);
   pushPlayCardFrame(
     ctx,
     candidate.instanceId,

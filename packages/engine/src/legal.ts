@@ -32,6 +32,8 @@ import {
   discardCombinedValue,
   planCost,
   attachmentsPlayableBy,
+  deckTopCostReduction,
+  deckTopPermission,
   playableFromDiscard,
   playCostReductionFault,
   playRequirement,
@@ -70,7 +72,12 @@ import { anyThwartCost } from "./thwart-cost.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
 export type ActionRef =
-  | { readonly kind: "playCard"; readonly instanceId: InstanceId }
+  /**
+   * `from: "deckTop"`: the card is the top card of the player's deck, playable "as if it was in your hand" under a
+   * `playableTopOfDeck` permission (docs/phase7-wave8.md §3.49). Absent for every other card. The command is the same
+   * `playCard`; `playCostOf` gives its reduced price and names the permission's card among the contributions.
+   */
+  | { readonly kind: "playCard"; readonly instanceId: InstanceId; readonly from?: "deckTop" }
   | { readonly kind: "useAbility"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   /** `instanceId` is the attacker. */
   | { readonly kind: "basicAttack"; readonly instanceId: InstanceId }
@@ -483,6 +490,20 @@ function evaluate(
  * ability at a time, each on its own form, condition, targets and cost: the play is legal when any of them is, and
  * `LegalAction.abilities` lists the ones that are. Every other card is judged once, with a command that names none.
  */
+/**
+ * The top card of the player's deck when a `playableTopOfDeck` permission stands over it (docs/phase7-wave8.md §3.49),
+ * as a list: listed legal while the limit is unused, and illegal with `limit_reached` once it is used ("once per
+ * phase"). A card that is never played (a resource, an encounter card, a "—" cost) is not listed at all, and with no
+ * permission in force (the other form, a blank text box) neither is anything else.
+ */
+function deckTopToList(state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] {
+  const permission = deckTopPermission(state, deps, playerId);
+  const card = permission ? cardOf(state, permission.instanceId) : undefined;
+  if (!permission || !card || card.type === "resource" || !("cost" in card)) return [];
+  if ("specialCost" in card && card.specialCost === "dash") return [];
+  return [permission.instanceId];
+}
+
 function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): Evaluated | null {
   const card = cardOf(state, id);
   if (!card) return null;
@@ -565,7 +586,11 @@ function evaluatePlayOf(
   const evaluated = evaluate(
     state,
     deps,
-    { kind: "playCard", instanceId: id },
+    {
+      kind: "playCard",
+      instanceId: id,
+      ...(deckTopPermission(state, deps, playerId)?.instanceId === id ? { from: "deckTop" as const } : {}),
+    },
     variants,
     withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost)),
   );
@@ -741,6 +766,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     ...player.hand,
     ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),
     ...attached,
+    ...deckTopToList(state, deps, playerId),
   ]) {
     // During another player's turn only an event whose play is its Action can be played (RRG 1.8 "Action", p. 6).
     const card = cardOf(state, id);
@@ -962,7 +988,19 @@ function payableFor(
     const selection = options.costSelection;
     const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
-    const requirement = card && planned ? playRequirement(state, playerId, id, planned.requirement, deps, host) : null;
+    const requirement =
+      card && planned
+        ? playRequirement(
+            state,
+            playerId,
+            id,
+            planned.requirement,
+            deps,
+            host,
+            0,
+            deckTopCostReduction(state, deps, playerId, id),
+          )
+        : null;
     return {
       build: (payment) => ({
         type: "playCard",

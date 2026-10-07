@@ -122,6 +122,13 @@ export type GameEvent =
       readonly cardId: CardId;
       readonly resourcesPaid: number;
       readonly paid: ResourcePool;
+      /**
+       * Present only for a card played from the top of its player's deck "as if it was in your hand" (`playableTopOfDeck`,
+       * docs/phase7-wave8.md §3.49): where it really was, and what the game counts it as (RRG 1.8 FAQ "Magik (#30A)",
+       * p. 64: "that card is considered to have been played from her hand"). Every other play logs exactly as before.
+       */
+      readonly from?: "deckTop";
+      readonly countsAsFrom?: "hand";
     }
   | { readonly type: "cardExhausted"; readonly instanceId: InstanceId }
   | { readonly type: "cardReadied"; readonly instanceId: InstanceId }

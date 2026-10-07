@@ -401,6 +401,12 @@ export interface ConstantPart {
    * from hand.
    */
   readonly playableAttachments?: TargetQuery;
+  /** `playableTopOfDeck(…)`: the permission, and the limit `constant` puts on the ability (docs/phase7-wave8.md §3.49). */
+  readonly playableTopOfDeck?: {
+    readonly player: PlayerRef;
+    readonly costReduction?: number;
+    readonly limit?: "turn" | "phase" | "round";
+  };
   /**
    * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005; docs/phase7-wave3.md §3.42): a play
    * restriction read from the card itself while it is being played. Several are ANDed.
@@ -458,6 +464,9 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   const playableAttachmentsList = parts.flatMap((p) => (p.playableAttachments ? [p.playableAttachments] : []));
   if (playableAttachmentsList.length > 1)
     throw new Error("a constant ability has at most one playableAttachments query");
+  const topOfDeckList = parts.flatMap((p) => (p.playableTopOfDeck ? [p.playableTopOfDeck] : []));
+  if (topOfDeckList.length > 1) throw new Error("a constant ability has at most one playableTopOfDeck");
+  const topOfDeck = topOfDeckList[0];
   const modifiers = all("modifiers");
   const keywordGrants = all("keywordGrants");
   const traitGrants = all("traitGrants");
@@ -487,7 +496,17 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
       ...(playOnlyIfCondition ? { playOnlyIf: playOnlyIfCondition } : {}),
+      ...(topOfDeck
+        ? {
+            playableTopOfDeck: {
+              player: topOfDeck.player,
+              ...(topOfDeck.costReduction ? { costReduction: topOfDeck.costReduction } : {}),
+            },
+          }
+        : {}),
     },
+    // The permission's "once per phase" is the ability's own limit, counted and cleared like any other.
+    ...(topOfDeck?.limit ? { limit: { count: 1, period: topOfDeck.limit } } : {}),
     effects: [],
   };
 }
@@ -514,6 +533,36 @@ export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
 export const notCountedTowardHandSize: ConstantPart = { notCountedTowardHandSize: true };
 /** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
 export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
+/**
+ * "Once per phase, you may play the top card of your deck as if it was in your hand, reducing its resource cost by 1."
+ * (Magik 45030a; docs/phase7-wave8.md §3.49): `constant(playableTopOfDeck({ costReduction: 1, limit: "phase" }))`, in
+ * its own constant beside `constant(playWithTopOfDeckFaceup())`, since the limit is that ability's.
+ *
+ * While the constant is active (its face up, its text box not blank) and the limit unused, the top card of the deck of
+ * each player `player` names (default "you") is a candidate wherever a card in their hand could be played: the play
+ * command on their turn, an Interrupt or Response event in its timing window, an `inHand` ability that plays its own
+ * card (`playFromHand { card: self }`), and the card choice of a "play a card from your hand" effect
+ * (`playFromHandReducingCost`, `playFromHandIgnoringCost`), where both reductions apply (§4.1 Q27 = A). The card is
+ * played from the hand for every reader (RRG 1.8 FAQ "Magik (#30A)", p. 64): nothing is scripted for "after you play
+ * [card] from your hand". It is not in the hand for anything else: it cannot pay a cost, be discarded or put into
+ * play "from your hand", or be counted. The limit is used as the card leaves the deck, canceled or not.
+ *
+ * Do not merge it with another limited or unlimited part that should keep working once the limit is used: the limit is
+ * the whole ability's.
+ */
+export const playableTopOfDeck = (
+  opts: {
+    readonly player?: PlayerRef;
+    readonly costReduction?: number;
+    readonly limit?: "turn" | "phase" | "round";
+  } = {},
+): ConstantPart => ({
+  playableTopOfDeck: {
+    player: opts.player ?? { kind: "controller" },
+    ...(opts.costReduction ? { costReduction: opts.costReduction } : {}),
+    ...(opts.limit ? { limit: opts.limit } : {}),
+  },
+});
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */
 export const costModifier = (spec: CostModifierSpec): ConstantPart => ({ costModifiers: [spec] });
 /** "As an additional cost for [this character] to attack/thwart, you must …" (Wonder Man). */

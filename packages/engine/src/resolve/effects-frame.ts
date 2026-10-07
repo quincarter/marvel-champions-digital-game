@@ -368,8 +368,10 @@ function executePlayFromHand(
       : playIgnoringCostFault(ctx, player, id, from, undefined, timing);
   // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
   const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
+  // From the hand, the top card of the deck is a candidate too while a `playableTopOfDeck` permission lets the player
+  // play it "as if it was in your hand" (docs/phase7-wave8.md §3.49; RRG 1.8 FAQ "Magik (#30A)", p. 64).
   const candidates = playerId
-    ? cardsInPlayFromZone(ctx.state, playerId, from).filter(
+    ? cardsInPlayFromZone(ctx.state, playerId, from, ctx.deps).filter(
         (id) =>
           (named === null || named.includes(id)) &&
           !fault(id, playerId) &&
@@ -515,7 +517,7 @@ function executePlayFromHand(
 
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
-  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction, action);
+  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction, action, from);
   if (requirement === null) return finish();
 
   if (frame.answer === null) {
@@ -536,7 +538,7 @@ function executePlayFromHand(
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
   finish();
-  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action));
+  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action, from));
 }
 
 /**

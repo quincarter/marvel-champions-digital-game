@@ -468,6 +468,32 @@ export type AbilityTriggerSpec =
        * permission on the host, where `playableFrom` is one on the card itself.
        */
       readonly playableAttachments?: TargetQuery;
+      /**
+       * "Once per phase, you may play the top card of your deck as if it was in your hand, reducing its resource cost
+       * by 1." (docs/phase7-wave8.md §3.49): a permission (RRG 1.8 "Play Restrictions and Permissions", p. 33) over the
+       * top card of each player deck `player` names, read from a card in play like `playableAttachments`, so it is off
+       * on the face that is not up and under a blank text box (RRG 1.8 "Text Box", p. 44). While it is in force and
+       * its limit is not used, that top card may be played wherever a card in that player's hand could be: the play
+       * command, an event in its timing window, an in-hand ability that plays its own card, and the card choice of
+       * `EffectSpec playFromHand` from the hand (RRG 1.8 FAQ "Magik (#30A)", p. 64: "Any time Magik has an opportunity
+       * to play a card from her hand, she may choose to play the top card of her deck instead (once per phase)").
+       *
+       * `costReduction` comes off that play's resource cost with every other modifier applied as usual, to a floor
+       * of 0, and adds to the reduction of an effect it is played through (owner decision §4.1 Q27 = A).
+       *
+       * **The limit is the ability's own `AbilityDefinition.limit`** (counted in `abilityUses` and cleared at the
+       * period's boundary like any other): one count per card carrying the permission, or per player it serves with
+       * `limit.per: "player"`. It is used when the card leaves the deck at step 1 of initiating (RRG 1.8 "Initiating
+       * Abilities", p. 24), so a play whose effects are then canceled still used it (RRG 1.8 "Limit", p. 27).
+       *
+       * Only playing: the card is in the deck for everything else. It is not in the hand for a count, a cost, a
+       * resource or "put into play from your hand" (the FAQ's fourth entry). The card was played from the hand for
+       * every reader (the FAQ's third entry); the log's `cardPlayed` carries `from: "deckTop", countsAsFrom: "hand"`.
+       *
+       * Independent of `RuleSpec topOfDeckFaceup`: the permission names the deck's first card whether or not a rule
+       * is showing it. On the one printed card the two lines are two constants of the same face and go off together.
+       */
+      readonly playableTopOfDeck?: { readonly player: PlayerRef; readonly costReduction?: number };
       /** "As an additional cost for Wonder Man to attack, you must discard 1 card." Costs on this character's own basic powers. */
       readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
     };

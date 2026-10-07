@@ -3,6 +3,10 @@
 import type { EngineDeps, EventPattern } from "../abilities.js";
 import {
   attachmentsPlayableBy,
+  deckTopCostReduction,
+  deckTopPlayableBy,
+  deckTopPlayOf,
+  playsOwnCardFromHand,
   defaultInPlayPicks,
   isPriceFault,
   paymentOptions,
@@ -100,7 +104,20 @@ function costPayable(
     event,
   );
   if (isPriceFault(plan)) return false;
-  const requirement = fromHand ? playRequirement(state, playerId, id, plan.requirement, deps) : plan.requirement;
+  // Played from the top of the deck (`playableTopOfDeck`), the permission's reduction applies, as `playWindowEvent`
+  // prices it.
+  const requirement = fromHand
+    ? playRequirement(
+        state,
+        playerId,
+        id,
+        plan.requirement,
+        deps,
+        null,
+        0,
+        deckTopCostReduction(state, deps, playerId, id),
+      )
+    : plan.requirement;
   if (requirementTotal(requirement) === 0) return true;
   const ctx = createCtx(state, deps);
   const exclude = fromHand ? id : null;
@@ -760,7 +777,11 @@ function inHandCandidates(
   const found: TriggerCandidate[] = [];
   for (const player of playerOrder(state)) {
     const attached = new Set(attachmentsPlayableBy(state, deps, player.playerId));
-    for (const id of [...player.hand, ...attached]) {
+    // "You may play the top card of your deck as if it was in your hand" (`playableTopOfDeck`, docs/phase7-wave8.md
+    // §3.49): offered as an event in hand is, and for an in-hand ability that plays its own card (`playsOwnCardFromHand`).
+    // Nothing else of the card works from there: it is in the deck.
+    const deckTop = new Set(deckTopPlayableBy(state, deps, player.playerId));
+    for (const id of [...player.hand, ...attached, ...deckTop]) {
       const card = cardOf(state, id);
       if (!card) continue;
       // "While Pip the Troll is in your hand, he gains 'Interrupt: …'" (`activeIn: "hand"`, docs/phase7-wave4.md §3.13):
@@ -775,6 +796,7 @@ function inHandCandidates(
         for (const ref of "abilities" in card ? card.abilities : []) {
           const definition = deps.abilities[ref.id];
           if (!definition || definition.activeIn !== "hand") continue;
+          if (deckTop.has(id) && !playsOwnCardFromHand(definition)) continue;
           const trigger = definition.trigger;
           if (trigger.kind !== timing || trigger.forced !== forced) continue;
           // "Other players cannot resolve player card abilities during your turn": one used from a hand included.
@@ -894,7 +916,12 @@ export function stillOffered(
     const player = getPlayer(state, controllerId);
     const card = cardOf(state, id);
     if (!player || !card) return false;
-    if (!player.hand.includes(id) && !attachmentsPlayableBy(state, deps, controllerId).includes(id)) return false;
+    if (
+      !player.hand.includes(id) &&
+      !attachmentsPlayableBy(state, deps, controllerId).includes(id) &&
+      !deckTopPlayOf(state, deps, controllerId, id)
+    )
+      return false;
     if (playRestrictionFault(state, deps, controllerId, card, id)) return false;
     if (cannotPlayCard(state, deps, controllerId, id)) return false;
   } else if (cardsInPlay(state).includes(id)) {
@@ -902,7 +929,9 @@ export function stillOffered(
     const noTriggers = activeRules(state, deps, "cannotResolveTriggeredAbilities");
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) return false;
   } else if (definition.activeIn === "hand") {
-    if (!controllerId || !getPlayer(state, controllerId)?.hand.includes(id)) return false;
+    if (!controllerId) return false;
+    const fromDeckTop = playsOwnCardFromHand(definition) && deckTopPlayOf(state, deps, controllerId, id) !== null;
+    if (!getPlayer(state, controllerId)?.hand.includes(id) && !fromDeckTop) return false;
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId)) return false;
   } else if (!answersFromOutOfPlay(event, id)) {
     return false; // it left play while the forced tier resolved

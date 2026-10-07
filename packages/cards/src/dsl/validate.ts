@@ -357,8 +357,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   if (trigger.kind === "constant" && definition.effects.length > 0) problems.push("a constant ability has no effects");
   if (definition.generates !== undefined && trigger.kind !== "resource")
     problems.push("only resource abilities generate resources");
-  if (trigger.kind === "constant" && (definition.cost || definition.limit || definition.label))
+  // The one limit a constant carries is its `playableTopOfDeck` permission's "once per phase" (docs/phase7-wave8.md
+  // §3.49), counted when a card is played under it.
+  const permissionLimit = trigger.kind === "constant" && trigger.playableTopOfDeck !== undefined;
+  if (trigger.kind === "constant" && (definition.cost || (definition.limit && !permissionLimit) || definition.label))
     problems.push("a constant ability has no cost, limit or label");
+  if (permissionLimit && definition.limit?.per === "triggeringEvent")
+    problems.push("a playableTopOfDeck limit is per turn, phase or round, not per triggering event");
   // docs/phase7-wave5.md §3.25: a use per counter, so the cost is one fixed counter cost and nothing else.
   if (trigger.kind === "resource" && trigger.repeatable) {
     const cost = definition.cost ?? {};

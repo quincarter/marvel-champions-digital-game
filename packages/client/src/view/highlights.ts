@@ -265,6 +265,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   cannotDefend: "cannot defend",
   cannotRemoveThreat: "this card can't remove threat from it",
   mustDefendWithAlly: "a ready ally must defend instead",
+  deckTopPlayLimitUsed: "top card already played this phase",
 };
 
 /** `EXCLUSION_WORDING`, defaulting honestly rather than throwing on a code this table hasn't been kept in sync with. */
