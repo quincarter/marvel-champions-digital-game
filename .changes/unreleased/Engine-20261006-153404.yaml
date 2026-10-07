@@ -1,3 +1,0 @@
-kind: Engine
-body: '0 damage opens no damage window (owner ruling 2026-10-06, RRG p. 14 "any amount of damage"): damage whose amount is 0 as it would be dealt, or that an interrupt prevented in full, has no "would take damage" window, no "after ... takes / is dealt damage" responses and sets off no "each time" effect; a tough status card is kept; the attack itself still resolves ("after attacks", "after defends", retaliate)'
-time: 2026-10-06T15:34:04.927212-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: A quick tap on a card or button is judged by the browser's event times, not by when a slow frame got to it, and hand, table and choice cards finish a press the redraw ate through the same tap router as buttons
-time: 2026-10-05T09:32:02.043736-04:00

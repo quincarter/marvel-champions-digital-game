@@ -1,3 +1,0 @@
-kind: Engine
-body: '"After X deals damage" fires after a tough status card and after a prevention alike (owner ruling 2026-10-07, RRG pp. 35, 44): a damage event carries the amount dealt and the amount taken, responses read one or the other (on.damage''s dealt and taken, enforced by the validator), and Power Stone, Challenge Accepted and Schadenfreude read damage dealt; every damage trigger is classified in docs/dealt-vs-taken-audit.md; 0 damage as dealt still opens no window'
-time: 2026-10-07T08:19:13.779758-04:00

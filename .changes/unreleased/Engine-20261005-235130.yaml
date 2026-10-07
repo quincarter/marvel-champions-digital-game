@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Target validity now judges an attack effect''s damage: an enemy that cannot take it is not offered, and the ability cannot be initiated when no enemy can (RRG 1.8 Target, p. 43); a stunned character may still use an attack ability with no valid target (p. 41)'
-time: 2026-10-05T23:51:30.168431-04:00
