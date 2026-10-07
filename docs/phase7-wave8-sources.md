@@ -83,15 +83,20 @@ MC45 p. 3 lists featured keywords. **New or prominent to this cycle:**
 
 ### 3.2 RRG 1.8 FAQ and errata entries for cycle 8
 
+**Corrected 2026-10-07 from the data survey (§3), checked against the PDF text layer of p. 69:** the RRG markdown puts four Rogue Hero Pack errata under this box's heading; the rows below are the real cycle 8 entries, which the PDF lists under the Age of Apocalypse, Nightcrawler and Magneto headings. The Powerful Punch FAQ (RRG p. 63 area, the Shadowcat card 32014) also reaches Nightcrawler's reprint 48017.
+
 FAQ entries are on RRG 1.8 p. 64 (marked "AGE OF APOCALYPSE EXPANSION" starting line 4682); errata on p. 69 (marked "AGE OF APOCALYPSE EXPANSION" starting line 5058). Card numbers are RRG collector numbers.
 
-| Card                     | RRG number | Printed page | Kind   | Summary                                                                                                                      | Note          |
-| ------------------------ | ---------- | ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Magik (#30A)             | Four Q&A   | 64           | FAQ    | Playing top card of deck (four detailed questions on play timing, hand abilities, triggering on play, putting into play)     | Campaign hero |
-| Rogue (#1B)              | #1B        | 69           | Errata | Changed "Attach Touched..." to "Find Touched and attach it..."                                                               | Hero form     |
-| Energy Transfer (#7)     | #7         | 69           | Errata | Changed "Attach Touched..." to "Find Touched and attach it..."                                                               | Rogue card    |
-| Mystique's Manipulations | #26        | 69           | Errata | Specified defeating player searches encounter deck for Misled treachery                                                      | Minion card   |
-| Bonebreaker (#31)        | #31        | 69           | Errata | Changed "Forced Interrupt" to "Forced Response" after Bonebreaker engages; takes 1 indirect damage per Reaver minion engaged | Minion card   |
+| Card                                    | RRG number | Printed page | Kind   | Summary                                                                                                                  | Note            |
+| --------------------------------------- | ---------- | ------------ | ------ | ------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| Magik (#30A)                            | Four Q&A   | 64           | FAQ    | Playing top card of deck (four detailed questions on play timing, hand abilities, triggering on play, putting into play) | Campaign hero   |
+| Suit Up (#17), `aoa` 45017              | #17        | 69           | Errata | "can be attached to that ally" becomes "can be attached to an ally"                                                      | Box player card |
+| Mission Team (#171A), `aoa` 45171a      | #171A      | 69           | Errata | First bullet gains "this phase"                                                                                          | Campaign card   |
+| Rogue (#12), `ncrawler` 48012           | #12        | 69           | Errata | "printed THW and ATK" becomes "base THW and ATK"                                                                         | Protection ally |
+| Tweedledope (#37), `ncrawler` 48037     | #37        | 69           | Errata | The star icon is removed from the card's boost field                                                                     | Modular minion  |
+| Magnetic Missile (#10), `magneto` 49010 | #10        | 69           | Errata | The cost arrow becomes "Then"                                                                                            | Hero event      |
+| Deft Focus (#23), `magneto` 49023       | #23        | 69           | Errata | Classification is Basic, not Protection                                                                                  | Basic upgrade   |
+| Exodus (#28), `magneto` 49028           | #28        | 69           | Errata | "equal to his total ATK" gains "for that attack"                                                                         | Nemesis minion  |
 
 ---
 
@@ -99,10 +104,14 @@ FAQ entries are on RRG 1.8 p. 64 (marked "AGE OF APOCALYPSE EXPANSION" starting 
 
 Found by matching card names from the five raw caches against `marvel-champions-rulings-post-rrg-1-7.md`. **Read each ruling in full** before scripting its card.
 
-| Ruling (date heading)         | Card (hero pack or context) | Summary                                                                                                                                                                           |
-| ----------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| April 30, 2026 - Ruling 4 (2) | Age of Apocalypse campaign  | Prelate versions of minions remain available for the Apocalypse scenario even if their Overseer counterparts were crossed out of the campaign log (minion availability).          |
-| June 2, 2026 - Ruling 1       | Jubilee ally's +2 ATK       | Jubilee's ability targets the chosen enemy, not card instances; stacks across multiple Jubilee triggers (Jubilee hero pack, likely ally or identity ability affecting Wolverine). |
+| Ruling (date heading)         | Card (hero pack or context)                | Summary                                                                                                                                                                           |
+| ----------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| April 30, 2026 - Ruling 4 (2) | Age of Apocalypse campaign                 | Prelate versions of minions remain available for the Apocalypse scenario even if their Overseer counterparts were crossed out of the campaign log (minion availability).          |
+| June 2, 2026 - Ruling 1       | Jubilee ally's +2 ATK                      | Jubilee's ability targets the chosen enemy, not card instances; stacks across multiple Jubilee triggers (Jubilee hero pack, likely ally or identity ability affecting Wolverine). |
+| April 30, 2026 - Ruling 4 (1) | Digging Deep in a mission attempt          | Digging Deep (a `next_evol` card) discarded during a mission attempt: its Response is used, it does not count for the attempt, and no replacement card is discarded.              |
+| February 20, 2026 - Ruling 4  | Cruel Experiment 45124                     | An attachment with no "attach to" text attaches when its When Revealed resolves. This is the intended behavior and is what gets built.                                            |
+| July 9, 2026 - Ruling 1       | Powerful Punch (48017, a reprint of 32014) | Redirecting an attack does not retroactively satisfy Spider-Sense.                                                                                                                |
+| January 17, 2026 - Ruling 5   | Face the Past 49022                        | In The Wrecking Crew only the active villain's encounter deck exists; a found nemesis goes to that deck's discard pile. Not checked that the ruling's card is this printing.      |
 
 **Ruling vs RRG:** No conflict found. The June 2 ruling clarifies ally ability stacking for the Jubilee ally (likely from the Jubilee hero pack).
 
@@ -114,11 +123,11 @@ Card counts and facts from `packages/content/raw/marvelcdb/` caches. Card mechan
 
 | Pack       | Cards (raw) | Hero-side identity text                                                                                 | Notes                                   |
 | ---------- | ----------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| aoa (box)  | 226+        | Bishop: Energy Absorption Response (discard cards after damage, add resources); Magik: faceup deck play | Campaign heroes; two precon identities  |
-| `iceman`   | 33          | Rapid Teleportation Interrupt (attach Frostbite during basic attack/defense)                            | Ice theme; Frostbite set-aside mechanic |
-| `jubilee`  | 41          | "Like, totally!" Resource (exhaust → generate wild resource)                                            | X-Men; wild resource generation         |
-| `ncrawler` | 39          | "Rapid Teleportation" Action (spend 1 resource → return Bamf! from discard, limit once per phase)       | Teleportation theme; Bamf! reuse        |
-| `magneto`  | 43          | Magnetic Pull Action (discard until Magnetic card, add to hand, limit once per round)                   | Magnetic keyword; deck searching        |
+| aoa (box)  | 195         | Bishop: Energy Absorption Response (discard cards after damage, add resources); Magik: faceup deck play | Campaign heroes; two precon identities  |
+| `iceman`   | 32          | "Freeze!" Interrupt (a basic attack or defense attaches a set-aside Frostbite to that enemy)            | Ice theme; Frostbite set-aside mechanic |
+| `jubilee`  | 40          | "Like, totally!" Resource (exhaust → generate wild resource)                                            | X-Men; wild resource generation         |
+| `ncrawler` | 38          | "Rapid Teleportation" Action (spend 1 resource → return Bamf! from discard, limit once per phase)       | Teleportation theme; Bamf! reuse        |
+| `magneto`  | 42          | Magnetic Pull Action (discard until Magnetic card, add to hand, limit once per round)                   | Magnetic keyword; deck searching        |
 
 ---
 
