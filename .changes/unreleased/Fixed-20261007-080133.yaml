@@ -1,0 +1,3 @@
+kind: Fixed
+body: Merging to main no longer runs the Playwright suite while preparing the release pull request. The release job's own commit and push skip the repo's git hooks, whose pre-push gate ran the whole e2e suite and failed the release.
+time: 2026-10-07T08:01:33.310771-04:00
