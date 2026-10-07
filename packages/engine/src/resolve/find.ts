@@ -15,8 +15,15 @@ import { type Ctx, emit, updateFrame, updatePlayer } from "../ctx.js";
 import { shuffleZone } from "../effects.js";
 import type { InstanceId } from "../ids.js";
 import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "../query.js";
-import { decksSearchedByFind, type EffectContext, findCards, resolvePlayers, resolveRef } from "../select.js";
-import type { EffectSpec } from "../spec.js";
+import {
+  cardsInPlay,
+  decksSearchedByFind,
+  type EffectContext,
+  findCards,
+  resolvePlayers,
+  resolveRef,
+} from "../select.js";
+import type { EffectSpec, TargetRef } from "../spec.js";
 import type { ZoneId } from "../state.js";
 import { shuffleEncounterDeck, shuffleSeparateDeck } from "./cards.js";
 import type { Frame } from "./frames.js";
@@ -103,6 +110,26 @@ export function announceFound(ctx: Ctx, id: InstanceId, deck: ZoneId | null, alr
     alreadyThere,
     deckShuffled: deck !== null,
   });
+}
+
+/**
+ * The find of "find X and reveal it" (`revealCard` of a `TargetRef find`; docs/phase7-wave8.md §3.1): the first card the
+ * find names, logged `cardFound` where it is, and the decks looked through for it, which the caller shuffles once the
+ * card is out of them. `alreadyThere` on the log line reads "already in play": that card is revealed where it is and
+ * does not enter play (RRG 1.8 "Find", p. 19). Nothing found: no log line, and the decks were still searched.
+ */
+export function findToReveal(
+  ctx: Ctx,
+  ref: Extract<TargetRef, { kind: "find" }>,
+  context: EffectContext,
+): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
+  const owners = ref.owner ? new Set(resolvePlayers(ctx.state, ref.owner, context)) : null;
+  const [found] = findCards(ctx.state, ref.query, context, owners);
+  const searched = decksSearchedByFind(ctx.state, ref.query, context, owners, found);
+  if (!found) return { found: [], searched };
+  const inPlay = cardsInPlay(ctx.state).includes(found.id) && mustInstance(ctx.state, found.id).faceup;
+  announceFound(ctx, found.id, found.deck, inPlay);
+  return { found: [found.id], searched };
 }
 
 /**

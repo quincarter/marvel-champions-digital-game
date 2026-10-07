@@ -756,7 +756,9 @@ export type GameEvent =
    * it moves. `from`: where it was (absent for a villain or main scheme, which have no zone). `alreadyThere`: it was at
    * the destination already, so it stays as it is. `deckShuffled`: it was in a deck, so each deck searched for it is shuffled
    * after the move (RRG 1.8 "Search", p. 39); one `deckShuffled` per deck follows. A find that found nothing logs no
-   * `cardFound`, only the `deckShuffled` of each deck it searched (docs/phase7-wave6.md §4.1 Q77).
+   * `cardFound`, only the `deckShuffled` of each deck it searched (docs/phase7-wave6.md §4.1 Q77). For a "find X and
+   * reveal it" (`revealCard` of a `find` ref, docs/phase7-wave8.md §3.1) `alreadyThere` reads "already in play": the
+   * card is revealed where it is and does not enter play.
    */
   | {
       readonly type: "cardFound";
@@ -765,6 +767,21 @@ export type GameEvent =
       readonly from?: ZoneId;
       readonly alreadyThere: boolean;
       readonly deckShuffled: boolean;
+    }
+  /**
+   * A card found faceup in play was revealed where it is ("find X and reveal it", RRG 1.8 "Find", p. 19;
+   * docs/phase7-wave8.md §3.1), logged at the reveal's placement step, after its `encounterCardRevealed`: it does not
+   * enter play, so no `cardEntersPlay` follows and a side scheme gains no starting threat. `engaged`: a minion that
+   * engaged `playerId` by it (a `cardMoved` to their play area precedes this when it changed play areas); false for a
+   * minion already engaged with them and for every other card type, which stays where it is. A reveal whose effects
+   * were cancelled logs none.
+   */
+  | {
+      readonly type: "revealedInPlay";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly playerId: PlayerId;
+      readonly engaged: boolean;
     }
   /**
    * A swap that could not be completed (RRG 1.8 "'Swap'", p. 42): `missingCard` (a ref named no card, or both the same

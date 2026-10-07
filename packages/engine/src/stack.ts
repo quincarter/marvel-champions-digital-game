@@ -436,6 +436,17 @@ export type StackFrame =
        * play, is never discarded, and a cancelled one stays where it is. Absent on every other reveal.
        */
       readonly newFace?: true;
+      /**
+       * A card found faceup in play and revealed where it is ("find X and reveal it", `revealCard`; RRG 1.8 "Find",
+       * p. 19; docs/phase7-wave8.md §3.1). It does not enter play: no `cardEntersPlay`, no starting threat, no unique
+       * check, no teamwork, and it is never discarded by the reveal. A minion engages the revealing player unless it
+       * already was engaged with them, keeping everything on it; any other card stays where it is (an attachment on
+       * its host, §4.1 Q17). Then its When Revealed abilities and reveal keywords resolve (ruling June 25, 2026 (5)).
+       * Absent on every other reveal.
+       */
+      readonly foundInPlay?: true;
+      /** With `foundInPlay`: the minion engaged the revealing player by this reveal (it was not engaged with them). */
+      readonly engagedByReveal?: true;
       /** With `stage: "uniqueCheck"`: the stage the reveal continues to when the card is let in. */
       readonly afterUnique?: "quickstrike" | "whenRevealed";
       /**

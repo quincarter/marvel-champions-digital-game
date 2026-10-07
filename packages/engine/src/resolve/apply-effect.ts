@@ -64,7 +64,6 @@ import {
   getPlayer,
   hasStarIcon,
   inAnyEncounterDiscard,
-  isMinion,
   isPlayerCardType,
   locateCard,
   mainSchemeStateOf,
@@ -113,7 +112,7 @@ import { damageGroupFrame } from "./damage-group.js";
 import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
-import { applyFindCard } from "./find.js";
+import { applyFindCard, findToReveal, shuffleSearchedDecks } from "./find.js";
 import { attachCard, settleUpgradeControl } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
@@ -176,6 +175,7 @@ import {
   engagementHeardAfter,
   engagementOf,
   playerSideSchemeEntersPlay,
+  engageInPlayMinion,
   quickstrikeAttack,
   teamworkFrame,
 } from "./enter-play.js";
@@ -1358,10 +1358,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Each engagement's interrupts, then its responses (`engagementFrame`); the first minion's resolve first.
       const engaged: StackFrame[] = [];
       for (const id of targets(effect.minion)) {
-        const instance = getInstance(ctx.state, id);
-        if (!instance || !isMinion(ctx.state, id) || instance.engagedWith === playerId) continue;
-        moveCard(ctx, id, { kind: "playArea", playerId });
-        updateInstance(ctx, id, (i) => ({ ...i, engagedWith: playerId, controllerId: null }));
+        if (!engageInPlayMinion(ctx, id, playerId)) continue;
         const frame = engagementFrame(ctx, id);
         if (frame) engaged.push(frame);
       }
@@ -2670,18 +2667,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "revealCard": {
       const [playerId] = resolvePlayers(ctx.state, effect.player, context);
-      const revealing = playerId ? targets(effect.cards) : [];
+      // "Find X and reveal it" (docs/phase7-wave8.md §3.1): the find itself, one card, logged, its decks to shuffle.
+      const find = playerId && effect.cards.kind === "find" ? findToReveal(ctx, effect.cards, context) : null;
+      const revealing = find ? find.found : playerId ? targets(effect.cards) : [];
       // "Reveal that minion, then …" with no minion found (RRG 1.8 "'Then'", p. 44).
       if (revealing.length === 0) markPreThenUnresolved(ctx, frame.frameId, "revealFoundNothing");
       if (!playerId) return;
+      const inPlay = new Set(cardsInPlay(ctx.state));
       const frames: StackFrame[] = [];
       for (const id of revealing) {
+        // A card faceup in play is revealed where it is and does not enter play (RRG 1.8 "Find", p. 19; ruling June 25,
+        // 2026 (5); `Frame<"reveal">.foundInPlay`, `resolve/reveal.ts`). A facedown one is not in play as itself.
+        if (inPlay.has(id) && getInstance(ctx.state, id)?.faceup === true) {
+          frames.push({ ...revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"), foundInPlay: true });
+          continue;
+        }
         // Park it with the revealing player's dealt cards while it resolves (out of the deck/discard it came from).
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
         moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
         frames.push(revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"));
       }
+      // Each deck the find looked through is shuffled once the card is out of it, as `findCard` does (RRG 1.8
+      // "Search", p. 39), found or not (docs/phase7-wave6.md §4.1 Q77); a card found in an open area searched none.
+      if (find) shuffleSearchedDecks(ctx, find.searched);
       pushFrames(ctx, frames);
       return;
     }

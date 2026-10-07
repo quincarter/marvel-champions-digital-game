@@ -26,13 +26,16 @@ import { matchingCardInPlay } from "../unique.js";
 import { attachmentHostCandidates } from "../attachment-hosts.js";
 import { engagedEvent } from "./apply-effect.js";
 import {
+  engageInPlayMinion,
+  engagementOf,
   enterPlay,
   playerSideSchemeEntersPlay,
   quickstrikeAttack,
   schemeEntryThreat,
   teamworkFrame,
 } from "./enter-play.js";
-import { heard } from "./triggers.js";
+import { hasCandidates, heard } from "./triggers.js";
+import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
@@ -160,6 +163,10 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         setFrame(ctx, { ...frame, answer: null, stage: frame.effectsCancelled ? "finish" : "whenRevealed" });
         return;
       }
+      if (frame.foundInPlay) {
+        revealWhereFound(ctx, frame);
+        return;
+      }
       if (card.type === "obligation" && !frame.effectsCancelled) {
         // RRG "Obligation": give it to the player whose identity it belongs to; that player reveals it.
         const linked = Object.values(ctx.state.cardPool).some(
@@ -279,7 +286,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       setFrame(ctx, { ...frame, stage: "whenRevealed" });
       if (frame.effectsCancelled) return;
       const quickstrike = quickstrikeAttack(ctx, frame.instanceId);
-      const teamwork = teamworkFrame(ctx, frame.instanceId);
+      // Teamwork needs the minion to have entered play (RRG 1.8 p. 43); one found in play did not (`foundInPlay`).
+      const teamwork = frame.foundInPlay ? null : teamworkFrame(ctx, frame.instanceId);
       const keywords = [...(quickstrike ? [eventFrame(ctx, quickstrike)] : []), ...(teamwork ? [teamwork] : [])];
       if (keywords.length > 0) pushFrames(ctx, keywords);
       return;
@@ -319,8 +327,13 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     case "whenRevealed": {
       // A new face is already attached where it was (`newFace`): nothing to settle.
       // Nor for a card its attach instruction already placed (`attachInstructed`).
+      // Nor for an attachment found in play: it stays on its host (`foundInPlay`, docs/phase7-wave8.md §4.1 Q17).
       const selfAttaching =
-        !frame.newFace && !frame.attachInstructed && card.type === "attachment" && card.attachesTo === undefined;
+        !frame.newFace &&
+        !frame.foundInPlay &&
+        !frame.attachInstructed &&
+        card.type === "attachment" &&
+        card.attachesTo === undefined;
       const next = selfAttaching ? "settleAttach" : "finish";
       setFrame(ctx, { ...frame, stage: next });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
@@ -365,8 +378,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         card.type === "treachery" ||
         card.type === "event" ||
         (card.type === "attachment" && card.attachesTo === undefined);
-      // A new face revealed in play stays in play (`newFace`).
-      if (discards && unmoved && !frame.newFace && getInstance(ctx.state, frame.instanceId)) {
+      // A new face revealed in play stays in play (`newFace`), and so does a card found in play (`foundInPlay`).
+      if (discards && unmoved && !frame.newFace && !frame.foundInPlay && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
@@ -390,7 +403,10 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       // A revealed minion's quickstrike resolved at the `quickstrike` stage, before its When Revealed (ruling, Feb 28,
       // 2026 (4) answer 2). It engaged its player; announced after its keywords (ruling, Jan 17, 2026 (3) answer 2).
       // A new face did not engage by its reveal (`flipToOtherFace` announces a flip that did).
-      if (!frame.effectsCancelled && !frame.newFace && card.type === "minion")
+      // A minion found in play engaged only if it was not already engaged with the revealing player (RRG 1.8 "Find",
+      // p. 19; `engagedByReveal`).
+      const engaged = frame.foundInPlay ? frame.engagedByReveal === true : !frame.newFace;
+      if (!frame.effectsCancelled && engaged && card.type === "minion")
         events.push(...engagedEvent(ctx, frame.instanceId));
       const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
       // RRG "Surge": the original card is fully resolved first, then the same
@@ -415,6 +431,51 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       popFrame(ctx);
       return;
   }
+}
+
+/**
+ * The placement step of a card found faceup in play and revealed ("find X and reveal it"; docs/phase7-wave8.md §3.1).
+ *
+ * RRG 1.8 "Find" (p. 19): "If a player is instructed to 'find and reveal' a minion that is already in play, that player
+ * engages that minion and resolves any keywords and/or triggered abilities that resolve as a result of that minion
+ * being revealed (such as that minion's 'When Revealed' ability). That minion retains all attached cards and tokens on
+ * it. That minion is not considered to be entering play. That minion is considered to engage that player unless it was
+ * already engaged with that player." So the minion moves to the revealing player's play area as it is, with no
+ * `cardEntersPlay` (no enter-play keywords, no unique check, no teamwork); having engaged, its quickstrike resolves
+ * where a revealed minion's does, before its When Revealed (ruling, Feb 28, 2026 (4) answer 2, see the `quickstrike`
+ * stage), and "after you engage" responses wait for the end of the reveal. Interrupts to the engagement get their
+ * window here (RRG 1.8 "Engage", p. 18), as an in-play minion's do (`engagementFrame`).
+ *
+ * Ruling, June 25, 2026 (5): "Finding and revealing an attachment already in play triggers its When Revealed abilities
+ * and keywords." The RRG gives the minion its one move, the engagement; nothing moves any other card, so an attachment
+ * stays on its host, another player's included (the owner's decision, §4.1 Q17), and a side scheme keeps the threat it
+ * has: its starting threat and hinder are placed as it enters play (RRG 1.8 "Hinder X", p. 22), and it did not.
+ *
+ * A reveal whose effects were cancelled does nothing here: like a new face (`newFace`), the card was not being revealed
+ * into play, so RRG 1.8 "Cancel" (p. 13) has nothing to discard, and the minion does not engage.
+ */
+function revealWhereFound(ctx: Ctx, frame: Frame<"reveal">): void {
+  if (frame.effectsCancelled) {
+    markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
+    setFrame(ctx, { ...frame, answer: null, stage: "finish" });
+    return;
+  }
+  const engaged = engageInPlayMinion(ctx, frame.instanceId, frame.playerId);
+  emit(ctx, {
+    type: "revealedInPlay",
+    instanceId: frame.instanceId,
+    cardId: mustCardOf(ctx.state, frame.instanceId).id,
+    playerId: frame.playerId,
+    engaged,
+  });
+  if (!engaged) {
+    setFrame(ctx, { ...frame, answer: null, stage: "whenRevealed" });
+    return;
+  }
+  setFrame(ctx, { ...frame, answer: null, stage: "quickstrike", engagedByReveal: true });
+  const engaging = engagementOf(ctx.state, frame.instanceId);
+  if (engaging && hasCandidates(ctx.state, ctx.deps, engaging, "interrupt"))
+    pushWindow(ctx, engaging, "interrupt", null);
 }
 
 /** RRG 1.8 "Surge" (p. 42): the player resolving the card deals themself another encounter card, then reveals it. */

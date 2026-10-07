@@ -450,6 +450,19 @@ export function engagementOf(state: GameState, id: InstanceId): MinionEngaged | 
   return { kind: "minionEngaged", minionInstanceId: id, playerId };
 }
 
+/**
+ * A minion already in play engages `playerId` (RRG 1.8 "Engage", p. 18: "an ability telling a player to engage a minion
+ * counts as that minion engaging them", and a minion already engaged with that player cannot engage them again): it
+ * moves to their play area with everything on it. Returns whether it engaged; the caller opens the engagement's windows.
+ */
+export function engageInPlayMinion(ctx: Ctx, id: InstanceId, playerId: PlayerId): boolean {
+  const instance = getInstance(ctx.state, id);
+  if (!instance || !isMinion(ctx.state, id) || instance.engagedWith === playerId) return false;
+  moveCard(ctx, id, { kind: "playArea", playerId });
+  updateInstance(ctx, id, (i) => ({ ...i, engagedWith: playerId, controllerId: null }));
+  return true;
+}
+
 /*
  * Engagement timing. RRG 1.8 "Engage" (p. 18): a minion entering play in a player's play area engages that player, and
  * an ability telling a player to engage a minion counts as it engaging them. "Interrupt" (p. 25): an interrupt
