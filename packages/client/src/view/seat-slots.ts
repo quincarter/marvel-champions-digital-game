@@ -11,6 +11,7 @@ import type { AnyCard, CoreAspect, Deck, EncounterSet } from "@mc/content";
 import type { DeckOption } from "./deck-list-model.js";
 import type { SeatOption } from "./seats.js";
 import { qualifiedHeroName } from "./hero-names.js";
+import { aspectName } from "./aspect-stamp.js";
 
 export interface SeatSlot {
   readonly index: number;
@@ -30,7 +31,7 @@ export interface SeatSlot {
 
 /** "Justice", or "Aggression + Justice" for a deck with more than one chosen aspect (`IdentityDeckbuilding.aspectCount`). */
 export function aspectLabelOf(aspects: readonly CoreAspect[]): string {
-  return aspects.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(" + ");
+  return aspects.map(aspectName).join(" + ");
 }
 
 function identityStatsOf(

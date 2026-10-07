@@ -61,6 +61,8 @@ import {
   stepChoice,
   withCycle,
   browsablePool,
+  poolRowNote,
+  poolTypeLine,
   identityOptions,
   legalityOf,
   newDeck,
@@ -73,7 +75,7 @@ import {
   type PoolFilter,
   type PoolSort,
 } from "../view/deck-builder-model.js";
-import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
+import { costCurveBars, deckCountText, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -198,9 +200,6 @@ const TYPE_FILTERS: readonly {
   ] as const
 ).map((chip) => ({ ...chip, text: chip.label }));
 
-/** How many of the grouped deck list's own entry lines (headers not counted) show before folding the rest into one "+ N more" line — matches D04's own panel. */
-const STATS_LIST_ENTRY_CAP = 10;
-
 export class DeckBuilderScene extends Phaser.Scene {
   #identity: HeroIdentityCard | null = null;
   #deck: Deck | null = null;
@@ -208,6 +207,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   #filterText = "";
   #sort: PoolSort = "default";
   #status: string | null = null;
+  /** The id of the deck this visit last saved, so Back can hand it to Decks to select. */
+  #savedDeckId: string | null = null;
   #busy = false;
   #campaign: DeckBuilderCampaignData | null = null;
   /** Recomputed every `#rebuild` from `#deck`/`#campaign` — the row-level marks the pool list and "your deck" panel both read; `null` outside campaign mode. */
@@ -228,6 +229,9 @@ export class DeckBuilderScene extends Phaser.Scene {
   #deckRegionRect: Rect | null = null;
   #onDeckScroll: (() => void) | null = null;
   #deckScroll = new VariableListScroll();
+  /** The wide rail's "Your deck" list scrolls in its own region once it outgrows the rail; its offset persists. */
+  #yourDeckRegion: McScrollRegion | null = null;
+  #yourDeckScroll = new VariableListScroll();
   /** Where `#drawNameField` last placed the name field, at zero scroll. */
   #nameFieldRect: Rect | null = null;
   /** Which aspect button's inline tip (G10b) is open, if any. */
@@ -253,6 +257,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#filter = {};
     this.#filterText = "";
     this.#status = null;
+    this.#savedDeckId = null;
     this.#busy = false;
     this.#listScroll = new ListScroll();
     this.#deckScroll = new VariableListScroll();
@@ -294,6 +299,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#list = null;
     this.#deckRegion?.destroy();
     this.#deckRegion = null;
+    this.#yourDeckRegion?.destroy();
+    this.#yourDeckRegion = null;
     this.#deckRegionRect = null;
     this.#onDeckScroll = null;
     this.#nameFieldRect = null;
@@ -333,7 +340,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const campaign = this.#campaign;
     const goBack = (): void => {
       if (campaign) goToScreen(this, campaign.returnTo.key, campaign.returnTo.data);
-      else goToScreen(this, SCENES.decks);
+      // After a Save, Decks opens on the deck just saved (its row selected and in view).
+      else goToScreen(this, SCENES.decks, this.#savedDeckId ? { focusDeckId: this.#savedDeckId } : undefined);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -403,7 +411,10 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   /** `browsablePool`, narrowed for campaign mode: a removed card the deck doesn't currently hold is left out of what browsing turns up (`#removedFromCampaignIds`); one it still holds stays, so its row's own "−" can fix the deck. */
   #browsablePool(deck: Deck): readonly AnyCard[] {
-    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter, this.#sort, PACK_INFOS);
+    // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
+    // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
+    const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
+    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter, this.#sort, PACK_INFOS, held);
     const removed = this.#removedFromCampaignIds();
     const prohibited = this.#prohibitedCampaignIds();
     if (!removed && !prohibited) return pool;
@@ -555,8 +566,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (!this.#campaign) rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
     rightY = this.#drawLegalityLine(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
     rightY += 4;
-    rightY = this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
-    this.#drawPreconClearSave(rightX + 12, bottom - hit.target * 2 - 24, RIGHT_RAIL_WIDTH - 24, deck, true);
+    const actionsTop = bottom - hit.target * 2 - 24;
+    rightY = this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8 - rightY);
+    this.#drawPreconClearSave(rightX + 12, actionsTop, RIGHT_RAIL_WIDTH - 24, deck, true);
 
     // Middle: the pool, search field above it.
     let midY = top;
@@ -821,7 +833,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           const pinnedSuffix = split.pinned > 0 ? ` + ${split.pinned} pinned` : "";
           return `${split.counted} cards${pinnedSuffix}`;
         })()
-      : `${deck.cards.reduce((n, c) => n + c.quantity, 0)} cards`;
+      : deckCountText(deckStatsOf(deck, POOL));
     const legalityText = verdict.ok
       ? `Legal — ${cardCountText}.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
@@ -873,7 +885,15 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /** "Your deck", grouped Hero / aspect / Basic with a "+ N more" overflow (D04's right rail; the narrow layout's own stats panel). */
-  #drawYourDeckList(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
+  #drawYourDeckList(
+    left: number,
+    top: number,
+    column: number,
+    deck: Deck,
+    onDark: boolean,
+    /** The wide rail's room for the list: when it is taller than that, the list scrolls inside it. Absent: it flows (the narrow layout's own region scrolls). */
+    maxHeight?: number,
+  ): number {
     label(
       this,
       left,
@@ -904,7 +924,53 @@ export class DeckBuilderScene extends Phaser.Scene {
           return card ? () => this.#inspect(card, row.face ?? null) : null;
         }
       : undefined;
-    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark, noteOf, onInspectOf);
+    // Every line is listed (none folded into "+ N more") and each has its own "-" while the deck can be edited.
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
+    const drawRemove = (entry: DeckListEntry, rect: Rect): void => {
+      const row = this.#campaignRowFor(entry.cardId as string);
+      const locked = row?.locked ?? false;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: onDark ? "onInk" : "secondary",
+          label: "−",
+          type: typeRole.rowTitle,
+          rect,
+          enabled: !locked && !frozen,
+          ...(frozen
+            ? { reason: this.#campaignModel?.editingDisabledReason ?? "" }
+            : locked && row?.lockedReason
+              ? { reason: row.lockedReason }
+              : {}),
+          onClick: () => this.#setDeck(removeCard(deck, entry.cardId)),
+        }),
+      );
+    };
+    const before = this.children.list.length;
+    const bottom = drawGroupedCardList(
+      this,
+      left,
+      top + 16,
+      column,
+      groups,
+      Infinity,
+      onDark,
+      noteOf,
+      onInspectOf,
+      drawRemove,
+    );
+    if (maxHeight === undefined || bottom - top <= maxHeight) return bottom;
+    const rect: Rect = { x: left, y: top + 16, width: column, height: Math.max(hit.target * 2, maxHeight - 16) };
+    const added = this.children.list.slice(before);
+    const region = new McScrollRegion(this, {
+      rect,
+      heights: [bottom - rect.y],
+      scroll: this.#yourDeckScroll,
+      clipInteractive: true,
+    });
+    this.#yourDeckRegion = region;
+    region.content.add(added);
+    region.syncInteractivity();
+    return rect.y + rect.height + 8;
   }
 
   #drawPreconClearSave(left: number, top: number, column: number, deck: Deck, onDark = false): number {
@@ -1014,7 +1080,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#filterInput = new McTextInput(this, {
         rect: filterRect,
         value: this.#filterText,
-        placeholder: "card name",
+        placeholder: "name, trait or type",
         onChange: (value) => {
           this.#filterText = value;
           this.#filter = { ...this.#filter, text: value };
@@ -1179,15 +1245,17 @@ export class DeckBuilderScene extends Phaser.Scene {
     const name = this.add.text(textX, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(name, textWidth);
     objects.push(name);
-    const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
+    const typeText = poolTypeLine(card);
+    // Why a card is listed when the chosen aspect would not allow it, or why it is refused (held, but not allowed).
+    const note = this.#campaign ? null : poolRowNote(card, this.#identity!, deck.aspects);
     // MC27 p. 22's Enhanced side (`CampaignDeckEditRow.face`): named on its own, in front of "campaign grant", so
     // the row never reads as an ordinary grant when the printed card in play is actually the flipped side.
     const faceLabel = campaignRow?.face ? ` · ${campaignRow.face} (Enhanced)` : "";
     const typeLineText = campaignRow?.locked
-      ? `${card.type.replace(/_/g, " ")} · cost ${cost} · campaign grant${faceLabel}`
+      ? `${typeText} · campaign grant${faceLabel}`
       : campaignRow?.refused
-        ? `${card.type.replace(/_/g, " ")} · cost ${cost} · removed from campaign`
-        : `${card.type.replace(/_/g, " ")} · cost ${cost}`;
+        ? `${typeText} · removed from campaign`
+        : typeText;
     const typeLine = this.add.text(
       textX,
       row.y + 6 + name.height + 2,
@@ -1196,12 +1264,21 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     fitText(typeLine, textWidth);
     objects.push(typeLine);
+    // Why the card is offered or refused (an identity's off-aspect rule, a card the deck holds but may not): its own
+    // line, so the type line never cuts it off on a narrow row.
+    let belowY = typeLine.y + typeLine.height;
+    if (note) {
+      const noteLine = this.add.text(textX, belowY + 1, note, textStyle(typeRole.label, surface.ink.hex, ink.label));
+      fitText(noteLine, textWidth);
+      objects.push(noteLine);
+      belowY = noteLine.y + noteLine.height;
+    }
     const rules = cardInspectModel(card, campaignRow?.face ? { kind: "flipSide" } : { kind: "front" }).rulesText;
     if (rules) {
       const rulesText = this.add
-        .text(textX, typeLine.y + typeLine.height + 4, rules, textStyle(typeRole.label, surface.ink.hex))
+        .text(textX, belowY + 4, rules, textStyle(typeRole.label, surface.ink.hex))
         .setWordWrapWidth(textWidth, true);
-      clampLines(rulesText, CARD_TEXT_LINES);
+      clampLines(rulesText, note ? CARD_TEXT_LINES - 1 : CARD_TEXT_LINES);
       objects.push(rulesText);
     }
 
@@ -1296,6 +1373,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       return;
     }
     await deckStorage().put(this.#deck);
+    this.#savedDeckId = this.#deck.id as string;
     this.#busy = false;
     this.#status = "Saved.";
     this.#rebuild();

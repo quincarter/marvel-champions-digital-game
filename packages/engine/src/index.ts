@@ -91,6 +91,7 @@ export {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
   cardLegalForIdentity,
+  cardOfferedToDeck,
   CHOOSABLE_ASPECTS,
   copiesUpToLimit,
   DECK_COPY_LIMIT,

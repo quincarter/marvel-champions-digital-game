@@ -30,6 +30,7 @@ import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 import { sideSchemeBriefingOf, type SideSchemeBriefing } from "./campaign-side-scheme-model.js";
+import { aspectName } from "./aspect-stamp.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -89,11 +90,11 @@ const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
   leadership: "LEA",
   protection: "PRO",
   basic: "BAS",
-  pool: "POOL",
+  pool: "'POOL",
 };
 
 function aspectLabelOf(aspects: readonly string[]): string {
-  if (aspects.length <= 1) return (aspects[0] ?? "").toUpperCase();
+  if (aspects.length <= 1) return aspectName(aspects[0] ?? "").toUpperCase();
   return aspects.map((aspect) => ASPECT_ABBREVIATION[aspect] ?? aspect.toUpperCase()).join("/");
 }
 

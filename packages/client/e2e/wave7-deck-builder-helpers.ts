@@ -185,7 +185,8 @@ export async function legalityLine(page: Page): Promise<string> {
 /** The "YOUR DECK" panel's lines, as one string per card: "Name x N". */
 export async function deckPanel(page: Page): Promise<string[]> {
   const t = await texts(page, "DeckBuilder");
-  return t.slice(t.indexOf("YOUR DECK") + 1, t.indexOf("PRECONSTRUCTED"));
+  // Each line also carries its "-" remove control's label.
+  return t.slice(t.indexOf("YOUR DECK") + 1, t.indexOf("PRECONSTRUCTED")).filter((x) => x !== "−");
 }
 /** The pool list's card ids as drawn right now. */
 export async function poolIds(page: Page): Promise<string[]> {

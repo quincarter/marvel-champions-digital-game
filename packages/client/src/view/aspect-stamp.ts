@@ -40,6 +40,15 @@ const LABEL: Readonly<Record<CoreAspect, string>> = {
   basic: "Basic",
 };
 
+/**
+ * An aspect's printed name, the one place display names come from: "'Pool" (leading apostrophe), never "Pool". Any
+ * other word (a hero set's "hero:...", an unknown aspect) is just capitalized.
+ */
+export function aspectName(aspect: string): string {
+  const known = (LABEL as Readonly<Record<string, string>>)[aspect];
+  return known ?? (aspect.length === 0 ? aspect : aspect.charAt(0).toUpperCase() + aspect.slice(1));
+}
+
 /** WCAG relative luminance of an 0xRRGGBB color. */
 export function luminanceOf(hex: number): number {
   const channel = (value: number): number => {

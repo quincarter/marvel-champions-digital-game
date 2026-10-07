@@ -122,25 +122,7 @@ test.describe("Flow 4: illegal states and their messages (Deadpool, 'Pool)", () 
     expect(await texts(page, "DeckBuilder")).toContain("HERO · 15");
   });
 
-  test("X-23's Linked Specialist is refused by the validator's message once added", async ({ page }) => {
-    test.setTimeout(200_000);
-    await openDecks(page);
-    await startNewDeck(page, "43001a");
-    await press(page, "DeckBuilder", "aspect:aggression");
-    await search(page, "Combat Specialist");
-    await add(page, "43034");
-    expect(await legalityLine(page)).toContain(
-      "Combat Specialist has the Linked keyword: linked cards cannot be included in a deck; they are set aside at setup by the card that brings them into play.",
-    );
-    await shot(page, "4-linked-specialist");
-  });
-
-  // DEFECT (rough): X-23's four Linked Specialist upgrades (43034-43037, aspect basic, "Linked (Specialized Training)")
-  // are offered in the pool list and can be added; only the legality line then refuses them. RRG p. 27 "Linked": they
-  // "cannot be included in any deck", and validateDeck refuses them (linked_card), but the pool list already hides the
-  // other never-a-deck-card kinds (campaign-specific cards, separate-deck cards, the Dreadpool set). Owner:
-  // packages/client/src/view/deck-builder-model.ts (browsablePool) should drop `keywords: linked` cards.
-  test.fixme("a Linked Specialist is not findable in the builder", async ({ page }) => {
+  test("a Linked Specialist is not findable in the builder", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "43001a");
     await press(page, "DeckBuilder", "aspect:aggression");
@@ -161,7 +143,7 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     await shot(page, "5-psylocke");
     // Her precon: 42 listed cards, 40 counted (RRG p. 32 "Permanent"); one fewer card is 39 counted, not 41.
     await press(page, "DeckBuilder", "preconstructed");
-    expect(await legalityLine(page)).toMatch(/^Legal — \d+ cards\.$/);
+    expect(await legalityLine(page)).toBe("Legal — 40 cards + 2 permanent.");
     await search(page, "Lay the Trap");
     await remove(page, "41016");
     expect(await legalityLine(page)).toBe(
@@ -177,16 +159,11 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     );
   });
 
-  // DEFECT (wrong information, rough): Psylocke's precon is 42 listed cards of which the two Permanent Psi-Knives do not
-  // count (RRG p. 32), so 40 count. The legal line reads "Legal — 42 cards." while a problem line for the same deck says
-  // "The deck has 39 cards" for 41 listed, two different counts for one deck, and "Your deck" does not mark the Psi-Knives
-  // as Permanent or split them out ("N cards + M permanent", as campaign mode splits "N cards + M pinned").
-  // Owner: packages/client/src/scenes/deck-builder.ts (#drawLegalityLine's cardCountText) and view/deck-stats.ts.
-  test.fixme("the builder's count for Psylocke's precon is the counted 40 (not the 42 listed)", async ({ page }) => {
+  test("the builder's count for Psylocke's precon is the counted 40 (not the 42 listed)", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "41001a");
     await press(page, "DeckBuilder", "preconstructed");
-    expect(await legalityLine(page)).toMatch(/^Legal — 40 cards( \+ 2 permanent)?\.$/);
+    expect(await legalityLine(page)).toBe("Legal — 40 cards + 2 permanent.");
   });
 
   test("Angel: the three-face identity opens the builder with his 15-card set", async ({ page }) => {
@@ -226,14 +203,7 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     expect(await idsFor(page, "Critical Hit"), "an off-aspect event is not offered").toEqual([]);
   });
 
-  // DEFECT (blocks a legal build): Cable's identity text lets a deck include player side schemes from any aspect (RRG p. 50;
-  // identity `deckbuilding.offAspectAllowance`, validated in custom-decks.test.ts "player side schemes from any aspect"),
-  // but the pool list only ever offers basic, chosen-aspect and own-set cards, so a Leadership Cable cannot add Lock and
-  // Load (Aggression, 40019), Establish Perimeter (Protection, 40020), Take Out the Guards (Justice, 40054), Lay the Trap
-  // (Justice, 41016), Render Medical Aid (Protection, 42017) or Live Dangerously ('Pool, 44024). Only the Preconstructed
-  // button (his precon holds two) can put them in. The rule must stay Cable's alone and cover side schemes only.
-  // Owner: packages/client/src/view/deck-builder-model.ts (browsablePool ignores deckbuilding.offAspectAllowance).
-  test.fixme("Cable can add an off-aspect player side scheme, and only those", async ({ page }) => {
+  test("Cable can add an off-aspect player side scheme, and only those", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "40001a");
     await press(page, "DeckBuilder", "aspect:leadership");
@@ -243,6 +213,9 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
       ["Live Dangerously", "44024"],
     ] as const) {
       expect(await idsFor(page, query)).toEqual([id]);
+      expect((await texts(page, "DeckBuilder")).join("\n"), "the row says why it is offered").toContain(
+        "Cable: any aspect",
+      );
       await add(page, id);
     }
     expect(await legalityLine(page)).not.toMatch(/aspect is Leadership/);
@@ -300,13 +273,7 @@ test.describe("Flow 6: collection search and Inspect in the builder", () => {
     expect(await activeScenes(page)).not.toContain("InspectOverlay");
   });
 
-  // DEFECT (missing feature, rough): the only text search is "card name" (a name substring). There is no trait search or
-  // cost filter control in the builder (PoolFilter has `trait` and `maxCost`, view/deck-builder-model.ts, but nothing in
-  // scenes/deck-builder.ts sets them), and no search by trait on the Decks screen's Card pool pane. After the split,
-  // S.H.I.E.L.D. and SOLDIER are separate traits (War Machine 01030: S.H.I.E.L.D. + SOLDIER; Agent 13 27046: S.H.I.E.L.D. +
-  // SPY), so searching "S.H.I.E.L.D." finds no Agent Coulson (08011), "Soldier" finds nothing. Owner:
-  // packages/client/src/scenes/deck-builder.ts (#drawFilterInput) and view/deck-builder-model.ts (matchesFilter).
-  test.fixme("a trait search finds cards with that trait", async ({ page }) => {
+  test("a trait search finds cards with that trait", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "01001a");
     await press(page, "DeckBuilder", "aspect:justice");

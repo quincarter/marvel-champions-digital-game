@@ -57,6 +57,7 @@ import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
 import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
+import { aspectName } from "./aspect-stamp.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
 export interface StatTile {
@@ -1008,7 +1009,7 @@ export function deckAspects(state: GameState, playerId: PlayerId): readonly Aspe
   return [...counts].filter(([, count]) => count === most && count > 0).map(([aspect]) => aspect);
 }
 
-const aspectLabel = (aspect: Aspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
+const aspectLabel = (aspect: Aspect): string => aspectName(aspect);
 
 function statusPips(instance: CardInstance): readonly StatusPip[] {
   const pips: StatusPip[] = [];

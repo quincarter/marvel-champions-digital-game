@@ -9,10 +9,11 @@
  */
 import type { Deck } from "@mc/content";
 import type { CardPool } from "@mc/engine";
-import { deckStatsOf } from "./deck-stats.js";
+import { deckCountText, deckStatsOf } from "./deck-stats.js";
 import { deckStatusOf } from "./deck-status.js";
 import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSourceKind } from "./roster-filter.js";
+import { aspectName } from "./aspect-stamp.js";
 
 export const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = {
   precon: "Precon",
@@ -35,8 +36,13 @@ export function titleCase(word: string): string {
 export function cardTitleOf(option: DeckOption): string {
   if (option.deck.source.kind !== "precon") return option.deck.name;
   const identity = option.identityName ?? "Unknown";
-  const aspects = option.deck.aspects.map(titleCase).join(" + ");
+  const aspects = option.deck.aspects.map(aspectName).join(" + ");
   return aspects ? `${identity} / ${aspects}` : identity;
+}
+
+/** "'POOL · " (with its trailing separator) for a deck that chose aspects, "" for one that has none, for a header line to lead with. */
+export function deckAspectsText(deck: Pick<Deck, "aspects">): string {
+  return deck.aspects.length > 0 ? `${deck.aspects.map(aspectName).join(" + ").toUpperCase()} · ` : "";
 }
 
 /**
@@ -55,7 +61,10 @@ export function deckMetaLine(option: DeckOption, pool: CardPool): string {
     // The title already says hero and aspect; keep only what the printed name adds ("Core Set Starter Deck"),
     // so the count and legality always fit on the one line this reads on.
     const product = deck.name.includes("—") ? deck.name.slice(deck.name.indexOf("—") + 1).trim() : deck.name;
-    return `${product} · ${stats.totalCards} cards · ${status}`;
+    return `${product} · ${deckCountText(stats)} · ${status}`;
   }
-  return `${option.identityName ?? "unknown identity"} · ${stats.totalCards} cards · ${status} · ${SOURCE_LABEL[deck.source.kind].toLowerCase()}`;
+  // A saved deck's own name never says its aspect (a precon's title does), so the line names hero and aspect(s).
+  const aspects = deck.aspects.map(aspectName).join(" + ");
+  const who = [option.identityName ?? "unknown identity", ...(aspects ? [aspects] : [])].join(" · ");
+  return `${who} · ${deckCountText(stats)} · ${status} · ${SOURCE_LABEL[deck.source.kind].toLowerCase()}`;
 }

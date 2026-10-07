@@ -38,31 +38,23 @@ copies, and a deck must include exactly that many.`; Montage 0: "Montage is miss
 
 ## Findings (worst first)
 
-- **F1 rough, high: Cable's off-aspect player side schemes cannot be added.** Under Leadership, "Lock and Load" (40019), "Establish
-  Perimeter", "Live Dangerously" return no rows though `offAspectAllowance` makes them legal (custom-decks.test.ts); no Player Side
-  Scheme type chip either. Owner `packages/client/src/view/deck-builder-model.ts` (`browsablePool`). fixme "Cable can add...".
-- **F2 rough: X-23's four Linked Specialists (43034-43037) are findable and addable**, unlike campaign, separate-deck and
-  Dreadpool cards, which the list hides; only the panel then refuses them. Same owner. fixme "a Linked Specialist is not findable".
-- **F3 wrong information: Psylocke's precon reads "Legal — 42 cards."** while the validator counts 40 (Permanent Psi-Knives, RRG p. 32)
-  and a short deck says "39 cards" for 41 listed; "Your deck" shows "Psi-Knife 2" with no Permanent mark. Owner
-  `scenes/deck-builder.ts` `#drawLegalityLine` (campaign mode already splits "N cards + M pinned"). fixme.
-- **F4 rough: after an aspect switch the refused cards leave the pool list**, so they cannot be removed one by one (only Clear, or
-  switching back); campaign mode keeps such lines listed. Same file as F1. fixme "can still be found and removed".
-- **F5 rough: no trait search.** "Soldier" and "S.H.I.E.L.D." find nothing (name substring only; `PoolFilter.trait`/`maxCost` exist
-  but no control sets them); the trait split itself is right in data (War Machine 01030 S.H.I.E.L.D. + SOLDIER, Agent 13 27046
-  S.H.I.E.L.D. + SPY). Owner `scenes/deck-builder.ts` `#drawFilterInput`. fixme.
-- **F6 wrong information: per player cost reads "event · cost 3"** on Break Time's row (Inspect says 3 per player). Owner
-  `scenes/deck-builder.ts` `#renderCardRow`. fixme.
-- **F7 wrong information: a user-built deck's row never names its aspect** ("Deadpool · 40 cards · legal", header "40 CARDS · MINIMUM 40
-  · LEGAL · BUILT"). Owner `scenes/decks.ts`. fixme.
-- **F8 rough: the aspect is spelled "POOL", not "'POOL"** on the precon row "DEADPOOL / POOL" (`view/deck-title.ts` `titleCase`), the Seats
-  chip "POOL" and Inspect "EVENT · POOL". fixme.
+Status after the fix pass (2026-10-06): all eight fixed, their `test.fixme` now plain tests; pool filtering now asks the engine's
+`cardOfferedToDeck` (a small export beside `cardLegalForIdentity` in `packages/engine/src/deck.ts`; `validateDeck` uses the same two
+off-aspect predicates), so the client holds no copy of the aspect rule. View-model tests: `packages/client/src/view/deck-builder-fixes.test.ts`.
+
+- **F1 fixed:** Cable's off-aspect player side schemes are offered and say "Cable: any aspect" on the row (`view/deck-builder-model.ts` `browsablePool`, `poolRowNote`).
+- **F2 fixed:** Linked, separate-deck, campaign, scenario and other heroes' Team-Up cards are no longer browsable (same engine rule).
+- **F3 fixed:** counts read the validator's size: "Legal — 40 cards + 2 permanent." in the builder, Decks rows and headers, Deck check (`view/deck-stats.ts` `countedCards`, `deckCountText`).
+- **F4 fixed:** a card the deck holds stays in the pool list when refused ("not allowed in this deck" on the row), and "Your deck" now lists every line (no "+ N more"), each with a "-"; it scrolls in the wide rail (`scenes/deck-builder.ts`, `ui/deck-stats-widgets.ts`).
+- **F5 fixed:** the text search also matches traits and type, name matches first; placeholder reads "name, trait or type".
+- **F6 fixed:** "event · 3 per player" (`poolTypeLine`, via `view/per-player-cost.ts`).
+- **F7 fixed:** a saved deck's Decks row and stats header name its aspect(s) (`view/deck-title.ts`).
+- **F8 fixed:** `aspectName` in `view/aspect-stamp.ts` is the one source ("'Pool"); the precon row, Seats, Inspect, board, briefing, table setup and campaign labels use it.
 
 ## Other (not pinned)
 
-Save works on an illegal deck (Decks marks it Illegal); Delete has no confirmation; Export omits the deck name; "Your deck" lists
-10 lines then "+ N more"; Pack/Wave/Sort steppers are not in the focus route (`view/screen-focus.ts` `deckBuilderFocusOrder`), so
-keyboard and pad cannot reach them; after Save the Decks screen does not select the new deck.
+Fixed: the pack / wave / sort steppers are in the keyboard focus route (`view/screen-focus.ts`); Back after Save opens Decks on the
+saved deck. Left: Save works on an illegal deck (Decks marks it Illegal); Delete has no confirmation; Export omits the deck name.
 
 ## Phone (390)
 

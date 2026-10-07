@@ -66,6 +66,7 @@ import {
   resourceIconList,
   type StatTile,
 } from "./board-model.js";
+import { aspectName } from "./aspect-stamp.js";
 
 /** One action ability this card could use right now, named and priced. */
 export interface UsableAbility {
@@ -816,7 +817,7 @@ function typeLineOf(card: AnyCard, face: CardFace = { kind: "front" }): string {
     parts.push(...(card.flipSide.traits as readonly string[]).slice(0, 2));
   } else if ("traits" in card) parts.push(...(card.traits as readonly string[]).slice(0, 2));
   if ("aspect" in card && typeof card.aspect === "string" && !card.aspect.startsWith("hero:")) {
-    parts.push(card.aspect);
+    parts.push(aspectName(card.aspect));
   }
   return parts.join(" · ").toUpperCase();
 }

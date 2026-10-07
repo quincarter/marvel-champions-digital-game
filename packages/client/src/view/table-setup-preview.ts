@@ -47,6 +47,7 @@ import { autoIncludedSetsInGame, scale, type GameSetupConfig, type TableRules } 
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
+import { aspectName } from "./aspect-stamp.js";
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
 const roman = (n: number): string => ROMAN[n] ?? String(n);
@@ -67,9 +68,6 @@ export interface AddedSetPreview {
   /** Cards of the set that start set aside, not in the deck (the rest of the set waits for an ability); 0 when the whole set is shuffled in. */
   readonly setAside: number;
 }
-
-const aspectName = (aspect: string): string =>
-  aspect === "pool" ? "'Pool" : aspect.charAt(0).toUpperCase() + aspect.slice(1);
 
 export interface TableSetupPreview {
   readonly playerCount: number;

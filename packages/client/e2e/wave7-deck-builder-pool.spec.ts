@@ -63,7 +63,7 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
         "Cable",
         "Chimichanga Truck",
         "Deadpool's Katana",
-        "+ 1 more",
+        "Montage",
       ]),
     );
     expect(await legalityLine(page)).toContain("must choose exactly one aspect; this deck chooses none");
@@ -136,7 +136,7 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
       problems: [],
     });
     await press(page, "Decks", `deck:${mine[0]!.id}`);
-    expect((await texts(page, "Decks")).join("\n")).toContain("Deadpool · 40 cards · legal");
+    expect((await texts(page, "Decks")).join("\n")).toContain("Deadpool · 'Pool · 40 cards");
     await shot(page, "1-decks");
 
     // 1h. Reopen: same cards, same aspect (the 'Pool cards are still offered), still legal.
@@ -281,8 +281,9 @@ test.describe("Deadpool with another aspect: flow 3", () => {
     await press(page, "DeckBuilder", "aspect:aggression");
     await search(page, "");
     const ids = await poolIds(page);
-    expect(ids, "'Pool cards are not offered under Aggression").not.toContain("44017");
-    expect(ids).not.toContain("44013");
+    // Cards the deck holds stay listed so each can be removed; a 'Pool card it does not hold is not offered.
+    expect(ids, "held 'Pool cards stay listed").toEqual(expect.arrayContaining(["44017", "44013"]));
+    expect(ids, "other 'Pool cards are not offered under Aggression").not.toContain("44021");
     expect(ids, "his own set stays").toContain("44006");
     // The validator (custom-decks.test.ts "Deadpool's own deck with another aspect chosen") refuses each 'Pool card:
     const line = await legalityLine(page);
@@ -297,14 +298,7 @@ test.describe("Deadpool with another aspect: flow 3", () => {
     expect(await legalityLine(page)).not.toContain("must choose exactly one aspect");
   });
 
-  // DEFECT (rough): after switching aspect, the now-refused 'Pool cards are still in the deck but hidden from the pool
-  // list, and the pool rows' "-" buttons are the only way to remove a card, so the player cannot fix the deck line by
-  // line (only Clear, which also drops every other added card, or switching back). The campaign deck editor keeps such
-  // lines in the list so they can be removed (deck-builder.ts: "A line already in the deck from before a removal still
-  // shows"); the standalone builder does not. Owner: packages/client/src/view/deck-builder-model.ts (browsablePool).
-  test.fixme("a card the chosen aspect now refuses can still be found and removed from the pool list", async ({
-    page,
-  }) => {
+  test("a card the chosen aspect now refuses can still be found and removed from the pool list", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "44001a");
     await press(page, "DeckBuilder", "aspect:pool");
@@ -318,11 +312,7 @@ test.describe("Deadpool with another aspect: flow 3", () => {
 });
 
 test.describe("Findings pinned from flow 1 (the aspect's name and a per player cost)", () => {
-  // DEFECT (wrong information, rough): a user-built deck's row and stats header never name its aspect. The row reads
-  // "Deadpool · 40 cards · legal" and the header "40 CARDS · MINIMUM 40 · LEGAL · BUILT"; only the Card pool chips
-  // ('POOL / BASIC / HERO) say which aspect it is. Preconstructed rows do ("DEADPOOL / POOL"). Owner:
-  // packages/client/src/scenes/decks.ts (row subtitle) with view/deck-title.ts.
-  test.fixme("a saved user-built deck's row names its aspect", async ({ page }) => {
+  test("a saved user-built deck's row names its aspect", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "44001a");
     await press(page, "DeckBuilder", "aspect:pool");
@@ -331,26 +321,24 @@ test.describe("Findings pinned from flow 1 (the aspect's name and a per player c
     await press(page, "DeckBuilder", "back");
     await waitForScene(page, "Decks", 15000);
     await settle(page);
-    expect((await texts(page, "Decks")).join("\n")).toMatch(/Deadpool · .*Pool.* · 40 cards · legal/);
+    // Back after Save opens Decks on the saved deck: its stats header names the aspect (its list row does too).
+    expect((await deckRows(page)).find((d) => d.selected)?.source).toBe("userBuilt");
+    expect((await texts(page, "Decks")).join("\n")).toContain("'POOL · 40 CARDS · MINIMUM 40 · LEGAL · BUILT");
   });
 
-  // DEFECT (wrong information, rough): the aspect's printed name is 'Pool (leading apostrophe; the builder's own aspect
-  // chip and the Card pool chip say "'POOL"), but the precon row reads "DEADPOOL / POOL" (view/deck-title.ts titleCase),
-  // Take your seats' aspect chip reads "POOL" and Inspect's type line reads "EVENT · POOL". Owner: view/deck-title.ts and
-  // the seats/inspect label builders; one shared aspect label would fix all three.
-  test.fixme("every screen spells the aspect 'Pool, not Pool", async ({ page }) => {
+  test("every screen spells the aspect 'Pool, not Pool", async ({ page }) => {
     await openDecks(page);
+    const precon = (await deckRows(page)).find((d) => d.source === "precon" && /deadpool/i.test(d.name));
+    expect(precon, "a Deadpool precon").toBeTruthy();
+    await press(page, "Decks", `deck:${precon!.id}`);
     expect((await texts(page, "Decks")).join("\n")).toContain("DEADPOOL / 'POOL");
   });
 
-  // DEFECT (wrong information, rough): Break Time (44046) prints "3 per player" (Inspect says so), but its builder row
-  // reads "event · cost 3", which understates the price in a 2-4 player game. Owner: scenes/deck-builder.ts
-  // (#renderCardRow's typeLineText) using view/per-player-cost.ts.
-  test.fixme("the pool row of a per player cost card says so", async ({ page }) => {
+  test("the pool row of a per player cost card says so", async ({ page }) => {
     await openDecks(page);
     await startNewDeck(page, "44001a");
     await press(page, "DeckBuilder", "aspect:pool");
     await search(page, "Break Time");
-    expect((await texts(page, "DeckBuilder")).join("\n")).toContain("event · cost 3 per player");
+    expect((await texts(page, "DeckBuilder")).join("\n")).toContain("event · 3 per player");
   });
 });

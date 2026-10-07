@@ -5,6 +5,7 @@
  */
 import type { AnyCard } from "@mc/content";
 import type { SideSchemeRow } from "./campaign-side-scheme-model.js";
+import { aspectName } from "./aspect-stamp.js";
 
 const titleCase = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
 
@@ -14,7 +15,7 @@ export const idWords = (id: string): string => `${titleCase(id).replace(/[-_]/g,
 function aspectOf(card: AnyCard): string | null {
   const aspect = (card as { aspect?: string }).aspect;
   if (!aspect || aspect === "none") return null;
-  return aspect.startsWith("hero:") ? "Signature" : titleCase(aspect);
+  return aspect.startsWith("hero:") ? "Signature" : aspectName(aspect);
 }
 
 export function optionLabelsOf(

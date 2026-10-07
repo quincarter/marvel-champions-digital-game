@@ -35,6 +35,7 @@ import type {
   HeroIdentityCard,
   IdentitySeparateDeck,
   PlayerCard,
+  Trait,
 } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { CampaignCardFace } from "./campaign.js";
@@ -429,6 +430,45 @@ export function copiesUpToLimit(
   const limit = cap === undefined ? printed : Math.min(printed, cap);
   const held = same.reduce((n, line) => n + line.quantity, 0);
   return Math.max(0, limit - held);
+}
+
+const matchesOffAspectPackage = (card: PlayerCard, p: { readonly cardType: string; readonly trait: Trait }): boolean =>
+  card.type === p.cardType && card.traits.includes(p.trait);
+
+const matchesOffAspectAllowance = (
+  card: PlayerCard,
+  allowance: { readonly cardType: string; readonly anyTrait?: readonly Trait[] },
+): boolean =>
+  card.type === allowance.cardType &&
+  (allowance.anyTrait === undefined || allowance.anyTrait.some((wanted) => card.traits.includes(wanted)));
+
+/**
+ * Whether a deck for `identity` choosing `chosenAspects` may hold `card` at all, and whether only the identity's own
+ * deckbuilding rule (an off-aspect package or allowance) lets it in. The per-card reading of `validateDeck` for a deck
+ * builder's list: the same predicates, no quantities. `via` is set only for a card the chosen aspects would refuse.
+ */
+export function cardOfferedToDeck(
+  card: AnyCard,
+  identity: HeroIdentityCard,
+  chosenAspects: readonly CoreAspect[],
+): { readonly offered: boolean; readonly via?: "package" | "allowance" } {
+  if (!isPlayerDeckCard(card) || isLinked(card) || card.separateDeck !== undefined || card.specificTo !== undefined) {
+    return { offered: false };
+  }
+  const classification = classify(card);
+  if (classification.kind === "identity") return { offered: classification.identityId === identity.id };
+  if (classification.kind === "unrecognized" || !cardLegalForIdentity(card, identity)) return { offered: false };
+  if (classification.kind === "basic" || chosenAspects.includes(classification.aspect)) {
+    return { offered: true };
+  }
+  const rules = identity.deckbuilding;
+  if ((rules?.offAspectPackages ?? []).some((p) => matchesOffAspectPackage(card, p))) {
+    return { offered: true, via: "package" };
+  }
+  if (rules?.offAspectAllowance && matchesOffAspectAllowance(card, rules.offAspectAllowance)) {
+    return { offered: true, via: "allowance" };
+  }
+  return { offered: false };
 }
 
 /**
@@ -876,18 +916,14 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       const own = whole.quantity - Math.min(whole.quantity, grantedCopies(whole.card.id));
       if (own === 0) continue;
       const line: Line = own === whole.quantity ? whole : { ...whole, quantity: own };
-      const index = packages.findIndex((p) => line.card.type === p.cardType && line.card.traits.includes(p.trait));
+      const index = packages.findIndex((p) => matchesOffAspectPackage(line.card, p));
       if (index >= 0) {
         packageLines[index]?.push(line);
         continue;
       }
       // "You may include up to 6 attack and/or thwart events … from aspects other than your chosen aspect" (Gamora;
       // `offAspectAllowance`, docs/phase7-wave3.md §1.5): counted below, not refused here.
-      if (
-        allowance &&
-        line.card.type === allowance.cardType &&
-        (allowance.anyTrait === undefined || allowance.anyTrait.some((wanted) => line.card.traits.includes(wanted)))
-      ) {
+      if (allowance && matchesOffAspectAllowance(line.card, allowance)) {
         allowanceLines.push(line);
         continue;
       }
