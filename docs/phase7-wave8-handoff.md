@@ -163,3 +163,32 @@ cards: 15 hero, 17 Leadership, 8 basic. The card's copyright line reads 2023 (th
   copy of each; the card prints no multiplier)
 - Not on the decklist card: 33 to 37 (Surge, Anole, Bling!, Indra, Children of the Atom ×3) and 38 to 42 (Sebastian
   Shaw, Selene, Hellfire Pawn, The Inner Circle, Power and Decadence), the pack's modular set.
+
+## Rules answers from the owner (2026-10-07), to copy into the spec's §4.1
+
+Answered in the project thread on 2026-10-07 for the ten questions of spec pass 1a (`docs/phase7-wave8.md` §4.2). They
+are held here because a spec agent had the spec file open; the main session copies them into §4.1 once pass 1b is
+committed. Nine follow the proposed default; **Q9 does not**.
+
+- **Q1 = A.** A setup control, off unless the players turn it on. The rulebook's amounts are recommendations; never
+  apply the mode's amount silently.
+- **Q2 = A.** Pursued by the Past's Forced Response resolves when the counter is placed and removes every counter
+  before the treachery reaches "Then, if it has any counters".
+- **Q3 = A.** "The number of players" is the players in the game now; nothing snapshots the starting count.
+- **Q4 = A.** A stun or confuse replaces the activation, so the villain did not activate and the active counter stays.
+- **Q5 = A, firm.** The owner cites an FFG ruling (Hall of Heroes "Latest FFG Rulings post RRG 1.5", a page that is
+  not in this repo and was not read by the main session): the counter moves after any Horseman activates, and always
+  one place from the villain holding it, never from the villain that activated. **Test case from the owner:** Death
+  holds the active counter and a treachery makes War activate; after War's activation the counter moves from Death to
+  the villain immediately right of Death, not from War to War's neighbor.
+- **Q6 = A.** "Considered to have at least 1 hit point" is a game-state modifier every reader sees, including the
+  other Horsemen's "cannot be defeated while another villain has at least 1 hit point".
+- **Q7 = A.** The normal valid-target and initiation rule: Golden Horse and Metal Wings are not offered when the
+  simulated Forced Response can do nothing (War with no upgrade or support the player controls).
+- **Q8 = A.** Infinite Prelate: the extra boost card is set up for the activation; the tough status card and the heal
+  resolve after it. Do not front-load all three.
+- **Q9 = B (not the proposed default).** Build the per-villain A/B picker. The four selectors default from the
+  difficulty (A/A/A/A for skirmish and standard, B/B/B/B for expert and heroic) and each can be overridden (MC45
+  p. 11). No "extreme" mode.
+- **Q10 = A.** Standard III may replace the Standard set on any scenario that uses it, not only Age of Apocalypse
+  scenarios (MC45 p. 3).
