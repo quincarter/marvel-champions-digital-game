@@ -53,6 +53,12 @@ export interface Correction {
    * confirms it). Without it the normalizer needs a `cardNotes` entry, which records a dash or zero, not a number.
    */
   readonly scheme?: number;
+  /**
+   * A minion's stats that print a dash (RRG 1.8 "Dash (Value)", p. 15), emitted as `null` rather than 0 (wave 8,
+   * docs/phase7-wave8.md §1.25: the Age of Apocalypse Overseer faces 45179a to 45183a print "–" for both ATK and SCH).
+   * MarvelCDB sends neither field for such a card, which is otherwise indistinguishable from a printed 0.
+   */
+  readonly dashedMinionStats?: readonly ("atk" | "sch")[];
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**

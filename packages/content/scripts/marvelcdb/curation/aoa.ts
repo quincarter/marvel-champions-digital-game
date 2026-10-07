@@ -8,9 +8,10 @@
  * scans enlarged; never wired into the data), "RRG" is the v1.8 rules reference, "survey" is
  * docs/phase7-wave8-data-survey.md, "spec" is docs/phase7-wave8.md.
  *
- * Left open on purpose (they wait on the campaign spec pass, not on a hack here): the mission side scheme b faces
- * 45166b to 45170b ("Finished.", survey gap 4), the `Mission Response` ability kind of 45180a to 45183a (gap 5),
- * Sidekick 45015's host (gap 2). The missing back face 45104b and 45104a's wrong link (gap 8) are `addedRecords` and
+ * Applied from the campaign spec pass (docs/phase7-wave8.md §1.31): the mission side scheme b faces 45166b to 45170b
+ * ("Finished.") are their own side schemes with a dash threat noted in `cardNotes`; the Overseer faces' dashes emit
+ * `null` (`dashedMinionStats`); `Mission Response` is a Forced Response in the parser.
+ * Left open on purpose (it waits on the hero pass of the spec): Sidekick 45015's host (gap 2). The missing back face 45104b and 45104a's wrong link (gap 8) are `addedRecords` and
  * `linkOverrides` below.
  */
 import type { RawCard } from "../raw-types.ts";
@@ -162,6 +163,46 @@ export const AOA_CURATION: PackCuration = {
         'Scan 45171a.png: support, Mission trait, no cost oval; footer "BASIC / CAMPAIGN 171A". Survey §4.6 (scan checked).',
       specialCost: "dash",
     },
+    {
+      code: "45179a",
+      reason:
+        "Mister Sinister's Overseer face prints a dash for both ATK and SCH; MarvelCDB sends neither, which reads the same as a printed 0.",
+      evidence:
+        'Scan 45179a.png: both stat badges empty. Spec §1.25: the ten dashes emit null (RRG 1.8 "Dash (Value)", p. 15).',
+      dashedMinionStats: ["atk", "sch"],
+    },
+    {
+      code: "45180a",
+      reason:
+        "The Shadow King's Overseer face prints a dash for both ATK and SCH; MarvelCDB sends neither, which reads the same as a printed 0.",
+      evidence:
+        'Scan 45180a.png: both stat badges empty. Spec §1.25: the ten dashes emit null (RRG 1.8 "Dash (Value)", p. 15).',
+      dashedMinionStats: ["atk", "sch"],
+    },
+    {
+      code: "45181a",
+      reason:
+        "Abyss's Overseer face prints a dash for both ATK and SCH; MarvelCDB sends neither, which reads the same as a printed 0.",
+      evidence:
+        'Scan 45181a.png: both stat badges empty. Spec §1.25: the ten dashes emit null (RRG 1.8 "Dash (Value)", p. 15).',
+      dashedMinionStats: ["atk", "sch"],
+    },
+    {
+      code: "45182a",
+      reason:
+        "Sugar Man's Overseer face prints a dash for both ATK and SCH; MarvelCDB sends neither, which reads the same as a printed 0.",
+      evidence:
+        'Scan 45182a.png: both stat badges empty. Spec §1.25: the ten dashes emit null (RRG 1.8 "Dash (Value)", p. 15).',
+      dashedMinionStats: ["atk", "sch"],
+    },
+    {
+      code: "45183a",
+      reason:
+        "Mikhail Rasputin's Overseer face prints a dash for both ATK and SCH; MarvelCDB sends neither, which reads the same as a printed 0.",
+      evidence:
+        'Scan 45183a.png: both stat badges empty. Spec §1.25: the ten dashes emit null (RRG 1.8 "Dash (Value)", p. 15).',
+      dashedMinionStats: ["atk", "sch"],
+    },
   ],
 
   addedRecords: [
@@ -206,22 +247,38 @@ export const AOA_CURATION: PackCuration = {
     },
   ],
 
-  // Scripting hand-off notes are survey §8 step 11; none yet.
-  scriptingNotes: {},
+  // Survey §8 step 11 writes the rest. Mission Response (spec §1.25) is a Forced Response that resolves only after a
+  // player discards cards from the top of their deck during a mission attempt (MC45 p. 5).
+  scriptingNotes: {
+    "45180a.the-shadow-king-forced-response": "answers the discard of a mission attempt only (spec §3.38).",
+    "45181a.abyss-forced-response": "answers the discard of a mission attempt only (spec §3.38).",
+    "45182a.sugar-man-forced-response": "answers the discard of a mission attempt only (spec §3.38).",
+    "45183a.mikhail-rasputin-forced-response": "answers the discard of a mission attempt only (spec §3.38).",
+  },
 
   cardNotes: {
     "45171a":
       "Mission Team prints no cost box (scan 45171a.png): a dash cost, 'specialCost: dash'. It is put into play by the campaign instructions, never played from a hand.",
     "45179a":
-      "Mister Sinister's Overseer face prints a dash for both SCH and ATK (scan 45179a.png: both stat badges empty, HP 5 per hero, Victory 5): it never schedules or attacks. The stat fields carry 0 and mean 'no value', as for Robert Kelly (32066).",
+      "Mister Sinister's Overseer face prints a dash for both SCH and ATK (scan 45179a.png, HP 5 per hero, Victory 5): it never schedules or attacks. Both stats emit null (spec §1.25), not 0.",
     "45180a":
-      "The Shadow King's Overseer face prints a dash for both SCH and ATK (scan 45180a.png, HP 5 per hero, Victory 5, Mission Response). The stat fields carry 0 and mean 'no value'.",
+      "The Shadow King's Overseer face prints a dash for both SCH and ATK (scan 45180a.png, HP 5 per hero, Victory 5): it never schedules or attacks. Both stats emit null (spec §1.25), not 0.",
     "45181a":
-      "Abyss's Overseer face prints a dash for both SCH and ATK (scan 45181a.png, HP 5 per hero, Victory 5, Mission Response). The stat fields carry 0 and mean 'no value'.",
+      "Abyss's Overseer face prints a dash for both SCH and ATK (scan 45181a.png, HP 5 per hero, Victory 5): it never schedules or attacks. Both stats emit null (spec §1.25), not 0.",
     "45182a":
-      "Sugar Man's Overseer face prints a dash for both SCH and ATK (scan 45182a.png, HP 5 per hero, Victory 5, Mission Response; the rulebook p. 5 callout shows 'ATK -' and 'SCH -' for this card). The stat fields carry 0 and mean 'no value'.",
+      "Sugar Man's Overseer face prints a dash for both SCH and ATK (scan 45182a.png, HP 5 per hero, Victory 5): it never schedules or attacks. Both stats emit null (spec §1.25), not 0.",
     "45183a":
-      "Mikhail Rasputin's Overseer face prints a dash for both SCH and ATK (scan 45183a.png, HP 5 per hero, Victory 5, Mission Response). The stat fields carry 0 and mean 'no value'.",
+      "Mikhail Rasputin's Overseer face prints a dash for both SCH and ATK (scan 45183a.png, HP 5 per hero, Victory 5): it never schedules or attacks. Both stats emit null (spec §1.25), not 0.",
+    "45166b":
+      "Liberate the Seattle Core, Finished face: the card prints a dash for its threat (spec §1.24). Emitted as startingThreat fixed(0); the engine never reads it, because nothing places threat here and the face does not outlast its own Forced Response.",
+    "45167b":
+      "Evacuate Survivors, Finished face: the card prints a dash for its threat (spec §1.24). Emitted as startingThreat fixed(0); the engine never reads it, because nothing places threat here and the face does not outlast its own Forced Response.",
+    "45168b":
+      "Sabotage the Sea Wall, Finished face: the card prints a dash for its threat (spec §1.24). Emitted as startingThreat fixed(0); the engine never reads it, because nothing places threat here and the face does not outlast its own Forced Response.",
+    "45169b":
+      "Find Lost Mutants, Finished face: the card prints a dash for its threat (spec §1.24). Emitted as startingThreat fixed(0); the engine never reads it, because nothing places threat here and the face does not outlast its own Forced Response.",
+    "45170b":
+      "Protect the Professor, Finished face: the card prints a dash for its threat (spec §1.24). Emitted as startingThreat fixed(0); the engine never reads it, because nothing places threat here and the face does not outlast its own Forced Response.",
   },
 
   // Later step (survey §8 step 5): the five scenarios.

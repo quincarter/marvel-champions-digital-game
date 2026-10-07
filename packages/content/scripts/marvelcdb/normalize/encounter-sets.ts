@@ -21,14 +21,27 @@ function campaignSetCode(r: {
 const OWN_STEP_TYPES: ReadonlySet<string> = new Set(["hero", "alter_ego", "villain", "leader", "main_scheme"]);
 
 /**
- * The encounter set a flip-side back face belongs to when it is not its front face's (the AoA Overseer minions
- * 45179a to 45183a: the Prelate b faces are in `prelates`, the a faces in `overseer`). Only a same-type, hidden,
- * nested encounter face qualifies, the same shape `readFlipSide` turns into a `flipSide`. Absent for every card
- * whose two faces share a set.
+ * A nested `linked_card` that is emitted as its own card, with `otherFaceId` both ways, rather than as a `flipSide`
+ * (docs/phase7-wave8.md §1.25, the normalizer rule): a hidden nested face of the same type that is a minion, or whose
+ * `card_set_code` differs from its parent's. `CardFlipSide` holds no ATK, SCH, hit points, boost icons or encounter
+ * set, which is exactly what the Age of Apocalypse Overseer minion faces (`overseer` 45179a to 45183a) and their
+ * Prelate faces (`prelates` 45179b to 45183b) differ in. Side scheme pairs are split by their own rule in
+ * `single-cards.ts`; hero, villain and main scheme records have their own steps.
+ */
+export function splitsIntoTwoCards(r: RawCard): boolean {
+  const b = r.linked_card;
+  if (!b || !b.hidden || b.type_code !== r.type_code || OWN_STEP_TYPES.has(r.type_code)) return false;
+  return r.type_code === "minion" || (b.card_set_code ?? null) !== (r.card_set_code ?? null);
+}
+
+/**
+ * The encounter set a card's nested back face names when it is not its front face's, so that a set only back faces
+ * belong to (`prelates`, no top-level record) is still created and named. Absent for every card whose two faces share
+ * a set or that is not split into two cards.
  */
 export function backFaceSet(r: RawCard): { readonly code: string; readonly name: string } | undefined {
   const b = r.linked_card;
-  if (!b || !b.hidden || b.type_code !== r.type_code || OWN_STEP_TYPES.has(r.type_code)) return undefined;
+  if (!b || !splitsIntoTwoCards(r)) return undefined;
   if (r.faction_code !== "encounter" || b.faction_code !== "encounter") return undefined;
   if (!b.card_set_code || b.card_set_code === r.card_set_code) return undefined;
   return { code: b.card_set_code, name: b.card_set_name ?? b.card_set_code };

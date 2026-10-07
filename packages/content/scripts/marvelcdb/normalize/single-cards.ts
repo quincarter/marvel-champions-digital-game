@@ -15,6 +15,7 @@ import {
   type NormalizeContext,
 } from "./context.ts";
 import { normalizeEncounterCard } from "./encounter-cards.ts";
+import { splitsIntoTwoCards } from "./encounter-sets.ts";
 import { normalizePlayerCard } from "./player-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
@@ -31,13 +32,20 @@ export function normalizeSingleCards(
     // game — a campaign setup instruction picks the standard or expert face. The Galaxy's Most Wanted's five
     // Campaign Challenge side schemes (16178a/b–16182a/b) print a standard and an expert face with different
     // threat, keywords and text, so each face is emitted as its own `SideSchemeCard` instead.
-    if (r.type_code === "side_scheme" && r.linked_card?.type_code === "side_scheme" && r.linked_card.hidden) {
+    // The same shape for a nested minion face or a face in another encounter set (docs/phase7-wave8.md §1.25:
+    // Overseer 45179a to 45183a and their Prelate faces): `splitsIntoTwoCards`.
+    if (
+      r.linked_card &&
+      ((r.type_code === "side_scheme" && r.linked_card.type_code === "side_scheme" && r.linked_card.hidden) ||
+        splitsIntoTwoCards(r))
+    ) {
       // docs/phase7-wave4.md §1.7: back-filled with `otherFaceId` cross-references, even though the wave 3 pass
       // that first emitted this shape (16178a/b-16182a/b) had no link between the two faces — a same-type "double
       // face" is the degenerate case of the cross-type shape just below (both faces happen to be `side_scheme`),
       // so it gets the same treatment for free.
-      for (const face of [r, r.linked_card]) {
-        const other = face === r ? r.linked_card : r;
+      const linked = r.linked_card;
+      for (const face of [r, linked]) {
+        const other = face === r ? linked : r;
         const p = prepare(ctx, face);
         const parsed = parse(ctx, p);
         const common = { ...baseFields(ctx, p, face.code, [face.code]), otherFaceId: brand("card", other.code) };

@@ -163,7 +163,7 @@ export interface ParseOptions {
   readonly extraConstantFrom?: string;
 }
 
-const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -246,6 +246,11 @@ function kindOf(rawTrigger: string): KindResult {
       return withForm("forced-action");
     case "Forced Response":
       return withForm("forced-response");
+    // docs/phase7-wave8.md §1.25 (MC45 p. 5): "a new type of Forced Response that only resolves after a player discards
+    // cards from the top of their deck during a mission attempt". No ability kind of its own; the printed header stays
+    // in the card's text.
+    case "Mission Response":
+      return { kind: "forced-response" };
     case "Forced Interrupt":
       return withForm("forced-interrupt");
     case "Special":

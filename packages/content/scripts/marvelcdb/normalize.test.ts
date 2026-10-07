@@ -246,9 +246,16 @@ describe("Correction.scheme (minion SCH MarvelCDB omits)", () => {
   });
 });
 
-describe("a back face in a different encounter set (Overseer / Prelates)", () => {
-  it("creates the set only back faces belong to, named from the face, and puts the card in it", () => {
-    const { ctx, encounterSets } = run([VELOCIRAPTOR, MISTER_SINISTER], [schemeCorrection]);
+const dashCorrection: Correction = {
+  code: "45179a",
+  dashedMinionStats: ["atk", "sch"],
+  reason: "MarvelCDB sends neither ATK nor SCH for a printed dash",
+  evidence: "scan: assets/card-art/bundles/cards/45179a.png, both stat badges empty",
+};
+
+describe("a nested minion face in another encounter set is its own card (Overseer / Prelates, spec §1.25)", () => {
+  it("emits two minions, each in the set its own record names, naming each other by otherFaceId", () => {
+    const { ctx, encounterSets } = run([VELOCIRAPTOR, MISTER_SINISTER], [schemeCorrection, dashCorrection]);
     expect(ctx.errors).toEqual([]);
     expect(encounterSets.map((s) => [s.id, s.name])).toEqual([
       ["overseer", "Overseer"],
@@ -257,20 +264,134 @@ describe("a back face in a different encounter set (Overseer / Prelates)", () =>
     ]);
     const inSet = (id: string) =>
       ctx.cards.flatMap((c) => ("encounterSetIds" in c && c.encounterSetIds.includes(id as never) ? [c.id] : []));
-    expect(inSet("prelates")).toEqual(["45179a"]);
     expect(inSet("overseer")).toEqual(["45179a"]);
+    expect(inSet("prelates")).toEqual(["45179b"]);
     expect(inSet("savage_land")).toEqual(["45129"]);
+    const a = ctx.cards.find((c) => c.id === "45179a");
+    const b = ctx.cards.find((c) => c.id === "45179b");
+    expect(a?.type === "minion" && a.otherFaceId).toBe("45179b");
+    expect(b?.type === "minion" && b.otherFaceId).toBe("45179a");
+    expect(a?.type === "minion" && a.flipSide).toBeUndefined();
+    expect(b?.type === "minion" && b.flipSide).toBeUndefined();
   });
 
-  it("leaves a card whose two faces share a set alone", () => {
+  it("gives the Prelate face its own ATK, SCH, hit points, boost icons and Victory", () => {
+    const { ctx } = run([MISTER_SINISTER], [dashCorrection]);
+    const b = ctx.cards.find((c) => c.id === "45179b");
+    expect(b?.type).toBe("minion");
+    if (b?.type !== "minion") return;
+    expect([b.atk, b.sch, b.hp, b.boostIcons]).toEqual([1, 1, 5, 3]);
+    expect(b.traits).toEqual(["ELITE", "PRELATE"]);
+    expect(b.keywords.map((k) => k.name)).toEqual(["retaliate", "toughness", "villainous", "victory"]);
+    expect(b.keywords.find((k) => k.name === "victory")).toMatchObject({ value: 3 });
+  });
+
+  it("dashes are null: Correction.dashedMinionStats emits atk and sch as null, not 0", () => {
+    const { ctx } = run([MISTER_SINISTER], [dashCorrection]);
+    const a = ctx.cards.find((c) => c.id === "45179a");
+    expect(a?.type === "minion" && [a.atk, a.sch, a.hp]).toEqual([null, null, 5]);
+    expect(a?.type === "minion" && a.encounterSetIds).toEqual(["overseer"]);
+  });
+
+  it("splits a nested minion face even when both faces share a set", () => {
     const same = {
       ...MISTER_SINISTER,
       linked_card: { ...MISTER_SINISTER.linked_card, card_set_code: "overseer", card_set_name: "Overseer" },
     } as RawCard;
-    const { ctx, encounterSets } = run([same]);
+    const { ctx, encounterSets } = run([same], [dashCorrection]);
     expect(encounterSets.map((s) => s.id)).toEqual(["overseer"]);
-    const card = ctx.cards[0];
-    expect(card && "encounterSetIds" in card && card.encounterSetIds).toEqual(["overseer"]);
+    expect(ctx.cards.map((c) => [c.id, "encounterSetIds" in c && c.encounterSetIds])).toEqual([
+      ["45179a", ["overseer"]],
+      ["45179b", ["overseer"]],
+    ]);
+  });
+});
+
+/** The real MarvelCDB records for the first mission (`aoa`): the b face prints a dash threat. */
+const LIBERATE_THE_SEATTLE_CORE = {
+  pack_code: "aoa",
+  pack_name: "Age of Apocalypse",
+  pack_wave: 8,
+  type_code: "side_scheme",
+  type_name: "Side Scheme",
+  faction_code: "encounter",
+  faction_name: "Encounter",
+  card_set_code: "aoa_mission",
+  card_set_name: "Mission",
+  card_set_type_name_code: "modular",
+  linked_to_code: "45166b",
+  position: 166,
+  set_position: 1,
+  code: "45166a",
+  name: "Liberate the Seattle Core",
+  real_name: "Liberate the Seattle Core",
+  text: "<b>Forced Response</b>: After you resolve a mission attempt, place 1 attempt counter here and deal 1 damage to each ally at the mission. If there are 4 attempt counters here, remove Mission Team from the game and flip this card over.\n<b>When Defeated</b>: Shuffle each player card at the mission into its owner's deck. Flip Mission Team and this card over.",
+  real_text:
+    "<b>Forced Response</b>: After you resolve a mission attempt, place 1 attempt counter here and deal 1 damage to each ally at the mission. If there are 4 attempt counters here, remove Mission Team from the game and flip this card over.\n<b>When Defeated</b>: Shuffle each player card at the mission into its owner's deck. Flip Mission Team and this card over.",
+  quantity: 1,
+  base_threat: 5,
+  base_threat_fixed: false,
+  base_threat_per_group: false,
+  traits: "Mission.",
+  real_traits: "Mission.",
+  hidden: false,
+  imagesrc: "/bundles/cards/45166a.png",
+  linked_card: {
+    pack_code: "aoa",
+    pack_name: "Age of Apocalypse",
+    pack_wave: 8,
+    type_code: "side_scheme",
+    type_name: "Side Scheme",
+    faction_code: "encounter",
+    faction_name: "Encounter",
+    card_set_code: "aoa_mission",
+    card_set_name: "Mission",
+    card_set_type_name_code: "modular",
+    position: 166,
+    set_position: 1,
+    code: "45166b",
+    name: "Liberate the Seattle Core",
+    real_name: "Liberate the Seattle Core",
+    text: '<p><b>Forced Response</b>: After you flip to this side, remove each card in the mission area from the game and do the following:</p><p>• If the mission was not defeated, place 2<span class="icon-per_hero" title="Per-Hero"></span> threat on the main scheme.</p><p>• If the mission was defeated, each player adds 1 copy of the Desperate Measures upgrade to their hand.</p>',
+    real_text:
+      "<b>Forced Response</b>: After you flip to this side, remove each card in the mission area from the game and do the following:\n• If the mission was not defeated, place 2[per_hero] threat on the main scheme.\n• If the mission was defeated, each player adds 1 copy of the Desperate Measures upgrade to their hand.",
+    quantity: 1,
+    base_threat: null,
+    base_threat_fixed: true,
+    base_threat_per_group: false,
+    traits: "Finished.",
+    real_traits: "Finished.",
+    hidden: true,
+    imagesrc: "/bundles/cards/45166b.png",
+  },
+} as unknown as RawCard;
+
+describe('the mission b face ("Finished.", spec §1.24)', () => {
+  it("is its own side scheme with fixed 0 threat once a cardNotes entry records the printed dash", () => {
+    const curation = {
+      ...bareCuration("aoa", LIBERATE_THE_SEATTLE_CORE),
+      cardNotes: { "45166b": "prints a dash for its threat" },
+    };
+    const ctx = createContext([LIBERATE_THE_SEATTLE_CORE], curation);
+    normalizeSingleCards(ctx, new Map());
+    expect(ctx.errors).toEqual([]);
+    const a = ctx.cards.find((c) => c.id === "45166a");
+    const b = ctx.cards.find((c) => c.id === "45166b");
+    expect(a?.type === "side_scheme" && [a.otherFaceId, a.startingThreat]).toEqual([
+      "45166b",
+      { base: 0, perPlayer: 5 },
+    ]);
+    expect(b?.type === "side_scheme" && [b.otherFaceId, b.startingThreat, b.traits]).toEqual([
+      "45166a",
+      { base: 0, perPlayer: 0 },
+      ["FINISHED"],
+    ]);
+  });
+
+  it("without a cardNotes entry the dash threat is still reported", () => {
+    const ctx = createContext([LIBERATE_THE_SEATTLE_CORE], bareCuration("aoa", LIBERATE_THE_SEATTLE_CORE));
+    normalizeSingleCards(ctx, new Map());
+    expect(ctx.errors).toEqual(["45166b: side scheme without starting threat"]);
   });
 });
 
@@ -497,6 +618,7 @@ function normalizeAoa(raw: readonly RawCard[], extra: Partial<PackCuration> = {}
     corrections: [],
     errata: [],
     cardNotes: {},
+    scriptingNotes: {},
     encounterSets: {},
     addedRecords: [ADDED],
     linkOverrides: [LINK],

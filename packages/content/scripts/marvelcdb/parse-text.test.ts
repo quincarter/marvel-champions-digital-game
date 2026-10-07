@@ -521,3 +521,34 @@ describe("parseCardText: an attach host ends where its behavioral clause starts"
     expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Hammer and Anvil" });
   });
 });
+
+/**
+ * docs/phase7-wave8.md §1.25 (MC45 p. 5): "Mission Response" is "a new type of Forced Response", so it parses as a
+ * `forced-response`, header kept in the text. Before this it fell through as a silent constant ability. The raw text is
+ * the real `aoa` 45180a, cleaned by `toPlainText`.
+ */
+describe("Mission Response (Age of Apocalypse Overseer minions)", () => {
+  const shadowKing = toPlainText(
+    "Victory 5.\nCannot take damage while another minion is at the mission.\n<b>Mission Response</b>: After you discard cards, place 2 threat on the [[Mission]] side scheme for each mental resource ([mental]) discarded.",
+  );
+
+  it("is a forced-response, with the printed header in the ability text", () => {
+    const parsed = parseCardText(shadowKing, { villainNames: new Set() });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toEqual([
+      { kind: "constant", text: "Cannot take damage while another minion is at the mission." },
+      {
+        kind: "forced-response",
+        text: "Mission Response: After you discard cards, place 2 threat on the Mission side scheme for each mental resource ([mental]) discarded.",
+      },
+    ]);
+  });
+
+  it("leaves Mister Sinister's plain line a constant ability", () => {
+    const text = toPlainText(
+      "Victory 5.\nCannot take damage while another minion is at the mission.\nPlayers cannot assign cards with the same resource icon ([energy], [mental], [physical], or [wild]) to more than one ally each mission attempt.",
+    );
+    const parsed = parseCardText(text, { villainNames: new Set() });
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant", "constant"]);
+  });
+});
