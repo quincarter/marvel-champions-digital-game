@@ -13,7 +13,7 @@ import type { PackCuration } from "./types.ts";
 
 export const JUBILEE_CURATION: PackCuration = {
   packCode: "jubilee",
-  cycle: { id: "cycle8", name: "Cycle 8", order: 8 },
+  cycle: { id: "cycle8", name: "Age of Apocalypse", order: 8 },
   pack: {
     name: "Jubilee",
     releaseDate: "2024-07-19",

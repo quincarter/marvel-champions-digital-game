@@ -12,6 +12,7 @@ import { AOA_CARDS } from "./aoa/cards.js";
 import { AOA_ENCOUNTER_SETS } from "./aoa/encounterSets.js";
 import { AOA_SCENARIOS } from "./aoa/scenarios.js";
 import { AOA_STARTER_DECKS } from "./aoa/starterDecks.js";
+import { CORE_CARDS } from "./core/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
 import { ICEMAN_CARDS } from "./iceman/cards.js";
 import { ICEMAN_STARTER_DECKS } from "./iceman/starterDecks.js";
@@ -23,6 +24,20 @@ import { MAGNETO_STARTER_DECKS } from "./magneto/starterDecks.js";
 import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
 import { NCRAWLER_STARTER_DECKS } from "./ncrawler/starterDecks.js";
 import { WOLV_CARDS } from "./wolv/cards.js";
+import {
+  CAMPAIGNS,
+  DATA_ONLY_CARDS,
+  AOA_CYCLE,
+  ICEMAN_CYCLE,
+  JUBILEE_CYCLE,
+  MAGNETO_CYCLE,
+  NCRAWLER_CYCLE,
+  PLAYABLE_CARDS,
+  WAVE8_CARDS,
+  WAVE8_ENCOUNTER_SETS,
+  WAVE8_SCENARIOS,
+  WAVE8_STARTER_DECKS,
+} from "./index.js";
 
 /** RRG 1.8 p. 69 errata for the Wave 8 hero packs: printed text is kept, current text follows the errata. */
 const cases = [
@@ -429,5 +444,46 @@ describe("Iceman starter deck (Frostbite is Permanent, set aside, not counted)",
     const t = card("46005").text;
     expect(t.current).toContain("the ICE trait");
     expect(t.printed).toContain("the ICE trait");
+  });
+});
+
+describe("Wave 8 pool wiring (docs/phase7-wave8.md)", () => {
+  const own = WAVE8_CARDS.slice(CORE_CARDS.length);
+
+  it("WAVE8_CARDS is Core plus the five packs: 346 own cards", () => {
+    expect(WAVE8_CARDS.slice(0, CORE_CARDS.length)).toEqual(CORE_CARDS);
+    expect(own).toHaveLength(346);
+    expect(own).toHaveLength(
+      AOA_CARDS.length + ICEMAN_CARDS.length + JUBILEE_CARDS.length + NCRAWLER_CARDS.length + MAGNETO_CARDS.length,
+    );
+    const ids = WAVE8_CARDS.map((c) => c.id as string);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("31 encounter sets, 5 scenarios and 6 starter decks", () => {
+    expect(WAVE8_ENCOUNTER_SETS).toHaveLength(31);
+    expect(WAVE8_SCENARIOS).toHaveLength(5);
+    expect(WAVE8_SCENARIOS).toEqual(AOA_SCENARIOS);
+    expect(WAVE8_STARTER_DECKS).toHaveLength(6);
+  });
+
+  it('every wave 8 card is in cycle8, whose name is "Age of Apocalypse" in all five packs, and passes validateCard', () => {
+    for (const cycle of [AOA_CYCLE, ICEMAN_CYCLE, JUBILEE_CYCLE, NCRAWLER_CYCLE, MAGNETO_CYCLE]) {
+      expect(cycle).toEqual({ id: "cycle8", name: "Age of Apocalypse", order: 8 });
+    }
+    expect(own.filter((c) => (c.cycleId as string) !== "cycle8").map((c) => c.id)).toEqual([]);
+    expect(own.flatMap((c) => validateCard(c).errors.map((e) => `${c.id}: ${e}`))).toEqual([]);
+  });
+
+  it("is in PLAYABLE_CARDS exactly once and out of the data-only pool", () => {
+    const playable = new Set(PLAYABLE_CARDS.map((c) => c.id as string));
+    for (const c of own) expect(playable.has(c.id as string), c.id as string).toBe(true);
+    expect(PLAYABLE_CARDS.length).toBe(playable.size);
+    const dataOnly = new Set(DATA_ONLY_CARDS.map((c) => c.id as string));
+    for (const c of own) expect(dataOnly.has(c.id as string), c.id as string).toBe(false);
+  });
+
+  it("AOA_CAMPAIGN is not registered in CAMPAIGNS yet (no client story)", () => {
+    expect(CAMPAIGNS.map((c) => c.id)).not.toContain(AOA_CAMPAIGN.id);
   });
 });

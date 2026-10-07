@@ -22,7 +22,7 @@ import type { PackCuration } from "./types.ts";
 
 export const ICEMAN_CURATION: PackCuration = {
   packCode: "iceman",
-  cycle: { id: "cycle8", name: "Cycle 8", order: 8 },
+  cycle: { id: "cycle8", name: "Age of Apocalypse", order: 8 },
   pack: {
     name: "Iceman",
     releaseDate: "2024-05-17",

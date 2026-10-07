@@ -598,6 +598,78 @@ export const WAVE7_STARTER_DECKS: readonly StarterDeck[] = [
   ...DEADPOOL_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 8 (PLAN.md Phase 7, docs/phase7-wave8.md): cycle 8, Age of Apocalypse. `aoa` (the campaign box: Bishop and
+// Magik, five scenarios and the campaign record) and the four hero packs (`iceman`, `jubilee`, `ncrawler`,
+// `magneto`). Declared here (before `PLAYABLE_CARDS`, which reads `WAVE8_CARDS`) for the same source-order reason as
+// the earlier waves. Pool membership is not a claim that a pack is scripted: `unscriptedCards` keeps unscripted
+// precons from being seated, and the client's `pool.ts` decides which scenarios and precons it offers.
+// `AOA_CAMPAIGN` is exported by `./aoa/index.js` but not registered in `CAMPAIGNS` until the box is scripted.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./aoa/index.js";
+export * from "./iceman/index.js";
+export * from "./jubilee/index.js";
+export * from "./ncrawler/index.js";
+export * from "./magneto/index.js";
+
+import { AOA_CARDS } from "./aoa/cards.js";
+import { AOA_ENCOUNTER_SETS } from "./aoa/encounterSets.js";
+import { AOA_SCENARIOS } from "./aoa/scenarios.js";
+import { AOA_STARTER_DECKS } from "./aoa/starterDecks.js";
+import { ICEMAN_CARDS } from "./iceman/cards.js";
+import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
+import { ICEMAN_SCENARIOS } from "./iceman/scenarios.js";
+import { ICEMAN_STARTER_DECKS } from "./iceman/starterDecks.js";
+import { JUBILEE_CARDS } from "./jubilee/cards.js";
+import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
+import { JUBILEE_SCENARIOS } from "./jubilee/scenarios.js";
+import { JUBILEE_STARTER_DECKS } from "./jubilee/starterDecks.js";
+import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
+import { NCRAWLER_ENCOUNTER_SETS } from "./ncrawler/encounterSets.js";
+import { NCRAWLER_SCENARIOS } from "./ncrawler/scenarios.js";
+import { NCRAWLER_STARTER_DECKS } from "./ncrawler/starterDecks.js";
+import { MAGNETO_CARDS } from "./magneto/cards.js";
+import { MAGNETO_ENCOUNTER_SETS } from "./magneto/encounterSets.js";
+import { MAGNETO_SCENARIOS } from "./magneto/scenarios.js";
+import { MAGNETO_STARTER_DECKS } from "./magneto/starterDecks.js";
+
+/** Every card in the wave 8 (cycle 8) pool: Core plus the five packs, in release order. A sibling pool that starts from Core, like `WAVE7_CARDS`. */
+export const WAVE8_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...AOA_CARDS,
+  ...ICEMAN_CARDS,
+  ...JUBILEE_CARDS,
+  ...NCRAWLER_CARDS,
+  ...MAGNETO_CARDS,
+];
+
+/** Every wave 8 encounter set (Core's own villain sets are not included). */
+export const WAVE8_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...AOA_ENCOUNTER_SETS,
+  ...ICEMAN_ENCOUNTER_SETS,
+  ...JUBILEE_ENCOUNTER_SETS,
+  ...NCRAWLER_ENCOUNTER_SETS,
+  ...MAGNETO_ENCOUNTER_SETS,
+];
+
+/** Every wave 8 scenario: Age of Apocalypse's five (the hero packs define none of their own). */
+export const WAVE8_SCENARIOS: readonly Scenario[] = [
+  ...AOA_SCENARIOS,
+  ...ICEMAN_SCENARIOS,
+  ...JUBILEE_SCENARIOS,
+  ...NCRAWLER_SCENARIOS,
+  ...MAGNETO_SCENARIOS,
+];
+
+/** Every wave 8 starter deck: Bishop and Magik (`aoa`), plus the four hero packs' own. */
+export const WAVE8_STARTER_DECKS: readonly StarterDeck[] = [
+  ...AOA_STARTER_DECKS,
+  ...ICEMAN_STARTER_DECKS,
+  ...JUBILEE_STARTER_DECKS,
+  ...NCRAWLER_STARTER_DECKS,
+  ...MAGNETO_STARTER_DECKS,
+];
+
 /**
  * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle
  * 3 packs, then the five cycle 4 packs shipped so far (`sm`, `nova`, `ironheart`, `spiderham`, `spdr` — `silk`, also
@@ -617,6 +689,7 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE5_CARDS.slice(CORE_CARDS.length),
   ...WAVE6_CARDS.slice(CORE_CARDS.length),
   ...WAVE7_CARDS.slice(CORE_CARDS.length),
+  ...WAVE8_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**
@@ -647,13 +720,6 @@ export const CAMPAIGNS: readonly Campaign[] = [
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
-// Wave 8 (PLAN.md Phase 7, docs/phase7-wave8.md): cycle 8, Age of Apocalypse. `aoa` (the campaign box: Bishop and
-// Magik, five scenarios and the campaign record) is emitted data only for now: its `AOA_*` exports come from the
-// pack's index, with no `WAVE8_*` aggregates, no `PLAYABLE_CARDS` entry and no `CAMPAIGNS` entry until the wiring step.
-// ---------------------------------------------------------------------------------------------------------------
-export * from "./aoa/index.js";
-
-// ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
 // scope decided": every pack beyond Core, wave 1 and cycle 1 is card data the deck builder can show and
 // `validateDeck` can judge — NOT playable, because no ability script exists for any of these cards yet
@@ -665,36 +731,24 @@ export * from "./aoa/index.js";
 // fully curated already and unblocked by the `HostMeasure "thw"` parser mapping landing.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./bp/index.js";
-export * from "./ncrawler/index.js";
-export * from "./magneto/index.js";
 export * from "./winter/index.js";
 export * from "./falcon/index.js";
 export * from "./silk/index.js";
-export * from "./iceman/index.js";
 export * from "./wonder_man/index.js";
-export * from "./jubilee/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
-import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
-import { NCRAWLER_ENCOUNTER_SETS } from "./ncrawler/encounterSets.js";
-import { MAGNETO_CARDS } from "./magneto/cards.js";
-import { MAGNETO_ENCOUNTER_SETS } from "./magneto/encounterSets.js";
 import { WINTER_CARDS } from "./winter/cards.js";
 import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
 import { FALCON_CARDS } from "./falcon/cards.js";
 import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
 import { SILK_CARDS } from "./silk/cards.js";
 import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
-import { ICEMAN_CARDS } from "./iceman/cards.js";
-import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
 import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
 import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
-import { JUBILEE_CARDS } from "./jubilee/cards.js";
-import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
 
 /**
- * Every card in the data-only pool: nine packs across cycles 8, 9 and 10, in pack-code alphabetical
+ * Every card in the data-only pool: five packs across cycles 9 and 10, in pack-code alphabetical
  * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
  * `WAVE3_CARDS`/`WAVE4_CARDS`/`WAVE5_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/
  * `WAVE4_CARDS`/`WAVE5_CARDS`/`CORE_CARDS` — a client that wants "every known card, playable or not" concatenates
@@ -705,29 +759,22 @@ import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
  * cycle 4, stays here until its own kit is scripted (this pool's own header comment); `mut_gen`, `cyclops`,
  * `phoenix`, `wolv`, `storm`, `mojo`, `gambit` and `rogue` (cycle 6) moved into `WAVE6_*` once wave 6 scripted
  * them (docs/phase7-wave6.md); `psylocke`, `angel`, `x23` and `deadpool` (cycle 7) moved into `WAVE7_*` with
- * `next_evol` (docs/phase7-wave7.md).
+ * `next_evol` (docs/phase7-wave7.md); `iceman`, `jubilee`, `ncrawler` and `magneto` (cycle 8) moved into `WAVE8_*` with
+ * `aoa` (docs/phase7-wave8.md).
  */
 export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
-  ...JUBILEE_CARDS,
-  ...NCRAWLER_CARDS,
-  ...MAGNETO_CARDS,
   ...WINTER_CARDS,
   ...FALCON_CARDS,
   ...SILK_CARDS,
-  ...ICEMAN_CARDS,
   ...WONDER_MAN_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
 export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...BP_ENCOUNTER_SETS,
-  ...JUBILEE_ENCOUNTER_SETS,
-  ...NCRAWLER_ENCOUNTER_SETS,
-  ...MAGNETO_ENCOUNTER_SETS,
   ...WINTER_ENCOUNTER_SETS,
   ...FALCON_ENCOUNTER_SETS,
   ...SILK_ENCOUNTER_SETS,
-  ...ICEMAN_ENCOUNTER_SETS,
   ...WONDER_MAN_ENCOUNTER_SETS,
 ];

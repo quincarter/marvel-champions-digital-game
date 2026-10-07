@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const NCRAWLER_CYCLE: Cycle = { id: cycleId("cycle8"), name: "Cycle 8", order: 8 };
+export const NCRAWLER_CYCLE: Cycle = { id: cycleId("cycle8"), name: "Age of Apocalypse", order: 8 };
 
 /** Release date source: Hall of Heroes Nightcrawler page (https://hallofheroeslcg.com/nightcrawler-kurt-wagner/): "Release date: September 20, 2024" */
 export const NCRAWLER_PACK: Pack = {

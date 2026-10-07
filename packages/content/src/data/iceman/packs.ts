@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const ICEMAN_CYCLE: Cycle = { id: cycleId("cycle8"), name: "Cycle 8", order: 8 };
+export const ICEMAN_CYCLE: Cycle = { id: cycleId("cycle8"), name: "Age of Apocalypse", order: 8 };
 
 /** Release date source: Hall of Heroes Iceman/Bobby Drake page (https://hallofheroeslcg.com/iceman-bobby-drake/): "Release date: May 17, 2024" */
 export const ICEMAN_PACK: Pack = { code: setCode("iceman"), name: "Iceman", cycleId: cycleId("cycle8"), releaseDate: "2024-05-17" };
