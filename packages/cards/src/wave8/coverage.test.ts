@@ -13,10 +13,12 @@ import { WAVE8_ABILITIES } from "./index.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
+import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
+import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
 import { NIGHTCRAWLER_IDENTITY } from "./ncrawler/nightcrawler/identity.js";
 
 describe("wave 8 ability registry", () => {
@@ -60,9 +62,36 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
   ],
+  iceman: [{ module: "iceman/identity", cardIds: ["46001a", "46001b"], registry: ICEMAN_IDENTITY, skipped: {} }],
   jubilee: [{ module: "jubilee/identity", cardIds: ["47001a", "47001b"], registry: JUBILEE_IDENTITY, skipped: {} }],
   ncrawler: [
     { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
+    {
+      module: "aspect-basic",
+      cardIds: [
+        "48012",
+        "48013",
+        "48014",
+        "48015",
+        "48016",
+        "48017",
+        "48018",
+        "48019",
+        "48020",
+        "48021",
+        "48022",
+        "48023",
+        "48024",
+        "48025",
+        "48031",
+        "48032",
+      ],
+      registry: NCRAWLER_ASPECT_BASIC,
+      skipped: {
+        "48012.rogue-action":
+          "cost picks another friendly character of any player and deals it damage (dealt, paid even if prevented); no cost does that: docs/phase7-wave8.md §3.74",
+      },
+    },
   ],
 };
 
