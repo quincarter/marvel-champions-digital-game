@@ -3,8 +3,8 @@
 This is the shared brief for every agent working Phase 7's eighth content wave (`card-data-pipeline`,
 `game-rules-architect`, `ability-scripting-engineer`, `encounter-ai-designer`, `rules-qa-engineer`,
 `game-client-engineer`). It turns the wave's scope into schema decisions (§1), per-scenario setup needs (§2), a list of
-engine primitives with a status each (§3) and open questions with proposed defaults (§4). The model is
-`docs/phase7-wave7.md`; wave 1–7 §3 primitives are assumed. The definition of done is
+engine primitives with a status each (§3), open questions with the owner's answers (§4) and the build order (§8). The
+model is `docs/phase7-wave7.md`; wave 1–7 §3 primitives are assumed. The definition of done is
 `docs/wave-definition-of-done.md`: **the box's campaign ships in this wave.** If you change a decision here, update this
 file in the same change. Agents do not edit statuses or open questions; they report, and the main session flips them.
 
@@ -21,7 +21,7 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
 | **2a** | **Bishop, Magik and the box's player cards**                                                             | **written** |
 | **2b** | **Iceman, Jubilee**                                                                                      | **written** |
 | **2c** | **Nightcrawler, Magneto**                                                                                | **written** |
-| 3      | Ordered engine build queue                                                                               | placeholder |
+| **3**  | **The owner's answers 11 to 40 written in and reconciled; the build order (§8)**                         | **written** |
 
 - **Pass 1a's content.** MC45 p. 3 ("New Rules": find; "Featured Keywords"; the victory display; the amplify icon; the
   Standard III encounter set); scenario 1 Unus (villain 45059–45061, main scheme 45062a/b, set `unus` 45063–45068)
@@ -68,13 +68,19 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
   set Hellfire Club (`hellfire` 49038–49042). 80 raw records and the two nested alter-ego faces, every one read, and a
   scan read for 74 of the 82 faces (§0.5); both packs' rules inserts, which are not in the repo; the five RRG p. 69
   errata, already in the curations. Sections 0.5, 3.71–3.81, questions 41–46, §5.5, §7.4 and §7.5. No schema change.
-- **Not yet written:** the build order (pass 3), which starts from the list in §6. Placeholders are marked **(pass N)**;
-  a card of a later pass is named here only to show that a primitive composes.
-- **Data state (2026-10-07):** `iceman`, `jubilee`, `ncrawler` and `magneto` are emitted as data-only packs under
-  `packages/content/src/data/`; `aoa` is raw only (`packages/content/raw/marvelcdb/aoa.json`, 195 records). The data
-  survey (`docs/phase7-wave8-data-survey.md`) landed after pass 1a; pass 1b answers its gaps 3, 7, 8, 14 and 17 and
-  its open questions 3 and 5 (§1.12–§1.22); pass 1c answers its gaps 4, 5, 6, 9, 10, 11 and 19 and its open questions
-  2, 3 and 10 (§1.23–§1.31).
+- **Pass 3's content.** The owner's answers to questions 11 to 40 in §4.1; every passage and test that assumed
+  default A rewritten for the seven answers that are B (Q9, Q14, Q19, Q22, Q26, Q31, Q33), with the notes on Q1, Q5,
+  Q13 and Q16; §1.4, §1.6, §1.10, §1.16, §1.18, §1.21, §2.3, §2.7 and §2.8 brought into line with the emitted data
+  (eight one-stage Horsemen joined by `sideBCardId`, main scheme ids on the a cards, `setAsideCardIds`); and §8, the
+  build order: the data left, 43 engine tasks, the proof for each "exists" row, the scripting order and the campaign,
+  client and Guided mode work. Questions 41 to 46 are open. A card of a later pass named in an earlier section is
+  there only to show that a primitive composes.
+- **Data state (2026-10-07, HEAD e9805f4b):** all five packs are emitted under `packages/content/src/data/` (`aoa`:
+  194 cards, 23 sets, 5 scenarios, 2 starter decks), with six starter decks, `AOA_CAMPAIGN` and the `WAVE8_*`
+  exports; the wave is in `PLAYABLE_CARDS` and listed as unscripted. What is left for the data agent is §8.1. The
+  data survey (`docs/phase7-wave8-data-survey.md`) landed after pass 1a; pass 1b answers its gaps 3, 7, 8, 14 and 17
+  and its open questions 3 and 5 (§1.12–§1.22); pass 1c answers its gaps 4, 5, 6, 9, 10, 11 and 19 and its open
+  questions 2, 3 and 10 (§1.23–§1.31).
 
 ## 0. Sources
 
@@ -329,14 +335,15 @@ Q23).
      currently resolving card enters the discard pile" (RRG p. 33; §3.48 test 5). **January 26, 2026 – Ruling 4 (7)**
      and **March 19, 2026 – Ruling 4**, a hero and an ally with the same title and no matching subtitle or alter-ego
      title "do not match" (RRG p. 45; §3.58). **February 28, 2026 – Ruling 7 (2)**, a card that was not in play when
-     another was revealed does not give it surge (Portal Through Time, §7.1). **March 19, 2026 – Ruling 5**, an
-     ability that reads a hidden top card "can trigger (paying cost with incomplete information …)" (the nearest
-     ruling to §4.2 Q26). **March 19, 2026 – Ruling 6**, unique cards added during setup "can share titles with cards
-     in player decks" (§3.58).
+     another was revealed does not give it surge (Portal Through Time, §7.1). **March 19, 2026 – Ruling 5**, an ability
+     that reads a hidden top card "can trigger (paying cost with incomplete information …)" (the nearest ruling to §4.2
+     Q26, answered B: Redwing's ability turns the hidden card over to read it, and nothing turns Magik's facedown top
+     card over, so her cards can be played against it and their condition is not met). **March 19, 2026 – Ruling 6**,
+     unique cards added during setup "can share titles with cards in player decks" (§3.58).
 
 No ruling of pass 2a disagrees with the RRG, and none says a printed wording of these cards gives an unintended
 result. The RRG disagrees with itself once (the FAQ's "step 3", above), and one card's wording needs the owner's
-reading (Witchfire's "Otherwise", §4.2 Q31).
+reading (Witchfire's "Otherwise", §4.2 Q31: answered B, built as printed and tagged "RAW pending FFG clarification").
 
 ### 0.4 Pass 2b's sources
 
@@ -622,9 +629,11 @@ Unus (III) for expert mode"). Toughness on every stage. **No schema change.**
 | The Horsemen of Apocalypse 45085a/b | 0               | 12[per_hero]                   | +1[per_hero] | no star                                          |
 
 Raw carries each scheme twice: a record with no face letter (45062, 45085; `double_sided: true`, `back_text` the 1A
-text) and a record 45062a / 45085a whose `linked_card` is the b face. The data agent emits one `MainSchemeCard` each,
-as every earlier box. Raw `base_threat_fixed: true` with `base_threat: 0`; `threat_fixed: false` and
-`escalation_threat_fixed: false` are the per player icons the scans show. **No schema change.**
+text) and a record 45062a / 45085a whose `linked_card` is the b face. The data agent emits one `MainSchemeCard` each, as
+every earlier box, **under the id of the a record** (45062a, 45085a; in pass 1b 45103a, 45121a and 45147a, the last
+holding both of scenario 5's stages). A scenario's `mainSchemeCardId` and every script name that id. Raw
+`base_threat_fixed: true` with `base_threat: 0`; `threat_fixed: false` and `escalation_threat_fixed: false` are the per
+player icons the scans show. **No schema change.**
 
 ### 1.5 Gene Pool: a side scheme with permanent and setup
 
@@ -637,15 +646,27 @@ the modular set `infinites`. Both keywords exist; setup step 11 puts setup cards
 MC45 p. 11: "Each of the Horsemen villains has a side A and a side B … To play the scenario in skirmish or standard
 mode, use each villain's side A. To play the scenario in expert or heroic mode, use each villain's side B."
 
-- **The Wrecking Crew shape** (`VillainStageRange`, `schema/sets.ts`: "For villains printed with version letters the
-  numbers are positions (A = 1, B = 2)"): each Horseman is one `VillainCard` with two stages, A (45081a: 9[per_hero]
-  hit points) and B (45081b: 12[per_hero]), and the scenario has `villainStages: { standard: [1, 1], expert: [2, 2] }`.
-  Raw gives each as record `4508Na` with `linked_card` `4508Nb`. Not the Marauders shape (`expertVillains`), which has
-  no multiple-villain form.
+- **Eight one-stage villain cards, not four two-stage ones** (as emitted, data step 5, commit e8f3725e). Each printed
+  face is its own `VillainCard` with one stage: the A faces 45081a–45084a (War 9[per_hero] hit points, SCH 1, ATK 2;
+  `stageNumber: 1`, `stageLabel: "A"`) and the B faces 45081b–45084b (War 12[per_hero], SCH 2, ATK 3;
+  `stageNumber: 2`, `stageLabel: "B"`). All eight are in the `four_horsemen` set. This is the Mansion Attack shape,
+  not The Wrecking Crew's (one card, an A and a B stage), because the choice of face is made per villain.
+- **`ScenarioVillain.sideBCardId`** (`schema/sets.ts`, added in the same commit) joins each pair: the scenario's
+  `multipleVillains.villains` lists the four A cards as `villainCardId`, each with its B card as `sideBCardId`.
+  `validateScenario` requires the two ids to differ. A scenario with these has no `expertVillains`.
+- **Which face a game uses is a per-villain choice** (§4.1 Q9 = B; MC45 p. 11: "Players may also customize their
+  experience by using a mix of side A or B"). The four choices default from the difficulty, A/A/A/A for skirmish and
+  standard and B/B/B/B for expert and heroic, and each can be overridden. The scenario builder passes, for each
+  villain, the chosen card's id; the card not chosen is not in the game. There is no "extreme" mode for this scenario
+  (an A card has no B stage under it), and no engine change: a one-stage villain card starts and ends on its stage
+  index 0 whatever its `stageNumber`.
+- The record still carries `villainStages: { standard: [1, 1], expert: [2, 2] }`: the stage numbers of the default
+  faces. With a mixed table it describes no single range, so the builder reads `sideBCardId` and the per-villain
+  choice and never indexes a card by it.
 - **`Scenario.multipleVillains`** exists (`schema/sets.ts`): `villains` the four (each `encounterSetIds: []`),
   `encounterDecks: "shared"`, `activation: "activeVillainOnly"`, `winCondition: "allVillainsDefeated"`, `atSetup:
 "setAside"` (the 1A Setup puts them into play in a random order, as Sinister Synchronization 1A does for the Sinister
-  Six). **No schema change.** The row order is game state, not data (§3.7).
+  Six). The row order is game state, not data (§3.7).
 - Death prints two traits (Aerial, Horsemen); the others one. All four are unique.
 - Every ATK prints a star (raw `attack_star: true`): the reminder for the [star] Forced Response.
 
@@ -683,18 +704,18 @@ Every shape exists. "+2 hit points" (45066) is ability text. **No schema change.
 
 ### 1.10 Scenario records
 
-| Field                      | `unus`                                    | `four-horsemen`                                |
-| -------------------------- | ----------------------------------------- | ---------------------------------------------- |
-| `villainCardId`            | Unus                                      | War (the first of `multipleVillains.villains`) |
-| `mainSchemeCardId`         | 45062                                     | 45085                                          |
-| `encounterSetIds`          | `unus`, `infinites` (required, MC45 p. 8) | `four_horsemen`                                |
-| `recommendedModularSetIds` | `dystopian_nightmare`                     | `dystopian_nightmare`, `hounds`                |
-| `modularSetCount`          | 1 (absent)                                | 2                                              |
-| `standardEncounterSetIds`  | `standard`                                | `standard`                                     |
-| `expertEncounterSetIds`    | `expert`                                  | `expert`                                       |
-| `villainStages`            | standard `[1, 2]`, expert `[2, 3]`        | standard `[1, 1]`, expert `[2, 2]`             |
-| `multipleVillains`         | absent                                    | §1.6                                           |
-| `victory`                  | absent (final villain stage)              | absent (`winCondition: "allVillainsDefeated"`) |
+| Field                      | `unus`                                    | `four-horsemen`                                               |
+| -------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
+| `villainCardId`            | Unus (45059)                              | War side A (45081a, the first of `multipleVillains.villains`) |
+| `mainSchemeCardId`         | 45062a                                    | 45085a                                                        |
+| `encounterSetIds`          | `unus`, `infinites` (required, MC45 p. 8) | `four_horsemen`                                               |
+| `recommendedModularSetIds` | `dystopian_nightmare`                     | `dystopian_nightmare`, `hounds`                               |
+| `modularSetCount`          | 1 (absent)                                | 2                                                             |
+| `standardEncounterSetIds`  | `standard`                                | `standard`                                                    |
+| `expertEncounterSetIds`    | `expert`                                  | `expert`                                                      |
+| `villainStages`            | standard `[1, 2]`, expert `[2, 3]`        | standard `[1, 1]`, expert `[2, 2]` (the default faces; §1.6)  |
+| `multipleVillains`         | absent                                    | §1.6: four A cards, each with its `sideBCardId`               |
+| `victory`                  | absent (final villain stage)              | absent (`winCondition: "allVillainsDefeated"`)                |
 
 Ids follow the hyphenated form of the earlier boxes (`morlock-siege`). 45062a: "Unus, Infinites, and Standard sets.
 One modular set (Dystopian Nightmare)". 45085a: "Four Horsemen, Standard, and two modular sets (Dystopian Nightmare
@@ -782,8 +803,10 @@ the cards print "PRELATES (n/5)".
 - The three sets are `EncounterSet`s of the ordinary modular kind (MC45 p. 16: they "may be used in other scenarios,
   but they are required when playing Dark Beast"), listed in the scenario's `encounterSetIds` so customization cannot
   remove them. That they start **set aside** in this scenario is the scenario builder's statement, as for Mister
-  Sinister's three sets (wave 7 §3.29): `GameSetupConfig.setAsideModularSets` and `setAsideUntilCalled`, no data
-  field (the survey's gap 17). §3.23.
+  Sinister's three sets (wave 7 §3.29): `GameSetupConfig.setAsideModularSets` and `setAsideUntilCalled`. **As
+  emitted, the scenario record also lists them:** `setAsideCardIds` holds the 20 card records of the three sets
+  (45127–45146: 6 of Savage Land, 6 of Genosha, 8 of Blue Moon; 24 cards with copies), so the builder derives the
+  set-aside sets from the record and the client can show what starts out of the deck (the survey's gap 17). §3.23.
 
 ### 1.17 The three-sided Apocalypse of scenario 5
 
@@ -811,7 +834,8 @@ Apocalypse; both are unique and titled Apocalypse, and no game holds both.
 | The Rise of Apocalypse 45148a/b  | 1[per_hero]     | 10[per_hero] | +1[per_hero] (star) | 2A When Revealed; 2B loses    |
 | Dark Beast's Bogus Journey 45121 | 1[per_hero]     | 10[per_hero] | +1[per_hero]        | one stage; "players lose"     |
 
-One two-stage `MainSchemeCard` deck for scenario 5 and a one-stage card for scenario 4. The star is the reminder for
+One two-stage `MainSchemeCard` deck for scenario 5, emitted as the card 45147a with The Rise of Apocalypse as its
+second stage, and a one-stage card for scenario 4, 45121a. The star is the reminder for
 the [star] Forced Response (RRG "Star Icon", pp. 40–41). Power counters are all-purpose counters with a name (RRG
 p. 6), not data. **No schema change.**
 
@@ -850,7 +874,7 @@ points scale with the players when hosts are ranked (RRG "Printed", p. 35; "Per 
 | Field                      | `apocalypse`                       | `dark-beast`                                        | `en-sabah-nur`                     |
 | -------------------------- | ---------------------------------- | --------------------------------------------------- | ---------------------------------- |
 | `villainCardId`            | Apocalypse (45101a, four stages)   | Dark Beast                                          | Apocalypse (45184a, three sides)   |
-| `mainSchemeCardId`         | 45103                              | 45121                                               | 45147 (stages 1 and 2)             |
+| `mainSchemeCardId`         | 45103a                             | 45121a                                              | 45147a (stages 1 and 2)            |
 | `encounterSetIds`          | `apocalypse`, `prelates`           | `dark_beast`, `savage_land`, `genosha`, `blue_moon` | `en_sabah_nur`                     |
 | `recommendedModularSetIds` | `dark_riders`, `infinites`         | `dystopian_nightmare`                               | `celestial_tech`, `clan_akkaba`    |
 | `modularSetCount`          | 2                                  | 1 (absent)                                          | 2                                  |
@@ -858,11 +882,13 @@ points scale with the players when hosts are ranked (RRG "Printed", p. 35; "Per 
 | `expertEncounterSetIds`    | `expert`                           | `expert`                                            | `expert`                           |
 | `villainStages`            | standard `[2, 4]`, expert `[3, 4]` | standard `[1, 2]`, expert `[2, 3]`                  | standard `[1, 2]`, expert `[2, 3]` |
 | `victory`                  | `"cardAbility"`                    | absent (final villain stage)                        | absent (final villain stage)       |
+| `setAsideCardIds`          | 45179b–45183b, 45105a              | 45127–45146 (the three Setting sets, 20 records)    | absent                             |
 
 45103a: "Apocalypse, Prelates, and Standard sets. Two modular sets (Dark Riders and Infinites)". 45121a: "Dark Beast,
 Blue Moon, Genosha, Savage Land, and Standard sets. One modular set (Dystopian Nightmare)". 45147a: "En Sabah Nur and
 Standard sets. Two modular sets (Celestial Tech and Clan Akkaba)". Each matches its rulebook page. No 1A names the
-Expert set (§1.10).
+Expert set (§1.10). The ids and the `setAsideCardIds` row are the emitted records' (data step 5, commit e8f3725e):
+each main scheme is its a card, and the cards a 1A Setup sets aside are listed on the record.
 
 ### 1.22 Corrections the data agent owes for these sets
 
@@ -925,7 +951,7 @@ The hand-authored `packages/content/src/data/aoa/campaign.ts`, the `next_evol` s
 | `missions`                                                         | shared   | `strikeList`, four options in the sheet's order | the "Mission Side Scheme" column; a struck name                     |
 | `overseers`                                                        | shared   | `strikeList`, five options                      | "Available Overseer minions", five boxes                            |
 | `resultLiberate`, `resultEvacuate`, `resultSabotage`, `resultFind` | shared   | `choice` over `defeated`, `notDefeated`         | **not on the sheet**: which of the struck row's two columns applied |
-| `currentMission`, `currentOverseer`                                | shared   | `choice`, `working`                             | not on the sheet: this scenario's draw, for Victory to strike       |
+| `currentMission`, `currentOverseer`                                | shared   | `choice`, `working`                             | not on the sheet: this attempt's draw, for Victory to strike        |
 | `missionDefeated`, `overseerDefeated`                              | shared   | `flag`, `working`                               | not on the sheet: what Victory read out of the finished game        |
 
 - **The four result fields are the one thing the paper log does not hold.** Six of the sheet's eight outcome cells
@@ -1155,7 +1181,8 @@ Standard set may be replaced by Standard III (MC45 p. 3; §2.5).
    "Side Scheme", p. 40). With Standard III, Pursued by the Past enters play here too, with no counters.
 4. **Modular difficulty** (MC45 p. 8, optional): "they may place threat on Gene Pool during setup … Skirmish Mode:
    Place 0 threat. Standard Mode: Place 1[per_hero] threat. Expert Mode: Place 2[per_hero] threat. Heroic Mode: Place
-   3[per_hero] threat." A setup option of the Infinites set, in any scenario that includes it (§3.5, §4.2 Q1).
+   3[per_hero] threat." A setup option of the Infinites set, in any scenario that includes it, off unless the players
+   turn it on (§3.5; §4.1 Q1 = A).
 5. **Step 12a**, 45062a Setup: "Reveal the Gene Pool side scheme. In expert mode, deal each player a facedown
    encounter card."
    - Gene Pool is already in play from step 11. As read: revealing it does not make it enter play again (RRG "Find",
@@ -1175,8 +1202,11 @@ villain with toughness).
 
 ### 2.3 Four Horsemen (MC45 pp. 11–12), step by step
 
-1. Appendix II steps 1–7 as usual. **Step 8**: the four villain cards (A faces; B in expert) and the main scheme.
-   **Step 9**: each villain has its own dial (MC45 p. 11, "Multiple Villains"), 9[per_hero] or 12[per_hero].
+1. Appendix II steps 1–7 as usual. **Step 8**: four villain cards and the main scheme. For each Horseman the players
+   use its A card or its B card (§1.6; §4.1 Q9 = B): four selectors that default from the difficulty (A/A/A/A for
+   skirmish and standard, B/B/B/B for expert and heroic), each of which can be changed, so War B with three A sides
+   is a legal table. The four cards not chosen are out of the game. **Step 9**: each villain has its own dial (MC45
+   p. 11, "Multiple Villains"), 9[per_hero] for an A card and 12[per_hero] for a B card.
 2. **Step 10**: one shared encounter deck: `four_horsemen` (45086–45096, 15 cards, the four side schemes included),
    the Standard set (or Standard III), two modular sets, the Expert set in expert mode, the obligations.
 3. **Step 12a**, 45085a Setup: "Shuffle the four [HORSEMEN] villains, then reveal them in a row from left to right.
@@ -1257,7 +1287,8 @@ can be removed from this scenario and/or added to other scenarios". The Campaign
 4. **Step 12a**, 45103a Setup: "Set aside each unused villain card, each [PRELATE] minion, and The Tyrant's Throne
    side scheme. Reveal the Heart of the Empire side scheme. The first player reveals a random, set-aside [PRELATE]
    minion."
-   - Set aside: the five Prelates and The Tyrant's Throne (the scenario builder's `GameSetupConfig.setAside`). Heart
+   - Set aside: the five Prelates and The Tyrant's Throne (the record's `setAsideCardIds`, 45179b–45183b and 45105a,
+     passed by the scenario builder as `GameSetupConfig.setAside`). Heart
      of the Empire is revealed from the encounter deck: 2 threat, one acceleration icon.
    - One of the five Prelates, chosen by the seeded RNG, is revealed by the first player: it engages them and gets a
      tough status card (toughness).
@@ -1299,7 +1330,7 @@ can be removed from this scenario and/or added to other scenarios". The Campaign
    print setup. 45121a's Setup says so ("Set the Blue Moon, Genosha, and Savage Land sets aside (including each
    environment card in those sets)") and card text beats the setup keyword's rule (RRG "The Golden Rules", p. 4). The
    printed order (the 1A Setup resolves at step 12, after steps 10 and 11) cannot be followed literally; the builder
-   states the set-aside sets up front. §3.23.
+   states the set-aside sets up front, from the record's `setAsideCardIds` (45127–45146). §3.23.
 3. **Step 12a**: in expert mode, "reveal the High-Tech Goggles attachment": found in the encounter deck, attached to
    Dark Beast (+1 SCH), the deck shuffled. **Step 12b**: 1B with 1[per_hero] threat.
 4. **Step 12c**, Dark Beast's When Revealed: "Reveal a random set-aside environment and shuffle the rest of its
@@ -1396,13 +1427,16 @@ vocabulary that exists; what is new is inside the game (§3.33–§3.46).
    size.)"
 
 - **Each of the four log missions is played exactly once.** Four missions, four scenarios, and every win strikes the
-  one that started the game in play (p. 6), defeated or not. Their order is the campaign's seed. Protect the Professor
+  one that started the game in play (p. 6), defeated or not. Their order comes from the campaign's seed and, after
+  a loss, from how many times the scenario has been attempted (§3.45). Protect the Professor
   is always the fifth.
 - **At least one Overseer is always available.** One is struck per win at most, and only if it was defeated that
   game; scenario 5 has between one and five to draw from.
 - **A loss changes nothing.** The Victory list does not run, so the mission is not struck and the Overseer is not,
-  even if it was defeated in the lost game; cards removed from the game during the game are back. Whether the retry
-  draws the same mission and Overseer is §4.2 Q22.
+  even if it was defeated in the lost game; cards removed from the game during the game are back. **A retry draws
+  again (§4.1 Q22 = B):** the mission and the Overseer are chosen during scenario setup, a retried scenario runs its
+  setup again, and both are drawn afresh from the options still unstruck. The retry may meet a different mission, a
+  different Overseer, both or neither; nothing excludes the pair the lost game had.
 - **The campaign can be lost by winning.** A game of scenario 5 won with Protect the Professor still on its a face
   (neither defeated nor failed) ends the campaign as a loss: the Victory list reads "was not defeated" (p. 20). If the
   mission fails during the game, the b face ends the game as a loss first, and that game may be retried.
@@ -1418,10 +1452,12 @@ draws, which the runner makes before the game is built.
 2. **The Age of Apocalypse set**: Agent of Apocalypse ×2 and Worldwide Crisis ×2 join the encounter deck
    (`composeEncounterSets`, into the deck). They are an addition, not one of the scenario's modular sets.
 3. **The mission.** Between games the runner draws one unstruck option of `missions` from the campaign's RNG and
-   writes it to `currentMission` (scenario 5: no draw, Protect the Professor). In the game the mission is revealed
+   writes it to `currentMission` (scenario 5: no draw, Protect the Professor). The draw is made again for every
+   attempt of the scenario (§3.45's `perAttempt`; §4.1 Q22 = B). In the game the mission is revealed
    (p. 5: "randomly select one of the available [MISSION] side schemes … and reveal it"): it enters play in the
    **mission area** with 5[per_hero] threat. Then its row's Setup cell (§2.14).
-4. **The Overseer.** One unstruck option of `overseers`, written to `currentOverseer`; the minion is put into play
+4. **The Overseer.** One unstruck option of `overseers`, drawn per attempt as the mission is and written to
+   `currentOverseer`; the minion is put into play
    in the mission area (p. 5), engaged with nobody. Put into play, not revealed: nothing on the a face reads the
    difference. The Mission Rules card is the mission's rules block (§1.29).
 5. **Mission Team** (45171a) is put into play under the first player's control, [MISSION] face up, ready. RRG
@@ -1457,7 +1493,9 @@ damage) and no allies; Mission Team in front of the first player.
 - "Allies in the mission area are used to make mission attempts. They do not count towards your ally limit." "Treat
   the printed text box of each ally in the mission area as blank, except for [TRAITS]." Its cost, stats, hit points
   and resource icon are not in the text box (RRG "Text Box", p. 44) and stay.
-- "Players may attach upgrades to allies in the mission area." §4.2 Q19.
+- "Players may attach upgrades to allies in the mission area." Attaching is allowed; it does not waive the sentence
+  above (§4.1 Q19 = B). An ordinary upgrade there changes nothing about its host and cannot be triggered. Only an
+  upgrade whose ability works with the mission has an effect there, and Desperate Measures is the one such card.
 - "When a card in the mission area leaves play, place it in its owner's discard pile." A player's ally goes to that
   player's pile; an encounter card to the encounter discard pile; an Overseer, with victory 5, to the victory display
   (RRG "Victory X", p. 46).
@@ -1823,10 +1861,14 @@ players as a group", with the four recommendations of §2.2 step 4.
 **Plan.** A setup option offered whenever the game's encounter sets include `infinites`, whatever the scenario: a
 number of threat per player, 0 to 3, placed on Gene Pool after step 11 and before step 12, logged as a setup step
 (`setupOptionApplied { option, amount }`) so a replay reproduces it. The value is part of the game's setup config, not
-of the scenario. Default value: §4.2 Q1.
+of the scenario. **Off unless the players turn it on (§4.1 Q1 = A):** the value is 0 until a player sets it, and the
+mode's recommendation (0, 1, 2 or 3 per player) is only where the control starts when it is turned on. Neither the
+builder nor the engine fills the amount in from the difficulty: threat is placed only when the setup config states an
+amount, and the log records it. The rulebook's amounts are never applied silently.
 
 **Tests.** 2 players, option 2 per player: Gene Pool 8 after setup, so Unus has retaliate 1 and stalwart at once.
-Option 0: 4. The option is absent for a game without the Infinites set.
+Option 0: 4. Expert mode with the option left off: 4, not 8. The option is absent for a game without the Infinites
+set.
 
 ### 3.6 Standard III: a counted environment that flips; replacing the Standard set
 
@@ -1934,7 +1976,9 @@ attacked"; "Confused" (p. 13) likewise for a scheme.
 **As read.**
 
 - 1B hears every villain activation: the step two activations, and one a treachery or boost ability starts.
-- It moves the counter one place from the villain that **holds** it, whichever villain activated (§4.2 Q5).
+- It moves the counter one place from the villain that **holds** it, whichever villain activated (§4.1 Q5 = A,
+  firm). The owner cites an FFG ruling on Hall of Heroes' post-RRG-1.5 rulings page; that page is not in this repo
+  and was not read for this spec, so the code comment cites the owner's decision and the card, not the ruling.
 - An activation replaced by a stunned or confused card is not an activation, so the counter does not move (§4.2 Q4).
 - Overkill from an attack that defeats a minion is dealt to the villain with the active counter (RRG p. 62 FAQ).
 
@@ -1945,6 +1989,10 @@ attacked"; "Confused" (p. 13) likewise for a scheme.
    Famine activates with no boost card; 1B moves it to Pestilence. Next round Pestilence is active.
 3. War stunned (one stunned card, no steady): the stunned card is discarded, no attack, counter still on War.
 4. A hero's overkill attack defeats a Hound with 3 excess while the counter is on Famine: Famine takes 3.
+5. **Q5, the owner's test.** Row [Death, Pestilence, War, Famine], counter on Death. Horseman of War is revealed in
+   step four: War heals 2, gets a tough card and attacks. After War's activation the counter moves from Death to
+   Pestilence, the villain immediately right of Death. It does not go to Famine, War's neighbor, and it does not
+   stay. Next round Pestilence is the active villain.
 
 ### 3.9 Villains that cannot be defeated while another has hit points
 
@@ -2303,7 +2351,10 @@ Forced Interrupt, named by ref id, so the "X is the numeral …" line and the ta
 - Only the interrupt printed **on the main scheme** is ignored. Apocalypse's own (§3.18) is not.
 - The Tyrant's Throne's When Defeated resolves in printed order: the fourth Prelate is revealed before No Longer
   Worthy attaches, so Apocalypse cannot take damage until that Prelate is defeated.
-- If No Longer Worthy leaves play it is removed from the game and cannot return (§4.2 Q13).
+- If No Longer Worthy leaves play it is removed from the game and cannot return. A player card may legally discard
+  it (§4.1 Q13 = A), which can leave the scenario unwinnable, and no rule asks for a confirmation: the engine offers
+  it as a legal choice like any other attachment. The confirm step before a player's card discards it is this
+  project's own warning, built in the client and worded as ours, not as a rule of the game (§5.1).
 
 **Tests (exact numbers).** 2 players, Apocalypse III (20 hit points) with 14 damage; The Tyrant's Throne is defeated:
 a Prelate engages the first player, player 2 is dealt 1 facedown encounter card, No Longer Worthy is attached and he
@@ -2398,17 +2449,17 @@ Rules" (p. 4); "Reveal" (p. 38); "Steady" (p. 41); "Guard" (p. 21).
 
 **Cards and who "you" is.**
 
-| Card                                                                                          | The resolving player                                |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Dark Beast 45118–45120: "When Dark Beast attacks you"                                         | the attacked player, before the attack's damage     |
-| High-Tech Goggles 45122, Genetic Enhancement 45123: "Hero Action: Exhaust your hero and … →"  | the player using the action (a cost)                |
-| Escaped Mutant 45137: "Alter-Ego Action: Resolve … → discard this card"                       | the player using the action (a cost)                |
-| Pterosaur 45128, Oracle 45141, Manta 45142, Earthquake 45143, Warstar 45144; Land Out of Time | the revealing player                                |
-| Giant Ape 45130: "The player who defeated Giant Ape resolves"                                 | that player; none if no player did (wave 7 §4.1 Q2) |
-| Village Under Attack 45132: "Each player resolves"                                            | each player, in player order                        |
-| Armored Unibike 45135: "After Armored Unibike attacks, resolve"                               | the player it attacked                              |
-| Genoshan Mech 45136: "attacks and defeats one of your allies, resolve … twice"                | that ally's controller, twice in a row              |
-| Imperial Guardsman 45145: "When attached minion is defeated, resolve"                         | §4.2 Q14                                            |
+| Card                                                                                          | The resolving player                                                       |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Dark Beast 45118–45120: "When Dark Beast attacks you"                                         | the attacked player, before the attack's damage                            |
+| High-Tech Goggles 45122, Genetic Enhancement 45123: "Hero Action: Exhaust your hero and … →"  | the player using the action (a cost)                                       |
+| Escaped Mutant 45137: "Alter-Ego Action: Resolve … → discard this card"                       | the player using the action (a cost)                                       |
+| Pterosaur 45128, Oracle 45141, Manta 45142, Earthquake 45143, Warstar 45144; Land Out of Time | the revealing player                                                       |
+| Giant Ape 45130: "The player who defeated Giant Ape resolves"                                 | that player; none if no player did (wave 7 §4.1 Q2)                        |
+| Village Under Attack 45132: "Each player resolves"                                            | each player, in player order                                               |
+| Armored Unibike 45135: "After Armored Unibike attacks, resolve"                               | the player it attacked                                                     |
+| Genoshan Mech 45136: "attacks and defeats one of your allies, resolve … twice"                | that ally's controller, twice in a row                                     |
+| Imperial Guardsman 45145: "When attached minion is defeated, resolve"                         | the player who defeated the minion; nobody if no player did (§4.1 Q14 = B) |
 
 **Rules.** RRG 1.8 "Special" (p. 40: "Special abilities may only be resolved through the explicit instruction of
 another card ability"); "You, Your" (p. 49); "Cost" (p. 13); "Player Deck" (p. 33); "Indirect Damage" (p. 24).
@@ -2421,6 +2472,13 @@ another card ability"); "You, Your" (p. 49); "Cost" (p. 13); "Player Deck" (p. 3
   each resource icon on the discarded cards". The Savage Land's Special binds its discarded cards; the treachery reads
   `totalPrintedResources` of `<bind>.discarded`.
 - A cost that changes nothing follows §4.2 Q7 (The Savage Land with an empty deck and discard pile).
+- **Imperial Guardsman (§4.1 Q14 = B).** The card names no player. The resolving player is the one who defeated the
+  attached minion, not the one it was engaged with: the "player who defeated" the engine already records for Giant
+  Ape and for a scheme's When Defeated (wave 7 §4.1 Q2), read here from the defeat the Forced Interrupt answers. An
+  ally's attack, a hero's retaliate and a player card's damage each make that card's controller the player. A minion
+  defeated by no player (an encounter card's damage) resolves no Special at all, Genosha's included, although its
+  text names no "you". The owner's note calls the ability a When Defeated; the card prints a Forced Interrupt, and
+  the answer is the same for both.
 - "If you were already confused / stunned / exhausted" (45141–45143) is the existing "already" test made before the
   status is given (24 earlier cards, §3.17).
 
@@ -2440,6 +2498,11 @@ another card ability"); "You, Your" (p. 49); "Cost" (p. 13); "Player Deck" (p. 3
 7. Warstar's discard turns up Manta: Manta is revealed (stunned or the Special), then Manta's teamwork: Warstar is in
    play, so Manta activates against the player.
 8. Giant Ape engaged with player 1, defeated by player 2's ally: player 2 resolves the Special.
+9. **Q14 = B.** Imperial Guardsman on a minion with 3 printed hit points (7 with the attachment) engaged with
+   player 1; Blue Area of the Moon in play. Player 2's ally deals the seventh damage: player 2's identity takes 1
+   damage and player 1's takes 0. With The Savage Land in play instead: player 2 discards the top 3 cards of their
+   deck and player 1 discards none. The same minion defeated by an encounter card's damage: no Special resolves, and
+   under Genosha the main scheme gains 0 threat.
 
 ### 3.25 An attachment with no "attach to" that attaches from its own When Revealed
 
@@ -2505,8 +2568,9 @@ face showing. Each face's Forced Response is `on.cardFlipped` of itself to that 
   "Otherwise" branch is not reached. Staggering Strength revealed while he is Giant attaches and nothing else.
 - A boost card's "After this activation" change happens when the activation has fully resolved: the attack or scheme
   uses the face he had.
-- Stage I defeated: the next stage's face is §4.2 Q16. It is a reveal, not a change of form, so no face's Forced
-  Response resolves for it.
+- Stage I defeated: stage II is revealed in the form he was in (§4.1 Q16 = A): defeated as Cyberpath, stage II is
+  Cyberpath; as Giant, Giant. Biomorph is named for the start of the game only. It is a reveal, not a change of
+  form, so no face's Forced Response resolves for it.
 
 **Tests (exact numbers).** 1 player, stage I (16), Ancient Ritual in play at 5, main scheme at 3.
 
@@ -2526,6 +2590,9 @@ face showing. Each face's Forced Response is `on.cardFlipped` of itself to that 
    Cyberpath: he becomes Biomorph with a tough status card and 1 indirect damage is dealt; no activation.
 7. A basic attack on him while Cyberpath: the attacker takes 1.
 8. Stage II's faces print 2 in each Forced Response: Cyberpath II places 2 threat on each scheme.
+9. **Q16 = A.** Stage I as Cyberpath takes his sixteenth damage: stage II is revealed as Cyberpath (20 hit points,
+   SCH 3, ATK 1, retaliate 1), no threat is placed on any scheme and no power counter is added; the log has a stage
+   reveal and no `cardFlipped`. Defeated as Giant instead: stage II Giant (SCH 2, ATK 3, stalwart), no heal.
 
 ### 3.27 Named counters on the main scheme that reveal a trait's card at a threshold
 
@@ -2739,6 +2806,14 @@ pile").
   an effect chooses or changes: damage, healing, status cards, threat, counters, attachments, exhausting, readying,
   moving, discarding, defeating, blanking, keyword and stat grants. The filter is the engine's, in `select.ts`, so
   no existing card script changes.
+- **An attachment does not open it (§4.1 Q19 = B).** MC45 p. 5 lets an upgrade be attached to an ally at the mission,
+  and the upgrade is then a card in the area like its host. Its abilities are card abilities, so the same filter applies
+  to them: a constant that changes "attached ally" finds no host there, a triggered ability has no controller to use it,
+  and the upgrade does nothing while it is in the area. **`AbilityDefinition.reaches?: { scenarioPlayArea: name }`** is
+  how an ability "refers to the mission area" when its printed words do not name it: every query and host reference of
+  an ability that declares it may match cards in that area as well as outside it. The scripts that declare it are the
+  campaign's own (Desperate Measures; the campaign instructions); no card outside the five campaign sets does.
+  `inScenarioPlayArea` stays the form for an ability that names the area outright.
 - **Reads** (a `Predicate`, a `ValueSpec` count, an event pattern) are §4.2 Q18. Default A: they see the card as what
   it is, a card in play that nobody controls. A query scoped to a player ("you control", "engaged with you") never
   matched it anyway.
@@ -2764,6 +2839,11 @@ instruction that names the mission ("place 3 threat on the [MISSION] side scheme
 3. Worldwide Crisis's first option: the mission is at 13.
 4. Player 1 is eliminated: X-23 is in player 1's discard pile, out of the game with it.
 5. Q18 = A: a card that counts "side schemes in play" counts the mission.
+6. **Q19 = B.** Reinforced Suit (`ant` 12018, cost 1: "Attach to an ally. Max 1 per ally. Attached ally gets +2 hit
+   points.") is played on X-23 at the mission (3 hit points, 1 damage): 1 resource is paid, the upgrade is attached, and
+   she still has 3 hit points, 2 remaining. Two more attempts deal her 1 damage each: she is defeated at 3 damage, and
+   both cards are in their owners' discard piles. A fixture ability that declares
+   `reaches: { scenarioPlayArea: "mission" }` and gives "attached ally" +2 hit points: 5 hit points.
 
 **Composes with:** §3.34–§3.41; `scenarioArea` is untouched.
 
@@ -2794,12 +2874,16 @@ owner are controlled by that other player").
   thwart or defend with it.
 - **Blank.** The same rules block carries `blankTextBox` over allies in the area, except traits: no abilities and no
   printed keywords (a toughness ally gets no tough status card, an "enters play" ability does not resolve). Printed
-  cost, THW, ATK, hit points, consequential icons and resource icon are not text box. A granted stat (Desperate
-  Measures) applies.
+  cost, THW, ATK, hit points, consequential icons and resource icon are not text box. A stat granted by an ability
+  that reaches the area applies (Desperate Measures); no other grant does (§4.1 Q19 = B).
 - **Upgrades.** A player may play an upgrade whose printed host is an ally onto an ally at the mission: the rules
   block names the area, so the play's host choice may reach into it (`inScenarioPlayArea` on the upgrade's host
-  query while the rule is in effect). The upgrade is in the area with its host and under no player's control. What
-  it then does is §4.2 Q19 (default A: its constant changes to its host apply; nobody can trigger it).
+  query while the rule is in effect). The upgrade is in the area with its host and under no player's control.
+  **There it does nothing unless its ability refers to the mission (§4.1 Q19 = B):** the closed area's filter covers
+  an attachment's own abilities (§3.33), so an ordinary upgrade's constant does not change its host and nobody can
+  trigger it. Of the cards in the pool only Desperate Measures, a campaign card whose ability is written for the
+  mission, declares the reach and applies there (§3.42). The cost is still paid, the upgrade stays attached, and it
+  leaves the area with its host, to its owner's discard pile or deck.
 
 **As read.**
 
@@ -2821,6 +2905,10 @@ owner are controlled by that other player").
    refused ("Limit 1 per ally"). Marrow defeated at the mission: both cards in their owners' discard piles.
 5. An ally with toughness played to the mission: no tough status card.
 6. With the mission on its [FINISHED] face: playing an ally offers no destination.
+7. **Q19 = B.** Reinforced Suit (`ant` 12018, cost 1) played on Marrow at the mission: 1 resource paid, the upgrade
+   attached, and she has THW 1, ATK 2 and 2 hit points, not 4. Desperate Measures beside it on her: 2, 3 and 3, and
+   an attempt she takes part in adds 3 to the pool and removes 2 threat. Reinforced Suit on Marrow in her
+   controller's own area: 4 hit points.
 
 ### 3.35 A support the first player controls that cannot be discarded; a discount by destination
 
@@ -3150,11 +3238,13 @@ encounter card); "Acceleration Icon" (p. 5); "Hinder X" (p. 22); "Surge" (p. 42)
 
 **Plan and reading.**
 
-- **Desperate Measures.** +1 THW, +1 ATK and +1 hit point are stat modifiers on the host. "Is considered to have a
-  wild ([wild]) resource icon in addition to its printed resource icon" is **`RuleSpec consideredResourceIcon {
-target, resource }`**, read by one reader today, §3.36's match. It does not change what the ally card would pay
-  with from a hand (the upgrade is in play and so is the ally). On an ally in a player's own area it gives the stats
-  and an icon nothing reads.
+- **Desperate Measures.** +1 THW, +1 ATK and +1 hit point are stat modifiers on the host. "Is considered to have a wild
+  ([wild]) resource icon in addition to its printed resource icon" is
+  **`RuleSpec consideredResourceIcon { target, resource }`**, read by one reader today, §3.36's match. It does not
+  change what the ally card would pay with from a hand (the upgrade is in play and so is the ally). On an ally in a
+  player's own area it gives the stats and an icon nothing reads. **At the mission all four changes apply because its
+  script declares `reaches: { scenarioPlayArea: "mission" }` on its constant (§3.33): it is the one upgrade that works
+  there (§4.1 Q19 = B).**
 - **Panicked Refugees.** In a player's deck by instruction (§2.14). Entering that player's hand by any route (drawn,
   searched for, the starting hand): its Forced Response reveals it and the player draws 1 card. Revealed, an
   obligation with no "choose" and no discard stays in that player's play area (wave 7 §3.70), where its acceleration
@@ -3265,6 +3355,15 @@ citation: "MC45 p. 4" }`, `elimination` as `mut_gen.ts`'s (expert campaign only)
     Desperate Measures into their deck; `resultEvacuate = notDefeated`: each player shuffles 1 Panicked Refugees
     in; `resultSabotage = notDefeated`: North American Sea Wall is shuffled into the encounter deck.
   - The ally search (§3.44); scenario 5's `cannotEnterPlay` (§3.43); the expert pair (below).
+- **A draw per attempt (§4.1 Q22 = B).** On a loss the runner restores the campaign's RNG with the log
+  (`retryBaseline: "nodeStart"`, `campaign/runner.ts`), so a `random` op repeats its draw on every retry today.
+  **`CampaignOp random` gains `perAttempt?: true`**, set on the two draws above. The op still takes one value from
+  the campaign RNG, so every later draw of the block keeps its place (the game's seed included); the option is picked
+  from that value mixed with the number of times the node has already been played, the mix `gameSeedFor` uses for
+  the game's own seed. A node's first attempt is the plain draw, so no other box and no saved campaign changes;
+  attempt n is a pure function of the log, so a replay reproduces it. The step is traced with its attempt number.
+  This is the row's one engine change (§8.2 task 42) and it postdates the status line above.
+  `choose.repeatOnRetry` (wave 7 §3.40, NeXt Evolution's own rule, MC40 p. 7) is the opposite flag and is not used.
 - **Victory, nodes 1 to 4:** `record` `missionDefeated` (`cardsDefeated` by the mission's name) and
   `overseerDefeated` (`cardsInVictoryDisplay` with the [OVERSEER] trait); `strike` `currentMission`; write its
   result field; run that row's Defeated or Not Defeated cell (`removeFromCampaign`, `choose` + `grantCard`); `strike`
@@ -3281,14 +3380,17 @@ citation: "MC45 p. 4" }`, `elimination` as `mut_gen.ts`'s (expert campaign only)
   `beforeScenarioSetup` window (§3.46 needs it).
 - A granted campaign ally (unique, one copy in the box) cannot be granted to two seats: the Defeated cell's `choose`
   uses `excludeGranted`.
-- "From any aspect" and the deck-size exemption: §4.2 Q24, Q25. A grant today is exempt from the minimum and the
-  maximum (`CampaignSeatInput.grantedCardIds`).
+- "From any aspect" and the deck-size exemption: §4.1 Q24 = A and Q25 = A. A grant today is exempt from the minimum
+  and the maximum (`CampaignSeatInput.grantedCardIds`; `deck.ts` leaves granted copies out of the count), which is
+  not what this box prints. Q25 = A needs the grant's deck-size rule as data (§8.2 task 43), and its exact value
+  needs one confirmation from the owner (§8.6 item 1).
 - An expert campaign is not lost by losing scenario 5: this box prints no such sentence (foundation row 15 lists the
   boxes that do, and MC45 is not among them), so the definition has no `defeat` block.
 
 **Tests (exact numbers).** A seeded standard campaign, 2 seats.
 
-1. Scenarios 1 to 4 draw four different missions; the same seed draws the same order; after four wins `missions` has
+1. Scenarios 1 to 4 draw four different missions; the same seed with no loss draws the same order; after four wins
+   `missions` has
    four struck names and four result fields are set.
 2. Evacuate Survivors drawn in scenario 2 and not defeated: scenarios 3, 4 and 5 each start with 1 Panicked Refugees
    in each deck (2 in the game). Defeated instead: the four copies are removed from the campaign and each
@@ -3297,13 +3399,18 @@ citation: "MC45 p. 4" }`, `elimination` as `mut_gen.ts`'s (expert campaign only)
    accepts: 1 copy is in that deck and none in the other.
 4. Find Lost Mutants defeated: two seats pick different allies; the two unpicked are simply unused. Not defeated:
    all four are removed from the campaign.
-5. Sugar Man defeated in a won scenario 1: scenarios 2 to 5 never draw him. Defeated in a lost scenario 1: the retry
-   may.
+5. Sugar Man defeated in a won scenario 1: scenarios 2 to 5 never draw him. Defeated in a lost scenario 1: he is not
+   struck, and the retry draws from all five Overseers and all four missions again.
 6. Scenario 5 won with Protect the Professor defeated: status `won`. Won with it on its a face: status `lost`.
    Lost because it failed: the node is retried.
 7. Expert: a seat recorded at 4 of 12 starts scenario 2 at 4 hit points; paying, it is at 12 and the mission at
    10 + 3 = 13. A seat eliminated in a won scenario 1 has no record, must pay, and made no pick in scenario 1's
    Defeated cell.
+8. **Q22 = B.** 200 seeds, scenario 1 lost once and retried. Every retry draws 1 of the 4 unstruck missions and 1 of
+   the 5 unstruck Overseers; at least one seed's retry has a different mission from its first attempt and at least
+   one has the same (a fresh draw, not one that excludes the last); replaying each log reproduces both attempts'
+   draws and both game seeds; a second loss draws a third time. With `perAttempt` off (a fixture definition) all 200
+   retries repeat the first draw, which is the runner's behavior today.
 
 ### 3.46 One printed card as two cards: an Overseer in play and its Prelate face
 
@@ -3332,7 +3439,9 @@ the pairs that can occur are the same, their odds differ slightly. The Dossier s
 
 **Tests.** Scenario 3 in a campaign with Sugar Man drawn as the Overseer: 45182b is removed from the game at setup,
 four Prelates are set aside, one is revealed, and after the three schemes none is left. With Sugar Man struck from
-the log and Abyss drawn: 45182b is in the game (the ruling), 45181b is not. Standalone: five Prelates.
+the log and Abyss drawn: 45182b is in the game (the ruling), 45181b is not. Standalone: five Prelates. Scenario 3
+lost with Sugar Man as the Overseer and retried with Abyss drawn (Q22 = B): the retry removes 45181b and has 45182b
+set aside again.
 
 ### 3.47 Reusable as is (pass 1c, checked against the engine unions)
 
@@ -3391,7 +3500,10 @@ the log and Abyss drawn: 45182b is in the game (the ruling), 45181b is not. Stan
 - **Checked after every card move**, one card at a time: a draw of 2 shows the second card before it is drawn, as
   the table does.
 - **Off** in alter-ego form (the line is on the hero face) and while her text box is blank (Pestilence, §3.13): the
-  card is facedown again. What a card that reads it then does is §4.2 Q26.
+  card is facedown again. **A facedown top card satisfies no condition (§4.1 Q26 = B):** the game does not read a
+  hidden card to answer a question about its icons, so every "the top card of your deck has" test is false while the
+  rule is off, whatever the card is. **`Predicate topOfDeckFaceup { player }`** reads the rule, and §3.50's helper
+  requires it.
 - An empty deck shows nothing. A deck reset shows the new top card after the shuffle.
 - Any card can be the top card: an encounter card that lives in a player deck (Panicked Refugees, §3.42) is shown
   like any other and stays there until it is drawn.
@@ -3413,7 +3525,8 @@ alter-ego Interrupt each set it. After the X discards the next card is shown. No
 5. A deck of 2 cards and 6 cards in her discard pile; she plays Spiritual Meditation: both are drawn, the 6 cards are
    shuffled into a new deck (Spiritual Meditation is not among them, ruling April 30, 2026 – Ruling 3 (7)), its top
    card is shown, she is dealt 1 facedown encounter card, then she discards 1 card from her hand.
-6. Pestilence blanks her text box: hidden until the next villain phase begins, then shown.
+6. Pestilence blanks her text box: hidden until the next villain phase begins, then shown. While it is hidden
+   `topOfDeckFaceup` is false and no card's "top card has" condition is met (§3.50 test 7).
 7. Magik makes a mission attempt with two allies at the mission and Magik's Crown on top: the Crown and the card
    under it are discarded; the third card is shown.
 
@@ -3513,16 +3626,20 @@ Armor 45035 (+1 DEF, [energy] or [wild]); Exorcism 45038 (confuse the villain, [
 **Rules.** RRG 1.8 "Printed" (p. 35); "Wild Resource" (p. 48: outside a cost a wild is only a wild, which is why each
 card names it); "Constant Ability" (p. 13); "Modifiers" (p. 29). Ruling April 30, 2026 – Ruling 3 (6).
 
-**Plan.** One helper in `@mc/cards`, `topOfYourDeckHas(type)`: at least 1 card of `topOfDeck(1, you)` matches
-`{ anyPrintedResource: [type, "wild"] }`. The three upgrades use it as the `while` of a stat modifier on the identity
-named Magik; the three events use it as the condition of their second sentence, read when that sentence resolves
-(after the threat is removed, after the damage is dealt, when the prevention is applied).
+**Plan.** One helper in `@mc/cards`, `topOfYourDeckHas(type)`: the top card of your deck is faceup (`topOfDeckFaceup`,
+§3.48; §4.1 Q26 = B) and at least 1 card of `topOfDeck(1, you)` matches `{ anyPrintedResource: [type, "wild"] }`. The
+three upgrades use it as the `while` of a stat modifier on the identity named Magik; the three events use it as the
+condition of their second sentence, read when that sentence resolves (after the threat is removed, after the damage is
+dealt, when the prevention is applied).
 
 - The icons are the card's printed ones. A card with two icons of one type (Genius) has that type once for this
   test; Stored Energy would satisfy two of the three.
 - An empty deck, or a top card with no icon (an encounter card), satisfies none.
-- A facedown top card (alter-ego form, a blank text box) is §4.2 Q26. The upgrades only change a hero's stats, so
-  alter-ego form never asks the question; a blank hero text box does.
+- **A facedown top card satisfies none (§4.1 Q26 = B).** The upgrades only change a hero's stats, so alter-ego form
+  never asks the question; a blank hero text box does (Pestilence 45083a/b, Plague and Pestilence 45088). While it
+  is blank the three upgrades give no bonus and the three events resolve their first sentence only, until the card
+  is faceup again. The events can still be played: she pays knowing the second sentence will not happen. Nothing
+  about the hidden card is shown or logged.
 - If the verify fails, the fix is the modifier cache's dependency on the deck's top card, not a new predicate.
 
 **Tests (exact numbers).**
@@ -3537,6 +3654,11 @@ named Magik; the three events use it as the condition of their second sentence, 
    takes 2, the attacker takes 3.
 6. Soulsword and a basic attack against a tough minion with Clobber on top: the attack has piercing, the tough card
    is discarded and 3 damage is dealt.
+7. **Q26 = B.** Soulsword in play and Clobber ([physical]) on top: ATK 3. Pestilence attacks her and blanks her text
+   box: the top card is facedown and her ATK is 2 until the next villain phase begins, then 3 again with nothing
+   moved. While it is blank: Soul Strike from her hand deals 4 damage and gives no stunned card; Exorcism on a scheme
+   with 6 threat, Magik's Crown on top, leaves 2 and confuses nobody; Magic Barrier against an attack of 5, Mystical
+   Armor on top, prevents 3, she takes 2 and the attacker takes 0.
 
 ### 3.51 "If you paid for this event with a resource card"
 
@@ -3672,8 +3794,8 @@ imposes a maximum on that ability"); "Defend, Defense" (p. 15); "'Cannot'" (p. 1
 - **At the mission (§3.33, §3.34).** An ally there has no controller, so it is not "an identity-specific ally you
   control" and Sidekick cannot be played on it, although MC45 p. 5 lets upgrades attach there: the upgrade's own
   host text still has to be met. Advanced Suit ("an [X-FORCE] or [X-MEN] ally") can attach there (traits survive the
-  blank), and nobody can trigger it (§4.2 Q19 = A). Team Training's "each ally you control" does not reach the
-  mission.
+  blank) and does nothing there: its Response has no controller, and an ordinary upgrade's abilities do not reach
+  the area (§4.1 Q19 = B). Team Training's "each ally you control" does not reach the mission.
 
 **Tests (exact numbers).**
 
@@ -4055,23 +4177,37 @@ four types of resources"); FAQ "Unstoppable Force (#6)" (p. 60: at a cost of 0 n
 - **The paid resources.** A payment already knows its requirement. `paid.count` is the number of resources the cost
   took: the card's cost after every reduction, plus any resource cost of the same play. The rest of the pool is
   overpaid.
-- **`ValueSpec paidTypeCount { of? }`**: the most types the paid resources can be counted as,
-  `min(distinctTypeCount(pool), paid.count)`. A typed resource is its type; each wild is declared as any one of the
-  four, itself included, so two wilds are two types. `of` names another card's play, as `paidWith` has it.
-- **`EffectSpec assignPaidTypes { among: TypedResource[]; bind; of? }`** for a card that reads named types together. A
-  typed resource among the paid ones covers its own type; each paid wild covers one type of `among` not otherwise
-  covered; no more types are covered than `paid.count`. When every type of `among` that can be covered is covered,
-  nothing is asked. When the wilds or the count cannot cover them all, the player chooses which (ruling January 17,
-  2026: "you specify"). It binds `<bind>.<type>` to 1 or 0. `paidWith` is unchanged for a card that reads one type.
+- **Declared wilds (§4.1 Q33 = B).** Each wild in a payment has a declared type: [energy], [mental], [physical], or
+  [wild] when the player leaves it as itself. **The player declares it; the engine never takes the declaration that
+  gives the most.** The pay command carries the declarations (`wildAs`, one per wild in the order generated) and the
+  payment's pending choice asks for them (`declareWildTypes`, four options for each wild, none preselected). They
+  are asked only on a payment something reads for types: the card or ability being paid for is marked
+  `readsPaidTypes` (`{ count: true }`, `{ atLeast: 2 }` or `{ types: [...] }`), or a card the paying player controls
+  carries `RuleSpec readsPaymentTypesOf { cards: TargetQuery }` that matches it (the Coat for a THWART event, the
+  Sunglasses for an ATTACK event). Every other payment asks nothing and is unchanged.
+- **The one shortcut.** The prompt is skipped only when every declaration is provably equivalent: the engine works out
+  what each reader of this payment would read under every declaration of its wilds (four to the power of the wilds; 64
+  at most with these cards) and skips when all the answers are the same. That holds when no wild was generated, when the
+  cost is 0, when one wild pays alone for a card that only counts (one type, whatever it is called), and when the typed
+  resources already fill everything the reader can read. It does not hold merely because one declaration is plainly
+  best. A skipped wild stays [wild]. Logged `wildTypesDeclared { playerId, declared, skipped }`.
+- **`ValueSpec paidTypeCount { of? }`**: the number of different declared types among the paid resources, never
+  more than `paid.count`. A typed resource is its type; a wild is what the player declared, so two wilds are two
+  types only when she declared them differently. `of` names another card's play, as `paidWith` has it.
+- **`Predicate paidType { resource: TypedResource; of? }`** for a card that reads named types together
+  (Multitalented, Husk): true when a paid resource is of that type or a paid wild was declared as it. A wild left
+  [wild] is none of the three. This replaces pass 2b's `assignPaidTypes`, which chose for the player. `paidWith`,
+  under which a wild counts as any type, is unchanged for the earlier cards that use it.
+- **Which resources are the paid ones** when more was generated than the cost is Q34 = A as answered: the
+  `paid.count` resources that give the most declared types. The declaration is made first, over every wild
+  generated; a wild that ends up among the overpaid resources was not read.
 - **A payment that outlives its play.** The count and the pool are stamped on the play's `cardPlayed` event, so a
   Response to the play reads them (the Coat, the Sunglasses) after the event has left the stack.
 - **Husk.** "Spend up to 3 resources" is a resource cost of a chosen size, 1 to 3, with no type (Machine Man, `vision`
   26022, is the precedent; `discardFromDeck { choose }` of §3.55 is the shape). Everything spent was spent: there is no
-  overpayment against a cost the player sizes, so `assignPaidTypes` runs over the spent pool with a count equal to its
-  size.
-- **Whether the engine declares for the player** is §4.2 Q33 (default A: it takes the declaration that gives the most,
-  and asks only when two declarations give different effects). **Whether overpaid resources count** is §4.2 Q34 (default
-  A: no, RRG p. 13).
+  overpayment against a cost the player sizes, so `paidType` reads the whole spent pool, each wild as she declared
+  it.
+- **The player declares** (§4.1 Q33 = B, above); **overpaid resources do not count** (§4.1 Q34 = A; RRG p. 13).
 
 **As read.**
 
@@ -4099,25 +4235,38 @@ four types of resources"); FAQ "Unstoppable Force (#6)" (p. 60: at a cost of 0 n
 
 1. Firecracker (cost 2) paid with Plasmoid Energy 47010a ([energy][mental]): 4 damage and a stunned card. Paid with two
    [physical] cards, or with Genius alone ([mental][mental]): 4 damage, no stun.
-2. Paid with _"Like, totally!"_ ([wild]) and Firecracker 47007c ([physical]): stunned. Paid with _"Like, totally!"_ and
-   X-Gene, two wilds: stunned (one is declared a type, the other stays wild).
+2. **Q33 = B.** Paid with _"Like, totally!"_ ([wild]) and Firecracker 47007c ([physical]): she is asked to declare the
+   wild. [energy], [mental] or left [wild]: two types, 4 damage and a stunned card. [physical]: one type, 4 damage, no
+   stun. Paid with _"Like, totally!"_ and X-Gene, two wilds: two declarations; two different ones stun, the same one
+   twice (both left [wild] included) does not.
 3. Grand Finale (cost 3) paid with 47010a and Flash of Light 47008c ([physical]): three types: 2 damage, then three
    instances of 2: 8 on one enemy, or 2 each on four.
 4. **Q34 = A.** Grand Finale paid with 47010a, 47008c and Strength ([physical]): four resources, three paid, three
    types. Paid with 47010a, 47008c and The Power of Justice (1 [wild]: not a Justice card): four types generated, three
    paid: 8 damage, not 10.
 5. Three Steps Ahead (Justice, cost 3) paid with The Power of Justice (2 [wild]) and Firecracker 47007a ([energy]):
-   three types (ruling January 17, 2026): three removals of 2.
+   she declares both wilds (ruling January 17, 2026: "you specify"). [mental] and [physical], or one of those with
+   the other left [wild]: three types, three removals of 2. [energy] and [mental]: two types, two removals. Both
+   [energy]: one type, one removal of 2.
 6. Blinding Flash paid with three [energy]: X is 1.
 7. Jubilee's Coat ready, Flash of Light paid with [energy] and [mental] on a scheme with 6 threat: 3 removed and an
    enemy confused; then the Response removes 2 from a scheme she chooses.
 8. Firecracker at a cost of 0 by a fixture, Energy discarded anyway: 4 damage, no stun; the Sunglasses' Response is not
    offered.
-9. Multitalented (cost 3) paid with two [physical] cards and _"Like, totally!"_: 2 damage, and the player is asked
-   whether the wild is [mental] (remove 2 threat) or [energy] (heal 2). Paid with one card of each type: all three
-   lines, nothing asked.
+9. Multitalented (cost 3) paid with two [physical] cards and _"Like, totally!"_: she is asked to declare the wild.
+   [mental]: 2 damage and 2 threat removed. [energy]: 2 damage and 2 healed. [physical] or left [wild]: 2 damage
+   only. Paid with one card of each type: all three lines, nothing asked.
 10. Husk (THW 2) thwarts and her controller spends 47010a: 3 threat removed, 1 damage healed from her. Spends Strength
     instead: 2 removed, she readies after the thwart and its consequential damage. Declined: 2 removed.
+11. **Q33 = B, the shortcut.** Firecracker at a cost of 1 by a fixture, paid with _"Like, totally!"_ alone: nothing is
+    asked (every declaration is one type), 4 damage, no stun. Flash of Light paid with an [energy] card and a
+    [mental] card: nothing is asked (no wild). Grand Finale (cost 3) paid with 47010a, 47008c and _"Like, totally!"_:
+    four resources, three paid, three types whatever the wild is called: nothing is asked, 8 damage. Firecracker
+    paid with _"Like, totally!"_ and Strength: asked, although one answer is plainly best.
+12. **A reader in play.** Jubilee's Sunglasses and Wolverine in play; Unlikely Duo (cost 2, an ATTACK event that reads
+    no types) paid with _"Like, totally!"_ and Strength ([physical]): she is asked. Declared [energy]: the
+    Sunglasses' Response deals 2 damage. Declared [physical]: 1. Without the Sunglasses in play the same payment
+    asks nothing.
 
 **Composes with:** §3.51 (the same payment frame), §3.63; wave 6 §3.69.
 
@@ -4341,7 +4490,7 @@ February 8, 2026 – Ruling 1.
   applies. §4.2 Q38, default A: the enemy is read as it was when the attack was made.
 - Snow Clone's "Cannot have upgrades attached" is `cannotHaveAttachments` narrowed to upgrades: Sidekick, Advanced Suit
   and Desperate Measures cannot go on it, an encounter attachment ("Lost" Child) can. At the mission its text box is
-  blank (§3.34) and an upgrade can.
+  blank (§3.34) and an upgrade can, though only Desperate Measures does anything there (§4.1 Q19 = B).
 
 **Tests (exact numbers).**
 
@@ -5407,21 +5556,53 @@ Teleportation_'s resources are costs. **Permanent cards, checked against §3.61:
 
 ### 4.1 Decided by the user
 
-Questions 1 to 10 were answered by the owner on 2026-10-07 (the project thread; his notes in full are in
-`docs/phase7-wave8-handoff.md`). Nine follow the proposed default; **Q9 does not**. Questions 11 on are open.
+Questions 1 to 40 were answered by the owner on 2026-10-07 in three sets (the project thread; his notes in full are
+in `docs/phase7-wave8-handoff.md`). **Seven answers are not the proposed default: Q9, Q14, Q19, Q22, Q26, Q31 and Q33,
+all B.** Pass 3 rewrote every §1, §2, §3, §5 and §7 passage and test case that assumed A for those seven. Questions 41
+to 46 are open, and every task that touches them builds on default A (§8.2).
 
-| Q   | Decision                                                                                                                                                                                                                                                                                                                                                          |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **A.** A setup control, off unless the players turn it on. The rulebook's amounts are recommendations and are never applied silently.                                                                                                                                                                                                                             |
-| 2   | **A.** Pursued by the Past's Forced Response resolves when the counter is placed and removes every counter before the treachery reaches "Then, if it has any counters".                                                                                                                                                                                           |
-| 3   | **A.** The players in the game now; nothing snapshots the starting count.                                                                                                                                                                                                                                                                                         |
-| 4   | **A.** A stun or confuse replaces the activation, so the villain did not activate and the active counter stays.                                                                                                                                                                                                                                                   |
-| 5   | **A, firm.** Any Horseman's activation moves the counter, and always one place from the villain holding it, never from the villain that activated. The owner cites an FFG ruling on Hall of Heroes' post-RRG-1.5 rulings page (not in this repo). Test: Death holds the counter, a treachery makes War activate, the counter moves to the villain right of Death. |
-| 6   | **A.** "Considered to have at least 1 hit point" is a game-state modifier every reader sees, including the other Horsemen's "cannot be defeated while another villain has at least 1 hit point".                                                                                                                                                                  |
-| 7   | **A.** The normal valid-target and initiation rule: Golden Horse and Metal Wings are not offered when the simulated Forced Response can do nothing.                                                                                                                                                                                                               |
-| 8   | **A.** The extra boost card is set up for the activation; the tough status card and the heal resolve after it.                                                                                                                                                                                                                                                    |
-| 9   | **B.** A per-villain A/B picker for the Four Horsemen. The four selectors default from the difficulty (A/A/A/A for skirmish and standard, B/B/B/B for expert and heroic) and each can be overridden (MC45 p. 11). No "extreme" mode. §1.6, §2.3 and §5's client ask are read with this answer.                                                                    |
-| 10  | **A.** Standard III may replace the Standard set on any scenario that uses it.                                                                                                                                                                                                                                                                                    |
+| Q   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **A.** A setup control, off unless the players turn it on. The rulebook's amounts are recommendations and are never applied silently.                                                                                                                                                                                                                                                                                       |
+| 2   | **A.** Pursued by the Past's Forced Response resolves when the counter is placed and removes every counter before the treachery reaches "Then, if it has any counters".                                                                                                                                                                                                                                                     |
+| 3   | **A.** The players in the game now; nothing snapshots the starting count.                                                                                                                                                                                                                                                                                                                                                   |
+| 4   | **A.** A stun or confuse replaces the activation, so the villain did not activate and the active counter stays.                                                                                                                                                                                                                                                                                                             |
+| 5   | **A, firm.** Any Horseman's activation moves the counter, and always one place from the villain holding it, never from the villain that activated. The owner cites an FFG ruling on Hall of Heroes' post-RRG-1.5 rulings page (not in this repo). Test: Death holds the counter, a treachery makes War activate, the counter moves to the villain right of Death.                                                           |
+| 6   | **A.** "Considered to have at least 1 hit point" is a game-state modifier every reader sees, including the other Horsemen's "cannot be defeated while another villain has at least 1 hit point".                                                                                                                                                                                                                            |
+| 7   | **A.** The normal valid-target and initiation rule: Golden Horse and Metal Wings are not offered when the simulated Forced Response can do nothing.                                                                                                                                                                                                                                                                         |
+| 8   | **A.** The extra boost card is set up for the activation; the tough status card and the heal resolve after it.                                                                                                                                                                                                                                                                                                              |
+| 9   | **B.** A per-villain A/B picker for the Four Horsemen. The four selectors default from the difficulty (A/A/A/A for skirmish and standard, B/B/B/B for expert and heroic) and each can be overridden (MC45 p. 11). No "extreme" mode. §1.6, §2.3 and §5's client ask are read with this answer.                                                                                                                              |
+| 10  | **A.** Standard III may replace the Standard set on any scenario that uses it.                                                                                                                                                                                                                                                                                                                                              |
+| 11  | **A.** Scenario 3 reveals Apocalypse's next stage; it is not a change of form. The new stage enters at its full printed hit points, and attachments and status cards stay. Scenario 5's form changes are the contrast: neither a defeat nor a reveal, and hit points are not reset.                                                                                                                                         |
+| 12  | **A.** "For an easier game, begin with Apocalypse (I)" is an optional setup change, off by default on standard. It is not what skirmish mode means.                                                                                                                                                                                                                                                                         |
+| 13  | **A, with a note.** A player card may legally discard No Longer Worthy, which can make the scenario unwinnable. No rule requires a confirmation: the confirm prompt is our UX protection, not an FFG rule, and the client must word it that way.                                                                                                                                                                            |
+| 14  | **B.** The player who defeated the attached minion resolves the Setting environment's Special; the text does not hand it to the engaged player. Nobody resolves it if no player defeated the minion. The owner's reasoning calls it a When Defeated ability; the card (45145) prints "Forced Interrupt: When attached minion is defeated", and the answer is the same either way. §3.24 and §2.8 are read with this answer. |
+| 15  | **A.** No rule limits a game to one environment or one Setting. Several can be in play, and where a card says "the Setting environment" and more than one qualifies, the resolving player chooses. No setup restriction.                                                                                                                                                                                                    |
+| 16  | **A.** The three-sided Apocalypse keeps his current form when stage II replaces stage I: defeated as Cyberpath, stage II is revealed as Cyberpath; as Giant, Giant. Biomorph is named for setup only.                                                                                                                                                                                                                       |
+| 17  | **A.** Police State finds Escaped Mutant where it is. If it is already attached to a player it stays there; nothing detaches or moves it (Magistrate, by contrast, says to attach it to the defeating player's identity).                                                                                                                                                                                                   |
+| 18  | **A.** Cards in the mission area are in play; counting or watching them does not affect them, so "side schemes in play" and "after a side scheme is defeated" see them.                                                                                                                                                                                                                                                     |
+| 19  | **B.** MC45 p. 5: cards in the mission area "cannot be affected by card abilities unless the ability refers to the mission area". Upgrades may be attached there, but that does not waive the restriction: an ordinary upgrade's constant ability does not modify the ally. Only a card whose ability works with the mission (Desperate Measures) has an effect there. §3.33, §3.34 and §3.42 are read with this answer.    |
+| 20  | **A.** A finished mission is cleaned up with the rest of the mission area; the Finished face does not stay in play as a side scheme.                                                                                                                                                                                                                                                                                        |
+| 21  | **A.** There are five physical Overseer / Prelate cards. The one serving as the mission's Overseer is not available as a Prelate in scenario 3: four Prelates are set aside.                                                                                                                                                                                                                                                |
+| 22  | **B.** Mission and Overseer are chosen at random during scenario setup, and the log changes only through the Victory instructions. A lost scenario that is retried runs setup again: redraw the mission and the Overseer from what is still available. The campaign runner restores the campaign's RNG on a retry today, so this needs a fresh draw per attempt (§2.11, §3.45).                                             |
+| 23  | **A.** Cards 164 to 183 are campaign cards (MC45 p. 4), including Agent of Apocalypse and Worldwide Crisis (45164, 45165): campaign only, never a standalone modular set.                                                                                                                                                                                                                                                   |
+| 24  | **A.** "An upgrade / support from any aspect" is an aspect card; basic is not an aspect.                                                                                                                                                                                                                                                                                                                                    |
+| 25  | **A.** As Age of Apocalypse prints it: the reward does not count against the minimum deck size only. A deck of 39 ordinary cards plus the reward is legal; a deck already at 50 must drop a card to take it.                                                                                                                                                                                                                |
+| 26  | **B.** With Magik's text box blank her top card is facedown, and the game does not read a hidden card to answer an icon question: a facedown top card satisfies no condition. §3.48, §3.50 and §7.1 are read with this answer.                                                                                                                                                                                              |
+| 27  | **A.** Magik may play her top card through another "play a card from your hand" effect (the RRG p. 64 FAQ names Team-Building Exercise), and both cost reductions apply.                                                                                                                                                                                                                                                    |
+| 28  | **A.** Overpaid resources were not paid (RRG "Cost"). Bishop's "paid with a resource card" is true only when a resource card's resource went toward a cost of at least 1; never at cost 0.                                                                                                                                                                                                                                  |
+| 29  | **A.** "Ready your sidekick" is a cost, and a cost that changes nothing cannot be paid: Side-by-Side is not playable while the sidekick is already ready.                                                                                                                                                                                                                                                                   |
+| 30  | **A.** Suit Up (errata, RRG p. 69): eligibility comes from the upgrade's own attach text; no ally host needs to be in play, and the board state is not evaluated.                                                                                                                                                                                                                                                           |
+| 31  | **B, "RAW pending FFG clarification".** Witchfire 45057 is built as printed: an attack of hers that does not defeat an ally sends the effect to the "Otherwise" clause, threat on the main scheme. No erratum or ruling says otherwise; if FFG rules it was meant to read like S'ym and Trevor Fitzroy, change it then. The script and its test carry this note (§7.1).                                                     |
+| 32  | **A.** Colossus 45031's Interrupt plays him and makes him the defender, which the mission area cannot satisfy: that play goes to the player's own area only. Ordinary ally plays keep the mission choice.                                                                                                                                                                                                                   |
+| 33  | **B.** The player declares a wild resource's type; the engine does not pick "the best" for them. One shortcut is allowed: the prompt may be skipped when every declaration is provably equivalent. §3.62 and §7.3 are read with this answer.                                                                                                                                                                                |
+| 34  | **A.** Overpaid resources are not "used to pay": a cost of 3 reads at most three types.                                                                                                                                                                                                                                                                                                                                     |
+| 35  | **A.** Frostbite attached during an activation is still set aside after that activation; no grace activation.                                                                                                                                                                                                                                                                                                               |
+| 36  | **A.** Shopping Spree bars removal by heroes and allies; an alter-ego's Disguise removes threat from it (the owner cites FFG's Jubilee preview article, not in this repo).                                                                                                                                                                                                                                                  |
+| 37  | **A.** Grounded's extra cost applies to a change to hero form "during your turn"; a forced change outside her turn does not pay it.                                                                                                                                                                                                                                                                                         |
+| 38  | **A.** Snow Clone and Chamber keep their consequential-damage reduction when the attack defeats the enemy (FFG's intent, ruling February 8, 2026 – Ruling 1).                                                                                                                                                                                                                                                               |
+| 39  | **A.** With a Jubilee hero in the game the ally Jubilee from Mutants at the Mall never enters play (the unique rule; RRG 1.8 errata for Mutants at the Mall #88A, p. 68).                                                                                                                                                                                                                                                   |
+| 40  | **A.** Serve and Protect needs two characters, one X-Force and one X-Men; one character with both traits cannot be exhausted twice.                                                                                                                                                                                                                                                                                         |
 
 ### 4.2 The questions as asked
 
@@ -5725,7 +5906,8 @@ Pass 2c's questions:
 ## 5. What this asks of the other agents (pass 1a)
 
 - **`card-data-pipeline`:** emit the six sets of this pass with §1.2–§1.9: one main scheme record each from the
-  duplicated raw pairs (§1.4); the Horsemen as four two-stage villains (§1.6); Pursued by the Past as one two-face
+  duplicated raw pairs, under the a record's id (§1.4); the Horsemen as eight one-stage villain cards joined per
+  villain by `ScenarioVillain.sideBCardId` (§1.6; emitted so in data step 5); Pursued by the Past as one two-face
   environment; `classification: "standard"` on `standard_iii`; the two obligations with their set membership (§1.8);
   the attach hosts of §1.9; the two scenario records of §1.10. Read scans 45059–45061 (the amplify token in Unus's
   text), 45075a/b, 45082a–45084b and 45091 against raw before emitting. No schema change is requested.
@@ -5740,7 +5922,12 @@ Pass 2c's questions:
 - **`game-client-engineer`:** four villains in a row with the active counter visible and each dial readable; a
   villain at 0 shown as standing, with the reason ("cannot be defeated while …", or §3.10's considered hit point) in
   Inspect; Gene Pool's threat and the three thresholds readable from Unus and from Infinite Soldier; pursuit counters
-  and the reset threshold on Pursued by the Past; the setup controls of Q1, Q9 and Q10 once answered.
+  and the reset threshold on Pursued by the Past. **Setup controls** (answered, §4.1): Q1, the Infinites threat as a
+  control that is off (0) until the players turn it on, starting at the mode's recommendation when they do, with the
+  amount shown before the game starts and never applied without the control; Q9 = B, **four A/B selectors, one per
+  Horseman**, preset from the difficulty and each changeable, with the face's hit points, SCH and ATK beside it, and
+  no "extreme" entry for this scenario (`difficultyOptionsFor` offers it to every scenario with several villains
+  today); Q10, the Standard III toggle on every scenario that uses the Standard set.
 
 ### 5.1 Pass 1b
 
@@ -5765,7 +5952,11 @@ Pass 2c's questions:
   player reveals stage III"); why he healed instead of falling, and the win condition, in Inspect; a locked side
   scheme shown as locked with its reason; the Setting environment's Special readable from every card that resolves
   it; the three forms of the villain with the current one marked and each form's Forced Response in Inspect; power
-  counters and the threshold of 4; the setup option of Q12 and the confirmation of Q13 once answered.
+  counters and the threshold of 4; the setup option of Q12 (answered A: "begin with Apocalypse (I)", off by default
+  on standard, and not what skirmish means). **The confirmation of Q13 is our UX warning, not a rule:** before a
+  player card discards No Longer Worthy the client asks once, in words that say whose warning it is ("The rules allow
+  this. Without No Longer Worthy this scenario can no longer be won. This warning is the app's, not the game's."),
+  and the engine treats the discard as an ordinary legal choice.
 
 ### 5.2 Pass 1c
 
@@ -5794,10 +5985,11 @@ Pass 2c's questions:
   be. One scenario test: a mission defeated by round 3 in Unus, and one that fails on the fourth attempt.
 - **`rules-qa-engineer`:** one regression test each for ruling April 30, 2026 – Ruling 4 (1) (§3.38 test 1, both
   branches, and the Abyss case of test 3), for answer (2) with §3.46's three games, and for the Mission Team erratum
-  (§3.35 test 2: the discount does not outlive the phase). Fixtures for the exact-number tests of §3.33–§3.37 and
-  §3.40. Campaign tests of §3.45: each mission won and failed, the reward and the cost carried to the next scenario,
-  a retry after a loss in which the Overseer was defeated, scenario 5 won three ways, a seat eliminated in a won
-  expert game. Report, do not fix, the two repo documents that read the log's columns backward (§0.2).
+  (§3.35 test 2: the discount does not outlive the phase). Fixtures for the exact-number tests of §3.33–§3.37 and §3.40.
+  Campaign tests of §3.45: each mission won and failed, the reward and the cost carried to the next scenario, a retry
+  after a loss in which the Overseer was defeated, with the retry's mission and Overseer drawn again (Q22 = B; §3.45
+  test 8), scenario 5 won three ways, a seat eliminated in a won expert game. Report, do not fix, the two repo documents
+  that read the log's columns backward (§0.2).
 - **`game-client-engineer`** (design first; MC45 is a box that needs a design pass, `docs/campaign-client-per-box.md`
   §3, whose MC45 row is corrected by §0.2):
   - **Dossier (the log).** Per seat: identity and, in an expert campaign, remaining hit points. The four missions in
@@ -5806,19 +5998,22 @@ Pass 2c's questions:
     marked. What carries: Desperate Measures on offer each game, Panicked Refugees each game, North American Sea
     Wall each game, each seat's granted upgrade, support and campaign ally; cards removed from the campaign shown as
     such.
-  - **Briefing, every scenario.** The mission drawn and the Overseer drawn, shown as drawn, not chosen, with both
-    faces of the mission and the Overseer's Mission Response in Inspect; the row's Setup cell and what its Defeated
-    and Not Defeated cells will do; what the log carries into this game; in an expert campaign each seat's hit
-    points and the heal's price (3 threat on the mission), with "must pay" for a seat that was defeated. Scenario 3:
-    which Prelate is absent and why (Q21). Scenario 5: Protect the Professor, with both ways it ends the campaign,
-    and "Professor X cannot enter play".
+  - **Briefing, every scenario.** The mission drawn and the Overseer drawn, shown as drawn, not chosen, with both faces
+    of the mission and the Overseer's Mission Response in Inspect; on a retry both are drawn again and the Briefing says
+    so ("new attempt, new draw") instead of carrying the lost game's pair over (Q22 = B); the row's Setup cell and what
+    its Defeated and Not Defeated cells will do; what the log carries into this game; in an expert campaign each seat's
+    hit points and the heal's price (3 threat on the mission), with "must pay" for a seat that was defeated. Scenario 3:
+    which Prelate is absent and why (Q21). Scenario 5: Protect the Professor, with both ways it ends the campaign, and
+    "Professor X cannot enter play".
   - **Aftermath.** The strike; the row's cell applied; the picks: an upgrade or a support from any aspect is a
     collection-wide searchable picker (MC27's), a campaign ally is four cards with the ones taken marked; the
     Overseer struck or not, with the reason; scenario 5's two endings, including a won game that lost the campaign.
   - **In-game mission UI.** The mission area as its own region of the table, visibly apart from the villain's area
     and from every player's: the mission with its threat and attempt counters ("2 of 4"), the Overseer with damage
     and hit points and dashes for SCH and ATK, any Agent of Apocalypse, the allies there with their resource icon
-    shown large and their hit points, upgrades on them, and facedown cards on Abyss as a count. A Mission Rules
+    shown large and their hit points, upgrades on them (an upgrade other than Desperate Measures drawn as inactive,
+    with the reason "no effect at the mission" in Inspect and a warning in the play prompt before its cost is paid;
+    Q19 = B), and facedown cards on Abyss as a count. A Mission Rules
     reference panel with both sides (§1.29).
   - **Playing an ally** while a mission is in play: a destination prompt (your area or the mission) with the cost
     after Mission Team's discount, and a short reason when a destination is refused (unique, "Play only if").
@@ -5862,17 +6057,19 @@ Pass 2c's questions:
   defense on top); Bishop taking an attack undefended when Energy Absorption pays for it; Fear the Future's and
   Darkchilde's options; which card Temporal Trickery discards; the order of Battle for Limbo's activations. With a
   Cable, X-23 or Colossus hero at the table it never keeps the matching ally for anything but its resource.
-- **`rules-qa-engineer`:** one regression test for each of the four FAQ entries on Magik (tests 1, 3, 4 and 5 of
-  §3.49) and for the Suit Up erratum (§3.59 test 1); ruling April 30, 2026 – Ruling 3 (7) with a faceup deck (§3.48
-  test 5); ruling February 28, 2026 – Ruling 7 (2) on Portal Through Time (§7.1); the unique matches of §3.58,
-  including the Colossus data fix; fixtures for the exact-number tests of §3.50–§3.57. Deck tests (DoD §4b): both
+- **`rules-qa-engineer`:** one regression test for each of the four FAQ entries on Magik (tests 1, 3, 4 and 5 of §3.49)
+  and for the Suit Up erratum (§3.59 test 1); ruling April 30, 2026 – Ruling 3 (7) with a faceup deck (§3.48 test 5);
+  ruling February 28, 2026 – Ruling 7 (2) on Portal Through Time (§7.1); the unique matches of §3.58, including the
+  Colossus data fix; fixtures for the exact-number tests of §3.50–§3.57; Witchfire's four cases (§7.1) in a test named
+  "RAW pending FFG clarification (Q31)"; the facedown top card of §3.50 test 7 (Q26 = B). Deck tests (DoD §4b): both
   starter decks legal at 40 cards; the illegal decks of §3.58 test 4; two Sidekicks or two Bloodgems in one deck
   illegal.
 - **`game-client-engineer`:**
   - **Magik's deck:** the top card drawn faceup on the deck for every seat, with its resource icons large enough to
     read at table zoom; a "play from deck (1 less)" affordance that shows the reduced cost and whether the phase's
     use is spent; when a card is played from the top, the next card turns over before the payment prompt opens. The
-    three upgrades and three events show their condition met or unmet against the current top card.
+    three upgrades and three events show their condition met or unmet against the current top card; with the card
+    facedown under a blank text box they show unmet with the reason "top card facedown" and no icon (Q26 = B).
   - **Bishop:** the cards Energy Absorption discards shown in order with the resource cards marked as they go to his
     hand; the count of resource cards in hand on the Rifle and the Uniform; charge counters and the +8 cap on
     Super-Charged; a "paid with a resource card" marker in the payment prompt of Concussive Blast and Command
@@ -5893,7 +6090,8 @@ Pass 2c's questions:
       use it (RRG p. 64); a card played from the top reads the **next** card; "printed [physical] icon" on Malcolm
       is not met by a [wild]; "paid for this event with a resource card" needs a resource card, not a resource;
       Goldballs must discard at least 1; Full-Body Charge reads the printed hit points; Witchfire's "Otherwise"
-      (Q31); Energy Absorption answers attacks only.
+      places 1 threat on the main scheme after any attack of hers that defeats no ally (Q31 = B, as printed); Energy
+      Absorption answers attacks only.
     - Try-it lessons: (1) Magik with Soul Strike on top and a [physical] card under it: play it from the deck for 1
       and stun. (2) Bishop takes an undefended attack of 3 with two resource cards among his top three, then fires
       Bishop's Rifle. (3) Sidekick on Malcolm, then Side-by-Side.
@@ -5929,13 +6127,16 @@ Pass 2c's questions:
 - **`encounter-ai-designer`:** the automated player's choices. Iceman: always _"Freeze!"_; which enemies get the copies
   when Ice Blast has fewer than it needs (the villain first); Arctic Attack's option (6 damage when a copy is already
   there); Cool Off's picks; defend with Ice Wall in play rather than exhaust. Jubilee: pay with the cards that give the
-  most types when the card reads them, and keep _"Like, totally!"_ for a payment one type short; _Mall Rat_ whenever she
+  most types when the card reads them, keep _"Like, totally!"_ for a payment one type short, and declare each wild
+  itself as a type the payment lacks (Q33 = B: nobody's wild is declared by the engine, the automated player's
+  included); _Mall Rat_ whenever she
   is in alter-ego form with Shopping Spree in her deck; pay Grounded's cost only with a Jubilee event in hand. Encounter
   side: the indirect damage of Pyro, Playing with Fire and Burn!; The Eye of Sauron's discard and exhaust; the order of
   Elaborate Trap's schemes; which ally or upgrade Arcade's Funhouse takes. It never keeps Shadowcat 46019, Wolverine
   47002 or `wolv` 35003 for anything but a resource beside the matching hero.
 - **`rules-qa-engineer`:** one regression test each for ruling June 2, 2026 – Ruling 1 with this pass's cards (§3.68
-  test 4), ruling January 17, 2026 – Ruling 4 (1) (§3.62 tests 2 and 5) and, once Q38 is answered, ruling February 8,
+  test 4), ruling January 17, 2026 – Ruling 4 (1) (§3.62 tests 2 and 5, with the declare prompt and its shortcut,
+  tests 11 and 12; Q33 = B) and, once Q38 is answered, ruling February 8,
   2026 – Ruling 1's intent on Snow Clone and Chamber (§3.67 tests 2 and 3). Fixtures for the exact-number tests of
   §3.61–§3.67. Deck tests (DoD §4b): both starter decks legal (Iceman 46 entries and 40 counted, `requiredIdentitySet`
   returning Frostbite ×6; Jubilee the nine version records); the illegal decks of §3.68 test 1 and §3.69 tests 2 and 4;
@@ -5948,7 +6149,9 @@ Pass 2c's questions:
     activation skipped"; the deck builder lists Frostbite ×6 under "set aside, not counted" and never offers it to
     another hero.
   - **Jubilee:** the payment prompt shows, for a card that reads types, the count as cards are added ("2 different
-    types: stuns") with each wild's declared type and the overpaid resources grayed (Q33, Q34); the three versions drawn
+    types: stuns"), a type selector on each wild that she must set before confirming (four choices, none preselected;
+    Q33 = B), no selector when the engine has skipped the prompt as equivalent, and the overpaid resources grayed
+    (Q34); the three versions drawn
     as three cards with their icon in hand, in the deck builder and in decklists ("Firecracker ×3: [energy], [mental],
     [physical]"); Shopping Spree's locked reason for heroes and allies, its Alter-Ego Action offered to every player in
     alter-ego form, and _Mall Rat_ on Jubilation Lee; Grounded's cost on the change-form control with the reason when it
@@ -5969,11 +6172,11 @@ Pass 2c's questions:
       attached during an attack leaves when that attack ends (Q35); Ice Wall takes the damage of any player's identity
       and is discarded at 8, not destroyed at its own choice; Frozen Solid skips an activation, and a stunned enemy uses
       up its stunned card first; "an upgrade attached" does not count encounter attachments; overpaid resources are not
-      "used to pay" (Q34) and a cost of 0 pays with no types; "2 different resource types" is at least 2; a wild may be
-      declared a type you are missing; the three versions of Firecracker are one card for "copies" and three for icons;
-      Shopping Spree has no Victory and comes back; Grounded's cost is 2 of one type and only for changing to hero form
-      on your turn; Unlikely Duo needs both a Jubilee and a Wolverine in play, and may confuse one enemy and hit
-      another; Cell Phone's character still exhausts.
+      "used to pay" (Q34) and a cost of 0 pays with no types; "2 different resource types" is at least 2; you say what a
+      wild is when you pay, it may be a type you are missing, and the game never picks it for you (Q33); the three
+      versions of Firecracker are one card for "copies" and three for icons; Shopping Spree has no Victory and comes
+      back; Grounded's cost is 2 of one type and only for changing to hero form on your turn; Unlikely Duo needs both a
+      Jubilee and a Wolverine in play, and may confuse one enemy and hit another; Cell Phone's character still exhausts.
     - Try-it lessons: (1) Iceman attacks, _"Freeze!"_ attaches Frostbite, then Take That! for 7. (2) Iceman defends an
       attack of 3 with _"Freeze!"_ and takes 0. (3) Jubilee plays Firecracker with Plasmoid Energy and stuns. (4)
       Jubilation Lee uses _Mall Rat_, exhausts twice over two turns and takes Jubilee's Coat.
@@ -6079,52 +6282,11 @@ Pass 2c's questions:
       Pull_ with the Armor in play and attacks at +1. (4) Magneto wraps a guard minion, attacks the villain past it,
       then plays Magnetic Missile. (5) Magneto defeats New Recruits and plays Surge as a fourth ally.
 
-## 6. Later passes (placeholders)
+## 6. Later passes
 
-- **(pass 3)** The ordered engine build queue. It starts from one list: every §3 row of passes 1a to 2c whose status is
-  **new** (7) or **extend** (30), by number and title. The 32 "exists (verify)" rows and the 6 "exists (compose)" rows
-  are not in it: each is proved by a test in its card module and joins the queue only if that test fails. Three rows of
-  the list build on another: §3.71 adds a field to §3.39's moment, §3.62 and §3.51 change the same payment frame, and
-  §3.34 needs §3.33's area. A question's answer can add work to a row that is not listed (Q46 = B, §3.81).
-  - **New:**
-    - 3.10 "Is considered to have at least 1 hit point"
-    - 3.21 An attachment that ignores a named ability; winning when the villain falls
-    - 3.33 An in-play scenario area no player controls, closed to abilities that do not name it
-    - 3.36 Discarded cards paired one each with characters, matched by resource icon
-    - 3.39 A named moment a script raises and other cards answer
-    - 3.48 The top card of a player's deck kept faceup
-    - 3.77 An attachment chosen by the label of an ability it prints ("Hero Action", "Hero Response")
-  - **Extend:**
-    - 3.1 Find, and "find … and reveal it" when the card is already in play
-    - 3.5 A setup option that belongs to a modular set
-    - 3.6 Standard III: a counted environment that flips; replacing the Standard set
-    - 3.7 Villains in a random row; the active counter passes to the next in the row
-    - 3.11 Another card's Forced Response resolved "as if it just attacked you"
-    - 3.13 An identity's text box blanked "until the next villain phase begins"
-    - 3.18 A villain's next stage revealed when the main scheme is completed
-    - 3.19 A target threat of X per player, X read from the villain's printed hit points
-    - 3.24 "Resolve the 'Special' ability on the [SETTING] environment"
-    - 3.25 An attachment with no "attach to" that attaches from its own When Revealed
-    - 3.26 A three-sided villain that changes to a named form
-    - 3.28 An attachment's Forced Interrupt resolved "as if" its trigger just happened
-    - 3.34 An ally played into that area: the choice, no controller, a blank text box, upgrades
-    - 3.35 A support the first player controls that cannot be discarded; a discount by destination
-    - 3.37 A damage pool dealt to one enemy at a time; threat removed by a total that is not a thwart
-    - 3.42 A resource icon a character is considered to have; an obligation that lives in a player's deck
-    - 3.43 "[A title] cannot enter play during this game"
-    - 3.44 A card found at campaign setup that counts toward the starting hand
-    - 3.46 One printed card as two cards: an Overseer in play and its Prelate face
-    - 3.49 Playing the top card of your deck as if it was in your hand, for 1 less, once per phase
-    - 3.51 "If you paid for this event with a resource card"
-    - 3.53 An attach host by classification; "your sidekick"
-    - 3.54 A cost that readies a card
-    - 3.55 A deck discard cost of a chosen size
-    - 3.59 A search for "an upgrade that can be attached to an ally"
-    - 3.62 The resource types a payment used
-    - 3.63 An additional cost to change form
-    - 3.64 A player makes a basic attack or thwart on a card's instruction
-    - 3.71 A deck discarded until a trait's card is found; the whole discard read by cards that answer
-    - 3.75 A minion in play dealt to a player as a facedown encounter card, and passed to the next player
+None is left. The list of new and extend rows this section held after pass 2c is now the ordered engine queue of
+§8.2 (pass 3), with the "exists (verify)" and "exists (compose)" rows in §8.3, the scripting order in §8.4 and the
+campaign, client and Guided mode work in §8.5.
 
 ## 7. Pass 2: hero packs
 
@@ -6199,7 +6361,7 @@ as if from hand for 1 less (§3.49). Limbo, Scrying, Stepping Disc and Illyana's
 | **Belasco** 45054 (SCH 1★, ATK 1★, 6)    | Villainous. After he activates against you, discard the top 3 cards of your deck; if Ruler of Limbo is in play they attach to it facedown         | §3.57                  |
 | Ruler of Limbo 45055 (3 threat, amplify) | No threat removed while Belasco is in play. When Revealed: the Illyana Rasputin player finds Limbo, attached facedown; it returns when defeated   | §3.57, §3.1            |
 | S'ym 45056 (SCH 2, ATK 2, 5)             | Guard. When Revealed: 2 threat on Ruler of Limbo if in play, otherwise on the main scheme                                                         | §3.60                  |
-| Witchfire 45057 (SCH 1, ATK 3, 4)        | Quickstrike. After she attacks and defeats an ally: 1 threat on Ruler of Limbo; "Otherwise", on the main scheme                                   | §4.2 Q31               |
+| Witchfire 45057 (SCH 1, ATK 3, 4)        | Quickstrike. After she attacks and defeats an ally: 1 threat on Ruler of Limbo; "Otherwise", on the main scheme                                   | §4.1 Q31 = B           |
 | Battle for Limbo 45058                   | Each LIMBO minion in play activates against the player it is engaged with; surge if none did. Boost (star): 2 threat on Ruler of Limbo if in play | §3.60                  |
 
 - **"A Magik card"** (Stepping Disc) is a card of her identity-specific set (`identitySetTitled`): the fifteen cards
@@ -6215,6 +6377,16 @@ as if from hand for 1 less (§3.49). Limbo, Scrying, Stepping Disc and Illyana's
   card and then his Forced Response.
 - **The mission (§3.36).** Her faceup card is the first card her mission attempt discards (§3.48 test 7), and she
   may play an ally from the top of her deck to the mission (§3.49 test 10).
+- **Witchfire (§4.1 Q31 = B; "RAW pending FFG clarification").** Built as printed. The Forced Response answers every
+  attack of hers: if the attack defeated an ally, 1 threat goes on Ruler of Limbo; "Otherwise" (it hit an identity,
+  or the defending ally survived) 1 threat goes on the main scheme. With the main scheme at 2 and Ruler of Limbo at
+  3: her attack of 3 on a hero, defended or not, leaves the main scheme at 3 and Ruler of Limbo at 3; an ally with 2
+  hit points remaining defends and is defeated: Ruler of Limbo 4, main scheme 2; the same with Ruler of Limbo out of
+  play: nothing is placed (the first sentence's condition was met, so "Otherwise" is not reached, and its scheme is
+  not there); an attack a stunned card replaced: no attack and no threat. Quickstrike makes the first of these
+  happen on the turn she is revealed to a hero. No erratum or ruling says the card was meant to read as S'ym and
+  Trevor Fitzroy do; if FFG says so, this script changes. **The script's comment and its test's name both carry
+  "RAW pending FFG clarification (Q31)".**
 
 #### The aspect and basic cards
 
@@ -6443,8 +6615,9 @@ for an ITEM (§3.66).
 
 - **The three versions** are one card each under three records; the decision is §3.69. Each is in her deck once.
 - **A payment in numbers.** Grand Finale (cost 3) paid with Plasmoid Energy 47010a and Flash of Light 47008c: three
-  types, 8 damage. Flash of Light paid with _"Like, totally!"_ and any card: two types, an enemy confused, and the Coat
-  removes 2 more.
+  types, 8 damage. Flash of Light (cost 2) paid with _"Like, totally!"_ and Strength ([physical]): she declares the
+  wild (Q33 = B). [energy], [mental] or left [wild]: two types, 3 threat removed, an enemy confused, and the Coat
+  removes 2 more. [physical]: one type, 3 removed, nobody confused, and the Coat removes 1.
 - **_"Like, totally!"_** is on the hero face: she exhausts, so she cannot also thwart, attack or defend with that
   exhaust. It cannot pay Grounded's cost (alter-ego form).
 - **Wolverine** is hers and matches the Wolverine hero (§3.68). His heal is a Response of his own and resolves beside
@@ -6787,3 +6960,409 @@ keywords are right as emitted. The checks are in §5.5.
   of the Atom) is a play restriction.
 - "Play only if" lines are play restrictions: New Recruits, White Queen and Won't Stay Down may be in any deck.
 - The unique rule in a deck (§3.80 test 1): Phoenix and Cyclops decks without 49014 or 49015.
+
+## 8. Build order (pass 3)
+
+Written 2026-10-07 from §3's status lines and Plan paragraphs and from the owner's answers 1 to 40 (§4.1), with the
+data checked against HEAD e9805f4b. None of this wave's engine work has landed: none of the identifiers the plans
+name (`raiseMoment`, `villainRow`, `consideredRemainingHp`, `scenarioPlayArea`, `pairCards`, `topOfDeckFaceup`,
+`printsAbility`, `revealNextVillainStage`, `ignoreAbilities`, `formChangeCost`, `basicPowerBy`, `passEncounterCard`,
+`paidTypeCount` and the rest) exists in `packages/engine/src` or `packages/cards/src/dsl`. §3's statuses are not
+changed here; what the answers and the code add to them is in §8.6.
+
+One queue task per agent and per commit. **At most one engine agent at a time** (`packages/engine`,
+`packages/cards/src/dsl`, the shared scenario builders in `packages/cards/src/*/setup.ts`, and
+`packages/content/src/schema` for a schema change); beside it, at most two other agents on files that do not overlap
+(data fixes, card scripts, the campaign definition, tests). **At most three scripting agents at once and never two in
+one file.** A hero module, a scenario or a set is scripted only once every queue task it waits on has landed.
+
+### 8.1 Data: what is done and what is left
+
+**Done** (`card-data-pipeline`, commits 2f679e07 to e9805f4b on `feature/wave-8`):
+
+- All five packs are emitted under `packages/content/src/data/`: `aoa` (194 cards, 23 encounter sets, 5 scenario
+  records, 2 starter decks), `iceman`, `jubilee`, `ncrawler`, `magneto`. The cycle is named Age of Apocalypse.
+- Six starter decks: Bishop / Leadership and Magik / Aggression from MC45 p. 22; Iceman / Aggression (46 entries, 40
+  counted, Frostbite ×6 permanent), Jubilee / Justice, Nightcrawler / Protection and Magneto / Leadership from the
+  printed decklist cards.
+- The five scenario records with `ScenarioVillain.sideBCardId`, the a-card main scheme ids and `setAsideCardIds`
+  (§1.6, §1.10, §1.21). `AOA_CAMPAIGN` is hand-authored and exported, not yet in `CAMPAIGNS`.
+- `WAVE8_CARDS`, `WAVE8_ENCOUNTER_SETS`, `WAVE8_SCENARIOS` and `WAVE8_STARTER_DECKS`; the wave is in `PLAYABLE_CARDS`
+  and listed as unscripted, so nothing of it can be selected yet.
+- Schema and normalizer work the spec asked for: `HostQualifiers.classification` with its parser rule (§1.32);
+  `Correction.scheme`, `Correction.schemeIcons` and `startingThreatPerPlayer`; `addedRecords` and `linkOverrides`
+  (45104b The Towering Citadel); Mission Response parsed as a Forced Response; the Overseer and Prelate faces as two
+  cards joined by `otherFaceId`; dashed minion stats; the mission back faces as their own side schemes.
+- Corrections: the five RRG p. 69 errata; Colossus's subtitle on `mut_gen` 32048 and `wolv` 35021; Cryokinetic
+  Perception's "the ICE trait"; Grand Finale's title and ability id; Kurt's Cutlasses 48004 with
+  `restrictedWeight: 2` and its one ability id; Brimstone Dimension 48028's hazard icon; The Crazy Gang 48033's
+  2 threat per player; Selene 49039's period; Sebastian Shaw 49038's misprinted label noted in provenance.
+
+**Left for the data agent** (collected from §5 and §7, each checked against the data at e9805f4b). None blocks an
+engine task; the card group that waits on each is named.
+
+1. Magneto's Armor 49004: accept the regeneration to one ability id (`49004.magnetos-armor-response`; the three
+   `-constant` ids go). Waits: `magneto/magneto/support-upgrades-allies`.
+2. Grounded 47023: an ability id for its constant line (today: the obligation, the When Revealed and the Response).
+   Waits: `jubilee/jubilee/obligation-nemesis`.
+3. Husk 47012: regenerate to `[husk-interrupt]` alone (today three extra `-constant` ids). Waits:
+   `jubilee/aspect-basic`.
+4. The Eye of Sauron 46032: regenerate to `[when-revealed]` alone (today four extra `-constant` ids). Waits:
+   `iceman/sauron`.
+5. Items 1, 3 and 4 are the survey's regeneration drift: regenerate each card by itself and reject the image
+   extension hunks (`.png` for `.jpg`) the full regeneration brings.
+6. Tweedledope 48037: `boostIcons` and the rewritten `Errata` note, **after the owner answers Q44** (default 0; the
+   record has 1). Waits: `ncrawler/crazy-gang`.
+7. `cardNotes` on the nine version records 47007a/b/c, 47008a/b/c and 47010a/b/c (one title, three versions, §3.69).
+8. `cardNotes` on Shopping Spree 47003 for the insert's victory sentence (§0.4).
+9. `cardNotes` on New Recruits 49020, White Queen 49021 and Won't Stay Down 49016: the two-trait "Play only if" line
+   is a script rule (`playOnlyIf`), not a `playRestrictions` field.
+10. `wolv` 35021's image path is `/bundles/cards/45031.jpg`, the Age of Apocalypse Colossus; it has no scan of its
+    own and is a reprint of 32048 (`/bundles/cards/32048.png`).
+11. A manifest row for 45104b in `assets/card-art/hall-of-heroes-manifest.tsv` (the scan is in place; the handoff
+    says no row was added), and its width against the other scans.
+12. The scans §1.22 and §1.31 list as "still to read at emit": confirm each was read when `aoa` was emitted, or read
+    them before the set that holds them is scripted.
+13. `AOA_CAMPAIGN` into `CAMPAIGNS`, in the same change as the campaign definition (§8.5 line 5).
+14. Hero art for Bishop and Magik out of `art/heroes/_pending/` when the box becomes playable; the Jubilee and
+    Wolverine pair's folder `art/teamups/jubilee-wolverine/` (§5.4).
+
+### 8.2 Engine queue, in order
+
+43 tasks: one for each of the 7 **new** rows and the 30 **extend** rows of §3, four rows split in two because they hold
+two independent changes (§3.33, §3.35, §3.62, §3.75), and two tasks the owner's answers added to a row whose status is
+"exists (verify)" (§3.45: Q22 = B and Q25 = A). No two rows are merged: every pair that shares code can land one after
+the other. "After N" names a dependency, not just the order. The order is: the two changes most scripts need; then the
+heroes' primitives, in the order the heroes are scripted (§8.4); then the five scenarios in box order; then the
+campaign, which needs all five scenarios scripted first anyway.
+
+File paths are under `packages/engine/src/` unless they start with `dsl/` (`packages/cards/src/dsl/`) or `cards/`
+(`packages/cards/src/`). Every task adds its own colocated test file with the row's exact-number tests.
+**Decisions:** a question number with its answer from §4.1; "(open)" means the owner has not answered and the task
+builds on default A.
+
+**What most scripts need**
+
+| #   | §    | Change                                                                                                                                                                                                                       | Files                                                                                                                               | Decisions | Unblocks                                                                                                                                                                                                                     |
+| --- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 3.39 | `EffectSpec raiseMoment { name, player }`, `TriggerEvent momentRaised`, the pattern `on.moment(name)`; forced before optional; the `heard` gate; log `momentRaised`                                                          | `spec.ts`, `trigger-events.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `events.ts`, `dsl/effects.ts`, `dsl/abilities.ts` | none      | Bishop 45001a and Bishop's Uniform 45005; Iceman 46001a and Cryokinetic Perception 46005; Bamf! 48006 and Tally Ho! 48011; the five missions 45166a–45170a; task 12                                                          |
+| 2   | 3.1  | `revealCard` of a card found in play: a minion engages the finder and keeps everything on it, no `entersPlay`, then When Revealed and reveal keywords; a side scheme or attachment stays where it is with no starting threat | `resolve/reveal.ts`, `resolve/find.ts`, `resolve/apply-effect.ts`, `events.ts`                                                      | Q17 = A   | Pursued by the Past 45075b; Ahab 45097; Gene Pool's reveal (45062a); Police State 45138; Land Out of Time 45131; Trevor Fitzroy 45026, Bantam 45028; Ruler of Limbo 45055; Brimstone Dimension 48028, Brimstone Strike 48030 |
+
+**The heroes' primitives**
+
+| #   | §                  | Change                                                                                                                                                                                                                                                                                          | Files                                                                                                                                                                                                                      | Decisions          | Unblocks                                                                                                               |
+| --- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| 3   | 3.75 (a)           | `dealAsEncounterCard` takes a card in play: it leaves play facedown to the player's dealt cards through the ordinary leave, not defeated; a card that cannot leave play is not dealt                                                                                                            | `resolve/cards.ts`, `resolve/apply-effect.ts`, `spec.ts`                                                                                                                                                                   | none               | Brimstone Dimension 48028 (with task 2); task 4                                                                        |
+| 4   | 3.75 (b) (after 3) | `EffectSpec passEncounterCard { cards, from, to }` and `PlayerRef nextAfter(player)`; the passed card is revealed with its holder's other facedown cards                                                                                                                                        | `spec.ts`, `resolve/apply-effect.ts`, `resolve/cards.ts`, `select.ts`, `events.ts`, `dsl/effects.ts`, `dsl/values.ts`                                                                                                      | none               | The Crazy Gang 48033                                                                                                   |
+| 5   | 3.51               | The payment records `paid.cards.<cardType>`; `Predicate paidWithCard { cardType, of? }`                                                                                                                                                                                                         | `actions.ts`, `stack.ts`, `spec.ts`, `select.ts`, `resources.ts`, `dsl/values.ts`                                                                                                                                          | Q28 = A            | Concussive Blast 45007, Command Authority 45008                                                                        |
+| 6   | 3.48               | `RuleSpec topOfDeckFaceup { player, while? }` as a third visibility exception, derived and never stored; logs `deckTopShown` / `deckTopHidden` after every card move; `Predicate topOfDeckFaceup { player }`                                                                                    | `abilities.ts`, `rules.ts`, `visibility.ts`, `spec.ts`, `select.ts`, `resolve/cards.ts`, `resolve/state-checks.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts`                                                       | Q26 = B            | Magik 45030a; 45033–45035 and 45038–45040 through `topOfYourDeckHas`                                                   |
+| 7   | 3.49 (after 6)     | The constant `playableTopOfDeck { player, costReduction, limit: "phase" }`: the top card is a candidate wherever a hand card could be played (the play command, a timing window, `playFromHand` from the hand); `cardPlayed { from: "deckTop", countsAsFrom: "hand" }`                          | `abilities.ts`, `actions.ts`, `legal.ts`, `select.ts`, `resolve/play-card.ts`, `resolve/apply-effect.ts`, `why-not.ts`, `events.ts`, `dsl/abilities.ts`                                                                    | Q27 = A            | Magik 45030a; Colossus 45031 and Magic Barrier 45040 from the top; RRG FAQ p. 64's four entries                        |
+| 8   | 3.62 (a) (after 5) | `paid.count`; declared wild types on the pay command (`wildAs`), the `declareWildTypes` choice and its equivalence shortcut; `readsPaidTypes` and `RuleSpec readsPaymentTypesOf`; `ValueSpec paidTypeCount`, `Predicate paidType`; the payment stamped on `cardPlayed`; log `wildTypesDeclared` | `actions.ts`, `commands.ts`, `choices.ts`, `payable.ts`, `resources.ts`, `stack.ts`, `spec.ts`, `select.ts`, `abilities.ts`, `rules.ts`, `trigger-events.ts`, `legal.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts` | Q33 = B; Q34 = A   | 47004–47009 (the Coat, the Sunglasses and Jubilee's eight event records), Three Steps Ahead 47015, Multitalented 47021 |
+| 9   | 3.62 (b) (after 8) | A resource cost of a chosen size, `AbilityCost resources { choose: { min, max } }`, with no overpayment; `paidType` read over an ability's spent pool                                                                                                                                           | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                                                                                                                              | Q33 = B            | Husk 47012                                                                                                             |
+| 10  | 3.63               | `RuleSpec formChangeCost { player, to?, during?, cost }`: the `changeForm` command opens the payment before the flip and is not legal when it cannot be paid; a forced change pays nothing                                                                                                      | `abilities.ts`, `rules.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `resolve/apply-effect.ts`, `dsl/abilities.ts`                                                                                                          | Q37 = A            | Grounded 47023                                                                                                         |
+| 11  | 3.64               | `EffectSpec basicPowerBy { player, powers, bonus? }`: the named player chooses a ready character, a power and a target, and the ordinary basic power runs; the bonus lasts until the power's event ends                                                                                         | `spec.ts`, `resolve/apply-effect.ts`, `actions.ts`, `choices.ts`, `lasting.ts`, `dsl/effects.ts`                                                                                                                           | none               | Cell Phone 47019                                                                                                       |
+| 12  | 3.71 (after 1)     | `discardDeckUntil.bindAll` (every card discarded, the match included, settled); `raiseMoment.carry` (named slots stamped on `momentRaised`)                                                                                                                                                     | `spec.ts`, `resolve/deck-discard.ts`, `resolve/apply-effect.ts`, `trigger-events.ts`, `select.ts`, `dsl/effects.ts`                                                                                                        | Q41, Q42: A (open) | Magneto 49001a, Magneto's Armor 49004, Magneto's Cape 49005, Old Grievances 49027                                      |
+| 13  | 3.77               | `TargetQuery.printsAbility { kinds, form }`, read from the card's printed ability list through the registry; a blank text box does not hide it                                                                                                                                                  | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                                                                                                                                    | none               | Electromagnetic Blast 49008                                                                                            |
+| 14  | 3.53               | `TargetQuery.classification`, and the host resolver's reading of `HostQualifiers.classification` (the schema field and parser rule landed in 4c75824d)                                                                                                                                          | `spec.ts`, `select.ts`, `attachment-hosts.ts`, `dsl/values.ts`                                                                                                                                                             | none               | Sidekick 45015; Side-by-Side 45016 (with task 15)                                                                      |
+| 15  | 3.54               | `AbilityCost.readyCards: InPlayCostPick`, offering exhausted cards only, with any `readyCost` paid alongside                                                                                                                                                                                    | `abilities.ts`, `actions.ts`, `payable.ts`, `legal.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                                                                                                                              | Q29 = A            | Side-by-Side 45016                                                                                                     |
+| 16  | 3.59               | `TargetQuery.canAttachToCategory: "ally"`, read from the upgrade's printed host with no card in play consulted                                                                                                                                                                                  | `spec.ts`, `select.ts`, `attachment-hosts.ts`, `dsl/values.ts`                                                                                                                                                             | Q30 = A            | Suit Up 45017                                                                                                          |
+| 17  | 3.55               | `AbilityCost.discardFromDeck { choose: { min, max } }`, the count bound for the effect                                                                                                                                                                                                          | `abilities.ts`, `actions.ts`, `payable.ts`, `choices.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                                                                                                                            | none               | Goldballs 45041                                                                                                        |
+
+**The five scenarios**
+
+| #   | §               | Change                                                                                                                                                                                                        | Files                                                                                                                                                                                                              | Decisions                | Unblocks                                                                   |
+| --- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | -------------------------------------------------------------------------- |
+| 18  | 3.5             | A setup option keyed by an encounter set: 0 to 3 threat per player on Gene Pool after step 11, placed only when the setup config states an amount; log `setupOptionApplied { option, amount }`                | `cards/core/setup.ts` (`checkScenarioSetupOptions`), `cards/wave8/setup.ts`, `setup-steps.ts`, `events.ts`                                                                                                         | Q1 = A                   | Infinites in any scenario (Unus, Apocalypse); the setup control of §5      |
+| 19  | 3.6             | The builders' standard set argument takes `standard_iii` for any scenario whose `standardEncounterSetIds` is `[standard]`, from any pack; the Expert set unchanged                                            | `cards/core/setup.ts` (`difficultyEncounterSetIds`), the waves' `setup.ts` checks (`checkWave4DifficultySets` and its siblings), `cards/modular-pool.ts`                                                           | Q10 = A                  | `standard_iii` 45075a/b–45080 on every scenario                            |
+| 20  | 3.7             | `GameState.villainRow`; the 1A Setup's random order (log `villainRowSet`); `moveActiveCounter { to: "nextInRow" }`; the villain phase reads the active villain afresh for each player                         | `state.ts`, `spec.ts`, `query.ts`, `resolve/apply-effect.ts`, `resolve/game-areas.ts`, `villain/phase.ts`, `events.ts`, `dsl/effects.ts`                                                                           | Q4 = A; Q5 = A           | The Horsemen of Apocalypse 45085a/b, Rough Riders 45096, Metal Wings 45091 |
+| 21  | 3.10            | `RuleSpec consideredRemainingHp { target, atLeast, while? }`, seen by every reading of remaining hit points and by the defeat check; superlative hosts read the true dial; `consideredHp` in the inspect data | `abilities.ts`, `rules.ts`, `select.ts`, `attachment-hosts.ts`, `resolve/defeat.ts`, `resolve/state-checks.ts`, `dsl/abilities.ts`                                                                                 | Q6 = A                   | Golden Horse 45090, Metal Wings 45091; task 22                             |
+| 22  | 3.11 (after 21) | `resolveSpecials.trigger: "forcedResponse"` with `asIf: { remainingHpAtLeast }`; the cost form `AbilityCost.resolveAbility { of, trigger }` with its settle step, unpaid when the ability can change nothing  | `spec.ts`, `abilities.ts`, `resolve/apply-effect.ts`, `resolve/effects-frame.ts`, `payable.ts`, a settle module beside `enemy-attack-cost.ts`, `legal.ts`, `dsl/effects.ts`, `dsl/abilities.ts`, `dsl/validate.ts` | Q7 = A                   | Golden Horse 45090, Metal Wings 45091, Rough Riders 45096; tasks 27 and 30 |
+| 23  | 3.13            | `LastingUntil "nextVillainPhaseBegins"`, expiring before step one of the next villain phase, on the identity semantics of the constant blank                                                                  | `state.ts`, `spec.ts`, `lasting.ts`, `villain/phase.ts`, `dsl/effects.ts`                                                                                                                                          | none                     | Pestilence 45083a/b, Plague and Pestilence 45088                           |
+| 24  | 3.18            | `EffectSpec revealNextVillainStage { villain }`: the stage change of a defeat with no defeat; full printed hit points; everything on him stays; log `villainStageRevealed { cause: "effect" }`                | `spec.ts`, `resolve/apply-effect.ts`, `resolve/defeat.ts`, `resolve/villain-swap.ts`, `events.ts`, `dsl/effects.ts`                                                                                                | Q11 = A; Q12 = A         | Apocalypse 45101a/b, 45102a/b                                              |
+| 25  | 3.19            | `ValueSpec printedHp { of, numeral: true }`: the number printed before the per player icon, from the current stage, never modified                                                                            | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                                                                                                                            | none                     | The Age of Apocalypse 45103b, The Apocalypse Solution 45111                |
+| 26  | 3.21            | `RuleSpec ignoreAbilities { on, abilities, while? }`: the named abilities neither trigger nor resolve                                                                                                         | `abilities.ts`, `rules.ts`, `resolve/triggers.ts`, `resolve/ability.ts`, `dsl/abilities.ts`                                                                                                                        | Q13 = A                  | No Longer Worthy 45105b                                                    |
+| 27  | 3.24 (after 22) | The cost form with `trigger: "special"` ("resolve the Special → discard this card"), unpaid when no Setting environment is in play or the Special can change nothing                                          | `abilities.ts`, `payable.ts`, task 22's settle module, `legal.ts`, `dsl/abilities.ts`                                                                                                                              | Q14 = B; Q15 = A; Q7 = A | High-Tech Goggles 45122, Genetic Enhancement 45123, Escaped Mutant 45137   |
+| 28  | 3.25            | An attachment with no printed host is turned faceup out of play, its When Revealed resolves, and it is discarded if still unattached afterward; nothing of it is in effect until it is attached               | `resolve/reveal.ts`, `resolve/attach.ts`, `resolve/host-step.ts`                                                                                                                                                   | none                     | Cruel Experiment 45124                                                     |
+| 29  | 3.26            | `changeVillainForm.reveal?: false`: the face turns and `cardFlipped` is raised, with no reveal step                                                                                                           | `spec.ts`, `resolve/apply-effect.ts`, `dsl/effects.ts`                                                                                                                                                             | Q16 = A                  | Apocalypse 45184a/b/c–45186a/b/c, 45149–45155                              |
+| 30  | 3.28 (after 22) | `resolveSpecials.trigger: "forcedInterrupt"`, the ability named by ref id, with no attack or scheme logged                                                                                                    | `spec.ts`, `resolve/apply-effect.ts`, `resolve/effects-frame.ts`, `dsl/effects.ts`                                                                                                                                 | none                     | Celestial Tech 45158 (with 45156, 45157)                                   |
+
+**The campaign**
+
+| #   | §                   | Change                                                                                                                                                                                                 | Files                                                                                                                                                   | Decisions          | Unblocks                                                                                  |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| 31  | 3.33 (a)            | `ZoneId scenarioPlayArea`, `GameState.scenarioPlayAreas`, `createScenarioPlayArea { name, closed }`: cards in play with no controller and no engagement; game steps apply; leaving by `CardHome`; logs | `state.ts`, `ids.ts`, `spec.ts`, `resolve/apply-effect.ts`, `resolve/cards.ts`, `resolve/game-areas.ts`, `visibility.ts`, `events.ts`, `dsl/effects.ts` | Q20 = A            | every card of §1.24–§1.28; tasks 32 to 38                                                 |
+| 32  | 3.33 (b) (after 31) | The closed filter in every query, selector and "each": `TargetQuery.inScenarioPlayArea`; an attachment's abilities do not open it; `AbilityDefinition.reaches`; reads still see the card               | `select.ts`, `query.ts`, `spec.ts`, `abilities.ts`, `rules.ts`, `modifiers.ts`, `dsl/values.ts`, `dsl/abilities.ts`                                     | Q18 = A; Q19 = B   | the mission rules block; Desperate Measures 45176; Worldwide Crisis 45165                 |
+| 33  | 3.34 (after 32)     | `RuleSpec playDestination { cards, area, while? }` and the play command's `into`; an ally there has no controller and a blank text box; an upgrade's host choice may reach into the area               | `abilities.ts`, `rules.ts`, `commands.ts`, `actions.ts`, `legal.ts`, `resolve/play-card.ts`, `resolve/enter-play.ts`, `why-not.ts`, `dsl/abilities.ts`  | Q19 = B; Q32 = A   | every ally in a campaign game; Desperate Measures 45176                                   |
+| 34  | 3.35 (a)            | `cannotLeavePlay.by: "discard"`: no discard touches the card and no cost may choose it; removal from the game and a flip still work                                                                    | `abilities.ts`, `rules.ts`, `resolve/event.ts`, `payable.ts`                                                                                            | none               | Mission Team 45171a/b                                                                     |
+| 35  | 3.35 (b) (after 33) | The lasting cost reduction gains `into: { scenarioPlayArea }`: used by the next ally any player plays to the area this phase, ended unused with the phase                                              | `lasting.ts`, `spec.ts`, `actions.ts`, `resolve/apply-effect.ts`, `dsl/effects.ts`                                                                      | none               | Mission Team 45171a's first option                                                        |
+| 36  | 3.42                | `RuleSpec consideredResourceIcon { target, resource }`, read by the pairing of task 37                                                                                                                 | `abilities.ts`, `rules.ts`, `resources.ts`, `dsl/abilities.ts`                                                                                          | Q19 = B            | Desperate Measures 45176                                                                  |
+| 37  | 3.36 (after 32, 36) | `EffectSpec pairCards { cards, with, chooser, match, wild, limit?, bind }` with its pending choice; `RuleSpec pairLimit`; log `cardsPaired`                                                            | `spec.ts`, `resolve/apply-effect.ts`, `choices.ts`, `abilities.ts`, `rules.ts`, `events.ts`, `dsl/effects.ts`                                           | none               | Mission Team 45171a (`missionAttempt()`), Mister Sinister 45179a                          |
+| 38  | 3.37 (after 32)     | `assignDamage.sequential`: one character at a time, each settled before the next pick, the rest of the pool lost when nobody can take it                                                               | `spec.ts`, `resolve/apply-effect.ts`, `resolve/effects-frame.ts`, `dsl/effects.ts`                                                                      | none               | Mission Team 45171a (steps 3 to 5)                                                        |
+| 39  | 3.43                | `RuleSpec cannotEnterPlay { cards, while? }` matched by title: refused before any cost for a play, and an effect that would put the card into play does nothing                                        | `abilities.ts`, `rules.ts`, `select.ts`, `actions.ts`, `resolve/enter-play.ts`, `why-not.ts`, `dsl/abilities.ts`                                        | none               | scenario 5's "Professor X cannot enter play during this game"                             |
+| 40  | 3.44                | `EffectSpec countTowardStartingHand { player, amount }`: the starting draw is that much smaller and the credit is cleared by it                                                                        | `spec.ts`, `state.ts`, `flow.ts`, `resolve/apply-effect.ts`, `dsl/effects.ts`                                                                           | none               | the ally search of every scenario's Campaign Instructions                                 |
+| 41  | 3.46                | `TargetQuery.otherFaceOf: TargetRef`                                                                                                                                                                   | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                                                                 | Q21 = A            | scenario 3 in a campaign: the Prelate that is the drawn Overseer's other face             |
+| 42  | 3.45                | `CampaignOp random.perAttempt`: the draw mixed with how many times the node was played, the campaign RNG advancing as before; the step traced with its attempt number                                  | `campaign.ts`, `campaign/ops.ts`, `campaign/runner.ts`                                                                                                  | Q22 = B            | the mission and Overseer draws of `campaigns/aoa.ts`                                      |
+| 43  | 3.45                | A grant's deck-size rule as data, `CampaignGrant.deckSize: "exempt" (today's, the default), "maximumOnly" or "counted"`, read by `validateDeck` where it leaves granted copies out of the count        | `campaign.ts`, `campaign/ops.ts`, `deck.ts`                                                                                                             | Q25 = A (see §8.6) | the three rewards of the log (an upgrade, a support, a campaign ally), Desperate Measures |
+
+**Notes on the order.**
+
+- **Row to task:** 3.1 → 2; 3.5 → 18; 3.6 → 19; 3.7 → 20; 3.10 → 21; 3.11 → 22; 3.13 → 23; 3.18 → 24; 3.19 → 25;
+  3.21 → 26; 3.24 → 27; 3.25 → 28; 3.26 → 29; 3.28 → 30; 3.33 → 31, 32; 3.34 → 33; 3.35 → 34, 35; 3.36 → 37;
+  3.37 → 38; 3.39 → 1; 3.42 → 36; 3.43 → 39; 3.44 → 40; 3.45 → 42, 43; 3.46 → 41; 3.48 → 6; 3.49 → 7; 3.51 → 5;
+  3.53 → 14; 3.54 → 15; 3.55 → 17; 3.59 → 16; 3.62 → 8, 9; 3.63 → 10; 3.64 → 11; 3.71 → 12; 3.75 → 3, 4; 3.77 → 13.
+- **The three dependencies §6 named:** §3.34 needs §3.33's area (33 after 31 and 32); §3.71 builds on §3.39 (12
+  after 1); §3.62 and §3.51 change the same payment frame, so 5 lands first and 8 is written on top of it, never
+  beside it.
+- Tasks 22, 27 and 30 are one mechanism in three steps (an ability of another card resolved by kind, as an effect
+  and as a cost); 27 and 30 are small and may go to the agent that did 22.
+- Tasks 18 and 19 change the shared scenario builders in `@mc/cards`, not the engine. They are in this queue because
+  every wave's builder calls that code and only one agent may be in it at a time.
+- Task 28 reads the absence of `attachesTo` on the emitted record: the curation's
+  `impliedAttachHost: "ownWhenRevealed"` leaves the host off, and the card's own When Revealed attaches it.
+- Task 38 may turn out to compose from `repeatWhile` (§3.37 says so); the first agent to reach it checks before
+  adding the flag, and reports the row as "exists (compose)" if it does.
+- Tasks 12 and 13 can move ahead of 8 to 11 if Magneto is to be scripted before Jubilee; nothing else depends on
+  their place. Tasks 39 to 43 depend on nothing in the queue and can fill a gap while a scripting agent holds
+  `dsl/`.
+- **Four Horsemen's A and B faces (Q9 = B) need no engine task.** `VillainSetup` already takes a card id per
+  villain; the wave's builder passes the chosen face (§8.4 line 1).
+- **Open questions that touch a task:** Q41 and Q42 (task 12), both built on A; B or C is a change to the script
+  and to what `bindAll` holds, not to the task's shape. Q43 to Q46 touch no task; Q46 = B would add one
+  (`increaseDamageTaken` counted per attack, §3.81).
+
+### 8.3 The "exists (verify)" and "exists (compose)" rows
+
+Not engine tasks unless the proof fails. The first scripting agent to need a row writes the one test below in its
+own module's test file, **before** relying on the primitive, and reports back at once if it does not behave as the
+row says; the main session then adds an engine task to §8.2 rather than the script working around it. Module names
+are §8.4's.
+
+| §    | The one test that proves it                                                                                                                                                                     | First card group to need it                     |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 3.2  | Unus with Gene Pool at 9 attacks with a 1-icon boost card: 2 icons counted; at 8 threat: 1                                                                                                      | `aoa/unus`                                      |
+| 3.3  | compose: Gene Pool raised 2 → 3 → 6 → 9 and thwarted back to 2: Unus gains and loses retaliate 1, stalwart and the amplify icon at each step, with no ability resolving                         | `aoa/unus`                                      |
+| 3.4  | Gene Pool is in play after step 11 with 4 threat; thwarted to 0 it stays in play, nothing is announced and no When Defeated resolves                                                            | `aoa/infinites`                                 |
+| 3.8  | §3.8 tests 2 and 5: a boost-made second activation moves the counter a second time; the owner's Q5 test                                                                                         | `aoa/four-horsemen`                             |
+| 3.9  | Four villains: three at 0 and one at 1 hit point, none is defeated; one healed from 0 to 2 activates normally; the last reaches 0: all four are defeated together and the players win           | `aoa/four-horsemen`                             |
+| 3.12 | compose: Infinite Prelate at Gene Pool 9: the extra boost card is given for the activation, the tough card and the heal of 3 follow it (Q8 = A)                                                 | `aoa/unus`                                      |
+| 3.14 | Golden Horse revealed with War at 2, Death (Aerial) at 1, Famine at 5 remaining: it attaches to War                                                                                             | `aoa/four-horsemen`                             |
+| 3.15 | 2 players, step 12a: two different Four Horsemen side schemes are in play at 6 threat each, the other two are in the deck, and the deck was shuffled                                            | `aoa/four-horsemen`                             |
+| 3.16 | Hound revealed to an alter-ego: the identity is in hero form and the once-per-round change is unused; the first Hound revealed in a phase surges and the second does not                        | `aoa/hounds`                                    |
+| 3.20 | compose: Apocalypse III at 20 damage with no No Longer Worthy: his attachments are discarded, he heals, and the main scheme loses X threat; he is not defeated                                  | `aoa/apocalypse`                                |
+| 3.22 | Heart of the Empire with a Prelate in play: a thwart of 2 removes 0; Prelate defeated, thwarted out: the chain reveals a random set-aside Prelate and flips to The Towering Citadel             | `aoa/apocalypse`                                |
+| 3.23 | §3.23 tests 1 and 3: one random environment at setup with 7 cards shuffled in and 16 set aside; stage II revealed in play brings a second environment and leaves 8 set aside                    | `aoa/dark-beast`                                |
+| 3.27 | compose: §3.27 test 1: counters 1, 2, 3 over three rounds; in round 4 the fourth is placed, 4 are removed, and the first player reveals the first SUPERPOWER card discarded                     | `aoa/en-sabah-nur`                              |
+| 3.29 | Ancient Ritual at 9 threat takes 1: it is at 5 and each player has 1 facedown encounter card; Ozymandias's scheme threat lands on it and not on the main scheme                                 | `aoa/clan-akkaba`                               |
+| 3.30 | Abyss activates against a player twice: two of that player's deck cards are on him facedown and he has 4 more hit points; defeated, both cards go to their owner's discard pile                 | `aoa/prelates`                                  |
+| 3.31 | Escaped Mutant on player 2: Armored Unibike revealed by player 1 engages player 2 and has quickstrike; with nobody holding it, it engages the revealing player                                  | `aoa/genosha`                                   |
+| 3.38 | Sugar Man's Mission Response heals 3 for a [physical] card a mission attempt discards and ignores Famine's ten; it resolves before Digging Deep's own Response, whose card does not count       | `aoa/campaign/overseer`                         |
+| 3.40 | compose: a mission at 0 threat with a minion in the area is not defeated; the minion gone, it is defeated and flips; a fourth attempt counter flips it to the failed bullet instead             | `aoa/campaign/aoa-mission`                      |
+| 3.41 | An Overseer in the area is engaged with nobody, never activates, shows dashes for SCH and ATK, and takes 0 damage while an Agent of Apocalypse is in the area                                   | `aoa/campaign/overseer`                         |
+| 3.45 | The "To verify" bullets of §3.45 as one definition test: a later instruction reads `currentMission`; `setAsideCards` by seat count; `excludeGranted`; no `defeat` block in expert               | `campaigns/aoa.ts`                              |
+| 3.50 | §3.50 test 1: Soulsword's +1 ATK comes and goes as the top card changes by a draw, with no ability resolving; test 7 for the facedown card (Q26 = B)                                            | `aoa/magik/support-upgrades-allies`             |
+| 3.52 | compose: Energy Absorption after 3 damage with two resource cards among the top three: both are in his hand, the third is discarded, and the moment is raised once                              | `aoa/bishop/identity`                           |
+| 3.56 | Colossus played by his Interrupt in an enemy attack with three allies in play: cost 3 paid, he enters with a tough card, defends ready, and the ally limit makes his player discard one         | `aoa/magik/support-upgrades-allies`             |
+| 3.57 | Belasco's three discards attach facedown to Ruler of Limbo; Ruler of Limbo defeated: Limbo returns to play under its owner's control and the other cards go to the discard pile                 | `aoa/magik/obligation-nemesis`                  |
+| 3.58 | The ally Cable 45011 cannot be played, or put into a deck, beside the Cable hero (alter-ego title Nathan Summers), and still pays as a resource                                                 | `aoa/aspect-basic`                              |
+| 3.61 | Six Frostbite are set aside before step 1; one attached by _"Freeze!"_ gives −1 SCH and −1 ATK and is set aside after that enemy's activation (Q35 = A); with none set aside, no attach         | `iceman/iceman/support-upgrades-allies`         |
+| 3.65 | Ice Wall takes the 4 damage another player's identity would take after defense; at 8 it is discarded and the enemy that just attacked gets a Frostbite                                          | `iceman/iceman/support-upgrades-allies`         |
+| 3.66 | Shopping Spree: a hero's thwart and an ally's are refused, any alter-ego's Action removes 1, Disguise in alter-ego form removes 2 (Q36 = A); _Mall Rat_ puts it into play                       | `jubilee/jubilee/support-upgrades-allies`       |
+| 3.67 | Snow Clone attacks an enemy with Frostbite and defeats it: 0 consequential damage (Q38 = A); Take That! is not playable against an enemy with no upgrade                                        | `iceman/iceman/support-upgrades-allies`         |
+| 3.68 | §3.68 tests 1 and 4: the illegal decks (an ally beside the hero it matches), and ruling June 2, 2026 – Ruling 1 with these packs' cards                                                         | `iceman/aspect-basic`                           |
+| 3.69 | `validateDeck` on Jubilee's starter deck: the nine version records at one copy each are legal; a second 47007a is not                                                                           | `jubilee/jubilee/events`                        |
+| 3.72 | Bamf! on a villain attacking another player: the Interrupt discards it, Nightcrawler defends ready with his DEF, and the moment `"bamf"` is raised with the copy as its source                  | `ncrawler/nightcrawler/support-upgrades-allies` |
+| 3.73 | Kurt's Cutlasses alone fill the limit: a restricted upgrade played beside them is discarded; with Prehensile Tail one card with the keyword fits and a second is discarded, never the Cutlasses | `ncrawler/nightcrawler/support-upgrades-allies` |
+| 3.74 | Gambit tucks an encounter card with 2 boost icons: THW 2 and ATK 2; then §3.74 tests 6 and 7, Rogue reading another character's base (ruling January 17, 2026 – Ruling 1 (1))                   | `ncrawler/aspect-basic`                         |
+| 3.76 | Wrapped in Metal on a guard minion: it does not activate, guard is gone, its traits and stats stay; Magnetic Missile discards it with no When Defeated                                          | `magneto/magneto/support-upgrades-allies`       |
+| 3.78 | New Recruits defeated with 2 players: each takes a different NEW ally into hand and owns it; Surge played as a fourth ally by an X-MEN identity discards nobody                                 | `magneto/aspect-basic`                          |
+| 3.79 | Sebastian Shaw attacked: he holds a facedown boost card and cannot be attacked again that phase; his next activation turns up that card and his villainous one                                  | `magneto/hellfire`                              |
+| 3.80 | §3.80 tests 4 and 5: the hero Magneto against the villain Magneto, each card naming its own controller's identity                                                                               | `magneto/aspect-basic`, then a QA replay        |
+
+### 8.4 Scripting order
+
+`ability-scripting-engineer`, one agent per line, one module per line. The module map is the scaffold's
+`packages/cards/src/wave8/card-groups.ts` (cut while this pass was written; uncommitted at e9805f4b), and the paths
+below are relative to `packages/cards/src/wave8/`. "Waits on" lists §8.2 task numbers; a line with none can start
+now. Each "exists (verify)" row of §8.3 is proved in the line that first needs it.
+
+**The scaffold**
+
+1. The registries, `CARD_GROUPS` and the coverage guard exist in the scaffold. Still to write: `setup.ts`
+   (`wave8Scenario`, `wave8StarterDeckSetup`), with the Four Horsemen's four A or B faces chosen per villain from
+   `sideBCardId` and preset from the difficulty (Q9 = B), the set-aside cards read from each record's
+   `setAsideCardIds`, and Q12's easier start; the wave's `reprints.ts`; the wave joined to `playable/` only as packs
+   are scripted. Waits on nothing (18 and 19 add the Infinites option and Standard III to it later).
+
+**Heroes, in the order their kits clear the queue.** Per hero: identity; events; supports, upgrades and allies;
+obligation and nemesis set; then a precon e2e game. The pack's aspect and basic cards and its modular set are one
+module each.
+
+Iceman (`iceman/`): the kit waits on task 1 only.
+
+2. `iceman/identity` (46001a/b, _"Freeze!"_ raising `"freeze"`, _Cool Off_): waits on 1.
+3. `iceman/support-upgrades-allies` (46002–46008; Frostbite and the `attachFrostbite` helper are here, so this line
+   follows line 2 at once and lines 4 and 6 follow it): waits on 1 (Cryokinetic Perception).
+4. `iceman/events` (46009–46011): waits on nothing beyond line 3.
+5. `aspect-basic` (46012–46023): waits on nothing.
+6. `iceman/obligation-nemesis` (46024–46028): waits on nothing beyond line 3.
+7. `sauron` (46029–46032): waits on nothing; data item 4 first.
+8. Iceman precon e2e.
+
+Nightcrawler (`ncrawler/`): the kit waits on task 1; the nemesis set on 2 and 3.
+
+9. `nightcrawler/identity` (48001a/b): waits on nothing.
+10. `nightcrawler/support-upgrades-allies` (48002–48006; Bamf! raises `"bamf"`): waits on 1.
+11. `nightcrawler/events` (48007–48011): waits on 1 (Tally Ho!), after line 10.
+12. `aspect-basic` (48012–48025, 48031, 48032): waits on nothing.
+13. `nightcrawler/obligation-nemesis` (48026–48030): waits on 2 and 3.
+14. `crazy-gang` (48033–48038): waits on 3 and 4; data item 6 (Q44) for Tweedledope.
+15. Nightcrawler precon e2e.
+
+Bishop (`aoa/bishop/`): the kit waits on 1, 2 and 5.
+
+16. `identity` (45001a/b, _Energy Absorption_ raising its moment): waits on 1.
+17. `support-upgrades-allies` (45002–45006, 45010): waits on 1 (Bishop's Uniform).
+18. `events` (45007–45009): waits on 5.
+19. `obligation-nemesis` (45025–45029): waits on 2 (Trevor Fitzroy, Bantam).
+
+Magik (`aoa/magik/`): the kit waits on 2, 6 and 7.
+
+20. `identity` (45030a/b): waits on 6 and 7.
+21. `support-upgrades-allies` (45031–45035): waits on 6; 7 for Colossus played from the top.
+22. `events` (45036–45040): waits on 6.
+23. `obligation-nemesis` (45053–45058; Witchfire as printed, tagged "RAW pending FFG clarification (Q31)"): waits on 2.
+24. `aoa/aspect-basic` (45011–45024 and 45041–45052, one module, so one agent, Leadership and its basics first):
+    waits on 14, 15 and 16 (Sidekick, Side-by-Side, Suit Up) and 17 (Goldballs); the other 22 cards wait on nothing.
+25. Bishop precon e2e and Magik precon e2e, one agent each, after line 24.
+
+Jubilee (`jubilee/`): the kit waits on 8 and 10; her aspect cards on 9 and 11.
+
+26. `jubilee/identity` (47001a/b): waits on nothing.
+27. `jubilee/events` (47006, 47007a/b/c, 47008a/b/c, 47009, with the `versions` helper): waits on 8.
+28. `jubilee/support-upgrades-allies` (47002–47005, 47010a/b/c): waits on 8 (the Coat, the Sunglasses).
+29. `aspect-basic` (47011–47022, 47028, 47029): waits on 8, 9 (Husk) and 11 (Cell Phone); data item 3 first.
+30. `jubilee/obligation-nemesis` (47023–47027): waits on 10; data item 2 first.
+31. `arcade` (47030–47034): waits on nothing.
+32. Jubilee precon e2e.
+
+Magneto (`magneto/`): the kit waits on 1, 12 and 13.
+
+33. `magneto/identity` (49001a/b): waits on 12.
+34. `magneto/support-upgrades-allies` (49002–49007, 49011): waits on 12 (the Armor, the Cape); data item 1 first.
+35. `magneto/events` (49008–49010): waits on 13 (Electromagnetic Blast).
+36. `aspect-basic` (49012–49026, 49033–49037): waits on nothing.
+37. `magneto/obligation-nemesis` (49027–49032): waits on 12 (Old Grievances).
+38. `hellfire` (49038–49042; Hellfire Pawn registers `mut_gen` 32058's script): waits on nothing.
+39. Magneto precon e2e.
+
+**The box's scenarios and sets** (`aoa/`), one agent per line, in box order. They run beside the hero lines as
+their tasks land.
+
+40. `dystopian-nightmare` (45072–45074): waits on nothing.
+41. `hounds` (45097–45100): waits on 2.
+42. `standard-iii` (45075a/b–45080): waits on 2 and 19.
+43. `unus` (45059–45061, 45062a, 45063–45068) and `infinites` (45069–45071), one agent, two modules: waits on 2 and 18.
+44. `four-horsemen` (45081a–45084b, 45085a, 45086–45096): waits on 20, 21, 22 and 23, and on line 1's builder.
+45. `dark-riders` (45112–45117): waits on nothing.
+46. `apocalypse` (45101a, 45103a, 45104a/b, 45105a/b, 45106–45111) and `prelates` (45179b–45183b), one agent, two
+    modules: waits on 24, 25 and 26.
+47. `blue-moon` (45139–45146; Imperial Guardsman under Q14 = B): waits on nothing.
+48. `savage-land` (45127–45132): waits on 2 (Land Out of Time's find).
+49. `genosha` (45133–45138): waits on 2 (Police State) and 27 (Escaped Mutant's Action).
+50. `dark-beast` (45118–45120, 45121a, 45122–45126), after lines 47 to 49: waits on 27 and 28.
+51. `clan-akkaba` (45159–45163): waits on nothing.
+52. `celestial-tech` (45156–45158): waits on 22 and 30.
+53. `en-sabah-nur` (45184a/b/c–45186a/b/c, 45147a, 45149–45155): waits on 29.
+
+**Beside the engine agent, now:** lines 1, 5, 9, 12, 26, 31, 36, 38, 40, 45, 47 and 51, three at a time. After
+task 1: Iceman's kit, then lines 10, 11, 16 and 17. After task 2: lines 19, 23, 41 and 48. Then as the queue runs:
+13 after 3, 14 after 4, 18 after 5, Magik's kit after 7, Jubilee's after 8 (line 29 after 11), Magneto's after 13,
+line 24 after 17, line 43 after 18, 42 after 19, 44 after 23, 46 after 26, 49 after 27, 50 after 28, 53 after 29,
+52 after 30. The campaign's lines are in §8.5.
+
+### 8.5 The campaign, the client and Guided mode
+
+Each line is one task for one agent, in order; "waits on" names §8.2 tasks and the lines of §8.4 or of this list.
+
+**The campaign** (wave definition of done §6: it ships in this wave's PR). Modules are under
+`packages/cards/src/wave8/aoa/campaign/`.
+
+1. `aoa-mission` (45166a/b–45170a/b): the shared mission rules block and the five missions. Waits on 1 and 31 to 34.
+2. `aoa-basic-campaign` (45171a/b, 45172–45176): Mission Team with `missionAttempt()`, the four campaign allies and
+   Desperate Measures, the one upgrade that declares the mission's reach (Q19 = B). Waits on 33 to 38, after line 1.
+3. `overseer` (45179a–45183a): the five Mission Responses. Waits on 32, 37 and 38, after line 2.
+4. `age-of-apocalypse` (45164, 45165) and `aoa-campaign` (45177, 45178), one agent: waits on 32, after line 1.
+5. The `CampaignDefinition` `packages/cards/src/campaigns/aoa.ts` (§3.45): the two per-attempt draws, the four rows
+   and their rewards, scenario 5's two endings, `AOA_CAMPAIGN` registered in `CAMPAIGNS`. Waits on 39 to 43, on §8.4
+   lines 43, 44, 46, 50 and 53 (all five scenarios) and on lines 1 to 4.
+6. The expert campaign (§2.16): `hpRecord`, `hpSet`, the heal priced at 3 threat on the mission, the ally search
+   narrowed to a shared trait. Waits on line 5.
+7. `encounter-ai-designer`: the automated player's mission policy and the scenario tests of §5 to §5.2. Waits on
+   lines 1 to 4.
+8. `rules-qa-engineer`: a full standard campaign with one retry that redraws (Q22 = B), each mission won and failed,
+   scenario 5 won three ways, an expert run with a seat eliminated in a won game; the regression tests §5.1 to §5.5
+   name by ruling. Waits on lines 5 and 6.
+
+**The client** (`game-client-engineer`; DoD §5 and §6). Design first: MC45 needs a design pass
+(`docs/campaign-client-per-box.md` §3), rendered to tiles before any brief.
+
+9. Setup screen: the five scenarios and the wave's modular sets (the box's, `sauron`, `arcade`, `crazy_gang`,
+   `hellfire`); the Infinites threat control (Q1); **four A/B selectors for the Horsemen and no "extreme"** (Q9 = B);
+   the Standard III toggle (Q10); the easier Apocalypse start (Q12). Waits on §8.4 line 1 and tasks 18 and 19.
+10. The table for the five scenarios (§5, §5.1): the Horsemen's row and active counter, a villain standing at 0 with
+    its reason, Apocalypse's stage against the moving target, the Setting environment's Special, the three forms.
+    **The confirm before a player card discards No Longer Worthy, worded as the app's warning and not a rule
+    (Q13).** Waits on §8.4 lines 43 to 53.
+11. The six heroes (§5.3 to §5.5): Magik's faceup top card and "play from deck", with "top card facedown" as the
+    reason under a blank text box (Q26 = B); Jubilee's payment prompt with a type selector on each wild that the
+    player sets (Q33 = B); Iceman's Frostbite pile; Bamf! on enemies; _Magnetic Pull_'s reveal; the unique and
+    Team-Up blocks at deck selection. One agent per hero, after that hero's precon e2e.
+12. The mission area and the attempt stepper (§5.2): the region, the destination prompt for an ally, an upgrade
+    other than Desperate Measures drawn as inactive there (Q19 = B), the pairing, the pool. Waits on lines 1 to 3.
+13. The campaign screens: Dossier, Briefing (a retry shown as a new draw, Q22 = B), Aftermath, the warnings of
+    §5.2. Waits on lines 5 and 6.
+14. Custom decks (DoD §4b): the deck tests §5.3 to §5.5 list, each hero in a second aspect, Frostbite ×6 as "set
+    aside, not counted", the linked NEW allies never selectable. Waits on each hero's precon e2e.
+15. Progression, art and shipping (DoD §7, §8): Bishop's and Magik's art out of `_pending`, the Jubilee and
+    Wolverine pair, **the e2e pre-push hook restored before the last client pushes** (handoff), the whole
+    Playwright suite, the changelog fragments.
+
+**Guided mode** (DoD §5; every wave: glossary, a tip, a tricky-wording hint and a Try-it for each new mechanic). One
+agent per line, after the pack's client line.
+
+16. The box and its scenarios: find, amplify, the active counter, a Setting's Special, forms, the mission area, a
+    mission attempt, Mission Response (§5.2's teaching list).
+17. Bishop and Magik (§5.3's lists), with Witchfire's hint as printed (Q31 = B).
+18. Iceman and Jubilee (§5.4's lists), with "you say what a wild is when you pay" (Q33 = B).
+19. Nightcrawler and Magneto (§5.5's lists); the hints on Q41 and Q42 wait for the owner's answers.
+
+### 8.6 Found while writing the queue
+
+§3's status lines are left as written; the main session decides whether to change them.
+
+1. **§3.45 is "exists (verify)" and two answers give it engine changes**: Q22 = B (task 42) and Q25 = A (task 43:
+   a grant is exempt from the minimum and the maximum today, `deck.ts`). The rest of the row stands.
+   **Q25 needs one confirmation before task 43 is built.** Option A's own example is "a 40-card deck becomes 41 and
+   is legal" and "a 50-card deck must drop a card": the reward counts toward the maximum and not toward the minimum
+   (`"maximumOnly"`). The owner's note adds "a deck of 39 ordinary cards plus the reward is legal", which is the
+   reward counting as an ordinary card toward both limits (`"counted"`). The two agree at 50 and differ at 39. The
+   task builds the field with all three values either way; the definition picks one when the owner says which.
+2. **§3.5 and §3.6 are "extend" in `@mc/cards`, not in the engine.** Setup options and the choice of Standard set are
+   built by the scenario builders (`scenarioSetupInstructions`, `difficultyEncounterSetIds`); the engine gains at
+   most the `setupOptionApplied` log entry.
+3. **§3.53's schema half has landed** (`HostQualifiers.classification`, commit 4c75824d); task 14 is the engine half.
+4. **§3.62's plan changed shape with Q33 = B.** Pass 2b's `assignPaidTypes` (the engine covering as many lines as it
+   could and asking only on a conflict) is replaced by a declaration made at payment and two plain readers.
+   Q34 = A is kept as answered: when more is generated than the cost, the engine still takes the paid resources to
+   be the ones that give the most declared types. If the owner wants the player to say which resources were the paid
+   ones as well, that is the same prompt widened, and it is not built.
+5. **Q19 = B is built as a flag a script sets** (`AbilityDefinition.reaches`), because Desperate Measures' printed
+   text does not name the mission and the owner's answer names the card by what it is for. The list of cards that
+   set it is the campaign's own; any other card that should work at the mission is a question for the owner.
+6. **The scaffold's module map differs from §5 in three places**, and §8.4 follows the map: Frostbite 46002 is in
+   `iceman/iceman/support-upgrades-allies` (§5.4 put its script in `identity.ts`); Mission Team 45171a is in
+   `aoa/campaign/aoa-basic-campaign` (§5.2 put it with the missions); the box's Leadership, Aggression and basic
+   cards are one module, `aoa/aspect-basic`, so they are one agent's work.
+7. **Q5's ruling was not read.** The owner cites Hall of Heroes' post-RRG-1.5 rulings page, which is not in the
+   repo. The behavior is the card's own text and is built on the owner's decision; a code comment should not cite
+   the ruling by date until someone has read it.
