@@ -76,9 +76,32 @@ Already in the repo:
 `main` is at v0.17.0 with no unreleased fragments (2026-10-07). Wave 8 is a minor release (v0.18.0 unless something
 else ships first); check `changie next auto` before merging.
 
-## State
+## State (2026-10-07, end of the first day)
 
-The PR's checklist is the live record.
+The PR's checklist is the live record; this is the short version.
+
+- **Step 1, spec: complete.** `docs/phase7-wave8.md` (7,366 lines): §3.1 to §3.81, §4.1 with the owner's answers to
+  questions 1 to 40 (seven differ from the proposed default: Q9, Q14, Q19, Q22, Q26, Q31, Q33), §8 the build order.
+  Open: questions 41 to 46 and two follow-ups (Q25 at the deck minimum; who picks the paid resources when a payment
+  is overpaid), all at the top of the PR. Never read the spec whole: `grep -n '^## \|^### '` and `awk` between
+  headings.
+- **Step 2, card data: complete.** All five packs are emitted and exported as `WAVE8_*`, in `PLAYABLE_CARDS` but listed
+  in `UNSCRIPTED_WAVE8_PACKS` (`packages/cards/src/playable-precon-legality.test.ts`). Six starter decks, each from a
+  printed list. `AOA_CAMPAIGN` exists but is not in `CAMPAIGNS`. `POOL_VERSION` is not bumped. Leftovers are listed in
+  the spec's §8.1.
+- **Step 3, scripting: started.** The scaffold is in (`packages/cards/src/wave8/`, 54 empty modules, `CARD_GROUPS`
+  maps each of the 346 cards to one module, `coverage.test.ts` has every pack "not started"). The engine queue is the
+  spec's §8.2, 43 tasks in dependency order, one engine agent at a time. §8.4 says which scripting modules wait on
+  which engine tasks; modules that wait on nothing can run beside the engine agent (at most three agents in all,
+  never two in one file; `coverage.test.ts` is shared, so each scripting agent edits only its own pack's entries).
+- **Each engine task's brief:** the §8.2 row, the §3 section cut out by `awk`, the owner decisions the row names,
+  "search and reuse", exact-number tests in a colocated file, no git, suites run alone. The main session reruns the
+  suites before committing.
+- **Also shipped in this PR, not wave 8 content:** the basic Colossus ally (`mut_gen` 32048, `wolv` 35021) carries its
+  printed subtitle "Piotr Rasputin", so FFG's unique rule refuses it beside the Colossus hero; the same-name tests and
+  the e2e spec were rewritten on that.
+- **Still to correct:** `docs/campaign-mode-design.md` §1.2 and `docs/campaign-client-per-box.md` §3 read the MC45
+  campaign log backward (on the sheet Defeated is the reward and Not Defeated the cost).
 
 ## Lessons carried in
 
