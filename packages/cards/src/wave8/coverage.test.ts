@@ -10,6 +10,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
+import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
@@ -27,6 +28,7 @@ import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
+import { NIGHTCRAWLER_EVENTS, NIGHTCRAWLER_EVENTS_SKIPPED } from "./ncrawler/nightcrawler/events.js";
 import { NIGHTCRAWLER_IDENTITY } from "./ncrawler/nightcrawler/identity.js";
 import { NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES } from "./ncrawler/nightcrawler/support-upgrades-allies.js";
 
@@ -65,6 +67,12 @@ const SCRIPTED_MODULES: Readonly<
 > = {
   aoa: [
     {
+      module: "clan-akkaba",
+      cardIds: ["45159", "45160", "45161", "45162", "45163"],
+      registry: CLAN_AKKABA,
+      skipped: {},
+    },
+    {
       module: "dark-riders",
       cardIds: ["45112", "45113", "45114", "45115", "45116", "45117"],
       registry: DARK_RIDERS,
@@ -98,6 +106,12 @@ const SCRIPTED_MODULES: Readonly<
   ],
   ncrawler: [
     { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
+    {
+      module: "nightcrawler/events",
+      cardIds: ["48007", "48008", "48009", "48010", "48011"],
+      registry: NIGHTCRAWLER_EVENTS,
+      skipped: NIGHTCRAWLER_EVENTS_SKIPPED,
+    },
     {
       module: "nightcrawler/support-upgrades-allies",
       cardIds: ["48002", "48003", "48004", "48005", "48006"],
