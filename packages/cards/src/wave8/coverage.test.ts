@@ -10,6 +10,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
+import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
@@ -27,6 +28,7 @@ import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
 import { NIGHTCRAWLER_IDENTITY } from "./ncrawler/nightcrawler/identity.js";
+import { NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES } from "./ncrawler/nightcrawler/support-upgrades-allies.js";
 
 describe("wave 8 ability registry", () => {
   it("includes every wave 7 (Core through cycle 7) script, the same definition object", () => {
@@ -63,6 +65,12 @@ const SCRIPTED_MODULES: Readonly<
 > = {
   aoa: [
     {
+      module: "dark-riders",
+      cardIds: ["45112", "45113", "45114", "45115", "45116", "45117"],
+      registry: DARK_RIDERS,
+      skipped: {},
+    },
+    {
       module: "dystopian-nightmare",
       cardIds: ["45072", "45073", "45074"],
       registry: DYSTOPIAN_NIGHTMARE,
@@ -90,6 +98,12 @@ const SCRIPTED_MODULES: Readonly<
   ],
   ncrawler: [
     { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
+    {
+      module: "nightcrawler/support-upgrades-allies",
+      cardIds: ["48002", "48003", "48004", "48005", "48006"],
+      registry: NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
+    },
     {
       module: "aspect-basic",
       cardIds: [
