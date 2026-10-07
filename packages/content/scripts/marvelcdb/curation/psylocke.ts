@@ -51,6 +51,34 @@ export const PSYLOCKE_CURATION: PackCuration = {
   ],
   errata: [],
 
+  // Scripting hand-off notes (docs/phase7-wave7-data-survey.md §8 step 12), comments only so the emitted data does not
+  // change. Reading taken, question or ruling behind it (docs/phase7-wave7.md §4.1), script under
+  // packages/cards/src/wave7/psylocke/. No dotted acronym traits here (docs/trait-split-report.md: no change).
+  // - 41001a Psi-Energy Control: an interrupt to her basic power, so a flip resolves before the power's value is read
+  //   (Knife to Katana on a basic attack gives that attack +1 ATK and piercing). Offered when a stun cancels the basic
+  //   attack (2026-10-06, the owner's inference from RRG 1.8 status priority). identity.ts.
+  // - 41002a/b Psi-Knife / Psi-Katana: the Katana's piercing is on her basic attacks only, not an event's attack.
+  //   Restricted is a state limit (2026-10-06): a play or flip into a third restricted card resolves, then the player
+  //   chooses and discards down to two (RRG "Restricted"); after a flip the limit is checked at once (Q38 = A). A flip
+  //   Body Swapped forbids is not offered (`cannotFlip`). support-upgrades-allies.ts, identity.ts.
+  // - 41004-41007 Flurry of Blades, Mental Detection, Psionic Redirect, Telepathic Suggestion: a base effect plus one
+  //   per Knife and one per Katana, read as the clause resolves. Each "for each" iteration is its own choice, so the
+  //   same target may be chosen twice. Telepathic Suggestion cancels a When Revealed: a canceled one gives no Surge and
+  //   does not count as resolved for Pete Wisdom (FFG August 3, 2026 - Ruling 3; 2026-10-06). events.ts.
+  // - 41006 Psionic Redirect, a "(defense)" ability: using one makes the hero the defender and DEF is not applied; only
+  //   one player may resolve a "(defense)" ability per attack, the same hero may use further ones (2026-10-06).
+  //   events.ts.
+  // - 41013 Cypher: a confused enemy the attack defeats still counts, so he draws; the attack damaged it while it was
+  //   confused (2026-10-06). support-upgrades-allies.ts.
+  // - 41018 Pete Wisdom: after the player resolves a treachery; an obligation is not one. support-upgrades-allies.ts.
+  // - 41019 Directed Force: one extra damage bonus per attack across all copies; the Katana's piercing counts.
+  //   events.ts.
+  // - 41020 Soaring Hearts: Team-Up (Angel and Psylocke) is card data; Archangel is not "Angel", so it cannot be played
+  //   in Archangel form (Q37 = A). events.ts.
+  // - 41025 Body Swapped, 41026 Chimera: flips and exhausts every PSI-ENERGY upgrade, one already on its Katana side
+  //   included (Q43 = A). "[mental] resources on cards you control" reads cards in play, hand, deck and discard pile as
+  //   printed (Q39 = C, RRG p. 31). obligation-nemesis.ts.
+  // - 41028 Psionic Illusion: a printed wild icon matches any named type (Q40 = B). obligation-nemesis.ts.
   scriptingNotes: {},
   cardNotes: {},
 

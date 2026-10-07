@@ -46,6 +46,26 @@ export const X23_CURATION: PackCuration = {
     },
   ],
 
+  // Scripting hand-off notes (docs/phase7-wave7-data-survey.md §8 step 12), comments only so the emitted data does not
+  // change. Reading taken, question or ruling behind it (docs/phase7-wave7.md §4.1), script under
+  // packages/cards/src/wave7/x23/. No dotted acronym traits here (docs/trait-split-report.md: no change).
+  // - 43001a Living Weapon: after X-23 takes any amount of damage (`taken`), so damage a tough card wholly prevented is
+  //   not taken; cost damage counts, in either phase. 0 damage opens no damage window, so it does not fire
+  //   (2026-10-06).
+  //   Once per phase; readying a ready identity still uses the limit. identity.ts.
+  // - 43002 X-23's Claws: the cost is exhausting it and taking 2 damage, not paid unless all of it is taken (RRG
+  //   "Cost", p. 14). Restricted is a state limit (2026-10-06). support-upgrades-allies.ts.
+  // - 43003 Honey Badger: gone by the time her own response would trigger if the damage defeated her, so `taken` offers
+  //   it only when she survives. 43028 Self-Isolation tucks her under itself; the response discards both.
+  //   support-upgrades-allies.ts, obligation-nemesis.ts.
+  // - 43005 Claw Mastery: the Honey Badger condition is read at each attack, not when played. 43007 Sisterly Bond reads
+  //   "thwarts or attacks" as her basic powers. events.ts.
+  // - 43009 Adamantium Lacing: retaliate is the hero face's only; piercing is on basic attacks only.
+  // - 43012 Puncture Wound: see `cardNotes`; data only until the engine records per-turn attack history.
+  // - 43013 Boom Boom, 43014 Rictor, 43015 Shatterstar, 43019 "Now I'm Mad", 43020 The Direct Approach: values are read
+  //   before the card leaves play or the effect resolves; "Limit 1 per side scheme" is data (`maxPerHost`).
+  // - 43036 Front Line Specialist: current text says "identity"; the print says "hero" (errata above, RRG 1.8 p. 69).
+  // - 43033 Hack 'n' Slash: an empty hand discards nothing and takes 0. obligation-nemesis.ts.
   scriptingNotes: {},
   cardNotes: {
     "43012":

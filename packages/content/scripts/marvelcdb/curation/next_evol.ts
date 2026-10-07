@@ -217,6 +217,97 @@ export const NEXT_EVOL_CURATION: PackCuration = {
     },
   ],
 
+  // Scripting hand-off notes (docs/phase7-wave7-data-survey.md §8 step 12), kept as comments so the emitted data does
+  // not change. Each line is the reading taken, the question or ruling behind it (docs/phase7-wave7.md §4.1: Q1-Q53 and
+  // the owner rulings of 2026-10-04, -05 and -06) and the script that builds it, under packages/cards/src/wave7/
+  // next_evol/. Only cards with something non-obvious are listed. The only ability-keyed note the data carries is
+  // 40169 below (its host is conditional); everything else lives here.
+  //
+  // Parser limits: no wave 7 card carries a dotted acronym trait (S.H.I.E.L.D., A.I.M.), so the trait split of
+  // docs/trait-split-report.md changes nothing in this pack. Conditional or per-card layouts the text does not carry
+  // (the attach host of 40169, Hope Summers's star stats, 40199's second paragraph) are the corrections above.
+  //
+  // Cable (cable/*.ts)
+  // - 40001a/b Cable: the Response is printed on the hero face, so it is heard in hero form only. "Any aspect's player
+  //   side schemes" is deckbuilding data (`identityDeckbuilding` below), not an ability. Soldier X's put-into-play goes
+  //   through the player side scheme limit like any scheme: at the limit the new scheme enters, then the playing player
+  //   discards any scheme in play, the new one included (Q1 = A, MC40 p. 21). cable/identity.ts.
+  // - 40006 Technovirus Purge: only Cable removes threat from it (his events and upgrades are him; his allies, other
+  //   heroes and non-character removers are not barred, Q29 = A). cable/support-upgrades-allies.ts.
+  // - 40013 Temporal Leap: the printed cost (remove it from the game, put a side scheme into play) is the first part of
+  //   the effect. The side scheme enters unrevealed with its starting threat, its hinder applies on entering, then 4
+  //   threat moves onto it (Q30 = A, amended 2026-10-05). 2026-10-06: moving threat removes it first, so with removal
+  //   barred (a crisis icon) the card is not offered, which overrules the earlier behavior.
+  //   cable/support-upgrades-allies.ts.
+  // - 40031 Technovirus Resurgence, 40033 Back to the Future: Purge is searched in one pool (deck, discard, hand,
+  //   victory display). The villain is engaged with nobody, so the Cable player cannot damage it (Q36 = A).
+  //   cable/obligation-nemesis.ts.
+  //
+  // Domino (domino/*.ts)
+  // - 40037a/b Domino, 40065 Memories of Armageddon, 40069 Superpower Feedback: a printed wild icon counts twice only
+  //   on
+  //   the hero face and only while the text box is not blank; Memories blanks both faces and keeps traits (Q12 = A).
+  //   Superpower Feedback counts triggered abilities and identity-specific events, never basic powers (Q35 = A).
+  //   domino/identity.ts, domino/obligation-nemesis.ts.
+  // - 40040 A Good Workout, 40045 The Painted Lady, Digging Deep: all additional damage goes to the enemy the 4 damage
+  //   hit (Q34 = B); a card a response took away is not counted (Q32 = B); a discard response on the deck's last card
+  //   still resolves where the reset put it (Q33 = A). domino/events.ts, domino/support-upgrades-allies.ts.
+  // - 40067 Not My Lucky Day: an option that cannot be carried out in full is not offered (Q8 = A).
+  //   domino/obligation-nemesis.ts.
+  //
+  // Hope Summers (hope-summers.ts, precon-domino-deck.ts)
+  // - 40130 Hope Summers (encounter ally): the first player controls her; control follows the first-player token and
+  //   moving between play areas is not leaving play. Her THW and ATK are what her own ability defines (a star value,
+  //   January 17, 2026 - Ruling 1), read from her controller's hero, and 0 while that player is in alter-ego form
+  //   (Q14 = B). Stats 0 in the data are placeholders. Putting her into play at setup is the setup keyword (RRG
+  //   Appendix II step 11; Q20 = B, with Mister Sinister's scenario exempted). hope-summers.ts.
+  // - 40204 Hope Summers (player ally): a different card, refused while the scenario's Hope is in play, and barred from
+  //   campaign decks outright (MC40 p. 6; `prohibited` in campaign.ts; 2026-10-06 ruling). precon-domino-deck.ts.
+  //
+  // Scenario cards
+  // - 40079 Morlock, 40080 Hide!, 40083 Pushed to the Limit (morlock-siege.ts): a Morlock's redirect covers every
+  //   attack
+  //   whose attacked player is you, an ally of yours included, and is forced (Q6 = A, Q5 = A). "Cannot remove this ally
+  //   from play" blocks moving or outright defeating it; damage still defeats it (Q7 = A). Pushed to the Limit cannot
+  //   be
+  //   triggered while the villain could not attack, a stun included (Q13 = B).
+  // - Marauders and Mutant Slayers minions with "choose" options (marauders.ts, mutant-slayers.ts, juggernaut.ts): an
+  //   option is offered only when it can be carried out in full (Q8 = A). A Marauder minion revealed while its villain
+  //   is in play is discarded and the player is dealt a facedown card (Q4 = A).
+  // - 40103a/b main scheme (on-the-run.ts): the replaced defeat sets hit points to the printed value, flips the card
+  //   and raises both the dial and the maximum by +6 per player (Q10 = A, RRG p. 22).
+  // - 40105a/b Hope's Captor (on-the-run.ts): replaces every attack activation, card-caused ones included, before the
+  //   boost card is dealt (Q9 = A). 2026-10-06: it is a "would" ability, so it resolves before any "attacks you"
+  //   interrupt of the attacking Marauder with no ordering prompt (RRG 1.8 "Would", p. 48).
+  // - 40106 Hidden in the Clutter (on-the-run.ts): stays until 3 damage is on it and its sequence completes. With no
+  //   dealing player no attack happens and it is discarded, a stunned host or not (Q11 = A, 2026-10-06: the stun card
+  //   is kept). If a stun replaces the resulting attack with a player dealing, it stays attached. Tough and other
+  //   status
+  //   cards come first at the damage timing (2026-10-06). The QA pin that it loops against retaliate is as built, open
+  //   for the owner (docs/phase7-wave7-qa-rulings.md).
+  // - 40143b Sinister Ends, 40144-40150 (mister-sinister.ts): the attack goes to Hope Summers and her controller is the
+  //   attacked player (Q16 = A); Hope's Captor reading as above.
+  // - 40153 Out of Reach (flight.ts): blocks damage that has no attack behind it too (Q17 = A).
+  // - 40123 Head of Steam (juggernaut.ts): after an attack that dealt 0 damage it costs zero and may be discarded
+  //   (Q15 = A); a 0-damage attack opens no damage window (2026-10-06).
+  // - 40168b Living Bomb, 40173 Psychic Inertia, 40174 Zero, 40179 Telekinetic Wave (stryfe.ts): Living Bomb enters
+  //   with
+  //   its 3 threat plus Stryfe's Grasp's (Q19 = A); Stryfe at 0 hit points is defeated when it leaves play, with no
+  //   defeating player (Q21 = A); Psychic Inertia counts any attack or thwart by your hero (Q23 = A); Zero is shuffled
+  //   back even when nobody defeated it (Q22 = A); "most common type" counts the six player types only (Q18 = B);
+  //   Telekinetic Wave returns the card to its owner's hand (2026-10-06, as built).
+  //
+  // Campaign cards (campaign.ts)
+  // - 40190a-40195a player side schemes: they are out of the player side scheme limit by their own printed text
+  //   ("does not count against the player side scheme limit"), scripted as `excludedFromPlayerSideSchemeLimit`, not
+  //   because nobody controls them (owner, 2026-10-04; Q24 = A). An unowned scheme without that text would count.
+  //   Scenario 2's tough cards and "campaign environment" read as built: enemies in play when the step resolves, and
+  //   the campaign side schemes' environments only (2026-10-06).
+  // - 40199 Malice: attached Malice is a minion only, never an attachment (Q26 = A); its host's SCH is the host's
+  //   current THW (Q27 = A); the two paragraphs are two refs (`extraConstantFrom` above).
+  // - Campaign flow (packages/cards/src/campaigns/next_evol.ts, not a card script): the Morlocks Saved search happens
+  //   after mulligans, as an extra card on top of the opening hand (Q28 = B); Pouches (40196) is in the deck for that
+  //   game only (Q25 = A).
   scriptingNotes: {
     "40169.mental-transferal-constant":
       "Host is conditional: attach to Hope Summers if Stryfe's Grasp (40168a) is in play, otherwise to the revealing player's identity.",
