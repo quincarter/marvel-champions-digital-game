@@ -24,7 +24,14 @@ export const JUBILEE_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("47008a"), cardSetCode: "jubilee", marvelcdbCodes: ["47008a"], corrections: [] },
   { cardId: cardId("47008b"), cardSetCode: "jubilee", marvelcdbCodes: ["47008b"], corrections: [] },
   { cardId: cardId("47008c"), cardSetCode: "jubilee", marvelcdbCodes: ["47008c"], corrections: [] },
-  { cardId: cardId("47009"), cardSetCode: "jubilee", marvelcdbCodes: ["47009"], corrections: [] },
+  {
+    cardId: cardId("47009"),
+    cardSetCode: "jubilee",
+    marvelcdbCodes: ["47009"],
+    corrections: [
+      "47009: MarvelCDB spells the title \"Grande Finale\"; the card prints \"Grand Finale\". [evidence: The card's own scan (assets/card-art/bundles/cards/47009.jpg) prints GRAND FINALE; the pack's printed decklist card (the owner's photo, 2026-10-07, docs/phase7-wave8-handoff.md) reads \"9 Grand Finale\".]",
+    ],
+  },
   { cardId: cardId("47010a"), cardSetCode: "jubilee", marvelcdbCodes: ["47010a"], corrections: [] },
   { cardId: cardId("47010b"), cardSetCode: "jubilee", marvelcdbCodes: ["47010b"], corrections: [] },
   { cardId: cardId("47010c"), cardSetCode: "jubilee", marvelcdbCodes: ["47010c"], corrections: [] },

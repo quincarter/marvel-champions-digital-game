@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateStarterDeck } from "../schema/index.js";
+import { JUBILEE_CARDS } from "./jubilee/cards.js";
+import { JUBILEE_STARTER_DECKS } from "./jubilee/starterDecks.js";
 import { MAGNETO_CARDS } from "./magneto/cards.js";
 import { MAGNETO_STARTER_DECKS } from "./magneto/starterDecks.js";
 import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
@@ -64,6 +66,15 @@ const deckCases = [
     aspect: "leadership",
     sections: { hero: 15, leadership: 17, basic: 8 },
   },
+  {
+    decks: JUBILEE_STARTER_DECKS,
+    cards: JUBILEE_CARDS,
+    id: "jubilee-justice",
+    pack: "jubilee",
+    identity: "47001a",
+    aspect: "justice",
+    sections: { hero: 15, justice: 14, basic: 11 },
+  },
 ] as const;
 
 describe("Wave 8 starter decks (printed decklist cards)", () => {
@@ -102,4 +113,21 @@ describe("Wave 8 starter decks (printed decklist cards)", () => {
       });
     });
   }
+});
+
+describe("Jubilee starter deck specifics", () => {
+  const deck = JUBILEE_STARTER_DECKS[0]!;
+  const qty = (id: string) => deck.cards.find((e) => (e.cardId as string) === id)?.quantity ?? 0;
+
+  it("holds one Unlikely Duo (printed once; Max 1 per deck)", () => {
+    expect(qty("47022")).toBe(1);
+  });
+
+  it("holds one copy of each a/b/c record of Firecracker, Flash of Light and Plasmoid Energy", () => {
+    for (const n of ["47007", "47008", "47010"]) for (const v of ["a", "b", "c"]) expect(qty(n + v), n + v).toBe(1);
+  });
+
+  it("titles 47009 as the card prints it", () => {
+    expect(JUBILEE_CARDS.find((c) => (c.id as string) === "47009")!.name).toBe("Grand Finale");
+  });
 });

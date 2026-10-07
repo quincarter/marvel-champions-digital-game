@@ -320,7 +320,7 @@ export const JUBILEE_CARDS: readonly AnyCard[] = [
   {
     id: cardId("47009"),
     type: "event",
-    name: "Grande Finale",
+    name: "Grand Finale",
     setCode: setCode("jubilee"),
     cycleId: cycleId("cycle8"),
     collectorNumber: "9",
