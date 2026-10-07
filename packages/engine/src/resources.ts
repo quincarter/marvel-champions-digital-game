@@ -200,6 +200,33 @@ export function distinctTypeCount(pool: ResourcePool): number {
 }
 
 /**
+ * Whether one of the resources `source` generated can be among the resources **paid** for `requirement` out of `pool`
+ * (`source` is part of `pool`). RRG 1.8 "Cost" (p. 13): "Resources generated beyond the specified cost are considered
+ * to have been overpaid for that cost and were not paid for that cost", so the paid resources are a part of the pool
+ * exactly as large as the requirement that meets it, and the rules do not say which part when more was generated. A
+ * source counts when some such part holds one of its resources (docs/phase7-wave8.md §3.51, §4.1 Q28 = A):
+ *
+ * - never at a requirement of 0 (FAQ "Unstoppable Force (#6)", p. 60: at a cost of 0 nothing was paid);
+ * - a source that generated nothing paid nothing;
+ * - one of the source's resources is put in a slot it can fill (its own type's, a generic one, or for a wild any slot),
+ *   and the rest of the pool must still pay the rest of the requirement. A source of only [energy] toward a cost of
+ *   1 [physical] that another card pays is overpaid whichever way the payment is read.
+ */
+export function canBePaidFor(pool: ResourcePool, source: ResourcePool, requirement: ResolvedRequirement): boolean {
+  if (requirementTotal(requirement) <= 0) return false;
+  return RESOURCE_TYPES.some((type) => {
+    if (source[type] <= 0 || pool[type] <= 0) return false;
+    const rest: ResourcePool = { ...pool, [type]: pool[type] - 1 };
+    const slots: (keyof ResolvedRequirement)[] =
+      type === "wild" ? ["wild", ...TYPED_RESOURCES, "generic"] : [type, "generic"];
+    return slots.some((slot) => {
+      const needed = requirement[slot] ?? 0;
+      return needed > 0 && satisfies(rest, { ...requirement, [slot]: needed - 1 });
+    });
+  });
+}
+
+/**
  * "If you paid for this card using a [X] resource": true when the payment
  * contained an X, or a wild the payer can declare as X.
  */

@@ -137,6 +137,7 @@ import {
   countUsableAs,
   EMPTY_POOL,
   payableWithOneType,
+  canBePaidFor,
   poolOf,
   poolTotal,
   printedResources,
@@ -155,6 +156,7 @@ import {
   basicThwartTargetAllowed,
   canAttack,
   cardsInPlay,
+  cardTypeOf,
   categoriesOf,
   characterIgnores,
   controllerOf,
@@ -966,6 +968,56 @@ function paymentSourceVars(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     );
     const key = `paid.ability.${abilityId}`;
     vars[key] = (vars[key] ?? 0) + poolTotal(generated);
+  }
+  return vars;
+}
+
+/**
+ * Which hand cards paid, by card type, as `paid.cards.<cardType>` vars (docs/phase7-wave8.md §3.51): "If you paid for
+ * this event with a resource card" (Concussive Blast `aoa` 45007, Command Authority 45008) reads
+ * `paid.cards.resource`. Each is the number of cards of that type (`cardTypeOf`, read in hand) discarded from a hand in
+ * this payment with a resource among the ones **paid** (`canBePaidFor`). A type with no such card has no var.
+ *
+ * - RRG 1.8 "Cost" (p. 13): resources come "by discarding cards from their hand or by using 'Resource' card
+ *   abilities". A resource ability is not a card discarded to pay, whatever card carries it: only `fromHand` entries
+ *   are counted. "Resource Card" (p. 37) is a card type, so the card's type is what is read, not what it generates.
+ * - §4.1 Q28 = A: overpaid resources "were not paid for that cost" (p. 13), so a card whose every resource is
+ *   overpaid is left out, and at a cost of 0 nothing was paid (FAQ "Unstoppable Force (#6)", p. 60). The rules do not
+ *   say which resources are the overpaid ones: a card counts when some reading of the payment has one of its resources
+ *   paid, which is the reading its player would give.
+ *   Each card is judged on its own, so in an overpaid payment the var can count more cards than one reading of the
+ *   payment holds together (two resource cards toward a cost of 1 count 2): it is exact as "at least one", which is
+ *   all a card in the pool asks, and an upper bound as a number.
+ * - "Spend X resources" (`resourcesX`): the X resources are paid too, so they join the requirement here.
+ *
+ * Read before paying, while the cards are still in hand. They travel with the other `paid.*` vars (`playPaymentVars`).
+ */
+function paidCardVars(
+  ctx: Ctx,
+  playerId: PlayerId,
+  payment: readonly Payment[],
+  payingFor: InstanceId | null,
+  pool: ResourcePool,
+  requirement: ResolvedRequirement,
+  cost: AbilityCost | undefined,
+  resourceVarsRead: Vars,
+): Record<string, number> {
+  const vars: Record<string, number> = {};
+  const x = cost?.resourcesX;
+  const xPaid = x ? (resourceVarsRead[x.bind] ?? 0) : 0;
+  const xSlot = x && x.resource !== "any" ? x.resource : "generic";
+  const withX: ResolvedRequirement = xPaid > 0 ? { ...requirement, [xSlot]: requirement[xSlot] + xPaid } : requirement;
+  const paidFor = satisfies(pool, withX) ? withX : requirement;
+  for (const entry of payment) {
+    if (!("fromHand" in entry)) continue;
+    const type = cardTypeOf(ctx.state, entry.fromHand);
+    if (type === null) continue;
+    const zone = locateCard(ctx.state, entry.fromHand);
+    const ownerId = zone?.kind === "hand" ? zone.playerId : playerId;
+    const generated = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
+    if (!canBePaidFor(pool, generated, paidFor)) continue;
+    const key = `paid.cards.${type}`;
+    vars[key] = (vars[key] ?? 0) + 1;
   }
   return vars;
 }
@@ -2865,6 +2917,16 @@ export function pricePlay(
       ...plan.vars,
       ...vars,
       ...paymentSourceVars(ctx, playerId, payment),
+      ...paidCardVars(
+        ctx,
+        playerId,
+        payment,
+        plan.payingFor ?? cardInstanceId,
+        pool,
+        requirement,
+        plan.cost ?? cost,
+        vars,
+      ),
       ...(printedX ? { x: xValue } : {}),
     },
   };
@@ -3684,7 +3746,19 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (isFault(vars)) return engineError(vars.code, vars.message, command);
 
   // Read before paying: paying may exhaust or discard the source.
-  const sources = paymentSourceVars(ctx, command.playerId, command.payment);
+  const sources = {
+    ...paymentSourceVars(ctx, command.playerId, command.payment),
+    ...paidCardVars(
+      ctx,
+      command.playerId,
+      command.payment,
+      payingFor,
+      pool,
+      plan.requirement,
+      plan.cost ?? definition.cost,
+      vars,
+    ),
+  };
   const bindings = withSelfHost(ctx.state, command.cardInstanceId, plan.bindings);
   const spent = payPayment(ctx, command.playerId, command.payment, payingFor);
   pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, bindings, {

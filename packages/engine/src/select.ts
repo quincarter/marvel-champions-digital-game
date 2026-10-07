@@ -2317,7 +2317,7 @@ export function resolveValue(
 }
 
 /**
- * The `paid.*` vars a `paidWith`/`paidWithOnly` predicate reads: the ability's own (`of` omitted), or the play in
+ * The `paid.*` vars a `paidWith`/`paidWithOnly`/`paidWithCard` predicate reads: the ability's own (`of` omitted), or the play in
  * progress of the card `of` names (`playPaymentVars`) — "if you paid for that event" read by another card's interrupt.
  */
 function paidVarsOf(state: GameState, of: TargetRef | undefined, context: EffectContext): Vars {
@@ -2504,6 +2504,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const [id] = resolveRef(state, predicate.of, context);
       return id ? currentName(state, id) === predicate.name : false;
     }
+    case "paidWithCard":
+      return (paidVarsOf(state, predicate.of, context)[`paid.cards.${predicate.cardType}`] ?? 0) > 0;
     case "paidWithOnly": {
       const vars = paidVarsOf(state, predicate.of, context);
       if ((vars["paid.total"] ?? 0) <= 0) return false;

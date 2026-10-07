@@ -27,6 +27,7 @@ export type LastingGrantUntil = LastingUntil | NextBasicPowerUntil;
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
 import type { CardIcon, EventPattern, RuleSpec } from "./abilities.js";
+import type { RulesCardType } from "./card-types.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
@@ -1218,6 +1219,14 @@ export type Predicate =
    * `paidWith`.
    */
   | { readonly kind: "paidWithOnly"; readonly resource: TypedResource; readonly of?: TargetRef }
+  /**
+   * "If you paid for this event with a resource card" (Concussive Blast `aoa` 45007, Command Authority 45008;
+   * docs/phase7-wave8.md §3.51): a card of `cardType` was discarded from a hand to pay, and one of its resources was
+   * paid (`paid.cards.<cardType>`, `paidCardVars`). RRG 1.8 "Cost" (p. 13): a resource ability is not a card discarded
+   * to pay, and overpaid resources "were not paid for that cost" (§4.1 Q28 = A); FAQ "Unstoppable Force (#6)" (p. 60):
+   * at a cost of 0 it fails. `of` as for `paidWith`.
+   */
+  | { readonly kind: "paidWithCard"; readonly cardType: RulesCardType; readonly of?: TargetRef }
   /**
    * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast` (default 1)
    * of the cards `player` played this turn (`GameState.playedThisTurn`) match `cards`, read wherever those cards are now.

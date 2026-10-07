@@ -8,6 +8,7 @@ import type {
   PlayerRef,
   Predicate,
   ResourceRequirement,
+  RulesCardType,
   SetupOutsideFact,
   StatComparison,
   StatName,
@@ -766,6 +767,19 @@ export const paidWithOnly = (resource: TypedResource, of?: TargetRef): Predicate
   resource,
   ...(of !== undefined ? { of } : {}),
 });
+/**
+ * "If you paid for this event with a resource card" (Concussive Blast `aoa` 45007, Command Authority 45008;
+ * docs/phase7-wave8.md §3.51): a card of that type was discarded from a hand to pay and one of its resources was paid.
+ * A resource ability is not a resource card (RRG 1.8 "Cost", p. 13); an overpaid card does not count, and at a cost of
+ * 0 nothing was paid (§4.1 Q28 = A; FAQ "Unstoppable Force (#6)", p. 60). `of` as for `paidWith`.
+ */
+export const paidWithCard = (cardType: RulesCardType, of?: TargetRef): Predicate => ({
+  kind: "paidWithCard",
+  cardType,
+  ...(of !== undefined ? { of } : {}),
+});
+/** "If you paid for this event with a resource card": `paidWithCard("resource")`. */
+export const paidWithResourceCard = (of?: TargetRef): Predicate => paidWithCard("resource", of);
 /**
  * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and
  * resource abilities that spend would offer them, priced as the spend prices it (engine `canPayResources`). Gates an
