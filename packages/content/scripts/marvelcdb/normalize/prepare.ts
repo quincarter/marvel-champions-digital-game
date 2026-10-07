@@ -25,6 +25,10 @@ export interface Prepared {
   readonly scheme?: number;
   /** `Correction.dashedMinionStats`: the minion stats that print a dash and emit `null`. */
   readonly dashedMinionStats?: readonly ("atk" | "sch")[];
+  /** `Correction.schemeIcons`: a side scheme's printed icon counts, replacing raw's (absent for every ordinary card). */
+  readonly schemeIcons?: { readonly crisis?: number; readonly acceleration?: number; readonly hazard?: number };
+  /** `Correction.startingThreatPerPlayer`: replaces `!base_threat_fixed` for a side scheme (absent: raw decides). */
+  readonly startingThreatPerPlayer?: boolean;
   readonly text: CardText;
   readonly flavor?: string;
   readonly errata?: Errata;
@@ -63,6 +67,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let thwart: number | undefined;
   let scheme: number | undefined;
   let dashedMinionStats: readonly ("atk" | "sch")[] | undefined;
+  let schemeIcons: Prepared["schemeIcons"];
+  let startingThreatPerPlayer: boolean | undefined;
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
@@ -107,6 +113,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.thwart !== undefined) thwart = c.thwart;
     if (c.scheme !== undefined) scheme = c.scheme;
     if (c.dashedMinionStats !== undefined) dashedMinionStats = c.dashedMinionStats;
+    if (c.schemeIcons !== undefined) schemeIcons = c.schemeIcons;
+    if (c.startingThreatPerPlayer !== undefined) startingThreatPerPlayer = c.startingThreatPerPlayer;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
@@ -147,6 +155,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(thwart !== undefined ? { thwart } : {}),
     ...(scheme !== undefined ? { scheme } : {}),
     ...(dashedMinionStats ? { dashedMinionStats } : {}),
+    ...(schemeIcons ? { schemeIcons } : {}),
+    ...(startingThreatPerPlayer !== undefined ? { startingThreatPerPlayer } : {}),
     text: { printed, current },
     ...(flavor ? { flavor } : {}),
     ...(errata ? { errata } : {}),

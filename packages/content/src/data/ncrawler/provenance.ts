@@ -98,7 +98,9 @@ export const NCRAWLER_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("48028"),
     cardSetCode: "nightcrawler_nemesis",
     marvelcdbCodes: ["48028"],
-    corrections: [],
+    corrections: [
+      "48028: Brimstone Dimension prints one hazard icon beside its text; MarvelCDB sends scheme_hazard null, so the record emitted no icon. [evidence: scan 48028.png read: the scheme icon is the hazard icon (same glyph as Involuntary Procedures `deadpool` 44034); the three icons at the lower left are the boost icons (boost 3)]",
+    ],
   },
   {
     cardId: cardId("48029"),
@@ -114,7 +116,14 @@ export const NCRAWLER_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("48031"), cardSetCode: "aggression", marvelcdbCodes: ["48031"], corrections: [] },
   { cardId: cardId("48032"), cardSetCode: "justice", marvelcdbCodes: ["48032"], corrections: [] },
-  { cardId: cardId("48033"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48033"], corrections: [] },
+  {
+    cardId: cardId("48033"),
+    cardSetCode: "crazy_gang",
+    marvelcdbCodes: ["48033"],
+    corrections: [
+      "48033: The Crazy Gang prints starting threat 2 with the per player icon; MarvelCDB sends base_threat_fixed true, so the threat emitted as a fixed 2. [evidence: scan 48033.png read: threat box prints 2 followed by the per player icon; one acceleration icon (same glyph as Killer for Hire `bkw` 08027), boost 2]",
+    ],
+  },
   { cardId: cardId("48034"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48034"], corrections: [] },
   { cardId: cardId("48035"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48035"], corrections: [] },
   { cardId: cardId("48036"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48036"], corrections: [] },

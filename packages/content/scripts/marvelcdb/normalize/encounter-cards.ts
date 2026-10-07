@@ -191,8 +191,17 @@ export function normalizeEncounterCard(
         ...common,
         type: "side_scheme",
         encounterSetIds,
-        startingThreat: scalingOf(r.base_threat ?? 0, !r.base_threat_fixed),
-        icons: schemeIcons(r),
+        startingThreat: scalingOf(r.base_threat ?? 0, p.startingThreatPerPlayer ?? !r.base_threat_fixed),
+        icons: schemeIcons(
+          p.schemeIcons
+            ? {
+                ...r,
+                scheme_crisis: p.schemeIcons.crisis ?? 0,
+                scheme_acceleration: p.schemeIcons.acceleration ?? 0,
+                scheme_hazard: p.schemeIcons.hazard ?? 0,
+              }
+            : r,
+        ),
         boostIcons,
         ...(starIcon ? { starIcon } : {}),
         traits,

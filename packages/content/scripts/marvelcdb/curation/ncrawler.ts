@@ -1,7 +1,7 @@
 /**
  * Nightcrawler (Kurt Wagner) Hero Pack (Cycle 8) curation.
  *
- * Normalizes cleanly with no hand corrections needed.
+ * Two side scheme corrections (48028 hazard icon, 48033 per player starting threat); nothing else needs a hand correction.
  *
  * **Scenario data not curated this pass** — data-only pool (PLAN.md Phase 7). The Protection starter deck comes from the pack's printed decklist card.
  */
@@ -19,7 +19,24 @@ export const NCRAWLER_CURATION: PackCuration = {
   outDir: "src/data/ncrawler",
   exportPrefix: "NCRAWLER",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "48028",
+      reason:
+        "Brimstone Dimension prints one hazard icon beside its text; MarvelCDB sends scheme_hazard null, so the record emitted no icon.",
+      evidence:
+        "scan 48028.png read: the scheme icon is the hazard icon (same glyph as Involuntary Procedures `deadpool` 44034); the three icons at the lower left are the boost icons (boost 3)",
+      schemeIcons: { hazard: 1 },
+    },
+    {
+      code: "48033",
+      reason:
+        "The Crazy Gang prints starting threat 2 with the per player icon; MarvelCDB sends base_threat_fixed true, so the threat emitted as a fixed 2.",
+      evidence:
+        "scan 48033.png read: threat box prints 2 followed by the per player icon; one acceleration icon (same glyph as Killer for Hire `bkw` 08027), boost 2",
+      startingThreatPerPlayer: true,
+    },
+  ],
   errata: [
     {
       code: "48012",

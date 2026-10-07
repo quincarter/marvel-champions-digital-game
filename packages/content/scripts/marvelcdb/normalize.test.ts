@@ -898,3 +898,120 @@ describe("Age of Apocalypse scenario records, normalized from the real raw pack"
     expect(s.victory).toBeUndefined();
   });
 });
+
+// Real raw records of the Nightcrawler pack's two side schemes whose scans disagree with MarvelCDB.
+const BRIMSTONE_DIMENSION = {
+  pack_code: "ncrawler",
+  pack_name: "Nightcrawler",
+  pack_legacy: false,
+  pack_wave: 8,
+  type_code: "side_scheme",
+  type_name: "Side Scheme",
+  faction_code: "encounter",
+  faction_name: "Encounter",
+  card_set_code: "nightcrawler_nemesis",
+  card_set_name: "Nightcrawler Nemesis",
+  card_set_type_name_code: "nemesis",
+  position: 28,
+  set_position: 2,
+  code: "48028",
+  name: "Brimstone Dimension",
+  real_name: "Brimstone Dimension",
+  cost_per_hero: false,
+  cost_star: false,
+  text: "<b>When Defeated</b>: The player who defeated this scheme finds Azazel and deals him to themself as a facedown encounter card.",
+  real_text:
+    "<b>When Defeated</b>: The player who defeated this scheme finds Azazel and deals him to themself as a facedown encounter card.",
+  boost: 3,
+  quantity: 1,
+  health_per_group: false,
+  health_per_hero: false,
+  base_threat: 5,
+  base_threat_fixed: true,
+  base_threat_per_group: false,
+  base_threat_star: false,
+  escalation_threat_fixed: false,
+  threat_fixed: false,
+  threat_per_group: false,
+  is_unique: false,
+  hidden: false,
+  permanent: false,
+  double_sided: false,
+  attack_star: false,
+  thwart_star: false,
+  defense_star: false,
+  health_star: false,
+  recover_star: false,
+  scheme_star: false,
+  boost_star: false,
+  threat_star: false,
+  escalation_threat_star: false,
+  url: "https://marvelcdb.com/card/48028",
+  imagesrc: "/bundles/cards/48028.png",
+  spoiler: 1,
+} as unknown as RawCard;
+
+const THE_CRAZY_GANG = {
+  ...BRIMSTONE_DIMENSION,
+  card_set_code: "crazy_gang",
+  card_set_name: "Crazy Gang",
+  card_set_type_name_code: "modular",
+  position: 33,
+  set_position: 1,
+  code: "48033",
+  name: "The Crazy Gang",
+  real_name: "The Crazy Gang",
+  text: "<b>Forced Response</b>: After a non-[[Elite]] minion schemes against a player, deal that minion to that player as a facedown encounter card. Then, if there is more than 1 player in the game, pass that facedown encounter card to the next player.",
+  real_text:
+    "<b>Forced Response</b>: After a non-[[Elite]] minion schemes against a player, deal that minion to that player as a facedown encounter card. Then, if there is more than 1 player in the game, pass that facedown encounter card to the next player.",
+  boost: 2,
+  base_threat: 2,
+  scheme_acceleration: 1,
+  url: "https://marvelcdb.com/card/48033",
+  imagesrc: "/bundles/cards/48033.png",
+} as unknown as RawCard;
+
+const brimstoneCorrection: Correction = {
+  code: "48028",
+  schemeIcons: { hazard: 1 },
+  reason: "MarvelCDB sends scheme_hazard null",
+  evidence: "scan: assets/card-art/bundles/cards/48028.png prints one hazard icon",
+};
+const crazyGangCorrection: Correction = {
+  code: "48033",
+  startingThreatPerPlayer: true,
+  reason: "MarvelCDB sends base_threat_fixed true",
+  evidence: "scan: assets/card-art/bundles/cards/48033.png prints 2 with the per player icon",
+};
+
+describe("Correction.schemeIcons and Correction.startingThreatPerPlayer (side schemes whose scan disagrees with raw)", () => {
+  const sideScheme = (ctx: ReturnType<typeof run>["ctx"], code: string) => {
+    const card = ctx.cards.find((c) => c.id === code);
+    if (card?.type !== "side_scheme") throw new Error(`${code} is not an emitted side scheme`);
+    return card;
+  };
+
+  it("48028 emits the hazard icon with the correction, and none without it", () => {
+    const withFix = run([BRIMSTONE_DIMENSION], [brimstoneCorrection]);
+    expect(withFix.ctx.errors).toEqual([]);
+    expect(sideScheme(withFix.ctx, "48028").icons).toEqual(["hazard"]);
+    expect(sideScheme(withFix.ctx, "48028").startingThreat).toEqual({ base: 5, perPlayer: 0 });
+    expect(sideScheme(withFix.ctx, "48028").boostIcons).toBe(3);
+    expect([...withFix.ctx.usedCorrections]).toEqual([0]);
+    const without = run([BRIMSTONE_DIMENSION]);
+    expect(sideScheme(without.ctx, "48028").icons).toEqual([]);
+  });
+
+  it("48033 emits a per player starting threat with the correction and keeps its icon and boost", () => {
+    const withFix = run([THE_CRAZY_GANG], [crazyGangCorrection]);
+    expect(withFix.ctx.errors).toEqual([]);
+    const card = sideScheme(withFix.ctx, "48033");
+    expect(card.startingThreat).toEqual({ base: 0, perPlayer: 2 });
+    expect(card.icons).toEqual(["acceleration"]);
+    expect(card.boostIcons).toBe(2);
+    expect([...withFix.ctx.usedCorrections]).toEqual([0]);
+    const without = run([THE_CRAZY_GANG]);
+    expect(sideScheme(without.ctx, "48033").startingThreat).toEqual({ base: 2, perPlayer: 0 });
+    expect(sideScheme(without.ctx, "48033").icons).toEqual(["acceleration"]);
+  });
+});

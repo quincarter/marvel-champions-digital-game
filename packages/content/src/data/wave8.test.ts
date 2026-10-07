@@ -505,6 +505,22 @@ describe("Nightcrawler / Magneto / Jubilee scan corrections (2026-10-07)", () =>
     expect(card.abilities.map((a) => a.id as string)).toEqual(["48004.kurts-cutlasses-constant"]);
   });
 
+  it("Brimstone Dimension 48028 prints one hazard icon (the scan; raw has none)", () => {
+    const card = find(NCRAWLER_CARDS, "48028") as unknown as { icons: string[] };
+    expect(card.icons).toEqual(["hazard"]);
+  });
+
+  it("The Crazy Gang 48033 starts at 2 per player (the scan; raw says fixed), with its acceleration icon", () => {
+    const card = find(NCRAWLER_CARDS, "48033") as unknown as {
+      startingThreat: unknown;
+      icons: string[];
+      boostIcons: number;
+    };
+    expect(card.startingThreat).toEqual({ base: 0, perPlayer: 2 });
+    expect(card.icons).toEqual(["acceleration"]);
+    expect(card.boostIcons).toBe(2);
+  });
+
   it('Selene 49039 prints the full stop after "Allies cannot attack Selene"', () => {
     const card = find(MAGNETO_CARDS, "49039");
     for (const t of [card.text.printed, card.text.current]) {

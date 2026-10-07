@@ -65,6 +65,19 @@ export interface Correction {
    * MarvelCDB sends neither field for such a card, which is otherwise indistinguishable from a printed 0.
    */
   readonly dashedMinionStats?: readonly ("atk" | "sch")[];
+  /**
+   * A side scheme's printed scheme icons where MarvelCDB's `scheme_crisis` / `scheme_acceleration` / `scheme_hazard`
+   * are missing or wrong (wave 8, `ncrawler` 48028 Brimstone Dimension prints one hazard icon; raw has
+   * `scheme_hazard: null`). Replaces what raw says for every kind (an omitted kind is zero), and is emitted in the
+   * order crisis, acceleration, hazard like `schemeIcons`. Side schemes only; opt-in per card.
+   */
+  readonly schemeIcons?: { readonly crisis?: number; readonly acceleration?: number; readonly hazard?: number };
+  /**
+   * Whether a side scheme's starting threat is per player where MarvelCDB sends `base_threat_fixed: true`
+   * (wave 8, `ncrawler` 48033 The Crazy Gang prints "2" with the per player icon; raw has `base_threat_fixed: true`).
+   * Replaces `!base_threat_fixed`. Side schemes only; opt-in per card.
+   */
+  readonly startingThreatPerPlayer?: boolean;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
