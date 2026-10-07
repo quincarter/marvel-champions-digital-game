@@ -44,6 +44,7 @@ import {
   areaOfCard,
   areaOfPlayer,
   maxHitPoints,
+  nextClockwisePlayer,
   playerOrder,
   printedHandSize,
   printedProfile,
@@ -1822,6 +1823,12 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       return playerOrder(state)
         .map((p) => p.playerId)
         .filter((id) => !excluded.includes(id));
+    }
+    case "nextAfter": {
+      // RRG 1.8 "In Player Order" (p. 24): the next clockwise player still in the game; a player is not their own.
+      const [of] = resolvePlayers(state, ref.of, context);
+      const next = of ? nextClockwisePlayer(state, of) : undefined;
+      return next && next.playerId !== of ? [next.playerId] : [];
     }
     case "ownerOf": {
       const owners = resolveRef(state, ref.target, context)

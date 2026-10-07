@@ -123,12 +123,39 @@ export function findToReveal(
   ref: Extract<TargetRef, { kind: "find" }>,
   context: EffectContext,
 ): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
+  return findFirst(
+    ctx,
+    ref,
+    context,
+    (id) => cardsInPlay(ctx.state).includes(id) && mustInstance(ctx.state, id).faceup,
+  );
+}
+
+/**
+ * The find of "finds X and deals him to themself as a facedown encounter card" (`dealAsEncounterCard` of a `TargetRef
+ * find`; docs/phase7-wave8.md §3.75): as `findToReveal`, but the card always moves, from play included, so
+ * `alreadyThere` is false (a find never reaches a facedown dealt card, RRG 1.8 "Find", p. 19).
+ */
+export function findToDeal(
+  ctx: Ctx,
+  ref: Extract<TargetRef, { kind: "find" }>,
+  context: EffectContext,
+): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
+  return findFirst(ctx, ref, context, () => false);
+}
+
+/** The first card a find names, logged `cardFound` where it is, and the decks searched for it. */
+function findFirst(
+  ctx: Ctx,
+  ref: Extract<TargetRef, { kind: "find" }>,
+  context: EffectContext,
+  alreadyThere: (id: InstanceId) => boolean,
+): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
   const owners = ref.owner ? new Set(resolvePlayers(ctx.state, ref.owner, context)) : null;
   const [found] = findCards(ctx.state, ref.query, context, owners);
   const searched = decksSearchedByFind(ctx.state, ref.query, context, owners, found);
   if (!found) return { found: [], searched };
-  const inPlay = cardsInPlay(ctx.state).includes(found.id) && mustInstance(ctx.state, found.id).faceup;
-  announceFound(ctx, found.id, found.deck, inPlay);
+  announceFound(ctx, found.id, found.deck, alreadyThere(found.id));
   return { found: [found.id], searched };
 }
 

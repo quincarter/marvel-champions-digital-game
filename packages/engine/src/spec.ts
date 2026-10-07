@@ -700,6 +700,15 @@ export type PlayerRef =
   | { readonly kind: "ownerOf"; readonly target: TargetRef }
   /** Every player except these: "each other hero" (Whirlwind). */
   | { readonly kind: "others"; readonly of: PlayerRef }
+  /**
+   * "The next player" (The Crazy Gang, `ncrawler` 48033; docs/phase7-wave8.md §3.75): RRG 1.8 "In Player Order"
+   * (p. 24), "The phrase 'next player' always refers to the next (clockwise) player in player order". The next player
+   * clockwise from the first player `of` names who is still in the game, wrapping from the last seat to the first and
+   * passing over eliminated players (`nextClockwisePlayer`, the seat order the first player token follows). Nobody
+   * when `of` names nobody, and nobody when no other player is left in the game: a player is not their own next
+   * player, so an effect aimed at "the next player" in a one-player game does nothing.
+   */
+  | { readonly kind: "nextAfter"; readonly of: PlayerRef }
   /** The player a card is engaged with: "the engaged player" on a minion's own ability. */
   | { readonly kind: "engagedWith"; readonly of: TargetRef }
   /**
@@ -3007,12 +3016,42 @@ export type EffectSpec =
   /**
    * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005; docs/phase7-wave3.md
    * §3.47): a card already identified, not the encounter deck's top card. Each card `cards` names that is an encounter
-   * card that can be dealt (attachment, environment, minion, obligation, side scheme, treachery) and is out of play
-   * (the encounter deck or a discard pile, where "discarded this way" leaves it) goes facedown to the first player
-   * `player` names, in `cards` order, into the same zone the villain phase deals to (RRG 1.8 "Deal", p. 15). A card in
-   * play is not dealt: no printed card deals one. Logged as `cardMoved`, like every deal.
+   * card that can be dealt (attachment, environment, minion, obligation, side scheme, treachery) goes facedown to the
+   * first player `player` names, in `cards` order, at the back of the queue the villain phase deals to and reveals
+   * from in order (RRG 1.8 "Deal", p. 15; "Villain Phase" step 4, p. 47). Logged as `cardMoved`, like every deal.
+   *
+   * A card in play is dealt from play (Brimstone Dimension, `ncrawler` 48028; The Crazy Gang 48033;
+   * docs/phase7-wave8.md §3.75): it leaves play as any card does (RRG 1.8 "Leaves Play", p. 27: its attachments are
+   * discarded, a permanent player attachment is unattached, damage, counters and status cards are gone) and is not
+   * defeated, so no When Defeated ability resolves and it goes to no victory display. Revealed, it enters play as a
+   * new card. A card that cannot leave play is not dealt, and neither is a card of another type: the text before a
+   * "then" is then unresolved (`preThenUnresolved { cause: "cardNotDealt" }`).
+   *
+   * `cards` as a `find` ref is the Find itself ("finds Azazel and deals him to themself"): the first card the find
+   * names, in play included, logged `cardFound`; each deck searched is shuffled after the deal (RRG 1.8 "Find", p. 19;
+   * "Search", p. 39), and finding nothing deals nothing (`findFoundNothing`).
    */
   | { readonly kind: "dealAsEncounterCard"; readonly cards: TargetRef; readonly player: PlayerRef }
+  /**
+   * "Pass that facedown encounter card to the next player" (The Crazy Gang, `ncrawler` 48033; docs/phase7-wave8.md
+   * §3.75): each card `cards` names that is a facedown encounter card dealt to the first player `from` names moves,
+   * still facedown and in `cards` order, to the back of the queue of the first player `to` names. Its new holder
+   * reveals it with their other facedown encounter cards, in the order they came to that player (RRG 1.8 "Deal, Deal
+   * an Encounter Card", p. 15; "Villain Phase" step 4, p. 47: "one card at a time in the order in which they were
+   * dealt"): in step four of the same villain phase when that player has not finished revealing, otherwise in the
+   * next one. The card never enters or leaves play by it (RRG 1.8 "In Play and Out of Play", p. 23) and keeps whether
+   * it was dealt from the encounter deck. Logged `cardMoved`, then `encounterCardPassed`.
+   *
+   * Nothing moves when either player is nobody, when both are the same player, or for a card that is not facedown in
+   * front of `from` (a card being revealed is no longer one): the text before a "then" is then unresolved
+   * (`preThenUnresolved { cause: "cardNotPassed" }`).
+   */
+  | {
+      readonly kind: "passEncounterCard";
+      readonly cards: TargetRef;
+      readonly from: PlayerRef;
+      readonly to: PlayerRef;
+    }
   | { readonly kind: "revealEncounterCard"; readonly player: PlayerRef }
   /**
    * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035), outside any activation. Cards

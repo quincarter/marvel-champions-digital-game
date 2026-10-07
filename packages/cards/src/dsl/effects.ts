@@ -1494,13 +1494,28 @@ export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef =
 export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
 /**
  * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005): deals the card(s)
- * `cards` names, already identified and out of play, rather than the encounter deck's top card (docs/phase7-wave3.md
- * §3.47).
+ * `cards` names, already identified, rather than the encounter deck's top card (docs/phase7-wave3.md §3.47). A card in
+ * play is dealt from play: it leaves play, not defeated, and enters play as a new card when revealed; a card that
+ * cannot leave play is not dealt (docs/phase7-wave8.md §3.75). `dealAsEncounterCard(find(...), player)` is "finds X
+ * and deals him to themself": the Find itself, logged, its decks shuffled.
  */
 export const dealAsEncounterCard = (cards: TargetRef, player: PlayerRef = you): EffectSpec => ({
   kind: "dealAsEncounterCard",
   cards,
   player,
+});
+/**
+ * "Pass that facedown encounter card to the next player" (The Crazy Gang, `ncrawler` 48033; docs/phase7-wave8.md
+ * §3.75): the facedown dealt card(s) `cards` names move from `from`'s dealt encounter cards to the back of `to`'s,
+ * still facedown, for that player to reveal: `passEncounterCard(eventTarget, eventPlayer, nextAfter(eventPlayer))`.
+ * Nothing moves when `to` names nobody (`nextAfter` in a one-player game) or the card is not facedown in front of
+ * `from`.
+ */
+export const passEncounterCard = (cards: TargetRef, from: PlayerRef, to: PlayerRef): EffectSpec => ({
+  kind: "passEncounterCard",
+  cards,
+  from,
+  to,
 });
 export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "revealEncounterCard", player });
 /**

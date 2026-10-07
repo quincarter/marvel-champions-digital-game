@@ -101,6 +101,12 @@ export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", tar
  */
 export const controllerOf = (target: TargetRef): PlayerRef => ({ kind: "controllerOf", target });
 /**
+ * "The next player" (RRG 1.8 "In Player Order", p. 24; docs/phase7-wave8.md §3.75): the next clockwise player after
+ * `player` who is still in the game, wrapping around the table. Nobody in a one-player game, where a card's "if there
+ * is more than 1 player in the game" keeps the effect from being reached.
+ */
+export const nextAfter = (player: PlayerRef): PlayerRef => ({ kind: "nextAfter", of: player });
+/**
  * "Any player whose alter-ego has the [MUTANT] trait" (X-Mansion, `mut_gen` 32049; docs/phase7-wave6.md §3.11): the
  * players in `among` (default each player) for whom `predicate` holds, each read as `thatPlayer`:
  * `playersWhere(hasTrait(identityOf(thatPlayer), "Mutant"))`. "You" inside the predicate stays the ability's

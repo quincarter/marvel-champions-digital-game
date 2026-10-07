@@ -338,6 +338,20 @@ export function executeRevealEncounterCards(ctx: Ctx, remainingPlayerIds: readon
   const remaining = livePlayers(ctx.state, remainingPlayerIds);
   const [current, ...rest] = remaining;
   if (!current) {
+    // RRG 1.8 "Villain Phase" (p. 47) step 4: "Each player repeats this process in player order, until no dealt
+    // encounter cards remain"; "Deal, Deal an Encounter Card" (p. 15): a card dealt during step four joins the queue
+    // being revealed in that step; "In Player Order" (p. 24): a sequence that has not concluded goes around again. So
+    // a card that reached a player who had finished revealing (dealt or passed to them by a later player's card,
+    // docs/phase7-wave8.md §3.75) is revealed in another turn around the table, not in the next villain phase.
+    const holding = playerOrder(ctx.state).filter((player) => player.dealtEncounter.length > 0);
+    if (holding.length > 0) {
+      setStep(ctx, {
+        phase: "villain",
+        kind: "revealEncounterCards",
+        remainingPlayerIds: holding.map((player) => player.playerId),
+      });
+      return;
+    }
     setStep(ctx, { phase: "villain", kind: "passFirstPlayer" });
     return;
   }

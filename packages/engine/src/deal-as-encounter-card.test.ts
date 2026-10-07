@@ -59,7 +59,7 @@ const DUMP_ABILITY = action("dump.action", [
     },
   },
 ]);
-/** "Deal each minion to yourself": only to prove a card in play is never dealt. */
+/** "Deal each minion to yourself": to prove a card in play is dealt (wave 8 §3.75 (a)). */
 const IN_PLAY_ABILITY = action("in-play.action", [
   {
     kind: "dealAsEncounterCard",
@@ -146,12 +146,15 @@ describe("§3.47 dealAsEncounterCard: dealing a card already identified", () => 
     for (const id of [zealotA, zealotB]) expect(mustInstance(after, id).engagedWith).toBe(P1);
   });
 
-  it("never deals a card in play", () => {
+  // Wave 8 §3.75 (a) reversed the earlier rule ("never deals a card in play"): a card in play named by the effect
+  // leaves play and is dealt facedown. The cases are in `deal-card-in-play.test.ts`.
+  it("deals a card in play: it leaves play facedown to the player's dealt cards", () => {
     const { state } = start();
     const engaged = minionEngagedWith(state, OUTSIDER.id, P1);
     const after = playFree(engaged.state, IN_PLAY.id).state;
-    expect(mustPlayer(after, P1).dealtEncounter).toEqual([]);
-    expect(mustInstance(after, engaged.id).engagedWith).toBe(P1);
+    expect(mustPlayer(after, P1).dealtEncounter).toEqual([engaged.id]);
+    expect(mustInstance(after, engaged.id).engagedWith).toBeNull();
+    expect(mustInstance(after, engaged.id).faceup).toBe(false);
   });
 
   it("replays to the same state", () => {

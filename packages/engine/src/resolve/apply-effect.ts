@@ -112,12 +112,13 @@ import { damageGroupFrame } from "./damage-group.js";
 import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
-import { applyFindCard, findToReveal, shuffleSearchedDecks } from "./find.js";
+import { applyFindCard, findToDeal, findToReveal, shuffleSearchedDecks } from "./find.js";
 import { attachCard, settleUpgradeControl } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
   dealAsEncounterCards,
+  passEncounterCards,
   eachEncounterCard,
   moveCardsTo,
   selectCards,
@@ -1541,7 +1542,25 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "dealAsEncounterCard": {
       const [playerId] = resolvePlayers(ctx.state, effect.player, context);
       if (!playerId) return;
-      dealAsEncounterCards(ctx, targets(effect.cards), playerId);
+      // "Finds X and deals him to themself" (docs/phase7-wave8.md §3.75): the find itself, one card, logged, its decks
+      // to shuffle once the card is out of them (RRG 1.8 "Find", p. 19; "Search", p. 39), as `revealCard` does.
+      const find = effect.cards.kind === "find" ? findToDeal(ctx, effect.cards, context) : null;
+      if (find && find.found.length === 0) markPreThenUnresolved(ctx, frame.frameId, "findFoundNothing");
+      const naming = find ? find.found : targets(effect.cards);
+      const dealt = dealAsEncounterCards(ctx, naming, playerId, leaveSourceOf(ctx, frame));
+      // A named card that was not dealt (it cannot leave play, or is not a card that can be dealt) leaves the text
+      // before a "then" unresolved (RRG 1.8 "'Then'", p. 44).
+      for (const id of naming) if (!dealt.includes(id)) markPreThenUnresolved(ctx, frame.frameId, "cardNotDealt", id);
+      if (find) shuffleSearchedDecks(ctx, find.searched);
+      return;
+    }
+    case "passEncounterCard": {
+      const naming = targets(effect.cards);
+      const [from] = resolvePlayers(ctx.state, effect.from, context);
+      const [to] = resolvePlayers(ctx.state, effect.to, context);
+      const passed = from && to ? passEncounterCards(ctx, naming, from, to) : [];
+      // RRG 1.8 "'Then'" (p. 44): a named card that stayed where it was leaves the text before a "then" unresolved.
+      for (const id of naming) if (!passed.includes(id)) markPreThenUnresolved(ctx, frame.frameId, "cardNotPassed", id);
       return;
     }
     case "revealEncounterCard": {

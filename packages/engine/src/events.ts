@@ -37,7 +37,17 @@ export type PreThenFailure =
   /** A swap that could not be completed (`swapRefused`, docs/phase7-wave6.md §3.47). */
   | "swapNotCompleted"
   /** A "find" that found no card (`EffectSpec findCard`, docs/phase7-wave6.md §3.48). */
-  | "findFoundNothing";
+  | "findFoundNothing"
+  /**
+   * A card `dealAsEncounterCard` named was not dealt: it cannot leave play, or is not a card that can be dealt
+   * (docs/phase7-wave8.md §3.75).
+   */
+  | "cardNotDealt"
+  /**
+   * A card `passEncounterCard` named was not passed: it is not facedown in front of the player passing it, or there
+   * is no other player to pass it to (docs/phase7-wave8.md §3.75).
+   */
+  | "cardNotPassed";
 
 export type GameEvent =
   | {
@@ -767,6 +777,17 @@ export type GameEvent =
       readonly from?: ZoneId;
       readonly alreadyThere: boolean;
       readonly deckShuffled: boolean;
+    }
+  /**
+   * A facedown encounter card dealt to `fromPlayerId` was passed to `toPlayerId` (`EffectSpec passEncounterCard`,
+   * docs/phase7-wave8.md §3.75), logged after its `cardMoved`: it is at the back of `toPlayerId`'s queue, still
+   * facedown, and that player reveals it. The card's identity is not on this line (it is facedown).
+   */
+  | {
+      readonly type: "encounterCardPassed";
+      readonly instanceId: InstanceId;
+      readonly fromPlayerId: PlayerId;
+      readonly toPlayerId: PlayerId;
     }
   /**
    * A card found faceup in play was revealed where it is ("find X and reveal it", RRG 1.8 "Find", p. 19;
