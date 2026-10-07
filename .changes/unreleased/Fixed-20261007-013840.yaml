@@ -1,0 +1,3 @@
+kind: Fixed
+body: The macOS release now builds one installer each for Apple silicon and Intel instead of one universal installer, which carried the game's art and music twice and grew past GitHub's 2 GiB limit on a release file.
+time: 2026-10-07T01:38:40.000000000Z
