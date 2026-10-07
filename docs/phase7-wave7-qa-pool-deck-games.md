@@ -49,9 +49,9 @@ seeds 1-12 x explore 0-3 (2-5 rounds) so the file stays fast. `LONG_PINS` (`QA_F
 
 ## 4. Findings
 
-- **F1 (soft lock, pinned `it.fails`)**: domino-pool / Morlock Siege / seed 9 / hero-ready / explore 2 never ends (3000 commands, round 4, same prompt). Lady Deadpool 44016 ("When Defeated: Defeat a non-ELITE minion")
+- **F1 (soft lock, fixed 2026-10-07; the pin is now a plain test: the game ends, one When Defeated per defeat)**: domino-pool / Morlock Siege / seed 9 / hero-ready / explore 2 never ends (3000 commands, round 4, same prompt). Lady Deadpool 44016 ("When Defeated: Defeat a non-ELITE minion")
   under 'Pool-ized 44041 is a minion; Domino attacks and defeats her; her When Defeated resolves while she is still in play (RRG p. 48), she is the only non-ELITE minion, so she offers herself;
-  choosing her defeats her again, which triggers her When Defeated again, for ever. Expected (RRG "Defeat", p. 15: a defeated card is already defeated): no second defeat, the ability ends. Owners: `ability-scripting-engineer` (44016) and `game-rules-architect` (re-defeat of a card whose When Defeated is resolving).
+  choosing her defeats her again, which triggers her When Defeated again, for ever. Expected (RRG "Defeat", p. 15: a defeated card is already defeated): no second defeat, the ability ends. Fix (engine, `alreadyDefeated` in `resolve/defeat.ts`): a card already defeated cannot be defeated again and is no valid target for a defeat; 44016's script is unchanged.
 - **F2 (driver, not engine)**: the stock driver never plays Break Time (its event rule skips cost over 2) nor any player side scheme (type excluded), so unstaged scans never played Live Dangerously or Break Time; the staged tests nudge both from `legalActions`.
 - **F3**: Rhino is not the easiest table for this driver (0/60 Core precon games; 5/1680 games with the seven fixtures); win rates here say nothing about deck strength. A driver that thwarts earlier would be needed to rank the decks.
 

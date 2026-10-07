@@ -26,7 +26,7 @@
  * docs/phase7-wave7.md §4.1).
  *
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
- * `attack`, `discardFromPlay`, `flipCard` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
+ * `attack`, `discardFromPlay`, `flipCard`, `defeat` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
  * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
  * cannot judge never makes a target invalid. An attack that also stuns its target keeps a target that cannot take its
  * damage.
@@ -51,6 +51,7 @@ import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
 import { selectCards } from "./cards.js";
+import { alreadyDefeated, anyAlreadyDefeated } from "./defeat.js";
 import { threatRemovalBlocked, thwartForbiddenOn } from "./event.js";
 import { thwartCostPayable } from "../thwart-cost.js";
 
@@ -122,7 +123,7 @@ const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot"
 
 type JudgedEffect = Extract<
   EffectSpec,
-  { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" }
+  { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" | "defeat" }
 >;
 
 const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
@@ -131,7 +132,8 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "dealDamage" ||
   effect.kind === "attack" ||
   effect.kind === "discardFromPlay" ||
-  effect.kind === "flipCard";
+  effect.kind === "flipCard" ||
+  effect.kind === "defeat";
 
 /**
  * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay` (one limited to card
@@ -208,6 +210,10 @@ function judgedCanAffect(
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   // "You cannot flip …" (docs/phase7-wave7.md §3.64): a card a `cannotFlip` rule names is no target for a flip.
   if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
+  // A card already defeated, in play only while its When Defeated abilities resolve, cannot be defeated again
+  // (`alreadyDefeated`; RRG 1.8 "When Defeated Abilities", p. 48). The rules that stop a defeat as it applies
+  // ("cannot be defeated", Permanent) are not judged here, as before.
+  if (effect.kind === "defeat") return !alreadyDefeated(state, id);
   if (effect.kind === "removeThreat") {
     // A "(thwart)"-labeled ability's removal is a thwart by its controller's identity (`EffectContext.thwartLabeled`).
     if (context.thwartLabeled) return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
@@ -301,7 +307,8 @@ export function slotTargetValid(
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
  * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage`,
- * `cannotLeavePlay` or `cannotFlip` rule, or a Permanent card in play. The
+ * `cannotLeavePlay` or `cannotFlip` rule, a Permanent card in play, or a defeated card still in play for its When
+ * Defeated abilities. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
  */
@@ -315,6 +322,7 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
     activeRules(state, deps, "cannotTakeDamage").length > 0 ||
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||
     activeRules(state, deps, "cannotFlip").length > 0 ||
+    anyAlreadyDefeated(state) ||
     cardsInPlay(state).some((id) => isPermanent(state, id, deps))
   );
 }

@@ -141,6 +141,7 @@ import {
 import {
   addMainSchemeStageToVictoryDisplay,
   advanceMainSchemeStage,
+  alreadyDefeated,
   checkDefeats,
   completeMainScheme,
   removeMainSchemeStages,
@@ -1288,6 +1289,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           .filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"))
           // "Cannot be defeated again" (FAQ "Malice (#199)", RRG 1.8 p. 64): no defeat, so no window for one either.
           .filter((id) => !isAttachedMinion(ctx.state, id))
+          // Nor for a card already defeated, in play only until its When Defeated abilities resolve (`alreadyDefeated`).
+          .filter((id) => !alreadyDefeated(ctx.state, id))
           .map((id) => ({
             kind: "characterDefeated" as const,
             instanceId: id,

@@ -494,7 +494,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       advisory.y + advisory.height + 6,
       isAcknowledgeOnly(choice)
         ? lookAtAdvisoryOf(state.game, choice)
-        : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
+        : isBreakChoice(choice)
+          ? ""
+          : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
       typeRole.label,
       surface.ink.hex,
       ink.label,

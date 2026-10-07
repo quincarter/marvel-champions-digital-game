@@ -941,6 +941,40 @@ describe("Warpath (42013)", () => {
     expect(discardCodes(state)).toContain(VIGILANT);
     expect(damageOn(state, stryfe(state))).toBe(2);
   });
+  // RRG 1.8 "Cost" (p. 13): the card being played pays for nothing. The payment prompt of a play from an effect offers
+  // hand cards by instance: never the card being played, and a second copy of it like any other card
+  // (docs/phase7-wave7-qa-screens.md, item E: "the spend sheet lists Ever Vigilant").
+  it("the payment for Warpath's play never offers the card being played; a second copy of it is offered", () => {
+    const { state: s, id } = warpath([VIGILANT, TAUNT, VIGILANT, "42014"]);
+    const [first, second] = playerOf(s, P1).hand.filter((card) => codeOf(s, card) === VIGILANT) as [
+      InstanceId,
+      InstanceId,
+    ];
+    const taunt = playerOf(s, P1).hand.find((card) => codeOf(s, card) === TAUNT)!;
+    const spend: { readonly offered: readonly string[]; readonly hand: readonly InstanceId[] }[] = [];
+    const pick: Picker = (st) => {
+      const c = st.pendingChoice;
+      if (c?.prompt.kind === "chooseCards" && c.prompt.slot === "playFromHand") return [second];
+      if (c?.prompt.kind === "spendResources") {
+        spend.push({ offered: c.options.map((o) => o.optionId), hand: playerOf(st, P1).hand });
+        return [`hand:${first}`, `hand:${taunt}`];
+      }
+      return defendingWith(id, accepting(WARPATH))(st);
+    };
+    const { state } = villainPhase(s, pick);
+    expect(spend).toHaveLength(1);
+    const { offered, hand } = spend[0]!;
+    // The played card is still in hand while its cost is paid, and every other hand card is offered (the cards drawn
+    // at the end of the player phase included).
+    expect(hand).toContain(second);
+    expect(offered.filter((option) => option.startsWith("hand:"))).toEqual(
+      hand.filter((card) => card !== second).map((card) => `hand:${card}`),
+    );
+    expect(offered).toContain(`hand:${first}`);
+    expect(playerOf(state, P1).discard).toEqual(expect.arrayContaining([first, second]));
+    expect(playerOf(state, P1).hand).toEqual(hand.filter((card) => ![first, second, taunt].includes(card)));
+    expect(damageOn(state, stryfe(state))).toBe(2);
+  });
 });
 
 describe("Angel's Aerie (42018)", () => {

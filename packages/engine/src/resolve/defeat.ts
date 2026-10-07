@@ -45,7 +45,7 @@ import {
   type ZoneId,
 } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
+import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
@@ -507,6 +507,33 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
  */
 export const defeatedAwaitingLeave = (state: GameState, id: InstanceId): boolean =>
   state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherPending(f, id));
+
+/**
+ * A card that has been defeated and is still in play while its When Defeated abilities resolve (RRG 1.8 "When Defeated
+ * Abilities", p. 48: "A defeated card leaves play after its 'When Defeated' ability is resolved"). RRG 1.8 "Defeat"
+ * (p. 15) makes defeat one occurrence that ends with the card discarded, and "all 'When Defeated' abilities on the card
+ * resolve" once for it (p. 48), so until it leaves:
+ *
+ * - it cannot be defeated again, by zero hit points (`defeatPending`) or by an effect that says "defeat"
+ *   (`beginDefeat`, `EffectSpec defeat`), and so its When Defeated abilities do not trigger a second time;
+ * - it is not a valid target for an ability whose only effect on it is to defeat it (RRG 1.8 "Target", p. 42: valid "if
+ *   any part of that ability can affect that target"; `resolve/target-validity.ts`), its own When Defeated included
+ *   ("When Defeated: Defeat a non-[ELITE] minion" does not offer the minion it is printed on).
+ *
+ * Where the RRG is silent it stays a card in play: it can still be chosen for and take damage, status cards and
+ * counters. Narrower than `defeatedAwaitingLeave`, which also covers one of several whose defeat is still imminent.
+ */
+export const alreadyDefeated = (state: GameState, id: InstanceId): boolean =>
+  state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherDefeated(f, id));
+
+/** Whether any card is `alreadyDefeated` right now (the cheap gate `targetsCanBeInvalid` asks). */
+export const anyAlreadyDefeated = (state: GameState): boolean =>
+  state.stack.some(
+    (f) =>
+      f.kind === "effects" &&
+      (f.defeatedLeaving !== undefined ||
+        f.effects.some((e) => e.kind === "defeatedTogether" && e.stage !== "apply" && e.stage !== "responses")),
+  );
 
 /**
  * A defeat at zero or fewer remaining hit points did not happen because a "cannot be defeated" rule covers the

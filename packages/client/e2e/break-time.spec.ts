@@ -128,20 +128,25 @@ test("Break Time: the break timer counts wall-clock time and End break reports t
 
   await page.clock.fastForward("03:20");
   await settle(page, { quietMs: 400, maxMs: 3000 });
+  // Wall time between the prompt opening and this read also counts (that is the point), so on a slow machine the
+  // clock may have passed 3:59: read the minutes off the clock and hold the heal line and the report to them.
   const later = await sheetTexts(page);
+  const clock = later.map((t) => /^(\d+):[0-5]\d$/.exec(t.trim())).find((m) => m !== null);
+  expect(clock, "the clock shows minutes and seconds").toBeTruthy();
+  const minutes = Number(clock![1]);
+  expect(minutes, "at least the 3 minutes jumped").toBeGreaterThanOrEqual(3);
   expect(
-    later.some((t) => /^Heal 3 from each identity$/i.test(t.trim())),
-    "3 whole minutes so far",
-  ).toBe(true);
-  expect(
-    later.some((t) => /^3:2\d$/.test(t.trim())),
-    "the clock reads 3:2x",
+    later.some((t) => new RegExp(`^Heal ${minutes} from each identity$`, "i").test(t.trim())),
+    "the heal line is the whole minutes so far",
   ).toBe(true);
   if (SHOT) await page.screenshot({ path: `${SHOT}/break-timer-${info.project.name}-3m20.png` });
 
   await pressChoice(page, phone, "confirm");
   await continuesPastQuestion(page);
-  expect(await reportedMinutes(page), "the engine was told 3 minutes").toEqual([3]);
+  const reported = await reportedMinutes(page);
+  expect(reported, "one report").toHaveLength(1);
+  // A minute boundary can pass between the read and the press.
+  expect([minutes, minutes + 1], "the engine was told the whole minutes on the clock").toContain(reported[0]);
 });
 
 test("Break Time: Enter minutes instead opens the stepper, and the game continues", async ({ page }, info) => {

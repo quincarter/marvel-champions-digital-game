@@ -1138,28 +1138,40 @@ describe("'Pool behaviors in play: cards that ask the player, cost, and play fro
   }, 120_000);
 });
 
-describe("findings pinned as they are today (it.fails: each passes while the defect exists, and fails when it is fixed)", () => {
-  // domino-pool / Morlock Siege / seed 9 / hero-ready / explore 2 never ends: after 3000 commands the game is still in
-  // round 4 and the same prompt is open. Lady Deadpool (44016, "When Defeated: Defeat a non-ELITE minion.") is under
+describe("findings fixed (each was pinned with it.fails while the defect existed)", () => {
+  // F1. domino-pool / Morlock Siege / seed 9 / hero-ready / explore 2 never ended: after 3000 commands the game was still
+  // in round 4 with the same prompt open. Lady Deadpool (44016, "When Defeated: Defeat a non-ELITE minion.") is under
   // 'Pool-ized (44041), so she is a minion engaged with Domino, and Domino's basic attack defeats her. Her When Defeated
   // resolves while she is still in play (RRG 1.8 "When Defeated Abilities", p. 48: "A defeated card leaves play after its
-  // When Defeated ability is resolved"), she is the only non-ELITE minion, so she is offered as her own target; choosing
-  // her defeats her again, which triggers her When Defeated again, and the prompt returns for ever (one choice per
-  // command, no end). RRG "Defeat" (p. 15): a character at zero hit points "is defeated"; it is a state it is already in.
-  // Expected: the second defeat does nothing, so the ability ends after one choice (or offers no target).
-  it.fails("Lady Deadpool, a 'Pool-ized minion defeated by an attack, is not asked for her own When Defeated target for ever", () => {
+  // When Defeated ability is resolved"), she was the only non-ELITE minion, so she was offered as her own target; choosing
+  // her defeated her again, which triggered her When Defeated again, for ever. Fixed in the engine: a card already
+  // defeated cannot be defeated again and is no target for a defeat (`alreadyDefeated`, RRG 1.8 "Defeat", p. 15).
+  it("Lady Deadpool, a 'Pool-ized minion defeated by an attack, resolves her When Defeated once per defeat and the game ends", () => {
     let run = 0;
     let longest = 0;
-    drive(buildGame("domino-pool", "morlock-siege", 9), "lady-deadpool-loop", {
+    const defeated = new Map<string, number>();
+    const resolved = new Map<string, number>();
+    const played = drive(buildGame("domino-pool", "morlock-siege", 9), "lady-deadpool-loop", {
       defense: "hero-ready",
       explore: 2,
-      stopAt: 90,
-      onStep: (before) => {
+      checkInvariants: true,
+      onStep: (before, _command, _after, events) => {
         const prompt = before.pendingChoice?.prompt;
         run = prompt?.kind === "chooseTarget" && prompt.slot === "minion" ? run + 1 : 0;
         longest = Math.max(longest, run);
+        for (const event of events) {
+          if (event.type === "characterDefeated" && event.cardId === "44016")
+            defeated.set(event.instanceId, (defeated.get(event.instanceId) ?? 0) + 1);
+          if (event.type === "abilityResolved" && event.abilityId === "44016.when-defeated")
+            resolved.set(event.instanceId, (resolved.get(event.instanceId) ?? 0) + 1);
+        }
       },
     });
+    expect(played.outcome).toBeTruthy();
     expect(longest).toBeLessThan(5);
+    const defeats = [...defeated.values()].reduce((sum, count) => sum + count, 0);
+    const resolutions = [...resolved.values()].reduce((sum, count) => sum + count, 0);
+    expect(defeats).toBeGreaterThanOrEqual(1);
+    expect(resolutions).toBe(defeats);
   }, 120_000);
 });

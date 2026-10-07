@@ -90,6 +90,7 @@ import {
 import { damageTakenKey } from "../trigger-events.js";
 import type { DefeatFollowUp, EffectSpec, Predicate } from "../spec.js";
 import {
+  alreadyDefeated,
   applyMainSchemeCompleting,
   checkDefeats,
   checkMainSchemeCompletion,
@@ -681,6 +682,8 @@ export function beginDefeat(
   // A minion attached to a card "cannot be defeated again, even if she gains hit points or heals damage" (RRG 1.8 FAQ
   // "Malice (#199)", p. 64; `isAttachedMinion`): not at zero hit points, and not by an effect that says "defeat".
   if (isAttachedMinion(ctx.state, id)) return false;
+  // Defeated already and still in play for its When Defeated abilities (RRG 1.8 p. 48): one defeat, not a second.
+  if (alreadyDefeated(ctx.state, id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);
   // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
   if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;

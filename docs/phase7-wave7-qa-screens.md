@@ -102,3 +102,5 @@ no stall. My policy does not defend, so it is not evidence about winnability.
 ## Counts
 
 26 passing and 5 fixme in `wave7-screens.spec.ts`, plus 1 fixme and 2 env-gated passing tests in `wave7-full-game.spec.ts`.
+
+**Correction (engine check, same day):** the Warpath finding "the spend sheet lists the card being played" was not reproduced. The engine never offers the played card as a payer (six tests pin it); the fixture hand also holds Natural Flight, another Hero Action event, and when that is the card played Ever Vigilant is a legitimate payer. What is true: the spend sheet does not name the card being paid for.

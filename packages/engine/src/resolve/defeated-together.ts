@@ -120,6 +120,17 @@ export function defeatedTogetherPending(frame: StackFrame, id: InstanceId): bool
   );
 }
 
+/**
+ * A member has been defeated (its `beginDefeat` happened) and has not left play yet: its When Defeated abilities or its
+ * leaving step are still to come. Narrower than `defeatedTogetherPending`, which also covers a member whose defeat is
+ * only imminent (`alreadyDefeated`).
+ */
+export function defeatedTogetherDefeated(frame: StackFrame, id: InstanceId): boolean {
+  const step = stepOf(frame);
+  if (!step || step.stage === "apply" || step.stage === "responses") return false;
+  return step.members.some((member) => member.event.instanceId === id && !member.cancelled && !!member.defeated);
+}
+
 /** A member's event frame hands back its defeat, as its interrupts left it (`resolve/event.ts`'s group branch). */
 export function withDefeatedMember(frame: StackFrame, index: number, event: Defeat, cancelled: boolean): StackFrame {
   const step = stepOf(frame);
