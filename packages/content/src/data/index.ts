@@ -647,6 +647,13 @@ export const CAMPAIGNS: readonly Campaign[] = [
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
+// Wave 8 (PLAN.md Phase 7, docs/phase7-wave8.md): cycle 8, Age of Apocalypse. `aoa` (the campaign box: Bishop and
+// Magik, five scenarios and the campaign record) is emitted data only for now: its `AOA_*` exports come from the
+// pack's index, with no `WAVE8_*` aggregates, no `PLAYABLE_CARDS` entry and no `CAMPAIGNS` entry until the wiring step.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./aoa/index.js";
+
+// ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
 // scope decided": every pack beyond Core, wave 1 and cycle 1 is card data the deck builder can show and
 // `validateDeck` can judge — NOT playable, because no ability script exists for any of these cards yet
