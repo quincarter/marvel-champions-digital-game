@@ -44,7 +44,10 @@ export const NCRAWLER_CURATION: PackCuration = {
   ],
 
   scriptingNotes: {},
-  cardNotes: {},
+  cardNotes: {
+    "48004":
+      'Kurt\'s Cutlasses prints "Counts as 2 restricted cards." (scan 48004.png read). Emitted as `restrictedWeight: 2` with one constant ability for the stat bonus, the Laser Swords model (`deadpool` 44055; docs/phase7-wave8.md §3.73).',
+  },
 
   scenarios: [],
   starterDecks: [

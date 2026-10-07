@@ -122,10 +122,8 @@ export const NCRAWLER_CARDS: readonly AnyCard[] = [
       current: "Counts as 2 restricted cards.\nNightcrawler gets +1 ATK, +1 DEF, and gains retaliate 1.",
     },
     flavor: "\"I've got two swords: one for each of you!\"",
-    abilities: [
-      { id: abilityId("48004.kurts-cutlasses-constant") },
-      { id: abilityId("48004.kurts-cutlasses-constant-2") },
-    ],
+    abilities: [{ id: abilityId("48004.kurts-cutlasses-constant") }],
+    restrictedWeight: 2,
   },
   {
     id: cardId("48005"),

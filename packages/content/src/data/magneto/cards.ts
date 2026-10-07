@@ -995,8 +995,8 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     traits: [trait("HELLFIRE")],
     keywords: [{ name: "quickstrike" }, { name: "villainous" }],
     text: {
-      printed: "Quickstrike. Villainous.\nAllies cannot attack Selene\n[star] Boost: Discard an ally you control.",
-      current: "Quickstrike. Villainous.\nAllies cannot attack Selene\n[star] Boost: Discard an ally you control.",
+      printed: "Quickstrike. Villainous.\nAllies cannot attack Selene.\n[star] Boost: Discard an ally you control.",
+      current: "Quickstrike. Villainous.\nAllies cannot attack Selene.\n[star] Boost: Discard an ally you control.",
     },
     flavor: "\"Foolish child! Countless thousands have gone to the fire in my name.\"",
     abilities: [{ id: abilityId("49039.selene-constant") }, { id: abilityId("49039.boost") }],

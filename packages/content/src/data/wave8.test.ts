@@ -487,3 +487,39 @@ describe("Wave 8 pool wiring (docs/phase7-wave8.md)", () => {
     expect(CAMPAIGNS.map((c) => c.id)).not.toContain(AOA_CAMPAIGN.id);
   });
 });
+
+describe("Nightcrawler / Magneto / Jubilee scan corrections (2026-10-07)", () => {
+  const find = (cards: readonly { id: unknown }[], id: string) => {
+    const card = cards.find((c) => (c.id as string) === id);
+    expect(card, id).toBeDefined();
+    return card as unknown as {
+      restrictedWeight?: number;
+      abilities: { id: unknown }[];
+      text: { printed: string; current: string };
+    };
+  };
+
+  it("Kurt's Cutlasses 48004 counts as 2 restricted cards and has the single constant ability", () => {
+    const card = find(NCRAWLER_CARDS, "48004");
+    expect(card.restrictedWeight).toBe(2);
+    expect(card.abilities.map((a) => a.id as string)).toEqual(["48004.kurts-cutlasses-constant"]);
+  });
+
+  it('Selene 49039 prints the full stop after "Allies cannot attack Selene"', () => {
+    const card = find(MAGNETO_CARDS, "49039");
+    for (const t of [card.text.printed, card.text.current]) {
+      expect(t).toContain("\nAllies cannot attack Selene.\n");
+    }
+  });
+
+  it('Sebastian Shaw 49038 keeps "Forced Response" (the card misprints "Respone") as a forced response ability', () => {
+    const card = find(MAGNETO_CARDS, "49038");
+    expect(card.text.current).toContain("Forced Response: After Sebastian Shaw is attacked");
+    expect(card.text.current).not.toContain("Respone");
+    expect(card.abilities.map((a) => a.id as string)).toEqual(["49038.sebastian-shaw-forced-response"]);
+  });
+
+  it("Grand Finale 47009 uses the corrected ability id", () => {
+    expect(find(JUBILEE_CARDS, "47009").abilities.map((a) => a.id as string)).toEqual(["47009.grand-finale-action"]);
+  });
+});

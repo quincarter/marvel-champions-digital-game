@@ -20,7 +20,14 @@ export const MAGNETO_CURATION: PackCuration = {
   outDir: "src/data/magneto",
   exportPrefix: "MAGNETO",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "49039",
+      textReplace: { find: "Allies cannot attack Selene", replace: "Allies cannot attack Selene." },
+      reason: 'MarvelCDB drops the full stop after "Allies cannot attack Selene"; the card prints it.',
+      evidence: 'The card\'s own scan (assets/card-art/bundles/cards/49039.png) read: "Allies cannot attack Selene."',
+    },
+  ],
   errata: [
     {
       code: "49010",
@@ -53,7 +60,10 @@ export const MAGNETO_CURATION: PackCuration = {
   ],
 
   scriptingNotes: {},
-  cardNotes: {},
+  cardNotes: {
+    "49038":
+      'The card itself misprints the Forced Response header as "Forced Respone" (scan assets/card-art/bundles/cards/49038.png read). The data keeps "Forced Response", which is what MarvelCDB carries and what the ability is; the card is a Forced Response ability.',
+  },
 
   scenarios: [],
   starterDecks: [

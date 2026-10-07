@@ -109,8 +109,22 @@ export const MAGNETO_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("49035"), cardSetCode: "basic", marvelcdbCodes: ["49035"], corrections: [] },
   { cardId: cardId("49036"), cardSetCode: "basic", marvelcdbCodes: ["49036"], corrections: [] },
   { cardId: cardId("49037"), cardSetCode: "basic", marvelcdbCodes: ["49037"], corrections: [] },
-  { cardId: cardId("49038"), cardSetCode: "hellfire", marvelcdbCodes: ["49038"], corrections: [] },
-  { cardId: cardId("49039"), cardSetCode: "hellfire", marvelcdbCodes: ["49039"], corrections: [] },
+  {
+    cardId: cardId("49038"),
+    cardSetCode: "hellfire",
+    marvelcdbCodes: ["49038"],
+    corrections: [
+      "data decision: The card itself misprints the Forced Response header as \"Forced Respone\" (scan assets/card-art/bundles/cards/49038.png read). The data keeps \"Forced Response\", which is what MarvelCDB carries and what the ability is; the card is a Forced Response ability.",
+    ],
+  },
+  {
+    cardId: cardId("49039"),
+    cardSetCode: "hellfire",
+    marvelcdbCodes: ["49039"],
+    corrections: [
+      "49039: MarvelCDB drops the full stop after \"Allies cannot attack Selene\"; the card prints it. [evidence: The card's own scan (assets/card-art/bundles/cards/49039.png) read: \"Allies cannot attack Selene.\"]",
+    ],
+  },
   { cardId: cardId("49040"), cardSetCode: "hellfire", marvelcdbCodes: ["49040"], corrections: [] },
   { cardId: cardId("49041"), cardSetCode: "hellfire", marvelcdbCodes: ["49041"], corrections: [] },
   { cardId: cardId("49042"), cardSetCode: "hellfire", marvelcdbCodes: ["49042"], corrections: [] },

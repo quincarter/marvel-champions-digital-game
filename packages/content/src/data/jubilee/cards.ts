@@ -337,7 +337,7 @@ export const JUBILEE_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (attack): Deal 2 damage to an enemy. For each different resource type ([energy], [mental], [physical], and [wild]) you used to pay for this card, choose an enemy and deal 2 damage to it.",
       current: "Hero Action (attack): Deal 2 damage to an enemy. For each different resource type ([energy], [mental], [physical], and [wild]) you used to pay for this card, choose an enemy and deal 2 damage to it.",
     },
-    abilities: [{ id: abilityId("47009.grande-finale-action") }],
+    abilities: [{ id: abilityId("47009.grand-finale-action") }],
   },
   {
     id: cardId("47010a"),

@@ -15,7 +15,14 @@ export const NCRAWLER_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("48002"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48002"], corrections: [] },
   { cardId: cardId("48003"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48003"], corrections: [] },
-  { cardId: cardId("48004"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48004"], corrections: [] },
+  {
+    cardId: cardId("48004"),
+    cardSetCode: "nightcrawler",
+    marvelcdbCodes: ["48004"],
+    corrections: [
+      "data decision: Kurt's Cutlasses prints \"Counts as 2 restricted cards.\" (scan 48004.png read). Emitted as `restrictedWeight: 2` with one constant ability for the stat bonus, the Laser Swords model (`deadpool` 44055; docs/phase7-wave8.md §3.73).",
+    ],
+  },
   { cardId: cardId("48005"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48005"], corrections: [] },
   { cardId: cardId("48006"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48006"], corrections: [] },
   { cardId: cardId("48007"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48007"], corrections: [] },
