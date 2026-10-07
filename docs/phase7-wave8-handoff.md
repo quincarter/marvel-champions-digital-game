@@ -240,3 +240,67 @@ proposed default; **Q14 does not**.
   Cyberpath, stage II is revealed as Cyberpath; as Giant, Giant. Biomorph is named for setup only.
 - **Q17 = A.** Police State finds Escaped Mutant where it is. If it is already attached to a player it stays there;
   nothing detaches or moves it (Magistrate, by contrast, says to attach it to the defeating player's identity).
+
+## Rules answers from the owner (2026-10-07, third set): questions 18 to 40
+
+Answered in the project thread on 2026-10-07 for spec passes 1c, 2a and 2b (`docs/phase7-wave8.md` §4.2). Held here
+while a spec agent has the spec file open; the main session copies them into §4.1 when pass 2c is committed.
+**Five differ from the proposed default: Q19, Q22, Q26, Q31 and Q33, all B.**
+
+The campaign (pass 1c):
+
+- **Q18 = A.** Cards in the mission area are in play; counting or watching them does not affect them, so "side schemes
+  in play" and "after a side scheme is defeated" see them.
+- **Q19 = B (not the default).** MC45 p. 5: cards in the mission area "cannot be affected by card abilities unless the
+  ability refers to the mission area". Upgrades may be attached there, but that does not waive the restriction: an
+  ordinary upgrade's constant ability does not modify the ally. Only a card whose ability works with the mission
+  (Desperate Measures) has an effect there.
+- **Q20 = A.** A finished mission is cleaned up with the rest of the mission area; the Finished face does not stay in
+  play as a side scheme.
+- **Q21 = A.** There are five physical Overseer / Prelate cards. The one serving as the mission's Overseer is not
+  available as a Prelate in scenario 3: four Prelates are set aside.
+- **Q22 = B (not the default).** Mission and Overseer are chosen at random during scenario setup, and the log changes
+  only through the Victory instructions. A lost scenario that is retried runs setup again: **redraw the mission and
+  the Overseer** from what is still available. (The campaign runner restores the campaign's RNG on a retry today, so
+  this needs a fresh draw per attempt; see spec §2.11.)
+- **Q23 = A.** Cards 164 to 183 are campaign cards (MC45 p. 4), including Agent of Apocalypse and Worldwide Crisis
+  (45164, 45165): campaign only, never a standalone modular set.
+- **Q24 = A.** "An upgrade / support from any aspect" is an aspect card; basic is not an aspect.
+- **Q25 = A.** As Age of Apocalypse prints it: the reward does not count against the minimum deck size only. A deck of
+  39 ordinary cards plus the reward is legal; a deck already at 50 must drop a card to take it.
+
+Bishop and Magik (pass 2a):
+
+- **Q26 = B (not the default).** With Magik's text box blank her top card is facedown, and the game does not read a
+  hidden card to answer an icon question: a facedown top card satisfies no condition.
+- **Q27 = A.** Magik may play her top card through another "play a card from your hand" effect (the RRG p. 64 FAQ
+  names Team-Building Exercise), and both cost reductions apply.
+- **Q28 = A.** Overpaid resources were not paid (RRG "Cost"). Bishop's "paid with a resource card" is true only when
+  a resource card's resource went toward a cost of at least 1; never at cost 0.
+- **Q29 = A.** "Ready your sidekick" is a cost, and a cost that changes nothing cannot be paid: Side-by-Side is not
+  playable while the sidekick is already ready.
+- **Q30 = A.** Suit Up (errata, RRG p. 69): eligibility comes from the upgrade's own attach text; no ally host needs
+  to be in play, and the board state is not evaluated.
+- **Q31 = B (not the default; "RAW pending FFG clarification").** Witchfire 45057 is built as printed: an attack of
+  hers that does not defeat an ally sends the effect to the "Otherwise" clause, threat on the main scheme. No erratum
+  or ruling says otherwise; if FFG rules it was meant to read like S'ym and Trevor Fitzroy, change it then. Mark the
+  script and its test with this note.
+- **Q32 = A.** Colossus 45031's Interrupt plays him and makes him the defender, which the mission area cannot
+  satisfy: that play goes to the player's own area only. Ordinary ally plays keep the mission choice.
+
+Iceman and Jubilee (pass 2b):
+
+- **Q33 = B (not the default).** The player declares a wild resource's type; the engine does not pick "the best" for
+  them. The owner allows one shortcut: the prompt may be skipped when every declaration is provably equivalent.
+- **Q34 = A.** Overpaid resources are not "used to pay": a cost of 3 reads at most three types.
+- **Q35 = A.** Frostbite attached during an activation is still set aside after that activation; no grace activation.
+- **Q36 = A.** Shopping Spree bars removal by heroes and allies; an alter-ego's Disguise removes threat from it (the
+  owner cites FFG's Jubilee preview article, not in this repo).
+- **Q37 = A.** Grounded's extra cost applies to a change to hero form "during your turn"; a forced change outside
+  her turn does not pay it.
+- **Q38 = A.** Snow Clone and Chamber keep their consequential-damage reduction when the attack defeats the enemy
+  (FFG's intent, ruling February 8, 2026 - Ruling 1).
+- **Q39 = A.** With a Jubilee hero in the game the ally Jubilee from Mutants at the Mall never enters play (the unique
+  rule; RRG 1.8 errata for Mutants at the Mall #88A, markdown line ~5010, checked by the main session to exist).
+- **Q40 = A.** Serve and Protect needs two characters, one X-Force and one X-Men; one character with both traits
+  cannot be exhausted twice.
