@@ -680,6 +680,24 @@ export type GameEvent =
    * rule, with no defeating player and no defeating card (docs/phase7-wave7.md §3.34, §4.1 Q21).
    */
   | { readonly type: "defeatProtectionEnded"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  /**
+   * The card now showing faceup on top of `playerId`'s deck under a `topOfDeckFaceup` rule (docs/phase7-wave8.md
+   * §3.48): logged when the rule turns on over a deck with a card in it, and each time the top card changes while it
+   * holds (a draw, a discard, a swap, a shuffle, a deck reset, a card put on top), one card at a time. The card is
+   * still in the deck and still `faceup: false`; this line is what tells a replay what every player knew.
+   */
+  | {
+      readonly type: "deckTopShown";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+    }
+  /**
+   * The top card of `playerId`'s deck, which was showing, is facedown again: the rule stopped holding (the other form,
+   * a blank text box, a false `while`). Not logged when the shown card simply left an emptied deck: its own
+   * `cardMoved` says so, and there is no card left to hide.
+   */
+  | { readonly type: "deckTopHidden"; readonly playerId: PlayerId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** A villain turned to its other face on the same stage (Green Goblin insert, "When the Villain Changes Form"). */
   | {

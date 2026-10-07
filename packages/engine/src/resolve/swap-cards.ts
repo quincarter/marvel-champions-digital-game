@@ -29,6 +29,7 @@
 
 import type { CardId } from "@mc/content";
 import { type Ctx, emit, moveCard, placeAt, syncSeparateDeckTop, updateInstance } from "../ctx.js";
+import { holdDeckTops } from "../deck-top.js";
 import { leaveDestinationKind, leavePlay, permanentStopsLeaving, waitsForLeaveInterrupts } from "../effects.js";
 import type { GameEvent } from "../events.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
@@ -69,6 +70,18 @@ function hasOwnSwap(ctx: Ctx, id: InstanceId): boolean {
  * "then" when the swap cannot be completed (RRG 1.8 "'Then'", p. 44).
  */
 export function swapCards(
+  ctx: Ctx,
+  a: InstanceId | undefined,
+  b: InstanceId | undefined,
+  sourceCardId?: CardId,
+  frameId?: FrameId,
+): SwapOutcome {
+  // One change to a deck kept faceup (docs/phase7-wave8.md §3.48): a card swapped onto the top of a deck is the next
+  // one showing, and the card under the one it replaced never was (RRG 1.8 "'Swap'", p. 42).
+  return holdDeckTops(ctx, () => swapCardsNow(ctx, a, b, sourceCardId, frameId));
+}
+
+function swapCardsNow(
   ctx: Ctx,
   a: InstanceId | undefined,
   b: InstanceId | undefined,

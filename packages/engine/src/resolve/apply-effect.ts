@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import { announceDeckTops } from "../deck-top.js";
 import type { CardId } from "@mc/content";
 import { nextInt, shuffle } from "../rng.js";
 import {
@@ -2497,6 +2498,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
         const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
         updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
+        announceDeckTops(ctx);
       }
       return;
     case "changeForm":

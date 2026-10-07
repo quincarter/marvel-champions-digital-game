@@ -1,5 +1,6 @@
 /** Card selectors and bulk card moves used by effects. */
 
+import { announceDeckTops } from "../deck-top.js";
 import type { CardId } from "@mc/content";
 import {
   type Ctx,
@@ -461,6 +462,7 @@ export function moveCardsTo(
   for (const owner of shuffleOwners) {
     const order = shuffleZone(ctx, { kind: "deck", playerId: owner }, mustPlayer(ctx.state, owner).deck);
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
+    announceDeckTops(ctx);
   }
   if (shuffleEncounter) shuffleEncounterDeck(ctx);
   for (const name of scenarioDecksToShuffle) {

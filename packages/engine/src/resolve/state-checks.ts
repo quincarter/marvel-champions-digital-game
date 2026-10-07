@@ -24,6 +24,7 @@ import {
 } from "../effects.js";
 import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateFrame, updateInstance } from "../ctx.js";
+import { announceDeckTops } from "../deck-top.js";
 import { statusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
 import {
@@ -121,6 +122,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   applyFocusedActiveVillain(ctx);
   // …and a character at zero hit points that "cannot be defeated" no longer is defeated (wave 7 §4.1 Q21).
   if (checkDefeatProtectionEnded(ctx)) return true;
+  // …and the top card of a deck kept faceup is logged when the rule itself turns on or off with nothing moved (a form
+  // change, a blank text box; docs/phase7-wave8.md §3.48). Card moves log theirs as they happen.
+  announceDeckTops(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];

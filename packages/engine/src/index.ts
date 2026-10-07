@@ -333,7 +333,7 @@ export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
 export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
-export type { ViewerContext } from "./visibility.js";
+export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */
 export type { CounterSnapshot, OutcomePreview, PreviewCounter, PreviewStop } from "./preview.js";
@@ -359,10 +359,12 @@ export {
   chosenVar,
   classificationsOf,
   controllerOf,
+  deckTopFaceupPlayers,
   explainQuery,
   matchesQuery,
   resolveValue,
   selectTargets,
+  shownDeckTop,
   traitsOf,
 } from "./select.js";
 

@@ -1612,7 +1612,22 @@ export type RuleSpec =
    * `faceVisible` for that player's own view, so it never shows the card to another player (RRG 1.8 "Look,
    * Looked-At", p. 27). Carried by `applyRuleUntil`, which freezes `player` to the resolving player.
    */
-  | { readonly kind: "mayLookAtTopOfEncounterDeck"; readonly player: PlayerRef; readonly while?: Predicate };
+  | { readonly kind: "mayLookAtTopOfEncounterDeck"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
+   * "Play with the top card of your deck faceup." (docs/phase7-wave8.md §3.48): while the rule is in force the top card
+   * of each player deck `player` names is visible to every player (`faceVisible`, `shownDeckTop`). Which card that is
+   * comes from the deck's order and this rule each time it is asked: nothing is written on the card, whose `faceup`
+   * stays false, so a save, a replay and a reconnect cannot disagree. It is not a look, a reveal or a search (RRG 1.8
+   * "Look, Looked-At", p. 27): nothing triggers, the deck's order does not change (p. 33 "Player Deck") and the card is
+   * still in the deck for every rule. RRG 1.8 FAQ "Magik (#30A)" (p. 64): when the top card leaves, "she turns the new
+   * top card of her deck faceup" at once, so the log's `deckTopShown` / `deckTopHidden` follow every card move
+   * (`announceDeckTops`).
+   *
+   * A constant like any other: off while its `while` is false, on the face that is not up, and under a blank text box
+   * (RRG 1.8 "Text Box", p. 44). Off, the card is facedown again and satisfies no condition that reads it
+   * (`Predicate topOfDeckFaceup`; owner decision §4.1 Q26 = B).
+   */
+  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {

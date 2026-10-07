@@ -1,4 +1,5 @@
 import type { CardId, VillainSideLetter } from "@mc/content";
+import { announceDeckTops } from "./deck-top.js";
 import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import {
@@ -634,6 +635,8 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
   const order = shuffleZone(ctx, { kind: "deck", playerId }, player.discard);
   updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order, discard: [] }));
   emit(ctx, { type: "playerDeckReset", playerId });
+  // The new deck's top card shows before the encounter card is dealt (docs/phase7-wave8.md §3.48).
+  announceDeckTops(ctx);
   // Announced between frames by the flow (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11).
   ctx.state = {
     ...ctx.state,

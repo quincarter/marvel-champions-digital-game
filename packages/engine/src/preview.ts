@@ -166,12 +166,14 @@ function namedInstances(event: GameEvent, state: GameState, into: Set<string>): 
  * facedown afterwards. That distinction is why (b) asks about the post-state's `faceup` rather than treating every
  * mention of a facedown card as a reveal.
  */
-function certainPrefix(before: GameState, after: GameState, events: readonly GameEvent[]): number {
+function certainPrefix(before: GameState, after: GameState, events: readonly GameEvent[], deps: EngineDeps): number {
   const hidden = new Set<string>();
   const revealable = new Set<string>();
   for (const id of Object.keys(before.instances)) {
     const instanceId = id as InstanceId;
-    if (zoneHidden(before, instanceId)) hidden.add(id);
+    // The top card of a deck kept faceup is one every player can read (docs/phase7-wave8.md §3.48), so the table's
+    // context is passed; the card under it is as closed as ever.
+    if (zoneHidden(before, instanceId, { deps })) hidden.add(id);
     else if (faceHidden(before, instanceId)) revealable.add(id);
   }
   if (hidden.size === 0 && revealable.size === 0) return events.length;
@@ -235,7 +237,10 @@ export function preview(state: GameState, command: Command, deps: EngineDeps = D
   }
 
   const all = result.events;
-  const cut = Math.min(certainPrefix(state, result.state, all), randomPrefix(state, result.state, all, command, deps));
+  const cut = Math.min(
+    certainPrefix(state, result.state, all, deps),
+    randomPrefix(state, result.state, all, command, deps),
+  );
   const events = cut < all.length ? all.slice(0, cut) : all;
   const truncated = cut < all.length;
 

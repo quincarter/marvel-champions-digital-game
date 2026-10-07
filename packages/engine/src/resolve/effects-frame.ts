@@ -1,5 +1,6 @@
 /** Stepping through an effects frame, including the effects that stop for a player choice. */
 
+import { announceDeckTops } from "../deck-top.js";
 import type { EngineDeps } from "../abilities.js";
 import {
   cardsInPlayFromZone,
@@ -408,6 +409,7 @@ function executePlayFromHand(
   if (from === "deck" && playerId && (frame.vars["_play.shuffle"] ?? 0) > 0) {
     const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
     updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
+    announceDeckTops(ctx);
     return done();
   }
 

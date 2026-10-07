@@ -744,6 +744,32 @@ export const exists = (q: TargetQuery): Predicate => ({ kind: "exists", query: q
 /** "If Bomb Scare is in play" (exact printed name). */
 export const inPlay = (name: string): Predicate => exists({ name });
 export const not = (of: Predicate): Predicate => ({ kind: "not", of });
+/**
+ * The top card of `player`'s deck is kept faceup right now by a `playWithTopOfDeckFaceup` constant
+ * (docs/phase7-wave8.md §3.48). False in the other form and under a blank text box.
+ */
+export const topOfDeckIsFaceup = (player: PlayerRef = you): Predicate => ({ kind: "topOfDeckFaceup", player });
+/**
+ * The faceup top card of `player`'s deck matches `matches`. False when the card is facedown, whatever it is: the game
+ * does not read a hidden card to answer a question about it (docs/phase7-wave8.md §4.1 Q26 = B). False on an empty
+ * deck.
+ */
+export const topOfDeckMatches = (matches: TargetQuery, player: PlayerRef = you): Predicate => ({
+  kind: "topOfDeckFaceup",
+  player,
+  matches,
+});
+/**
+ * "If the top card of your deck has a [physical] or [wild] resource icon" (Soulsword 45034, Soul Strike 45039; the
+ * [mental] and [energy] siblings 45033, 45035, 45038, 45040; docs/phase7-wave8.md §3.50) → `topOfYourDeckHas(
+ * "physical")`. The printed icons of the card showing on top of your deck include `type` or a wild (RRG 1.8 "Wild
+ * Resource", p. 48: outside a cost a wild is only a wild, which is why each card names it); two icons of one type
+ * count once. As the `while` of a stat modifier it follows the top card with no ability resolving; as an `ifThen`
+ * condition it is read when that sentence resolves. A facedown top card, an empty deck and a card with no icon
+ * satisfy none (`topOfDeckMatches`).
+ */
+export const topOfYourDeckHas = (type: TypedResource): Predicate =>
+  topOfDeckMatches({ anyPrintedResource: [type, "wild"] });
 export const allOf = (...of: Predicate[]): Predicate => ({ kind: "and", of });
 export const anyOf = (...of: Predicate[]): Predicate => ({ kind: "or", of });
 /**

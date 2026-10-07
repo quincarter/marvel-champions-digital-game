@@ -1284,6 +1284,19 @@ export type Predicate =
    */
   | { readonly kind: "gameAreasSplit" }
   /**
+   * The top card of `player`'s deck is kept faceup right now (`RuleSpec topOfDeckFaceup`; docs/phase7-wave8.md §3.48),
+   * and, with `matches`, that card matches the query: "If the top card of your deck has a [physical] or [wild]
+   * resource icon" is `matches: { anyPrintedResource: ["physical", "wild"] }` (§3.50; RRG 1.8 "Wild Resource", p. 48:
+   * outside a cost a wild is only a wild, which is why the card names it).
+   *
+   * This is the one predicate that reads the top card of a deck, and it reads only a card the rule is showing. The
+   * game does not look at a hidden card to answer a question about it (owner decision §4.1 Q26 = B): with the rule off
+   * (a blank text box, the other form, a false `while`) the predicate is false whatever the card is, and true again,
+   * with nothing moved, when the rule is back. Without `matches` it is true whenever the rule holds, an empty deck
+   * included; with `matches` an empty deck has no card to match and is false.
+   */
+  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly matches?: TargetQuery }
+  /**
    * The mode of play (RRG 1.8 "Modes of Play", p. 29; `GameSetupConfig.difficulty`): "In expert mode, this card gains
    * incite 1 and cannot be canceled" (Frequent Flyers, `sm` 27108), "(In expert mode, place 2 threat on Light at the
    * End)" (Ambush!, 27100), "If … or this is expert mode" (Sinister Beatdown 27101a). docs/phase7-wave5.md §3.11.

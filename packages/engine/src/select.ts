@@ -1603,6 +1603,32 @@ export function printedResourcesOf(state: GameState, id: InstanceId, deps: Engin
   return printed;
 }
 
+/**
+ * The players whose deck's top card is kept faceup right now (`RuleSpec topOfDeckFaceup`, docs/phase7-wave8.md §3.48),
+ * each once. Read from the rules in force, never from anything stored: a rule that is off (the other face, a blank
+ * text box, a false `while`, its card out of play) is simply not among `activeRules`.
+ */
+export function deckTopFaceupPlayers(state: GameState, deps: EngineDeps): readonly PlayerId[] {
+  const players: PlayerId[] = [];
+  for (const active of activeRules(state, deps, "topOfDeckFaceup")) {
+    for (const playerId of rulePlayers(state, active.rule, active)) {
+      if (!players.includes(playerId)) players.push(playerId);
+    }
+  }
+  return players;
+}
+
+/**
+ * The card showing on top of `playerId`'s deck under a `topOfDeckFaceup` rule: the deck's first card while the rule
+ * holds for that player, null when it does not or the deck is empty. The single derivation `faceVisible`, the
+ * `topOfDeckFaceup` predicate's `matches` and the log (`announceDeckTops`) agree on.
+ */
+export function shownDeckTop(state: GameState, deps: EngineDeps, playerId: PlayerId): InstanceId | null {
+  const top = getPlayer(state, playerId)?.deck[0];
+  if (top === undefined) return null;
+  return deckTopFaceupPlayers(state, deps).includes(playerId) ? top : null;
+}
+
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`). */
 export const rulePlayers = (
   state: GameState,
@@ -2547,6 +2573,17 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "gameAreasSplit":
       return state.gameAreas.length > 0;
+    case "topOfDeckFaceup": {
+      const deps = context.deps ?? DEFAULT_DEPS;
+      const faceup = deckTopFaceupPlayers(state, deps);
+      return resolvePlayers(state, predicate.player, context).some((playerId) => {
+        if (!faceup.includes(playerId)) return false;
+        if (predicate.matches === undefined) return true;
+        // Only the card the rule shows is read (§4.1 Q26 = B); an empty deck has none.
+        const top = getPlayer(state, playerId)?.deck[0];
+        return top !== undefined && matchesQuery(state, top, predicate.matches, context);
+      });
+    }
     case "inMode":
       return (state.scenarioRules.difficulty ?? "standard") === predicate.mode;
     case "firstAttackThisTurn": {

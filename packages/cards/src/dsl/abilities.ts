@@ -1351,6 +1351,17 @@ export const cannotLeavePlay = (
 export const cannotFlip = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotFlip", target, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Play with the top card of your deck faceup." (Magik, `aoa` 45030a; docs/phase7-wave8.md §3.48) →
+ * `constant(playWithTopOfDeckFaceup())` on the hero face. While the constant is active the top card of the player's
+ * deck is visible to every player and the log follows it (`deckTopShown` / `deckTopHidden`); nothing is looked at,
+ * revealed or moved, and the card is still in the deck. Off in the other form and under a blank text box as any
+ * constant is, and then no "the top card of your deck has" condition is met (`topOfYourDeckHas`; §4.1 Q26 = B).
+ */
+export const playWithTopOfDeckFaceup = (
+  player: PlayerRef = { kind: "controller" },
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule({ kind: "topOfDeckFaceup", player, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a

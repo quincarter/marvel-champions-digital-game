@@ -12,6 +12,7 @@
  */
 
 import { type Ctx, emit, updateFrame, updatePlayer } from "../ctx.js";
+import { announceDeckTops, holdDeckTops } from "../deck-top.js";
 import { shuffleZone } from "../effects.js";
 import type { InstanceId } from "../ids.js";
 import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "../query.js";
@@ -71,6 +72,7 @@ function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
     case "deck": {
       const order = shuffleZone(ctx, deck, mustPlayer(ctx.state, deck.playerId).deck);
       updatePlayer(ctx, deck.playerId, (p) => ({ ...p, deck: order }));
+      announceDeckTops(ctx);
       return;
     }
     case "separateDeck":
@@ -166,6 +168,18 @@ function findFirst(
  * card could have been in.
  */
 export function applyFindCard(
+  ctx: Ctx,
+  effect: FindCard,
+  context: EffectContext,
+  frame: Frame<"effects">,
+  apply: (ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">) => void,
+): void {
+  // One change to a deck kept faceup (docs/phase7-wave8.md §3.48): the searched deck's top card shows after its
+  // shuffle, not between the card leaving and the shuffle.
+  holdDeckTops(ctx, () => findCardNow(ctx, effect, context, frame, apply));
+}
+
+function findCardNow(
   ctx: Ctx,
   effect: FindCard,
   context: EffectContext,
