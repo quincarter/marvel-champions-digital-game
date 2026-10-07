@@ -5603,6 +5603,23 @@ to 46 are open, and every task that touches them builds on default A (§8.2).
 | 38  | **A.** Snow Clone and Chamber keep their consequential-damage reduction when the attack defeats the enemy (FFG's intent, ruling February 8, 2026 – Ruling 1).                                                                                                                                                                                                                                                               |
 | 39  | **A.** With a Jubilee hero in the game the ally Jubilee from Mutants at the Mall never enters play (the unique rule; RRG 1.8 errata for Mutants at the Mall #88A, p. 68).                                                                                                                                                                                                                                                   |
 | 40  | **A.** Serve and Protect needs two characters, one X-Force and one X-Men; one character with both traits cannot be exhausted twice.                                                                                                                                                                                                                                                                                         |
+| 41  | **A.** (2026-10-07, "do recommended".) Magnetic Pull with no Magnetic card found: the discards stand, nothing goes to hand, Magneto's Armor and Cape are not offered, Old Grievances still deals its damage, the limit is spent.                                                                                                                                                                                            |
+| 42  | **A.** (2026-10-07, "do recommended".) The Magnetic card Magnetic Pull takes counts as discarded, for Magneto's Armor and for Old Grievances.                                                                                                                                                                                                                                                                               |
+| 43  | **A.** (2026-10-07, "do recommended".) The Rogue ally 48012 reads the character live: if it leaves play she has nothing from it.                                                                                                                                                                                                                                                                                            |
+| 44  | **A.** (2026-10-07, "do recommended".) Tweedledope 48037 has 0 boost icons and no star.                                                                                                                                                                                                                                                                                                                                     |
+| 45  | **A.** (2026-10-07, "do recommended".) The Mutant Genesis campaign's ally Magneto does not enter play beside a Magneto hero (the unique rule; the sibling of Q39).                                                                                                                                                                                                                                                          |
+| 46  | **A.** (2026-10-07, "do recommended".) The Cyclops ally 49015 adds 1 to each instance of attack damage.                                                                                                                                                                                                                                                                                                                     |
+
+**Two follow-ups, answered 2026-10-07 ("do recommended"):**
+
+- **Q25 at the minimum:** the reward counts as one of the 40. A deck of 39 ordinary cards plus the reward is legal
+  (the owner's note on Q25), and a deck at 50 must drop a card to take it. `CampaignGrant.deckSize` (§8.2 task 43) is
+  built with this value.
+- **Q33 with Q34, an overpaid payment:** the player declares each wild's type; the game then takes the paid resources
+  to be the set that gives the most declared types, with no further prompt.
+
+The owner's "do recommended" answered the two follow-ups by name. It is read as covering questions 41 to 46 as well,
+each of which had A as its recommended default and was listed beside them; the main session told the owner so.
 
 ### 4.2 The questions as asked
 
