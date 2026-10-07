@@ -13,8 +13,10 @@ import { WAVE8_ABILITIES } from "./index.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
+import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
+import { NIGHTCRAWLER_IDENTITY } from "./ncrawler/nightcrawler/identity.js";
 
 describe("wave 8 ability registry", () => {
   it("includes every wave 7 (Core through cycle 7) script, the same definition object", () => {
@@ -32,6 +34,28 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {};
+
+/**
+ * Scripted modules of a pack still marked "not started": the smallest partial state (modeled on wave 7's). Each names the
+ * printed ids it covers and its registry; every ref of those cards is registered or in `skipped` with a reason, and the
+ * pack's whole registry is exactly the union of these modules. Remove the entry when the pack is marked scripted.
+ */
+const SCRIPTED_MODULES: Readonly<
+  Record<
+    string,
+    ReadonlyArray<{
+      readonly module: string;
+      readonly cardIds: readonly string[];
+      readonly registry: AbilityRegistry;
+      readonly skipped: Readonly<Record<string, string>>;
+    }>
+  >
+> = {
+  jubilee: [{ module: "jubilee/identity", cardIds: ["47001a", "47001b"], registry: JUBILEE_IDENTITY, skipped: {} }],
+  ncrawler: [
+    { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
+  ],
+};
 
 const PACKS: ReadonlyArray<{
   readonly code: string;
@@ -55,10 +79,25 @@ describe("wave 8 pack ability coverage", () => {
     const missing = allRefs.filter((id) => !(id in WAVE8_ABILITIES));
 
     if (PACK_STATUS[code] === "not started") {
-      it("is not started: nothing resolves beyond what an earlier wave already scripted", () => {
-        expect(missing).toEqual(allRefs);
-        expect(Object.keys(registry), `${code} is marked not started but its registry is not empty`).toEqual([]);
+      const modules = SCRIPTED_MODULES[code] ?? [];
+      const scripted = modules.flatMap((m) => Object.keys(m.registry));
+      it("is not started: nothing resolves beyond what an earlier wave already scripted and its scripted modules", () => {
+        expect(missing).toEqual(allRefs.filter((id) => !scripted.includes(id)));
+        expect(
+          Object.keys(registry).sort(),
+          `${code} is marked not started but its registry holds more than its scripted modules`,
+        ).toEqual([...scripted].sort());
       });
+      it.each(modules.map((m) => [m.module, m] as const))(
+        "scripted module %s: every ref registered or skipped",
+        (_, m) => {
+          const refs = cards.filter((c) => m.cardIds.includes(c.id as string)).flatMap(abilityRefIds);
+          expect(refs.length).toBeGreaterThan(0);
+          expect(refs.filter((id) => !(id in m.registry) && !(id in m.skipped))).toEqual([]);
+          expect(Object.keys(m.skipped).filter((id) => id in m.registry || !refs.includes(id))).toEqual([]);
+          expect(Object.keys(m.registry).filter((id) => !refs.includes(id))).toEqual([]);
+        },
+      );
     } else {
       it("every ability reference resolves, except its documented skips", () => {
         const skipped = KNOWN_SKIPPED[code] ?? [];
@@ -68,6 +107,33 @@ describe("wave 8 pack ability coverage", () => {
         ).toEqual([]);
         expect(missing).toHaveLength(skipped.length);
       });
+    }
+  });
+});
+
+/** Every ability id a pack's own scripted modules register must be named in a test file of that pack's folder. */
+describe("wave 8 pack ability id coverage", () => {
+  const rawTestFiles = (import.meta as unknown as ImportMetaEnv).glob("./**/*.test.ts", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }) as Record<string, string>;
+  interface ImportMetaEnv {
+    readonly glob: (pattern: string, opts: object) => unknown;
+  }
+  const packTestText = (pack: string): string =>
+    Object.entries(rawTestFiles)
+      .filter(([path]) => path.startsWith(`./${pack}/`))
+      .map(([, text]) => text)
+      .join("\n");
+
+  it("every ability id a started pack registers is named in one of its own test files", () => {
+    for (const { code, registry } of PACKS.filter(
+      (p) => PACK_STATUS[p.code] !== "not started" || p.code in SCRIPTED_MODULES,
+    )) {
+      const text = packTestText(code);
+      const unnamed = Object.keys(registry).filter((id) => !text.includes(id));
+      expect(unnamed, `${code} ids registered but not named in any wave8/${code}/**/*.test.ts file`).toEqual([]);
     }
   });
 });
