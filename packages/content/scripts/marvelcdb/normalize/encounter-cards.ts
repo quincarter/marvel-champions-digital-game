@@ -17,6 +17,7 @@ import {
   type NormalizeContext,
   type SingleRecord,
 } from "./context.ts";
+import { backFaceSet } from "./encounter-sets.ts";
 import type { Prepared } from "./prepare.ts";
 import { scalingOf, schemeIcons } from "./values.ts";
 
@@ -41,6 +42,7 @@ export function normalizeEncounterCard(
   // Service/Snitches get Stitches sets) is faction "campaign", not "encounter": every such card belongs to its
   // own `campaignSpecific` `EncounterSet` instead of the pack's ordinary encounter sets.
   const isCampaignCard = r.faction_code === "campaign";
+  const backSet = backFaceSet(r);
   if (r.faction_code !== "encounter" && !isCampaignCard)
     errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
   expectNoPlayerData(ctx, p, parsed);
@@ -52,7 +54,13 @@ export function normalizeEncounterCard(
     // modular set's own obligation (Project Wideawake's Warn the Others 32099, Mojo Mania's sitcom set) is an
     // ordinary member of its encounter set, so the encounter deck builder can shuffle it in.
     encounterSetIds:
-      r.type_code === "obligation" && !isCampaignCard && ctx.heroBySet.has(set) ? [] : [brand("encounterSet", set)],
+      r.type_code === "obligation" && !isCampaignCard && ctx.heroBySet.has(set)
+        ? []
+        : [
+            brand("encounterSet", set),
+            // A back face printed in another set (AoA Overseer / Prelates) puts the one physical card in both.
+            ...(flipSide && backSet ? [brand("encounterSet", backSet.code)] : []),
+          ],
     boostIcons: p.boost,
     // RRG 1.8 "Boost, Boost Icon" (p. 11): the star in the boost area marks "the card has a 'Boost' ability", so the
     // flag follows the parsed text (docs/phase7-wave2-data.md "starIcon?: boolean"). `parse()` has already
@@ -84,7 +92,7 @@ export function normalizeEncounterCard(
       }
       if (rawAtk === null || (rawAtk !== undefined && rawAtk < -1))
         errors.push(`${r.code}: minion ATK ${String(rawAtk)} invalid`);
-      if ((r.scheme === null || r.scheme === undefined) && !curation.cardNotes[r.code]) {
+      if ((p.scheme ?? r.scheme) == null && !curation.cardNotes[r.code]) {
         errors.push(`${r.code}: minion has no scheme value (printed "0", or "—"?) — needs a cardNotes entry`);
       }
       const minion: MinionCard = {
@@ -92,7 +100,7 @@ export function normalizeEncounterCard(
         type: "minion",
         // MarvelCDB -1 = printed "X" (defined by the card's own ability: Titania).
         atk: rawAtk === -1 ? "X" : (rawAtk ?? 0),
-        sch: r.scheme ?? 0,
+        sch: p.scheme ?? r.scheme ?? 0,
         hp: r.health ?? 0,
         ...encounterCommon,
         ...(parsed.nemesisMinion ? { nemesisMinion: true } : {}),

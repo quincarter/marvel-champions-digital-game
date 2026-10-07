@@ -48,6 +48,11 @@ export interface Correction {
    * `scheme`; with this set, the normalizer emits `statModifiers.thw` and no `sch`.
    */
   readonly thwart?: number;
+  /**
+   * A minion's printed SCH where MarvelCDB sends no `scheme` at all (Velociraptor, `aoa` 45129, prints SCH 1; the scan
+   * confirms it). Without it the normalizer needs a `cardNotes` entry, which records a dash or zero, not a number.
+   */
+  readonly scheme?: number;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**

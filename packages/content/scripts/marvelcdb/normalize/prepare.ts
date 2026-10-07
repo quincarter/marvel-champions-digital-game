@@ -19,6 +19,8 @@ export interface Prepared {
   readonly attackIsCurated: boolean;
   /** `Correction.thwart`: the attachment's stat box prints THW (it attaches to a character that thwarts). */
   readonly thwart?: number;
+  /** `Correction.scheme`: a minion's printed SCH where MarvelCDB omits it. */
+  readonly scheme?: number;
   readonly text: CardText;
   readonly flavor?: string;
   readonly errata?: Errata;
@@ -54,6 +56,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let attack = r.attack;
   let attackIsCurated = false;
   let thwart: number | undefined;
+  let scheme: number | undefined;
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
@@ -95,6 +98,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
       attackIsCurated = true;
     }
     if (c.thwart !== undefined) thwart = c.thwart;
+    if (c.scheme !== undefined) scheme = c.scheme;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
@@ -132,6 +136,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     attack,
     attackIsCurated,
     ...(thwart !== undefined ? { thwart } : {}),
+    ...(scheme !== undefined ? { scheme } : {}),
     text: { printed, current },
     ...(flavor ? { flavor } : {}),
     ...(errata ? { errata } : {}),

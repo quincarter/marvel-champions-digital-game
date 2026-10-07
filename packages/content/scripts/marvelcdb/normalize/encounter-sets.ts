@@ -1,4 +1,5 @@
 /** Step 8: encounter sets, named from the records that belong to them. */
+import type { RawCard } from "../raw-types.ts";
 import type { EncounterSet } from "../../../src/schema/index.ts";
 import { brand } from "./brand.ts";
 import type { NormalizeContext } from "./context.ts";
@@ -14,6 +15,23 @@ function campaignSetCode(r: {
   readonly card_set_code?: string | null;
 }): string | undefined {
   return r.faction_code === "campaign" && r.card_set_code ? r.card_set_code : undefined;
+}
+
+/** Types whose back faces are built by their own steps (heroes, villains, main schemes), not by `readFlipSide`. */
+const OWN_STEP_TYPES: ReadonlySet<string> = new Set(["hero", "alter_ego", "villain", "leader", "main_scheme"]);
+
+/**
+ * The encounter set a flip-side back face belongs to when it is not its front face's (the AoA Overseer minions
+ * 45179a to 45183a: the Prelate b faces are in `prelates`, the a faces in `overseer`). Only a same-type, hidden,
+ * nested encounter face qualifies, the same shape `readFlipSide` turns into a `flipSide`. Absent for every card
+ * whose two faces share a set.
+ */
+export function backFaceSet(r: RawCard): { readonly code: string; readonly name: string } | undefined {
+  const b = r.linked_card;
+  if (!b || !b.hidden || b.type_code !== r.type_code || OWN_STEP_TYPES.has(r.type_code)) return undefined;
+  if (r.faction_code !== "encounter" || b.faction_code !== "encounter") return undefined;
+  if (!b.card_set_code || b.card_set_code === r.card_set_code) return undefined;
+  return { code: b.card_set_code, name: b.card_set_name ?? b.card_set_code };
 }
 
 export function normalizeEncounterSets(ctx: NormalizeContext): {
@@ -32,6 +50,15 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
     const name = r.card_set_name ?? code;
     if (prev !== undefined && prev !== name) ctx.errors.push(`set ${code} has two names: ${prev} / ${name}`);
     setNames.set(code, name);
+  }
+  // A set only back faces belong to has no top-level record of its own, so it is named from the nested faces.
+  for (const r of ctx.topLevel) {
+    const back = backFaceSet(r);
+    if (!back) continue;
+    const prev = setNames.get(back.code);
+    if (prev !== undefined && prev !== back.name)
+      ctx.errors.push(`set ${back.code} has two names: ${prev} / ${back.name}`);
+    setNames.set(back.code, back.name);
   }
   const encounterSets: EncounterSet[] = [...setNames.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
