@@ -14,6 +14,11 @@ import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
+import {
+  ICEMAN_SUPPORT_UPGRADES_ALLIES,
+  ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./iceman/iceman/support-upgrades-allies.js";
+import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
@@ -62,8 +67,19 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
   ],
-  iceman: [{ module: "iceman/identity", cardIds: ["46001a", "46001b"], registry: ICEMAN_IDENTITY, skipped: {} }],
-  jubilee: [{ module: "jubilee/identity", cardIds: ["47001a", "47001b"], registry: JUBILEE_IDENTITY, skipped: {} }],
+  iceman: [
+    { module: "iceman/identity", cardIds: ["46001a", "46001b"], registry: ICEMAN_IDENTITY, skipped: {} },
+    {
+      module: "iceman/support-upgrades-allies",
+      cardIds: ["46002", "46003", "46004", "46005", "46006", "46007", "46008"],
+      registry: ICEMAN_SUPPORT_UPGRADES_ALLIES,
+      skipped: ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+  ],
+  jubilee: [
+    { module: "jubilee/identity", cardIds: ["47001a", "47001b"], registry: JUBILEE_IDENTITY, skipped: {} },
+    { module: "jubilee/arcade", cardIds: ["47030", "47031", "47032", "47033", "47034"], registry: ARCADE, skipped: {} },
+  ],
   ncrawler: [
     { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
     {
