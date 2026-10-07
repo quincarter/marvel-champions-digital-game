@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Break Time now runs a real wall-clock break timer: End break reports the whole minutes away (no cap), with Enter minutes instead as the manual path'
-time: 2026-10-07T01:26:56.292188-04:00

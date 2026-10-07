@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A tap that straddles a redraw, or begins in the frame after one, still lands on touch: a scene tap router judges a press by where it went down and came up (buttons, tabs, rows, target and pick tiles), and a finger no longer triggers the target-tile hover redraw'
-time: 2026-10-05T07:15:34.656171-04:00

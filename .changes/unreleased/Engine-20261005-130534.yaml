@@ -1,3 +1,0 @@
-kind: Engine
-body: An effect can send a played event back to its owner's hand once it has resolved, instead of to the discard pile
-time: 2026-10-05T13:05:34.605072-04:00
