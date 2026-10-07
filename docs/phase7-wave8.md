@@ -20,7 +20,7 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
 | **1c** | **The MC45 campaign, side missions, the Mission, Overseer, Age of Apocalypse and the two Campaign sets** | **written** |
 | **2a** | **Bishop, Magik and the box's player cards**                                                             | **written** |
 | **2b** | **Iceman, Jubilee**                                                                                      | **written** |
-| 2c     | Nightcrawler, Magneto                                                                                    | placeholder |
+| **2c** | **Nightcrawler, Magneto**                                                                                | **written** |
 | 3      | Ordered engine build queue                                                                               | placeholder |
 
 - **Pass 1a's content.** MC45 p. 3 ("New Rules": find; "Featured Keywords"; the victory display; the amplify icon; the
@@ -60,8 +60,16 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
   47030–47034). 72 raw records and the two nested alter-ego faces, every one read, and a scan read for 69 of the 74
   faces (§0.4); both packs' rules inserts, which are not in the repo. Sections 0.4, 3.61–3.70, questions 33–40, §5.4,
   §7.2 and §7.3. No schema change.
-- **Not yet written:** two hero packs (pass 2c) and the build order (pass 3). Placeholders are marked **(pass N)**; a
-  card of a later pass is named here only to show that a primitive composes.
+- **Pass 2c's content.** The Nightcrawler pack: Nightcrawler / Kurt Wagner (48001a/b), his cards 48002–48011, Protection
+  48012–48020, basic 48021–48025, obligation 48026, nemesis set `nightcrawler_nemesis` 48027–48030, the off-aspect
+  events 48031 and 48032, and the modular set The Crazy Gang (`crazy_gang` 48033–48038). The Magneto pack: Magneto /
+  Erik Lehnsherr (49001a/b), his cards 49002–49011, Leadership 49012–49020, basic 49021–49026, obligation 49027, nemesis
+  set `magneto_nemesis` 49028–49032, the four linked allies 49033–49036 with Children of the Atom 49037, and the modular
+  set Hellfire Club (`hellfire` 49038–49042). 80 raw records and the two nested alter-ego faces, every one read, and a
+  scan read for 74 of the 82 faces (§0.5); both packs' rules inserts, which are not in the repo; the five RRG p. 69
+  errata, already in the curations. Sections 0.5, 3.71–3.81, questions 41–46, §5.5, §7.4 and §7.5. No schema change.
+- **Not yet written:** the build order (pass 3), which starts from the list in §6. Placeholders are marked **(pass N)**;
+  a card of a later pass is named here only to show that a primitive composes.
 - **Data state (2026-10-07):** `iceman`, `jubilee`, `ncrawler` and `magneto` are emitted as data-only packs under
   `packages/content/src/data/`; `aoa` is raw only (`packages/content/raw/marvelcdb/aoa.json`, 195 records). The data
   survey (`docs/phase7-wave8-data-survey.md`) landed after pass 1a; pass 1b answers its gaps 3, 7, 8, 14 and 17 and
@@ -433,6 +441,149 @@ No ruling of pass 2b disagrees with the RRG. One ruling states an intent its car
 2026 – Ruling 1), and this pass applies that intent to two cards the ruling does not name, as a question. One insert
 sentence disagrees with a card (Shopping Spree), and one insert sentence reads more loosely than the RRG's rule on
 overpaid resources (Q34).
+
+### 0.5 Pass 2c's sources
+
+1. **Card text and product rules.**
+   - **Neither pack's rules insert is in the repo.** Both were read on 2026-10-07 from Hall of Heroes' photos of the
+     printed sheets (`hallofheroeslcg.com/wp-content/uploads/2024/09/img_7696.jpeg`, Nightcrawler;
+     `…/2024/11/img_4247.jpg`, Magneto), a transcriber's copy of FFG's text, cited as "the Nightcrawler insert" and "the
+     Magneto insert". They carry no page numbers and neither has a rule of its own.
+     - The Nightcrawler insert reprints the player side scheme rules and the entries for alliance and victory X, and one
+       term: "Featured Term: Tuck. When an ability tells you to tuck a card under another card, place the tucked card
+       faceup under the other card. The tucked card is not in play." (RRG "Tuck", p. 45, says the same.) Its strategy
+       box: "Attach Bamf! to an enemy and use it to defend against that enemy without exhausting. Play Tally Ho! to
+       return that copy of Bamf! to your hand and deal 3 damage to the attacking enemy. Play Bamf! again and follow it
+       up with 'Port and Punch to damage each enemy with a copy of Bamf! attached!"
+     - The Magneto insert reprints the player side scheme rules and the entries for linked, steady, villainous and
+       victory X. Linked: "Card with the linked keyword cannot be included in a player's deck. Instead, they are set
+       aside at the start of the game if any player's deck includes the card that brings the linked cards into play
+       (indicated in the parentheses following the keyword). Linked cards do not count towards the minimum or maximum
+       deck size." Its strategy box: "Use his 'Magnetic Pull' ability each turn to draw a MAGNETIC card from your deck.
+       Play Magneto's Cape and Magneto's Armor to ready him and gain a stat boost each time you resolve his ability.
+       Attach Wrapped in Metal to a minion to disable it; when the time is right, play Magnetic Missile to hurl that
+       minion at an enemy for damage and a stun!"
+     - Both inserts say "Each of the player side schemes in this product has the victory X keyword", and here both do
+       (Astonishing X-Men and New Recruits print "Victory 0.").
+   - Card text: every record of `packages/content/raw/marvelcdb/ncrawler.json` (38 records and the nested alter-ego
+     face) and `magneto.json` (42 and one) pulled by script, and the emitted records of
+     `packages/content/src/data/{ncrawler,magneto}/cards.ts` read field by field against them. **Raw carries the printed
+     wording of three errata cards; the curations (commit fdd07b6d) already hold all five RRG p. 69 errata**, and this
+     pass specifies from the current text: Rogue 48012 ("base THW and ATK"), Tweedledope 48037 (the star removed from
+     the boost field), Magnetic Missile 49010 ("Discard a minion with Wrapped in Metal attached. Then, deal 5 damage to
+     an enemy and stun it."), Deft Focus 49023 (classification Basic) and Exodus 49028 ("equal to his total ATK for that
+     attack"). Both starter decks are in the curations (commit c8d41ca6).
+   - **Scans read** (`assets/card-art/bundles/cards/`, on contact sheets at 560 px a card, the side schemes at 900 px;
+     the 300 px identity scans enlarged): 48001a, 48001b, 48002–48016, 48018–48021 and 48026–48038; 49001a, 49001b,
+     49002–49023 and 49027–49042: 74 of the 82 faces. Not read, because the bundle has no scan: the reprints 48017,
+     48022–48025 and 49024–49026 (their text is the original's). For §3.80, the title bars of ten earlier cards: 32011,
+     32056, 32159, 32172b, 33002, 34003, 37002, 37032, 38003 and 57027; for the scheme icons, 46026 and 47031 as
+     references. They settle:
+     - **Three raw slips in printed values, all in the Nightcrawler pack's encounter cards.** Brimstone Dimension
+       (48028) prints a **hazard icon** in its text box (the glyph of Welcome to Murderworld 47031) and raw and the
+       emitted record have no icon. The Crazy Gang (48033) prints **"2[per_hero]"** and raw has a fixed 2
+       (`base_threat_fixed`). Tweedledope (48037) prints a **star and no boost icon** in its boost field; the erratum
+       removes the star (RRG p. 69: "Removed the star icon from this card's boost field"), which leaves an empty field,
+       and raw and the emitted record have 1 boost icon (§4.2 Q44).
+     - **Two slips in text.** Selene (49039) prints "Allies cannot attack Selene." and raw drops the period. Sebastian
+       Shaw (49038) prints "**Forced Respone**:", a misprint on the card; raw's "Forced Response" is what it means.
+     - Deft Focus (49023) prints "PROTECTION" at the bottom, the classification the erratum corrects. Rogue (48012),
+       Magnetic Missile (49010) and Exodus (49028) print the wording the errata replace.
+     - Costs raw omits, each printed 0: Bamf! 48006, 'Port Away 48010, Under Control 48015, "Come Get Me, Bub!" 48016.
+       Squared Off 49017, New Recruits 49020 and Face the Past 49022 print 0 as raw has it. Astonishing X-Men 48020
+       prints cost 1 and a flat 5; New Recruits 2[per_hero].
+     - Resource icons of the thirteen allies (§3.36 pairs them in a mission attempt): Daytripper [wild]; Rogue, M and
+       Cyclops [physical]; Phoenix [mental]; Northstar, Gambit, Kid Omega, White Queen, Surge, Anole, Bling! and Indra
+       [energy].
+     - "Play only if your identity has the [X-FORCE] or [X-MEN] trait.": White Queen (ally) and Won't Stay Down
+       (support). "Play only if your identity has the [X-MEN] trait.": New Recruits. No other ally of the two packs
+       prints a play restriction; Moira MacTaggert (reprint) prints the MUTANT line.
+     - Subtitles, each as raw has it: Daytripper "Amanda Sefton", Rogue "Anna Marie", Northstar "Jean-Paul Beaubier",
+       Gambit "Remy LeBeau", M "Monet St. Croix", Kid Omega "Quentin Quire", Phoenix "Jean Grey", Cyclops "Scott
+       Summers", White Queen "Emma Frost", Surge "Noriko Ashida", Anole "Victor Borkowski", Bling! "Roxanne Washington",
+       Indra "Paras Gavaskar".
+     - Stats: Gambit prints **X** for THW and for ATK, one consequential icon under each; M two consequential icons
+       under ATK and one under THW; every other ally one under each. No ally of the two packs prints a star.
+     - Collector lines: Bamf! "NIGHTCRAWLER (5/15)" and card number 6; Wrapped in Metal "MAGNETO (6/15)"; the four
+       linked allies print "BASIC" and no set line; the nemesis sets "NIGHTCRAWLER NEMESIS (n/5)" and "MAGNETO NEMESIS
+       (n/5)"; the modular sets "CRAZY GANG (n/6)" and "HELLFIRE (n/5)".
+     - Schemes: Brimstone Dimension 5 flat, a hazard icon, three boost icons; The Crazy Gang 2[per_hero], an
+       acceleration icon, two boost icons; Martyr for Mutants 3[per_hero], an amplify icon, three; The Inner Circle 4
+       flat, an amplify icon, two.
+     - Encounter cards: Azazel SCH 2, ATK 3, 3 hit points, a boost star and no icon; Azazel's Sword +1 ATK with a star,
+       two boost icons; Brimstone Strike one; Queen of Hearts SCH 0, ATK 1, 4, three; Jester SCH 0, ATK 1, 5, one;
+       Executioner SCH 0, ATK 2, 4, two; Tweedledope SCH 0, ATK 2, 6 (above); "Off with His Head!" one. Exodus SCH 2,
+       ATK 2 with a star, 6, three; Fabian Cortez SCH 2, ATK 2, 4, a boost star and no icon; Frenzy SCH 2, ATK 2 with a
+       star, 4, a boost star and no icon; Angry Acolyte two. Sebastian Shaw SCH 1, ATK 2, 5, three; Selene SCH 1, ATK 1,
+       4, a boost star; Hellfire Pawn SCH 1, ATK 2, 3, a boost star, no unique icon; Power and Decadence a boost star.
+       Both obligations print two.
+   - The printed decklist cards (`docs/phase7-wave8-handoff.md`): Nightcrawler's deck is 40 (15 hero, 20 Protection, 5
+     basic); Magneto's is 40 (15 hero, 17 Leadership, 8 basic) and lists neither the linked allies nor Children of the
+     Atom.
+2. **RRG 1.8** entries pass 2c adds: "Attack (Enemy Activation)" (pp. 8–9: a defender who is another player's character
+   makes that player the target player; "Interrupts that trigger 'when [enemy name] attacks' have the same timing as
+   interrupts that trigger 'when [the villain/an enemy] initiates an attack'"; "If an enemy attack ends before damage is
+   dealt, abilities that trigger after an attack or after a character defends an attack resolve as normal"); "Attacks
+   Against Allies" (p. 10); "Base Value" (p. 10); "Boost, Boost Icon" (p. 11: "A star icon is not itself considered a
+   boost icon"; "If an enemy is dealt a boost card outside of its own activation, that boost card remains facedown on
+   that enemy until that enemy activates", and a villainous minion "still gets dealt another boost card"); "Cost" (pp.
+   13–14: "a player must pay costs with cards and/or game elements they control"; "If a cost targets a 'friendly' card,
+   the player can target cards they do not control"; "If dealing damage is a cost, that cost is considered paid even if
+   some or all of that damage is prevented"); "Defend, Defense" (p. 15: "When a card ability says to 'declare [a hero]
+   the defender' of an attack, that hero is considered to be making a basic defense"; "can be used on an exhausted
+   hero"); "Discard" and "Discard Pile" (p. 16: discards from a deck go "one at a time (without changing the order)";
+   "The order of cards in a discard pile may not be changed"); "Form, Change Form" (p. 21: a change an ability causes
+   "does not count against the one voluntary form change"); "In Player Order" (p. 24: "The phrase 'next player' always
+   refers to the next (clockwise) player in player order"); "Lasting Effects" (p. 26: "Lasting effects update whenever
+   the game state updates"); "Leaves Play" (p. 27: "Discard each card attached to or tucked under that card"; "Discard
+   each boost card given to that card"; "no memory of its previous state"); "Limit" (p. 27); "Linked (Card Title)" (p.
+   27); "Look, Looked-At" (p. 27: looked-at cards "are returned to that deck in the same order"); "Nemesis Encounter
+   Set" (p. 30: with several minions in the set, the nemesis minion "is designated by parenthetical text");
+   "Non-Numerical Variable" (p. 30); "Patrol" (p. 32); "Player Deck" (p. 33: "If the player's deck empties while the
+   player was discarding cards from their deck, no further cards are discarded from the newly shuffled deck"); "Resolve"
+   (p. 37); "Restricted" (p. 38); "Star Icon" (pp. 40–41: a star value "is defined in that card's text. If it is not
+   defined (for instance, if the card's text is blanked), that value is treated as 0"); "Steady" (p. 41); "Text Box" (p.
+   44: "that ability only references the printed abilities within that card's text box"; "Icons printed within a card's
+   text box are considered abilities within that text box"); "'Then'" (p. 44); "Traits" (p. 45: "Traits are not
+   considered to be part of a card's printed text box"); "Tuck" (p. 45); "Unique Icon" (pp. 45–46: "The players may
+   choose a scenario even if one or more villains match one or more chosen identities"); "Villainous" (p. 47); "You,
+   Your" (pp. 49–50: abilities on a player side scheme "are **not** considered to be performed by that player's
+   identity"; "after you … defeat" is the identity's own doing).
+   - **The RRG's errata for the two packs (p. 69)** are the five above. **Its FAQ names one card through a reprint:**
+     "Powerful Punch (#14)" (p. 63; the Shadowcat pack's card, `mut_gen` 32014) is about when Shadowcat flips her mass
+     form, and Nightcrawler's 48017 is that card's reprint (`duplicate_of_code`), so it needs no new behavior. The FAQ's
+     "White Queen (#56)" (p. 63) and "Fabian Cortez (#159)" (p. 64) are _Mutant Genesis_ minions, not 49021 or 49030.
+3. **FFG rulings.** Every title, subtitle and ability name of the 80 records was matched against the file by script,
+   with the pack's terms ("Bamf", "Magnetic Pull", "tuck", "Linked", "boost icons", "defender"). The hits, placed:
+   - **January 17, 2026 – Ruling 1 (1)** names the **Protection ally Rogue of this pack** (48012, with its erratum:
+     "copies the base ATK and THW of her target (instead of printed)") and Hope Summers, whose values are stars: "the
+     value of a star icon is defined by its associated ability (defaulting to 0 only when there is no associated
+     ability)", so "Rogue copying Hope adds your hero's power values to her own". The ruling calls the RRG's star entry
+     "outdated"; RRG 1.8 (pp. 40–41, above) now says the same thing, so they agree. It was built for wave 7
+     (`ValueSpec stat { base }`, `StatModifierSpec.setBase`, §3.25 there) before the card it names was scripted;
+     §3.74 places it, and applies it to the ally Gambit's X.
+   - **January 17, 2026 – Ruling 5** names **Face the Past, and 49022 is the only card of that title in the pool**
+     (every raw pack searched), so the survey's doubt is closed: "In The Wrecking Crew scenario, only the active
+     villain's encounter deck can be interacted with … You can play Face the Past to find your set-aside nemesis minion;
+     once defeated, it is placed in the active villain's encounter discard pile." The `encounter` selector already reads
+     the active villain's deck and cites this ruling (`spec.ts`). §3.81.
+   - **July 9, 2026 – Ruling 1** names Powerful Punch (through the reprint 48017): played into an attack on another
+     player, it makes the player's identity the defender (a defense-labeled ability, RRG p. 15) and does not make that
+     attack one "initiated against" them. §3.81.
+   - **January 26, 2026 – Ruling 6 (2)**: "Limits apply to cards. An identity never leaves play when flipping; limits
+     applied to its abilities persist across flips" (_Rapid Teleportation_'s phase, Kurt Wagner's round, _Magnetic
+     Pull_'s round). **February 28, 2026 – Ruling 7 (1)**: a tucked card "is out of play and does not affect uniqueness"
+     (the card under Gambit, §3.74). **April 30, 2026 – Ruling 4 (1)** (a card that takes itself out of a deck discard
+     does not count for it; §3.71, §4.2 Q42). **March 6, 2026 – Ruling 3 (1)** (Ionic Physiology's cost arrow replaced
+     by "Then", the same erratum Magnetic Missile has).
+   - "Surge", "M", "Energy", "Rogue" (the hero's Bulletproof Belle, January 17, 2026 – Ruling 3) and "Magneto" (the
+     villain) match rulings about other cards. **No ruling names Nightcrawler, Bamf!, Tally Ho!, Gambit's tuck, Magnetic
+     Pull, Wrapped in Metal, New Recruits, The Crazy Gang or the Hellfire set.**
+
+No ruling of pass 2c disagrees with the RRG. One erratum, read with the printed card, leaves a value the data does not
+have (Tweedledope, Q44). No insert sentence disagrees with a card. Two cards meet a card of an earlier box under one
+title in ways the unique rule decides and a test has to pin (the villain Magneto and his Helmet and Armor; the campaign
+ally Magneto, Q45).
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -1535,6 +1686,17 @@ change); **extend** (an existing primitive needs one more case); **new**. Each s
 | 3.68 | Across packs: the unique rule, the Team-Up replacement and the ally Jubilee's +2 ATK                 | 46001a/b, 47001a/b, 46019, 47002, 47022, 46025; `wolv` 35003   | exists (verify)  |
 | 3.69 | Three versions of one title in an identity set                                                       | 47007a/b/c, 47008a/b/c, 47010a/b/c                             | exists (verify)  |
 | 3.70 | Reusable as is (pass 2b)                                                                             | the rest                                                       | checked          |
+| 3.71 | A deck discarded until a trait's card is found; the whole discard read by cards that answer          | Magneto 49001a; 49004, 49005, 49027                            | extend           |
+| 3.72 | An upgrade on an enemy that makes its owner's hero the defender; one named copy fetched and returned | Bamf! 48006; 48001a/b, 48002, 48007–48011                      | exists (verify)  |
+| 3.73 | "Counts as 2 restricted cards" beside "1 additional upgrade that has the restricted keyword"         | Kurt's Cutlasses 48004, Prehensile Tail 48005                  | exists (verify)  |
+| 3.74 | An encounter card tucked under an ally; X read from its boost icons; another character's base stats  | Gambit 48021, Rogue 48012                                      | exists (verify)  |
+| 3.75 | A minion in play dealt to a player as a facedown encounter card, and passed to the next player       | The Crazy Gang 48033, Brimstone Dimension 48028                | extend           |
+| 3.76 | An upgrade that stops a minion activating and blanks it; a minion discarded from play by a player    | Wrapped in Metal 49007, Magnetic Missile 49010                 | exists (verify)  |
+| 3.77 | An attachment chosen by the label of an ability it prints ("Hero Action", "Hero Response")           | Electromagnetic Blast 49008; 48029                             | new              |
+| 3.78 | Linked allies taken into hand from the set-aside area; allies outside the ally limit by a trait      | New Recruits 49020; 49033–49036, 49037                         | exists (verify)  |
+| 3.79 | A boost card given to a minion outside its activation; a treachery that becomes one                  | Sebastian Shaw 49038, Power and Decadence 49042; 49039         | exists (verify)  |
+| 3.80 | Across packs: the unique rule; a hero, a villain and their cards under one title                     | 48001a/b, 49001a/b, 48012, 48021, 49003, 49004, 49014, 49015   | exists (verify)  |
+| 3.81 | Reusable as is (pass 2c)                                                                             | the rest                                                       | checked          |
 
 ### 3.1 Find, and "find … and reveal it" when the card is already in play
 
@@ -4410,6 +4572,837 @@ mission attempt's discard (§3.38). **No new row.**
   controller", keeps its damage and upgrades, and its SCH is its printed THW less 1 (the attachment's own −1), to a
   floor of 0; a Snow Clone's dash is 0.
 
+### 3.71 A deck discarded until a trait's card is found; the whole discard read by cards that answer
+
+> **Status: extend.** `EffectSpec discardDeckUntil { player, filter, bind }` (Teen Spirit, wave 2;
+> `apply-effect.ts`) discards from the top of a player's deck until a card matches, binds **the match only**
+> (`<bind>.count` is 0 or 1), stops at the discard that empties the deck (RRG p. 33) and marks
+> `discardUntilFoundNothing` so a "then" after it is skipped. Every card it passes over is recorded as a deck discard on
+> the frame (`recordDeckDiscard`, wave 7 §3.55), and `boundCardTotals` gives a bound set's count and printed icons.
+> Nothing binds **the whole set** the effect discarded, and §3.39's moment (new, not built) carries no values to the
+> cards that answer it. Checked before the row was opened against §3.48–§3.50, §3.52, §3.55 and §3.70: none binds a
+> discard-until's passed-over cards.
+
+**Cards.** Magneto 49001a (_Magnetic Pull_: "Action: Discard cards from the top of your deck until a [MAGNETIC] card is
+discarded → add that card to your hand. (Limit once per round.)"); Magneto's Armor 49004 ("Response: After you resolve
+your _'Magnetic Pull'_ ability, if you discarded at least 1 of the following resource icons: [mental] — Magneto gets +1
+THW this round. [physical] — Magneto gets +1 ATK this round. [energy] — Magneto gets +1 DEF this round."); Magneto's
+Cape 49005 ("Response: After you resolve your _'Magnetic Pull'_ ability, exhaust Magneto's Cape → ready Magneto."); Old
+Grievances 49027 ("Forced Response: After you use your _'Magnetic Pull'_ ability, take 1 damage for each card discarded
+by it.").
+
+**Rules.** RRG 1.8 "Player Deck" (p. 33); "Discard" (p. 16); "Cost" (pp. 13–14) and "Cost Arrow Icon" (p. 14); "Resolve"
+(p. 37: "An ability is resolved when it is triggered and one or more of its effects resolve"); "Limit" (p. 27: a
+canceled ability "counts toward the limit"); "Wild Resource" (p. 48); "Forced" (p. 20). Rulings January 26, 2026 –
+Ruling 6 (2); April 30, 2026 – Ruling 4 (1). The Magneto insert's strategy box (§0.5).
+
+**Plan.**
+
+- **`discardDeckUntil.bindAll?: string`**: every card the effect discarded, the match included, in discard order, with
+  `boundCardTotals` over the slot (`<bindAll>.count`, `.physical`, `.mental`, `.energy`, `.wild`). A card a response of
+  its own took out of the discard (wave 7 §3.55, `settleDeckDiscards`) is dropped from the slot as it is from every
+  "discarded this way" set.
+- **`raiseMoment { name, player, carry?: string[] }`** (§3.39): the named slots and their vars are stamped on the
+  `momentRaised` event, so a card that answers the moment reads them after the raising ability's frame is gone. §3.62
+  does the same for a payment on `cardPlayed`. A moment with no `carry` is unchanged.
+- **_Magnetic Pull_** is then one script: an action on the hero face, limit once per round;
+  `discardDeckUntil({ trait: MAGNETIC }, "found", { bindAll: "pulled" })`, the found card to hand,
+  `raiseMoment("magneticPull", you, ["pulled"])`. The Armor, the Cape and Old Grievances are
+  `on.moment("magneticPull")` with "you" its player, the same shape as Bishop's Uniform and Cryokinetic Perception
+  (§3.39).
+- **The arrow.** The printed text is a cost and an effect; the engine resolves a discard-until as an effect with the
+  "then" rule, and both give the same result while a MAGNETIC card is found. What they give when none is found is §4.2
+  Q41 (default A).
+
+**As read.**
+
+- **A MAGNETIC card** has the trait printed: all fifteen cards of his kit (Asteroid M, the Helmet, the Armor, the Cape,
+  Magnetic Bubble, Wrapped in Metal ×2, Electromagnetic Blast ×2, Metal Shards ×2, Magnetic Missile ×2, Master of
+  Magnetism ×2), 15 of the starter deck's 40. No other card of the pool has it on a player card.
+- **An Action on the hero face:** any action window while he is in hero form, the villain phase's included (a Pull
+  before the villain attacks can give +1 DEF for the round). The round's limit persists across a flip (ruling January
+  26, 2026).
+- **The found card** is discarded and then added to hand: it was in the discard pile for a moment, and whether it counts
+  as "discarded" for the Armor and for Old Grievances is §4.2 Q42 (default A: it does).
+- **Magneto's Armor** reads the printed icons of every card the Pull discarded. Each line resolves at most once however
+  many icons of that type there were; a [wild] is none of the three (RRG p. 48; §3.70 reads deck discards the same way).
+  The bonuses are stat modifiers on the hero until the end of the round. It does not exhaust.
+- **Magneto's Cape** readies the hero; _Magnetic Pull_ does not exhaust him, so the Cape is a second basic power in the
+  round.
+- **Old Grievances** is forced and comes before the two Responses (RRG "Ability", p. 5). Its damage is one instance of
+  X: a tough status card stops all of it, and Magnetic Bubble takes all of it (§3.81).
+- **"Use" and "resolve".** Old Grievances answers a Pull that was used; the Armor and the Cape answer one that resolved.
+  They differ only when no MAGNETIC card was found (Q41).
+- **The deck resets in the middle:** the discard that empties the deck resets it and deals an encounter card, and the
+  Pull stops there (RRG p. 33). A MAGNETIC card that was the deck's last card is found, in the new deck, and is taken
+  from it (wave 3 §4 Q18).
+- **Not a mission attempt** (§3.38): no Mission Response answers it and nothing is paired.
+
+**Log.** `cardMoved` per discard (exists), the found card's `cardMoved` to hand,
+`momentRaised { name: "magneticPull", carried: { pulled: […] } }`.
+
+**Tests (exact numbers).** Magneto THW 2, ATK 2, DEF 2, 10 hit points.
+
+1. The top of his deck is Squared Off ([physical]), Noble Sacrifice ([mental]), Metal Shards (MAGNETIC, [physical]): the
+   Pull discards three cards, Metal Shards is in his hand and the other two are in his discard pile. A second Pull that
+   round is refused; after a flip to Erik Lehnsherr and back in the same round it is still refused; next round it is
+   offered.
+2. Magneto's Armor in play, the top two cards Noble Sacrifice ([mental]) and Magnetic Bubble (MAGNETIC, [energy]): Q42 =
+   A: THW 3 and DEF 3 until the end of the round, ATK 2. Q42 = B: THW 3 only.
+3. The discard is Asteroid M alone (MAGNETIC, [wild]): no Armor line resolves and the Response is not offered.
+4. Magneto's Cape ready: he thwarts for 2 and exhausts, uses the Pull, exhausts the Cape and readies, attacks for 2.
+5. Old Grievances in play, test 1's Pull: Q42 = A: 3 damage, 10 to 7. Q42 = B: 2. With a tough status card: 0 and the
+   card is gone. With Magnetic Bubble: 3 damage on the Bubble, 10 stays.
+6. Old Grievances and the Armor both in play: the damage is dealt before the Armor is offered.
+7. **Q41 = A.** A deck of four cards with no MAGNETIC card: four discarded, the deck resets, one facedown encounter card
+   is dealt to him, nothing is added to his hand, the Armor and the Cape are not offered, Old Grievances deals 4, and
+   the round's use is spent.
+8. The MAGNETIC card is the last card of his deck: the deck resets, one facedown encounter card is dealt to him, and the
+   card is taken into his hand from the new deck.
+
+**Composes with:** §3.39 (which this extends), §3.62 (the same stamping on an event), wave 7 §3.55.
+
+### 3.72 An upgrade on an enemy that makes its owner's hero the defender; one named copy fetched and returned
+
+> **Status: exists (verify).** `declareDefender(character)` with no exhaust is Shieldmaiden's (wave 4 §3.22: "the first
+> card `character` names becomes the defender of the innermost enemy attack; a hero is making a basic defense, so its
+> DEF reduces the damage"; the effect's own comment lists Bamf!), `on.enemyAttacks(host)` an interrupt at the attack's
+> initiation, `discardSelf` a cost, `attachesTo: enemy` with `maxPerHost` data, `cannotHaveAttachments` narrowed to
+> upgrades a rule (§3.67), and a search that attaches is `chooseCards` + `attachCard`. Not run: a player upgrade on an
+> enemy whose interrupt answers that enemy's attack **on another player or on an ally**; a hero declared the defender of
+> an attack that began against another player; a moment (§3.39) raised by the upgrade's own ability with the discarded
+> copy as its source; a copy attached straight from a deck or a discard pile; one ability bought back each phase.
+
+**Cards.** Bamf! 48006 ×3; Nightcrawler 48001a (_Rapid Teleportation_); Kurt Wagner 48001b; Daytripper 48002; 'Port and
+Punch 48007; Teleport Drop 48008; Scout Ahead 48009; 'Port Away 48010; Tally Ho! 48011. Azazel 48027 ("Azazel cannot
+have upgrades attached").
+
+**Rules.** RRG 1.8 "Attack (Enemy Activation)" (pp. 8–9); "Defend, Defense" (p. 15); "Attacks Against Allies" (p. 10);
+"Upgrade" (p. 46: an upgrade attached to an enemy stays its player's, and one not attached to another friendly character
+is "an extension of the controlling player's identity"); "Activation" (p. 6: "If an activating minion leaves play, that
+minion's activation ends immediately"); "Stun, Stunned" (p. 41); "Cost" (p. 14); "Form, Change Form" (p. 21); "Search"
+(p. 39); "Limit" (p. 27). Ruling January 26, 2026 – Ruling 6 (2). The Nightcrawler insert's strategy box (§0.5). **No
+ruling names a card of the kit.**
+
+**Checked against §3.49 first** (pass 2b's note): _Rapid Teleportation_ and Tally Ho! **return** a copy to hand; nothing
+plays a card from a discard pile, so no play permission is involved. Bamf! is played from hand like any upgrade, for 0.
+
+**As read.**
+
+- **Bamf! is an upgrade with a host** (cost 0, no trait, [physical]): "Attach to an enemy. Max 1 per enemy." It prints
+  no "Hero form only", so Kurt Wagner may play it on his turn; its ability is a Hero Interrupt. A minion in the mission
+  area is not a legal host (§3.33). Azazel is not one either.
+- **"When attached enemy attacks"** has no "you": any attack of that enemy, on the Nightcrawler player, on another
+  player or on an ally (RRG p. 10), basic or made by a card. The interrupt has the timing of "initiates an attack" (RRG
+  p. 9), so it resolves before a boost card is turned and before anyone else is declared; once another character is the
+  defender it is too late and was never offered.
+- **"Declare Nightcrawler as the defender without exhausting him":** the Bamf! controller's hero, by title. He is making
+  a **basic defense** (RRG p. 15): his DEF reduces the damage, an exhausted Nightcrawler can be declared, and everything
+  that answers a hero's defense answers it (Riposte, Under Control, Astonishing X-Men, Unflappable). He becomes the
+  attack's target character and his player the target player (RRG p. 8): "after [enemy] attacks you" abilities, boost
+  abilities that say "you", indirect damage and overkill are his.
+- **A stunned enemy** does not attack (RRG p. 41): no interrupt, and the copy stays on it. An attack a cancel or Frozen
+  Solid replaced is the same (wave 5 §4.1 Q3).
+- **Tally Ho!** answers the moment Bamf!'s ability resolves, `"bamf"`, raised by the Bamf! script with the discarded
+  copy as the moment's source: "that copy" is that card, returned from the discard pile to hand, and "the attacking
+  enemy" is the attacker of the attack in progress. It resolves at once, before boost cards and damage. Its 3 damage is
+  not an attack (the label is defense): no retaliate answers it. If it defeats a minion the attack ends there (RRG p.
+  6), nobody takes damage, and "after … defends … and takes no damage" abilities still resolve (RRG p. 9).
+- **_Rapid Teleportation_:** "Spend 1 resource of any type" is a resource cost of 1 paid like any other (a card from
+  hand, a resource ability that may pay for an ability of the identity; Prehensile Tail's [wild] is for an event and
+  cannot). With no copy in his discard pile it has no target and is not offered. Once per phase, so once in the player
+  phase and once in the villain phase, where a copy spent on the villain's attack can be bought back before a minion's.
+- **Kurt Wagner's Action** searches his deck only and shuffles it, found or not; once per round.
+- **Daytripper** searches deck and discard pile (not the hand), and the copy is **attached**, not played: no cost, "Max
+  1 per enemy" and "cannot have upgrades attached" still bind where it may go (RRG p. 32: a card put into play obeys the
+  rules of playing it). With no legal enemy the copy stays where it was. Then 1 damage to each enemy that has a copy,
+  hers or not. One shuffle.
+- **'Port and Punch:** 3 damage to an enemy, then 3 to each enemy with a copy attached: the first enemy takes two
+  instances if it has one. All of it is the attack's damage.
+- **Teleport Drop:** the cost discards a copy he controls from an enemy he may attack, and that enemy is the target: 8
+  damage and a stunned status card.
+- **Scout Ahead:** the second removal needs a second scheme and a copy in hand; it is part of the same thwart.
+- **'Port Away** (cost 0): an Action in any window, in either form. The change of form is an effect and does not use his
+  one change for the round (RRG p. 21); a player who cannot change form cannot play it.
+- **An upgrade on an enemy** is what §3.67's cards read: Take That!, Surprise Move, Glob and Shark-Girl count Bamf!,
+  Under Control and Wrapped in Metal.
+
+**Tests (exact numbers).** Nightcrawler THW 2, ATK 1, DEF 3, 9 hit points; a villain with ATK 2.
+
+1. He plays Bamf! on the villain for 0. In the villain phase the villain attacks him: the copy is discarded, he is the
+   defender and is not exhausted; the boost card has 2 icons: 4 less DEF 3 is 1 damage, 9 to 8.
+2. He thwarted on his turn and is exhausted: test 1 resolves the same way.
+3. Two players. The villain (a copy attached) attacks player 2, a hero: he uses Bamf!, takes the damage as in test 1,
+   and a fixture "Forced Response: After the villain attacks you, discard 1 card" resolves on the Nightcrawler player.
+4. A minion with 3 hit points and a copy attacks: Bamf!, then Tally Ho! (cost 1): the copy is in his hand, the minion is
+   defeated before its damage, the attack ends, he takes 0. With Astonishing X-Men in play, 1 threat is removed from it.
+5. The villain is stunned with a copy attached: the stunned card is discarded, no interrupt is offered, the copy stays.
+6. Kurt Wagner, a copy on a minion that attacks player 2: the interrupt is not offered (Hero Interrupt).
+7. _Rapid Teleportation_ with a copy in his discard pile: he discards a card, the copy is in hand; a second use that
+   phase is refused; in the villain phase it is offered again. With no copy in the discard pile: not offered. Prehensile
+   Tail is not offered as payment.
+8. Kurt Wagner's Action with all three copies out of his deck: nothing is added, the deck is shuffled, the round's use
+   is spent.
+9. Daytripper enters play, a copy in his discard pile, the villain already has one, a minion does not: the copy goes on
+   the minion and the villain and the minion each take 1. With Azazel the only enemy without a copy: nothing is
+   attached, and the villain takes 1.
+10. A second Bamf! is not playable on an enemy that has one (`whyNot`: max 1 per enemy).
+11. 'Port and Punch on a villain with a copy, a minion also with one: 6 to the villain, 3 to the minion. Teleport Drop
+    on that villain: the copy is discarded, 8 damage, stunned.
+12. Scout Ahead with 5 threat on the main scheme and 3 on a side scheme: 3 removed from one; a copy discarded from hand:
+    3 from the other. With one scheme in play the copy is not asked for.
+13. On his turn, after his one change to hero form, 'Port Away: he is Kurt Wagner and ready.
+
+**Composes with:** §3.39 (the moment `"bamf"`), §3.56, §3.67, §3.81; wave 4 §3.22.
+
+### 3.73 "Counts as 2 restricted cards" beside "1 additional upgrade that has the restricted keyword"
+
+> **Status: exists (verify).** `PlayerCard.restrictedWeight` is data (wave 7 §3.82; §4.1 Q52 there = B: the card "only
+> weighs on the limit: text that names restricted cards does not see it, and the cards discarded for the limit must
+> carry the keyword"); `restrictedLoadOf`, `restrictedStanding` and `checkRestricted` read it (`rules.ts`,
+> `resolve/enter-play.ts`), and the schema refuses the field beside the keyword.
+> `RuleSpec restrictedLimit { amount, cards? }` raises the limit, with `cards` only for as many held keyword cards
+> as match (wave 3 §3.22; Side Holster). Not run: the two on one table; a weighted card that has not been emitted with
+> its weight.
+
+**Cards.** Kurt's Cutlasses 48004 ("Counts as 2 restricted cards. Nightcrawler gets +1 ATK, +1 DEF, and gains retaliate
+1."); Prehensile Tail 48005 ("You can control 1 additional upgrade that has the restricted keyword. Resource: Exhaust
+Prehensile Tail → generate a [wild] resource for an event.").
+
+**Rules.** RRG 1.8 "Restricted" (p. 38: "if a player ever controls more than two restricted cards in play, they must
+immediately choose and discard from play restricted cards they control until they have only two in play"); "Retaliate X"
+(p. 38).
+
+**The decision on Kurt's Cutlasses (the data survey's regen drift).** **The card is emitted with `restrictedWeight: 2`
+and one constant ability id**, as Laser Swords 44055 is: the sentence is data, so it holds without the card's script,
+and the script is the stat line alone. Today's emitted record has neither the field nor the right ids
+(`[48004.kurts-cutlasses-constant, 48004.kurts-cutlasses-constant-2]`), so **in the current data the Cutlasses weigh
+nothing**. The data agent regenerates this one card and reviews the diff by hand (§5.5). It is not a restricted card: it
+has no keyword, and under wave 7's Q52 = B it is never the card discarded for the limit.
+
+**As read.**
+
+- **The Cutlasses alone fill the limit** (load 2 of 2). A restricted upgrade played beside them makes 3: the player
+  discards a card with the keyword, which can only be the one just played. So without the Tail he controls no restricted
+  card while the Cutlasses are in play.
+- **The Tail** is `restrictedLimit(1, { cards: <an upgrade with the restricted keyword> })`, the form Side
+  Holster has: room for one more card, and only a keyword upgrade fills it. The Cutlasses cannot use that room; they sit
+  in the base two. With both in play he holds the Cutlasses and **one** restricted upgrade (load 3 of 3).
+- **The Tail leaves play** with the Cutlasses and a restricted upgrade in play: load 3 of 2, and the restricted upgrade
+  is discarded (the between-frames check, wave 7).
+- **Venom's identity prints the Tail's sentence** and is scripted as the plain form (`restrictedLimit(1)`, `vnm`
+  20001a/b). All 35 restricted cards of the pool are upgrades, so no table can tell the two forms apart today; the Tail
+  takes the printed form and Venom's script is left alone. Reported, not a question.
+- **"For an event"**: the Tail's [wild] pays for an event card only (`generatesFor`), not for _Rapid Teleportation_, an
+  ally or an upgrade. It is a Resource with no form, so it works in alter-ego form too.
+- The Cutlasses' bonuses are on the hero titled Nightcrawler: no ATK, DEF or retaliate as Kurt Wagner.
+
+**Tests (exact numbers).**
+
+1. After the regeneration: `restrictedWeightOf` the Cutlasses is 2 and `restrictedCardsOf` the player does not list
+   them.
+2. The Cutlasses in play (ATK 2, DEF 4, retaliate 1): he plays Plasma Pistol (`vnm` 20022, restricted): he must discard
+   one restricted card and the Pistol is the only choice.
+3. The Cutlasses and the Tail in play: Plasma Pistol stays (3 of 3). A second restricted upgrade: one of the two keyword
+   upgrades is discarded, his choice; the Cutlasses are not offered.
+4. Test 3's first state, then a fixture discards the Tail: Plasma Pistol is discarded.
+5. The Tail with no Cutlasses: three restricted upgrades stay.
+6. The Tail's resource: offered while paying for Tally Ho!, not for Bamf!, Daytripper or _Rapid Teleportation_.
+7. A minion attacks him with the Cutlasses in play: it takes 1 after the attack. As Kurt Wagner, schemed against:
+   nothing.
+
+**Composes with:** wave 3 §3.22, wave 7 §3.82.
+
+### 3.74 An encounter card tucked under an ally; X read from its boost icons; another character's base stats
+
+> **Status: exists (verify).** `EffectSpec lookAt` (RRG p. 27; Jessica Drew), `tuckCards { cards, under }` and the
+> `tucked` zone (discarded when the host leaves play), `ValueSpec boostIconsOn`, a printed `"X"` stat read as a base of
+> 0 (`query.ts`) with `StatModifierSpec.setBase` to define it and `ValueSpec stat { base }` to read it (wave 7
+> §3.25, built for ruling January 17, 2026 – Ruling 1), a damage cost on another card, a lasting trait grant and a
+> lasting stat modifier. Not run: an **encounter** card tucked under a **player** card from a look at the top of the
+> encounter deck; a base defined by a tucked card's boost icons; a base read from a card whose value is X; the
+> Protection ally Rogue, which the ruling names and no script has used.
+
+**Cards.** Gambit 48021 ("X is the number of boost icons ([boost]) on the card under Gambit. Response: After Gambit
+enters play, look at the top 3 cards of the encounter deck and tuck one under him so that only the boost field is
+visible."); Rogue 48012, erratum RRG p. 69 ("Action: Deal 1 damage to another friendly character → until the end of the
+round, Rogue gains each of that character's Traits and adds that character's base THW and ATK to her matching powers.
+(Limit once per round.)").
+
+**Rules.** RRG 1.8 "Tuck" (p. 45); "Look, Looked-At" (p. 27); "Boost, Boost Icon" (p. 11); "Amplify Icon" (p. 7: the
+extra icon is added "When a boost card is turned faceup during an enemy activation"); "Non-Numerical Variable" (p. 30);
+"Star Icon" (pp. 40–41); "Base Value" (p. 10: "A defined value before modifiers are applied"); "Cost" (p. 14: a cost
+that targets a "friendly" card may take one the player does not control; a cost of dealing damage is paid even if the
+damage is prevented); "Lasting Effects" (p. 26); "Leaves Play" (p. 27); "Target" (p. 43: a character with a THW or ATK
+of 0 can still use the power). Rulings January 17, 2026 – Ruling 1 (1); February 28, 2026 – Ruling 7 (1). The
+Nightcrawler insert, "Tuck" (§0.5).
+
+**As read: Gambit.**
+
+- **The look** is the top three cards of the encounter deck, or what it holds; only his controller sees them, and the
+  two not chosen go back on top in the same order (RRG p. 27). One must be tucked: the Response is optional, its tuck is
+  not.
+- **The tucked card** is faceup under him and out of play: it is not attached, nothing on it is active, it is no boost
+  card, and a unique card there blocks nothing (ruling February 28, 2026). It is open information; the client shows its
+  boost field first, as the card asks. When Gambit leaves play it goes to the encounter discard pile.
+- **X** is the printed boost icons of that card: a star is not an icon (RRG p. 11), and an amplify icon in play adds
+  none, because the card is never turned faceup as a boost card. X is both THW and ATK, defined as their **base**
+  (`setBase`), so other modifiers add to it and Rogue reads it.
+- **No card under him** (the Response declined, or his text box blank): X is 0 (RRG p. 30). He can still attack or
+  thwart for 0 and takes his 1 consequential damage.
+- **At the mission** (§3.34) his text box is blank: nothing is tucked and he adds 0 and 0 to an attempt.
+
+**As read: Rogue.**
+
+- **The cost** is 1 damage dealt to another friendly character, any player's, an identity included. Dealt is enough: a
+  tough status card on the target is discarded and the cost is paid.
+- **"Base THW and ATK"** is the character's value before modifiers: a hero's printed number (Nightcrawler with Kurt's
+  Cutlasses gives ATK 1, not 2); a star or an X as its own text defines it (the ruling; Gambit's X; Hope Summers's
+  stars). An alter-ego has neither power and gives 0 and 0; a dash gives 0 (RRG p. 15).
+- **Traits** are the character's traits, printed and gained.
+- **Until the end of the round** it is a lasting effect and is read from that character as the game changes (RRG p. 26).
+  If the character leaves play, or the cost's own damage defeats it, there is nothing to read; whether Rogue keeps what
+  she copied is §4.2 Q43 (default A: no).
+- Once per round, on her own card; she need not be ready.
+
+**Tests (exact numbers).**
+
+1. Gambit enters play; the top three encounter cards print 0, 2 and 3 boost icons, the third with a star: he tucks the
+   third: THW 3, ATK 3. The other two are the top two cards, in their order.
+2. An amplify icon is in play: still 3 and 3.
+3. He tucks a card with a star and no icon: THW 0; he thwarts, removes 0 and takes 1 consequential damage.
+4. The tucked card is a unique minion: a second copy of that minion revealed from the encounter deck enters play.
+5. Gambit is defeated: the tucked card is on top of the encounter discard pile.
+6. Rogue (THW 2, ATK 2) deals 1 damage to test 1's Gambit: he has 2 hit points left; she has THW 5, ATK 5 and the THIEF
+   trait until the end of the round.
+7. Rogue deals 1 damage to Nightcrawler with Kurt's Cutlasses in play: THW 4, ATK 3.
+8. Her target has a tough status card: the card is discarded, no damage, and she copies.
+9. Q43 = A: her target is an ally with 1 hit point left: it is defeated and she gains nothing. Q43 = B: she has its
+   traits and base powers until the end of the round.
+10. Next round the bonus is gone and the Action is offered again.
+
+**Composes with:** wave 7 §3.25; §3.80 (the hero Gambit and the hero Rogue).
+
+### 3.75 A minion in play dealt to a player as a facedown encounter card, and passed to the next player
+
+> **Status: extend.** `EffectSpec dealAsEncounterCard { cards, player }` deals a card that is **out of play** (You
+> Dare Oppose Me?, wave 3 §3.47; Dreadpool; Sauron Lives!) and one that is defeated and waiting to leave; for any other
+> card in play it does nothing, and its comment says why: "A card in play is not dealt: no printed card deals one"
+> (`resolve/cards.ts`, `dealAsEncounterCards`). A boost card that deals itself is Ironheart's nemesis
+> (`boost(dealAsEncounterCard(self))`, `ironheart` 29031). No effect moves a facedown encounter card from one player's
+> queue to another's. Searched `spec.ts` and the DSL for "pass", "nextPlayer" and a dealt-card move: none.
+
+**Cards.** The Crazy Gang 48033 ("Forced Response: After a non-[ELITE] minion schemes against a player, deal that minion
+to that player as a facedown encounter card. Then, if there is more than 1 player in the game, pass that facedown
+encounter card to the next player."); Brimstone Dimension 48028 ("When Defeated: The player who defeated this scheme
+finds Azazel and deals him to themself as a facedown encounter card": a find reaches a card in play, §3.1). Composes
+with Azazel 48027's Boost, which needs nothing new.
+
+**Rules.** RRG 1.8 "Deal, Deal an Encounter Card" (p. 15: a card dealt "during step three or four of the villain phase …
+is added to the queue of cards that are being dealt and revealed in those same steps"); "Leaves Play" (p. 27); "In Play
+and Out of Play" (p. 23: "facedown encounter cards dealt to a player are out of play"); "In Player Order" (p. 24: "next
+player"); "Scheme (Enemy Activation)" (p. 39); "Confuse, Confused" (p. 13: a confused minion "is not considered to have
+… schemed"); "'Then'" (p. 44); "Find" (p. 19); "Permanent" (p. 32).
+
+**Plan.**
+
+- **`dealAsEncounterCard` takes a card in play.** It leaves play facedown to the named player's dealt queue through the
+  ordinary leave (`leavePlay`): attachments and tucked cards are discarded (a permanent player upgrade is unattached and
+  then follows its own text, as Frostbite does, §3.61), boost cards on it are discarded, damage, counters and status
+  cards are gone (RRG p. 27). It is **not defeated**: no When Defeated, no victory display, no "after you defeat"
+  response. A card that cannot leave play is not dealt, and then the "Then" does not resolve.
+- **`EffectSpec passEncounterCard { cards, from: PlayerRef, to: PlayerRef }`**: a facedown dealt card moves from
+  one player's queue to another's, still facedown. "The next player" is the next player in player order who is still in
+  the game (`PlayerRef` `nextAfter(player)`; with one player the effect is not reached).
+- **When it is revealed.** The card is revealed with its holder's other facedown cards in step four of the same villain
+  phase when it was dealt in steps one to four (a minion schemes in step two), or in the next villain phase otherwise.
+  Revealed, the minion enters play engaged with that player as a new copy: When Revealed, quickstrike and toughness
+  resolve again.
+
+**As read: The Crazy Gang.**
+
+- **Any non-ELITE minion**, of any set, whose scheme activation resolved against a player: step two's against an
+  alter-ego, or one a card made ("He schemes"). A scheme for 0 is a scheme (the set's four minions print SCH 0). A
+  confused minion, a minion under Wrapped in Metal and a canceled activation did not scheme (§4.1 Q4's reading).
+- **"That player"** is the player schemed against; with two or more players the card ends in front of the next player,
+  who reveals it.
+- The Forced Response resolves after the scheme's threat is placed and after the minion's own "after … schemes"
+  abilities, in the order the first player sets.
+- ELITE is read when the response resolves, gained traits included.
+
+**As read: Brimstone Dimension.** The defeating player finds Azazel wherever a find reaches (in play, set aside, a
+discard pile, the encounter deck; never a facedown dealt card, a boost card or the victory display, §3.1). In play, he
+leaves it with whatever he carried and loses his damage. Found nowhere, nothing is dealt. The scheme's hazard icon
+(§0.5) is data.
+
+**Tests (exact numbers).**
+
+1. Solo, The Crazy Gang in play (2 threat). Kurt Wagner is engaged with Jester (SCH 0, 2 damage on him, an Under Control
+   attached). Step two: Jester schemes for 0; he is dealt to the player facedown, Under Control is in its owner's
+   discard pile, and the main scheme gained nothing from him. Step four: the player reveals his own dealt card and then
+   Jester, who enters play with 5 hit points and confuses him.
+2. Two players, player 1 in alter-ego form with Executioner: after the scheme the card is in front of player 2, who
+   reveals it in step four: Executioner is engaged with player 2 and attacks the friendly character with the fewest
+   remaining hit points.
+3. The minion is confused: the confused card is discarded, no scheme, it stays in play.
+4. An ELITE minion (Azazel, SCH 2) schemes: 2 threat, it stays in play.
+5. A minion with a Frostbite attached schemes with The Crazy Gang in play: the copy is unattached, set aside by its own
+   Forced Response, and the minion is dealt.
+6. Brimstone Dimension (5 threat) is defeated by player 1 while Azazel, with 2 damage, is engaged with player 2: Azazel
+   is facedown in front of player 1 and is revealed in the next villain phase with 3 hit points; in hero form he then
+   attacks (quickstrike).
+7. Azazel is in the victory display by a fixture: nothing is dealt.
+8. No `characterDefeated` is logged in tests 1, 2 and 6.
+
+**Composes with:** §3.1, §3.61; wave 3 §3.47.
+
+### 3.76 An upgrade that stops a minion activating and blanks it; a minion discarded from play by a player
+
+> **Status: exists (verify).** `RuleSpec cannotActivate { target, while? }` ("the matching enemy's attack or scheme
+> activation does not begin, wherever it would": the villain phase's, an effect's, quickstrike, teamwork; no boost card;
+> logged `activationBlocked`), `RuleSpec blankTextBox` over a class of cards with traits kept (§3.34; Tech Theft;
+> Inhibitor Collar), `attachesTo` a non-ELITE minion and `form: "hero"` (data, as emitted), `discard` of a card in play
+> that is not a defeat. Not run: both rules on one host from a **player** upgrade; printed keywords of a blanked minion;
+> a minion discarded by a player's event with the upgrade on it.
+
+**Cards.** Wrapped in Metal 49007 ×2 ("Hero form only. Attach to a non-[ELITE] minion. Attached minion cannot activate.
+Treat its printed text box as if it were blank."); Magnetic Missile 49010 ×2, erratum RRG p. 69 ("Hero Action: Discard a
+minion with Wrapped in Metal attached. Then, deal 5 damage to an enemy and stun it.").
+
+**Rules.** RRG 1.8 "Text Box" (p. 44); "Traits" (p. 45); "'Cannot'" (p. 11); "Activation" (p. 6); "'Then'" (p. 44);
+"Cost" (p. 14: a cost is paid with cards the player controls, which is what the erratum's "Then" repairs; ruling March
+6, 2026 – Ruling 3 (1) is the same change on another card); "Defeat" (p. 15) and "Discard" (p. 16); "Leaves Play" (p.
+27); "Guard" (p. 21), "Patrol" (p. 32), "Quickstrike" (p. 36), "Villainous" (p. 47). The Magneto insert's strategy box.
+
+**As read.**
+
+- **Blank:** the minion's printed abilities, its printed keywords and the icons in its text box (RRG p. 44) are off: no
+  guard, patrol, quickstrike, retaliate or villainous, no "When Defeated", no Forced Response. Its traits, its SCH, ATK
+  and hit points, its boost icons and anything attached to it are not text box and stay. A tough status card it already
+  has stays.
+- **Cannot activate:** it neither attacks nor schemes, in step two or by a card. "Each minion activates … If no minion
+  activates this way" (Angry Acolyte, "Off with His Head!") counts it as not activating. It stays engaged and can be
+  attacked.
+- **Not a legal host:** an ELITE minion (Azazel, Exodus), a minion in the mission area (§3.33). A minion that gains
+  ELITE later keeps the upgrade.
+- **Magnetic Missile** as errata: the discard is the first effect, not a cost, and the damage waits on it ("Then"). With
+  no wrapped minion in play the event cannot be played: nothing it says could happen. The minion is **discarded, not
+  defeated**: nothing answers a defeat, a Victory minion goes to the encounter discard pile, and Wrapped in Metal goes
+  to its owner's discard pile. Any player's wrapped minion will do. Then 5 damage to an enemy and a stunned status card;
+  no label, so it is not an attack (guard does not stop it, retaliate does not answer).
+- **The Crazy Gang** (§3.75) never deals a wrapped minion: it does not scheme.
+
+**Tests (exact numbers).**
+
+1. Wrapped in Metal (cost 2) on Hellfire Pawn (guard, patrol): Magneto attacks the villain and thwarts the main scheme.
+   In the villain phase the Pawn does not activate (`activationBlocked`).
+2. On Fabian Cortez (guard, When Defeated: discard 4): defeated by an attack, no cards are discarded from the defeating
+   player's deck.
+3. Frenzy revealed (quickstrike) attacks; wrapped afterwards, she is found and revealed by a fixture: no quickstrike
+   attack.
+4. Exodus and Azazel are not offered as hosts. Erik Lehnsherr cannot play it.
+5. Magnetic Missile (cost 1) with a wrapped Pawn at full health and a villain at 12 of 14: the Pawn and the upgrade are
+   discarded, no `characterDefeated`, the villain is at 7 and stunned.
+6. No wrapped minion in play: the Missile is not offered (`whyNot`).
+7. Angry Acolyte revealed with a wrapped Frenzy the only ACOLYTE minion engaged: no activation, so encounter cards are
+   discarded until an ACOLYTE minion, which is revealed.
+
+**Composes with:** §3.34's blank, §3.67, §3.75.
+
+### 3.77 An attachment chosen by the label of an ability it prints ("Hero Action", "Hero Response")
+
+> **Status: new.** A `TargetQuery` can read a card's type, traits, name, keywords, attachments and stats; none reads
+> what kind of ability a card prints. Searched `select.ts`, `spec.ts` and the DSL for an ability-label or text test on a
+> target: none (`hasBoostAbility` is the one reader of a card's ability list, for boost cards).
+
+**Cards.** Electromagnetic Blast 49008 ×2 ("Hero Action (thwart): Remove 3 threat from a scheme. If this removes the
+last threat from that scheme, you may discard an attachment with the text **'Hero Action'** or **'Hero Response.'**").
+What it can take in this wave: Azazel's Sword 48029 (Hero Response), Golden Horse 45090 and Metal Wings 45091, Prelate
+Sidearm 45063 and Prelate Armor 45064, High-Tech Goggles 45122 and Genetic Enhancement 45123. Across the raw pool 118 of
+311 attachments print one of the two labels, and 24 print only another player label.
+
+**Rules.** RRG 1.8 "Attachment" (p. 8: an encounter card type; "Only the player who controls the card to which that
+attachment is attached can trigger abilities … on that attachment"); "Text Box" (p. 44) and "Printed" (p. 35); "Ability"
+(pp. 4–5: the bold label names the ability's type and form); "Permanent" (p. 32); "Thwart" (p. 44).
+
+**Plan.** **`TargetQuery.printsAbility { kinds: ("action" | "response")[]; form: "hero" }`**: true for a card
+whose own printed ability list (`printedAbilityRefs`, read through the registry) has a triggered ability of one of those
+kinds limited to that form. It reads what is printed, so a blank text box does not hide it and a granted ability does
+not add to it. The engine names no card; a later card that says "with the text 'Alter-Ego Action'" passes other values.
+
+**As read.**
+
+- **The two labels only.** "Hero Interrupt" (Bandolier of Stakes), a plain "Action" or "Response" with no form (Wrapped
+  in Metal of _Mutant Genesis_, Telepathic Restraint) and "Alter-Ego Action" do not match. A **Forced** Response is
+  another label and does not match.
+- **An attachment** is the encounter card type: a player upgrade on an enemy is not one. It may be attached to anything,
+  the villain, a minion, an identity, a scheme.
+- **"If this removes the last threat"**: the thwart's removal left that scheme with none, whether it removed 3 or fewer.
+  The discard is optional, is not a defeat, and cannot take a permanent attachment.
+- With the scheme defeated its When Defeated resolves in the usual order; the discard is the event's own next effect.
+
+**Tests (exact numbers).**
+
+1. A side scheme with 3 threat, Azazel's Sword on the villain: Electromagnetic Blast (cost 2) removes 3, the scheme is
+   defeated, he discards the Sword.
+2. The scheme had 4: 1 left, no discard offered. It had 2: 2 removed, the discard is offered.
+3. The only attachment in play is _Mutant Genesis_' Wrapped in Metal on a hero ("Action"): nothing is offered.
+4. A fixture attachment with "Hero Interrupt" and one with "Forced Response": neither is offered.
+5. Sauron's Life Drain (no player ability) and a Frostbite (an upgrade) on a minion: neither is offered.
+6. He is confused: the confused card is discarded, no threat is removed, nothing is discarded, the event is spent.
+
+### 3.78 Linked allies taken into hand from the set-aside area; allies outside the ally limit by a trait
+
+> **Status: exists (verify).** Setup sets aside every linked card under the title a deck holds, with no owner
+> (`setup.ts`, `linkedCardsByTitle`, `linkedCardsSetAside`; wave 7 §3.75, landed for X-23's Specialists), `validateDeck`
+> refuses a linked card (`linked_card`), an ownerless set-aside player card put into play takes its controller as owner
+> (`apply-effect.ts`), player side schemes and their limit are wave 7 §3.1–§3.2, and
+> `excludedFromAllyLimit { target, while }` is Stinger's and Longshot's. Checked against wave 7's linked rule as
+> pass 2b asked: the rule is the same, the card that brings them in differs. Not run: a linked card **added to a hand**
+> rather than put into play, and owned from then on; linked cards that are unique allies; two decks that both hold the
+> scheme; an ally-limit exclusion that depends on the identity's trait and can lapse on a flip.
+
+**Cards.** New Recruits 49020 ("Victory 0. Play only if your identity has the [X-MEN] trait. When Defeated: Each player
+chooses 1 set-aside [NEW] ally and adds it to their hand."); Surge 49033, Anole 49034, Bling! 49035, Indra 49036
+("Linked (New Recruits). If you have the [MUTANT] or [X-MEN] trait, [name] gets +1 ATK / gets +1 THW / gains toughness /
+gets +2 hit points and does not count against your ally limit."); Children of the Atom 49037.
+
+**Rules.** RRG 1.8 "Linked (Card Title)" (p. 27: "The number of linked cards set aside during setup is equal to the
+number of those cards included in the product"; "set aside the appropriate number of cards for each deck that contains
+the named card"; "When a player takes control of a card with the linked keyword, that player becomes the owner of that
+card"); "Ownership and Control" (p. 31: "A player controls the cards in their own out-of-play areas (such as the hand
+…)"); "Player Side Scheme" and "Player Side Scheme Limit" (p. 34); "Ally Limit" (p. 7); "Toughness" (p. 45); "Unique
+Icon" (pp. 45–46); "Hit Points" (p. 22). Ruling August 3, 2026 – Ruling 4 (3). The Magneto insert, "Linked" (§0.5).
+
+**As read.**
+
+- **Setup.** A deck that holds New Recruits sets aside one each of the four allies (the pack holds one of each); two
+  such decks set aside two of each. They are in no deck, count toward no deck size and belong to nobody.
+- **New Recruits** is checked against wave 7 §3.1, §3.2 and this file's §3.66 and needs nothing new: cost 0, played on
+  its owner's turn by a player whose identity has the X-MEN trait as it stands (Magneto, not Erik Lehnsherr), 2 threat
+  per player who started, thwarted like any side scheme by anyone, unique, Victory 0 to the victory display. One player
+  side scheme in play in a game of one or two players.
+- **When Defeated:** each player still in the game, in player order, chooses one set-aside NEW ally and takes it into
+  hand; that player is its owner from then on (RRG pp. 27, 31). A player with none left to choose gets none. It is not
+  optional.
+- **In hand it is an ordinary ally:** cost 2, an [energy] resource, discarded to its owner's discard pile and shuffled
+  into that player's deck at the next reset. The unique rule applies in play: a second Surge from a second set cannot
+  enter play beside the first.
+- **"If you have the [MUTANT] or [X-MEN] trait"** reads the controller's identity as it stands, gained traits included
+  (Children of the Atom gives X-MEN to an X-FORCE or X-FACTOR identity). While true the ally has its bonus and is left
+  out of the ally limit; when it stops being true (a flip to a face with neither trait) the bonus goes and the limit is
+  checked at once: Indra with 3 damage is defeated, and a player with four allies discards one.
+- **Bling!** gets her tough status card on entering play only if the condition is true then (RRG p. 45); gaining the
+  keyword later gives none.
+- **Children of the Atom:** each character its controller controls that has one of the three traits has all three, the
+  identity included. It is what lets an X-FORCE hero play New Recruits and White Queen, and one character pay toward
+  both halves of an alliance cost (§4.2 Q40).
+
+**Tests (exact numbers).**
+
+1. Setup with Magneto's starter deck: the four NEW allies are set aside with no owner, `linkedCardsSetAside` is logged,
+   his deck is 40. A deck that lists 49033 is illegal (`linked_card`). A deck without New Recruits sets none aside.
+2. Solo. He plays New Recruits for 0: 2 threat. His basic thwart removes 2: the scheme is in the victory display and he
+   takes Surge into his hand; `ownerOf` Surge is his player. He plays her for 2: ATK 3. With three other allies in play
+   she stays: four allies.
+3. Erik Lehnsherr with New Recruits in hand: not playable (`whyNot`: the X-MEN trait).
+4. Two players, Magneto and a hero with neither trait: 4 threat; defeated, each takes one. The second player's Anole has
+   THW 2 and counts against their limit.
+5. Two decks hold New Recruits: eight set aside. Player 1 has Surge in play: player 2's Surge is not playable (unique).
+6. Bling! played by Magneto: a tough status card. Played by test 4's second player: none.
+7. A fixture removes the trait from the controller's identity while Indra has 3 damage and three other allies are in
+   play: Indra is defeated.
+8. New Recruits is in play and a second player side scheme is put into play in a two-player game: the first player
+   discards one of the two, and a discarded New Recruits gives no ally.
+
+**Composes with:** wave 7 §3.1, §3.2, §3.75; §3.66.
+
+### 3.79 A boost card given to a minion outside its activation; a treachery that becomes one
+
+> **Status: exists (verify).** `giveBoostCard { enemy, count?, card? }` gives an enemy a facedown boost card
+> outside its activation, from the encounter deck (Hired Gun) or one named card (Master of Magnetism, wave 6 §3.16: it
+> "resolves in the activation that follows … before and in addition to the automatic one"); a waiting boost card is
+> discarded when its holder leaves play; `cannotAttack { target, attacker?, while? }` is a rule and a rule can be
+> granted for a duration (`ruleGrant`); "after this activation, it activates again with no boost card" is §3.12. Not
+> run: a facedown boost card on a **minion** that then gets its villainous card as well; `giveBoostCard` with the
+> treachery that is being revealed as the card; a granted "cannot be attacked" that ends with the phase.
+
+**Cards.** Sebastian Shaw 49038 ("Toughness. Villainous. Forced Response: After Sebastian Shaw is attacked, give him a
+facedown boost card. He cannot be attacked again this phase."); Power and Decadence 49042 ("When Revealed: Give the
+villain a tough status card. Give this card to that villain as a facedown boost card." / "[star] Boost: After this
+activation, the activating enemy activates against you again. Do not give it a boost card for that activation."); Selene
+49039 ("Allies cannot attack Selene.").
+
+**Rules.** RRG 1.8 "Boost, Boost Icon" (p. 11); "Villainous" (p. 47); "Attack (Enemy Activation)" (p. 9, step 6: "after
+[character] is attacked" is a forced trigger of the attack's end); "Attack (Player Ability Type)" (p. 10); "Target" (p.
+43: "A target that cannot be attacked is not a valid target for an attack-labeled ability"); "Toughness" (p. 45);
+"Leaves Play" (p. 27); "Activation" (p. 6: an activation begun during another "resolves after the current activation has
+finished").
+
+**As read.**
+
+- **Shaw is attacked** by a basic attack or an attack-labeled ability of any player's card, whether or not it dealt
+  damage (his tough status card takes the first one). He must be in play after the attack. The boost card comes off the
+  encounter deck facedown and waits on him (RRG p. 11).
+- **"Cannot be attacked again this phase":** from then to the end of the phase he is no legal target of an attack;
+  damage that is not an attack still reaches him. An attack that hits several enemies skips him.
+- **When he activates** he has the waiting card or cards and the villainous one: all are turned up in the order dealt
+  and add up. If he leaves play first they go to the encounter discard pile.
+- **Selene** cannot be the target of an ally's attack, basic or labeled; a hero's attack and damage from an ally's
+  non-attack ability are unaffected.
+- **Power and Decadence, revealed:** the villain (with several, the one the engine's rule for "the villain" gives, §3.7)
+  gets a tough status card where it can have one, and the treachery itself goes facedown onto that villain instead of to
+  the discard pile. It resolves with that villain's next activation, before the automatic boost card: no icons, and its
+  Boost.
+- **Its Boost,** from any activation it is turned up in: when that activation has finished, the same enemy activates
+  against the same player again, an attack or a scheme by that player's form then, with no boost card dealt for it. A
+  boost card already waiting on the enemy still resolves.
+
+**Tests (exact numbers).** Sebastian Shaw SCH 1, ATK 2, 5 hit points, a tough status card on entering play.
+
+1. A hero attacks him for 3: the tough card is discarded, he takes 0 and has one facedown boost card. An ally's basic
+   attack on him and Metal Shards are refused (`whyNot`). A fixture "deal 2 damage to a minion": 5 to 3.
+2. Next player phase he is attacked for 3 (3 to 0): defeated, no boost card is dealt and none is left behind.
+3. Test 1, then the villain phase: he attacks with two boost cards of 1 and 2 icons: 5 damage.
+4. A hero attacks him, another player's hero in the same phase: refused. In the villain phase a Riposte's 3 damage (not
+   an attack) reaches him.
+5. An ally's attack on Selene is not offered; the hero's is.
+6. Power and Decadence revealed: the villain has a tough status card and one facedown boost card; the encounter discard
+   pile does not hold the treachery. The villain's next attack (ATK 2) turns it up first (0 icons), then the automatic
+   card (2 icons): 4 damage. After it the villain attacks that player again with no boost card: 2 damage. The treachery
+   is then in the discard pile.
+7. The player flipped to alter-ego form in between by a fixture: the second activation is a scheme.
+8. Power and Decadence turned up as Selene's villainous boost card: Selene activates again with no boost card.
+
+**Composes with:** §3.12; wave 6 §3.16.
+
+### 3.80 Across packs: the unique rule; a hero, a villain and their cards under one title
+
+> **Status: exists (verify).** §3.58's rule and its deck half, §3.68's seat checks, the unique rule for a revealed
+> encounter card (`unique.ts`), and the _Mutant Genesis_ Magneto scenario, whose script names its villain by type
+> (`query("villain", { name: "Magneto" })`) and whose attachments' host is data (`attachesTo: villain`). Not run:
+> any of them with these packs' cards; a hero in play against the villain of the same title.
+
+**Cards.** The identities 48001a/b and 49001a/b; Rogue 48012; Gambit 48021; Phoenix 49014; Cyclops 49015; White Queen
+49021; Magneto's Helmet 49003 and Magneto's Armor 49004; Exodus 49028; Fabian Cortez 49030; Jester 48035.
+
+**Rules.** RRG 1.8 "Unique Icon" (pp. 45–46: two unique cards match if they "share a title, and both have no subtitle
+and no alter-ego title", or if "the subtitle or alter-ego title of one matches the title, subtitle, or alter-ego title
+of the other"; "The players may choose a scenario even if one or more villains match one or more chosen identities"; a
+matching non-villain encounter card "is discarded … the player revealing it is dealt a facedown encounter card");
+"Subtitle" (p. 41); Appendix I (p. 50). Rulings January 26, 2026 – Ruling 4 (7); March 19, 2026 – Ruling 4.
+
+**The matches** (every raw pack searched by script for these titles and subtitles; subtitles and title bars read on the
+scans, §0.5):
+
+| Card of this pass                                        | Matches                                                                                                  | By                        |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Nightcrawler / Kurt Wagner 48001a/b                      | the ally Nightcrawler, subtitle Kurt Wagner (`mut_gen` 32011, Protection)                                | alter-ego title           |
+| Rogue 48012, subtitle Anna Marie                         | the hero Rogue / Anna Marie (`rogue` 38001a/b); the ally Rogue (`gambit` 37002, Gambit's own)            | alter-ego title; subtitle |
+| Gambit 48021, subtitle Remy LeBeau                       | the hero Gambit / Remy LeBeau (`gambit` 37001a/b); the ally Gambit (`rogue` 38003, Rogue's own)          | alter-ego title; subtitle |
+| Magneto / Erik Lehnsherr 49001a/b                        | the campaign ally Magneto, subtitle Erik Lehnsherr (`mut_gen` 32172b)                                    | alter-ego title           |
+| Phoenix 49014, subtitle Jean Grey                        | the hero Phoenix / Jean Grey (`phoenix` 34001a/b); the ally Phoenix (`cyclops` 33002, Cyclops's own)     | alter-ego title; subtitle |
+| Cyclops 49015, subtitle Scott Summers                    | the hero Cyclops / Scott Summers (`cyclops` 33001a/b); the ally Cyclops (`phoenix` 34003, Phoenix's own) | alter-ego title; subtitle |
+| Magneto's Helmet 49003, Magneto's Armor 49004 (upgrades) | the attachments of those titles (`mut_gen` 32147, 32148), unique, no subtitle                            | title, no subtitle        |
+| Exodus 49028 (minion)                                    | the minion Exodus (`gambit` 37032, the Exodus modular set)                                               | title, no subtitle        |
+| Fabian Cortez 49030 (minion)                             | the minion Fabian Cortez (`mut_gen` 32159, Acolytes)                                                     | title, no subtitle        |
+| Jester 48035 (minion)                                    | the minion Jester (`synthezoid` 57027, a later wave)                                                     | title, no subtitle        |
+
+**What does not match**, by the same two sentences: the hero Magneto and the **villain** Magneto (`mut_gen` 32138–32140:
+one has an alter-ego title, so the first sentence fails, and "Erik Lehnsherr" is not "Magneto"); the ally White Queen,
+subtitle Emma Frost, and the minion White Queen (`mut_gen` 32056, no subtitle). Asteroid M the support is unique and the
+main scheme of that title is not. Hellfire Pawn, Wrapped in Metal and Master of Magnetism share titles with _Mutant
+Genesis_ cards and none is unique. Daytripper, Northstar, M, Kid Omega, the four NEW allies, Sebastian Shaw, Selene,
+Azazel and the other Crazy Gang minions match nothing in the pool.
+
+**What it means.**
+
+- **In a deck.** A Nightcrawler deck cannot include 32011. A Rogue deck and a Gambit deck (whose set holds 37002) cannot
+  include 48012; a Gambit deck and a Rogue deck (whose set holds 38003) cannot include 48021. A Phoenix deck and a
+  Cyclops deck cannot include 49014 or 49015. Nightcrawler's and Magneto's starter decks hold these allies and are
+  legal.
+- **In the game.** Beside a Rogue hero nobody can play 48012, and beside a Gambit hero nobody can play 48021, to a play
+  area or to the mission; with Gambit's ally Rogue 37002 in play 48012 cannot enter play, and the reverse. The same for
+  Phoenix and Cyclops. Each stays a resource. No card of these two packs is an identity-specific ally that matches
+  another seat's hero, so Appendix I's Team-Up replacement does not arise, and no Team-Up card names Nightcrawler or
+  Magneto.
+- **The hero Magneto against the villain Magneto** is a legal game (RRG p. 46), and the two never match. What can go
+  wrong is a name: the hero's kit says "Magneto gains steady", "Magneto gets +1 THW", "ready Magneto", and the scenario
+  says "Attach to Magneto", "Magneto cannot be confused", "give it to Magneto as a facedown boost card". **Each side's
+  "Magneto" is its own card:** the kit's is its controller's identity while it shows the hero face, and the scenario's
+  is the villain (its script already names the villain by type). A test pins both directions.
+- **His Helmet and Armor in that scenario** do match the villain's attachments. While the hero's Helmet is in play, the
+  attachment Magneto's Helmet cannot enter play: revealed, it is discarded and the player is dealt a facedown encounter
+  card; put into play by the scenario's setup or stage text, it is discarded and that is all. While the villain's is in
+  play, the hero's cannot be played, and _Magnetic Pull_ still takes it into hand.
+- **Exodus and Fabian Cortez.** With the Exodus modular set, or with the Acolytes set (the _Mutant Genesis_ Magneto
+  scenario recommends it), in the game beside the Magneto hero: whichever copy is in play keeps the other out, and "your
+  nemesis minion" (Face the Past) is 49028 only (`nemesisMinionOf`).
+- **The campaign ally Magneto** (`mut_gen` 32172b, the other face of Enemy of My Enemy 32172a: "Flip this card and put
+  Magneto into play under the first player's control") matches the hero: §4.2 Q45.
+- **The mission** (§3.34): a unique ally there blocks its matches like one in a play area.
+
+**Tests.**
+
+1. Deck validation: Nightcrawler with 32011 illegal; Rogue with 48012 illegal; Gambit with 48012 illegal and with 48021
+   illegal; Rogue with 48021 illegal; Cyclops with 49014 illegal and with 49015 illegal; Phoenix with 49015 illegal;
+   both starter decks legal.
+2. Player 1 is Rogue, player 2 Nightcrawler with 48012 in hand: no play is offered (`whyNot`: unique, matches Rogue /
+   Anna Marie); it pays 1 [physical].
+3. Gambit controls his ally Rogue 37002: another player's 48012 is not playable. She is defeated: it is.
+4. The Magneto hero against the _Mutant Genesis_ villain Magneto: setup is legal. The hero's Cape readies the hero and
+   not the villain; his Armor's +1 ATK is on the hero and the villain's ATK is unchanged. The attachment Magneto's Armor
+   is on the villain: the villain cannot be stunned and the hero can. Master of Magnetism (the treachery) gives its
+   boost card to the villain and the villain activates.
+5. Same game: the hero's Helmet is in play and the attachment Magneto's Helmet is revealed: discarded, one facedown
+   encounter card dealt to the revealing player, the villain can be confused. The attachment in play first: the hero's
+   Helmet is not playable and is still a [mental] resource.
+6. Magneto's nemesis set in the game with the Acolytes set: Fabian Cortez 32159 engaged with a player, 49030 revealed:
+   discarded, a facedown encounter card dealt.
+7. White Queen 49021 is played while the minion White Queen 32056 is in play: she enters play.
+8. Q45 = A, the Magneto hero in the scenario of Enemy of My Enemy: the scheme is defeated, the Future Past card is
+   shuffled in, no ally Magneto enters play.
+
+### 3.81 Reusable as is (pass 2c, checked against the engine unions)
+
+**Reprints** (raw `duplicate_of_code`; the wave's `reprints.ts` aliases them): Powerful Punch 48017 → 32014, The Power
+of Protection 48019 → 01079, Moira MacTaggert 48022 → 38018, Energy, Genius and Strength 48023–48025 and 49024–49026 →
+01088–01090, Deft Focus 49023 → 16024 (its erratum is a classification, already `basic` in the data). Hellfire Pawn
+49040 is `mut_gen` 32058 with a reminder text added and is not marked a duplicate: one script, registered under both
+ids.
+
+**Deck discards, checked against §3.48–§3.50, §3.52, §3.55 and §3.70 before any row was opened.** Exodus, Frenzy, Fabian
+Cortez and Martyr for Mutants discard from the top of a player's deck by a number: ordinary deck discards
+(`moveCards(topOfDeck(n), "discard")`), a short deck discards what it has and resets without discarding more (RRG p.
+33), Magik's faceup card goes first (§3.48), and none is a mission attempt's (§3.38). Only _Magnetic Pull_ needed a row
+(§3.71). Erik Lehnsherr's and Asteroid M's "top" and "topmost" of a discard pile are the pile's own order, newest first
+(`atMost(3, …)`, `topmostOnly`; RRG p. 16).
+
+**Named abilities, checked against §3.39:** _Magnetic Pull_ and Bamf! raise moments (§3.71, §3.72). **Payments, checked
+against §3.51 and §3.62:** no card of the two packs reads what a payment was made with; Kid Omega's and _Rapid
+Teleportation_'s resources are costs. **Permanent cards, checked against §3.61:** none. **Ally upgrades, checked against
+§3.59:** none (below).
+
+| Card text                                                                                                                                                                                                                     | Existing vocabulary                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Spend 1 resource of any type → return a copy of Bamf! from your discard pile to your hand. (Limit once per phase.)"                                                                                                          | a resource cost of 1 on an identity action; `moveCards` from the discard pile by name; a phase limit                                                                                                                                         |
+| "Search your deck for a copy of Bamf! and add it to your hand. (Limit once per round.)"                                                                                                                                       | `chooseCards` over the deck by name, `moveCards` to hand, a shuffle                                                                                                                                                                          |
+| "Kurt Wagner gets +1 REC" / "After you make a basic recovery, exhaust … and choose a player → that player draws 1 card"                                                                                                       | `gets("rec", 1)` on the identity titled Kurt Wagner; `on.basicRecovery`, `choosePlayer`, `draw`                                                                                                                                              |
+| "Nightcrawler gets +1 ATK, +1 DEF, and gains retaliate 1"                                                                                                                                                                     | `gets`, `gainsKeyword` on the identity titled Nightcrawler                                                                                                                                                                                   |
+| "Deal 1 damage to Northstar → cancel all boost icons ([boost]) on that card"                                                                                                                                                  | `on.boostCardTurnedFaceup` during an attack, a `damageThisCard` cost, `cancelBoostIcons` (Attacrobatics, Preemptive Strike)                                                                                                                  |
+| "Play under any player's control. Max 1 per player." / "After you defeat an enemy during the villain phase, exhaust this card → draw 2 cards"                                                                                 | data; `on.defeated({ byYou: true })` with a phase test                                                                                                                                                                                       |
+| "Attach to a minion. Max 1 per minion." / "After a hero defends against attached minion's attack and takes no damage, deal 4 damage to attached minion"                                                                       | data; `after.defends(query("hero"), { takingNoDamage: true })` narrowed to the host's attack (Unflappable; On the Run)                                                                                                                       |
+| "Discard cards from the encounter deck until you discard a minion. Put that minion into play engaged with you → heal 3 … tough" / "→ play an ally from your hand, reducing its cost by 3"                                     | `discardEncounterUntil`, `putIntoPlay` engaged (Looking for Trouble, reprinted as 46017); `heal`, `giveStatus`; `playFromHand` with `costReduction` (Team-Building Exercise)                                                                 |
+| "When your hero defends against an attack, it gets +2 DEF for that attack. If you take no damage from that attack, deal 3 damage to the attacking enemy"                                                                      | `on.defends(YOUR_IDENTITY)`, a stat modifier to `endOfAttack`, a delayed check of the attack's results (Desperate Defense)                                                                                                                   |
+| "After an [X-MEN] character defends against an enemy attack and takes no damage, remove 1 threat from this scheme" / "Stun and confuse each enemy in play"                                                                    | a response on the scheme, its controller's; `after.defends` by trait; `removeThreat(self)`; `forEach` enemy, two `giveStatus`                                                                                                                |
+| "You may flip to alter-ego form. Choose: Exhaust Kurt Wagner → remove … / Discard each [ATTACK] and [DEFENSE] event from your hand. Discard this obligation."                                                                 | the obligation frame of every hero; `moveCards` from hand by type and traits                                                                                                                                                                 |
+| "Quickstrike. Azazel cannot have upgrades attached." / "[star] Boost: Deal Azazel to the Kurt Wagner player as a facedown encounter card"                                                                                     | keyword; `cannotHaveAttachments` narrowed to upgrades (§3.67); `boost(dealAsEncounterCard(self, ownerOf(self)))` (`ironheart` 29031)                                                                                                         |
+| "Attach to Azazel. Otherwise, attach to the villain." / "[star] Attached enemy's attacks gain piercing." / "Hero Response: After attached enemy attacks you, discard 1 random card from your hand → discard this card"        | host data (`ifAble`, as emitted); `attacksGainKeywords`; a hero response with `discardRandomFromHand: 1`                                                                                                                                     |
+| "When Revealed (Alter-Ego): Find Azazel and reveal him. He schemes." / "When Revealed (Hero): Find Azazel and reveal him."                                                                                                    | `whenRevealedAlterEgo`, `whenRevealedHero`; §3.1; `enemyScheme`                                                                                                                                                                              |
+| "Alliance. Exhaust an [X-FORCE] character and an [X-MEN] character → defeat a non-[ELITE] minion"                                                                                                                             | the alliance keyword; `exhaustCards` with two picks (Serve and Protect, §3.70; Q40); `defeat`                                                                                                                                                |
+| "→ remove X threat from among schemes in play and deal X damage among enemies in play, where X is the combined THW of the two exhausted characters"                                                                           | `sum(statOf(…, "thw"), …)` over the cost's two slots; `divide("threat", …)`; `assignDamage` among enemies (Phoenix's and Valkyrie's events)                                                                                                  |
+| "Search the encounter deck and discard pile for The Crazy Gang side scheme and reveal it. If it is already in play, deal yourself a facedown encounter card."                                                                 | `searchAndReveal` by name with an in-play branch, `dealEncounterCard`                                                                                                                                                                        |
+| "You are confused. If you were already confused, discard a support you control." / "You are stunned. If you were already stunned, discard an upgrade you control."                                                            | `giveStatus` with the "already" branch (Arcade's Funhouse, §3.70), `chooseCards`                                                                                                                                                             |
+| "Executioner attacks the friendly character with the fewest remaining hit points. If this attack defeats an ally, remove that ally from the game."                                                                            | `enemyAttack(self, { targetCharacter: superlative("lowest", …, remainingHp) })` (Speed Demon; Juggernaut); the attack's `defeated` result; `removeFromGame`                                                                                  |
+| "Each minion activates against the player it is engaged with. If no minion activates this way, discard cards from the top of the encounter deck until a minion is discarded and reveal that minion." / the same for [ACOLYTE] | `forEach` engaged minion `enemyActivates`, a bound result (Battle for Limbo 45058), `discardEncounterUntil`, `revealCard`                                                                                                                    |
+| "After you change to this form, shuffle the top 3 cards of your discard pile into your deck"                                                                                                                                  | `on.playerChangesForm("alterEgo")`, `moveCards(atMost(3, discard pile), "deck")`, one shuffle                                                                                                                                                |
+| "Exhaust Asteroid M → shuffle the topmost [MAGNETIC] card in your discard pile into your deck and heal 1 damage from your identity"                                                                                           | `exhaustSelf`; a `zone` selector with `topmostOnly` and a trait filter; `heal`                                                                                                                                                               |
+| "Magneto gains steady." / "Resource: Exhaust … → generate a [wild] resource for a [MAGNETIC] card" / "Magneto gains the [AERIAL] trait"                                                                                       | `gainsKeyword`, `gainsTrait` on the identity titled Magneto; a resource ability with `generatesFor` (Power Belt, §3.70)                                                                                                                      |
+| "Magneto gains retaliate 1. Forced Interrupt: When you would take any amount of damage, place it here. Then, if there is at least 6 damage here, discard Magnetic Bubble."                                                    | §3.65's shape on an upgrade: `instead(placeDamage(eventAmount, self))`, `damagedAtLeast(self, 6)`                                                                                                                                            |
+| "Deal 7 damage to an enemy. If this attack defeats that enemy, gain a tough status card."                                                                                                                                     | `attack`, the attack's `defeated` result, `giveStatus`                                                                                                                                                                                       |
+| "After M enters play, defeat a minion with fewer remaining hit points than M"                                                                                                                                                 | `on.entersPlay(self)`, a target query on `remainingHp` below hers, `defeat`                                                                                                                                                                  |
+| "choose: Spend a [energy] resource → deal 1 damage to each enemy. / Spend a [mental] resource → remove 1 threat from each scheme."                                                                                            | `chooseOne` with options gated on `canPayResources`; `spendResources`; `forEach`                                                                                                                                                             |
+| "choose an [X-MEN] ally → ready that ally and heal 1 damage from it"                                                                                                                                                          | a chosen target as the cost, `ready`, `heal`                                                                                                                                                                                                 |
+| "choose an enemy. Until the end of the phase, increase the amount of damage that enemy takes from each attack by 1"                                                                                                           | a lasting grant of `increaseDamageTaken { fromAttack: true }` (Bell Tower, wave 5 §3.8); §4.2 Q46                                                                                                                                            |
+| "Play only if your identity has the [X-FORCE] or [X-MEN] trait. Max 1 per player." / "Alter-Ego Action: Discard this card → return an [X-FORCE] or [X-MEN] ally from your discard pile to your hand"                          | `playOnlyIf` (Marrow, §3.60); data; `discardSelf`, `moveCards` by traits                                                                                                                                                                     |
+| "Discard an ally you control → heal damage from your hero equal to that ally's printed hit points and give your hero a tough status card"                                                                                     | a `discardCards` cost (the engine's comment names this card), `printedStatOf(…, "hp")`, `heal`, `giveStatus`                                                                                                                                 |
+| "After you exhaust your hero to make a basic thwart or attack, discard an ally you control → add that ally's matching power to your hero's power for this use. Ready your hero."                                              | `on.basicPowerUsed(your identity)` for thwart and attack, a `discardCards` cost, `modifyBasicPower(statOf(…))`, `ready`                                                                                                                      |
+| "After White Queen enters play, discard a status card from a character"                                                                                                                                                       | `chooseTarget` a character with a status card, `removeStatus` of one the player picks                                                                                                                                                        |
+| "Search the encounter deck, discard pile, and set-aside area for your nemesis minion and reveal it → ready your hero and draw 3 cards. You cannot attack the villain this phase. Remove this card from the game."             | `anyOf` [encounter deck and discard pile, your set-aside area] with `nemesisMinionOf: you` (the selector's comment names this card); `revealCard`; `ready`, `draw`; a granted `cannotAttack` to the end of the phase; `removeFromGame(self)` |
+| "After Exodus attacks you, discard cards from the top of your deck equal to his total ATK for that attack" / "After Frenzy attacks you, discard the top 2 cards of your deck"                                                 | a forced response on the attack with its total ATK (printed, modifiers and boost icons); `moveCards(topOfDeck(n), "discard")`                                                                                                                |
+| "When Defeated: The defeating player discards the top 9 / 4 cards of their deck" / "[star] Boost: Discard the top 4 cards of your deck"                                                                                       | `defeatingPlayer`, a deck discard; a boost ability                                                                                                                                                                                           |
+| "Each [X-FACTOR], [X-FORCE], and [X-MEN] character you control gains the [X-FACTOR], [X-FORCE], and [X-MEN] traits"                                                                                                           | three `gainsTrait` over one query (the Giant and Tiny grants of wave 2)                                                                                                                                                                      |
+| "Allies cannot attack Selene." / "[star] Boost: Discard an ally you control."                                                                                                                                                 | `cannotAttack { target: self, attacker: ally }` (§3.79); `chooseCards`, `discard`                                                                                                                                                            |
+| "Guard. Patrol. Surge." / "[star] Boost: Put Hellfire Pawn into play engaged with you"                                                                                                                                        | keywords; `boost(putIntoPlay(self, you))`, the script of `mut_gen` 32058                                                                                                                                                                     |
+| "When Revealed: Place 2 additional threat here for each [HELLFIRE] card in play"                                                                                                                                              | `placeThreat(self, count of cards in play with the trait × 2)`                                                                                                                                                                               |
+
+**As read, where the table is not enough.**
+
+- **Change of Fortune.** "You" is the identity (RRG p. 49): its attack, its event, its upgrade's ability or its
+  retaliate defeated the enemy, in the villain phase. An ally's defeat does not count. Tally Ho!, Riposte, Under Control
+  and Kurt's Cutlasses are how the starter deck does it.
+- **Under Control** is controlled by the player who played it and answers any hero's defense against that minion, by a
+  basic defense, by Bamf! or by a defense-labeled event. A defense against a minion that Tally Ho! defeated first finds
+  the minion gone and deals nothing.
+- **Riposte** reads the attack's end: "you" took no damage from it. Damage Magnetic Bubble or Ice Wall took in his place
+  was not taken by him.
+- **Northstar** answers any boost card turned faceup during any enemy's attack on anyone; its Boost ability still
+  resolves and only the icons are canceled, an amplify icon's included. His cost is damage dealt, so a tough status card
+  on him pays it (RRG p. 14).
+- **Powerful Punch** (the reprint) is the wave 6 script. Played into an attack on another player it makes the player's
+  identity the defender if there is none (RRG p. 15), which does not make the attack one initiated against them (ruling
+  July 9, 2026 – Ruling 1); as an attack it obeys guard.
+- **"Come Get Me, Bub!" and Squared Off.** The minion enters play engaged without being revealed: no When Revealed, no
+  surge, but quickstrike and toughness answer its engaging and entering (RRG pp. 36, 45). If the encounter deck runs out
+  with no minion the cost is unpaid and the event does nothing more (RRG p. 17). Squared Off's ally is played:
+  restrictions, the unique rule and the ally limit apply, a cost of 3 or less is 0, Magik's top card may be the ally
+  (§3.49, Q27), and in a campaign game the destination is chosen (§3.34).
+- **Astonishing X-Men.** The Response is its controller's, each time any player's X-MEN hero or ally defends an enemy
+  attack and takes none of its damage; an ally that defends and survives took damage unless something stopped it. The
+  scheme performs the removal (RRG p. 50): it is not a thwart. Enemies in the mission area are not "in play" for its
+  When Defeated (§3.33).
+- **Crisis of Faith.** The second option may be chosen with no such event in hand: discarding the obligation is still
+  its effect.
+- **Azazel's Boost** deals the boost card itself to the nemesis set's own player, whoever is being attacked; that player
+  reveals him in step four. With that player eliminated he is discarded.
+- **Brimstone Strike** in alter-ego form: Azazel is found and revealed (engaging the player, §3.1), and then schemes
+  with his SCH 2 and no boost card. Found nowhere, nothing else happens. In hero form his quickstrike follows the
+  reveal.
+- **Combine Forces and Gunboat Diplomacy** share Serve and Protect's cost, and Q40 decides whether one character can be
+  both halves; under Q40 = B Gunboat Diplomacy's "combined THW of the two" is that one character's THW once. Gunboat
+  Diplomacy is one ability labeled attack and thwart: a stunned or confused identity loses all of it (§3.62 reads
+  Multitalented the same way). The player divides X threat among schemes and X damage among enemies as they like.
+- **Executioner.** Every friendly character counts, identities and allies of every player, not those at the mission; the
+  first player breaks a tie (RRG p. 19). The controller of the attacked character is the attacked player and may defend
+  (RRG p. 10). "An ally" is any ally the attack's damage defeats, the target or a defender; it is removed from the game
+  instead of resting in a discard pile.
+- **"Off with His Head!" and Angry Acolyte.** A minion whose activation a status card or Wrapped in Metal stopped did
+  not activate (§4.1 Q4's reading). The minion found by the discard is revealed by the resolving player.
+- **Survivor** shuffles the three newest cards of the discard pile, or the one or two it has; with none there is no
+  shuffle (RRG p. 16).
+- **Asteroid M** heals 1 with no MAGNETIC card to shuffle, and shuffles one with no damage to heal.
+- **Magneto's Helmet.** Steady is on the hero face only; a second stunned or confused status card can be placed while he
+  has the keyword, and if it leaves with two on him the state check removes one (RRG p. 41).
+- **Magnetic Bubble.** "You" is the identity in either form; any source: an attack after defense, a treachery, Old
+  Grievances, retaliate, indirect damage assigned to him. A tough status card goes first and nothing is placed. All of
+  it is placed, past 6, and then the Bubble is discarded. He took no damage: "takes no damage" abilities see that, and a
+  cost of taking damage is unpaid (RRG p. 14).
+- **M.** Her remaining hit points when the Response resolves (4 at full health), compared with each minion's; it is a
+  defeat, so a tough status card does not help the minion and its When Defeated resolves with her controller as the
+  defeating player.
+- **Kid Omega.** One option, paid as chosen; a player who can pay neither is not offered the Response. Each enemy and
+  each scheme in play, the mission area's excepted (§3.33).
+- **Phoenix** may choose any player's X-MEN ally, herself included when there is something to ready or heal.
+- **Cyclops.** The bonus is on the enemy for the rest of the phase, for every player's attacks. How it counts an attack
+  with several instances of damage is §4.2 Q46.
+- **Noble Sacrifice** heals by the printed number (Indra heals 2). **"You Got This!"** adds the ally's THW or ATK as it
+  stood in play when it was discarded (Surge with her bonus adds 3 to an attack), a dash or an X with no card as 0; the
+  hero is readied when the Response resolves and the basic power then finishes with the bonus. A basic thwart against an
+  assault scheme uses ATK and adds the ally's ATK (wave 7 §3.3).
+- **White Queen** discards one status card of the player's choice from any character, an enemy's tough card or a
+  friend's stunned card.
+- **Face the Past.** Not a find: the three areas named. With the nemesis minion in none of them (in play, in the victory
+  display, a facedown card) the cost cannot be paid and the event is not offered. The minion is revealed to the player:
+  Exodus arrives with a tough status card; Azazel and Frenzy attack by quickstrike. "You cannot attack the villain"
+  covers the player's identity and allies to the end of the phase. In The Wrecking Crew the deck searched is the active
+  villain's (ruling January 17, 2026 – Ruling 5). "Max 1 per deck" is deckbuilding.
+- **Exodus.** His star is the Forced Response. The number is the attack's ATK with its boost icons; a defended attack
+  discards as many. Steady, toughness and villainous are keyword data; he is ELITE, so neither Wrapped in Metal nor
+  Combine Forces reaches him.
+- **The Inner Circle** counts cards in play with the HELLFIRE trait, of any set: 4 + 2 each. Shadowcat's nemesis
+  Hellfire Pawn (`mut_gen` 32058) prints it; her White Queen (ELITE, PSIONIC) does not. The scheme prints no trait.
+- **Hellfire Pawn's Boost** puts it into play without revealing it: no surge.
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Decided by the user
@@ -4685,6 +5678,50 @@ Pass 2b's questions:
       Each gets a tough status card.
     - B: one character with both traits may pay the whole cost and gets one tough status card.
 
+Pass 2c's questions:
+
+41. **_Magnetic Pull_ when the deck runs out before a MAGNETIC card.** (§3.71. "Discard cards from the top of your deck
+    until a [MAGNETIC] card is discarded → add that card to your hand." RRG "Player Deck", p. 33: "no further cards are
+    discarded from the newly shuffled deck"; "Cost Arrow Icon", p. 14; "Resolve", p. 37; "Limit", p. 27.)
+    - **A (default):** the discards stand, the deck resets and deals him an encounter card, and nothing is added to his
+      hand. The cost was not paid, so the ability did not resolve: Magneto's Armor and Magneto's Cape are not offered.
+      It was used: the round's limit is spent and Old Grievances ("After you use") deals 1 damage for each card
+      discarded.
+    - B: it resolved with nothing found: the Armor reads the icons and the Cape readies him as well.
+    - C: an unpaid cost is no use at all: nothing answers it, Old Grievances included; the limit is still spent.
+42. **Does the MAGNETIC card _Magnetic Pull_ takes count as discarded?** (§3.71. Magneto's Armor: "if you discarded at
+    least 1 of the following resource icons"; Old Grievances: "for each card discarded by it". Ruling April 30, 2026 –
+    Ruling 4 (1) leaves out of a discard a card whose own Response took it away.)
+    - **A (default):** yes. It was discarded and then added to hand by the Pull itself: its icons count for the Armor
+      and it is one of Old Grievances' cards. A Pull whose first card is MAGNETIC costs 1 damage.
+    - B: no: only the cards left in the discard pile count. A Pull whose first card is MAGNETIC costs nothing and gives
+      the Armor nothing.
+43. **Rogue's copy when the character she damaged leaves play.** (§3.74. "Deal 1 damage to another friendly character →
+    until the end of the round, Rogue gains each of that character's Traits and adds that character's base THW and ATK
+    to her matching powers." RRG "Lasting Effects", p. 26: "Lasting effects update whenever the game state updates";
+    "Leaves Play", p. 27: "no memory of its previous state".)
+    - **A (default):** the effect reads the character while it is in play. If it leaves play, or the cost's 1 damage
+      defeats it, Rogue has nothing from it.
+    - B: a snapshot: what the character had when the cost was paid, kept to the end of the round whatever happens to it.
+44. **Tweedledope's boost field.** (§0.5, §7.4. Scan 48037 prints a star and no boost icon; RRG p. 69: "Removed the star
+    icon from this card's boost field"; MarvelCDB and the emitted record have 1 boost icon and no star.)
+    - **A (default):** the printed card with the erratum: 0 boost icons, no star, no Boost ability. The data agent sets
+      `boostIcons: 0` with the scan and the erratum as evidence.
+    - B: keep MarvelCDB's 1 boost icon, on the reading that the erratum put an icon where the star was.
+45. **The campaign ally Magneto in a game with a Magneto hero.** (§3.80. `mut_gen` 32172a, Enemy of My Enemy: "Flip this
+    card and put Magneto into play under the first player's control"; its other face is the ally Magneto, subtitle Erik
+    Lehnsherr. RRG "Unique Icon", p. 46. The sibling of Q39, to be answered with it.)
+    - **A (default):** the unique rule: the scheme is defeated and resolves the rest of its text, the ally does not
+      enter play, and the card is set aside out of play.
+    - B: the scheme's instruction wins (RRG "The Golden Rules", p. 4): the ally enters play beside the hero.
+46. **Cyclops (49015) and an attack with several instances of damage.** (§3.81. "Until the end of the phase, increase
+    the amount of damage that enemy takes from each attack by 1." Wave 5 §4 Q7 read "Increase all damage Venom takes by
+    1" as once per damage event.)
+    - **A (default):** the same unit: each instance of attack damage the enemy takes is 1 higher, so Grand Finale's four
+      instances on it deal 3 each. No engine change.
+    - B: once per attack: only the first damage of each attack is 1 higher. This needs a per-attack count on
+      `increaseDamageTaken`.
+
 ## 5. What this asks of the other agents (pass 1a)
 
 - **`card-data-pipeline`:** emit the six sets of this pass with §1.2–§1.9: one main scheme record each from the
@@ -4941,28 +5978,153 @@ Pass 2b's questions:
       attack of 3 with _"Freeze!"_ and takes 0. (3) Jubilee plays Firecracker with Plasmoid Energy and stuns. (4)
       Jubilation Lee uses _Mall Rat_, exhausts twice over two turns and takes Jubilee's Coat.
 
+### 5.5 Pass 2c
+
+- **`card-data-pipeline`:** no schema change. **Nightcrawler:** regenerate **Kurt's Cutlasses 48004** by itself and
+  review the diff by hand: `restrictedWeight: 2` and the one ability id `48004.kurts-cutlasses-constant` (§3.73; today
+  the record has two constant ids and no weight, so the card weighs nothing). Three printed values, each with its scan
+  as evidence (§0.5): `icons: ["hazard"]` on Brimstone Dimension 48028;
+  `startingThreat: { base: 0, perPlayer: 2 }` on The Crazy Gang 48033; Tweedledope 48037's `boostIcons` once Q44
+  is answered (default 0), with its `Errata` note rewritten, since the note says the current data has no star and does
+  not say the print has no icon. Rewrite the curation's header (it says "no hand corrections needed"). Check before
+  regenerating: Bamf!'s `attachesTo: enemy`, `maxPerHost` and cost 0; cost 0 on 48010, 48015 and 48016; Gambit's
+  `thw: "X"`, `atk: "X"`; Azazel's Sword's `ifAble` host and ATK star; Azazel's boost star with `boostIcons: 0`;
+  `anyPlayerControl` and `maxPerPlayer` on Change of Fortune; `alliance` on 48031 and 48032; Astonishing X-Men's flat 5
+  and `victory 0`. **Magneto:** accept the regen of Magneto's Armor 49004 (one ability id,
+  `49004.magnetos-armor-response`; the three `-constant` ids go); Selene 49039's text gains its period; a `cardNotes`
+  line on Sebastian Shaw 49038 for the printed "Forced Respone" and one on New Recruits, White Queen and Won't Stay Down
+  saying the two-trait "Play only if" line is a script rule (`playOnlyIf`), not a `playRestrictions` field. Check:
+  `nemesisMinion: true` on Exodus and on no other card of the set; the ATK stars of Exodus and Frenzy and the boost
+  stars of Fabian Cortez, Frenzy, Selene, Hellfire Pawn and Power and Decadence with `boostIcons: 0`;
+  `amplifyIcons: 1` on Martyr for Mutants and The Inner Circle; the `linked` keyword with its title on 49033–49036;
+  Wrapped in Metal's `form: "hero"` and non-ELITE minion host; Deft Focus's `aspect: "basic"`; `producesIcons` on
+  Master of Magnetism. Both packs: `crazy_gang` and `hellfire` flagged as modular sets the setup screen offers. No other
+  raw slip was found on a scan.
+- **`game-rules-architect`:** §3.71, §3.75 and §3.77 are the engine work, one agent each. §3.71 lands with or after
+  §3.39 (it adds `carry` to the moment that section builds) and beside §3.62, which stamps a payment on an event the
+  same way. §3.75 is one more case of `dealAsEncounterCard` and one small effect. §3.77 is one `TargetQuery` field.
+  §3.72–§3.74, §3.76 and §3.78–§3.80 need no engine change unless their tests fail. Q46 = B would add a per-attack count
+  to `increaseDamageTaken`.
+- **`ability-scripting-engineer`:** per hero, the usual split: `packages/cards/src/wave8/ncrawler/nightcrawler/` and
+  `packages/cards/src/wave8/magneto/magneto/`, each with `identity.ts`, `events.ts`, `support-upgrades-allies.ts`,
+  `obligation-nemesis.ts`, then a precon e2e; each pack's aspect and basic cards in `player-cards.ts` (Nightcrawler's
+  with 48031 and 48032, Magneto's with 49033–49037) and its modular set in `crazy-gang.ts` / `hellfire.ts`, one agent
+  each. Nightcrawler waits on §3.39 (Tally Ho!) and on the Cutlasses' regeneration; Bamf!'s script lives in
+  `support-upgrades-allies.ts` and raises `"bamf"`. Magneto waits on §3.71 (the identity, the Armor, the Cape, Old
+  Grievances) and §3.77 (Electromagnetic Blast); The Crazy Gang and Brimstone Dimension wait on §3.75. "Nightcrawler",
+  "Kurt Wagner" and "Magneto" in a kit card's text are that card's controller's identity by face, never a title match
+  across the table (§3.80). Hellfire Pawn 49040 registers `mut_gen` 32058's script. Each "exists (verify)" row is proved
+  by a test in the module's own test file before it is relied on.
+- **`encounter-ai-designer`:** the automated player's choices. Nightcrawler: Bamf! on the enemy that will attack him
+  next, the villain first; always the interrupt when the attack would otherwise be undefended; Tally Ho! whenever it is
+  in hand; _Rapid Teleportation_ in the villain phase before a second attacker; which card Gambit tucks (the most boost
+  icons); Rogue's target (the highest base THW plus ATK among characters that survive 1 damage, under Q43 = A). Magneto:
+  _Magnetic Pull_ every round unless Old Grievances would defeat him; Wrapped in Metal on the minion with the highest
+  ATK or with guard or patrol; Magnetic Missile when the wrapped minion's remaining hit points are worth less than 5
+  damage and a stun; which NEW ally to take. Encounter side: the player's pick for Selene's boost; Executioner's tie
+  (the first player); the order of minion activations for "Off with His Head!" and Angry Acolyte; the villain Power and
+  Decadence goes to when there are several. It never keeps Rogue 48012, Gambit 48021, Phoenix 49014 or Cyclops 49015 for
+  anything but a resource beside the matching hero.
+- **`rules-qa-engineer`:** one regression test each for ruling January 17, 2026 – Ruling 1 (1) on the card it names
+  (§3.74 tests 6 and 7), ruling January 17, 2026 – Ruling 5 with Face the Past in The Wrecking Crew (the nemesis minion
+  found in the set-aside area, defeated into the active villain's discard pile), ruling July 9, 2026 – Ruling 1 through
+  the reprint 48017, ruling January 26, 2026 – Ruling 6 (2) on _Magnetic Pull_'s limit across a flip (§3.71 test 1), and
+  the five RRG p. 69 errata as current text (Rogue's base, Magnetic Missile's "Then" with no wrapped minion, Exodus's
+  "for that attack" with a boost card, Deft Focus in a non-Protection deck, Tweedledope's boost field under Q44).
+  Fixtures for the exact-number tests of §3.71–§3.80. The cross-box game of §3.80 tests 4 and 5 (the hero Magneto
+  against the villain Magneto) is a scenario replay of its own. Deck tests (DoD §4b): both starter decks legal at 40; a
+  deck listing a NEW ally illegal; the illegal decks of §3.80 test 1; a second Face the Past illegal. Each hero in a
+  second aspect (DoD §4b): Nightcrawler outside Protection, where Bamf! is his only defense trick, and Magneto outside
+  Leadership, with New Recruits out of the deck and no NEW ally set aside.
+- **`game-client-engineer`:**
+  - **Nightcrawler:** each Bamf! drawn on its enemy with the defend prompt offering "Bamf!: defend without exhausting"
+    beside the ordinary choices, and the copy's trip to the discard pile and back to hand shown as that card; _Rapid
+    Teleportation_ and Kurt Wagner's search on the identity with their limits; the restricted load on his upgrades ("3
+    of 3: Cutlasses count as 2") with the reason when a card would be discarded; the card under Gambit shown as a tucked
+    card with its boost field in view and X resolved on his stats; Rogue's borrowed traits and numbers with their source
+    and "until the end of the round".
+  - **Magneto:** _Magnetic Pull_ as a reveal of the cards it discards, one at a time, ending on the MAGNETIC card, with
+    the icons the Armor will read and Old Grievances' damage counted as it goes; the discard pile's order visible for
+    Survivor and Asteroid M ("top 3"); Magnetic Bubble's damage against its threshold ("4 of 6"); a wrapped minion
+    marked "cannot activate, text box blank" with its keywords struck through; the set-aside NEW allies visible from New
+    Recruits, and the choice of one for each player when it is defeated; the linked allies listed in the deck builder as
+    "set aside by New Recruits", never selectable.
+  - **Both:** the setup screen offers The Crazy Gang and the Hellfire Club as modular sets; a minion The Crazy Gang
+    deals animated from play to a facedown card and across to the next player; a facedown boost card waiting on
+    Sebastian Shaw or on the villain shown on that enemy; "cannot be attacked again this phase" and "allies cannot
+    attack" as target reasons; the unique block at deck selection and in hand for the four allies of §3.80, and the note
+    at scenario selection that the hero and the villain Magneto may meet.
+  - **Guided mode** (every wave: glossary, a tip, a tricky-wording hint, a Try-it):
+    - Glossary: Bamf! (an upgrade on an enemy); "declare the defender without exhausting"; tuck (faceup under a card,
+      not in play); "counts as 2 restricted cards"; base THW and ATK; MAGNETIC; Magnetic Pull; linked (set aside, never
+      in a deck); NEW ally; steady; villainous; patrol; "discarded, not defeated".
+    - Tips: Nightcrawler: "Put Bamf! on whoever is about to hit you: he defends for 3 and stays ready." Nightcrawler:
+      "Tally Ho! brings that Bamf! straight back to your hand." Magneto: "Pull every round: the card you find is
+      MAGNETIC, and every card it flips can feed the Armor." Magneto: "Wrap a minion, then throw it with Magnetic
+      Missile."
+    - Tricky-wording hints (Inspect notes): Bamf! works on any attack of that enemy, another player's included, and
+      makes Nightcrawler the target; it is a basic defense, so DEF applies and Riposte can be played; Tally Ho!'s damage
+      lands before the attack's; _Rapid Teleportation_ returns a copy to hand and does not play it; Kurt's Cutlasses are
+      not a restricted card but fill both restricted slots, and Prehensile Tail's extra slot is for a card with the
+      keyword; a star in a boost field is not a boost icon (Gambit); Rogue adds base numbers, not what upgrades have
+      added; Northstar cancels icons, not the Boost ability; _Magnetic Pull_'s card counts as discarded (Q42) and an
+      empty deck stops it (Q41); the Armor needs the icon discarded, a wild is none of them; Magnetic Bubble takes all
+      the damage even past 6; a wrapped minion keeps its traits and stats and loses guard and patrol; Magnetic Missile
+      discards the minion, so nothing "when defeated" happens; "Hero Action" and "Hero Response" are the only labels
+      Electromagnetic Blast looks for; a NEW ally is yours once it is in your hand, and is free of the ally limit only
+      for a MUTANT or X-MEN identity; Face the Past needs the nemesis minion out of play; Sebastian Shaw can be attacked
+      once a phase; The Crazy Gang sends a scheming minion round the table to be revealed again.
+    - Try-it lessons: (1) Nightcrawler plays Bamf! on the villain, defends its attack ready, and Tally Ho! returns the
+      copy and deals 3. (2) Nightcrawler plays 'Port and Punch with Bamf! on two enemies. (3) Magneto uses _Magnetic
+      Pull_ with the Armor in play and attacks at +1. (4) Magneto wraps a guard minion, attacks the villain past it,
+      then plays Magnetic Missile. (5) Magneto defeats New Recruits and plays Surge as a fourth ally.
+
 ## 6. Later passes (placeholders)
 
-- **(pass 2c)** Nightcrawler, Magneto. Start with what pass 2b leaves for it:
-  - **The inserts first.** Neither pack's rules insert is in the repo; Hall of Heroes' pack pages link a photo of each
-    (§0.4 found the Frostbite rule on Iceman's).
-  - **As for every hero pass:** each ally's printed resource icon and any "Play only if" line from a scan, for the
-    mission (§3.34); every unique card matched against the whole pool by title, subtitle and alter-ego title, on the
-    scan (§3.58, §3.68: a pack's own ally can match an earlier hero and its hero an earlier ally; Rogue 48012, Gambit
-    48021, Phoenix 49014 and Cyclops 49015 are allies of wave 6's heroes); an upgrade that attaches to an ally checked
-    against Suit Up's reading (§3.59, Q30); each player side scheme (Astonishing X-Men 48020, New Recruits 49020)
-    against wave 7 §3.1–§3.2 and §3.66.
-  - **Before a new row is opened:** a card that reads or discards the top of a deck (Magneto's _Magnetic Pull_ discards
-    until a MAGNETIC card) against §3.48–§3.50, §3.52, §3.55 and §3.70; a card that answers a named ability (Magneto's
-    Armor names _Magnetic Pull_) against §3.39, as Bishop's Uniform and Cryokinetic Perception are; a card that reads
-    what a payment was made with against §3.51 and §3.62; a permanent kit card against §3.61's deck-list model; a card
-    that comes back from the discard pile to be played again (Bamf! 48006 ×3 through _Rapid Teleportation_) against
-    §3.49's play permissions; Magneto's four linked allies (49033–49036, "Linked (New Recruits)") against wave 7's
-    linked rule.
-  - **Already flagged for it** (data survey §3): the RRG p. 69 errata on Rogue 48012, Tweedledope 48037, Magnetic
-    Missile 49010, Deft Focus 49023 and Exodus 49028, none yet in a curation; the RRG FAQ "Powerful Punch (#14)" and
-    ruling July 9, 2026 – Ruling 1 through the reprint 48017; ruling January 17, 2026 – Ruling 5 on Face the Past 49022.
-- **(pass 3)** The ordered engine build queue over every §3 row.
+- **(pass 3)** The ordered engine build queue. It starts from one list: every §3 row of passes 1a to 2c whose status is
+  **new** (7) or **extend** (30), by number and title. The 32 "exists (verify)" rows and the 6 "exists (compose)" rows
+  are not in it: each is proved by a test in its card module and joins the queue only if that test fails. Three rows of
+  the list build on another: §3.71 adds a field to §3.39's moment, §3.62 and §3.51 change the same payment frame, and
+  §3.34 needs §3.33's area. A question's answer can add work to a row that is not listed (Q46 = B, §3.81).
+  - **New:**
+    - 3.10 "Is considered to have at least 1 hit point"
+    - 3.21 An attachment that ignores a named ability; winning when the villain falls
+    - 3.33 An in-play scenario area no player controls, closed to abilities that do not name it
+    - 3.36 Discarded cards paired one each with characters, matched by resource icon
+    - 3.39 A named moment a script raises and other cards answer
+    - 3.48 The top card of a player's deck kept faceup
+    - 3.77 An attachment chosen by the label of an ability it prints ("Hero Action", "Hero Response")
+  - **Extend:**
+    - 3.1 Find, and "find … and reveal it" when the card is already in play
+    - 3.5 A setup option that belongs to a modular set
+    - 3.6 Standard III: a counted environment that flips; replacing the Standard set
+    - 3.7 Villains in a random row; the active counter passes to the next in the row
+    - 3.11 Another card's Forced Response resolved "as if it just attacked you"
+    - 3.13 An identity's text box blanked "until the next villain phase begins"
+    - 3.18 A villain's next stage revealed when the main scheme is completed
+    - 3.19 A target threat of X per player, X read from the villain's printed hit points
+    - 3.24 "Resolve the 'Special' ability on the [SETTING] environment"
+    - 3.25 An attachment with no "attach to" that attaches from its own When Revealed
+    - 3.26 A three-sided villain that changes to a named form
+    - 3.28 An attachment's Forced Interrupt resolved "as if" its trigger just happened
+    - 3.34 An ally played into that area: the choice, no controller, a blank text box, upgrades
+    - 3.35 A support the first player controls that cannot be discarded; a discount by destination
+    - 3.37 A damage pool dealt to one enemy at a time; threat removed by a total that is not a thwart
+    - 3.42 A resource icon a character is considered to have; an obligation that lives in a player's deck
+    - 3.43 "[A title] cannot enter play during this game"
+    - 3.44 A card found at campaign setup that counts toward the starting hand
+    - 3.46 One printed card as two cards: an Overseer in play and its Prelate face
+    - 3.49 Playing the top card of your deck as if it was in your hand, for 1 less, once per phase
+    - 3.51 "If you paid for this event with a resource card"
+    - 3.53 An attach host by classification; "your sidekick"
+    - 3.54 A cost that readies a card
+    - 3.55 A deck discard cost of a chosen size
+    - 3.59 A search for "an upgrade that can be attached to an ally"
+    - 3.62 The resource types a payment used
+    - 3.63 An additional cost to change form
+    - 3.64 A player makes a basic attack or thwart on a card's instruction
+    - 3.71 A deck discarded until a trait's card is found; the whole discard read by cards that answer
+    - 3.75 A minion in play dealt to a player as a facedown encounter card, and passed to the next player
 
 ## 7. Pass 2: hero packs
 
@@ -5364,3 +6526,264 @@ Unlikely Duo stays `quantityInSet: 2`, `deckLimit: 1`, one copy in the starter d
 - Team-Up: Unlikely Duo only in a Jubilee or a Wolverine deck.
 - "Play only if" lines are play restrictions: Synch and X-Gene may be in any deck.
 - The three versions (§3.69 tests 1 to 4) and the unique rule (§3.68 test 1: Jubilee without `mut_gen` 32041).
+
+### 7.4 Pass 2c: Nightcrawler
+
+Read 2026-10-07: every raw record 48001a–48038 with the nested alter-ego face; the scans listed in §0.5; the
+Nightcrawler insert (Hall of Heroes' photo, not in the repo); the printed decklist card and `curation/ncrawler.ts` (the
+starter deck and the two errata are in). **This pass asks for no schema change.**
+
+| Identity                           | Obligation              | Nemesis set (nemesis minion in bold)                                                      | Setup, hand size, starter deck                                                |
+| ---------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Nightcrawler / Kurt Wagner (48001) | Crisis of Faith (48026) | **Azazel** (48027, quickstrike), Brimstone Dimension, Azazel's Sword, Brimstone Strike ×2 | No Setup. 5 / 6, THW 2 ATK 1 DEF 3, REC 3, 9 hit points. Protection, 40 cards |
+
+Traits: Nightcrawler X-MEN; Kurt Wagner MUTANT. Kurt Wagner has no X-MEN trait: Astonishing X-Men's Response does not
+count a defense of his (he cannot defend in that form anyway), and X-MEN-only cards of other packs cannot be played in
+alter-ego form. The pack's extra modular set is **The Crazy Gang** (`crazy_gang` 48033–48038, "CRAZY GANG (n/6)").
+Combine Forces (48031, Aggression) and Gunboat Diplomacy (48032, Justice) are in the pack and not in the starter deck.
+
+#### Nightcrawler: Bamf!
+
+Three copies of a 0-cost upgrade go on enemies (§3.72). When that enemy attacks, anyone, he discards the copy and is the
+defender without exhausting, at DEF 3; Tally Ho! brings the copy back and hits the attacker, _Rapid Teleportation_ buys
+one back each phase, Kurt Wagner searches one out each round, and his events spend copies on enemies or in hand. Kurt's
+Cutlasses fill his restricted limit by themselves (§3.73).
+
+| Card                                         | As read                                                                                                                                                                              | Needs             |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| Nightcrawler 48001a, _Rapid Teleportation_   | Action, once per phase: spend 1 resource of any type → return a copy of Bamf! from your discard pile to your hand                                                                    | §3.72             |
+| Kurt Wagner 48001b                           | Action, once per round: search your deck for a copy of Bamf! and add it to your hand                                                                                                 | §3.72             |
+| Daytripper 48002 (ally, cost 2, [wild])      | THW 2, ATK 2, 2 hit points. Response: after she enters play, search deck and discard pile for a copy of Bamf! and attach it to an enemy; 1 damage to each enemy with a copy attached | §3.72             |
+| Kurt's Chapel 48003 (support, cost 1)        | Kurt Wagner gets +1 REC. Alter-Ego Response: after a basic recovery, exhaust it and choose a player → that player draws 1                                                            | §3.81             |
+| Kurt's Cutlasses 48004 (cost 2)              | Counts as 2 restricted cards. Nightcrawler gets +1 ATK, +1 DEF and retaliate 1                                                                                                       | §3.73; data       |
+| Prehensile Tail 48005 (cost 1)               | You can control 1 additional upgrade that has the restricted keyword. Resource: exhaust → a [wild] for an event                                                                      | §3.73             |
+| Bamf! 48006 ×3 (upgrade, cost 0)             | Attach to an enemy, max 1 per enemy. Hero Interrupt (defense): when the attached enemy attacks, discard this card → declare Nightcrawler the defender without exhausting him         | §3.72, §3.39      |
+| 'Port and Punch 48007 ×2 (cost 2)            | Hero Action (attack): 3 damage to an enemy; 3 damage to each enemy with Bamf! attached                                                                                               | §3.72             |
+| Teleport Drop 48008 (cost 2)                 | Hero Action (attack): discard a copy of Bamf! from an enemy → 8 damage to that enemy and stun it                                                                                     | §3.72             |
+| Scout Ahead 48009 ×2 (cost 1)                | Hero Action (thwart): remove 3 threat from a scheme; you may discard a copy of Bamf! from hand to remove 3 from another scheme                                                       | §3.72             |
+| 'Port Away 48010 (cost 0)                    | Action: discard a copy of Bamf! from hand → change forms and ready your identity                                                                                                     | §3.72             |
+| Tally Ho! 48011 ×2 (cost 1)                  | Hero Response (defense): after Bamf! makes Nightcrawler the defender of an attack, return that copy to hand; 3 damage to the attacking enemy                                         | §3.72, §3.39      |
+| Crisis of Faith 48026                        | May flip to alter-ego. Exhaust Kurt Wagner → remove from the game; or discard each ATTACK and DEFENSE event from hand and discard it                                                 | §3.81             |
+| **Azazel** 48027 (SCH 2, ATK 3, 3; boost ★)  | Quickstrike. Cannot have upgrades attached. Boost: deal Azazel to the Kurt Wagner player as a facedown encounter card                                                                | §3.81, §3.72      |
+| Brimstone Dimension 48028 (5 threat, hazard) | When Defeated: the defeating player finds Azazel and deals him to themself as a facedown encounter card                                                                              | §3.75, §3.1; data |
+| Azazel's Sword 48029 (+1★ ATK)               | Attach to Azazel, otherwise to the villain. Its attacks gain piercing. Hero Response: after it attacks you, discard 1 random card from hand → discard this card                      | §3.81, §3.77      |
+| Brimstone Strike 48030 ×2                    | When Revealed (Alter-Ego): find Azazel and reveal him; he schemes. When Revealed (Hero): find Azazel and reveal him                                                                  | §3.1, §3.81       |
+
+- **A villain phase in numbers.** Bamf! is on the villain (ATK 2) and on a minion (ATK 2, 3 hit points). The villain
+  attacks: the copy is discarded, he defends ready at DEF 3, the boost card has 1 icon: 0 damage. He pays 1 for _Rapid
+  Teleportation_ and has that copy in hand. The minion attacks: Bamf!, then Tally Ho! for 1: the copy is back in hand,
+  the minion takes 3 and is defeated before its damage, and Change of Fortune, if he controls one, draws 2.
+- **The starter deck's ready hero.** He never exhausts to defend through Bamf!, so his one exhaust each round is a
+  thwart for 2 or an attack for 1.
+- **Azazel** cannot carry Bamf! (or any other upgrade: no Under Control, no Wrapped in Metal, no Frostbite), has
+  quickstrike, and comes back: his Boost deals him to the Kurt Wagner player whoever is being attacked, and Brimstone
+  Dimension deals him to whoever defeats it, from play if he is there (§3.75).
+- **Azazel's Sword** makes the attached enemy's attacks piercing, so a tough status card does not save the defender; any
+  player it attacks may pay a random card to discard it, and Electromagnetic Blast can take it (§3.77).
+- **Crisis of Faith** takes Tally Ho!, 'Port and Punch, Teleport Drop, Riposte and Powerful Punch out of his hand; Scout
+  Ahead (THWART) and 'Port Away stay.
+- **The mission (§3.36, §3.38).** None of his cards reads or discards the top of a deck. Bamf! cannot go on an enemy in
+  the mission area (§3.33). His allies' icons are in the next list.
+
+#### The pack's Protection, basic and off-aspect cards
+
+| Card                                                 | As read                                                                                                                                                                                | Needs             |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| Rogue 48012 (Protection ally, cost 4, [physical])    | THW 2, ATK 2, 3 hit points. Action, once per round: deal 1 damage to another friendly character → to the end of the round she gains its traits and adds its base THW and ATK (erratum) | §3.74, §3.80; Q43 |
+| Northstar 48013 (Protection ally, cost 3, [energy])  | THW 1, ATK 2, 3 hit points. Interrupt: when a boost card is turned faceup during an attack, deal 1 damage to him → cancel all boost icons on it                                        | §3.81             |
+| Change of Fortune 48014 ×3 (cost 1)                  | Play under any player's control, max 1 per player. Response: after you defeat an enemy during the villain phase, exhaust → draw 2                                                      | §3.81             |
+| Under Control 48015 ×3 (cost 0)                      | Attach to a minion, max 1 per minion. Response: after a hero defends against its attack and takes no damage, 4 damage to it                                                            | §3.81, §3.67      |
+| "Come Get Me, Bub!" 48016 ×3 (cost 0)                | Hero Action: discard from the encounter deck until a minion and put it into play engaged with you → heal 3 from your identity and give it a tough status card                          | §3.81             |
+| Powerful Punch 48017 ×3                              | reprint of 32014 (RRG FAQ p. 63; ruling July 9, 2026 – Ruling 1)                                                                                                                       | reprint           |
+| Riposte 48018 ×3 (cost 1)                            | Hero Interrupt (defense): when your hero defends, +2 DEF for that attack; if you take no damage from it, 3 damage to the attacker                                                      | §3.81             |
+| The Power of Protection 48019 ×2                     | reprint of 01079                                                                                                                                                                       | reprint           |
+| Astonishing X-Men 48020 (player side scheme, cost 1) | 5 threat. Victory 0. Response: after an X-MEN character defends an enemy attack and takes no damage, remove 1 threat from it. When Defeated: stun and confuse each enemy               | §3.81             |
+| Gambit 48021 (basic ally, cost 3, [energy])          | THW X, ATK X, 3 hit points; X is the boost icons on the card under him. Response: after he enters play, look at the top 3 encounter cards and tuck one under him                       | §3.74, §3.80      |
+| Moira MacTaggert 48022                               | reprint of 38018                                                                                                                                                                       | reprint           |
+| Energy, Genius, Strength 48023–48025                 | reprints of 01088–01090                                                                                                                                                                | reprint           |
+| Combine Forces 48031 ×3 (Aggression, cost 1)         | Alliance. Hero Action: exhaust an X-FORCE character and an X-MEN character → defeat a non-ELITE minion                                                                                 | §3.81; Q40        |
+| Gunboat Diplomacy 48032 ×3 (Justice, cost 1)         | Alliance. Hero Action (attack/thwart): the same cost → remove X threat among schemes and deal X damage among enemies, X the two characters' combined THW                               | §3.81; Q40        |
+
+- **The allies at the mission (§3.34, §3.36).** Icons from the scans: Daytripper [wild]; Rogue [physical]; Northstar and
+  Gambit [energy]. None prints a "Play only if" line. There each is blank: no Daytripper Response (a play to the mission
+  attaches no Bamf!), no Rogue Action, no Northstar Interrupt, and Gambit tucks nothing, so his X is 0 (RRG p. 30). THW
+  and ATK for the attempt: Daytripper 2 and 2, Rogue 2 and 2, Northstar 1 and 2, Gambit 0 and 0.
+- **Rogue and Gambit beside the Rogue and Gambit heroes**, and in each other's decks, are §3.80.
+- **Ally upgrades (§3.59, Q30).** No upgrade of this pack can be attached to an ally: Bamf! goes on an enemy, Under
+  Control on a minion, Change of Fortune under a player's control, the rest are their controller's. Suit Up offers none
+  of them.
+- **Astonishing X-Men** is checked against wave 7 §3.1, §3.2 and §3.66 and needs nothing new: played on its owner's turn
+  for 1, a flat 5 threat, thwarted like a side scheme by anyone, unique, one in play in a game of one or two players,
+  Victory 0 to the victory display. Its Response is what the starter deck works it with: every Bamf! defense at DEF 3
+  that takes nothing removes 1.
+- **Under Control with Bamf!:** both may be on one minion (different titles); a Bamf! defense that takes no damage deals
+  the minion 4.
+- **Combine Forces and Gunboat Diplomacy** need an X-FORCE character; the starter deck has none, and the alliance
+  keyword lets another player exhaust theirs (RRG p. 6).
+
+#### The Crazy Gang (the pack's modular set)
+
+| Card                                                     | As read                                                                                                                                                                      | Needs       |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| The Crazy Gang 48033 (2 threat per player, acceleration) | Forced Response: after a non-ELITE minion schemes against a player, deal it to that player as a facedown encounter card; with more than 1 player, pass it to the next player | §3.75; data |
+| Queen of Hearts 48034 (SCH 0, ATK 1, 4)                  | When Revealed: search the encounter deck and discard pile for The Crazy Gang and reveal it; if it is already in play, deal yourself a facedown encounter card                | §3.81       |
+| Jester 48035 (SCH 0, ATK 1, 5)                           | When Revealed: you are confused; if you already were, discard a support you control                                                                                          | §3.81       |
+| Executioner 48036 (SCH 0, ATK 2, 4)                      | When Revealed: he attacks the friendly character with the fewest remaining hit points; an ally this attack defeats is removed from the game                                  | §3.81       |
+| Tweedledope 48037 (SCH 0, ATK 2, 6)                      | When Revealed: you are stunned; if you already were, discard an upgrade you control (erratum: no star in the boost field)                                                    | §3.81; Q44  |
+| "Off with His Head!" 48038                               | When Revealed: each minion activates against the player it is engaged with; if none did, discard from the encounter deck until a minion and reveal it                        | §3.81       |
+
+- Six cards with no scenario of their own: offered as a modular set wherever one is chosen (DoD §5). The four minions
+  are unique and print SCH 0: against an alter-ego they scheme for nothing, and with the side scheme in play each scheme
+  sends them round to be revealed again, healed, with their When Revealed.
+- The side scheme's acceleration icon adds 1 threat to the main scheme each round while it is in play.
+- A permanent upgrade (a Frostbite, a Psi-Knife) is not a legal pick for Tweedledope's discard (RRG p. 32).
+- Jester matches the unique minion of that title in a later wave's pack (§3.80).
+
+**Card data fixes** (for `card-data-pipeline`): the regeneration of Kurt's Cutlasses 48004 with `restrictedWeight: 2`
+(§3.73); the hazard icon on Brimstone Dimension 48028; the per player starting threat of The Crazy Gang 48033;
+Tweedledope 48037's boost icons (Q44, default 0); the curation's header comment. The two errata and the starter deck are
+right as curated. The checks are in §5.5.
+
+**Deckbuilding (DoD §4b).**
+
+- Kurt Wagner prints no deckbuilding line. His starter deck is 40 cards: 15 Nightcrawler, 20 Protection, 5 basic.
+- "Max 1 per deck": Energy, Genius, Strength. "Max 2 per deck": The Power of Protection. "Max 1 per enemy", "Max 1 per
+  minion" and "Max 1 per player" (Bamf!, Under Control, Change of Fortune) are play restrictions.
+- The Cutlasses' weight and the Tail's allowance are rules of play, not deckbuilding: a deck may hold any number of
+  restricted cards.
+- "Play only if" lines are play restrictions: Moira MacTaggert may be in any deck.
+- The unique rule in a deck (§3.80 test 1): Nightcrawler without `mut_gen` 32011; Rogue and Gambit without 48012
+  or 48021.
+
+### 7.5 Pass 2c: Magneto
+
+Read 2026-10-07: every raw record 49001a–49042 with the nested alter-ego face; the scans listed in §0.5; the Magneto
+insert (Hall of Heroes' photo, not in the repo); the printed decklist card and `curation/magneto.ts` (the starter deck
+and the three errata are in). **This pass asks for no schema change.**
+
+| Identity                         | Obligation             | Nemesis set (nemesis minion in bold)                                                                        | Setup, hand size, starter deck                                                                                                               |
+| -------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Magneto / Erik Lehnsherr (49001) | Old Grievances (49027) | **Exodus** (49028, steady, toughness, villainous), Martyr for Mutants, Fabian Cortez, Frenzy, Angry Acolyte | No Setup; the four NEW allies set aside if his deck holds New Recruits. 5 / 6, THW 2 ATK 2 DEF 2, REC 3, 10 hit points. Leadership, 40 cards |
+
+Traits: Magneto X-MEN; Erik Lehnsherr MUTANT. Erik Lehnsherr has no X-MEN trait: New Recruits and White Queen need the
+hero face (Won't Stay Down and White Queen also take X-FORCE), and Moira MacTaggert and the NEW allies' bonus hold on
+both faces (MUTANT or X-MEN). The nemesis set has three minions and Exodus prints "(Magneto's nemesis minion.)" (RRG p.
+30). The pack's extra modular set is the **Hellfire Club** (`hellfire` 49038–49042, "HELLFIRE (n/5)"). The four linked
+allies (49033–49036) and Children of the Atom (49037, ×3) are in the pack and not in the starter deck's list; the allies
+are never in any deck.
+
+#### Magneto: Magnetic Pull
+
+Once a round he discards from the top of his deck until a MAGNETIC card and takes it (§3.71): every card of his kit is
+one. The Armor turns the icons discarded into +1 THW, ATK or DEF for the round, the Cape readies him, and Erik Lehnsherr
+and Asteroid M shuffle the discards back. His obligation charges 1 damage a card, and his nemesis set empties the same
+deck.
+
+| Card                                                    | As read                                                                                                                                                                    | Needs           |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Magneto 49001a, _Magnetic Pull_                         | Action, once per round: discard from the top of your deck until a MAGNETIC card is discarded → add that card to your hand                                                  | §3.71; Q41, Q42 |
+| Erik Lehnsherr 49001b, _Survivor_                       | Response: after changing to this form, shuffle the top 3 cards of your discard pile into your deck                                                                         | §3.81           |
+| Asteroid M 49002 (support, cost 2, [wild])              | Alter-Ego Action: exhaust → shuffle the topmost MAGNETIC card of your discard pile into your deck and heal 1 from your identity                                            | §3.81           |
+| Magneto's Helmet 49003 (cost 3)                         | Magneto gains steady. Resource: exhaust → a [wild] for a MAGNETIC card                                                                                                     | §3.81, §3.80    |
+| Magneto's Armor 49004 (cost 2)                          | Response: after you resolve _Magnetic Pull_, if you discarded at least 1 [mental]: +1 THW this round; [physical]: +1 ATK; [energy]: +1 DEF                                 | §3.71; Q41, Q42 |
+| Magneto's Cape 49005 (cost 2)                           | Magneto gains AERIAL. Response: after you resolve _Magnetic Pull_, exhaust → ready Magneto                                                                                 | §3.71; Q41      |
+| Magnetic Bubble 49006 (cost 3)                          | Magneto gains retaliate 1. Forced Interrupt: damage you would take is placed here instead; at 6 or more, discard it                                                        | §3.81 (§3.65)   |
+| Wrapped in Metal 49007 ×2 (cost 2)                      | Hero form only. Attach to a non-ELITE minion. It cannot activate; its printed text box is treated as blank                                                                 | §3.76           |
+| Electromagnetic Blast 49008 ×2 (cost 2)                 | Hero Action (thwart): remove 3 threat from a scheme; if that was its last threat, you may discard an attachment with the text "Hero Action" or "Hero Response"             | §3.77           |
+| Metal Shards 49009 ×2 (cost 3)                          | Hero Action (attack): 7 damage to an enemy; if this attack defeats it, gain a tough status card                                                                            | §3.81           |
+| Magnetic Missile 49010 ×2 (cost 1)                      | Hero Action: discard a minion with Wrapped in Metal attached. Then, 5 damage to an enemy and stun it (erratum)                                                             | §3.76           |
+| Master of Magnetism 49011 ×2                            | A resource card with [energy] and [mental], MAGNETIC, no text                                                                                                              | data            |
+| Old Grievances 49027                                    | Forced Response: after you use _Magnetic Pull_, take 1 damage for each card discarded by it. Alter-Ego Action: exhaust Erik Lehnsherr → discard it                         | §3.71; Q41, Q42 |
+| **Exodus** 49028 (SCH 2, ATK 2★, 6)                     | Steady. Toughness. Villainous. Forced Response: after he attacks you, discard cards from the top of your deck equal to his total ATK for that attack (erratum)             | §3.81, §3.80    |
+| Martyr for Mutants 49029 (3 threat per player, amplify) | When Defeated: the defeating player discards the top 9 cards of their deck                                                                                                 | §3.81           |
+| Fabian Cortez 49030 (SCH 2, ATK 2, 4; boost ★)          | Guard. When Defeated: the defeating player discards the top 4 cards of their deck. Boost: discard the top 4 cards of your deck                                             | §3.81, §3.80    |
+| Frenzy 49031 (SCH 2, ATK 2★, 4; boost ★)                | Quickstrike. Forced Response: after she attacks you, discard the top 2 cards of your deck. Boost: discard the top 4                                                        | §3.81           |
+| Angry Acolyte 49032                                     | When Revealed: each ACOLYTE minion engaged with a player activates against that player; if none did, discard from the encounter deck until an ACOLYTE minion and reveal it | §3.81           |
+
+- **A round in numbers.** The top of his deck is Noble Sacrifice ([mental]), Squared Off ([physical]), Magneto's Cape
+  ([energy], MAGNETIC). The Pull discards three and the Cape is in hand; with the Armor in play and Q42 = A he has THW
+  3, ATK 3 and DEF 3 until the end of the round. With Old Grievances in play he took 3 damage first.
+- **Old Grievances** stays in his play area until Erik Lehnsherr exhausts to discard it. It does not offer the usual
+  flip. Magnetic Bubble takes its damage.
+- **His deck runs short.** Each Pull discards 2 or 3 cards on average, Exodus's attack discards 2 plus his boost icons,
+  Frenzy 2, Fabian Cortez 4 on a boost and 4 when defeated, Martyr for Mutants 9. Each reset deals an encounter card
+  (RRG p. 33); Survivor and Asteroid M put discards back before the deck empties. These are ordinary deck discards
+  (§3.81); only the Pull is read by other cards.
+- **Wrapped in Metal and Magnetic Missile** are §3.76: the wrapped minion sits engaged, harmless and without guard or
+  patrol, until he throws it.
+- **Magneto's Helmet and Armor against the villain Magneto's** attachments of those titles, and "Magneto" as a name on
+  both sides of that table, are §3.80.
+- **The mission (§3.36, §3.38).** _Magnetic Pull_ and the nemesis set discard from the deck a mission attempt discards
+  from, and none of them is an attempt: no Mission Response answers and nothing is paired. What they change is the deck
+  the next attempt reads. Wrapped in Metal cannot go on an Overseer or an Agent of Apocalypse (§3.33).
+
+#### The pack's Leadership and basic cards
+
+| Card                                                                                 | As read                                                                                                                                                                                                                              | Needs             |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| M 49012 (Leadership ally, cost 4, [physical])                                        | THW 2, ATK 3 (two consequential), 4 hit points. Response: after she enters play, defeat a minion with fewer remaining hit points than M                                                                                              | §3.81             |
+| Kid Omega 49013 (Leadership ally, cost 2, [energy])                                  | THW 2, ATK 2, 2 hit points. Response: after he enters play, spend an [energy] → 1 damage to each enemy, or spend a [mental] → remove 1 threat from each scheme                                                                       | §3.81             |
+| Phoenix 49014 (Leadership ally, cost 3, [mental])                                    | THW 2, ATK 1, 3 hit points. Response: after she enters play, choose an X-MEN ally → ready it and heal 1 from it                                                                                                                      | §3.81, §3.80      |
+| Cyclops 49015 (Leadership ally, cost 3, [physical])                                  | THW 2, ATK 2, 2 hit points. Response: after he enters play, choose an enemy; to the end of the phase it takes 1 more damage from each attack                                                                                         | §3.81, §3.80; Q46 |
+| Won't Stay Down 49016 ×3 (support, cost 1)                                           | X-FORCE or X-MEN identity only. Max 1 per player. Alter-Ego Action: discard it → return an X-FORCE or X-MEN ally from your discard pile to your hand                                                                                 | §3.81             |
+| Squared Off 49017 ×3 (cost 0)                                                        | Hero Action: discard from the encounter deck until a minion and put it into play engaged with you → play an ally from your hand for 3 less                                                                                           | §3.81             |
+| Noble Sacrifice 49018 ×3 (cost 1)                                                    | Hero Action: discard an ally you control → heal its printed hit points from your hero and give your hero a tough status card                                                                                                         | §3.81             |
+| "You Got This!" 49019 ×3 (cost 1)                                                    | Hero Response: after you exhaust your hero for a basic thwart or attack, discard an ally you control → add its matching power for this use; ready your hero                                                                          | §3.81             |
+| New Recruits 49020 (player side scheme, cost 0)                                      | 2 threat per player. Victory 0. X-MEN identity only. When Defeated: each player chooses 1 set-aside NEW ally and adds it to their hand                                                                                               | §3.78             |
+| White Queen 49021 (basic ally, cost 3, [energy])                                     | THW 2, ATK 1, 3 hit points. X-FORCE or X-MEN identity only. Response: after she enters play, discard a status card from a character                                                                                                  | §3.81, §3.80      |
+| Face the Past 49022 (cost 0)                                                         | Max 1 per deck. Hero Action: search the encounter deck, discard pile and set-aside area for your nemesis minion and reveal it → ready your hero and draw 3; you cannot attack the villain this phase; remove this card from the game | §3.81             |
+| Deft Focus 49023 ×3                                                                  | reprint of 16024 (erratum: Basic, not Protection)                                                                                                                                                                                    | reprint           |
+| Energy, Genius, Strength 49024–49026                                                 | reprints of 01088–01090                                                                                                                                                                                                              | reprint           |
+| Surge 49033, Anole 49034, Bling! 49035, Indra 49036 (basic allies, cost 2, [energy]) | Linked (New Recruits). THW 2, ATK 2, 2 hit points. With a MUTANT or X-MEN identity: +1 ATK (Surge), +1 THW (Anole), toughness (Bling!), +2 hit points (Indra), and it does not count against your ally limit                         | §3.78             |
+| Children of the Atom 49037 ×3 (basic support, cost 1)                                | Play under any player's control, max 1 per player. Each X-FACTOR, X-FORCE and X-MEN character you control gains all three traits                                                                                                     | §3.81, §3.78      |
+
+- **The allies at the mission (§3.34, §3.36).** Icons from the scans: M and Cyclops [physical]; Phoenix [mental]; Kid
+  Omega, White Queen, Surge, Anole, Bling! and Indra [energy]. White Queen's "Play only if" line bars the play to the
+  mission too. There each is blank: no entering-play Response for M, Kid Omega, Phoenix, Cyclops or White Queen, and the
+  NEW allies have no bonus (their exemption from the ally limit does not matter where nobody controls them). THW and ATK
+  for the attempt: M 2 and 3, Kid Omega 2 and 2, Phoenix 2 and 1, Cyclops 2 and 2, White Queen 2 and 1, each NEW ally 2
+  and 2.
+- **Squared Off in a campaign game** plays the ally, so its destination is chosen (§3.34): sent to the mission for 3
+  less, the ally arrives blank.
+- **Phoenix and Cyclops beside the Phoenix and Cyclops heroes**, and White Queen beside the minion of her title, are
+  §3.80.
+- **Ally upgrades (§3.59, Q30).** No upgrade of this pack can be attached to an ally: Wrapped in Metal goes on a minion,
+  the rest are their controller's. Suit Up offers none of them.
+- **New Recruits** is §3.78. In the starter deck it is one card of forty that Magnetic Pull cannot find (it is not
+  MAGNETIC); defeated in a solo game it is worth one 2-cost ally with a bonus and no ally slot.
+- **Noble Sacrifice and "You Got This!"** spend the allies the entering-play Responses have already paid for; with Won't
+  Stay Down an X-MEN ally comes back to hand.
+- **Deft Focus** reduces the next SUPERPOWER card: Magnetic Bubble, Electromagnetic Blast, Metal Shards and Magnetic
+  Missile here; every Nightcrawler event.
+
+#### The Hellfire Club (the pack's modular set)
+
+| Card                                           | As read                                                                                                                                                                                                            | Needs        |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
+| Sebastian Shaw 49038 (SCH 1, ATK 2, 5)         | Toughness. Villainous. Forced Response: after he is attacked, give him a facedown boost card; he cannot be attacked again this phase                                                                               | §3.79        |
+| Selene 49039 (SCH 1, ATK 1, 4; boost ★)        | Quickstrike. Villainous. Allies cannot attack Selene. Boost: discard an ally you control                                                                                                                           | §3.79, §3.81 |
+| Hellfire Pawn 49040 (SCH 1, ATK 2, 3; boost ★) | Guard. Patrol. Surge. Boost: put Hellfire Pawn into play engaged with you                                                                                                                                          | §3.81        |
+| The Inner Circle 49041 (4 threat, amplify)     | When Revealed: place 2 additional threat here for each HELLFIRE card in play                                                                                                                                       | §3.81        |
+| Power and Decadence 49042 (boost ★)            | When Revealed: give the villain a tough status card and give this card to that villain as a facedown boost card. Boost: after this activation the activating enemy activates against you again, with no boost card | §3.79, §3.12 |
+
+- Five cards with no scenario of their own: offered as a modular set wherever one is chosen (DoD §5). Sebastian Shaw and
+  Selene are unique; Hellfire Pawn is not, and is the card of Shadowcat's nemesis set under a second number.
+- The Inner Circle's amplify icon adds a boost icon to every boost card turned up while it is in play, Shaw's and
+  Selene's villainous cards included.
+- Selene's Boost: the player it resolves on picks the ally; with none it does nothing.
+
+**Card data fixes** (for `card-data-pipeline`): the regeneration of Magneto's Armor 49004 to its one ability id; Selene
+49039's period; `cardNotes` for Sebastian Shaw's misprinted label and for the two-trait "Play only if" lines of White
+Queen and Won't Stay Down. The three errata, the starter deck, Exodus's `nemesisMinion` flag and the four `linked`
+keywords are right as emitted. The checks are in §5.5.
+
+**Deckbuilding (DoD §4b).**
+
+- Erik Lehnsherr prints no deckbuilding line. His starter deck is 40 cards: 15 Magneto, 17 Leadership, 8 basic.
+- **Linked:** Surge, Anole, Bling! and Indra can be in no deck (RRG p. 27; ruling August 3, 2026 – Ruling 4 (3)); the
+  builder lists them under New Recruits as set aside and never offers them. A deck with New Recruits brings its own
+  four.
+- "Max 1 per deck": Face the Past, Energy, Genius, Strength. "Max 1 per player" (Won't Stay Down, Deft Focus, Children
+  of the Atom) is a play restriction.
+- "Play only if" lines are play restrictions: New Recruits, White Queen and Won't Stay Down may be in any deck.
+- The unique rule in a deck (§3.80 test 1): Phoenix and Cyclops decks without 49014 or 49015.
