@@ -7,14 +7,14 @@
  * A yes/no fact ("did you talk this phase?") has two options and is drawn as the ordinary option list, so it is not
  * handled here.
  *
- * The stepper's cap is a client bound, not the engine's (it accepts up to `Number.MAX_SAFE_INTEGER`): a person
- * counting minutes away does not mean more than a day, and a bound keeps the number legible at phone width.
+ * The stepper is the manual path now: the break screen (`view/break-timer.ts`) is the default answer to the minutes
+ * prompt, and Q49 says no cap, so plus keeps going up to the engine's own bound.
  */
 
 import { reportedNumberOf, type PendingChoice } from "@mc/engine";
 
-/** Whole minutes in a day: the most the stepper offers. */
-export const REPORT_NUMBER_MAX = 1440;
+/** No cap (Q49): the engine's own bound, so plus keeps going. */
+export const REPORT_NUMBER_MAX = Number.MAX_SAFE_INTEGER;
 
 /** One control of the stepper, as a focus stop and a button. */
 export type ReportControl = "minus" | "plus" | `set:${number}`;

@@ -193,7 +193,7 @@ note(
 );
 note(
   ["44046"],
-  "Alter-ego only. Costs 3 per player. You report the whole minutes you were away, then every identity heals that many.",
+  "Alter-ego only. Costs 3 per player. A timer counts your break; End break heals every identity 1 per whole minute.",
 );
 
 /** The printed id without its face letter: "34002a" and "34002b" are one card. */

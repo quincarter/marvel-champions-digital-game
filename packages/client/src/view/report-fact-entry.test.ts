@@ -37,6 +37,11 @@ describe("stepping", () => {
     expect(reportControlEnabled(entry, 3, "plus")).toBe(true);
   });
 
+  test("no cap at a day: plus keeps going past 1,440 (Q49)", () => {
+    expect(pressReportControl(entry, 1440, "plus")).toBe(1441);
+    expect(reportControlEnabled(entry, 100000, "plus")).toBe(true);
+  });
+
   test("a quick pick sets the value outright", () => {
     expect(pressReportControl(entry, 2, "set:30")).toBe(30);
     expect(pressReportControl(entry, 44, "set:0")).toBe(0);
@@ -59,7 +64,8 @@ describe("the answer", () => {
   test("a stray value is whole and in bounds", () => {
     expect(reportAnswerOf(entry, -3)).toEqual(["0"]);
     expect(reportAnswerOf(entry, 2.9)).toEqual(["2"]);
-    expect(reportAnswerOf(entry, 1e9)).toEqual([String(REPORT_NUMBER_MAX)]);
+    expect(reportAnswerOf(entry, 1e9)).toEqual(["1000000000"]);
+    expect(reportAnswerOf(entry, 1e300)).toEqual([String(REPORT_NUMBER_MAX)]);
     expect(reportAnswerOf(entry, Number.NaN)).toEqual(["0"]);
   });
 

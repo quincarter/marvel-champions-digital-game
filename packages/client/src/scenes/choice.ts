@@ -71,6 +71,7 @@ import {
   type ReportControl,
   type ReportNumberEntry,
 } from "../view/report-fact-entry.js";
+import { breakAnswerAt, breakReadout, breakStartedAt, clearBreakStart, isBreakChoice } from "../view/break-timer.js";
 import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
@@ -87,6 +88,10 @@ import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent, type GuideS
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
+  /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
+  #breakManual = false;
+  /** Redraws the break clock's digits once a second (the digits are the only thing that moves). */
+  #breakTick: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
   #unsubscribe: (() => void) | null = null;
   #choiceId: string | null = null;
@@ -278,10 +283,13 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#choiceId = choice.choiceId;
       const report = reportNumberEntryOf(choice);
       this.#selected = report ? [...reportAnswerOf(report, report.start)] : [...initialChoiceSelection(choice)];
-      this.#focus = null;
+      this.#focus = isBreakChoice(choice) ? { kind: "confirm" } : null;
+      this.#breakManual = false;
     }
     this.#maxSelections = choice.maxSelections;
 
+    this.#breakTick?.remove(false);
+    this.#breakTick = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#focusRing?.destroy();
@@ -554,6 +562,24 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // A whole-number report (Break Time's minutes away) has no options to list: a stepper stands in for them.
     const reportEntry = reportNumberEntryOf(choice);
+    if (reportEntry && isBreakChoice(choice) && !this.#breakManual) {
+      // The break timer is the default answer to the minutes prompt (`view/break-timer.ts`, Q49).
+      this.#route = [{ kind: "confirm" }, { kind: "report", control: "manual" }];
+      this.#drawBreakScreen(
+        { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: Math.max(hit.target * 3, listHeight) },
+        sheet,
+        commitTop,
+        choice,
+        seatIdentityName(state.game, choice.playerId),
+      );
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
     if (reportEntry) {
       const controls = reportControlsOf(reportEntry);
       this.#route = [
@@ -1135,6 +1161,72 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
   }
 
+  /**
+   * The break screen: the table is on a break, the clock counts up from the recorded wall-clock start, and one button
+   * ends it with the whole minutes so far. The elapsed time is read from the clock each time the digits are drawn.
+   */
+  #drawBreakScreen(area: Rect, sheet: Rect, commitTop: number, choice: PendingChoice, who: string): void {
+    const seed = appSession().store.state.config?.seed ?? 0;
+    const startedAt = breakStartedAt({ seed, choiceId: String(choice.choiceId), playerId: choice.playerId }, Date.now);
+    const readout = () => breakReadout(startedAt, Date.now());
+    const cx = area.x + area.width / 2;
+    label(this, cx, area.y + 4, "ON A BREAK", typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
+    const clock = this.add
+      .text(cx, area.y + 26, readout().clockText, textStyle(typeRole.barTitle, surface.ink.hex))
+      .setOrigin(0.5, 0)
+      .setFontSize(48);
+    const heal = this.add
+      .text(cx, area.y + 92, readout().healText, textStyle(typeRole.rowTitle, surface.ink.hex))
+      .setOrigin(0.5, 0);
+    fitText(heal, Math.max(60, area.width - 8), typeRole.rowTitle.size);
+    const redraw = (): void => {
+      const now = readout();
+      clock.setText(now.clockText);
+      heal.setText(now.healText);
+      fitText(heal, Math.max(60, area.width - 8), typeRole.rowTitle.size);
+    };
+    this.#breakTick = this.time.addEvent({ delay: 500, loop: true, callback: redraw });
+
+    const manual: Rect = { x: area.x, y: commitTop - hit.target - 12, width: area.width, height: hit.target };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "Enter minutes instead",
+        type: typeRole.label,
+        rect: manual,
+        onClick: () => this.#enterMinutes(),
+      }),
+    );
+    this.#focusRects.set(choiceFocusKey({ kind: "report", control: "manual" }), manual);
+
+    const end: Rect = { x: sheet.x + 12, y: commitTop, width: sheet.width - 24, height: hit.primary };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: `End break, ${who}`,
+        type: typeRole.barTitle,
+        rect: end,
+        onClick: () => this.#endBreak(startedAt),
+      }),
+    );
+    this.#focusRects.set(choiceFocusKey({ kind: "confirm" }), end);
+    this.#drawFocusRing();
+  }
+
+  #endBreak(startedAt: number): void {
+    if (this.#motion.leaving) return;
+    // Read the clock at the press: the answer is the whole minutes away right now.
+    this.#selected = [...breakAnswerAt(startedAt, Date.now())];
+    void this.#confirm();
+  }
+
+  #enterMinutes(): void {
+    if (this.#motion.leaving) return;
+    this.#breakManual = true;
+    this.#focus = null;
+    this.#rebuild();
+  }
+
   #pressReport(entry: ReportNumberEntry, control: ReportControl): void {
     if (this.#motion.leaving) return;
     this.#selected = [
@@ -1416,6 +1508,22 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#reveal(choice);
       return;
     }
+    if (focus.kind === "confirm" && isBreakChoice(choice) && !this.#breakManual) {
+      const startedAt = breakStartedAt(
+        {
+          seed: appSession().store.state.config?.seed ?? 0,
+          choiceId: String(choice.choiceId),
+          playerId: choice.playerId,
+        },
+        Date.now,
+      );
+      this.#endBreak(startedAt);
+      return;
+    }
+    if (focus.kind === "report" && focus.control === "manual") {
+      this.#enterMinutes();
+      return;
+    }
     if (focus.kind === "report") {
       const entry = reportNumberEntryOf(choice);
       if (entry) this.#pressReport(entry, focus.control as ReportControl);
@@ -1540,7 +1648,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     // is the Board's job (`syncChoiceOverlay`), not this overlay's own.
     this.#motion.exit(this, () => {});
     // The store issues this as the player the engine named, not as "the human".
+    const answered = appSession().store.state.game?.pendingChoice;
     const accepted = await appSession().store.resolveChoice(selected);
+    if (accepted && answered && isBreakChoice(answered)) clearBreakStart();
     if (!accepted) {
       // Rejected: the sheet is still the live way to answer this choice, so
       // it comes back rather than sitting faded on a decision nobody can

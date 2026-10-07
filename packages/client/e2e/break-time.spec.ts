@@ -37,11 +37,8 @@ const stepperValue = async (page: Page): Promise<number | null> => {
   return null;
 };
 
-test("Break Time: a player answers the minutes-away question with the stepper, and the game continues", async ({
-  page,
-}, info) => {
-  test.setTimeout(240_000);
-  const phone = info.project.name === "phone";
+/** Starts the dev game, plays Break Time and pays, and waits for the minutes-away question. */
+async function openBreakQuestion(page: Page, phone: boolean, shot: string): Promise<void> {
   await installWave6Helpers(page);
   await openApp(page);
   await page.evaluate(async () => {
@@ -74,13 +71,85 @@ test("Break Time: a player answers the minutes-away question with the stepper, a
   const filler = others.filter((id) => id !== card).slice(0, 3);
 
   const asked = async (): Promise<boolean> =>
-    (await sheetTexts(page)).some((t) => /how many minutes were you away\?/i.test(t));
+    (await sheetTexts(page)).some((t) => /on a break|how many minutes/i.test(t));
   await playFromHand(page, phone, card, async () => (await asked()) || (await payOpen(page)));
   if (!(await asked())) {
     await payWith(page, phone, filler);
   }
-  await waitFor(async () => ((await asked()) ? true : null), "the minutes-away question", 15000);
+  await waitFor(async () => ((await asked()) ? true : null), "the break screen", 15000);
   await settle(page, { quietMs: 400, maxMs: 4000 });
+  if (SHOT) await page.screenshot({ path: `${SHOT}/${shot}.png` });
+}
+
+const reportedMinutes = (page: Page): Promise<(number | undefined)[]> =>
+  page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => {
+        store: { state: { commandTrail: { events: { type: string; amount?: number }[] }[] } };
+      };
+    };
+    return appSession()
+      .store.state.commandTrail.flatMap((entry) => entry.events)
+      .filter((event) => event.type === "factReported")
+      .map((event) => event.amount);
+  });
+
+const continuesPastQuestion = async (page: Page): Promise<void> => {
+  await waitFor(
+    async () =>
+      (await facts(page, (game) => game.pendingChoice === null || game.pendingChoice === undefined)) ? true : null,
+    "the game continues past the question",
+    15000,
+  );
+  expect(
+    await facts(page, (game) => game.players[0].discard.some((id: string) => game.instances[id].cardId === "44046")),
+    "Break Time is played and discarded",
+  ).toBe(true);
+};
+
+test("Break Time: the break timer counts wall-clock time and End break reports the whole minutes", async ({
+  page,
+}, info) => {
+  test.setTimeout(240_000);
+  const phone = info.project.name === "phone";
+  // The fake clock keeps running with real time; fastForward jumps wall time the way a suspended laptop does.
+  await page.clock.install();
+  await openBreakQuestion(page, phone, `break-timer-${info.project.name}-start`);
+  const texts = await sheetTexts(page);
+  expect(
+    texts.some((t) => /^End break, /i.test(t.trim())),
+    "End break names the player's hero",
+  ).toBe(true);
+  expect(
+    texts.some((t) => /enter minutes instead/i.test(t)),
+    "the manual path is offered",
+  ).toBe(true);
+  expect(await stepperValue(page), "the stepper is not the default").toBeNull();
+
+  await page.clock.fastForward("03:20");
+  await settle(page, { quietMs: 400, maxMs: 3000 });
+  const later = await sheetTexts(page);
+  expect(
+    later.some((t) => /^Heal 3 from each identity$/i.test(t.trim())),
+    "3 whole minutes so far",
+  ).toBe(true);
+  expect(
+    later.some((t) => /^3:2\d$/.test(t.trim())),
+    "the clock reads 3:2x",
+  ).toBe(true);
+  if (SHOT) await page.screenshot({ path: `${SHOT}/break-timer-${info.project.name}-3m20.png` });
+
+  await pressChoice(page, phone, "confirm");
+  await continuesPastQuestion(page);
+  expect(await reportedMinutes(page), "the engine was told 3 minutes").toEqual([3]);
+});
+
+test("Break Time: Enter minutes instead opens the stepper, and the game continues", async ({ page }, info) => {
+  test.setTimeout(240_000);
+  const phone = info.project.name === "phone";
+  await openBreakQuestion(page, phone, `break-timer-${info.project.name}-manual-start`);
+  await pressChoice(page, phone, "report:manual");
+  await waitFor(async () => ((await stepperValue(page)) === null ? null : true), "the stepper", 10000);
   if (SHOT) await page.screenshot({ path: `${SHOT}/break-time-${info.project.name}.png` });
 
   // The stepper starts at 0, where minus has nothing to take.
@@ -94,28 +163,8 @@ test("Break Time: a player answers the minutes-away question with the stepper, a
   if (SHOT) await page.screenshot({ path: `${SHOT}/break-time-${info.project.name}-29.png` });
 
   await pressChoice(page, phone, "confirm");
-  await waitFor(
-    async () =>
-      (await facts(page, (game) => game.pendingChoice === null || game.pendingChoice === undefined)) ? true : null,
-    "the game continues past the question",
-    15000,
-  );
-  expect(
-    await facts(page, (game) => game.players[0].discard.some((id: string) => game.instances[id].cardId === "44046")),
-    "Break Time is played and discarded",
-  ).toBe(true);
-  const reported = await page.evaluate(async () => {
-    const { appSession } = (await import("/src/session.ts")) as unknown as {
-      appSession: () => {
-        store: { state: { commandTrail: { events: { type: string; amount?: number }[] }[] } };
-      };
-    };
-    return appSession()
-      .store.state.commandTrail.flatMap((entry) => entry.events)
-      .filter((event) => event.type === "factReported")
-      .map((event) => event.amount);
-  });
-  expect(reported, "the engine was told 29 minutes").toEqual([29]);
+  await continuesPastQuestion(page);
+  expect(await reportedMinutes(page), "the engine was told 29 minutes").toEqual([29]);
 });
 
 /**
