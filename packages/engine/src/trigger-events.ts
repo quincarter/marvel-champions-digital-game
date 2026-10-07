@@ -970,6 +970,18 @@ export type TriggerEventBody =
        */
       readonly fromTraits?: readonly Trait[];
     }
+  /**
+   * A named moment a script raised (`EffectSpec raiseMoment`, docs/phase7-wave8.md §3.39): "After you resolve a mission
+   * attempt". An announcement (`isAnnouncement`): what the name stands for has already happened, so it opens a response
+   * window and no interrupt window. `playerId` is "you", `sourceInstanceId` the card whose effect raised it. A pattern
+   * names the moment with `eventIs: { name }`.
+   */
+  | {
+      readonly kind: "momentRaised";
+      readonly name: string;
+      readonly playerId: PlayerId;
+      readonly sourceInstanceId: InstanceId | null;
+    }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
   /**
@@ -1367,6 +1379,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     case "abilityResolved":
       return of([event.instanceId], [], [event.controllerId]);
+    // The raising card is the source ("Bishop's 'Energy Absorption'"); the player who resolved it is "you".
+    case "momentRaised":
+      return of([event.sourceInstanceId], [], [event.playerId]);
     case "resourcesSpent":
       // `forPlayerId` first, so `eventPlayer` is "that player" (Everyday Hero); the spender is "you" either way.
       return of(

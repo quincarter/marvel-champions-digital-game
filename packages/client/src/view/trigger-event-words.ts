@@ -59,6 +59,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   turnEnding: "a turn ending",
   surgeResolving: "a surge",
   abilityResolved: "an ability resolved",
+  momentRaised: "an ability resolved",
   cardFlipped: "a card flipped",
   formChanged: "a form change",
   playerPhaseEnded: "the player phase ending",

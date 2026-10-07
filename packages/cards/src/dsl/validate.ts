@@ -56,6 +56,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkTrigger(definition, problems);
   checkLabels(definition, problems);
   checkBoostCards(definition, problems);
+  checkMoments(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -84,6 +85,34 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
     }
     if (effect.card && effect.count) problems.push("giveBoostCard: a chosen card is given once; drop count");
   }
+}
+
+/**
+ * A named moment (docs/phase7-wave8.md §3.39): the name is all that ties `raiseMoment` to the abilities answering it,
+ * so a raise with no name, or a pattern hearing `momentRaised` without naming one (it would answer every moment any
+ * card raises), is an authoring slip. So is an interrupt on one: the engine gives a moment a response window only.
+ */
+function checkMoments(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind === "raiseMoment" && effect.name.trim() === "") problems.push("raiseMoment: a moment needs a name");
+  }
+  const trigger = definition.trigger;
+  if ((trigger.kind !== "interrupt" && trigger.kind !== "response") || !trigger.on) return;
+  if (!namesItsMoment(trigger.on)) problems.push("a pattern on momentRaised must name its moment: use on.moment(name)");
+  // The moment is announced once what it names is done: it has a response window and nothing left to interrupt.
+  if (trigger.kind === "interrupt" && kindsOfPattern(trigger.on).includes("momentRaised"))
+    problems.push("an interrupt cannot answer momentRaised: a raised moment has already happened; use a response");
+}
+
+const kindsOfPattern = (pattern: EventPattern): readonly string[] =>
+  typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+
+/** Whether a pattern that hears `momentRaised` names the moment, itself or in each alternative that hears it. */
+function namesItsMoment(pattern: EventPattern): boolean {
+  if (!kindsOfPattern(pattern).includes("momentRaised")) return true;
+  const name = pattern.eventIs?.name;
+  if (typeof name === "string" ? name !== "" : name !== undefined && name.length > 0) return true;
+  return pattern.anyOf !== undefined && pattern.anyOf.length > 0 && pattern.anyOf.every(namesItsMoment);
 }
 
 /** Cost shapes TypeScript can't see. */

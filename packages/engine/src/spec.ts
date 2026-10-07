@@ -3313,6 +3313,19 @@ export type EffectSpec =
    */
   | { readonly kind: "swapVillain"; readonly villain: TargetRef }
   /**
+   * A named moment this script raises for other cards to answer (docs/phase7-wave8.md §3.39): "After you resolve a
+   * mission attempt", "After you resolve Bishop's 'Energy Absorption' ability". The engine attaches no meaning to
+   * `name`; it is a word the raising script and the answering cards agree on. Each player `player` names is the "you"
+   * of one `TriggerEvent momentRaised`, whose source is this effect's card; a ref naming no player raises nothing.
+   *
+   * The moment is a triggering condition (RRG 1.8 "Triggering Condition", p. 45) that has occurred by the time this
+   * effect is reached, so its windows open where the effect stands in its list: the effects before it have resolved
+   * and the ones after it wait. An ability whose effects were cancelled never reaches it. Always logged
+   * (`GameEvent momentRaised`); it goes on the stack only when an ability could answer it, so a moment nobody answers
+   * changes nothing else.
+   */
+  | { readonly kind: "raiseMoment"; readonly name: string; readonly player: PlayerRef }
+  /**
    * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
    * player's identity becomes the next version of its `progressingIdentity`, set aside at setup. RRG 1.8 "Swap"
    * (p. 42): neither card enters or leaves play, so the identity keeps its instance — damage (the shared dial), counters,

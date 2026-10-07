@@ -2412,6 +2412,14 @@ export const on = {
    * needed to say which one — the same reading `on.mainSchemeCompleted` gives a scenario with one main scheme.
    */
   villainSwapped: (): EventPattern => pattern("villainSwapped"),
+  /**
+   * "After **you** resolve [a named procedure or ability]": the moment a script raises with `raiseMoment(name, player)`
+   * (docs/phase7-wave8.md §3.39), "you" being the player it was raised for. "Forced Response: After you resolve a
+   * mission attempt" is `forcedResponse(on.moment("missionAttempt"), …)`. `anyPlayer`: "after **a player** resolves
+   * …", named in the effects with `eventPlayer`. Narrow the raising card with `sourceIs` when the text names it.
+   */
+  moment: (name: string, opts: { readonly anyPlayer?: boolean } = {}): EventPattern =>
+    pattern("momentRaised", opts.anyPlayer ? {} : { playerIs: "controller" }, { eventIs: { name } }),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /**

@@ -836,6 +836,16 @@ export type GameEvent =
         readonly forced: boolean;
       }[];
     }
+  /**
+   * A script raised a named moment (`EffectSpec raiseMoment`, docs/phase7-wave8.md §3.39), for `playerId` as "you".
+   * Logged whether or not any ability answers it; when one could, a `triggerEvent` of kind `momentRaised` follows.
+   */
+  | {
+      readonly type: "momentRaised";
+      readonly name: string;
+      readonly playerId: PlayerId;
+      readonly sourceInstanceId: InstanceId | null;
+    }
   | {
       readonly type: "abilityResolved";
       readonly instanceId: InstanceId;

@@ -1918,6 +1918,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "swapVillain":
       for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
       return;
+    case "raiseMoment": {
+      // docs/phase7-wave8.md §3.39: one moment per player named, each the "you" of their own, in player order. Logged
+      // always; on the stack only when an ability could answer (`heard`), so an unanswered moment changes nothing else.
+      const raised = resolvePlayers(ctx.state, effect.player, context).map(
+        (playerId): Extract<TriggerEvent, { kind: "momentRaised" }> => ({
+          kind: "momentRaised",
+          name: effect.name,
+          playerId,
+          sourceInstanceId: frame.selfInstanceId,
+        }),
+      );
+      for (const { name, playerId, sourceInstanceId } of raised)
+        emit(ctx, { type: "momentRaised", name, playerId, sourceInstanceId });
+      pushHeard(raised);
+      return;
+    }
     case "swapCards": {
       // docs/phase7-wave6.md §3.47: each ref names one card, or the swap cannot be completed (RRG 1.8 p. 42).
       const a = targets(effect.a);

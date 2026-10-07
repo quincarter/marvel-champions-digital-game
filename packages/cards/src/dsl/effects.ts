@@ -2142,6 +2142,17 @@ export const putMainSchemeStageIntoPlay = (stageNumber: number, name?: string): 
  */
 export const swapVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({ kind: "swapVillain", villain });
 /**
+ * Raises a named moment other cards answer with `on.moment(name)` (docs/phase7-wave8.md §3.39): "After you resolve a
+ * mission attempt", "After you resolve Bishop's 'Energy Absorption' ability". Put it where the thing it names is done:
+ * the effects before it have resolved when the answers resolve, and the ones after it wait. `player` is the "you" of
+ * the moment. The engine reads nothing into the name; a moment nobody answers does nothing.
+ */
+export const raiseMoment = (name: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "raiseMoment",
+  name,
+  player,
+});
+/**
  * "Swap your WEATHER support in play with a support of your choice from the WEATHER deck" (Weather Control, `storm`
  * 36001a): RRG 1.8 "'Swap'" (p. 42), each ref naming one card (docs/phase7-wave6.md §3.47). Different titles: the
  * in-play card leaves play into the other's place and the other enters play ready; the same title: nothing enters or
