@@ -517,6 +517,25 @@ function parseAttach(
   // "Attach to an ally you control." — allies are always player-controlled (no such thing as an enemy ally), so
   // "you control" is a redundant qualifier here, unlike on a minion/enemy/character where it would matter.
   if (/^an? ally you control$/i.test(target)) return { host: { kind: "ally" } };
+  // A classification word before the category: "an identity-specific ally you control" (Sidekick `aoa` 45015),
+  // "an aspect ally", "a basic ally" (`HostQualifiers.classification`; docs/phase7-wave8.md §1.32). "you control" is
+  // the `controlledBy` qualifier, and is optional.
+  const classified =
+    /^(?:an?|the) (identity-specific|aspect|basic) (ally|character|friendly character)( you control)?$/i.exec(target);
+  if (classified) {
+    const word = (classified[1] as string).toLowerCase();
+    const categoryWord = (classified[2] as string).toLowerCase();
+    return {
+      host: {
+        kind: "qualified",
+        category: (categoryWord === "friendly character"
+          ? "friendlyCharacter"
+          : categoryWord) as AttachmentHostCategory,
+        classification: word === "identity-specific" ? "identitySpecific" : (word as "aspect" | "basic"),
+        ...(classified[3] ? { controlledBy: "you" as const } : {}),
+      },
+    };
+  }
   // "Attach to the Avatar of Loki villain." — the villain's own printed name, with a redundant trailing "villain"
   // category word (unlike the bare "Attach to <Name>." form already handled by the `villainNames` check below).
   const namedVillainSuffix = /^the (.+) villain$/i.exec(target);

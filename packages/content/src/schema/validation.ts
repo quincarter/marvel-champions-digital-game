@@ -18,9 +18,11 @@ import type {
 import {
   ATTACHMENT_HOST_CATEGORIES,
   ATTACHMENT_HOST_KINDS,
+  HOST_CLASSIFICATIONS,
   HOST_MEASURES,
   SUPERLATIVE_HOST_POOLS,
   type AttachmentHostCategory,
+  type HostClassification,
   type HostMeasure,
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
@@ -232,6 +234,9 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     if (h.controlledBy !== undefined && h.controlledBy !== "you") {
       errors.push(`${label} ${kind} host controlledBy must be 'you' when present`);
     }
+    if (h.classification !== undefined && !HOST_CLASSIFICATIONS.includes(h.classification as HostClassification)) {
+      errors.push(`${label} ${kind} host classification '${String(h.classification)}' is not a known classification`);
+    }
   };
   /** Every `HostQualifiers` field, for the "a qualified host needs at least one" check. */
   const anyQualifier = (): boolean =>
@@ -242,7 +247,8 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     h.withoutKeyword !== undefined ||
     h.titleContains !== undefined ||
     h.attackedThisTurnBy !== undefined ||
-    h.controlledBy !== undefined;
+    h.controlledBy !== undefined ||
+    h.classification !== undefined;
   switch (kind) {
     case "namedCard":
     case "namedVillain":

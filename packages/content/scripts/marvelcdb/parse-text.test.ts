@@ -552,3 +552,34 @@ describe("Mission Response (Age of Apocalypse Overseer minions)", () => {
     expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant", "constant"]);
   });
 });
+
+/** docs/phase7-wave8.md section 1.32: a classification word before the category (Sidekick `aoa` 45015). */
+describe("parseCardText: attach host by classification", () => {
+  it('"Attach to an identity-specific ally you control." is a qualified host with classification and controlledBy', () => {
+    const parsed = parseCardText(
+      "Attach to an identity-specific ally you control. Max 1 per deck.\nAttached ally gets +2 hit points.",
+      {
+        villainNames: new Set(),
+      },
+    );
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "qualified",
+      category: "ally",
+      classification: "identitySpecific",
+      controlledBy: "you",
+    });
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("a trait-qualified host still parses as before", () => {
+    const parsed = parseCardText(
+      "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +3 hit points.",
+      {
+        villainNames: new Set(),
+      },
+    );
+
+    expect(parsed.attachesTo).toEqual({ kind: "qualified", category: "ally", trait: "X-MEN" });
+  });
+});

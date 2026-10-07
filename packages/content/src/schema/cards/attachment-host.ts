@@ -148,6 +148,10 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
   "sideScheme",
 ];
 
+/** The three player-card classifications a host can be narrowed by. */
+export const HOST_CLASSIFICATIONS = ["identitySpecific", "aspect", "basic"] as const;
+export type HostClassification = (typeof HOST_CLASSIFICATIONS)[number];
+
 /**
  * Narrowing clauses shared by `qualified` and `superlative` hosts.
  * - `trait`: "an X-MEN ally" (printed or gained traits, RRG 1.8 "Gains").
@@ -164,6 +168,9 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
  * - `controlledBy: "you"` (wave 5): "the ally you control with the lowest cost" (Manipulated Mind, `sm` 27171). Only
  *   cards "you" control: on an encounter card, the player revealing it; on a player card, its controller (RRG 1.8 "You,
  *   Your", p. 46). Allies are always player-controlled, so without it "an ally" ranks every player's allies.
+ * - `classification` (wave 8): "an identity-specific ally you control" (Sidekick, `aoa` 45015) is `classification:
+ *   "identitySpecific"`. The card's printed classification (RRG 1.8 "Classifications", p. 12; "Identity-Specific
+ *   Card", p. 23), so an ally from any identity's set matches, not only the player's own.
  *
  * Every qualifier is ANDed.
  */
@@ -176,6 +183,7 @@ export interface HostQualifiers {
   readonly titleContains?: string;
   readonly attackedThisTurnBy?: readonly string[];
   readonly controlledBy?: "you";
+  readonly classification?: HostClassification;
 }
 
 /** What a `superlative` host ranks candidates among. */
