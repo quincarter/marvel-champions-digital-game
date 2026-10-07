@@ -109,3 +109,23 @@ Perception" (the photo is soft, so the printed spelling is unconfirmed).
 - **Nemesis set:** 25 Pyro, 26 Playing with Fire, 27 Pyro's Flamethrower, 28 Burn! ×2
 - Not on the decklist card: 29 to 32 (Sauron, Sauron Lives!, Life Drain, The Eye of Sauron ×3), the pack's modular
   set.
+
+### Jubilee Hero Pack (received 2026-10-07)
+
+Titles match `packages/content/raw/marvelcdb/jubilee.json` positions 2 to 27, with two differences for the data step:
+
+- **22 Unlikely Duo is printed with no multiplier (one copy); MarvelCDB has quantity 2.** With one copy the deck is 40
+  cards (15 hero, 14 Justice, 11 basic); with two it is 41. The printed card is taken as right unless a scan of the
+  pack shows otherwise.
+- The card reads "9 Grand Finale"; MarvelCDB has "Grande Finale" (the photo is soft; check the card's own scan).
+
+- **Hero cards:** 2 Wolverine, 3 Shopping Spree, 4 Jubilee's Coat, 5 Jubilee's Sunglasses, 6 Blinding Flash, 7
+  Firecracker ×3, 8 Flash of Light ×3, 9 Grand Finale, 10 Plasmoid Energy ×3 (15; MarvelCDB stores 7, 8 and 10 as
+  three one-copy records each, a/b/c)
+- **Justice:** 11 Chamber, 12 Husk, 13 Disguise ×3, 14 Waylay ×3, 15 Three Steps Ahead ×3, 16 Generation X, 17 The
+  Power of Justice ×2 (14)
+- **Basic:** 18 Synch, 19 Cell Phone ×3, 20 X-Gene ×3, 21 Multitalented ×3, 22 Unlikely Duo (11)
+- **Obligation:** 23 Grounded
+- **Nemesis set:** 24 Nanny, 25 Naughty Children, 26 Battle Suit, 27 "Lost" Child ×2
+- Not on the decklist card: 28 Mutant Mayhem ×3, 29 Serve and Protect ×3, and 30 to 34 (Arcade, Welcome to
+  Murderworld, Arcade's Funhouse, Hall of Mirrors, Elaborate Trap), the pack's modular set.
