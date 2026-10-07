@@ -129,3 +129,20 @@ Titles match `packages/content/raw/marvelcdb/jubilee.json` positions 2 to 27, wi
 - **Nemesis set:** 24 Nanny, 25 Naughty Children, 26 Battle Suit, 27 "Lost" Child ×2
 - Not on the decklist card: 28 Mutant Mayhem ×3, 29 Serve and Protect ×3, and 30 to 34 (Arcade, Welcome to
   Murderworld, Arcade's Funhouse, Hall of Mirrors, Elaborate Trap), the pack's modular set.
+
+### Nightcrawler Hero Pack (received 2026-10-07)
+
+Every title and quantity matches `packages/content/raw/marvelcdb/ncrawler.json` positions 2 to 30. The deck is 40
+cards: 15 hero, 20 Protection, 5 basic.
+
+- **Hero cards:** 2 Daytripper, 3 Kurt's Chapel, 4 Kurt's Cutlasses, 5 Prehensile Tail, 6 Bamf! ×3, 7 'Port and Punch
+  ×2, 8 Teleport Drop, 9 Scout Ahead ×2, 10 'Port Away, 11 Tally Ho! ×2 (15)
+- **Protection:** 12 Rogue, 13 Northstar, 14 Change of Fortune ×3, 15 Under Control ×3, 16 "Come Get Me, Bub!" ×3, 17
+  Powerful Punch ×3, 18 Riposte ×3, 19 The Power of Protection ×2, 20 Astonishing X-Men (20; number 20 heads the
+  card's second column, above the Basic heading)
+- **Basic:** 21 Gambit, 22 Moira MacTaggert, 23 Energy, 24 Genius, 25 Strength (5)
+- **Obligation:** 26 Crisis of Faith
+- **Nemesis set:** 27 Azazel, 28 Brimstone Dimension, 29 Azazel's Sword, 30 Brimstone Strike ×2 (glare covers part of
+  28 to 30 in the photo; the titles are read with the raw data's help)
+- Not on the decklist card: 31 Combine Forces ×3, 32 Gunboat Diplomacy ×3, and 33 to 38 (The Crazy Gang, Queen of
+  Hearts, Jester, Executioner, Tweedledope, "Off with His Head!"), the pack's modular set.
