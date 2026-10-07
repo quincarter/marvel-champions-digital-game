@@ -487,3 +487,37 @@ describe("icon-led list lines belong to the triggered ability that introduces th
     expect(parsed.abilities.map((a) => a.kind)).toEqual(["action", "constant"]);
   });
 });
+
+/**
+ * Wave 8 `aoa` (docs/phase7-wave8-data-survey.md): No Longer Worthy 45105b's host ends at " and heal ...", where the
+ * named-host parse used to take the whole sentence as a card name.
+ */
+describe("parseCardText: an attach host ends where its behavioral clause starts", () => {
+  const text45105b =
+    'Attach to Apocalypse and heal 5[per_hero] damage from him. He cannot take damage while a [[Prelate]] minion is in play.\nIgnore the "<b>Forced Interrupt</b>" on the main scheme.\n<b>Forced Interrupt</b>: When Apocalypse is defeated, the players win the game.';
+
+  it("45105b: the host is Apocalypse and the heal clause stays as its own sentence", () => {
+    const parsed = parseCardText(text45105b, { villainNames: new Set() });
+    expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Apocalypse" });
+    expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
+    expect(JSON.stringify(parsed)).toContain("Heal 5[per_hero] damage from him.");
+  });
+
+  it("45105b: a named villain in the pack is the villain host", () => {
+    const parsed = parseCardText(text45105b, { villainNames: new Set(["Apocalypse"]) });
+    expect(parsed.attachesTo).toEqual({ kind: "villain" });
+    expect(parsed.attachesToVillainNamed).toBe("Apocalypse");
+  });
+
+  it('"Attach to Iron Man and give him a tough status card." names Iron Man alone', () => {
+    const parsed = parseCardText("Attach to Iron Man and give him a tough status card.", { villainNames: new Set() });
+    expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Iron Man" });
+  });
+
+  it('a real name containing "and" stays whole (Hammer and Anvil)', () => {
+    const parsed = parseCardText("Attach to Hammer and Anvil.\nAttached card gets +1 ATK.", {
+      villainNames: new Set(),
+    });
+    expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Hammer and Anvil" });
+  });
+});

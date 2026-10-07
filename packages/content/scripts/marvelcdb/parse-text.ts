@@ -451,6 +451,14 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
  * time it should. `parseCardText` reports both sentences of a detected fallback pair explicitly (see below) so
  * this doesn't read as ordinary unclassified text.
  */
+/**
+ * A behavioral clause that follows an attach host on the same sentence ("Attach to Apocalypse and heal 5[per_hero]
+ * damage from him.", "Attach to Iron Man and give him a tough status card."): " and " plus a lowercase verb. A host
+ * name is capitalized ("Hammer and Anvil" has no lowercase verb after "and"), so only a clause matches.
+ */
+const ATTACH_CLAUSE_VERB =
+  /\band (?:heal|give|move|change|exhaust|stun|confuse|ready|deal|discard|place|remove|add|draw|flip|take|put|set)\b/;
+
 function parseAttach(
   sentence: string,
   villainNames: ReadonlySet<string>,
@@ -460,6 +468,9 @@ function parseAttach(
   const m = /^Attach to (.+)$/.exec(s);
   if (!m) return undefined;
   const target = m[1] as string;
+  // The host ends at the clause: leave the whole sentence unparsed here so the caller splits the clause off (below)
+  // and parses the host alone, rather than reading "Apocalypse and heal 5 damage from him" as a card name.
+  if (ATTACH_CLAUSE_VERB.test(target)) return undefined;
   const simple: Readonly<Record<string, AttachmentHost>> = {
     "a minion": { kind: "minion" },
     "an enemy": { kind: "enemy" },
@@ -1124,7 +1135,10 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // — which flows into the constant buffer below like any other printed sentence, so
       // `ability-scripting-engineer` still sees it verbatim; only the host itself is pulled out of the sentence.
       if (sentence.startsWith("Attach to ")) {
-        const clauseSplit = /^(Attach to .+?) and (exhaust it|give it a tough status card)\.?$/i.exec(sentence);
+        const clauseSplit =
+          /^(Attach to .+?) and ((?:exhaust it|give it a tough status card)|(?:heal|give|move|change|exhaust|stun|confuse|ready|deal|discard|place|remove|add|draw|flip|take|put|set) .+?)\.?$/i.exec(
+            sentence,
+          );
         if (clauseSplit) {
           const hostOnly = parseAttach(
             `${clauseSplit[1] as string}.`,

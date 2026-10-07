@@ -6,7 +6,7 @@
  */
 import type { DroppedSourceRecord } from "../../../src/data/types.ts";
 import type { ImageRef } from "../../../src/schema/index.ts";
-import type { Correction } from "../curation/types.ts";
+import type { Correction, PackCuration } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { imageOf } from "./art.ts";
 
@@ -58,6 +58,63 @@ export function applyTypeCorrections(
     const top = fix(r);
     return r.linked_card ? { ...top, linked_card: fix(r.linked_card) } : top;
   });
+}
+
+/**
+ * Applies `PackCuration.addedRecords` then `linkOverrides` (both errors-not-silence, see their types). Returns the
+ * input unchanged when the curation has neither.
+ */
+export function applyAddedRecords(
+  raw: readonly RawCard[],
+  curation: PackCuration,
+  errors: string[],
+): readonly RawCard[] {
+  const added = curation.addedRecords ?? [];
+  const overrides = curation.linkOverrides ?? [];
+  if (added.length === 0 && overrides.length === 0) return raw;
+  const known = new Set<string>();
+  for (const r of raw) {
+    known.add(r.code);
+    if (r.linked_card) known.add(r.linked_card.code);
+  }
+  const addedByCode = new Map<string, RawCard>();
+  for (const a of added) {
+    const code = a.record.code;
+    if (known.has(code) || addedByCode.has(code)) {
+      errors.push(`added record ${code}: MarvelCDB already has a record with this code`);
+      continue;
+    }
+    addedByCode.set(code, a.record);
+  }
+  const nested = new Set<string>();
+  const linkedTo = new Map<string, RawCard>();
+  for (const o of overrides) {
+    const front = raw.find((r) => r.code === o.front);
+    if (!front) {
+      errors.push(`link override ${o.front} -> ${o.back}: front record ${o.front} is missing`);
+      continue;
+    }
+    const target =
+      addedByCode.get(o.back) ??
+      raw.flatMap((r) => (r.linked_card ? [r.linked_card] : [])).find((c) => c.code === o.back) ??
+      raw.find((r) => r.code === o.back);
+    if (!target) {
+      errors.push(`link override ${o.front} -> ${o.back}: target record ${o.back} is missing`);
+      continue;
+    }
+    if (front.linked_card?.code === o.back) {
+      errors.push(`link override ${o.front} -> ${o.back}: MarvelCDB already links ${o.front} to ${o.back}`);
+      continue;
+    }
+    linkedTo.set(o.front, target);
+    if (addedByCode.has(o.back)) nested.add(o.back);
+  }
+  const out: RawCard[] = raw.map((r) => {
+    const target = linkedTo.get(r.code);
+    return target ? { ...r, linked_to_code: target.code, linked_card: target } : r;
+  });
+  for (const [code, record] of addedByCode) if (!nested.has(code)) out.push(record);
+  return out;
 }
 
 export function flatten(raw: readonly RawCard[], errors: string[]): Flattened {

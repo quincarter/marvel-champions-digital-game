@@ -13,7 +13,7 @@ import type {
   SpecialCost,
   Trait,
 } from "../../../src/schema/index.ts";
-import type { RawTypeCode } from "../raw-types.ts";
+import type { RawCard, RawTypeCode } from "../raw-types.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -421,6 +421,31 @@ export interface SeparatedIdentitySource {
   readonly evidence: string;
 }
 
+/**
+ * A card face MarvelCDB has no record for, transcribed from a scan as a `RawCard`-shaped literal (box card 104's
+ * back, The Towering Citadel `45104b`). Added before anything else reads the pack. A code MarvelCDB already has is
+ * an error (a fix upstream is noticed instead of shadowed). A record some `LinkOverride` targets is nested as that
+ * front's `linked_card`; any other added record is a top-level record.
+ */
+export interface AddedRecord {
+  readonly record: RawCard;
+  readonly reason: string;
+  /** The scan or page the fields were transcribed from. */
+  readonly evidence: string;
+}
+
+/**
+ * Re-points a front record's `linked_card` where MarvelCDB links the wrong back (45104a names 45105b, the back of
+ * 45105a). `front` is a top-level record's code, `back` any code MarvelCDB or `addedRecords` provides. Restating
+ * the link MarvelCDB already has is an error, so a fix upstream is noticed.
+ */
+export interface LinkOverride {
+  readonly front: string;
+  readonly back: string;
+  readonly reason: string;
+  readonly evidence: string;
+}
+
 export interface PackCuration {
   readonly packCode: string;
   readonly cycle: { readonly id: string; readonly name: string; readonly order: number };
@@ -430,6 +455,10 @@ export interface PackCuration {
   /** Prefix for exported constants: "CORE" → CORE_CARDS, CORE_PACK, … */
   readonly exportPrefix: string;
   readonly corrections: readonly Correction[];
+  /** Card faces MarvelCDB lacks (see `AddedRecord`). Absent = none. */
+  readonly addedRecords?: readonly AddedRecord[];
+  /** Wrong MarvelCDB face links (see `LinkOverride`). Absent = none. */
+  readonly linkOverrides?: readonly LinkOverride[];
   readonly errata: readonly Errata[];
   /** AbilityId → plain-language handoff for `ability-scripting-engineer`. Only where the text is non-obvious. */
   readonly scriptingNotes: Readonly<Record<string, string>>;

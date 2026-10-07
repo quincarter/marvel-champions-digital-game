@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RawCard } from "./raw-types.ts";
 import { bareCuration } from "./curation/empty.ts";
-import type { Correction } from "./curation/types.ts";
+import type { AddedRecord, Correction, LinkOverride, PackCuration } from "./curation/types.ts";
+import { AOA_CURATION } from "./curation/aoa.ts";
+import { normalizePack } from "./normalize.ts";
 import { createContext } from "./normalize/context.ts";
 import { normalizeEncounterSets } from "./normalize/encounter-sets.ts";
 import { normalizeSingleCards } from "./normalize/single-cards.ts";
@@ -268,5 +270,293 @@ describe("a back face in a different encounter set (Overseer / Prelates)", () =>
     expect(encounterSets.map((s) => s.id)).toEqual(["overseer"]);
     const card = ctx.cards[0];
     expect(card && "encounterSetIds" in card && card.encounterSetIds).toEqual(["overseer"]);
+  });
+});
+
+/** The real MarvelCDB records for box card 104 and 105 (`aoa`), copied verbatim: 45104a's `linked_card` is the wrong one. */
+const NO_LONGER_WORTHY = {
+  ...{
+    pack_code: "aoa",
+    pack_name: "Age of Apocalypse",
+    pack_legacy: false,
+    pack_wave: 8,
+    type_code: "attachment",
+    type_name: "Attachment",
+    faction_code: "encounter",
+    faction_name: "Encounter",
+    card_set_code: "apocalypse",
+    card_set_name: "Apocalypse",
+    card_set_type_name_code: "villain",
+    card_set_parent_code: null,
+    id: 3070,
+    position: 105,
+    set_position: 5,
+    code: "45105b",
+    name: "No Longer Worthy",
+    real_name: "No Longer Worthy",
+    subname: null,
+    cost: null,
+    cost_per_hero: false,
+    cost_star: false,
+    text: '<p>Attach to Apocalypse and heal 5<span class="icon-per_hero" title="Per-Hero"></span> hit points from him. He cannot take damage while a <b class="card-traits"><i>Prelate</i></b> minion is in play.</p><p>Ignore the "<b>Forced Interrupt</b>" on the main scheme.</p><p><b>Forced Interrupt</b>: When Apocalypse is defeated, the players win the game.</p>',
+    real_text:
+      'Attach to Apocalypse and heal 5[per_hero] hit points from him. He cannot take damage while a [[Prelate]] minion is in play.\nIgnore the "<b>Forced Interrupt</b>" on the main scheme.\n<b>Forced Interrupt</b>: When Apocalypse is defeated, the players win the game.',
+    boost: null,
+    quantity: 1,
+    resource_energy: null,
+    resource_physical: null,
+    resource_mental: null,
+    resource_wild: null,
+    hand_size: null,
+    health: null,
+    health_per_group: false,
+    health_per_hero: false,
+    thwart: null,
+    thwart_cost: null,
+    scheme: null,
+    attack: null,
+    attack_cost: null,
+    defense: null,
+    defense_cost: null,
+    recover: null,
+    recover_cost: null,
+    base_threat: null,
+    base_threat_fixed: false,
+    base_threat_per_group: false,
+    base_threat_star: false,
+    escalation_threat: null,
+    escalation_threat_fixed: false,
+    scheme_crisis: null,
+    scheme_acceleration: null,
+    scheme_amplify: null,
+    scheme_hazard: null,
+    threat: null,
+    threat_fixed: false,
+    threat_per_group: false,
+    deck_limit: null,
+    stage: null,
+    traits: "Condition.",
+    real_traits: "Condition.",
+    meta: null,
+    deck_requirements: null,
+    deck_options: null,
+    restrictions: null,
+    flavor: "",
+    illustrator: "Sebastián Guidobono",
+    is_unique: false,
+    hidden: true,
+    permanent: false,
+    double_sided: false,
+    back_text: null,
+    back_flavor: null,
+    back_name: null,
+    octgn_id: "1ab538aa-6ad1-4d9d-83a6-3ebc3a045105",
+    attack_star: false,
+    thwart_star: false,
+    defense_star: false,
+    health_star: false,
+    recover_star: false,
+    scheme_star: false,
+    boost_star: false,
+    threat_star: false,
+    escalation_threat_star: false,
+    errata: null,
+    url: "https://marvelcdb.com/card/45105b",
+    imagesrc: null,
+    spoiler: 1,
+    backimagesrc: null,
+  },
+  imagesrc: "/bundles/cards/45105b.png", // what `withLocalArt` adds from the scan folder
+} as unknown as RawCard;
+
+const HEART_OF_THE_EMPIRE = {
+  imagesrc: "/bundles/cards/45104a.png", // what `withLocalArt` adds from the scan folder
+  ...{
+    pack_code: "aoa",
+    pack_name: "Age of Apocalypse",
+    pack_legacy: false,
+    pack_wave: 8,
+    type_code: "side_scheme",
+    type_name: "Side Scheme",
+    faction_code: "encounter",
+    faction_name: "Encounter",
+    card_set_code: "apocalypse",
+    card_set_name: "Apocalypse",
+    card_set_type_name_code: "villain",
+    linked_to_code: "45105b",
+    linked_to_name: "No Longer Worthy",
+    position: 104,
+    set_position: 4,
+    code: "45104a",
+    name: "Heart of the Empire",
+    real_name: "Heart of the Empire",
+    cost_per_hero: false,
+    cost_star: false,
+    text: "Threat cannot be removed from this scheme while a [[Prelate]] minion is in play.\n<b>When Defeated</b>: The first player reveals a random set-aside [[Prelate]] minion. Deal each other player an encounter card. Flip this card over.",
+    real_text:
+      "Threat cannot be removed from this scheme while a [[Prelate]] minion is in play.\n<b>When Defeated</b>: The first player reveals a random set-aside [[Prelate]] minion. Deal each other player an encounter card. Flip this card over.",
+    quantity: 1,
+    health_per_group: false,
+    health_per_hero: false,
+    base_threat: 2,
+    base_threat_fixed: true,
+    base_threat_per_group: false,
+    base_threat_star: false,
+    escalation_threat_fixed: false,
+    scheme_acceleration: 1,
+    threat_fixed: false,
+    threat_per_group: false,
+    flavor: "Before you can challenge Apocalypse, you must fight your way through his tower.",
+    illustrator: "Sebastián Guidobono",
+    is_unique: false,
+    hidden: false,
+    permanent: false,
+    double_sided: false,
+    octgn_id: "1ab538aa-6ad1-4d9d-83a6-3ebc3a045104",
+    attack_star: false,
+    thwart_star: false,
+    defense_star: false,
+    health_star: false,
+    recover_star: false,
+    scheme_star: false,
+    boost_star: false,
+    threat_star: false,
+    escalation_threat_star: false,
+    url: "https://marvelcdb.com/card/45104a",
+    spoiler: 1,
+  },
+  linked_card: NO_LONGER_WORTHY,
+} as unknown as RawCard;
+
+const TYRANTS_THRONE = {
+  imagesrc: "/bundles/cards/45105a.png",
+  ...{
+    pack_code: "aoa",
+    pack_name: "Age of Apocalypse",
+    pack_legacy: false,
+    pack_wave: 8,
+    type_code: "side_scheme",
+    type_name: "Side Scheme",
+    faction_code: "encounter",
+    faction_name: "Encounter",
+    card_set_code: "apocalypse",
+    card_set_name: "Apocalypse",
+    card_set_type_name_code: "villain",
+    linked_to_code: "45105b",
+    linked_to_name: "No Longer Worthy",
+    position: 105,
+    set_position: 5,
+    code: "45105a",
+    name: "The Tyrant's Throne",
+    real_name: "The Tyrant's Throne",
+    cost_per_hero: false,
+    cost_star: false,
+    text: "Threat cannot be removed from this scheme while a [[Prelate]] minion is in play.\n<b>When Defeated</b>: The first player reveals a random set-aside [[Prelate]] minion. Deal each other player an encounter card. Flip this card over and reveal No Longer Worthy.",
+    real_text:
+      "Threat cannot be removed from this scheme while a [[Prelate]] minion is in play.\n<b>When Defeated</b>: The first player reveals a random set-aside [[Prelate]] minion. Deal each other player an encounter card. Flip this card over and reveal No Longer Worthy.",
+    quantity: 1,
+    health_per_group: false,
+    health_per_hero: false,
+    base_threat: 4,
+    base_threat_fixed: true,
+    base_threat_per_group: false,
+    base_threat_star: false,
+    escalation_threat_fixed: false,
+    scheme_acceleration: 3,
+    threat_fixed: false,
+    threat_per_group: false,
+    illustrator: "Sebastián Guidobono",
+    is_unique: false,
+    hidden: false,
+    permanent: false,
+    double_sided: false,
+    octgn_id: "1ab538aa-6ad1-4d9d-83a6-3ebc3a045105",
+    attack_star: false,
+    thwart_star: false,
+    defense_star: false,
+    health_star: false,
+    recover_star: false,
+    scheme_star: false,
+    boost_star: false,
+    threat_star: false,
+    escalation_threat_star: false,
+    url: "https://marvelcdb.com/card/45105a",
+    spoiler: 1,
+  },
+  linked_card: NO_LONGER_WORTHY,
+} as unknown as RawCard;
+
+const ADDED = AOA_CURATION.addedRecords?.[0] as AddedRecord;
+const LINK = AOA_CURATION.linkOverrides?.[0] as LinkOverride;
+
+function normalizeAoa(raw: readonly RawCard[], extra: Partial<PackCuration> = {}) {
+  return normalizePack(raw, {
+    ...AOA_CURATION,
+    corrections: [],
+    errata: [],
+    cardNotes: {},
+    encounterSets: {},
+    addedRecords: [ADDED],
+    linkOverrides: [LINK],
+    ...extra,
+  });
+}
+
+function errorOf(raw: readonly RawCard[], extra: Partial<PackCuration>): string {
+  try {
+    normalizeAoa(raw, extra);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  return "";
+}
+
+describe("PackCuration.addedRecords and linkOverrides (box card 104)", () => {
+  const out = normalizeAoa([HEART_OF_THE_EMPIRE, TYRANTS_THRONE]);
+  const card = (id: string) => out.cards.find((c) => c.id === id);
+
+  it("45104a's other face is the added 45104b, a side scheme with threat 3 and 2 acceleration icons", () => {
+    const heart = card("45104a");
+    expect(heart?.type === "side_scheme" && heart.otherFaceId).toBe("45104b");
+    const citadel = card("45104b");
+    expect(citadel?.name).toBe("The Towering Citadel");
+    expect(citadel?.type).toBe("side_scheme");
+    expect(citadel?.type === "side_scheme" && citadel.startingThreat).toEqual({ base: 3, perPlayer: 0 });
+    expect(citadel?.type === "side_scheme" && citadel.icons).toEqual(["acceleration", "acceleration"]);
+    expect(citadel?.type === "side_scheme" && citadel.otherFaceId).toBe("45104a");
+  });
+
+  it("45105a's other face is 45105b, which appears exactly once", () => {
+    const throne = card("45105a");
+    expect(throne?.type === "side_scheme" && throne.otherFaceId).toBe("45105b");
+    expect(out.cards.filter((c) => c.id === "45105b").length).toBe(1);
+  });
+
+  it("an added record whose code already exists in raw is an error", () => {
+    const dup = { ...ADDED, record: { ...ADDED.record, code: "45105a" } as RawCard };
+    expect(errorOf([HEART_OF_THE_EMPIRE, TYRANTS_THRONE], { addedRecords: [dup], linkOverrides: [] })).toContain(
+      "added record 45105a: MarvelCDB already has a record with this code",
+    );
+  });
+
+  it("an override whose front is missing is an error", () => {
+    const bad = { ...LINK, front: "45199a" };
+    expect(errorOf([HEART_OF_THE_EMPIRE, TYRANTS_THRONE], { linkOverrides: [bad] })).toContain(
+      "link override 45199a -> 45104b: front record 45199a is missing",
+    );
+  });
+
+  it("an override whose target is missing is an error", () => {
+    const bad = { ...LINK, back: "45199b" };
+    expect(errorOf([HEART_OF_THE_EMPIRE, TYRANTS_THRONE], { addedRecords: [], linkOverrides: [bad] })).toContain(
+      "link override 45104a -> 45199b: target record 45199b is missing",
+    );
+  });
+
+  it("an override that restates the link MarvelCDB already has is an error", () => {
+    const bad = { ...LINK, back: "45105b" };
+    expect(errorOf([HEART_OF_THE_EMPIRE, TYRANTS_THRONE], { addedRecords: [], linkOverrides: [bad] })).toContain(
+      "link override 45104a -> 45105b: MarvelCDB already links 45104a to 45105b",
+    );
   });
 });

@@ -10,10 +10,91 @@
  *
  * Left open on purpose (they wait on the campaign spec pass, not on a hack here): the mission side scheme b faces
  * 45166b to 45170b ("Finished.", survey gap 4), the `Mission Response` ability kind of 45180a to 45183a (gap 5),
- * Sidekick 45015's host (gap 2), and the missing back face 45104b with 45104a's wrong link (gap 8: no curation
- * mechanism adds a record, see the handoff note).
+ * Sidekick 45015's host (gap 2). The missing back face 45104b and 45104a's wrong link (gap 8) are `addedRecords` and
+ * `linkOverrides` below.
  */
+import type { RawCard } from "../raw-types.ts";
 import type { PackCuration } from "./types.ts";
+
+/**
+ * 45104b The Towering Citadel, transcribed from scan 45104b.png (WebP inside, 1030 x 710). Shaped like the nested
+ * `linked_card` records MarvelCDB sends for a back face (compare 45105b): the same keys, nulls included, the
+ * `hidden` flag set, and the image under `/bundles/cards/` the way `withLocalArt` writes a local scan. The text
+ * keeps the `[[Prelate]]` trait markup raw writes for 45104a.
+ */
+const TOWERING_CITADEL = {
+  pack_code: "aoa",
+  pack_name: "Age of Apocalypse",
+  pack_legacy: false,
+  pack_wave: 8,
+  type_code: "side_scheme",
+  type_name: "Side Scheme",
+  faction_code: "encounter",
+  faction_name: "Encounter",
+  card_set_code: "apocalypse",
+  card_set_name: "Apocalypse",
+  card_set_type_name_code: "villain",
+  card_set_parent_code: null,
+  position: 104,
+  set_position: 4,
+  code: "45104b",
+  name: "The Towering Citadel",
+  real_name: "The Towering Citadel",
+  subname: null,
+  cost: null,
+  cost_per_hero: false,
+  cost_star: false,
+  text: "Threat cannot be removed from this scheme while a [[Prelate]] minion is in play.\n<b>When Defeated</b>: The first player reveals a random set-aside [[Prelate]] minion. Deal each other player an encounter card. Reveal The Tyrant's Throne side scheme and remove this card from the game.",
+  real_text:
+    "Threat cannot be removed from this scheme while a [[Prelate]] minion is in play.\n<b>When Defeated</b>: The first player reveals a random set-aside [[Prelate]] minion. Deal each other player an encounter card. Reveal The Tyrant's Throne side scheme and remove this card from the game.",
+  boost: null,
+  quantity: 1,
+  health: null,
+  health_per_group: false,
+  health_per_hero: false,
+  thwart: null,
+  scheme: null,
+  attack: null,
+  base_threat: 3,
+  base_threat_fixed: true,
+  base_threat_per_group: false,
+  base_threat_star: false,
+  escalation_threat: null,
+  escalation_threat_fixed: false,
+  scheme_crisis: null,
+  scheme_acceleration: 2,
+  scheme_amplify: null,
+  scheme_hazard: null,
+  threat: null,
+  threat_fixed: false,
+  threat_per_group: false,
+  deck_limit: null,
+  stage: null,
+  traits: null,
+  real_traits: null,
+  flavor: "",
+  illustrator: "Sebasti\u00e1n Guidobono",
+  is_unique: false,
+  hidden: true,
+  permanent: false,
+  double_sided: false,
+  back_text: null,
+  back_flavor: null,
+  back_name: null,
+  attack_star: false,
+  thwart_star: false,
+  defense_star: false,
+  health_star: false,
+  recover_star: false,
+  scheme_star: false,
+  boost_star: false,
+  threat_star: false,
+  escalation_threat_star: false,
+  errata: null,
+  imagesrc: "/bundles/cards/45104b.png",
+  spoiler: 1,
+  backimagesrc: null,
+} as unknown as RawCard;
 
 export const AOA_CURATION: PackCuration = {
   packCode: "aoa",
@@ -80,6 +161,27 @@ export const AOA_CURATION: PackCuration = {
       evidence:
         'Scan 45171a.png: support, Mission trait, no cost oval; footer "BASIC / CAMPAIGN 171A". Survey §4.6 (scan checked).',
       specialCost: "dash",
+    },
+  ],
+
+  addedRecords: [
+    {
+      record: TOWERING_CITADEL,
+      reason:
+        "MarvelCDB has no record of box card 104's real back, The Towering Citadel (survey gap 8). Both faces read APOCALYPSE (4/15): one physical card.",
+      evidence:
+        "Scan 45104b.png (owner's scan, 2026-10-07; docs/phase7-wave8-handoff.md 'Heart of the Empire's two sides'): SIDE SCHEME, base threat 3 with no per-player icon, two acceleration icons, no traits, footer APOCALYPSE (4/15) 104B. Text: 'Threat cannot be removed from this scheme while a PRELATE minion is in play. When Defeated: The first player reveals a random set-aside PRELATE minion. Deal each other player an encounter card. Reveal The Tyrant's Throne side scheme and remove this card from the game.' Art: the scan itself, as /bundles/cards/45104b.png (a local file the client resolves, never wired into the data).",
+    },
+  ],
+
+  linkOverrides: [
+    {
+      front: "45104a",
+      back: "45104b",
+      reason:
+        "MarvelCDB links 45104a to 45105b No Longer Worthy, which is the back of 45105a The Tyrant's Throne; 45105b was emitted twice. The real back is 45104b.",
+      evidence:
+        "Scans 45104a.png and 45104b.png (both footers APOCALYPSE (4/15), 104A and 104B); docs/phase7-wave8-handoff.md 'Heart of the Empire's two sides' (chain: Heart of the Empire flips to The Towering Citadel, which reveals The Tyrant's Throne 45105a, whose flip reveals No Longer Worthy).",
     },
   ],
 
