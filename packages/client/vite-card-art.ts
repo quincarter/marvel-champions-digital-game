@@ -27,7 +27,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { cp, copyFile, mkdir, readFile, stat } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runnerImport, type Plugin, type Connect } from "vite";
 import { CARD_ART_ROUTE } from "./src/art/art-source.js";
@@ -59,9 +59,10 @@ async function poolArtPaths(): Promise<{ readonly cardCount: number; readonly pa
 }
 
 /**
- * The type is sniffed from the bytes, not the extension: some scans are JPEGs
- * filed under `.png` paths. Browsers sniff too, so getting this wrong is
- * survivable, but honest headers cost nothing.
+ * The type is sniffed from the bytes, not the extension: scans are WebP filed
+ * under the `.png`/`.jpg` paths their card records name (`fetch_card_art.py
+ * compress`). Browsers sniff too, so getting this wrong is survivable, but
+ * honest headers cost nothing.
  */
 function imageTypeOf(bytes: Buffer): string {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -148,21 +149,19 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
 
   const { cardCount, paths } = await poolArtPaths();
   const missing: string[] = [];
+  const lossless: string[] = [];
   let bytes = 0;
   for (const relative of paths) {
-    const from = path.join(ART_ROOT, relative);
-    const size = await stat(from).then(
-      (s) => s.size,
-      () => null,
-    );
-    if (size === null) {
+    const scan = await readFile(path.join(ART_ROOT, relative)).catch(() => null);
+    if (scan === null) {
       missing.push(relative);
       continue;
     }
+    if (imageTypeOf(scan) === "image/png") lossless.push(relative);
     const to = path.join(target, relative);
     await mkdir(path.dirname(to), { recursive: true });
-    await copyFile(from, to);
-    bytes += size;
+    await writeFile(to, scan);
+    bytes += scan.length;
   }
   log(
     `card art: ${paths.length - missing.length} scans for ${cardCount} pool cards → ${path.relative(process.cwd(), target)} (${(bytes / 1e6).toFixed(1)} MB)`,
@@ -171,6 +170,14 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
     warn(
       `card art: ${missing.length} scan(s) the pool references are not in assets/card-art/ — those faces will draw their generated frame:\n` +
         missing.map((relative) => `  ${relative}`).join("\n"),
+    );
+  }
+  if (lossless.length > 0) {
+    // Every bundled scan is paid for in every installer (the desktop shell embeds them in its executable), and a
+    // lossless PNG scan is several times the size of the WebP one `compress` writes.
+    warn(
+      `card art: ${lossless.length} bundled scan(s) are lossless PNGs; \`uv run scripts/fetch_card_art.py compress\` re-encodes them as WebP:\n` +
+        lossless.map((relative) => `  ${relative}`).join("\n"),
     );
   }
 }

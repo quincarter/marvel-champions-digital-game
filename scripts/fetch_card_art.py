@@ -13,7 +13,7 @@
 Card art upgrader: replaces scans in assets/card-art/bundles/cards/ with better
 copies from Hall of Heroes (hallofheroeslcg.com).
 
-Five commands:
+Six commands:
 
   audit   Score every local scan for the Fantasy Flight Games diamond watermark
           (the "FF stamp" on the preview images some sets were first scanned
@@ -75,6 +75,16 @@ Five commands:
           delete them once you're done reading them (CLAUDE.md "Content & IP
           boundaries": no art bytes belong in the repo).
 
+  compress
+          Re-encodes every local scan that isn't WebP yet as lossy WebP
+          (quality 72, transparent corners kept), in place and under its own
+          file name, keeping the original whenever WebP would come out larger.
+          Every scan this script saves is already written that way; this is
+          for scans that arrived some other way. Offline. Tauri embeds the
+          bundled scans in the desktop executable and every installer carries
+          them, so this is most of an installer's size: the whole pool went
+          from 665 MB to 207 MB (2026-10-07), checked by eye at full zoom.
+
 A replacement or an addition keeps the exact local path a card record names
 (`/bundles/cards/<code>.png` or `.jpg`), since that is what `imageRef()` points
 at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
@@ -87,6 +97,7 @@ at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
   uv run scripts/fetch_card_art.py grab --image https://marvelcdb.com/bundles/cards/28022.png --out /tmp/scratch
   uv run scripts/fetch_card_art.py missing
   uv run scripts/fetch_card_art.py missing --dry-run -v
+  uv run scripts/fetch_card_art.py compress --dry-run
 """
 
 from __future__ import annotations
@@ -98,6 +109,7 @@ import re
 import subprocess
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -196,6 +208,9 @@ STAMP_THRESHOLD = 0.22
 UPGRADE_FACTOR = 1.05
 # Replacements are scaled down to this long edge; the best local scans are ~1045px.
 MAX_EDGE = 1100
+# Every saved scan is lossy WebP at this quality, whatever its file name says (see `compress`). The client sniffs an
+# image's type from its bytes, never its extension, so a scan keeps the exact path its card record names.
+WEBP_QUALITY = 72
 # Padding is any pixel at least this light on every channel (and near-grey) that connects to the image's edge.
 PAD_WHITE = 225
 # A trimmed card's long/short edge ratio must land here (a printed card is 88x63mm, 1.40; local scans run 1.39-1.45).
@@ -401,21 +416,31 @@ def flatten(img: Image.Image) -> Image.Image:
     return base
 
 
+def encode_webp(img: Image.Image) -> bytes:
+    """`img` as lossy WebP at `WEBP_QUALITY`, keeping an alpha channel (a trimmed card's transparent corners)."""
+    has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+    out = io.BytesIO()
+    img.convert("RGBA" if has_alpha else "RGB").save(out, format="WEBP", quality=WEBP_QUALITY, method=6)
+    return out.getvalue()
+
+
+def is_webp(path: Path) -> bool:
+    with path.open("rb") as f:
+        head = f.read(12)
+    return head[:4] == b"RIFF" and head[8:12] == b"WEBP"
+
+
 def save_like(img: Image.Image, dest: Path, max_edge: int | None = MAX_EDGE) -> None:
     """
-    Writes a trimmed RGBA card in the format `dest`'s extension names, scaled down to `max_edge`. PNG and WebP keep the
-    transparent corners; JPEG gets them filled by `flatten`.
+    Writes a trimmed RGBA card to `dest` as WebP (`encode_webp`), scaled down to `max_edge`. A `.jpg` name gets its
+    transparent corners filled by `flatten`, as the JPEG it used to be saved as did; any other name keeps them.
     """
     if max_edge and max(img.size) > max_edge:
         img = img.copy()
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
-    suffix = dest.suffix.lower()
-    if suffix in (".jpg", ".jpeg"):
-        flatten(img).save(dest, format="JPEG", quality=92, optimize=True)
-    elif suffix == ".webp":
-        img.save(dest, format="WEBP", quality=92)
-    else:
-        img.save(dest, format="PNG", optimize=True)
+    if dest.suffix.lower() in (".jpg", ".jpeg"):
+        img = flatten(img)
+    dest.write_bytes(encode_webp(img))
 
 
 # --------------------------------------------------------------------------- scraping
@@ -1083,6 +1108,37 @@ def trim_local(args: argparse.Namespace) -> None:
     print(f"\n[=] {changed} scans {'would be ' if args.dry_run else ''}trimmed")
 
 
+def _compress_one(path: Path) -> tuple[Path, int, bytes]:
+    with Image.open(path) as img:
+        img.load()
+    return path, path.stat().st_size, encode_webp(img)
+
+
+def compress(args: argparse.Namespace) -> None:
+    """Re-encodes the local scans that aren't WebP yet, in place, wherever WebP comes out smaller."""
+    # Every file, not `local_scans()`: that is keyed by code, and some codes have both a `.png` and a `.jpg`.
+    scans = [p for p in sorted(CARDS_DIR.iterdir()) if p.suffix in (".png", ".jpg", ".jpeg", ".webp")]
+    todo = [p for p in scans if not is_webp(p)]
+    print(f"[*] {len(todo)} of {len(scans)} scans are not WebP yet")
+    before = after = converted = 0
+    with ProcessPoolExecutor() as pool:
+        for path, size, webp in pool.map(_compress_one, todo, chunksize=8):
+            before += size
+            if len(webp) >= size:
+                after += size
+                if args.verbose:
+                    print(f"    = {path.name}: WebP would be larger; kept")
+                continue
+            converted += 1
+            after += len(webp)
+            if args.verbose:
+                print(f"    + {path.name}: {size // 1024} KB -> {len(webp) // 1024} KB")
+            if not args.dry_run:
+                path.write_bytes(webp)
+    verb = "would be " if args.dry_run else ""
+    print(f"\n[=] {converted} scans {verb}converted: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1107,8 +1163,12 @@ def main() -> None:
     m.add_argument("--dry-run", action="store_true", help="report what would be fetched without writing")
     m.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     m.add_argument("-v", "--verbose", action="store_true")
+    c = sub.add_parser("compress", help="re-encode local scans that aren't WebP yet as WebP, in place")
+    c.add_argument("--dry-run", action="store_true", help="report what would change without writing")
+    c.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-    {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing}[args.command](args)
+    commands = {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing, "compress": compress}
+    commands[args.command](args)
 
 
 if __name__ == "__main__":
