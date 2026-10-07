@@ -69,6 +69,10 @@ run = "pnpm ingest"
 description = "Convert campaign mode PDFs to AI-ready Markdown"
 run = "uv run scripts/scrape_campaign_markdown.py"
 
+[tasks.card-art-compress]
+description = "Re-encode new card scans in assets/card-art as WebP (q72). Already-WebP scans are skipped; --dry-run reports only"
+run = "pnpm card-art:compress"
+
 [tasks.clean]
 description = "Remove every package's build output"
 run = "pnpm clean"

@@ -76,9 +76,13 @@ Six commands:
           boundaries": no art bytes belong in the repo).
 
   compress
+          (`mise run card-art-compress`, or `pnpm card-art:compress`)
           Re-encodes every local scan that isn't WebP yet as lossy WebP
           (quality 72, transparent corners kept), in place and under its own
           file name, keeping the original whenever WebP would come out larger.
+          A scan is recognised as WebP by its bytes, not its extension, so
+          the ones already converted are only read, never rewritten, and a
+          second run changes nothing.
           Every scan this script saves is already written that way; this is
           for scans that arrived some other way. Offline. Tauri embeds the
           bundled scans in the desktop executable and every installer carries

@@ -176,7 +176,7 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
     // Every bundled scan is paid for in every installer (the desktop shell embeds them in its executable), and a
     // lossless PNG scan is several times the size of the WebP one `compress` writes.
     warn(
-      `card art: ${lossless.length} bundled scan(s) are lossless PNGs; \`uv run scripts/fetch_card_art.py compress\` re-encodes them as WebP:\n` +
+      `card art: ${lossless.length} bundled scan(s) are lossless PNGs; \`mise run card-art-compress\` re-encodes them as WebP:\n` +
         lossless.map((relative) => `  ${relative}`).join("\n"),
     );
   }
