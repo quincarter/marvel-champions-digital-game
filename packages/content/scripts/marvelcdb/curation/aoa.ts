@@ -224,9 +224,85 @@ export const AOA_CURATION: PackCuration = {
       "Mikhail Rasputin's Overseer face prints a dash for both SCH and ATK (scan 45183a.png, HP 5 per hero, Victory 5, Mission Response). The stat fields carry 0 and mean 'no value'.",
   },
 
-  // Later steps (survey §8 steps 5 and 6): the five scenarios and the Bishop and Magik starter decks.
+  // Later step (survey §8 step 5): the five scenarios.
   scenarios: [],
-  starterDecks: [],
+
+  // MC45 p. 22 (survey §8 step 6). Each title and quantity was read from the PDF page and matched to
+  // raw/marvelcdb/aoa.json by name within the hero's own cards; every printed quantity equals the raw `quantity` and
+  // deck limit. The page lists no permanent or set-aside card for either hero.
+  starterDecks: [
+    {
+      id: "bishop-leadership",
+      name: "Bishop / Leadership",
+      identityCode: "45001a",
+      aspect: "leadership",
+      cards: {
+        "45002": 1, // Malcolm
+        "45003": 1, // Randall
+        "45004": 1, // Bishop's Rifle
+        "45005": 1, // Bishop's Uniform
+        "45006": 2, // Super-Charged
+        "45007": 2, // Concussive Blast
+        "45008": 2, // Command Authority
+        "45009": 2, // Energy Conversion
+        "45010": 3, // Stored Energy
+        "45011": 1, // Cable
+        "45012": 1, // X-23
+        "45013": 3, // Team Training
+        "45014": 3, // Advanced Suit
+        "45015": 1, // Sidekick
+        "45016": 3, // Side-by-Side
+        "45017": 3, // Suit Up
+        "45018": 3, // Lead from the Front
+        "45019": 2, // The Power of Leadership
+        "45020": 1, // Legion
+        "45021": 1, // Marrow
+        "45022": 1, // Energy
+        "45023": 1, // Genius
+        "45024": 1, // Strength
+      },
+      obligationCode: "45025",
+      nemesisCodes: ["45026", "45027", "45028", "45029"],
+      verified: true,
+      sources: ['MC45 p. 22 (docs/campaign-modes/mc45_age_of_apocalypse_rulebook.pdf, "BISHOP / LEADERSHIP")'],
+      note: "40 cards (identity, obligation and nemesis set excluded): 15 Bishop, 20 Leadership, 5 basic. MC45 p. 22 lists titles and quantities, not codes; each was matched to raw/marvelcdb/aoa.json by name and card_set_code (bishop/basic) or faction_code, and every quantity equals the raw printed quantity.",
+    },
+    {
+      id: "magik-aggression",
+      name: "Magik / Aggression",
+      identityCode: "45030a",
+      aspect: "aggression",
+      cards: {
+        "45031": 1, // Colossus
+        "45032": 1, // Limbo
+        "45033": 1, // Magik's Crown
+        "45034": 1, // Soulsword
+        "45035": 1, // Mystical Armor
+        "45036": 1, // Scrying
+        "45037": 3, // Stepping Disc
+        "45038": 2, // Exorcism
+        "45039": 2, // Soul Strike
+        "45040": 2, // Magic Barrier
+        "45041": 1, // Goldballs
+        "45042": 1, // Tempus
+        "45043": 3, // Blood Rage
+        "45044": 3, // Test the Defense
+        "45045": 3, // Full-Body Charge
+        "45046": 3, // Clobber
+        "45047": 2, // The Power of Aggression
+        "45048": 1, // Triage
+        "45049": 1, // Stepford Cuckoos
+        "45050": 1, // Bloodgem
+        "45051": 3, // Basic Spell
+        "45052": 3, // Spiritual Meditation
+      },
+      obligationCode: "45053",
+      nemesisCodes: ["45054", "45055", "45056", "45057", "45058"],
+      verified: true,
+      sources: ['MC45 p. 22 (docs/campaign-modes/mc45_age_of_apocalypse_rulebook.pdf, "MAGIK / AGGRESSION")'],
+      note: "40 cards (identity, obligation and nemesis set excluded): 15 Magik, 16 Aggression, 9 basic. MC45 p. 22 lists titles and quantities, not codes; each was matched to raw/marvelcdb/aoa.json by name and card_set_code (magik/basic) or faction_code, and every quantity equals the raw printed quantity.",
+    },
+  ],
 
   // Survey gap 11: campaign-specific sets whose cards carry the `encounter` faction, so they are not detected from
   // the faction the way `aoa_basic_campaign` (faction `campaign`) is. Rulebook MC45 pp. 3 to 5 and 14 (the survey's

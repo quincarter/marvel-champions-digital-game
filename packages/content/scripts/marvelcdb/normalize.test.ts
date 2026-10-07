@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { RawCard } from "./raw-types.ts";
 import { bareCuration } from "./curation/empty.ts";
@@ -492,6 +493,7 @@ const LINK = AOA_CURATION.linkOverrides?.[0] as LinkOverride;
 function normalizeAoa(raw: readonly RawCard[], extra: Partial<PackCuration> = {}) {
   return normalizePack(raw, {
     ...AOA_CURATION,
+    starterDecks: [],
     corrections: [],
     errata: [],
     cardNotes: {},
@@ -559,4 +561,40 @@ describe("PackCuration.addedRecords and linkOverrides (box card 104)", () => {
       "link override 45104a -> 45105b: MarvelCDB already links 45104a to 45105b",
     );
   });
+});
+
+describe("Age of Apocalypse starter decks (MC45 p. 22), checked against raw before the pack is emitted", () => {
+  const raw = JSON.parse(readFileSync(new URL("../../raw/marvelcdb/aoa.json", import.meta.url), "utf8")) as {
+    cards: RawCard[];
+  };
+  const byCode = new Map(raw.cards.map((c) => [c.code, c]));
+  const sum = (d: { cards: Readonly<Record<string, number>> }, from: number, to: number) =>
+    Object.entries(d.cards)
+      .filter(([code]) => Number(code) >= from && Number(code) <= to)
+      .reduce((n, [, q]) => n + q, 0);
+  const expected = [
+    { id: "bishop-leadership", hero: [45002, 45010, 15], aspect: [45011, 45019, 20], basic: [45020, 45024, 5] },
+    { id: "magik-aggression", hero: [45031, 45040, 15], aspect: [45041, 45047, 16], basic: [45048, 45052, 9] },
+  ] as const;
+
+  for (const e of expected) {
+    const deck = AOA_CURATION.starterDecks.find((d) => d.id === e.id);
+    it(`${e.id} is 40 cards in the printed sections`, () => {
+      expect(deck).toBeDefined();
+      if (!deck) return;
+      expect(sum(deck, 0, Infinity)).toBe(40);
+      for (const [from, to, n] of [e.hero, e.aspect, e.basic]) expect(sum(deck, from, to)).toBe(n);
+    });
+    it(`${e.id} lists only raw codes within their raw quantity`, () => {
+      if (!deck) throw new Error("deck missing");
+      for (const [code, qty] of Object.entries(deck.cards)) {
+        const card = byCode.get(code);
+        expect(card, code).toBeDefined();
+        expect(qty, `${code} ${card?.name}`).toBeLessThanOrEqual(card?.quantity ?? 0);
+      }
+      expect(byCode.get(deck.identityCode)).toBeDefined();
+      expect(byCode.get(deck.obligationCode)).toBeDefined();
+      for (const code of deck.nemesisCodes) expect(byCode.get(code), code).toBeDefined();
+    });
+  }
 });
