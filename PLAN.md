@@ -1233,7 +1233,7 @@ All ten rulebooks and log sheets are in `docs/campaign-modes/`. "Cards scripted"
 | MC21 | The Mad Titan's Shadow   | `mts`       | 5         | 14             | ✅ (wave 4, #45)                          |
 | MC27 | Sinister Motives         | `sm`        | 5         | 16             | ✅ (wave 5, #64)                          |
 | MC32 | Mutant Genesis           | `mut_gen`   | 5         | 25             | ✅ (wave 6, #94)                          |
-| MC40 | NeXt Evolution           | `next_evol` | 5         | 14             | ❌ data only                              |
+| MC40 | NeXt Evolution           | `next_evol` | 5         | 14             | ✅ (wave 7, #98)                          |
 | MC45 | Age of Apocalypse        | `aoa`       | 5         | 6              | ❌ data only                              |
 | MC50 | Agents of S.H.I.E.L.D.   | `aos`       | 5         | 0              | ❌ data only                              |
 | MC60 | Fear No Evil             | `fne`       | 6         | 0              | ❌ data only                              |

@@ -1,5 +1,5 @@
 /**
- * The playable pool: every scripted wave at once (Core, wave 1, cycle 1). `WAVE1_*` and `WAVE2_*` are sibling
+ * The playable pool: every scripted wave at once (Core through cycle 7). `WAVE1_*` and `WAVE2_*` are sibling
  * pools that each start from Core and know nothing of each other, which is right for a pack's own tests and wrong
  * for an app where a cycle 1 hero sits down against a wave 1 villain. This module is that union, built from the
  * waves' own exports so a pack is still added in exactly one place (its wave's `index.ts`).
@@ -22,6 +22,10 @@ import {
   WAVE6_ENCOUNTER_SETS,
   WAVE6_SCENARIOS,
   WAVE6_STARTER_DECKS,
+  WAVE7_ENCOUNTER_SETS,
+  WAVE7_SCENARIOS,
+  WAVE7_STARTER_DECKS,
+  autoIncludedSetsOf,
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
@@ -37,7 +41,14 @@ import { wave4Scenario, type Wave4ScenarioOptions } from "../wave4/setup.js";
 import { WAVE5_ABILITIES } from "../wave5/index.js";
 import { wave5Scenario } from "../wave5/setup.js";
 import { WAVE6_ABILITIES } from "../wave6/index.js";
-import { PLAYABLE_SCENARIO_RECORDS, checkModularPickCount, extraModularCardIds } from "../modular-pool.js";
+import { WAVE7_ABILITIES } from "../wave7/index.js";
+import { wave7Scenario } from "../wave7/setup.js";
+import {
+  PLAYABLE_ENCOUNTER_SETS,
+  PLAYABLE_SCENARIO_RECORDS,
+  checkModularPickCount,
+  extraModularCardIds,
+} from "../modular-pool.js";
 import { wave6Scenario, type Wave6ScenarioOptions } from "../wave6/setup.js";
 
 /**
@@ -63,6 +74,7 @@ export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(
   WAVE4_ABILITIES,
   WAVE5_ABILITIES,
   WAVE6_ABILITIES,
+  WAVE7_ABILITIES,
 );
 
 /** Engine dependencies for a game on the playable pool. */
@@ -85,6 +97,7 @@ const STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE4_STARTER_DECKS,
   ...WAVE5_STARTER_DECKS,
   ...WAVE6_STARTER_DECKS,
+  ...WAVE7_STARTER_DECKS,
 ];
 
 /** Any starter deck in the playable pool as a player seat (quantities expanded; the identity isn't part of the deck). */
@@ -109,19 +122,34 @@ export function playableScenario(scenarioId: string, options: PlayableScenarioOp
   // builder checks what a pick may be (`chosenModularSetIds`).
   const scenario = PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId);
   if (scenario) checkModularPickCount(scenario, options.modularSetIds);
-  const built = withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options));
+  const built = withAutoIncludedSets(
+    withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+  );
   // `stack` is a setup-config option, not a scenario rule, so it is attached here for every wave's builder alike
   // rather than trusted to each builder forwarding it (`GameSetupConfig.stack`).
   return options.stack ? { ...built, stack: options.stack } : built;
 }
 
+/**
+ * The sets a setup condition includes (Dreadpool, when a seat declared the 'Pool aspect; docs/phase7-wave7.md §3.74),
+ * handed to the engine for every scenario of every wave: a Deadpool or 'Pool deck at an older scenario gets the set
+ * too. Only the engine decides inclusion; a builder that already passed the list (`wave7Scenario`) is left alone.
+ */
+function withAutoIncludedSets(built: GameSetupConfig): GameSetupConfig {
+  if (built.autoIncludedSets !== undefined) return built;
+  const autoIncludedSets = autoIncludedSetsOf(PLAYABLE_ENCOUNTER_SETS, PLAYABLE_CARDS);
+  return autoIncludedSets.length > 0 ? { ...built, autoIncludedSets } : built;
+}
+
 const EXTRA_MODULAR_SET_IDS: ReadonlySet<string> = new Set(
-  [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS].filter((set) => set.extraModular).map((set) => set.id as string),
+  [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS, ...WAVE7_ENCOUNTER_SETS]
+    .filter((set) => set.extraModular)
+    .map((set) => set.id as string),
 );
 
 /**
  * An extra modular set (Longshot, MojoMania insert p. 2: "can be included in any scenario") shuffled in on top of any
- * scenario's own encounter deck. A cycle 6 scenario's own builder already adds it (`wave6Scenario`); every earlier
+ * scenario's own encounter deck. A cycle 6 or 7 scenario's own builder already adds it (`wave6Scenario`, `wave7Scenario`); every earlier
  * wave's builder knows nothing of it, so it is added here. Never counted as one of the scenario's modular sets.
  */
 function withExtraModularSets(
@@ -130,7 +158,12 @@ function withExtraModularSets(
   built: GameSetupConfig,
 ): GameSetupConfig {
   const extra = options.extraModularSetIds ?? [];
-  if (extra.length === 0 || WAVE6_SCENARIOS.some((scenario) => scenario.id === scenarioId)) return built;
+  if (
+    extra.length === 0 ||
+    WAVE6_SCENARIOS.some((scenario) => scenario.id === scenarioId) ||
+    WAVE7_SCENARIOS.some((scenario) => scenario.id === scenarioId)
+  )
+    return built;
   if (new Set(extra).size !== extra.length) throw new Error(`${scenarioId}: an extra modular set is added twice`);
   for (const id of extra)
     if (!EXTRA_MODULAR_SET_IDS.has(id)) throw new Error(`${scenarioId}: ${id} is not an extra modular set`);
@@ -149,6 +182,12 @@ function playableScenarioUnstacked(scenarioId: string, options: PlayableScenario
     };
   });
   const seated = { ...options, players };
+  if (WAVE7_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
+    if (seated.difficulty === "extreme")
+      throw new Error(`${scenarioId} is a cycle 7 scenario; "extreme" is Breakout's own multi-villain challenge`);
+    const { villainVersions: _villainVersions, difficulty, ...rest } = seated;
+    return { ...wave7Scenario(scenarioId, { ...rest, ...(difficulty ? { difficulty } : {}) }), cards: PLAYABLE_CARDS };
+  }
   if (WAVE6_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
     if (seated.difficulty === "extreme")
       throw new Error(`${scenarioId} is a cycle 6 scenario; "extreme" is Breakout's own multi-villain challenge`);

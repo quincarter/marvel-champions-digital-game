@@ -22,7 +22,7 @@ import type { EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getInstance, mustInstance } from "../query.js";
 import { canHaveAttached, cannotBeUnattached } from "../rules.js";
-import { cardsInPlay, controllerOf } from "../select.js";
+import { cardsInPlay, controllerOf, isFacedownAttachment } from "../select.js";
 import type { GameState } from "../state.js";
 
 /**
@@ -59,12 +59,18 @@ export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown 
     before.controllerId !== before.ownerId &&
     hostedUpgradeController(ctx.state, id) === before.controllerId;
   moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
+  // A minion attached to a card is in no player's play area: it "is not considered engaged with a player" (RRG 1.8 FAQ
+  // "Malice (#199)", p. 64; `isAttachedMinion`).
+  if (before.engagedWith !== null) updateInstance(ctx, id, (i) => ({ ...i, engagedWith: null }));
   // A player card entering play from out of play enters under its owner's control (RRG 1.8 p. 31); one moving between
   // hosts keeps its controller. A no-op for every card whose controller is already its owner.
   const { ownerId, controllerId } = mustInstance(ctx.state, id);
   if (!wasInPlay && ownerId !== null && controllerId !== ownerId)
     updateInstance(ctx, id, (i) => ({ ...i, controllerId: ownerId }));
   if (facedown) updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
+  else if (isFacedownAttachment(ctx.state, id))
+    // A facedown attachment attached faceup to a host is itself again, and in play (RRG 1.8 p. 23).
+    updateInstance(ctx, id, (i) => ({ ...i, faceup: true, facedownAs: null }));
   else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
   settleUpgradeControl(ctx, id, heldByHost ? ownerId : mustInstance(ctx.state, id).controllerId);
   return true;

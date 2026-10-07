@@ -12,4 +12,5 @@ export * from "./types.js";
 export * from "./pool-index.js";
 export * from "./from-marvelcdb-json.js";
 export * from "./from-text.js";
+export * from "./to-text.js";
 export * from "./url.js";

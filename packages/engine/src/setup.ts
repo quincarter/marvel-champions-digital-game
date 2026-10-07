@@ -15,6 +15,7 @@ import { isPermanentCard, unbuildableSeparateDeck, validateDeck, type DeckContex
 import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
 import { engineError, type EngineError, type IllegalDeck } from "./errors.js";
 import { runFlow } from "./flow.js";
+import type { OutsideFacts } from "./outside-facts.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
 import { createRng, nextInt } from "./rng.js";
 import {
@@ -37,6 +38,7 @@ import {
   type SeparateDeckState,
   type VillainState,
   type SetAsideModularSet,
+  type SetAsideUntilCalled,
   type StackedDecks,
   type TableRules,
 } from "./state.js";
@@ -45,7 +47,12 @@ import type { GameEvent } from "./events.js";
 export interface PlayerSetup {
   readonly identityCardId: CardId;
   readonly deck: readonly CardId[];
-  /** The deck's chosen aspect(s). Only read when `GameSetupConfig.requireLegalDecks` is set, where an absent choice is an illegal deck. */
+  /**
+   * The deck's chosen aspect(s), as the player declared them. Always read: an encounter set included because a player
+   * chose an aspect (`GameSetupConfig.autoIncludedSets`) tests this declaration, never the cards in the deck (RRG 1.8
+   * FAQ, Crisis of Infinite Deadpools, p. 64), so a seat that supplies none has chosen none. Under
+   * `GameSetupConfig.requireLegalDecks` an absent choice is also an illegal deck.
+   */
   readonly aspects?: readonly CoreAspect[];
   /**
    * Mulligans this seat may take after its first one, in RRG 1.8 Appendix II step 15 (docs/phase7-wave5.md §3.26): each
@@ -53,6 +60,13 @@ export interface PlayerSetup {
    * a campaign's setup (MC27 p. 22 reputation node 5, with the RRG 1.8 p. 67 erratum).
    */
   readonly extraMulligans?: number;
+  /**
+   * Facts from outside the game that are known before it starts (docs/phase7-wave7.md §3.83), such as whether this
+   * seat's player won their previous game (§4.1 Q48). The client supplies them; the engine stores them in
+   * `PlayerState.outsideFacts` and never looks anything up itself, so the game replays from its log. An absent fact
+   * is false.
+   */
+  readonly outsideFacts?: OutsideFacts;
 }
 
 /** A seat's expanded deck list collapsed into decklist lines, in first-appearance order. */
@@ -172,10 +186,20 @@ export interface GameSetupConfig {
    */
   readonly sharedEncounterDeck?: boolean;
   /**
-   * With `villains`: every villain starts set aside (out of play, in `encounterSetAside`), and the main scheme's Setup
-   * brings the first ones in (`addVillain`). `MultipleVillains.atSetup: "setAside"`; The Sinister Six, Sinister
-   * Synchronization 1A (`sm` 27100a): "Choose X villains at random … Put those villains into play". Until then no
-   * villain is in play and "the villain" is nobody. docs/phase7-wave5.md §3.1.
+   * Every villain starts set aside (out of play, in `encounterSetAside`), and the main scheme's Setup brings the first
+   * ones in (`addVillain`). Until then no villain is in play and "the villain" is nobody
+   * (`GameState.villainsEnteringAtSetup`).
+   *
+   * - With `villains` (`MultipleVillains.atSetup: "setAside"`): The Sinister Six, Sinister Synchronization 1A (`sm`
+   *   27100a), "Choose X villains at random … Put those villains into play". docs/phase7-wave5.md §3.1.
+   * - Without (`Scenario.startingVillain: "bySetup"`): a single-villain game whose villain the main scheme's Setup
+   *   chooses, among `villainCardId` and `setAsideVillainCardIds`, all of them set aside (On the Run, Gotta Get Away
+   *   1A: "Put 1 random MARAUDER villain into play. Remove the minion with the same title as the villain, along with
+   *   each other villain, from the game."). `villainCardId` stays listed in `GameState.villains`, out of play, and
+   *   holds the active counter and the encounter deck until one enters; the others are plain set-aside cards, as
+   *   `setAsideVillainCardIds` always are. A villain enters on its card's starting side and first stage (`addVillain`),
+   *   so `villainSide` and the stage indexes must say the same, and not with `randomStartingVillain`, which draws
+   *   before any setup text resolves. docs/phase7-wave7.md §3.42.
    */
   readonly villainsStartSetAside?: true;
   /** `ScenarioRules.activeCounter` (The Sinister Six's activation order; docs/phase7-wave5.md §3.1). */
@@ -272,6 +296,27 @@ export interface GameSetupConfig {
    */
   readonly setAside?: readonly CardId[];
   /**
+   * Set-aside cards whose setup keyword does not put them into play at RRG 1.8 Appendix II step 11 (p. 51), because
+   * the scenario's own printed text sets them aside and names when they come in (`SetAsideUntilCalled`): Mister
+   * Sinister's three Superpower sets (MC40 p. 16), the Milano at Escape the Museum. Every other setup-keyword card in
+   * the encounter set-aside area enters play at step 11. The scenario builder states it; kept in `ScenarioRules`.
+   * Absent or empty: no card is held back.
+   */
+  readonly setAsideUntilCalled?: SetAsideUntilCalled;
+  /**
+   * Encounter sets no one picks, each in the game exactly when its `when` holds (docs/phase7-wave7.md §3.74, §4 Q44).
+   * Deadpool insert, "Using the 'Pool Aspect": "When setting up a game in which at least one player is using the 'Pool
+   * aspect, shuffle 1 copy of the Crisis of Infinite Deadpools (#37) treachery card into the encounter deck. Set the
+   * rest of the Dreadpool modular encounter set aside." The scenario builder lists every such set of its card pool,
+   * whatever the seats chose, and the engine decides: when the condition holds, `shuffledIn` joins the first encounter
+   * deck before it is shuffled (RRG 1.8 Appendix II step 10, p. 51) and the rest are created in `encounterSetAside`,
+   * found there by their set (`TargetQuery.inEncounterSet`); the set is included once however many seats satisfy it.
+   * They are not a `setAsideModularSets` entry, so no random "set-aside modular set" pick or count sees them. When
+   * the condition fails, none of the set's cards exist in the game. Logged as `encounterSetAutoIncluded`. Absent or
+   * empty: the game is exactly the game it was before this field existed.
+   */
+  readonly autoIncludedSets?: readonly AutoIncludedSetSetup[];
+  /**
    * This game is one scenario of a campaign (RRG 1.8 "Modes of Play", p. 29), as the campaign runner composed it:
    * the log values it may read, the setup instructions to resolve at each window, and what the campaign has already
    * removed (design §7.1). Frozen into `GameState.campaign` and therefore into the replay baseline, so the game
@@ -310,6 +355,78 @@ export function villainsForDifficulty(
 ): { readonly villainCardId: CardId; readonly setAsideVillainCardIds: readonly CardId[] } {
   if (difficulty === "expert" && scenario.expertVillains) return scenario.expertVillains;
   return { villainCardId: scenario.villainCardId, setAsideVillainCardIds: scenario.setAsideVillainCardIds ?? [] };
+}
+
+/**
+ * An encounter set that is in the game only when a setup condition holds (`EncounterSet.autoIncluded`, expanded by
+ * `@mc/content`'s `autoIncludedSetsOf`; docs/phase7-wave7.md §3.74).
+ */
+export interface AutoIncludedSetSetup {
+  readonly encounterSetId: string;
+  /** `aspectChosen`: at least one seat declared `aspect` among its chosen aspects. */
+  readonly when: { readonly kind: "aspectChosen"; readonly aspect: CoreAspect };
+  /** The cards shuffled into the encounter deck, one entry per copy; each must be among `cardIds`. */
+  readonly shuffledIn: readonly CardId[];
+  /** The whole set, one entry per copy. What `shuffledIn` leaves starts set aside. */
+  readonly cardIds: readonly CardId[];
+}
+
+/** An `AutoIncludedSetSetup` whose condition holds for this table, with the seats that made it hold. */
+interface IncludedSet {
+  readonly setup: AutoIncludedSetSetup;
+  readonly playerIds: readonly PlayerId[];
+  readonly remainder: readonly CardId[];
+}
+
+/** The seats that declared `aspect` among their chosen aspects (a seat's own, and in a campaign game its campaign entry's). */
+function playersChoosingAspect(config: GameSetupConfig, aspect: CoreAspect): PlayerId[] {
+  return config.players.flatMap((seat, seatIndex) => {
+    const aspects = [...(seat.aspects ?? []), ...(config.campaign?.seats[seatIndex]?.aspects ?? [])];
+    return aspects.includes(aspect) ? [playerId(`p${seatIndex + 1}`)] : [];
+  });
+}
+
+/**
+ * The `config.autoIncludedSets` whose condition holds for this table, for a screen that shows what the deal will add
+ * (Table setup's "The game you'll get"). The same test `createGame` applies, minus its list validation.
+ */
+export function autoIncludedSetsInGame(config: GameSetupConfig): readonly AutoIncludedSetSetup[] {
+  return (config.autoIncludedSets ?? []).filter((setup) => playersChoosingAspect(config, setup.when.aspect).length > 0);
+}
+
+/**
+ * Which of `config.autoIncludedSets` are in this game, or a reason the list is malformed. "Chose" is the declared
+ * choice (RRG 1.8 FAQ, Crisis of Infinite Deadpools, p. 64: "only included if at least one player in the game chooses
+ * the 'Pool aspect as (one of) their chosen aspect(s)", not when an ability merely lets a deck hold such cards): a
+ * seat's `PlayerSetup.aspects`, and in a campaign game its `CampaignSeatInput.aspects` as well. Every entry is
+ * checked whether or not its condition holds, so a bad entry never passes by going unused.
+ */
+function includedSetsOf(config: GameSetupConfig, pool: Readonly<Record<string, AnyCard>>): IncludedSet[] | string {
+  const included: IncludedSet[] = [];
+  const seen = new Set<string>();
+  for (const setup of config.autoIncludedSets ?? []) {
+    const setId = setup.encounterSetId;
+    if (seen.has(setId)) return `auto-included set ${setId} is listed twice`;
+    seen.add(setId);
+    for (const cardId of setup.cardIds) {
+      const card = pool[cardId];
+      if (!card || !("encounterSetIds" in card) || !(card.encounterSetIds as readonly string[]).includes(setId))
+        return `${cardId} is not a card of the auto-included set ${setId}`;
+      if (card.type === "evidence" || card.type === "villain" || card.type === "main_scheme")
+        return `${cardId} cannot be part of the auto-included set ${setId}`;
+    }
+    if (setup.shuffledIn.length === 0) return `auto-included set ${setId} shuffles no card in`;
+    const remainder = [...setup.cardIds];
+    for (const cardId of setup.shuffledIn) {
+      const at = remainder.indexOf(cardId);
+      if (at < 0)
+        return `auto-included set ${setId} shuffles in ${cardId}, which the set does not hold (that many times)`;
+      remainder.splice(at, 1);
+    }
+    const playerIds = playersChoosingAspect(config, setup.when.aspect);
+    if (playerIds.length > 0) included.push({ setup, playerIds, remainder });
+  }
+  return included;
 }
 
 export type SetupResult =
@@ -500,6 +617,33 @@ export function illegalDecksOf(
   });
 }
 
+/**
+ * The pool's linked cards under the title each names (`KeywordInstance linked { cardTitle }`; RRG 1.8 "Linked (Card
+ * Title)", p. 27), in pool order. A linked keyword with no title names nothing, so its card is never set aside.
+ */
+function linkedCardsByTitle(cards: readonly AnyCard[]): ReadonlyMap<string, readonly AnyCard[]> {
+  const byTitle = new Map<string, AnyCard[]>();
+  for (const card of cards) {
+    if (!("keywords" in card)) continue;
+    for (const keyword of card.keywords) {
+      if (keyword.name !== "linked" || keyword.cardTitle === undefined) continue;
+      byTitle.set(keyword.cardTitle, [...(byTitle.get(keyword.cardTitle) ?? []), card]);
+    }
+  }
+  return byTitle;
+}
+
+/** `GameSetupConfig.setAsideUntilCalled` as `ScenarioRules` keeps it: only the lists that name something, or nothing. */
+function setAsideUntilCalledOf(rule: SetAsideUntilCalled | undefined): SetAsideUntilCalled | undefined {
+  const cardIds = rule?.cardIds ?? [];
+  const encounterSetIds = rule?.encounterSetIds ?? [];
+  if (cardIds.length === 0 && encounterSetIds.length === 0) return undefined;
+  return {
+    ...(cardIds.length > 0 ? { cardIds } : {}),
+    ...(encounterSetIds.length > 0 ? { encounterSetIds } : {}),
+  };
+}
+
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
@@ -541,6 +685,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       return { ok: false, error: { ...engineError("illegal_deck", message), illegalDecks } };
     }
   }
+
+  const includedSets = includedSetsOf(config, pool);
+  if (typeof includedSets === "string") return invalid(includedSets);
 
   let seq = 1;
   const nextId = (): InstanceId => instanceId(`i${seq++}`);
@@ -624,6 +771,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     const extraMulligans = setup.extraMulligans ?? 0;
     if (!Number.isInteger(extraMulligans) || extraMulligans < 0) {
       return invalid(`${id}'s extraMulligans must be a whole number of 0 or more, not ${extraMulligans}`);
+    }
+    // The input may come from a save file or another device: only a real boolean is a fact.
+    const wonPreviousGame = setup.outsideFacts?.wonPreviousGame;
+    if (wonPreviousGame !== undefined && typeof wonPreviousGame !== "boolean") {
+      return invalid(`${id}'s outsideFacts.wonPreviousGame must be true or false, not ${String(wonPreviousGame)}`);
     }
     seatedIdentities.push({ playerId: id, card: identityCard });
     const identityInstanceId = nextId();
@@ -740,10 +892,18 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       separateDecks,
       eliminated: false,
       ...(extraMulligans > 0 ? { extraMulligans } : {}),
+      ...(wonPreviousGame === true ? { outsideFacts: { wonPreviousGame } } : {}),
     });
   }
 
   const encounterDecks: Record<string, EncounterDeckState> = {};
+  /** The included `autoIncludedSets`, with the instances made for each, for the `encounterSetAutoIncluded` entries. */
+  const autoIncluded: {
+    readonly included: IncludedSet;
+    readonly deckId: EncounterDeckId;
+    readonly shuffledIn: readonly InstanceId[];
+    readonly setAside: InstanceId[];
+  }[] = [];
   for (const [index, planned] of plannedVillains.entries()) {
     if (shared && index > 0) continue;
     const deckId = deckOf(index);
@@ -757,6 +917,19 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       const cardInstanceId = nextId();
       instances[cardInstanceId] = blankInstance(cardInstanceId, card.id, null, { kind: "encounterDeck", deckId });
       deck.push(cardInstanceId);
+    }
+    // docs/phase7-wave7.md §3.74: an included set's `shuffledIn` cards join the first encounter deck, the one the
+    // first player's game area draws from, before setup shuffles it.
+    if (index === 0) {
+      for (const included of includedSets) {
+        const ids = included.setup.shuffledIn.map((cardId) => {
+          const cardInstanceId = nextId();
+          instances[cardInstanceId] = blankInstance(cardInstanceId, cardId, null, { kind: "encounterDeck", deckId });
+          return cardInstanceId;
+        });
+        deck.push(...ids);
+        autoIncluded.push({ included, deckId, shuffledIn: ids, setAside: [] });
+      }
     }
     // RRG Appendix II step 10: obligations are shuffled into the encounter deck — the first (active) villain's.
     if (index === 0) deck.push(...obligationIds);
@@ -780,6 +953,15 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       playerCard ? PLAYER_HOME : { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId },
     );
     encounterSetAside.push(id);
+  }
+  // The rest of each included set waits in the set-aside area, homed to the deck its `shuffledIn` cards joined.
+  for (const entry of autoIncluded) {
+    for (const cardId of entry.included.remainder) {
+      const id = nextId();
+      instances[id] = blankInstance(id, cardId, null, { kind: "encounterDeck", deckId: entry.deckId });
+      encounterSetAside.push(id);
+      entry.setAside.push(id);
+    }
   }
   const scenarioDecks: Record<string, ScenarioDeckState> = {};
   for (const deck of config.scenarioDecks ?? []) {
@@ -862,10 +1044,68 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   const [firstVillain] = villains;
   if (!firstVillain) return invalid("a game has at least one villain");
   if (config.villainsStartSetAside) {
-    if (!config.villains) return invalid("villainsStartSetAside needs villains");
+    if (config.randomStartingVillain)
+      return invalid("villainsStartSetAside leaves the choice to the Setup text; not with randomStartingVillain");
+    // A single-villain game (docs/phase7-wave7.md §3.42): its villain enters by `addVillain`, on its card's starting
+    // side and first stage, running to its last. A config that asks for anything else would be silently ignored.
+    const [planned] = plannedVillains;
+    if (!config.villains && planned) {
+      const entrySide = planned.card.startingSide ?? "A";
+      const entryStages = planned.card.sides.find((s) => s.side === entrySide)?.stages ?? planned.card.sides[0].stages;
+      if (
+        planned.side !== entrySide ||
+        planned.startStageIndex !== 0 ||
+        planned.lastStageIndex !== entryStages.length - 1
+      )
+        return invalid("a villain that starts set aside enters on its starting side, from its first stage to its last");
+    }
     for (const villain of villains) {
       instances[villain.instanceId] = { ...instances[villain.instanceId]!, faceup: false };
       encounterSetAside.push(villain.instanceId);
+    }
+  }
+
+  // RRG 1.8 "Linked (Card Title)" (p. 27; docs/phase7-wave7.md §3.75): linked cards "are set aside at the start of the
+  // game if any deck includes the card that brings the linked cards into play", as many as their product holds, and
+  // "if multiple decks contain the same card named on one or more linked cards, set aside the appropriate number of
+  // cards for each deck that contains the named card": one set per deck, however many copies that deck runs. They
+  // come from the caller's card pool (a pool without them sets nothing aside) and wait in the shared set-aside area
+  // with no owner: "When a player takes control of a card with the linked keyword, that player becomes the owner of
+  // that card" (`enterPlayOnReveal`). Appendix II (p. 51) names no step for them; they are created here, last, before
+  // any deck is shuffled, so no other instance's id depends on whether the pool holds them.
+  const linkedSetAside: {
+    readonly forPlayer: PlayerId;
+    readonly cardIds: readonly CardId[];
+    readonly instanceIds: readonly InstanceId[];
+  }[] = [];
+  const linkedCards = linkedCardsByTitle(config.cards);
+  if (linkedCards.size > 0) {
+    for (const [seatIndex, setup] of config.players.entries()) {
+      const titles = new Set(setup.deck.map((cardId) => pool[cardId]?.name));
+      const cardIds: CardId[] = [];
+      const instanceIds: InstanceId[] = [];
+      for (const [title, cards] of linkedCards) {
+        if (!titles.has(title)) continue;
+        for (const card of cards) {
+          for (let copy = 0; copy < Math.max(1, card.quantityInSet); copy++) {
+            const id = nextId();
+            instances[id] = {
+              ...blankInstance(
+                id,
+                card.id,
+                null,
+                "deckLimit" in card ? PLAYER_HOME : { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId },
+              ),
+              faceup: true,
+            };
+            encounterSetAside.push(id);
+            cardIds.push(card.id);
+            instanceIds.push(id);
+          }
+        }
+      }
+      const player = players[seatIndex];
+      if (player && instanceIds.length > 0) linkedSetAside.push({ forPlayer: player.playerId, cardIds, instanceIds });
     }
   }
 
@@ -880,6 +1120,25 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     );
   }
 
+  // A campaign's required modular set (`CampaignNode.requiredModularSetIds`; MC40 p. 14: "required when playing
+  // Juggernaut in campaign mode") must be in the game: a builder that left it out is refused here rather than the
+  // campaign's setup instructions finding none of its cards and quietly doing nothing.
+  for (const setId of config.campaign?.requiredModularSetIds ?? []) {
+    const present = Object.values(instances).some((instance) => {
+      const card = pool[instance.cardId];
+      return (
+        card !== undefined &&
+        (("encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId)) ||
+          ("specificTo" in card && card.specificTo?.encounterSetId === setId))
+      );
+    });
+    if (!present) {
+      return invalid(
+        `the campaign requires the ${setId} modular set in ${config.campaign?.nodeId}, and no card of it is in the game`,
+      );
+    }
+  }
+
   // RRG 1.8 "Double-Sided Card" (p. 17): a "Standard Mode Only" / "Expert Mode Only" card shows the face of the mode
   // being played, wherever it starts (docs/phase7-wave4.md §3.18). Every instance exists by now.
   if (config.difficulty === "expert") {
@@ -888,6 +1147,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       if (card && modeOnlyFlipped(card, "expert")) instances[id] = { ...instance, flipped: true };
     }
   }
+  for (const cardId of config.setAsideUntilCalled?.cardIds ?? [])
+    if (!pool[cardId]) return invalid(`setAsideUntilCalled names unknown card ${cardId}`);
+  const untilCalled = setAsideUntilCalledOf(config.setAsideUntilCalled);
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -917,6 +1179,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }
         : {}),
+      ...(untilCalled ? { setAsideUntilCalled: untilCalled } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     ...(config.tableRules?.sameNameHeroAllyConflict ? { tableRules: { sameNameHeroAllyConflict: true } } : {}),
@@ -941,6 +1204,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     // Both absent outside a campaign, so a standalone game's serialized state is unchanged (see `GameState`).
     ...(config.campaign ? { campaign: config.campaign, campaignWrites: NO_CAMPAIGN_WRITES } : {}),
     ...(setupStack ? { setupStack } : {}),
+    // No villain is in play until setup text puts one in; open until Appendix II step 12c (docs/phase7-wave7.md §3.42).
+    ...(config.villainsStartSetAside ? { villainsEnteringAtSetup: [] } : {}),
     pendingChoice: null,
     outcome: null,
     rng,
@@ -958,6 +1223,18 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     seed: config.seed,
   });
   for (const entry of permanentSetAside) emit(ctx, { type: "cardsSetAside", ...entry, reason: "permanent" });
+  for (const entry of linkedSetAside) emit(ctx, { type: "linkedCardsSetAside", ...entry });
+  for (const entry of autoIncluded) {
+    const { setup, playerIds } = entry.included;
+    emit(ctx, {
+      type: "encounterSetAutoIncluded",
+      setId: setup.encounterSetId,
+      because: { kind: "aspectChosen", aspect: setup.when.aspect, playerIds },
+      deckId: entry.deckId,
+      shuffledIn: entry.shuffledIn,
+      setAside: entry.setAside,
+    });
+  }
 
   // RRG 1.8 Appendix II steps 6-12 (p. 51). A campaign game runs this as a flow step instead (`setup-steps.ts`),
   // after MC60 p. 9's `beforeScenarioSetup` instructions have resolved; a standalone game runs it here, in the same

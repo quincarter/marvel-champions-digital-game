@@ -5,6 +5,7 @@ import {
   type AbilityDefinition,
   type AbilityRegistry,
   type EffectSpec,
+  type EventPattern,
 } from "@mc/engine";
 
 /**
@@ -100,6 +101,9 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   ];
   if (definition.trigger.kind === "resource" && looks.some((part) => part.encounterLookDiscard))
     problems.push("cost encounterLookDiscard: not on a resource ability");
+  // docs/phase7-wave7.md §3.19 (b): the attack is such a step too.
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.enemyAttack))
+    problems.push("cost enemyAttack: not on a resource ability");
   if (!cost.conditional) return;
   const { conditional, ...common } = cost;
   for (const branch of [conditional.then, conditional.else]) {
@@ -267,10 +271,60 @@ function checkPlain(value: unknown, path: string, problems: string[]): void {
   problems.push(`${path} is a ${typeof value}, not JSON`);
 }
 
+/**
+ * Rule kinds the engine collects by its own scan of the cards in play or in hand rather than through `activeRules`, so
+ * one on a victory display constant would silently do nothing (docs/phase7-wave7.md §3.50).
+ */
+const VICTORY_DISPLAY_UNREAD_RULES: readonly string[] = [
+  "blankTextBox",
+  "countsAs",
+  "textBoxCannotBeBlanked",
+  "cannotChooseToDiscard",
+  "staysInHand",
+  "cannotBeCanceled",
+  "treatHostAsMinion",
+  "treatHostAsAlly",
+];
+
+const patternKinds = (pattern: EventPattern): readonly string[] =>
+  typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+
+/**
+ * A response to damage says which of the two amounts its card's text reads: damage **dealt** ("after X deals / is dealt
+ * damage": `eventAtLeast.dealt`, `on.damage`'s `dealt`) or damage **taken** ("after X takes damage": the `amount`
+ * result or `eventAtLeast.taken`, `on.damage`'s `taken`). RRG 1.8 "Prevent" (p. 35) tells them apart, so a pattern that
+ * names neither would silently pick one (docs/dealt-vs-taken-audit.md).
+ */
+function unreadDamage(pattern: EventPattern): readonly string[] {
+  const reads = (part: EventPattern): boolean =>
+    part.eventAtLeast?.dealt !== undefined ||
+    part.eventAtLeast?.taken !== undefined ||
+    part.requireResults?.amount !== undefined;
+  if (!patternKinds(pattern).includes("dealDamage") || reads(pattern)) return [];
+  const alternatives = (pattern.anyOf ?? []).filter((alternative) => patternKinds(alternative).includes("dealDamage"));
+  if (alternatives.length > 0 && alternatives.every(reads)) return [];
+  return ['a response to damage says whether it reads damage dealt or damage taken (on.damage\'s "dealt" or "taken")'];
+}
+
+function unlistedAlternativeKinds(pattern: EventPattern): readonly string[] {
+  const listed = patternKinds(pattern);
+  return (pattern.anyOf ?? []).flatMap((alternative) => [
+    ...patternKinds(alternative)
+      .filter((kind) => !listed.includes(kind))
+      .map((kind) => `an event pattern alternative hears ${kind}, which the pattern's own "on" does not list`),
+    ...unlistedAlternativeKinds(alternative),
+  ]);
+}
+
 function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   const trigger = definition.trigger;
   if ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.on)
     problems.push(`${trigger.kind} needs an event pattern`);
+  // `EventPattern.anyOf`: the engine files an ability under its outer `on` kinds, so an alternative that hears a kind
+  // the outer pattern does not list would never be reached (`on.either` builds the list).
+  if ((trigger.kind === "interrupt" || trigger.kind === "response") && trigger.on)
+    problems.push(...unlistedAlternativeKinds(trigger.on));
+  if (trigger.kind === "response" && trigger.on) problems.push(...unreadDamage(trigger.on));
   if (trigger.kind === "constant" && definition.effects.length > 0) problems.push("a constant ability has no effects");
   if (definition.generates !== undefined && trigger.kind !== "resource")
     problems.push("only resource abilities generate resources");
@@ -288,6 +342,53 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       definition.limit
     )
       problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
+  }
+  // docs/phase7-wave7.md §3.50: the engine reads a constant's stat modifiers, trait grants, keyword grants and
+  // `activeRules` rules from the victory display, and nothing else from there.
+  if (definition.activeIn === "victoryDisplay") {
+    if (trigger.kind !== "constant") {
+      const article = /^[aeiou]/.test(trigger.kind) ? "an" : "a";
+      problems.push(
+        `only a constant ability works from the victory display (inVictoryDisplay on ${article} ${trigger.kind} ability)`,
+      );
+    } else {
+      const read = ["kind", "modifiers", "traitGrants", "keywordGrants", "rules"];
+      const unread = Object.keys(trigger).filter((key) => !read.includes(key));
+      if (unread.length > 0)
+        problems.push(`a victory display constant cannot carry ${unread.join(", ")}: not read from out of play`);
+      const unreadRules = (trigger.rules ?? [])
+        .map((rule) => rule.kind)
+        .filter((kind) => VICTORY_DISPLAY_UNREAD_RULES.includes(kind));
+      if (unreadRules.length > 0)
+        problems.push(`a victory display constant cannot carry a ${unreadRules.join(", ")} rule: read from play only`);
+    }
+  }
+  // docs/phase7-wave7.md §3.55: the engine offers a card in a discard pile only its response to its own discard from
+  // the deck, and nothing out of play pays a cost.
+  if (definition.activeIn === "discard") {
+    const kinds =
+      trigger.kind === "response" ? (typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) : [];
+    if (
+      trigger.kind !== "response" ||
+      kinds.length !== 1 ||
+      kinds[0] !== "cardDiscardedFromDeck" ||
+      trigger.on.selfIs !== "target"
+    )
+      problems.push(
+        "only a response to the card's own discard from its deck works from the discard pile (inDiscard needs response(on.thisDiscardedFromYourDeck(), …))",
+      );
+    if (definition.cost) problems.push("an ability used from the discard pile has no cost");
+  }
+  // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
+  if (definition.attachInstruction) {
+    if (trigger.kind !== "whenRevealed")
+      problems.push("an attachInstruction ability is built on a whenRevealed trigger");
+    if (definition.cost || definition.limit || definition.label || definition.uncancellable)
+      problems.push("an attachInstruction ability has no cost, limit, label or uncancellable flag");
+    const attachesSelf = allEffects(definition.effects).some(
+      (effect) => effect.kind === "attach" && effect.card.kind === "self",
+    );
+    if (!attachesSelf) problems.push("an attachInstruction ability must attach its own card (attachCard(self, …))");
   }
 }
 
@@ -386,6 +487,12 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   ) {
     problems.push(`${where}: var "${record.name}" is read before it is bound`);
   }
+  // `TargetQuery cardTypeIs` (docs/phase7-wave7.md §3.33): an unbound name matches no card, so `not` of it would
+  // match every card. Only `chooseCardType` binds one.
+  const cardTypeIs = record.cardTypeIs as { chosen?: unknown } | undefined;
+  if (typeof cardTypeIs?.chosen === "string" && !known(scope, scope.vars, `${cardTypeIs.chosen}.made`)) {
+    problems.push(`${where}: card type "${cardTypeIs.chosen}" is read before it is chosen`);
+  }
   if (Array.isArray(record.excludeSlots)) {
     for (const slot of record.excludeSlots)
       if (typeof slot === "string" && !known(scope, scope.slots, slot))
@@ -456,6 +563,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       return;
     case "discardEncounterUntil":
     case "discardDeckUntil":
+    // The card found in the collection and `<bind>.count` (docs/phase7-wave7.md §3.81).
+    case "searchCollection":
       scope.slots.add(effect.bind);
       scope.vars.add(`${effect.bind}.count`);
       return;
@@ -480,6 +589,10 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "spendResources":
     // `<bind>.amount` / `<bind>.made` (docs/phase7-wave6.md §3.69).
     case "chooseNumber":
+    // `<bind>.chosen.<type>` / `<bind>.made` (docs/phase7-wave7.md §3.33).
+    case "chooseCardType":
+    // `<bind>.amount` / `<bind>.made` (docs/phase7-wave7.md §3.83).
+    case "reportFact":
       scope.prefixes.add(`${effect.bind}.`);
       return;
     // A snapshot var (docs/phase7-wave4.md §3.46).
@@ -592,6 +705,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.vars.add(`${look.slot}.boostIcons`);
     }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
+    if (cost.resourcesEqualTo !== undefined) scope.vars.add("cost.resources");
+    // A computed or chosen "take N damage →" records its amount (`AbilityCost.damageSelf`, docs/phase7-wave7.md §3.79).
+    if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).
     for (const component of [cost, ...(cost.either ?? [])]) {

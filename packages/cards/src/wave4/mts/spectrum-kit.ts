@@ -62,8 +62,8 @@ export const SPECTRUM_KIT = defineAbilities({
   "21001b.setup": setup(
     // The energy forms are permanent, so they were set aside before setup step 1 (RRG 1.8 "Permanent", p. 32;
     // docs/phase7-wave6.md §3.74) and are taken from there, never from deck or hand.
-    putIntoPlayFromSetAside("forms", query("upgrade", printedForm("energy"))),
-    turnFacedown(chosen("forms")),
+    // `facedown`: a card put into play facedown is placed loose, with no host read (`putIntoPlay`), then turned.
+    putIntoPlayFromSetAside("forms", query("upgrade", printedForm("energy")), { facedown: true }),
   ),
   // Power Down, Forced Response: After you change to this form, turn all your energy form upgrades facedown.
   "21001b.monica-rambeau-constant": forcedResponse(on.youChangeIdentityForm(), turnFacedown(each(YOUR_ENERGY_FORMS))),

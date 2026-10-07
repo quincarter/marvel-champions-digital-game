@@ -18,6 +18,7 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { POOL_DEPS } from "../content/pool.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { beginPayment, paymentView, togglePayment } from "./payment-model.js";
@@ -266,6 +267,21 @@ function moveToHand(
 
 describe("schemeFinishHint", () => {
   beforeEach(() => intoTurn(true));
+
+  test("'Thwart first' reads ATK against an assault main scheme and THW otherwise (RRG 1.8 p. 8)", () => {
+    const hero = base.players[0]!.identity.instanceId;
+    const profile = characterProfile(base, hero, POOL_DEPS)!;
+    expect(profile.atk).not.toBe(profile.thw);
+    const ready = withMainSchemeThreat(base, threatShortOfTarget(base, stepOneThreatOf(base)));
+    expect(schemeFinishHint(ready, POOL_DEPS, me)!.safeAction?.label).toBe(`Thwart first −${profile.thw}`);
+    // Keep Them Busy (43018), a real assault scheme without crisis (Territorial Control has it), stands in as the main scheme's card.
+    const id = ready.mainScheme.instanceId;
+    const assault = {
+      ...ready,
+      instances: { ...ready.instances, [id]: { ...ready.instances[id]!, cardId: cardId("43018") } },
+    };
+    expect(schemeFinishHint(assault, POOL_DEPS, me)!.safeAction?.label).toBe(`Thwart first −${profile.atk}`);
+  });
 
   test("fires when threat plus next villain phase's step-1 threat reaches the target", () => {
     const step1 = stepOneThreatOf(base);

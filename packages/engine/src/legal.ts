@@ -12,13 +12,16 @@
  * what to pay with.
  */
 
-import type { AbilityId, ResourceIconType } from "@mc/content";
+import type { AbilityId, AnyCard, ResourceIconType } from "@mc/content";
 import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps } from "./abilities.js";
 import {
   basicPowerCost,
   costAsDetermined,
   counterCostHolder,
-  eventActionAbility,
+  eventActionForQuery,
+  eventActions,
+  isActionEvent,
+  usableEventActions,
   handCardResources,
   paidForMultiplied,
   paymentOptions,
@@ -47,11 +50,12 @@ import {
   heroFacesOf,
   isMinion,
   playerOrder,
+  showingResources,
   undefeatedVillains,
   mainSchemeStates,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { requirementTotal, type ResolvedRequirement } from "./resources.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -114,6 +118,14 @@ export interface LegalAction {
    * right now, sent as `costSelection.counters`. `example` removes the most. Absent for any other cost.
    */
   readonly costCounters?: { readonly min: number; readonly max: number };
+  /**
+   * An event that prints more than one Action ability (RRG 1.8 "Event", p. 18: "the player playing it chooses one of
+   * those abilities to trigger"): the ones that can be triggered and paid for right now, in printed order. With more
+   * than one the client asks which and sends it as the `playCard` command's `abilityId` (and as
+   * `PaymentContext.abilityId`, since each has its own cost); `example`, `targets` and the cost fields describe the
+   * first. Absent for any other card.
+   */
+  readonly abilities?: readonly AbilityId[];
 }
 
 export interface IllegalAction {
@@ -137,8 +149,21 @@ export type LegalActions =
   | { readonly kind: "gameOver" }
   /** A choice is open; its `options` are every legal answer. It may belong to another player. */
   | { readonly kind: "choice"; readonly choice: PendingChoice }
-  /** Not this player's turn (`activePlayerId` is null outside the player phase, e.g. while the villain acts). */
-  | { readonly kind: "notYourTurn"; readonly activePlayerId: PlayerId | null }
+  /**
+   * Not this player's turn (`activePlayerId` is null outside the player phase, e.g. while the villain acts).
+   *
+   * `legal` and `illegal` are the Action abilities this player may offer during the active player's turn, and nothing
+   * else: Action abilities on cards they may trigger and Action events they may play (RRG 1.8 "Action", p. 6: "during
+   * their turn, or by request during other players' turns"; docs/phase7-wave7.md §4.1, owner ruling 2026-10-05).
+   * Basic powers, changing form, playing any other card and ending the turn are the active player's alone, so they are
+   * never listed here. Both are empty outside a player's turn.
+   */
+  | {
+      readonly kind: "notYourTurn";
+      readonly activePlayerId: PlayerId | null;
+      readonly legal: readonly LegalAction[];
+      readonly illegal: readonly IllegalAction[];
+    }
   | { readonly kind: "turn"; readonly legal: readonly LegalAction[]; readonly illegal: readonly IllegalAction[] };
 
 type Probe = { readonly ok: true } | { readonly ok: false; readonly reason: EngineErrorCode; readonly message: string };
@@ -186,9 +211,7 @@ const withBranch = (branch: number | undefined): { readonly costSelection?: Cost
 type Evaluated = { readonly legal: LegalAction } | { readonly illegal: IllegalAction };
 
 const resourceCount = (state: GameState, id: InstanceId): number => {
-  const card = cardOf(state, id);
-  if (!card) return 0;
-  const pool = printedResources(card);
+  const pool = showingResources(state, id);
   return pool.physical + pool.mental + pool.energy + pool.wild;
 };
 
@@ -454,10 +477,41 @@ function evaluate(
   };
 }
 
+/**
+ * RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses one of
+ * those abilities to trigger when playing that event." So an event that prints several Action abilities is judged one
+ * ability at a time, each on its own form, condition, targets and cost: the play is legal when any of them is, and
+ * `LegalAction.abilities` lists the ones that are. Every other card is judged once, with a command that names none.
+ */
 function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): Evaluated | null {
   const card = cardOf(state, id);
   if (!card) return null;
-  const cost = costAsDetermined(state, deps, id, playerId, eventActionAbility(createCtx(state, deps), card)?.cost);
+  const ctx = createCtx(state, deps);
+  const actions = eventActions(ctx, card);
+  if (actions.length < 2) return evaluatePlayOf(state, deps, playerId, id, card, actions[0]?.definition, undefined);
+  // Only the abilities usable now are offered; with none, the first says why the card cannot be played.
+  const usable = usableEventActions(ctx, card, id, playerId);
+  const judged = (usable.length > 0 ? usable : actions.slice(0, 1)).map((action) => ({
+    abilityId: action.abilityId,
+    evaluated: evaluatePlayOf(state, deps, playerId, id, card, action.definition, action.abilityId),
+  }));
+  const legal = judged.filter((entry) => "legal" in entry.evaluated);
+  const [first] = legal;
+  if (!first || !("legal" in first.evaluated)) return judged[0]?.evaluated ?? null;
+  return { legal: { ...first.evaluated.legal, abilities: legal.map((entry) => entry.abilityId) } };
+}
+
+function evaluatePlayOf(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+  card: AnyCard,
+  /** The event's Action ability this play triggers, and its id when the command must name it. */
+  ability: AbilityDefinition | undefined,
+  abilityId: AbilityId | undefined,
+): Evaluated {
+  const cost = costAsDetermined(state, deps, id, playerId, ability?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
@@ -500,6 +554,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
                 ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
                 ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
                 ...withBranch(branch),
+                ...(abilityId ? { abilityId } : {}),
               }),
             });
           }
@@ -512,12 +567,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     deps,
     { kind: "playCard", instanceId: id },
     variants,
-    withThwartCostWallets(
-      state,
-      deps,
-      card.type === "event" ? eventActionAbility(createCtx(state, deps), card) : undefined,
-      leavingCardsToDiscard(wallets(spend), cost),
-    ),
+    withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost)),
   );
   return withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
 }
@@ -584,7 +634,14 @@ function evaluateAbility(
   return withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
 }
 
-/** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */
+/**
+ * Action abilities the player could trigger, as candidates for `evaluateAbility` to probe through the `useAbility`
+ * command: on cards they control, on cards nobody controls (encounter cards), and on any card in play, another
+ * player's included, whose ability names them (`triggerableBy`: "Any player may trigger this ability"). Who is named
+ * comes from `triggeringPlayers`, which the command reads too. The command stays the judge of the rest (an attachment
+ * on another player's card, an obligation, a "cannot", the form, the limit, the cost), so a candidate it refuses is
+ * listed as illegal with its reason, never as legal.
+ */
 function actionAbilities(
   state: GameState,
   deps: EngineDeps,
@@ -602,7 +659,7 @@ function actionAbilities(
       if (trigger?.kind !== "action") continue;
       if ((definition?.activeIn === "hand") !== inHand) continue;
       // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" names who may (§3.11 of wave 6);
-      // otherwise the card's controller, or the active player on a card nobody controls.
+      // otherwise the card's controller, or any player on a card nobody controls (an encounter card).
       const named = inHand ? null : triggeringPlayers(state, deps, id, trigger, null);
       if (named ? !named.includes(playerId) : controller !== null && controller !== playerId) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
@@ -656,32 +713,52 @@ const simple = (state: GameState, deps: EngineDeps, playerId: PlayerId, action: 
 /**
  * Every action `playerId` could take right now, split into legal (with an
  * example command and legal targets) and illegal (with the engine's reason).
- * Outside the player's own turn it says what the game is waiting on instead.
+ * Outside the player's own turn it says what the game is waiting on instead, with the Action abilities the player
+ * may still offer during another player's turn.
  */
 export function legalActions(state: GameState, playerId: PlayerId, deps: EngineDeps = DEFAULT_DEPS): LegalActions {
   if (state.outcome) return { kind: "gameOver" };
   if (state.pendingChoice) return { kind: "choice", choice: state.pendingChoice };
   const step = state.step;
-  if (step.phase !== "player" || step.kind !== "turn") return { kind: "notYourTurn", activePlayerId: null };
-  if (step.activePlayerId !== playerId) return { kind: "notYourTurn", activePlayerId: step.activePlayerId };
+  const waiting = (activePlayerId: PlayerId | null): LegalActions => ({
+    kind: "notYourTurn",
+    activePlayerId,
+    legal: [],
+    illegal: [],
+  });
+  if (step.phase !== "player" || step.kind !== "turn") return waiting(null);
   const player = getPlayer(state, playerId);
-  if (!player) return { kind: "notYourTurn", activePlayerId: step.activePlayerId };
+  if (!player || player.eliminated) return waiting(step.activePlayerId);
+  const ownTurn = step.activePlayerId === playerId;
 
   const results: Evaluated[] = [];
   // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
   // and Permissions", p. 33).
   // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
   const attached = attachmentsPlayableBy(state, deps, playerId);
+  const probeCtx = createCtx(state, deps);
   for (const id of [
     ...player.hand,
     ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),
     ...attached,
   ]) {
+    // During another player's turn only an event whose play is its Action can be played (RRG 1.8 "Action", p. 6).
+    const card = cardOf(state, id);
+    if (!ownTurn && !(card && isActionEvent(probeCtx, card))) continue;
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
   for (const { instanceId, abilityId } of actionAbilities(state, deps, playerId)) {
     results.push(evaluateAbility(state, deps, playerId, instanceId, abilityId));
+  }
+  // That is all another player's turn allows: Action abilities, offered as on the player's own turn.
+  if (!ownTurn) {
+    return {
+      kind: "notYourTurn",
+      activePlayerId: step.activePlayerId,
+      legal: results.flatMap((r) => ("legal" in r ? [r.legal] : [])),
+      illegal: results.flatMap((r) => ("illegal" in r ? [r.illegal] : [])),
+    };
   }
 
   const characters = [player.identity.instanceId, ...player.playArea.filter((id) => isAlly(state, id))];
@@ -805,6 +882,8 @@ export interface PaymentContext {
   readonly costChoices?: CostChoices;
   /** The either/or branch and "up to N" counter count (`CostSelection`; docs/phase7-wave3.md §3.32, §3.36). */
   readonly costSelection?: CostSelection;
+  /** One of `LegalAction.abilities`: the event's Action ability being triggered. Absent: the first of them. */
+  readonly abilityId?: AbilityId;
 }
 
 /** An action that carries a payment, resolved down to a single command shape. */
@@ -860,13 +939,11 @@ function payableFor(
   if (action.kind === "playCard") {
     const id = action.instanceId;
     const card = cardOf(state, id);
-    const cost = costAsDetermined(
-      state,
-      deps,
-      id,
-      playerId,
-      card ? eventActionAbility(createCtx(state, deps), card)?.cost : undefined,
-    );
+    // The event's Action ability being paid for (RRG 1.8 "Event", p. 18): the one the player chose, else the first
+    // usable one, which is what `LegalAction.example` triggers.
+    const query = card ? eventActionForQuery(createCtx(state, deps), card, id, playerId, options.abilityId) : null;
+    const abilityId = query?.named ? query.action?.abilityId : undefined;
+    const cost = costAsDetermined(state, deps, id, playerId, query?.action?.definition.cost);
     const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, id, cost);
     const sets = costChoiceSets(state, deps, playerId, id, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
@@ -896,6 +973,7 @@ function payableFor(
         ...(costChoices ? { costChoices } : {}),
         ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
         ...(selection ? { costSelection: selection } : {}),
+        ...(abilityId ? { abilityId } : {}),
       }),
       excludeInstanceId: id,
       reserved: new Set([id, ...picks]),
@@ -996,6 +1074,7 @@ export function paymentFor(
               playerId,
               discardTop,
             ),
+            playerId,
           ),
           ...(costChoices ? { costChoices } : {}),
         },

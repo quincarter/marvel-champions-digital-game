@@ -104,7 +104,7 @@ describe("§3.28–§3.31 compositions", () => {
         on: "dealDamage",
         sourceIs: { controller: "you", categories: ["identity", "event", "resource", "upgrade"] },
         targetIs: { categories: ["enemy"] },
-        eventAtLeast: { amount: 1 },
+        eventAtLeast: { dealt: 1 },
       },
       effects: [{ kind: "heal", target: yourIdentity, amount: { kind: "const", value: 2 } }],
     });

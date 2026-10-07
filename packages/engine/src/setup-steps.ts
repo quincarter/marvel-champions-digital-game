@@ -16,19 +16,21 @@ import type { CardId } from "@mc/content";
 import type { CampaignWindow } from "./campaign.js";
 import { emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { isPermanentCard } from "./deck.js";
-import { giveStatus, shuffleZone } from "./effects.js";
+import { applyToughness, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { encounterDeckOf, mainSchemeStage, mainSchemeValue, mustCardOf, undefeatedVillains } from "./query.js";
 import {
-  announce,
-  applyEnterPlayKeywords,
-  enterPlayOnReveal,
-  gameAbilityFrames,
-  shuffleSeparateDeck,
-} from "./resolve/index.js";
+  encounterDeckOf,
+  mainSchemeStage,
+  mainSchemeValue,
+  mustCardOf,
+  undefeatedVillains,
+  villainOf,
+} from "./query.js";
+import { announce, applyEnterPlayKeywords, gameAbilityFrames, shuffleSeparateDeck } from "./resolve/index.js";
 import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
+import { encounterSetupCardEntersPlay, waitingSetupCardsEnterPlay } from "./resolve/setup-cards.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 
@@ -83,9 +85,10 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   }
 
   // RRG "Toughness": each villain's starting stage enters play with its tough status. A villain that starts set aside
-  // (docs/phase7-wave5.md §3.1) is not in play, so neither this nor its Setup / When Revealed below applies to it.
+  // (docs/phase7-wave5.md §3.1) is not in play, so neither this nor its Setup / When Revealed below applies to it:
+  // `addVillain` gives it its tough status as it enters, and step 12c is its own step (`resolveVillainSetupAbilities`).
   for (const villain of undefeatedVillains(ctx.state)) {
-    if (hasKeyword(ctx.state, villain.instanceId, "toughness", ctx.deps)) giveStatus(ctx, villain.instanceId, "tough");
+    applyToughness(ctx, villain.instanceId);
   }
   putSetupCardsIntoPlay(ctx, firstPlayerId);
   // RRG Appendix II step 12: main scheme 1A setup text, then each villain's, in printed order.
@@ -112,13 +115,54 @@ export function resolveScenarioSetup(ctx: Ctx): void {
 }
 
 /**
+ * The step after Appendix II steps 12a and 12b: step 12c as its own step when every villain started set aside
+ * (`GameState.villainsEnteringAtSetup`), else what follows step 12 (`stepAfterVillainSetupAbilities`). A game with a
+ * villain in play from the start keeps exactly the step sequence it had.
+ */
+export const stepAfterScenarioSetupAbilities = (state: GameState, after: GameStep): GameStep =>
+  state.villainsEnteringAtSetup !== undefined
+    ? { phase: "setup", kind: "villainSetupAbilities" }
+    : stepAfterVillainSetupAbilities(state, after);
+
+/**
  * The step after Appendix II step 12 when the scenario has rulebook-printed setup instructions
  * (`ScenarioRules.setupInstructions`), else `after`. A game without any keeps exactly the step sequence it had.
  */
-export const stepAfterScenarioSetupAbilities = (state: GameState, after: GameStep): GameStep =>
+export const stepAfterVillainSetupAbilities = (state: GameState, after: GameStep): GameStep =>
   (state.scenarioRules.setupInstructions?.length ?? 0) > 0
     ? { phase: "setup", kind: "scenarioSetupInstructions" }
     : after;
+
+/**
+ * RRG 1.8 Appendix II step 12c (p. 51) for a game whose villains all started set aside (docs/phase7-wave7.md §3.42).
+ * Step 12 reads "a. Resolve any 'Setup' abilities on main scheme card 1A. b. Flip the main scheme card to side 1B and
+ * resolve any 'When Revealed' abilities on that side. c. Resolve any 'Setup' and 'When Revealed' abilities on the
+ * villain", and "When Revealed Abilities" (p. 48): "If an encounter card with a 'When Revealed' ability enters play
+ * during setup, resolve that ability during the 'Resolve Scenario Setup and When Revealed Abilities' step." So a
+ * villain that 12a's text puts into play is not revealed as it enters: its own abilities wait for 12c, after 1B's When
+ * Revealed has fully resolved, which is why this is a flow step and not part of the batch `resolveScenarioSetup` pushes
+ * (that batch is built before 12a has chosen anyone). Each villain still in play resolves its Setup and then its When
+ * Revealed once, in the order they entered, and the window closes.
+ *
+ * A step 11 setup card still waiting for a card to attach to (`GameState.setupCardsAwaitingHost`) is settled first: no
+ * later villain can enter inside the window.
+ */
+export function resolveVillainSetupAbilities(ctx: Ctx): void {
+  waitingSetupCardsEnterPlay(ctx, true);
+  const entered = ctx.state.villainsEnteringAtSetup ?? [];
+  const { villainsEnteringAtSetup: _closed, ...rest } = ctx.state;
+  ctx.state = rest;
+  const firstPlayerId = ctx.state.firstPlayerId;
+  pushFrames(
+    ctx,
+    entered
+      .filter((id) => villainOf(ctx.state, id)?.defeated === false)
+      .flatMap((id) => [
+        ...gameAbilityFrames(ctx, id, ["setup"], null, undefined, firstPlayerId),
+        ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, firstPlayerId),
+      ]),
+  );
+}
 
 /** Where the flow goes once the scenario's setup instructions are on the stack. */
 export const stepAfterScenarioSetupInstructions = (state: GameState): GameStep =>
@@ -206,16 +250,35 @@ function stackDecks(ctx: Ctx): void {
 
 /**
  * RRG Appendix II step 11: every card with the setup keyword begins the game in play. "Search each deck and the set
- * aside area" (RRG 1.8 p. 51): a player's permanent cards were set aside before step 1 (docs/phase7-wave6.md §3.74), so
- * a "Permanent. Setup." card (the campaign condition upgrades, MC10 p. 7) is found there, after that player's deck.
- * Only permanent player cards: the nemesis set waiting in the same area is never swept.
+ * aside area" (RRG 1.8 p. 51), read in that order: the encounter decks, each player's deck with that player's own
+ * set-aside cards, then the encounter set-aside area.
+ *
+ * - A player's permanent cards were set aside before step 1 (docs/phase7-wave6.md §3.74), so a "Permanent. Setup." card
+ *   (the campaign condition upgrades, MC10 p. 7) is found in their own set-aside area, after their deck. Only permanent
+ *   player cards: the nemesis set waiting in the same area is never swept.
+ * - An ally found in the encounter deck (an encounter set's own ally, docs/phase7-wave7.md §3.25) enters play in the
+ *   first player's play area under their control (`enterPlayOnReveal`); the scenario still owns it. Its own text decides
+ *   whether it then follows the first player token (`controlledByFirstPlayer`) and whether it counts against the ally
+ *   limit (`excludedFromAllyLimit`).
+ * - A card in the encounter set-aside area enters play as one found in an encounter deck does, under the first player
+ *   when its type needs a player (docs/phase7-wave7.md §4.1 Q20 = B), unless the scenario's own text keeps it aside
+ *   until called (`ScenarioRules.setAsideUntilCalled`; MC40 p. 16). The area is read as it stood when step 11 began, so
+ *   a deck's card held there for a host is not found twice. A set-aside villain is not a card with keywords until it
+ *   is in play (`addVillain`), so none is taken.
+ * - A campaign-specific card there is the campaign's supply, not a card the scenario set aside: no printed step puts it
+ *   in the set-aside area, it is brought from outside the game so that the instruction or ability naming it can find
+ *   it (`CampaignOp` `composeEncounterSets` `into: "setAside"`, `setAsideCards`; MC21's Norn Stone, handed out by a
+ *   side scheme's When Defeated). It is never taken. A campaign card a player has earned begins in play from that
+ *   player's own deck or set-aside cards, above.
+ * - An attachment with no card to attach to, in a game whose villains all start set aside, waits for the villain that
+ *   step 12a puts into play (`resolve/setup-cards.ts`), wherever step 11 found it.
  */
 function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
+  const setAsideAtStart = [...ctx.state.encounterSetAside];
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-      enterPlayOnReveal(ctx, id, revealingPlayerId);
+      encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
     }
   }
   for (const player of ctx.state.players) {
@@ -233,6 +296,29 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
       announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId: player.playerId });
     }
   }
+  for (const id of setAsideAtStart) {
+    if (!hasKeyword(ctx.state, id, "setup") || isSetAsideUntilCalled(ctx.state, id)) continue;
+    encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
+  }
+}
+
+/**
+ * Whether step 11 leaves this card of the encounter set-aside area where it is: the scenario's own text keeps it aside
+ * (`ScenarioRules.setAsideUntilCalled`), or it is a campaign-specific card, the campaign's supply.
+ */
+function isSetAsideUntilCalled(state: GameState, id: InstanceId): boolean {
+  const card = mustCardOf(state, id);
+  if ("specificTo" in card && card.specificTo?.kind === "campaign") return true;
+  const rule = state.scenarioRules.setAsideUntilCalled;
+  if (!rule) return false;
+  if (rule.cardIds?.includes(card.id)) return true;
+  const sets = rule.encounterSetIds ?? [];
+  if (sets.length === 0) return false;
+  const own: readonly string[] = [
+    ...("encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : []),
+    ...("specificTo" in card && card.specificTo ? [card.specificTo.encounterSetId as string] : []),
+  ];
+  return own.some((setId) => sets.includes(setId));
 }
 
 /**

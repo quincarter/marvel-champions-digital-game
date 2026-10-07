@@ -716,7 +716,10 @@ describe('SM_CAMPAIGN_DEFINITION nodes 21 and 25\'s rewards: "Each player may se
       const taken = copies.filter((copy) => copy.inPlay);
       expect(taken).toHaveLength(1);
       expect(taken[0]?.instance).toMatchObject({ controllerId: p1.playerId, ownerId: p1.playerId });
-      expect(p1.playArea).toContain(taken[0]?.instance.instanceId);
+      // The support sits in their play area; the upgrade is on their identity, as when it is played.
+      const identityAttachments = state.instances[p1.identity.instanceId]?.attachments ?? [];
+      expect([...p1.playArea, ...identityAttachments]).toContain(taken[0]?.instance.instanceId);
+      expect(taken[0]?.instance.attachedTo).toBe(card === SYMBIOTE_SUIT ? p1.identity.instanceId : null);
       // Player 2 declined ("may"): their copy stays set aside, out of play and owned by nobody.
       const declined = copies.filter((copy) => !copy.inPlay);
       expect(declined).toHaveLength(1);

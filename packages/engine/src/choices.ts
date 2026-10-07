@@ -1,6 +1,7 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
 import type { ResourceRequirement } from "./resources.js";
 import type { StatusName } from "./spec.js";
 import type { WindowTiming } from "./stack.js";
@@ -15,6 +16,9 @@ export interface AttackInProgress {
   readonly targetPlayerId: PlayerId;
   readonly targetCharacterInstanceId: InstanceId;
 }
+
+/** What a `chooseFromList` prompt enumerates. `cardType`: the fifteen card types (RRG 1.8 "Card Types", p. 12). */
+export type ChoiceList = "cardType";
 
 export type ChoicePrompt =
   | { readonly kind: "declareDefender"; readonly attack: AttackInProgress }
@@ -134,8 +138,34 @@ export type ChoicePrompt =
    * to `max`, its `optionId` and label the number itself; exactly one is selected.
    */
   | { readonly kind: "chooseNumber"; readonly min: number; readonly max: number }
+  /**
+   * An effect has the player choose one entry of a fixed, enumerated list (`EffectSpec chooseCardType`,
+   * docs/phase7-wave7.md §3.33): one option per entry, its `optionId` the entry's id and its label the entry's name;
+   * exactly one is selected. `list` says what is being chosen, for the prompt's title.
+   */
+  | { readonly kind: "chooseFromList"; readonly list: ChoiceList }
+  /**
+   * `EffectSpec searchCollection` (docs/phase7-wave7.md §3.81; RRG 1.8 "Search", p. 39): the options are cards
+   * outside the game, so each names a card definition (`ChoiceRef cardDefinition`, its `optionId` the card id) rather
+   * than a card instance. At most one is selected; none finds nothing.
+   */
+  | { readonly kind: "searchCollection"; readonly slot: string }
+  /**
+   * `EffectSpec reportFact` (docs/phase7-wave7.md §3.83): `playerId` reports a fact from outside the game, and only
+   * that player may answer. Exactly one selection.
+   *
+   * `answer: "yesNo"`: the options are `yes` and `no`. `answer: "wholeNumber"`: there are **no options**, because the
+   * number has no upper bound; the one selection is the number itself in decimal digits (`"0"`, `"7"`, `"125"`; no
+   * sign, no leading zero, at most `Number.MAX_SAFE_INTEGER`), which `resolveChoice` checks (`reportedNumberOf`).
+   *
+   * The engine waits on this choice like any other and measures nothing: a client that times a break keeps the
+   * choice open while its clock runs and answers when the break ends.
+   */
+  | { readonly kind: "reportFact"; readonly fact: ReportedFact; readonly answer: ReportedFactAnswer }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
+  /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */
+  | { readonly kind: "discardOverPlayerSideSchemeLimit"; readonly limit: number }
   /** RRG "Restricted": the controller discards down to two restricted cards. */
   | { readonly kind: "discardRestricted"; readonly limit: number }
   /**
@@ -170,6 +200,8 @@ export type ChoicePrompt =
 
 export type ChoiceRef =
   | { readonly kind: "card"; readonly instanceId: InstanceId }
+  /** A card that is not in the game: printed card data of the game's card pool (`GameState.cardPool`). */
+  | { readonly kind: "cardDefinition"; readonly cardId: CardId }
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   | { readonly kind: "none" };

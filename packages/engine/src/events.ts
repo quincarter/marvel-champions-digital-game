@@ -1,19 +1,22 @@
-import type { AbilityId, CardId, Trait, VillainSideLetter } from "@mc/content";
+import type { AbilityId, CardId, CoreAspect, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
-import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { RulesCardType } from "./card-types.js";
+import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
-import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
+import type { FacedownRole, Form, GameOutcome, GameStep, MainSchemeAdvancedBy, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
 import type { LastingDuration, LastingEffect } from "./lasting.js";
 import type { ResourcePool } from "./resources.js";
+import type { ReportedFact } from "./outside-facts.js";
 
 /**
  * Ways the text before a "then" can fail to fully resolve (RRG 1.8 "'Then'", p. 44), besides a required choice finding
  * nothing (`choiceFoundNothing`):
  *
- * - `searchFoundNothing`: a search (a `chooseCards` with `min` >= 1, or a `selectCards`, over a deck) found no card;
+ * - `searchFoundNothing`: a search (a `chooseCards` with `min` >= 1, or a `selectCards`, over a deck) found no card,
+ *   or a `searchCollection` had no card left outside the game to find;
  * - `lookFoundNothing`: a `lookAt` over a deck had no card to look at (an empty deck);
  * - `discardUntilFoundNothing`: "discard cards from the top of your deck until you discard an X" found no X. Not the
  *   encounter deck: RRG 1.8 "Encounter Deck" (p. 17) says that emptying it this way leaves the ability "fulfilled";
@@ -78,6 +81,30 @@ export type GameEvent =
    */
   | { readonly type: "drawnObligationPlaced"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
   | { readonly type: "cardDiscardedFromHand"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
+  /**
+   * A card was discarded from the top of `playerId`'s deck by card `by`'s effect or cost (null when no card is named),
+   * after the `cardMoved` that carried it (docs/phase7-wave7.md §3.55). Logged only in a game whose registry has an
+   * ability that triggers on such a discard, so every other game's log is unchanged. `at: "deck"`: the discard emptied
+   * the deck, and its reset has shuffled the card into the new one.
+   */
+  | {
+      readonly type: "cardDiscardedFromDeck";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly by: InstanceId | null;
+      readonly at: "discard" | "deck";
+    }
+  /**
+   * A response to its discard from `playerId`'s deck took the card away from where the discard put it, so the ability
+   * that discarded it no longer counts it among the cards "discarded this way" (ruling, April 30, 2026 - Ruling 4,
+   * answer 1; docs/phase7-wave7.md §4.1 Q32). `slot`: the bound set it was dropped from.
+   */
+  | {
+      readonly type: "deckDiscardNotCounted";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly slot: string;
+    }
   | {
       readonly type: "cardPlayed";
       readonly playerId: PlayerId;
@@ -174,6 +201,38 @@ export type GameEvent =
       readonly instanceIds: readonly InstanceId[];
       readonly reason: "permanent";
     }
+  /**
+   * Linked cards were set aside for a player's deck (RRG 1.8 "Linked (Card Title)", p. 27; docs/phase7-wave7.md §3.75):
+   * `forPlayer`'s deck holds a card whose title these cards name, so their product's copies wait in the shared
+   * set-aside area (`GameState.encounterSetAside`), owned by nobody until a player takes control of one. One entry per
+   * deck that names any, after the `cardsSetAside` entries; `cardIds` and `instanceIds` run in step, one per copy.
+   */
+  | {
+      readonly type: "linkedCardsSetAside";
+      readonly forPlayer: PlayerId;
+      readonly cardIds: readonly CardId[];
+      readonly instanceIds: readonly InstanceId[];
+    }
+  /**
+   * An encounter set joined the game because a setup condition held (`GameSetupConfig.autoIncludedSets`;
+   * docs/phase7-wave7.md §3.74): the Dreadpool set when a player chose the 'Pool aspect (Deadpool insert, "Using the
+   * 'Pool Aspect"; RRG 1.8 FAQ, p. 64). `because.playerIds` are the seats that declared the aspect, in seat order;
+   * `shuffledIn` went into encounter deck `deckId` before its setup shuffle and `setAside` into
+   * `GameState.encounterSetAside`. One entry per included set, after the `linkedCardsSetAside` entries; a set whose
+   * condition failed logs nothing.
+   */
+  | {
+      readonly type: "encounterSetAutoIncluded";
+      readonly setId: string;
+      readonly because: {
+        readonly kind: "aspectChosen";
+        readonly aspect: CoreAspect;
+        readonly playerIds: readonly PlayerId[];
+      };
+      readonly deckId: EncounterDeckId;
+      readonly shuffledIn: readonly InstanceId[];
+      readonly setAside: readonly InstanceId[];
+    }
   /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */
   | {
       readonly type: "gameAreaCreated";
@@ -213,6 +272,12 @@ export type GameEvent =
       readonly stageIndex: number;
       readonly instanceId: InstanceId;
     }
+  /**
+   * A main scheme stage was removed from the game and can never be revealed. With `schemeInstanceId` it is that scheme's
+   * own stage, leaving play with it (a separate game area's); with `null` the stage was not showing: an unused
+   * alternative, or one picked at random from the main scheme deck (docs/phase7-wave7.md §3.28). A removed card is out
+   * of play in the open, so `stageIndex` is public.
+   */
   | {
       readonly type: "mainSchemeStageRemoved";
       readonly schemeInstanceId: InstanceId | null;
@@ -245,6 +310,17 @@ export type GameEvent =
   | {
       readonly type: "attackRetargeted";
       readonly enemyInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
+  /**
+   * A player's attack in progress now targets another character (`EffectSpec retargetAttack` with `attack: "player"`;
+   * docs/phase7-wave7.md §3.66). `fromInstanceId`: the character it was against, which is no longer attacked.
+   */
+  | {
+      readonly type: "playerAttackRetargeted";
+      readonly attackerInstanceId: InstanceId;
+      readonly fromInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly playerId: PlayerId;
     }
@@ -316,6 +392,19 @@ export type GameEvent =
       readonly discarded: readonly InstanceId[];
       readonly paid: boolean;
     }
+  /**
+   * An "[enemy] attacks you →" cost (`AbilityCost.enemyAttack`, docs/phase7-wave7.md §3.19 (b)) has been paid or
+   * failed: `enemyInstanceId`'s attack against `playerId` was made, or (an interrupt canceled it, the enemy left play
+   * as it was initiated) it was not, so the cost was not paid (RRG 1.8 "Cost Arrow Icon", p. 14) and the effects of
+   * `instanceId`'s ability do not resolve.
+   */
+  | {
+      readonly type: "enemyAttackCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly enemyInstanceId: InstanceId;
+      readonly paid: boolean;
+    }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
@@ -344,6 +433,8 @@ export type GameEvent =
       readonly targetInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /** No player dealt it although a player controls its source (`TriggerEvent dealDamage.noPlayer`). */
+      readonly noPlayer?: true;
     }
   | {
       readonly type: "damagePrevented";
@@ -415,6 +506,8 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /** No player removed it although a player controls its source (`TriggerEvent removeThreat.noPlayer`). */
+      readonly noPlayer?: true;
     }
   | {
       readonly type: "enemyActivated";
@@ -484,6 +577,12 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly scope: "icons" | "ability" | "discarded";
     }
+  /**
+   * A boost card's icons and "Boost" ability are ignored (`RuleSpec ignoreBoost`, docs/phase7-wave7.md §3.67; RRG 1.8
+   * "Ignore", p. 23): it is turned faceup and discarded as usual, adds 0 and resolves no ability. Not a cancel, so no
+   * `boostCancelled` goes with it. Logged once per card, after its `boostCardFlipped` (whose `boostIcons` is then 0).
+   */
+  | { readonly type: "boostIgnored"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId }
   | {
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;
@@ -565,6 +664,12 @@ export type GameEvent =
     }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  /**
+   * A character kept in play at zero or fewer remaining hit points by a "cannot be defeated" rule is no longer under
+   * one (the card granting it left play, its condition ended): the defeat sweep that follows defeats it by the game's
+   * rule, with no defeating player and no defeating card (docs/phase7-wave7.md §3.34, §4.1 Q21).
+   */
+  | { readonly type: "defeatProtectionEnded"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** A villain turned to its other face on the same stage (Green Goblin insert, "When the Villain Changes Form"). */
   | {
@@ -620,7 +725,13 @@ export type GameEvent =
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
-  | { readonly type: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
+  | {
+      readonly type: "mainSchemeAdvanced";
+      readonly stageIndex: number;
+      readonly schemeInstanceId?: InstanceId;
+      /** What advanced it (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12); absent only in an older log. */
+      readonly advancedBy?: MainSchemeAdvancedBy;
+    }
   | {
       readonly type: "encounterCardRevealed";
       readonly instanceId: InstanceId;
@@ -717,6 +828,8 @@ export type GameEvent =
       readonly type: "windowOpened";
       readonly event: TriggerEvent;
       readonly timing: WindowTiming;
+      /** The "would" interrupts' earlier tier of this window (`trigger.would`, RRG 1.8 "'Would'", p. 48). */
+      readonly would?: true;
       readonly candidates: readonly {
         readonly instanceId: InstanceId;
         readonly abilityId: AbilityId;
@@ -779,6 +892,11 @@ export type GameEvent =
       readonly reason?: "constant";
     }
   | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  /**
+   * RRG 1.8 "Player Side Scheme Limit" (p. 34): `chosenBy` chose this player side scheme to discard for the limit (the
+   * player who played one past it, otherwise the first player). Logged before the discard itself, which is not a defeat.
+   */
+  | { readonly type: "playerSideSchemeLimitDiscard"; readonly instanceId: InstanceId; readonly chosenBy: PlayerId }
   | {
       readonly type: "overkillSpilled";
       readonly fromInstanceId: InstanceId;
@@ -833,6 +951,30 @@ export type GameEvent =
    * logged when the range held one number and nobody was asked.
    */
   | { readonly type: "numberChosen"; readonly playerId: PlayerId; readonly bind: string; readonly amount: number }
+  /** `EffectSpec chooseCardType` (docs/phase7-wave7.md §3.33): `playerId` chose this card type. */
+  | { readonly type: "cardTypeChosen"; readonly playerId: PlayerId; readonly cardType: RulesCardType }
+  /**
+   * `EffectSpec reportFact` (docs/phase7-wave7.md §3.83): `playerId` reported a fact from outside the game, bound as
+   * `<bind>.amount`. `amount` is the number reported, or 1 for yes and 0 for no.
+   */
+  | {
+      readonly type: "factReported";
+      readonly playerId: PlayerId;
+      readonly fact: ReportedFact;
+      readonly bind: string;
+      readonly amount: number;
+    }
+  /**
+   * `EffectSpec searchCollection` (docs/phase7-wave7.md §3.81): `ownerId` found `cardId` in their collection, and it
+   * joined the game as the new instance `instanceId`, which they own until the game ends (RRG 1.8 "Search", p. 39).
+   * The one event that creates a player's card after setup: a replay needs nothing but the choice that led to it.
+   */
+  | {
+      readonly type: "cardAddedFromCollection";
+      readonly cardId: CardId;
+      readonly instanceId: InstanceId;
+      readonly ownerId: PlayerId;
+    }
   | {
       readonly type: "cardPutIntoPlayFacedown";
       readonly instanceId: InstanceId;
@@ -851,12 +993,33 @@ export type GameEvent =
       readonly matchedInstanceId: InstanceId;
       readonly disposition: "noEffect" | "discarded";
     }
+  /**
+   * A card an effect would put into play did not enter play and stayed where it was. `noLegalHost`: an upgrade with no
+   * host its "attach to" text allows (RRG 1.8 "Attach To", p. 8: "the card is not able to be attached, so it remains in
+   * its prior state or game area"); a put into play places it as playing it would (RRG 1.8 "Play, Put into Play", p. 32).
+   */
+  | {
+      readonly type: "putIntoPlayRefused";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly reason: "noLegalHost";
+    }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   /**
    * A note recorded on a card's play (`modifyCardEffect.note`, docs/phase7-wave6.md §3.52: "remove up to 3 charge
    * counters → that event deal +1 damage for each counter removed", read by Charged Card). `total` is the note's value
    * after this write (notes of one name add up); it ends with the play.
    */
+  /**
+   * A played event was given a destination other than the discard pile for when its effects have resolved (`EffectSpec
+   * afterResolving`, docs/phase7-wave7.md §3.68). Logged when the destination is written, not when the card moves.
+   */
+  | { readonly type: "playDestinationSet"; readonly instanceId: InstanceId; readonly to: "hand" }
+  /**
+   * A played event went to its owner's hand after its effects resolved instead of to the discard pile (§3.68). Logged
+   * before the move's own `cardMoved`; no discard is logged, as the card never reached the pile.
+   */
+  | { readonly type: "playedEventReturned"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | {
       readonly type: "playNoted";
       readonly instanceId: InstanceId;
@@ -901,6 +1064,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly reason: "cannotLeavePlay" | "permanent";
     }
+  /** A flip effect did nothing to this card: a `cannotFlip` rule names it (docs/phase7-wave7.md §3.64). */
+  | { readonly type: "flipBlocked"; readonly instanceId: InstanceId }
   /**
    * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
    * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the

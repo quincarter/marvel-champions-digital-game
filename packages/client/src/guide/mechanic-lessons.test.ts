@@ -4,7 +4,7 @@
  * `aspect-lessons.test.ts` does for the aspect Try-its.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { choiceId, type InstanceId } from "@mc/engine";
+import { activeVillain, choiceId, type InstanceId } from "@mc/engine";
 import { EngineSessionCore, type Snapshot } from "../engine/session-core.js";
 import { resetGuidePrefsCacheForTests } from "./guide-store.js";
 import { GuideController } from "./guide-controller.js";
@@ -646,6 +646,234 @@ describe("Colossus: two tough cards", () => {
     t.settle(/Do not discard|Rhino/);
     expect(tough(t)).toBe(2);
 
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Psylocke: Psi-Knife and Psi-Katana", () => {
+  const blades = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).filter((i) => i.cardId.startsWith("41002") && i.attachedTo !== null);
+
+  test("opens as Betsy Braddock with two Knife blades attached, on the intro step", async () => {
+    const t = await run("psylocke");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(blades(t).map((i) => i.cardId)).toEqual(["41002a", "41002a"]);
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip and a basic attack that accepts Psi-Energy Control and flips a blade to the Katana", async () => {
+    const onComplete = vi.fn();
+    const t = await run("psylocke", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    const attack = t.controller.view();
+    expect(attack.step?.id).toBe("attack");
+    expect(attack.anchor).toEqual({ kind: "action", id: "attack" });
+    t.dispatch({
+      type: "basicAttack",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      attackerInstanceId: t.me().identity.instanceId,
+      targetInstanceId: activeVillain(t.state() as never).instanceId,
+    });
+    // Psi-Energy Control is offered as an interrupt: accept it.
+    expect(t.state().pendingChoice?.prompt.kind).toBe("chooseTriggers");
+    const offer = t.state().pendingChoice!;
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: offer.playerId,
+      choiceId: offer.choiceId,
+      selectedOptionIds: offer.options
+        .filter((o) => o.optionId.includes("41001a.star-psi-energy-control"))
+        .map((o) => o.optionId),
+    });
+    // Both blades are Knives, so no blade choice is asked. The opening hand holds no Directed Force or Upside the
+    // Head, so no response sheet the tip never mentions opens after the attack (wave 7 QA).
+    const hand = t.me().hand.map((id) => t.state().instances[id]!.cardId);
+    expect(hand.some((id) => id === "41019" || id === "41015")).toBe(false);
+    expect(t.controller.view().step?.id).toBe("attack");
+    t.settle(/./);
+    expect(
+      blades(t)
+        .map((i) => i.flipped)
+        .sort(),
+    ).toEqual([false, true]); // one Katana side up
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Angel: three faces", () => {
+  test("opens as Warren Worthington III on the intro step", async () => {
+    const t = await run("angel");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks Archangel, a round change and the switch to Angel to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("angel", onComplete);
+    t.controller.primary();
+
+    expect(t.controller.view().step?.id).toBe("to-archangel");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID, to: { heroForm: 1 } });
+    expect(t.me().identity.heroFormIndex).toBe(1);
+
+    expect(t.controller.view().step?.id).toBe("end-turn");
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/No defense/);
+    expect(t.state().round).toBe(2);
+
+    expect(t.controller.view().step?.id).toBe("to-angel");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID, to: { heroForm: 0 } });
+    expect(t.me().identity.heroFormIndex).toBe(0);
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  test("a second change in the same round is refused by the engine, which is what the end-turn step teaches", async () => {
+    const t = await run("angel");
+    t.controller.primary();
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID, to: { heroForm: 1 } });
+    const again = t.core.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID, to: { heroForm: 0 } });
+    expect(again.ok).toBe(false);
+  });
+});
+
+describe("Cable: player side schemes", () => {
+  const schemes = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).filter(
+      (i) => (i.cardId === "40018" || i.cardId === "40027") && t.state().villainArea.includes(i.instanceId),
+    );
+
+  test("opens as Nathan Summers with Call for Backup in play and Build Support and Psimitar in hand", async () => {
+    const t = await run("cable");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(schemes(t).map((i) => i.cardId)).toEqual(["40018"]);
+    expect(t.me().hand.map((id) => t.state().instances[id]!.cardId)).toEqual(
+      expect.arrayContaining(["40027", "40029"]),
+    );
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip, a thwart and Build Support at the limit of one to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("cable", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    expect(t.controller.view().step?.id).toBe("thwart");
+    const backup = schemes(t)[0]!;
+    t.dispatch({
+      type: "basicThwart",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      thwarterInstanceId: t.me().identity.instanceId,
+      schemeInstanceId: backup.instanceId,
+    });
+    t.settle(/./);
+    expect(t.state().instances[backup.instanceId]!.threat).toBe(1);
+
+    const limit = t.controller.view();
+    expect(limit.step?.id).toBe("limit");
+    expect(limit.anchor).toEqual({ kind: "card", code: "40027" });
+    expect(currentStep(t.controller.state)?.copy.payWith).toEqual([
+      expect.objectContaining({ kind: "handCard", code: "40029" }),
+    ]);
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("40027"),
+      payment: [{ fromHand: t.handId("40029") }],
+      attachToInstanceId: null,
+    });
+    // Two player side schemes at a limit of one: the engine asks which to discard, and the step waits for the answer.
+    expect(t.state().pendingChoice?.prompt.kind).toBe("discardOverPlayerSideSchemeLimit");
+    expect(t.controller.view().step?.id).toBe("limit");
+    t.choose(/Call for Backup/);
+    expect(schemes(t).map((i) => i.cardId)).toEqual(["40027"]);
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("X-23: Specialists", () => {
+  const specialists = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).filter(
+      (i) => ["43034", "43035", "43036", "43037"].includes(i.cardId as string) && i.controllerId !== null,
+    );
+
+  test("opens as Laura Kinney with Training, Claw Mastery and Animal Instinct in hand", async () => {
+    const t = await run("x23");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.me().hand.map((id) => t.state().instances[id]!.cardId)).toEqual(
+      expect.arrayContaining(["43021", "43005", "43004"]),
+    );
+    expect(t.controller.view().step?.id).toBe("flip");
+  });
+
+  test("walks the flip, Training, Claw Mastery, one thwart with Animal Instinct and a Specialist to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("x23", onComplete);
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    expect(t.controller.view().step?.id).toBe("play-training");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("43021"),
+      payment: [{ fromHand: t.handId("43023") }],
+      attachToInstanceId: null,
+    });
+    t.settle();
+    const training = Object.values(t.state().instances).find((i) => i.cardId === "43021")!;
+    expect(training.threat).toBe(5);
+
+    expect(t.controller.view().step?.id).toBe("claw-mastery");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("43005"),
+      payment: [{ fromHand: t.handId("43022") }],
+      attachToInstanceId: null,
+    });
+    t.settle();
+
+    expect(t.controller.view().step?.id).toBe("thwart");
+    t.dispatch({
+      type: "basicThwart",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      thwarterInstanceId: t.me().identity.instanceId,
+      schemeInstanceId: training.instanceId,
+    });
+    // The Animal Instinct interrupt is offered before the thwart resolves; accept it, then the Specialist prompt.
+    const offer = t.state().pendingChoice!;
+    expect(offer.prompt.kind).toBe("chooseTriggers");
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: offer.playerId,
+      choiceId: offer.choiceId,
+      selectedOptionIds: offer.options
+        .filter((o) => o.optionId.includes("43004.animal-instinct"))
+        .map((o) => o.optionId),
+    });
+    expect(t.state().pendingChoice?.prompt.kind).toBe("chooseCards");
+    expect(t.state().instances[training.instanceId]!.threat).toBe(0);
+    expect(t.controller.view().step?.id).toBe("pick-specialist");
+    t.choose(/Surveillance|Combat|Defense|Front/);
+
+    const taken = specialists(t);
+    expect(taken).toHaveLength(1);
+    expect(taken[0]!.attachedTo).toBe(t.me().identity.instanceId);
     expect(t.controller.view().step?.id).toBe("result");
     t.controller.primary();
     expect(onComplete).toHaveBeenCalledTimes(1);

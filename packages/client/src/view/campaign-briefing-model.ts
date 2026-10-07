@@ -29,6 +29,8 @@ import {
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { sideSchemeBriefingOf, type SideSchemeBriefing } from "./campaign-side-scheme-model.js";
+import { aspectName } from "./aspect-stamp.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -48,6 +50,9 @@ export interface BriefingNoteCopy {
   readonly status: "done" | "later";
   readonly title: string;
   readonly detail: string;
+  /** Read instead of `detail` on a retry, when the attempt repeated an earlier pick without asking (a `choose` with
+   * `repeatOnRetry`, MC40 p. 7), so a row never says "the group picks" for a pick nobody is asked to make. */
+  readonly repeatDetail?: string;
   readonly citation?: string;
 }
 
@@ -75,6 +80,8 @@ export interface BriefingView {
   readonly pool: BriefingPoolView | null;
   /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
+  /** The per-scenario player-side-scheme choice and what carries in (`campaign-side-scheme-model.ts`). Null for a box without one. */
+  readonly sideScheme: SideSchemeBriefing | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -83,11 +90,11 @@ const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
   leadership: "LEA",
   protection: "PRO",
   basic: "BAS",
-  pool: "POOL",
+  pool: "'POOL",
 };
 
 function aspectLabelOf(aspects: readonly string[]): string {
-  if (aspects.length <= 1) return (aspects[0] ?? "").toUpperCase();
+  if (aspects.length <= 1) return aspectName(aspects[0] ?? "").toUpperCase();
   return aspects.map((aspect) => ASPECT_ABBREVIATION[aspect] ?? aspect.toUpperCase()).join("/");
 }
 
@@ -471,7 +478,12 @@ export function handledRowsOf(
   briefingNotes?: readonly BriefingNoteCopy[],
 ): readonly HandledRow[] {
   if (briefingNotes && briefingNotes.length > 0) {
-    return briefingNotes.map((note, index) => ({ key: `note:${index}`, ...note }));
+    const repeated = attempt.steps.some((step) => step.choices.some((choice) => choice.repeated === true));
+    return briefingNotes.map(({ repeatDetail, ...note }, index) => ({
+      key: `note:${index}`,
+      ...note,
+      detail: repeated && repeatDetail ? repeatDetail : note.detail,
+    }));
   }
   return genericHandledRowsOf(attempt, record, cardName, definition, nodeIds);
 }
@@ -612,5 +624,6 @@ export function briefingViewOf(
         : null,
     decks: deckRowsOf(record, cardName, deckProblems),
     hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
+    sideScheme: definition ? sideSchemeBriefingOf({ definition, record, cardName }) : null,
   };
 }

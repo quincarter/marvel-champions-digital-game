@@ -5,7 +5,7 @@
  * safe to show for any card a player can see.
  *
  * Keyed by the printed id without its face letter ("34002" covers both Phoenix Force sides). Wave 6 (Mutant Genesis and
- * MojoMania) is the first wave to fill it; later waves add their own rows next to these.
+ * MojoMania) is the first wave to fill it; wave 7 (NeXt Evolution) adds its own rows after them.
  */
 import type { AnyCard } from "@mc/content";
 
@@ -153,6 +153,47 @@ note(["34031"], "Peril: while you resolve it, other players can't help you or pl
 note(
   ["39071"],
   "An ally with an encounter back. Revealed, he joins the player who revealed him, and the card gains surge.",
+);
+
+// NeXt Evolution.
+note(
+  ["40130"],
+  "The first player controls her, and her THW and ATK copy that player's hero. In alter-ego form they are 0. If she leaves play, you lose.",
+);
+note(["40006"], "Only Cable removes threat from it. His allies and other heroes can't.");
+note(
+  ["40013"],
+  "The side scheme returns with its starting threat and hinder, not revealed, then 4 threat moves onto it from the main scheme.",
+);
+note(["40040"], "One attack of 4 damage plus 1 per resource icon on the discarded card. Domino's wild counts twice.");
+note(
+  ["40043"],
+  "Shuffle it back and it counts no icons for the card that discarded it. Leave it in the discard pile and it counts 3.",
+);
+note(
+  ["40081"],
+  "Cards under it are not in play. Each defeated villain goes under it, and with 3 villains under it the players win.",
+);
+note(["40132"], "He takes no damage while any Creeping Willow is in play, whoever it is engaged with.");
+note(
+  ["41002"],
+  "The Katana side is restricted. Past two restricted cards you discard another one, never a Psi blade, which is permanent.",
+);
+note(
+  ["43006"],
+  "A plain Action, so it works in alter-ego or hero form. Divide 4 healing between your identity and Honey Badger.",
+);
+note(
+  ["43021"],
+  "The four Specialists are set aside, not in any deck. Each player without a Specialization upgrade picks one.",
+);
+note(
+  ["44032"],
+  "While it is in play your allies are exhausted and can't ready. On your turn other players can't resolve player card abilities.",
+);
+note(
+  ["44046"],
+  "Alter-ego only. Costs 3 per player. A timer counts your break; End break heals every identity 1 per whole minute.",
 );
 
 /** The printed id without its face letter: "34002a" and "34002b" are one card. */

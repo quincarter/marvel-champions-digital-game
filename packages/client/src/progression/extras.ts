@@ -18,7 +18,7 @@
  *   theme are always open.
  * - **Rulebooks:** always open. The Rules Reference, FFG's rulings since RRG 1.7 and every campaign box's rulebook,
  *   as plain text with links to the PDFs (`content/books.ts`). They are references, not rewards.
- * - **Artwork:** the title wallpapers are always open; the generic victory and defeat scenes open with a first win
+ * - **Artwork:** the title wallpapers and the loose pictures in `art/extras/` are always open; the generic victory and defeat scenes open with a first win
  *   and a first loss, and a campaign box's cover with its first run.
  *
  * **Progress is derived, never stored twice**, the same as `unlocks.ts`: `extrasProgressOf` reads the rows the
@@ -31,6 +31,7 @@ import type { Scenario } from "@mc/content";
 import { ART_CATALOG } from "../art/scenario-art.js";
 import { CAMPAIGN_ART } from "../art/campaign-art.js";
 import { HERO_ART } from "../art/hero-art.js";
+import { EXTRAS_ART, extrasArtTitle } from "../art/extras-art.js";
 import { TITLE_ART } from "../art/title-art.js";
 import type { Picture } from "../art/pictures.js";
 import { MUSIC_CATALOG, type MusicCatalog, type Track } from "../audio/music-catalog.js";
@@ -39,6 +40,7 @@ import { CARDS_BY_ID, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../
 import { BOOKS } from "../content/books.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
+import { isLessonSave } from "../engine/game-storage.js";
 
 /** What the player has done, as far as Extras cares, read from storage by `extrasProgressOf`. */
 export interface ExtrasProgress {
@@ -85,6 +87,7 @@ export function identityOfSeat(seat: object): string | null {
 export function extrasProgressOf(
   saves: readonly {
     readonly status: string;
+    readonly guided?: { readonly kind: string };
     readonly config: { readonly scenarioId: string; readonly players: readonly object[] };
   }[],
   campaigns: readonly {
@@ -93,7 +96,7 @@ export function extrasProgressOf(
     readonly position: { readonly nextNodeId: string | null; readonly resolved: Readonly<Record<string, string>> };
   }[],
 ): ExtrasProgress {
-  const ended = saves.filter((save) => ENDED.has(save.status));
+  const ended = saves.filter((save) => ENDED.has(save.status) && !isLessonSave(save));
   return {
     playedHeroIds: unique(
       ended.flatMap((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
@@ -398,6 +401,21 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/mojo/battle.mp3": "Tyrant's Prime Time",
   "scenarios/mojo/villain-loses.mp3": "The Show Is Cancelled",
   "scenarios/mojo/villain-wins.mp3": "Renewed for Another Season",
+  "scenarios/morlock-siege/battle.mp3": "Beneath the City",
+  "scenarios/morlock-siege/villain-loses.mp3": "The Morlocks Stand",
+  "scenarios/morlock-siege/villain-wins.mp3": "Teeth in the Tunnel",
+  "scenarios/on-the-run/battle.mp3": "The Hunt for Hope",
+  "scenarios/on-the-run/villain-loses.mp3": "Iron Ascent",
+  "scenarios/on-the-run/villain-wins.mp3": "Iron Monolith",
+  "scenarios/juggernaut/battle.mp3": "Head of Steam",
+  "scenarios/juggernaut/villain-loses.mp3": "The Unstoppable Falls",
+  "scenarios/juggernaut/villain-wins.mp3": "Crushed Beneath Momentum",
+  "scenarios/mister-sinister/battle.mp3": "The Essex Experiments",
+  "scenarios/mister-sinister/villain-loses.mp3": "Shattered Genome",
+  "scenarios/mister-sinister/villain-wins.mp3": "Perfect Specimen",
+  "scenarios/stryfe/battle.mp3": "Tomorrow's Tyrant",
+  "scenarios/stryfe/villain-loses.mp3": "Break the Timeline",
+  "scenarios/stryfe/villain-wins.mp3": "A Future Stolen",
   "campaigns/trors/finale.mp3": "The Skull Shattered",
   "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
   "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
@@ -407,6 +425,8 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "campaigns/mut_gen/interlude.mp3": "Back at the Mansion",
   "campaigns/mojo/finale.mp3": "Exit, Stage Left",
   "campaigns/mojo/interlude.mp3": "The Seven O'Clock Smile",
+  "campaigns/next_evol/finale.mp3": "Hope for Tomorrow",
+  "campaigns/next_evol/interlude.mp3": "Regroup at Graymalkin",
   "packs/gmw/villain-loses.mp3": "Saviors of the Galaxy",
   "packs/gmw/villain-wins.mp3": "The Unending Reign",
 };
@@ -616,12 +636,20 @@ function pictureTitle(key: string): string {
   return stem.charAt(0).toUpperCase() + stem.slice(1);
 }
 
-/** The title wallpapers, the generic victory and defeat scenes, and each campaign box's cover. */
+/** The loose pictures of `art/extras/`, always open, titled from the file name. */
+export function extrasArtEntriesOf(pictures: readonly Picture[]): ExtrasEntry[] {
+  return pictures.map((picture) =>
+    pictureEntry(`art:${picture.key}`, extrasArtTitle(picture.key), "Extra", picture, { kind: "always" }),
+  );
+}
+
+/** The title wallpapers, the loose extras, the generic victory and defeat scenes, and each campaign box's cover. */
 export function artEntriesOf(): ExtrasEntry[] {
   return [
     ...TITLE_ART.map((picture) =>
       pictureEntry(`art:${picture.key}`, pictureTitle(picture.key), "Title screen", picture, { kind: "always" }),
     ),
+    ...extrasArtEntriesOf(EXTRAS_ART),
     ...ART_CATALOG.outcomes.victory.map((picture) =>
       pictureEntry(`art:${picture.key}`, "Victory", "Any victory", picture, { kind: "anyWin" }),
     ),

@@ -113,9 +113,38 @@ describe("shelfSubtitleOf", () => {
       expect(shelfSubtitleOf(detail(id))).toMatch(/^Stages? I/);
   });
 
-  test("in the real pool, the two Museum scenarios are the only villain names shared", () => {
+  test("in the real pool, the two Museum scenarios and the two Marauders scenarios (Morlock Siege, On the Run) are the only villain names shared", () => {
     const names = POOL_SCENARIOS.map((s) => detail(s.id as string).villainName);
     const shared = POOL_SCENARIOS.filter((_, i) => names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!));
-    expect(shared.map((s) => s.id as string).sort()).toEqual(["escape-the-museum", "infiltrate-the-museum"]);
+    expect(shared.map((s) => s.id as string).sort()).toEqual([
+      "escape-the-museum",
+      "infiltrate-the-museum",
+      "morlock-siege",
+      "on-the-run",
+    ]);
+  });
+});
+
+describe("a scenario that opens against a random villain", () => {
+  const detail = (id: string) =>
+    scenarioDetailOf(
+      POOL_SCENARIOS.find((s) => (s.id as string) === id)!,
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+
+  test.each(["morlock-siege", "on-the-run"])("%s names the villains' set, not the placeholder card", (id) => {
+    const d = detail(id);
+    expect(d.villainIsRandom).toBe(true);
+    expect(d.villainName).toBe("The Marauders");
+    expect(d.displayName).toBe("The Marauders");
+    expect(d.tileTitle).toBe(d.scenarioName);
+    expect(shelfSubtitleOf(d)).toBe("The Marauders · random");
+    expect(scenarioDetailLines(d).join("\n")).not.toContain("Arclight");
+    expect(scenarioDetailLines(d).join("\n")).not.toContain("Stage ");
+  });
+
+  test("a fixed villain is not marked random", () => {
+    expect(detail("rhino").villainIsRandom).toBe(false);
   });
 });

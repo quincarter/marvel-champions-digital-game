@@ -24,7 +24,14 @@ export const ANGEL_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("42010"), cardSetCode: "angel", marvelcdbCodes: ["42010"], corrections: [] },
   { cardId: cardId("42011"), cardSetCode: "protection", marvelcdbCodes: ["42011"], corrections: [] },
   { cardId: cardId("42012"), cardSetCode: "protection", marvelcdbCodes: ["42012"], corrections: [] },
-  { cardId: cardId("42013"), cardSetCode: "protection", marvelcdbCodes: ["42013"], corrections: [] },
+  {
+    cardId: cardId("42013"),
+    cardSetCode: "protection",
+    marvelcdbCodes: ["42013"],
+    corrections: [
+      "42013: MarvelCDB reads \"(paying its cost)\"; Warpath prints \"(paying its costs)\". [evidence: Card scan assets/card-art/bundles/cards/42013.png: \"play an event with a \"Hero Action\" ability from your hand (paying its costs).\"]",
+    ],
+  },
   { cardId: cardId("42014"), cardSetCode: "protection", marvelcdbCodes: ["42014"], corrections: [] },
   {
     cardId: cardId("42015"),

@@ -13,7 +13,6 @@ import {
   enemyAttack,
   exhaustYourHero,
   exists,
-  host,
   ifThen,
   isAttached,
   isHero,
@@ -68,11 +67,8 @@ export const SENTINELS_ABILITIES = defineAbilities({
   "32107.targeted-for-elimination-constant-2": constant(
     rule({
       kind: "cannotChangeForm",
-      player: controllerOf(host),
-      while: allOf(
-        isHero(controllerOf(host)),
-        exists(query("minion", { trait: SENTINEL, engagedWithPlayer: controllerOf(host) })),
-      ),
+      player: you,
+      while: allOf(isHero(you), exists(query("minion", { trait: SENTINEL, engagedWithPlayer: you }))),
     }),
   ),
   // Action: Exhaust your identity → discard this card.

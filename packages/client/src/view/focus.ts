@@ -28,7 +28,13 @@ export type FocusTarget =
 
 /** What the board is currently asking for, which changes what is worth focusing. */
 export type FocusMode =
-  | { readonly kind: "idle"; readonly hand: readonly InstanceId[]; readonly teamUps?: readonly string[] }
+  | {
+      readonly kind: "idle";
+      readonly hand: readonly InstanceId[];
+      readonly teamUps?: readonly string[];
+      /** True when the card is drawn as a tile or chip right now; a usable card with none is not a stop. */
+      readonly tiled?: (id: InstanceId) => boolean;
+    }
   /** Only the legal targets are worth stepping through. */
   | { readonly kind: "targeting"; readonly targets: readonly InstanceId[]; readonly confirm?: true }
   /** Only the things that can pay are worth stepping through. */
@@ -66,7 +72,7 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   // reachable from the UI").
   const abilityCards: FocusTarget[] = marks
     ? [...marks.usableAbilities]
-        .filter((id) => !mode.hand.includes(id))
+        .filter((id) => !mode.hand.includes(id) && (mode.tiled?.(id) ?? true))
         .map((instanceId) => ({ kind: "card", instanceId }))
     : [];
   // An unusable control still takes focus: "why can't I attack?" is a question

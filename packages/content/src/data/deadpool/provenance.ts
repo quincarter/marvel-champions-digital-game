@@ -78,7 +78,14 @@ export const DEADPOOL_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("44038"), cardSetCode: "dreadpool", marvelcdbCodes: ["44038"], corrections: [] },
   { cardId: cardId("44039"), cardSetCode: "dreadpool", marvelcdbCodes: ["44039"], corrections: [] },
   { cardId: cardId("44040"), cardSetCode: "dreadpool", marvelcdbCodes: ["44040"], corrections: [] },
-  { cardId: cardId("44041"), cardSetCode: "dreadpool", marvelcdbCodes: ["44041"], corrections: [] },
+  {
+    cardId: cardId("44041"),
+    cardSetCode: "dreadpool",
+    marvelcdbCodes: ["44041"],
+    corrections: [
+      "44041: errata RRG 1.8 — 'Pool-ized: When Revealed now also has the attached ally engage its controller. MarvelCDB carries the current wording; the scan lacks the sentence. [evidence: RRG 1.8 p. 69, Deadpool Hero Pack ('Pool-ized #41) errata (\"Added 'Attached ally engages its controller.'\"); scan 44041.png has no such sentence.]",
+    ],
+  },
   { cardId: cardId("44042"), cardSetCode: "dreadpool", marvelcdbCodes: ["44042"], corrections: [] },
   { cardId: cardId("44043"), cardSetCode: "pool", marvelcdbCodes: ["44043"], corrections: [] },
   { cardId: cardId("44044"), cardSetCode: "pool", marvelcdbCodes: ["44044"], corrections: [] },

@@ -1,0 +1,3 @@
+kind: Engine
+body: Facts from outside the game (previous game result, minutes away, talked this phase) enter as setup input or a recorded answer, never read by the engine itself
+time: 2026-10-05T14:46:13.393863-04:00

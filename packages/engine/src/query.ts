@@ -15,6 +15,7 @@ import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps } from "./abilities.j
 import { EngineInvariantError } from "./errors.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { baseOverride, statBonus } from "./modifiers.js";
+import { EMPTY_POOL, printedResources, type ResourcePool } from "./resources.js";
 import type { SchemeValueName } from "./spec.js";
 import type {
   CardInstance,
@@ -50,6 +51,17 @@ export const cardOf = (state: GameState, id: InstanceId): AnyCard | undefined =>
   const instance = state.instances[id];
   return instance ? state.cardPool[instance.cardId] : undefined;
 };
+
+/**
+ * A card's printed resource cost in this game; 0 for a card with none. A cost with the per player icon
+ * (`CostedCard.costPerPlayer`) is its numeral times the number of players who started the scenario, whoever has been
+ * eliminated since (RRG 1.8 "Per Player Icon", p. 32), and that product is the printed cost a rule or another card
+ * reads (ruling of Aug 3, 2026, 5). Every reader of a card's cost goes through here; a printed X or — is stored as 0.
+ */
+export function printedCostOf(state: GameState, card: AnyCard | undefined): number {
+  if (!card || !("cost" in card) || typeof card.cost !== "number") return 0;
+  return card.costPerPlayer ? card.cost * state.startingPlayerCount : card.cost;
+}
 
 export function mustCardOf(state: GameState, id: InstanceId): AnyCard {
   return mustCard(state, mustInstance(state, id).cardId);
@@ -377,6 +389,16 @@ export function encounterFace(state: GameState, id: InstanceId): EncounterCardFl
 }
 
 /**
+ * The resource icons printed on the face a card shows right now: a flipped double-sided card's other face prints its
+ * own (RRG 1.8 "Flip", p. 20), as its name, traits and keywords are that face's. Every reader of printed resources
+ * over a card instance goes through this.
+ */
+export function showingResources(state: GameState, id: InstanceId): ResourcePool {
+  const card = cardOf(state, id);
+  return card ? printedResources(card, getInstance(state, id)?.flipped === true) : EMPTY_POOL;
+}
+
+/**
  * The title showing right now: a villain's current face ("Norman Osborn" / "Green Goblin"), a hero identity's
  * current form ("Spider-Woman" / "Jessica Drew"), a flipped card's other face, or the printed name. A facedown
  * card has none. `named` targets, `TargetQuery.name`, the `name`/`faceNamed` predicates and `titleContains` all
@@ -589,6 +611,29 @@ export interface CharacterProfile {
 }
 
 /**
+ * One stat of `printed` as it stands: its base (a "has a base … of" override, else the printed value) plus every
+ * active modifier of **that stat only**. A dash is "treated as an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so
+ * no modifier or override touches it.
+ */
+function modifiedStat(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  printed: CharacterProfile,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+): number {
+  if ((printed.missing as readonly string[]).includes(stat)) return 0;
+  // "Attached minion's SCH is equal to its THW" (docs/phase7-wave7.md §3.44, §4.1 Q27): the ally's THW as it stands, so
+  // its base THW with the THW modifiers still applying to the card, where `printedProfile` gave the printed value.
+  const treated = stat === "sch" ? getInstance(state, id)?.treatedAs : undefined;
+  const value =
+    treated?.kind === "minion" && treated.schFromThw === "current"
+      ? Math.max(0, (baseOverride(state, deps, id, "thw") ?? printed.sch) + statBonus(state, deps, id, "thw"))
+      : printed[stat];
+  return Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
+}
+
+/**
  * Printed stats plus every active constant-ability modifier. Never mutates the
  * printed values — modifiers are recomputed on each read (RRG "Modifiers").
  */
@@ -599,22 +644,51 @@ export function characterProfile(
 ): CharacterProfile | undefined {
   const printed = printedProfile(state, id);
   if (!printed) return undefined;
-  // A base override ("has a base ATK of 1") replaces the printed value before modifiers apply. A dash is "treated as
-  // an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so no modifier or override touches it.
-  const bump = (stat: "atk" | "thw" | "def" | "rec" | "sch", value: number): number =>
-    (printed.missing as readonly string[]).includes(stat)
-      ? 0
-      : Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
   return {
     kind: printed.kind,
     missing: printed.missing,
-    atk: bump("atk", printed.atk),
-    thw: bump("thw", printed.thw),
-    def: bump("def", printed.def),
-    rec: bump("rec", printed.rec),
-    sch: bump("sch", printed.sch),
+    atk: modifiedStat(state, deps, id, printed, "atk"),
+    thw: modifiedStat(state, deps, id, printed, "thw"),
+    def: modifiedStat(state, deps, id, printed, "def"),
+    rec: modifiedStat(state, deps, id, printed, "rec"),
+    sch: modifiedStat(state, deps, id, printed, "sch"),
     maxHp: Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp")),
   };
+}
+
+/**
+ * One stat of a character as it stands, the value `characterProfile` gives for it, reading that stat's modifiers and
+ * no other's. A modifier's amount that names a stat reads it through here (`ValueSpec stat`), so "she gets +X THW for
+ * this thwart, where X is equal to her ATK" reads her ATK without reading the THW it is itself part of: lasting effects
+ * "update whenever the game state updates" (RRG 1.8 "Lasting Effects", p. 26), so the amount stays live and must not
+ * re-enter the whole profile. Undefined for a card with no stats.
+ */
+export function characterStat(
+  state: GameState,
+  id: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+  deps: EngineDeps = DEFAULT_DEPS,
+): number | undefined {
+  const printed = printedProfile(state, id);
+  return printed ? modifiedStat(state, deps, id, printed, stat) : undefined;
+}
+
+/**
+ * A character's base value for `stat` (RRG 1.8 "Base Value", p. 10: "A defined value before modifiers are applied. In
+ * most cases, it is also the printed value"): what a "has a base … of" ability defines (`setBase`), otherwise the
+ * printed value. A star is "defined by its associated ability (defaulting to 0 only when there is no associated
+ * ability)" (ruling January 17, 2026 - Ruling 1, updating "Star Icon", pp. 40–41), so an effect that copies a base
+ * stat reads that definition. A dash stays 0 (`characterProfile`).
+ */
+export function baseStat(
+  state: GameState,
+  id: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+  deps: EngineDeps = DEFAULT_DEPS,
+): number {
+  const printed = printedProfile(state, id);
+  if (!printed || (printed.missing as readonly string[]).includes(stat)) return 0;
+  return Math.max(0, baseOverride(state, deps, id, stat) ?? printed[stat]);
 }
 
 /** "X" is defined by the card's own ability (base 0 here); "—" is 0 plus a `missing` entry. */
@@ -633,6 +707,7 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   }
   // An ally treated as a minion: its printed ATK and hit points; "SCH is equal to its printed THW" (§3.9 of wave 4).
   if (instance.treatedAs?.kind === "minion" && card.type === "ally") {
+    // Either reading starts from the printed THW; `characterProfile` adds the THW modifiers for `"current"`.
     const sch = instance.treatedAs.schFromThw ? card.thw : 0;
     return {
       kind: "minion",
@@ -816,6 +891,21 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
     case "boost":
       return mustInstance(state, zone.hostInstanceId).boostCards;
   }
+}
+
+/**
+ * Whether a card discarded from a player's deck is still where the discard left it: in that player's discard pile, or,
+ * when the discard emptied the deck, in the new deck its reset shuffled it into (`at: "deck"`). False once a response
+ * moved it: nothing more answers its discard, and the discarding ability no longer counts it (docs/phase7-wave7.md
+ * §3.55, §4.1 Q32 and Q33).
+ */
+export function deckDiscardStillThere(
+  state: GameState,
+  discard: { readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly at: "discard" | "deck" },
+): boolean {
+  const player = state.players.find((p) => p.playerId === discard.playerId);
+  if (!player) return false;
+  return (discard.at === "deck" ? player.deck : player.discard).includes(discard.instanceId);
 }
 
 /** Where a card currently is. Linear scan; the number of cards in a game is small. */

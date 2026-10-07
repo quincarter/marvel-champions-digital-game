@@ -15,10 +15,13 @@
  */
 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { type DefenseBar, defenseBarFor, windowDefenseBar } from "./defense-claim.js";
 import type { InstanceId } from "./ids.js";
-import { cardOf, playerOrder } from "./query.js";
+import { cardOf, getInstance, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
 import { legalDefenders } from "./resolve/enemy-activation.js";
+import { defenseBarredCandidates } from "./resolve/triggers.js";
+import { slotTargetValid } from "./resolve/target-validity.js";
 import { cannotDefend, mustDefendWithAlly } from "./rules.js";
 import { cardsInPlay, controllerOf, explainQuery, isAlly, type QueryExclusion } from "./select.js";
 import type { GameState } from "./state.js";
@@ -39,10 +42,27 @@ export type ExclusionCode =
   | "notHeroOrAlly"
   /** A "(defense)" ability already made someone the defender, so nobody else may defend this attack (p. 16). */
   | "defenderAlreadyDeclared"
+  /**
+   * The attack in progress is closed to this card's player (RRG 1.8 "Defend, Defense", pp. 14-15; `defenseBarFor`):
+   * `anotherPlayerDefending`, "While a player is defending, other players cannot defend against that same attack";
+   * `anotherPlayerUsedDefense`, "Once a player resolves a defense-labeled ability during an enemy attack, other
+   * players cannot resolve defense-labeled abilities for that same attack". Reported for a character left out of a
+   * defend prompt and for a "(defense)" card or ability left out of a `chooseTriggers` prompt, where the card may be
+   * in the player's hand rather than in play.
+   */
+  | DefenseBar
   /** "Must defend with an ally they control, if able": only the engaged player's ready allies are offered. */
   | "mustDefendWithAlly"
   /** "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
-  | "cannotDefend";
+  | "cannotDefend"
+  /**
+   * A scheme the choice's query matches that the thwart or threat removal it is chosen for cannot remove threat from
+   * right now (a move of threat off it included: RRG 1.8 "Move", p. 30), so it is not a valid target (RRG 1.8
+   * "Target", pp. 42–43): "Characters other than [X] cannot remove
+   * threat from [this scheme]" (`RuleSpec threatCannotBeRemoved.exceptBy`, docs/phase7-wave7.md §3.51), and equally a
+   * crisis icon, an engaged patrol minion or a `cannotThwart` rule.
+   */
+  | "cannotRemoveThreat";
 
 export interface ChoiceExclusion {
   readonly instanceId: InstanceId;
@@ -61,7 +81,8 @@ const offeredIds = (state: GameState): ReadonlySet<string> =>
  * Every card in play that the open choice did not offer, each labeled with the clause that rejected it.
  *
  * Empty unless the open prompt is one whose universe is "the cards in play": a `chooseTarget` (and the attachment
- * variant of it), or a defend prompt.
+ * variant of it), or a defend prompt. A `chooseTriggers` prompt reports only the "(defense)" cards and abilities the
+ * attack in progress is closed to (`defenseTriggerExclusions`).
  */
 export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DEPS): readonly ChoiceExclusion[] {
   const choice = state.pendingChoice;
@@ -69,6 +90,7 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
   const offered = offeredIds(state);
 
   if (choice.prompt.kind === "declareDefender") return defenderExclusions(state, deps, offered);
+  if (choice.prompt.kind === "chooseTriggers") return defenseTriggerExclusions(state, deps);
   if (choice.prompt.kind !== "chooseTarget") return [];
 
   const frame = state.stack.find((f) => f.frameId === choice.frameId);
@@ -78,11 +100,34 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
   if (!effect || effect.kind !== "chooseTarget") return [];
 
   const context = contextOf(frame, deps);
+  // The rest of the program, which the offer judged each candidate against (`requestTargetChoice`): a scheme the
+  // query matched but a thwart or removal aimed at the chosen slot cannot take threat from was left out there.
+  const rest = frame.effects.slice(frame.cursor + 1);
+  const removesThreat = rest.some((next) => {
+    if (next.kind === "moveThreat") return next.from.kind === "slot" && next.from.slot === effect.slot;
+    return (
+      (next.kind === "thwart" || next.kind === "removeThreat") &&
+      next.target.kind === "slot" &&
+      next.target.slot === effect.slot
+    );
+  });
+  const movesFromSlot = rest.some(
+    (next) => next.kind === "moveThreat" && next.from.kind === "slot" && next.from.slot === effect.slot,
+  );
   const exclusions: ChoiceExclusion[] = [];
   for (const id of cardsInPlay(state)) {
     if (offered.has(id)) continue;
     const reason = explainQuery(state, id, effect.query, context);
     if (reason !== null) exclusions.push({ instanceId: id, reason });
+    // A scheme with no threat is no source for a move either (RRG 1.8 "Move", p. 30); that is not a removal bar, so
+    // it is left unreported rather than given this code.
+    else if (
+      removesThreat &&
+      !slotTargetValid(state, deps, rest, effect.slot, id, context) &&
+      (!movesFromSlot || (getInstance(state, id)?.threat ?? 0) > 0)
+    ) {
+      exclusions.push({ instanceId: id, reason: "cannotRemoveThreat" });
+    }
   }
   return exclusions;
 }
@@ -125,8 +170,35 @@ function defenderExclusions(
       else exclusions.push({ instanceId: id, reason: "notHeroOrAlly" });
       continue;
     }
-    if (existing !== null) exclusions.push({ instanceId: id, reason: "defenderAlreadyDeclared" });
+    // A character of another player's than the one defending, or the one who used a "(defense)" ability.
+    const barred = defenseBarFor(state, controllerOf(state, id));
+    if (barred !== null) exclusions.push({ instanceId: id, reason: barred });
+    else if (existing !== null) exclusions.push({ instanceId: id, reason: "defenderAlreadyDeclared" });
     else if (forcedAlly) exclusions.push({ instanceId: id, reason: "mustDefendWithAlly" });
   }
   return exclusions;
+}
+
+/**
+ * The deciding player's "(defense)" cards and abilities a `chooseTriggers` prompt left out because the attack is
+ * closed to them: those the window never gathered (`defenseBarredCandidates`), and those held back because an earlier
+ * player's pick in this window is still queued (`windowDefenseBar`).
+ */
+function defenseTriggerExclusions(state: GameState, deps: EngineDeps): readonly ChoiceExclusion[] {
+  const choice = state.pendingChoice;
+  const frame = choice ? state.stack.find((f) => f.frameId === choice.frameId) : undefined;
+  if (!choice || frame?.kind !== "window") return [];
+  const found = new Map<InstanceId, DefenseBar>();
+  for (const event of [...(frame.alsoEvents ?? []), frame.event]) {
+    for (const { candidate, reason } of defenseBarredCandidates(state, deps, event, frame.timing, false)) {
+      if (candidate.controllerId === choice.playerId && !found.has(candidate.instanceId))
+        found.set(candidate.instanceId, reason);
+    }
+  }
+  for (const candidate of frame.pending) {
+    if (candidate.controllerId !== choice.playerId || found.has(candidate.instanceId)) continue;
+    const reason = windowDefenseBar(state, deps, frame.queue, candidate);
+    if (reason !== null) found.set(candidate.instanceId, reason);
+  }
+  return [...found].map(([instanceId, reason]) => ({ instanceId, reason }));
 }

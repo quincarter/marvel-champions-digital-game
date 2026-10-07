@@ -157,3 +157,42 @@ export function environmentStripRoom(
   const rows = Math.max(1, Math.ceil(count / perRow));
   return { x: origin.x, y: origin.y, width, height: rows * tileHeight + (rows - 1) * ENVIRONMENT_GAP };
 }
+
+export interface TuckedFanLayout {
+  /** The "UNDER n" count badge, at the left of the fan. */
+  readonly badge: Rect;
+  /** One rect per tucked card, in tuck order, the newest on top at the right; overlapped when the room is short. */
+  readonly cards: readonly Rect[];
+}
+
+const TUCKED_BADGE_WIDTH = 64;
+const TUCKED_MIN_HEIGHT = 26;
+const TUCKED_MAX_HEIGHT = 48;
+const TUCKED_STEP = 4;
+
+/**
+ * The cards tucked under an environment, as a fan of small faceup cards with a count badge, inside `room` (the free
+ * band of the tile between its title and its counters). Null when the band is too short or narrow to read one card.
+ * `cardAspect` is a card's width over its height.
+ */
+export function tuckedFanLayout(room: Rect, count: number, cardAspect: number): TuckedFanLayout | null {
+  if (count <= 0) return null;
+  const height = Math.min(TUCKED_MAX_HEIGHT, Math.floor(room.height));
+  if (height < TUCKED_MIN_HEIGHT) return null;
+  const width = Math.round(height * cardAspect);
+  const fanRoom = room.width - TUCKED_BADGE_WIDTH - TUCKED_STEP;
+  if (fanRoom < width) return null;
+  const step = count > 1 ? Math.max(TUCKED_STEP, Math.min(width + TUCKED_STEP, (fanRoom - width) / (count - 1))) : 0;
+  const fanWidth = width + step * (count - 1);
+  const top = room.y + Math.round((room.height - height) / 2);
+  const left = room.x + room.width - fanWidth;
+  return {
+    badge: {
+      x: left - TUCKED_STEP - TUCKED_BADGE_WIDTH,
+      y: top + Math.round(height / 2) - 10,
+      width: TUCKED_BADGE_WIDTH,
+      height: 20,
+    },
+    cards: Array.from({ length: count }, (_unused, index) => ({ x: left + index * step, y: top, width, height })),
+  };
+}

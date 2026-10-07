@@ -147,12 +147,18 @@ export function normalizeEncounterCard(
       // job instead (`ability-scripting-engineer`), so it is omitted here rather than emitted as a literal -1.
       // Requires a `cardNotes` entry the same way a minion's `-1` does (Heightened Morale, `sm` 27103,
       // docs/phase7-wave5.md §1.9).
-      if (p.attack === -1 && !curation.cardNotes[r.code]) {
-        errors.push(`${r.code}: attachment ATK is X (MarvelCDB -1) — needs a cardNotes entry`);
-      } else if (p.attack !== null && p.attack !== undefined && p.attack !== -1) {
+      // A printed "-1 ATK" badge (Inhibitor Collar, `next_evol` 40092) is the same raw value: a `Correction.attack`
+      // of -1, confirmed on the scan, says it is the literal number.
+      const printedX = p.attack === -1 && !p.attackIsCurated;
+      if (printedX && !curation.cardNotes[r.code]) {
+        errors.push(`${r.code}: attachment ATK is X (MarvelCDB -1) — needs a cardNotes entry or a Correction.attack`);
+      } else if (p.attack !== null && p.attack !== undefined && !printedX) {
         mods.atk = p.attack;
       }
-      if (r.scheme !== null && r.scheme !== undefined) mods.sch = r.scheme;
+      // MarvelCDB has no THW field for an attachment and files a printed "-1 THW" badge under `scheme` (Psychic
+      // Inertia, `next_evol` 40173, which attaches to an identity). `Correction.thwart` emits it as THW instead.
+      if (p.thwart !== undefined) mods.thw = p.thwart;
+      else if (r.scheme !== null && r.scheme !== undefined) mods.sch = r.scheme;
       const attachment: AttachmentCard = {
         ...common,
         type: "attachment",

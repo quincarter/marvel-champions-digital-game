@@ -119,30 +119,24 @@ export function unknownTokens(text: string): string[] {
 
 /**
  * "Avenger. S.H.I.E.L.D. Soldier." → ["AVENGER", "S.H.I.E.L.D.", "SOLDIER"].
- * A period only ends a trait when it doesn't follow a single capital letter,
- * so dotted acronyms (S.H.I.E.L.D.) survive intact.
+ * A trait line is traits each ended by a period. A dotted acronym (a run of letter-period pairs with no space,
+ * S.H.I.E.L.D., A.I.M., S.W.O.R.D.) is one trait: its inner periods are protected, and its final period
+ * is kept on the token while still ending the trait, so the next word is a separate trait.
  */
 export function parseTraits(raw: string | null | undefined): string[] {
   if (!raw) return [];
+  const guarded = raw.replace(/(?:[A-Za-z]\.)+[A-Za-z](?=\.)/g, (m) => m.replaceAll(".", "\uE000") + "\uE001");
   const out: string[] = [];
-  let current = "";
-  for (let i = 0; i < raw.length; i++) {
-    const ch = raw[i] as string;
-    if (ch === ".") {
-      const prev = raw[i - 1] ?? "";
-      const prevPrev = raw[i - 2] ?? "";
-      const isAcronymDot = /[A-Z]/.test(prev) && (prevPrev === "" || prevPrev === "." || prevPrev === " ");
-      if (isAcronymDot) {
-        current += ch;
-        continue;
-      }
-      if (current.trim()) out.push(current.trim().toUpperCase());
-      current = "";
-      continue;
-    }
-    current += ch;
+  for (const part of guarded.split(".")) {
+    const trait = part.trim();
+    if (!trait) continue;
+    out.push(
+      trait
+        .replace(/\uE001$/, ".")
+        .replaceAll("\uE000", ".")
+        .toUpperCase(),
+    );
   }
-  if (current.trim()) out.push(current.trim().toUpperCase());
   return out;
 }
 

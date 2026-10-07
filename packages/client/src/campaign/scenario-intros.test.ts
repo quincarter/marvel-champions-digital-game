@@ -47,6 +47,14 @@ describe("scenario intros", () => {
     }
   });
 
+  test("a rulebook page intro shows the whole page in one beat, so no printed lettering is cropped", () => {
+    for (const id of ["morlock-siege", "juggernaut", "sandman", "thanos"]) {
+      const { beats, width, height } = scenarioIntroFor(id)!.page;
+      expect(beats).toHaveLength(1);
+      expect(beats[0]!.panel).toEqual({ x: 0, y: 0, w: width, h: height });
+    }
+  });
+
   test("a hero's quip degrades to narration when that hero isn't at the table", () => {
     const intro = scenarioIntroFor("rhino")!;
     const heroLines = intro.page.beats.flatMap((beat) => beat.lines).filter((line) => line.speaker.kind === "hero");
@@ -73,6 +81,11 @@ describe("box scenarios reuse the rulebook's own reveal page", () => {
     ["master-mold", "mut_gen", 11],
     ["mansion-attack", "mut_gen", 14],
     ["magneto", "mut_gen", 17],
+    ["morlock-siege", "next_evol", 8],
+    ["on-the-run", "next_evol", 10],
+    ["juggernaut", "next_evol", 13],
+    ["mister-sinister", "next_evol", 15],
+    ["stryfe", "next_evol", 17],
     ["brotherhood-of-badoon", "gmw", 7],
     ["infiltrate-the-museum", "gmw", 9],
     ["escape-the-museum", "gmw", 11],

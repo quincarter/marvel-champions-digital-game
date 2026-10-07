@@ -97,6 +97,11 @@ export interface BoostInProgress {
   readonly icons?: number;
   readonly iconsCancelled: boolean;
   readonly abilityCancelled: boolean;
+  /**
+   * Its boost icons and "Boost" ability are ignored (`RuleSpec ignoreBoost`, docs/phase7-wave7.md §3.67): it adds 0
+   * and its ability does not resolve, neither being canceled. Set when the rule is first seen to cover the card.
+   */
+  readonly ignored?: true;
   /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */
   readonly countAdjust?: number;
   /** "Count the number of boost icons on that card instead" (`replaceBoostCount`): the card whose icons are counted. */
@@ -163,6 +168,13 @@ export type StackFrame =
        */
       readonly deferredResponses?: readonly TriggerEvent[];
       /**
+       * The first player to resolve a "(defense)"-labeled ability during this enemy attack: RRG 1.8 "Defend, Defense"
+       * (p. 15), "Once a player resolves a defense-labeled ability during an enemy attack, other players cannot
+       * resolve defense-labeled abilities for that same attack." Only an `enemyAttack` event frame carries it, so it
+       * ends with the attack (`defense-claim.ts`).
+       */
+      readonly defenseLabeledBy?: PlayerId;
+      /**
        * One occurrence, several triggering conditions, one response window (RRG 1.8 "Triggering Condition", p. 45;
        * `pushEventsSharingResponses`): this event's responses join the window of the event frame `responsesWith`, which
        * resolves after it. Resolving this frame hands its resolved event to that frame's `joinedResponses` instead of
@@ -199,6 +211,12 @@ export type StackFrame =
        * interrupt window (`ThwartSession.cancelled`): it ends without a log line of its own.
        */
       readonly thwartInstanceCancelled?: true;
+      /**
+       * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
+       * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
+       * comes, the event ends there: no interrupt, no enter-play keyword, no response (`resolve/state-checks.ts`).
+       */
+      readonly standingCheckResolved?: true;
       /**
        * On an ally's pending consequential damage: the consequential-scoped damage-taken rules that applied to it when
        * their source left play while the attack or thwart it follows was still resolving (`lingeringConsequentialRules`,
@@ -243,6 +261,12 @@ export type StackFrame =
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */
       readonly tierIndex: number;
+      /**
+       * An interrupt window some `would` interrupt answers (`trigger.would`, RRG 1.8 "'Would'", p. 48): the index into
+       * the same tier list for the "would" interrupts, which all resolve before `tierIndex` starts on the others. Set
+       * as the window is pushed and removed once the "would" tiers are done; absent on every other window.
+       */
+      readonly wouldTier?: number;
       readonly queue: readonly TriggerCandidate[];
       /**
        * The optional candidates, fixed when the window opened together with the forced ones (docs/phase7-wave6.md
@@ -420,6 +444,15 @@ export type StackFrame =
        */
       readonly preThenOf?: FrameId;
       /**
+       * The card's attach instruction ability (`AbilityDefinition.attachInstruction`) has been resolved, so its When
+       * Revealed is not what attaches it: the reveal skips `settleAttach`.
+       */
+      readonly attachInstructed?: true;
+      /**
+       * `attachInstruction`: an attachment whose "attach to" text is an ability (`AbilityDefinition.attachInstruction`,
+       * docs/phase7-wave7.md §3.35) has resolved it; attached, it enters play now, and otherwise it is handled as an
+       * attachment with no legal `attachesTo` host is (its `cannotAttach` abilities, or the discard).
+       *
        * `cannotAttach`: an attachment with no legal host is resolving its own `cannotAttach` abilities instead of
        * being discarded; on return it enters play if they attached it, and is discarded otherwise.
        *
@@ -436,6 +469,7 @@ export type StackFrame =
       readonly stage:
         | "faceup"
         | "enterPlay"
+        | "attachInstruction"
         | "cannotAttach"
         | "uniqueCheck"
         | "quickstrike"
@@ -459,7 +493,11 @@ export type StackFrame =
        * considered played and is still discarded — only its own abilities are prevented from initiating.
        */
       readonly effectsCancelled: boolean;
-      /** Set when an event was played inside a timing window: only this ability resolves. */
+      /**
+       * The one ability of a played event that resolves (RRG 1.8 "Event", p. 18: "the player playing it chooses one of
+       * those abilities to trigger"): the interrupt or response that matched the timing window it was played in, or
+       * the Action ability its player triggered. Null for a card that is not an event.
+       */
       readonly triggeredAbilityId: AbilityId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;
@@ -468,6 +506,13 @@ export type StackFrame =
       readonly vars: Vars;
       /** "It enters play exhausted" (`EffectSpec playFromHand.entersExhausted`; docs/phase7-wave6.md §3.57). */
       readonly entersExhausted?: true;
+      /**
+       * Where a played event goes once its effects have resolved, when not its owner's discard pile (`EffectSpec
+       * afterResolving`; docs/phase7-wave7.md §3.68): "return that event to your hand after resolving its effects".
+       * Read once, by the `discardEvent` stage, and only for an event still being resolved whose effects were not
+       * canceled.
+       */
+      readonly afterResolving?: "hand";
     });
 
 export type StackFrameKind = StackFrame["kind"];

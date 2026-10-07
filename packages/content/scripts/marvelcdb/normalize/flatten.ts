@@ -6,6 +6,7 @@
  */
 import type { DroppedSourceRecord } from "../../../src/data/types.ts";
 import type { ImageRef } from "../../../src/schema/index.ts";
+import type { Correction } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { imageOf } from "./art.ts";
 
@@ -29,6 +30,34 @@ export interface Flattened {
    * one — every main scheme on the table drew its setup/contents side.
    */
   readonly aggregateImage: (aSideCode: string) => ImageRef | undefined;
+}
+
+/**
+ * Applies `Correction.cardType`: returns the records with the corrected `type_code` (the record itself and any linked
+ * face carrying the code). A type that already matches is an error, so a MarvelCDB fix upstream is noticed instead of
+ * leaving a dead correction. Records without a type correction are returned as-is.
+ */
+export function applyTypeCorrections(
+  raw: readonly RawCard[],
+  corrections: readonly Correction[],
+  errors: string[],
+): readonly RawCard[] {
+  const typed = corrections.filter((c) => c.cardType !== undefined);
+  if (typed.length === 0) return raw;
+  const fix = (r: RawCard): RawCard => {
+    let out = r;
+    for (const c of typed) {
+      if (c.code !== r.code) continue;
+      if (c.cardType === r.type_code)
+        errors.push(`${r.code}: type correction to ${c.cardType} matches MarvelCDB already`);
+      else out = { ...out, type_code: c.cardType as RawCard["type_code"] };
+    }
+    return out;
+  };
+  return raw.map((r) => {
+    const top = fix(r);
+    return r.linked_card ? { ...top, linked_card: fix(r.linked_card) } : top;
+  });
 }
 
 export function flatten(raw: readonly RawCard[], errors: string[]): Flattened {

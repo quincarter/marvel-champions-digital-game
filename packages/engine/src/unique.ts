@@ -46,6 +46,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import { areaOfCard, areaOfPlayer, cardOf, getInstance } from "./query.js";
 import { activeRules, cardsInPlay } from "./select.js";
 import type { GameState, TableRules } from "./state.js";
+import { sameTitle } from "./titles.js";
 
 /** The three names RRG 1.8 compares. `null` means the card does not have that name. */
 export interface UniqueNames {
@@ -106,7 +107,7 @@ export function cardsMatch(a: AnyCard, b: AnyCard, tableRules?: TableRules): boo
   const x = uniqueNamesOf(a);
   const y = uniqueNamesOf(b);
   // "The two cards share a title, and both have no subtitle and no alter-ego title."
-  if (x.title === y.title && isBare(x) && isBare(y)) return true;
+  if (sameTitle(x.title, y.title) && isBare(x) && isBare(y)) return true;
   // "The subtitle or alter-ego title of one matches the title, subtitle, or alter-ego
   // title of the other." Checked in both directions — "of one"/"of the other" is symmetric.
   const yNames = allNames(y);
@@ -145,6 +146,25 @@ export function matchingCardInPlay(
     if (other && cardsMatch(card, other, state.tableRules)) return id;
   }
   return null;
+}
+
+/**
+ * The unique rule's decision for a card about to enter play from out of play (RRG 1.8 "Unique Icon", pp. 45–46: "A
+ * non-villain card in an out-of-play state that matches a card in play cannot enter play"): the card in play that stops
+ * `id`, or `null` when it may enter. A villain entering play is exempt, and so is a card with no data to match on.
+ * `forPlayer` is whose game area it would enter. The one answer for the effect that puts a card into play
+ * (`admitUniqueEntry`) and for a choice of a card to put into play (`TargetQuery.canEnterPlay`).
+ */
+export function uniqueEntryBlocker(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  forPlayer: PlayerId | null = null,
+): InstanceId | null {
+  const card = cardOf(state, id);
+  if (!card || card.type === "villain") return null;
+  // `ignore` keeps a card already in play from matching itself.
+  return matchingCardInPlay(state, card, new Set([id]), forPlayer, deps);
 }
 
 /**

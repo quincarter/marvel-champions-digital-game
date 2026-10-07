@@ -110,3 +110,122 @@ describe("§3.13 abilities active in hand", () => {
     expect(mustPlayer(state, P1).hand).toContain(given.id);
   });
 });
+
+/**
+ * An event's own "while in your hand" abilities: "Forced Response: After your turn ends, if this card is in your hand,
+ * take 1 damage." beside the Action that plays it. RRG 1.8 "In Play and Out of Play" (p. 23): an ability is used out of
+ * play when it "specifically refer[s] to being used from an out-of-play area"; such an ability resolves from the hand
+ * and is no play of the event (RRG 1.8 "Event", p. 18).
+ */
+describe("an event's own in-hand abilities resolve from hand without playing it", () => {
+  const you = { kind: "identityOf", player: { kind: "controller" } } as const;
+  const BURN = stubAbility("fire.forced", {
+    trigger: { kind: "response", forced: true, on: { on: "turnEnding", playerIs: "controller" } },
+    activeIn: "hand",
+    effects: [{ kind: "dealDamage", target: you, amount: { kind: "const", value: 1 } }],
+  } satisfies AbilityDefinition);
+  /** Optional, in hand: "Response: After you change form, take 2 damage." */
+  const SINGE = stubAbility("fire.optional", {
+    trigger: { kind: "response", forced: false, on: { on: "formChanged", playerIs: "controller" } },
+    activeIn: "hand",
+    effects: [{ kind: "dealDamage", target: you, amount: { kind: "const", value: 2 } }],
+  } satisfies AbilityDefinition);
+  /** The play: "Action: Take 4 damage." */
+  const BLAZE = stubAbility("fire.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "dealDamage", target: you, amount: { kind: "const", value: 4 } }],
+  } satisfies AbilityDefinition);
+  const FIRE = stubEvent({ id: "fire", cost: 1, abilities: [BURN.ref, SINGE.ref, BLAZE.ref] });
+  const fireDeps: EngineDeps = depsOf(BURN, SINGE, BLAZE);
+  const endTurn = { type: "endTurn", playerId: P1 } as const;
+
+  /** A first turn with exactly `inHand` copies of the event in hand and the other of its two in the discard pile. */
+  const withCopies = (inHand: 0 | 1 | 2): { state: GameState; hand: readonly InstanceId[] } => {
+    const base = gameAtFirstTurn({ cards: [FIRE], deps: fireDeps, deck: copiesOf(FIRE.id, 2) });
+    const seat = mustPlayer(base, P1);
+    const isCopy = (id: InstanceId) => base.instances[id]?.cardId === FIRE.id;
+    const copies = [...seat.hand, ...seat.deck, ...seat.discard].filter(isCopy);
+    const hand = copies.slice(0, inHand);
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              hand: [...p.hand.filter((id) => !isCopy(id)), ...hand],
+              deck: p.deck.filter((id) => !isCopy(id)),
+              discard: [...p.discard.filter((id) => !isCopy(id)), ...copies.slice(inHand)],
+            }
+          : p,
+      ),
+    };
+    return { state, hand };
+  };
+  const identity = (state: GameState) => mustPlayer(state, P1).identity.instanceId;
+  const drive = (state: GameState, commands: Parameters<typeof driveSession>[2], pick = defaultPick) =>
+    driveSession(startSession(state), fireDeps, commands, pick);
+  /** The damage each card dealt to the identity, by source. */
+  const dealtBy = (events: ReturnType<typeof drive>["events"], state: GameState, source: InstanceId) =>
+    events
+      .filter(
+        (e) => e.type === "damageDealt" && e.targetInstanceId === identity(state) && e.sourceInstanceId === source,
+      )
+      .map((e) => (e.type === "damageDealt" ? e.amount : 0));
+
+  it("the forced response in hand resolves at the end of its player's turn: 1 damage, the event unplayed and still in hand", () => {
+    const { state, hand } = withCopies(1);
+    const [id] = hand as [InstanceId];
+    const { session, events } = drive(state, [endTurn]);
+    expect(dealtBy(events, state, id)).toEqual([1]);
+    expect(mustPlayer(session.state, P1).hand).toContain(id);
+    expect(events.filter((e) => e.type === "cardPlayed" && e.instanceId === id)).toEqual([]);
+    const replayed = replay(session.log, fireDeps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("two copies in hand: 1 damage from each", () => {
+    const { state, hand } = withCopies(2);
+    const { events } = drive(state, [endTurn]);
+    expect(hand.map((id) => dealtBy(events, state, id))).toEqual([[1], [1]]);
+  });
+
+  it("not in hand (both copies in the discard pile): nothing", () => {
+    const { state } = withCopies(0);
+    const { events } = drive(state, [endTurn]);
+    expect(events.filter((e) => e.type === "damageDealt" && e.targetInstanceId === identity(state))).toEqual([]);
+  });
+
+  it("an optional in-hand response on an event is used from hand at no cost: 2 damage, the event not played", () => {
+    const { state, hand } = withCopies(1);
+    const [id] = hand as [InstanceId];
+    const take = (s: GameState): readonly string[] => {
+      const option = s.pendingChoice?.options.find((o) => o.ref?.kind === "ability" && o.ref.instanceId === id);
+      return option ? [option.optionId] : defaultPick(s);
+    };
+    const { session, events } = drive(state, [{ type: "changeForm", playerId: P1 }], take);
+    expect(dealtBy(events, state, id)).toEqual([2]);
+    expect(events.filter((e) => e.type === "cardPlayed")).toEqual([]);
+    // Nothing was paid: the hand and the discard pile are as they were.
+    expect(mustPlayer(session.state, P1).hand).toEqual(mustPlayer(state, P1).hand);
+    expect(mustPlayer(session.state, P1).discard).toEqual(mustPlayer(state, P1).discard);
+  });
+
+  it("playing the event resolves its Action only: 4 damage, into the discard pile, and no in-hand ability is a play", () => {
+    const { state, hand } = withCopies(1);
+    const [id] = hand as [InstanceId];
+    const seat = mustPlayer(state, P1);
+    const payment = seat.hand.filter((card) => card !== id).slice(0, 1);
+    const { session, events } = drive(state, [
+      {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: id,
+        payment: payment.map((fromHand) => ({ fromHand })),
+        attachToInstanceId: null,
+      },
+    ]);
+    expect(dealtBy(events, state, id)).toEqual([4]);
+    expect(mustPlayer(session.state, P1).discard).toContain(id);
+  });
+});

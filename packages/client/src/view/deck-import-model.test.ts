@@ -1,5 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck } from "@mc/content";
+import {
+  CORE_CARDS,
+  CORE_POOL_VERSION,
+  CORE_STARTER_DECKS,
+  PLAYABLE_CARDS,
+  cardId,
+  deckFromStarterDeck,
+  deckId,
+  type Deck,
+} from "@mc/content";
 import {
   exportDecklistText,
   importFromMarvelCdbResponseText,
@@ -176,6 +185,56 @@ describe("exportDecklistText: the exact inverse of importFromPasteText", () => {
       expect(byCardId(reimported.deck.cards)).toEqual(byCardId(deck.cards));
     },
   );
+
+  describe("titles shared by several cards (wave 7 QA finding 1)", () => {
+    const poolEnv: ImportEnv = { ...env, pool: PLAYABLE_CARDS };
+    const deckOf = (identity: string, aspects: string[], lines: Record<string, number>): Deck => ({
+      id: deckId("d"),
+      name: "fixture",
+      identityCardId: cardId(identity),
+      aspects: aspects as Deck["aspects"],
+      cards: Object.entries(lines).map(([id, quantity]) => ({ cardId: cardId(id), quantity })),
+      poolVersion: "v",
+      source: { kind: "userBuilt", createdAt: "2026-10-06T00:00:00.000Z" },
+      updatedAt: "2026-10-06T00:00:00.000Z",
+    });
+    test.each([
+      ["Deadpool's ally Cable beside the hero", deckOf("44001a", ["pool"], { "44002": 1, "44046": 2 })],
+      ["Hulk the ally beside the hero", deckOf("01001a", ["aggression"], { "01050": 2 })],
+      ["Hawkeye, three allies", deckOf("01001a", ["leadership"], { "01066": 1, "03012": 1, "04011": 1 })],
+      ["Web-Shooter of the second Spider-Man", deckOf("27030a", ["justice"], { "27039": 2 })],
+    ])("%s round-trips by code where the title alone cannot say", (_label, deck) => {
+      const text = exportDecklistText(deck, PLAYABLE_CARDS);
+      const reimported = importFromPasteText(text, poolEnv);
+      if (!reimported.ok) throw new Error(JSON.stringify(reimported.problems.map((p) => p.message)));
+      expect(reimported.deck.identityCardId).toBe(deck.identityCardId);
+      expect(byCardId(reimported.deck.cards)).toEqual(byCardId(deck.cards));
+    });
+
+    test("writes the code in parentheses only where needed, and accepts the pool as a record too", () => {
+      const deck = deckOf("44001a", ["pool"], { "44002": 1, "44046": 2 });
+      const asRecord = Object.fromEntries(PLAYABLE_CARDS.map((card) => [card.id, card]));
+      expect(exportDecklistText(deck, asRecord as never).split("\n")).toEqual([
+        "Hero: Deadpool",
+        "Aspect: Pool",
+        "2x Break Time",
+        "1x Cable",
+      ]);
+      const hulk = exportDecklistText(deckOf("01001a", ["aggression"], { "01050": 2 }), PLAYABLE_CARDS);
+      expect(hulk).toContain("2x Hulk");
+      const hawk = exportDecklistText(deckOf("01001a", ["leadership"], { "01066": 1, "03012": 1 }), PLAYABLE_CARDS);
+      expect(hawk).toContain("1x Hawkeye (01066)");
+      expect(hawk).toContain("1x Hawkeye (03012)");
+    });
+
+    test("a truly ambiguous bare title is refused with the candidates named", () => {
+      const result = importFromPasteText("Hero: Spider-Man (01001a)\nAspect: Justice\n1x Hawkeye\n", poolEnv);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.problems[0]!.code).toBe("ambiguous_card_name");
+      expect(result.problems[0]!.message).toContain("Hawkeye (03012)");
+    });
+  });
 
   test("skips a card id the given pool doesn't resolve, rather than throwing", () => {
     const starter = CORE_STARTER_DECKS[0]!;

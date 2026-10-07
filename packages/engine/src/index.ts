@@ -19,10 +19,12 @@ export type {
   StackedDecks,
   GameStep,
   IdentityState,
+  MainSchemeAdvancedBy,
   MainSchemeState,
   PlayerState,
   ScenarioSetupInstruction,
   SeparateDeckState,
+  SetAsideUntilCalled,
   StatusCounts,
   VillainState,
   ZoneId,
@@ -30,8 +32,11 @@ export type {
 } from "./state.js";
 export { NO_STATUSES } from "./state.js";
 
+export { cardTypeName, isRulesCardType, RULES_CARD_TYPES, type RulesCardType } from "./card-types.js";
+
 export type {
   AttackInProgress,
+  ChoiceList,
   ChoiceOption,
   ChoicePrompt,
   ChoiceRef,
@@ -87,6 +92,7 @@ export {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
   cardLegalForIdentity,
+  cardOfferedToDeck,
   CHOOSABLE_ASPECTS,
   copiesUpToLimit,
   DECK_COPY_LIMIT,
@@ -101,6 +107,7 @@ export { EngineInvariantError } from "./errors.js";
 
 export type {
   AbilityCost,
+  DamageSelfChoice,
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,
@@ -149,7 +156,9 @@ export type {
 } from "./lasting.js";
 export {
   allyLimitFor,
+  cannotFlip,
   cannotLeavePlay,
+  cardAbilitiesCannotRemove,
   cannotTakeDamage,
   countSchemeIcons,
   damageTakenAfterConstants,
@@ -169,7 +178,9 @@ export {
   mustDefendWithAlly,
   nonSchemeIcons,
   notDefeatedWithoutThreat,
+  playerSideSchemeLimit,
   restrictedLimitFor,
+  restrictedStanding,
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
@@ -198,8 +209,10 @@ export type {
   ScenarioDeckSource,
   SchemeValueName,
   StatName,
+  BasicPowerName,
   StatComparison,
   StatusName,
+  CollectionSearchFilter,
   TargetCategory,
   TargetQuery,
   TargetRef,
@@ -276,6 +289,7 @@ export {
   CAMPAIGN_ACCEPT,
   CAMPAIGN_NEXT_NODE_INSTRUCTION,
   campaignChoiceKey,
+  campaignModularSetIds,
   campaignResultOf,
   createCampaignLog,
   grantsOf,
@@ -337,7 +351,12 @@ export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
+  facedownAttachments,
+  isFacedownAttachment,
+  cardTypeOf,
   categoriesOf,
+  chosenFromList,
+  chosenVar,
   classificationsOf,
   controllerOf,
   explainQuery,
@@ -352,6 +371,8 @@ export { selfDamageThreshold } from "./damage-threshold.js";
 /** "Why not the others?" — the cards an open choice left out, each with the clause that excluded it. */
 export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
 export { choiceExclusions } from "./why-not.js";
+export type { DefenseBar, DefenseClaim } from "./defense-claim.js";
+export { DEFENSE_BAR_MESSAGE, defenseBarFor, defenseClaimOf } from "./defense-claim.js";
 
 /** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to gray a card itself. */
 export type { UniqueNames } from "./unique.js";
@@ -360,12 +381,20 @@ export {
   entersPlayWhenPlayed,
   isUnique,
   matchingCardInPlay,
+  uniqueEntryBlocker,
   uniqueLabel,
   uniqueNamesOf,
 } from "./unique.js";
 
-export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
-export { createGame, illegalDecksOf } from "./setup.js";
+export type {
+  AutoIncludedSetSetup,
+  GameSetupConfig,
+  PlayerSetup,
+  SetupResult,
+  SetupStack,
+  VillainSetup,
+} from "./setup.js";
+export { autoIncludedSetsInGame, createGame, illegalDecksOf } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";
@@ -378,6 +407,7 @@ export {
   cardZoneCandidates,
   currentName,
   encounterFace,
+  showingResources,
   separateDeckDefinition,
   separateDeckOf,
   discardZoneFor,
@@ -408,6 +438,7 @@ export {
   minionsEngagedWith,
   nextClockwisePlayer,
   playerOrder,
+  printedCostOf,
   printedProfile,
   remainingHitPoints,
   scale,
@@ -418,4 +449,15 @@ export {
 export { legalDefenders } from "./resolve/enemy-activation.js";
 export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
+export { collectionCandidates } from "./resolve/collection.js";
+export {
+  REPORT_NO,
+  REPORT_YES,
+  REPORTED_FACT_ANSWER,
+  reportedNumberOf,
+  type OutsideFacts,
+  type ReportedFact,
+  type ReportedFactAnswer,
+  type SetupOutsideFact,
+} from "./outside-facts.js";
 export { generatedResources, handCardResources } from "./actions.js";

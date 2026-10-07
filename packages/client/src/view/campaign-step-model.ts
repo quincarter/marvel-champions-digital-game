@@ -21,6 +21,7 @@ import { difficultyOf, type CardId } from "@mc/content";
 import {
   applyCampaignResult,
   campaignResultOf,
+  campaignModularSetIds,
   startGameFromLog,
   type CampaignChoiceAnswer,
   type CampaignDefinition,
@@ -232,6 +233,8 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     );
   }
   const picks = modularPicksOf(definition, log, start.scenarioId);
+  // A node's required modular sets (MC40 p. 14) ride along as fixed: the picks come back untouched when it names none.
+  const modularSetIds = campaignModularSetIds(start, [], picks.modularSetIds);
   return {
     scenarioId: start.scenarioId,
     difficulty: difficultyOf(start.modes),
@@ -245,6 +248,7 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     campaign: start.input,
     campaignEncounterSets: start.encounterSets,
     ...picks,
+    ...(modularSetIds ? { modularSetIds } : {}),
     ...(log.removedFromCampaign.length > 0
       ? { campaignRemovedCards: log.removedFromCampaign.map((face) => face.cardId) }
       : {}),

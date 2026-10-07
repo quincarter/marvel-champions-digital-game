@@ -173,10 +173,9 @@ function rulebookIntro(scenarioId: string, title: string, campaignId: string, pa
       width: 1800,
       height: 1800,
       lettered: true,
-      beats: [
-        { panel: { x: 300, y: 150, w: 1200, h: 1200 }, lines: [] },
-        { panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] },
-      ],
+      // One beat, the whole page: the printed lettering runs to the page's edges, and every closer crop cut a balloon
+      // through (wave 7 QA: "ATTACKING TUNNELS! I…"). The page is readable at the reader's size.
+      beats: [{ panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] }],
     },
   };
 }
@@ -198,6 +197,11 @@ const RULEBOOK_INTROS: readonly ScenarioIntro[] = [
   rulebookIntro("master-mold", "Master Mold", "mut_gen", 11),
   rulebookIntro("mansion-attack", "Mansion Attack", "mut_gen", 14),
   rulebookIntro("magneto", "Magneto", "mut_gen", 17),
+  rulebookIntro("morlock-siege", "Morlock Siege", "next_evol", 8),
+  rulebookIntro("on-the-run", "On the Run", "next_evol", 10),
+  rulebookIntro("juggernaut", "Juggernaut", "next_evol", 13),
+  rulebookIntro("mister-sinister", "Mister Sinister", "next_evol", 15),
+  rulebookIntro("stryfe", "Stryfe", "next_evol", 17),
   rulebookIntro("brotherhood-of-badoon", "Brotherhood of Badoon", "gmw", 7),
   rulebookIntro("infiltrate-the-museum", "Infiltrate the Museum", "gmw", 9),
   rulebookIntro("escape-the-museum", "Escape the Museum", "gmw", 11),

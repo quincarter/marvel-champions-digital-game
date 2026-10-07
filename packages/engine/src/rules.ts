@@ -7,14 +7,15 @@ import type {
   RuleSpec,
 } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { hasKeyword } from "./keywords.js";
-import type { AnyCard, SchemeIcon } from "@mc/content";
+import { attackKeywordsOf, hasKeyword } from "./keywords.js";
+import type { AnyCard, CardId, SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
   currentName,
   encounterFace,
   getInstance,
+  identityFace,
   mainSchemeFor,
   mainSchemeStageOf,
   mainSchemeStates,
@@ -33,10 +34,13 @@ import {
   contextArea,
   controllerOf,
   evaluate,
+  isAttachedMinion,
   isPlayerCard,
   matchesQuery,
   resolveRef,
   resolveValue,
+  restrictedCardsOf,
+  restrictedLoadOf,
   rulePlayers,
   textBoxBlankFor,
   timingWordOf,
@@ -93,28 +97,110 @@ export const damageSourceCard = (
 export interface DamageSourceInfo {
   readonly card: InstanceId | null;
   readonly attackKeywords?: readonly AttackKeyword[];
+  /** The attack this damage is from (docs/phase7-wave7.md §3.30); absent for damage that is not an attack's. */
+  readonly attack?: DamageAttackInfo;
+}
+
+/**
+ * The attack one instance of damage is from, as the rules that read "the attacker" or "the attack" see it
+ * (`cannotTakeDamage.exceptAttacker` / `exceptAttackCard` / `exceptAttackKeyword`, `reduceDamageTaken.exceptAttacker`;
+ * docs/phase7-wave7.md §3.30). Only an attack's damage has one: an ability's or non-attack event's damage, retaliate
+ * and indirect damage have neither an attacker nor an attack (§4.1 Q17).
+ *
+ * - `attackerInstanceId`: the attacking character (a hero or ally for a player's attack, whatever card made it; the
+ *   enemy for an enemy's). For a `dealDamage` effect marked `fromAttack`, the card dealing it.
+ * - `cardInstanceId`: the card whose ability makes the attack (an attack event, an upgrade's attack ability), which is
+ *   what "the attack has the [X] trait" reads; null for a basic attack or an enemy's activation, which no card makes.
+ * - `keywords`: the attack's keywords, its attacker's own or granted to it (`attackKeywordsOf`). Empty for attack
+ *   damage dealt to a character the attack is not against (`notAttacked`, docs/phase7-wave6.md §4.1 Q18).
+ */
+export interface DamageAttackInfo {
+  readonly attackerInstanceId: InstanceId | null;
+  readonly cardInstanceId: InstanceId | null;
+  readonly keywords: readonly AttackKeyword[];
 }
 
 /**
  * "X cannot take damage [while …] [from …]". `sources` are the damage's source and then the card it came through, if
  * any; `fromSource` matches either. `exceptFromSource` ("can only take damage from cards with a printed [physical]
  * resource", §3.68) reads the one source card of §4 Q39: the last of `sources` given, else the first.
+ *
+ * `attack`: the attack the damage is from, when it is an attack's, for "unless the attacker or attack has the [X]
+ * trait, or the attack has ranged" (`exceptAttacker`, `exceptAttackCard`, `exceptAttackKeyword`; docs/phase7-wave7.md
+ * §3.30). Absent, none of those exceptions holds and the damage is blocked (§4.1 Q17).
  */
 export function cannotTakeDamage(
   state: GameState,
   deps: EngineDeps,
   targetId: InstanceId,
   sources: readonly (InstanceId | null | undefined)[],
+  attack?: DamageAttackInfo,
 ): boolean {
   const card = sources[1] ?? sources[0] ?? null;
+  const matches = (id: InstanceId | null, query: TargetQuery | undefined, context: EffectContext): boolean =>
+    query !== undefined && id !== null && matchesQuery(state, id, query, context);
   return activeRules(state, deps, "cannotTakeDamage").some(({ rule, context }) => {
     if (!matchesQuery(state, targetId, rule.target, context)) return false;
     if (rule.exceptFromSource && card !== null && matchesQuery(state, card, rule.exceptFromSource, context)) {
       return false;
     }
+    if (attack) {
+      if (matches(attack.attackerInstanceId, rule.exceptAttacker, context)) return false;
+      if (matches(attack.cardInstanceId, rule.exceptAttackCard, context)) return false;
+      if (rule.exceptAttackKeyword !== undefined && attack.keywords.includes(rule.exceptAttackKeyword)) return false;
+    }
     if (!rule.fromSource) return true;
     const query = rule.fromSource;
     return sources.some((id) => id !== null && id !== undefined && matchesQuery(state, id, query, context));
+  });
+}
+
+/** A player's attack on the stack: its `attack` event frame (`playerAttackInProgress`). */
+export type PlayerAttackFrame = Extract<StackFrame, { kind: "event" }> & {
+  readonly event: Extract<TriggerEvent, { kind: "attack" }>;
+};
+
+/**
+ * The innermost player attack that has not dealt its damage yet: the first uncancelled `attack` event frame of the
+ * stack (innermost-first) that has not applied, which is when "when you attack" abilities resolve (RRG 1.8
+ * "Interrupt", p. 25). A nested attack (one made from an interrupt to another) is the one found. Null with none, and
+ * once the innermost one is past its interrupts: its damage is already on the stack against the old target.
+ */
+export function playerAttackInProgress(stack: readonly StackFrame[]): PlayerAttackFrame | null {
+  const frame = stack.find((f) => f.kind === "event" && f.event.kind === "attack" && !f.cancelled);
+  // `apply` is the stage an event frame waits in under its open interrupt window; it leaves it as it applies.
+  return frame?.kind === "event" &&
+    frame.event.kind === "attack" &&
+    (frame.stage === "interrupts" || frame.stage === "apply")
+    ? (frame as PlayerAttackFrame)
+    : null;
+}
+
+/**
+ * Whether `targetId` is a valid target for this player attack's damage: RRG 1.8 "Target" (p. 43), "A target that
+ * 'cannot take damage' is not a valid target for an ability or game function whose only effect on that target is to
+ * deal it damage", which ruling Mar 19, 2026 (2) applies to basic powers too. Read as the attack's damage will be
+ * (`DamageAttackInfo`): its attacker, the card making it and the keywords it has now, so a rule scoped by source or
+ * by attack keyword answers as it will when the damage lands.
+ */
+export function canTakePlayerAttack(
+  state: GameState,
+  deps: EngineDeps,
+  attack: PlayerAttackFrame,
+  targetId: InstanceId,
+): boolean {
+  const { attackerInstanceId, sourceInstanceId = null, basic, keywords, overkill } = attack.event;
+  const has = attackKeywordsOf(state, deps, {
+    attackerInstanceId,
+    viaInstanceId: sourceInstanceId,
+    basic: basic === true,
+    ...(keywords ? { keywords } : {}),
+    vars: attack.vars,
+  });
+  return !cannotTakeDamage(state, deps, targetId, [attackerInstanceId, sourceInstanceId], {
+    attackerInstanceId,
+    cardInstanceId: sourceInstanceId,
+    keywords: overkill === true && !has.includes("overkill") ? [...has, "overkill"] : has,
   });
 }
 
@@ -278,6 +364,11 @@ function consequentialScopeMatches(
  * cannot remove threat from Sibling Rivalry", `gam` 18025, docs/phase7-wave3.md §3.26): such a rule blocks only a
  * removal whose `removerId` is one of `rulePlayers(rule.player)`, so a removal with no player is never blocked by a
  * scoped rule (there is nothing to compare) but is still blocked by an unscoped one, exactly as before this field.
+ *
+ * `characterId` is the character performing the removal (the thwarting character, else `actingCharacterOf` the
+ * removing card; null when no character performs it), read only by a rule with `exceptBy` ("Characters other than
+ * Cable cannot remove threat from Technovirus Purge", docs/phase7-wave7.md §3.51): such a rule binds characters only
+ * (§4.1 Q29 = A), so it never blocks a removal with no character and blocks a character's unless it matches.
  */
 export const threatCannotBeRemoved = (
   state: GameState,
@@ -285,14 +376,39 @@ export const threatCannotBeRemoved = (
   schemeId: InstanceId,
   byThwart = false,
   removerId: PlayerId | null = null,
+  characterId: InstanceId | null = null,
 ): boolean =>
   activeRules(state, deps, "threatCannotBeRemoved").some((active) => {
     const { rule, context } = active;
     if (rule.by === "thwart" && !byThwart) return false;
     if (!matchesQuery(state, schemeId, rule.target, context)) return false;
+    if (rule.exceptBy && (characterId === null || matchesQuery(state, characterId, rule.exceptBy, context))) {
+      return false;
+    }
     if (!rule.player) return true;
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
+
+/**
+ * Whether a `threatCannotBeRemoved` rule scoped with `exceptBy` keeps this character from removing threat from the
+ * scheme (docs/phase7-wave7.md §3.51): what the basic thwart command refuses on, so the scheme is not a legal target
+ * of that character's basic thwart. A rule without `exceptBy`, or one that also scopes itself with `by` or `player`,
+ * is left to the removal itself, as before the field.
+ */
+export const characterCannotRemoveThreat = (
+  state: GameState,
+  deps: EngineDeps,
+  schemeId: InstanceId,
+  characterId: InstanceId,
+): boolean =>
+  activeRules(state, deps, "threatCannotBeRemoved").some(
+    ({ rule, context }) =>
+      rule.exceptBy !== undefined &&
+      rule.by !== "thwart" &&
+      rule.player === undefined &&
+      matchesQuery(state, schemeId, rule.target, context) &&
+      !matchesQuery(state, characterId, rule.exceptBy, context),
+  );
 
 /**
  * "While Baron Zemo is engaged with you, you cannot thwart." With `schemeId`, whether this player cannot thwart that
@@ -311,11 +427,11 @@ export const cannotThwart = (
   thwarterId?: InstanceId | null,
 ): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => {
-    const { rule, speakerContext } = active;
-    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, speakerContext))) {
+    const { rule, context } = active;
+    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, context))) {
       return false;
     }
-    if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, speakerContext))) return false;
+    if (rule.thwarter && (!thwarterId || !matchesQuery(state, thwarterId, rule.thwarter, context))) return false;
     if (rule.player) return rulePlayers(state, { player: rule.player }, active).includes(playerId);
     return true;
   });
@@ -548,6 +664,8 @@ export const cannotReady = (
   id: InstanceId,
   sourceInstanceId: InstanceId | null = null,
 ): boolean =>
+  // "Allies you control cannot ready" on an obligation or on an attachment on a player card names the player the card
+  // speaks to (`ActiveRule.context`; RRG 1.8 "Obligation", p. 30; "Attachment", p. 8), whom no one controls it for.
   activeRules(state, deps, "cannotReady").some(
     ({ rule, context }) =>
       (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
@@ -668,6 +786,30 @@ export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: In
   );
 
 /**
+ * A card that enters play exhausted by another card's constant rule (`entersPlayExhausted`, docs/phase7-wave7.md
+ * §3.36). Read once, as the card enters play, with the card already in its zone and under its controller. The query
+ * reads "you" as the rule's speaker, so "your allies" on an attachment no player controls means the allies of the
+ * player whose identity it is attached to (RRG 1.8 "Attachment", p. 8).
+ */
+export const entersPlayExhausted = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "entersPlayExhausted").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * RRG 1.8 "Player Side Scheme Limit" (p. 34): "If one or two players started the game, the player side scheme limit is
+ * one. If three or four players started the game, the limit is two." One limit for the whole table, not one per player,
+ * and fixed by the players who started: an eliminated player does not lower it.
+ */
+export const playerSideSchemeLimit = (state: GameState): number => (state.startingPlayerCount <= 2 ? 1 : 2);
+
+/** A player side scheme that does not count toward the player side scheme limit (`excludedFromPlayerSideSchemeLimit`). */
+export const excludedFromPlayerSideSchemeLimit = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "excludedFromPlayerSideSchemeLimit").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/**
  * The `AttackKeyword`s constant abilities in play grant to one attack (`attackKeywords`; Hawkeye's Bow). `viaId` is
  * the card whose ability is making the attack, or null for a basic attack; `basic` is whether the attack is a
  * character's basic attack (RRG 1.8 "Basic Power", p. 10), which an enemy activation is not.
@@ -699,17 +841,15 @@ export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: I
 /**
  * Whether `playerId` is forbidden to play this card (`cannotPlay`; Depowered, `toafk` 11020).
  *
- * `cards` is matched in the rule's **speaker** context, the same "you" its `player` field is resolved in: the two
- * clauses of one printed sentence ("*you* cannot play *your* hero-specific cards") have to agree on who "you" is.
- * On a player-controlled card the two contexts are identical; they differ only on a card no player controls — an
- * obligation, where `controllerId` is `null` and a `you` ref in `cards` used to match nobody, silently turning the
- * whole restriction off (RRG 1.8 "Obligation", p. 30; docs/phase7-wave2.md §25.3).
+ * `cards` is matched with the same "you" its `player` field is resolved in (`ActiveRule.context`): the two clauses of
+ * one printed sentence ("*you* cannot play *your* hero-specific cards") have to agree on who "you" is, on an obligation
+ * as on a card a player controls (RRG 1.8 "Obligation", p. 30; docs/phase7-wave2.md §25.3).
  */
 export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotPlay").some(
     (active) =>
       rulePlayers(state, active.rule, active).includes(playerId) &&
-      matchesQuery(state, id, active.rule.cards, active.speakerContext),
+      matchesQuery(state, id, active.rule.cards, active.context),
   );
 
 /** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
@@ -725,14 +865,17 @@ export const cannotTriggerAction = (
 
 /**
  * Whether a triggered ability with this trigger, on this card, cannot be resolved (`cannotResolveTriggeredAbilities`;
- * Induced Panic). A trigger with no bold timing word (a constant, When Revealed, …) is never stopped. `rules` lets a
- * caller that checks many abilities read the active rules once.
+ * Induced Panic). A trigger with no bold timing word (a constant, When Revealed, …) is never stopped. `resolver` is
+ * the player who would resolve the ability (null when no player would), read by a rule scoped to players (`player`:
+ * "Other players cannot resolve player card abilities during your turn"). `rules` lets a caller that checks many
+ * abilities read the active rules once.
  */
 export function triggeredAbilityForbidden(
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,
   trigger: AbilityTriggerSpec,
+  resolver: PlayerId | null,
   rules: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] = activeRules(
     state,
     deps,
@@ -742,8 +885,13 @@ export function triggeredAbilityForbidden(
   if (rules.length === 0) return false;
   const word = timingWordOf(trigger);
   if (word === null) return false;
-  return rules.some(({ rule, context }) => {
+  return rules.some((active) => {
+    const { rule, context } = active;
     if (rule.timings && !rule.timings.includes(word)) return false;
+    if (rule.player !== undefined) {
+      if (resolver === null || !rulePlayers(state, { player: rule.player }, active).includes(resolver)) return false;
+    }
+    if (rule.playerCards === true && !isPlayerCard(state, id)) return false;
     if (rule.identityFace !== undefined) {
       const seat = state.players.find((p) => p.identity.instanceId === id);
       if (seat?.identity.form !== rule.identityFace) return false;
@@ -779,10 +927,32 @@ export const canDivideBasicPower = (
     ({ rule, context }) => rule.power === power && matchesQuery(state, id, rule.target, context),
   );
 
-/** "This card cannot leave play while …" (`cannotLeavePlay`). */
-export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotLeavePlay").some(({ rule, context }) =>
-    matchesQuery(state, id, rule.target, context),
+/**
+ * "This card cannot leave play while …" (`cannotLeavePlay`). `sourceCardId`: the card whose ability, or whose ability's
+ * cost, would move it, as `permanentStopsLeaving` reads it; none for a move the game's rules make. A rule limited to
+ * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card.
+ */
+export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId, sourceCardId?: CardId): boolean =>
+  activeRules(state, deps, "cannotLeavePlay").some(
+    ({ rule, context }) =>
+      (rule.by !== "cardAbilities" || sourceCardId !== undefined) && matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * "You cannot flip your [name] upgrades" (`cannotFlip`, docs/phase7-wave7.md §3.64): whether a rule stops this card in
+ * play being turned to its other face. "Your" is the rule card's speaker (an obligation's player, RRG 1.8 p. 30).
+ */
+export const cannotFlip = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotFlip").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+
+/**
+ * "Card abilities cannot remove this ally from play" (`cannotLeavePlay` with `by: "cardAbilities"`) on its own, for a
+ * "defeat" effect: the card is not defeated at all (docs/phase7-wave7.md §4.1 Q7), where the unqualified rule only
+ * stops the defeated card's leaving step.
+ */
+export const cardAbilitiesCannotRemove = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotLeavePlay").some(
+    ({ rule, context }) => rule.by === "cardAbilities" && matchesQuery(state, id, rule.target, context),
   );
 
 /**
@@ -930,6 +1100,11 @@ export function damageTakenBreakdown(
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30).
+    const attacker = source?.attack?.attackerInstanceId ?? null;
+    if (rule.exceptAttacker && attacker !== null && matchesQuery(state, attacker, rule.exceptAttacker, context)) {
+      continue;
+    }
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
   }
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).
@@ -1020,7 +1195,10 @@ export function mainSchemeForRedirect(
   return mainSchemeFor(state, contextArea(state, context))?.instanceId ?? null;
 }
 
-/** RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". */
+/**
+ * RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". A
+ * limit on what is in play, enforced by discards (`checkRestrictedLimits`); it never stops a card being played.
+ */
 export const BASE_RESTRICTED_LIMIT = 2;
 
 /**
@@ -1044,6 +1222,25 @@ export function restrictedLimitFor(
       : rule.amount;
   }
   return limit;
+}
+
+/**
+ * Where a player stands against the restricted limit (docs/phase7-wave7.md §3.82), counting what they control in play.
+ * `load` is `restrictedLoadOf`; `held` is the cards with the keyword, the only ones a `restrictedLimit` rule's `cards`
+ * makes room for and the only ones discarded for the limit (§4.1 Q52 = B: a card that "counts as 2 restricted cards"
+ * weighs on the limit and is not itself a restricted card). The player is over the limit when `load > limit`.
+ */
+export function restrictedStanding(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+): { readonly load: number; readonly limit: number; readonly held: readonly InstanceId[] } {
+  const held = restrictedCardsOf(state, playerId, deps);
+  return {
+    load: restrictedLoadOf(state, playerId, deps),
+    limit: restrictedLimitFor(state, deps, playerId, held),
+    held,
+  };
 }
 
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
@@ -1167,11 +1364,35 @@ export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: Ins
     matchesQuery(state, id, rule.target, context),
   );
 
-/** "Attached minion cannot activate" (`RuleSpec cannotActivate`, docs/phase7-wave6.md §3.34, §4.1 Q19). */
+/**
+ * "Attached minion cannot activate" (`RuleSpec cannotActivate`, docs/phase7-wave6.md §3.34, §4.1 Q19). A minion that is
+ * itself attached to a card cannot either, whatever aims an activation at it: it "is not considered engaged with a
+ * player and so cannot activate" (RRG 1.8 FAQ "Malice (#199)", p. 64; docs/phase7-wave7.md §3.44).
+ */
 export const cannotActivate = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean =>
-  activeRules(state, deps, "cannotActivate").some(({ rule, speakerContext }) =>
-    matchesQuery(state, enemyId, rule.target, speakerContext),
+  isAttachedMinion(state, enemyId) ||
+  activeRules(state, deps, "cannotActivate").some(({ rule, context }) =>
+    matchesQuery(state, enemyId, rule.target, context),
   );
+
+/**
+ * Whether the boost icons and "Boost" abilities of this activation are ignored (`RuleSpec ignoreBoost`,
+ * docs/phase7-wave7.md §3.67). `eventFrameId` is the activation's own event frame. A lasting rule timed to the end of
+ * an attack or activation is "for this attack": it covers the activation whose frame it ends with and no other, so one
+ * that begins while that attack resolves turns its boost cards up as normal. A rule still waiting on its attack
+ * (`awaitingAttack`) covers none yet.
+ */
+export const boostIgnored = (
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  eventFrameId: FrameId | null,
+): boolean =>
+  activeRules(state, deps, "ignoreBoost").some(({ rule, context, lastingUntil }) => {
+    if (lastingUntil?.kind === "awaitingAttack") return false;
+    if (lastingUntil?.kind === "endOfEvent" && lastingUntil.frameId !== eventFrameId) return false;
+    return rule.enemy === undefined || matchesQuery(state, enemyId, rule.enemy, context);
+  });
 
 /** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
 export const cannotDefend = (
@@ -1181,10 +1402,9 @@ export const cannotDefend = (
   attackerId: InstanceId | null,
 ): boolean =>
   activeRules(state, deps, "cannotDefend").some(
-    ({ rule, speakerContext }) =>
-      matchesQuery(state, characterId, rule.target, speakerContext) &&
-      (rule.attacker === undefined ||
-        (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, speakerContext))),
+    ({ rule, context }) =>
+      matchesQuery(state, characterId, rule.target, context) &&
+      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
   );
 
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
@@ -1222,7 +1442,8 @@ export function countSchemeIcons(
       ? mainSchemeStageOf(state, scheme).icons.filter((i) => i === icon).length
       : 0;
   for (const id of state.villainArea) {
-    if (cardOf(state, id)?.type !== "side_scheme") continue;
+    const type = cardOf(state, id)?.type;
+    if (type !== "side_scheme" && type !== "player_side_scheme") continue;
     if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
     total += printedIconsOn(state, deps, id).filter((i) => i === icon).length;
   }
@@ -1280,8 +1501,8 @@ export function nonSchemeIcons(
 
 /**
  * The scheme icons printed on one card in play as it shows them now: a main scheme's current stage, a side scheme's
- * threat box, any other card's `schemeIcons` (its showing face's, when flipped). None on a facedown card or a blanked
- * one (`iconsBlankedOn`).
+ * threat box, an identity's showing face's, any other card's `schemeIcons` (its showing face's, when flipped; a player
+ * side scheme's too). None on a facedown card or a blanked one (`iconsBlankedOn`).
  */
 function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): readonly SchemeIcon[] {
   const instance = getInstance(state, id);
@@ -1301,7 +1522,13 @@ function showingIconsOn(state: GameState, id: InstanceId, card: AnyCard): readon
     case "side_scheme":
       return card.icons;
     case "player_side_scheme":
-      return [];
+      return card.schemeIcons ?? [];
+    case "hero_identity": {
+      // An identity's icons are its showing face's own (`HeroFace.schemeIcons`, docs/phase7-wave7.md §3.63): only that
+      // face is in play, so the other faces' icons are not "in play" (RRG 1.8 "Acceleration Icon", p. 5).
+      const player = state.players.find((candidate) => candidate.identity.instanceId === id);
+      return (player ? identityFace(state, player).face.schemeIcons : undefined) ?? [];
+    }
     default: {
       const face = encounterFace(state, id);
       return (face ? face.schemeIcons : card.schemeIcons) ?? [];

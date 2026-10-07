@@ -455,8 +455,12 @@ describe("constant abilities with computed amounts, grants and rules", () => {
     const roundTwo = settle(runWith(deps, state, endTurn), undefined, deps);
     const [drone] = engaged(roundTwo, DRONE_MINION) as [InstanceId];
     const given = giveCards(roundTwo, p1, "kick", "kick");
-    const shielded = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(mustInstance(shielded, activeVillain(shielded).instanceId).damage).toBe(0);
+    // RRG 1.8 "Target" (p. 43): the villain is no valid target for an attack whose only effect on it is its damage.
+    const shielded = runWith(deps, given.state, toHero);
+    expect(applyCommand(shielded, play(given.ids[0] as InstanceId), deps)).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
     const noDrone: GameState = {
       ...shielded,
       players: shielded.players.map((p) =>
@@ -517,8 +521,12 @@ describe("constant abilities with computed amounts, grants and rules", () => {
     const [km] = engaged(roundTwo, KILLMONGER) as [InstanceId];
     const given = giveCards(roundTwo, p1, "claws", "blast");
     const [clawsId, blastId] = given.ids as [InstanceId, InstanceId];
-    const clawed = resolvePending(runWith(deps, given.state, toHero, play(clawsId), use(clawsId, "claws")), [km], deps);
-    expect(mustInstance(clawed, km).damage).toBe(0);
+    // RRG 1.8 "Target" (p. 43): Killmonger is no valid target for the upgrade's attack, and he is the only minion.
+    const clawed = runWith(deps, given.state, toHero, play(clawsId));
+    expect(applyCommand(clawed, use(clawsId, "claws"), deps)).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
     const blasted = resolvePending(runWith(deps, clawed, play(blastId)), [km], deps);
     expect(mustInstance(blasted, km).damage).toBe(3);
   });

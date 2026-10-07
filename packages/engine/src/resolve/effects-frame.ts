@@ -9,15 +9,18 @@ import {
   paymentsFromOptionIds,
   announceResourcesSpent,
   payPayment,
+  eventActionsForEffectPlay,
   playFromEffectRequirement,
   playIgnoringCost,
   playIgnoringCostFault,
   playWithPayment,
   playWithPaymentFault,
   priceOrNull,
+  type ActionTiming,
   type PlayFromZone,
 } from "../actions.js";
-import type { ChoiceOption, ChoicePrompt } from "../choices.js";
+import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
+import type { ChoiceList, ChoiceOption, ChoicePrompt } from "../choices.js";
 import {
   type Ctx,
   emit,
@@ -39,6 +42,7 @@ import {
   settleAwaitingAttackEffects,
   shuffleZone,
 } from "../effects.js";
+import { EngineInvariantError } from "../errors.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -68,7 +72,9 @@ import { spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
+  cardTypeOf,
   categoriesOf,
+  chosenVar,
   contextArea,
   controllerOf,
   type EffectContext,
@@ -78,20 +84,25 @@ import {
   matchesQuery,
   VILLAIN_CHOICE,
   PLAYED_VIA_SLOT,
+  printedAbilityRefs,
   resolvePlayers,
   resolveRef,
   resolveValue,
   selectTargets,
 } from "../select.js";
-import type { EffectSpec, StatusName } from "../spec.js";
+import type { EffectSpec, PlayerRef, StatusName } from "../spec.js";
 import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
 import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
+import { executeSettleEnemyAttackCost } from "../enemy-attack-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
+import { executeSearchCollection } from "./collection.js";
+import { executeReportFact } from "./report-fact.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
-import { applyEffect, threatRemoverOf } from "./apply-effect.js";
+import { applyEffect, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
+import { upgradeHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
@@ -202,6 +213,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
   if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
+  if (effect.kind === "chooseCardType") return executeChooseCardType(ctx, frame, effect, context);
+  if (effect.kind === "searchCollection") return executeSearchCollection(ctx, frame, effect, context);
+  if (effect.kind === "reportFact") return executeReportFact(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
   if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
@@ -218,6 +232,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "settleCostDamage") return executeSettleCostDamage(ctx, frame, effect);
   // docs/phase7-wave6.md §3.54: "look at the top 2 cards of the encounter deck, discard 1 of those cards →".
   if (effect.kind === "payEncounterLookDiscard") return executePayEncounterLookDiscard(ctx, frame, effect);
+  // docs/phase7-wave7.md §3.19 (b): "attached villain attacks you →", settled once the attack has resolved.
+  if (effect.kind === "settleEnemyAttackCost") return executeSettleEnemyAttackCost(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.
   if (effect.kind === "defeatedTogether") return executeDefeatedTogether(ctx, frame, effect);
   // docs/phase7-wave6.md §3.1: a minion's teamwork keyword, checked as it resolves.
@@ -248,8 +264,50 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   )
     return;
 
+  if (effect.kind === "putIntoPlay" && askPutIntoPlayHost(ctx, frame, effect, context)) return;
+
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+/**
+ * The host question of a `putIntoPlay`: a player's upgrade enters play attached as playing it would (RRG 1.8 "Play, Put
+ * into Play", p. 32), and when its "attach to" text allows several hosts its controller chooses one (RRG 1.8 "Attach
+ * To", p. 8), as for an upgrade an effect plays (`executePlayFromHand`). One upgrade is asked about per pass; the answer
+ * is kept in the frame's bindings (`putIntoPlayHostSlot`) for the effect to read. Returns true while a question is
+ * open or was just answered, so the effect resolves only once every host is settled.
+ */
+function askPutIntoPlayHost(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "putIntoPlay" }>,
+  context: EffectContext,
+): boolean {
+  const [controller] = resolvePlayers(ctx.state, effect.controller, context);
+  // A card put into play facedown has no host to choose (`EffectSpec putIntoPlay.facedown`).
+  if (!controller || effect.facedown === true) return false;
+  const inPlay = cardsInPlay(ctx.state);
+  for (const id of resolveRef(ctx.state, effect.card, context)) {
+    const slot = putIntoPlayHostSlot(id);
+    if (frame.bindings[slot] || inPlay.includes(id)) continue;
+    const hosts = upgradeHostCandidates(ctx.state, ctx.deps, id, controller);
+    if (hosts.length < 2) continue;
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId: controller,
+        prompt: { kind: "chooseTarget", slot: "putIntoPlayHost", abilityId: null },
+        options: cardOptions(ctx, hosts),
+        minSelections: 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return true;
+    }
+    const [host] = frame.answer.map((answer) => asInstanceId(answer)).filter((answer) => hosts.includes(answer));
+    setFrame(ctx, { ...frame, answer: null, bindings: { ...frame.bindings, [slot]: [host ?? hosts[0]!] } });
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -280,8 +338,8 @@ function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: Effect
  * either ignoring its cost (Chaos Magic) or paying a reduced one (Team-Building Exercise).
  *
  * The paid mode needs up to three answers inside one effect step, so it runs as a small state machine on the frame's
- * own vars (`_play.step`), the way `assignDamage` does: **pick the card → pick a host, if the upgrade has more than
- * one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
+ * own vars (`_play.step`), the way `assignDamage` does: **pick the card → pick which Action ability, if the event has
+ * more than one it could trigger → pick a host, if the upgrade has more than one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
  * plays nothing at all (RRG 1.8 "Initiating Abilities", p. 24, step 5: "abort this process without paying any costs").
  */
 function executePlayFromHand(
@@ -301,8 +359,12 @@ function executePlayFromHand(
     typeof effect.from === "object"
       ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
       : (effect.from ?? "hand");
+  // "Play an event with a 'Hero Action' ability" from a Response (`ignoreActionTiming`): the Action's turn is not asked.
+  const timing: ActionTiming = effect.ignoreActionTiming === true ? "any" : "turn";
   const fault = (id: InstanceId, player: PlayerId): string | null =>
-    paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
+    paying
+      ? playWithPaymentFault(ctx, player, id, reduction, from, undefined, timing)
+      : playIgnoringCostFault(ctx, player, id, from, undefined, timing);
   // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
   const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
   const candidates = playerId
@@ -366,17 +428,10 @@ function executePlayFromHand(
         ? (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id))
         : candidates;
     if (!playerId || !picked) return finish();
-    if (!paying) {
-      finish();
-      grantWhileResolving(playIgnoringCost(ctx, playerId, picked, from, playBindings));
-      return;
-    }
-    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
-    const choices = hostChoicesForEffectPlay(ctx, playerId, picked);
     setFrame(ctx, {
       ...frame,
       answer: null,
-      vars: { ...frame.vars, "_play.step": choices.length > 1 ? 1 : 2 },
+      vars: { ...frame.vars, "_play.step": 1 },
       bindings: { ...frame.bindings, "_play.card": [picked] },
     });
     return;
@@ -385,7 +440,54 @@ function executePlayFromHand(
   const [card] = frame.bindings["_play.card"] ?? [];
   if (!playerId || !card) return finish();
 
+  // RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses one
+  // of those abilities to trigger". Asked only among the Action abilities this effect could play now, and before the
+  // host and the payment, since each ability has its own cost (RRG 1.8 "Initiating Abilities", p. 24, steps 2–3).
+  // `_play.ability` is the chosen one's place among them, from 1.
+  const actions = eventActionsForEffectPlay(ctx, playerId, card, paying ? reduction : null, from, timing);
   if (step === 1) {
+    let chosen = actions.length === 1 ? actions[0] : undefined;
+    if (actions.length > 1) {
+      if (frame.answer === null) {
+        requestChoice(ctx, {
+          playerId,
+          prompt: { kind: "chooseOption" },
+          options: actions.map((abilityId) => ({
+            optionId: abilityId,
+            label:
+              printedAbilityRefs(mustCardOf(ctx.state, card)).find((ref) => ref.id === abilityId)?.label ?? abilityId,
+            ref: { kind: "ability", instanceId: card, abilityId } as const,
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          frameId: frame.frameId,
+        });
+        return;
+      }
+      chosen = actions.find((abilityId) => abilityId === frame.answer?.[0]);
+      if (!chosen) return finish();
+    }
+    if (!paying) {
+      finish();
+      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing));
+      return;
+    }
+    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
+    const choices = hostChoicesForEffectPlay(ctx, playerId, card);
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: {
+        ...frame.vars,
+        "_play.step": choices.length > 1 ? 2 : 3,
+        ...(chosen ? { "_play.ability": actions.indexOf(chosen) + 1 } : {}),
+      },
+    });
+    return;
+  }
+  const action = actions[(frame.vars["_play.ability"] ?? 0) - 1];
+
+  if (step === 2) {
     const choices = hostChoicesForEffectPlay(ctx, playerId, card);
     if (frame.answer === null) {
       requestChoice(ctx, {
@@ -403,7 +505,7 @@ function executePlayFromHand(
     setFrame(ctx, {
       ...frame,
       answer: null,
-      vars: { ...frame.vars, "_play.step": 2 },
+      vars: { ...frame.vars, "_play.step": 3 },
       bindings: { ...frame.bindings, "_play.host": [host] },
     });
     return;
@@ -411,7 +513,7 @@ function executePlayFromHand(
 
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
-  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction);
+  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction, action);
   if (requirement === null) return finish();
 
   if (frame.answer === null) {
@@ -432,7 +534,7 @@ function executePlayFromHand(
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
   finish();
-  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings));
+  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action));
 }
 
 /**
@@ -712,17 +814,21 @@ function executeStatusDivide(
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   let given = 0;
+  const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
   for (const [id, count] of shares) {
-    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status)) given += 1;
+    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status, by)) given += 1;
   }
   if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
 }
 
 const HERO_FORM = "_heroForm.";
+/** The alter-ego face among a form choice's options: its option id, and its answer in the frame's vars. */
+const ALTER_EGO_OPTION = "alterEgo";
+const ALTER_EGO_ANSWER = -1;
 
 /**
  * Where a `changeForm` effect takes one player: a form and hero face, `null` for no change (already there, can't change,
- * or "your other hero form" with none to go to), or `"choose"` when the player must pick among several hero faces.
+ * or "your other hero form" with none to go to), or `"choose"` when the player must pick among several faces.
  */
 function changeFormTarget(
   state: GameState,
@@ -742,14 +848,40 @@ function changeFormTarget(
     return unchanged("hero", heroFormIndex === 0 ? 1 : 0);
   }
   if (effect.heroForm !== undefined) {
-    const { withTrait } = effect.heroForm;
-    const index = faces.findIndex((face) => face.traits.includes(withTrait));
+    // A title names one face (RRG 1.8 "Identity", p. 23): the printed title of a hero face, whichever face is showing.
+    const wanted = effect.heroForm;
+    const index = faces.findIndex((face) =>
+      "named" in wanted ? face.faceName === wanted.named : face.traits.includes(wanted.withTrait),
+    );
     return index < 0 ? null : unchanged("hero", index);
   }
-  const to = effect.to ?? (form === "hero" ? "alterEgo" : "hero");
-  if (to === "alterEgo") return unchanged("alterEgo", 0);
-  if (form === "hero") return null;
-  return faces.length > 1 ? "choose" : unchanged("hero", 0);
+  if (effect.to === "alterEgo") return unchanged("alterEgo", 0);
+  if (form === "alterEgo") return faces.length > 1 ? "choose" : unchanged("hero", 0);
+  // In hero form: "change to hero form" changes nothing, and a bare "change form" goes to the alter-ego face, unless
+  // the identity has another hero face to go to as well (docs/phase7-wave7.md §3.62).
+  if (effect.to === "hero") return null;
+  return faces.length > 1 ? "choose" : unchanged("alterEgo", 0);
+}
+
+/**
+ * The faces a player choosing a form may change to, as options: every hero face from alter-ego form; from a hero face,
+ * the alter-ego face and each other hero face (only a bare "change form" asks there).
+ */
+function formChoiceOptions(state: GameState, playerId: PlayerId): readonly ChoiceOption[] {
+  const player = getPlayer(state, playerId);
+  const card = player ? cardOf(state, player.identity.instanceId) : undefined;
+  if (!player || card?.type !== "hero_identity") return [];
+  const ref = { kind: "none" } as const;
+  const heroFaces = heroFacesOf(card).map((face, index) => ({
+    optionId: String(index),
+    label: `${face.faceName} (${face.traits.join(", ")})`,
+    ref,
+  }));
+  if (player.identity.form === "alterEgo") return heroFaces;
+  return [
+    { optionId: ALTER_EGO_OPTION, label: card.alterEgo.faceName, ref },
+    ...heroFaces.filter((_, index) => index !== player.identity.heroFormIndex),
+  ];
 }
 
 /**
@@ -757,6 +889,8 @@ function changeFormTarget(
  * §3.2). A player going to hero form with more than one hero face chooses which (the Ant-Man insert, "Rules
  * Clarifications": "Scott Lang/Ant-Man can change from alter-ego form to either hero form"), one player at a time in the
  * order `player` names them; the answers wait in the frame's vars (`_heroForm.<playerId>`) until everyone has one.
+ * A bare "change form" from a hero face of such an identity is a choice too, among the faces not showing: a change
+ * "from one hero form to the other hero form" is a change of form (the same insert; docs/phase7-wave7.md §3.62).
  */
 function executeChangeForm(
   ctx: Ctx,
@@ -774,23 +908,17 @@ function executeChangeForm(
     ({ playerId, target }) => target === "choose" && vars[`${HERO_FORM}${playerId}`] === undefined,
   );
   if (frame.answer !== null && pending[0]) {
-    vars[`${HERO_FORM}${pending[0].playerId}`] = Number(frame.answer[0]);
+    const [answer] = frame.answer;
+    vars[`${HERO_FORM}${pending[0].playerId}`] = answer === ALTER_EGO_OPTION ? ALTER_EGO_ANSWER : Number(answer);
     pending.shift();
   }
   const [next] = pending;
   if (next) {
-    const player = getPlayer(ctx.state, next.playerId);
-    const card = player ? cardOf(ctx.state, player.identity.instanceId) : undefined;
-    const faces = card?.type === "hero_identity" ? heroFacesOf(card) : [];
     setFrame(ctx, { ...frame, answer: null, vars });
     requestChoice(ctx, {
       playerId: next.playerId,
       prompt: { kind: "chooseOption" },
-      options: faces.map((face, index) => ({
-        optionId: String(index),
-        label: `${face.faceName} (${face.traits.join(", ")})`,
-        ref: { kind: "none" } as const,
-      })),
+      options: formChoiceOptions(ctx.state, next.playerId),
       minSelections: 1,
       maxSelections: 1,
       frameId: frame.frameId,
@@ -802,8 +930,13 @@ function executeChangeForm(
   const changed: TriggerEvent[] = [];
   for (const { playerId, target } of targets) {
     if (target === null) continue;
+    const chosen = vars[`${HERO_FORM}${playerId}`] ?? 0;
     const resolved =
-      target === "choose" ? { to: "hero" as const, heroForm: vars[`${HERO_FORM}${playerId}`] ?? 0 } : target;
+      target !== "choose"
+        ? target
+        : chosen === ALTER_EGO_ANSWER
+          ? { to: "alterEgo" as const, heroForm: 0 }
+          : { to: "hero" as const, heroForm: chosen };
     const event = setForm(ctx, playerId, resolved.to, false, resolved.heroForm);
     if (event) changed.push(event);
   }
@@ -1450,6 +1583,95 @@ function executeChooseNumber(
   emit(ctx, { type: "numberChosen", playerId, bind: effect.bind, amount });
 }
 
+/**
+ * The step every "choose one entry of a fixed list" effect shares (docs/phase7-wave7.md §3.33): parks a
+ * `chooseFromList` choice for the first player `player` names and, once it is answered, binds the entry as
+ * `<bind>.chosen.<id>` = 1 with `<bind>.made` = 1 (`chosenFromList` reads it back) and moves past the effect. An
+ * earlier choice under the same name is replaced. A list of one entry is no decision and is bound without asking.
+ *
+ * Returns who chose what once it is bound, for the caller's own log event; null while the choice is open, and null
+ * with `<bind>.made` = 0 when there is no such player or nothing to choose.
+ */
+function chooseFromList(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  context: EffectContext,
+  choice: {
+    readonly player: PlayerRef;
+    readonly bind: string;
+    readonly list: ChoiceList;
+    readonly entries: readonly { readonly id: string; readonly label: string }[];
+  },
+): { readonly playerId: PlayerId; readonly chosen: string } | null {
+  const [playerId] = resolvePlayers(ctx.state, choice.player, context);
+  const prefix = chosenVar(choice.bind, "");
+  const bind = (chosen: string | null): void =>
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      vars: {
+        ...Object.fromEntries(Object.entries(frame.vars).filter(([name]) => !name.startsWith(prefix))),
+        ...(chosen === null ? {} : { [chosenVar(choice.bind, chosen)]: 1 }),
+        [`${choice.bind}.made`]: chosen === null ? 0 : 1,
+      },
+    });
+  if (!playerId || choice.entries.length === 0) {
+    bind(null);
+    return null;
+  }
+  if (frame.answer === null && choice.entries.length > 1) {
+    requestChoice(ctx, {
+      playerId,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, choice.player),
+      prompt: { kind: "chooseFromList", list: choice.list },
+      options: choice.entries.map((entry) => ({
+        optionId: entry.id,
+        label: entry.label,
+        ref: { kind: "none" } as const,
+      })),
+      minSelections: 1,
+      maxSelections: 1,
+      frameId: frame.frameId,
+    });
+    return null;
+  }
+  const answered = frame.answer === null ? choice.entries[0]!.id : frame.answer[0];
+  const entry = choice.entries.find((candidate) => candidate.id === answered);
+  if (!entry) throw new EngineInvariantError(`"${String(answered)}" is not an entry of the ${choice.list} list`);
+  bind(entry.id);
+  return { playerId, chosen: entry.id };
+}
+
+/**
+ * `EffectSpec chooseCardType` (docs/phase7-wave7.md §3.33): all fifteen card types, whatever the player holds
+ * (ruling, Jan 26, 2026 (4) answer 4). The types in that player's hand come first, each group in the RRG's order: a
+ * convenience for the prompt, and no rule.
+ */
+function executeChooseCardType(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseCardType" }>,
+  context: EffectContext,
+): void {
+  const [chooser] = resolvePlayers(ctx.state, effect.player, context);
+  const held = new Set(
+    (chooser ? getPlayer(ctx.state, chooser)?.hand : undefined)?.map((id) => cardTypeOf(ctx.state, id)),
+  );
+  const types = [
+    ...RULES_CARD_TYPES.filter((type) => held.has(type)),
+    ...RULES_CARD_TYPES.filter((type) => !held.has(type)),
+  ];
+  const bound = chooseFromList(ctx, frame, context, {
+    player: effect.player,
+    bind: effect.bind,
+    list: "cardType",
+    entries: types.map((type) => ({ id: type, label: cardTypeName(type) })),
+  });
+  if (bound && isRulesCardType(bound.chosen))
+    emit(ctx, { type: "cardTypeChosen", playerId: bound.playerId, cardType: bound.chosen });
+}
+
 function executeChoosePlayer(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -1701,6 +1923,7 @@ function executeDealIndirectDamage(
         amount: points,
         sourceInstanceId: frame.selfInstanceId,
         fromAttack: effect.fromAttack === true,
+        indirect: true as const,
         ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
       })),
       effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
@@ -1784,7 +2007,9 @@ function executeResolveSpecials(
   const only = effect.abilities ? new Set<string>(effect.abilities) : null;
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
-      if (ctx.deps.abilities[ref.id]?.trigger.kind !== trigger) continue;
+      const definition = ctx.deps.abilities[ref.id];
+      // A card's attach instruction is not one of its When Revealed abilities (docs/phase7-wave7.md §3.35).
+      if (definition?.trigger.kind !== trigger || definition.attachInstruction) continue;
       if (only && !only.has(ref.id)) continue;
       steps.push({
         instanceId: id,

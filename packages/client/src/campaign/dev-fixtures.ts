@@ -750,6 +750,53 @@ export async function seedMojoWonGame(service: CampaignService, stop: MojoRunSto
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// NeXt Evolution (MC40), Cable and Domino
+// ---------------------------------------------------------------------------------------------------------------
+
+export type NextEvolRunStop =
+  | "fresh"
+  | "afterIssue1"
+  | "afterIssue2"
+  | "afterIssue3"
+  | "afterIssue4"
+  | "lostIssue1"
+  | "finished";
+
+const nextEvolDeck = (hero: string): { readonly identityCardId: CardId; readonly deck: Deck } => {
+  const found = preconDecks(POOL_VERSION).find((candidate) => (candidate.id as string).includes(hero));
+  if (!found) throw new Error(`no precon for ${hero}`);
+  return { identityCardId: found.identityCardId, deck: found };
+};
+
+/**
+ * A signed run of NeXt Evolution: `autoAnswer` takes the first unstruck side scheme at every pick (the pick is a
+ * `choose` over the strike list), and a substituted win never defeats a scheme, so each win removes that issue's
+ * scheme from the campaign (the Dossier's struck row). `"lostIssue1"` concedes issue #1 once: the log is back at the
+ * issue's start, so composing it again repeats the scheme pick with no prompt (`repeatOnRetry`, the Briefing's
+ * "Same as last time"). `"finished"` plays all five issues to a win.
+ */
+export async function seedNextEvolRun(
+  service: CampaignService,
+  stop: NextEvolRunStop = "afterIssue1",
+): Promise<CampaignRecord> {
+  let record = await service.start({
+    campaignId: "next_evol",
+    seats: [nextEvolDeck("cable"), nextEvolDeck("domino")],
+    poolVersion: POOL_VERSION,
+    seed: 4040,
+  });
+  if (stop === "fresh") return record;
+  if (stop === "lostIssue1") return playIssue(service, record, "loss");
+  const order: readonly NextEvolRunStop[] = ["afterIssue1", "afterIssue2", "afterIssue3", "afterIssue4"];
+  for (const name of order) {
+    record = await playIssue(service, record, "win");
+    if (stop === name) return record;
+  }
+  while (record.status === "active") record = await playIssue(service, record, "win");
+  return record;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Hidden-evidence envelope (campaign design Q4) — a synthetic box, not a real one
 // ---------------------------------------------------------------------------------------------------------------
 

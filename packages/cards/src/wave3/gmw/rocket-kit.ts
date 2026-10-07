@@ -106,8 +106,8 @@ export const ROCKET_KIT = defineAbilities({
 
   // Schadenfreude — Hero Action: Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal
   // any amount of damage to an enemy. `on.youDealDamage` reads "you" as your identity, event, resource or
-  // upgrade cards (RRG 1.8 "You, Your") and the event's own dealt amount, not the amount actually taken, so a
-  // hit fully absorbed by the enemy's own tough status card still heals (§3.30).
+  // upgrade cards (RRG 1.8 "You, Your") and the damage dealt, not the amount actually taken, so a hit an enemy's
+  // tough status card or a prevention stopped in full still heals (§3.30; owner ruling 2026-10-07).
   "16032.schadenfreude-action": heroAction(
     eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, ROCKET)),
   ),

@@ -103,7 +103,14 @@ export const X23_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("43033"), cardSetCode: "x23_nemesis", marvelcdbCodes: ["43033"], corrections: [] },
   { cardId: cardId("43034"), cardSetCode: "basic", marvelcdbCodes: ["43034"], corrections: [] },
   { cardId: cardId("43035"), cardSetCode: "basic", marvelcdbCodes: ["43035"], corrections: [] },
-  { cardId: cardId("43036"), cardSetCode: "basic", marvelcdbCodes: ["43036"], corrections: [] },
+  {
+    cardId: cardId("43036"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["43036"],
+    corrections: [
+      "43036: errata RRG 1.8 — Front Line Specialist: \"Your hero gets +4 hit points.\" is now \"Your identity gets +4 hit points.\" MarvelCDB carries the current wording; the scan prints \"hero\". [evidence: RRG 1.8 p. 69, X-23 Hero Pack (#36) errata (\"Changed 'hero' to 'identity'\"); scan 43036.png prints \"Your hero gets +4 hit points.\"; MarvelCDB errata \"Changed hero to identity.\" (RRG 1.6).]",
+    ],
+  },
   { cardId: cardId("43037"), cardSetCode: "basic", marvelcdbCodes: ["43037"], corrections: [] },
   { cardId: cardId("43038"), cardSetCode: "justice", marvelcdbCodes: ["43038"], corrections: [] },
   { cardId: cardId("43039"), cardSetCode: "leadership", marvelcdbCodes: ["43039"], corrections: [] },

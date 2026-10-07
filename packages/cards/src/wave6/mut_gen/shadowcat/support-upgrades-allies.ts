@@ -110,6 +110,7 @@ export const SHADOWCAT_SUPPORT_UPGRADES_ALLIES = defineAbilities({
 
   "32036.phased-and-confused-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("host"),
+    { would: true },
     bindTargets("enemy", host),
     cancelIt(),
     discard(self),

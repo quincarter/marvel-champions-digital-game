@@ -770,7 +770,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     },
     alterEgo: {
       faceName: "Jessica Drew",
-      traits: [trait("S.H.I.E.L.D. SPY")],
+      traits: [trait("S.H.I.E.L.D."), trait("SPY")],
       rec: 3,
       handSize: 6,
       keywords: [],

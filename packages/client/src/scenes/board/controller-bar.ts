@@ -10,7 +10,13 @@ import { McButton, fitText } from "../../ui/widgets.js";
 import { sourceFocusKey } from "../../view/guide-source-override.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
-import type { AllianceHelpView, FormChoiceView, PlayConfirmationView, SourceChoiceView } from "./controller.js";
+import type {
+  AbilityChoiceView,
+  AllianceHelpView,
+  FormChoiceView,
+  PlayConfirmationView,
+  SourceChoiceView,
+} from "./controller.js";
 
 /** The source bar is a button row plus one line of consequence under each button. */
 export const SOURCE_BAR_NOTE = 18;
@@ -235,6 +241,57 @@ export function drawFormBar(ctx: BoardDrawContext, rect: Rect, choice: FormChoic
         type: typeRole.label,
         rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
         onClick: () => controller.chooseForm(source),
+      }),
+    );
+  });
+  ctx.frame.buttons.push(
+    new McButton(scene, {
+      kind: "quiet",
+      label: "Cancel",
+      type: typeRole.label,
+      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+      onClick: () => controller.cancel(),
+    }),
+  );
+}
+
+/**
+ * "Which one? — 1 If you are Angel · 2 If you are Archangel — Cancel", over the hand, when a played event has more
+ * than one usable Action ability (`view/event-ability-choice.ts`; RRG 1.8 "Event", p. 18). Same frame as the form bar:
+ * the choice comes before any payment, and Cancel returns the card to the hand with nothing spent. The keys 1 to 3
+ * answer it too.
+ */
+export function drawAbilityBar(ctx: BoardDrawContext, rect: Rect, choice: AbilityChoiceView): void {
+  const { scene, controller } = ctx;
+  const g = scene.add.graphics();
+  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+
+  const narrow = rect.width < 640;
+  const titleWidth = narrow ? 10 : Math.min(160, rect.width * 0.2);
+  if (!narrow) {
+    const title = scene.add
+      .text(rect.x + 12, rect.y + rect.height / 2, "Which one?", textStyle(typeRole.barTitle, surface.paper.hex))
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(1);
+    fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  }
+
+  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
+  const gap = 6;
+  const left = rect.x + titleWidth;
+  const right = rect.x + rect.width - cancelWidth - 10 - gap;
+  const count = Math.max(1, choice.options.length);
+  const width = Math.max(48, (right - left - gap * (count - 1)) / count);
+
+  choice.options.forEach((option, index) => {
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "secondary",
+        label: `${index + 1} ${option.label}`,
+        type: typeRole.label,
+        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+        onClick: () => void controller.chooseEventAbility(option.abilityId),
       }),
     );
   });

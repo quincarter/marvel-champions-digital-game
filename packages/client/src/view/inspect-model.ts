@@ -11,6 +11,7 @@
  * legality: the message and the target list come from the engine.
  */
 
+import { perPlayerCostOf, type PerPlayerCost } from "./per-player-cost.js";
 import type { AbilityId, AnyCard, KeywordInstance, ResourceIconType } from "@mc/content";
 import { keywordLabel } from "./keyword-label.js";
 import { glossaryEntry } from "@mc/content";
@@ -27,6 +28,7 @@ import {
   locateCard,
   maxHitPoints,
   playCostOf,
+  printedCostOf,
   printedResources,
   remainingHitPoints,
   selfDamageThreshold,
@@ -64,6 +66,7 @@ import {
   resourceIconList,
   type StatTile,
 } from "./board-model.js";
+import { aspectName } from "./aspect-stamp.js";
 
 /** One action ability this card could use right now, named and priced. */
 export interface UsableAbility {
@@ -162,8 +165,13 @@ export interface InspectModel {
   readonly name: string;
   /** "Event · Attack · Justice" — type, first traits, aspect. */
   readonly typeLine: string;
-  /** The printed cost, or null for a card that has none. */
+  /**
+   * The printed cost in this game, or null for a card that has none. A per player cost is already scaled (2 per
+   * player in a 2-player game is 4): the badge prints this, and `perPlayerCost` says where it came from.
+   */
   readonly cost: number | null;
+  /** The per player icon on the cost, worded for the badge and the cost line; null for a flat cost. */
+  readonly perPlayerCost: PerPlayerCost | null;
   /**
    * What it costs to play right now (`playCostOf`): `cost` unless something on the table changes the price. What a
    * Play button prints, since the table charges this and not the scan's pip. Equals `cost` with no game behind the sheet.
@@ -289,6 +297,7 @@ export function inspectModel(
       name: pile ? pile.name : cardName(state, instanceId),
       typeLine: pile ? `Facedown · ${pile.count} card${pile.count === 1 ? "" : "s"}` : "Facedown",
       cost: null,
+      perPlayerCost: null,
       currentCost: null,
       priceNote: null,
       resourceNote: null,
@@ -349,7 +358,8 @@ export function inspectModel(
         ? faceNameOf(card, face)
         : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
-    cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    cost: "cost" in card && typeof card.cost === "number" ? printedCostOf(state, card) : null,
+    perPlayerCost: perPlayerCostOf(state, card),
     currentCost: currentCostFor(state, perspectiveId, instanceId, card, deps),
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     resourceNote:
@@ -357,7 +367,7 @@ export function inspectModel(
     rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
-    resourceIcons: resourceIconList(printedResources(card)),
+    resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     // The shared builder the board uses, so a buff reads the same in both places.
     // An identity shows the stats of the form it is in: an alter-ego prints REC and no THW/ATK/DEF, and listing
     // those as 0 beside it read as a hero who had been weakened rather than one who isn't here.
@@ -655,6 +665,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       name: "Unknown card",
       typeLine: "",
       cost: null,
+      perPlayerCost: null,
       currentCost: null,
       priceNote: null,
       resourceNote: null,
@@ -694,13 +705,14 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     name: faceNameOf(card, face),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    perPlayerCost: perPlayerCostOf(null, card),
     currentCost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     resourceNote: null,
     rulesText: cardTextDisplay(text.current),
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),
-    resourceIcons: resourceIconList(printedResources(card)),
+    resourceIcons: resourceIconList(printedResources(card, face.kind === "flipSide")),
     stats: [],
     keywords: keywordChips.map((chip) => chip.text),
     keywordChips,
@@ -805,7 +817,7 @@ function typeLineOf(card: AnyCard, face: CardFace = { kind: "front" }): string {
     parts.push(...(card.flipSide.traits as readonly string[]).slice(0, 2));
   } else if ("traits" in card) parts.push(...(card.traits as readonly string[]).slice(0, 2));
   if ("aspect" in card && typeof card.aspect === "string" && !card.aspect.startsWith("hero:")) {
-    parts.push(card.aspect);
+    parts.push(aspectName(card.aspect));
   }
   return parts.join(" · ").toUpperCase();
 }
@@ -822,7 +834,8 @@ function statusOf(
   perspectiveId: PlayerId,
   payment: InspectPayment | null,
 ): InspectStatus {
-  if (!legal || legal.kind !== "turn") {
+  // A non-active seat's off-turn Actions (`notYourTurn`) carry the same legal and illegal lists as a turn.
+  if (!legal || (legal.kind !== "turn" && legal.kind !== "notYourTurn")) {
     return {
       playable: null,
       message: legal?.kind === "choice" ? "A decision is open — answer it first." : "",

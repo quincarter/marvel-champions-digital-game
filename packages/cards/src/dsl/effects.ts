@@ -2,6 +2,7 @@ import type {
   CampaignLogValueSpec,
   CardDestination,
   CardSelector,
+  CollectionSearchFilter,
   EventPattern,
   EffectSpec,
   FacedownRole,
@@ -11,6 +12,7 @@ import type {
   PlayerRef,
   PlayerZone,
   Predicate,
+  ReportedFact,
   ResourceRequirement,
   RuleSpec,
   ScenarioDeckSource,
@@ -76,11 +78,20 @@ export const heal = (n: Amount, target: TargetRef, opts: { readonly bind?: strin
  *
  * `perTarget`: "deal 2 damage to each enemy for each bomb counter removed from it" (Boom Boom, `mut_gen` 32090) — `n`
  * is read once per target, with `theAffectedCard` / `chosen("affected")` that target; a target owed 0 is dealt none.
+ *
+ * `by`: "**the player who defeated this scheme** deals 5 damage to the villain" (Lay the Trap, `psylocke` 41016) is
+ * `dealDamage(5, theVillain, { by: defeatingPlayer })`: the player the card names as dealing it. A ref that names no
+ * player still deals the damage, by no player (`EffectSpec dealDamage.by`; docs/phase7-wave7.md §4.1 Q2).
  */
 export const dealDamage = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly perTarget?: boolean; readonly sourceFromEvent?: boolean } = {},
+  opts: {
+    readonly bind?: string;
+    readonly perTarget?: boolean;
+    readonly sourceFromEvent?: boolean;
+    readonly by?: PlayerRef;
+  } = {},
 ): EffectSpec => ({
   kind: "dealDamage",
   target,
@@ -88,6 +99,7 @@ export const dealDamage = (
   ...withBind(opts.bind),
   ...(opts.perTarget ? { perTarget: true as const } : {}),
   ...(opts.sourceFromEvent ? { sourceFromEvent: true as const } : {}),
+  ...(opts.by ? { by: opts.by } : {}),
 });
 /**
  * "You take N damage" / "Take N damage": your identity takes it. `taken` (docs/phase7-wave6.md §3.41, §4.1 Q21): no
@@ -110,17 +122,23 @@ export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?
  * by your identity (RRG 1.8 "Labeled Ability", p. 26), so either builder may be used there. `ignoreCrisis`: "…, ignoring
  * any crisis icons in play" (Cable Arrow, `trors`): steps over the RRG 1.8 "Crisis Icon" (p. 14) check that
  * otherwise stops players removing threat from the main scheme while one is in play.
+ *
+ * `by`: "**the player who defeated this scheme** removes 5 threat from the main scheme" (Keep Them Busy, `x23` 43018)
+ * is `removeThreat(5, mainScheme, { by: defeatingPlayer })`: the player the card names as removing it, in place of the
+ * player using the ability. A ref that names no player still removes the threat, by no player (`EffectSpec
+ * removeThreat.by`; docs/phase7-wave7.md §4.1 Q2).
  */
 export const removeThreat = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly ignoreCrisis?: boolean } = {},
+  opts: { readonly bind?: string; readonly ignoreCrisis?: boolean; readonly by?: PlayerRef } = {},
 ): EffectSpec => ({
   kind: "removeThreat",
   target,
   amount: amount(n),
   ...(opts.ignoreCrisis ? { ignoreCrisis: true } : {}),
   ...withBind(opts.bind),
+  ...(opts.by ? { by: opts.by } : {}),
 });
 export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({
   kind: "placeDamage",
@@ -736,6 +754,17 @@ export const revealFromSetAsideModularSet = (
  * Demon: "Speed Demon attacks that character").
  */
 export const retargetAttack = (character: TargetRef): EffectSpec => ({ kind: "retargetAttack", character });
+/**
+ * "Change the target of this attack to a friendly character of your choice" (docs/phase7-wave7.md §3.66), from an
+ * interrupt to a player's attack: the innermost player attack that has not dealt its damage is against `character`
+ * instead, with the same attacker, damage, keywords and source. Choose `character` among `canTakeThisAttack`
+ * candidates (RRG 1.8 "Target", p. 43); one that cannot take the damage is never the new target.
+ */
+export const retargetPlayerAttack = (character: TargetRef): EffectSpec => ({
+  kind: "retargetAttack",
+  attack: "player",
+  character,
+});
 export const resolveAttackAgainst = (targets: TargetRef): EffectSpec => ({ kind: "resolveAttackAgainst", targets });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfAttack",
@@ -923,6 +952,14 @@ export const applyRuleUntil = (
  */
 export const thatAttackGainsKeywords = (keywords: readonly AttackKeyword[]): EffectSpec =>
   applyRuleUntil({ kind: "attackKeywords", keywords, via: { inSlot: "paidFor" } }, "endOfPaidFor");
+/**
+ * "Ignore each boost icon ([boost]) and each 'Boost' ability for this attack" (Aerial Agility, `angel` 42004;
+ * docs/phase7-wave7.md §3.67): an effect of an interrupt to the enemy's attack ("When an enemy attacks"), or of
+ * anything else that resolves during it. Every boost card of that attack is still turned faceup and discarded, adds 0
+ * and resolves no "Boost" ability; nothing is canceled (RRG 1.8 "Ignore", p. 23). Ends with the attack. Not
+ * `modifyAttack({ noBoost: true })`, which deals no boost card at all. Outside an attack or activation it does nothing.
+ */
+export const ignoreBoostForThisAttack = (): EffectSpec => applyRuleUntil({ kind: "ignoreBoost" }, "endOfAttack");
 /** "You cannot change form until your next turn ends." */
 export const cannotChangeFormUntil = (
   until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
@@ -1077,6 +1114,23 @@ export const removedFromGameCards = (filter?: TargetQuery): CardSelector => ({
   kind: "removedFromGame",
   ...(filter ? { filter } : {}),
 });
+/**
+ * The victory display, the one the players share (docs/phase7-wave7.md §3.49): "put a side scheme from the victory
+ * display into play" (Temporal Leap, 40013) is `chooseCards(slot, victoryDisplayCards(query("sideScheme")), …)`, and
+ * "Search your deck, discard pile, hand, and victory display for X" (40031) is `anyOfCards(zone(["deck", "discard",
+ * "hand"], you, { filter }), victoryDisplayCards(filter))` followed by `shuffleDeck()`, since the deck was searched.
+ */
+export const victoryDisplayCards = (filter?: TargetQuery): CardSelector => ({
+  kind: "victoryDisplay",
+  ...(filter ? { filter } : {}),
+});
+/**
+ * "Add [this card] and that side scheme to the victory display" (Forced Amnesia, 40010; docs/phase7-wave7.md §3.49):
+ * `moveCards(from, "victoryDisplay")`. A card in play leaves play without being defeated (no When Defeated, no "after
+ * … is defeated" response); a card in a discard pile is moved; one already there stays.
+ */
+export const addToVictoryDisplay = (from: CardSelector, bind?: string): EffectSpec =>
+  moveCards(from, "victoryDisplay", bind);
 export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({
   kind: "setAside",
   player,
@@ -1207,6 +1261,16 @@ export const changeToHeroFormWithTrait = (t: Trait, player: PlayerRef = you): Ef
   player,
   heroForm: { withTrait: t },
 });
+/**
+ * "Change to [Archangel] form" (docs/phase7-wave7.md §3.62): the hero face with that title, for an identity whose hero
+ * faces print the same traits. A title names one face only (RRG 1.8 "Identity", p. 23); a player already showing it
+ * does not change form.
+ */
+export const changeToHeroFormNamed = (name: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "changeForm",
+  player,
+  heroForm: { named: name },
+});
 export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
   kind: "resolveSpecials",
   cards: cardsQuery,
@@ -1313,31 +1377,39 @@ export const ANY_ASPECT_CARD: TargetQuery = query(["ally", "event", "upgrade", "
 /** "Discard 1 card at random from your hand". */
 export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectSpec =>
   discardFromHand(n, player, { random: true });
-/** `bind`: the cards that entered play, and `<bind>.count` ("If no minion was put into play this way", §3.59). */
+/**
+ * `bind`: the cards that entered play, and `<bind>.count` ("If no minion was put into play this way", §3.59). An
+ * upgrade enters play as playing it would (RRG 1.8 "Play, Put into Play", p. 32): on its controller's identity, or on
+ * the host its "attach to" text allows. `facedown`: the text puts it into play facedown, so no host is read and it is
+ * placed loose in the play area; follow with `turnFacedown`.
+ */
 export const putIntoPlay = (
   card: TargetRef,
   controller: PlayerRef = you,
-  opts: { readonly bind?: string } = {},
+  opts: { readonly bind?: string; readonly facedown?: boolean } = {},
 ): EffectSpec => ({
   kind: "putIntoPlay",
   card,
   controller,
   ...withBind(opts.bind),
+  ...(opts.facedown ? { facedown: true as const } : {}),
 });
 /**
  * "Setup: Put [your permanent card] into play" (RRG 1.8 "Permanent", p. 32: permanent cards are set aside before setup
  * step 1, docs/phase7-wave6.md §3.74): every card of yours in your set-aside area that `filter` matches, bound to
- * `slot`, put into play under your control, and attached to `attachTo` when given (`putIntoPlay` never infers a host
- * from `attachesTo`). Faceup on its front; follow with `turnFacedown(chosen(slot))` for a facedown start.
+ * `slot`, put into play under your control (an upgrade as playing it would, `putIntoPlay`), and attached to `attachTo`
+ * when given. Faceup on its front. `facedown`: "put … into play, facedown": no host is read, the cards are placed loose
+ * in your play area and then turned facedown.
  */
 export const putIntoPlayFromSetAside = (
   slot: string,
   filter: TargetQuery,
-  opts: { readonly attachTo?: TargetRef } = {},
+  opts: { readonly attachTo?: TargetRef; readonly facedown?: boolean } = {},
 ): EffectSpec[] => [
   selectCards(slot, setAside(you, filter)),
-  putIntoPlay(chosen(slot), you),
+  putIntoPlay(chosen(slot), you, opts.facedown ? { facedown: true } : {}),
   ...(opts.attachTo ? [attachCard(chosen(slot), opts.attachTo)] : []),
+  ...(opts.facedown ? [turnFacedown(chosen(slot))] : []),
 ];
 /** "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." */
 export const putIntoPlayFacedown = (player: PlayerRef, as: FacedownRole, count?: Amount): EffectSpec => ({
@@ -1501,6 +1573,47 @@ export const spendResources = (
 /** "Spend N different resources": N resources of N different types, a wild being any one type (§3.69). */
 export const spendDifferentResources = (count: number, bind: string, player: PlayerRef = you): EffectSpec =>
   spendResources({ generic: count }, bind, player, { distinctTypes: count });
+/**
+ * "Choose a card type" (Psychic Override, `next_evol` 40178; docs/phase7-wave7.md §3.33): `player` chooses one of
+ * the fifteen card types, any of them whatever they hold (ruling, Jan 26, 2026 (4) answer 4). Later effects of the
+ * same ability read it with `ofChosenCardType(bind)` ("of that type") and `notOfChosenCardType(bind)` ("not of that
+ * type").
+ */
+export const chooseCardType = (bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "chooseCardType",
+  player,
+  bind,
+});
+/**
+ * "Search your collection for 1 WEAPON upgrade from any aspect" (Armed to the Teeth, `deadpool` 44009;
+ * docs/phase7-wave7.md §3.81; RRG 1.8 "Search", p. 39): `player` may pick one card of the game's card pool that
+ * `filter` matches and that still has a copy outside the game (§4.1 Q47 = A). It joins the game as a new card they
+ * own, out of play, bound as `bind` for the effects that follow (`chosen(bind)`), with `<bind>.count` 1 or 0.
+ * `fromAnyAspect` is the "from any aspect" half of a filter.
+ */
+export const searchCollection = (
+  filter: CollectionSearchFilter,
+  bind: string,
+  player: PlayerRef = you,
+): EffectSpec => ({ kind: "searchCollection", player, filter, bind });
+/**
+ * "From any aspect" in a collection search: the five aspects, which leaves out basic, identity-specific and
+ * campaign cards (the Deadpool insert's FAQ on Armed to the Teeth; §4.1 Q47 = A).
+ */
+export const fromAnyAspect: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
+/**
+ * A fact from outside the game that is known only when the card resolves (docs/phase7-wave7.md §3.83): `player` is
+ * asked to report it, and the report is a recorded answer, never something the engine measures. Read it with
+ * `varOf(`${bind}.amount`)`: the number for `"minutesAway"` ("heal 1 damage from each identity for every minute you
+ * were away from the game" is `reportFact("minutesAway", "break")` then a heal of `varOf("break.amount")`), 1 for yes
+ * and 0 for no for `"talkedThisPhase"` ("if you have not talked this phase" is `not(varAtLeast("talked.amount"))`).
+ */
+export const reportFact = (fact: ReportedFact, bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "reportFact",
+  fact,
+  player,
+  bind,
+});
 /**
  * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
  * this way" (Break a Leg, `mojo` 39009; docs/phase7-wave6.md §3.69): `player` chooses a whole number from `min`
@@ -1697,11 +1810,22 @@ export const lookAtTopOfScenarioDeckThenPlace = (name: string, viewer: PlayerRef
   ];
 };
 
-/** "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md §3.10. */
-export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): EffectSpec => ({
+/**
+ * "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md
+ * §3.10; the taker becomes the card's owner. `keepOwner`: the card goes to `player`'s hand and stays its owner's
+ * (Plot Convenience, `deadpool` 44050, used by a player who does not own the attached card; docs/phase7-wave7.md §4.1
+ * Q53): discarded or spent from that hand, or played as an event, it goes to its owner's discard pile (RRG 1.8
+ * "Ownership and Control", p. 31).
+ */
+export const takeIntoHand = (
+  from: CardSelector,
+  player: PlayerRef = you,
+  opts: { readonly keepOwner?: true } = {},
+): EffectSpec => ({
   kind: "takeIntoHand",
   cards: from,
   player,
+  ...(opts.keepOwner ? { keepOwner: true as const } : {}),
 });
 
 /**
@@ -1728,6 +1852,19 @@ export const modifyCardEffect = (
   ...(opts.damage !== undefined ? { damage: amount(opts.damage) } : {}),
   ...(opts.threatRemoved !== undefined ? { threatRemoved: amount(opts.threatRemoved) } : {}),
   ...(opts.note ? { note: { name: opts.note.name, value: amount(opts.note.value) } } : {}),
+});
+
+/**
+ * "Return that event to your hand after resolving its effects" (Avian Anatomy, `angel` 42008;
+ * docs/phase7-wave7.md §3.68): the played event `card` names goes to its owner's hand, not the discard pile, once its
+ * effects have resolved. `card` is the event paid for: `eventTarget` in a response to `on.youSpendThis({ toPlay })`,
+ * `chosen("paidFor")` in a `resource(...)` ability's effects. A canceled event is still discarded, and one its own
+ * text moved stays where that put it.
+ */
+export const returnToHandAfterResolving = (card: TargetRef): EffectSpec => ({
+  kind: "afterResolving",
+  card,
+  to: "hand",
 });
 
 /**
@@ -1766,13 +1903,23 @@ export const playFromHandIgnoringCost = (
 export const playFromHandReducingCost = (
   n: Amount,
   player: PlayerRef = you,
-  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+  opts: {
+    readonly filter?: TargetQuery;
+    readonly optional?: boolean;
+    /**
+     * The effect's text instructs the play of an event with an Action ability ("play an event with a 'Hero Action'
+     * ability from your hand", Warpath 42013): the event may be played outside a player's turn. Everything else about
+     * playing it still applies (`EffectSpec playFromHand.ignoreActionTiming`).
+     */
+    readonly ignoreActionTiming?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "playFromHand",
   player,
   costReduction: amount(n),
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
+  ...(opts.ignoreActionTiming ? { ignoreActionTiming: true as const } : {}),
 });
 /**
  * "Play the set-aside Death-Glow upgrade as if it were in your hand" (Valkyrie's Death Perception, 25001a;
@@ -1844,9 +1991,35 @@ export const advanceMainScheme = (
  * "Shuffle all copies of main scheme 2A and stack them under this scheme." (The Brotherhood Strikes! 1A;
  * docs/phase7-wave6.md §3.18): the stages from `fromStageIndex` on are walked in a seeded random order.
  */
-export const shuffleMainSchemeStages = (fromStageIndex: number): EffectSpec => ({
+export const shuffleMainSchemeStages = (
+  fromStageIndex: number,
+  opts: { readonly stageNumber?: number } = {},
+): EffectSpec => ({
   kind: "shuffleMainSchemeStages",
   fromStageIndex,
+  ...(opts.stageNumber !== undefined ? { stageNumber: opts.stageNumber } : {}),
+});
+/**
+ * "Advance to a random stage 2A" and, later, "the other stage 2A" (docs/phase7-wave7.md §3.28): only the stages with
+ * this number are shuffled, in place, so a later stage stays behind them. Follow it with `advanceMainScheme()`; the
+ * default advance walks the order, so a stage's "When Completed: Advance to the other stage 2A. If you cannot, advance
+ * to stage 3A" needs no effect of its own (the completion already advances once).
+ */
+export const shuffleMainSchemeStageGroup = (stageNumber: number): EffectSpec =>
+  shuffleMainSchemeStages(0, { stageNumber });
+/**
+ * "Remove 1 random stage 2 from the game." (docs/phase7-wave7.md §3.28): `random` stages with this number, never the
+ * one showing nor one already spent, picked with the seeded RNG. `bind` records how many went as `<bind>.count`.
+ */
+export const removeMainSchemeStages = (
+  stageNumber: number,
+  random: Amount = 1,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
+  kind: "removeMainSchemeStages",
+  stageNumber,
+  random: amount(random),
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 /**
  * "Add this card / this scheme to the victory display" (The Brotherhood Strikes! 1B and its stage 2Bs;
@@ -1928,8 +2101,16 @@ export const changeVillainForm = (villain: TargetRef, toFaceWithTrait: Trait): E
   villain,
   toFaceWithTrait,
 });
-/** "Flip [card]" (RRG 1.8 "Flip"). */
-export const flipCard = (target: TargetRef): EffectSpec => ({ kind: "flipCard", target });
+/**
+ * "Flip [card]" (RRG 1.8 "Flip"). `{ reveal: true }`: "Flip this card and reveal it" / "flip this card and reveal
+ * [its other face]" on an encounter card, whose new face then goes through the reveal (its When Revealed, the "when
+ * revealed" windows, incite, peril, surge; docs/phase7-wave7.md §3.14, §3.34). Without it a flip is not a reveal.
+ */
+export const flipCard = (target: TargetRef, options: { readonly reveal?: boolean } = {}): EffectSpec => ({
+  kind: "flipCard",
+  target,
+  ...(options.reveal ? { reveal: true } : {}),
+});
 /**
  * "Change to Gamma energy form" → `changeAdditionalForm("energy", { toName: "Gamma" })`; "flip that card faceup to change
  * to that energy form" → `{ to: chosen("form") }`; "Change mass form by flipping your mass form upgrade over" →

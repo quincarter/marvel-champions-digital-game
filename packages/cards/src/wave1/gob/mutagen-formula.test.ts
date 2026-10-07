@@ -1,5 +1,6 @@
 import {
   activeVillain,
+  boostIconsFor,
   characterProfile,
   mainSchemeValue,
   type Command,
@@ -162,6 +163,30 @@ describe("I See You", () => {
         (e) => e.type === "triggerEvent" && e.event.kind === "boostCardTurnedFaceup" && e.event.activation === "attack",
       ),
     ).toBe(true);
+  });
+});
+
+describe("I See You, [star] Boost", () => {
+  // "This card gets +1 boost icon if at least one Goblin minion is engaged with you": "you" is the player the
+  // activation resolves against, as for the card's Boost ability. Mutagen Formula's setup engages a Goblin Thrall
+  // with each player, so the clause holds for the attacked player here.
+  it("as the villain's boost card with a Goblin minion engaged with the attacked player: 1 printed + 1 = 2 icons", () => {
+    const start = stackEncounterDeck(spiderManVsMutagenFormula(), "02030");
+    expect(goblinThrallsOf(start, P1)).toHaveLength(1);
+    const { events } = driveEvents(start, toHero(), endTurn());
+    const villain = activeVillain(start).instanceId;
+    const attacks = events.filter(
+      (e): e is Extract<GameEvent, { type: "attackResolved" }> =>
+        e.type === "attackResolved" && e.enemyInstanceId === villain,
+    );
+    expect(attacks.map((e) => e.boostIcons)).toEqual([2]);
+  });
+
+  it("read for that player it has 2 icons; read outside an activation, where it names no one, its printed 1", () => {
+    const state = stackEncounterDeck(spiderManVsMutagenFormula(), "02030");
+    const iSeeYou = (Object.keys(state.instances) as InstanceId[]).find((id) => inst(state, id).cardId === "02030")!;
+    expect(boostIconsFor(state, GOB_DEPS, iSeeYou, P1)).toBe(2);
+    expect(boostIconsFor(state, GOB_DEPS, iSeeYou)).toBe(1);
   });
 });
 

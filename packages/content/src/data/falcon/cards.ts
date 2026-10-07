@@ -847,7 +847,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "aggression",
-    traits: [trait("S.H.I.E.L.D. SOLDIER")],
+    traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
     keywords: [],
     deckLimit: 1,
     text: {

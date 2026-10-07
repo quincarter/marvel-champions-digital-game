@@ -58,7 +58,18 @@ export type GlossarySource =
    * (p. 4) puts card text above the rulebook anyway. `cards` is a short label a player can find on the table, e.g.
    * "Storm 36001a".
    */
-  | { readonly kind: "card"; readonly cards: string };
+  | { readonly kind: "card"; readonly cards: string }
+  /**
+   * A printed rulebook page that is not the RRG (a product's own rules insert), worded as the player would look it up,
+   * e.g. "NeXt Evolution rulebook p. 5". It names no card, so it never reads "(card text)".
+   */
+  | { readonly kind: "rulebook"; readonly label: string }
+  /**
+   * A ruling the owner made for this game where the printed rules are silent. Shown to a player as "Ruling for this
+   * game, <date>", with no reference to the internal spec that records it. `date` is a short player-facing date, e.g.
+   * "Oct 5, 2026".
+   */
+  | { readonly kind: "owner-ruling"; readonly date: string };
 
 export type GlossaryEntryKind = "keyword" | "status" | "concept";
 
@@ -73,7 +84,17 @@ export type GlossaryEntryKind = "keyword" | "status" | "concept";
  * Some entries are older than the box they were written for (Counters, labeled abilities, damage costs): those keep
  * the box that prompted them and carry `appliesToCore`, so How to play lists them under that box and under Core rules.
  */
-export type GlossaryBoxId = "core" | "wave1" | "cycle1" | "cycle3" | "cycle4" | "cycle5" | "cycle6" | "mojo" | "later";
+export type GlossaryBoxId =
+  | "core"
+  | "wave1"
+  | "cycle1"
+  | "cycle3"
+  | "cycle4"
+  | "cycle5"
+  | "cycle6"
+  | "mojo"
+  | "cycle7"
+  | "later";
 
 /** Which "New in this box" group a concept belongs under: a hero's own mechanic, or a scenario's. Keywords have their own group. */
 export type MechanicGroup = "hero" | "scenario";
@@ -180,7 +201,18 @@ export type ConceptId =
   | "wheelOfGenres"
   | "ratingsCounters"
   | "longshot"
-  | "removedFromCampaign";
+  | "removedFromCampaign"
+  // Wave 7 (NeXt Evolution, guided mode §3.14).
+  | "playerSideScheme"
+  | "perPlayerCost"
+  | "poolAspect"
+  | "specialists"
+  | "threeFaceIdentity"
+  | "psiBlades"
+  | "hopeSummers"
+  | "actionsOtherTurns"
+  | "routed"
+  | "setupAttachments";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -228,6 +260,16 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "ratingsCounters",
   "longshot",
   "removedFromCampaign",
+  "playerSideScheme",
+  "perPlayerCost",
+  "poolAspect",
+  "specialists",
+  "threeFaceIdentity",
+  "psiBlades",
+  "hopeSummers",
+  "actionsOtherTurns",
+  "routed",
+  "setupAttachments",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -275,9 +317,9 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   find: { box: "cycle6" },
   teamwork: { box: "cycle6" },
   temporary: { box: "cycle6" },
-  assault: { box: "later" },
+  assault: { box: "cycle7" },
   discount: { box: "later" },
-  linked: { box: "later" },
+  linked: { box: "cycle7" },
   prerequisite: { box: "later" },
   starting: { box: "later" },
   vulnerable: { box: "later" },
@@ -333,6 +375,17 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   wheelOfGenres: { box: "mojo", group: "scenario" },
   ratingsCounters: { box: "mojo", group: "scenario" },
   longshot: { box: "mojo", group: "scenario" },
+  // NeXt Evolution.
+  playerSideScheme: { box: "cycle7", group: "hero" },
+  perPlayerCost: { box: "cycle7", group: "hero" },
+  poolAspect: { box: "cycle7", group: "hero" },
+  specialists: { box: "cycle7", group: "hero" },
+  threeFaceIdentity: { box: "cycle7", group: "hero" },
+  psiBlades: { box: "cycle7", group: "hero" },
+  hopeSummers: { box: "cycle7", group: "scenario" },
+  actionsOtherTurns: { box: "cycle7", group: "hero", alsoCore: true },
+  routed: { box: "cycle7", group: "scenario" },
+  setupAttachments: { box: "cycle7", group: "scenario" },
 };
 
 function tagged<Id extends GlossaryId>(raw: Record<Id, UntaggedEntry<Id>>): Record<Id, GlossaryEntry<Id>> {
@@ -1127,6 +1180,122 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     definition:
       "A card removed from the campaign is crossed out of the campaign log and can't be used again for the rest of that campaign. It stays gone even if you lose the scenario it was removed in and retry it. The game takes it out of your deck for you; if your deck ends up short, add a card.",
     sources: [{ kind: "rrg", page: 29 }],
+  },
+  // ---------------------------------------------------------------------------------------------------------------
+  // Wave 7 (NeXt Evolution): guided mode `docs/guided-mode.md` §3.14. Pages are RRG 1.8; "NeXt Evolution rulebook"
+  // is the MC40 insert (`docs/campaign-modes/markdown/mc40_next_evolution.md`).
+  // ---------------------------------------------------------------------------------------------------------------
+  playerSideScheme: {
+    id: "playerSideScheme",
+    kind: "concept",
+    displayName: "Player side schemes and their limit",
+    definition:
+      "A player side scheme is played from your hand during your turn and sits beside the main scheme with threat on it. Heroes and allies thwart it like any side scheme. With 1 or 2 players only one can be in play (2 with 3 or 4 players): playing another discards one, and that discard is not a defeat.",
+    sources: [
+      { kind: "rrg", page: 34 },
+      { kind: "rulebook", label: "NeXt Evolution rulebook pp. 3 and 21" },
+    ],
+  },
+  perPlayerCost: {
+    id: "perPlayerCost",
+    kind: "concept",
+    displayName: "Per-player costs",
+    definition:
+      "A per player icon next to a printed cost multiplies it by the number of players who started the game. In a 2-player game a cost of 2 per player is 4, and effects that read the printed cost see 4.",
+    sources: [
+      { kind: "rrg", page: 32 },
+      { kind: "rulebook", label: "NeXt Evolution rulebook p. 5" },
+      { kind: "ruling", date: "August 3, 2026 - Ruling 5" },
+    ],
+  },
+  poolAspect: {
+    id: "poolAspect",
+    kind: "concept",
+    displayName: "'Pool aspect and the Dreadpool set",
+    definition:
+      "'Pool is the fifth aspect, and counts as an aspect for every card that asks for one. If at least one player chose 'Pool as their aspect, Crisis of Infinite Deadpools joins the encounter deck. Merely including 'Pool cards from another aspect does not add it.",
+    sources: [
+      { kind: "rrg", page: 8 },
+      { kind: "rrg", page: 12 },
+      { kind: "rrg", page: 64 },
+    ],
+  },
+  specialists: {
+    id: "specialists",
+    kind: "concept",
+    displayName: "Specialists (X-23)",
+    definition:
+      "Specialized Training, a player side scheme, brings a Specialist upgrade into play when defeated. The Specialists are linked cards set aside at the start of the game, not in any deck. Whoever takes control of one becomes its owner.",
+    sources: [
+      { kind: "rrg", page: 27 },
+      { kind: "card", cards: "X-23 43021, 43034-43037" },
+    ],
+  },
+  threeFaceIdentity: {
+    id: "threeFaceIdentity",
+    kind: "concept",
+    displayName: "Three-sided identities (Angel)",
+    definition:
+      "Angel's identity folds into three faces: alter-ego, Angel and Archangel. Changing between any two of them is a change of form, and a voluntary change between the hero faces uses your once-per-round change. Cards that name a face (Archangel form) read the face showing.",
+    sources: [
+      { kind: "rrg", page: 20 },
+      { kind: "rrg", page: 21 },
+    ],
+  },
+  psiBlades: {
+    id: "psiBlades",
+    kind: "concept",
+    displayName: "Psi-Knife and Psi-Katana",
+    definition:
+      "Psylocke's two Psi-Knife upgrades are permanent, so they are never in her deck. Each is double-sided: Psi-Energy Control flips one when you use a basic power, and the Psi-Katana side adds +1 ATK and piercing to a basic attack but is restricted.",
+    sources: [
+      { kind: "rrg", page: 20 },
+      { kind: "rrg", page: 32 },
+      { kind: "card", cards: "Psylocke 41001a, 41002" },
+    ],
+  },
+  hopeSummers: {
+    id: "hopeSummers",
+    kind: "concept",
+    displayName: "Hope Summers",
+    definition:
+      "Hope Summers is an ally the first player controls, and she moves with the first player token. She has your hero's ATK and THW, does not count against your ally limit, and if she leaves play the players lose.",
+    sources: [
+      { kind: "rrg", page: 19 },
+      { kind: "rulebook", label: "NeXt Evolution rulebook p. 5" },
+      { kind: "card", cards: "Hope Summers 40130" },
+    ],
+  },
+  actionsOtherTurns: {
+    id: "actionsOtherTurns",
+    kind: "concept",
+    displayName: "Actions on another player's turn",
+    definition:
+      "During another player's turn you may use any Action ability you could use on your own turn, including an Action event from your hand. It uses your own resources, form and limits. It does not let you attack, thwart, change form or play allies, supports or upgrades.",
+    sources: [
+      { kind: "rrg", page: 6 },
+      { kind: "rrg", page: 34 },
+      { kind: "owner-ruling", date: "Oct 5, 2026" },
+    ],
+  },
+  routed: {
+    id: "routed",
+    kind: "concept",
+    displayName: "Routed (villains under it)",
+    definition:
+      "Each time the villain is defeated it goes faceup under Routed, out of play, and the next villain comes in. Three villains under Routed wins the game. On the Expert side the villain gains retaliate 1 for each card under it.",
+    sources: [{ kind: "card", cards: "Morlock Siege 40081a, 40081b" }],
+  },
+  setupAttachments: {
+    id: "setupAttachments",
+    kind: "concept",
+    displayName: "Setup attachments (Flight, Super Strength, Telepathy)",
+    definition:
+      "In some scenarios the villain starts with a Superpower attachment already attached, put into play by its Setup keyword. Mister Sinister's scenario sets the three sets aside instead, so the keyword is ignored there and each set joins the encounter deck when its stage is revealed.",
+    sources: [
+      { kind: "rrg", page: 51 },
+      { kind: "rulebook", label: "NeXt Evolution rulebook p. 16" },
+    ],
   },
 };
 

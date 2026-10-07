@@ -6,6 +6,7 @@ import type { GameEvent } from "./events.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { statusActive } from "./keywords.js";
 import { mustInstance, mustPlayer } from "./query.js";
+import { cardsInPlay } from "./select.js";
 import { createGame } from "./setup.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -150,8 +151,9 @@ const RESTRICTED_UPGRADE = stubUpgrade({
   keywords: [{ name: "restricted" }],
 });
 
-// RRG "Restricted": a player cannot control more than two at a time.
-test("playing a third restricted card is rejected", () => {
+// RRG 1.8 "Restricted" (p. 38): "A player can play or put into play a restricted card even if they already control two
+// restricted cards", and then discards down to two.
+test("playing a third restricted card is legal and parks a discard-down-to-two choice", () => {
   const start = newGame({
     villain: VILLAIN,
     mainScheme: SCHEME,
@@ -170,11 +172,24 @@ test("playing a third restricted card is rejected", () => {
   });
 
   let current = start;
-  current = go(trace(current), { abilities: {} }, playIt(current)).state;
-  current = go(trace(current), { abilities: {} }, playIt(current)).state;
+  const firstTwo: InstanceId[] = [];
+  for (let i = 0; i < 2; i++) {
+    firstTwo.push(held(current));
+    current = go(trace(current), { abilities: {} }, playIt(current)).state;
+  }
+  expect(current.pendingChoice).toBeNull();
+  const thirdId = held(current);
   const third = applyCommand(current, playIt(current));
-  expect(third.ok).toBe(false);
-  if (!third.ok) expect(third.error.code).toBe("no_valid_target");
+  expect(third.ok).toBe(true);
+  if (!third.ok) return;
+  const choice = third.state.pendingChoice;
+  expect(choice?.prompt).toEqual({ kind: "discardRestricted", limit: 2 });
+  expect(choice?.options.map((option) => option.optionId).sort()).toEqual([...firstTwo, thirdId].sort());
+  expect([choice?.minSelections, choice?.maxSelections]).toEqual([1, 1]);
+  const after = resolvePending(third.state, [firstTwo[0] as string]);
+  expect(firstTwo.map((id) => cardsInPlay(after).includes(id))).toEqual([false, true]);
+  expect(cardsInPlay(after)).toContain(thirdId);
+  expect(mustPlayer(after, p1).discard).toContain(firstTwo[0]);
 });
 
 // RRG "Restricted": if a player ever controls a third, they discard down to two.

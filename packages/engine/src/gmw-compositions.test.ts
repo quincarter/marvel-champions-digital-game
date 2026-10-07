@@ -205,7 +205,7 @@ const YOU_DEAL_DAMAGE_TO_AN_ENEMY: EventPattern = {
   on: "dealDamage",
   sourceIs: { controller: "you", categories: ["identity", "event", "resource", "upgrade"] },
   targetIs: { categories: ["enemy"] },
-  eventAtLeast: { amount: 1 },
+  eventAtLeast: { dealt: 1 },
 };
 const SCHADENFREUDE_ABILITY = stubAbility(
   "schadenfreude.action",

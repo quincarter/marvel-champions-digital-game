@@ -379,6 +379,11 @@ function schemeIconListErrors(icons: unknown, label: string): string[] {
     : [];
 }
 
+/** An identity face's own printed scheme icons (`HeroFace.schemeIcons`, docs/phase7-wave7.md §3.63). */
+function faceSchemeIconErrors(face: { readonly schemeIcons?: unknown } | undefined, label: string): string[] {
+  return face?.schemeIcons === undefined ? [] : schemeIconListErrors(face.schemeIcons, `${label} schemeIcons`);
+}
+
 /**
  * Printed boost icons: a whole number of at least 0. There is no upper bound: Joystick (51039), Fixer (53038) and
  * Blizzard (54034) print 4 (docs/phase7-wave2.md §6.13; the old cap of 3 was a placeholder no rule states).
@@ -481,6 +486,11 @@ function playerCommonErrors(card: PlayerCard): string[] {
     else if (card.cost !== 0)
       errors.push(`${card.type} cost is printed ${card.specialCost === "X" ? "X" : "—"}, so its value must be 0`);
   }
+  if ("costPerPlayer" in card && card.costPerPlayer !== undefined) {
+    if (card.costPerPlayer !== true) errors.push(`${card.type} costPerPlayer must be true when present`);
+    else if (card.specialCost !== undefined)
+      errors.push(`${card.type} costPerPlayer needs a printed number, not a printed X or —`);
+  }
   errors.push(...wave2PlayerCardErrors(card));
   return errors;
 }
@@ -527,6 +537,16 @@ function wave2PlayerCardErrors(card: PlayerCard): string[] {
       errors.push(`${card.type} unitCost is only for a campaign-specific card (specificTo.kind === 'campaign')`);
     }
   }
+  // "Counts as N restricted cards." (see `PlayerCardCommon.restrictedWeight`; docs/phase7-wave7.md §3.82, §4.1 Q52):
+  // a weight of 1 is the keyword's own, and a card with the keyword counts as one card by RRG 1.8 "Restricted" (p. 38).
+  if (card.restrictedWeight !== undefined) {
+    if (!isPositiveInteger(card.restrictedWeight) || card.restrictedWeight < 2) {
+      errors.push(`${card.type} restrictedWeight must be an integer of at least 2`);
+    }
+    if (Array.isArray(card.keywords) && card.keywords.some((k) => k?.name === "restricted")) {
+      errors.push(`${card.type} restrictedWeight cannot be combined with the restricted keyword`);
+    }
+  }
   errors.push(...flipSideErrors(card, card.type));
   return errors;
 }
@@ -563,11 +583,12 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     if (allowance.maxCards !== undefined && !isPositiveInteger(allowance.maxCards))
       errors.push("offAspectAllowance maxCards must be a positive whole number");
     if (
-      !Array.isArray(allowance.anyTrait) ||
-      allowance.anyTrait.length === 0 ||
-      !allowance.anyTrait.every(isNonEmptyString)
+      allowance.anyTrait !== undefined &&
+      (!Array.isArray(allowance.anyTrait) ||
+        allowance.anyTrait.length === 0 ||
+        !allowance.anyTrait.every(isNonEmptyString))
     )
-      errors.push("offAspectAllowance anyTrait must list at least one trait");
+      errors.push("offAspectAllowance anyTrait, when present, must list at least one trait");
     if (!isNonEmptyString(allowance.cardType)) errors.push("offAspectAllowance needs a cardType");
   }
   // docs/phase7-wave4.md §1.4 (Adam Warlock's Avatar of Life).
@@ -586,6 +607,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     }
     errors.push(...keywordListErrors(card.hero.keywords, "hero face"));
     errors.push(...abilityRefErrors(card.hero.abilities, "hero face"));
+    errors.push(...faceSchemeIconErrors(card.hero, "hero face"));
   }
   if (!card.alterEgo) errors.push("missing alterEgo face");
   else {
@@ -599,6 +621,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     }
     errors.push(...keywordListErrors(card.alterEgo.keywords, "alterEgo face"));
     errors.push(...abilityRefErrors(card.alterEgo.abilities, "alterEgo face"));
+    errors.push(...faceSchemeIconErrors(card.alterEgo, "alterEgo face"));
   }
   const extra: unknown = card.additionalHeroForms;
   if (extra !== undefined) {
@@ -617,6 +640,7 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
         if (!Array.isArray(form?.traits)) errors.push(`${label} traits must be an array`);
         errors.push(...keywordListErrors(form?.keywords, label));
         errors.push(...abilityRefErrors(form?.abilities, label));
+        errors.push(...faceSchemeIconErrors(form, label));
       }
     }
   }
@@ -1158,8 +1182,10 @@ export function validateScenario(scenario: Scenario): ValidationResult {
 function wave4ScenarioErrors(scenario: Scenario): string[] {
   const errors: string[] = [];
   if (scenario.startingVillain !== undefined) {
-    if (scenario.startingVillain !== "random") errors.push("scenario startingVillain must be 'random'");
-    if ((scenario.setAsideVillainCardIds ?? []).length === 0)
+    if (scenario.startingVillain !== "random" && scenario.startingVillain !== "bySetup")
+      errors.push("scenario startingVillain must be 'random' or 'bySetup'");
+    // 'bySetup' may name a single villain: the Setup text still puts it into play (docs/phase7-wave7.md §1.21).
+    if (scenario.startingVillain === "random" && (scenario.setAsideVillainCardIds ?? []).length === 0)
       errors.push("scenario startingVillain 'random' needs setAsideVillainCardIds to choose among");
     if (scenario.multipleVillains !== undefined)
       errors.push("scenario startingVillain is not defined for a scenario with multipleVillains");
@@ -1274,6 +1300,19 @@ export function validateEncounterSet(set: EncounterSet): ValidationResult {
     errors.push(`encounter set ${set.id} singleVillainOnly must be true when present`);
   if (set.extraModular !== undefined && set.extraModular !== true)
     errors.push(`encounter set ${set.id} extraModular must be true when present`);
+  // docs/phase7-wave7.md §3.74: a set included by a setup condition, with the cards it shuffles in.
+  if (set.autoIncluded !== undefined) {
+    const { when, shuffledIn } = set.autoIncluded;
+    if (when?.kind !== "aspectChosen" || !isNonEmptyString(when.aspect))
+      errors.push(`encounter set ${set.id} autoIncluded.when must be an aspectChosen condition naming an aspect`);
+    if (!isCardIdList(shuffledIn) || shuffledIn.length === 0)
+      errors.push(`encounter set ${set.id} autoIncluded.shuffledIn must be a non-empty list of card ids`);
+    // Its inclusion is a rule, not a choice, so it is none of the kinds a player or a scenario picks.
+    if (set.extraModular || set.classification !== undefined || set.nemesisOfIdentityId !== undefined)
+      errors.push(
+        `encounter set ${set.id} is autoIncluded, so it cannot also be an extra, Standard/Expert or nemesis set`,
+      );
+  }
   errors.push(...separateDeckListErrors(set.separateDecks, `encounter set ${set.id}`));
   return result(errors);
 }
@@ -1400,6 +1439,11 @@ export function validateScenarioEncounterSets(
       );
     } else if (set.competitiveOnly)
       errors.push(`scenario ${scenario.id} names competitive-only set ${id}; competitive mode is not built`);
+    // docs/phase7-wave7.md §3.74, §4 Q44 (A): the set is in a game exactly when its condition holds, never by listing.
+    else if (set.autoIncluded)
+      errors.push(
+        `scenario ${scenario.id} names set ${id}, which is included by a setup condition and never listed by a scenario`,
+      );
     // RRG 1.8 "Standard Set" (p. 40) / "Expert Set" (p. 19): never a modular choice (docs/phase7-wave4.md §1.9).
     if (set?.classification !== undefined && scenario.recommendedModularSetIds.includes(id))
       errors.push(`scenario ${scenario.id} recommends ${set.classification} set ${id} as a modular set`);
@@ -1419,6 +1463,7 @@ export function validateScenarioEncounterSets(
       set.nemesisOfIdentityId !== undefined ||
       set.competitiveOnly ||
       set.extraModular ||
+      set.autoIncluded !== undefined ||
       own.has(id)
     )
       errors.push(`scenario ${scenario.id} modularSetPool names ${id}, which is not a modular set`);
@@ -1428,6 +1473,33 @@ export function validateScenarioEncounterSets(
   for (const id of scenario.recommendedModularSetIds)
     if (byId.get(id)?.extraModular)
       errors.push(`scenario ${scenario.id} recommends ${id}, which is never counted as a modular set`);
+  return result(errors);
+}
+
+/**
+ * `Scenario.startingVillain: "bySetup"` against the scenario's cards (docs/phase7-wave7.md §1.21): the villain is put
+ * into play by the main scheme's stage 1A Setup, so that side must print a Setup ability, and every villain the Setup
+ * may choose must be a villain card. Other scenarios pass. A card `cards` doesn't contain is reported, so the check
+ * can't pass by omission.
+ */
+export function validateScenarioStartingVillain(scenario: Scenario, cards: readonly AnyCard[]): ValidationResult {
+  if (scenario.startingVillain !== "bySetup") return result([]);
+  const byId = new Map(cards.map((card) => [card.id as string, card]));
+  const errors: string[] = [];
+  const villainIds = [
+    scenario.villainCardId,
+    ...(scenario.setAsideVillainCardIds ?? []),
+    ...(scenario.expertVillains
+      ? [scenario.expertVillains.villainCardId, ...scenario.expertVillains.setAsideVillainCardIds]
+      : []),
+  ];
+  for (const id of villainIds)
+    if (byId.get(id)?.type !== "villain")
+      errors.push(`scenario ${scenario.id} startingVillain 'bySetup' names ${id}, which is not a villain card`);
+  const mainScheme = byId.get(scenario.mainSchemeCardId);
+  const sideA = mainScheme?.type === "main_scheme" ? mainScheme.stages[0]?.aSide : undefined;
+  if (!sideA || sideA.abilities.length === 0 || !/(^|\n)Setup:/.test(sideA.text.current))
+    errors.push(`scenario ${scenario.id} startingVillain 'bySetup' needs a Setup ability on main scheme stage 1A`);
   return result(errors);
 }
 

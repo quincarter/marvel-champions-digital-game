@@ -19,8 +19,8 @@ describe("aspectTipContentOf", () => {
     }
   });
 
-  it("is null for 'pool', which has no AspectGuide yet", () => {
-    expect(aspectTipContentOf("pool")).toBeNull();
+  it("gives 'pool its own tip, with the lesson link live", () => {
+    expect(aspectTipContentOf("pool")).toMatchObject({ aspect: "pool", title: "'Pool", linkAvailable: true });
   });
 
   it("Basic's own tip has no lesson to link to", () => {

@@ -84,6 +84,10 @@ function wave3EncounterCardsOf(setIds: readonly string[]): CardId[] {
  * (`GameSetupConfig.setAside`, RRG 1.8 "Set Aside", p. 39) like a signature side scheme, for that ability to select
  * by name (`encounterSetAside({ name })`) and `putIntoPlay`. Generic over any pack's `specificTo`-scoped scenario
  * card, not just the Milano — no card name here.
+ *
+ * The Milano's setup keyword then puts it into play from there at Appendix II step 11 (RRG 1.8 p. 51, "Search each
+ * deck and the set aside area"; docs/phase7-wave7.md §4.1 Q20 = B), before the 1A Setup text that also names it, except
+ * where the scenario's text keeps it aside (`SET_ASIDE_UNTIL_CALLED`).
  */
 function scenarioSpecificSetAside(setIds: readonly string[], modularSetIds: readonly string[]): CardId[] {
   // A modular pick's setup-keyword card (the Milano) is dealt with the encounter deck for setup step 11 instead
@@ -97,6 +101,18 @@ function scenarioSpecificSetAside(setIds: readonly string[], modularSetIds: read
       !dealt.has(card.id),
   ).map((card) => card.id);
 }
+
+/**
+ * Scenarios whose own printed text sets a setup-keyword card aside and names when it comes in, so RRG 1.8 Appendix II
+ * step 11 (p. 51) leaves it aside (`GameSetupConfig.setAsideUntilCalled`; docs/setup-keyword-set-aside-audit.md).
+ * Escape the Museum, The Missing Milano 1A (16082a): "Setup: ... Set aside the Ship Command modular encounter set", and
+ * Lost in the Museum 2A (16083a): "When Revealed: Put the set-aside Milano support from the Ship Command encounter set
+ * into play under the first player's control." At every other scenario the Milano's setup keyword puts it into play
+ * at step 11, from the set-aside area the builder parks it in.
+ */
+const SET_ASIDE_UNTIL_CALLED: Readonly<Record<string, NonNullable<GameSetupConfig["setAsideUntilCalled"]>>> = {
+  "escape-the-museum": { encounterSetIds: ["ship_command"] },
+};
 
 /**
  * A single-villain `GMW_SCENARIOS` record. Unlike `../wave2/setup.ts`'s `buildSingleVillain`, expert mode may
@@ -140,6 +156,7 @@ function buildSingleVillain(scenario: (typeof GMW_SCENARIOS)[number], options: W
     requireIdentitySets: true,
     requireLegalDecks: true,
     setAside: scenarioSpecificSetAside(sets, modular),
+    ...(SET_ASIDE_UNTIL_CALLED[scenario.id] ? { setAsideUntilCalled: SET_ASIDE_UNTIL_CALLED[scenario.id] } : {}),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
     ...(scenario.separateDecks || setSeparateDecks(sets).length > 0
       ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }

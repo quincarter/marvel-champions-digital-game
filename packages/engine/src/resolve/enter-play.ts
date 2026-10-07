@@ -1,20 +1,23 @@
 /** Keywords and limits that resolve as a card enters play. */
 
-import { type Ctx, emit, requestChoice } from "../ctx.js";
-import { addCounters, giveStatus } from "../effects.js";
+import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
+import { addCounters, applyToughness, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { hasKeyword, keywordsOf, keywordTotal } from "../keywords.js";
-import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer } from "../query.js";
+import { hasKeyword, keywordsOf, keywordTotal, unblankedPrintedKeywordsOf } from "../keywords.js";
+import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
 import {
   allyLimitFor,
   allyLimitMayBeReduced,
   BASE_ALLY_LIMIT,
   BASE_RESTRICTED_LIMIT,
+  cannotLeavePlay,
   excludedFromAllyLimit,
-  restrictedLimitFor,
+  excludedFromPlayerSideSchemeLimit,
+  playerSideSchemeLimit,
+  restrictedStanding,
 } from "../rules.js";
-import { cardsInPlay, controllerOf, isAlly, restrictedCardsOf, traitsOf } from "../select.js";
-import type { StackFrame } from "../stack.js";
+import { cardsInPlay, controllerOf, isAlly, restrictedWeightOf, traitsOf } from "../select.js";
+import { playFrameOf, type StackFrame } from "../stack.js";
 import { activateEnemy } from "../villain/phase.js";
 import { defeatedAwaitingLeave } from "./defeat.js";
 
@@ -32,6 +35,7 @@ export function checkAllyLimits(ctx: Ctx): boolean {
   }
   return false;
 }
+import type { AbilityRegistry, EngineDeps } from "../abilities.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announce, base, eventFrame, pushEvent } from "./frames.js";
@@ -44,19 +48,33 @@ import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
  */
 export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
-    if (keyword.name === "toughness") giveStatus(ctx, id, "tough");
-    // "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3.
-    if (keyword.name === "uses")
-      addCounters(
-        ctx,
-        id,
-        keyword.counterType,
-        keyword.count + (keyword.countPerPlayer ?? 0) * ctx.state.startingPlayerCount,
-      );
+    if (keyword.name === "toughness") applyToughness(ctx, id);
+    if (keyword.name === "uses") addCounters(ctx, id, keyword.counterType, usesAmount(ctx.state, keyword));
   }
-  if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) checkRestricted(ctx, controllerOf(ctx.state, id));
+  // A card with the keyword, or one that "counts as N restricted cards" (docs/phase7-wave7.md §3.82).
+  if (restrictedWeightOf(ctx.state, id, ctx.deps) > 0) checkRestricted(ctx, controllerOf(ctx.state, id));
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));
+  // The player side scheme limit (RRG 1.8 p. 34; docs/phase7-wave7.md §3.2) is checked here, beside the ally limit:
+  // every player side scheme entering play, played or put into play (`playerSideSchemeEntersPlay`), reaches this step.
+  if (cardOf(ctx.state, id)?.type === "player_side_scheme") checkPlayerSideSchemeLimit(ctx, id);
   placeHinder(ctx, id);
+}
+
+/** "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3. */
+const usesAmount = (state: GameState, keyword: { readonly count: number; readonly countPerPlayer?: number }): number =>
+  keyword.count + (keyword.countPerPlayer ?? 0) * state.startingPlayerCount;
+
+/**
+ * The counters a card's uses keywords place on it as it enters play (RRG 1.8 "Uses", p. 46), by counter type. Read on
+ * its own by a standing check that looks at the card before that placement has been made (`resolve/state-checks.ts`).
+ */
+export function usesCountersOnEntering(state: GameState, deps: EngineDeps, id: InstanceId): Record<string, number> {
+  const placed: Record<string, number> = {};
+  for (const keyword of keywordsOf(state, id, deps)) {
+    if (keyword.name !== "uses") continue;
+    placed[keyword.counterType] = (placed[keyword.counterType] ?? 0) + usesAmount(state, keyword);
+  }
+  return placed;
 }
 
 /**
@@ -107,27 +125,200 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
 }
 
 /**
- * RRG "Restricted": playing a third is illegal (see `playCard`), but an effect
- * can still put one into play — then the controller discards down to two.
+ * The restricted limit as a standing rule (RRG 1.8 "Restricted", p. 38: "if a player ever controls more than two"):
+ * each player in turn order from the first seat, one choice at a time. `runFlow` runs this between frames, through
+ * `checkStateTriggers`, so the next player over the limit is asked once the first has answered. Returns true when it
+ * asked a player to discard.
  */
-function checkRestricted(ctx: Ctx, playerId: PlayerId | null): void {
-  if (!playerId) return;
-  const held = restrictedCardsOf(ctx.state, playerId, ctx.deps);
-  if (held.length <= BASE_RESTRICTED_LIMIT) return;
-  // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
-  const limit = restrictedLimitFor(ctx.state, ctx.deps, playerId, held);
-  if (held.length <= limit) return;
+export function checkRestrictedLimits(ctx: Ctx): boolean {
+  if (ctx.state.pendingChoice) return false;
+  // This runs between frames, so it reads printed data first: an upper bound on every player's load, in one pass with
+  // no rule scan. A blank only lowers a load, and every `restrictedLimit` rule raises the limit (`RuleSpec
+  // restrictedLimit`), so a bound of two or less is never over it. Only a player past that bound gets the full reading
+  // (`restrictedStanding`: blanks, granted keywords, limit rules).
+  const grantable = restrictedMayBeGranted(ctx.state, ctx.deps);
+  const bounds = new Map<PlayerId, number>();
+  for (const id of cardsInPlay(ctx.state)) {
+    const controller = controllerOf(ctx.state, id);
+    if (controller === null) continue;
+    const weight = grantable
+      ? Math.max(1, printedRestrictedWeight(ctx.state, id))
+      : printedRestrictedWeight(ctx.state, id);
+    if (weight > 0) bounds.set(controller, (bounds.get(controller) ?? 0) + weight);
+  }
+  for (const player of ctx.state.players) {
+    if ((bounds.get(player.playerId) ?? 0) <= BASE_RESTRICTED_LIMIT) continue;
+    if (checkRestricted(ctx, player.playerId)) return true;
+  }
+  return false;
+}
+
+/** The most a card can weigh on the restricted limit by what is printed on the face it shows, blanks ignored. */
+function printedRestrictedWeight(state: GameState, id: InstanceId): number {
+  const card = cardOf(state, id);
+  const weight = card && "restrictedWeight" in card ? (card.restrictedWeight ?? 0) : 0;
+  const keyword = unblankedPrintedKeywordsOf(state, id).some((k) => k.name === "restricted") ? 1 : 0;
+  return Math.max(weight, keyword);
+}
+
+const registriesGrantingRestricted = new WeakMap<AbilityRegistry, boolean>();
+
+/** Whether a card could have the restricted keyword without printing it: a constant or lasting grant of it exists. */
+function restrictedMayBeGranted(state: GameState, deps: EngineDeps): boolean {
+  let known = registriesGrantingRestricted.get(deps.abilities);
+  if (known === undefined) {
+    known = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.keywordGrants ?? []).some((grant) => !grant.loses && grant.keyword.name === "restricted"),
+    );
+    registriesGrantingRestricted.set(deps.abilities, known);
+  }
+  return (
+    known ||
+    state.lastingEffects.some((effect) => effect.kind === "keywordGrant" && effect.keyword.name === "restricted")
+  );
+}
+
+/** The player side schemes in play that count toward the limit, in the order they entered the villain's play area. */
+function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
+  return ctx.state.villainArea.filter(
+    (id) =>
+      cardOf(ctx.state, id)?.type === "player_side_scheme" &&
+      // One already defeated and waiting to leave play after its When Defeated is not seen by a rule counting cards in
+      // play (`defeatedAwaitingLeave`, FAQ "Fabian Cortez (#159)", RRG 1.8 p. 64), nor is one whose discard is on the
+      // stack waiting for a "when this leaves play" interrupt: asking again would discard a second scheme for it.
+      !defeatedAwaitingLeave(ctx.state, id) &&
+      !leavingPlayPending(ctx.state, id) &&
+      !excludedFromPlayerSideSchemeLimit(ctx.state, ctx.deps, id),
+  );
+}
+
+/** A player side scheme whose entering play is on the stack with its enter-play step (and its limit check) still to come. */
+const stillEntering = (ctx: Ctx, id: InstanceId): boolean =>
+  ctx.state.stack.some(
+    (frame) =>
+      frame.kind === "event" &&
+      frame.event.kind === "cardEntersPlay" &&
+      frame.event.instanceId === id &&
+      (frame.stage === "interrupts" || frame.stage === "apply"),
+  );
+
+/**
+ * RRG 1.8 "Player Side Scheme Limit" (p. 34): "If one or two players started the game, the player side scheme limit is
+ * one. If three or four players started the game, the limit is two. If there are ever more player side schemes in play
+ * than the limit, the first player chooses and discards player side schemes until there are no longer more in play
+ * than the limit. A player may play a player side scheme even while at the player side scheme limit. If they do, they
+ * must choose a player side scheme to discard. (The player side scheme discarded this way is not considered defeated.)"
+ *
+ * Modeled on the ally limit (`checkAllyLimit`): the scheme enters play first, and the check is part of its enter-play
+ * step, before abilities that resolve on entering play. `entering` is that scheme, or null for the check between frames
+ * (`checkStateTriggers`), which catches every other way over the limit (a scheme that stops being excluded from it).
+ *
+ * Who chooses (docs/phase7-wave7.md §4.1 Q1): the player who **played** `entering` (its `playCard` frame is still on
+ * the stack); the first player when an effect put it into play or nothing entered. Either may choose any counted player
+ * side scheme, the one that just entered included (MC40 rulebook p. 21, an effect putting one into play at the limit:
+ * "The first player chooses one player side scheme in play to discard, which could include Technovirus Purge").
+ *
+ * What counts (owner rulings, 2026-10-04): every player side scheme in play, whoever controls it or nobody. Only an
+ * `excludedFromPlayerSideSchemeLimit` rule leaves one out, which is how a campaign player side scheme is exempt: its
+ * own text says "This scheme does not count against the player side scheme limit", a constant on the scheme targeting
+ * itself. Being controlled by no player is not an exemption. One at zero threat is already out of the count while its
+ * When Defeated resolves (`playerSideSchemesCounted`).
+ *
+ * One that cannot leave play (permanent, "cannot leave play") counts but is not offered, since choosing it would
+ * discard nothing. So the choice is for `min(number over the limit, schemes that can leave)`: when the only scheme
+ * that can leave is the one that just entered, it is the one discarded, and when none can leave nobody is asked and
+ * the game continues over the limit. The check between frames then returns false each time, so it cannot loop.
+ * Returns true when it asked a player.
+ */
+export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null): boolean {
+  if (ctx.state.pendingChoice || ctx.state.villainArea.length === 0) return false;
+  const counted = playerSideSchemesCounted(ctx);
+  const limit = playerSideSchemeLimit(ctx.state);
+  if (counted.length <= limit) return false;
+  // Between frames, a scheme still entering play is left to its own enter-play step, where the player who played it
+  // is the one asked.
+  if (entering === null && counted.some((id) => stillEntering(ctx, id))) return false;
+  const played = entering === null ? undefined : playFrameOf(ctx.state.stack, entering);
+  const options = counted.filter(
+    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+  );
+  const over = Math.min(counted.length - limit, options.length);
+  if (over === 0) return false;
   requestChoice(ctx, {
-    playerId,
-    prompt: { kind: "discardRestricted", limit },
-    options: held.map((id) => ({
+    playerId: played?.playerId ?? ctx.state.firstPlayerId,
+    prompt: { kind: "discardOverPlayerSideSchemeLimit", limit },
+    options: options.map((id) => ({
       optionId: id,
       label: mustCardOf(ctx.state, id).name,
       ref: { kind: "card", instanceId: id } as const,
     })),
-    minSelections: held.length - limit,
-    maxSelections: held.length - limit,
+    minSelections: over,
+    maxSelections: over,
   });
+  return true;
+}
+
+/**
+ * RRG 1.8 "Restricted" (p. 38) is a limit on what a player controls in play, never on playing: "A player can play or
+ * put into play a restricted card even if they already control two restricted cards. However, if a player **ever**
+ * controls more than two restricted cards in play, they must immediately choose and discard from play restricted cards
+ * they control until they have only two in play" (docs/phase7-wave7.md §4.1, owner ruling 2026-10-06). One rule, asked
+ * at three moments:
+ * - as a restricted card enters play, played or put into play (`applyEnterPlayKeywords`), before its "enters play"
+ *   responses; this is also where a swap's incoming card is checked (`swapCards` announces it entering play);
+ * - as a flip shows a restricted face (`checkRestrictedAfterFlip`; §3.64, §4.1 Q38), each card counting by the face it
+ *   shows; a face that is a card of its own is treated as entering play and is checked there;
+ * - between frames (`checkRestrictedLimits`, from `checkStateTriggers`), for every other way over: taking control of a
+ *   restricted card that was already in play, a card that raised the limit leaving play, and a second player the same
+ *   effect took over the limit.
+ *
+ * The choice is among every restricted card the player controls, the newest included. A facedown attachment is out of
+ * play (RRG 1.8 p. 23) and neither counts nor is offered.
+ *
+ * One that cannot leave play (permanent, RRG 1.8 p. 32; "cannot leave play") counts but is not offered, since choosing
+ * it would discard nothing: the choice is for `min(number over the limit, cards that can leave)`, and when none can
+ * leave nobody is asked and the game continues over the limit, as for the player side scheme limit
+ * (`checkPlayerSideSchemeLimit`). Returns true when it asked the player.
+ *
+ * A card that "counts as N restricted cards" (docs/phase7-wave7.md §3.82) adds N to the load compared with the limit
+ * and is not offered either (§4.1 Q52 = B: the cards discarded for the limit carry the keyword). Each card offered
+ * weighs 1, so the number to discard is the load over the limit.
+ */
+function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
+  if (!playerId || ctx.state.pendingChoice) return false;
+  // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
+  const { load, limit, held } = restrictedStanding(ctx.state, ctx.deps, playerId);
+  if (load <= limit) return false;
+  const options = held.filter(
+    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+  );
+  const over = Math.min(load - limit, options.length);
+  if (over === 0) return false;
+  requestChoice(ctx, {
+    playerId,
+    prompt: { kind: "discardRestricted", limit },
+    options: options.map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id } as const,
+    })),
+    minSelections: over,
+    maxSelections: over,
+  });
+  return true;
+}
+
+/**
+ * The restricted check for a card whose flip has just shown its other face (docs/phase7-wave7.md §3.64, §4.1 Q38):
+ * its controller is asked at once, before anything answers the flip, if the face now showing is restricted and takes
+ * them past the limit. One choice can be open at a time, so of several players one effect takes past the limit only
+ * the first is asked.
+ */
+export function checkRestrictedAfterFlip(ctx: Ctx, id: InstanceId): boolean {
+  if (restrictedWeightOf(ctx.state, id, ctx.deps) === 0) return false;
+  return checkRestricted(ctx, controllerOf(ctx.state, id));
 }
 
 /**
@@ -136,6 +327,45 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): void {
  */
 export function enterPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): void {
   announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId });
+}
+
+/**
+ * A player side scheme entering play, whether a player played it (`executePlayCardFrame`) or an effect put it into play
+ * (`putIntoPlay`, from any zone; docs/phase7-wave7.md §3.43). RRG 1.8 "Player Side Scheme" (p. 34): "it is placed
+ * next to the main scheme in the villain's play area" and "enters play with an amount of threat on it equal to its
+ * starting threat value", with its hinder in the same placement, as a side scheme's (`enterPlayOnReveal`).
+ *
+ * `controllerId` is null for one no player controls: put into play by the scenario from cards nobody owns (§4.1 Q24).
+ * `playerId` is who the entering is announced for: the playing player, or the controller an effect named.
+ *
+ * It has no reveal and its "enters play" windows open with the threat already on it. The unique rule is the caller's,
+ * before this: a play is refused as illegal (`actions.ts`), an effect has no effect (`admitUniqueEntry`).
+ */
+export function playerSideSchemeEntersPlay(
+  ctx: Ctx,
+  id: InstanceId,
+  controllerId: PlayerId | null,
+  playerId: PlayerId | null = controllerId,
+): void {
+  moveCard(ctx, id, { kind: "villainArea" });
+  updateInstance(ctx, id, (i) => ({ ...i, controllerId, faceup: true }));
+  enterPlay(ctx, id, playerId);
+  pushEvent(ctx, {
+    kind: "placeThreat",
+    schemeInstanceId: id,
+    amount: schemeEntryThreat(ctx, id),
+    sourceInstanceId: null,
+  });
+}
+
+/**
+ * The threat a side scheme enters play with, in one placement: its starting threat plus its hinder. RRG 1.8 "Hinder X"
+ * (p. 22) makes hinder a constant of the card entering play, so it applies however the scheme enters: a reveal, a
+ * `putIntoPlay` from any zone, and one an effect brings back from the victory display (owner ruling 2026-10-05,
+ * docs/phase7-wave7.md §4.1, superseding the "no hinder" part of Q30; that scheme is still not revealed).
+ */
+export function schemeEntryThreat(ctx: Ctx, id: InstanceId): number {
+  return startingThreatOf(ctx.state, id, ctx.deps) + keywordTotal(ctx.state, id, "hinder", ctx.deps);
 }
 
 /**

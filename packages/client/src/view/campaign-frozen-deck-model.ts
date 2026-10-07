@@ -105,6 +105,7 @@ function aspectNamesOf(counts: DeckAspectCounts): readonly CoreAspect[] {
   if (counts.justice > 0) names.push("justice");
   if (counts.leadership > 0) names.push("leadership");
   if (counts.protection > 0) names.push("protection");
+  if (counts.pool > 0) names.push("pool");
   return names;
 }
 

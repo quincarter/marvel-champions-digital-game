@@ -26,6 +26,30 @@ import type { InstanceId } from "./ids.js";
 import { cardOf, getInstance, heroFacesOf, titleShowing } from "./query.js";
 import type { GameState } from "./state.js";
 
+/**
+ * Whether two titles are the same title: the printed strings, exactly. The one comparison behind the uniqueness rule's
+ * "share a title" (`unique.ts` `cardsMatch`) and "shares a title with" as a query (`TargetQuery.sharesTitleWith`), so
+ * the two cannot disagree. A parenthetical is part of the title: "Kang (The Conqueror)" and "Kang (Master of Time)"
+ * are different titles (ruling January 26, 2026 (4) answer 6). A subtitle is a separate name and is never passed here
+ * as a title (RRG 1.8 "Subtitle", p. 41).
+ */
+export const sameTitle = (a: string, b: string): boolean => a === b;
+
+/**
+ * Whether the card `id` shares a title with at least one of `others`, each read by the title it is showing
+ * (`titleShowing`): a villain's current side, a flipped card's other face, an identity's faceup side (RRG 1.8
+ * "Identity", p. 23), the printed title for a card out of play. A facedown card shows no title, so it shares one with
+ * nothing, on either side of the comparison. A card shares a title with itself. docs/phase7-wave7.md §3.8.
+ */
+export function sharesTitleWithAny(state: GameState, id: InstanceId, others: readonly InstanceId[]): boolean {
+  const title = titleShowing(state, id);
+  if (title === undefined) return false;
+  return others.some((other) => {
+    const theirs = titleShowing(state, other);
+    return theirs !== undefined && sameTitle(title, theirs);
+  });
+}
+
 /** "Black Panther/T'Challa" → `["Black Panther", "T'Challa"]`; a plain name → null. */
 function slashName(name: string): readonly [string, string] | null {
   const slash = name.indexOf("/");
@@ -41,6 +65,30 @@ export function identityCardTitledAs(card: HeroIdentityCard, name: string): bool
   const both = slashName(name);
   if (both) return heroTitles.includes(both[0]) && card.alterEgo.faceName === both[1];
   return card.name === name || card.alterEgo.faceName === name || heroTitles.includes(name);
+}
+
+/**
+ * The plain names the character `id` answers to right now, as `characterTitledAs` reads them: the title it is showing,
+ * and for a character that is not an identity its subtitle. Empty for a facedown card. Carried on an event as the
+ * target's names when the event happened (`TargetSnapshot.titles`), so an "after" ability still finds a character
+ * whose faceup side has changed since.
+ */
+export function titlesNaming(state: GameState, id: InstanceId): readonly string[] {
+  const instance = getInstance(state, id);
+  const card: AnyCard | undefined = cardOf(state, id);
+  if (!instance || !card || instance.facedownAs) return [];
+  const isIdentity = card.type === "hero_identity" && state.players.some((p) => p.identity.instanceId === id);
+  const title = titleShowing(state, id);
+  const subtitle = !isIdentity && "subtitle" in card && typeof card.subtitle === "string" ? card.subtitle : undefined;
+  return [...(title !== undefined ? [title] : []), ...(subtitle !== undefined ? [subtitle] : [])];
+}
+
+/**
+ * `characterTitledAs` against the names a character had when an event happened (`TargetSnapshot.titles`). A
+ * "Hero/Alter-ego" name is one identity card by both of its sides, whichever is up, so it is read from the card.
+ */
+export function snapshotTitledAs(state: GameState, id: InstanceId, titles: readonly string[], name: string): boolean {
+  return slashName(name) ? characterTitledAs(state, id, name) : titles.includes(name);
 }
 
 /** Whether the character `id` is named by `name` right now (see the module docblock). Facedown cards have no title. */

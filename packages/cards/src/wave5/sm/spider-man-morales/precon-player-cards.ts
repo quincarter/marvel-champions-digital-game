@@ -37,10 +37,8 @@ const SHIELD = trait("S.H.I.E.L.D.");
 const WEB_WARRIOR = trait("WEB-WARRIOR");
 
 /** "A S.H.I.E.L.D. card you control", any category — Dum Dum Dugan's own cost, Government Liaison's and Sky-
- * Destroyer's played-card filter. Agent 13 (trait S.H.I.E.L.D. SPY) and Sky-Destroyer itself (trait S.H.I.E.L.D.
- * VEHICLE) print a *different* trait string and so do not match this — the same distinct-trait reading
- * docs/phase7-wave5.md §2.1 draws for "Agent 13 (27046 and 29022, two printings)" (an exact name/trait match, not a
- * substring one). */
+ * Destroyer's played-card filter. Agent 13 (S.H.I.E.L.D. and SPY) and Sky-Destroyer itself (S.H.I.E.L.D. and
+ * VEHICLE) match too: a printed line such as "S.H.I.E.L.D. Spy." is two traits (owner ruling 2026-10-06). */
 const A_SHIELD_CARD: TargetQuery = { trait: SHIELD, controller: "you" };
 const A_SHIELD_ALLY: TargetQuery = { categories: ["ally"], trait: SHIELD, controller: "you" };
 const A_SHIELD_SUPPORT: TargetQuery = { categories: ["support"], trait: SHIELD, controller: "you" };

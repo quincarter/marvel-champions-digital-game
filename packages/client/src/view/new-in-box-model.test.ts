@@ -32,6 +32,7 @@ describe("boxPages", () => {
       "cycle5",
       "cycle6",
       "mojo",
+      "cycle7",
     ]);
   });
 
@@ -50,6 +51,21 @@ describe("boxPages", () => {
       expect(wave, `${box.id} unlock key ${box.unlockKey}`).toBeDefined();
       if (box.id.startsWith("cycle")) expect(box.name).toBe(wave!.name);
     }
+  });
+
+  it("lists NeXt Evolution's new entries by group", () => {
+    const p = page("cycle7");
+    expect(ids(p.keywords)).toEqual(["assault", "linked"]);
+    expect(ids(p.heroMechanics)).toEqual([
+      "actionsOtherTurns",
+      "perPlayerCost",
+      "playerSideScheme",
+      "poolAspect",
+      "psiBlades",
+      "specialists",
+      "threeFaceIdentity",
+    ]);
+    expect(ids(p.scenarioMechanics)).toEqual(["hopeSummers", "routed", "setupAttachments"]);
   });
 
   it("lists Mutant Genesis' new entries by group", () => {

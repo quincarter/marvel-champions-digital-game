@@ -53,6 +53,7 @@
 
 import type { AbilityId } from "@mc/content";
 import type {
+  ChoiceList,
   ChoicePrompt,
   EngineDeps,
   GameState,
@@ -65,7 +66,7 @@ import type {
 import { activeAbilityRefs } from "@mc/engine";
 import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { cardName } from "./names.js";
+import { cardName, numberWord } from "./names.js";
 
 /** The card (and, when unambiguous, the ability) a pending choice traces back to. */
 export interface ChoiceSource {
@@ -234,6 +235,9 @@ export function spendResourcesTitleOf(requirement: ResourceRequirement, distinct
   return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
 }
 
+/** What a `chooseFromList` prompt asks for, by its list (docs/phase7-wave7.md §3.33). */
+const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a card type" };
+
 /**
  * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
  * here so it can be unit tested the way every other view model in this file is). `orderCards`/`chooseBottomCards`
@@ -268,6 +272,12 @@ export function promptTitleOf(
       : `Choose a number from ${prompt.min} to ${prompt.max}`;
   }
   if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
+  // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.
+  if (kind === "reportFact") {
+    return prompt.fact === "minutesAway" ? "On a break" : "Did you talk this phase?";
+  }
+  if (kind === "discardRestricted") return `Discard to ${numberWord(prompt.limit)} restricted cards`;
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",
@@ -283,6 +293,8 @@ export function promptTitleOf(
     chooseAttachmentTarget: "Choose a host",
     chooseCards: "Choose cards",
     lookAt: "Look at these cards",
+    // docs/phase7-wave7.md §3.81: the options are cards outside the game (`ChoiceRef cardDefinition`).
+    searchCollection: "Search your collection",
     chooseOption: "Choose one",
     choosePlayer: "Choose a player",
     orderSpecials: "Order the special abilities",
@@ -290,7 +302,7 @@ export function promptTitleOf(
     payForAbility: "Pay for this ability?",
     spendResources: "Spend resources?",
     discardOverAllyLimit: "Discard to your ally limit",
-    discardRestricted: "Discard to two restricted cards",
+    discardOverPlayerSideSchemeLimit: "Discard to the player side scheme limit",
     assignIndirectDamage: "Divide this damage",
   };
   return titles[kind] ?? "Choose";

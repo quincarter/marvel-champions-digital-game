@@ -275,7 +275,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     },
     alterEgo: {
       faceName: "Carol Danvers",
-      traits: [trait("S.H.I.E.L.D. SOLDIER")],
+      traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
       rec: 4,
       handSize: 6,
       keywords: [],
@@ -815,7 +815,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 4,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "hero:01029a",
-    traits: [trait("S.H.I.E.L.D. SOLDIER")],
+    traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -2014,7 +2014,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 2,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "protection",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -2209,7 +2209,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -2235,7 +2235,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {

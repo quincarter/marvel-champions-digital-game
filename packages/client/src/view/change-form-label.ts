@@ -22,3 +22,13 @@ export function changeFormLabel(myForm: Form, stacked: boolean): string {
   if (!stacked) return toAlterEgo ? "Flip to alter-ego" : "Flip to hero";
   return toAlterEgo ? "Flip A-E" : "Flip Hero";
 }
+
+/**
+ * The button's label once the count of destination forms is known: more than one opens the "Which form?" picker, so it
+ * reads "Change form" on the wide bar and the short "Form" on the stacked one, where "Change form ×2" overflowed its
+ * quarter-width cell and truncated to "CHANG… ×2" (wave 7 QA, Angel at 390).
+ */
+export function changeFormButtonLabel(formCount: number, myForm: Form, stacked: boolean): string {
+  if (formCount > 1) return stacked ? "Form" : "Change form";
+  return changeFormLabel(myForm, stacked);
+}

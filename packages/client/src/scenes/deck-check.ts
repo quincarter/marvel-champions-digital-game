@@ -76,6 +76,7 @@ import { cardArt, drawArt } from "../art/card-art.js";
 import { SELECTABLE_ASPECTS } from "../view/deck-builder-model.js";
 import {
   costCurveBars,
+  deckCountText,
   deckListGroupsOf,
   deckStatsOf,
   filterDeckListGroups,
@@ -371,7 +372,7 @@ export class DeckCheckScene extends Phaser.Scene {
     stats: ReturnType<typeof deckStatsOf>,
     status: ReturnType<typeof deckStatusOf>,
   ): void {
-    const badgeText = `${stats.totalCards} CARDS · ${status.text.toUpperCase()}`;
+    const badgeText = `${deckCountText(stats).toUpperCase()} · ${status.text.toUpperCase()}`;
     const badgeTextStyle = { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "18px" };
     // The background graphics object is created (and so z-ordered) *before* the text it sits behind — these two
     // calls aren't reparented into a container that would reorder them by array position (unlike a virtualized
@@ -408,13 +409,13 @@ export class DeckCheckScene extends Phaser.Scene {
       .text(
         titleX,
         layout.headerBar.height / 2,
-        `Your deck · ${stats.totalCards}`,
+        `Your deck · ${stats.countedCards}`,
         textStyle(typeRole.pageTitle, surface.paper.hex),
       )
       .setOrigin(0, 0.5);
     fitText(title, layout.meta.x - titleX - 12, typeRole.pageTitle.size);
 
-    const metaWords = inFlow ? "3/4" : `${stats.totalCards} CARDS · ${status.text.toUpperCase()}`;
+    const metaWords = inFlow ? "3/4" : `${deckCountText(stats).toUpperCase()} · ${status.text.toUpperCase()}`;
     const metaText = this.add
       .text(
         layout.meta.x + layout.meta.width,

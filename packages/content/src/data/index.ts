@@ -525,6 +525,79 @@ export const WAVE6_STARTER_DECKS: readonly StarterDeck[] = [
   ...ROGUE_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 7 (PLAN.md Phase 7, docs/phase7-wave7.md): cycle 7, NeXt Evolution. `next_evol` (the campaign box: Cable and
+// Domino, five scenarios and the campaign record) and the four hero packs (`psylocke`, `angel`, `x23`, `deadpool`).
+// Declared here (before `PLAYABLE_CARDS`, which reads `WAVE7_CARDS`) for the same source-order reason as the earlier
+// waves. Pool membership is not a claim that a pack is scripted: `unscriptedCards` keeps unscripted precons from
+// being seated, and the client's `pool.ts` decides which scenarios and precons it offers. `NEXT_EVOL_CAMPAIGN` is
+// registered in `CAMPAIGNS` below with its client story.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./next_evol/index.js";
+export * from "./psylocke/index.js";
+export * from "./angel/index.js";
+export * from "./x23/index.js";
+export * from "./deadpool/index.js";
+
+import { NEXT_EVOL_CAMPAIGN } from "./next_evol/campaign.js";
+import { NEXT_EVOL_CARDS } from "./next_evol/cards.js";
+import { NEXT_EVOL_ENCOUNTER_SETS } from "./next_evol/encounterSets.js";
+import { NEXT_EVOL_SCENARIOS } from "./next_evol/scenarios.js";
+import { NEXT_EVOL_STARTER_DECKS } from "./next_evol/starterDecks.js";
+import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
+import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
+import { PSYLOCKE_SCENARIOS } from "./psylocke/scenarios.js";
+import { PSYLOCKE_STARTER_DECKS } from "./psylocke/starterDecks.js";
+import { ANGEL_CARDS } from "./angel/cards.js";
+import { ANGEL_ENCOUNTER_SETS } from "./angel/encounterSets.js";
+import { ANGEL_SCENARIOS } from "./angel/scenarios.js";
+import { ANGEL_STARTER_DECKS } from "./angel/starterDecks.js";
+import { X23_CARDS } from "./x23/cards.js";
+import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
+import { X23_SCENARIOS } from "./x23/scenarios.js";
+import { X23_STARTER_DECKS } from "./x23/starterDecks.js";
+import { DEADPOOL_CARDS } from "./deadpool/cards.js";
+import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
+import { DEADPOOL_SCENARIOS } from "./deadpool/scenarios.js";
+import { DEADPOOL_STARTER_DECKS } from "./deadpool/starterDecks.js";
+
+/** Every card in the wave 7 (cycle 7) pool: Core plus the five packs, in release order. A sibling pool that starts from Core, like `WAVE6_CARDS`. */
+export const WAVE7_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...NEXT_EVOL_CARDS,
+  ...PSYLOCKE_CARDS,
+  ...ANGEL_CARDS,
+  ...X23_CARDS,
+  ...DEADPOOL_CARDS,
+];
+
+/** Every wave 7 encounter set (Core's own villain sets are not included). */
+export const WAVE7_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...NEXT_EVOL_ENCOUNTER_SETS,
+  ...PSYLOCKE_ENCOUNTER_SETS,
+  ...ANGEL_ENCOUNTER_SETS,
+  ...X23_ENCOUNTER_SETS,
+  ...DEADPOOL_ENCOUNTER_SETS,
+];
+
+/** Every wave 7 scenario: NeXt Evolution's five (the hero packs define none of their own). */
+export const WAVE7_SCENARIOS: readonly Scenario[] = [
+  ...NEXT_EVOL_SCENARIOS,
+  ...PSYLOCKE_SCENARIOS,
+  ...ANGEL_SCENARIOS,
+  ...X23_SCENARIOS,
+  ...DEADPOOL_SCENARIOS,
+];
+
+/** Every wave 7 starter deck: Cable and Domino (`next_evol`), plus the four hero packs' own. */
+export const WAVE7_STARTER_DECKS: readonly StarterDeck[] = [
+  ...NEXT_EVOL_STARTER_DECKS,
+  ...PSYLOCKE_STARTER_DECKS,
+  ...ANGEL_STARTER_DECKS,
+  ...X23_STARTER_DECKS,
+  ...DEADPOOL_STARTER_DECKS,
+];
+
 /**
  * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle
  * 3 packs, then the five cycle 4 packs shipped so far (`sm`, `nova`, `ironheart`, `spiderham`, `spdr` — `silk`, also
@@ -543,6 +616,7 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE4_CARDS.slice(CORE_CARDS.length),
   ...WAVE5_CARDS.slice(CORE_CARDS.length),
   ...WAVE6_CARDS.slice(CORE_CARDS.length),
+  ...WAVE7_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**
@@ -569,6 +643,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   SM_CAMPAIGN,
   MUT_GEN_CAMPAIGN,
   MOJO_CAMPAIGN,
+  NEXT_EVOL_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -590,10 +665,6 @@ export * from "./falcon/index.js";
 export * from "./silk/index.js";
 export * from "./iceman/index.js";
 export * from "./wonder_man/index.js";
-export * from "./x23/index.js";
-export * from "./deadpool/index.js";
-export * from "./angel/index.js";
-export * from "./psylocke/index.js";
 export * from "./jubilee/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
@@ -612,19 +683,11 @@ import { ICEMAN_CARDS } from "./iceman/cards.js";
 import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
 import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
 import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
-import { X23_CARDS } from "./x23/cards.js";
-import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
-import { DEADPOOL_CARDS } from "./deadpool/cards.js";
-import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
-import { ANGEL_CARDS } from "./angel/cards.js";
-import { ANGEL_ENCOUNTER_SETS } from "./angel/encounterSets.js";
-import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
-import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
 import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 13 packs across cycles 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
+ * Every card in the data-only pool: nine packs across cycles 8, 9 and 10, in pack-code alphabetical
  * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
  * `WAVE3_CARDS`/`WAVE4_CARDS`/`WAVE5_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/
  * `WAVE4_CARDS`/`WAVE5_CARDS`/`CORE_CARDS` — a client that wants "every known card, playable or not" concatenates
@@ -634,12 +697,11 @@ import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
  * and `spdr` (cycle 4) moved into `WAVE5_*` once wave 5 scripted them (docs/phase7-wave5.md) — `silk`, also
  * cycle 4, stays here until its own kit is scripted (this pool's own header comment); `mut_gen`, `cyclops`,
  * `phoenix`, `wolv`, `storm`, `mojo`, `gambit` and `rogue` (cycle 6) moved into `WAVE6_*` once wave 6 scripted
- * them (docs/phase7-wave6.md).
+ * them (docs/phase7-wave6.md); `psylocke`, `angel`, `x23` and `deadpool` (cycle 7) moved into `WAVE7_*` with
+ * `next_evol` (docs/phase7-wave7.md).
  */
 export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
-  ...ANGEL_CARDS,
-  ...PSYLOCKE_CARDS,
   ...JUBILEE_CARDS,
   ...NCRAWLER_CARDS,
   ...MAGNETO_CARDS,
@@ -648,15 +710,11 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...SILK_CARDS,
   ...ICEMAN_CARDS,
   ...WONDER_MAN_CARDS,
-  ...X23_CARDS,
-  ...DEADPOOL_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
 export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...BP_ENCOUNTER_SETS,
-  ...ANGEL_ENCOUNTER_SETS,
-  ...PSYLOCKE_ENCOUNTER_SETS,
   ...JUBILEE_ENCOUNTER_SETS,
   ...NCRAWLER_ENCOUNTER_SETS,
   ...MAGNETO_ENCOUNTER_SETS,
@@ -665,6 +723,4 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...SILK_ENCOUNTER_SETS,
   ...ICEMAN_ENCOUNTER_SETS,
   ...WONDER_MAN_ENCOUNTER_SETS,
-  ...X23_ENCOUNTER_SETS,
-  ...DEADPOOL_ENCOUNTER_SETS,
 ];

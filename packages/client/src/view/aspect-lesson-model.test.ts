@@ -36,8 +36,11 @@ describe("aspectLessonContent", () => {
     expect(content!.preconId).toBeNull();
   });
 
-  it("'Pool has no guide yet (§3.7) — returns null rather than an empty page", () => {
-    expect(aspectLessonContent("pool")).toBeNull();
+  it("'Pool resolves to Deadpool's precon, with signature cards from the Deadpool pack", () => {
+    const content = aspectLessonContent("pool")!;
+    expect(content.heroName).toBe("Deadpool");
+    expect(content.preconId).toBe("deadpool-pool");
+    expect(content.signatureCards.map((card) => card.name)).toEqual(["Dogpool", "Barely a Scratch", "Healing Factor"]);
   });
 
   it("is stable across calls (same pool, same guide data)", () => {

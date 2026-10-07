@@ -3,7 +3,7 @@
 import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { cardOf } from "../query.js";
+import { cardOf, villainOf, villainStageOf } from "../query.js";
 import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor, withSelfHost } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import {
@@ -16,6 +16,8 @@ import {
   type Vars,
 } from "../stack.js";
 import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
+import { placeExhausted } from "../effects.js";
+import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
 
 export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K }>;
@@ -33,7 +35,39 @@ export const eventFrame = (
   event: TriggerEvent,
   reportTo: ReportTarget | null = null,
   vars: Vars = {},
-): StackFrame => ({
+): StackFrame => {
+  if (event.kind === "cardEntersPlay") placeEnteringExhausted(ctx, event.instanceId);
+  return frameOf(ctx, event, reportTo, vars);
+};
+
+/**
+ * "Your allies, upgrades, and supports enter play exhausted." (`RuleSpec entersPlayExhausted`, docs/phase7-wave7.md
+ * §3.36.) Every card entering play, by whatever route, puts a `cardEntersPlay` event on the stack through `eventFrame`
+ * once the card is in its zone and under its controller, so the rule is read here and nowhere else: a new way into play
+ * cannot miss it. It is read as the frame is built, not as it resolves, so of several cards one effect puts into play,
+ * none is ready while an earlier one's "enters play" windows are open.
+ *
+ * The rules in force are the ones in play at that moment (RRG 1.8 "Ability", p. 4: a constant ability "remains active
+ * while the card is in play"): once the rule's card has left play the next card enters ready, and a card it placed
+ * exhausted stays so until something readies it.
+ */
+function placeEnteringExhausted(ctx: Ctx, id: InstanceId): void {
+  if (!ctx.state.instances[id] || !entersPlayExhausted(ctx.state, ctx.deps, id)) return;
+  placeExhausted(ctx, id);
+}
+
+/**
+ * A new face "treated as entering play" though the card never left it (a flip, `flipToOtherFace`): the same
+ * announcement, with its enter-play keywords and windows, but no entering in the sense of RRG 1.8 "Enters Play" (p. 18:
+ * "transitions from an out-of-play area into play"), so an "enters play exhausted" rule does not read it.
+ */
+export function announceNewFaceEntersPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): FrameId {
+  const frame = frameOf(ctx, { kind: "cardEntersPlay", instanceId: id, playerId }, null, {});
+  pushFrames(ctx, [frame]);
+  return frame.frameId;
+}
+
+const frameOf = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null, vars: Vars): StackFrame => ({
   ...base(ctx),
   kind: "event",
   event: withDefeatSnapshot(ctx, event),
@@ -60,11 +94,19 @@ const interruptibleFlip = (ctx: Ctx, event: TriggerEvent): boolean =>
  * A defeat carries what was attached to the character when it was initiated (`characterDefeated.attachedInstanceIds`,
  * docs/phase7-wave4.md §3.22), so a response after the character has left play can still ask "the enemy with Death-Glow
  * attached". Taken once, when the event goes on the stack; an event that already has one keeps it.
+ *
+ * A villain's defeat carries the number of the stage that falls the same way (`characterDefeated.villainStageNumber`,
+ * docs/phase7-wave7.md §3.34): the sweep stamps its own before asking who hears it, and a defeat by effect gets it here.
  */
 function withDefeatSnapshot(ctx: Ctx, event: TriggerEvent): TriggerEvent {
-  if (event.kind !== "characterDefeated" || event.attachedInstanceIds) return event;
+  if (event.kind !== "characterDefeated") return event;
+  const staged =
+    event.villainStageNumber === undefined && villainOf(ctx.state, event.instanceId)
+      ? { ...event, villainStageNumber: villainStageOf(ctx.state, event.instanceId).stageNumber }
+      : event;
+  if (staged.attachedInstanceIds) return staged;
   const attached = ctx.state.instances[event.instanceId]?.attachments ?? [];
-  return attached.length === 0 ? event : { ...event, attachedInstanceIds: [...attached] };
+  return attached.length === 0 ? staged : { ...staged, attachedInstanceIds: [...attached] };
 }
 
 /** Puts an event on the stack: interrupt window, the change itself, response window. */
@@ -136,11 +178,8 @@ export function pushEvents(
  * before optional ones to any (RRG 1.8 "Simultaneous Timing Priority", p. 5). Each event keeps its own interrupt window
  * and apply step.
  */
-export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): void {
-  if (events.length <= 1) {
-    pushEvents(ctx, events);
-    return;
-  }
+export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): readonly FrameId[] {
+  if (events.length <= 1) return pushEvents(ctx, events);
   const frames = events.map((event) => eventFrame(ctx, event));
   const leader = frames[frames.length - 1]!.frameId;
   pushFrames(
@@ -149,6 +188,8 @@ export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEve
       frame.kind === "event" && frame.frameId !== leader ? { ...frame, responsesWith: leader } : frame,
     ),
   );
+  // In `events` order, as `pushEvents`: the last id is the frame that opens the shared window.
+  return frames.map((frame) => frame.frameId);
 }
 
 /** An event whose state change has already happened; only responses can fire. */
@@ -254,7 +295,18 @@ export function pushActionAbility(
   ]);
 }
 
-type GameAbilityKind = "whenRevealed" | "whenDefeated" | "whenCompleted" | "boost" | "setup" | "cannotAttach";
+/**
+ * `attachInstruction` is not a trigger kind: it asks for the abilities flagged `AbilityDefinition.attachInstruction`,
+ * which every other kind (their carrier `whenRevealed` included) leaves out (docs/phase7-wave7.md §3.35).
+ */
+type GameAbilityKind =
+  | "whenRevealed"
+  | "whenDefeated"
+  | "whenCompleted"
+  | "boost"
+  | "setup"
+  | "cannotAttach"
+  | "attachInstruction";
 
 /**
  * Game-triggered ability frames (When Revealed, When Defeated, Boost, Setup) in
@@ -293,7 +345,8 @@ export function gameAbilityFrames(
   for (const ref of refs) {
     const definition = ctx.deps.abilities[ref.id];
     if (!definition) continue;
-    if (!kinds.includes(definition.trigger.kind as GameAbilityKind)) continue;
+    const kind = definition.attachInstruction ? "attachInstruction" : definition.trigger.kind;
+    if (!kinds.includes(kind as GameAbilityKind)) continue;
     frames.push(
       abilityFrame(
         ctx,

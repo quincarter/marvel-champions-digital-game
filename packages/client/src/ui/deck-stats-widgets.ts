@@ -256,6 +256,11 @@ export function drawStatTiles(
   return rows === 0 ? y : y + rows * (cellHeight + gap) - gap;
 }
 
+/** The remove control's rect on a line that has one: wide enough to tap, and the line grows to hold it. */
+const REMOVE_WIDTH = 44;
+const REMOVE_HEIGHT = 26;
+const REMOVE_PITCH = 29;
+
 /**
  * The grouped deck list (Hero / aspect / Basic) with a "+ N more" overflow
  * once `entryCap` entry lines have been drawn — the builder's D04 stats
@@ -285,6 +290,11 @@ export function drawGroupedCardList(
    * needed): there is no other action a "your deck" line offers to compete with it, unlike a card in the pool grid.
    */
   onInspectOf?: (entry: DeckListEntry) => (() => void) | null,
+  /**
+   * The builder's own remove control: called once per entry line with the rect reserved for it at the line's right
+   * end (the caller draws and tracks its own button there). Omitted by every other caller, so their lines are unchanged.
+   */
+  drawRemove?: (entry: DeckListEntry, rect: Rect) => void,
 ): number {
   const bodyColor = onDark ? surface.paper.hex : surface.ink.hex;
   let y = top;
@@ -304,13 +314,22 @@ export function drawGroupedCardList(
     y += 14;
     for (const entry of visible) {
       const rowTop = y;
+      const removeWidth = drawRemove ? REMOVE_WIDTH : 0;
       const line = scene.add.text(left, y, entry.name, textStyle(typeRole.body, bodyColor));
-      fitText(line, column - 40);
-      label(scene, left + column - 4, y, String(entry.quantity), typeRole.label, bodyColor, ink.secondary).setOrigin(
-        1,
-        0,
-      );
-      y += 16;
+      fitText(line, column - 40 - removeWidth);
+      label(
+        scene,
+        left + column - 10 - removeWidth,
+        y,
+        String(entry.quantity),
+        typeRole.label,
+        bodyColor,
+        ink.secondary,
+      ).setOrigin(1, 0);
+      if (drawRemove) {
+        drawRemove(entry, { x: left + column - REMOVE_WIDTH, y: y - 5, width: REMOVE_WIDTH, height: REMOVE_HEIGHT });
+        y += REMOVE_PITCH;
+      } else y += 16;
       const note = noteOf?.(entry) ?? null;
       if (note !== null) {
         const noteLine = scene.add.text(left, y, note, textStyle(typeRole.label, bodyColor, ink.meta));

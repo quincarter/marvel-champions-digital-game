@@ -42,8 +42,9 @@ export const THOR_NEMESIS = defineAbilities({
   // is a treachery, heal all damage from Loki instead.
   "06028.loki-forced-interrupt": forcedInterrupt(
     when.defeated("self"),
+    { would: true },
     moveCards(encounterCards(["deck"], undefined, 1), "discard", "flipped"),
-    ifThen(refMatches(chosen("flipped"), query("treachery")), instead(heal(damageOn(self), self))),
+    ifThen(refMatches(chosen("flipped"), query("treachery"), { anywhere: true }), instead(heal(damageOn(self), self))),
   ),
 
   // Frost Giant — [star] Boost: If the villain is attacking and this attack deals damage to a character, stun that

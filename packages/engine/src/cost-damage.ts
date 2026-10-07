@@ -13,13 +13,13 @@
  * Arrow Icon", p. 14).
  */
 
-import type { EngineDeps } from "./abilities.js";
+import type { AbilityCost, DamageSelfChoice, EngineDeps } from "./abilities.js";
 import { type Ctx, emit, setFrame } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { characterProfile, getInstance, getPlayer } from "./query.js";
 import { addFrameVars, type Frame } from "./resolve/frames.js";
 import { cannotTakeDamage, damagePreventerOf, damageTakenAfterConstants } from "./rules.js";
-import { isAlly } from "./select.js";
+import { type EffectContext, isAlly, resolveValue } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -139,10 +139,81 @@ export function selfCostDamageEffects(
   ];
 }
 
+/** The plan vars holding the range a chosen "take any amount of damage →" cost is picked from (`damageSelfChoiceRange`). */
+export const DAMAGE_SELF_MIN_VAR = "cost.damageSelf.min";
+export const DAMAGE_SELF_MAX_VAR = "cost.damageSelf.max";
+/** The var a "take N damage →" cost's amount is read from by the text after the arrow. */
+export const DAMAGE_SELF_VAR = "cost.damageSelf";
+
+export const isDamageSelfChoice = (damageSelf: AbilityCost["damageSelf"]): damageSelf is DamageSelfChoice =>
+  typeof damageSelf === "object" && "choose" in damageSelf;
+
+/**
+ * The amounts a "take any amount of damage up to … →" cost (`AbilityCost.damageSelf` with `choose`; docs/phase7-
+ * wave7.md §3.79) offers `identityId`'s player, or null when it cannot be paid at all.
+ *
+ * The card's own range is `min` (never below 0) to `max`, read as the cost is determined. Of those, only an amount the
+ * identity could take in full pays the cost (RRG 1.8 "Cost", p. 14; FAQ "Focused Rage (#27)", p. 57: a cost a tough
+ * status card would prevent "cannot be paid"), so the range ends below the first amount `canTakeCostDamage` refuses.
+ * 0 damage is nothing to take and nothing to prevent, so it is always payable where the card allows it (owner
+ * decision, docs/phase7-wave7.md §4.1 Q46 = B). Null when the card's range is empty or its `min` cannot be taken.
+ */
+export function damageSelfChoiceRange(
+  state: GameState,
+  deps: EngineDeps,
+  identityId: InstanceId,
+  sourceId: InstanceId | null,
+  cost: DamageSelfChoice,
+  context: EffectContext,
+): { readonly min: number; readonly max: number } | null {
+  const min = Math.max(0, resolveValue(state, cost.choose.min, context, deps));
+  const most = resolveValue(state, cost.choose.max, context, deps);
+  const payable = (amount: number): boolean =>
+    amount === 0 || canTakeCostDamage(state, deps, identityId, sourceId, amount);
+  if (most < min || !payable(min)) return null;
+  let max = min;
+  while (max < most && payable(max + 1)) max += 1;
+  return { min, max };
+}
+
+/**
+ * The effects `payCost` pushes for a chosen "take any amount of damage →" cost: the payer's `chooseNumber` choice from
+ * the planned range (a range of one number is not asked), that much damage to their identity as `selfCostDamageEffects`
+ * deals it (none at all for 0: no damage event, so nothing to prevent and no tough status card discarded), then
+ * `settleCostDamage`, which records the pick on the frame being paid for as `cost.damageSelf`.
+ */
+export function chosenSelfCostDamageEffects(
+  min: number,
+  max: number,
+  paidFor: Frame<"ability"> | Frame<"playCard"> | null,
+): EffectSpec[] {
+  const bind = "costDamage";
+  const chosen = "costDamageChoice";
+  return [
+    {
+      kind: "chooseNumber",
+      player: { kind: "controller" },
+      min: { kind: "const", value: min },
+      max: { kind: "const", value: max },
+      bind: chosen,
+    },
+    {
+      kind: "dealDamage",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      amount: { kind: "var", name: `${chosen}.amount` },
+      perTarget: true,
+      taken: true,
+      bind,
+    },
+    { kind: "settleCostDamage", amount: 0, chosen, bind, paidFor: paidFor?.frameId ?? null },
+  ];
+}
+
 /**
  * The `settleCostDamage` step: every point taken, the cost is paid; short of it, the frame it paid for is marked
  * (`COST_NOT_PAID_VAR`) so the ability's effects do not resolve. An event card's `playCard` frame hands its vars to
- * the ability frames it pushes, so the mark reaches them too.
+ * the ability frames it pushes, so the mark reaches them too. With `chosen`, the amount owed is the payer's pick, which
+ * is also recorded on that frame as `cost.damageSelf` (paid or not: an unpaid cost's effects do not read it).
  */
 export function executeSettleCostDamage(
   ctx: Ctx,
@@ -151,12 +222,14 @@ export function executeSettleCostDamage(
 ): void {
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   const taken = frame.vars[`${effect.bind}.amount`] ?? 0;
-  const paid = taken >= effect.amount;
+  const amount = effect.chosen === undefined ? effect.amount : (frame.vars[`${effect.chosen}.amount`] ?? 0);
+  if (effect.chosen !== undefined) addFrameVars(ctx, effect.paidFor, { [DAMAGE_SELF_VAR]: amount });
+  const paid = taken >= amount;
   emit(ctx, {
     type: "costDamageSettled",
     instanceId: frame.selfInstanceId,
     playerId: frame.controllerId,
-    amount: effect.amount,
+    amount,
     taken,
     paid,
   });

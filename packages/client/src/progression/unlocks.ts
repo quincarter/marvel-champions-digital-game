@@ -47,6 +47,7 @@ import type { Scenario } from "@mc/content";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
+import { isLessonSave } from "../engine/game-storage.js";
 
 /** What a win is worth, and what opening something by hand costs. */
 export const POINTS = {
@@ -175,6 +176,21 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
       { scenarioId: "magneto", identityCardId: "37001a" }, // Rogue
     ],
   },
+  {
+    // The NeXt Evolution campaign is not registered yet, so its win cannot be earned until it ships; the gate is Mutant
+    // Genesis'. Stryfe, the finale, pays no hero: the four hero packs take the four villains before him in release order.
+    cycleId: "cycle7",
+    name: "NeXt Evolution",
+    gate: { kind: "campaignWin", campaignId: "mut_gen", hint: "Complete the Mutant Genesis campaign" },
+    campaignId: "next_evol",
+    starterHeroIds: ["40001a", "40037a"], // Cable, Domino: MC40's own cast
+    heroRewards: [
+      { scenarioId: "morlock-siege", identityCardId: "41001a" }, // Psylocke
+      { scenarioId: "on-the-run", identityCardId: "42001a" }, // Angel
+      { scenarioId: "juggernaut", identityCardId: "43001a" }, // X-23
+      { scenarioId: "mister-sinister", identityCardId: "44001a" }, // Deadpool
+    ],
+  },
 ];
 
 /** What the player has done, read from storage by `progressOf`. */
@@ -253,6 +269,7 @@ const unique = (ids: readonly string[]): string[] => [...new Set(ids)].sort();
 export function progressOf(
   saves: readonly {
     readonly status: string;
+    readonly guided?: { readonly kind: string };
     readonly config: { readonly scenarioId: string; readonly difficulty?: string };
   }[],
   campaigns: readonly {
@@ -261,7 +278,7 @@ export function progressOf(
     readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean } };
   }[],
 ): UnlockProgress {
-  const wonSaves = saves.filter((s) => s.status === "won");
+  const wonSaves = saves.filter((s) => s.status === "won" && !isLessonSave(s));
   const wonCampaigns = campaigns.filter((c) => c.status === "won");
   return {
     wonScenarioIds: unique(wonSaves.map((s) => s.config.scenarioId)),

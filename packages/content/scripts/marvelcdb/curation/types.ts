@@ -13,6 +13,7 @@ import type {
   SpecialCost,
   Trait,
 } from "../../../src/schema/index.ts";
+import type { RawTypeCode } from "../raw-types.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -29,10 +30,24 @@ export interface Correction {
   readonly evidence: string;
   readonly textReplace?: { readonly find: string; readonly replace: string };
   readonly name?: string;
+  /**
+   * The card's printed type where MarvelCDB's `type_code` is wrong (wave 7, `next_evol` 40154 High Ground: typed
+   * `attachment`, printed TREACHERY on the scan). Applied to the raw record before anything else reads it
+   * (`applyTypeCorrections`), so every type-keyed step sees the printed type. Never errata.
+   */
+  readonly cardType?: RawTypeCode;
   readonly traits?: readonly string[];
   readonly boost?: number;
-  /** Attachment stat-box ATK modifier (MarvelCDB `attack` on an attachment). */
+  /**
+   * Attachment stat-box ATK modifier (MarvelCDB `attack` on an attachment). A value of -1 here means a printed
+   * "-1 ATK"; without the correction the normalizer reads MarvelCDB's -1 as a printed X.
+   */
   readonly attack?: number;
+  /**
+   * Attachment stat-box THW modifier, for an attachment on a character that thwarts. MarvelCDB files the badge under
+   * `scheme`; with this set, the normalizer emits `statModifiers.thw` and no `sch`.
+   */
+  readonly thwart?: number;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
@@ -99,6 +114,13 @@ export interface Correction {
    * `<card>-when-revealed` ability ref beside the `-constant` ref for the rest. Never applied to text.
    */
   readonly unheadedWhenRevealed?: string;
+  /**
+   * The first sentence of a standing rule printed at the tail of a triggered ability's body, so one printed paragraph
+   * is two abilities (wave 7, `next_evol` 40199 Malice: "When Defeated: Attach Malice to ... Treat attached ally as a
+   * POSSESSED minion ..." — the "Treat" sentence on is a constant that applies while she is attached). Emitted as an
+   * additional `<card>-constant` ref beside the triggered ability's ref, which keeps its id. Never applied to text.
+   */
+  readonly extraConstantFrom?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -231,6 +253,14 @@ export interface EncounterSetCuration {
   /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */
   readonly extraModular?: true;
   /**
+   * `EncounterSet.autoIncluded` (docs/phase7-wave7.md §3.74, §4 Q44), with `shuffledIn` by MarvelCDB code: the
+   * Dreadpool set, in the game when a player chose the 'Pool aspect.
+   */
+  readonly autoIncluded?: {
+    readonly when: { readonly kind: "aspectChosen"; readonly aspect: CoreAspect };
+    readonly shuffledIn: readonly string[];
+  };
+  /**
    * `EncounterSet.campaignSpecific` for a set whose cards do not carry MarvelCDB's `campaign` faction: owner decision
    * 2026-10-04 (GMW Campaign Challenge, RRG 1.8 p. 61).
    */
@@ -305,8 +335,8 @@ export interface ScenarioCuration {
    * `Scenario.setAsideCardIds` (wave 6, docs/phase7-wave6.md §1.8 — Master Mold's Magneto ally 32172b). Absent = none.
    */
   readonly setAsideCardCodes?: readonly string[];
-  /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
-  readonly startingVillain?: "random";
+  /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki; wave 7 §1.21 — On the Run). */
+  readonly startingVillain?: "random" | "bySetup";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
   readonly victoryCondition?: {
     readonly standard: number;

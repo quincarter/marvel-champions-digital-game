@@ -49,9 +49,11 @@ export interface DiscardCostShape {
  * event card's printed action (Shield Toss, `03006`) resolves when the card
  * is *played* — `ActionRef` is then `playCard`, and the ability that carries
  * the cost is whichever of the card's printed abilities is action-triggered
- * (the engine's own `eventActionAbility`, `packages/engine/src/actions.ts`,
+ * (the engine's own `eventActions`, `packages/engine/src/actions.ts`,
  * is internal, so this mirrors it with the same public `activeAbilityRefs`
- * every other card-in-hand/in-play lookup already uses).
+ * every other card-in-hand/in-play lookup already uses). It reads the first
+ * Action ability; an event that prints several names the ones usable now in
+ * `LegalAction.abilities`.
  */
 /**
  * The cost *as determined* (`costAsDetermined`, `packages/engine/src/actions.ts` §3.49): a `conditional` cost

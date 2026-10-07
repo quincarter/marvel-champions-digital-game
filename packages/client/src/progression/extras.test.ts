@@ -8,6 +8,7 @@ import {
   Extras,
   NO_EXTRAS_PROGRESS,
   TRACK_TITLES,
+  extrasArtEntriesOf,
   extrasNewsBetween,
   extrasProgressOf,
   musicEntriesOf,
@@ -159,6 +160,15 @@ describe("what opens what", () => {
 });
 
 describe("the catalog", () => {
+  it("shows the loose pictures of art/extras/ as always-open artwork", () => {
+    const entry = EXTRAS_ENTRIES.art.find((e) => e.id === "art:extras-art:psylocke-and-angel.png")!;
+    expect(entry.title).toBe("Psylocke and Angel");
+    expect(entry.unlock).toEqual({ kind: "always" });
+    expect(open({}).isOpen(entry.unlock)).toBe(true);
+    expect(entry.content.kind === "gallery" && entry.content.slides).toHaveLength(1);
+    expect(extrasArtEntriesOf([])).toEqual([]);
+  });
+
   it("has a file for every hero and every scenario in the pool", () => {
     expect(EXTRAS_ENTRIES.heroes.map((e) => e.id)).toEqual(UNLOCK_HEROES.map((h) => `hero:${h.identityCardId}`));
     expect(EXTRAS_ENTRIES.villains.map((e) => e.id)).toEqual(POOL_SCENARIOS.map((s) => `villain:${s.id as string}`));

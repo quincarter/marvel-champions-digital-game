@@ -66,6 +66,17 @@ describe("modular candidates, pinned for three scenarios (everything unlocked)",
           "exodus",
           "reavers",
         ],
+        "NeXt Evolution": [
+          "black_tom_cassidy",
+          "extreme_measures",
+          "flight",
+          "military_grade",
+          "mutant_insurrection",
+          "mutant_slayers",
+          "nasty_boys",
+          "super_strength",
+          "telepathy",
+        ],
         "Promo": [
           "kree_fanatic",
         ],
@@ -159,6 +170,17 @@ describe("modular candidates, pinned for three scenarios (everything unlocked)",
           "western",
           "exodus",
           "reavers",
+        ],
+        "NeXt Evolution": [
+          "black_tom_cassidy",
+          "extreme_measures",
+          "flight",
+          "military_grade",
+          "mutant_insurrection",
+          "mutant_slayers",
+          "nasty_boys",
+          "super_strength",
+          "telepathy",
         ],
         "Promo": [
           "kree_fanatic",
@@ -302,7 +324,7 @@ describe("what counts as modular", () => {
     for (const g of groups) if (seen[seen.length - 1] !== g) seen.push(g);
     expect(new Set(seen).size, "each group is one run").toBe(seen.length);
     expect(seen.slice(0, 3)).toEqual([RECOMMENDED_GROUP_ID, "core", "wave1"]);
-    expect(seen[seen.length - 1]).toBe("cycle6");
+    expect(seen[seen.length - 1]).toBe("cycle7");
   });
 });
 

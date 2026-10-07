@@ -27,6 +27,7 @@
 
 import { cardsOfComposedSets } from "@mc/cards";
 import { cardId } from "@mc/content";
+import { previousGameFacts } from "./previous-game-facts.js";
 import { POOL_CARDS, POOL_DEPS, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
@@ -140,20 +141,28 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.setupOptions ? { setupOptions: config.setupOptions } : {}),
     ...(config.stack ? { stack: config.stack } : {}),
   });
+  const seated = config.outsideFacts
+    ? {
+        ...setup,
+        players: setup.players.map((player, seat) =>
+          config.outsideFacts![seat] ? { ...player, outsideFacts: config.outsideFacts![seat] } : player,
+        ),
+      }
+    : setup;
   const removed = (config.campaignRemovedCards ?? []).map((id) => cardId(id));
   const withEncounterSets = config.campaignEncounterSets
     ? {
-        ...setup,
+        ...seated,
         encounterDeck: [
-          ...setup.encounterDeck,
+          ...seated.encounterDeck,
           ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.deck, removed),
         ],
         setAside: [
-          ...(setup.setAside ?? []),
+          ...(seated.setAside ?? []),
           ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.setAside, removed),
         ],
       }
-    : setup;
+    : seated;
   const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
   return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
 };
@@ -226,8 +235,26 @@ export class EngineSessionCore {
     this.#newId = options.newId ?? (() => crypto.randomUUID());
   }
 
+  /**
+   * Stamps the profile's last finished result onto a plain game's config (Git Gud's `wonPreviousGame`, Q48), so it is
+   * part of the stored config and the replay baseline. A config that already carries facts keeps them; a guided run
+   * (tutorial, Try-it) takes none, so it stays deterministic; no storage or no finished game leaves the config as is.
+   */
+  async #withHistoryFacts(config: SessionConfig): Promise<SessionConfig> {
+    if (!this.#storage || config.outsideFacts || config.guided) return config;
+    let saves: readonly SaveMeta[];
+    try {
+      saves = await this.#storage.list();
+    } catch {
+      return config;
+    }
+    const facts = previousGameFacts(saves, config.players.length);
+    return facts ? { ...config, outsideFacts: facts } : config;
+  }
+
   /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
-  async start(config: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
+  async start(given: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
+    const config = await this.#withHistoryFacts(given);
     const setup = createGame(scenarioFor(config), POOL_DEPS);
     if (!setup.ok) throw new SetupError({ ...setup.error, message: `setup failed: ${setup.error.message}` });
 

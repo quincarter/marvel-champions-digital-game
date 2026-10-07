@@ -9,8 +9,10 @@
  *   **Staged by surgery** (the scenarios' own e2e files, `../wave6/mojo/*-e2e.test.ts`, stage the same way, because the
  *   greedy driver cannot win these games unaided): MaGog starts with 4 ratings counters on The Challengers, Spiral on
  *   her CORNERED side at stage II with 14 damage, Mojo at stage II with 17 damage. Everything after that is played, and
- *   every outcome here is the driver's own (no outcome is overridden). The campaign seed (10) is the first of the seeds
- *   1-80 whose three staged games the driver wins; seeds 17 and 47 win scenario 1 and lose scenario 2.
+ *   every outcome here is the driver's own (no outcome is overridden). The campaign seed (33) is the first of the seeds
+ *   1-80 whose three staged games the driver wins (56 is the other); seeds 17, 41, 42 and 47 win scenario 1 and lose
+ *   scenario 2. It was 10 until 0 damage stopped opening a damage window (owner ruling 2026-10-06): in that game's
+ *   first villain phase Spider-Man's defense covered MaGog's attack and the driver spent Backflip on the 0 damage.
  * - **A real lost-and-retried scenario**: scenario 2 really lost, folded as a loss with the log intact and the checked-off
  *   sets unchanged, and the retry starts a new real game.
  * - **An expert run**: a real expert scenario 1 game; its outcome is overridden to a win (`mut_gen.qa.test.ts`'s
@@ -108,7 +110,7 @@ const resultOf = (played: Played, state: GameState = played.final): CampaignGame
 const recordLast = (choice: CampaignPendingChoice): readonly string[] =>
   choice.slot === "recordedCard" && choice.options.length > 0 ? [choice.options[choice.options.length - 1]!] : [];
 
-const SEED = 10;
+const SEED = 33;
 
 describe("a full MojoMania campaign: a real game at every node, the log checked after each (insert pp. 4-17)", () => {
   it("plays MaGog, Spiral and Mojo, each composed from the log, played, replayed and folded back", () => {

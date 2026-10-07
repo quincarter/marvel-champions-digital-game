@@ -89,9 +89,18 @@ describe("summary", () => {
   });
 
   test("an empty file says so", () => {
-    const empty = { exportedAt: 0, appVersion: "x", games: 0, decks: 0, campaigns: 0, unlocks: false };
+    const empty = { exportedAt: 0, appVersion: "x", games: 0, decks: 0, campaigns: 0, unlocks: false, settings: false };
     expect(describeSaveFileSummary(empty)).toBe("nothing saved");
     expect(describeSaveFileSummary({ ...empty, campaigns: 1 })).toBe("1 campaign");
+  });
+
+  test("names settings where the file holds them", () => {
+    const result = parse(fileWith({ localStorage: { "mc-settings": '{"version":1,"sound":false}' } }));
+    if (!result.ok) throw new Error(result.error);
+    const summary = saveFileSummaryOf(result.file);
+    expect(summary.settings).toBe(true);
+    expect(describeSaveFileSummary({ ...summary, exportedAt: 0 })).toBe("2 saved games, 1 deck, settings");
+    expect(describeSaveFileSummary({ ...summary, exportedAt: 0, games: 0, decks: 0 })).toBe("settings");
   });
 
   test("names the file by date", () => {

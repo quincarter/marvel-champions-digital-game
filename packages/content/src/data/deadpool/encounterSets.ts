@@ -13,5 +13,13 @@ export const DEADPOOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
     packCodes: [setCode("deadpool")],
     nemesisOfIdentityId: cardId("44001a"),
   },
-  { id: encounterSetId("dreadpool"), name: "Dreadpool", packCodes: [setCode("deadpool")] },
+  {
+    id: encounterSetId("dreadpool"),
+    name: "Dreadpool",
+    packCodes: [setCode("deadpool")],
+    autoIncluded: {
+      when: { kind: "aspectChosen", aspect: "pool" },
+      shuffledIn: [cardId("44037")],
+    },
+  },
 ];

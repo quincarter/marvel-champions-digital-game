@@ -398,3 +398,28 @@ describe("campaign briefing model, Mutant Genesis wording", () => {
     expect(both.some((row) => row.title.includes("Rescue Captives"))).toBe(false);
   });
 });
+
+describe("campaign briefing model, authored notes on a retry", () => {
+  const notes = [
+    {
+      status: "done",
+      title: "Your side scheme comes into play",
+      detail: "The group picks one.",
+      repeatDetail: "Same one.",
+    },
+    { status: "later", title: "Plain", detail: "No repeat copy." },
+  ] as const;
+  const attemptWith = (repeated: boolean) =>
+    ({
+      steps: [{ choices: [{ slot: "scheme", seatNumber: 1, picked: ["Establish Safehouse"], repeated }] }],
+    }) as unknown as CampaignAttempt;
+  const record = { seats: [] } as unknown as CampaignRecord;
+
+  test("a repeated pick reads the row's repeat copy; an asked pick and a row without one keep their detail", () => {
+    const retry = handledRowsOf(attemptWith(true), record, ((id: string) => id) as never, undefined, [], notes);
+    expect(retry.map((row) => row.detail)).toEqual(["Same one.", "No repeat copy."]);
+    expect(retry[0]).not.toHaveProperty("repeatDetail");
+    const first = handledRowsOf(attemptWith(false), record, ((id: string) => id) as never, undefined, [], notes);
+    expect(first.map((row) => row.detail)).toEqual(["The group picks one.", "No repeat copy."]);
+  });
+});

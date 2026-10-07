@@ -1,5 +1,5 @@
 /**
- * The four aspect "Try it" games (guided mode G10d, `docs/guided-mode.md` §3.7, §4 G10d): one `SessionConfig` per
+ * The five aspect "Try it" games (guided mode G10d, `docs/guided-mode.md` §3.7, §4 G10d): one `SessionConfig` per
  * aspect, each Core Rhino (standard, solo, `bomb_scare`) with that aspect's Core precon (`guide/aspects.ts`'s own
  * `AspectGuide.preconId`) and a stacked opening hand that guarantees the aspect's own "play it" signature card is
  * in hand and affordable from turn one — the same "predictable openings" shape `guide/tutorial-config.ts` (G5a)
@@ -38,8 +38,8 @@ import type { SessionConfig } from "../engine/host.js";
 /** The lone seat in every aspect "Try it" game — same shape as `TUTORIAL_PLAYER_ID`. */
 export const ASPECT_TRYIT_PLAYER_ID: PlayerId = playerId("p1");
 
-/** The four aspects with a "Try it" game (§3.7) — Basic has a tip card only, and 'Pool has no `AspectGuide` yet. */
-export type AspectTryItId = "justice" | "aggression" | "leadership" | "protection";
+/** The five aspects with a "Try it" game (§3.7) — Basic has a tip card only. */
+export type AspectTryItId = "justice" | "aggression" | "leadership" | "protection" | "pool";
 
 export interface AspectTryItConfig {
   readonly config: SessionConfig;
@@ -140,6 +140,38 @@ const PROTECTION: AspectTryItConfig = {
   signatureCardId: cardId("01081"),
 };
 
+/**
+ * 'Pool (Deadpool, `deadpool-pool`): still Core Rhino, but the playable scenario builder adds the Dreadpool set
+ * because a 'Pool deck is seated (engine `autoIncludedSetsInGame`, RRG 1.8 FAQ p. 64), so the game itself shows the
+ * aspect's cost. The lesson flips Deadpool, plays Dogpool (cost 3, his acceleration icon adds threat in Rhino's
+ * phase) and, in round 2, "I Got This" (cost 1), which reads that icon: remove 2 threat from a scheme. Nothing in
+ * this opening is out-of-game (no Break Time) and "I Got This" needs no target while there is one scheme.
+ * - Dogpool paid by Maximum Effort, Exhausting Personality and "Yoo-Hoo!" (one icon each, discarded as payment only).
+ * - "I Got This" paid by Metaknowledge, kept in hand through round 1.
+ */
+const POOL: AspectTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "deadpool-pool" }],
+    seed: 4301,
+    stack: {
+      players: {
+        0: [
+          cardId("44013"), // Dogpool — this lesson's own "play it" signature card
+          cardId("44004"), // Maximum Effort (physical 1)
+          cardId("44003"), // Exhausting Personality (mental 1)
+          cardId("44006"), // "Yoo-Hoo!" (energy 1)
+          cardId("44021"), // "I Got This": played in round 2
+          cardId("44005"), // Metaknowledge (mental 1): pays for "I Got This"
+        ],
+      },
+    },
+  },
+  signatureCardId: cardId("44013"),
+};
+
 /** One entry per aspect with a "Try it" game — `guide/aspect-lessons.ts` and `guide/start-aspect-tryit.ts` both key
  * off this. */
 export const ASPECT_TRYIT_CONFIGS: Readonly<Record<AspectTryItId, AspectTryItConfig>> = {
@@ -147,4 +179,5 @@ export const ASPECT_TRYIT_CONFIGS: Readonly<Record<AspectTryItId, AspectTryItCon
   aggression: AGGRESSION,
   leadership: LEADERSHIP,
   protection: PROTECTION,
+  pool: POOL,
 };

@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const DEADPOOL_CYCLE: Cycle = { id: cycleId("cycle7"), name: "Cycle 7", order: 7 };
+export const DEADPOOL_CYCLE: Cycle = { id: cycleId("cycle7"), name: "NeXt Evolution", order: 7 };
 
 /** Release date source: Hall of Heroes Wade Wilson/Deadpool page (https://hallofheroeslcg.com/deadpool/): "Release date: November 17, 2023" */
 export const DEADPOOL_PACK: Pack = {

@@ -12,6 +12,7 @@ import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
+import { defendPreview } from "./defend-preview.js";
 import type { GameEvent } from "./events.js";
 import { replay, startSession } from "./engine.js";
 import type { InstanceId, PlayerId } from "./ids.js";
@@ -118,7 +119,9 @@ describe("§3.21 'When Crossfire attacks, he attacks the friendly character with
       playerId: P2,
     });
     expect(discarded(state, frail.id, P2)).toBe(true);
-    // Overkill: the ally was not defending, so its excess goes nowhere (RRG 1.8 "Overkill", p. 31); P1 is untouched.
+    // Overkill: the attacked ally's excess (2 damage, 1 hit point) goes to its controller's identity, P2's (RRG 1.8
+    // "Attacks Against Allies", p. 10: "whether that ally was the attacked ally or a defending ally"); P1 is untouched.
+    expect(mustInstance(state, identityOf(state, P2)).damage).toBe(1);
     expect(mustInstance(state, identityOf(state, P1)).damage).toBe(0);
     // One attack: Crossfire's "when he attacks" was heard once.
     const windows = events.filter(
@@ -129,6 +132,68 @@ describe("§3.21 'When Crossfire attacks, he attacks the friendly character with
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(state);
+  });
+
+  // RRG 1.8 "Attacks Against Allies" (p. 10) and "Overkill" (p. 31): the attacked ally need not be defending.
+  it("overkill on the attacked ally, nobody defending: 2 damage on 1 remaining hit point deals 1 to its controller", () => {
+    const base = start();
+    const crossfire = minionEngagedWith(base, CROSSFIRE.id, P1);
+    const sturdy = playerCardIntoPlay(crossfire.state, STURDY.id, P1);
+    const worn: GameState = {
+      ...sturdy.state,
+      instances: { ...sturdy.state.instances, [sturdy.id]: { ...mustInstance(sturdy.state, sturdy.id), damage: 2 } },
+    };
+    const provoke = giveCard(worn, P1, PROVOKE.id);
+    const previews: ReturnType<typeof defendPreview>[] = [];
+    const pick = (state: GameState): readonly string[] => {
+      if (state.pendingChoice?.prompt.kind === "declareDefender") previews.push(defendPreview(state, deps));
+      return defaultPick(state);
+    };
+    const { state, events, session } = run(
+      provoke.state,
+      [{ type: "playCard", playerId: P1, cardInstanceId: provoke.id, payment: [], attachToInstanceId: null }],
+      pick,
+    );
+    // The prompt's preview says the same before anyone is declared: undefended, the ally falls and 1 carries over.
+    expect(previews).toHaveLength(1);
+    const undefended = previews[0]!.find((option) => option.defenderInstanceId === null)!;
+    expect(undefended.targetInstanceId).toBe(sturdy.id);
+    expect(undefended.bands.map((band) => [band.defeated, band.overkillAmount, band.overkillToInstanceId])).toEqual([
+      [true, 1, identityOf(base, P1)],
+    ]);
+    expect(discarded(state, sturdy.id, P1)).toBe(true);
+    expect(mustInstance(state, identityOf(state, P1)).damage).toBe(1);
+    expect(mustInstance(state, identityOf(state, P2)).damage).toBe(0);
+    const spill = events.filter(
+      (e): e is Extract<GameEvent, { type: "damageDealt" }> =>
+        e.type === "damageDealt" && e.targetInstanceId === identityOf(base, P1),
+    );
+    expect(spill).toHaveLength(1);
+    expect(spill[0]).toMatchObject({ amount: 1, sourceInstanceId: crossfire.id });
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(state);
+  });
+
+  it("an attacked ally that survives the overkill attack spills nothing (2 damage on 3 hit points)", () => {
+    const base = start();
+    const crossfire = minionEngagedWith(base, CROSSFIRE.id, P1);
+    const sturdy = playerCardIntoPlay(crossfire.state, STURDY.id, P1);
+    const hurt: GameState = {
+      ...sturdy.state,
+      instances: {
+        ...sturdy.state.instances,
+        [identityOf(base, P1)]: { ...mustInstance(sturdy.state, identityOf(base, P1)), damage: 1 },
+        [identityOf(base, P2)]: { ...mustInstance(sturdy.state, identityOf(base, P2)), damage: 1 },
+      },
+    };
+    const provoke = giveCard(hurt, P1, PROVOKE.id);
+    const { state } = run(provoke.state, [
+      { type: "playCard", playerId: P1, cardInstanceId: provoke.id, payment: [], attachToInstanceId: null },
+    ]);
+    expect(mustInstance(state, sturdy.id).damage).toBe(2);
+    expect(mustInstance(state, identityOf(state, P1)).damage).toBe(1);
+    expect(mustInstance(state, identityOf(state, P2)).damage).toBe(1);
   });
 
   it("with no ally in play, the hero with the fewest remaining hit points is attacked", () => {

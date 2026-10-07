@@ -8,8 +8,10 @@ import {
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
   resolveScenarioSetupInstructions,
+  resolveVillainSetupAbilities,
   stepAfterScenarioSetupAbilities,
   stepAfterScenarioSetupInstructions,
+  stepAfterVillainSetupAbilities,
 } from "./setup-steps.js";
 import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
@@ -19,6 +21,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
 import {
   announce,
+  announceStatusPlaced,
   clearAbilityUses,
   executeFrame,
   gameAbilityFrames,
@@ -34,6 +37,7 @@ import {
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
 } from "./resolve/cards.js";
+import { announceDeckDiscards, settleDeckDiscards } from "./resolve/deck-discard.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
@@ -64,8 +68,16 @@ export function runFlow(ctx: Ctx): void {
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
+    // A card a response took away from where its discard from a deck left it is no longer counted by the ability that
+    // discarded it (docs/phase7-wave7.md §4.1 Q32), settled as soon as that response window has closed.
+    settleDeckDiscards(ctx);
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // "After this card is discarded from the top of your deck" (docs/phase7-wave7.md §3.55). Looked at after the deck
+    // run-outs, so when a discard emptied the deck its frame sits above the reset's and resolves first: the discard
+    // came first. Announcements of the same step looked at below (a card entering a hand, leaving play) resolve
+    // before it.
+    if (announceDeckDiscards(ctx)) continue;
     // "After this card enters your hand" (docs/phase7-wave6.md §3.10). Looked at first, so its frame resolves after the
     // `encounterCardFromPlayerDeck` frame of the same draw, pushed on top of it next.
     if (announceCardsEnteredHand(ctx)) continue;
@@ -75,7 +87,11 @@ export function runFlow(ctx: Ctx): void {
     if (announceCardsLeftPlay(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
-    if (checkStateTriggers(ctx)) continue;
+    const checked = checkStateTriggers(ctx);
+    // "After a status card is placed on X" (docs/phase7-wave7.md §3.27). Looked at after the state checks, which place
+    // a constant's status cards (`keepsGivingStatus`), and pushed above anything they put on the stack: the placement
+    // came first.
+    if (announceStatusPlaced(ctx) || checked) continue;
     if (ctx.state.stack.length > 0) {
       executeFrame(ctx);
       continue;
@@ -99,6 +115,9 @@ function executeStep(ctx: Ctx): void {
       return executeCampaignWindow(ctx, step.window);
     case "scenarioSetup":
       return executeScenarioSetupStep(ctx);
+    case "villainSetupAbilities":
+      resolveVillainSetupAbilities(ctx);
+      return setStep(ctx, stepAfterVillainSetupAbilities(ctx.state, stepAfterScenarioSetupInstructions(ctx.state)));
     case "scenarioSetupInstructions":
       resolveScenarioSetupInstructions(ctx);
       return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));
@@ -279,6 +298,8 @@ export function beginPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
   // Setup's damage, or the villain phase's (its end-of-round effects included), is not the player phase's.
   clearDamageTakenThisPhase(ctx);
+  clearCharacterActsThisPhase(ctx);
+  clearPlayedByPlayerThisPhase(ctx);
   // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
   // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
   const order = playerPhaseTurnOrder(
@@ -305,6 +326,27 @@ export function beginPlayerPhase(ctx: Ctx): void {
  * "when/after the phase ends" effects resolve after its reset (RRG 1.8 "End of Player Phase", p. 18, step 5), the same
  * reading `playedThisPhase` already has.
  */
+/**
+ * "…attacked and thwarted this phase" (`GameState.characterActsThisPhase`, docs/phase7-wave7.md §3.36): nobody has yet.
+ * Called with `clearDamageTakenThisPhase`, at the same two phase boundaries, and never between two players' turns:
+ * the player phase is one phase (RRG 1.8 "Player Phase", p. 34).
+ */
+function clearCharacterActsThisPhase(ctx: Ctx): void {
+  if (ctx.state.characterActsThisPhase === undefined) return;
+  const { characterActsThisPhase: _acts, ...rest } = ctx.state;
+  ctx.state = rest;
+}
+
+/**
+ * "…if you have played another card this phase" (`GameState.playedByPlayerThisPhase`): nobody has yet. Removed at the
+ * two phase boundaries with the phase's other records, never between two players' turns.
+ */
+function clearPlayedByPlayerThisPhase(ctx: Ctx): void {
+  if (ctx.state.playedByPlayerThisPhase === undefined) return;
+  const { playedByPlayerThisPhase: _played, ...rest } = ctx.state;
+  ctx.state = rest;
+}
+
 function clearDamageTakenThisPhase(ctx: Ctx): void {
   let instances: GameState["instances"] | null = null;
   for (const [id, instance] of Object.entries(ctx.state.instances)) {
@@ -458,6 +500,8 @@ function finishPlayerPhase(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
   clearDamageTakenThisPhase(ctx);
+  clearCharacterActsThisPhase(ctx);
+  clearPlayedByPlayerThisPhase(ctx);
   // RRG 1.8 "End of Player Phase" (p. 18) step 5, "Resolve any 'when/after the [player] phase ends' effects", as an event
   // when an ability listens (docs/phase7-wave3.md §3.2); its apply step then resolves the delayed effects below.
   const ending: TriggerEvent = { kind: "phaseEnding", phase: "player" };

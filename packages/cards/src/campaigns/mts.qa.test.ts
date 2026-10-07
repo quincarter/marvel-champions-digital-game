@@ -573,8 +573,10 @@ describe("MC21's campaign side schemes in a real game, set up from the composed 
     // Flipped in place to Retrieve Odin's Armor (still in play), and each player has a Norn Stone.
     expect(nornDefeated.state.instances[norn!]?.cardId).toBe(cardId("21186b"));
     expect(cardsInPlay(nornDefeated.state)).toContain(norn);
+    // An identity upgrade put into play goes by its player's identity, as playing it would (RRG 1.8 p. 32).
     for (const player of nornDefeated.state.players) {
-      expect(player.playArea.some((id) => nornDefeated.state.instances[id]?.cardId === cardId("21187a"))).toBe(true);
+      const held = nornDefeated.state.instances[player.identity.instanceId]?.attachments ?? [];
+      expect(held.some((id) => nornDefeated.state.instances[id]?.cardId === cardId("21187a"))).toBe(true);
     }
 
     const armorDefeated = thwartAway(nornDefeated.state, norn!, P1);

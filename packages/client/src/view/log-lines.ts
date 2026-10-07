@@ -16,6 +16,7 @@
 
 import {
   cardOf,
+  cardTypeName,
   getCard,
   type EngineDeps,
   type GameEvent,
@@ -350,6 +351,29 @@ function describe(
         text: `${who(event.playerId)} ${verb(event.playerId, "choose", "chooses")} ${event.amount}.`,
         voice: "player",
       };
+    // docs/phase7-wave7.md §3.33: "choose a card type" - the type the rest of the ability reads.
+    case "cardTypeChosen":
+      return {
+        text: `${who(event.playerId)} chose the card type ${cardTypeName(event.cardType)}.`,
+        voice: "player",
+      };
+    // docs/phase7-wave7.md §3.83: a reported fact from outside the game - the number the next effect reads.
+    case "factReported": {
+      const minutes = `${event.amount} ${event.amount === 1 ? "minute" : "minutes"}`;
+      return {
+        text:
+          event.fact === "minutesAway"
+            ? `${who(event.playerId)} ${verb(event.playerId, "were", "was")} away for ${minutes}.`
+            : `${who(event.playerId)} ${event.amount === 1 ? "talked" : "did not talk"} this phase.`,
+        voice: "player",
+      };
+    }
+    // docs/phase7-wave7.md §3.81: the found card is not named; where it goes (facedown or not) is the next effect's.
+    case "cardAddedFromCollection":
+      return {
+        text: `${who(event.ownerId)} ${verb(event.ownerId, "add", "adds")} a card from ${verb(event.ownerId, "your", "their")} collection.`,
+        voice: "player",
+      };
     // §3.66: a deck with no discard pile (the show deck) sends a would-be discard to its own bottom, facedown.
     case "returnedToScenarioDeck":
       return {
@@ -398,6 +422,9 @@ function describe(
         voice: event.disposition === "discarded" ? "scenario" : "player",
       };
     }
+    // An upgrade put into play with no legal host stays where it was (RRG 1.8 "Attach To", p. 8).
+    case "putIntoPlayRefused":
+      return { text: `${card(event.instanceId)} has nothing to attach to and stays where it was.`, voice: "player" };
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":
@@ -543,6 +570,11 @@ function describe(
       return { text: `${who(event.playerId)} ${verb(event.playerId, "are", "is")} out of the game.`, voice: "loss" };
     case "cardDiscardedFromPlay":
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
+    case "playerSideSchemeLimitDiscard":
+      return {
+        text: `${who(event.chosenBy)} discarded ${card(event.instanceId)} for the player side scheme limit.`,
+        voice: "player",
+      };
     // RRG 1.8 "Player Deck" (p. 33): a deck that empties reshuffles its discard pile at once, and the player is
     // dealt a facedown encounter card for it — a rule that used to run silently, with only the following draw or
     // discard-cost payment as any evidence it happened.

@@ -24,6 +24,7 @@ import {
   WAVE4_SCENARIOS,
   WAVE5_SCENARIOS,
   WAVE6_SCENARIOS,
+  WAVE7_SCENARIOS,
   setAsideModularSetCountFor,
   type AnyCard,
   type EncounterSet,
@@ -38,7 +39,7 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { PLAYABLE_ENCOUNTER_SETS } from "../modular-pool.js";
+import { PLAYABLE_ENCOUNTER_SETS, SCENARIO_BOUND_SET_IDS } from "../modular-pool.js";
 import { PLAYABLE_DEPS, playableScenario } from "../playable/index.js";
 import { applyOk, firstLegal, P1, settle, type Picker } from "./harness.js";
 import { withForm } from "./staging.js";
@@ -57,6 +58,7 @@ export const PLAYABLE_SCENARIOS: readonly Scenario[] = [
       ...WAVE4_SCENARIOS,
       ...WAVE5_SCENARIOS,
       ...WAVE6_SCENARIOS,
+      ...WAVE7_SCENARIOS,
     ].map((scenario) => [scenario.id as string, scenario] as const),
   ).values(),
 ];
@@ -119,6 +121,9 @@ export type SetClass =
 /** Classifies one set by the FAQ's definition, from the data. */
 export function classifySet(set: EncounterSet, pool: readonly AnyCard[] = PLAYABLE_CARDS): SetClass {
   if (set.extraModular) return { kind: "extra" };
+  if (set.autoIncluded) return { kind: "excluded", reason: "included by a setup condition (Dreadpool), never chosen" };
+  if (SCENARIO_BOUND_SET_IDS.has(set.id))
+    return { kind: "excluded", reason: "brought in by the scenarios that require it (Hope Summers)" };
   if (set.classification) return { kind: "excluded", reason: `${set.classification} set` };
   // Core's Standard and Expert sets carry no `classification` flag; a scenario naming them as its difficulty set does.
   for (const scenario of PLAYABLE_SCENARIOS) {

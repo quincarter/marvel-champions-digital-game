@@ -6,6 +6,7 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 
 | Put it in                     | Named                   | Shown                                                                                                                                                                                              |
 | ----------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `extras/`                     | `<title>.<ext>`         | Extras ▸ Artwork shelf only, always open; name the file for its title (`psylocke-and-angel.png` is "Psylocke and Angel")                                                                           |
 | `title/`                      | anything                | Title screen — one at random per visit, never the same twice running                                                                                                                               |
 | `scenarios/<scenarioId>/`     | `villain.<ext>`         | The villain's artwork for that scenario                                                                                                                                                            |
 | `scenarios/<scenarioId>/`     | `villain-wins.<ext>`    | Game Over, when the players lose to it                                                                                                                                                             |
@@ -84,7 +85,7 @@ data, the same branch moves its heroes' folders up one level into `heroes/`, pic
 
 **Extras** (the Title menu's reward shelf) shows these same pictures once play has opened them: a hero's
 `hero.*` files, a scenario's `villain*` files, `title/`, `outcomes/` and each campaign's `cover.*`. Nothing extra
-needs adding for it; a new file shows up there too.
+needs adding for it; a new file shows up there too. `extras/`: pictures shown only on the Extras ▸ Artwork shelf, always open; name the file for its title.
 
 **Several pictures for one slot:** add a suffix — `villain.jpg`,
 `villain-2.jpg`, `villain-3.png` — and one is picked at random.

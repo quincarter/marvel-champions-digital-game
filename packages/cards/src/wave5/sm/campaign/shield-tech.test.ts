@@ -474,7 +474,9 @@ describe("Shock Knuckles (27187a / 27187b)", () => {
     const heroBase = heroForm(ghostSpiderGame());
     const baseline = characterProfile(heroBase, identityOf(heroBase), WAVE5_DEPS)!.atk;
     expect(characterProfile(flipped, identity, WAVE5_DEPS)!.atk).toBe(baseline + 1);
-    const { state: withMinion, id: minion } = withEngagedMinion(flipped, HYDRA_MERCENARY, 3, 0);
+    // The +1 ATK attack (3) would defeat a 3-hit-point Hydra Mercenary, and a defeated enemy cannot be stunned (RRG 1.8
+    // "Status Cards", p. 41: a status card is placed on a character): 1 point of headroom keeps it in play.
+    const { state: withMinion, id: minion } = withEngagedMinion(flipped, HYDRA_MERCENARY, 3, -1);
     const stacked = stackEncounterDeck(withMinion, HYDRA_MERCENARY); // exactly 1 boost icon: "1 or fewer" still stuns
     const attacked = settle(
       runWave5(stacked, basicAttack(identity, minion)),
@@ -482,6 +484,7 @@ describe("Shock Knuckles (27187a / 27187b)", () => {
       undefined,
       WAVE5_DEPS,
     );
+    expect(inst(attacked, minion).damage).toBe(baseline); // -1 + (baseline + 1)
     expect(inst(attacked, minion).statuses.stunned).toBeGreaterThanOrEqual(1);
   });
 });

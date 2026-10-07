@@ -71,6 +71,24 @@ export interface AbilityOptions {
    */
   readonly triggerableBy?: PlayerRef;
   /**
+   * On an interrupt whose printed condition reads "would" where other interrupts to the same event do not: "When the
+   * villain would attack you, … the villain schemes instead" (Hope's Captor) against "When Arclight attacks you, …".
+   * It resolves before those are gathered, with no ordering prompt between the two, and if it replaces the event they
+   * are never used (RRG 1.8 "'Would'", p. 48; the engine trigger's `would`). Set it on "would attack", "would scheme"
+   * and "would be defeated" (against "is defeated": Biomechanical Upgrades before Spider-Tracer), and write the
+   * replacement as `instead(…)`, which is what closes the window to the later tier. Leave it off where every interrupt
+   * to the event reads "would" (damage, threat placement), and on "would activate", which is its own earlier event
+   * (`on.enemyActivating`).
+   */
+  readonly would?: boolean;
+  /**
+   * On an interrupt or response that must not trigger again while an earlier use of it by the same card is still
+   * resolving (the engine trigger's `notWhileResolving`): Hidden in the Clutter's "attached enemy attacks … Then,
+   * discard this card" makes one attack, whatever damage that attack sends back at the enemy (owner ruling
+   * 2026-10-07). Leave it off otherwise: nothing in the RRG stops an ability from triggering during its own resolution.
+   */
+  readonly notWhileResolving?: boolean;
+  /**
    * Star-Lord's "What could go wrong?" (`stld` 17001a; docs/phase7-wave3.md §3.20): on an `interrupt` trigger, makes
    * it a cost modifier the player opts into while playing a matching card (`playCard.costReductionAbilities`)
    * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
@@ -259,6 +277,8 @@ const triggered =
         ...(options.while ? { while: options.while } : {}),
         ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
         ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
+        ...(kind === "interrupt" && options.would ? { would: true } : {}),
+        ...(options.notWhileResolving ? { notWhileResolving: true } : {}),
       },
       options,
       effects,
@@ -307,6 +327,19 @@ export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => bu
  */
 export const cannotAttach = (...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "cannotAttach" }, {}, effects);
+/**
+ * "If [a named card] is in play, attach to [one host]. Otherwise, attach to your identity." — an attachment's "attach
+ * to" text when the host depends on a condition, so it cannot be an `attachesTo` data host (Mental Transferal,
+ * `next_evol` 40169; docs/phase7-wave7.md §3.35). The reveal resolves it where a data host would be applied (RRG 1.8
+ * "Reveal", p. 38, step 2), before the card's When Revealed abilities, and a cancel of the card's "When Revealed"
+ * effects does not stop it. The effects must attach the card themselves (`attachCard(self, …)`); a card they leave
+ * unattached is discarded (RRG 1.8 "Attach To", p. 8). Not for a printed "When Revealed: Attach to …", which is
+ * `whenRevealed` and can be canceled.
+ */
+export const attachInstruction = (...effects: readonly EffectArg[]): AbilityDefinition => ({
+  ...build({ kind: "whenRevealed" }, {}, effects),
+  attachInstruction: true,
+});
 /** "Setup:" (main scheme 1A, identity). An empty setup is "Advance to stage 1B", which the engine always does. */
 export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "setup" }, {}, effects);
 /**
@@ -317,6 +350,19 @@ export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => bu
  */
 export const stateCheck = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "stateCheck", when }, {}, effects);
+/**
+ * "If <condition>, …" printed as a standing condition of a card in play: "If Fantomex is not in play, discard E.V.A."
+ * (`next_evol` 40021). Like `stateCheck`, and it also resolves when the card enters play (or flips to this face, or
+ * gets its text box back) with the condition already true: RRG 1.8 "Ability" (p. 4), a constant ability "becomes active
+ * as soon as its card enters play" and one seeking a condition is "active anytime the specific condition is met". That
+ * first look is immediate (owner ruling 2026-10-05, docs/phase7-wave7.md §4.1): the card is in play, then the ability
+ * resolves before any interrupt or response to its entering play is offered, and a card it discards gets none. The
+ * card's uses counters are counted as already placed; counters from a scripted "enters play with N counters" response
+ * are not, so do not pair this with a condition that reads those. Use `stateCheck` for a text that names a change
+ * ("When all the players have joined this game area"), which a condition true from the start has not had.
+ */
+export const stateCheckFromEntering = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition =>
+  build({ kind: "stateCheck", when, fromEntering: true }, {}, effects);
 /**
  * RRG 1.8 "When Completed Abilities" (p. 48): "equivalent to … 'Forced Interrupt: When this scheme is
  * completed…'" — resolves on a main scheme stage reaching its target threat, before it advances (never on the
@@ -617,6 +663,14 @@ export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predic
 export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotActivate", target, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Ignore each boost icon and each 'Boost' ability" as a standing rule (docs/phase7-wave7.md §3.67) →
+ * `constant(ignoreBoost(enemy))`: every boost card of an attack or scheme activation by a matching enemy (absent = any
+ * enemy) is turned faceup and discarded, adds 0 and resolves no "Boost" ability, without being canceled. "For this
+ * attack" on an event is `ignoreBoostForThisAttack()` (effects.ts).
+ */
+export const ignoreBoost = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "ignoreBoost", ...(enemy ? { enemy } : {}), ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "When Dark Phoenix schemes, place that threat on Consume the World, if able" (34029; docs/phase7-wave6.md §3.37) →
  * `constant(schemeThreatOn({ self: true }, named("Consume the World")))`. A scheme activation by a matching enemy
  * places its threat (boost included) on that scheme while it is in play, else on the main scheme.
@@ -696,6 +750,15 @@ export const additionalThwartCost = (
 export const printedResourcesInHandAs = (player: PlayerRef, as: TypedResource): ConstantPart =>
   rule({ kind: "printedResourceAs", player, as });
 /**
+ * "When counting resources on cards discarded from the top of your deck, count each printed [wild] icon twice."
+ * (Domino, `next_evol` 40037a; docs/phase7-wave7.md §3.56): `constant(deckDiscardIconsCount(you, "wild", 2))` on the
+ * face that prints it. Read by the `<bind>.<type>` totals of a `moveCards` that discarded from that player's deck and
+ * by `totalPrintedResources` over the cards an effect or a `discardFromDeckSlot` cost discarded from it. The icons
+ * stay wild (MC40 p. 21: "treated as two [wild] icons"), so `totalPrintedResources(ref, ["wild"])` reads 2 for one.
+ */
+export const deckDiscardIconsCount = (player: PlayerRef, resource: ResourceType, times: number): ConstantPart =>
+  rule({ kind: "deckDiscardIconCount", player, resource, times });
+/**
  * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19):
  * `constant(anyNumberOfToughStatusCards({ self: true }))`. Each still prevents one damage event; piercing discards all.
  */
@@ -759,6 +822,67 @@ export const takesDamageOnlyFrom = (
 ): ConstantPart =>
   rule({ kind: "cannotTakeDamage", target, exceptFromSource: source, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Characters other than Cable cannot remove threat from Technovirus Purge." (`next_evol` 40006;
+ * docs/phase7-wave7.md §3.51): `constant(onlyCharacterRemovesThreat({ self: true }, query("identity", { name: "Cable"
+ * })))`, a `threatCannotBeRemoved` with `exceptBy`. `character` is matched against the character performing the
+ * removal: the thwarting character, else the one the removing card acts for (an event or an upgrade of the identity's
+ * is that identity, an upgrade on an ally is the ally; RRG 1.8 "You, Your", p. 49). Only characters are barred (§4.1
+ * Q29): a support's unlabeled ability or an encounter card's effect still removes threat. A scheme a character is
+ * barred from is not a legal target of its basic thwart or of a thwart or removal it would make.
+ */
+export const onlyCharacterRemovesThreat = (
+  target: TargetQuery,
+  character: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "threatCannotBeRemoved", target, exceptBy: character, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "The villain cannot take damage unless the attacker or attack has the [AERIAL] trait, or the attack has ranged."
+ * (Out of Reach, `next_evol` 40153; docs/phase7-wave7.md §3.30): `constant(takesDamageOnlyFromAttacks(query("villain"),
+ * { attacker: { trait: AERIAL }, attackCard: { trait: AERIAL }, attackKeyword: "ranged" }))`, a `cannotTakeDamage`
+ * that an attack's damage gets past when any exception given holds. `attacker` is the attacking character;
+ * `attackCard` is the card whose ability makes the attack (an attack event, an upgrade's attack ability), which is
+ * what "the attack has the trait" means; a basic attack has none. Damage that is not from an attack is blocked
+ * (§4.1 Q17).
+ */
+export const takesDamageOnlyFromAttacks = (
+  target: TargetQuery,
+  except: {
+    readonly attacker?: TargetQuery;
+    readonly attackCard?: TargetQuery;
+    readonly attackKeyword?: AttackKeyword;
+    readonly while?: Predicate;
+  },
+): ConstantPart =>
+  rule({
+    kind: "cannotTakeDamage",
+    target,
+    ...(except.attacker ? { exceptAttacker: except.attacker } : {}),
+    ...(except.attackCard ? { exceptAttackCard: except.attackCard } : {}),
+    ...(except.attackKeyword ? { exceptAttackKeyword: except.attackKeyword } : {}),
+    ...(except.while ? { while: except.while } : {}),
+  });
+/**
+ * "Reduce the amount of damage Thumbelina takes from each attack by 1 unless the attacker has the [TINY] trait."
+ * (`next_evol` 40182; docs/phase7-wave7.md §3.30): `constant(reducesAttackDamageTaken({ self: true }, 1, {
+ * exceptAttacker: { trait: TINY } }))`, a `reduceDamageTaken` with `fromAttack`. Without `exceptAttacker` it is Wide
+ * Stance's shape (docs/phase7-wave3.md §3.15). Excess damage is measured on the reduced amount (RRG 1.8 "Overkill",
+ * p. 31).
+ */
+export const reducesAttackDamageTaken = (
+  target: TargetQuery,
+  amount: number,
+  opts: { readonly exceptAttacker?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "reduceDamageTaken",
+    target,
+    amount,
+    fromAttack: true,
+    ...(opts.exceptAttacker ? { exceptAttacker: opts.exceptAttacker } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Double the amount of damage this minion takes from cards with a printed [energy] resource" (Dragon, 39042):
  * `constant(doubleDamageTaken({ self: true }, { fromSource: { printedResource: "energy" } }))`; "Attacks with piercing
  * deal double damage to Vampire" (39051): `doubleDamageTaken({ self: true }, { attackKeyword: "piercing" })`
@@ -811,12 +935,19 @@ export const maxSustainedDamage = (
  * docs/phase7-wave5.md §4.1 Q70): `constant(cannotResolveTriggeredAbilities(query("identity", { hostOfSelf: true }),
  * { identityFace: "hero" }))`. Every bold-timing ability on a matching card (actions and resources included) is neither
  * offered nor resolved; `timings` narrows it to those timing words.
+ *
+ * "Other players cannot resolve player card abilities during your turn." (The Merc with the Mouth, `deadpool` 44032):
+ * `cannotResolveTriggeredAbilities({}, { player: otherPlayers(), playerCards: true, while: duringTurnOf() })`. `player`
+ * scopes it to abilities those players would resolve, whoever controls the card; `playerCards` to player cards (RRG
+ * 1.8 "Player Card", p. 33). An event is played, not triggered from play: pair it with `cannotPlay` over events.
  */
 export const cannotResolveTriggeredAbilities = (
   on: TargetQuery,
   opts: {
     readonly identityFace?: Form;
     readonly timings?: readonly AbilityTimingWord[];
+    readonly player?: PlayerRef;
+    readonly playerCards?: true;
     readonly while?: Predicate;
   } = {},
 ): ConstantPart =>
@@ -825,6 +956,8 @@ export const cannotResolveTriggeredAbilities = (
     on,
     ...(opts.identityFace ? { identityFace: opts.identityFace } : {}),
     ...(opts.timings ? { timings: opts.timings } : {}),
+    ...(opts.player ? { player: opts.player } : {}),
+    ...(opts.playerCards ? { playerCards: true as const } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
@@ -861,7 +994,7 @@ export interface ConsequentialDamageOptions {
   readonly from?: "attack" | "thwart";
   /**
    * Read as that damage is applied, with the ally's attack/thwart results in `vars` (`attack.defeated`) and slots
-   * (`attack.damaged`); see the engine's `ConsequentialDamageScope`.
+   * (`attack.damaged`, `attackTarget()`, `thwartTarget()`); see the engine's `ConsequentialDamageScope`.
    */
   readonly if?: Predicate;
   readonly while?: Predicate;
@@ -909,6 +1042,26 @@ export const preventConsequentialDamage = (target: TargetQuery, opts: Consequent
  */
 export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
 /**
+ * "While Technovirus Purge is in the victory display, Nathan Summers and Cable gain the PSIONIC trait and Cable gets +1
+ * THW, +1 ATK, and +1 DEF." (`next_evol` 40006): the constant applies while its card is in the victory display and at no
+ * other time, with "you" the card's owner (`AbilityDefinition.activeIn`, docs/phase7-wave7.md §3.50; RRG 1.8 "Victory
+ * Display", p. 46, and "In Play and Out of Play", p. 23). `inVictoryDisplay(constant(gains(…), gets(…)))`. Constants
+ * only: `validateDefinition` rejects any other kind of ability, and the parts of a constant the engine does not read
+ * from the victory display.
+ */
+export const inVictoryDisplay = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  activeIn: "victoryDisplay",
+});
+/**
+ * "Response: After this card is discarded from the top of your deck, add it to your hand." (Digging Deep, `next_evol`
+ * 40060): the response is read from the card where its discard from the deck left it, and nowhere else
+ * (`AbilityDefinition.activeIn`, docs/phase7-wave7.md §3.55; RRG 1.8 "In Play and Out of Play", p. 23).
+ * `inDiscard(response(on.thisDiscardedFromYourDeck(), …))`. `validateDefinition` rejects anything but a response to
+ * the card's own discard, and a cost.
+ */
+export const inDiscard = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "discard" });
+/**
  * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
  * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
  * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
@@ -926,16 +1079,20 @@ export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): Constant
  * and it does not take consequential damage." (Fallen Warrior, Beguiled, `mts` 21153, 21178; the same family in
  * `deadpool`, `jubilee`, `storm`): `constant(treatAttachedAllyAsMinion([UNDEAD]))`. "(except for traits)" (Manipulated
  * Mind, `sm` 27171; Malice, `next_evol` 40199): `{ keepPrintedTraits: true }`. docs/phase7-wave4.md §3.9.
+ *
+ * "Attached minion's SCH is equal to its THW" with no "printed" (Malice): `{ schFromThw: "current" }`, the ally's THW
+ * with the modifiers still applying to it (docs/phase7-wave7.md §3.44, §4.1 Q27). The card carrying the constant may be
+ * the minion itself, attached by its own When Defeated (`attach(SELF, …)`).
  */
 export const treatAttachedAllyAsMinion = (
   traits: readonly Trait[],
-  opts: { readonly keepPrintedTraits?: boolean } = {},
+  opts: { readonly keepPrintedTraits?: boolean; readonly schFromThw?: "printed" | "current" } = {},
 ): ConstantPart => ({
   rules: [
     {
       kind: "treatHostAsMinion",
       traits,
-      schFromThw: true,
+      schFromThw: opts.schFromThw === "current" ? "current" : true,
       ...(opts.keepPrintedTraits ? { keepPrintedTraits: true } : {}),
     },
   ],
@@ -951,6 +1108,26 @@ export const ignores = (
   when?: Predicate,
 ): ConstantPart => ({
   rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
+});
+/**
+ * "Attached villain … ignores the retaliate keyword while attacking a non-[AERIAL] character." (Aerial Bombardment,
+ * `next_evol` 40152; docs/phase7-wave7.md §3.30): `constant(ignoresRetaliate(query("villain", { hostOfSelf: true }),
+ * { against: { withoutTrait: AERIAL } }))`. The character's attacks are not answered by retaliate; `against` limits it to
+ * attacks on a matching character (absent: every attack). RRG 1.8 "Ignore" (p. 23).
+ */
+export const ignoresRetaliate = (
+  target: TargetQuery,
+  opts: { readonly against?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "characterIgnores",
+      target,
+      ignores: ["retaliate"],
+      ...(opts.against ? { against: opts.against } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
 });
 /**
  * "Your hero's basic thwarts ignore the crisis icon (and the patrol keyword)" (Retinal Display, `sm` 27186a/b;
@@ -1035,6 +1212,63 @@ export const excludedFromAllyLimit = (
   rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
+ * "[star] X's base THW and base ATK are equal to the THW and ATK of your hero." (docs/phase7-wave7.md §3.25 item 3):
+ * two `setBase` modifiers on this card reading its controller's hero as it stands now, modifiers on the hero included
+ * (ruling January 17, 2026 - Ruling 1: the star is defined to "match your hero's basic powers"). Modifiers on the card
+ * itself apply on top (RRG 1.8 "Modifiers", p. 29). While the controller is in alter-ego form no hero is in play: the
+ * star is undefined and reads 0 (docs/phase7-wave7.md §4.1 Q14 = B). Follows a change of controller.
+ */
+export const baseStatsFromYourHero = (...stats: readonly ("atk" | "thw")[]): ConstantPart => ({
+  modifiers: (stats.length > 0 ? stats : (["thw", "atk"] as const)).map((stat) => ({
+    stat,
+    amount: { kind: "stat", of: { kind: "identityOf", player: { kind: "controller" } }, stat },
+    target: { self: true },
+    while: isHero(),
+    setBase: true,
+  })),
+});
+/**
+ * "If X leaves play, the players lose the game." (docs/phase7-wave4.md §3.8, docs/phase7-wave7.md §3.25 item 4): the
+ * loss comes with the move itself, by any route out of play, after any "when X leaves play" interrupt (which can
+ * replace the leaving and so prevent the loss). A change of controller is not leaving play. The outcome is
+ * `cardAbility` with this card as `sourceInstanceId`, and the card that left as `causeInstanceId` when it is another.
+ */
+export const leavingPlayLoses = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "leavingPlayLoses", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "X does not count toward the player side scheme limit." (docs/phase7-wave7.md §3.2; RRG 1.8 "Player Side Scheme
+ * Limit", p. 34): the sibling of `excludedFromAllyLimit`.
+ */
+export const excludedFromPlayerSideSchemeLimit = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [{ kind: "excludedFromPlayerSideSchemeLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Your allies, upgrades, and supports enter play exhausted." (Mind Trap, `next_evol` 40171; docs/phase7-wave7.md
+ * §3.36): `constant(entersPlayExhausted(query(["ally", "upgrade", "support"], { controlledBy: you })))`. Each matching
+ * card is placed exhausted as it enters play by any route (played, put into play by an effect), in place of the ready
+ * state of RRG 1.8 "Ready" (p. 36). It is not exhausted by an effect, so nothing responds to it, and the ready step
+ * readies it as normal. "You" on an attachment no player controls is the player whose card it is attached to (RRG 1.8
+ * "Attachment", p. 8). A card that changes controller or flips has not entered play (RRG 1.8 "Enters Play", p. 18).
+ */
+export const entersPlayExhausted = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "entersPlayExhausted", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Exhaust each ally you control." printed as a constant, with no "When Revealed" heading (The Merc with the Mouth,
+ * `deadpool` 44032; docs/phase7-wave7.md §4.1): `constant(keepsExhausted(query("ally", { controller: "you" })))`. A
+ * standing instruction (RRG 1.8 "Ability", p. 4): between frames every matching ready card in play is exhausted, so it
+ * covers the cards in play when this card enters, a card that enters play, and one that comes under your control. Pair
+ * it with a `cannotReady` rule when the card also says they cannot ready; alone, a card readied by the ready step is
+ * exhausted again at once.
+ */
+export const keepsExhausted = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "keepsExhausted", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
  * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`
  * 20001a/b; Side Holster, 20021; docs/phase7-wave3.md §3.22). RRG 1.8 "Restricted" (p. 38) fixes the base limit at
  * two; each rule raises it by `amount` for `player` (absent: the rule's own speaker, the card's controller —
@@ -1060,6 +1294,12 @@ export const restrictedLimit = (
  * docs/phase7-wave2.md §8): the matching cards' abilities and printed keywords stop working while this card is in
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
  * controller for "you" to resolve to, and the printed text says "each", not "your".
+ *
+ * "Treat your identity's printed text box as if it were blank (except for traits)" (docs/phase7-wave7.md §3.19, §4.1
+ * Q12 = A): `constant(blanksTextBox(query("identity", { hostOfSelf: true })))` on an attachment, and
+ * `constant(blanksTextBox(query("identity", { controller: "you" })))` on an obligation, whose "you" is the player whose
+ * play area it is in (RRG 1.8 "Obligation", p. 30). Both faces are blank, keywords included; traits are outside the
+ * text box (RRG 1.8 "Traits", p. 45) and need no option here.
  */
 export const blanksTextBox = (
   target: TargetQuery,
@@ -1081,6 +1321,35 @@ export const blanksTextBox = (
  * a lasting blank (Panic in the Streets, Vivian) nor a constant `blanksTextBox` rule reaches the face that prints it.
  */
 export const textBoxCannotBeBlanked = (): ConstantPart => rule({ kind: "textBoxCannotBeBlanked" });
+/**
+ * "This card cannot leave play while Wrecker is in play." → `constant(cannotLeavePlay(query("sideScheme", { name }),
+ * { while: exists(WRECKER) }))`: absolute (RRG 1.8 "'Cannot'", p. 11).
+ *
+ * "Card abilities cannot remove this ally from play." (Morlock, `next_evol` 40079; docs/phase7-wave7.md §3.10, §4.1
+ * Q7) → `constant(cannotLeavePlay({ self: true }, { by: "cardAbilities" }))`: a card ability's move or "defeat" does
+ * nothing to it and a cost cannot be paid with it, but damage from any source still defeats it at 0 hit points, and
+ * the ally limit, a host leaving play and player elimination still remove it.
+ */
+export const cannotLeavePlay = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate; readonly by?: "cardAbilities" } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotLeavePlay",
+    target,
+    ...(opts.while ? { while: opts.while } : {}),
+    ...(opts.by ? { by: opts.by } : {}),
+  });
+/**
+ * "You cannot flip your Psi-Katana upgrades." (Body Swapped, `psylocke` 41025; docs/phase7-wave7.md §3.64) →
+ * `constant(cannotFlip(query("upgrade", { name: "Psi-Katana", controlledBy: you })))`. RRG 1.8 "'Cannot'" (p. 11):
+ * a matching card in play is not turned to its other face by a `flipCard` effect (the rest of the effect resolves),
+ * is offered to no choice of a card to flip (so a "you may flip" with no other candidate is not asked), and cannot
+ * pay a flip cost (`flipThis`). `name` reads the face showing. A change of form is not a flip here
+ * (`cannotChangeForm`).
+ */
+export const cannotFlip = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "cannotFlip", target, ...(opts.while ? { while: opts.while } : {}) });
 /**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
@@ -1129,6 +1398,34 @@ export const doublesResourcesGeneratedForThisCard = (resource?: ResourceType): C
 });
 
 /**
+ * What this resource card generates beyond its printed icons, whatever it pays for (docs/phase7-wave7.md §3.80), both
+ * read as the card is spent with "you" as the player spending it:
+ *
+ * - `additional`: "This card generates 1 additional [wild] resource for each acceleration token on the main scheme (to
+ *   a maximum of 3 additional resources)" (Montage 44007) is `{ wild: min(accelerationTokensOn(theMainScheme), 3) }`.
+ * - `factor`: "Double the number of resources this card generates if your identity has sustained less than 5 damage
+ *   (triple the resources instead if you have sustained no damage)" (Self Confidence 44025) is an `ifElse` over
+ *   `damageOn(yourIdentity)`. `resource` narrows it to one type.
+ *
+ * The additional resources are added before any multiplier, this card's own `factor` included. The printed resource
+ * is unchanged.
+ */
+export const thisCardGenerates = (opts: {
+  readonly additional?: { readonly resource: ResourceType; readonly amount: Amount };
+  readonly factor?: Amount;
+  readonly resource?: ResourceType;
+}): ConstantPart => ({
+  resourceMultiplier: {
+    thisCardGenerates: true,
+    ...(opts.additional
+      ? { additional: { resource: opts.additional.resource, amount: amount(opts.additional.amount) } }
+      : {}),
+    ...(opts.factor !== undefined ? { factor: opts.factor } : {}),
+    ...(opts.resource ? { resource: opts.resource } : {}),
+  },
+});
+
+/**
  * A printed ability whose behavior is already a general engine rule (e.g. a
  * facedown card leaving play goes to its owner's discard pile). It has no
  * effects of its own; the registry entry exists so coverage stays exact.
@@ -1152,6 +1449,11 @@ export const partOf = (of: `${string}.${string}`): AbilityDefinition => {
 export const exhaustThis: AbilityCost = { exhaustSelf: true };
 /** "Discard [this card] →" */
 export const discardThis: AbilityCost = { discardSelf: true };
+/**
+ * "Flip [this card] →" (docs/phase7-wave7.md §3.64): this double-sided card turns to its other face as the cost,
+ * which a card a `cannotFlip` rule names cannot pay (RRG 1.8 "Cost", p. 13). Not on a resource ability.
+ */
+export const flipThis: AbilityCost = { flipSelf: true };
 /** "Spend a [energy] resource" → `spend({ energy: 1 })`; "Spend [E][M][P]" → one of each. */
 export const spend = (resources: ResourceRequirement | number): AbilityCost => ({ resources });
 /**
@@ -1159,6 +1461,12 @@ export const spend = (resources: ResourceRequirement | number): AbilityCost => (
  * all of one type the payer chooses. A wild counts as any type; a two-type card may give one icon and overpay the other.
  */
 export const spendSameType = (n: number): AbilityCost => ({ resources: n, sameResourceType: true });
+/**
+ * "Spend X resources of any type, where X is the number of villains under Routed →" (Bolstered by Wrath, `next_evol`
+ * 40082): a number of resources of any type the board gives, read when the cost is determined and recorded as
+ * `varOf("cost.resources")`. For an X the payer chooses, see `spendX` and `spendUpTo`.
+ */
+export const spendEqualTo = (n: ValueSpec): AbilityCost => ({ resourcesEqualTo: n });
 /** "Spend X [type] resources →": X is bound to var `bind`. */
 export const spendX = (resourceType: TypedResource, bind = "x", min = 1): AbilityCost => ({
   resourcesX: { resource: resourceType, bind, min },
@@ -1235,6 +1543,14 @@ export const placeCountersCost = (
   placeCounters: { counterType, amount: n, ...(opts.onIdentity ? { target: "identity" as const } : {}) },
 });
 /**
+ * "Attached villain attacks you →" (Pushed to the Limit, `next_evol` 40083; docs/phase7-wave7.md §3.19 (b)):
+ * `enemyAttacksYouCost(host)`. The enemy attacks the paying player in full (boost card, defense, damage, "after the
+ * villain attacks" responses) before the effects resolve. Not payable, so the ability is not offered, while the enemy
+ * could not attack (stunned, "cannot activate", a dashed ATK; §4.1 Q13 = B); an attack an interrupt cancels leaves the
+ * cost unpaid and the effects unresolved.
+ */
+export const enemyAttacksYouCost = (enemy: TargetRef): AbilityCost => ({ enemyAttack: { enemy, against: "you" } });
+/**
  * "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (Thief Extraordinaire, `gambit` 37001b;
  * docs/phase7-wave6.md §3.54): the paying player looks at the top `look` cards of the encounter deck and chooses
  * `discard` of them to discard, before the effects resolve; the rest stay on top in order. The discarded cards are
@@ -1291,6 +1607,15 @@ export const costIf = (
  * beside `chooseCardCost("event", …)` (docs/phase7-wave6.md §3.42).
  */
 export const takeDamageCost = (n: number | ValueSpec): AbilityCost => ({ damageSelf: n });
+/**
+ * "Take any amount of damage up to your remaining hit points →" (Maximum Effort 44004, "Yoo-Hoo!" 44006;
+ * docs/phase7-wave7.md §3.79): the payer picks the amount, from `min` (default 0: §4.1 Q46 = B, 0 damage may be
+ * chosen) to `max`, as the cost is paid. The text after the arrow reads the pick as `varOf("cost.damageSelf")`. Only
+ * amounts the identity could take in full are offered (RRG 1.8 "Cost", p. 14).
+ */
+export const takeAnyDamageCost = (max: Amount, opts: { readonly min?: Amount } = {}): AbilityCost => ({
+  damageSelf: { choose: { min: amount(opts.min ?? 0), max: amount(max) } },
+});
 /**
  * "Choose an ATTACK event in your hand … →" (Wolverine's Claws 35002; docs/phase7-wave6.md §3.42): a card of the
  * payer's own zone picked as part of the cost (`costChoices[slot]`) and bound to `slot`, nothing done to it.
@@ -1521,7 +1846,9 @@ export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
 /**
  * "(Max 1 per event.)", "(Max 1 per attack.)", "(Max 1 per basic power use.)" (Web-Bracelet, Ghost Kick, Phantom Flip,
  * `sm`; docs/phase7-wave5.md §3.14): one use per triggering event instance, shared by every copy of the card's title
- * (RRG 1.8 "Max 1 per [instance]", p. 28). The instance is whatever event the ability triggers on.
+ * (RRG 1.8 "Max 1 per [instance]", p. 28). The instance is whatever event the ability triggers on. On an interrupt or
+ * response event played from hand, a second copy cannot be played for the same instance, by any player (Directed
+ * Force, `psylocke` 41019; docs/phase7-wave7.md §3.69).
  */
 export const maxOnePerTriggeringInstance: AbilityLimit = { count: 1, period: "phase", per: "triggeringEvent" };
 
@@ -1556,7 +1883,19 @@ const enemyAttacks = (
 /** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */
 type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
 
+const kindsOf = (one: EventPattern): readonly TriggerEventKind[] => (typeof one.on === "string" ? [one.on] : one.on);
+
 export const on = {
+  /**
+   * "After [this] **or** [that]": one ability answering either of two (or more) whole patterns, each keeping its own
+   * conditions (`EventPattern.anyOf`). "After Stryfe is defeated or the last threat is removed from this scheme"
+   * (`next_evol` 40168a) is `on.either(on.defeated(theVillain), on.lastThreatRemoved("self"))`. For two event kinds
+   * under the same conditions ("schemes or attacks") a list of kinds is enough: `on.enemySchemesOrAttacks`.
+   */
+  either: (...alternatives: readonly EventPattern[]): EventPattern => ({
+    on: [...new Set(alternatives.flatMap(kindsOf))],
+    anyOf: alternatives,
+  }),
   /** "When/After [enemy] attacks (you)" — `by: "self"` for the card's own attacks, `"host"` for the attached enemy. */
   enemyAttacks,
   /** "When the villain (initiates an) attack(s) (against you)". */
@@ -1589,6 +1928,13 @@ export const on = {
        * Jan 26, 2026 (3); `resolve/event.ts` `excessDamageOf`).
        */
       readonly excessDamage?: boolean;
+      /**
+       * "When you make a **ranged** attack" (`["ranged"]`), "an attack that has a keyword (overkill, piercing, or
+       * ranged)" (all three): the attack has **any one** of these, from the attacking character, the card making the
+       * attack or a grant to the attack (`EventPattern.attackHas`; docs/phase7-wave7.md §3.59, §3.69). Read as the
+       * attack's interrupt window opens, so a keyword another interrupt of that attack grants comes too late.
+       */
+      readonly has?: readonly AttackKeyword[];
     } = {},
   ): EventPattern => {
     const results: Record<string, number> = {};
@@ -1600,6 +1946,7 @@ export const on = {
       asSource(by),
       opts.target ? { targetIs: opts.target } : {},
       opts.basic ? { attackKind: "basic" } : {},
+      opts.has && opts.has.length > 0 ? { attackHas: opts.has } : {},
       Object.keys(results).length ? { requireResults: results } : {},
     );
   },
@@ -1685,19 +2032,42 @@ export const on = {
    */
   cardPlayed: (what: TargetQuery): EventPattern => pattern("cardPlayed", { targetIs: what }),
   /**
-   * "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). `consequential`:
-   * "When X would take any amount of consequential damage" (Field Agent, `sm` 27044) — an ally's consequential damage
-   * from an attack or a thwart alike (`EventPattern.consequential`, docs/phase7-wave5.md §4.1 Q62); `false` excludes it.
+   * A character's damage: "When X would take / be dealt damage" for an interrupt, and for a response one of two
+   * readings, chosen by the card's printed verb (RRG 1.8 "Prevent", p. 35: prevented damage is dealt and not taken;
+   * owner ruling 2026-10-07, docs/phase7-wave7.md §4.1; every script's reading is in docs/dealt-vs-taken-audit.md):
+   *
+   * - `dealt`: "After X **is dealt** damage" / "after [someone] **deals** damage to X". The damage reached the
+   *   damage-dealing process, whether or not a tough status card, a prevention, a constant reduction or "cannot take
+   *   damage" then stopped it. A number is "N or more damage" as dealt (`dealDamage.dealt`).
+   * - `taken`: "After X **takes** / **suffers** damage", "is damaged", "damage is placed here": at least 1 damage was
+   *   placed on it (the damage's `amount` result, the event's `taken`).
+   *
+   * A response must pass one of the two (`validateDefinition`). An interrupt passes neither: nothing has been dealt
+   * or taken yet, and it reads the pending amount.
+   *
+   * `consequential`: "When X would take any amount of consequential damage" (Field Agent, `sm` 27044) — an ally's
+   * consequential damage from an attack or a thwart alike (`EventPattern.consequential`, docs/phase7-wave5.md §4.1
+   * Q62); `false` excludes it. `indirect`: "After a friendly character takes any amount of indirect damage" — that
+   * character's assigned share of indirect damage (RRG 1.8 "Indirect Damage", p. 24; `EventPattern.indirect`), from an
+   * ability, a cost or an enemy attack that deals indirect damage; `false` excludes it.
    */
   damage: (
     to: Who,
-    opts: { readonly fromAttack?: boolean; readonly taken?: boolean; readonly consequential?: boolean } = {},
+    opts: {
+      readonly fromAttack?: boolean;
+      readonly dealt?: true | number;
+      readonly taken?: boolean;
+      readonly consequential?: boolean;
+      readonly indirect?: boolean;
+    } = {},
   ): EventPattern =>
     pattern(
       "dealDamage",
       asTarget(to),
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
       opts.consequential !== undefined ? { consequential: opts.consequential } : {},
+      opts.indirect !== undefined ? { indirect: opts.indirect } : {},
+      opts.dealt !== undefined ? { eventAtLeast: { dealt: opts.dealt === true ? 1 : opts.dealt } } : {},
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
   /**
@@ -1726,14 +2096,15 @@ export const on = {
    * that player's identity"). Known gap: an upgrade attached to a *different* friendly character is not an
    * extension either, and this query still counts it (no printed card needs the case yet). "Deal" is damage
    * **dealt**, not taken: prevention reduces what the target takes, "but the amount of damage 'dealt' is not
-   * reduced" (RRG 1.8 "Prevent", p. 35), so the event's own amount is read (`eventAtLeast`), not its `amount` result.
+   * reduced" (RRG 1.8 "Prevent", p. 35), so the event's `dealt` is read, not its `amount` result: damage a tough
+   * status card or a prevention stopped in full still counts (owner ruling 2026-10-07).
    */
   youDealDamage: (to: Who): EventPattern =>
     pattern(
       "dealDamage",
       { sourceIs: { controller: "you", categories: ["identity", "event", "resource", "upgrade"] } },
       asTarget(to),
-      { eventAtLeast: { amount: 1 } },
+      { eventAtLeast: { dealt: 1 } },
     ),
   /** "When threat would be placed on a scheme" / "after placing threat here". */
   threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", where ? asTarget(where) : {}),
@@ -1795,6 +2166,12 @@ export const on = {
        * from an attack or a thwart alike; `false` is a defeat by anything else.
        */
       readonly consequential?: boolean;
+      /**
+       * "After [villain] (II) is defeated" (docs/phase7-wave7.md §3.34): the villain stage that fell had this printed
+       * stage number (`characterDefeated.villainStageNumber`); by the response the villain shows its next stage. Only
+       * a villain's defeat carries one, so no other character's defeat matches.
+       */
+      readonly villainStage?: number;
     } = {},
   ): EventPattern =>
     pattern(
@@ -1804,6 +2181,12 @@ export const on = {
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
       opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
       opts.consequential !== undefined ? { consequential: opts.consequential } : {},
+      opts.villainStage !== undefined
+        ? {
+            eventAtLeast: { villainStageNumber: opts.villainStage },
+            eventAtMost: { villainStageNumber: opts.villainStage },
+          }
+        : {},
     ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
@@ -1820,6 +2203,14 @@ export const on = {
    * (Followed, `cap` pack): `on.schemeDefeated("host")`.
    */
   schemeDefeated: (what: Who): EventPattern => pattern("schemeDefeated", asTarget(what)),
+  /**
+   * "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): a removal that took `what` from
+   * some threat to none. The way a permanent side scheme answers reaching no threat without being defeated: RRG 1.8
+   * "Permanent" (p. 32), it "cannot be defeated", so no `schemeDefeated` is announced for it (owner ruling 2026-10-05,
+   * docs/phase7-wave7.md §4.1). A scheme that is defeated by the removal answers this too, after its defeat.
+   */
+  lastThreatRemoved: (what: Who): EventPattern =>
+    pattern("removeThreat", asTarget(what), { requireResults: { lastThreatRemoved: 1 } }),
   /**
    * "After this stage is complete/completed" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1) — a *different*
    * stage reacting to another stage's own completion (as opposed to `whenCompleted`, printed on the completing
@@ -1876,6 +2267,21 @@ export const on = {
   statusDiscarded: (status: StatusName, from?: Who): EventPattern =>
     pattern("statusDiscarded", { eventIs: { status } }, from === undefined ? {} : asTarget(from)),
   /**
+   * "After a status card is placed on Mister Sinister" (`next_evol` 40136–40138): a status card placed on `on` (absent:
+   * any character) by any route: an effect or a cost, the toughness keyword, a constant's refill (docs/phase7-wave7.md
+   * §3.27). `status`: only that type (absent: any). Once per card that lands, already on the character; a give the
+   * character cannot hold (it has one already, stalwart) placed nothing, so nothing is heard. Several placed at once
+   * share one response window. `by: "you"`: only cards this card's controller's ability placed; never an encounter
+   * card's forced ability, a keyword or a constant. The placing card is `sourceIs` when a card cares.
+   */
+  statusPlaced: (on?: Who, opts: { readonly status?: StatusName; readonly by?: "you" } = {}): EventPattern =>
+    pattern(
+      "statusPlaced",
+      opts.status === undefined ? {} : { eventIs: { status: opts.status } },
+      on === undefined ? {} : asTarget(on),
+      opts.by === "you" ? { playerIs: "controller" } : {},
+    ),
+  /**
    * "After MaGog's hit points are reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006): `who` (absent:
    * any character) set to its maximum hit points by `setRemainingHitPoints` (docs/phase7-wave6.md §3.67), MaGog's
    * "reset his hit points instead" with `printedHpOf`/max. Response only; a villain's next stage is not a reset.
@@ -1886,9 +2292,11 @@ export const on = {
    * "patrol"]`; "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035) with `["crisis"]`
    * (docs/phase7-wave6.md §3.8). Heard once per card whose keyword or icon would otherwise have stopped an attack or
    * thwart a character of yours made, after that attack or thwart (§4.1 Q6); `eventTarget` is that minion or the card
-   * showing the crisis icon ("that minion", "that scheme").
+   * showing the crisis icon ("that minion", "that scheme"). `"retaliate"`: a character of yours whose attack ignored
+   * the attacked character's retaliate through `ignoresRetaliate` (docs/phase7-wave7.md §3.30); `eventTarget` is that
+   * character.
    */
-  youIgnore: (ignored: readonly ("guard" | "patrol" | "crisis")[]): EventPattern =>
+  youIgnore: (ignored: readonly ("guard" | "patrol" | "crisis" | "retaliate")[]): EventPattern =>
     pattern("keywordIgnored", { eventIs: { ignored } }, { playerIs: "controller" }),
   /**
    * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After
@@ -1952,6 +2360,31 @@ export const on = {
    * `inHand(...)`; "you" is the player whose hand it entered.
    */
   thisEntersYourHand: (): EventPattern => pattern("cardEntersHand", { selfIs: "target" }),
+  /**
+   * "After this card is discarded from the top of your deck" (Jackpot!, White Fox, Digging Deep, `next_evol` 40043,
+   * 40057, 40060; docs/phase7-wave7.md §3.55). Pair with `inDiscard(response(...))`: the card answers from where the
+   * discard left it, and "you" is the player whose deck it was. Any effect or cost that discards it from that deck
+   * counts, whoever's card it is (§4.1 Q31); a discard from hand or from play does not. The cards one effect discards
+   * share one response window.
+   *
+   * When it was the deck's last card the deck has already reset with it shuffled in (RRG 1.8 "Player Deck", p. 33),
+   * and the response resolves on it there (§4.1 Q33): `moveCards(self, "hand")` takes it from the new deck. `unless:
+   * "deckReset"` is for "shuffle it back into your deck", which the reset has then already done (MC40 p. 21), so the
+   * response is not offered.
+   */
+  thisDiscardedFromYourDeck: (opts: { readonly unless?: "deckReset" } = {}): EventPattern =>
+    pattern(
+      "cardDiscardedFromDeck",
+      { selfIs: "target" },
+      opts.unless === "deckReset" ? { eventIs: { at: "discard" } } : {},
+    ),
+  /**
+   * "After you discard a card from the top of your deck" (The Painted Lady, `next_evol` 40045; docs/phase7-wave7.md
+   * §3.55), on a card in play: each card discarded from its controller's deck, by any card's effect or cost (§4.1
+   * Q31). "That card" is `eventTarget`, in the discard pile, or in the new deck when its discard emptied the deck.
+   * Once another response has moved that card (its own "add it to your hand") this one is no longer offered for it.
+   */
+  youDiscardFromYourDeck: (): EventPattern => pattern("cardDiscardedFromDeck", { playerIs: "controller" }),
   /**
    * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
    * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"

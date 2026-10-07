@@ -10,7 +10,17 @@
 import type { GlossaryBoxId } from "@mc/content";
 
 /** Grows with each lesson built (guided mode §3.14); `mechanic-lessons.ts` and `mechanic-tryit-config.ts` are keyed by it. */
-export type MechanicTryItId = "storm" | "phoenix" | "shadowcat" | "gambit" | "rogue" | "colossus";
+export type MechanicTryItId =
+  | "storm"
+  | "phoenix"
+  | "shadowcat"
+  | "gambit"
+  | "rogue"
+  | "colossus"
+  | "psylocke"
+  | "angel"
+  | "cable"
+  | "x23";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -59,6 +69,30 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle6",
     title: "Colossus: two tough cards",
     tagline: "Hold two tough cards, then turn them into resources.",
+  },
+  {
+    id: "psylocke",
+    box: "cycle7",
+    title: "Psylocke: Psi-Knife and Psi-Katana",
+    tagline: "Attack, then flip a blade to its Katana side.",
+  },
+  {
+    id: "angel",
+    box: "cycle7",
+    title: "Angel: three faces",
+    tagline: "Pick Archangel, then change to Angel next round.",
+  },
+  {
+    id: "cable",
+    box: "cycle7",
+    title: "Cable: player side schemes",
+    tagline: "Thwart one, then play a second at the limit.",
+  },
+  {
+    id: "x23",
+    box: "cycle7",
+    title: "X-23: Specialists",
+    tagline: "Defeat Specialized Training and take a Specialist.",
   },
 ];
 

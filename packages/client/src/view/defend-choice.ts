@@ -12,6 +12,7 @@
 
 import {
   cardOf,
+  DEFENSE_BAR_MESSAGE,
   legalActions,
   maxHitPoints,
   remainingHitPoints,
@@ -27,7 +28,9 @@ import {
   type StackEntry,
   type Vars,
 } from "@mc/engine";
+import { defenseLockoutOf } from "./defense-lockout.js";
 import { cardName, faceUpName, seatName } from "./names.js";
+import { triggerEventWords } from "./trigger-event-words.js";
 import { decisionLabel } from "./villain-walkthrough.js";
 
 /** One row of "your options" — a real `DefendOptionPreview`, worded. */
@@ -258,7 +261,7 @@ const STAGE_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** One stack row, worded from exactly the fields `stackEntries` reports — no new engine state. */
-function stackRowLabel(state: GameState, entry: StackEntry): string {
+export function stackRowLabel(state: GameState, entry: StackEntry): string {
   switch (entry.kind) {
     case "enemyAttack":
     case "enemyScheme": {
@@ -267,7 +270,7 @@ function stackRowLabel(state: GameState, entry: StackEntry): string {
       return stage ? `${name} activates — ${stage}` : `${name} activates`;
     }
     case "event": {
-      const label = entry.eventKind ?? "event";
+      const label = entry.eventKind ? triggerEventWords(entry.eventKind) : "an event";
       if (entry.stage === "interrupts") return `Interrupt window — ${label}`;
       if (entry.stage === "responses") return `Response window — ${label}`;
       if (entry.stage === "apply") return `Resolving — ${label}`;
@@ -312,6 +315,12 @@ function stackRowsOf(state: GameState): readonly DefendStackRowView[] {
  * `{kind:"choice"}` here, this starts reporting it with no client change.
  */
 function defenseEventsNoteOf(state: GameState, choice: PendingChoice, deps: EngineDeps): string {
+  // A defense card held while another player's defense has closed this attack is locked out, not absent: say which.
+  const locked = defenseLockoutOf(state, choice.playerId, deps);
+  if (locked) {
+    const names = locked.cards.map((id) => cardName(state, id)).join(", ");
+    return `${names} locked out: ${DEFENSE_BAR_MESSAGE[locked.bar]}.`;
+  }
   const actions = legalActions(state, choice.playerId, deps);
   if (actions.kind !== "turn") return "Nothing playable in hand right now.";
   const events = actions.legal.filter(

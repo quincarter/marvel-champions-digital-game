@@ -519,10 +519,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const headerHeight = 30;
     const headerToCardsGap = 8;
     const shelfGap = 20;
+    const cardGap = 12;
     const cardWidth = Math.min(300, shelvesRect.width - 40);
     const available = shelvesRect.height - headerHeight - headerToCardsGap - shelfGap;
     const cardHeight = Math.max(220, Math.min(440, available));
-    return { cardWidth, cardHeight, cardGap: 12, headerHeight, headerToCardsGap, shelfGap };
+    return { cardWidth, cardHeight, cardGap, headerHeight, headerToCardsGap, shelfGap };
   }
 
   #refreshArt(): void {
@@ -587,9 +588,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
       { label: "Starting threat", value: `${formatScaling(detail.startingThreat)} start${accel}` },
       {
         label: "Villain HP",
-        value:
-          detail.stages.map((stage) => formatScaling(stage.hp).split(" ")[0]).join(" · ") ||
-          (firstStage ? formatScaling(firstStage.hp) : "—"),
+        value: detail.villainIsRandom
+          ? "Varies"
+          : detail.stages.map((stage) => formatScaling(stage.hp).split(" ")[0]).join(" · ") ||
+            (firstStage ? formatScaling(firstStage.hp) : "—"),
       },
       {
         label: "Encounter sets",
@@ -705,7 +707,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // Where the panel's own content has to stop: above the CTA on a wide layout, above its own bar on a phone sheet.
     const contentBottom = layout.wide ? layout.next.y - 8 : rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT - 8;
     const [rangeStart, rangeEnd] = this.#currentStageRange(detail);
-    for (const stage of detail.stages) {
+    for (const stage of detail.villainIsRandom ? detail.stages.slice(0, 1) : detail.stages) {
       const boxHeight = 44;
       if (y + boxHeight > contentBottom) break;
       const current = stage.stageNumber >= rangeStart && stage.stageNumber <= rangeEnd;
@@ -725,7 +727,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.add.text(
         rect.x + 24,
         y + 26,
-        `SCH ${stage.sch} · HP ${formatScaling(stage.hp)} · ATK ${stage.atk}`,
+        detail.villainIsRandom
+          ? "Drawn at random"
+          : `SCH ${stage.sch} · HP ${formatScaling(stage.hp)} · ATK ${stage.atk}`,
         textStyle(typeRole.label, surface.paper.hex, current ? ink.label : ink.disabled),
       );
       y += boxHeight + 8;

@@ -292,3 +292,198 @@ describe("parseRestriction: Max N [TRAIT] upgrade per ally / card per player", (
     expect(parsed.restrictions.maxPerPlayer).toBeUndefined();
   });
 });
+
+/**
+ * Wave 7 `next_evol` attach hosts (docs/phase7-wave7-data-survey.md section 6, gaps 2 to 4).
+ */
+describe("parseCardText: next_evol attach hosts", () => {
+  it('"Attach to Stryfe. Otherwise, attach to the villain." keeps Stryfe a named card, not the set villain (40034)', () => {
+    const parsed = parseCardText(
+      "Attach to Stryfe. Otherwise, attach to the villain.\nForced Interrupt: When attached character would take any amount of damage, prevent that damage.",
+      { villainNames: new Set(["Stryfe"]) },
+    );
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "ifAble",
+      preferred: { kind: "namedCard", name: "Stryfe" },
+      otherwise: { kind: "villain" },
+    });
+    expect(parsed.attachesToVillainNamed).toBeUndefined();
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("a named villain preferred over a non-villain fallback still claims the villain (no behavior change)", () => {
+    const parsed = parseCardText("Attach to Rhino, if able. Otherwise, attach to a minion.", {
+      villainNames: new Set(["Rhino"]),
+    });
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "ifAble",
+      preferred: { kind: "villain" },
+      otherwise: { kind: "minion" },
+    });
+    expect(parsed.attachesToVillainNamed).toBe("Rhino");
+  });
+
+  it('"the [MARAUDER] enemy with the lowest ATK" is a trait-qualified superlative fallback (40107)', () => {
+    const parsed = parseCardText(
+      "Attach to Greycrow or Harpoon. Otherwise, attach to the MARAUDER enemy with the lowest ATK.\nAttached enemy's attacks gain overkill, piercing, and ranged.",
+      { villainNames: new Set() },
+    );
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "ifAble",
+      preferred: {
+        kind: "anyOf",
+        hosts: [
+          { kind: "namedCard", name: "Greycrow" },
+          { kind: "namedCard", name: "Harpoon" },
+        ],
+      },
+      otherwise: { kind: "superlative", among: "enemy", order: "lowest", measure: "atk", trait: "MARAUDER" },
+    });
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("an untraited superlative host is unchanged by the optional trait word", () => {
+    const parsed = parseCardText("Attach to the enemy with the highest ATK.", { villainNames: new Set() });
+
+    expect(parsed.attachesTo).toEqual({ kind: "superlative", among: "enemy", order: "highest", measure: "atk" });
+  });
+
+  it('a conditional host ("If X is in play, attach to Y. Otherwise ...") has no schema shape, so it parses to no host (40169)', () => {
+    const parsed = parseCardText(
+      "If Stryfe's Grasp is in play, attach to Hope Summers. Otherwise, attach to your identity.\nForced Response: After Stryfe takes any amount of damage, attached character takes an equal amount of damage.",
+      { villainNames: new Set(["Stryfe"]) },
+    );
+
+    // Left to curation (`impliedAttachHost: "ownWhenRevealed"` plus a scripting note); no invented host shape.
+    expect(parsed.attachesTo).toBeUndefined();
+  });
+});
+
+/**
+ * Either-trait play restriction (`angel` 42011 Elixir; also `magneto` 41/42 cards): "Play only if your identity has the
+ * X-Force or X-Men trait." `requiresIdentityTrait` is one trait, so the sentence must stay out of `restrictions` and
+ * reach the scripter as a constant ability (`playOnlyIf(anyOf(...))`, as for Gambit 37015) rather than the bogus
+ * single trait "X-FORCE OR X-MEN".
+ */
+describe("parseRestriction: either-trait identity restriction", () => {
+  it("leaves requiresIdentityTrait unset and emits a constant ability", () => {
+    const text =
+      "Play only if your identity has the X-Force or X-Men trait.\n[star] Response: After Elixir attacks or thwarts, heal 1 damage from another friendly character.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.requiresIdentityTrait).toBeUndefined();
+    expect(parsed.abilities[0]).toEqual({
+      kind: "constant",
+      text: "Play only if your identity has the X-Force or X-Men trait.",
+    });
+  });
+});
+
+/** Wave 7 data fixes: "Max 1 per scheme." / "Max 1 per side scheme." and a "Hero form only" with no period. */
+describe("parseRestriction: scheme hosts and an unpunctuated form restriction", () => {
+  it('"Max 1 per scheme." is maxPerHost, not a stray constant ability (Overwatch `next_evol` 40055)', () => {
+    const text =
+      "Attach to a scheme. Max 1 per scheme.\nHero Interrupt: When any amount of threat is removed from attached scheme by a thwart, discard this card → remove an equal amount of threat from a different scheme.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxPerHost).toBe(1);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["interrupt"]);
+  });
+
+  it('"Max 1 per side scheme." is maxPerHost (Containment Strategy `angel` 42019)', () => {
+    const text =
+      "Attach to a non-permanent side scheme. Max 1 per side scheme.\nResponse: After a hero defends against an attack, remove 1 threat from attached scheme.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxPerHost).toBe(1);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["response"]);
+  });
+
+  it('"Limit 1 per side scheme." is maxPerHost too (The Direct Approach `x23` 43020)', () => {
+    const text =
+      "Attach to a non-permanent side scheme. Limit 1 per side scheme.\nAttached scheme gains assault. (Basic thwarts against this scheme use ATK instead of THW.)";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.maxPerHost).toBe(1);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant"]);
+  });
+
+  it('"Hero form only" without a period is still form: hero (Telekinetic Force Field `next_evol` 40012)', () => {
+    const text =
+      "Hero form only\nHero Interrupt: When a friendly character would take any amount of damage, discard this card → prevent all of that damage.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictions.form).toBe("hero");
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["interrupt"]);
+  });
+});
+
+/**
+ * docs/phase7-wave7.md §3.82: "Counts as 2 restricted cards." (Laser Swords `deadpool` 44055, Kurt's Cutlasses
+ * `ncrawler` 48004) is card data the engine weighs on the restricted limit, not a constant ability to script.
+ */
+describe('"Counts as N restricted cards." resolves to restrictedWeight', () => {
+  it("sharing a line with Max 1 per deck (Laser Swords): one constant ability left, the ATK sentence", () => {
+    const text =
+      "Counts as 2 restricted cards. Max 1 per deck.\nYour hero gets +1 ATK for each [crisis], [acceleration], [amplify], and [hazard] in play (to a maximum of +4 ATK).";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictedWeight).toBe(2);
+    expect(parsed.maxPerDeckText).toBe(1);
+    expect(parsed.keywords).toEqual([]);
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant"]);
+    expect(parsed.abilities[0]?.text).toMatch(/^Your hero gets \+1 ATK/);
+  });
+
+  it("on a line of its own (Kurt's Cutlasses)", () => {
+    const text = "Counts as 2 restricted cards.\nNightcrawler gets +1 ATK, +1 DEF, and gains retaliate 1.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.restrictedWeight).toBe(2);
+    expect(parsed.abilities.map((a) => a.text)).toEqual(["Nightcrawler gets +1 ATK, +1 DEF, and gains retaliate 1."]);
+  });
+
+  it("a card without the sentence has no weight", () => {
+    expect(parseCardText("Restricted.", { villainNames: new Set() }).restrictedWeight).toBeUndefined();
+  });
+});
+
+describe("extraConstantFrom splits a standing rule off the tail of a triggered body (Malice next_evol 40199)", () => {
+  const villainNames = new Set<string>();
+  const text =
+    "Surge.\nWhen Defeated: Attach Malice to the non-PSIONIC ally with the highest cost. Attached ally engages its controller. Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS). Attached minion's SCH is equal to its THW.";
+  const from = "Treat attached ally as a POSSESSED minion with a blank text box (except for TRAITS).";
+
+  it("keeps the triggered ref and adds a constant from the named sentence on", () => {
+    const parsed = parseCardText(text, { villainNames, extraConstantFrom: from });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["when-defeated", "constant"]);
+    expect(parsed.abilities[1]?.text).toBe(`${from} Attached minion's SCH is equal to its THW.`);
+  });
+
+  it("reports a sentence that is not in any ability body", () => {
+    const parsed = parseCardText(text, { villainNames, extraConstantFrom: "Nope." });
+    expect(parsed.unclassified).toHaveLength(1);
+  });
+});
+
+describe("icon-led list lines belong to the triggered ability that introduces them", () => {
+  it('"I Got This" (deadpool 44021) is one action ability, not an action plus four constants', () => {
+    const text =
+      "Hero Action: If the following icons are on 1 or more cards in play:\n[crisis] — Deal 3 damage to an enemy.\n[acceleration] — Remove 2 threat from a scheme.\n[amplify] — Ready an ally you control.\n[hazard] — Draw 1 card.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toHaveLength(1);
+    expect(parsed.abilities[0]?.kind).toBe("action");
+    expect(parsed.abilities[0]?.text).toContain("[hazard] — Draw 1 card.");
+  });
+
+  it("an icon-led line after a line that does not end in a colon stays its own clause", () => {
+    const parsed = parseCardText("Hero Action: Draw 1 card.\n[energy] — Heal 1 damage.", { villainNames: new Set() });
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["action", "constant"]);
+  });
+});

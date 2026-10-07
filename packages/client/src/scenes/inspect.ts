@@ -63,6 +63,7 @@
  * what reappears once Inspect closes.
  */
 
+import type { PerPlayerCost } from "../view/per-player-cost.js";
 import Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
 import type { AnyCard, CardId, ResourceIconType } from "@mc/content";
@@ -156,6 +157,8 @@ const RULES_PAD = 22;
 const RULES_SECTION_GAP = 16;
 /** "Damage on this card" and its one 16px line ("3/5 damage"). */
 const DAMAGE_SECTION_HEIGHT = 38;
+/** The "cost" section for a per player icon: its label row, then a 52px badge beside the two lines of words. */
+const COST_SECTION_HEIGHT = 16 + 52;
 
 /** The "RULES & STATE" title row, Bangers 24px, plus its own leading room. */
 const RULES_TITLE_HEIGHT = 30;
@@ -626,12 +629,28 @@ export class InspectOverlay extends Phaser.Scene {
       const chip: Rect = { x: rect.x, y: rect.y, width: 62, height: face.header.height };
       const chipG = this.add.graphics();
       chipG.fillStyle(accent.heroRed.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
+      // A per player cost: the scaled price leads and "2 PER PLAYER" sits under it (design 08B / L06B).
+      const perPlayer = model.perPlayerCost;
       this.add
-        .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(model.cost), {
+        .text(chip.x + chip.width / 2, chip.y + (perPlayer ? 20 : chip.height / 2), String(model.cost), {
           ...textStyle(typeRole.screenTitle, surface.paper.hex),
-          fontSize: "44px",
+          fontSize: perPlayer ? "30px" : "44px",
         })
         .setOrigin(0.5);
+      if (perPlayer) {
+        label(
+          this,
+          chip.x + chip.width / 2,
+          chip.y + chip.height - 6,
+          `${perPlayer.rate} per\nplayer`,
+          typeRole.label,
+          surface.paper.hex,
+          1,
+        )
+          .setFontSize(9)
+          .setAlign("center")
+          .setOrigin(0.5, 1);
+      }
       nameLeft = chip.x + chip.width + 14;
     }
     const nameWidth = Math.max(10, rect.x + rect.width - 14 - nameLeft);
@@ -830,6 +849,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.campaignNotice) heights.push(this.#campaignNoticeHeight(inner, model.campaignNotice));
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
       heights.push(this.#rightNowHeight(inner, model));
+    if (model.perPlayerCost) heights.push(COST_SECTION_HEIGHT);
     if (this.#howItWorks(model)) heights.push(this.#howItWorksHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
@@ -862,6 +882,26 @@ export class InspectOverlay extends Phaser.Scene {
       .join(" ");
     // The engine's reasons are written as clauses ("this event can only…"); on the sheet they stand as a sentence.
     return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+  }
+
+  /** The "cost" section for a per player icon (design 08B): the scaled price in a Hero Red badge, the printed rate and the player count beside it. */
+  #drawPerPlayerCost(x: number, y: number, cost: PerPlayerCost, scaled: number | null): void {
+    label(this, x, y, "cost", typeRole.label, surface.paper.hex, ink.meta);
+    const badge: Rect = { x, y: y + 16, width: 52, height: 52 };
+    this.add.graphics().fillStyle(accent.heroRed.hex, 1).fillRect(badge.x, badge.y, badge.width, badge.height);
+    this.add
+      .text(badge.x + badge.width / 2, badge.y + badge.height / 2, String(scaled ?? cost.rate), {
+        ...textStyle(typeRole.screenTitle, surface.paper.hex),
+        fontSize: "36px",
+      })
+      .setOrigin(0.5);
+    const textX = badge.x + badge.width + 14;
+    this.add.text(textX, badge.y + 10, caseOf(typeRole.label, cost.rateLabel), {
+      ...textStyle(typeRole.label, surface.paper.hex),
+      fontSize: "12px",
+      fontStyle: "700",
+    });
+    if (cost.countLabel) label(this, textX, badge.y + 29, cost.countLabel, typeRole.label, surface.paper.hex, ink.meta);
   }
 
   #rightNowHeight(inner: number, model: InspectModel): number {
@@ -1029,6 +1069,12 @@ export class InspectOverlay extends Phaser.Scene {
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice) {
       this.#drawRightNow(rect.x + pad, y, inner, model);
       y += this.#rightNowHeight(inner, model) + RULES_SECTION_GAP;
+    }
+
+    // The per player cost, below the verdict it explains: the scaled price in a badge, the printed rate beside it.
+    if (model.perPlayerCost) {
+      this.#drawPerPlayerCost(rect.x + pad, y, model.perPlayerCost, model.cost);
+      y += COST_SECTION_HEIGHT + RULES_SECTION_GAP;
     }
 
     if (this.#howItWorks(model)) {
@@ -1221,6 +1267,7 @@ export class InspectOverlay extends Phaser.Scene {
         new McButton(this, {
           kind: "primary",
           label: "Play it",
+          ...(model.perPlayerCost && model.currentCost !== null ? { value: String(model.currentCost) } : {}),
           type: typeRole.barTitle,
           rect: playRect,
           onClick: play,
@@ -1537,6 +1584,27 @@ export class InspectOverlay extends Phaser.Scene {
     const typeLine = label(this, textLeft, ty, model.typeLine, typeRole.label, surface.ink.hex, ink.label);
     typeLine.setWordWrapWidth(textWidth);
     ty += typeLine.height + 7;
+
+    // A per player cost (design 14B): the scaled price in a red badge, "2 PER PLAYER × 2 PLAYERS" beside it.
+    if (model.perPlayerCost) {
+      const cost = model.perPlayerCost;
+      const badge = 40;
+      this.add.graphics().fillStyle(accent.heroRed.hex, 1).fillRect(textLeft, ty, badge, badge);
+      this.add
+        .text(textLeft + badge / 2, ty + badge / 2, String(model.cost), {
+          ...textStyle(typeRole.screenTitle, surface.paper.hex),
+          fontSize: "28px",
+        })
+        .setOrigin(0.5);
+      this.add.text(textLeft + badge + 10, ty + 5, caseOf(typeRole.label, cost.rateLabel), {
+        ...textStyle(typeRole.label, surface.ink.hex),
+        fontSize: "11px",
+        fontStyle: "700",
+      });
+      if (cost.countLabel)
+        label(this, textLeft + badge + 10, ty + 22, cost.countLabel, typeRole.label, surface.ink.hex, ink.meta);
+      ty += badge + 7;
+    }
 
     if (model.damageNote) {
       const note = label(this, textLeft, ty, model.damageNote, typeRole.label, accent.heroRed.hex, ink.body);

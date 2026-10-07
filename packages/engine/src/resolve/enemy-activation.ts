@@ -13,6 +13,7 @@ import {
   updateInstance,
 } from "../ctx.js";
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
+import { currentEnemyAttackFrame, defenseBarFor } from "../defense-claim.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -33,6 +34,7 @@ import {
 import {
   attacksDealIndirectDamage,
   attacksDividedEvenly,
+  boostIgnored,
   mustDefendWithAlly,
   schemeActivationDestination,
   cannotDefend,
@@ -158,6 +160,11 @@ export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
  * is turned faceup" abilities their windows; its "Boost" ability resolves ("when the card is turned face up"), unless
  * cancelled; its icons are added, unless cancelled; then "After applying a boost card to an activation, discard it."
  *
+ * Under an `ignoreBoost` rule (docs/phase7-wave7.md §3.67; RRG 1.8 "Ignore", p. 23) the card goes through the same
+ * steps, turned faceup and discarded, but its icons count 0 and its "Boost" ability is not resolved. Neither is
+ * canceled. The rule is read at the flip and again at each later step, so one that begins while the card is faceup
+ * covers what is left of it.
+ *
  * Called repeatedly while the procedure sits on `flipBoosts`. Returns `"busy"` while a card is resolving, the icons to
  * add once one finishes, or `null` when none is left.
  */
@@ -167,8 +174,8 @@ function stepBoostCard(
   playerId: PlayerId,
   activation: "attack" | "scheme",
 ): number | null | "busy" {
-  const boost = frame.boost ?? null;
-  if (!boost) {
+  const turned = frame.boost ?? null;
+  if (!turned) {
     // The first boost card still *facedown*, not simply the first one dealt. A boost card stays in `boostCards`,
     // faceup, until its own ability and icon count are done — and a Boost ability can start a whole activation of
     // its own ("That villain schemes.", The Wrecking Crew's I've Been Waiting For This!). When that nested activation
@@ -182,19 +189,30 @@ function stepBoostCard(
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
     // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
-    const icons =
-      boostIconsFor(ctx.state, ctx.deps, boostId) +
-      amplifyIconsInPlay(ctx.state, ctx.deps) +
-      boostIconsEachOf(ctx, frame);
+    // An ignored card has no boost icon to count, printed or gained (an amplify icon's "Each boost card gains
+    // [boost]" gives it a boost icon like any other), so the windows that follow see 0.
+    const ignored = boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId);
+    const icons = ignored
+      ? 0
+      : boostIconsFor(ctx.state, ctx.deps, boostId, playerId) +
+        amplifyIconsInPlay(ctx.state, ctx.deps) +
+        boostIconsEachOf(ctx, frame);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
       instanceId: boostId,
       boostIcons: icons,
     });
+    if (ignored) emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId });
     setFrame(ctx, {
       ...frame,
-      boost: { instanceId: boostId, step: "window", iconsCancelled: false, abilityCancelled: false },
+      boost: {
+        instanceId: boostId,
+        step: "window",
+        iconsCancelled: false,
+        abilityCancelled: false,
+        ...(ignored ? { ignored: true as const } : {}),
+      },
     });
     pushEvent(ctx, {
       kind: "boostCardTurnedFaceup",
@@ -206,6 +224,15 @@ function stepBoostCard(
     });
     return "busy";
   }
+  let boost = turned;
+  if (
+    !boost.ignored &&
+    boost.step !== "resolved" &&
+    boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId)
+  ) {
+    boost = { ...boost, ignored: true };
+    emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boost.instanceId });
+  }
   if (boost.step === "resolved") {
     // After the `boostCardResolved` responses (docs/phase7-wave5.md §3.5): discarded unless one moved it.
     if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
@@ -216,7 +243,8 @@ function stepBoostCard(
   if (boost.step === "window") {
     setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
     if (boost.abilityCancelled) emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "ability" });
-    else pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
+    else if (!boost.ignored)
+      pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
     return "busy";
   }
   if (boost.step === "ability") {
@@ -228,7 +256,7 @@ function stepBoostCard(
       cardInstanceId: boost.instanceId,
       playerId,
     };
-    if (!boost.iconsCancelled && heard(ctx.state, ctx.deps, counting)) {
+    if (!boost.iconsCancelled && !boost.ignored && heard(ctx.state, ctx.deps, counting)) {
       pushEvent(ctx, counting);
       return "busy";
     }
@@ -237,11 +265,11 @@ function stepBoostCard(
   // constant ability: 'Each boost card gains [boost]'" (RRG 1.8 p. 7), and a constant applies while its card is in play
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
   const counted =
-    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, playerId) +
     amplifyIconsInPlay(ctx.state, ctx.deps) +
     boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
-  const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
+  const icons = boost.iconsCancelled || boost.ignored ? 0 : Math.max(0, counted);
   // "After you resolve a boost card during Mysterio's activation, place that card in your discard pile" (§3.5 of wave
   // 5): a response window between the count and the discard, only when an ability listens.
   const resolved: TriggerEvent = {
@@ -326,7 +354,14 @@ function threatInsteadOfDamage(
   };
 }
 
-/** Records a defender on the attack procedure and its event, and announces the defense. */
+/**
+ * Records a defender on the attack procedure and its event, and announces the defense.
+ *
+ * An attack declined at step 2 is recorded as undefended, which is what a boost card turned up in step 3 reads. A
+ * "(defense)" ability used after that still makes the hero the defender (RRG 1.8 "Defend, Defense", p. 15), so the
+ * record is withdrawn here: an "undefended attack" reader after this point sees a defended attack. `basic` alone
+ * decides whether DEF is subtracted; a labeled defense passes false and never undoes the declined step into one.
+ */
 export function setDefender(
   ctx: Ctx,
   frame: Frame<"enemyAttack">,
@@ -344,7 +379,11 @@ export function setDefender(
   if (frame.eventFrameId) {
     updateFrame(ctx, frame.eventFrameId, (f) =>
       f.kind === "event" && f.event.kind === "enemyAttack"
-        ? { ...f, event: { ...f.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer } }
+        ? {
+            ...f,
+            event: { ...f.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer },
+            ...((f.vars.undefended ?? 0) > 0 ? { vars: { ...f.vars, undefended: 0 } } : {}),
+          }
         : f,
     );
     addFrameSlots(ctx, frame.eventFrameId, { [DEFENDER_SLOT]: [defenderId] });
@@ -356,6 +395,16 @@ export function setDefender(
     playerId: defenderPlayer,
     basic,
   });
+}
+
+/**
+ * Records that `playerId` resolved a "(defense)"-labeled ability during the enemy attack in progress, if they are the
+ * first to: the record other players' defense abilities are barred by (`defenseBarFor`). Nothing outside an attack.
+ */
+export function recordDefenseLabel(ctx: Ctx, playerId: PlayerId): void {
+  const attack = currentEnemyAttackFrame(ctx.state);
+  if (!attack || attack.defenseLabeledBy !== undefined) return;
+  setFrame(ctx, { ...attack, defenseLabeledBy: playerId });
 }
 
 /** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
@@ -374,6 +423,9 @@ export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const activation = currentActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack" || (frame.vars.labeledDefense ?? 0) > 0) return;
+  // "…if there is not already a defender" (p. 14): one an effect declared while the attack was being initiated, this
+  // hero included, stays the defender, and the label announces no second defense.
+  if ((frame.slots[DEFENDER_SLOT] ?? []).length > 0) return;
   const enemyInstanceId = frame.event.enemyInstanceId;
   setFrame(ctx, {
     ...frame,
@@ -431,6 +483,9 @@ export function declareDefenderByLabeledEffect(
 export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaust: boolean): void {
   const defenderPlayer = controllerOf(ctx.state, defenderId);
   if (!defenderPlayer) return;
+  // "While a player is defending, other players cannot defend against that same attack" (p. 14): no character of
+  // another player's is declared, and it is not exhausted for a declaration that does not happen.
+  if (defenseBarFor(ctx.state, defenderPlayer) !== null) return;
   const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
   if (exhaust) exhaustCard(ctx, defenderId);
   const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
@@ -518,6 +573,20 @@ export function legalDefenders(
   // "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31).
   return defenders.filter((id) => !cannotDefend(state, deps, id, attackerId)).sort((a, b) => ownFirst(a) - ownFirst(b));
 }
+
+/**
+ * `legalDefenders` less the characters of a player the attack in progress is closed to (`defenseBarFor`): once a player
+ * has resolved a "(defense)"-labeled ability for it, no other player defends it. The Declare Defender step offers these.
+ */
+export const declarableDefenders = (
+  state: GameState,
+  attackedPlayerId: PlayerId,
+  deps: EngineDeps = DEFAULT_DEPS,
+  attackerId: InstanceId | null = null,
+): readonly InstanceId[] =>
+  legalDefenders(state, attackedPlayerId, deps, attackerId).filter(
+    (id) => defenseBarFor(state, controllerOf(state, id)) === null,
+  );
 
 /** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
 function endedByLeavingPlay(
@@ -619,7 +688,12 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           playerId: frame.attackedPlayerId,
         });
         exhaustCard(ctx, defenderId);
-        setDefender(ctx, { ...frame, answer: null, stage: "flipBoosts" }, defenderId, defenderPlayer, true);
+        const next = { ...frame, answer: null, stage: "flipBoosts" } as const;
+        // The hero a "(defense)" ability already made the defender: the basic defense subtracts DEF, and it is the
+        // same defense of this attack, announced when the ability made the hero the defender, not a second one
+        // (owner ruling 2026-10-06; `declareDefenderByEffect` reads an effect's declaration the same way).
+        if (frame.defenderInstanceId === defenderId) setFrame(ctx, { ...next, basicDefense: true });
+        else setDefender(ctx, next, defenderId, defenderPlayer, true);
         // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
         const used: TriggerEvent = {
           kind: "basicPowerUsed",
@@ -651,7 +725,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that
       // hero may still make a basic defense; nobody else can defend this attack.
       const existing = frame.defenderInstanceId;
-      const all = legalDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId);
+      const all = declarableDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId);
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
         ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)
@@ -886,6 +960,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
           overkill: keywords.includes("overkill"),
           ...(keywords.includes("piercing") ? { piercing: true } : {}),
+          ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
         },
         {
           kind: "characterAttacked",

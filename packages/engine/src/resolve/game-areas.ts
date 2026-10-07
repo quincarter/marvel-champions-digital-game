@@ -6,9 +6,14 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import { discardAtOnce, discardWithLeavingHost, giveStatus, setActiveVillain, waitsForHostStep } from "../effects.js";
+import {
+  discardAtOnce,
+  discardWithLeavingHost,
+  applyToughness,
+  setActiveVillain,
+  waitsForHostStep,
+} from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
-import { hasKeyword } from "../keywords.js";
 import {
   areaOfCard,
   discardZoneFor,
@@ -36,6 +41,7 @@ import {
 } from "../state.js";
 import { cardsMatch } from "../unique.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
+import { waitingSetupCardsEnterPlay } from "./setup-cards.js";
 
 const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
   ctx.state = { ...ctx.state, gameAreas };
@@ -391,6 +397,14 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
  *
  * A villain set aside after being in play (`setVillainAside`, The Sinister Six; docs/phase7-wave5.md §3.1) re-enters
  * as a new copy: its entry in `GameState.villains` is replaced in place, so its printed order is kept.
+ *
+ * During setup, in a game whose villains all started set aside (`GameState.villainsEnteringAtSetup`), a villain put
+ * into play without `reveal` is noted there: RRG 1.8 Appendix II step 12c (p. 51) resolves its Setup and When Revealed
+ * abilities after main scheme 1B's (`resolveVillainSetupAbilities`; docs/phase7-wave7.md §3.42). One that card text
+ * reveals resolves its When Revealed here, once, and is not noted.
+ *
+ * Once the villains of one effect are all in play, a setup-keyword attachment that waited for one enters play
+ * (`GameState.setupCardsAwaitingHost`, `setup-cards.ts`).
  */
 export function addVillains(
   ctx: Ctx,
@@ -445,9 +459,13 @@ export function addVillains(
     }
     emit(ctx, { type: "villainAdded", instanceId: id, cardId: card.id, areaId: current?.areaId ?? null });
     // RRG 1.8 "Toughness": the stage enters play with its tough status.
-    if (hasKeyword(ctx.state, id, "toughness", ctx.deps)) giveStatus(ctx, id, "tough");
+    applyToughness(ctx, id);
     if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
+    else if (ctx.state.villainsEnteringAtSetup)
+      ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };
   }
+  // RRG 1.8 Appendix II step 11 (p. 51): a setup-keyword attachment that found no villain in play now has one.
+  if (entered.length > 0) waitingSetupCardsEnterPlay(ctx);
   return { frames, entered };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { scale } from "@mc/engine";
+import { createGame, scale } from "@mc/engine";
 import {
   compositionRowsOf,
   difficultyCardsFor,
@@ -9,7 +9,7 @@ import {
   tableSetupPreviewOf,
   whatsInThereRowsOf,
 } from "./table-setup-preview.js";
-import { buildScenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
+import { buildScenario, CARDS_BY_ID, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 
 const rhino = POOL_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
 const breakout = POOL_SCENARIOS.find((s) => (s.id as string) === "breakout")!;
@@ -235,5 +235,103 @@ describe("tableSetupPreviewOf: the preview counts the deck the game deals, for e
     };
     expect(names(4974)).toEqual(names(4974));
     expect(names(4974)).toHaveLength(2);
+  });
+});
+
+describe("the game you'll get: added sets and a random villain", () => {
+  const summaryFor = (scenarioId: string, starterDeckIds: readonly string[]) => {
+    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId)!;
+    const config = buildScenario(scenarioId, {
+      difficulty: "standard",
+      players: starterDeckIds.map((starterDeckId) => ({ starterDeckId })),
+      seed: 1,
+    });
+    const preview = tableSetupPreviewOf(config, scenario, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    return { preview, rows: gameSummaryRowsOf(preview) };
+  };
+
+  test("a deck that chose the 'Pool aspect lists the Dreadpool set and why", () => {
+    const { preview, rows } = summaryFor("rhino", ["deadpool-pool"]);
+    expect(preview.addedSets).toEqual([{ name: "Dreadpool", why: "'Pool deck", setAside: 6 }]);
+    expect(rows).toContainEqual({ label: "Added set", value: "Dreadpool · 'Pool deck · 6 set aside" });
+  });
+
+  test("any 'Pool seat adds it, at a wave 7 scenario too", () => {
+    expect(summaryFor("stryfe", ["deadpool-pool", "cable-leadership"]).preview.addedSets).toHaveLength(1);
+  });
+
+  test("a deck under another aspect lists no added set", () => {
+    const { preview, rows } = summaryFor("rhino", ["core-spider-man-justice"]);
+    expect(preview.addedSets).toEqual([]);
+    expect(rows.some((r) => r.label === "Added set")).toBe(false);
+  });
+
+  test.each(["morlock-siege", "on-the-run"])(
+    "%s names the Marauders as a random villain, with no placeholder HP",
+    (id) => {
+      const { preview, rows } = summaryFor(id, ["core-spider-man-justice"]);
+      expect(preview.villainIsRandom).toBe(true);
+      expect(preview.villainName).toBe("The Marauders");
+      expect(rows[0]).toEqual({ label: "Villain", value: "The Marauders · random" });
+      expect(JSON.stringify(rows)).not.toContain("Arclight");
+    },
+  );
+
+  test("a fixed villain is unchanged", () => {
+    const { preview } = summaryFor("rhino", ["core-spider-man-justice"]);
+    expect(preview.villainIsRandom).toBe(false);
+  });
+});
+
+describe("the encounter deck counts a set the deal adds", () => {
+  const compare = (scenarioId: string, starterDeckIds: readonly string[]) => {
+    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId)!;
+    const config = buildScenario(scenarioId, {
+      difficulty: "standard",
+      players: starterDeckIds.map((starterDeckId) => ({ starterDeckId })),
+      seed: 1,
+    });
+    const preview = tableSetupPreviewOf(config, scenario, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const created = createGame(config, POOL_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    const state = created.state;
+    const deck = Object.values(state.encounterDecks).flatMap((d) => d.deck);
+    const started = new Map<string, number>();
+    for (const id of deck) {
+      const type = CARDS_BY_ID.get(state.instances[id]!.cardId as string)!.type;
+      started.set(type, (started.get(type) ?? 0) + 1);
+    }
+    return { preview, deckSize: deck.length, started, state };
+  };
+
+  test("Deadpool on Rhino: the preview's deck size and type counts equal the started game's", () => {
+    const { preview, deckSize, started } = compare("rhino", ["deadpool-pool"]);
+    // The deck line counts the cards listed by set; the hero obligations are the separate "shuffled in" line.
+    expect(preview.encounterDeckSize + preview.obligationsCount).toBe(deckSize);
+    expect(preview.encounterDeck.decks[0]!.byType.reduce((n, b) => n + b.count, 0)).toBe(preview.encounterDeckSize);
+    for (const { type, count } of preview.encounterDeck.decks[0]!.byType) expect(started.get(type) ?? 0).toBe(count);
+    for (const type of [...started.keys()].filter((k) => k !== "obligation"))
+      expect(preview.encounterDeck.decks[0]!.byType.some((b) => b.type === type)).toBe(true);
+    const rows = compositionRowsOf(preview.encounterDeck);
+    expect(rows.find((r) => r.label === "Dreadpool")?.count).toBeGreaterThan(0);
+    expect(preview.encounterDeckSizeText).toBe(`${deckSize - preview.obligationsCount} cards`);
+  });
+
+  test("the cards that start set aside are said, not counted", () => {
+    const { preview, state } = compare("rhino", ["deadpool-pool"]);
+    const rows = gameSummaryRowsOf(preview);
+    const added = preview.addedSets[0]!;
+    expect(rows.find((r) => r.label === "Added set")?.value).toBe(
+      `Dreadpool · 'Pool deck${added.setAside > 0 ? ` · ${added.setAside} set aside` : ""}`,
+    );
+    expect(state.encounterSetAside.length).toBeGreaterThanOrEqual(added.setAside);
+  });
+
+  test("a non-'Pool deck is unchanged and still equals the started game", () => {
+    const { preview, deckSize, started } = compare("rhino", ["core-spider-man-justice"]);
+    // The deck line counts the cards listed by set; the hero obligations are the separate "shuffled in" line.
+    expect(preview.encounterDeckSize + preview.obligationsCount).toBe(deckSize);
+    expect(compositionRowsOf(preview.encounterDeck).some((r) => r.label === "Dreadpool")).toBe(false);
+    for (const { type, count } of preview.encounterDeck.decks[0]!.byType) expect(started.get(type) ?? 0).toBe(count);
   });
 });

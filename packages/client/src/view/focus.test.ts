@@ -140,3 +140,14 @@ describe("Team-Up ring focus stops", () => {
     expect(sameTarget({ kind: "teamUp", pairKey: "a" }, { kind: "cancel" })).toBe(false);
   });
 });
+
+describe("focus route and cards with no tile", () => {
+  test("a usable card with no tile or chip is not a stop; one with a chip is", () => {
+    const marks: Highlights = { ...marksWith(["endTurn"]), usableAbilities: new Set([id("chip"), id("nowhere")]) };
+    const order = focusOrder({ kind: "idle", hand: [], tiled: (card) => card === id("chip") }, marks);
+    expect(order).toEqual([
+      { kind: "card", instanceId: id("chip") },
+      { kind: "basic", action: "endTurn" },
+    ]);
+  });
+});

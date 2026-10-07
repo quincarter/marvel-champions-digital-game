@@ -3,6 +3,7 @@
  * genre sets checked off. One wording for the Dossier's Log and the Issue detail's list, so a write never reads one
  * way on one screen and another way on the next. Display only.
  */
+import type { CardId } from "@mc/content";
 import type { LogValue } from "@mc/engine";
 import type { CardNameOf } from "./campaign-log-model.js";
 
@@ -42,6 +43,32 @@ export function plainWriteRows(
         detail: "Not picked again while others remain.",
       },
     ];
+  }
+  const named = (id: string): string => cardName(id as CardId);
+  if (value.kind === "choice" && /^sideSchemeScenario\d+$/.test(field)) {
+    return [{ headline: `Scheme: ${value.option}`, detail: "Its encounter card joins the deck." }];
+  }
+  // The strike list repeats the pick above (cumulative, so it would also repeat earlier picks).
+  if (field === "sideSchemes" && value.kind === "strikeList") return [];
+  if (field === "environmentsEarned" && value.kind === "cardList") {
+    return [{ headline: `Earned: ${value.cardIds.map(named).join(", ")}`, detail: "In play every later scenario." }];
+  }
+  if (field === "encounterCards" && value.kind === "cardList") {
+    return [
+      { headline: `Added: ${value.cardIds.map(named).join(", ")}`, detail: "Shuffled into the deck from now on." },
+    ];
+  }
+  if (field === "maraudersDefeated" && value.kind === "cardList") {
+    return [
+      { headline: `Marauders out: ${value.cardIds.map(named).join(", ")}`, detail: "Removed from the next scenario." },
+    ];
+  }
+  if (field === "morlocksSaved" && value.kind === "number") {
+    const plural = value.value === 1 ? "" : "s";
+    return [{ headline: `${value.value} Morlock${plural} saved`, detail: "Each lets a player search next scenario." }];
+  }
+  if ((field === "hopeDamage3" || field === "hopeDamage4") && value.kind === "number") {
+    return [{ headline: `Hope Summers: ${value.value} damage`, detail: "Placed on her, or as threat, next." }];
   }
   return null;
 }

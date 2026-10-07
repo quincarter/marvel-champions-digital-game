@@ -12,9 +12,11 @@
  * Every code here is checked by `aspects.test.ts` to be a Core Set card, printed with that aspect, a member of
  * that aspect's Core precon (`CORE_STARTER_DECKS`), and in the playable pool (`PLAYABLE_CARDS`).
  *
- * **'Pool.** Not in the playable pool yet (§3.7), so it has no entry here — adding one later (once the Deadpool
- * pack is wired) is exactly one more `AspectGuide`, keyed `"pool"`, pushed onto `ASPECT_GUIDES`. `AspectGuide.aspect`
- * is typed as `CoreAspect` (which already includes `"pool"`) so that addition needs no type change, only data.
+ * **'Pool (wave 7).** The fifth aspect, from the Deadpool hero pack, so its signature cards and precon
+ * (`deadpool-pool`) are not Core Set: `aspects.test.ts` checks them against the app's pool and the wave 7 precons.
+ * Its "Try it" game (`aspect-tryit-config.ts`) is a Rhino game that carries the Dreadpool set. The rule it teaches is
+ * the Dreadpool one: a player who chooses 'Pool as their aspect adds the Dreadpool set (Crisis of Infinite
+ * Deadpools), 'Pool cards inside another aspect's deck do not (RRG 1.8 pp. 8, 12, 64).
  */
 import type { CardId, CoreAspect, StarterDeckId } from "@mc/content";
 import { cardId, starterDeckId } from "@mc/content";
@@ -29,9 +31,9 @@ export interface AspectGuide {
   readonly whatItsFor: string;
   /** Two to three bullets, may use `[[id|label]]` glossary markup. */
   readonly pickItWhen: readonly string[];
-  /** Two or three Core Set cards printed with this aspect, in this aspect's Core precon and the playable pool. */
+  /** Two or three cards printed with this aspect, in this aspect's precon and the app's pool. */
   readonly signatureCardCodes: readonly CardId[];
-  /** The Core precon to play in the "Try it" guided game (§3, decision 7). `null` for Basic, which has none. */
+  /** The precon that shows the aspect (the "Try it" game's deck where there is one). `null` for Basic. */
   readonly preconId: StarterDeckId | null;
   /** One short line for the inline chip tip (Seats / Deck check / Deck builder aspect chips, G10b). */
   readonly tipLine: string;
@@ -101,6 +103,23 @@ const PROTECTION: AspectGuide = {
   tipLine: "Pick it when the villain hits hard or your hero is fragile.",
 };
 
+const POOL: AspectGuide = {
+  aspect: "pool",
+  name: "'Pool",
+  tagline: "Big swings, at a price",
+  whatItsFor:
+    "[[poolAspect|'Pool]] is the fifth aspect, from the Deadpool pack: chatty [[ally|allies]], odd events and " +
+    "upgrades that heal or hit hard, and a few that cost you something. It counts as an aspect everywhere a card " +
+    "asks for one.",
+  pickItWhen: [
+    "You want a deck with bigger swings and a sense of humor, and can live with a few risks.",
+    "You accept the cost: a player who chooses 'Pool adds the Dreadpool set to the encounter deck. 'Pool cards in another aspect's deck don't.",
+  ],
+  signatureCardCodes: [cardId("44013"), cardId("44017"), cardId("44029")],
+  preconId: starterDeckId("deadpool-pool"),
+  tipLine: "Pick it for wild, risky cards. It adds extra Dreadpool enemy cards to the villain's deck.",
+};
+
 const BASIC: AspectGuide = {
   aspect: "basic",
   name: "Basic",
@@ -115,11 +134,17 @@ const BASIC: AspectGuide = {
 };
 
 /**
- * One entry per playable aspect, plus Basic. In §5.4's table order. 'Pool has no entry yet — see the module header.
+ * One entry per playable aspect, plus Basic. In §5.4's table order, with 'Pool after the four Core aspects.
  */
-export const ASPECT_GUIDES: readonly AspectGuide[] = [JUSTICE, AGGRESSION, LEADERSHIP, PROTECTION, BASIC];
+export const ASPECT_GUIDES: readonly AspectGuide[] = [JUSTICE, AGGRESSION, LEADERSHIP, PROTECTION, POOL, BASIC];
 
-/** Looks up one aspect's guide by `CoreAspect`, or `undefined` if it has none yet (currently only `"pool"`). */
+/** Looks up one aspect's guide by `CoreAspect`, or `undefined` if it has none (every aspect has one now). */
 export function aspectGuideOf(aspect: CoreAspect): AspectGuide | undefined {
   return ASPECT_GUIDES.find((guide) => guide.aspect === aspect);
+}
+
+/** The dev route's `?aspect=` value: the guide it names, Justice when missing or unknown (every aspect with a guide is accepted). */
+export function devAspectOf(raw: string | null): CoreAspect {
+  const found = raw ? ASPECT_GUIDES.find((guide) => guide.aspect === raw) : undefined;
+  return found ? found.aspect : "justice";
 }

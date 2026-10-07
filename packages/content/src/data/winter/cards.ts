@@ -21,7 +21,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     hp: 11,
     hero: {
       faceName: "Winter Soldier",
-      traits: [trait("S.H.I.E.L.D. SOLDIER")],
+      traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
       atk: 2,
       thw: 2,
       def: 2,
@@ -37,7 +37,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     },
     alterEgo: {
       faceName: "Bucky Barnes",
-      traits: [trait("S.H.I.E.L.D. SOLDIER")],
+      traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
       rec: 3,
       handSize: 6,
       keywords: [],
@@ -93,7 +93,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "hero:54001a",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -300,7 +300,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "aggression",
-    traits: [trait("S.H.I.E.L.D. SOLDIER")],
+    traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
     keywords: [{ name: "toughness" }],
     deckLimit: 1,
     text: {
@@ -517,7 +517,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. SOLDIER")],
+    traits: [trait("S.H.I.E.L.D."), trait("SOLDIER")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -762,7 +762,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "protection",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {

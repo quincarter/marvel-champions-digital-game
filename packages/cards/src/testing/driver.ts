@@ -413,6 +413,7 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
     }
     case "discardDownToHandSize":
     case "discardOverAllyLimit":
+    case "discardOverPlayerSideSchemeLimit":
     case "discardRestricted":
       return fewest;
     default:

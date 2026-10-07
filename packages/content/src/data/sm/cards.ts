@@ -996,7 +996,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 2, thwart: 1 },
     aspect: "justice",
-    traits: [trait("S.H.I.E.L.D. WEB-WARRIOR")],
+    traits: [trait("S.H.I.E.L.D."), trait("WEB-WARRIOR")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -1019,7 +1019,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     cost: 0,
     resourceIcons: { energy: 1 },
     aspect: "justice",
-    traits: [trait("S.H.I.E.L.D. TACTIC")],
+    traits: [trait("S.H.I.E.L.D."), trait("TACTIC")],
     keywords: [],
     deckLimit: 3,
     text: {
@@ -1042,7 +1042,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     cost: 0,
     resourceIcons: { physical: 1 },
     aspect: "justice",
-    traits: [trait("S.H.I.E.L.D. TACTIC")],
+    traits: [trait("S.H.I.E.L.D."), trait("TACTIC")],
     keywords: [],
     deckLimit: 3,
     text: {
@@ -1113,7 +1113,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     hp: 4,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -1324,7 +1324,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     cost: 3,
     resourceIcons: { energy: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. VEHICLE")],
+    traits: [trait("S.H.I.E.L.D."), trait("VEHICLE")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -4478,7 +4478,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4491,7 +4491,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     ],
     flipSide: {
       name: "Compact Darts",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nHero Response: After your hero attacks, remove 1 dart counter from here → deal 1 damage to up to 2 different enemies.\nAlter-Ego Action: Spend 1 resource of any type → place 3 dart counters here. (Limit once per round.)",
@@ -4519,7 +4519,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4532,7 +4532,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     ],
     flipSide: {
       name: "Impact-Dampening Suit",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nYour identity gets +3 hit points.\nHero Interrupt: When your hero would take any amount of damage from an enemy attack, discard the top card of your deck → prevent 1 of that damage.",
@@ -4560,7 +4560,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4573,7 +4573,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     ],
     flipSide: {
       name: "Laser Goggles",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nYour hero gets -1 THW.\nYour hero gets +2 ATK, and your hero's basic attacks gain overkill and piercing.",
@@ -4601,7 +4601,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4611,7 +4611,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     abilities: [{ id: abilityId("27185a.propulsion-gauntlet-action") }],
     flipSide: {
       name: "Propulsion Gauntlet",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nHero Action: Exhaust Propulsion Gauntlet and take 2 indirect damage → ready your hero. Your hero gets +1 THW, +1 ATK, and +1 DEF until the end of the phase.",
@@ -4636,7 +4636,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4649,7 +4649,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     ],
     flipSide: {
       name: "Retinal Display",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nYour hero's basic thwart power (THW) can only remove threat from the scheme with the most threat.\nYour hero gets +2 THW, and your hero's basic thwarts ignore the crisis icon ([crisis]) and the patrol keyword.",
@@ -4677,7 +4677,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4687,7 +4687,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     abilities: [{ id: abilityId("27187a.shock-knuckles-response") }],
     flipSide: {
       name: "Shock Knuckles",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nYour hero gets +1 ATK.\nHero Response: After your hero makes a basic attack against an enemy, discard the top card of the encounter deck. If 1 or fewer boost icons ([boost]) were discarded this way, stun that enemy.",
@@ -4715,7 +4715,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4728,7 +4728,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     ],
     flipSide: {
       name: "Wave Bracers",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nYour hero gets -1 ATK.\nYour hero gets +2 DEF, and gains retaliate 1 and stalwart.",
@@ -4756,7 +4756,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     specialCost: "dash",
     resourceIcons: {},
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. TECH")],
+    traits: [trait("S.H.I.E.L.D."), trait("TECH")],
     keywords: [{ name: "setup" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
@@ -4769,7 +4769,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     ],
     flipSide: {
       name: "Wrist Navigator",
-      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D. TECH")],
+      traits: [trait("ENHANCED"), trait("S.H.I.E.L.D."), trait("TECH")],
       keywords: [{ name: "permanent" }],
       text: {
         printed: "Permanent.\nForced Response: After a minion or side scheme enters play, attach Wrist Navigator to it.\nInterrupt: When the attached card is defeated, draw 2 cards, then discard 1 card from your hand.",

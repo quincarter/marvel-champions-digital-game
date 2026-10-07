@@ -20,6 +20,7 @@ import type {
   CampaignChoiceSource,
   CampaignDefinition,
   CampaignGrant,
+  CampaignHistoryEntry,
   CampaignInstruction,
   CampaignOp,
   CampaignPredicate,
@@ -119,6 +120,8 @@ export interface CampaignRun {
    * runs for them. `seatCount` still counts them — "1[per_hero]" is the number of players who played the game.
    */
   readonly sittingOut: readonly number[];
+  /** The games already attempted, oldest first (`CampaignLog.history`); `choose.repeatOnRetry` reads the latest. */
+  readonly history: readonly CampaignHistoryEntry[];
   working: CampaignWorkingLog;
   /** The node whose instructions are running; `CampaignGrant.grantedAtNodeId` and `progressNode` read it. */
   nodeId: string;
@@ -340,7 +343,7 @@ export function evaluateCampaignPredicate(run: CampaignRun, predicate: CampaignP
 // ------------------------------------------------------------------------------------------------------------
 
 /** `AnyCard["type"]` as the categories a `CollectionFilter` names. The in-play twin is `select.ts`'s `categoriesOf`. */
-const CARD_DATA_CATEGORIES: Readonly<Record<AnyCard["type"], readonly TargetCategory[]>> = {
+export const CARD_DATA_CATEGORIES: Readonly<Record<AnyCard["type"], readonly TargetCategory[]>> = {
   hero_identity: ["identity", "character"],
   ally: ["ally", "character"],
   event: ["event"],
@@ -375,7 +378,7 @@ const DECKABLE: ReadonlySet<AnyCard["type"]> = new Set<AnyCard["type"]>([
 
 const poolCards = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
 
-const cardTraits = (card: AnyCard): readonly Trait[] => {
+export const cardTraits = (card: AnyCard): readonly Trait[] => {
   if (card.type === "hero_identity") return [...card.hero.traits, ...card.alterEgo.traits];
   if (card.type === "villain") return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.traits));
   return "traits" in card ? card.traits : [];
@@ -739,10 +742,31 @@ function recordChoice(
   slot: string,
   seatNumber: number | null,
   picked: readonly string[],
-  random?: true,
+  mark?: "random" | "repeated",
 ): void {
   run.slots.set(slotKey(slot, seatNumber), picked);
-  run.choices.push(random ? { slot, seatNumber, picked, random } : { slot, seatNumber, picked });
+  const record: CampaignChoiceRecord = { slot, seatNumber, picked };
+  run.choices.push(mark === "random" ? { ...record, random: true } : mark ? { ...record, repeated: true } : record);
+}
+
+/**
+ * What a `repeatOnRetry` choice picked the last time, when this step list is a retry (MC40 p. 7: "they must choose
+ * the same player side scheme for that scenario"); undefined when there is nothing to repeat.
+ *
+ * A retry is read off the history rather than off a flag: the latest attempt was at this same node and was not won.
+ * `applyCampaignResult` sends a lost node straight back to itself, so nothing can sit between the two. Only before
+ * the game: a victory or defeat step list is not something a retry replays.
+ */
+function repeatedPick(run: CampaignRun, key: CampaignChoiceKey): readonly string[] | undefined {
+  if (run.phase !== "beforeGame" || run.nodeId === "") return undefined;
+  const last = run.history[run.history.length - 1];
+  if (!last || last.nodeId !== run.nodeId || last.outcome === "won") return undefined;
+  for (const step of last.steps) {
+    if (step.instructionId !== key.instructionId) continue;
+    const record = step.choices.find((choice) => choice.slot === key.slot && choice.seatNumber === key.seatNumber);
+    if (record) return record.picked;
+  }
+  return undefined;
 }
 
 /** The seats a `choose`/`random` asks. `eachSeat` inside a `forEachSeat` is just that seat. */
@@ -760,6 +784,19 @@ function runChoose(
   for (const seatNumber of choosingSeats(run, op.chooser)) {
     const key: CampaignChoiceKey = { instructionId: instruction.id, slot: op.slot, seatNumber };
     const options = resolveChoiceSource(run, op.from, seatNumber);
+    const repeated = op.repeatOnRetry ? repeatedPick(run, key) : undefined;
+    if (repeated !== undefined) {
+      // Not offered, so never silently re-asked either: the baseline a loss restores offers what it offered then,
+      // and a recorded pick that is gone is a definition or save fault the players must not paper over by re-picking.
+      const missing = repeated.filter((picked) => !options.includes(picked));
+      if (missing.length > 0) {
+        throw new EngineInvariantError(
+          `campaign choice "${op.slot}" of ${instruction.id} must repeat "${missing.join('", "')}" on this retry of ${run.nodeId}, which is no longer one of its options`,
+        );
+      }
+      recordChoice(run, op.slot, seatNumber, repeated, "repeated");
+      continue;
+    }
     const answer = run.answers.get(campaignChoiceKey(key));
     if (answer === undefined) {
       run.pending = {
@@ -830,13 +867,13 @@ function runRandom(
       );
     }
     if (answer.length === 0) {
-      recordChoice(run, op.slot, run.seatScope, [], true);
+      recordChoice(run, op.slot, run.seatScope, [], "random");
       return;
     }
   }
   // Drawn from `CampaignLog.rng`, which advances as part of the log's state: a client cannot reroll by reloading,
   // and the whole campaign replays from its seed (MC27 p. 22, MC45 p. 5, MC60 p. 9 step 2).
-  recordChoice(run, op.slot, run.seatScope, drawRandom(run, options, count), true);
+  recordChoice(run, op.slot, run.seatScope, drawRandom(run, options, count), "random");
 }
 
 /**

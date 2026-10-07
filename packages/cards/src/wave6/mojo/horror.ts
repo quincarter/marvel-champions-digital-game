@@ -149,6 +149,7 @@ export const HORROR_ABILITIES = defineAbilities({
   // from Werewolf Pack.
   "39052.werewolf-pack-forced-interrupt": forcedInterrupt(
     when.defeated("self"),
+    { would: true },
     chooseCards("lost", tuckedUnder(self), { min: 1, max: 1, chooser: you }),
     ifThen(not(choiceFoundNothing()), instead(moveCards(cards(chosen("lost")), "discard"), heal(damageOn(self), self))),
   ),

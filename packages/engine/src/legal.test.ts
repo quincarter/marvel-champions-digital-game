@@ -46,7 +46,8 @@ function withHand(state: GameState, player: PlayerId, ids: readonly InstanceId[]
 describe("legalActions", () => {
   it("outside the player's own turn it reports what the game is waiting on", () => {
     const start = newGame({ players: 2 });
-    expect(legalActions(start, p2)).toEqual({ kind: "notYourTurn", activePlayerId: p1 });
+    // With no Action ability to offer during p1's turn (RRG 1.8 "Action", p. 6), p2's lists are empty.
+    expect(legalActions(start, p2)).toEqual({ kind: "notYourTurn", activePlayerId: p1, legal: [], illegal: [] });
     const atDiscard = run(start, endTurn(p1), endTurn(p2));
     const result = legalActions(atDiscard, p1);
     expect(result.kind).toBe("choice");

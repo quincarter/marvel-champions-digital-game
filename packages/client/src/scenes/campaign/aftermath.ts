@@ -785,7 +785,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     justice: "JUS",
     leadership: "LEA",
     protection: "PRO",
-    pool: "POOL",
+    pool: "'POOL",
     basic: "BASIC",
     identity: "HERO",
   };

@@ -14,9 +14,12 @@ import {
 } from "./query.js";
 import { cannotHaveStatus, grantedAttackKeywords, statusLimit } from "./rules.js";
 import {
-  activeAbilityRefs,
   cardsInPlay,
-  controllerOf,
+  categoriesOf,
+  constantAbilityRefs,
+  constantYouOf,
+  constantSources,
+  speakerOf,
   evaluate,
   matchesQuery,
   keywordsBlankFor,
@@ -148,13 +151,15 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
   // encounter card's grants to itself are read wherever it is, since a revealed treachery is never in play — the
   // `revealCannotBeCanceled` reading of the card's own text (docs/phase7-wave4.md §3.14).
   const ownText = !inPlay.includes(id) && getInstance(state, id)?.ownerId === null ? [id] : [];
-  for (const sourceId of [...inPlay, ...ownText]) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+  // `constantSources`: the cards in play, and a card in the victory display whose text works there (§3.50 of wave 7).
+  for (const sourceId of [...constantSources(state, deps), ...ownText]) {
+    for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
+      // "You" is the granting card's speaker, as for its rules and stat modifiers (`constantYouOf`).
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: controllerOf(state, sourceId),
+        controllerId: constantYouOf(state, sourceId),
         event: null,
         bindings: {},
         deps,
@@ -226,7 +231,7 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
         if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
         const context: EffectContext = {
           selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
+          controllerId: speakerOf(state, sourceId),
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,
@@ -384,6 +389,27 @@ export function statusCapacity(
   if (status === "tough") return statusLimit(state, deps, id, "tough") ?? 1;
   if (hasKeyword(state, id, "stalwart", deps)) return 0;
   return hasKeyword(state, id, "steady", deps) ? 2 : 1;
+}
+
+/**
+ * Whether a `status` card given to `id` now would be placed on it: it holds fewer than its capacity (RRG 1.8 "Status
+ * Cards", p. 41). The one decision `giveStatus`, a `giveStatus` cost and `TargetQuery.canTakeStatus` share, so a query
+ * asking for room can never disagree with the give that follows it.
+ *
+ * Only a character in play has room: a status card is placed "on that character" (p. 41), and a card out of play is
+ * not one to place it on. So "after this attack, stun that enemy" resolving once the attack has defeated the enemy
+ * gives nothing to the card now in a discard pile or the victory display, as a give to a full character gives nothing.
+ */
+export function canTakeStatus(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean {
+  const instance = getInstance(state, id);
+  if (instance === undefined || !categoriesOf(state, id).includes("character")) return false;
+  if (!cardsInPlay(state).includes(id)) return false;
+  return instance.statuses[status] < statusCapacity(state, id, status, deps);
 }
 
 /** RRG "Steady": a steady character is not stunned/confused until it holds two of that card. */

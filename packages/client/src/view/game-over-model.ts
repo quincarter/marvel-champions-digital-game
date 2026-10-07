@@ -170,6 +170,13 @@ export function gameOverModel(
   const schemeTarget = scale(scheme.targetThreat, state.startingPlayerCount);
 
   const villainHp = hpNumber(remainingHitPoints(state, villainState.instanceId, deps) ?? 0);
+  // A win with the active villain still on his feet came from a card's own text ("If there are 3 villains under
+  // Routed, the players win the game."): the engine logs every such win as `villainDefeated`
+  // (`EffectSpec endGame`), so the screen reads the villain's hit points rather than the reason.
+  const scenarioWin =
+    outcome?.result === "win" &&
+    outcome.reason === "villainDefeated" &&
+    (remainingHitPoints(state, villainState.instanceId, deps) ?? 0) > 0;
   const heroesDown = record.seats.filter((seat) => seat.defeatedInRound !== null);
   const firstDown = [...heroesDown].sort((a, b) => (a.defeatedInRound ?? 0) - (b.defeatedInRound ?? 0))[0];
 
@@ -187,6 +194,12 @@ export function gameOverModel(
   switch (outcome?.reason) {
     case "villainDefeated":
     case "allVillainsDefeated": {
+      if (scenarioWin) {
+        kicker = "The scenario is won";
+        headline = "The players win";
+        summary = `The scenario's own text ended the game in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
+        break;
+      }
       kicker = `Stage ${stage} cleared`;
       headline = `${villain} defeated`;
       summary = `${villain} went down in round ${round}, with ${record.damageToVillain} damage dealt to the villain across the game.`;
@@ -290,7 +303,7 @@ export function gameOverModel(
   const stats: GameOverStat[] = [
     {
       label: villain,
-      value: tone === "win" ? `Stage ${stage} cleared` : `Stage ${stage} · ${villainHp} HP left`,
+      value: tone === "win" && !scenarioWin ? `Stage ${stage} cleared` : `Stage ${stage} · ${villainHp} HP left`,
       note: `${record.damageToVillain} damage dealt to ${villain}`,
     },
     {
@@ -354,11 +367,43 @@ export function gameOverModel(
     stats,
     quickStats,
     beatsHeading: concededBy ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
-    beats: turningPoints(state, record, tone, villain),
+    beats: turningPoints(
+      state,
+      record,
+      tone,
+      villain,
+      outcome?.reason ?? null,
+      lossLine(state, record, cause, finalBlow),
+    ),
     seats,
     mvp,
     villainInstanceId: villainState.instanceId,
   };
+}
+
+/**
+ * What ended a lost game, as the first line under "Where it went wrong": the card's own cause for a card-caused loss,
+ * the last hero to fall, the empty encounter deck. Null for a win, a concession and a scheme loss (the final blow and
+ * the heaviest round already say it) and for a game saved before the engine recorded a cause.
+ */
+function lossLine(
+  state: GameState,
+  record: GameRecord,
+  cause: string | null,
+  finalBlow: GameOverModel["finalBlow"],
+): string | null {
+  switch (state.outcome?.reason) {
+    case "cardAbility":
+      return cause ?? (finalBlow ? `${finalBlow.title}. ${finalBlow.body}` : null);
+    case "allPlayersDefeated":
+      return record.lastEliminated
+        ? `${playerName(state, record.lastEliminated.playerId)} was the last to fall.`
+        : null;
+    case "encounterDeckExhausted":
+      return "The encounter deck and its discard pile both ran out.";
+    default:
+      return null;
+  }
 }
 
 /**
@@ -371,6 +416,8 @@ export function turningPoints(
   record: GameRecord,
   tone: GameOverTone,
   villain: string,
+  reason: string | null = null,
+  lead: string | null = null,
 ): readonly GameOverBeat[] {
   const beats: GameOverBeat[] = [];
   for (const entry of record.rounds) {
@@ -387,14 +434,19 @@ export function turningPoints(
       beats.push({ round: entry.round, text: `${villain} was pushed to the next stage.` });
     }
   }
+  // The heaviest threat round explains a scheme loss only; under any other loss it reads as the cause and is not.
   const heaviest = [...record.rounds].sort((a, b) => b.threatPlaced - a.threatPlaced)[0];
-  if (heaviest && heaviest.threatPlaced > 0) {
+  const schemeLoss = tone === "loss" && (reason === null || reason === "mainSchemeCompleted");
+  if (heaviest && heaviest.threatPlaced > 0 && (tone === "win" || schemeLoss)) {
     beats.push({
       round: heaviest.round,
       text: `The heaviest round for threat: ${heaviest.threatPlaced} placed, ${heaviest.threatRemoved} removed.`,
     });
   }
-  return beats.sort((a, b) => a.round - b.round).slice(0, 4);
+  const rest = beats.sort((a, b) => a.round - b.round);
+  // The reason the game ended leads, in the last round, ahead of the rounds that led up to it.
+  if (tone === "loss" && lead) return [{ round: state.round, text: lead }, ...rest.slice(0, 3)];
+  return rest.slice(0, 4);
 }
 
 /** The news ribbon's phrases, in order: points earned, what a win opened, what is new in Extras. Empty when there is none. */

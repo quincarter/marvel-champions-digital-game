@@ -97,12 +97,13 @@ import { sortByRecency } from "../view/deck-recency.js";
 import {
   compositionTilesOf,
   costCurveBars,
+  deckCountText,
   deckStatsOf,
   type CompositionTile,
   type CostCurveBar,
 } from "../view/deck-stats.js";
 import { deckStatusOf } from "../view/deck-status.js";
-import { cardTitleOf, deckMetaLine, SOURCE_LABEL } from "../view/deck-title.js";
+import { cardTitleOf, deckAspectsText, deckMetaLine, SOURCE_LABEL } from "../view/deck-title.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import {
@@ -285,6 +286,8 @@ export class DecksScene extends Phaser.Scene {
   #poolList: McVirtualList | null = null;
   #poolListScroll = new ListScroll();
   #focusedOnce = false;
+  /** True while the selected row is only the first one, standing in for a `focusDeckId` deck not loaded yet. */
+  #fallbackSelection = false;
 
   constructor() {
     super(SCENES.decks);
@@ -310,6 +313,7 @@ export class DecksScene extends Phaser.Scene {
     this.#listScroll = new ListScroll();
     this.#poolListScroll = new ListScroll();
     this.#focusedOnce = false;
+    this.#fallbackSelection = false;
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
@@ -486,12 +490,17 @@ export class DecksScene extends Phaser.Scene {
         status: () => this.#status,
       };
     }
-    if (this.#selectedDeckId === null || !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId)) {
-      const wanted = !this.#focusedOnce ? this.#data.focusDeckId : null;
-      this.#selectedDeckId =
-        (wanted && allOptions.some((o) => (o.deck.id as string) === wanted)
-          ? wanted
-          : (allOptions[0]?.deck.id as string | undefined)) ?? null;
+    // Saved decks arrive after the first draw, so a deck asked for by `focusDeckId` (the one just saved in the builder)
+    // may not exist yet: the first row stands in until it does, then the asked-for deck takes over once.
+    const wanted = this.#data.focusDeckId ?? null;
+    const wantedExists = wanted !== null && allOptions.some((o) => (o.deck.id as string) === wanted);
+    if (
+      this.#selectedDeckId === null ||
+      !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId) ||
+      (this.#fallbackSelection && wantedExists)
+    ) {
+      this.#selectedDeckId = (wantedExists ? wanted : (allOptions[0]?.deck.id as string | undefined)) ?? null;
+      this.#fallbackSelection = !wantedExists;
     }
     const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;
 
@@ -695,8 +704,10 @@ export class DecksScene extends Phaser.Scene {
       const index = rows.findIndex(
         (row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId,
       );
-      if (index >= 0) list.scrollIntoView(index);
-      this.#focusedOnce = true;
+      if (index >= 0) {
+        list.scrollIntoView(index);
+        this.#focusedOnce = true;
+      }
     }
     rows.forEach((row, index) => {
       if (row.kind === "newDeck") {
@@ -1409,7 +1420,7 @@ export class DecksScene extends Phaser.Scene {
       this,
       left,
       y,
-      `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()} · ${SOURCE_LABEL[deck.source.kind].toUpperCase()}`,
+      `${deck.source.kind === "precon" ? "" : deckAspectsText(deck)}${deckCountText(stats).toUpperCase()} · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()} · ${SOURCE_LABEL[deck.source.kind].toUpperCase()}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,

@@ -7,7 +7,7 @@ import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
-import { changeFormLabel } from "../../view/change-form-label.js";
+import { changeFormButtonLabel } from "../../view/change-form-label.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
@@ -29,6 +29,31 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
 
+  // Acting for a seat whose turn it is not (an Action, RRG "Player Turn" pp. 34-35): the bar says whose cards these
+  // are and offers the way back; the basic powers and End turn are the active player's alone, so they are not drawn.
+  if (appSession().store.state.offTurnSeat !== null) {
+    const back: Rect = { x: rect.x + rect.width - 100, y: rect.y + 4, width: 90, height: hit.target - 8 };
+    scene.add
+      .text(
+        rect.x + 10,
+        rect.y + hit.target / 2,
+        `${model.me.name} · off turn`,
+        textStyle(typeRole.barTitle, signal.caution.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setMaxLines(1);
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "onInk",
+        label: "Back",
+        type: typeRole.label,
+        rect: back,
+        onClick: () => appSession().store.leaveOffTurnSeat(),
+      }),
+    );
+    return;
+  }
+
   const stacked = rect.height >= hit.target + hit.primary;
   // Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form: more than one destination is legal, so the
   // button can no longer say *which* way the flip goes — it opens the "Which form?" picker instead
@@ -38,7 +63,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     attack: "Attack",
     thwart: "Thwart",
     recover: "Recover",
-    changeForm: formSources.length > 1 ? "Change form" : changeFormLabel(model.myForm, stacked),
+    changeForm: changeFormButtonLabel(formSources.length, model.myForm, stacked),
     endTurn: "End turn",
   };
 

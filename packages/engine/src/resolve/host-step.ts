@@ -45,7 +45,8 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       return;
     }
     case "flipToOtherFace":
-      if (flipToOtherFace(ctx, step.id, step.playerId) === true)
+      // A revealing flip pushed its reveal and its `cardFlipped` itself.
+      if (flipToOtherFace(ctx, step.id, step.playerId, ctx.deps, step.reveal === true) === true && !step.reveal)
         pushFrames(ctx, [eventFrame(ctx, { kind: "cardFlipped", instanceId: step.id })]);
       return;
   }

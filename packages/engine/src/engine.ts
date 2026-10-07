@@ -3,15 +3,18 @@ import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
+import { DEFENSE_BAR_MESSAGE } from "./defense-claim.js";
 import { discardFromHand, discardFromPlay, endGame } from "./effects.js";
 import { engineError, EngineInvariantError, type EngineError } from "./errors.js";
 import type { GameEvent } from "./events.js";
 import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
+import { reportedNumberOf } from "./outside-facts.js";
 import { getPlayer, handSize } from "./query.js";
 import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
+import { choiceExclusions } from "./why-not.js";
 
 export type CommandResult =
   | { readonly ok: true; readonly state: GameState; readonly events: readonly GameEvent[] }
@@ -80,6 +83,22 @@ function concede(ctx: Ctx, command: Command & { type: "concede" }): EngineError 
   return null;
 }
 
+/**
+ * Why an option id the open choice does not list was refused. A defender, or a "(defense)" card or ability, the
+ * attack in progress is closed to names the rule (`defenseBarFor`, through the same `choiceExclusions` a client
+ * reads); anything else is simply not an option.
+ */
+function notOfferedMessage(ctx: Ctx, optionId: string): string {
+  const barred = choiceExclusions(ctx.state, ctx.deps).find(
+    (exclusion) =>
+      (exclusion.reason === "anotherPlayerDefending" || exclusion.reason === "anotherPlayerUsedDefense") &&
+      (optionId === exclusion.instanceId || optionId.startsWith(`${exclusion.instanceId}:`)),
+  );
+  if (barred && (barred.reason === "anotherPlayerDefending" || barred.reason === "anotherPlayerUsedDefense"))
+    return DEFENSE_BAR_MESSAGE[barred.reason];
+  return `${optionId} is not an option`;
+}
+
 function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): EngineError | null {
   const choice = ctx.state.pendingChoice;
   if (!choice) return engineError("no_choice_pending", "there is no choice to resolve", command);
@@ -100,9 +119,17 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       command,
     );
   }
-  for (const optionId of selected) {
-    if (!choice.options.some((o) => o.optionId === optionId)) {
-      return engineError("invalid_choice", `${optionId} is not an option`, command);
+  // docs/phase7-wave7.md §3.83: a whole-number report has no upper bound, so no option list; its form is checked.
+  if (choice.prompt.kind === "reportFact" && choice.prompt.answer === "wholeNumber") {
+    const [reported] = selected;
+    if (reported === undefined || reportedNumberOf(reported) === null) {
+      return engineError("invalid_choice", `${reported} is not a whole number of 0 or more`, command);
+    }
+  } else {
+    for (const optionId of selected) {
+      if (!choice.options.some((o) => o.optionId === optionId)) {
+        return engineError("invalid_choice", notOfferedMessage(ctx, optionId), command);
+      }
     }
   }
   if (choice.prompt.kind === "divide") {
@@ -146,6 +173,19 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
     case "discardOverAllyLimit":
     case "discardRestricted": {
       for (const optionId of selected) discardFromPlay(ctx, instanceId(optionId));
+      return null;
+    }
+    // RRG 1.8 "Player Side Scheme Limit" (p. 34): "The player side scheme discarded this way is not considered
+    // defeated", so it is a plain discard: no When Defeated, no victory display, its owner's discard pile.
+    case "discardOverPlayerSideSchemeLimit": {
+      for (const optionId of selected) {
+        emit(ctx, {
+          type: "playerSideSchemeLimitDiscard",
+          instanceId: instanceId(optionId),
+          chosenBy: choice.playerId,
+        });
+        discardFromPlay(ctx, instanceId(optionId));
+      }
       return null;
     }
     case "chooseMinionToActivate": {

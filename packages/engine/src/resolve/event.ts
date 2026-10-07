@@ -14,12 +14,17 @@ import {
   removeCounters,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
+import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
+import { titlesNaming } from "../titles.js";
 import {
+  cardBackOf,
   cardOf,
   characterProfile,
+  currentName,
+  isPlayerCardType,
   titleShowing,
   getInstance,
+  getPlayer,
   mustInstance,
   villainOf,
   areaOfCard,
@@ -35,6 +40,7 @@ import {
   damageTakenAllowance,
   damageTakenBreakdown,
   damageSourceCard,
+  type DamageAttackInfo,
   type DamageSourceInfo,
   phaseDamageAllowance,
   excessDamageBonus,
@@ -49,14 +55,18 @@ import {
   threatCannotBeRemoved,
   iconsInPlay,
   cannotActivate,
+  cardAbilitiesCannotRemove,
   type ConsequentialDamage,
 } from "../rules.js";
 import {
+  actingCharacterOf,
   canAttack,
   cardsInPlay,
   characterIgnores,
   controllerOf,
+  isAttachedMinion,
   isProtectedMainScheme,
+  sourcePlayerOf,
   thwartAmount,
 } from "../select.js";
 import {
@@ -73,17 +83,20 @@ import { announceStatusDiscarded } from "./status-discarded.js";
 import {
   announceKeywordsIgnored,
   guardsIgnored,
+  type KeywordIgnored,
   recordKeywordsIgnored,
   thwartBlockersIgnored,
 } from "./keyword-ignored.js";
 import { damageTakenKey } from "../trigger-events.js";
-import type { DefeatFollowUp, EffectSpec } from "../spec.js";
+import type { DefeatFollowUp, EffectSpec, Predicate } from "../spec.js";
 import {
+  alreadyDefeated,
   applyMainSchemeCompleting,
   checkDefeats,
   checkMainSchemeCompletion,
   defeatVillainStage,
   eliminatePlayer,
+  holdAtZero,
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
@@ -110,6 +123,16 @@ import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessi
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
     case "interrupts": {
+      // A standing "If …, discard this card" took the card out of play the moment it was in play (`fromEntering`,
+      // `resolve/state-checks.ts`; RRG 1.8 "Ability", p. 4): nothing is offered for its entering play.
+      if (
+        frame.standingCheckResolved &&
+        frame.event.kind === "cardEntersPlay" &&
+        !cardsInPlay(ctx.state).includes(frame.event.instanceId)
+      ) {
+        popFrame(ctx);
+        return;
+      }
       // "As an additional cost to thwart this scheme, …" (docs/phase7-wave5.md §3.21): paid before the thwart is
       // initiated (RRG 1.8 "Cost", p. 13). A declined resource payment cancels the thwart. A basic thwart paid it with
       // its own costs, before it was initiated (§4.1 Q27, `thwart-cost.ts`), and is not asked again.
@@ -277,6 +300,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // Results are final once everything the event pushed has resolved.
       const event = withResults(resolvedAmount(frame.event, frame.vars), frame.vars);
       emit(ctx, { type: "triggerEvent", event, phase: "resolved" });
+      // "…thwarted this phase" (docs/phase7-wave7.md §3.36): a thwart that resolved, which "after you thwart" hears.
+      if (event.kind === "thwart") recordActThisPhase(ctx, event.thwarterInstanceId, "thwart");
       // "After a character defends" waits for the attack to end (RRG 1.8 p. 16): hand the response window to the
       // activation frame, which opens it in its own `done` stage. With no activation on the stack (a defense-labeled
       // ability triggered outside an attack) there is nothing to wait for, so the window opens here as before.
@@ -361,8 +386,10 @@ function announceAfterward(ctx: Ctx, frame: Frame<"event">): void {
  * Abilities", p. 48: "A defeated card leaves play after its 'When Defeated' ability is resolved, if any"). Only if it is
  * still in play showing the face that was defeated: a When Defeated that moved it ("shuffle this card into the encounter
  * deck") or flipped it into its other face (Secure the Landing Pad → Cosmo; docs/phase7-wave4.md §3.10) has already
- * placed it. Shared by allies, minions and side schemes. `sourceCardId`: the card whose ability defeated it, if any, for
- * the Permanent keyword (`defeatedLeavingSource`, docs/phase7-wave5.md §4.1 Q46).
+ * placed it, and so has one that attached it to another card ("When Defeated: Attach [this minion] to the non-[PSIONIC]
+ * ally with the highest cost"; docs/phase7-wave7.md §3.44): it stays in play there, defeated once. Shared by allies,
+ * minions and side schemes. `sourceCardId`: the card whose ability defeated it, if any, for the Permanent keyword
+ * (`defeatedLeavingSource`, docs/phase7-wave5.md §4.1 Q46).
  */
 function leaveAfterWhenDefeated(
   ctx: Ctx,
@@ -372,13 +399,21 @@ function leaveAfterWhenDefeated(
   controllerId: PlayerId | null,
   sourceCardId?: CardId,
 ): StackFrame {
+  const showsDefeatedFace: Predicate = { kind: "refMatches", ref: { kind: "self" }, query: { printedId } };
+  // Built as the defeat happens: a card attached to nothing now that is attached by then was put there since.
+  const unattached = getInstance(ctx.state, id)?.attachedTo == null;
   return {
     ...base(ctx),
     kind: "effects",
     effects: [
       {
         kind: "if",
-        condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId } },
+        condition: unattached
+          ? {
+              kind: "and",
+              of: [showsDefeatedFace, { kind: "not", of: { kind: "isAttached", of: { kind: "self" } } }],
+            }
+          : showsDefeatedFace,
         then: [leave],
       },
     ],
@@ -414,7 +449,23 @@ function schemeDefeatDestination(state: GameState, deps: EngineDeps, schemeId: I
  * resolves, `thwartAmount` (`select.ts`) gives the amount it is about to remove.
  */
 const resolvedAmount = (event: TriggerEvent, vars: Vars): TriggerEvent =>
-  event.kind === "thwart" ? { ...event, amount: vars.threatRemoved ?? 0 } : event;
+  event.kind === "thwart"
+    ? { ...event, amount: vars.threatRemoved ?? 0 }
+    : event.kind === "dealDamage"
+      ? damageDealtAndTaken(event, vars)
+      : event;
+
+/**
+ * Resolved damage carries what was dealt and what was taken, the two amounts "after X deals damage" and "after X
+ * takes damage" read (RRG 1.8 "Prevent", p. 35; owner ruling 2026-10-07, docs/phase7-wave7.md §4.1). Dealt is the
+ * event's `dealt` when an interrupt prevented any of it, else its `amount`; taken is the frame's `amount` result, which
+ * only damage actually placed on the target writes (`recordDamageTaken`, a `damageGroup` member's vars).
+ */
+const damageDealtAndTaken = (event: DamageEvent, vars: Vars): DamageEvent => ({
+  ...event,
+  dealt: event.dealt ?? event.amount,
+  taken: vars.amount ?? 0,
+});
 
 const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
   Object.keys(vars).length === 0 ? event : { ...event, results: vars };
@@ -512,8 +563,14 @@ function reportResults(ctx: Ctx, frame: Frame<"event">, happened: boolean): void
 function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
   const event = frame.event;
   switch (event.kind) {
-    case "dealDamage":
-      return applyDamage(ctx, event, frame.frameId);
+    case "dealDamage": {
+      // The response window reads the frame's event: it carries the target as it took the damage.
+      const stamped = asDamaged(ctx.state, event);
+      if (stamped !== event)
+        updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: stamped } : f));
+      stampAttackTarget(ctx, stamped);
+      return applyDamage(ctx, stamped, frame.frameId);
+    }
     case "healDamage": {
       const before = getInstance(ctx.state, event.targetInstanceId)?.damage ?? 0;
       healDamage(ctx, event.targetInstanceId, event.amount, event.sourceInstanceId ?? null);
@@ -565,6 +622,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     }
     case "characterAttacked":
       recordAttackThisTurn(ctx, event.attackerInstanceId, event.targetInstanceId);
+      recordActThisPhase(ctx, event.attackerInstanceId, "attack");
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
@@ -637,13 +695,22 @@ export function beginDefeat(
   const id = event.instanceId;
   const instance = getInstance(ctx.state, id);
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
+  // A minion attached to a card "cannot be defeated again, even if she gains hit points or heals damage" (RRG 1.8 FAQ
+  // "Malice (#199)", p. 64; `isAttachedMinion`): not at zero hit points, and not by an effect that says "defeat".
+  if (isAttachedMinion(ctx.state, id)) return false;
+  // Defeated already and still in play for its When Defeated abilities (RRG 1.8 p. 48): one defeat, not a second.
+  if (alreadyDefeated(ctx.state, id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);
   // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
   if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;
   // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
   // `protectionChecked`: villains that fell together in one sweep had their "cannot be defeated while …" read then, before
   // either applied (docs/phase7-wave4.md §3.3).
-  if (event.protectionChecked !== true && cannotBeDefeated(ctx.state, ctx.deps, id)) return false;
+  if (event.protectionChecked !== true && cannotBeDefeated(ctx.state, ctx.deps, id)) {
+    // Still at zero and still in play: watched until the rule ends (docs/phase7-wave7.md §4.1 Q21).
+    if (instance.damage >= profile.maxHp) holdAtZero(ctx, id);
+    return false;
+  }
   // A villain stage (docs/phase7-wave3.md §3.1). Reaching here means no interrupt replaced the defeat: "flip this card
   // instead" turns the villain to an ∞ face and "reset his hit points instead" clears the damage, and either fails the
   // dial check above. Otherwise it falls exactly as the sweep's inline path does (RRG 1.8 "Villain Defeat", p. 47).
@@ -668,6 +735,12 @@ export function beginDefeat(
   const sourceCardId = sourceId ? getInstance(ctx.state, sourceId)?.cardId : undefined;
   if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+    return false;
+  }
+  // "Card abilities cannot remove this ally from play" (docs/phase7-wave7.md §4.1 Q7): an effect that says "defeat" does
+  // nothing to it; a defeat at zero hit points has no source card and goes ahead.
+  if (sourceCardId !== undefined && cardAbilitiesCannotRemove(ctx.state, ctx.deps, id)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return false;
   }
   emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });
@@ -696,10 +769,13 @@ export function beginDefeat(
       sourceInstanceId: event.overkill.sourceInstanceId,
       fromAttack: true,
       ...(event.parentFrameId ? { spilledFromFrameId: event.parentFrameId } : {}),
+      ...(event.overkill.viaInstanceId ? { viaInstanceId: event.overkill.viaInstanceId } : {}),
+      ...(event.overkill.ranged ? { ranged: true as const } : {}),
     };
   }
   return {
     printedId: instance.cardId,
+    attached: instance.attachedTo !== null,
     actingPlayerId,
     controllerId: controllerOf(ctx.state, id),
     ...(destination === null ? {} : { insteadTo: destination }),
@@ -763,10 +839,36 @@ function attackPierces(ctx: Ctx, event: DamageEvent): boolean {
 function pierceForDamage(ctx: Ctx, event: DamageEvent): readonly StatusDiscarded[] {
   if (event.amount <= 0 || !attackPierces(ctx, event)) return [];
   if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return [];
-  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [event.sourceInstanceId, event.viaInstanceId]))
-    return [];
+  if (damageCannotBeTaken(ctx, event)) return [];
   return pierceTough(ctx, event.targetInstanceId);
 }
+
+/**
+ * The attack this damage is from, for the rules that read its attacker, its card or its keywords (`DamageAttackInfo`,
+ * docs/phase7-wave7.md §3.30); undefined for damage that is not an attack's. The keywords are the ones stamped on the
+ * event as the attack pushed it, or the attacker's own, and none for a character the attack is not against.
+ */
+function damageAttackInfo(ctx: Ctx, event: DamageEvent): DamageAttackInfo | undefined {
+  if (!event.fromAttack) return undefined;
+  const source = event.sourceInstanceId;
+  const keywords =
+    event.notAttacked === true
+      ? []
+      : ATTACK_KEYWORDS.filter(
+          (name) => event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)),
+        );
+  return { attackerInstanceId: source, cardInstanceId: event.viaInstanceId ?? null, keywords };
+}
+
+/** Whether a "cannot take damage" rule stops this damage, read with its sources and its attack (`cannotTakeDamage`). */
+const damageCannotBeTaken = (ctx: Ctx, event: DamageEvent): boolean =>
+  cannotTakeDamage(
+    ctx.state,
+    ctx.deps,
+    event.targetInstanceId,
+    [event.sourceInstanceId, event.viaInstanceId],
+    damageAttackInfo(ctx, event),
+  );
 
 /**
  * Piercing ahead of the damage's interrupt window (ruling January 17, 2026 (3) #2: "keywords have timing priority over
@@ -806,8 +908,7 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
   if (event.amount <= 0 || event.ignoreTough === true) return false;
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target || target.statuses.tough <= 0) return false;
-  const source = event.sourceInstanceId;
-  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) return false;
+  if (damageCannotBeTaken(ctx, event)) return false;
   const consequential = consequentialDamageOf(ctx, event, frameId);
   if (damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential) !== null) return false;
   if (event.fromAttack && preventedByAttackFlag(ctx, event)) return false;
@@ -827,18 +928,14 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
 
 /**
  * Where this damage comes from, as the damage-taken rules read it (`DamageSourceInfo`, docs/phase7-wave6.md §3.68): its
- * source card (§4 Q39), and for an attack's damage to the character it attacks, the attack's piercing and overkill
- * (stamped on the event or the attacker's own). Ranged is not carried on the damage event, so a rule keyed to it never
- * matches yet.
+ * source card (§4 Q39), the attack it is from (`damageAttackInfo`, docs/phase7-wave7.md §3.30), and for an attack's
+ * damage to the character it attacks, that attack's keywords (stamped on the event or the attacker's own).
  */
 function damageSourceInfo(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): DamageSourceInfo {
   const card = damageSourceCard(event);
-  if (!event.fromAttack || event.notAttacked === true) return { card };
-  const source = event.sourceInstanceId;
-  const attackKeywords = (["piercing", "overkill"] as const).filter(
-    (name) => event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)),
-  );
-  return { card, attackKeywords };
+  const attack = damageAttackInfo(ctx, event);
+  if (!attack) return { card };
+  return event.notAttacked === true ? { card, attack } : { card, attackKeywords: attack.keywords, attack };
 }
 
 /**
@@ -934,6 +1031,47 @@ export function excessDamageOf(
   return measured + (event.fromAttack && source !== null ? excessDamageBonus(ctx.state, ctx.deps, source) : 0);
 }
 
+/**
+ * The damage event carrying its target as it is about to take the damage (`TargetSnapshot`): read by the damage's
+ * response window, after a replacement on the defeat it causes may have turned the target to another face. Unchanged
+ * for damage that is not dealt (0 as it would be dealt, or a target that has left play).
+ */
+export function asDamaged(state: GameState, event: DamageEvent): DamageEvent {
+  // Damage an interrupt prevented in full was still dealt (`dealt`), and its "after X is dealt damage" responses read
+  // the target as it was dealt to; damage of 0 as it would be dealt (`amount` 0, no `dealt`) is not.
+  const dealt = event.dealt ?? event.amount;
+  if (dealt <= 0 || event.targetAsDamaged || !cardsInPlay(state).includes(event.targetInstanceId)) return event;
+  const name = currentName(state, event.targetInstanceId);
+  const statuses = getInstance(state, event.targetInstanceId)?.statuses;
+  return {
+    ...event,
+    targetAsDamaged: {
+      ...(name !== undefined ? { name } : {}),
+      titles: titlesNaming(state, event.targetInstanceId),
+      ...(statuses !== undefined ? { statuses: { ...statuses } } : {}),
+    },
+  };
+}
+
+/**
+ * An attack's damage to the character it attacks hands its target snapshot to the attack's own event
+ * (`attack.targetAsDamaged`), so "after [character] attacks and damages a confused enemy" reads the enemy as the
+ * attack damaged it. Called with the damage event `asDamaged` stamped, before the damage is applied. An attack deals
+ * its target one instance of damage; were one to deal several, the first is kept.
+ */
+export function stampAttackTarget(ctx: Ctx, event: DamageEvent): void {
+  const snapshot = event.targetAsDamaged;
+  if (snapshot === undefined || !event.fromAttack || event.notAttacked === true || !event.parentFrameId) return;
+  updateFrame(ctx, event.parentFrameId, (frame) =>
+    frame.kind === "event" &&
+    frame.event.kind === "attack" &&
+    frame.event.targetInstanceId === event.targetInstanceId &&
+    frame.event.targetAsDamaged === undefined
+      ? { ...frame, event: { ...frame.event, targetAsDamaged: snapshot } }
+      : frame,
+  );
+}
+
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */
 /** `sweep` false: a `damageGroup` applies several at once and sweeps for defeats itself afterwards. */
 export function applyDamage(
@@ -964,8 +1102,10 @@ export function applyDamage(
     event.notAttacked !== true &&
     (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
 
-  // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used).
-  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) {
+  // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used). RRG 1.8 "Tough"
+  // (p. 44) replaces damage the character "would take", and one that cannot take it would take none, so the status
+  // card stays, piercing discards none (above) and nothing is excess (docs/phase7-wave7.md §3.30).
+  if (damageCannotBeTaken(ctx, event)) {
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
@@ -1104,15 +1244,29 @@ export function applyDamage(
   const overkill =
     event.fromAttack && event.notAttacked !== true && (event.overkill === true || attackKeyword("overkill"));
   const excess = overkill ? excessDealt : 0;
-  const recipient = excess > 0 ? overkillRecipient(ctx.state, event.targetInstanceId) : null;
+  const recipient =
+    excess > 0
+      ? (overkillRecipient(ctx.state, event.targetInstanceId) ?? playerAttackOverkillRecipient(ctx.state, event))
+      : null;
   const villainBefore = villainOf(ctx.state, event.targetInstanceId);
 
   checkDefeats(ctx, {
     targetId: event.targetInstanceId,
     parentFrameId: event.parentFrameId ?? null,
     fromAttack: event.fromAttack,
-    overkill: recipient ? { amount: excess, toInstanceId: recipient, sourceInstanceId: source } : undefined,
-    defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
+    overkill: recipient
+      ? {
+          amount: excess,
+          toInstanceId: recipient,
+          sourceInstanceId: source,
+          // The spill is damage from this attack, so it keeps the attack's card and ranged (docs/phase7-wave7.md §3.30).
+          ...(event.viaInstanceId ? { viaInstanceId: event.viaInstanceId } : {}),
+          ...(event.ranged === true || (source !== null && hasKeyword(ctx.state, source, "ranged", ctx.deps))
+            ? { ranged: true as const }
+            : {}),
+        }
+      : undefined,
+    defeatedByPlayerId: sourcePlayerOf(ctx.state, event),
     sourceInstanceId: source,
     reportFrameId: frameId,
     ...(excessDealt > 0 ? { excessDamage: excessDealt } : {}),
@@ -1151,6 +1305,7 @@ function recordDamageTaken(
     targetInstanceId: event.targetInstanceId,
     amount: taken,
     sourceInstanceId: event.sourceInstanceId,
+    ...(event.noPlayer ? { noPlayer: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
   // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell
@@ -1215,6 +1370,23 @@ function placeExcessDamageAsThreat(
 }
 
 /**
+ * Where overkill carries the excess of a player's attack that defeated a friendly ally (an attack whose target an
+ * effect changed, `retargetAttack` with `attack: "player"`; docs/phase7-wave7.md §3.66): RRG 1.8 "Overkill" (p. 31),
+ * "If an ally is defeated by an attack with the overkill keyword, deal any damage on that ally beyond its hit points
+ * to the identity of the player who controls the ally." The entry names only allies and minions, so an identity the
+ * attack was moved onto spills nothing. Null unless this damage is that attack's own, to the ally it is against.
+ */
+function playerAttackOverkillRecipient(state: GameState, event: DamageEvent): InstanceId | null {
+  const target = event.targetInstanceId;
+  const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
+  if (parent?.kind !== "event" || parent.event.kind !== "attack" || parent.event.targetInstanceId !== target)
+    return null;
+  if (cardOf(state, target)?.type !== "ally") return null;
+  const controller = controllerOf(state, target);
+  return controller ? (getPlayer(state, controller)?.identity.instanceId ?? null) : null;
+}
+
+/**
  * RRG "Retaliate X": a forced response after the character is attacked; it must
  * still be in play once the attack resolves. RRG "Ranged": an attack with ranged
  * ignores retaliate entirely.
@@ -1226,6 +1398,20 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
   if (!inPlay.includes(event.targetInstanceId) || !inPlay.includes(event.attackerInstanceId)) return;
   const amount = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);
   if (amount <= 0) return;
+  // "Ignores the retaliate keyword while attacking a non-[AERIAL] character" (`characterIgnores` with `"retaliate"` and
+  // `against`, docs/phase7-wave7.md §3.30; RRG 1.8 "Ignore", p. 23: the keyword is treated as not being in effect).
+  // Read last, so it is announced only when this retaliate would otherwise have dealt its damage (wave 6 §4.1 Q6).
+  if (characterIgnores(ctx.state, ctx.deps, event.attackerInstanceId, "retaliate", false, event.targetInstanceId)) {
+    const ignored: KeywordIgnored = {
+      kind: "keywordIgnored",
+      characterInstanceId: event.attackerInstanceId,
+      playerId: controllerOf(ctx.state, event.attackerInstanceId),
+      ignored: "retaliate",
+      cardInstanceId: event.targetInstanceId,
+    };
+    if (heard(ctx.state, ctx.deps, ignored)) pushEvent(ctx, ignored);
+    return;
+  }
   pushEvent(ctx, {
     kind: "dealDamage",
     targetInstanceId: event.attackerInstanceId,
@@ -1257,6 +1443,18 @@ function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: Instan
   if (already.some((r) => r.attackerInstanceId === attackerId && r.attackerTitle === attackerTitle)) return;
   const record = { attackerInstanceId: attackerId, attackerTitle };
   ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, record] } };
+}
+
+/**
+ * Remembers that `characterId` attacked or thwarted this phase (`GameState.characterActsThisPhase`, which says where
+ * each is written and why; docs/phase7-wave7.md §3.36). In any phase, unlike `attacksThisTurn`: "this phase" has a
+ * villain phase too. A set, so a second attack by the same character changes nothing and a replay builds the same
+ * array.
+ */
+function recordActThisPhase(ctx: Ctx, characterId: InstanceId, did: "attack" | "thwart"): void {
+  const acts = ctx.state.characterActsThisPhase ?? [];
+  if (acts.some((act) => act.characterInstanceId === characterId && act.did === did)) return;
+  ctx.state = { ...ctx.state, characterActsThisPhase: [...acts, { characterInstanceId: characterId, did }] };
 }
 
 /**
@@ -1315,13 +1513,22 @@ export function threatRemovalBlocked(
    * card's own action included. Null when unknown or when no player removes it (an encounter card's forced ability).
    */
   removingPlayerId: PlayerId | null = null,
+  /** No player removes it although a player controls its source (`removeThreat.noPlayer`): no player-scoped rule applies. */
+  noPlayer = false,
 ): "crisis" | "patrol" | "rule" | null {
   const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG 1.8 "Crisis Icon" (p. 14): "While at least one crisis icon is in play, threat cannot be removed from the main
   // scheme by player cards. … Abilities on encounter cards are not affected by the crisis icon." So a player using an
   // encounter card's own action is not stopped (owner decision Q66 = B, 2026-10-02, following the RRG). One effect may
   // step over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
-  const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
+  // A player card nobody controls is still a player card: a campaign's player side scheme the scenario put into play
+  // (docs/phase7-wave7.md §4.1 Q24; MC40 rulebook p. 3: "All rules that apply to player cards apply to player side
+  // schemes"). Its other face, an environment, is an encounter card.
+  const source = sourceInstanceId === null ? undefined : cardOf(state, sourceInstanceId);
+  const byPlayer =
+    sourceInstanceId === null ||
+    controllerOf(state, sourceInstanceId) !== null ||
+    (source !== undefined && isPlayerCardType(source) && cardBackOf(source) === "player");
   // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
   if (
     !ignoreCrisis &&
@@ -1345,8 +1552,13 @@ export function threatRemovalBlocked(
   // a rule on what a player may do binds that player whichever card they use), else the removing card's controller — the same reading `defeatingPlayerOf` (below) uses for
   // "the player who defeated this scheme".
   const removerId =
-    thwartingPlayerId ?? removingPlayerId ?? (sourceInstanceId === null ? null : controllerOf(state, sourceInstanceId));
-  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId) ? "rule" : null;
+    thwartingPlayerId ?? removingPlayerId ?? (noPlayer ? null : sourcePlayerOf(state, { sourceInstanceId }));
+  // The removing character, for a rule scoped with `exceptBy` (docs/phase7-wave7.md §3.51): the thwart's character
+  // (the identity for a "(thwart)"-labeled ability, RRG 1.8 "Labeled Ability", p. 26), else the character the removing
+  // card acts for (RRG 1.8 "You, Your", p. 49); none for a removal no player makes.
+  const characterId =
+    thwarterInstanceId ?? (noPlayer || sourceInstanceId === null ? null : actingCharacterOf(state, sourceInstanceId));
+  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId, characterId) ? "rule" : null;
 }
 
 /**
@@ -1403,13 +1615,14 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
 /**
  * Who "the player who defeated this scheme" is: the player whose thwart this removal belongs to, else the player who
  * removed the threat (`removeThreat.playerId`: the player using the ability, a scheme's own Hero Action included), else
- * the controller of whatever removed it (an ally's or an event's own effect). Null for a removal no player made.
+ * the controller of whatever removed it (an ally's or an event's own effect). Null for a removal no player made (an
+ * encounter card's effect, or a player card's `noPlayer` removal).
  */
 function defeatingPlayerOf(state: GameState, event: Extract<TriggerEvent, { kind: "removeThreat" }>): PlayerId | null {
   const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
   if (parent?.kind === "event" && parent.event.kind === "thwart") return parent.event.playerId;
   if (event.playerId) return event.playerId;
-  return event.sourceInstanceId === null ? null : controllerOf(state, event.sourceInstanceId);
+  return sourcePlayerOf(state, event);
 }
 
 function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
@@ -1431,6 +1644,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     thwart?.ignorePatrol === true,
     thwart?.basic === true,
     event.playerId ?? null,
+    event.noPlayer === true,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
@@ -1455,15 +1669,32 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     schemeInstanceId: event.schemeInstanceId,
     amount: removed,
     sourceInstanceId: event.sourceInstanceId,
+    ...(event.noPlayer ? { noPlayer: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: removed });
   // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's
   // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart.
   addFrameVars(ctx, event.parentFrameId, { threatRemoved: removed, ...(thwart ? { amount: removed } : {}) });
   const after = mustInstance(ctx.state, event.schemeInstanceId);
+  // "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): this removal took the scheme, main
+  // or side, from some threat to none. A result of the removal itself, so `requireResults: { lastThreatRemoved: 1 }`
+  // answers it once, whether or not the scheme is defeated for it.
+  if (after.threat === 0) addFrameVars(ctx, frameId, { lastThreatRemoved: 1 });
   const card = cardOf(ctx.state, event.schemeInstanceId);
   const isSideScheme = card?.type === "side_scheme" || card?.type === "player_side_scheme";
-  if (isSideScheme && after.threat === 0 && !notDefeatedWithoutThreat(ctx.state, ctx.deps, event.schemeInstanceId)) {
+  // RRG 1.8 "Permanent" (p. 32): "A card with the permanent keyword cannot be defeated, leave play, or have any part of
+  // its text box blanked, except by card abilities in the same set". Reaching no threat is the game's rule (RRG 1.8
+  // "Defeat", p. 15), not a card ability, so it has no source card whatever removed the threat (docs/phase7-wave5.md
+  // §4.1 Q46) and a permanent side scheme is not defeated by it: nothing is announced, no When Defeated resolves,
+  // nothing answers "after you defeat a side scheme", and the scheme stays in play with no threat (owner ruling
+  // 2026-10-05, docs/phase7-wave7.md §4.1). `lastThreatRemoved` above is how its own text answers. A non-permanent
+  // scheme whose text says the same of itself carries a `notDefeatedWithoutThreat` rule.
+  const defeatedAtNoThreat =
+    isSideScheme &&
+    after.threat === 0 &&
+    !permanentStopsLeaving(ctx.state, ctx.deps, event.schemeInstanceId, undefined) &&
+    !notDefeatedWithoutThreat(ctx.state, ctx.deps, event.schemeInstanceId);
+  if (defeatedAtNoThreat) {
     emit(ctx, { type: "schemeDefeated", instanceId: event.schemeInstanceId, cardId: after.cardId });
     // "When the defeat is initiated" interrupts (Chance Encounter, "When attached side scheme is defeated") answer
     // while the scheme and its attachments are still in play; the scheme's When Defeated and its leaving play are the
@@ -1584,6 +1815,7 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
       viaInstanceId: event.sourceInstanceId ?? null,
       // Only set when true, so an attack with no granted keyword logs exactly as it always has.
       ...(keywords.includes("piercing") ? { piercing: true } : {}),
+      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
     },
     {
       kind: "characterAttacked",
@@ -1651,6 +1883,7 @@ function applyEnemyAttacksEnemy(
       parentFrameId: frameId,
       overkill: keywords.includes("overkill"),
       ...(keywords.includes("piercing") ? { piercing: true } : {}),
+      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
     },
     {
       kind: "characterAttacked",
@@ -1806,6 +2039,7 @@ function applyPlayerThwart(
       emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: forbidden });
       return false;
     }
+    addFrameSlots(ctx, frameId, { target: [event.schemeInstanceId] });
     addFrameVars(ctx, event.reducesThreatPlaced.activationFrameId, { threatBonus: -event.reducesThreatPlaced.amount });
     return;
   }
@@ -1818,6 +2052,12 @@ function applyPlayerThwart(
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
     return false;
   }
+  // The thwarted scheme, reported as `<bind>.target` and to the thwarter's consequential damage as slot `thwart.target`
+  // (the attack's `attack.target`, `applyPlayerAttack`): "takes -1 consequential damage after thwarting a side scheme"
+  // (Uncanny X-Force 40022). Set once the thwart is known to happen, whether or not it removes any threat; a scheme
+  // the player cannot thwart was not thwarted and is not named. A thwart divided across schemes is one event
+  // per scheme reporting into the same frame, so the slot names every scheme (`addFrameSlots` merges).
+  addFrameSlots(ctx, frameId, { target: [event.schemeInstanceId] });
   // "That thwart removes 1 additional threat" (`modifyThwart`, docs/phase7-wave6.md §3.55): added after the amount is
   // computed, to this thwart's one removal, so its checks and its responses see the total.
   const thwartFrame = findFrame(ctx.state, frameId);

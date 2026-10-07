@@ -97,7 +97,7 @@ describe("Field Agent (support, 27044)", () => {
     expect(inst(accepted, fieldAgent).counters.backup).toBe(2); // started at 3 (Uses), removed 1.
   });
 
-  it("27044.field-agent-interrupt: does not trigger for an ally without the exact S.H.I.E.L.D. trait (Agent 13 is 'S.H.I.E.L.D. SPY')", () => {
+  it("27044.field-agent-interrupt: also triggers for Agent 13 (S.H.I.E.L.D. and SPY are two traits)", () => {
     const hero = run(milesVsRhino(2), toHero(P1));
     const { state: withAgent13, id: agent13 } = playFromHandHelper(hero, "27046", 4);
     const { state: withFieldAgent } = playFromHandHelper(withAgent13, "27044", 1);
@@ -110,12 +110,13 @@ describe("Field Agent (support, 27044)", () => {
         attackerInstanceId: agent13,
         targetInstanceId: villain,
       } as never),
-      accepting("27044.field-agent-interrupt"),
+      accepting("27044.field-agent-interrupt", "backup"),
       undefined,
       WAVE5_DEPS,
     );
-    // Agent 13's own printed consequential attack damage is 1, taken in full: no prevention window ever opened.
-    expect(inst(after, agent13).damage).toBe(1);
+    // Agent 13's printed trait line "S.H.I.E.L.D. Spy." is two traits, so she is a S.H.I.E.L.D. ally: her own
+    // consequential attack damage (1) is prevented in full.
+    expect(inst(after, agent13).damage).toBe(0);
   });
 
   it("27044.field-agent-interrupt: does not trigger on a S.H.I.E.L.D. ally's non-consequential damage (defending)", () => {

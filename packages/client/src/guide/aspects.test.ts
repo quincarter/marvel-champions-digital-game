@@ -1,33 +1,45 @@
-import { CORE_STARTER_DECKS, PLAYABLE_CARDS } from "@mc/content";
+import { CORE_STARTER_DECKS } from "@mc/content";
 import { describe, expect, it } from "vitest";
+import { CARDS_BY_ID, POOL_STARTER_DECKS } from "../content/pool.js";
 import { termTextModelOf } from "../view/term-text-model.js";
-import { ASPECT_GUIDES, aspectGuideOf, type AspectGuide } from "./aspects.js";
-
-const CORE_CARDS_BY_ID = new Map(PLAYABLE_CARDS.map((card) => [card.id, card]));
+import { ASPECT_GUIDES, aspectGuideOf, devAspectOf, type AspectGuide } from "./aspects.js";
 
 function preconOf(guide: AspectGuide) {
   if (!guide.preconId) return undefined;
-  const precon = CORE_STARTER_DECKS.find((deck) => deck.id === guide.preconId);
-  if (!precon) throw new Error(`no Core precon ${guide.preconId} for aspect ${guide.aspect}`);
+  const precon = POOL_STARTER_DECKS.find((deck) => deck.id === guide.preconId);
+  if (!precon) throw new Error(`no precon ${guide.preconId} for aspect ${guide.aspect}`);
   return precon;
 }
 
 describe("ASPECT_GUIDES", () => {
-  it("has one entry per playable aspect (justice, aggression, leadership, protection) plus basic", () => {
+  it("has one entry per aspect (the four Core ones, then 'pool) plus basic", () => {
     expect(ASPECT_GUIDES.map((guide) => guide.aspect)).toEqual([
       "justice",
       "aggression",
       "leadership",
       "protection",
+      "pool",
       "basic",
     ]);
   });
 
-  it("has no 'pool' entry yet", () => {
-    expect(ASPECT_GUIDES.some((guide) => guide.aspect === "pool")).toBe(false);
+  it("teaches the Dreadpool rule on the 'pool page: choosing it adds the set, other decks' 'Pool cards do not", () => {
+    const pool = aspectGuideOf("pool")!;
+    expect(pool.preconId).toBe("deadpool-pool");
+    expect(pool.whatItsFor).toContain("[[poolAspect|");
+    const copy = [pool.whatItsFor, ...pool.pickItWhen].join(" ");
+    expect(copy).toMatch(/Dreadpool set/);
+    expect(copy).toMatch(/another aspect's deck/);
   });
 
-  it("gives every non-basic aspect a Core precon that is actually tagged with that aspect", () => {
+  it("keeps every Core aspect's precon in the Core list", () => {
+    for (const guide of ASPECT_GUIDES) {
+      if (guide.aspect === "basic" || guide.aspect === "pool") continue;
+      expect(CORE_STARTER_DECKS.some((deck) => deck.id === guide.preconId)).toBe(true);
+    }
+  });
+
+  it("gives every non-basic aspect a precon that is actually tagged with that aspect", () => {
     for (const guide of ASPECT_GUIDES) {
       if (guide.aspect === "basic") {
         expect(guide.preconId).toBeNull();
@@ -53,10 +65,12 @@ describe("ASPECT_GUIDES", () => {
       });
 
       for (const code of guide.signatureCardCodes) {
-        it(`${code}: is a Core Set card in the playable pool with the ${guide.aspect} aspect, in the ${guide.aspect} precon`, () => {
-          const card = CORE_CARDS_BY_ID.get(code);
-          expect(card, `${code} is not in the playable pool`).toBeDefined();
-          expect(card!.setCode, `${code} is not a Core Set card`).toBe("core");
+        it(`${code}: is a card in the app's pool with the ${guide.aspect} aspect, in the ${guide.aspect} precon`, () => {
+          const card = CARDS_BY_ID.get(code as string);
+          expect(card, `${code} is not in the pool`).toBeDefined();
+          expect(card!.setCode, `${code} is not from the aspect's own box`).toBe(
+            guide.aspect === "pool" ? "deadpool" : "core",
+          );
           expect("aspect" in card!, `${code} is not a player card with an aspect`).toBe(true);
           expect((card as { aspect?: string }).aspect, `${code} is not printed with the ${guide.aspect} aspect`).toBe(
             guide.aspect,
@@ -87,7 +101,19 @@ describe("aspectGuideOf", () => {
     expect(aspectGuideOf("justice")?.name).toBe("Justice");
   });
 
-  it("returns undefined for an aspect with no guide yet ('pool')", () => {
-    expect(aspectGuideOf("pool")).toBeUndefined();
+  it("returns undefined for an aspect with no guide (basic's is its own, so none here)", () => {
+    expect(aspectGuideOf("pool")?.name).toBe("'Pool");
+    expect(aspectGuideOf("basic")?.name).toBe("Basic");
+  });
+});
+
+describe("devAspectOf", () => {
+  it("accepts every aspect that has a guide", () => {
+    for (const guide of ASPECT_GUIDES) expect(devAspectOf(guide.aspect)).toBe(guide.aspect);
+  });
+
+  it("falls back to Justice for a missing or unknown aspect", () => {
+    expect(devAspectOf(null)).toBe("justice");
+    expect(devAspectOf("nope")).toBe("justice");
   });
 });

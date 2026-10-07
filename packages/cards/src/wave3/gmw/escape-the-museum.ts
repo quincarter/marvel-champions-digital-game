@@ -27,6 +27,7 @@ import {
   hasStatus,
   heroAction,
   ifThen,
+  instead,
   mainSchemeStageNumber,
   moveCards,
   named,
@@ -135,7 +136,11 @@ const collectorScales = () =>
 /** "Forced Interrupt: When Collector would be defeated, remove 3[per_hero] threat from the main scheme and flip
  * this card instead." */
 const collectorFrontInterrupt = () =>
-  forcedInterrupt(when.defeated("self"), removeThreat(perHero(3), theMainScheme), flipCard(self));
+  forcedInterrupt(
+    when.defeated("self"),
+    { would: true },
+    instead(removeThreat(perHero(3), theMainScheme), flipCard(self)),
+  );
 /** "Collector cannot be defeated." */
 const collectorCannotBeDefeated = () => constant(rule({ kind: "cannotBeDefeated", target: { self: true } }));
 /** "Forced Interrupt: When the round ends, flip this card, then set Collector's hit point dial to his printed hit

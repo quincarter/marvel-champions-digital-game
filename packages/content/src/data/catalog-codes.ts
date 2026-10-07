@@ -65,5 +65,15 @@ export function catalogOf(packs: readonly RawCatalogPack[]): Catalog {
       else cards.add(code);
     }
   }
+  // A reprint of a reprint (43027 reprints 36026, itself a reprint of 05023) resolves to the original in one hop.
+  for (const code of Object.keys(reprints)) {
+    const seen = new Set<string>([code]);
+    let root = reprints[code]!;
+    while (reprints[root] !== undefined && !seen.has(root)) {
+      seen.add(root);
+      root = reprints[root]!;
+    }
+    reprints[code] = root;
+  }
   return { packCount: packs.length, codes: cards, cardCount: cards.size, reprints };
 }

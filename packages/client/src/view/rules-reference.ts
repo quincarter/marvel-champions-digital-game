@@ -171,6 +171,12 @@ function joinCites(sources: readonly [GlossarySource, ...GlossarySource[]], flag
       case "card":
         parts.push(`${source.cards} (card text)`);
         break;
+      case "rulebook":
+        parts.push(source.label);
+        break;
+      case "owner-ruling":
+        parts.push(`Ruling for this game, ${source.date}`);
+        break;
     }
   }
   return parts.join(" · ");

@@ -146,3 +146,38 @@ describe("§1.5 an allowance without a maximum (Cyclops, X-Men allies from any a
     );
   });
 });
+
+/**
+ * An allowance by card type alone, with no trait list (Cable, `next_evol` 40001b: "You may include player side schemes
+ * from any aspect in your deck."). Synthetic: Core has no player side schemes, so a bare `support` allowance on Spider-Man
+ * stands in, with Core Aggression cards as the off-aspect pool.
+ */
+describe("an allowance with no trait list (card type only)", () => {
+  const aggression = (type: PlayerCard["type"]): PlayerCard => {
+    const found = CORE_CARDS.find((c): c is PlayerCard => isPlayer(c) && c.type === type && c.aspect === "aggression");
+    if (!found) throw new Error(`no Core Aggression ${type}`);
+    return found;
+  };
+  const support = aggression("support");
+  const event = aggression("event");
+  const BY_TYPE: IdentityDeckbuilding = { offAspectAllowance: { cardType: "support" } };
+
+  it("any off-aspect card of that type is legal, whatever its traits", () => {
+    const deck = withCards(starter(), [{ cardId: support.id, quantity: 1 }]);
+    expect(problemsOf(deck)).not.toEqual([]);
+    expect(problemsOf(deck, spiderManWith(BY_TYPE))).toEqual([]);
+  });
+
+  it("an off-aspect card of another type is still refused", () => {
+    const deck = withCards(starter(), [{ cardId: event.id, quantity: 1 }]);
+    expect(problemsOf(deck, spiderManWith(BY_TYPE)).some((p) => p.code === "aspect_restriction")).toBe(true);
+  });
+
+  it("a maximum still applies, and its message does not name a trait", () => {
+    const deck = withCards(starter(), [{ cardId: support.id, quantity: 2 }]);
+    const found = problemsOf(deck, spiderManWith({ offAspectAllowance: { cardType: "support", maxCards: 1 } })).find(
+      (p) => p.code === "deckbuilding_requirement",
+    );
+    expect(found?.message).toContain("up to 1 support cards from other aspects");
+  });
+});

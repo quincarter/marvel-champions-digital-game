@@ -5,8 +5,9 @@ import {
   attachmentsWaitForHost,
   discardWithLeavingHost,
   endGame,
-  giveStatus,
+  applyToughness,
   leavePlay,
+  leavePlayAtOnce,
   setActiveVillain,
   updateMainSchemeState,
 } from "../effects.js";
@@ -31,18 +32,29 @@ import {
   villainStageCount,
   villainStageOf,
 } from "../query.js";
-import { cannotBeDefeated } from "../rules.js";
-import { shuffle } from "../rng.js";
+import { cannotBeDefeated, leavingPlayLoses } from "../rules.js";
+import { nextInt, shuffle } from "../rng.js";
 import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
-import { NO_STATUSES, type GameState, type MainSchemeState, type VillainState } from "../state.js";
+import {
+  NO_STATUSES,
+  type GameState,
+  type MainSchemeAdvancedBy,
+  type MainSchemeState,
+  type VillainState,
+  type ZoneId,
+} from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
+import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
+import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
+
+/** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
+const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
 
 /** A completion's When Completed abilities are resolving and its advance is still queued. */
 const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
@@ -228,7 +240,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   // RRG 1.8 "When Completed Abilities" (p. 48): a forced interrupt to the completion, so they resolve before the advance.
   const whenCompleted = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
   if (whenCompleted.length === 0) {
-    advanceMainScheme(ctx, schemeId, next);
+    advanceMainScheme(ctx, schemeId, next, BY_COMPLETION);
     return;
   }
   pushFrames(ctx, [
@@ -236,7 +248,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     {
       ...base(ctx),
       kind: "effects",
-      effects: [{ kind: "advanceMainScheme" }],
+      effects: [{ kind: "advanceMainScheme", completion: true }],
       cursor: 0,
       bindings: {},
       vars: {},
@@ -252,12 +264,14 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
 /**
  * `EffectSpec advanceMainScheme`: the scheme's next stage if there is exactly one, or the stage `to` names ("Advance
  * the main scheme to stage 2", "advance to stage 4A"; docs/phase7-wave2.md §3.4). Nothing happens on the final stage,
- * into an unnamed group of alternatives, or to a stage already spent.
+ * into an unnamed group of alternatives, or to a stage already spent. `by` is what the new stage records as having
+ * advanced it: the card whose ability this is, or the completion the engine is finishing (docs/phase7-wave7.md §3.12).
  */
 export function advanceMainSchemeStage(
   ctx: Ctx,
   schemeId: InstanceId = ctx.state.mainScheme.instanceId,
   to?: { readonly stageNumber: number; readonly name?: string },
+  by: MainSchemeAdvancedBy | "completion" = { cause: "cardEffect", sourceInstanceId: null },
 ): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (ctx.state.outcome || !scheme) return;
@@ -281,31 +295,87 @@ export function advanceMainSchemeStage(
     nextIndex = typeof next === "number" ? next : null;
   }
   if (nextIndex === null) return;
-  advanceMainScheme(ctx, schemeId, nextIndex);
+  advanceMainScheme(ctx, schemeId, nextIndex, by === "completion" ? BY_COMPLETION : by);
 }
 
 /**
  * `EffectSpec shuffleMainSchemeStages` (docs/phase7-wave6.md §3.18): the stages at `fromStageIndex` and after, less the
  * current one and any already spent, in a seeded random order behind the current stage and the earlier printed ones.
+ * With `stageNumber` (docs/phase7-wave7.md §3.28) only that number's group is shuffled, in place.
  */
-export function shuffleMainSchemeStages(ctx: Ctx, schemeId: InstanceId, fromStageIndex: number): void {
+export function shuffleMainSchemeStages(
+  ctx: Ctx,
+  schemeId: InstanceId,
+  fromStageIndex: number,
+  stageNumber?: number,
+): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   const card = scheme ? ctx.state.cardPool[scheme.cardId] : undefined;
   if (!scheme || card?.type !== "main_scheme") return;
   const from = Math.max(0, Math.trunc(fromStageIndex));
   const indexes = card.stages.map((_, index) => index);
-  const ahead = indexes.filter((index) => index < from && index !== scheme.stageIndex);
-  const pool = indexes.filter(
-    (index) => index >= from && index !== scheme.stageIndex && !ctx.state.spentMainSchemeStages.includes(index),
-  );
-  const [shuffled, rng] = shuffle(pool, ctx.state.rng);
   const current = scheme.stageIndex;
-  // The current stage sits after the printed stages before it, so `nextMainSchemeStage` reads forward from it.
-  const order = [...ahead.filter((index) => index < current), current, ...ahead.filter((index) => index > current)];
-  const stageOrder = [...order, ...shuffled];
-  ctx.state = { ...ctx.state, rng };
+  const unspent = (index: number): boolean => !ctx.state.spentMainSchemeStages.includes(index);
+  let stageOrder: readonly number[];
+  if (stageNumber === undefined) {
+    const ahead = indexes.filter((index) => index < from && index !== current);
+    const pool = indexes.filter((index) => index >= from && index !== current && unspent(index));
+    const [shuffled, rng] = shuffle(pool, ctx.state.rng);
+    // The current stage sits after the printed stages before it, so `nextMainSchemeStage` reads forward from it.
+    const order = [...ahead.filter((index) => index < current), current, ...ahead.filter((index) => index > current)];
+    stageOrder = [...order, ...shuffled];
+    ctx.state = { ...ctx.state, rng };
+  } else {
+    const inGroup = (index: number): boolean =>
+      index >= from && index !== current && unspent(index) && card.stages[index]?.stageNumber === stageNumber;
+    // The order so far (an earlier shuffle's, else the printed one), without the spent stages. The group's members
+    // trade places among themselves; a later stage number stays behind them.
+    const kept = (scheme.stageOrder ?? indexes).filter((index) => index === current || unspent(index));
+    const firstSlot = kept.findIndex(inGroup);
+    // A current stage of the same number is one of the alternatives already showing: the rest come after it.
+    const standing =
+      card.stages[current]?.stageNumber === stageNumber && firstSlot >= 0 && kept.indexOf(current) > firstSlot
+        ? [...kept.slice(0, firstSlot), current, ...kept.slice(firstSlot).filter((index) => index !== current)]
+        : kept;
+    const [shuffled, rng] = shuffle(standing.filter(inGroup), ctx.state.rng);
+    let next = 0;
+    stageOrder = standing.map((index) => (inGroup(index) ? (shuffled[next++] as number) : index));
+    ctx.state = { ...ctx.state, rng };
+  }
   updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageOrder }));
   emit(ctx, { type: "mainSchemeStagesShuffled", schemeInstanceId: schemeId, order: stageOrder });
+}
+
+/**
+ * `EffectSpec removeMainSchemeStages` (docs/phase7-wave7.md §3.28): up to `count` stages with `stageNumber`, neither
+ * spent nor the scheme's current one, picked one at a time with the seeded RNG. Each is marked spent, dropped from the
+ * scheme's `stageOrder` and logged; the scheme in play is untouched. Returns how many were removed.
+ */
+export function removeMainSchemeStages(ctx: Ctx, schemeId: InstanceId, stageNumber: number, count: number): number {
+  const scheme = mainSchemeStateOf(ctx.state, schemeId);
+  const card = scheme ? ctx.state.cardPool[scheme.cardId] : undefined;
+  if (!scheme || card?.type !== "main_scheme") return 0;
+  let removed = 0;
+  for (let n = Math.max(0, Math.trunc(count)); n > 0; n--) {
+    const pool = card.stages.flatMap((stage, index) =>
+      stage.stageNumber === stageNumber &&
+      index !== scheme.stageIndex &&
+      !ctx.state.spentMainSchemeStages.includes(index)
+        ? [index]
+        : [],
+    );
+    if (pool.length === 0) break;
+    const [pick, rng] = nextInt(ctx.state.rng, pool.length);
+    const stageIndex = pool[pick] as number;
+    ctx.state = { ...ctx.state, rng, spentMainSchemeStages: [...ctx.state.spentMainSchemeStages, stageIndex] };
+    updateMainSchemeState(ctx, schemeId, (s) =>
+      s.stageOrder ? { ...s, stageOrder: s.stageOrder.filter((index) => index !== stageIndex) } : s,
+    );
+    // The scheme itself stays in play, so the event names no instance: only the stage that left its deck.
+    emit(ctx, { type: "mainSchemeStageRemoved", schemeInstanceId: null, stageIndex });
+    removed++;
+  }
+  return removed;
 }
 
 /**
@@ -361,10 +431,11 @@ export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceI
  * RRG "Main Scheme": excess threat does not carry over; acceleration tokens do.
  * The new stage's A side is revealed first (its "When Revealed" resolves), then
  * the B side (its own "When Revealed", if any), then the B side's starting
- * threat is placed.
+ * threat is placed. `advancedBy` replaces the scheme's last cause before any of that resolves, so the new stage's When
+ * Revealed reads this advance's (docs/phase7-wave7.md §3.12), and is copied onto the log event and the trigger event.
  */
-function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): void {
-  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageIndex: nextIndex, completed: false }));
+function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, advancedBy: MainSchemeAdvancedBy): void {
+  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageIndex: nextIndex, completed: false, advancedBy }));
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme) return;
   const stage = mainSchemeStageOf(ctx.state, scheme);
@@ -372,7 +443,7 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
   updateInstance(ctx, schemeId, (i) => ({ ...i, threat: 0 }));
-  emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which });
+  emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, stage.aSide.abilities, ctx.state.firstPlayerId),
     ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
@@ -386,7 +457,7 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
       amount: startingThreat,
       sourceInstanceId: null,
     }),
-    eventFrame(ctx, { kind: "mainSchemeAdvanced", stageIndex: nextIndex, ...which }),
+    eventFrame(ctx, { kind: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy }),
   ]);
 }
 
@@ -394,9 +465,7 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
 interface DefeatHint {
   readonly targetId: InstanceId;
   readonly parentFrameId: FrameId | null;
-  readonly overkill:
-    | { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null }
-    | undefined;
+  readonly overkill: Extract<TriggerEvent, { kind: "characterDefeated" }>["overkill"];
   /** The controller of the damage's source ("after you defeat a minion"). */
   readonly defeatedByPlayerId?: PlayerId | null;
   /** The damage's source card itself ("after *Wasp* — or an event you play — defeats a minion"). */
@@ -440,6 +509,45 @@ export const defeatedAwaitingLeave = (state: GameState, id: InstanceId): boolean
   state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherPending(f, id));
 
 /**
+ * A card that has been defeated and is still in play while its When Defeated abilities resolve (RRG 1.8 "When Defeated
+ * Abilities", p. 48: "A defeated card leaves play after its 'When Defeated' ability is resolved"). RRG 1.8 "Defeat"
+ * (p. 15) makes defeat one occurrence that ends with the card discarded, and "all 'When Defeated' abilities on the card
+ * resolve" once for it (p. 48), so until it leaves:
+ *
+ * - it cannot be defeated again, by zero hit points (`defeatPending`) or by an effect that says "defeat"
+ *   (`beginDefeat`, `EffectSpec defeat`), and so its When Defeated abilities do not trigger a second time;
+ * - it is not a valid target for an ability whose only effect on it is to defeat it (RRG 1.8 "Target", p. 42: valid "if
+ *   any part of that ability can affect that target"; `resolve/target-validity.ts`), its own When Defeated included
+ *   ("When Defeated: Defeat a non-[ELITE] minion" does not offer the minion it is printed on).
+ *
+ * Where the RRG is silent it stays a card in play: it can still be chosen for and take damage, status cards and
+ * counters. Narrower than `defeatedAwaitingLeave`, which also covers one of several whose defeat is still imminent.
+ */
+export const alreadyDefeated = (state: GameState, id: InstanceId): boolean =>
+  state.stack.some((f) => (f.kind === "effects" && f.defeatedLeaving === id) || defeatedTogetherDefeated(f, id));
+
+/** Whether any card is `alreadyDefeated` right now (the cheap gate `targetsCanBeInvalid` asks). */
+export const anyAlreadyDefeated = (state: GameState): boolean =>
+  state.stack.some(
+    (f) =>
+      f.kind === "effects" &&
+      (f.defeatedLeaving !== undefined ||
+        f.effects.some((e) => e.kind === "defeatedTogether" && e.stage !== "apply" && e.stage !== "responses")),
+  );
+
+/**
+ * A defeat at zero or fewer remaining hit points did not happen because a "cannot be defeated" rule covers the
+ * character: RRG 1.8 "Hit Points" and "Defeat" (p. 15) defeat a character with "zero or fewer remaining hit points",
+ * and "'Cannot'" (p. 11) is absolute while the rule lasts, so the character stays in play, still takes damage and can
+ * still be healed. It is recorded (`GameState.heldAtZero`) so the rule ending defeats it at once
+ * (`checkDefeatProtectionEnded`, docs/phase7-wave7.md §4.1 Q21).
+ */
+export function holdAtZero(ctx: Ctx, id: InstanceId): void {
+  const held = ctx.state.heldAtZero ?? [];
+  if (!held.includes(id)) ctx.state = { ...ctx.state, heldAtZero: [...held, id] };
+}
+
+/**
  * Sweeps every character in play for zero remaining hit points, in a fixed order. `hints` say what dealt the damage to
  * each character that took some: one for a single damage event, one per member for a simultaneous damage group.
  */
@@ -470,7 +578,11 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
     if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) return false;
-    return !cannotBeDefeated(ctx.state, ctx.deps, instanceId) && !defeatPending(ctx.state, instanceId);
+    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId)) {
+      holdAtZero(ctx, instanceId);
+      return false;
+    }
+    return !defeatPending(ctx.state, instanceId);
   });
   const together = falling.length > 1;
   for (const { instanceId } of falling) {
@@ -478,6 +590,8 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     const defeat: TriggerEvent = {
       kind: "characterDefeated",
       instanceId,
+      // The stage that falls, for "after [this villain] (II) is defeated": its next stage shows by the response window.
+      villainStageNumber: villainStageOf(ctx.state, instanceId).stageNumber,
       ...(hint
         ? {
             parentFrameId: hint.parentFrameId,
@@ -512,7 +626,8 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   const defeats: Extract<TriggerEvent, { kind: "characterDefeated" }>[] = [];
   // Each player's play area in player order, then each ally attached to a card that no player controls (Robert Kelly
   // on Find the Senator, docs/phase7-wave6.md §3.75): it is an ally in play, defeated at zero hit points like any
-  // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`).
+  // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`). A minion attached to a card is
+  // in neither list: it "cannot be defeated again" (FAQ "Malice (#199)", p. 64; `isAttachedMinion`, `beginDefeat`).
   const captives = cardsInPlay(ctx.state).filter((id) => isCaptiveAlly(ctx.state, id));
   for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives]) {
     for (const id of [...ids]) {
@@ -522,7 +637,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
       if (isPermanent(ctx.state, id, ctx.deps)) continue;
-      if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
+      if (cannotBeDefeated(ctx.state, ctx.deps, id)) {
+        holdAtZero(ctx, id);
+        continue;
+      }
       if (defeatPending(ctx.state, id)) continue;
       const hint = hintFor(id);
       const context = hint
@@ -551,7 +669,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
   for (const player of playerOrder(ctx.state)) {
     const identityId = player.identity.instanceId;
-    if (!identityAtZero(ctx, identityId)) continue;
+    if (!identityAtZero(ctx, identityId)) {
+      if (atZero(ctx, identityId)) holdAtZero(ctx, identityId);
+      continue;
+    }
     // "When [your hero] would be defeated, … instead" (Captain America's Helmet) needs an interrupt window, so the
     // defeat goes on the stack as an event when an ability could react to it and the player is eliminated when it
     // applies. With nothing listening the elimination happens right here, exactly as it did before.
@@ -586,10 +707,14 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
 /** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */
 function identityAtZero(ctx: Ctx, identityId: InstanceId): boolean {
-  const profile = characterProfile(ctx.state, identityId, ctx.deps);
-  const instance = getInstance(ctx.state, identityId);
-  if (!profile || !instance || instance.damage < profile.maxHp) return false;
-  return !cannotBeDefeated(ctx.state, ctx.deps, identityId);
+  return atZero(ctx, identityId) && !cannotBeDefeated(ctx.state, ctx.deps, identityId);
+}
+
+/** A character in play with zero or fewer remaining hit points. */
+export function atZero(ctx: Ctx, id: InstanceId): boolean {
+  const profile = characterProfile(ctx.state, id, ctx.deps);
+  const instance = getInstance(ctx.state, id);
+  return !!profile && !!instance && instance.damage >= profile.maxHp;
 }
 
 const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState) => VillainState): void => {
@@ -657,7 +782,7 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
   // RRG "Villain Defeat": the next stage is revealed. Same title in Core, so statuses and
   // attachments carry over; the new stage's keywords (toughness) apply, and it goes through the whole reveal (When
   // Revealed, incite, the "when revealed" windows, peril, surge; docs/phase7-wave6.md §3.65, §4.1 Q36).
-  if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
+  applyToughness(ctx, villainId);
   pushFrames(ctx, [
     ...whenDefeated,
     revealNewFaceFrame(ctx, villainId),
@@ -764,6 +889,11 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     if (next) {
       ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
       emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
+      // "The first player controls …" is a constant ability, so a card that says it changes control with the token, at
+      // step 1 ("the first player token immediately passes", RRG 1.8 "First Player", p. 19). It has left this player's
+      // play area before step 3 discards the cards there that they do not own, so an encounter set's ally the first
+      // player controls stays in play (docs/phase7-wave7.md §3.25).
+      applyFirstPlayerControl(ctx);
     }
   }
 
@@ -779,14 +909,26 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
       ? attachmentHostCandidates(ctx.state, attachesTo, context).filter((candidate) => candidate !== identityId)
       : [];
     if (host) moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
-    else moveCard(ctx, id, { kind: "removedFromGame" });
+    else leaves(id, { kind: "removedFromGame" });
+  };
+  // "If X leaves play, the players lose the game." (`leavingPlayLoses`): a card step 3 discards or removes leaves play
+  // (RRG 1.8 "Leaves Play", p. 27), so the players lose as they would by any other route (docs/phase7-wave7.md §3.25
+  // item 4). Read before each move, and recorded once the steps are done. When no player remains, the game is lost by
+  // that instead (`allPlayersDefeated`, below): this is the last player's cleanup.
+  const lostBy: { readonly source: InstanceId; readonly cause: InstanceId }[] = [];
+  const leaves = (id: InstanceId, to: ZoneId): void => {
+    const othersRemain = nextSeat !== undefined && nextSeat.playerId !== playerId;
+    const source = othersRemain ? leavingPlayLoses(ctx.state, ctx.deps, id) : null;
+    if (source !== null) lostBy.push({ source, cause: id });
+    moveCard(ctx, id, to, "top");
   };
   const identityId = player.identity.instanceId;
   for (const id of [...mustInstance(ctx.state, identityId).attachments]) {
     if (notOwnedPermanent(id)) reattachOrRemove(id);
-    else moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    else leaves(id, discardZoneFor(ctx.state, id));
   }
-  for (const id of [...player.playArea]) {
+  // Read now, not from `player`: a card the first player controls left this play area with the token, above.
+  for (const id of [...mustPlayer(ctx.state, playerId).playArea]) {
     if (isMinion(ctx.state, id) && nextSeat) {
       moveCard(ctx, id, { kind: "playArea", playerId: nextSeat.playerId });
       updateInstance(ctx, id, (i) => ({ ...i, engagedWith: nextSeat.playerId }));
@@ -797,14 +939,21 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     }
     if (notOwnedPermanent(id)) {
       if (ctx.state.cardPool[mustInstance(ctx.state, id).cardId]?.type === "attachment") reattachOrRemove(id);
-      else moveCard(ctx, id, { kind: "removedFromGame" });
+      else leaves(id, { kind: "removedFromGame" });
       continue;
     }
-    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    leaves(id, discardZoneFor(ctx.state, id));
   }
   // Marked eliminated before its hand, deck and the rest are emptied into its discard pile, so the emptied deck is not
   // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
   updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
+  // Step 4, "each card owned by the eliminated player": the ones in play outside their play area, a player side
+  // scheme beside the main scheme or an upgrade on another player's or the villain's card. Each leaves play as any
+  // card does, so its threat and tokens are cleared and what is attached to it is discarded.
+  for (const id of cardsInPlay(ctx.state)) {
+    if (id === identityId || getInstance(ctx.state, id)?.ownerId !== playerId) continue;
+    leavePlayAtOnce(ctx, id, { kind: "discard", playerId }, "top");
+  }
   for (const id of [...mustPlayer(ctx.state, playerId).hand]) {
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
@@ -821,6 +970,16 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
 
   emit(ctx, { type: "playerEliminated", playerId });
 
+  const [lost] = lostBy;
+  if (lost) {
+    const { source, cause } = lost;
+    endGame(ctx, {
+      result: "loss",
+      reason: "cardAbility",
+      sourceInstanceId: source,
+      ...(source !== cause ? { causeInstanceId: cause } : {}),
+    });
+  }
   if (ctx.state.players.every((p) => p.eliminated)) {
     endGame(ctx, { result: "loss", reason: "allPlayersDefeated" });
   }

@@ -117,7 +117,7 @@ function mansionGame(): { readonly state: GameState; readonly mansion: InstanceI
 /** How `legalActions` lists the Mansion's action for `player`: "legal", the illegal reason, or "absent". */
 function mansionOffer(state: GameState, player: PlayerId, mansion: InstanceId): string {
   const actions = legalActions(state, player, mansionDeps);
-  if (actions.kind !== "turn") return actions.kind;
+  if (actions.kind !== "turn" && actions.kind !== "notYourTurn") return actions.kind;
   const ours = (ref: { readonly kind: string; readonly instanceId?: InstanceId; readonly abilityId?: string }) =>
     ref.kind === "useAbility" && ref.instanceId === mansion && ref.abilityId === MANSION_ACTION.ref.id;
   if (actions.legal.some((a) => ours(a.action))) return "legal";
@@ -146,11 +146,17 @@ describe("§3.11 an action any player matching a query may trigger (X-Mansion)",
 
   it("is offered to another player whose alter-ego matches, who resolves it as 'you'; the limit is the card's", () => {
     const { state, mansion } = mansionGame();
-    const p2Turn = driveSession(startSession(state), mansionDeps, [endTurn(P1)]).session;
-    expect(mansionOffer(p2Turn.state, P2, mansion)).toBe("legal");
+    // During p1's turn (RRG 1.8 "Action", p. 6: "or by request during other players' turns"; the command is the
+    // offer, docs/phase7-wave7.md §4.1): p2 and p4 are offered it, p3 (a Mutant only as a hero) is not.
+    const p1Turn = startSession(state);
+    expect(legalActions(state, P2, mansionDeps).kind).toBe("notYourTurn");
+    expect([P2, P3, playerId("p4")].map((p) => mansionOffer(state, p, mansion))).toEqual(["legal", "absent", "legal"]);
     const hands = (s: GameState) => [P1, P2, P3, playerId("p4")].map((p) => mustPlayer(s, p).hand.length);
-    const before = hands(p2Turn.state);
-    const used = driveSession(p2Turn, mansionDeps, [useMansion(P2, mansion)]);
+    const before = hands(state);
+    const used = driveSession(p1Turn, mansionDeps, [useMansion(P2, mansion)]);
+    expect(used.session.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P1 });
+    // "(Limit once per round)" is the card's: p4, also offered it a moment ago, now finds it spent, still on p1's turn.
+    expect(mansionOffer(used.session.state, playerId("p4"), mansion)).toBe("limit_reached");
     // p2 drew the card, not the Mansion's controller.
     expect(hands(used.session.state)).toEqual([before[0], before[1]! + 1, before[2], before[3]]);
     expect(used.events).toContainEqual(
@@ -160,7 +166,7 @@ describe("§3.11 an action any player matching a query may trigger (X-Mansion)",
     expect(mustInstance(used.session.state, mansion).controllerId).toBe(P1);
     expect(mansionOffer(used.session.state, P2, mansion)).toBe("limit_reached");
     // p3: a Mutant only on the hero face, so not while in alter-ego form.
-    const p3Turn = driveSession(used.session, mansionDeps, [endTurn(P2)]).session;
+    const p3Turn = driveSession(used.session, mansionDeps, [endTurn(P1), endTurn(P2)]).session;
     expect(mansionOffer(p3Turn.state, P3, mansion)).toBe("absent");
     // p4 matches, but "(Limit once per round)" counts the card's uses, whoever made them.
     const p4Turn = driveSession(p3Turn, mansionDeps, [endTurn(P3)]).session;
@@ -170,6 +176,10 @@ describe("§3.11 an action any player matching a query may trigger (X-Mansion)",
 
   it("applies its Alter-Ego form gate to the triggering player", () => {
     const { state, mansion } = mansionGame();
+    // During p1's turn the gate reads p2, an alter-ego, not p1 turned hero.
+    const p1Hero = driveSession(startSession(state), mansionDeps, [toHero(P1)]).session.state;
+    expect(mustPlayer(p1Hero, P1).identity.form).toBe("hero");
+    expect(mansionOffer(p1Hero, P2, mansion)).toBe("legal");
     const hero = driveSession(startSession(state), mansionDeps, [endTurn(P1), toHero(P2)]).session.state;
     expect(mustPlayer(hero, P2).identity.form).toBe("hero");
     expect(mansionOffer(hero, P2, mansion)).toBe("wrong_form");
@@ -318,12 +328,20 @@ describe("§3.11 absent `triggerableBy`: a player card's action stays its contro
     const placed = playerCardIntoPlay(state, OWN.id, P1);
     const listed = (s: GameState, player: PlayerId) => {
       const actions = legalActions(s, player, deps);
-      if (actions.kind !== "turn") return actions.kind;
+      if (actions.kind !== "turn" && actions.kind !== "notYourTurn") return actions.kind;
       return actions.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === placed.id)
         ? "legal"
         : "absent";
     };
     expect(listed(placed.state, P1)).toBe("legal");
+    // Not during p1's turn either: an Action there is still on a card the player controls (RRG 1.8 "Action", p. 6).
+    expect(listed(placed.state, P2)).toBe("absent");
+    const offTurn = applyCommand(
+      placed.state,
+      { type: "useAbility", playerId: P2, cardInstanceId: placed.id, abilityId: OWN_ACTION.ref.id, payment: [] },
+      deps,
+    );
+    expect(!offTurn.ok && offTurn.error.message).toBe("you do not control that card");
     const p2Turn = driveSession(startSession(placed.state), deps, [endTurn(P1)]).session.state;
     expect(listed(p2Turn, P2)).toBe("absent");
     const tried = applyCommand(

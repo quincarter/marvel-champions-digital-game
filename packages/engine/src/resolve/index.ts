@@ -15,7 +15,7 @@ export { clearAbilityUses, recordAbilityUse } from "./ability.js";
 export { encounterResetAwaitsResponse, selectCards, shuffleSeparateDeck } from "./cards.js";
 export { checkDefeats, eliminatePlayer } from "./defeat.js";
 export { legalDefenders } from "./enemy-activation.js";
-export { applyEnterPlayKeywords } from "./enter-play.js";
+export { applyEnterPlayKeywords, checkRestrictedAfterFlip } from "./enter-play.js";
 export {
   addFrameSlots,
   addFrameVars,
@@ -29,8 +29,8 @@ export {
   pushGameAbilities,
 } from "./frames.js";
 export { pushPlayCardFrame } from "./play-card.js";
-export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame } from "./reveal.js";
-export { announceStatusDiscarded } from "./status-discarded.js";
+export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame, upgradeHostCandidates } from "./reveal.js";
+export { announceStatusDiscarded, announceStatusPlaced } from "./status-discarded.js";
 export { hasCandidates, heard } from "./triggers.js";
 
 export function executeFrame(ctx: Ctx): void {

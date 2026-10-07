@@ -10,6 +10,7 @@
  */
 import {
   deckId,
+  exportDecklistText as exportDeckAsText,
   parseDecklistText,
   parseMarvelCdbDeckJsonText,
   type AnyCard,
@@ -115,42 +116,10 @@ export function importFromMarvelCdbResponseText(
 }
 
 /**
- * "Export" (W9, docs/phase4-screen-gaps.md §3): the exact inverse of `parseDecklistText` (`@mc/content`'s
- * `from-text.ts`) — a decklist a player can copy out, paste into another client, or feed straight back into
- * `importFromPasteText`. Two things `parseDecklistText` does that this has to undo deliberately, not just format
- * around:
- *
- * - **It resolves a title to *one or more* card codes** (`splitByQuantityInSet`, when a title is printed as several
- *   distinct codes with the same name — Core's four "Wakanda Forever!" codes). The inverse of that is grouping
- *   `deck.cards` back *by name* and summing their quantities into one line, not emitting one line per code — a
- *   re-import then re-splits that total the same way it always does, which is what makes this a round trip rather
- *   than a lossy dump of internal ids.
- * - **It reads `Aspect: X and Y` as a set, lower-cased.** `deck.aspects` is already exactly that set; this writes
- *   one `Aspect:` line per aspect (title-cased for readability — `splitAspects` lower-cases on the way back in
- *   regardless, so the casing here is cosmetic only) rather than trying to guess which combined phrasing the
- *   original import used.
- *
- * A card id in `deck.cards` that isn't in `pool` (a deck built against an older pool, or the wrong pool passed in)
- * is skipped — there is no name to print it under — the same "can't classify it" handling `deck-stats.ts` gives a
- * missing card id.
+ * "Export" (W9, docs/phase4-screen-gaps.md §3): a decklist a player can copy out, paste into another client, or feed
+ * straight back into `importFromPasteText`. The format and its round-trip guarantee live next to the importer
+ * (`@mc/content`'s `import/to-text.ts`: a title shared by several cards is written with its code, `1x Cable (44002)`).
  */
 export function exportDecklistText(deck: Deck, pool: CardPool): string {
-  const cards = Array.isArray(pool) ? pool : Object.values(pool);
-  const byId = new Map(cards.map((card) => [card.id as string, card]));
-  const identity = byId.get(deck.identityCardId as string);
-
-  const lines: string[] = [`Hero: ${identity?.name ?? deck.identityCardId}`];
-  for (const aspect of deck.aspects) lines.push(`Aspect: ${aspect.charAt(0).toUpperCase()}${aspect.slice(1)}`);
-
-  const byName = new Map<string, number>();
-  for (const entry of deck.cards) {
-    const card = byId.get(entry.cardId as string);
-    if (!card) continue;
-    byName.set(card.name, (byName.get(card.name) ?? 0) + entry.quantity);
-  }
-  for (const [name, quantity] of [...byName.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    lines.push(`${quantity}x ${name}`);
-  }
-
-  return lines.join("\n");
+  return exportDeckAsText(deck, Array.isArray(pool) ? pool : Object.values(pool));
 }

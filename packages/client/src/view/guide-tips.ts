@@ -508,6 +508,139 @@ const WAVE_6_ON_TABLE_TIPS: readonly SituationTrigger[] = [
   ),
 ];
 
+// ---------------------------------------------------------------------------
+// Wave 7: NeXt Evolution (guided mode section 3.14)
+// ---------------------------------------------------------------------------
+
+/** A player side scheme on the table: RRG 1.8 "Player Side Scheme" (p. 34). */
+function playerSideSchemeTip({ game }: LessonObservation): Tip | null {
+  const found = game.villainArea.some((id) => {
+    const instance = getInstance(game, id);
+    return instance !== undefined && game.cardPool[instance.cardId as unknown as string]?.type === "player_side_scheme";
+  });
+  if (!found) return null;
+  return {
+    id: "situation:playerSideScheme",
+    title: "A player side scheme",
+    body:
+      "A [[playerSideScheme|player side scheme]] is a mission you play. Thwart it like any side scheme. Only one can " +
+      "be in play with 1 or 2 players (two with 3 or 4), and a new one discards the old.",
+  };
+}
+
+/** RRG 1.8 "Player Side Scheme Limit" (p. 34): the discard is not a defeat. */
+function sideSchemeLimitTip({ lastEvents }: LessonObservation): Tip | null {
+  if (!lastEvents.some((event) => event.type === "playerSideSchemeLimitDiscard")) return null;
+  return {
+    id: "situation:sideSchemeLimit",
+    title: "Over the side scheme limit",
+    body:
+      "That player side scheme was discarded to stay at the [[playerSideScheme|limit]]. Being discarded this way " +
+      "is not a defeat, so nothing triggers and it earns no Victory.",
+  };
+}
+
+/** Team Investigation (40053) and Break Time (44046) print a per player cost. */
+function perPlayerCostTip({ lastEvents }: LessonObservation): Tip | null {
+  const played = lastEvents.some(
+    (event) => event.type === "cardPlayed" && ["40053", "44046"].includes(baseCardId(event.cardId)),
+  );
+  if (!played) return null;
+  return {
+    id: "situation:perPlayerCost",
+    title: "A cost that scales",
+    body:
+      "That card's [[perPlayerCost|cost is per player]]: the printed number times the players who started the " +
+      "game. In a 2-player game, 2 per player is 4.",
+  };
+}
+
+/** Dreadpool (44038) and Dreadful Deeds (44039) come from Crisis of Infinite Deadpools. */
+const dreadpoolTip = onTableTip(
+  {
+    id: "situation:poolAspect",
+    title: "The Dreadpool set",
+    body:
+      "The Dreadpool set is in the game because a player chose the [[poolAspect|'Pool aspect]]. Including 'Pool " +
+      "cards from another aspect would not have brought it in.",
+  },
+  ["44038", "44039"],
+);
+
+/** The four Specialists (X-23's linked upgrades). */
+const specialistsTip = onTableTip(
+  {
+    id: "situation:specialists",
+    title: "A Specialist is in play",
+    body:
+      "[[specialists|Specialists]] are linked cards: set aside at the start, never in a deck, and brought out by " +
+      "Specialized Training. Whoever controls one owns it.",
+  },
+  ["43034", "43035", "43036", "43037"],
+);
+
+/** A formChanged on a player whose identity is Angel (42001): the three-face fold. */
+function threeFaceTip({ game, lastEvents, perspectiveId }: LessonObservation): Tip | null {
+  if (!perspectiveId) return null;
+  const player = getPlayer(game, perspectiveId);
+  if (!player) return null;
+  const isAngel = baseCardId(getInstance(game, player.identity.instanceId)?.cardId) === "42001";
+  const changed = lastEvents.some((event) => event.type === "formChanged" && event.playerId === perspectiveId);
+  if (!isAngel || !changed) return null;
+  return {
+    id: "situation:threeFaceIdentity",
+    title: "A three-sided identity",
+    body:
+      "Angel has [[threeFaceIdentity|three faces]]: alter-ego, Angel and Archangel. Any switch between them is a " +
+      "change of form, and cards that name a face read the one showing.",
+  };
+}
+
+const psiBladesTip = onTableTip(
+  {
+    id: "situation:psiBlades",
+    title: "Psi-Knife upgrades",
+    body:
+      "Psylocke's [[psiBlades|Psi-Knife]] upgrades are permanent and double-sided. Psi-Energy Control flips one when " +
+      "you use a basic power, and the Psi-Katana side is restricted.",
+  },
+  ["41002"],
+);
+
+const hopeSummersTip = onTableTip(
+  {
+    id: "situation:hopeSummers",
+    title: "Hope Summers",
+    body:
+      "[[hopeSummers|Hope Summers]] is controlled by the first player, so she changes hands with the first player " +
+      "token. If she leaves play, the players lose.",
+  },
+  ["40130"],
+);
+
+const routedTip = onTableTip(
+  {
+    id: "situation:routed",
+    title: "Routed",
+    body:
+      "Each villain you defeat goes under [[routed|Routed]], out of play, and the next one steps in. Three villains " +
+      "under it wins the game.",
+  },
+  ["40081"],
+);
+
+/** The Superpower attachments (Flight, Super Strength, Telepathy) in play on a villain. */
+const setupAttachmentsTip = onTableTip(
+  {
+    id: "situation:setupAttachments",
+    title: "A Superpower attachment",
+    body:
+      "A Superpower is attached to the villain, by the Setup keyword or a stage's When Revealed. See " +
+      "[[setupAttachments|Setup attachments]] for which scenario does which.",
+  },
+  ["40151", "40155", "40159"],
+);
+
 /** Every situation trigger takes `deps` even when it doesn't read one, so `tipsFor` can map over them uniformly. */
 type SituationTrigger = (observation: LessonObservation, deps: EngineDeps) => Tip | null;
 
@@ -532,6 +665,16 @@ const SITUATION_TIPS: readonly SituationTrigger[] = [
   touchedTip,
   threatOnCharacterTip,
   ...WAVE_6_ON_TABLE_TIPS,
+  playerSideSchemeTip,
+  sideSchemeLimitTip,
+  perPlayerCostTip,
+  dreadpoolTip,
+  specialistsTip,
+  threeFaceTip,
+  psiBladesTip,
+  hopeSummersTip,
+  routedTip,
+  setupAttachmentsTip,
 ];
 
 // ---------------------------------------------------------------------------

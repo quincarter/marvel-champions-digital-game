@@ -22,6 +22,7 @@ import { cardsInPlay, createGame, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { abilityRefIds } from "./ability-refs.js";
 import { PLAYABLE_ABILITIES, PLAYABLE_DEPS } from "./playable/index.js";
+import { firstLegal, settle } from "./testing/harness.js";
 import {
   EXTRA_SETS,
   MATRIX_HEROES,
@@ -113,6 +114,15 @@ describe("the lists, derived from content data", () => {
         "western",
         "exodus",
         "reavers",
+        "black_tom_cassidy",
+        "extreme_measures",
+        "flight",
+        "military_grade",
+        "mutant_insurrection",
+        "mutant_slayers",
+        "nasty_boys",
+        "super_strength",
+        "telepathy",
       ]
     `);
   });
@@ -133,6 +143,9 @@ describe("the lists, derived from content data", () => {
     }
     expect(byReason).toMatchInlineSnapshot(`
       {
+        "brought in by the scenarios that require it": [
+          "hope_summers",
+        ],
         "campaign-specific": [
           "expcamp",
           "hydra_camp",
@@ -148,10 +161,14 @@ describe("the lists, derived from content data", () => {
           "defender",
           "mut_gen_campaign",
           "peacekeeper",
+          "next_evol_campaign",
         ],
         "expert set": [
           "expert",
           "expert_ii",
+        ],
+        "included by a setup condition": [
+          "dreadpool",
         ],
         "nemesis set": [
           "black_panther_nemesis",
@@ -197,6 +214,12 @@ describe("the lists, derived from content data", () => {
           "storm_nemesis",
           "gambit_nemesis",
           "rogue_nemesis",
+          "cable_nemesis",
+          "domino_nemesis",
+          "psylocke_nemesis",
+          "angel_nemesis",
+          "x23_nemesis",
+          "deadpool_nemesis",
         ],
         "scenario-specific": [
           "klaw",
@@ -240,6 +263,12 @@ describe("the lists, derived from content data", () => {
           "magog",
           "mojo",
           "spiral",
+          "juggernaut",
+          "marauders",
+          "mister_sinister",
+          "morlock_siege",
+          "on_the_run",
+          "stryfe",
         ],
         "standard set": [
           "standard",
@@ -288,6 +317,11 @@ describe("the lists, derived from content data", () => {
         "magog",
         "spiral",
         "mojo",
+        "morlock-siege",
+        "on-the-run",
+        "juggernaut",
+        "mister-sinister",
+        "stryfe",
       ]
     `);
   });
@@ -362,6 +396,15 @@ function setupProblems(state: GameState): string[] {
   return problems;
 }
 
+/**
+ * A game whose villains start set aside (On the Run) pauses inside Appendix II step 12 for its Setup text's choices, and
+ * a step 11 setup-keyword card that attaches to the villain enters play only once step 12a has put the villain into
+ * play. Read the set's cards after setup, answering each choice with the first legal option.
+ */
+function settleSetup(state: GameState): GameState {
+  return settle(state, firstLegal, (current) => current.step.phase !== "setup", PLAYABLE_DEPS);
+}
+
 function runPairing(setId: string, scenarioIndex: number, setIndex: number, expert: boolean): Outcome {
   const scenario = PLAYABLE_SCENARIOS[scenarioIndex]!;
   const { seats } = seatsFor(setIndex, scenarioIndex);
@@ -379,7 +422,7 @@ function runPairing(setId: string, scenarioIndex: number, setIndex: number, expe
       problems.push(
         ...deckProblems(created.state, setId),
         ...setupProblems(created.state),
-        ...(built.config ? setCardProblems(created.state, setId) : []),
+        ...(built.config ? setCardProblems(settleSetup(created.state), setId) : []),
       );
   } catch (error) {
     problems.push(`createGame threw: ${(error as Error).message}`);
@@ -430,20 +473,20 @@ describe("modular set x scenario: every pairing builds", () => {
     }
     expect({ sets: MODULAR_SETS.length, scenarios: PLAYABLE_SCENARIOS.length, ...kinds }).toMatchInlineSnapshot(`
       {
-        "build": 2162,
-        "required": 20,
-        "restricted": 338,
-        "scenarios": 36,
-        "sets": 70,
+        "build": 2832,
+        "required": 24,
+        "restricted": 383,
+        "scenarios": 41,
+        "sets": 79,
       }
     `);
     expect(restrictedBy).toMatchInlineSnapshot(`
       {
-        "breakout": 70,
-        "mojo": 64,
-        "sinister-six": 69,
-        "spiral": 64,
-        "the-hood": 70,
+        "breakout": 79,
+        "mojo": 73,
+        "sinister-six": 78,
+        "spiral": 73,
+        "the-hood": 79,
         "tower-defense": 1,
       }
     `);

@@ -107,6 +107,8 @@ export interface ParsedText {
   readonly restrictions: ParsedRestrictions;
   /** Parsed "Max N per deck." — cross-checked against MarvelCDB `deck_limit`. */
   readonly maxPerDeckText?: number;
+  /** Parsed "Counts as N restricted cards." (`PlayerCardCommon.restrictedWeight`; docs/phase7-wave7.md §3.82). */
+  readonly restrictedWeight?: number;
   readonly attachesTo?: AttachmentHost;
   /** Printed name inside "Attach to Rhino." — the caller checks it's the villain. */
   readonly attachesToVillainNamed?: string;
@@ -152,6 +154,13 @@ export interface ParseOptions {
    * into a `<card>-when-revealed` ref of its own; the card text is unchanged.
    */
   readonly unheadedWhenRevealed?: string;
+  /**
+   * Non-obligation: the first sentence of a standing (constant) rule printed at the tail of a triggered ability's
+   * body (Malice `next_evol` 40199: "When Defeated: Attach ... Treat attached ally as a POSSESSED minion ..."). From
+   * this sentence to the end of that body is also emitted as its own `constant` ref, ADDITIVE to the triggered
+   * ability's ref (its text and id are unchanged). The card text is unchanged.
+   */
+  readonly extraConstantFrom?: string;
 }
 
 const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
@@ -677,16 +686,19 @@ function parseAttach(
     }
   }
   const supCore =
-    /^(?:the|a) (minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(
+    /^(?:the|a) (?:([A-Za-z-]+) )?(minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(
       supRest,
     );
   if (supCore) {
-    const poolWord = (supCore[1] as string).toLowerCase();
+    // "the [MARAUDER] enemy with the lowest ATK" (Favored Weapon, `next_evol` 40107): an optional leading trait word
+    // (`HostQualifiers.trait`, which `superlative` hosts already carry) narrows the pool before it is ranked.
+    const supTrait = supCore[1] as string | undefined;
+    const poolWord = (supCore[2] as string).toLowerCase();
     const among =
       poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain" | "ally");
-    const orderWord = (supCore[2] as string).toLowerCase();
+    const orderWord = (supCore[3] as string).toLowerCase();
     const order: "highest" | "lowest" = orderWord === "highest" || orderWord === "most" ? "highest" : "lowest";
-    const descriptor = (supCore[3] as string).trim().toLowerCase();
+    const descriptor = (supCore[4] as string).trim().toLowerCase();
     const measure: HostMeasure | undefined =
       descriptor === "printed hit points"
         ? "printedHp"
@@ -722,6 +734,7 @@ function parseAttach(
           among,
           order,
           measure,
+          ...(supTrait ? { trait: supTrait.toUpperCase() as Trait } : {}),
           ...(supWithoutTrait ? { withoutTrait: supWithoutTrait.toUpperCase() as Trait } : {}),
           ...(supWithoutAttachmentNamed ? { withoutAttachmentNamed: supWithoutAttachmentNamed } : {}),
         },
@@ -784,8 +797,12 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     return {};
   }
   // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
-  // its printed pair with "Attach to an encounter card in play.".
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.?$/.exec(sentence);
+  // its printed pair with "Attach to an encounter card in play.". Wave 7 data fixes: "Max 1 per scheme." (Overwatch,
+  // Followed) and "Max 1 per side scheme." (Containment Strategy `angel` 42019) are the same host limit; "Limit 1 per side scheme." (The Direct Approach `x23` 43020) is the same
+  // limit worded "Limit".
+  m = /^(?:Max|Limit) (\d+) per (?:enemy|ally|minion|character|hero|encounter card|side scheme|scheme)\.?$/.exec(
+    sentence,
+  );
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};
@@ -802,11 +819,11 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.maxWithTrait = { trait: (m[2] as string).toUpperCase(), per: "player", max: Number(m[1]) };
     return {};
   }
-  if (/^Hero form only\.$/.test(sentence)) {
+  if (/^Hero form only\.?$/.test(sentence)) {
     into.form = "hero";
     return {};
   }
-  if (/^Alter-Ego form only\.$/.test(sentence)) {
+  if (/^Alter-Ego form only\.?$/.test(sentence)) {
     into.form = "alterEgo";
     return {};
   }
@@ -865,11 +882,13 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let attachesTo: AttachmentHost | undefined;
   let attachesToVillainNamed: string | undefined;
   let maxPerDeckText: number | undefined;
+  let restrictedWeight: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
   let villainOf: string | undefined;
   let modeOnly: "standard" | "expert" | undefined;
   let completionLoses: boolean | undefined;
+  let extraConstantFound = 0;
 
   if (options.obligation) {
     const lines = text.split("\n");
@@ -973,10 +992,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   // The same for a *triggered* lead-in: "Response: After Lockheed enters play, if you are in:" (Lockheed `mut_gen`
   // 32032, Kitty's Room 32033, Quick Shift 32040). A line that carries an ability header and ends in a colon owns the
   // bullet lines after it, so the bullets are part of that one ability instead of constant clauses of their own.
+  // The same for icon-led clauses ("[crisis] — Deal 3 damage to an enemy." under "Hero Action: If the following icons
+  // are on 1 or more cards in play:", "I Got This" `deadpool` 44021; Magic Blast, Luck Be a Lady, Husk): one
+  // ability whose body lists its branches on separate printed lines.
+  const isListLine = (l: string) => l.startsWith("•") || /^\[[a-z_]+\]\s+[—–-]\s/.test(l);
   for (let i = lines.length - 1; i > 0; i--) {
-    if (!(lines[i] as string).startsWith("•")) continue;
+    if (!isListLine(lines[i] as string)) continue;
     let j = i;
-    while (j > 0 && (lines[j - 1] as string).startsWith("•")) j--;
+    while (j > 0 && isListLine(lines[j - 1] as string)) j--;
     const owner = lines[j - 1] as string;
     if (j === 0 || !owner.endsWith(":") || findHeaders(owner).length === 0) continue;
     lines.splice(j - 1, i - j + 2, [owner, ...lines.slice(j, i + 1)].join(" "));
@@ -1018,8 +1041,23 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           );
           if (preferred && otherwise) {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
-            attachesTo = { kind: "ifAble", preferred: preferred.host, otherwise: otherwise.host };
-            if (preferred.villainName) attachesToVillainNamed = preferred.villainName;
+            // "Attach to Stryfe. Otherwise, attach to the villain." (Telekinetic Force Field, `next_evol` 40034): a
+            // preferred target that is a villain's printed name, with "the villain" as the fallback, cannot mean the
+            // villain itself (the fallback would never be reached). It names a card (here the nemesis minion, or the
+            // villain in the scenario that has him as one), so it stays a `namedCard` and does not claim the
+            // set's villain (`attachesToVillainNamed`).
+            const namedNotVillain =
+              preferred.villainName !== undefined &&
+              otherwise.host.kind === "villain" &&
+              (preferred.host.kind === "villain" || preferred.host.kind === "namedVillain");
+            attachesTo = {
+              kind: "ifAble",
+              preferred: namedNotVillain
+                ? { kind: "namedCard", name: preferred.villainName as string }
+                : preferred.host,
+              otherwise: otherwise.host,
+            };
+            if (preferred.villainName && !namedNotVillain) attachesToVillainNamed = preferred.villainName;
           } else {
             unclassified.push(
               `ifAble attach host: could not parse ${preferred ? "the fallback" : "the preferred"} side: "${sentence}" / "${next}"`,
@@ -1056,6 +1094,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         // The "completed" half is the reminder; the "or …" half is scripted behavior, so the sentence stays
         // (falls through to the constant buffer below) instead of being stripped like the plain form.
         completionLoses = true;
+      }
+      // "Counts as 2 restricted cards." (Laser Swords `deadpool` 44055, Kurt's Cutlasses `ncrawler` 48004;
+      // docs/phase7-wave7.md §3.82): card data the engine weighs on the restricted limit, not a scripted constant.
+      const weight = /^Counts as (\d+) restricted cards\.?$/.exec(sentence);
+      if (weight) {
+        flushConstant();
+        restrictedWeight = Number(weight[1]);
+        continue;
       }
       const restriction = parseRestriction(sentence, restrictions);
       if (restriction) {
@@ -1214,7 +1260,20 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           abilities.push({ kind: "when-defeated", text: bodySentences.slice(inlineDefeatedIndex).join(" ") });
         }
       }
+      if (options.extraConstantFrom !== undefined) {
+        const bodySentences = splitSentences(body);
+        const from = bodySentences.findIndex((s) => s === options.extraConstantFrom);
+        if (from !== -1) {
+          extraConstantFound++;
+          abilities.push({ kind: "constant", text: bodySentences.slice(from).join(" ") });
+        }
+      }
     });
+  }
+  if (options.extraConstantFrom !== undefined && extraConstantFound !== 1) {
+    unclassified.push(
+      `extra constant sentence "${options.extraConstantFrom}" found in ${extraConstantFound} ability bodies (expected 1)`,
+    );
   }
 
   return {
@@ -1222,6 +1281,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     abilities,
     restrictions,
     ...(maxPerDeckText !== undefined ? { maxPerDeckText } : {}),
+    ...(restrictedWeight !== undefined ? { restrictedWeight } : {}),
     ...(attachesTo ? { attachesTo } : {}),
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),

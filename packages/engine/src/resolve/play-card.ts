@@ -3,14 +3,20 @@
 import type { AbilityId } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { discardZoneFor, locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
+import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { endUntilCardPlayedEffects, expireCardResolutionEffects, expirePaidForEffects } from "../effects.js";
+import {
+  endUntilCardPlayedEffects,
+  expireCardResolutionEffects,
+  expirePaidForEffects,
+  placeExhausted,
+} from "../effects.js";
+import { recordAbilityUse } from "./ability.js";
 import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
-import { enterPlay } from "./enter-play.js";
+import { enterPlay, playerSideSchemeEntersPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -52,9 +58,7 @@ export function pushPlayCardFrame(
  * `cardExhausted`, but announced as nothing: the card was not exhausted by an effect or a cost.
  */
 function entersExhausted(ctx: Ctx, frame: Frame<"playCard">): void {
-  if (frame.entersExhausted !== true) return;
-  updateInstance(ctx, frame.instanceId, (i) => ({ ...i, exhausted: true }));
-  emit(ctx, { type: "cardExhausted", instanceId: frame.instanceId });
+  if (frame.entersExhausted === true) placeExhausted(ctx, frame.instanceId);
 }
 
 export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
@@ -81,14 +85,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
           break;
         }
         case "player_side_scheme":
-          moveCard(ctx, frame.instanceId, { kind: "villainArea" });
-          enterPlay(ctx, frame.instanceId, frame.playerId);
-          pushEvent(ctx, {
-            kind: "placeThreat",
-            schemeInstanceId: frame.instanceId,
-            amount: scale(card.startingThreat, ctx.state.startingPlayerCount),
-            sourceInstanceId: null,
-          });
+          playerSideSchemeEntersPlay(ctx, frame.instanceId, frame.controllerId, frame.playerId);
           break;
         default:
           break;
@@ -116,19 +113,28 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // RRG 1.8 "Cancel" (p. 13): "If the effects of an event card are canceled, the card is still considered
       // played, and it is discarded." So only the ability frames are skipped — `discardEvent` still runs and still
       // announces `cardPlayed`, and the cost paid in `commitPlay` stands.
-      if (frame.effectsCancelled) return;
+      if (frame.effectsCancelled) {
+        // RRG 1.8 "Max, Maximum" (p. 28): "If a card with a maximum is canceled, the card is still counted toward the
+        // maximum"; "Limit" (p. 27): a canceled effect "counts toward the limit". The ability frame that would have
+        // counted it is skipped, so it is counted here.
+        const cancelled = frame.triggeredAbilityId ? ctx.deps.abilities[frame.triggeredAbilityId] : undefined;
+        if (frame.triggeredAbilityId && cancelled) {
+          recordAbilityUse(ctx, frame.instanceId, frame.triggeredAbilityId, cancelled, frame.event, frame.playerId);
+        }
+        return;
+      }
       // RRG "Event": an event's effects resolve while it is out of play, then it is discarded.
+      // RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses
+      // one of those abilities to trigger". Exactly one resolves: the Action ability the play triggered, or the
+      // interrupt or response that matched the timing window, which keeps the triggering event's context so a "cancel"
+      // effect knows what it is cancelling. A frame that names none (a state saved before plays recorded their Action
+      // ability) resolves the first printed Action ability.
+      const refs = printedAbilityRefs(card);
+      const only =
+        frame.triggeredAbilityId ?? refs.find((ref) => ctx.deps.abilities[ref.id]?.trigger.kind === "action")?.id;
       const frames: StackFrame[] = [];
-      for (const ref of printedAbilityRefs(card)) {
-        const definition = ctx.deps.abilities[ref.id];
-        if (!definition) continue;
-        // An event played inside a timing window resolves only the ability that
-        // matched that window, and it keeps the triggering event's context so a
-        // "cancel" effect knows what it is cancelling.
-        const wanted = frame.triggeredAbilityId
-          ? ref.id === frame.triggeredAbilityId
-          : definition.trigger.kind === "action";
-        if (!wanted) continue;
+      for (const ref of refs) {
+        if (ref.id !== only || !ctx.deps.abilities[ref.id]) continue;
         frames.push(
           abilityFrame(
             ctx,
@@ -158,7 +164,21 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // the player's who played it (Rogue's Superpower Adaptation plays an event another player owns).
       const location = locateCard(ctx.state, frame.instanceId);
       if (card.type === "event" && location?.kind === "resolving") {
-        moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+        // "Return that event to your hand after resolving its effects" (`EffectSpec afterResolving`,
+        // docs/phase7-wave7.md §3.68): the card goes to its owner's hand instead, so it never reaches the discard pile.
+        // Canceled effects never resolved, and RRG 1.8 "Cancel" (p. 11) has that event discarded.
+        const ownerId = mustInstance(ctx.state, frame.instanceId).ownerId;
+        if (frame.afterResolving === "hand" && !frame.effectsCancelled && ownerId) {
+          emit(ctx, { type: "playedEventReturned", instanceId: frame.instanceId, playerId: ownerId });
+          moveCard(ctx, frame.instanceId, { kind: "hand", playerId: ownerId });
+        } else {
+          moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+        }
+        // In its owner's out-of-play area it is its owner's to control again (RRG 1.8 "Ownership and Control", p. 31:
+        // "A player controls the cards in their own out-of-play areas"), whoever played it.
+        if (ownerId && mustInstance(ctx.state, frame.instanceId).controllerId !== ownerId) {
+          updateInstance(ctx, frame.instanceId, (i) => ({ ...i, controllerId: ownerId }));
+        }
       }
       announce(ctx, { kind: "cardPlayed", instanceId: frame.instanceId, playerId: frame.playerId });
       return;

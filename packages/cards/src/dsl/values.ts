@@ -1,11 +1,14 @@
 import { trait, type Trait } from "@mc/content";
 import { UNRESOLVED_VAR } from "@mc/engine";
 import type {
+  BasicPowerName,
+  CardIcon,
   CharacterNames,
   Form,
   PlayerRef,
   Predicate,
   ResourceRequirement,
+  SetupOutsideFact,
   StatComparison,
   StatName,
   StatusName,
@@ -78,6 +81,17 @@ export const playerOrElse = (first: PlayerRef, otherwise: PlayerRef): PlayerRef 
  * is reacting to. Empty outside a defeat, and for a defeat no player caused.
  */
 export const defeatingPlayer: PlayerRef = { kind: "defeatingPlayer" };
+/**
+ * "The attacked player" (RRG 1.8 "Attack (Enemy Activation)", p. 8; "Attacks Against Allies", p. 10): the player the
+ * enemy attack in progress was initiated against, whoever defends it; the controller of an attacked ally. Nobody
+ * outside an enemy attack. `attackedPlayer(self)` on an enemy's own constant is the "you" of "While [this enemy] is
+ * attacking you, he gets +X ATK, where X is … in your hand": only that enemy's attack counts, so the bonus is 0 while
+ * it is not attacking. With no attacker: the innermost attack on the stack.
+ */
+export const attackedPlayer = (attacker?: TargetRef): PlayerRef => ({
+  kind: "attackedPlayer",
+  ...(attacker ? { attacker } : {}),
+});
 export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", target });
 /**
  * "The player who controls that identity" / "the player who controls the Power Stone" (docs/phase7-wave3.md §3.39):
@@ -196,6 +210,16 @@ export const query = (
 };
 
 /**
+ * "… with a printed cost of N or more": `query("event", printedCostAtLeast(3))` is "each event with a printed cost of
+ * 3 or more" (Practiced Maneuvers, `next_evol` 40194b, as a `costModifier`'s `appliesTo`). The upper bound has no
+ * builder: write `maxPrintedCost` in the same query, and the two select a band. The printed cost is compared, after
+ * the per player icon multiplies it and never after a cost modifier; a dash, an X and a card with no cost read as 0
+ * (see `TargetQuery.minPrintedCost`). docs/phase7-wave7.md §3.47.
+ */
+export const printedCostAtLeast = (bound: number | ValueSpec): Pick<TargetQuery, "minPrintedCost"> => ({
+  minPrintedCost: bound,
+});
+/**
  * "… that shares a trait with your hero" (Team-Building Exercise, `ant` 12024): `query(categories, sharesTraitWith(
  * identityOf(you)))`. Both sides are read live through `traitsOf` — a granted trait counts on either end (RRG 1.8
  * "Gains", p. 21) — and a ref naming nothing, or naming only trait-less cards, matches nothing (there is no trait
@@ -203,12 +227,66 @@ export const query = (
  */
 export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitWith"> => ({ sharesTraitWith: ref });
 /**
+ * "… that can be attached to Deathlok" (`next_evol` 40025): `query("upgrade", canAttachTo(self))`, over cards anywhere
+ * (a discard pile, a hand). The card's own printed host decides, as when it is played: the hosts its "attach to" text
+ * allows, a "Max N per …" and a "cannot have attachments" rule included, and for an upgrade with no "attach to" text
+ * only its controller's identity. "You" in that text is the player who would control the card there (the host's
+ * controller, RRG 1.8 "Ownership and Control", p. 31). A ref naming several hosts matches a card that fits any of them.
+ * The `attach` effect does not check this itself (RRG 1.8 "Attach To", p. 8), so the choice has to.
+ */
+export const canAttachTo = (host: TargetRef): Pick<TargetQuery, "canAttachTo"> => ({ canAttachTo: host });
+/**
+ * "… chooses 1 set-aside SPECIALIZATION upgrade and puts it into play under their control" (`x23` 43021), as a choice
+ * among the cards the unique rule lets enter play: `query("upgrade", { trait, ...canEnterPlay(thatPlayer) })`. A unique
+ * card that matches a card already in play "cannot be played or put into play" (RRG 1.8 "Unique Icon", pp. 45–46), so
+ * it is not offered; the engine decides with the check `putIntoPlay` makes. The player is who it would enter play under.
+ */
+export const canEnterPlay = (player: PlayerRef): Pick<TargetQuery, "canEnterPlay"> => ({ canEnterPlay: player });
+/**
+ * "Flip 1 PSI-ENERGY upgrade", "you may flip this card", as a choice among the cards that can be flipped:
+ * `query("upgrade", { trait: PSI_ENERGY, controller: "you", ...canFlip })`. A card a `cannotFlip` rule names is left
+ * out, so an optional ability whose only candidates cannot flip is not offered (docs/phase7-wave7.md §3.64).
+ */
+export const canFlip: Pick<TargetQuery, "canFlip"> = { canFlip: true };
+/**
+ * "Each minion that shares a title with the top villain", "the minion with the same title as the villain":
+ * `query("minion", sharesTitleWith(villain))`. Titles only, each as the card shows it now (a villain's current side, a
+ * flipped card's other face); a subtitle is not read, a parenthetical is part of the title, a facedown card has no
+ * title, and a card shares a title with itself. A ref naming several cards matches a card sharing a title with any of
+ * them; a ref naming nothing matches nothing. For "does not share a title with", wrap it in `notMatching`.
+ * docs/phase7-wave7.md §3.8.
+ */
+export const sharesTitleWith = (ref: TargetRef): Pick<TargetQuery, "sharesTitleWith"> => ({ sharesTitleWith: ref });
+/**
+ * The negation of a query filter, for one with no `without…` sibling: "a minion that does not share a title with a
+ * card in play" is `query("minion", notMatching(sharesTitleWith(each(…))))`. The categories stay outside, so they still
+ * narrow the candidates. (`not` is the `Predicate` negation; this is the `TargetQuery` one.) docs/phase7-wave7.md §3.8.
+ */
+export const notMatching = (excluded: TargetQuery): Pick<TargetQuery, "not"> => ({ not: excluded });
+/**
+ * "A character that can be given a [stunned / confused / tough] status card": one given to it now would be placed,
+ * which is the check the give itself makes (RRG 1.8 "Status Cards", p. 41: one of each type, a second stunned or
+ * confused for steady, none of those for stalwart or under a "cannot be stunned" rule, a `statusLimit` for tough). An
+ * encounter card's "choose: • Confuse a character you control. • …" offers that option only if it can be carried out
+ * in full (docs/phase7-wave7.md §4.1 Q8 = A): with `const able = query("character", { controller: "you",
+ * ...canTakeStatus("confused") })`, the option is `option("…", { when: exists(able) }, chooseTarget("target", able),
+ * confuse(chosen("target")))`. For "that cannot take one", wrap it in `notMatching`. docs/phase7-wave7.md §3.11.
+ */
+export const canTakeStatus = (status: StatusName): Pick<TargetQuery, "canTakeStatus"> => ({ canTakeStatus: status });
+/**
  * "… a card from the [X] Nemesis set" (Yellowjacket's Plan, `ant` 12029): `query(categories, encounterSetOf(self))`
  * — every printed "a card from the <X> set" in cycle 1 sits on a card that is itself a member of that set, so
  * `self` says it without naming the set anywhere in `@mc/cards`. Reads `encounterSetIds` off card data, so it
  * matches wherever the card is (deck, discard, set aside, in play). docs/phase7-wave2.md §20.2.
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
+/**
+ * "Each card of the chosen type" (Psychic Override, `next_evol` 40178; docs/phase7-wave7.md §3.33): the card's type
+ * is the one `chooseCardType(bind)` bound earlier in the same ability. `handCountOf(you, ofChosenCardType("type"))`.
+ */
+export const ofChosenCardType = (bind: string): Pick<TargetQuery, "cardTypeIs"> => ({ cardTypeIs: { chosen: bind } });
+/** "Each card … that is not of that type": every card the chosen type does not match. */
+export const notOfChosenCardType = (bind: string): Pick<TargetQuery, "not"> => ({ not: ofChosenCardType(bind) });
 /**
  * "… an event that belong's to the same classification as that character (identity-specific, aspect, or basic)"
  * (Superpower Adaptation, `rogue` 38009): `query("event", sameClassificationAs(host))`. RRG 1.8 "Classifications"
@@ -317,6 +395,21 @@ export const ofTeamUpSet = (index?: 0 | 1): Pick<TargetQuery, "identitySetTitled
   identitySetTitled: teamUpNames(index),
 });
 /** A character named by a title written out, for a card that names one without the Team-Up keyword. */
+/**
+ * "A friendly character of your choice" as the new target of the player attack in progress (`retargetPlayerAttack`;
+ * docs/phase7-wave7.md §3.66): every identity and ally in play that can take that attack's damage (RRG 1.8 "Target",
+ * p. 43; ruling Mar 19, 2026 (2)), the attacker and other players' characters included (§4.1 Q40).
+ */
+export const CAN_TAKE_THIS_ATTACK: TargetQuery = { ...FRIENDLY_CHARACTER, canTakeAttackInProgress: "player" };
+/**
+ * "A resource of the named type" (docs/phase7-wave7.md §3.66): a card with a printed icon of `type`, the reading of a
+ * printed wild icon said each time. `"anyType"`: a wild icon is a resource of whatever type was named (§4.1 Q40 = B).
+ * `"ownType"`: a wild icon is only wild (RRG 1.8 "Wild Resource", p. 48), which is `{ printedResource: type }`.
+ */
+export const hasNamedResource = (
+  type: "physical" | "mental" | "energy" | "wild",
+  wild: "ownType" | "anyType",
+): TargetQuery => ({ printedResourceNamed: { type, wild } });
 export const titled = (...names: readonly string[]): TargetQuery => query(["identity", "ally"], { titled: { names } });
 /** `ofTeamUpSet`'s written-out form: "a <name> card" by identity title. */
 export const ofIdentitySetTitled = (...names: readonly string[]): Pick<TargetQuery, "identitySetTitled"> => ({
@@ -367,6 +460,12 @@ export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "st
  * minion's printed SCH" (Marvel Girl, 34015) is `printedStatOf(chosen("minion"), "sch")` (docs/phase7-wave6.md §3.33).
  */
 export const printedStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, printed: true });
+/**
+ * A character's base stat (RRG 1.8 "Base Value", p. 10): printed, or what a "has a base … of" ability defines, with no
+ * other modifier. "Copies the base ATK and THW" of an ally whose star is defined by its text reads that definition
+ * (ruling January 17, 2026 - Ruling 1; docs/phase7-wave7.md §3.25).
+ */
+export const baseStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, base: true });
 /** "The total ATK of those allies" (Mass Attack, `mts` 21016): the stat summed over every card `of` names (§3.41). */
 export const totalStatOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat, total: true });
 export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q });
@@ -424,6 +523,21 @@ export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
  * scheme's own stage number, as it reads now. The `villainStageNumberOf` sibling above.
  */
 export const mainSchemeStageNumber: ValueSpec = { kind: "mainSchemeStageNumber" };
+/**
+ * "For each acceleration token on the main scheme" (docs/phase7-wave7.md §3.76): `accelerationTokensOn(theMainScheme)`;
+ * "on it" for an attachment is `accelerationTokensOn(host)`. Tokens only, never acceleration icons (RRG 1.8
+ * "Acceleration Token", p. 5), and only those on the cards named.
+ */
+export const accelerationTokensOn = (on: TargetRef): ValueSpec => ({ kind: "accelerationTokens", on });
+/**
+ * "For each [crisis], [acceleration], [amplify], and [hazard] in play" (docs/phase7-wave7.md §3.77): every such icon
+ * cards in play show, or only the listed types ("if [crisis] is on 1 or more cards in play" is
+ * `valueAtLeast(encounterIconsInPlay(["crisis"]), 1)`). Acceleration tokens are not icons.
+ */
+export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => ({
+  kind: "iconsInPlay",
+  ...(icons ? { icons } : {}),
+});
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
@@ -456,6 +570,17 @@ export const handCountOf = (player: PlayerRef = you, filter?: TargetQuery): Valu
   kind: "handCount",
   player,
   ...(filter ? { filter } : {}),
+});
+/**
+ * "X is the number of cards of the most common type in your hand" (Stryfe, `next_evol`; docs/phase7-wave7.md §3.32):
+ * the size of the largest group of cards in that player's hand sharing one of the six player card types MC40 p. 18
+ * lists (ally, event, player side scheme, resource, support, upgrade); an encounter card held in hand is not counted
+ * (§4.1 Q18 = B). "Each player places X threat … in their hand" is `mostCommonHandTypeCount(thatPlayer)` inside
+ * `forEachPlayer`; "at least 3 cards of the same type in their hand" is `valueAtLeast(mostCommonHandTypeCount(p), 3)`.
+ */
+export const mostCommonHandTypeCount = (player: PlayerRef = you): ValueSpec => ({
+  kind: "largestHandTypeGroup",
+  player,
 });
 /**
  * "The cards in a player's deck" as a count — the player deck only, never a separate deck. The sibling of
@@ -584,6 +709,18 @@ export const playNote = (name: string, atLeast = 1): Predicate => ({ kind: "play
  * `ifThen(revealedFromEncounterDeck, surge())` inside the When Revealed.
  */
 export const revealedFromEncounterDeck: Predicate = { kind: "revealedFromEncounterDeck" };
+
+/**
+ * "If the previous stage was advanced by knock counters, …" (Mutant Massacre 2A, `next_evol` 40078a;
+ * docs/phase7-wave7.md §3.12): the main scheme reached its current stage by `cause`: `"completed"` (threat reached the
+ * target, or a card completed the stage) or `"cardEffect"` (a card's `advanceMainScheme`), from `source` when given.
+ * A stage's own "advance to stage 2A" is `mainSchemeAdvancedBy("cardEffect", self)` in the next stage's When Revealed.
+ */
+export const mainSchemeAdvancedBy = (cause: "completed" | "cardEffect", source?: TargetRef): Predicate => ({
+  kind: "mainSchemeAdvancedBy",
+  cause,
+  ...(source ? { source } : {}),
+});
 /**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,
@@ -641,6 +778,18 @@ export const canPayResources = (
   ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
 });
 /**
+ * Threat can be removed from at least one scheme `scheme` names by this card, in a removal that is not a thwart: no
+ * crisis icon (unless `ignoreCrisis`) and no "threat cannot be removed" rule stops it (engine `canRemoveThreatFrom`).
+ * Gates an ability whose payment stands between choosing the scheme and the removal, which the engine cannot judge at
+ * initiation: `{ while: canRemoveThreatFrom(each(query("scheme", { hasThreat: true }))) }` (Blackout, `deadpool`
+ * 44053). An ability that opens with its choice and removal, or a `moveThreat`, needs no gate: the engine judges it.
+ */
+export const canRemoveThreatFrom = (scheme: TargetRef, opts: { readonly ignoreCrisis?: boolean } = {}): Predicate => ({
+  kind: "canRemoveThreatFrom",
+  scheme,
+  ...(opts.ignoreCrisis ? { ignoreCrisis: true as const } : {}),
+});
+/**
  * `player` could pay `spendDifferentResources(count, …)`: `count` resources of `count` different types (a wild being
  * any one type). Director's Directions (`mojo` 39033), pending default Q51: `option("Spend 2 different resources",
  * { when: canSpendDifferentResources(2) }, spendDifferentResources(2, "spent"))`.
@@ -648,6 +797,15 @@ export const canPayResources = (
 export const canSpendDifferentResources = (count: number, player: PlayerRef = you): Predicate =>
   canPayResources({ generic: count }, player, { distinctTypes: count });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
+/**
+ * A fact from outside the game that `player`'s seat supplied at setup (docs/phase7-wave7.md §3.83); absent is false.
+ * "If you did not win your previous game of Marvel Champions" is `not(outsideFact("wonPreviousGame"))`.
+ */
+export const outsideFact = (fact: SetupOutsideFact, player: PlayerRef = you): Predicate => ({
+  kind: "outsideFact",
+  fact,
+  player,
+});
 /**
  * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded
  * this way" after a choice that had nothing it could discard.
@@ -670,6 +828,28 @@ export const isConfused = (of: TargetRef): Predicate => ({ kind: "hasStatus", of
 export const hasTrait = (of: TargetRef, t: Trait): Predicate => ({ kind: "hasTrait", of, trait: t });
 /** "If you have the Aerial trait". */
 export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);
+/**
+ * The face that is up has this title: a villain's side, a flipped encounter card's face, or an identity's face
+ * ("When Revealed (Face Name)", docs/phase7-wave1.md §3.3). A title names one face only (RRG 1.8 "Identity", p. 23).
+ */
+export const faceNamed = (of: TargetRef, name: string): Predicate => ({ kind: "faceNamed", of, name });
+/** "If you are [Archangel]" / "in [Archangel] form" (docs/phase7-wave7.md §3.62): your identity's face showing. */
+export const youAreNamed = (name: string): Predicate => faceNamed(yourIdentity, name);
+/**
+ * The scheme a thwart thwarted, as its results report it: `thwartTarget()` is slot `thwart.target` on an ally's
+ * consequential damage (`takesConsequentialDamage`'s `if`: "takes -1 consequential damage after thwarting a side
+ * scheme", Uncanny X-Force, `next_evol` 40022, is `refMatches(thwartTarget(), query("sideScheme"), { anywhere: true
+ * })`), and `thwartTarget(bind)` is `<bind>.target` after a `thwart` effect with that `bind`. A thwart divided across
+ * schemes names every one of them. Read it `anywhere`: a side scheme the thwart defeated has left play. The attack's
+ * counterpart is `attackTarget`.
+ */
+export const thwartTarget = (bind = "thwart"): TargetRef => ({ kind: "slot", slot: `${bind}.target` });
+/**
+ * The character an attack attacked, damaged or not: slot `attack.target` on an ally's consequential damage ("when
+ * attacking attached minion", Coordinated Attack, `cyclops` 33016), or `<bind>.target` after an `attack` effect with
+ * that `bind`. Read it `anywhere` when the attack may have defeated it.
+ */
+export const attackTarget = (bind = "attack"): TargetRef => ({ kind: "slot", slot: `${bind}.target` });
 /**
  * The ref names a card that is in play and matches the query. `anywhere: true` drops the "in play" requirement
  * ("Look at the top card of your deck. If that card is an attack or thwart event, draw it.", Gamora 18001b): the
@@ -710,6 +890,16 @@ export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
 });
 /** "If there is N or more threat on <scheme>" — the spelling the Wrecking Crew signature side schemes print. */
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
+/**
+ * "…add X-23's **matching** power…" (Sisterly Bond 43007): the basic power being used is (one of) these, read off the
+ * `basicPowerUsing` event the ability interrupts (the one `modifyBasicPower` reads), so an interrupt to "thwarts or
+ * attacks" can give `modifyBasicPower` the matching stat: `ifThen(basicPowerIs("thwart"), modifyBasicPower(statOf(X,
+ * "thw")), modifyBasicPower(statOf(X, "atk")))`. False outside a basic-power use.
+ */
+export const basicPowerIs = (...power: readonly BasicPowerName[]): Predicate => ({
+  kind: "basicPowerIs",
+  power: power.length === 1 ? power[0]! : power,
+});
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
 /**
@@ -795,12 +985,29 @@ export const firstAttackThisTurn = (
   ...(opts.by ? { by: opts.by } : {}),
 });
 /**
+ * "If your hero attacked … this phase" / "… thwarted this phase" (Psychic Inertia, `next_evol` 40173;
+ * docs/phase7-wave7.md §3.36, §4.1 Q23): a character matching `character` made an attack, or a thwart, since the
+ * phase began, basic or by a labeled ability. "Attacked and thwarted" is `allOf` the two. Ask "your hero" as your
+ * identity (`query("identity", { controlledBy: you })`): the record is of the identity card, whatever form it shows
+ * now. The player phase is one phase across every player's turn.
+ */
+export const characterDidThisPhase = (character: TargetQuery, did: "attack" | "thwart"): Predicate => ({
+  kind: "characterDidThisPhase",
+  character,
+  did,
+});
+/**
  * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */
 export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
+/**
+ * "During your turn" (The Merc with the Mouth, `deadpool` 44032): a player turn is in progress and `player` (default
+ * `you`) is the active player (RRG 1.8 "Active Player", p. 6). As a rule's `while`, "you" is the rule's speaker.
+ */
+export const duringTurnOf = (player: PlayerRef = { kind: "controller" }): Predicate => ({ kind: "turnOf", player });
 /**
  * "The first [card type] played each round" (Steve Rogers, Living Legend: "Reduce the cost of the first ally
  * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally that player
@@ -821,7 +1028,9 @@ export const firstThisRound = (cardType: string, player: PlayerRef = you): Predi
 export const totalPrintedCost = (cardsRef: TargetRef): ValueSpec => ({ kind: "totalPrintedCost", cards: cardsRef });
 /**
  * "X is the number of printed resources on that card" (the Hawkeye ally 04011, Kate Bishop, reading a card
- * discarded to pay its own cost). `types` narrows to some icon types; absent counts all four, wild included.
+ * discarded to pay its own cost). `types` narrows to some icon types; absent counts all four, wild included. Over the
+ * cards an ability discarded from a deck (a `moveCards` bind, a `discardFromDeckSlot` cost), an icon counts as often as
+ * a `deckDiscardIconsCount` rule says (docs/phase7-wave7.md §3.56).
  */
 export const totalPrintedResources = (
   cardsRef: TargetRef,
@@ -892,6 +1101,22 @@ export const inCampaignLogField = (field: string, seat?: PlayerRef): Pick<Target
  */
 export const playedThisTurn = (cards: TargetQuery, opts: { player?: PlayerRef; atLeast?: number } = {}): Predicate => ({
   kind: "playedThisTurn",
+  player: opts.player ?? you,
+  cards,
+  ...(opts.atLeast !== undefined ? { atLeast: opts.atLeast } : {}),
+});
+
+/**
+ * "If you have played another card this phase" (Mulligan, `deadpool` 44048): at least `atLeast` (default 1) of the
+ * cards `player` played this phase match `cards`, wherever those cards are now. Unlike `playedThisTurn` it outlasts
+ * the turn: the player phase is one phase (RRG 1.8 "Player Phase", p. 34), and an Action event may be played during
+ * another player's turn. As a `playOnlyIf` it is read before the card's own play is recorded.
+ */
+export const playedThisPhase = (
+  cards: TargetQuery,
+  opts: { player?: PlayerRef; atLeast?: number } = {},
+): Predicate => ({
+  kind: "playedThisPhase",
   player: opts.player ?? you,
   cards,
   ...(opts.atLeast !== undefined ? { atLeast: opts.atLeast } : {}),

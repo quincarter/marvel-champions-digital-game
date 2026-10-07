@@ -149,6 +149,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
       return [event.instanceId, event.matchedInstanceId];
     case "abilityResolved":
     case "abilityUseRecorded":
+    case "putIntoPlayRefused":
       return [event.instanceId];
     case "resourcesGenerated":
       return [event.instanceId];

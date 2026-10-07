@@ -78,6 +78,7 @@ export const RISKY_BUSINESS = defineAbilities({
   // that many infamy counters from Criminal Enterprise instead.
   "02001a.norman-osborn-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("self"),
+    { would: true },
     instead(addCounters("infamy", 1, named(CRIMINAL_ENTERPRISE))),
   ),
   "02001a.norman-osborn-forced-interrupt-2": forcedInterrupt(
@@ -86,6 +87,7 @@ export const RISKY_BUSINESS = defineAbilities({
   ),
   "02002a.norman-osborn-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("self"),
+    { would: true },
     instead(addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE))),
   ),
   "02002a.norman-osborn-forced-interrupt-2": forcedInterrupt(
@@ -94,6 +96,7 @@ export const RISKY_BUSINESS = defineAbilities({
   ),
   "02003a.norman-osborn-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("self"),
+    { would: true },
     instead(addCounters("infamy", 3, named(CRIMINAL_ENTERPRISE))),
   ),
   "02003a.norman-osborn-forced-interrupt-2": forcedInterrupt(
@@ -108,18 +111,21 @@ export const RISKY_BUSINESS = defineAbilities({
   ),
   "02001b.green-goblin-forced-interrupt": forcedInterrupt(
     when.enemySchemes("self"),
+    { would: true },
     instead(removeCounters("madness", 1, named(STATE_OF_MADNESS))),
   ),
   // Green Goblin (II) — When Revealed: Deal 3 indirect damage to each player (no hero-form restriction this stage).
   "02002b.when-revealed": whenRevealed(dealIndirectDamage(3, eachPlayer)),
   "02002b.green-goblin-forced-interrupt": forcedInterrupt(
     when.enemySchemes("self"),
+    { would: true },
     instead(removeCounters("madness", 1, named(STATE_OF_MADNESS))),
   ),
   // Green Goblin (III) — When Revealed: Deal 4 damage (direct, not indirect) to each player.
   "02003b.when-revealed": whenRevealed(dealDamage(4, each(query("identity")))),
   "02003b.green-goblin-forced-interrupt": forcedInterrupt(
     when.enemySchemes("self"),
+    { would: true },
     instead(removeCounters("madness", 2, named(STATE_OF_MADNESS))),
   ),
 

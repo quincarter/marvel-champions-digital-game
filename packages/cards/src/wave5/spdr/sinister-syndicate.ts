@@ -100,6 +100,7 @@ export const SPDR_SINISTER_SYNDICATE = defineAbilities({
   // `wave1/gob/risky-business.ts`) since this replaces the attack rather than following it.
   "31033.hobgoblin-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("self", { againstYou: true }),
+    { would: true },
     instead(discardEncounterCards(statOf(self, "atk"), { bind: "d" }), dealIndirectDamage(you, varOf("d.boostIcons"))),
   ),
 

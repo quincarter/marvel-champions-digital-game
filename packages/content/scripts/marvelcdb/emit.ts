@@ -55,6 +55,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   setAsideCardIds: "cardId",
   // `ScenarioSeparateDeck.contents.cardIds` (wave 6, docs/phase7-wave6.md §3.66: Cornered! in the show deck).
   cardIds: "cardId",
+  // `EncounterSet.autoIncluded.shuffledIn` (wave 7, docs/phase7-wave7.md §3.74: Crisis of Infinite Deadpools).
+  shuffledIn: "cardId",
   identityCardId: "cardId",
   nemesisOfIdentityId: "cardId",
   signatureSideSchemeCardId: "cardId",

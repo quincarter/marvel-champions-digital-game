@@ -23,7 +23,6 @@ import {
   heroAction,
   heroInterrupt,
   heroResponse,
-  ifThen,
   inAdditionalForm,
   isHero,
   modifyAttack,
@@ -159,13 +158,16 @@ export const VISION_KIT = defineAbilities({
 
   // Solar Beam (event, 26008) — Hero Action (attack): If Vision is in Dense mass form, deal 7 damage to an enemy.
   // Hero Action (thwart): If Vision is in Intangible mass form, remove 5 threat from a scheme.
+  // Each ability's "If Vision is in … mass form" is its condition (`while`), so exactly one of the two can be triggered
+  // in either mass form and playing the card triggers that one (RRG 1.8 "Event", p. 18: the player triggers one of an
+  // event's abilities).
   "26008.solar-beam-action": heroAction(
-    { label: "attack" },
-    ifThen(inAdditionalForm("mass", "Dense"), attackAnEnemy(7)),
+    { label: "attack", while: inAdditionalForm("mass", "Dense") },
+    ...attackAnEnemy(7),
   ),
   "26008.solar-beam-hero-action": heroAction(
-    { label: "thwart" },
-    ifThen(inAdditionalForm("mass", "Intangible"), thwartAScheme(5)),
+    { label: "thwart", while: inAdditionalForm("mass", "Intangible") },
+    ...thwartAScheme(5),
   ),
 
   // Superdense Strike (event, 26009) — Play only if Vision is in Dense mass form. Hero Action (attack): Deal 5

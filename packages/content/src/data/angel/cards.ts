@@ -65,6 +65,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
           current: "Angel of Death — Response: After you play an AERIAL event, deal damage to an enemy equal to that event's printed cost. (Limit once per phase.)",
         },
         abilities: [{ id: abilityId("42001c.angel-of-death"), label: "Angel of Death" }],
+        schemeIcons: ["acceleration"],
         image: imageRef("/bundles/cards/42001c.png"),
       },
     ],
@@ -298,12 +299,11 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
     traits: [trait("X-FORCE")],
     keywords: [],
     deckLimit: 1,
-    playRestrictions: { requiresIdentityTrait: trait("X-FORCE OR X-MEN") },
     text: {
       printed: "Play only if your identity has the X-Force or X-Men trait.\n[star] Response: After Elixir attacks or thwarts, heal 1 damage from another friendly character.",
       current: "Play only if your identity has the X-Force or X-Men trait.\n[star] Response: After Elixir attacks or thwarts, heal 1 damage from another friendly character.",
     },
-    abilities: [{ id: abilityId("42011.elixir-response") }],
+    abilities: [{ id: abilityId("42011.elixir-constant") }, { id: abilityId("42011.elixir-response") }],
   },
   {
     id: cardId("42012"),
@@ -355,8 +355,8 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "toughness" }],
     deckLimit: 1,
     text: {
-      printed: "Toughness.\nHero Response: After Warpath defends against an attack, play an event with a \"Hero Action\" ability from your hand (paying its cost).",
-      current: "Toughness.\nHero Response: After Warpath defends against an attack, play an event with a \"Hero Action\" ability from your hand (paying its cost).",
+      printed: "Toughness.\nHero Response: After Warpath defends against an attack, play an event with a \"Hero Action\" ability from your hand (paying its costs).",
+      current: "Toughness.\nHero Response: After Warpath defends against an attack, play an event with a \"Hero Action\" ability from your hand (paying its costs).",
     },
     abilities: [{ id: abilityId("42013.warpath-response") }],
   },
@@ -492,14 +492,12 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
     traits: [trait("TACTIC")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a non-permanent side scheme. Max 1 per side scheme.\nResponse: After a hero defends against an attack, remove 1 threat from attached scheme (2 threat instead if that hero took no damage from that attack).",
       current: "Attach to a non-permanent side scheme. Max 1 per side scheme.\nResponse: After a hero defends against an attack, remove 1 threat from attached scheme (2 threat instead if that hero took no damage from that attack).",
     },
-    abilities: [
-      { id: abilityId("42019.containment-strategy-constant") },
-      { id: abilityId("42019.containment-strategy-response") },
-    ],
+    abilities: [{ id: abilityId("42019.containment-strategy-response") }],
   },
   {
     id: cardId("42020"),
@@ -605,6 +603,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/42024.png") },
+    schemeIcons: ["hazard"],
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],

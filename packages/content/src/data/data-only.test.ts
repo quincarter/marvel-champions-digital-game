@@ -23,14 +23,6 @@ import {
   ICEMAN_PACK,
   WONDER_MAN_CARDS,
   WONDER_MAN_PACK,
-  X23_CARDS,
-  X23_PACK,
-  DEADPOOL_CARDS,
-  DEADPOOL_PACK,
-  ANGEL_CARDS,
-  ANGEL_PACK,
-  PSYLOCKE_CARDS,
-  PSYLOCKE_PACK,
   JUBILEE_CARDS,
   JUBILEE_PACK,
   PHOENIX_CARDS,
@@ -42,6 +34,7 @@ import { WAVE3_CARDS } from "./index.js";
 import { WAVE4_CARDS } from "./index.js";
 import { WAVE5_CARDS } from "./index.js";
 import { WAVE6_CARDS } from "./index.js";
+import { WAVE7_CARDS } from "./index.js";
 
 const PACKS: readonly {
   readonly code: string;
@@ -56,10 +49,6 @@ const PACKS: readonly {
   { code: "silk", cards: SILK_CARDS, pack: SILK_PACK },
   { code: "iceman", cards: ICEMAN_CARDS, pack: ICEMAN_PACK },
   { code: "wonder_man", cards: WONDER_MAN_CARDS, pack: WONDER_MAN_PACK },
-  { code: "x23", cards: X23_CARDS, pack: X23_PACK },
-  { code: "deadpool", cards: DEADPOOL_CARDS, pack: DEADPOOL_PACK },
-  { code: "angel", cards: ANGEL_CARDS, pack: ANGEL_PACK },
-  { code: "psylocke", cards: PSYLOCKE_CARDS, pack: PSYLOCKE_PACK },
   { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
 ];
 
@@ -71,14 +60,14 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("13 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(13);
+  it("nine packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(9);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3), wave 5 (cycle 4) or wave 6 (cycle 6)", () => {
+  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3), wave 5 (cycle 4), wave 6 (cycle 6) or wave 7 (cycle 7)", () => {
     const known = new Set(
       [
         ...CORE_CARDS,
@@ -88,6 +77,7 @@ describe("data-only pool — integrity", () => {
         ...WAVE4_CARDS,
         ...WAVE5_CARDS,
         ...WAVE6_CARDS,
+        ...WAVE7_CARDS,
       ].map((c) => c.id as string),
     );
     for (const c of DATA_ONLY_CARDS) expect(known.has(c.id as string), c.id as string).toBe(false);
@@ -113,8 +103,8 @@ describe("data-only pool — integrity", () => {
     // own kit is scripted (this pool's own header comment above).
     // Cycle 6 (X-Men) has moved entirely out of this pool: Mutant Genesis, Cyclops, Phoenix, Wolverine, Storm,
     // MojoMania, Gambit and Rogue are now `WAVE6_CARDS` (wave6.test.ts, docs/phase7-wave6.md).
-    // Cycle 7: X-23, Deadpool, Angel, Psylocke.
-    for (const code of ["x23", "deadpool", "angel", "psylocke"]) expect(cycleOf(code), code).toBe("cycle7");
+    // Cycle 7 (NeXt Evolution, X-23, Deadpool, Angel, Psylocke) has moved entirely out of this pool: they are now
+    // `WAVE7_CARDS` (wave7.test.ts, docs/phase7-wave7.md).
     // Cycle 8: Nightcrawler, Magneto, Iceman, Jubilee.
     for (const code of ["ncrawler", "magneto", "iceman", "jubilee"]) expect(cycleOf(code), code).toBe("cycle8");
     // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).

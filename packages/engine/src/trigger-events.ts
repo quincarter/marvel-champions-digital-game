@@ -3,7 +3,7 @@ import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from 
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
-import type { ZoneId } from "./state.js";
+import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -11,11 +11,55 @@ import type { ZoneId } from "./state.js";
  * when it resolves through the stack (RRG "Ability: Simultaneous Timing
  * Priority").
  */
+/**
+ * What a pattern's `targetIs` reads of an event's target as the event happened, when the event itself may have changed
+ * it before an "after" ability is read (the family of `cardLeavesPlay.traits` and `characterDefeated.
+ * attachedInstanceIds`). A response reads the game as its triggering condition happened: the clauses of the query this
+ * carries are matched against it, every other clause against the card as it now is (`resolve/triggers.ts`).
+ *
+ * Carried: the names and the status cards. An absent field falls back to the live card, so events stamped before a
+ * field existed stay valid.
+ */
+export interface TargetSnapshot {
+  /** The name it was showing (`currentName`; `TargetQuery.name`). Absent for a card with none. */
+  readonly name?: string;
+  /** The titles (and subtitle) naming it (`titlesNaming`; `TargetQuery.titled`). */
+  readonly titles: readonly string[];
+  /**
+   * The status cards it held as the damage was dealt (`TargetQuery.hasStatus`, `hasAnyStatus`): "After Cypher attacks
+   * and damages a confused enemy" still finds the enemy confused when that damage defeated it and its status cards
+   * left play with it (owner ruling 2026-10-06, docs/phase7-wave7.md §4.1). Read before the damage is applied, so a
+   * tough card this damage is about to use is counted, and one a piercing attack discarded first is not.
+   */
+  readonly statuses?: StatusCounts;
+}
+
 export type TriggerEventBody =
   | {
       readonly kind: "dealDamage";
       readonly targetInstanceId: InstanceId;
+      /**
+       * The damage this event is still to deal: what it was created with, less what "prevent N of that damage"
+       * interrupts have prevented and plus what "increase that damage" interrupts have added. 0 as the event is
+       * created is 0 damage as it would be dealt, which opens no window at all (owner ruling 2026-10-06).
+       */
       readonly amount: number;
+      /**
+       * The damage **dealt** (RRG 1.8 "Prevent", p. 35: "the amount of damage that character 'takes' is reduced, but
+       * the amount of damage 'dealt' is not reduced"): `amount` plus everything an interrupt prevented. Written by
+       * `preventDamage` the first time it takes anything off `amount`, kept in step by `increaseDamage`, and stamped on
+       * every resolved event, so in an interrupt window an absent `dealt` means "`amount`, nothing prevented yet".
+       * "After X deals damage / is dealt damage" reads this (owner ruling 2026-10-07, docs/phase7-wave7.md §4.1): a
+       * positive amount reached the damage-dealing process, whether or not a tough status card, a prevention, a
+       * constant reduction or "cannot take damage" then kept the target from taking it.
+       */
+      readonly dealt?: number;
+      /**
+       * The damage **taken**: what was placed on the target, after preventions, constant reductions and caps, a tough
+       * status card and "cannot take damage". Stamped on the resolved event only (absent in the interrupt window) and
+       * always equal to its `results.amount` (absent there when 0). "After X takes damage" reads it.
+       */
+      readonly taken?: number;
       readonly sourceInstanceId: InstanceId | null;
       /** Damage from an attack; defense, retaliate and overkill key off this. */
       readonly fromAttack: boolean;
@@ -43,6 +87,12 @@ export type TriggerEventBody =
        * damage step announces them and does not pierce a second time.
        */
       readonly toughPierced?: number;
+      /**
+       * This attack has ranged, its attacker's own or granted to this attack, stamped as `piercing` is. Read by the
+       * damage rules keyed to an attack's keyword ("unless … the attack has ranged", `cannotTakeDamage.
+       * exceptAttackKeyword`; docs/phase7-wave7.md §3.30).
+       */
+      readonly ranged?: true;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
       /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
@@ -50,12 +100,30 @@ export type TriggerEventBody =
       /** With `consequential`: the basic power it follows, read by a rule's `ConsequentialDamageScope.from` (§3.31). */
       readonly consequentialFrom?: "attack" | "thwart";
       /**
+       * Indirect damage (RRG 1.8 "Indirect Damage", p. 24): one character's assigned share, stamped where the shares
+       * are dealt (`dealIndirectDamage`), whatever dealt them — an ability, a cost, or an enemy attack that deals
+       * indirect damage. Read by `EventPattern.indirect` ("after a friendly character takes indirect damage").
+       */
+      readonly indirect?: true;
+      /**
        * Attack damage dealt to a character the attack is not against ("damage from that attack is dealt to the chosen
        * enemy instead of you", Psychic Misdirection; `modifyAttack.damageTo`, docs/phase7-wave6.md §3.36 and §4.1 Q18):
        * still `fromAttack` from the attacker, but the attack's piercing and overkill and its "prevent N damage from
        * this attack" budget (all about the attacked character) do not apply to it.
        */
       readonly notAttacked?: true;
+      /**
+       * Damage no player deals although a player controls its source (`EffectSpec dealDamage.by` naming nobody;
+       * docs/phase7-wave7.md §4.1 Q2): nothing keyed to the source's controller answers it and a defeat it causes has
+       * no defeating player (`sourcePlayerOf`). What applies to any damage still applies: a tough status card absorbs it.
+       */
+      readonly noPlayer?: true;
+      /**
+       * The target as it took this damage (`TargetSnapshot`), stamped as the damage is applied, so it is absent in the
+       * damage's interrupt window and present in its response window. "After Deadpool takes damage" still names him
+       * when that damage turned him to his alter-ego side before the response is read (docs/phase7-wave7.md §3.79).
+       */
+      readonly targetAsDamaged?: TargetSnapshot;
     }
   | {
       readonly kind: "healDamage";
@@ -96,6 +164,13 @@ export type TriggerEventBody =
       readonly parentFrameId?: FrameId | null;
       /** "…, ignoring any crisis icons in play": this removal skips the crisis check (RRG 1.8 "Crisis Icon", p. 14). */
       readonly ignoreCrisis?: boolean;
+      /**
+       * A removal no player makes although a player controls its source (`EffectSpec removeThreat.by` naming nobody;
+       * docs/phase7-wave7.md §4.1 Q2): `playerId` is null and the source's controller is not read in its place
+       * (`sourcePlayerOf`), so no rule on what one player may do applies and a scheme it defeats has no defeating
+       * player. It is still a player card's removal: a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14).
+       */
+      readonly noPlayer?: true;
     }
   | {
       readonly kind: "attack";
@@ -122,6 +197,14 @@ export type TriggerEventBody =
        * it attacks" abilities don't re-trigger, as with an enemy attack's `additionalResolution`.
        */
       readonly additionalResolution?: true;
+      /**
+       * The attacked character as this attack's damage was dealt to it (`TargetSnapshot`), copied from that damage as
+       * it is applied: absent in the attack's interrupt window (which reads the live card) and for an attack that
+       * dealt its target no damage, present in its response window. So a status card the attack's own ability gave
+       * before the damage counts, and one discarded before the damage does not. Damage to a character the attack is
+       * not against (`notAttacked`) is not read.
+       */
+      readonly targetAsDamaged?: TargetSnapshot;
     }
   | {
       readonly kind: "thwart";
@@ -368,6 +451,12 @@ export type TriggerEventBody =
         readonly amount: number;
         readonly toInstanceId: InstanceId;
         readonly sourceInstanceId: InstanceId | null;
+        /**
+         * The attack's card and its ranged keyword, carried onto the spill, which is "damage from an attack" (RRG 1.8
+         * "Overkill", p. 31), so a rule reading the attack sees the same one (docs/phase7-wave7.md §3.30).
+         */
+        readonly viaInstanceId?: InstanceId | null;
+        readonly ranged?: true;
       };
       /**
        * The player whose card dealt the defeating damage ("after *you* defeat a
@@ -408,6 +497,13 @@ export type TriggerEventBody =
        * Absent when nothing was attached.
        */
       readonly attachedInstanceIds?: readonly InstanceId[];
+      /**
+       * For a villain's defeat, the printed number of the stage that was defeated (`VillainStage.stageNumber`), read as
+       * the defeat is initiated. By the response window the villain shows its next stage, so "after [villain] (II) is
+       * defeated" reads this, through `EventPattern.eventAtLeast` / `eventAtMost` (docs/phase7-wave7.md §3.34). Absent
+       * for any other character.
+       */
+      readonly villainStageNumber?: number;
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -428,7 +524,13 @@ export type TriggerEventBody =
     }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */
-  | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
+  | {
+      readonly kind: "mainSchemeAdvanced";
+      readonly stageIndex: number;
+      readonly schemeInstanceId?: InstanceId;
+      /** What advanced it (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12); absent only in an older save. */
+      readonly advancedBy?: MainSchemeAdvancedBy;
+    }
   /**
    * A main scheme stage was completed and did not end the game or advance: a separate game area's stage ("Forced
    * Response: After this stage is complete, …", Kang's stage 3 cards), or a stage whose next stage is a group of
@@ -509,6 +611,34 @@ export type TriggerEventBody =
       readonly cause: StatusDiscardCause;
     }
   /**
+   * A status card was placed on a character (docs/phase7-wave7.md §3.27): "Forced Response: After a status card is
+   * placed on Mister Sinister" (`next_evol` 40136–40138). The mirror of `statusDiscarded`: an announcement (response
+   * only), one per status card that actually lands, from every path that gives one, since all of them go through
+   * `giveStatus`: an effect or a cost, the toughness keyword (RRG 1.8 "Toughness", p. 45: "Forced Response: After this
+   * character enters play, give it a tough status card"), a constant's refill (`RuleSpec keepsGivingStatus`). A give the
+   * character cannot hold places nothing and announces nothing: it already has one (RRG 1.8 "Status Cards", p. 41: "A
+   * character cannot have more than one status card of each type at a time"; steady and `statusLimit` raise that), or
+   * it is stalwart or "cannot be stunned" (p. 40; "Stun, Stunned", p. 41: "stunned status cards cannot be placed on that
+   * character"). The card is already on the character when announced. Those placed by one step (one effect stunning
+   * two enemies, a steady character given two) share one response window, as `statusDiscarded`'s do (wave 6 §4.1 Q5).
+   * Pushed only when an ability listens. No effect moves a status card from one character to another today; one that
+   * did would take it off the first (`statusDiscarded` is not that: nothing is discarded) and has to put it on the
+   * second through `giveStatus`, so it would be announced as a placement there, as counters moved onto a card are
+   * (`countersPlaced`, wave 6 §3.2), and refused there by the same capacity rule.
+   *
+   * `sourceInstanceId` is the card whose ability, cost, keyword or constant placed it (the character itself for its
+   * own toughness; null when no card did). `playerId` is the player whose ability placed it ("you"): the one using the
+   * ability or paying the cost, as `removeThreat.playerId` reads it, so null for an encounter card's forced ability, a
+   * keyword and a constant.
+   */
+  | {
+      readonly kind: "statusPlaced";
+      readonly instanceId: InstanceId;
+      readonly status: StatusName;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+    }
+  /**
    * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
    * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
    * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
@@ -524,12 +654,17 @@ export type TriggerEventBody =
    * Waived by a `characterIgnores` rule or by the thwart's own "ignoring the patrol keyword / any crisis icons".
    * Nothing is recorded for an attack or thwart that was cancelled or whose threat removal was stopped anyway. Pushed
    * only when an ability listens; several from one attack or thwart share one response window.
+   *
+   * `"retaliate"` (docs/phase7-wave7.md §3.30): an attacker's `characterIgnores` waived the attacked character's
+   * retaliate, which would otherwise have dealt it damage (both still in play once the attack resolved, retaliate
+   * above 0, and the attack without ranged, which ignores retaliate by itself). `cardInstanceId` is the attacked
+   * character; `playerId` is the attacker's controller, null for an enemy.
    */
   | {
       readonly kind: "keywordIgnored";
       readonly characterInstanceId: InstanceId;
-      readonly playerId: PlayerId;
-      readonly ignored: "guard" | "patrol" | "crisis";
+      readonly playerId: PlayerId | null;
+      readonly ignored: "guard" | "patrol" | "crisis" | "retaliate";
       readonly cardInstanceId: InstanceId;
     }
   /**
@@ -592,6 +727,45 @@ export type TriggerEventBody =
       readonly playerId: PlayerId;
       readonly instanceId: InstanceId;
       readonly from: ZoneId["kind"] | null;
+    }
+  /**
+   * A card was discarded from the top of a player's deck (docs/phase7-wave7.md §3.55): "Response: After this card is
+   * discarded from the top of your deck, shuffle it back into your deck" / "add it to your hand" / "put her into play
+   * under your control" (`next_evol` 40043, 40060, 40057), read from the card itself in the discard pile
+   * (`AbilityDefinition.activeIn: "discard"`), and "After you discard a card from the top of your deck, attach that
+   * card facedown here" (40045) on a card in play. `playerId`: whose deck ("you", whoever's card did the discarding);
+   * `instanceId`: the card ("this card" / "that card", `eventTarget`); `sourceInstanceId`: the card whose effect or
+   * cost discarded it, null when none is named.
+   *
+   * Which discards (owner decision, 2026-10-05, §4.1 Q31): any effect or cost that moves a card from a player's deck to
+   * that player's discard pile, one event per card, in discard order: a player card's effect, a "discard the top card
+   * of your deck →" cost, an encounter card's "discard the top 5 cards of your deck", a "discard until" loop. Every
+   * such move is recorded by `recordDeckDiscard` (`resolve/deck-discard.ts`). A card discarded from a hand or from
+   * play, and a card discarded from an encounter deck, is not one. `fromTop` is always true: a player deck is only
+   * discarded from off its top, or from the top cards an effect has just looked at, which are the top of the deck
+   * while they are looked at.
+   *
+   * Response only: the card is already in the discard pile. Recorded only when an ability in the registry listens, and
+   * announced between frames, so the cards one effect or cost discarded share one response window (RRG 1.8 "Triggering
+   * Condition", p. 45) that resolves before the discarding ability's next effect. A response that takes the card away
+   * leaves nothing for another to act on: once the card is no longer where the discard put it, nothing more is offered
+   * for it (`deckDiscardStillThere`), and the discarding ability no longer counts it (ruling, April 30, 2026 - Ruling
+   * 4, answer 1; §4.1 Q32; `settleDeckDiscards`).
+   *
+   * `at`: where the discard left the card. `"discard"`: the player's discard pile. `"deck"`: the discard emptied the
+   * deck, whose reset shuffled this card into the new deck at once (RRG 1.8 "Player Deck", p. 33; MC40 p. 21: "Player
+   * decks reset as soon as they are empty, so Domino's deck is reset with Jackpot shuffled into it"). The response
+   * still resolves, on the card in the new deck (owner decision, 2026-10-05, §4.1 Q33): "add it to your hand" and "put
+   * her into play" take it from there. A "shuffle it back into your deck" has already been done by the reset (MC40
+   * p. 21), which its pattern says with `eventIs: { at: "discard" }`.
+   */
+  | {
+      readonly kind: "cardDiscardedFromDeck";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly fromTop: true;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly at: "discard" | "deck";
     }
   /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
@@ -858,7 +1032,8 @@ export type TriggerEventBody =
  * `results` is attached when the event's response window opens: what the event
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
  * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
- * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`).
+ * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`). A `removeThreat` that took its scheme
+ * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34).
  */
 export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
 
@@ -944,8 +1119,16 @@ export type HostStep =
       readonly voluntary: boolean;
       readonly heroFormIndex: number;
     }
-  /** `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). */
-  | { readonly kind: "flipToOtherFace"; readonly id: InstanceId; readonly playerId: PlayerId };
+  /**
+   * `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). `reveal`: the flip also reveals
+   * the new face (`flipCard.reveal`), and `flipToOtherFace` pushes the `cardFlipped` itself, under the reveal.
+   */
+  | {
+      readonly kind: "flipToOtherFace";
+      readonly id: InstanceId;
+      readonly playerId: PlayerId;
+      readonly reveal?: true;
+    };
 
 /**
  * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after
@@ -1128,6 +1311,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId]);
     case "cardEntersHand":
       return of([], [event.instanceId], [event.playerId]);
+    // The discarded card is the target ("this card", "that card"); the deck's player is "you"; the discarding card the
+    // source.
+    case "cardDiscardedFromDeck":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
       return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
     case "boostCardResolved":
@@ -1156,6 +1343,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // The card the status card was discarded from is the target ("from Colossus").
     case "statusDiscarded":
       return of([], [event.instanceId], []);
+    // The character it was placed on is the target ("on Mister Sinister"); the placing card and player are the source
+    // and "you".
+    case "statusPlaced":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
     case "hitPointsReset":
       return of([], [event.instanceId], []);

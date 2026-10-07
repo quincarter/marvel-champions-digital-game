@@ -144,7 +144,7 @@ export interface DeckBuilderFocusInput {
 /**
  * The deck builder: Back first, then either the identity picker alone, or —
  * once an identity is chosen — the aspect picker, the type filter chips
- * (W1), the name field, Preconstructed and Clear (W1 — always a stop, even
+ * (W1), the pack, wave and sort steppers, the name field, Preconstructed and Clear (W1 — always a stop, even
  * when Preconstructed has nothing to reset to and is drawn unavailable, the
  * same "dim, don't hide" rule every disabled control follows), Save, the
  * pool search field, and every pool row (each row both adds and removes, one
@@ -156,6 +156,12 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
     ...input.typeFilterIds.map((id) => `type:${id}`),
+    // The pack stepper (both arrows and its name), the wave button and the sort button, in the order they are drawn.
+    "pack:prev",
+    "pack:name",
+    "pack:next",
+    "pack:cycle",
+    "pack:sort",
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     "save",

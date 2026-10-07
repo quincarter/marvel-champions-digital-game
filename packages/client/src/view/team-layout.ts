@@ -29,9 +29,36 @@ export interface TeamLayout {
   readonly rows: readonly Rect[];
   /** `lines`: name and detail on separate lines (two when the row is `TEAM_ROW_MIN` or more); `line`: one line. */
   readonly rowStyle: "two-line" | "one-line";
+  /** Per row: the strip under it for that seat's usable cards (`view/other-seat-abilities.ts`), or null. */
+  readonly chips: readonly (Rect | null)[];
 }
 
-export function teamLayout(rect: Rect, count: number): TeamLayout {
+/** A row's strip of tappable card chips, and the gap above it. */
+export const TEAM_CHIP_HEIGHT = 24;
+const CHIP_GAP = 2;
+
+export function teamLayout(rect: Rect, count: number, chipSeats: readonly boolean[] = []): TeamLayout {
+  const withChips = chipSeats.filter(Boolean).length;
+  if (withChips === 0 || count <= 0)
+    return { ...baseLayout(rect, count), chips: Array.from({ length: Math.max(count, 0) }, () => null) };
+  // Each seat with cards to show gives up a strip under its row; the rows share what is left.
+  const strip = TEAM_CHIP_HEIGHT + CHIP_GAP;
+  const base = baseLayout({ ...rect, height: rect.height - strip * withChips }, count);
+  let before = 0;
+  const rows: Rect[] = [];
+  const chips: (Rect | null)[] = [];
+  base.rows.forEach((row, index) => {
+    const moved = { ...row, y: row.y + before * strip };
+    rows.push(moved);
+    if (chipSeats[index]) {
+      chips.push({ x: moved.x, y: moved.y + moved.height + CHIP_GAP, width: moved.width, height: TEAM_CHIP_HEIGHT });
+      before += 1;
+    } else chips.push(null);
+  });
+  return { ...base, rows, chips };
+}
+
+function baseLayout(rect: Rect, count: number): Omit<TeamLayout, "chips"> {
   if (count <= 0) return { header: true, rows: [], rowStyle: "two-line" };
   const width = rect.width - SIDE * 2;
   const roomy = Math.min(TEAM_ROW_MAX, (rect.height - 28) / count - GAP);
@@ -51,10 +78,10 @@ function stacked(
   height: number,
   gap: number,
   header: boolean,
-): TeamLayout {
+): Omit<TeamLayout, "chips"> {
   return {
     header,
-    rowStyle: "two-line",
+    rowStyle: "two-line" as const,
     rows: Array.from({ length: count }, (_unused, index) => ({
       x: rect.x + SIDE,
       y: top + index * (height + gap),

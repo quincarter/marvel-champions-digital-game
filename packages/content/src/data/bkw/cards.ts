@@ -47,7 +47,7 @@ export const BKW_CARDS: readonly AnyCard[] = [
     },
     alterEgo: {
       faceName: "Natasha Romanoff",
-      traits: [trait("S.H.I.E.L.D. SPY")],
+      traits: [trait("S.H.I.E.L.D."), trait("SPY")],
       rec: 3,
       handSize: 6,
       keywords: [],
@@ -303,7 +303,7 @@ export const BKW_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "justice",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {
@@ -494,7 +494,7 @@ export const BKW_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
-    traits: [trait("S.H.I.E.L.D. SPY")],
+    traits: [trait("S.H.I.E.L.D."), trait("SPY")],
     keywords: [],
     deckLimit: 1,
     text: {

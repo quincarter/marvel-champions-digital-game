@@ -247,8 +247,12 @@ const resultOf = (composed: CampaignLog, state: GameState, events: readonly Game
 const inst = (state: GameState, id: InstanceId) => state.instances[id]!;
 const cardOfInstance = (state: GameState, id: InstanceId): string => inst(state, id).cardId as string;
 const nameOf = (code: string): string | undefined => WAVE6_CARDS.find((card) => (card.id as string) === code)?.name;
+/** The cards attached to a seat's identity: an upgrade put into play is attached there, as when it is played. */
+const onIdentityOf = (state: GameState, seat: number): readonly InstanceId[] =>
+  state.instances[state.players[seat]!.identity.instanceId]?.attachments ?? [];
+/** A seat's cards in play: loose in the play area, or on the identity. */
 const playAreaOf = (state: GameState, seat: number): readonly string[] =>
-  (state.players[seat]?.playArea ?? []).map((id) => cardOfInstance(state, id));
+  [...(state.players[seat]?.playArea ?? []), ...onIdentityOf(state, seat)].map((id) => cardOfInstance(state, id));
 const villainAreaNames = (state: GameState): readonly (string | undefined)[] =>
   state.villainArea.map((id) => nameOf(cardOfInstance(state, id)));
 const anywhere = (state: GameState, code: string): InstanceId[] =>
@@ -282,8 +286,8 @@ describe("a full standard campaign: a real game at every node, the log checked a
       expect(setOfCard(upgrades[0]!)).toBe("brawler");
       expect(setOfCard(upgrades[1]!)).toBe("defender");
       const settled = settleGame(state, firstLegal, (s) => s.step.phase === "player", WAVE6_DEPS);
-      expect(playAreaOf(settled, 0)).toContain(upgrades[0]);
-      expect(playAreaOf(settled, 1)).toContain(upgrades[1]);
+      expect(onIdentityOf(settled, 0).map((id) => cardOfInstance(settled, id))).toContain(upgrades[0]);
+      expect(onIdentityOf(settled, 1).map((id) => cardOfInstance(settled, id))).toContain(upgrades[1]);
       const upgradeInstances = anywhere(settled, upgrades[0]!);
       expect(upgradeInstances.map((id) => inst(settled, id).controllerId)).toEqual([P1]);
       // "Reveal the Frightened Police (171A) side scheme." and the Future Past deck is set aside (p. 7).
@@ -539,7 +543,7 @@ describe("a used role upgrade's removal sticks across the retry (docs/phase7-wav
     const unused = roleUpgradeOf(composed, 1)!;
     const built = build(composed);
     const game = settleGame(built.state, firstLegal, (s) => s.step.phase === "player", WAVE6_DEPS);
-    const card = game.players[0]!.playArea.find((id) => cardOfInstance(game, id) === "32179")!;
+    const card = onIdentityOf(game, 0).find((id) => cardOfInstance(game, id) === "32179")!;
     expect(card).toBeDefined();
     const hero = settleGame(runWith(WAVE6_DEPS, game, toHero(P1)), firstLegal, undefined, WAVE6_DEPS);
     const pay = hero.players[0]!.hand.slice(0, 3).map((fromHand) => ({ fromHand }));
@@ -813,7 +817,7 @@ describe("former gaps against the MC32 rulebook", () => {
   // not participate in the Victory steps of that scenario": the definition's `elimination` policy keeps the seat out
   // of them, so its role upgrade is not removed from the campaign.
   it("an expert seat defeated in a won game does not take part in the Victory steps: its role upgrade is not removed (MC32 p. 5)", () => {
-    const composed = compose(newLog(EXPERT, 157));
+    const composed = compose(newLog(EXPERT, 161));
     const { state, events } = build(composed);
     const played = playOut(state, events, "sabretooth");
     const won = asWin(played.final);
@@ -823,7 +827,10 @@ describe("former gaps against the MC32 rulebook", () => {
     };
     // The seat must not have used its role upgrade during the game (using one removes it from the campaign, which is
     // not what this test is about): a seed whose greedy game leaves it unused. Seed 56 until 2026-10-03, when the
-    // thwart-target rule changed what the greedy driver is offered and that game began to use Surprise!.
+    // thwart-target rule changed what the greedy driver is offered and that game began to use Surprise!. Seed 157 until
+    // 2026-10-06, when a "(defense)" card stopped being offered to a second player for one attack (RRG 1.8 "Defend,
+    // Defense", p. 15): Shadowcat's Quick Shift is no longer played into the attack Colossus answered with Mutant
+    // Protectors, so she plays it into the next attack, against her, defends, and Determined Defense answers that.
     const upgrade = roleUpgradeOf(composed, 1)!;
     const usedInGame = played.final.removedFromGame.some((id) => cardOfInstance(played.final, id) === upgrade);
     expect(usedInGame, "pick a seed whose game leaves seat 2's role upgrade unused").toBe(false);

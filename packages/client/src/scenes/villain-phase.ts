@@ -147,6 +147,7 @@ import {
   advanceReveal,
   appendWalkthrough,
   emptyWalkthrough,
+  defenderLineOf,
   inlineInterruptFor,
   inlineConfirmLabel,
   inlinePickLabel,
@@ -849,26 +850,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       cursorY += narration.height + 4;
     }
 
-    // RRG "Defend": an ally's DEF never reduces the attack — "readable from
-    // `defenderDeclared`" without waiting for the resolved beat.
-    if (
-      activation.kind === "attack" &&
-      activation.defender &&
-      !activation.defender.declined &&
-      activation.defender.instanceId
-    ) {
-      const defenderId = activation.defender.instanceId;
-      if (cardOf(state, defenderId)?.type === "ally") {
-        label(
-          this,
-          rect.x + 14,
-          Math.min(cursorY, rect.y + rect.height - 16),
-          `${cardName(state, defenderId)} defended — no DEF reduction.`,
-          typeRole.label,
-          surface.ink.hex,
-          ink.secondary,
-        );
-      }
+    const defenderLine = defenderLineOf(state, activation);
+    if (defenderLine) {
+      label(
+        this,
+        rect.x + 14,
+        Math.min(cursorY, rect.y + rect.height - 16),
+        defenderLine,
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
     }
   }
 

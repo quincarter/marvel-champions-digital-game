@@ -12,13 +12,16 @@ import {
   updatePlayer,
 } from "../ctx.js";
 import {
+  type DeckDiscarder,
   defeatFromPlay,
   drawCards,
   isWaitingLeave,
   leavePlay,
   leavingWithHost,
+  listensForDeckDiscard,
   moveDestinationKind,
   permanentStopsLeaving,
+  recordDeckDiscard,
   shuffleZone,
   waitsForLeaveInterrupts,
 } from "../effects.js";
@@ -53,13 +56,13 @@ import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
 import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
-import { villainDefeatRemoves } from "./defeat.js";
+import { defeatedAwaitingLeave, villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
 import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
-import { staysInHand } from "../rules.js";
+import { cannotLeavePlay, staysInHand } from "../rules.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
@@ -173,6 +176,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
     }
     case "removedFromGame":
       return filtered(state.removedFromGame, selector.filter);
+    case "victoryDisplay":
+      return filtered(state.victoryDisplay, selector.filter);
     case "scenarioArea":
       return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
     case "scenarioDeck": {
@@ -251,7 +256,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
  * `moveCards`: out-of-play cards move directly; cards in play leave play (attachments discarded, state cleared). The
  * `separate…` destinations follow each card's `home` separate deck and skip any other card. `sourceCardId`: the card
  * whose ability moves them, if any; a permanent card in play that it cannot move stays as it is (`permanentStopsLeaving`,
- * docs/phase7-wave5.md §4.1 Q46).
+ * docs/phase7-wave5.md §4.1 Q46). `deckDiscardBy`: what a card this discards from a player's deck was discarded by
+ * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55).
  */
 export function moveCardsTo(
   ctx: Ctx,
@@ -259,6 +265,7 @@ export function moveCardsTo(
   destination: CardDestination,
   into?: PlayerId,
   sourceCardId?: CardId,
+  deckDiscardBy: DeckDiscarder = { sourceInstanceId: null },
 ): void {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
@@ -293,6 +300,12 @@ export function moveCardsTo(
     }
     if (inPlay.has(id) && permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
       emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+      continue;
+    }
+    // Likewise a card that "cannot leave play" (one limited to card abilities: when a card's ability moves it,
+    // docs/phase7-wave7.md §3.10): refused here, so the face and home a moved card is given below are not set on it.
+    if (inPlay.has(id) && cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
+      emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
       continue;
     }
     // "When X leaves play" interrupts resolve before it moves (docs/phase7-wave5.md §4.1 Q17): this card's move waits,
@@ -348,6 +361,13 @@ export function moveCardsTo(
         case "removedFromGame":
           to = { kind: "removedFromGame" };
           break;
+        case "victoryDisplay":
+          // docs/phase7-wave7.md §3.49: the shared display, in arrival order. A card in play leaves play below without
+          // being defeated (RRG 1.8 "Leaves Play", p. 27); one already there is left alone.
+          if (ctx.state.victoryDisplay.includes(id)) continue;
+          to = { kind: "victoryDisplay" };
+          position = "bottom";
+          break;
         case "encounterSetAside":
           to = { kind: "encounterSetAside" };
           break;
@@ -401,9 +421,21 @@ export function moveCardsTo(
     // new deck by the time the move returns.
     // An encounter card from the encounter deck into a player's discard pile is faceup there (MC27 p. 13; §3.5 of
     // docs/phase7-wave5.md).
-    if (discarding) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    // The victory display is faceup too, like the other open out-of-play areas.
+    if (discarding || destination === "victoryDisplay") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
-    else moveCard(ctx, id, to, position);
+    else {
+      // From a player's deck to that player's discard pile: a discard from the top of the deck (docs/phase7-wave7.md
+      // §3.55), whichever card's effect this is. Looked for when an ability hears one or keeps a set of these cards.
+      const fromDeckOf =
+        to.kind === "discard" &&
+        (deckDiscardBy.boundOn !== undefined || listensForDeckDiscard(ctx.deps)) &&
+        getPlayer(ctx.state, to.playerId)?.deck.includes(id) === true
+          ? to.playerId
+          : null;
+      moveCard(ctx, id, to, position);
+      if (fromDeckOf !== null) recordDeckDiscard(ctx, fromDeckOf, id, deckDiscardBy);
+    }
     // Once it is in a named scenario deck (a card that cannot leave play is not), that deck is its home when it has a
     // discard pile of its own or none, as `buildScenarioDeck` makes it; a card of an `encounter` deck keeps the home it
     // has. Nobody controls a card in a scenario deck.
@@ -417,7 +449,7 @@ export function moveCardsTo(
     }
     const keepsFace =
       typeof destination === "string" &&
-      ["discard", "separateDiscard", "removedFromGame", "setAside"].includes(destination);
+      ["discard", "separateDiscard", "removedFromGame", "setAside", "victoryDisplay"].includes(destination);
     if (!keepsFace) {
       updateInstance(ctx, id, (i) => ({ ...i, faceup: destination === "hand" ? i.faceup : false }));
     }
@@ -677,14 +709,25 @@ const DEALABLE_TYPES: ReadonlySet<string> = new Set([
 /**
  * `dealAsEncounterCard`: each card out of play and of a dealable type goes facedown in front of `playerId`, to be
  * revealed with that player's dealt encounter cards. Returns the cards dealt.
+ *
+ * A card in play is not dealt, with one exception: a card already defeated and waiting to leave play after its When
+ * Defeated abilities (`defeatedAwaitingLeave`; RRG 1.8 "When Defeated Abilities", p. 48), as in "When Defeated: Deal
+ * this card to the player who defeated it as a facedown encounter card." Being dealt is how it leaves play
+ * (`leavePlay`: attachments discarded, damage and engagement cleared, any "when this leaves play" window first), so it
+ * never enters a discard pile and no discard is logged or heard (RRG 1.8 "Leaves Play", p. 27).
  */
 export function dealAsEncounterCards(ctx: Ctx, ids: readonly InstanceId[], playerId: PlayerId): readonly InstanceId[] {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const dealt: InstanceId[] = [];
   for (const id of ids) {
-    if (inPlay.has(id)) continue;
     const type = cardOf(ctx.state, id)?.type;
     if (!type || !DEALABLE_TYPES.has(type)) continue;
+    if (inPlay.has(id)) {
+      if (!defeatedAwaitingLeave(ctx.state, id)) continue;
+      const to: ZoneId = { kind: "dealtEncounter", playerId };
+      if (leavePlay(ctx, id, to, "bottom", false, { faceup: false }) !== "stayed") dealt.push(id);
+      continue;
+    }
     updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
     moveCard(ctx, id, { kind: "dealtEncounter", playerId });
     dealt.push(id);

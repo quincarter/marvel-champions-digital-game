@@ -790,7 +790,7 @@ export const SILK_CARDS: readonly AnyCard[] = [
     hp: 3,
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "aggression",
-    traits: [trait("S.H.I.E.L.D. WEB-WARRIOR")],
+    traits: [trait("S.H.I.E.L.D."), trait("WEB-WARRIOR")],
     keywords: [],
     deckLimit: 1,
     text: {

@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const PSYLOCKE_CYCLE: Cycle = { id: cycleId("cycle7"), name: "Cycle 7", order: 7 };
+export const PSYLOCKE_CYCLE: Cycle = { id: cycleId("cycle7"), name: "NeXt Evolution", order: 7 };
 
 /** Release date source: Hall of Heroes Psylocke/Betsy Braddock page (https://hallofheroeslcg.com/psylocke-betsy-braddock/): "Release date: September 22, 2023" */
 export const PSYLOCKE_PACK: Pack = {

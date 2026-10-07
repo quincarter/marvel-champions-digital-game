@@ -12,7 +12,7 @@ import {
   updatePlayer,
   type Ctx,
 } from "./ctx.js";
-import { hasKeyword, isPermanent, statusCapacity, usesKeyword } from "./keywords.js";
+import { canTakeStatus, hasKeyword, isPermanent, usesKeyword } from "./keywords.js";
 import {
   activeEncounterDeckId,
   discardZoneFor,
@@ -40,7 +40,7 @@ import {
   lingeringConsequentialRules,
   mainSchemeForRedirect,
 } from "./rules.js";
-import { eventFrame, pushEvent } from "./resolve/frames.js";
+import { addFrameSlots, eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { flipSeparatedCard, separatedFlipWaits } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
@@ -48,8 +48,10 @@ import { releaseTreatedBy } from "./treat-as.js";
 import {
   cardsInPlay,
   controllerOf,
+  deckDiscardsSlot,
   gliderMainSchemeId,
   handCountTowardHandSize,
+  isFacedownAttachment,
   matchesQuery,
   ofPermanentCardsSet,
   traitsOf,
@@ -58,7 +60,7 @@ import {
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import type { CardDestination, StatusName } from "./spec.js";
-import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
+import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
@@ -161,6 +163,19 @@ export function exhaustCard(ctx: Ctx, id: InstanceId): void {
   emit(ctx, { type: "cardExhausted", instanceId: id });
 }
 
+/**
+ * A card placed exhausted as it enters play ("It enters play exhausted", docs/phase7-wave6.md §3.57; "Your allies …
+ * enter play exhausted", docs/phase7-wave7.md §3.36). RRG 1.8 "Ready" (p. 36): "Cards enter play in a ready state";
+ * the card's text replaces that state, so the card was never ready and nothing exhausted it. Logged as a
+ * `cardExhausted` and announced as nothing. Two such instructions on one entry place it exhausted once (RRG 1.8
+ * "Exhausted", p. 19: "An exhausted card cannot be exhausted again until it is ready").
+ */
+export function placeExhausted(ctx: Ctx, id: InstanceId): void {
+  if (mustInstance(ctx.state, id).exhausted) return;
+  updateInstance(ctx, id, (i) => ({ ...i, exhausted: true }));
+  emit(ctx, { type: "cardExhausted", instanceId: id });
+}
+
 export function readyCard(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId | null = null): void {
   const instance = mustInstance(ctx.state, id);
   if (!instance.exhausted) return;
@@ -196,18 +211,65 @@ export function healDamage(
 }
 
 /**
+ * What placed a status card (`TriggerEvent statusPlaced`): the card whose ability, cost, keyword or constant did, and
+ * the player whose ability it was ("you"), null where there is none.
+ */
+export interface StatusGiver {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly playerId: PlayerId | null;
+}
+
+const LISTENS_FOR_STATUS_PLACED = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `statusPlaced` (docs/phase7-wave7.md §3.27); cached per registry. */
+function listensForStatusPlaced(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_STATUS_PLACED.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("statusPlaced");
+  });
+  LISTENS_FOR_STATUS_PLACED.set(deps, listens);
+  return listens;
+}
+
+/**
  * RRG "Status Cards": one of each type, two for steady, none for stalwart. Returns whether a card was given — a
  * character already at capacity gets nothing ("if no tough status card was given this way", docs/phase7-wave4.md
  * §3.60).
+ *
+ * The only place a status card is put on a card, so the only place one is recorded for its `statusPlaced` announcement
+ * (docs/phase7-wave7.md §3.27; `GameState.pendingStatusPlaced`, announced between frames by `announceStatusPlaced`):
+ * one per card that lands, none for a give that placed nothing.
  */
-export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName, reason?: "constant"): boolean {
+export function giveStatus(
+  ctx: Ctx,
+  id: InstanceId,
+  status: StatusName,
+  by: StatusGiver,
+  reason?: "constant",
+): boolean {
   const instance = mustInstance(ctx.state, id);
-  const capacity = statusCapacity(ctx.state, id, status, ctx.deps);
-  if (instance.statuses[status] >= capacity) return false;
+  if (!canTakeStatus(ctx.state, id, status, ctx.deps)) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
   emit(ctx, { type: "statusGiven", instanceId: id, status, ...(reason ? { reason } : {}) });
+  if (listensForStatusPlaced(ctx.deps)) {
+    const placed = { instanceId: id, status, sourceInstanceId: by.sourceInstanceId, playerId: by.playerId };
+    ctx.state = { ...ctx.state, pendingStatusPlaced: [...(ctx.state.pendingStatusPlaced ?? []), placed] };
+  }
   return true;
+}
+
+/**
+ * RRG 1.8 "Toughness" (p. 45): "When a character with the toughness keyword enters play, place a tough status card on
+ * it." The character's own keyword places it, so it is the source and no player is "you".
+ */
+export function applyToughness(ctx: Ctx, id: InstanceId): boolean {
+  if (!hasKeyword(ctx.state, id, "toughness", ctx.deps)) return false;
+  return giveStatus(ctx, id, "tough", { sourceInstanceId: id, playerId: null });
 }
 
 export type StatusDiscarded = Extract<TriggerEvent, { kind: "statusDiscarded" }>;
@@ -610,19 +672,89 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
 }
 
 /**
+ * What discarded a card from a player's deck (`TriggerEvent cardDiscardedFromDeck`, docs/phase7-wave7.md §3.55): the
+ * card whose effect or cost did, and the bound set the discarding ability keeps of the cards "discarded this way", if
+ * it keeps one (`DeckDiscard.boundOn`).
+ */
+export interface DeckDiscarder {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly boundOn?: DeckDiscard["boundOn"];
+}
+
+const LISTENS_FOR_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `cardDiscardedFromDeck` (docs/phase7-wave7.md §3.55); cached per
+ * registry. Cards are milled from player decks in most games, so nothing is recorded, logged or announced for a
+ * registry with no such ability: its games keep their state and their log.
+ */
+export function listensForDeckDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_DECK_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("cardDiscardedFromDeck");
+  });
+  LISTENS_FOR_DECK_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/**
+ * The one place a discard from a player's deck is recorded for its `cardDiscardedFromDeck` announcement
+ * (docs/phase7-wave7.md §3.55; `GameState.pendingDeckDiscards`, announced between frames by `announceDeckDiscards`).
+ * Every path that discards from a player deck calls it right after the move, with the card that was in `playerId`'s
+ * deck and was sent to that player's discard pile: `discardFromDeckAsCost`, `EffectSpec discardDeckUntil` and
+ * `moveCardsTo` (a `moveCards` to the discard pile, from a player card or an encounter card alike; owner decision,
+ * 2026-10-05, §4.1 Q31).
+ *
+ * Where the card is now says what the discard did: in the discard pile, or, when it was the deck's last card, in the
+ * new deck the reset made at that move (`settlePlayerDecks`; `at: "deck"`, §4.1 Q33). Anywhere else (a separate deck's
+ * card sent home, `noDiscardPileDeckFor`) it was not discarded to that pile, and nothing is recorded. The announcement
+ * is recorded only in a game with an ability that hears one (`listensForDeckDiscard`).
+ */
+export function recordDeckDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, by: DeckDiscarder): void {
+  const player = ctx.state.players.find((p) => p.playerId === playerId);
+  if (!player) return;
+  const at = player.discard.includes(id) ? "discard" : player.deck.includes(id) ? "deck" : null;
+  if (at === null) return;
+  // The frame that keeps a set of these cards also keeps whose deck each came from (`deckDiscardsSlot`), which a
+  // count of their icons reads (`countedResourcesOf`, docs/phase7-wave7.md §3.56).
+  if (by.boundOn) addFrameSlots(ctx, by.boundOn.frameId, { [deckDiscardsSlot(playerId)]: [id] });
+  if (!listensForDeckDiscard(ctx.deps)) return;
+  emit(ctx, { type: "cardDiscardedFromDeck", playerId, instanceId: id, by: by.sourceInstanceId, at });
+  const discard: DeckDiscard = {
+    playerId,
+    instanceId: id,
+    sourceInstanceId: by.sourceInstanceId,
+    at,
+    ...(by.boundOn ? { boundOn: by.boundOn } : {}),
+  };
+  ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };
+}
+
+/**
  * "Discard the top card of your deck →" as a cost (`AbilityCost.discardFromDeck`; docs/phase7-wave3.md §3.33). A deck
  * this cost empties is reset at once (`settlePlayerDecks`; ruling, Apr 30, 2026 (3) answer 7), so its facedown
  * encounter card is dealt before the ability's effects resolve, and the discarding stops there (RRG 1.8 "Player Deck",
  * p. 33: "no further cards are discarded from the newly shuffled deck"). `planCost` has already refused a deck that
- * cannot supply every card. Each card moved is logged as `cardMoved`.
+ * cannot supply every card. Each card moved is logged as `cardMoved`, and recorded as a discard from the deck by `by`,
+ * the card whose cost it is (`recordDeckDiscard`).
  */
-export function discardFromDeckAsCost(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
+export function discardFromDeckAsCost(
+  ctx: Ctx,
+  playerId: PlayerId,
+  count: number,
+  by: DeckDiscarder = { sourceInstanceId: null },
+): readonly InstanceId[] {
   const discarded: InstanceId[] = [];
   for (let i = 0; i < count; i++) {
     const top = takeTopOfDeck(ctx, playerId);
     if (!top) break;
     const resets = playerDeckResets(ctx, playerId);
     moveCard(ctx, top, { kind: "discard", playerId }, "top");
+    recordDeckDiscard(ctx, playerId, top, by);
     discarded.push(top);
     if (playerDeckResets(ctx, playerId) > resets) break;
   }
@@ -686,12 +818,22 @@ function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
  * Every discard from a hand (an effect's or cost's pick, a random discard, the end-of-phase discard) goes through here.
  * A player card goes to that player's discard pile. An encounter card held in a hand (Mystique's treacheries,
  * no owner; `RuleSpec staysInHand`; MC32 p. 7: "When you discard a treachery card from your hand … it is placed in the
- * encounter discard pile") goes to its home's discard pile, faceup (docs/phase7-wave6.md §3.10).
+ * encounter discard pile") goes to its home's discard pile, faceup (docs/phase7-wave6.md §3.10). A player card held in a
+ * hand that is not its owner's (`takeIntoHand.keepOwner`) goes to its owner's discard pile: RRG 1.8 "Ownership and
+ * Control" (p. 31), "That card is discarded from a player's hand, it is placed in its owner's discard pile". The log's
+ * `cardDiscardedFromHand` names the player whose hand it left either way.
  */
 export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
-  if (getInstance(ctx.state, id)?.ownerId === null) {
+  const ownerId = getInstance(ctx.state, id)?.ownerId ?? null;
+  if (ownerId === null) {
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
+    return;
+  }
+  if (ownerId !== playerId) {
+    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    updateInstance(ctx, id, (i) => ({ ...i, controllerId: ownerId }));
     emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
     return;
   }
@@ -769,6 +911,12 @@ export function discardWithLeavingHost(ctx: Ctx, id: InstanceId): void {
  */
 export function leavingCancelled(state: GameState, id: InstanceId): boolean {
   return leavingFrameFor(state, id)?.cancelled === true;
+}
+
+/** Whether this card's own leaving of play is on the stack and not cancelled: it is about to leave, though still in play. */
+export function leavingPlayPending(state: GameState, id: InstanceId): boolean {
+  const leaving = leavingFrameFor(state, id);
+  return leaving !== undefined && !leaving.cancelled;
 }
 
 /**
@@ -1006,7 +1154,10 @@ export function waitsForLeaveInterrupts(
   if (!cardsInPlay(ctx.state).includes(id)) return false;
   // Blocked leaves are refused (and logged) by the caller's own path.
   const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
-  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) || cannotLeavePlay(ctx.state, ctx.deps, id))
+  if (
+    permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) ||
+    cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)
+  )
     return false;
   const already = leavingFrameFor(ctx.state, id);
   if (already) return already.stage === "interrupts";
@@ -1088,6 +1239,8 @@ export function leavingWithHost(
   const events: TriggerEvent[] = [];
   for (const attachment of getInstance(ctx.state, hostId)?.attachments ?? []) {
     if (!ctx.state.instances[attachment] || leavingFrameFor(ctx.state, attachment)) continue;
+    // Out of play already (RRG 1.8 p. 23): it goes with its host, but it does not leave play.
+    if (isFacedownAttachment(ctx.state, attachment)) continue;
     if (stays?.(attachment)) continue;
     const blocked = staysInPlayWithoutHost(ctx, attachment);
     const discarded = () =>
@@ -1185,7 +1338,7 @@ export function leavePlay(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
     return "stayed";
   }
-  if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return "stayed";
   }
@@ -1259,6 +1412,15 @@ function leaveNow(
   discarded: boolean,
   withHost = false,
 ): void {
+  // A facedown attachment is out of play (RRG 1.8 "In Play and Out of Play", p. 23), so it does not leave play: it goes
+  // where it is sent as a tucked card does, faceup into a discard pile, with no discard "from play", nothing to hear it
+  // and no in-play state to clear. `relocateCard` makes it itself again as it comes off its host.
+  if (isFacedownAttachment(ctx.state, id)) {
+    const to: ZoneId = removedAsDoubleSided(ctx.state, id, requested.kind) ? { kind: "removedFromGame" } : requested;
+    if (discarded) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    moveCard(ctx, id, to, position);
+    return;
+  }
   // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
   const losesBy = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);
@@ -1584,4 +1746,15 @@ export function consumeCostReductions(
     if (effect.cardFilter && !matchesQuery(ctx.state, cardInstanceId, effect.cardFilter, context)) continue;
     endLastingEffect(ctx, effect.id, "consumed");
   }
+}
+
+/**
+ * Turns a double-sided card whose other face is its own `flipSide` to that face, where it is: both faces share one
+ * card type, so it keeps its exhausted state, attachments, status cards and counters (RRG 1.8 "Flip", p. 20). The
+ * caller has checked it has another face and may flip (`rules.ts` `cannotFlip`), and announces the flip.
+ */
+export function turnToFlipSide(ctx: Ctx, id: InstanceId): void {
+  const flipped = !mustInstance(ctx.state, id).flipped;
+  updateInstance(ctx, id, (i) => ({ ...i, flipped }));
+  emit(ctx, { type: "cardFlipped", instanceId: id, flipped });
 }

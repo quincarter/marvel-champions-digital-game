@@ -57,6 +57,7 @@ import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
 import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
+import { aspectName } from "./aspect-stamp.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
 export interface StatTile {
@@ -343,6 +344,18 @@ export function setAsidePanel(state: GameState): SetAsidePanel | null {
   };
 }
 
+/**
+ * One card tucked under another (RRG 1.8 "Tuck", p. 45): out of play, but a table shows what sits under a card.
+ * A card tucked facedown stays hidden information (`view/visibility.ts`): present and counted, never named.
+ */
+export interface TuckedCardView {
+  readonly instanceId: InstanceId;
+  readonly name: string;
+  readonly faceup: boolean;
+  /** Null for a facedown card. */
+  readonly art: ArtSource | null;
+}
+
 export interface EnvironmentPanel {
   readonly instanceId: InstanceId;
   /** The face in play: "Criminal Enterprise", or "State of Madness" once it has flipped. */
@@ -358,6 +371,10 @@ export interface EnvironmentPanel {
    * running count, not a fraction of a max.
    */
   readonly damage: number;
+  /** The cards tucked under this environment (Routed's defeated villains), in the order they went under. */
+  readonly tucked: readonly TuckedCardView[];
+  /** `tucked.length`; the board's count badge. */
+  readonly tuckedCount: number;
 }
 
 /**
@@ -579,25 +596,29 @@ function separateDeckPiles(state: GameState, me: PlayerState): readonly Separate
  * from `activeVillain(state)`, which only ever names the one with the active counter.
  */
 function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPanel[] {
-  return state.villains.map((villain) => ({
-    panel: characterPanel(state, villain.instanceId, deps),
-    active: villain.instanceId === state.activeVillainId,
-    defeated: villain.defeated,
-    signatureScheme: villain.signatureSideSchemeId
-      ? {
-          scheme: schemePanel(state, villain.signatureSideSchemeId, deps, false),
-          status: state.removedFromGame.includes(villain.signatureSideSchemeId)
-            ? "removed"
-            : state.villainArea.includes(villain.signatureSideSchemeId)
-              ? "inPlay"
-              : "setAside",
-        }
-      : null,
-    deck: {
-      deck: state.encounterDecks[villain.encounterDeckId]?.deck.length ?? 0,
-      discard: state.encounterDecks[villain.encounterDeckId]?.discard.length ?? 0,
-    },
-  }));
+  // A villain tucked under a card (Routed) is out of play: not on the table, not a target, not "defeated" in the row.
+  const tucked = new Set(Object.values(state.instances).flatMap((instance) => instance.tucked));
+  return state.villains
+    .filter((villain) => !tucked.has(villain.instanceId))
+    .map((villain) => ({
+      panel: characterPanel(state, villain.instanceId, deps),
+      active: villain.instanceId === state.activeVillainId,
+      defeated: villain.defeated,
+      signatureScheme: villain.signatureSideSchemeId
+        ? {
+            scheme: schemePanel(state, villain.signatureSideSchemeId, deps, false),
+            status: state.removedFromGame.includes(villain.signatureSideSchemeId)
+              ? "removed"
+              : state.villainArea.includes(villain.signatureSideSchemeId)
+                ? "inPlay"
+                : "setAside",
+          }
+        : null,
+      deck: {
+        deck: state.encounterDecks[villain.encounterDeckId]?.deck.length ?? 0,
+        discard: state.encounterDecks[villain.encounterDeckId]?.discard.length ?? 0,
+      },
+    }));
 }
 
 export function boardModel(state: GameState, perspectiveId: PlayerId, deps: EngineDeps): BoardModel {
@@ -988,7 +1009,7 @@ export function deckAspects(state: GameState, playerId: PlayerId): readonly Aspe
   return [...counts].filter(([, count]) => count === most && count > 0).map(([aspect]) => aspect);
 }
 
-const aspectLabel = (aspect: Aspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
+const aspectLabel = (aspect: Aspect): string => aspectName(aspect);
 
 function statusPips(instance: CardInstance): readonly StatusPip[] {
   const pips: StatusPip[] = [];
@@ -1194,6 +1215,7 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
   const card = cardOf(state, id);
   const damage = getInstance(state, id)?.damage ?? 0;
   const note = damageNote(damage, selfDamageThreshold(state, id, deps));
+  const tucked = tuckedCardsUnder(state, id);
   return {
     instanceId: id,
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
@@ -1203,7 +1225,23 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
     counters: countersOf(state, id),
     art: artFor(card, faceOf(state, id)),
     damage,
+    tucked,
+    tuckedCount: tucked.length,
   };
+}
+
+/** The cards tucked under `id`, in order, faceup ones named and facedown ones only counted. */
+export function tuckedCardsUnder(state: GameState, id: InstanceId): readonly TuckedCardView[] {
+  return (getInstance(state, id)?.tucked ?? []).map((tuckedId) => {
+    const faceup = getInstance(state, tuckedId)?.faceup !== false;
+    const card = cardOf(state, tuckedId);
+    return {
+      instanceId: tuckedId,
+      faceup,
+      name: faceup ? (currentName(state, tuckedId) ?? card?.name ?? "Card") : "Facedown card",
+      art: faceup ? artFor(card, faceOf(state, tuckedId)) : null,
+    };
+  });
 }
 
 /** Threat on a card that is not a scheme: a scheme's threat is its meter, drawn by `SchemePanel`. */

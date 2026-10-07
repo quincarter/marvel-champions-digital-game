@@ -10,10 +10,21 @@
 import { POOL_DEPS } from "../../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
-import { tryPayment } from "@mc/engine";
+import { paymentFor, tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
-import { powerEntries, powerSources, type PowerKind, type PowerSource } from "../../view/attacker-choice.js";
+import {
+  assaultThwartSuffix,
+  powerEntries,
+  powerSources,
+  type PowerKind,
+  type PowerSource,
+} from "../../view/attacker-choice.js";
+import {
+  eventAbilityOptions,
+  needsEventAbilityChoice,
+  type EventAbilityOption,
+} from "../../view/event-ability-choice.js";
 import { formEntries, formSources, needsFormChoice, type FormSource } from "../../view/change-form-choice.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
@@ -41,6 +52,7 @@ import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-p
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import {
   abilityActionsFor,
+  legalEntriesOf,
   type BasicAction,
   type Highlights,
   type UsableAbilityAction,
@@ -82,6 +94,8 @@ export interface BoardControllerHost {
   holdOn(hint: Hint, actions: { onSafe: () => void; onAnyway: () => void }): void;
   /** The Team-Up pairs whose ring is on the table now (each a stop at the end of the idle focus route), and what Enter on one does. */
   teamUpKeys?(): readonly string[];
+  /** True when the card has a tile or chip on screen right now (it has a focus rect). */
+  hasTile?(id: InstanceId): boolean;
   openTeamUp?(pairKey: string): void;
 }
 
@@ -94,6 +108,12 @@ export interface SourceChoiceView {
 /** What the "Which form?" bar shows: Spectrum's energy/density/mass, Ant-Man/Wasp's Giant form (`view/change-form-choice.js`). */
 export interface FormChoiceView {
   readonly sources: readonly FormSource[];
+}
+
+/** What the "Which ability?" bar shows: the usable Action abilities of the event being played, in the engine's order. */
+export interface AbilityChoiceView {
+  readonly subject: string;
+  readonly options: readonly EventAbilityOption[];
 }
 
 /** What the "Play it / Decline" bar shows: the free card waiting on a yes. */
@@ -147,7 +167,7 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
   }
   if (ref.kind === "basicThwart") {
     return {
-      label: `${cardName(state, ref.instanceId)} — Thwart${statSuffix(state, ref.instanceId, "THW")}`,
+      label: `${cardName(state, ref.instanceId)} — Thwart${thwartStat(state, action, ref.instanceId)}`,
       name: cardName(state, ref.instanceId),
       instanceId: ref.instanceId,
     };
@@ -176,6 +196,12 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
 function statSuffix(state: GameState, instanceId: InstanceId, label: "ATK" | "THW"): string {
   const value = characterPanel(state, instanceId, POOL_DEPS).stats.find((stat) => stat.label === label)?.value;
   return value && value !== "—" ? ` ${value}` : "";
+}
+
+/** " 2", or the assault wording (" 2 · ATK 3 vs assault") when the legal schemes include one with assault. */
+function thwartStat(state: GameState, action: LegalAction, id: InstanceId): string {
+  const suffix = assaultThwartSuffix(powerSources(state, [action], "thwart", POOL_DEPS)[0]!);
+  return suffix === null ? statSuffix(state, id, "THW") : ` ${suffix}`;
 }
 
 export class BoardController {
@@ -282,13 +308,22 @@ export class BoardController {
     if (this.#selection.kind === "choosingController") {
       return focusOrder({ kind: "targeting", targets: this.#seatTiles(this.#selection.controllers) }, marks);
     }
+    if (this.#selection.kind === "choosingAbility") {
+      const { action } = this.#selection.entry;
+      return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
+    }
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
     return focusOrder(
-      { kind: "idle", hand: model.hand.map((card) => card.instanceId), teamUps: this.#host.teamUpKeys?.() ?? [] },
+      {
+        kind: "idle",
+        hand: model.hand.map((card) => card.instanceId),
+        teamUps: this.#host.teamUpKeys?.() ?? [],
+        ...(this.#host.hasTile ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) } : {}),
+      },
       marks,
     );
   }
@@ -408,6 +443,12 @@ export class BoardController {
     if (this.#selection.kind === "choosingSource") {
       // Tapping one of the offered characters on the table picks it, the same as its button in the bar.
       this.chooseSource(id);
+      return true;
+    }
+    if (this.#selection.kind === "choosingAbility") {
+      // The card being asked about goes back on a second tap; the bar's buttons are the only way to answer.
+      const { action } = this.#selection.entry;
+      if (action.kind === "playCard" && action.instanceId === id) this.cancel();
       return true;
     }
     if (this.#selection.kind === "confirmingPlay") {
@@ -612,6 +653,44 @@ export class BoardController {
         )
       : undefined;
     if (!entry) return;
+    // An event with several usable Action abilities: which one is asked first, before any payment (RRG "Event", p. 18).
+    const choice = this.#abilityOptionsFor(entry);
+    if (choice.length > 1) {
+      this.#selection = { kind: "choosingAbility", entry, options: choice };
+      this.#host.redraw();
+      return;
+    }
+    await this.#playEntry(entry, options.confirmFree ?? false);
+  }
+
+  #abilityOptionsFor(entry: LegalAction): readonly EventAbilityOption[] {
+    const { game } = appSession().store.state;
+    return game && needsEventAbilityChoice(entry) ? eventAbilityOptions(game, entry, POOL_DEPS) : [];
+  }
+
+  /** The "Which ability?" bar's answer: the play goes on with that ability's own cost, targets and seat. */
+  async chooseEventAbility(abilityId: AbilityId): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingAbility") return;
+    const { entry, options } = this.#selection;
+    const option = options.find((candidate) => candidate.abilityId === abilityId);
+    const { game } = appSession().store.state;
+    if (!option || !game || option.command.type !== "playCard") return;
+    this.#selection = { kind: "idle" };
+    // Each ability has its own price: ask the engine what this one costs rather than reusing the first one's.
+    const needsPayment = paymentFor(game, option.command.playerId, entry.action, { abilityId }, POOL_DEPS) !== null;
+    await this.#playEntry({ ...entry, example: option.command, needsPayment, abilities: [abilityId] }, false);
+  }
+
+  /** The abilities the "Which ability?" bar offers, or null when it isn't open. */
+  abilityChoice(): AbilityChoiceView | null {
+    if (this.#selection.kind !== "choosingAbility") return null;
+    const { game } = appSession().store.state;
+    const { action } = this.#selection.entry;
+    if (!game || action.kind !== "playCard") return null;
+    return { subject: cardName(game, action.instanceId), options: this.#selection.options };
+  }
+
+  async #playEntry(entry: LegalAction, confirmFree: boolean): Promise<void> {
     // "Discard X cards from your hand" (Shield Toss, `03006`) is a real
     // decision the engine's `example` only guessed the minimum answer to —
     // see `#tryOpenDiscardChoice`. Checked before the controller picker below
@@ -625,7 +704,7 @@ export class BoardController {
       this.#host.redraw();
       return;
     }
-    await this.#playAs(entry, entry.controllers?.[0] ?? null, options.confirmFree ?? false);
+    await this.#playAs(entry, entry.controllers?.[0] ?? null, confirmFree);
   }
 
   /** "Play it": the free card the board was asking about. */
@@ -851,6 +930,7 @@ export class BoardController {
       controllerId,
       costSelection,
       costChoices,
+      entry.example.type === "playCard" ? entry.example.abilityId : undefined,
     );
     if (!payment) return false;
     this.#selection = { kind: "paying", payment };
@@ -1248,7 +1328,7 @@ export class BoardController {
   #legalEntries(): readonly LegalAction[] {
     const { store } = appSession();
     const actions = store.state.legal?.actions;
-    return actions?.kind === "turn" ? actions.legal : [];
+    return actions ? legalEntriesOf(actions) : [];
   }
 
   #legalFor(action: BasicAction): LegalAction | undefined {

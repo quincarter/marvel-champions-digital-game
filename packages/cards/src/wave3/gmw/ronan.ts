@@ -131,7 +131,8 @@ export const RONAN = defineAbilities({
 
   // 1A — Setup: Put the Kree Command Ship environment and the Milano support into play. Attach the Universal
   // Weapon to Ronan the Accuser. Attach the Power Stone to the first player (module docblock: not redundant with
-  // the engine's own villain-default auto-attach).
+  // the engine's own villain-default auto-attach). The Milano's setup keyword has already put it into play from the
+  // set-aside area at Appendix II step 11, so the Milano half finds none.
   "16106a.setup": setup(
     selectCards("ship", encounterCards(["deck"], { name: "Kree Command Ship" })),
     putIntoPlay(chosen("ship"), firstPlayer),

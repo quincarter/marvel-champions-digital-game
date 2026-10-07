@@ -33,7 +33,7 @@
  *   the comment alone.
  */
 import type { CardId, CoreAspect, Deck, DeckCardEntry } from "@mc/content";
-import type { CardPool } from "@mc/engine";
+import { isPermanentCard, type CardPool } from "@mc/engine";
 
 /** The card types that can appear in a player deck (`Deck.cards`) — never `hero_identity` or any encounter/villain type. */
 export type PlayerCardType = "ally" | "event" | "support" | "upgrade" | "resource" | "player_side_scheme";
@@ -57,6 +57,10 @@ export interface DeckAspectCounts {
 export interface DeckStats {
   /** Every card in `deck.cards`, quantities summed — found in the pool or not. */
   readonly totalCards: number;
+  /** The permanent cards among them (RRG 1.8 p. 32, the engine's `isPermanentCard`): listed, but never counted toward deck size. */
+  readonly permanentCards: number;
+  /** `totalCards` less `permanentCards`: the size `validateDeck` counts and every message states. */
+  readonly countedCards: number;
   /** Card ids in `deck.cards` that aren't in `pool` (an out-of-date deck, or the wrong pool passed in) — excluded from every other field below since they can't be classified. */
   readonly missingCardIds: readonly CardId[];
   /** One bucket per distinct printed cost among cost-bearing cards, ascending. Empty when the deck has none (e.g. a deck of only resources). */
@@ -102,6 +106,7 @@ export function deckStatsOf(deck: Pick<Deck, "cards">, pool: CardPool): DeckStat
   const byId = new Map(cardsOf(pool).map((card) => [card.id as string, card]));
 
   let totalCards = 0;
+  let permanentCards = 0;
   const missingCardIds: CardId[] = [];
   const costCounts = new Map<number, number>();
   let costWeightedSum = 0;
@@ -112,6 +117,7 @@ export function deckStatsOf(deck: Pick<Deck, "cards">, pool: CardPool): DeckStat
   for (const entry of deck.cards as readonly DeckCardEntry[]) {
     totalCards += entry.quantity;
     const card = byId.get(entry.cardId as string);
+    if (card && isPermanentCard(card)) permanentCards += entry.quantity;
     if (!card || !PLAYER_CARD_TYPES.has(card.type)) {
       missingCardIds.push(entry.cardId);
       continue;
@@ -137,12 +143,20 @@ export function deckStatsOf(deck: Pick<Deck, "cards">, pool: CardPool): DeckStat
 
   return {
     totalCards,
+    permanentCards,
+    countedCards: totalCards - permanentCards,
     missingCardIds,
     costCurve,
     averageCost: costWeightedCount > 0 ? costWeightedSum / costWeightedCount : null,
     countsByType: Object.fromEntries(typeCounts) as Readonly<Partial<Record<PlayerCardType, number>>>,
     countsByAspect: aspectCounts,
   };
+}
+
+/** "40 cards", or "40 cards + 2 permanent" where the deck lists permanent cards the count leaves out. */
+export function deckCountText(stats: Pick<DeckStats, "countedCards" | "permanentCards">): string {
+  const base = `${stats.countedCards} cards`;
+  return stats.permanentCards > 0 ? `${base} + ${stats.permanentCards} permanent` : base;
 }
 
 /** One bar of a cost-curve chart (W1's "Resource curve"): a printed cost, or `capAt` collapsed into an open-ended "N+" bucket. */
@@ -224,7 +238,7 @@ const GROUP_ORDER: readonly { readonly key: "hero" | CoreAspect; readonly label:
   { key: "leadership", label: "Leadership" },
   { key: "protection", label: "Protection" },
   { key: "basic", label: "Basic" },
-  { key: "pool", label: "Pool" },
+  { key: "pool", label: "'Pool" },
 ];
 
 /**

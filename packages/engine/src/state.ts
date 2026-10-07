@@ -1,12 +1,13 @@
 import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
-import type { EncounterDeckId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
+import type { OutsideFacts } from "./outside-facts.js";
 import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
 import type { RuleSpec } from "./abilities.js";
-import type { EffectSpec } from "./spec.js";
+import type { EffectSpec, StatusName } from "./spec.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -112,7 +113,8 @@ export interface TreatedAsMinion {
   readonly kind: "minion";
   readonly traits: readonly Trait[];
   readonly keepPrintedTraits: boolean;
-  readonly schFromThw: boolean;
+  /** `"current"`: "SCH is equal to its THW", the ally's THW with its modifiers, not the printed value (wave 7 §3.44). */
+  readonly schFromThw: boolean | "current";
   readonly source: InstanceId;
   readonly controllerBefore: PlayerId | null;
 }
@@ -264,6 +266,12 @@ export interface PlayerState {
    * §3.26). A setup input that never changes; absent when 0. The count taken so far lives on the mulligan step.
    */
   readonly extraMulligans?: number;
+  /**
+   * Facts from outside the game this seat supplied at setup (`PlayerSetup.outsideFacts`; docs/phase7-wave7.md §3.83),
+   * read by `Predicate outsideFact`. A setup input that never changes; absent when the seat supplied none that is
+   * true.
+   */
+  readonly outsideFacts?: OutsideFacts;
 }
 
 /**
@@ -354,6 +362,42 @@ export interface EncounterFromDeck {
 }
 
 /**
+ * A card discarded from a player's deck (`TriggerEvent cardDiscardedFromDeck`, docs/phase7-wave7.md §3.55), whose
+ * fields these are. `boundOn`: the discarding ability's set of the cards "discarded this way", as the slot `slot` of
+ * frame `frameId` (the effects frame of a `moveCards` or `discardDeckUntil` with a `bind`, the frame a
+ * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
+ * `settleDeckDiscards`).
+ */
+export interface DeckDiscard {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly sourceInstanceId: InstanceId | null;
+  readonly at: "discard" | "deck";
+  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string };
+}
+
+/**
+ * The deck discards one response window answers: `frameId` is the event frame that opens the window (the last of the
+ * batch, `pushEventsSharingResponses`). Once that frame has left the stack every response has resolved, and each card
+ * a response took away is dropped from its `boundOn` frame's bound sets (`settleDeckDiscards`).
+ */
+export interface DeckDiscardWindow {
+  readonly frameId: FrameId;
+  readonly discards: readonly DeckDiscard[];
+}
+
+/**
+ * A status card placed on a character, waiting to be announced (`TriggerEvent statusPlaced`, docs/phase7-wave7.md
+ * §3.27); the fields are that event's.
+ */
+export interface StatusPlaced {
+  readonly instanceId: InstanceId;
+  readonly status: StatusName;
+  readonly sourceInstanceId: InstanceId | null;
+  readonly playerId: PlayerId | null;
+}
+
+/**
  * A card that left play, as it was while still in play, waiting to be announced (`TriggerEvent cardLeavesPlay`,
  * docs/phase7-wave5.md §3.13).
  */
@@ -382,6 +426,21 @@ export interface EncounterDeckState {
   readonly discard: readonly InstanceId[];
 }
 
+/**
+ * What made a main scheme advance to the stage now showing (docs/phase7-wave7.md §3.12), for a stage that asks: "If
+ * the previous stage was advanced by knock counters, …".
+ *
+ * - `completed`: the previous stage was completed and the game advanced it (RRG 1.8 "Main Scheme", p. 27): its threat
+ *   reached the target, or a card declared it complete (`EffectSpec completeMainScheme`). `sourceInstanceId` is null: no
+ *   card advanced it, whichever cards placed the threat.
+ * - `cardEffect`: a card ability's `advanceMainScheme` ("advance to stage 2A"), which is not a completion.
+ *   `sourceInstanceId` is the card the ability is on, the scheme itself for its own text, or null if it has none.
+ */
+export interface MainSchemeAdvancedBy {
+  readonly cause: "completed" | "cardEffect";
+  readonly sourceInstanceId: InstanceId | null;
+}
+
 export interface MainSchemeState {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
@@ -397,6 +456,12 @@ export interface MainSchemeState {
    * group of same-numbered alternatives needs card text to pick one, Kang's stage 3).
    */
   readonly stageOrder?: readonly number[];
+  /**
+   * What advanced this scheme to its current stage, replaced on every advance (`Predicate mainSchemeAdvancedBy`).
+   * Absent until the scheme first advances, and in a game saved before the field existed: the cause is then unknown and
+   * the predicate is false for every cause.
+   */
+  readonly advancedBy?: MainSchemeAdvancedBy;
 }
 
 /**
@@ -461,6 +526,26 @@ export interface ScenarioRules {
    * save reads unchanged.
    */
   readonly setupInstructions?: readonly ScenarioSetupInstruction[];
+  /**
+   * `GameSetupConfig.setAsideUntilCalled`: cards RRG 1.8 Appendix II step 11 (p. 51) leaves in the set-aside area
+   * although they have the setup keyword. Absent in every game without such a scenario rule.
+   */
+  readonly setAsideUntilCalled?: SetAsideUntilCalled;
+}
+
+/**
+ * Cards a scenario's own printed text sets aside and brings in later, so their setup keyword does not put them into
+ * play at RRG 1.8 Appendix II step 11 (p. 51). Step 11 reads "Search each deck and the set aside area for any cards
+ * with the setup keyword and put them into play", and a scenario may say otherwise for its own cards: MC40 p. 16, "The
+ * setup keyword on the Flight, Super Strength, and Telepathy attachments is ignored in this scenario because these
+ * cards are set aside during setup" (docs/phase7-wave7.md §4.1 Q20; docs/setup-keyword-set-aside-audit.md). A card is
+ * named by its id or by an encounter set it belongs to (`encounterSetIds`, or `specificTo`'s set for a player-typed
+ * scenario card). Only the encounter set-aside area is read against it; a deck's cards and a player's own set-aside
+ * cards are never held back.
+ */
+export interface SetAsideUntilCalled {
+  readonly cardIds?: readonly CardId[];
+  readonly encounterSetIds?: readonly string[];
 }
 
 /**
@@ -504,6 +589,13 @@ export type GameStep =
    * instructions have to resolve *before* it; otherwise `createGame` runs the same code inline as it always has.
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetup" }
+  /**
+   * RRG 1.8 Appendix II step 12c (p. 51), "Resolve any 'Setup' and 'When Revealed' abilities on the villain", for the
+   * villains steps 12a and 12b put into play (`GameState.villainsEnteringAtSetup`). Reached only by a game whose
+   * villains all started set aside (`GameSetupConfig.villainsStartSetAside`); every other game resolves 12c in the same
+   * batch as 12a and 12b, as it always has, and its step sequence is unchanged. docs/phase7-wave7.md §3.42.
+   */
+  | { readonly phase: "setup"; readonly kind: "villainSetupAbilities" }
   /** RRG Appendix II step 14, after setup cards and setup abilities have resolved. */
   /**
    * The scenario's rulebook-printed setup instructions (`ScenarioRules.setupInstructions`; MC21 p. 11), after Appendix
@@ -638,6 +730,12 @@ export interface AttackThisTurn {
   readonly targetInstanceId: InstanceId;
 }
 
+/** One entry of `GameState.characterActsThisPhase`: a character, and what it did (docs/phase7-wave7.md §3.36). */
+export interface CharacterActThisPhase {
+  readonly characterInstanceId: InstanceId;
+  readonly did: "attack" | "thwart";
+}
+
 /**
  * Options the table chose for this game, outside the scenario and outside FFG's rules (`GameSetupConfig.tableRules`).
  * Every option defaults to off and an option that is off is not stored, so a game without any has no `tableRules`
@@ -738,6 +836,24 @@ export interface GameState {
    * `cardLeavesPlay` went on the stack before it moved (§4.1 Q17).
    */
   readonly pendingLeftPlay?: readonly LeftPlay[];
+  /**
+   * Status cards placed since the flow last looked, oldest first, recorded by `giveStatus` only when some ability in
+   * the registry triggers on it: the flow announces each as `statusPlaced` between frames and empties the list. Absent
+   * until one is first placed. docs/phase7-wave7.md §3.27.
+   */
+  readonly pendingStatusPlaced?: readonly StatusPlaced[];
+  /**
+   * Cards discarded from a player's deck since the flow last looked, oldest first, recorded by `recordDeckDiscard` only
+   * when some ability in the registry triggers on it: the flow announces them as `cardDiscardedFromDeck` between
+   * frames, in one shared response window, and empties the list. Absent until one is first recorded.
+   * docs/phase7-wave7.md §3.55.
+   */
+  readonly pendingDeckDiscards?: readonly DeckDiscard[];
+  /**
+   * Announced deck discards whose response window has not finished, each with the frame whose bound set it would leave
+   * (`DeckDiscardWindow`). Absent when there is none. docs/phase7-wave7.md §3.55, §4.1 Q32.
+   */
+  readonly deckDiscardWindows?: readonly DeckDiscardWindow[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];
@@ -755,6 +871,13 @@ export interface GameState {
    * ability fires on the change to true and not again while it stays true (`resolve/state-checks.ts`).
    */
   readonly stateChecks: Readonly<Record<string, boolean>>;
+  /**
+   * Characters a defeat sweep found at zero or fewer remaining hit points and left in play because a "cannot be
+   * defeated" rule covered them (`resolve/defeat.ts` `holdAtZero`). Watched between frames: one that is healed above
+   * zero or leaves play is dropped, and one the rule stops covering is defeated at once (`resolve/state-checks.ts`
+   * `checkDefeatProtectionEnded`; docs/phase7-wave7.md §3.34, §4.1 Q21). Absent in a game that never held one.
+   */
+  readonly heldAtZero?: readonly InstanceId[];
   /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
@@ -789,6 +912,28 @@ export interface GameState {
    */
   readonly attacksThisTurn?: readonly AttackThisTurn[];
   /**
+   * Which characters have attacked and which have thwarted **this phase**: "If your hero attacked and thwarted this
+   * phase" (`Predicate characterDidThisPhase`, docs/phase7-wave7.md §3.36, §4.1 Q23). A set in the order things
+   * happened: a character that attacks twice has one "attack" entry, so nothing here counts attacks.
+   *
+   * - **"Attack"** is written where `attacksThisTurn` is, at the `characterAttacked` event every attack ends with,
+   *   basic or by an "(attack)" ability (RRG 1.8 "Labeled Ability", p. 26: "an attack made by that player's identity"),
+   *   in either phase. So an attack into a tough status card is an attack (it dealt 0 damage, but it was made), and a
+   *   stunned character's attack, which is canceled (RRG 1.8 "Stunned", p. 41), is not.
+   * - **"Thwart"** is written when a `thwart` event resolves, the point "after you thwart" responses hear: once for a
+   *   basic thwart or each of its divided shares, once for a "(thwart)" ability however many instances of threat it
+   *   removes (RRG 1.8 "Thwart", p. 44). A thwart that resolved against a scheme with no threat left on it removed 0
+   *   and is one; a confused character's thwart (RRG 1.8 "Confused", p. 13), a canceled one, and one that patrol or
+   *   a crisis icon forbids never happened and are not.
+   * - **Removed** at every phase boundary, where `playedThisPhase` is emptied: the player phase is one phase across
+   *   every player's turn and its end-of-phase steps (RRG 1.8 "Player Phase", p. 34), so the record outlasts a turn;
+   *   what a hero does in the villain phase counts for that villain phase only.
+   *
+   * Absent until a phase's first attack or thwart and again after each phase boundary, so an older save reads as
+   * nothing recorded.
+   */
+  readonly characterActsThisPhase?: readonly CharacterActThisPhase[];
+  /**
    * Every card revealed this round, in order, with who revealed it and in which phase (RRG 1.8 "Reveal", p. 37): "The
    * first [Technique] attachment revealed each round gains surge" (Nebula I–III, `gmw`), "The first treachery the engaged
    * player reveals each villain phase gains surge" (Mister Knife, `stld`). Written by every reveal whatever is in play,
@@ -803,6 +948,16 @@ export interface GameState {
    * `attackedThisTurn` is. Absent until a game's first play. docs/phase7-wave3.md §3.24 (specified in wave 2 §13.4).
    */
   readonly playedThisTurn?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
+   * The cards each player has played **this phase**, in order: "You cannot play this card if you have played another
+   * card this phase" (Mulligan, `deadpool` 44048; docs/phase7-wave7.md §7.3). `playedThisTurn` is emptied when a turn
+   * ends and `playedThisPhase` counts titles across every player, so neither sees a card this player played in an
+   * earlier turn of the same player phase (an Action event may be played during another player's turn, RRG 1.8
+   * "Action", p. 6). Written when a play commits, in either phase; removed at every phase boundary, where
+   * `playedThisPhase` is emptied (the player phase is one phase across every turn, RRG 1.8 "Player Phase", p. 34).
+   * Absent until a phase's first play, so an older save reads as nothing played.
+   */
+  readonly playedByPlayerThisPhase?: Readonly<Record<string, readonly InstanceId[]>>;
   /**
    * The scenario's own out-of-play game areas by name (`ZoneId scenarioArea`; The Collection, docs/phase7-wave3.md
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
@@ -828,6 +983,23 @@ export interface GameState {
    * game serializes as before.
    */
   readonly setupStack?: StackedDecks;
+  /**
+   * The setup window in which no villain has been put into play by the game setup itself: every villain started set
+   * aside (`GameSetupConfig.villainsStartSetAside`) and card text is to bring the starting ones in (`addVillain`; Gotta
+   * Get Away 1A, "Put 1 random MARAUDER villain into play"; Sinister Synchronization 1A). **Present** from `createGame`
+   * until RRG 1.8 Appendix II step 12c (p. 51) has resolved, and absent in every other game and from then on. While it
+   * is present "the villain" may be nobody; it lists, in the order they entered, the villains put into play without
+   * being revealed, whose Setup and When Revealed abilities step 12c still owes (the `villainSetupAbilities` step).
+   * docs/phase7-wave7.md §3.42.
+   */
+  readonly villainsEnteringAtSetup?: readonly InstanceId[];
+  /**
+   * Setup-keyword cards RRG 1.8 Appendix II step 11 (p. 51) took out of an encounter deck that could not enter play yet:
+   * attachments with no card to attach to, because every villain started set aside (`villainsEnteringAtSetup`). They
+   * wait faceup in `encounterSetAside`, in the order step 11 found them, and enter play when a villain does
+   * (`resolve/setup-cards.ts`). **Absent** unless a card is waiting, and never present once step 12c has begun.
+   */
+  readonly setupCardsAwaitingHost?: readonly InstanceId[];
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

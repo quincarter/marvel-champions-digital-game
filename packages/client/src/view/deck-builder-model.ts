@@ -19,7 +19,15 @@ import {
   type StarterDeck,
   type Trait,
 } from "@mc/content";
-import { CHOOSABLE_ASPECTS, requiredIdentitySet, validateDeck, type CardPool, type DeckValidation } from "@mc/engine";
+import {
+  CHOOSABLE_ASPECTS,
+  cardOfferedToDeck,
+  requiredIdentitySet,
+  validateDeck,
+  type CardPool,
+  type DeckValidation,
+} from "@mc/engine";
+import { perPlayerCostOf } from "./per-player-cost.js";
 
 export interface PoolFilter {
   readonly text?: string;
@@ -123,9 +131,22 @@ export function duplicateDeck(deck: Deck, id: string, now: string): Deck {
   };
 }
 
+/** The words a text search reads on a card besides its name: its traits and its type ("event", "player side scheme"). */
+const searchWordsOf = (card: AnyCard): readonly string[] => [
+  ...("traits" in card ? (card.traits as readonly string[]) : []),
+  card.type.replace(/_/g, " "),
+];
+
+const textMatch = (card: AnyCard, text: string): boolean => {
+  const needle = text.trim().toLowerCase();
+  return (
+    card.name.toLowerCase().includes(needle) || searchWordsOf(card).some((word) => word.toLowerCase().includes(needle))
+  );
+};
+
 const matchesFilter = (card: AnyCard, filter: PoolFilter): boolean => {
   if (filter.type && card.type !== filter.type) return false;
-  if (filter.text && !card.name.toLowerCase().includes(filter.text.toLowerCase())) return false;
+  if (filter.text && !textMatch(card, filter.text)) return false;
   if ("traits" in card && filter.trait && !(card.traits as readonly Trait[]).includes(filter.trait)) return false;
   if ("cost" in card && typeof filter.maxCost === "number" && (card as { cost: number }).cost > filter.maxCost)
     return false;
@@ -139,13 +160,11 @@ const matchesFilter = (card: AnyCard, filter: PoolFilter): boolean => {
 };
 
 /**
- * Cards a player could add to a deck for `identity`: player-deck types
- * (allies, events, supports, upgrades, resources, player side schemes) whose
- * aspect is basic, one of the deck's chosen aspects, or this identity's own
- * signature set — narrowed further by `filter`. Cards outside those aspects
- * are left out of the *browseable* list entirely (there is nothing to search
- * for in an aspect the deck can never use), which is a convenience, not a
- * legality check: `validateDeck` is still what judges the deck that results.
+ * Cards a player could add to a deck for `identity`, narrowed further by `filter`: the engine's per-card reading of
+ * the deck rules (`cardOfferedToDeck`, the same predicates `validateDeck` uses), so an identity's own off-aspect rule
+ * (Cable's player side schemes, Gamora's events) and every "never a deck card" case (Linked, separate-deck, campaign
+ * and scenario cards, other heroes' Team-Up) follow it with no client-side copy of the rule. `validateDeck` is still
+ * what judges the deck that results.
  */
 export function browsablePool(
   pool: CardPool,
@@ -154,29 +173,12 @@ export function browsablePool(
   filter: PoolFilter = {},
   sort: PoolSort = "default",
   packs: readonly PackInfo[] = [],
+  held: ReadonlySet<string> = new Set(),
 ): readonly AnyCard[] {
-  const PLAYER_TYPES = new Set<CardType>(["ally", "event", "support", "upgrade", "resource", "player_side_scheme"]);
+  // `held` is the ids the deck already contains: they stay listed even when the deck's rules now refuse them, so each
+  // can still be removed from the list (the legality line says why it is refused).
   const filtered = cardsOf(pool)
-    .filter((card) => PLAYER_TYPES.has(card.type))
-    // An identity's separate deck (Doctor Strange's Invocation deck) is fixed
-    // by `HeroIdentityCard.separateDecks`, not chosen — RRG 1.8 "Deck": it
-    // exists "in addition to" the player deck, and setup builds it from the
-    // identity. A card with `separateDeck` set is never a legal deck entry
-    // (`validateDeck`'s `separate_deck_card`), so it never belongs in a list
-    // whose whole job is "cards you could add".
-    .filter((card) => !("separateDeck" in card && card.separateDeck !== undefined))
-    // A campaign-specific card (RRG 1.8 "Campaign-Specific Card", p. 11; `PlayerCardCommon.specificTo`) never
-    // enters a deck by being added — MC10's Rise of Red Skull rulebook p. 3: "These cards cannot be included in
-    // any player's deck unless … the players were directed to add them", which the campaign does through a grant
-    // (`CampaignGrant`), not by a player clicking "+". `validateDeck` already refuses one either way
-    // (`campaign_card`/`campaign_card_not_granted`), so offering it to browse only invites a player to add a copy
-    // and then be told the card they just added is illegal. True with no campaign context too: a standalone deck
-    // is never the campaign this card belongs to, so it can never be legally added there either.
-    .filter((card) => !("specificTo" in card && card.specificTo?.kind === "campaign"))
-    .filter((card) => {
-      const aspect = "aspect" in card ? (card as { aspect: string }).aspect : "";
-      return aspect === "basic" || chosenAspects.includes(aspect as CoreAspect) || aspect === `hero:${identity.id}`;
-    })
+    .filter((card) => held.has(card.id as string) || cardOfferedToDeck(card, identity, chosenAspects).offered)
     .filter((card) => matchesFilter(card, filter));
 
   // Wave 1 reprints the same basic/aspect card (by title) across several packs
@@ -193,9 +195,19 @@ export function browsablePool(
   const seen = new Map<string, AnyCard>();
   for (const card of filtered) {
     const key = `${card.name} ${card.type}`;
-    if (!seen.has(key)) seen.set(key, card);
+    // A printing the deck holds wins over an earlier one, so the row's "-" removes what is actually in the deck.
+    const have = seen.get(key);
+    if (!have || (held.has(card.id as string) && !held.has(have.id as string))) seen.set(key, card);
   }
-  return sortPool([...seen.values()], sort, packs);
+  return nameMatchesFirst(sortPool([...seen.values()], sort, packs), filter.text);
+}
+
+/** With a text search, cards whose name matches come before cards matching only by trait or type (order kept within each). */
+function nameMatchesFirst(cards: readonly AnyCard[], text: string | undefined): readonly AnyCard[] {
+  const needle = text?.trim().toLowerCase();
+  if (!needle) return cards;
+  const byName = cards.filter((card) => card.name.toLowerCase().includes(needle));
+  return [...byName, ...cards.filter((card) => !card.name.toLowerCase().includes(needle))];
 }
 
 const costOf = (card: AnyCard): number => ("cost" in card && typeof card.cost === "number" ? card.cost : Infinity);
@@ -246,6 +258,30 @@ export function packFilterChoices(
       .filter((p) => !filter.cycleId || p.cycleId === filter.cycleId)
       .map((p) => ({ id: p.code, name: p.name })),
   };
+}
+
+/** What a pool row's few words say about why a card is listed, or null when it is an ordinary choice. */
+export function poolRowNote(
+  card: AnyCard,
+  identity: HeroIdentityCard,
+  chosenAspects: readonly CoreAspect[],
+): string | null {
+  const offered = cardOfferedToDeck(card, identity, chosenAspects);
+  if (!offered.offered) return "not allowed in this deck";
+  if (offered.via === "allowance") {
+    const bySlot = identity.deckbuilding?.offAspectAllowance?.anyTrait === undefined;
+    return `${identity.name}: ${bySlot ? "any aspect" : "other aspect"}`;
+  }
+  if (offered.via === "package") return `${identity.name}: other aspect`;
+  return null;
+}
+
+/** "event · cost 3", or "event · 3 per player" for a per player cost (read as Inspect words it, outside a game). */
+export function poolTypeLine(card: AnyCard): string {
+  const type = card.type.replace(/_/g, " ");
+  const perPlayer = perPlayerCostOf(null, card);
+  if (perPlayer) return `${type} · ${perPlayer.rateLabel}`;
+  return `${type} · cost ${"cost" in card && typeof card.cost === "number" ? String(card.cost) : "—"}`;
 }
 
 /** Steps `current` through [null (= all), ...choices] by `dir`, wrapping; an unknown `current` counts as all. */

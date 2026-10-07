@@ -15,6 +15,10 @@ export interface Prepared {
   readonly traits: Trait[];
   readonly boost: number;
   readonly attack: number | null | undefined;
+  /** A `Correction.attack` supplied the value, so -1 is the printed number and not MarvelCDB's printed-X encoding. */
+  readonly attackIsCurated: boolean;
+  /** `Correction.thwart`: the attachment's stat box prints THW (it attaches to a character that thwarts). */
+  readonly thwart?: number;
   readonly text: CardText;
   readonly flavor?: string;
   readonly errata?: Errata;
@@ -33,6 +37,8 @@ export interface Prepared {
   readonly dashedThreatFields?: readonly MainSchemeThreatField[];
   /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
   readonly unheadedWhenRevealed?: string;
+  /** A curated `Correction.extraConstantFrom` — absent for every ordinary card. */
+  readonly extraConstantFrom?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -46,6 +52,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let traits = parseTraits(r.real_traits ?? r.traits);
   let boost = r.boost ?? 0;
   let attack = r.attack;
+  let attackIsCurated = false;
+  let thwart: number | undefined;
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
@@ -54,6 +62,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
   let unheadedWhenRevealed: string | undefined;
+  let extraConstantFrom: string | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
@@ -61,6 +70,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ctx.usedCorrections.add(i);
     if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
     if (c.unheadedWhenRevealed !== undefined) unheadedWhenRevealed = c.unheadedWhenRevealed;
+    if (c.extraConstantFrom !== undefined) extraConstantFrom = c.extraConstantFrom;
     if (c.textReplace) {
       // Wave 5 (docs/phase7-wave5.md §1.9 — Nova's "Bring the War!", 28022): MarvelCDB's own `text`/`real_text`
       // is null for this card (an empty source, not a typo to find-and-replace inside), transcribed from the
@@ -80,7 +90,11 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.name !== undefined) name = c.name;
     if (c.traits !== undefined) traits = c.traits.map((t) => t.toUpperCase());
     if (c.boost !== undefined) boost = c.boost;
-    if (c.attack !== undefined) attack = c.attack;
+    if (c.attack !== undefined) {
+      attack = c.attack;
+      attackIsCurated = true;
+    }
+    if (c.thwart !== undefined) thwart = c.thwart;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
@@ -116,6 +130,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     traits: traits.map(traitOf),
     boost,
     attack,
+    attackIsCurated,
+    ...(thwart !== undefined ? { thwart } : {}),
     text: { printed, current },
     ...(flavor ? { flavor } : {}),
     ...(errata ? { errata } : {}),
@@ -126,6 +142,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(cardBack ? { cardBack } : {}),
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
     ...(unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed } : {}),
+    ...(extraConstantFrom !== undefined ? { extraConstantFrom } : {}),
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
   };
   ctx.prepared.set(r.code, p);

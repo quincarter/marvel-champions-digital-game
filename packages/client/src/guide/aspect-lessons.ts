@@ -1,5 +1,5 @@
 /**
- * The four aspect "Try it" lessons (guided mode G10d, `docs/guided-mode.md` §3.7, §4 G10d): one short `Lesson`
+ * The five aspect "Try it" lessons (guided mode G10d, `docs/guided-mode.md` §3.7, §4 G10d): one short `Lesson`
  * (G5b's `view/lesson-model.ts`) per aspect, played against `guide/aspect-tryit-config.ts`'s own stacked opening.
  * Two steps each — an intro the player acknowledges, then "play the signature card" — except Justice, which goes on
  * into round 2 to teach attack-or-thwart (see `JUSTICE_TRYIT`'s own comment). Each is gated to become current only
@@ -21,6 +21,7 @@ import { cardId } from "@mc/content";
 import {
   cardInHand,
   cardPlayed,
+  formIs,
   threatRemovedFromMainScheme,
   type Lesson,
   type LessonPredicate,
@@ -269,10 +270,113 @@ const PROTECTION_TRYIT: Lesson = {
   ],
 };
 
+const DOGPOOL = cardId("44013");
+const I_GOT_THIS = cardId("44021");
+
+/**
+ * 'Pool is the fifth aspect: chatty allies and odd events, and a cost, the Dreadpool set in the encounter deck. The
+ * lesson shows both. Round 1: flip Deadpool and play Dogpool, whose acceleration icon adds threat to the scheme in
+ * Rhino's phase. Round 2: "I Got This" reads the icons in play, and that icon removes 2 threat from a scheme
+ * (`aspect-lessons.test.ts` proves the numbers). No Break Time or other out-of-game prompt is in the opening.
+ */
+const POOL_TRYIT: Lesson = {
+  id: "aspect-tryit-pool",
+  title: "'Pool",
+  when: cardInHand(DOGPOOL),
+  waitingCopy: "It starts once Dogpool is in your hand.",
+  steps: [
+    {
+      id: "intro",
+      anchor: { kind: "zone", id: "encounter" },
+      copy: {
+        title: "You're playing Deadpool with 'Pool",
+        body:
+          "Choosing [[poolAspect|'Pool]] has a price: the Dreadpool set joined the encounter deck. One of its " +
+          "cards is shuffled in and the rest are set aside. In return, 'Pool cards read the icons on the table.",
+        short: "'Pool added the Dreadpool set to this deck.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Deadpool",
+        body: "Wade Wilson can't use hero cards. [[flip|Flip]] to Deadpool first.",
+        doThis: "Flip to Deadpool",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "play-dogpool",
+      anchor: { kind: "card", code: DOGPOOL },
+      copy: {
+        title: "Play Dogpool",
+        body:
+          "Dogpool [[cost|costs]] 3: discard three cards for their [[resource|resources]]. He prints an " +
+          "acceleration icon, and 'Pool cards care about icons. It also adds [[threat|threat]] in Rhino's phase.",
+        tip: "Maximum Effort, Exhausting Personality and Yoo-Hoo! pay for him.",
+        doThis: "Play Dogpool",
+        doThisTabbed: "Tap Dogpool, then Play",
+        payWith: [
+          { kind: "handCard", code: cardId("44004"), doThis: "Tap Maximum Effort to spend its resource" },
+          { kind: "handCard", code: cardId("44003"), doThis: "Tap Exhausting Personality" },
+          { kind: "handCard", code: cardId("44006"), doThis: "Tap Yoo-Hoo!, then Pay" },
+        ],
+      },
+      mode: "await",
+      completes: cardPlayed(DOGPOOL),
+      gate: FULL_GATE,
+    },
+    {
+      id: "end-turn",
+      anchor: { kind: "action", id: "endTurn" },
+      copy: {
+        title: "End your turn",
+        body: "Keep \"I Got This\" in hand. Rhino's phase adds threat, with Dogpool's icon counted, and we'll use it next round.",
+        short: "End your turn and watch the scheme.",
+        doThis: "End your turn",
+      },
+      mode: "await",
+      completes: playerPhaseOfRound(2),
+    },
+    {
+      id: "play-i-got-this",
+      anchor: { kind: "card", code: I_GOT_THIS },
+      copy: {
+        title: 'Play "I Got This"',
+        body:
+          "It does one thing for each icon type on cards in play. Dogpool's acceleration icon means: remove 2 " +
+          "[[threat|threat]] from a scheme. It costs 1, so Metaknowledge pays for it.",
+        tip: "Metaknowledge pays for it on its own.",
+        doThis: 'Play "I Got This"',
+        doThisTabbed: 'Tap "I Got This", then Play',
+        payWith: [{ kind: "handCard", code: cardId("44005"), doThis: "Tap Metaknowledge, then Pay" }],
+      },
+      mode: "await",
+      completes: threatRemovedFromMainScheme(),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Icons are the aspect",
+        body:
+          "That's 'Pool: play the right friend, and your events cash in their icons. Watch the icons on the " +
+          "table, yours and the villain's, to know what each event will do.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per aspect with a "Try it" game — keyed the same as `guide/aspect-tryit-config.ts#ASPECT_TRYIT_CONFIGS`. */
 export const ASPECT_TRYIT_LESSONS: Readonly<Record<AspectTryItId, Lesson>> = {
   justice: JUSTICE_TRYIT,
   aggression: AGGRESSION_TRYIT,
   leadership: LEADERSHIP_TRYIT,
   protection: PROTECTION_TRYIT,
+  pool: POOL_TRYIT,
 };

@@ -149,6 +149,9 @@ function buildSingleVillain(scenario: Scenario, options: Wave6ScenarioOptions): 
             encounterSetId,
             cardIds: withoutBackFaces(encounterCardsOf([encounterSetId], WAVE6_CARDS)),
           })),
+          // A set-aside modular set comes in whole, by the scenario's own text; a setup-keyword card in one stays
+          // aside with it (docs/setup-keyword-set-aside-audit.md, as at The Hood).
+          setAsideUntilCalled: { encounterSetIds: modular.setAsideModularSetIds },
         }
       : {}),
     // The scenario's own scenario decks (the campaign's Future Past deck, docs/phase7-wave6.md §3.24).

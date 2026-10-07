@@ -62,7 +62,13 @@ import { McGuideTag } from "../../ui/guide-tag.js";
 import { textStyle } from "../../ui/theme.js";
 import { fitWrapped, hatchRect } from "../../ui/widgets.js";
 import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide-panel-model.js";
-import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
+import {
+  anchorOffScreenX,
+  instanceOfCode,
+  resolveAnchor,
+  type AnchorFrame,
+  type ResolvedAnchor,
+} from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
 import { calloutFitsDottedWordHint, dottedWordHintFor } from "../../view/dotted-word-hint.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
@@ -203,6 +209,8 @@ export class BoardGuideMount {
    * so the player can switch away freely afterwards".
    */
   #tabSwitchStepId: string | null | undefined = undefined;
+  /** The step whose off-screen hand card the hand has already been scrolled to (once per step, like the tab switch). */
+  #handRevealStepId: string | null | undefined = undefined;
   /** The step id `#syncPayingOverride` last set (or cleared) an override for — see that method's own doc comment
    * for why this is tracked rather than re-derived from `PLAY_BLACK_CAT_STEP_ID` (guided mode G10d fix, any
    * card-play step with a `payWith` can drive this, not only the tutorial's own lesson 3). */
@@ -589,6 +597,7 @@ export class BoardGuideMount {
     const resolved = this.#resolveAnchorRect(view.anchor, viewport);
     this.#lastResolved = resolved;
     if (tabbed && this.#maybeSwitchTab(view.step?.id ?? null, resolved?.tab ?? null)) return;
+    if (tabbed && this.#maybeRevealHandCard(view.step?.id ?? null, view.anchor, resolved, viewport)) return;
 
     if (onRail && view.active && view.panel) {
       const panel = new McGuidePanel(this.#scene, {
@@ -596,7 +605,7 @@ export class BoardGuideMount {
         onBack: () => this.#act(() => this.#controller.back()),
         // The step's own `secondaryLabel` (guided mode G7d, "How do I stop it?") advances the same way the
         // primary button does — see `LessonStepCopy.secondaryLabel`'s own doc comment.
-        onSecondary: () => this.#act(() => this.#controller.primary()),
+        onSecondary: () => this.#act(() => this.#controller.secondary()),
         onPrimary: () => this.#act(() => this.#controller.primary()),
         // Waiting/complete have no current step to skip (`view.step` is null then) — the header's Skip control
         // only draws when `onSkip` is wired, so it's simply left out rather than shown as a no-op.
@@ -695,6 +704,24 @@ export class BoardGuideMount {
    * no-op read of `#tabSwitchStepId`'s guard, whatever the player has done with the tab bar since — that's what
    * lets them switch away freely without being yanked back (§3.10's spirit, applied to tabs rather than a gate).
    */
+  /**
+   * A card anchor that sits off the edge of the sideways-scrolling phone hand: scrolls the hand to it, once per step,
+   * so the ring is on a card the player can see and the step never needs "scroll the hand" in its text. The scroll
+   * redraws the board (and so calls `draw` again); this call has created nothing yet when it returns true.
+   */
+  #maybeRevealHandCard(
+    stepId: string | null,
+    anchor: LessonAnchor | null,
+    resolved: ResolvedAnchor | null,
+    viewport: Rect,
+  ): boolean {
+    if (stepId === this.#handRevealStepId) return false;
+    if (anchor?.kind !== "card" || !resolved || resolved.tab || !anchorOffScreenX(resolved.rect, viewport))
+      return false;
+    this.#handRevealStepId = stepId;
+    return this.#scene.guideRevealInHand(resolved.rect);
+  }
+
   #maybeSwitchTab(stepId: string | null, tab: PhoneTab | null): boolean {
     if (stepId === this.#tabSwitchStepId) return false;
     this.#tabSwitchStepId = stepId;
@@ -723,7 +750,7 @@ export class BoardGuideMount {
       ...(view.panel.backLabel
         ? { onSecondary: () => this.#act(() => this.#controller.back()) }
         : view.panel.secondaryLabel
-          ? { onSecondary: () => this.#act(() => this.#controller.primary()) }
+          ? { onSecondary: () => this.#act(() => this.#controller.secondary()) }
           : {}),
       // Waiting/complete have no current step to skip — same reasoning as the rail's own `onSkip` above.
       ...(view.step ? { onSkip: () => this.#act(() => this.#controller.skip()) } : {}),
@@ -823,36 +850,51 @@ export class BoardGuideMount {
     // is `null` there.
     let primaryRect: Rect | null = null;
     let textRight = closeRect.x - 8;
-    if (panel.primaryLabel) {
-      const primaryMeasure = scene.add
-        .text(0, 0, panel.primaryLabel, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
+    /** One right-to-left pill in the strip: ink-filled for the primary, outlined for the secondary. */
+    const drawPill = (label: string, right: number, filled: boolean, onTap: () => void): Rect => {
+      const measure = scene.add
+        .text(0, 0, label, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
         .setVisible(false);
-      const primaryWidth = Math.max(hit.target, primaryMeasure.width + 20);
-      primaryMeasure.destroy();
-      const primaryHeight = Math.min(rect.height - 16, 32);
-      const primaryX = closeRect.x - 8 - primaryWidth;
-      const primaryG = scene.add.graphics();
-      primaryG
-        .fillStyle(surface.ink.hex, 1)
-        .fillRoundedRect(primaryX, cy - primaryHeight / 2, primaryWidth, primaryHeight, 6);
-      const primaryText = scene.add
-        .text(0, 0, panel.primaryLabel, textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex))
+      const width = Math.max(hit.target, measure.width + 20);
+      measure.destroy();
+      const pillHeight = Math.min(rect.height - 16, 32);
+      const x = right - width;
+      const pillG = scene.add.graphics();
+      if (filled) pillG.fillStyle(surface.ink.hex, 1).fillRoundedRect(x, cy - pillHeight / 2, width, pillHeight, 6);
+      else
+        pillG
+          .lineStyle(border.object, surface.ink.hex, 1)
+          .strokeRoundedRect(x, cy - pillHeight / 2, width, pillHeight, 6);
+      const pillText = scene.add
+        .text(0, 0, label, textStyle({ ...typeRole.label, size: 12 }, filled ? surface.paper.hex : surface.ink.hex))
         .setOrigin(0.5, 0.5)
-        .setPosition(primaryX + primaryWidth / 2, cy);
-      const primaryZone = scene.add
-        .zone(primaryX, rect.y, primaryWidth, rect.height)
+        .setPosition(x + width / 2, cy);
+      const zone = scene.add
+        .zone(x, rect.y, width, rect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      primaryZone.on("pointerup", () => this.#act(() => this.#controller.primary()));
-      container.add([primaryG, primaryText, primaryZone]);
-      primaryRect = { x: primaryX, y: rect.y, width: primaryWidth, height: rect.height };
-      textRight = primaryX - 8;
+      zone.on("pointerup", onTap);
+      container.add([pillG, pillText, zone]);
+      return { x, y: rect.y, width, height: rect.height };
+    };
+    if (panel.primaryLabel) {
+      primaryRect = drawPill(panel.primaryLabel, closeRect.x - 8, true, () =>
+        this.#act(() => this.#controller.primary()),
+      );
+      textRight = primaryRect.x - 8;
+      // A finished Try-it's way back to its lessons (the short label: this strip is one line of a 390 screen).
+      const leave = panel.secondaryShortLabel ?? panel.secondaryLabel;
+      if (leave) {
+        const leaveRect = drawPill(leave, textRight, false, () => this.#act(() => this.#controller.secondary()));
+        textRight = leaveRect.x - 8;
+      }
     }
 
     // One or two lines: the panel's own title (already short — "Next: The villain phase", "Tutorial complete")
     // plus its body, on one line where there's room, wrapped to two rather than the callout's full multi-line body.
     const textX = stampX + stampWidth + 10;
-    const text = panel.body ? `${panel.title} — ${panel.body}` : panel.title;
+    // Two buttons leave room for the title alone; the body ("Nice work. …") is in the rail and the callout.
+    const text = panel.body && !panel.secondaryLabel ? `${panel.title} — ${panel.body}` : panel.title;
     const bodyText = scene.add
       .text(textX, cy, text, textStyle({ ...typeRole.body, size: 12 }, surface.ink.hex))
       .setOrigin(0, 0.5);

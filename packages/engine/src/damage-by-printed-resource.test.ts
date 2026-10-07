@@ -75,7 +75,21 @@ const PIERCING_ATTACK = actionEvent("piercing-attack", { mental: 1 }, [
   { kind: "attack", target: theVillain, amount: n(2), keywords: ["piercing"] },
 ]);
 const PLAIN_ATTACK = actionEvent("plain-attack", { mental: 1 }, [{ kind: "attack", target: theVillain, amount: n(2) }]);
-const EVENTS = [PHYSICAL_ZAP, MENTAL_ZAP, ENERGY_ZAP, PHYSICAL_ATTACK, ENERGY_ATTACK, PIERCING_ATTACK, PLAIN_ATTACK];
+/** "Deal 2 damage to the villain and confuse it": a second effect on the target keeps it valid (RRG 1.8 "Target", p. 43). */
+const CONFUSING_ATTACK = actionEvent("confusing-attack", { mental: 1 }, [
+  { kind: "attack", target: theVillain, amount: n(2) },
+  { kind: "giveStatus", target: theVillain, status: "confused" },
+]);
+const EVENTS = [
+  PHYSICAL_ZAP,
+  MENTAL_ZAP,
+  ENERGY_ZAP,
+  PHYSICAL_ATTACK,
+  ENERGY_ATTACK,
+  PIERCING_ATTACK,
+  PLAIN_ATTACK,
+  CONFUSING_ATTACK,
+];
 
 const deps: EngineDeps = depsOf(...RULES, ...EVENTS.map((e) => e.ability));
 
@@ -106,8 +120,9 @@ describe("§3.68 'can only take damage from cards with a printed [physical] reso
     expect(() => play(GOBLIN_V, MENTAL_ZAP)).toThrow(/no valid target/);
   });
 
-  it("an attack through a card without one deals nothing, logged as 'cannot take damage'", () => {
-    const { state, events } = play(GOBLIN_V, PLAIN_ATTACK);
+  it("nor for an attack made through a card without one; one that also confuses it deals nothing, logged as 'cannot take damage'", () => {
+    expect(() => play(GOBLIN_V, PLAIN_ATTACK)).toThrow(/no valid target/);
+    const { state, events } = play(GOBLIN_V, CONFUSING_ATTACK);
     expect(villainDamage(state)).toBe(0);
     expect(events).toContainEqual(
       expect.objectContaining({ type: "damagePrevented", amount: 2, reason: "cannotTakeDamage" }),

@@ -485,9 +485,10 @@ describe("The Search for Spiral (39016)", () => {
     expect(reveals(events)).toEqual([[RUNNER, P1]]);
     expect(of(events, "surgeTriggered")).toEqual([]);
     expect(threatOn(state, searchOf(state))).toBe(3);
-    // Permanent: it stays in play with no threat on it, never defeated.
+    // Permanent (RRG 1.8 p. 32): it stays in play, never defeated, so nothing is announced and nothing tries to leave.
     expect(cardsInPlay(state)).toContain(searchOf(staged));
-    expect(of(events, "leavePlayBlocked").map((e) => e.reason)).toEqual(["permanent"]);
+    expect(of(events, "schemeDefeated")).toEqual([]);
+    expect(of(events, "leavePlayBlocked")).toEqual([]);
   });
 
   it("the revealed SHOW environment enters play and the one it replaces goes to the bottom of the show deck (1B)", () => {

@@ -62,7 +62,15 @@ describe("the unlock path", () => {
         expect(heroes).toContain(reward.identityCardId);
       }
     }
-    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual(["trors", "gmw", "mts", "sm", "mut_gen", "mojo"]);
+    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual([
+      "trors",
+      "gmw",
+      "mts",
+      "sm",
+      "mut_gen",
+      "mojo",
+      "next_evol",
+    ]);
   });
 
   it("MojoMania opens and unlocks by hand with Mutant Genesis' wave (its cycle), and brings no cast of its own", () => {
@@ -234,6 +242,17 @@ describe("storage", () => {
       wonCampaignIds: ["trors"],
       wonExpertCampaignIds: ["trors"],
     });
+  });
+
+  it("never counts a won Try-it lesson as a clear", () => {
+    const progress = progressOf(
+      [
+        { status: "won", guided: { kind: "mechanic" }, config: { scenarioId: "rhino", difficulty: "standard" } },
+        { status: "won", guided: { kind: "aspect" }, config: { scenarioId: "klaw" } },
+      ],
+      [],
+    );
+    expect(progress.wonScenarioIds).toEqual([]);
   });
 
   it("reads the dev param", () => {

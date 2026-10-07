@@ -16,6 +16,7 @@ import { McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../../u
 import { faceOf, type BoardModel, type HandCardView } from "../../view/board-model.js";
 import type { DiscardChoiceView } from "../../view/discard-choice-model.js";
 import type { IllegalReason } from "../../view/highlights.js";
+import { DEFENSE_LOCKOUT_TAG, isDefenseBarMessage } from "../../view/defense-lockout.js";
 import { handRow, type HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
@@ -23,6 +24,7 @@ import type { BoardDrawContext } from "./context.js";
 import {
   SOURCE_BAR_NOTE,
   drawAllianceHelpBar,
+  drawAbilityBar,
   drawFormBar,
   drawPlayConfirmBar,
   drawSourceBar,
@@ -69,6 +71,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const costChoice = ctx.controller.costChoiceView();
   const sourceChoice = ctx.controller.sourceChoice();
   const formChoice = ctx.controller.formChoice();
+  const abilityChoice = ctx.controller.abilityChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
   if (sourceChoice) {
     const height = hit.target + SOURCE_BAR_NOTE;
@@ -76,6 +79,9 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     top = rect.y + height + 4;
   } else if (formChoice) {
     drawFormBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, formChoice);
+    top = rect.y + hit.target + 4;
+  } else if (abilityChoice) {
+    drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, abilityChoice);
     top = rect.y + hit.target + 4;
   } else if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);
@@ -584,6 +590,7 @@ const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
  * stays available — this only picks the short form of a code the engine gave.
  */
 function shortReason(reason: IllegalReason, role: TeamUpRole | null): string | null {
+  if (isDefenseBarMessage(reason.message)) return DEFENSE_LOCKOUT_TAG;
   switch (reason.code) {
     case "wrong_form":
       return "wrong form";

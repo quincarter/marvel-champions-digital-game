@@ -80,8 +80,8 @@ const problem = (code: ImportProblem["code"], message: string, cardIds?: readonl
  * "not a real aspect" message from the engine rather than silently vanishing
  * here.
  */
-/** The four aspects a deck can choose for customization ("basic" and "pool" excluded). */
-const CORE_ASPECT_NAMES: readonly string[] = ["aggression", "justice", "leadership", "protection"];
+/** The five aspects a deck can choose for customization (RRG 1.8 p. 8: Aggression, Justice, Leadership, Protection, 'Pool); "basic" is not one. */
+const CORE_ASPECT_NAMES: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
 
 function aspectsFromMeta(meta: string | null | undefined): readonly string[] {
   if (!meta) return [];
@@ -214,11 +214,11 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   let aspects = aspectsFromMeta(data.meta);
   // MarvelCDB's `meta` holds at most two aspects, so an Adam Warlock deck (all four, `aspectCount: 4`) records only
   // two of them. When the identity needs more aspects than `meta` names, the aspects of the deck's own aspect cards
-  // fill the gap, provided that gives exactly the number the identity needs; otherwise `meta` stands as written and
+  // fill the gap (all of them when `meta` is missing), provided that gives exactly the number the identity needs; otherwise `meta` stands as written and
   // `validateDeck` reports the shortfall.
   const identityCard = identityCardId ? cardsById.get(identityCardId) : undefined;
   const needed = identityCard?.type === "hero_identity" ? (identityCard.deckbuilding?.aspectCount ?? 1) : 1;
-  if (aspects.length > 0 && aspects.length < needed) {
+  if ((aspects.length > 0 || needed > 1) && aspects.length < needed) {
     const filled = [...aspects];
     for (const { cardId } of cards) {
       const card = cardsById.get(cardId);

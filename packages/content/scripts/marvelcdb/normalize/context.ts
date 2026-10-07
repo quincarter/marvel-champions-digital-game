@@ -12,9 +12,9 @@ import { assignAbilityIds, parseCardText, type ParsedAbility, type ParsedText } 
 import type { RawCard } from "../raw-types.ts";
 import { imageOf, imagesOf, reprintImages } from "./art.ts";
 import { brand } from "./brand.ts";
-import { flatten, type Flattened } from "./flatten.ts";
+import { applyTypeCorrections, flatten, type Flattened } from "./flatten.ts";
 import type { Prepared } from "./prepare.ts";
-import { amplifyIconsField, collector, errataStatus, stripQuotes } from "./values.ts";
+import { amplifyIconsField, collector, errataStatus, schemeIconsField, stripQuotes } from "./values.ts";
 
 export interface NormalizeContext extends Flattened {
   readonly curation: PackCuration;
@@ -62,7 +62,7 @@ export interface NormalizeContext extends Flattened {
 
 export function createContext(raw: readonly RawCard[], curation: PackCuration): NormalizeContext {
   const errors: string[] = [];
-  const flat = flatten(raw, errors);
+  const flat = flatten(applyTypeCorrections(raw, curation.corrections, errors), errors);
   // Wave 2 fix: a three-sided identity's extra hero face (Ant-Man/Wasp's Giant, §1.1) is its own `hero`-type
   // record in the same `card_set_code`, with no linked alter-ego. Before this fix, whichever of the two hero
   // records for a set happened to sort last in the raw array's order won this map — silently making every
@@ -156,6 +156,7 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
     villainNames: ctx.villainNames,
     multipleVillains: ctx.packHasMultipleVillains,
     ...(p.unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed: p.unheadedWhenRevealed } : {}),
+    ...(p.extraConstantFrom !== undefined ? { extraConstantFrom: p.extraConstantFrom } : {}),
   });
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);
   const hasBoostAbility = parsed.abilities.some((a) => a.kind === "boost");
@@ -239,6 +240,7 @@ export function baseFields(
     ...(p.cardBack ? { cardBack: p.cardBack } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
     ...amplifyIconsField(p.raw),
+    ...schemeIconsField(p.raw),
   };
 }
 
@@ -273,6 +275,9 @@ export function checkNoSchemeFields(ctx: NormalizeContext, p: Prepared): void {
 export function expectNoPlayerData(ctx: NormalizeContext, p: Prepared, parsed: ParsedText): void {
   if (Object.keys(parsed.restrictions).length > 0 || parsed.maxPerDeckText !== undefined) {
     ctx.errors.push(`${p.raw.code}: play/deck restriction on a non-player card`);
+  }
+  if (parsed.restrictedWeight !== undefined) {
+    ctx.errors.push(`${p.raw.code}: "Counts as N restricted cards" on a non-player card`);
   }
 }
 

@@ -48,9 +48,9 @@ describe("howToPlayModules", () => {
     expect(modules.lessons.every((l) => !l.recommended)).toBe(true);
   });
 
-  it("lists Justice, Aggression, Leadership and Protection, skipping Basic", () => {
+  it("lists the four Core aspects and 'Pool, skipping Basic", () => {
     const modules = howToPlayModules(defaultGuidePrefs);
-    expect(modules.aspects.map((a) => a.aspect)).toEqual(["justice", "aggression", "leadership", "protection"]);
+    expect(modules.aspects.map((a) => a.aspect)).toEqual(["justice", "aggression", "leadership", "protection", "pool"]);
     expect(modules.aspects).toHaveLength(ASPECT_GUIDES.length - 1);
   });
 

@@ -17,6 +17,7 @@ import {
   moveCards,
   named,
   not,
+  on,
   query,
   self,
   stun,
@@ -64,20 +65,16 @@ export const DRAX_OBLIGATION_NEMESIS = defineAbilities({
   "19026.cull-the-weak-constant": constant(gets("atk", 2, query("enemy"))),
 
   // Challenge Accepted — Surge (data). Attach to the enemy with the highest ATK (data, `attachesTo`). Forced
-  // Response: After Drax deals 4 or more damage to attached enemy with a single attack, discard this card. Built
-  // as a raw `EventPattern` (`on.damage` has no `eventAtLeast`/named-source hook of its own): "Drax" is named
+  // Response: After Drax deals 4 or more damage to attached enemy with a single attack, discard this card. "Deals" is
+  // damage dealt, not taken (RRG 1.8 "Prevent", p. 35; owner ruling 2026-10-07, docs/dealt-vs-taken-audit.md): a
+  // tough status card or a prevention on the enemy does not keep the card in play. `on.damage` plus a named source
+  // (it has no source hook of its own): "Drax" is named
   // explicitly (`query("identity", { name: "Drax" })`) rather than "you"/`controller`, since this attachment has
   // no controller of its own (it lives on the enemy, RRG 1.8 "Ownership and Control", p. 31) and the printed text
   // names the hero, not "the player". Both of Drax's faces are titled "Drax" (docs/phase7-wave2.md §14.3), so this
   // still matches him in alter-ego form, the way `currentName` reads any identity's current face.
   "19028.challenge-accepted-forced-response": forcedResponse(
-    {
-      on: "dealDamage",
-      targetIs: { hostOfSelf: true },
-      sourceIs: query("identity", { name: "Drax" }),
-      fromAttack: true,
-      eventAtLeast: { amount: 4 },
-    },
+    { ...on.damage("host", { fromAttack: true, dealt: 4 }), sourceIs: query("identity", { name: "Drax" }) },
     discard(self),
   ),
 

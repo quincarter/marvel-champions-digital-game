@@ -508,14 +508,12 @@ export const X23_CARDS: readonly AnyCard[] = [
     traits: [trait("TACTIC")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a non-permanent side scheme. Limit 1 per side scheme.\nAttached scheme gains assault. (Basic thwarts against this scheme use ATK instead of THW.)",
       current: "Attach to a non-permanent side scheme. Limit 1 per side scheme.\nAttached scheme gains assault. (Basic thwarts against this scheme use ATK instead of THW.)",
     },
-    abilities: [
-      { id: abilityId("43020.the-direct-approach-constant") },
-      { id: abilityId("43020.the-direct-approach-constant-2") },
-    ],
+    abilities: [{ id: abilityId("43020.the-direct-approach-constant") }],
   },
   {
     id: cardId("43021"),
@@ -680,7 +678,10 @@ export const X23_CARDS: readonly AnyCard[] = [
       printed: "Give to the Laura Kinney player.\nSearch your hand, deck, discard pile, and play area for Honey Badger and place her facedown under this obligation. If you cannot, discard this card and deal yourself 1 facedown encounter card.\nResponse: After you make a basic recovery, discard this obligation and Honey Badger.",
       current: "Give to the Laura Kinney player.\nSearch your hand, deck, discard pile, and play area for Honey Badger and place her facedown under this obligation. If you cannot, discard this card and deal yourself 1 facedown encounter card.\nResponse: After you make a basic recovery, discard this obligation and Honey Badger.",
     },
-    abilities: [{ id: abilityId("43028.obligation") }],
+    abilities: [
+      { id: abilityId("43028.self-isolation-constant") },
+      { id: abilityId("43028.self-isolation-response") },
+    ],
   },
   {
     id: cardId("43029"),
@@ -851,6 +852,16 @@ export const X23_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/43036.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Front Line Specialist: \"Your hero gets +4 hit points.\" is now \"Your identity gets +4 hit points.\" MarvelCDB carries the current wording; the scan prints \"hero\".",
+        },
+      ],
+    },
     cost: 2,
     resourceIcons: { wild: 1 },
     aspect: "basic",
@@ -858,7 +869,7 @@ export const X23_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "linked", cardTitle: "Specialized Training" }],
     deckLimit: 1,
     text: {
-      printed: "Linked (Specialized Training).\nYour identity gets +4 hit points.\nResponse: After your identity takes damage from an enemy attack, exhaust this card → draw 1 card.",
+      printed: "Linked (Specialized Training).\nYour hero gets +4 hit points.\nResponse: After your identity takes damage from an enemy attack, exhaust this card → draw 1 card.",
       current: "Linked (Specialized Training).\nYour identity gets +4 hit points.\nResponse: After your identity takes damage from an enemy attack, exhaust this card → draw 1 card.",
     },
     abilities: [

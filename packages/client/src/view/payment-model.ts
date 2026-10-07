@@ -59,6 +59,8 @@ export interface PaymentState {
    * the command in place of the engine's own default picks, which are only the first `min` candidates.
    */
   readonly costChoices?: CostChoices;
+  /** The Action ability of a several-ability event the player chose (RRG 1.8 "Event", p. 18); each has its own cost. */
+  readonly abilityId?: AbilityId;
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
@@ -193,12 +195,13 @@ export function beginPayment(
   controllerId: PlayerId | null = null,
   costSelection?: CostSelection,
   costChoices?: CostChoices,
+  abilityId?: AbilityId,
 ): PaymentState | null {
   const query = paymentFor(
     state,
     playerId,
     action,
-    paymentContext(target, controllerId, costSelection, costChoices),
+    paymentContext(target, controllerId, costSelection, costChoices, abilityId),
     deps,
   );
   if (!query) return null;
@@ -208,6 +211,7 @@ export function beginPayment(
     controllerId,
     ...(costSelection ? { costSelection } : {}),
     ...(costChoices ? { costChoices } : {}),
+    ...(abilityId ? { abilityId } : {}),
     query,
     picked: [],
     reductions: [],
@@ -219,11 +223,13 @@ const paymentContext = (
   controllerId: PlayerId | null | undefined,
   costSelection?: CostSelection,
   costChoices?: CostChoices,
+  abilityId?: AbilityId,
 ) => ({
   target,
   ...(controllerId ? { controllerId } : {}),
   ...(costSelection ? { costSelection } : {}),
   ...(costChoices ? { costChoices } : {}),
+  ...(abilityId ? { abilityId } : {}),
 });
 
 /** Toggles one source in or out of the payment. */
@@ -290,13 +296,20 @@ export function paymentView(
           payment.controllerId ?? null,
           payment.costSelection,
           payment.costChoices,
+          payment.abilityId,
         )
       : tryPayment(
           state,
           playerId,
           payment.action,
           picked,
-          paymentContext(payment.target, payment.controllerId, payment.costSelection, payment.costChoices),
+          paymentContext(
+            payment.target,
+            payment.controllerId,
+            payment.costSelection,
+            payment.costChoices,
+            payment.abilityId,
+          ),
           deps,
         );
 

@@ -10,6 +10,7 @@ import type { Command } from "../commands.js";
 import { startSession, type GameSession } from "../engine.js";
 import type { GameEvent } from "../events.js";
 import { playerId, type InstanceId, type PlayerId } from "../ids.js";
+import type { OutsideFacts } from "../outside-facts.js";
 import { activeEncounterDeckId, mustInstance, mustPlayer } from "../query.js";
 import { createGame, type GameSetupConfig } from "../setup.js";
 import type { GameState } from "../state.js";
@@ -39,10 +40,12 @@ export interface Wave3Game {
   readonly encounter?: readonly CardId[];
   /** Extra cards for each seat's deck, on top of the default deck. */
   readonly deck?: readonly CardId[];
-  readonly players?: 1 | 2;
+  readonly players?: 1 | 2 | 3 | 4;
   readonly seed?: number;
   /** `GameSetupConfig.scenarioRuleSpecs` (docs/phase7-wave4.md §3.40). */
   readonly scenarioRuleSpecs?: GameSetupConfig["scenarioRuleSpecs"];
+  /** `PlayerSetup.outsideFacts` by seat (docs/phase7-wave7.md §3.83); a seat past the list supplies none. */
+  readonly outsideFacts?: readonly (OutsideFacts | undefined)[];
 }
 
 /** A game past setup, at the first player's first turn. */
@@ -57,10 +60,14 @@ export function gameAtFirstTurn(options: Wave3Game): GameState {
       villainCardId: villain.id,
       mainSchemeCardId: mainScheme.id,
       encounterDeck: options.encounter ?? copiesOf(TREACHERY.id, 30),
-      players: identities.map((identity) => ({
-        identityCardId: identity.id,
-        deck: [...DEFAULT_DECK, ...(options.deck ?? [])],
-      })),
+      players: identities.map((identity, seat) => {
+        const outsideFacts = options.outsideFacts?.[seat];
+        return {
+          identityCardId: identity.id,
+          deck: [...DEFAULT_DECK, ...(options.deck ?? [])],
+          ...(outsideFacts ? { outsideFacts } : {}),
+        };
+      }),
       ...(options.scenarioRuleSpecs ? { scenarioRuleSpecs: options.scenarioRuleSpecs } : {}),
     },
     options.deps,
