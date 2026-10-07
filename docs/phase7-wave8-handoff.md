@@ -146,3 +146,20 @@ cards: 15 hero, 20 Protection, 5 basic.
   28 to 30 in the photo; the titles are read with the raw data's help)
 - Not on the decklist card: 31 Combine Forces ×3, 32 Gunboat Diplomacy ×3, and 33 to 38 (The Crazy Gang, Queen of
   Hearts, Jester, Executioner, Tweedledope, "Off with His Head!"), the pack's modular set.
+
+### Magneto Hero Pack (received 2026-10-07)
+
+Every title and quantity matches `packages/content/raw/marvelcdb/magneto.json` positions 2 to 32. The deck is 40
+cards: 15 hero, 17 Leadership, 8 basic. The card's copyright line reads 2023 (the other three read 2024).
+
+- **Hero cards:** 2 Asteroid M, 3 Magneto's Helmet, 4 Magneto's Armor, 5 Magneto's Cape, 6 Magnetic Bubble, 7 Wrapped
+  in Metal ×2, 8 Electromagnetic Blast ×2, 9 Metal Shards ×2, 10 Magnetic Missile ×2, 11 Master of Magnetism ×2 (15)
+- **Leadership:** 12 M, 13 Kid Omega, 14 Phoenix, 15 Cyclops, 16 Won't Stay Down ×3, 17 Squared Off ×3, 18 Noble
+  Sacrifice ×3, 19 "You Got This!" ×3, 20 New Recruits (17; number 20 heads the card's second column, above the
+  Basic heading)
+- **Basic:** 21 White Queen, 22 Face the Past, 23 Deft Focus ×3, 24 Energy, 25 Genius, 26 Strength (8)
+- **Obligation:** 27 Old Grievances
+- **Nemesis set:** 28 Exodus, 29 Martyr for Mutants, 30 Fabian Cortez, 31 Frenzy, 32 Angry Acolyte (MarvelCDB has one
+  copy of each; the card prints no multiplier)
+- Not on the decklist card: 33 to 37 (Surge, Anole, Bling!, Indra, Children of the Atom ×3) and 38 to 42 (Sebastian
+  Shaw, Selene, Hellfire Pawn, The Inner Circle, Power and Decadence), the pack's modular set.
