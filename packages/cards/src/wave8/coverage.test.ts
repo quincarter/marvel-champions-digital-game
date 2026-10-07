@@ -11,6 +11,7 @@ import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
+import { HOUNDS } from "./aoa/hounds.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
@@ -21,6 +22,7 @@ import {
 import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
+import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
@@ -66,6 +68,12 @@ const SCRIPTED_MODULES: Readonly<
       registry: DYSTOPIAN_NIGHTMARE,
       skipped: {},
     },
+    {
+      module: "hounds",
+      cardIds: ["45097", "45098", "45099", "45100"],
+      registry: HOUNDS,
+      skipped: {},
+    },
   ],
   iceman: [
     { module: "iceman/identity", cardIds: ["46001a", "46001b"], registry: ICEMAN_IDENTITY, skipped: {} },
@@ -107,6 +115,14 @@ const SCRIPTED_MODULES: Readonly<
         "48012.rogue-action":
           "cost picks another friendly character of any player and deals it damage (dealt, paid even if prevented); no cost does that: docs/phase7-wave8.md §3.74",
       },
+    },
+  ],
+  magneto: [
+    {
+      module: "hellfire",
+      cardIds: ["49038", "49039", "49040", "49041", "49042"],
+      registry: HELLFIRE,
+      skipped: HELLFIRE_SKIPPED,
     },
   ],
 };
