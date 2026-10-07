@@ -13,15 +13,15 @@ expansion, the _Iceman Hero Pack_, the _Jubilee Hero Pack_, the _Nightcrawler He
 Pack_." Packs: `aoa` (MC45, with Bishop and Magik), `iceman`, `jubilee`, `ncrawler`, `magneto`. The spec is written in
 passes so each stays small (the split of passes 1b to 3 is proposed; the main session decides it):
 
-| Pass   | Scope                                                                                                | State       |
-| ------ | ---------------------------------------------------------------------------------------------------- | ----------- |
-| **1a** | **The box's new rules and keyword list; Unus and the Four Horsemen; the six sets those two use**     | **written** |
-| **1b** | **Apocalypse, Dark Beast, En Sabah Nur and their modular sets**                                      | **written** |
-| 1c     | The MC45 campaign, side missions, the Mission, Overseer, Age of Apocalypse and the two Campaign sets | placeholder |
-| 2a     | Bishop, Magik and the box's player cards                                                             | placeholder |
-| 2b     | Iceman, Jubilee                                                                                      | placeholder |
-| 2c     | Nightcrawler, Magneto                                                                                | placeholder |
-| 3      | Ordered engine build queue                                                                           | placeholder |
+| Pass   | Scope                                                                                                    | State       |
+| ------ | -------------------------------------------------------------------------------------------------------- | ----------- |
+| **1a** | **The box's new rules and keyword list; Unus and the Four Horsemen; the six sets those two use**         | **written** |
+| **1b** | **Apocalypse, Dark Beast, En Sabah Nur and their modular sets**                                          | **written** |
+| **1c** | **The MC45 campaign, side missions, the Mission, Overseer, Age of Apocalypse and the two Campaign sets** | **written** |
+| 2a     | Bishop, Magik and the box's player cards                                                                 | placeholder |
+| 2b     | Iceman, Jubilee                                                                                          | placeholder |
+| 2c     | Nightcrawler, Magneto                                                                                    | placeholder |
+| 3      | Ordered engine build queue                                                                               | placeholder |
 
 - **Pass 1a's content.** MC45 p. 3 ("New Rules": find; "Featured Keywords"; the victory display; the amplify icon; the
   Standard III encounter set); scenario 1 Unus (villain 45059–45061, main scheme 45062a/b, set `unus` 45063–45068)
@@ -39,13 +39,20 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
   modular sets Celestial Tech `celestial_tech` 45156–45158 and Clan Akkaba `clan_akkaba` 45159–45163). 73 raw records
   and the five nested Prelate faces, every one read. Sections 1.12–1.22, 2.6–2.10, 3.18–3.32, questions 11–17 and
   §5.1.
-- **Not in passes 1a and 1b:** the campaign and side missions (MC45 pp. 4–7, 20, 24, and the Campaign Instructions
-  boxes on pp. 8, 12, 14, 16 and 20), the Overseer faces of the Prelate cards, the hero packs. Placeholders are marked
-  **(pass N)**; a card of a later pass is named here only to show that a primitive composes.
+- **Pass 1c's content.** The campaign: MC45 pp. 4–6 (campaign mode rules, campaign-specific cards, the campaign log,
+  side missions, mission attempts), the Campaign Instructions boxes on pp. 8, 12, 14, 16 and 20, the expert campaign
+  (p. 20) and the log (p. 24); and its 28 cards in five sets: Age of Apocalypse (`age_of_apocalypse` 45164–45165), the
+  five missions (`aoa_mission` 45166a/b–45170a/b), the player campaign cards (`aoa_basic_campaign` 45171a/b–45176),
+  Campaign (`aoa_campaign` 45177–45178) and the Overseer faces (`overseer` 45179a–45183a). 20 raw records and the six
+  nested b faces of the missions and Mission Team, every one read; the Mission Rules card has no record (§1.29).
+  Sections 0.2, 1.23–1.31, 2.11–2.16, 3.33–3.47, questions 18–25 and §5.2.
+- **Not in pass 1:** the hero packs. Placeholders are marked **(pass N)**; a card of a later pass is named here only
+  to show that a primitive composes.
 - **Data state (2026-10-07):** `iceman`, `jubilee`, `ncrawler` and `magneto` are emitted as data-only packs under
   `packages/content/src/data/`; `aoa` is raw only (`packages/content/raw/marvelcdb/aoa.json`, 195 records). The data
   survey (`docs/phase7-wave8-data-survey.md`) landed after pass 1a; pass 1b answers its gaps 3, 7, 8, 14 and 17 and
-  its open questions 3 and 5 (§1.12–§1.22).
+  its open questions 3 and 5 (§1.12–§1.22); pass 1c answers its gaps 4, 5, 6, 9, 10, 11 and 19 and its open questions
+  2, 3 and 10 (§1.23–§1.31).
 
 ## 0. Sources
 
@@ -96,7 +103,7 @@ Reference; FFG rulings clarify both):
    - June 25, 2026 – Ruling 5: "Finding and revealing an attachment already in play triggers its When Revealed
      abilities and keywords" (RRG p. 19; §3.1).
    - April 30, 2026 – Ruling 4 has two answers: (2), the Prelate minions of the Apocalypse scenario, is pass 1b's
-     (below, §2.7); (1), Digging Deep in a mission attempt, is **(pass 1c)**.
+     (below, §2.7); (1), Digging Deep in a mission attempt, is pass 1c's (§0.2, §3.38).
 4. `docs/phase7-wave8-sources.md` and `docs/phase7-wave8-handoff.md` are pointers. Two lines of the sources page are
    superseded here: its §3.1 calls the amplify icon new to this cycle (it has been in the engine since wave 3 §3.6),
    and its §6 item 5 asks whether "[star]" and amplify are one primitive (they are not: RRG "Star Icon", p. 40, "has
@@ -161,6 +168,78 @@ No ruling of pass 1a disagrees with the RRG. One rulebook sentence disagrees wit
    - Rulings on rules this pass uses, already quoted above: January 11, 2026 – Ruling 1 (1) (Source of Power 45153 and
      Trial by Combat 45146 print an amplify icon and a When Defeated); June 25, 2026 – Ruling 5 (Police State 45138
      finds and reveals an attachment that may be in play, §4.2 Q17).
+
+### 0.2 Pass 1c's sources
+
+1. **The rulebook.** Pages read: 4, 5, 6, 20 and 24, and the Campaign Instructions boxes on pp. 8, 12, 14, 16 and 20;
+   p. 7 is a comic page with no rules. Pages 5, 6, 8, 12, 14 and 20 and the log sheet
+   (`docs/campaign-modes/log-sheets/mc45_age_of_apocalypse_campaign_log.pdf`, the same sheet as p. 24) were read from
+   130 dpi renders as well as the text layer. Slips:
+   - p. 5: the markdown interleaves the Mission Rules card's six bullets with Sugar Man's stat box ("When a player
+     plays an ally, they must be affected by card abilities…"). The text layer has the card clean; §1.29 quotes it.
+   - p. 5 and the boxes: "the Age of Apocalypse **encounter set**" (p. 5) and "the Age of Apocalypse **modular set**"
+     (pp. 8, 12, 14, 16, 20) are the same four cards (§1.28, §4.2 Q23).
+   - p. 6: the resource icons of the example are glyphs the text layer drops. From the render and raw: Magik's Crown
+     (45033, [mental]) is assigned to Randall (45003, [wild]), Clobber (45046, [physical]) to X-23 (45012,
+     [physical]), Bloodgem (45050, [wild]) to Marrow (45021, [energy]). The page also prints "cannot take damage while
+     another minion in the mission area" (a word is missing) and "strike its name from of the campaign log".
+   - pp. 12, 14, 16 and 20: the renders settle §0.1's doubt. The two "Expert Campaign Only" Setup bullets are a shaded
+     box that closes the Setup list, after the ally search; the third closes the Victory list. The markdown has
+     pp. 14, 16 and 20 right, and the text layer's order (all three after Victory) is a reading-order artifact. On
+     p. 12 the markdown prints the "VICTORY:" heading above "SETUP:" and the five Victory bullets inside the Setup
+     list. Scenario 1's box (p. 8) has no expert Setup bullet: nothing is recorded yet.
+   - p. 20: the shaded line "When playing expert campaign, the ally you choose during Setup must share a trait with
+     your hero." stands at the foot of the Expert Campaign Rules column, not in scenario 5's box. The text layer
+     prints it straight after scenario 5's bullets; the markdown has it right. It is read as a rule of every
+     scenario's ally search (§2.16).
+   - p. 24: the sheet's rows are Liberate the Seattle Core, Evacuate Survivors, Sabotage the Sea Wall, Find Lost
+     Mutants, the cards' own order (1/5 to 4/5); the text layer lists them in another order. The Evacuate Survivors
+     "Defeated" cell drops a word ("They may include 1 copy of card in their deck"); Sabotage the Sea Wall's cell
+     prints "1 copy of that card". **The sheet has no box for whether a mission was defeated and no row for Protect
+     the Professor** (§1.23).
+   - Two repo documents have the sheet's columns the wrong way round: `docs/campaign-mode-design.md` §1.2 ("failing a
+     mission lets each player add a free upgrade/support/ally … defeating it removes cards") and
+     `docs/campaign-client-per-box.md` §3's MC45 row ("Missions whose 'not defeated' result is a reward"). On the
+     sheet **Defeated** is the reward and **Not Defeated** the cost (§2.14). Reported, not edited here.
+2. **Card text.** Every record of the five sets pulled from raw by script. Scans read: 45164, 45166b, 45171a, 45171b,
+   45176, 45177, 45178, 45179a and 45181a. They settle:
+   - A mission's b face prints SIDE SCHEME, the trait FINISHED, a **dash** where the threat goes and the a face's set
+     line ("MISSION (1/5)"). The a face prints 5[per_hero] (the callouts on pp. 5 and 6).
+   - Mission Team has no cost box, one [wild] icon, the trait MISSION (a) or FINISHED (b) and "BASIC / CAMPAIGN". The
+     printed 45171a reads "the next ally played to the mission by 2": raw carries the current text (§1.26).
+   - The Overseer a faces print a dash for SCH and for ATK, 5[per_hero] hit points and "OVERSEER (n/5)".
+   - North American Sea Wall: 2 threat with no per player icon, two boost icons and a star, "CAMPAIGN (1/5)". Panicked
+     Refugees: one acceleration icon in the text box, "CAMPAIGN (2/5)". Agent of Apocalypse: SCH 2, ATK 2, 3 hit
+     points, a star and no boost icon, "AGE OF APOCALYPSE (1/4)". Desperate Measures: cost 1, one [wild] icon.
+   - **The Mission Rules card has no raw record and no scan.** Its side A is quoted from p. 5's callout (text layer);
+     its side B is not shown anywhere in the rulebook (§1.29).
+3. **RRG 1.8** entries pass 1c adds: "Ally" (p. 7), "Ally Limit" (p. 7), "Campaign-Specific Card" (p. 11), "Discard"
+   (p. 16), "Forced" (p. 20), "In Play and Out of Play" (p. 23), "Modes of Play" (pp. 28–29: "If a card is removed
+   from a campaign, that card can no longer be used during the rest of the campaign, even if players retry the
+   scenario wherein that card was removed"), "Obligation" (p. 30), "Ownership and Control" (p. 31), "Player Deck"
+   (p. 33), "Player Elimination" (p. 34), "Remaining Hit Points" (p. 36), "Unique Icon" (pp. 45–46), "Wild Resource"
+   (p. 48), Appendix II step 13 "Campaign Setup" (p. 51), the FAQ "Campaign Mode" (p. 61: an expert campaign does not
+   force expert mode on any scenario) and the erratum "Mission Team (#171A)" (p. 69). **No RRG FAQ names a card of
+   pass 1c; one erratum does** (Mission Team).
+4. **FFG rulings.** Every title of the five sets was matched against the file by script. None of the fifteen titles
+   of the mission, campaign and Age of Apocalypse sets is named. "Mister Sinister" and "Shadow King" appear once, in
+   the question of the one ruling on this campaign:
+   - **April 30, 2026 – Ruling 4 (1)**: "You can trigger Digging Deep's Response to add it to your hand; if you do, it
+     does not count for the mission attempt and no replacement card is drawn." Digging Deep is `next_evol` 40060
+     ("Response: After this card is discarded from the top of your deck, add it to your hand."). The engine already
+     follows the ruling for every deck discard (wave 7 §3.55, §4.1 Q32: a card a response took away is no longer among
+     the cards the discarding ability counts). §3.38.
+   - **April 30, 2026 – Ruling 4 (2)**, quoted in §0.1: a struck Overseer does not take its Prelate face out of
+     scenario 3. MC45 p. 14 says the converse: "Defeating a [PRELATE] minion does not remove its [OVERSEER] version
+     from the campaign." §1.25, §3.46.
+
+No ruling of pass 1c disagrees with the RRG. Two sentences of the rulebook depart from it, and the rulebook wins both
+(RRG "The Golden Rules", p. 4): MC45 p. 6 lets a [wild] icon on a discarded card match any icon on an ally, and any
+icon match an ally's [wild], where RRG "Wild Resource" (p. 48) says a wild resource not generated for a cost "does not
+have any characteristic other than 'wild resource'"; and MC45 p. 4 calls cards 164–183 campaign cards, where RRG
+"Campaign-Specific Card" (p. 11) names them by "the word 'Campaign' printed at the bottom of the card", which
+45171a–45178 carry and the Age of Apocalypse, Mission and Overseer cards (45164–45170b, 45179a–45183a) do not (§4.2
+Q23).
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -283,8 +362,8 @@ class="icon-star">`) and needs the same cleaning as the other b faces; the oblig
 
 ### 1.11 Placeholders
 
-- **(pass 1c)** The mission area, mission side schemes, the Overseer faces of the two-face minions (their Prelate
-  faces are §1.15), Mission Team (45171a), the campaign record and log.
+- The mission area, mission side schemes, the Overseer faces of the two-face minions (their Prelate faces are
+  §1.15), Mission Team (45171a), the campaign record and log: written in pass 1c, §1.23–§1.31.
 - **(pass 2)** Bishop, Magik and the four hero packs.
 
 ### 1.12 Pass 1b: Apocalypse of scenario 3, four stages on two cards
@@ -454,10 +533,238 @@ Expert set (§1.10).
   45122–45125, 45127, 45129–45139, 45141–45146, 45149–45162, 45180b–45183b, 45184a/b, 45185a–45186c. Raw is the only
   source for those texts here.
 
+### 1.23 Pass 1c: the campaign record (`AOA_CAMPAIGN`)
+
+> Status of §1.23–§1.31: **proposed (2026-10-07), nothing landed.** Searched `packages/content/src/schema`,
+> `packages/content/scripts/marvelcdb` and `packages/engine/src/campaign.ts` for each shape. **Pass 1c asks for no
+> schema change**: `Campaign`, `EncounterSet.campaignSpecific`, `otherFaceId`, `PlayerCardCommon.flipSide`,
+> `PrintedStat` (`null` is a printed dash), `specialCost: "dash"` and every `LogFieldType` below exist. It asks the
+> parser for one trigger header (§1.25) and the normalizer for two rules (§1.24, §1.25).
+
+The hand-authored `packages/content/src/data/aoa/campaign.ts`, the `next_evol` shape
+(`packages/content/src/data/next_evol/campaign.ts`).
+
+- `id: campaignId("aoa")`, `name: "Age of Apocalypse"`, `boxCode: "MC45"`, `packCode: "aoa"`, `scenarioIds` in MC45
+  p. 4's fixed order (`unus`, `four-horsemen`, `apocalypse`, `dark-beast`, `en-sabah-nur`), `logSheetReference` to
+  `docs/campaign-modes/log-sheets/mc45_age_of_apocalypse_campaign_log.pdf`.
+- `campaignSetIds`: the five sets below, each `campaignSpecific: true`, every card `specificTo: { kind: "campaign" }`
+  (MC45 p. 4: "These cards cannot be included in any deck unless playing the Age of Apocalypse campaign and the
+  players are directed to add them to a deck by the Campaign Instructions"). This is the survey's gap 11: only
+  `aoa_basic_campaign` is detected from its faction; the other four need the curation flag.
+- No `prohibited` (the rulebook forbids no card or set; "Professor X cannot enter play during this game" is a rule of
+  one game, §3.43), no `perSeatSetIds`, no `roles`.
+
+| Set id               | Printed in the set name area | Cards                           | How it gets into a game                                     |
+| -------------------- | ---------------------------- | ------------------------------- | ----------------------------------------------------------- |
+| `age_of_apocalypse`  | "AGE OF APOCALYPSE (n/4)"    | 45164 ×2, 45165 ×2              | shuffled into the encounter deck in all five scenarios      |
+| `aoa_mission`        | "MISSION (n/5)"              | 45166a/b–45170a/b               | one per game, revealed into the mission area                |
+| `overseer`           | "OVERSEER (n/5)"             | 45179a–45183a                   | one per game, put into play in the mission area             |
+| `aoa_campaign`       | "CAMPAIGN (n/5)"             | 45177 ×1, 45178 ×4              | by a mission's row of the campaign log (§2.14)              |
+| `aoa_basic_campaign` | none ("BASIC / CAMPAIGN")    | 45171a/b, 45172–45175, 45176 ×4 | Mission Team in every game; the rest by a mission's log row |
+
+- **Names** (the survey's "two sets are both named Campaign"): `aoa_campaign` is "Campaign" as printed and is shown
+  as "Age of Apocalypse Campaign"; `aoa_basic_campaign` is raw's grouping of the six "BASIC / CAMPAIGN" player
+  records, not a printed encounter set, and is shown as "Age of Apocalypse Campaign (player cards)".
+- **A flagged difference.** RRG "Campaign-Specific Card" (p. 11) designates a campaign card by the word "Campaign" at
+  the bottom of the card. The Age of Apocalypse, Mission and Overseer cards do not print it; MC45 p. 4 says "Cards
+  164–183 are cards that were created specifically for use in the Age of Apocalypse campaign", and the boxes call the
+  first of them a "modular set". The data follows the rulebook (all five sets campaign-specific); whether the four
+  Age of Apocalypse cards are also offered as a modular set is §4.2 Q23.
+
+**Log fields** (MC45 p. 24), for the `CampaignDefinition`; every type is an existing `LogFieldType`
+(`packages/engine/src/campaign.ts`). This answers the survey's gap 19.
+
+| Field (id)                                                         | Scope    | Type                                            | The sheet's box                                                     |
+| ------------------------------------------------------------------ | -------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| identity (the seat itself)                                         | per seat | the runner's `CampaignSeat`                     | "Player #N's Identity"                                              |
+| `remainingHp`                                                      | per seat | `number`, expert campaign                       | "Remaining hit points"                                              |
+| `missions`                                                         | shared   | `strikeList`, four options in the sheet's order | the "Mission Side Scheme" column; a struck name                     |
+| `overseers`                                                        | shared   | `strikeList`, five options                      | "Available Overseer minions", five boxes                            |
+| `resultLiberate`, `resultEvacuate`, `resultSabotage`, `resultFind` | shared   | `choice` over `defeated`, `notDefeated`         | **not on the sheet**: which of the struck row's two columns applied |
+| `currentMission`, `currentOverseer`                                | shared   | `choice`, `working`                             | not on the sheet: this scenario's draw, for Victory to strike       |
+| `missionDefeated`, `overseerDefeated`                              | shared   | `flag`, `working`                               | not on the sheet: what Victory read out of the finished game        |
+
+- **The four result fields are the one thing the paper log does not hold.** Six of the sheet's eight outcome cells
+  say "for the rest of the campaign", and the sheet records only a struck name; the table remembers the rest. The log
+  cannot, so each mission's result is written when its name is struck, and the Dossier shows it on the struck row.
+- The rewards themselves are `CampaignGrant`s on the seat (the chosen upgrade, support and campaign ally) and
+  `removedFromCampaign` entries (Desperate Measures, Panicked Refugees, North American Sea Wall, the campaign allies),
+  as every earlier box records them.
+- Protect the Professor (45170a) is not on the sheet: it is never drawn and never struck (MC45 p. 5: "reserved for
+  scenario 5").
+- **Striking an Overseer is a strike, not a removal by face.** `CampaignCardFace` (`campaign.ts`) was written when
+  the two versions were expected to be one `CardId` with a `flipSide`; §1.15 makes them two cards, so 45182a struck
+  from `overseers` says nothing about 45182b, which is what ruling April 30, 2026 – Ruling 4 (2) requires. The comment
+  on `CampaignCardFace` needs the correction when engine work next touches the file.
+
+### 1.24 The five missions: a side scheme whose other face is "Finished"
+
+| Card                            | a face (all five alike)             | b face, "If the mission was not defeated"              | b face, "If the mission was defeated"                                                         |
+| ------------------------------- | ----------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Liberate the Seattle Core 45166 | side scheme, [MISSION], 5[per_hero] | place 2[per_hero] threat on the main scheme            | each player adds 1 copy of the Desperate Measures upgrade to their hand                       |
+| Evacuate Survivors 45167        | the same                            | deal each player a facedown encounter card             | each player searches their deck and discard pile for 1 card and adds it to their hand         |
+| Sabotage the Sea Wall 45168     | the same                            | find North American Sea Wall and reveal it. (Shuffle.) | find North American Sea Wall, remove it from the game, each player deals 3 damage to an enemy |
+| Find Lost Mutants 45169         | the same                            | each player discards 1 card from their hand            | each player adds one set-aside campaign ally to their hand                                    |
+| Protect the Professor 45170     | the same                            | the players lose the game                              | each player searches their deck and discard pile for an ally and adds it to their hand        |
+
+- **a face.** `SideSchemeCard`, trait [MISSION], `startingThreat: perPlayerOnly(5)` (raw `base_threat: 5`, not fixed;
+  the callouts show the per player icon), no scheme icons, no boost icons, no keywords, `otherFaceId` → its b face.
+  One text on all five: "Forced Response: After you resolve a mission attempt, place 1 attempt counter here and deal 1
+  damage to each ally at the mission. If there are 4 attempt counters here, remove Mission Team from the game and
+  flip this card over. When Defeated: Shuffle each player card at the mission into its owner's deck. Flip Mission Team
+  and this card over."
+- **b face** (the survey's gap 4 and open question 10). Its own `SideSchemeCard`, as the card prints the type, trait
+  [FINISHED], `otherFaceId` back to the a face: "Forced Response: After you flip to this side, remove each card in the
+  mission area from the game and do the following:" and the two bullets of the table. Two cards, not a `flipSide`: a
+  `SideSchemeCard` is not an `EncounterCardCommon` and has no `flipSide`; a side scheme that flips to another side
+  scheme is the `otherFaceId` shape (`mts` 21184a/b, §1.14).
+- **The dash.** The b face prints "–" for its threat. **No dash field is added for side schemes**: the face is
+  emitted with `startingThreat: fixed(0)` and a `cardNotes` line that records the printed dash, and the normalizer
+  accepts "side scheme without starting threat" when that note exists, as it accepts a minion's absent ATK
+  (`normalize/encounter-cards.ts`). That clears the survey's five lines. The engine never reads the value: nothing
+  can place threat on a card in the mission area unless it names the mission (§3.33), and the face does not outlast
+  its own Forced Response (§4.2 Q20).
+
+### 1.25 The Overseer faces, "Mission Response", and where a Prelate's stats live
+
+Five `MinionCard`s in the set `overseer`, each `otherFaceId` → its Prelate face (§1.15) and back.
+
+| Card                    | Printed                                                          | Its own line                                                                                                                                                            |
+| ----------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mister Sinister 45179a  | SCH –, ATK –, 5[per_hero], [ELITE] [OVERSEER], unique, victory 5 | "Players cannot assign cards with the same resource icon ([energy], [mental], [physical], or [wild]) to more than one ally each mission attempt."                       |
+| The Shadow King 45180a  | the same                                                         | "Mission Response: After you discard cards, place 2 threat on the [MISSION] side scheme for each mental resource ([mental]) discarded."                                 |
+| Abyss 45181a            | the same                                                         | "Mission Response: After you discard cards, attach each card with a wild resource ([wild]) discarded to Abyss facedown. (They cannot be used for the mission attempt.)" |
+| Sugar Man 45182a        | the same                                                         | "Mission Response: After you discard cards, heal 3 damage from Sugar Man for each physical resource ([physical]) discarded."                                            |
+| Mikhail Rasputin 45183a | the same                                                         | "Mission Response: After you discard cards, deal 1 damage to an ally at the mission for each energy resource ([energy]) discarded."                                     |
+
+All five also print "Cannot take damage while another minion is at the mission." None has boost icons (raw; an
+Overseer is never in a deck).
+
+- **Where a Prelate's ATK, SCH, hit points, boost icons and Victory 3 live: on its own `MinionCard`** (45179b–45183b
+  in `prelates`, §1.15), never on a `flipSide`. `CardFlipSide` (`schema/cards/encounter-cards.ts`) holds a name,
+  traits, keywords, text and icons, and no SCH, ATK, hit points, boost icons or encounter set; the two faces differ
+  in exactly those (SCH and ATK a dash against 1 to 3; no boost icons against three; `overseer` against `prelates`).
+  The data agent's report that a `flipSide` has nowhere to put them is the reason, not a gap to fill: **no field is
+  added to `flipSide`.**
+- **The normalizer rule** (finishing gap 7): a nested `linked_card` of type minion, or one whose `card_set_code`
+  differs from its parent's, is emitted as its own card with `otherFaceId` both ways and joins the set its own record
+  names. This is the route `mut_gen` 32171a/b took for a face whose type changes (wave 6 §1.8).
+- **One printed card, two sets** (the survey's open question 3): `overseer` is campaign-specific and `prelates` is
+  not. A set is a property of a face's record, so nothing is special about the pair in data. That the two records are
+  one piece of cardboard matters in one game only, a campaign game of scenario 3 (§3.46, §4.2 Q21).
+- **The dashes** (gap 6): the ten `cardNotes` lines emit `atk: null` and `sch: null`, not 0 (`PrintedStat`,
+  `schema/common.ts`). RRG "Dash (Value)" (p. 15): the character "cannot exhaust to use that power", and a reference
+  to the value reads "an unmodifiable 0".
+- **"Mission Response" as an ability kind** (gap 5; the ruling the data step asked for). MC45 p. 5: "Most [OVERSEER]
+  minions have a **Mission Response** ability. This is a new type of **Forced Response** that only resolves after a
+  player discards cards from the top of their deck during a mission attempt."
+  - **It is a Forced Response. No new ability kind.** The parser adds `Mission Response` to `TRIGGER` and `kindOf`
+    returns `forced-response` for it (`parse-text.ts`); nothing is added to the parser's `AbilityKind`, to the schema
+    or to the engine's timing words. Every rule that reads "Forced Response" (forced responses initiate before other
+    responses, RRG "Forced", p. 20; `cannotResolveTriggeredAbilities.timings`) then reads these four abilities with
+    no further case.
+  - The printed header stays in the card's text, so the client shows "Mission Response" as printed, and the glossary
+    gets one entry with p. 5's sentence. `notesForScripting` on each of the four says: "answers the discard of a
+    mission attempt only (§3.38)".
+  - The condition "during a mission attempt" is the script's (§3.38), not data. Mister Sinister's line is a constant
+    ability and parses as one today.
+
+### 1.26 Mission Team (45171a/b)
+
+One `SupportCard` with a `flipSide` (`PlayerCardCommon.flipSide`, the wave 2 shape): the two faces share a type, a
+title and a first sentence and differ in trait and Action.
+
+- Classification basic and campaign ("BASIC / CAMPAIGN"), one [wild] resource icon, **no cost box**: `cost: 0,
+specialCost: "dash"` (gap 9). RRG "Dash (Value)" (p. 15): "that card cannot be played and can only enter play through
+  other means". It is never in a deck or a hand: a campaign instruction puts it into play (§2.12).
+- a face, trait [MISSION]: "Mission Team cannot be discarded and the first player gains control of it. Action: Exhaust
+  Mission Team → choose: • Reduce the cost of the next ally played to the mission this phase by 2. • Make a mission
+  attempt."
+- b face, trait [FINISHED]: the same first sentence and "Action: Exhaust Mission Team → choose a player to draw 1
+  card."
+- **Errata** (RRG 1.8 p. 69, "Mission Team (#171A)": "The first bullet should read: 'Reduce the cost of the next ally
+  played to the mission this phase by 2.' (Added 'this phase'.)"). Raw holds the current text and notes the change as
+  first made in RRG 1.6; the printed card (scan) lacks the two words. `text.printed` is restored with
+  `printedReplace`, `text.current` is raw's, and the `Errata` entry cites RRG 1.8 p. 69 (the survey's gap 20). The
+  engine builds the current text: an unused discount ends with the phase.
+
+### 1.27 The campaign allies and Desperate Measures
+
+| Card                        | Printed                                                           | Text                                                                                                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Destiny 45172               | ally, cost 4, [wild], unique, [X-MEN], THW 3, ATK 1, 3 hit points | "Response: After Destiny enters your hand, remove 2 threat from the main scheme."                                                                                                         |
+| Blink 45173                 | the same, THW 2, ATK 2                                            | "Response: After Blink enters your hand, deal 2 damage to the villain."                                                                                                                   |
+| Morph 45174                 | the same, THW 2, ATK 2                                            | "Response: After Morph enters your hand, confuse the villain."                                                                                                                            |
+| X-Man 45175                 | the same, THW 1, ATK 3                                            | "Response: After X-Man enters your hand, give your identity a tough status card."                                                                                                         |
+| Desperate Measures 45176 ×4 | upgrade, cost 1, [wild]                                           | "Attach to an ally. Limit 1 per ally. Attached ally gets +1 THW, +1 ATK, +1 hit point, and is considered to have a wild ([wild]) resource icon in addition to its printed resource icon." |
+
+`AllyCard` and `UpgradeCard`, basic and campaign, one consequential damage under each THW and ATK (raw `thwart_cost`
+and `attack_cost` 1). Desperate Measures' host is `ally` (any player's, and an ally at the mission: §3.34) with one
+per host. Its three stat changes are ability text; the considered [wild] icon is §3.42. **No schema change.**
+
+### 1.28 The Age of Apocalypse set and the Campaign set
+
+| Card                          | Type and printed values                                                                                      | Text                                                                                                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent of Apocalypse 45164 ×2  | minion, [CLAN AKKABA], SCH 2, ATK 2, 3 hit points, guard, a star and no boost icon                           | "When Revealed: Choose: Either add Agent of Apocalypse to the mission area, or it activates against you." / "[star] Boost: Deal 1 damage to an ally at the mission. Give the activating enemy an additional boost card."                    |
+| Worldwide Crisis 45165 ×2     | treachery, a star and no boost icon (raw)                                                                    | "When Revealed: Choose: Either place 3 threat on the [MISSION] side scheme, or take 1 damage and this card gains surge." / "[star] Boost: Place 1 threat on the [MISSION] side scheme. Give the activating enemy an additional boost card." |
+| North American Sea Wall 45177 | side scheme, 2 threat flat, hinder 2[per_hero], surge, victory 2, two boost icons and a star, no scheme icon | "The villain cannot take damage." / "[star] Boost: Deal this card to yourself as a facedown encounter card."                                                                                                                                |
+| Panicked Refugees 45178 ×4    | obligation, one acceleration icon (`schemeIcons: ["acceleration"]`), no boost icon, no identity              | "Forced Response: After this card enters your hand, reveal it. Then, draw 1 card. Alter-Ego Action: Exhaust your identity → remove this card from the game."                                                                                |
+
+Ordinary records. Panicked Refugees is emitted as Hunted is (§1.8): an `ObligationCard` with its set and no identity.
+It is an encounter card that spends its life in a player's deck (§3.42). **No schema change.**
+
+### 1.29 The Mission Rules card: no record
+
+The survey's gap 10 and open question 2. MC45 pp. 5, 8, 12, 14, 16 and 20 put "the double-sided Mission Rules card"
+into play beside the Overseer. It has no card number, no raw record and no scan; by the survey's count (an inference)
+it is the box's 165th encounter card. Its side A, from p. 5's callout:
+
+> Mission Rules. • Players cannot thwart the [MISSION] side scheme. • Cards in the mission area are in play but under
+> no player's control. They cannot be affected by card abilities unless the ability refers to the mission area. • When
+> a player plays an ally, they must choose: put that ally into play under their control, or put it in the mission
+> area. • Treat the printed text box of each ally at the mission as if it were blank, except for [TRAITS]. • Upgrades
+> can be attached to allies at the mission. • **The [MISSION] side scheme cannot be defeated while there are any
+> minions in the mission area.** Flip this card over to see the steps to resolve a mission attempt.
+
+- **Decision: no card record, no instance in a game.** The six bullets are rules of the mission area, and MC45 p. 5
+  ties them to the scheme ("**While a [MISSION] side scheme is in play**, when a player plays an ally, they must
+  choose …"), so the mission's a face carries them: one shared rules block in `@mc/cards` that all five a-face scripts
+  include (§3.33, §3.34, §3.40). The engine names no card and holds no mission rule of its own.
+- **The client shows it as a reference panel**, not a card on the table: side A as quoted, side B as MC45 p. 6's five
+  steps (§2.13). Side B's own wording has not been read; if the owner scans the card, the panel's text and this
+  section are checked against it.
+- "Remove each card in the mission area from the game" (the b faces) therefore has no rules card to remove. Nothing
+  reads it.
+
+### 1.30 Scenario records: no change
+
+The five `Scenario` records of §1.10 and §1.21 are not touched. What the campaign adds to a game is the
+`CampaignDefinition`'s: the four Age of Apocalypse cards go in beside the scenario's sets (`composeEncounterSets`,
+which does not use a modular slot), and everything else arrives set aside (`setAsideCards`). No node has
+`requiredModularSetIds`: MC45 requires no modular set in the campaign that the scenario does not already require.
+
+### 1.31 Corrections the data agent owes for pass 1c
+
+- `campaignSpecific: true` on `age_of_apocalypse`, `aoa_mission`, `aoa_campaign` and `overseer`; the two set names of
+  §1.23.
+- The five mission b faces as their own `SideSchemeCard`s with `otherFaceId`, `fixed(0)` and a `cardNotes` dash
+  (§1.24); their text is HTML in raw and needs the cleaning 45075a's does (§1.10).
+- The five Overseer faces with `atk: null`, `sch: null`, `otherFaceId` to the Prelate faces of §1.15, and the
+  normalizer rule of §1.25. `Mission Response` → `forced-response` in the parser, with a `parse-text.test.ts` case
+  from 45180a's text (the survey's probe: it is a silent `constant` today).
+- Mission Team: `specialCost: "dash"`, the `flipSide`, the `Errata` entry and `printedReplace` (§1.26).
+- 45177: `startingThreat: fixed(2)` (raw `base_threat_fixed: true`; scan) beside hinder 2[per_hero]. 45178: the
+  acceleration icon as `schemeIcons`, set membership, no identity.
+- `[[Mission]]` in raw text (45165, 45180a) is the trait token [MISSION].
+- Scans still to read at emit, not read for this spec: 45165, 45166a, 45167a/b–45170a/b, 45172–45175, 45180a, 45182a,
+  45183a. Raw is the only source for those texts here (45182a's text is also p. 5's callout).
+- The hand-authored `campaign.ts` (§1.23), after the five scenarios exist.
+
 ## 2. Per-scenario setup needs
 
 RRG 1.8 Appendix II (p. 51) with the wave 1–7 engine. The Campaign Instructions boxes on MC45 pp. 8 and 12 are
-**(pass 1c)**.
+pass 1c's (§2.11–§2.16).
 
 ### 2.1 The two scenarios
 
@@ -571,7 +878,7 @@ MC45 p. 14: "The Dark Riders and Infinites sets can be removed from this scenari
 MC45 p. 16: "The Dystopian Nightmare set can be removed … The Blue Moon, Genosha, and Savage Land sets may be used in
 other scenarios, but they are required when playing Dark Beast." MC45 p. 19: "The Celestial Tech and Clan Akkaba sets
 can be removed from this scenario and/or added to other scenarios". The Campaign Instructions boxes on pp. 14, 16 and
-20 are **(pass 1c)**. Any of the three may replace Standard with Standard III (§2.5).
+20 are pass 1c's (§2.11–§2.16). Any of the three may replace Standard with Standard III (§2.5).
 
 ### 2.7 Apocalypse (MC45 p. 14), step by step
 
@@ -694,6 +1001,243 @@ A Setting set used **outside** Dark Beast follows its printed keyword: the envir
 (RRG "Setup (Keyword)", p. 40) and its other 7 cards are shuffled into the encounter deck at step 10. Put into play is
 not revealed, so its When Revealed does not resolve; two Setting sets in one such game is §4.2 Q15.
 
+### 2.11 Pass 1c: the campaign (MC45 pp. 4–6, 8, 12, 14, 16, 20, 24)
+
+Five scenarios in numerical order (p. 4: "the players must win all five scenarios in numerical order, starting with
+scenario #1 – Unus and ending with scenario #5 – En Sabah Nur"). "Each player must use their chosen identity for the
+entire campaign, but they are free to change aspects and alter the contents of their deck between scenarios". A lost
+scenario may be reset "with no penalty" (p. 4; foundation row 11 of `docs/campaign-mode-design.md`). The foundation
+was designed with this box in view (rows 1, 11, 16, 23, 24, 28, 30, 32, 40, 49 and 53), so the between-games half is
+vocabulary that exists; what is new is inside the game (§3.33–§3.46).
+
+| Scenario        | Campaign setup (in printed order)                                                                                                            | Campaign victory                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Unus          | Record identities ("Players cannot switch identities during a campaign"); the block                                                          | Strike the mission; its Defeated or Not Defeated row; strike the Overseer if defeated; expert: record hit points                 |
+| 2 Four Horsemen | The block; expert: set hit points, heal for 3 threat on the mission                                                                          | the same                                                                                                                         |
+| 3 Apocalypse    | the same                                                                                                                                     | the same                                                                                                                         |
+| 4 Dark Beast    | the same                                                                                                                                     | the same                                                                                                                         |
+| 5 En Sabah Nur  | The block with **Protect the Professor** in place of the random mission; "Professor X cannot enter play during this game"; expert: set, heal | Protect the Professor defeated: "win the campaign!" Not defeated: "the players failed to save Professor X and lose the campaign" |
+
+**"The block"**, the five bullets every box prints (pp. 8, 12, 14, 16; p. 20 with its second bullet changed):
+
+1. "Shuffle the Age of Apocalypse modular set into the encounter deck."
+2. "Randomly select one of the available [MISSION] side schemes and follow the Setup directions for it in the
+   campaign log."
+3. "Randomly select one of the available [OVERSEER] minions and add it to the mission area. Put the double-sided
+   Mission Rules card into play next to it."
+4. "The first player takes control of the Mission Team (171A) support card, [MISSION] side faceup."
+5. "Each player searches their deck for an ally and adds it to their hand. (This card counts towards your hand
+   size.)"
+
+- **Each of the four log missions is played exactly once.** Four missions, four scenarios, and every win strikes the
+  one that started the game in play (p. 6), defeated or not. Their order is the campaign's seed. Protect the Professor
+  is always the fifth.
+- **At least one Overseer is always available.** One is struck per win at most, and only if it was defeated that
+  game; scenario 5 has between one and five to draw from.
+- **A loss changes nothing.** The Victory list does not run, so the mission is not struck and the Overseer is not,
+  even if it was defeated in the lost game; cards removed from the game during the game are back. Whether the retry
+  draws the same mission and Overseer is §4.2 Q22.
+- **The campaign can be lost by winning.** A game of scenario 5 won with Protect the Professor still on its a face
+  (neither defeated nor failed) ends the campaign as a loss: the Victory list reads "was not defeated" (p. 20). If the
+  mission fails during the game, the b face ends the game as a loss first, and that game may be retried.
+
+### 2.12 Campaign setup, bullet by bullet
+
+RRG 1.8 Appendix II step 13 (p. 51): "Campaign Setup. If playing in campaign mode, resolve the Setup campaign
+instructions listed for the scenario in its associated rulebook", after step 12 and before the starting hands. Every
+instruction below resolves in the default window (`afterScenarioSetup`) in printed order, except the between-games
+draws, which the runner makes before the game is built.
+
+1. **Scenario 1 only:** each seat's identity is the campaign seat. Nothing happens in the game.
+2. **The Age of Apocalypse set**: Agent of Apocalypse ×2 and Worldwide Crisis ×2 join the encounter deck
+   (`composeEncounterSets`, into the deck). They are an addition, not one of the scenario's modular sets.
+3. **The mission.** Between games the runner draws one unstruck option of `missions` from the campaign's RNG and
+   writes it to `currentMission` (scenario 5: no draw, Protect the Professor). In the game the mission is revealed
+   (p. 5: "randomly select one of the available [MISSION] side schemes … and reveal it"): it enters play in the
+   **mission area** with 5[per_hero] threat. Then its row's Setup cell (§2.14).
+4. **The Overseer.** One unstruck option of `overseers`, written to `currentOverseer`; the minion is put into play
+   in the mission area (p. 5), engaged with nobody. Put into play, not revealed: nothing on the a face reads the
+   difference. The Mission Rules card is the mission's rules block (§1.29).
+5. **Mission Team** (45171a) is put into play under the first player's control, [MISSION] face up, ready. RRG
+   "Ownership and Control" (p. 31): "When a player takes control of a campaign-specific … player card … that player
+   becomes the owner of that card until the game ends or another player takes control of that card."
+6. **The ally search.** In player order each player searches their deck for an ally, adds it to their hand and
+   shuffles. **It counts toward the starting hand**: at step 14 that player draws one card fewer, so a hand size of 6
+   is the ally and 5 drawn cards, and the mulligan (step 15) may discard the ally like any other card. This is the
+   box's own parenthesis, and it differs from NeXt Evolution's Morlock search, which the owner placed after the
+   mulligan as an extra card (wave 7 §4.1 Q28). §3.44. A player with no ally in their deck adds nothing and draws a
+   full hand. In an expert campaign the ally "must share a trait with your hero" (§2.16).
+7. **Scenario 5 only:** "Professor X cannot enter play during this game" (§3.43).
+8. **Expert campaign, scenarios 2 to 5:** hit points are set, then each player may place 3 threat on the mission to
+   heal (§2.16).
+
+**What a game then looks like** (MC45 p. 5's diagram): the villain's area as the scenario set it up; beside it the
+mission area with the mission (5[per_hero] threat, no attempt counters), the Overseer (5[per_hero] hit points, no
+damage) and no allies; Mission Team in front of the first player.
+
+### 2.13 The mission area and a mission attempt (MC45 pp. 5–6)
+
+**The area.** "[MISSION] side schemes begin the game in a separate game area called the 'mission area.'"
+
+- "Players cannot thwart [MISSION] side schemes."
+- "Cards in the mission area are in play but under no player's control. They cannot be affected by card abilities
+  unless the ability refers to the mission area." Read as: a card there is never chosen and never changed by an
+  ability that does not name the mission ("at the mission", "the mission area", "the [MISSION] side scheme"); what an
+  ability merely counts or watches is §4.2 Q18. The abilities that do name it are all in the five campaign sets.
+- "While a [MISSION] side scheme is in play, when a player plays an ally, they must choose: either play that ally
+  into their game area per the normal rules of the game, or play it into the mission area." Its cost, its play
+  restrictions and the unique rule apply as for any play (RRG "Unique Icon", pp. 45–46: a card that matches a card in
+  play "cannot be played or put into play", and an ally at the mission is in play).
+- "Allies in the mission area are used to make mission attempts. They do not count towards your ally limit." "Treat
+  the printed text box of each ally in the mission area as blank, except for [TRAITS]." Its cost, stats, hit points
+  and resource icon are not in the text box (RRG "Text Box", p. 44) and stay.
+- "Players may attach upgrades to allies in the mission area." §4.2 Q19.
+- "When a card in the mission area leaves play, place it in its owner's discard pile." A player's ally goes to that
+  player's pile; an encounter card to the encounter discard pile; an Overseer, with victory 5, to the victory display
+  (RRG "Victory X", p. 46).
+- Nothing there activates: a minion at the mission is engaged with no player (RRG "Activation", p. 6), and an ally
+  there is no player's to exhaust.
+
+**Mission Team.** Its Action is the first player's (they control it), once a round: exhaust it and choose the
+discount or an attempt. It moves with the first player token. It "cannot be discarded"; the mission's own text removes
+it from the game or flips it.
+
+**An attempt** (p. 6: "When a player makes a mission attempt, they resolve the following five steps in order").
+
+1. "Discard X cards from the top of their deck, where X is the number of allies at the mission." If the deck runs
+   out, it resets and deals its encounter card, and "no further cards are discarded from the newly shuffled deck"
+   (RRG "Player Deck", p. 33), so fewer than X cards may be discarded.
+   - **Now the Overseer's Mission Response resolves** (a Forced Response, first: RRG "Forced", p. 20), then any
+     Response a discarded card has to its own discard (Digging Deep; ruling April 30, 2026 – Ruling 4 (1)). A card
+     that is no longer in the discard pile after this "does not count for the mission attempt and no replacement card
+     is drawn".
+2. "Assign each of the discarded cards to a different ally at the mission." The attempting player pairs them.
+   - "If a resource icon on the ally matches a resource icon on the card assigned to it, that ally participates."
+   - "Wild resource icons ([wild]) on cards discarded for the mission attempt may be used to match any resource icon
+     on an ally at the mission"; "Any resource icon … may be used to match an ally with a wild resource icon".
+   - A card with no resource icon matches nothing. A card with two icons matches on either.
+   - "Return the discarded cards to their discard pile after determining which allies will participate."
+3. "Gather X damage tokens into a damage pool, where X is the total ATK of all participating allies."
+4. "Deal damage from this pool to enemies at the mission one at a time until there is no damage in the pool or there
+   are no enemies remaining at the mission." Read as one enemy at a time, the attempting player choosing each: an
+   enemy that cannot take damage is not offered, each is settled (and defeated) before the next is chosen, and damage
+   left with no enemy able to take it is lost.
+5. "Remove X threat from the [MISSION] side scheme, where X is the total THW of all participating allies." Not a
+   thwart: no ally exhausts and none takes consequential damage.
+
+"When the [MISSION] side scheme has no threat remaining on it, it is defeated. The [MISSION] side scheme cannot be
+defeated while there are any minions in the mission area. The [OVERSEER] minion cannot take damage while another
+minion [is] in the mission area." Then the mission's own Forced Response: one attempt counter, and 1 damage to each
+ally at the mission.
+
+**The rulebook's example, with numbers** (1 player; Evacuate Survivors, 5 threat; Sugar Man, 5 hit points). Randall
+([wild]; THW 2, ATK 1, 3 hit points), X-23 ([physical]; THW 1, ATK 3, 3 hit points) and Marrow ([energy]; THW 1,
+ATK 2, 2 hit points) are at the mission. The player discards Magik's Crown ([mental]), Clobber ([physical]) and
+Bloodgem ([wild]).
+
+- Sugar Man's Mission Response: one [physical] discarded, heal 3 damage from him; he has none.
+- Magik's Crown to Randall (any icon matches his [wild]), Clobber to X-23, Bloodgem to Marrow (a [wild] matches her
+  [energy]): all three participate.
+- Pool 1 + 3 + 2 = **6**. Sugar Man takes 5 and is defeated (victory display, 5 points); 1 is lost.
+- THW 2 + 1 + 1 = **4**: the mission goes from 5 to 1.
+- The mission's Forced Response: 1 attempt counter; Randall 1 damage of 3, X-23 1 of 3, Marrow 1 of 2.
+- Next round, X-23 alone participating removes the last threat: the mission is defeated in step 5 with one counter
+  on it. No second counter is placed (the a face is gone).
+
+**How a mission ends.**
+
+- **Defeated** (no threat, no minion in the area). "When Defeated: Shuffle each player card at the mission into its
+  owner's deck. Flip Mission Team and this card over." The allies and their upgrades go back to their owners' decks
+  (shuffled); Mission Team shows its [FINISHED] face ("choose a player to draw 1 card") for the rest of the game; the
+  b face's "If the mission was defeated" bullet resolves.
+- **Failed** (the fourth attempt counter). "Remove Mission Team from the game and flip this card over." The b face
+  removes every card in the mission area from the game (the allies and their upgrades, the Overseer, any Agent of
+  Apocalypse, cards attached to Abyss), then its "If the mission was not defeated" bullet resolves. Removed from the
+  game is this game only: the allies are in their owners' decks again next scenario, and the Overseer is not struck.
+- **Neither** when the game ends: for Victory this is "was not defeated".
+- The fourth attempt can still succeed: step 5 defeats the mission before the Forced Response would place the fourth
+  counter.
+
+### 2.14 The four missions of the log (MC45 p. 24)
+
+Each row has three cells: **Setup**, followed when the mission is drawn; and after a won game, **Defeated** or **Not
+Defeated**. The b face's two bullets (§1.24) are the in-game half and resolve whether or not the game is then won.
+
+| Mission                   | Setup (this game)                                                          | Defeated (after a win)                                                                                                                                                                                                                                       | Not Defeated (after a win)                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Liberate the Seattle Core | "Set each copy of Desperate Measures upgrade aside."                       | "For the rest of the campaign, each player may shuffle 1 copy of Desperate Measures into their deck at the start of each game. That card does not count against your minimum deck size."                                                                     | "Remove each copy of Desperate Measures from the campaign."                                                                     |
+| Evacuate Survivors        | "Each player shuffles a copy of Panicked Refugees into their deck."        | "Remove each copy of Panicked Refugees from the campaign. Each player chooses an upgrade from any aspect. They may include 1 copy of [that] card in their deck for the rest of the campaign. That card does not count against your minimum deck size."       | "For the rest of the campaign, each player must shuffle a copy of Panicked Refugees into their deck at the start of each game." |
+| Sabotage the Sea Wall     | "Shuffle the North American Sea Wall side scheme into the encounter deck." | "Remove the North American Sea Wall side scheme from the campaign. Each player chooses a support from any aspect. They may include 1 copy of that card in their deck for the rest of the campaign. That card does not count against your minimum deck size." | "For the rest of the campaign, shuffle the North American Sea Wall into the encounter deck during setup."                       |
+| Find Lost Mutants         | "Set each campaign ally aside."                                            | "Each player chooses a campaign ally. They may include that ally in their deck for the rest of the campaign. That card does not count against your minimum deck size."                                                                                       | "Remove each campaign ally from the campaign."                                                                                  |
+
+- **Defeated is the reward and Not Defeated the cost**, in every row (§0.2 corrects two repo documents on this).
+- **Set aside** is where the game finds the cards the b face hands out: the four copies of Desperate Measures ("each
+  player adds 1 copy … to their hand"), the four campaign allies ("each player adds one set-aside campaign ally to
+  their hand", in player order, each ally to one player). The runner sets them aside for that game only.
+- **"At the start of each game"** (Desperate Measures, Panicked Refugees) is a setup instruction of every later
+  scenario, resolved in the default window, before the ally search and the starting hands: an offer for Desperate
+  Measures ("may"), no choice for Panicked Refugees ("must"). Neither card is in the seat's deck list between games.
+- **The picks** (an upgrade, a support, a campaign ally) are `CampaignGrant`s for the rest of the campaign: "from any
+  aspect" is §4.2 Q24, "does not count against your minimum deck size" is Q25. A granted campaign ally is the same
+  card for the log and the game: each of the four is unique and goes to one seat. The pick after a win is separate
+  from the b face's in-game hand-out and need not be the same ally.
+- **Removed from the campaign** survives a retry (RRG "Modes of Play", p. 29). It is only ever written by a Victory
+  list here, so no lost game writes one.
+- Sabotage the Sea Wall, defeated in the game: the b face finds North American Sea Wall in the encounter deck, the
+  discard pile or in play (a card dealt facedown to a player is not searched, §3.1) and removes it from the game;
+  then, after the win, the log removes it from the campaign.
+
+### 2.15 Scenario by scenario
+
+What the campaign's cards meet in each scenario. Nothing in the five scenario sets or their modular sets names the
+mission, an Overseer or the [CLAN AKKABA] trait by card text (checked by script over every raw record of the box).
+
+- **1 Unus.** The identities are recorded. No expert bullet at setup. The encounter deck gains four cards beside
+  Unus, Infinites, Standard and one modular set.
+- **2 Four Horsemen.** Death's "deal 1 damage to each character you control" and War's "discard an upgrade or support
+  you control" do not reach the mission: nobody controls its cards. War can make the first player discard a support,
+  and Mission Team "cannot be discarded" (§3.35). Famine's "discard the top 10 cards of your deck" is not a mission
+  attempt and no Mission Response answers it.
+- **3 Apocalypse.** The Overseer is an [OVERSEER], not a [PRELATE]: the three locked schemes, Wolf Among Sheep and No
+  Longer Worthy do not read it. The Fittest ("the minion with the highest printed hit points") cannot attach to it,
+  though its 5[per_hero] ties the Prelates for the highest: it attaches to the highest outside the mission.
+  **All five Prelate faces are in the scenario whatever the log has struck** (ruling April 30, 2026 – Ruling 4 (2));
+  that the Overseer in the mission area and one Prelate are the same printed card is §4.2 Q21.
+- **4 Dark Beast.** Blue Area of the Moon's "Each minion gains guard" and Imperial Guardsman's "Attach to a minion"
+  do not reach the mission. An Agent of Apocalypse that activates against a player is an ordinary [CLAN AKKABA]
+  minion with guard.
+- **5 En Sabah Nur.** Protect the Professor is revealed instead of a drawn mission; it has no row in the log and no
+  Setup cell. Professor X (`mut_gen` 32019, reprinted `gambit` 37017) cannot be played or put into play by anyone. If
+  the mission fails the players lose the game at once (45170b); if they win with it undefeated they lose the
+  campaign (§2.11). Clan Akkaba's own cards do not name the trait, so the Agents gain nothing from that set.
+- **In all five**, after the mission is finished the four Age of Apocalypse cards are still in the encounter deck.
+  With no [MISSION] side scheme in play an option that names it cannot be chosen (RRG "Choose (Option)", p. 12): an
+  Agent of Apocalypse activates, and Worldwide Crisis is 1 damage and surge. Their Boost abilities still give the
+  extra boost card.
+
+### 2.16 The expert campaign (MC45 p. 20)
+
+- "Some Setup and Victory instructions are preceded by **Expert Campaign Only**. Ignore these instructions unless you
+  are playing an expert campaign." RRG FAQ "Campaign Mode" (p. 61): an expert campaign does not put any scenario in
+  expert mode; the two are separate choices.
+- **Persistent damage.** After a win "each player must record their remaining hit points"; "If a player's remaining
+  hit point value is greater than their base hit point value, record their base hit points … instead" (foundation
+  row 18, `remainingHitPointsCappedAtBase`). Scenarios 1 to 4 record; scenario 5 does not (the campaign is over).
+- **Setup of scenarios 2 to 5**, after the ally search: "Set each player's hit points to their remaining hit point
+  value recorded in the campaign log for the previous scenario", then "Each player may place 3 threat on the
+  [MISSION] side scheme to heal their identity to its full hit point value." Three threat flat, per player who heals:
+  with 2 players the mission starts at 10 and is at 16 if both heal. The instruction names the mission, so it can
+  place the threat (§3.33).
+- **Elimination.** "If a player is defeated during a scenario that their teammates go on to win, the defeated player
+  does not participate in the Victory steps of that scenario", and "can rejoin their teammates by placing 3 threat on
+  that scenario's [MISSION] side scheme to restore their identity to full hit points." As in every earlier box
+  (wave 6 §4.1 Q11, wave 7 §3.46): a seat with no recorded hit points must pay; it is not offered "Decline". A seat
+  that sat out makes no pick in a Defeated row and records nothing; the shared strikes still happen.
+- **The ally search:** "When playing expert campaign, the ally you choose during Setup must share a trait with your
+  hero." Printed once, at the foot of the expert rules, for every scenario's search. The hero face's traits, as
+  `CollectionFilter.sharesTraitWithIdentity` already reads them between games; a player with no such ally in their
+  deck adds nothing.
+
 ## 3. Engine primitives (owner: `game-rules-architect`)
 
 **Build the mechanism, not the card.** Engine code never names a card; card names say where each primitive is needed.
@@ -704,40 +1248,55 @@ and the wave 1–7 specs. Statuses: **exists** (found and exercised by an earlie
 relying on it, and a failure becomes an extend here); **exists (compose)** (several existing pieces, no engine
 change); **extend** (an existing primitive needs one more case); **new**. Each section is one agent, one commit.
 
-| §    | Primitive                                                                     | Needed by                                        | Status           |
-| ---- | ----------------------------------------------------------------------------- | ------------------------------------------------ | ---------------- |
-| 3.1  | Find, and "find … and reveal it" when the card is already in play             | 45075b, 45097                                    | extend           |
-| 3.2  | An amplify icon a character gains under a condition                           | 45059–45061; printed on 45089                    | exists (verify)  |
-| 3.3  | Keywords, an icon and hit points gained at threat thresholds on a named card  | 45059–45061, 45067, 45069                        | exists (compose) |
-| 3.4  | A permanent, setup side scheme that stays in play with no threat              | Gene Pool 45071; 45062a                          | exists (verify)  |
-| 3.5  | A setup option that belongs to a modular set                                  | Infinites (MC45 p. 8, "Modular Difficulty")      | extend           |
-| 3.6  | Standard III: a counted environment that flips; replacing the Standard set    | 45075a/b–45080                                   | extend           |
-| 3.7  | Villains in a random row; the active counter passes to the next in the row    | 45085a/b, 45091, 45096                           | extend           |
-| 3.8  | "After a villain activates" with several villains                             | 45085b; 45092–45095                              | exists (verify)  |
-| 3.9  | Villains that cannot be defeated while another has hit points                 | 45081–45084 a/b                                  | exists (verify)  |
-| 3.10 | "Is considered to have at least 1 hit point"                                  | Golden Horse 45090, Metal Wings 45091, 45096     | new              |
-| 3.11 | Another card's Forced Response resolved "as if it just attacked you"          | 45090, 45091, 45096                              | extend           |
-| 3.12 | A named enemy activates; no boost card; "after this activation"; extra boost  | 45067, 45092–45095                               | exists (compose) |
-| 3.13 | An identity's text box blanked "until the next villain phase begins"          | Pestilence 45083a/b, Plague and Pestilence 45088 | extend           |
-| 3.14 | Attach hosts of this pass; an attachment that moves the active counter        | 45066, 45090, 45091, 45099                       | exists (verify)  |
-| 3.15 | A random side scheme of a set revealed by each player at setup                | 45085a                                           | exists (verify)  |
-| 3.16 | A forced change to hero form; the first copy revealed each phase gains surge  | Hound 45098, Release the Hounds 45100            | exists (verify)  |
-| 3.17 | Reusable as is                                                                | the rest                                         | checked          |
-| 3.18 | A villain's next stage revealed when the main scheme is completed             | Apocalypse 45101a/b, 45102a/b                    | extend           |
-| 3.19 | A target threat of X per player, X read from the villain's printed hit points | 45103b, 45111                                    | extend           |
-| 3.20 | "When [the villain] would be defeated … instead", printed on the main scheme  | 45103b                                           | exists (compose) |
-| 3.21 | An attachment that ignores a named ability; winning when the villain falls    | No Longer Worthy 45105b                          | new              |
-| 3.22 | Chained side schemes locked while a trait's minion is in play                 | 45104a/b, 45105a; Prelates 45179b–45183b         | exists (verify)  |
-| 3.23 | Whole sets set aside; one environment revealed at random, its set shuffled in | 45118–45120, 45121a, 45127, 45133, 45139         | exists (verify)  |
-| 3.24 | "Resolve the 'Special' ability on the [SETTING] environment"                  | fifteen cards of scenario 4                      | extend           |
-| 3.25 | An attachment with no "attach to" that attaches from its own When Revealed    | Cruel Experiment 45124                           | extend           |
-| 3.26 | A three-sided villain that changes to a named form                            | 45184–45186 a/b/c, 45149–45155                   | extend           |
-| 3.27 | Named counters on the main scheme that reveal a trait's card at a threshold   | 45147b, 45148a/b, 45150–45152                    | exists (compose) |
-| 3.28 | An attachment's Forced Interrupt resolved "as if" its trigger just happened   | Celestial Tech 45158; 45156, 45157               | extend           |
-| 3.29 | A permanent side scheme that sheds threat at a threshold; redirected threat   | Ancient Ritual 45163, 45159–45162                | exists (verify)  |
-| 3.30 | Cards from a player's deck attached facedown to a minion, and counted         | Abyss 45181b                                     | exists (verify)  |
-| 3.31 | An attachment on an identity that minions of a trait seek out                 | Escaped Mutant 45137, 45134, 45135, 45138        | exists (verify)  |
-| 3.32 | Reusable as is (pass 1b)                                                      | the rest                                         | checked          |
+| §    | Primitive                                                                                          | Needed by                                                      | Status           |
+| ---- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------- |
+| 3.1  | Find, and "find … and reveal it" when the card is already in play                                  | 45075b, 45097                                                  | extend           |
+| 3.2  | An amplify icon a character gains under a condition                                                | 45059–45061; printed on 45089                                  | exists (verify)  |
+| 3.3  | Keywords, an icon and hit points gained at threat thresholds on a named card                       | 45059–45061, 45067, 45069                                      | exists (compose) |
+| 3.4  | A permanent, setup side scheme that stays in play with no threat                                   | Gene Pool 45071; 45062a                                        | exists (verify)  |
+| 3.5  | A setup option that belongs to a modular set                                                       | Infinites (MC45 p. 8, "Modular Difficulty")                    | extend           |
+| 3.6  | Standard III: a counted environment that flips; replacing the Standard set                         | 45075a/b–45080                                                 | extend           |
+| 3.7  | Villains in a random row; the active counter passes to the next in the row                         | 45085a/b, 45091, 45096                                         | extend           |
+| 3.8  | "After a villain activates" with several villains                                                  | 45085b; 45092–45095                                            | exists (verify)  |
+| 3.9  | Villains that cannot be defeated while another has hit points                                      | 45081–45084 a/b                                                | exists (verify)  |
+| 3.10 | "Is considered to have at least 1 hit point"                                                       | Golden Horse 45090, Metal Wings 45091, 45096                   | new              |
+| 3.11 | Another card's Forced Response resolved "as if it just attacked you"                               | 45090, 45091, 45096                                            | extend           |
+| 3.12 | A named enemy activates; no boost card; "after this activation"; extra boost                       | 45067, 45092–45095                                             | exists (compose) |
+| 3.13 | An identity's text box blanked "until the next villain phase begins"                               | Pestilence 45083a/b, Plague and Pestilence 45088               | extend           |
+| 3.14 | Attach hosts of this pass; an attachment that moves the active counter                             | 45066, 45090, 45091, 45099                                     | exists (verify)  |
+| 3.15 | A random side scheme of a set revealed by each player at setup                                     | 45085a                                                         | exists (verify)  |
+| 3.16 | A forced change to hero form; the first copy revealed each phase gains surge                       | Hound 45098, Release the Hounds 45100                          | exists (verify)  |
+| 3.17 | Reusable as is                                                                                     | the rest                                                       | checked          |
+| 3.18 | A villain's next stage revealed when the main scheme is completed                                  | Apocalypse 45101a/b, 45102a/b                                  | extend           |
+| 3.19 | A target threat of X per player, X read from the villain's printed hit points                      | 45103b, 45111                                                  | extend           |
+| 3.20 | "When [the villain] would be defeated … instead", printed on the main scheme                       | 45103b                                                         | exists (compose) |
+| 3.21 | An attachment that ignores a named ability; winning when the villain falls                         | No Longer Worthy 45105b                                        | new              |
+| 3.22 | Chained side schemes locked while a trait's minion is in play                                      | 45104a/b, 45105a; Prelates 45179b–45183b                       | exists (verify)  |
+| 3.23 | Whole sets set aside; one environment revealed at random, its set shuffled in                      | 45118–45120, 45121a, 45127, 45133, 45139                       | exists (verify)  |
+| 3.24 | "Resolve the 'Special' ability on the [SETTING] environment"                                       | fifteen cards of scenario 4                                    | extend           |
+| 3.25 | An attachment with no "attach to" that attaches from its own When Revealed                         | Cruel Experiment 45124                                         | extend           |
+| 3.26 | A three-sided villain that changes to a named form                                                 | 45184–45186 a/b/c, 45149–45155                                 | extend           |
+| 3.27 | Named counters on the main scheme that reveal a trait's card at a threshold                        | 45147b, 45148a/b, 45150–45152                                  | exists (compose) |
+| 3.28 | An attachment's Forced Interrupt resolved "as if" its trigger just happened                        | Celestial Tech 45158; 45156, 45157                             | extend           |
+| 3.29 | A permanent side scheme that sheds threat at a threshold; redirected threat                        | Ancient Ritual 45163, 45159–45162                              | exists (verify)  |
+| 3.30 | Cards from a player's deck attached facedown to a minion, and counted                              | Abyss 45181b                                                   | exists (verify)  |
+| 3.31 | An attachment on an identity that minions of a trait seek out                                      | Escaped Mutant 45137, 45134, 45135, 45138                      | exists (verify)  |
+| 3.32 | Reusable as is (pass 1b)                                                                           | the rest                                                       | checked          |
+| 3.33 | An in-play scenario area no player controls, closed to abilities that do not name it               | every card of §1.24–§1.28; MC45 p. 5                           | new              |
+| 3.34 | An ally played into that area: the choice, no controller, a blank text box, upgrades               | every ally in a campaign game; 45176                           | extend           |
+| 3.35 | A support the first player controls that cannot be discarded; a discount by destination            | Mission Team 45171a/b                                          | extend           |
+| 3.36 | Discarded cards paired one each with characters, matched by resource icon                          | Mission Team 45171a; Mister Sinister 45179a                    | new              |
+| 3.37 | A damage pool dealt to one enemy at a time; threat removed by a total that is not a thwart         | Mission Team 45171a                                            | extend           |
+| 3.38 | A Forced Response to one ability's deck discard ("Mission Response"); a discarded card that leaves | 45180a–45183a; Digging Deep 40060                              | exists (verify)  |
+| 3.39 | A named moment a script raises and other cards answer                                              | 45166a–45170a ("After you resolve a mission attempt")          | new              |
+| 3.40 | A side scheme nobody thwarts, kept in play by a minion, that flips to a face that clears the area  | 45166a/b–45170a/b                                              | exists (compose) |
+| 3.41 | Minions in the area: dashed stats, never engaged, shielded by another minion                       | 45179a–45183a, Agent of Apocalypse 45164                       | exists (verify)  |
+| 3.42 | A resource icon a character is considered to have; an obligation that lives in a player's deck     | Desperate Measures 45176; Panicked Refugees 45178; 45172–45175 | extend           |
+| 3.43 | "[A title] cannot enter play during this game"                                                     | MC45 p. 20 (scenario 5)                                        | extend           |
+| 3.44 | A card found at campaign setup that counts toward the starting hand                                | MC45 pp. 8, 12, 14, 16, 20                                     | extend           |
+| 3.45 | The campaign definition: random strike lists, three-cell rows, rewards, a win that loses           | the log (MC45 p. 24); all five scenarios                       | exists (verify)  |
+| 3.46 | One printed card as two cards: an Overseer in play and its Prelate face                            | 45179a/b–45183a/b in scenario 3                                | extend           |
+| 3.47 | Reusable as is (pass 1c)                                                                           | the rest                                                       | checked          |
 
 ### 3.1 Find, and "find … and reveal it" when the card is already in play
 
@@ -1749,6 +2308,661 @@ status card, then activates against the engaged player (ATK 2; in alter-ego he s
 with no other [IMPERIAL GUARD] minion in play: no activation; with a minion wearing Imperial Guardsman in play: he
 activates.
 
+### 3.33 An in-play scenario area no player controls, closed to abilities that do not name it
+
+> **Status: new.** The engine has one scenario area, and it is out of play: `ZoneId scenarioArea` with
+> `GameState.scenarioAreas` (The Collection, wave 3 §3.14). Cards in play that no player controls exist one at a time
+> (`CardInstance.controllerId: null`: a Spell environment in a player's play area, `entersRevealersPlayArea`, wave 4
+> §3.16; Robert Kelly attached to a side scheme, wave 6), but each is reachable by any ability. No zone is in play,
+> shared, and closed. Searched `state.ts`, `spec.ts`, `select.ts`, `abilities.ts` and the DSL for "mission", "under no
+> player's control" and an in-play scenario zone: nothing.
+
+**Cards.** Every card of §1.24–§1.28 names it ("at the mission", "the mission area", "the [MISSION] side scheme").
+MC45 p. 5; the Mission Rules card's first two bullets (§1.29).
+
+**Rules.** MC45 p. 5: "[MISSION] side schemes begin the game in a separate game area called the 'mission area.'" /
+"Cards in the mission area are in play but under no player's control. They cannot be affected by card abilities
+unless the ability refers to the mission area." / "When a card in the mission area leaves play, place it in its
+owner's discard pile." RRG 1.8 "In Play and Out of Play" (p. 23); "Ownership and Control" (p. 31: "Control of a card
+remains constant unless an ability explicitly causes the card to change control"); "Unique Icon" (pp. 45–46); "Player
+Elimination" (p. 34, step 4: "Place each card owned by the eliminated player in the eliminated player's discard
+pile").
+
+**Plan.**
+
+- **`ZoneId { kind: "scenarioPlayArea"; name: string }`** and `GameState.scenarioPlayAreas`, the in-play sibling of
+  `scenarioArea`, created by an effect (`createScenarioPlayArea { name, closed: true }`) the first time a card is put
+  there. A card in it is in play, keeps its owner, has `controllerId: null` and `engagedWith: null`. Encounter cards
+  and player cards share it.
+- **Closed.** A card in a closed area is matched by a `TargetQuery` only when the query names the area:
+  **`TargetQuery.inScenarioPlayArea: name`**. Every other query, selector and "each …" skips it when it picks what
+  an effect chooses or changes: damage, healing, status cards, threat, counters, attachments, exhausting, readying,
+  moving, discarding, defeating, blanking, keyword and stat grants. The filter is the engine's, in `select.ts`, so
+  no existing card script changes.
+- **Reads** (a `Predicate`, a `ValueSpec` count, an event pattern) are §4.2 Q18. Default A: they see the card as what
+  it is, a card in play that nobody controls. A query scoped to a player ("you control", "engaged with you") never
+  matched it anyway.
+- **Game steps are not card abilities.** The end-phase ready, the unique rule, player elimination and the defeat
+  check apply to cards there as to any card in play. Nothing there activates in the villain phase: no minion in the
+  area is engaged with a player.
+- **Leaving it.** By its home (`CardHome`): a player card to its owner's discard pile, an encounter card to the
+  encounter discard pile, a victory card to the victory display; removed from the game when the text says so. An
+  attachment goes with its host (RRG "Attachment", p. 8).
+- **Log:** `scenarioPlayAreaCreated { name }`, and the area's name on every `cardMoved` into or out of it.
+
+**As read.** "Refers to the mission area" covers the three ways the cards say it: "at the mission", "the mission
+area", and a card of the area named by its role ("the [MISSION] side scheme", Worldwide Crisis). A campaign
+instruction that names the mission ("place 3 threat on the [MISSION] side scheme") is such a reference too.
+
+**Tests (exact numbers).** 2 players; Evacuate Survivors (10 threat) and Sugar Man (10 hit points) in the area; X-23
+(player 1's) at the mission with 1 damage.
+
+1. An event that heals "an ally", one that readies "an ally" and a thwart of 2 against "a side scheme": X-23 and the
+   mission are not offered. An attack event offers the villain and not Sugar Man.
+2. An encounter effect that deals 1 damage to "each ally" or "each character you control": X-23 still has 1 damage.
+   One that places 1 threat on "each side scheme": the mission stays at 10.
+3. Worldwide Crisis's first option: the mission is at 13.
+4. Player 1 is eliminated: X-23 is in player 1's discard pile, out of the game with it.
+5. Q18 = A: a card that counts "side schemes in play" counts the mission.
+
+**Composes with:** §3.34–§3.41; `scenarioArea` is untouched.
+
+### 3.34 An ally played into that area: the choice, no controller, a blank text box, upgrades
+
+> **Status: extend.** Playing a card puts it into its player's play area; no play has a second destination (searched
+> the play command in `actions.ts` and `EffectSpec playCard`). The rest exists: `RuleSpec blankTextBox` over a class
+> of cards, matched live, "except for traits" (Tech Theft, `ant` 12026; Inhibitor Collar, wave 7 §3.19); the ally
+> limit counts allies a player controls (`allyLimit`, `excludedFromAllyLimit`); an upgrade whose host is `ally`.
+
+**Cards.** Any ally in a campaign game; Desperate Measures 45176 ("Attach to an ally. Limit 1 per ally."); the
+Mission Rules card's bullets 3 to 5 (§1.29).
+
+**Rules.** MC45 p. 5 (quoted in §2.13). RRG 1.8 "Play, Put into Play" (p. 32); "Ally Limit" (p. 7: "Each player is
+permitted to **control** a maximum of three allies"); "Text Box" (p. 44); "Unique Icon" (pp. 45–46); "Upgrade"
+(p. 46); "Ownership and Control" (p. 31: "Upgrades attached to a card controlled by a player other than the upgrade's
+owner are controlled by that other player").
+
+**Plan.**
+
+- **`RuleSpec playDestination { cards: TargetQuery, area: string, while? }`**, carried by the mission's rules block:
+  while it is in effect, a player who plays a matching card (an ally) chooses the destination as part of the play
+  (the play command gains `into?: { scenarioPlayArea: name }`; legal actions list both). Cost, play restrictions,
+  "max per", the unique rule and `cannotPlay` are checked as for any play, before the destination matters. It is a
+  play: "after you play an ally" answers it. Only a play has the choice; an ally put into play by an effect goes to
+  its player's area as always.
+- In the area the ally has no controller: the ally limit never counts it, and no player can exhaust it, attack,
+  thwart or defend with it.
+- **Blank.** The same rules block carries `blankTextBox` over allies in the area, except traits: no abilities and no
+  printed keywords (a toughness ally gets no tough status card, an "enters play" ability does not resolve). Printed
+  cost, THW, ATK, hit points, consequential icons and resource icon are not text box. A granted stat (Desperate
+  Measures) applies.
+- **Upgrades.** A player may play an upgrade whose printed host is an ally onto an ally at the mission: the rules
+  block names the area, so the play's host choice may reach into it (`inScenarioPlayArea` on the upgrade's host
+  query while the rule is in effect). The upgrade is in the area with its host and under no player's control. What
+  it then does is §4.2 Q19 (default A: its constant changes to its host apply; nobody can trigger it).
+
+**As read.**
+
+- "They must choose" is a choice between two legal plays, not a forced move: with the mission finished (no [MISSION]
+  side scheme in play) there is no choice.
+- A unique ally at the mission stops every player from playing or putting into play a matching card (RRG pp. 45–46),
+  and a player may not send a second copy there either.
+- An ally's "Play only if …" line is checked before the card is in play, so it applies to a play to the mission.
+
+**Tests (exact numbers).**
+
+1. Player 1 controls three allies and plays X-23 (cost 3) to the mission: three resources paid; four allies in play,
+   three under their control; nobody discards. A fourth ally played to their own area: they discard down to three.
+2. Marrow (45021: "Play only if you have the [X-FORCE] or [X-MEN] trait." / "Response: After Marrow enters play, deal
+   2 damage to an enemy.") played to the mission by an X-Men identity: in the area, no response offered. By an
+   identity with neither trait: the play is refused for either destination.
+3. X-23 at the mission: no player can play another X-23 to either place.
+4. Desperate Measures (cost 1) played on Marrow at the mission: THW 2, ATK 3, 3 hit points; a second copy on her is
+   refused ("Limit 1 per ally"). Marrow defeated at the mission: both cards in their owners' discard piles.
+5. An ally with toughness played to the mission: no tough status card.
+6. With the mission on its [FINISHED] face: playing an ally offers no destination.
+
+### 3.35 A support the first player controls that cannot be discarded; a discount by destination
+
+> **Status: extend** (the discount). Exists: `RuleSpec controlledByFirstPlayer` (the Milano, `gmw` 16142; Hope
+> Summers, wave 7 §3.25), applied when the token passes and when a first player is eliminated; `cannotLeavePlay`
+> with `by: "cardAbilities"` (wave 7 §3.10) and `playersCannotDiscard` (wave 4 §3.44); a player card's `flipSide`
+> and `flipCard`; a lasting "reduce the cost of the next card … played this phase" with a `cardFilter` (Helicarrier,
+> core; Avengers Tower, `cap`). The filter reads the card, not where it is played.
+
+**Cards.** Mission Team 45171a/b (§1.26).
+
+**Rules.** RRG 1.8 "'Cannot'" (p. 11); "First Player" (p. 19); "Ownership and Control" (p. 31); "Cost" (p. 13);
+"Dash (Value)" (p. 15); the erratum (p. 69).
+
+**Plan.**
+
+- "The first player gains control of it": `controlledByFirstPlayer` on both faces. It moves, in whatever state it
+  is in (RRG p. 31), when the token passes at the end of the villain phase. It readies with every other card at the
+  end of the player phase, before the token passes, so each round's first player finds it ready: one use a round.
+- "Cannot be discarded": **`cannotLeavePlay`'s narrow form gains `by: "discard"`**: any discard, by a player's card,
+  an encounter card (War's "discard an upgrade or support you control") or a cost, does nothing to it and it is not
+  a legal choice for one. Removal from the game and a flip are not discards: the mission's own text does both.
+  Player elimination of the first player moves it to the new first player (the rule above) before step 3 of
+  elimination looks at it.
+- The Action's first option: the lasting discount gains **`into: { scenarioPlayArea: name }`**: it is consumed by
+  the next ally any player plays to the mission this phase (the card says "the next ally played", not "you play"),
+  −2 to a floor of 0, and ends with the phase unused (the errata). An ally played to a player's own area neither
+  uses nor ends it.
+- The second option runs the attempt (§3.36–§3.39). Both options are always choosable, an attempt with no ally at
+  the mission included (it discards nothing and still counts, §3.40).
+- The [FINISHED] face: `chooseTarget` of a player, `draw(1)`.
+
+**Tests (exact numbers).**
+
+1. Player 1 (first player) exhausts Mission Team for the discount. Player 2, given the chance to act, plays X-23
+   (cost 3) to the mission for 1. A second ally to the mission that phase costs its printed cost.
+2. The discount, then an ally played to the player's own area at full cost, then Marrow (cost 2) to the mission at
+   no cost. Unused at the end of the player phase: gone; next round's first ally to the mission costs full.
+3. War attacks the first player, whose only upgrade or support is Mission Team: nothing is discarded.
+4. Round 2: Mission Team is in player 2's play area, ready. Player 1 cannot use it.
+5. The first player is eliminated in the villain phase: Mission Team is under the next player's control.
+6. The mission is defeated: Mission Team shows [FINISHED], keeps its exhausted state; next round its Action draws 1
+   card for the chosen player.
+
+### 3.36 Discarded cards paired one each with characters, matched by resource icon
+
+> **Status: new.** Exists: the deck discard with its cards bound (`moveCards(topOfDeck(n), "discard", bind)`, with
+> `<bind>.physical` and the other per-type totals; wave 7 §3.56) and every reader of a card's printed resource icons.
+> Nothing pairs cards with cards, and nothing compares a discarded card's icons with the icons of a card in play.
+
+**Cards.** Mission Team 45171a (steps 1 and 2 of an attempt); Mister Sinister 45179a (a limit on the pairing);
+Desperate Measures 45176 and Abyss 45181a through what they change (§3.42, §3.38).
+
+**Rules.** MC45 p. 6, steps 1 and 2 (quoted in §2.13). RRG 1.8 "Player Deck" (p. 33); "Wild Resource" (p. 48),
+which the rulebook overrides for this match (§0.2); "Resource" (p. 37).
+
+**Plan.** The attempt is a script in `@mc/cards` (one `missionAttempt()` used by Mission Team's Action); the engine
+knows no "mission". It needs one new effect:
+
+- **`EffectSpec pairCards { cards: TargetRef, with: TargetQuery, chooser: PlayerRef, match: "resourceIcon", wild:
+"either", limit?: PairLimit, bind }`.** The chooser pairs each card of the slot with a different card `with`
+  matches (a pending choice with every pairing laid out; a card may be left unpaired, and must be when the limit
+  forbids it). A pair **matches** when the two share a resource type, where `wild: "either"` lets a [wild] on either
+  side stand for any type. The icons of the card in play are its printed ones plus any it "is considered to have"
+  (§3.42). Binds `<bind>.matched` (the characters whose pair matches), `<bind>.pairs` and `<bind>.count`.
+- **`limit: { distinctBy: "resourceIcon" }`**, switched on by a rule (`RuleSpec pairLimit { area, while }`, Mister
+  Sinister's constant): two paired cards may not share a resource type. A card with several types shares if any type
+  is shared.
+- Step 1 is the existing discard with X the number of allies in the area. The slot is settled before the pairing
+  (`settleDeckDiscards`, wave 7 §3.55): a card a response took, or one Abyss attached, is not in it. A card the deck
+  reset shuffled into the new deck is still in it (wave 7 §4.1 Q33).
+- The discarded cards never leave the discard pile; "return the discarded cards to their discard pile" is already
+  true.
+- **Log:** `cardsPaired { playerId, pairs: [cardInstanceId, characterInstanceId, matched] }`, so a replay shows why
+  an ally did or did not take part.
+
+**As read.**
+
+- Fewer cards than allies (a short deck, Digging Deep, Abyss): the chooser decides which allies get one.
+- A card with no resource icon (an encounter card in the deck, Panicked Refugees) can be paired and matches nothing.
+- Domino's "count each printed [wild] icon twice" (`deckDiscardIconCount`) is a count, not a second icon: it changes
+  no match, and no Mission Response counts [wild] icons (Abyss attaches cards; he does not count).
+
+**Tests (exact numbers).** Randall ([wild]), X-23 ([physical]) and Marrow ([energy]) at the mission.
+
+1. Top of the deck Magik's Crown ([mental]), Clobber ([physical]), Bloodgem ([wild]); paired Crown–Randall,
+   Clobber–X-23, Bloodgem–Marrow: three matched (MC45 p. 6).
+2. The same cards paired Clobber–Marrow, Bloodgem–X-23, Crown–Randall: two matched (X-23, Randall).
+3. Top of the deck Clobber, Clobber, Bloodgem. No limit: Clobber–X-23, Clobber–Randall, Bloodgem–Marrow, three
+   matched. With Mister Sinister in the area: the second Clobber cannot be paired; at most two matched.
+4. A deck of 2 cards: 2 are discarded, the deck resets with 1 facedown encounter card dealt, no third card is
+   discarded; two pairs at most.
+5. No ally at the mission: nothing is discarded, no choice is offered.
+6. Marrow with Desperate Measures, paired with Magik's Crown ([mental]): matched (her considered [wild]).
+
+### 3.37 A damage pool dealt to one enemy at a time; threat removed by a total that is not a thwart
+
+> **Status: extend.** `EffectSpec assignDamage { amount, among, chooser }` places a pool "one point at a time; each
+> character then takes its share as one damage event": every share lands together. `removeThreat` by a card ability
+> that is not a thwart is in every wave. `repeatWhile` (wave 4 §3.54) repeats an effect list.
+
+**Cards.** Mission Team 45171a (steps 3 to 5 of an attempt).
+
+**Rules.** MC45 p. 6, steps 3 to 5. RRG 1.8 "Damage" (p. 14); "Defeat" (p. 15); "Thwart" (p. 44: a thwart is a basic
+thwart or an ability labeled as one; this is neither).
+
+**Plan.**
+
+- **`assignDamage` gains `sequential: true`**: the chooser picks one character `among` matches that can take damage
+  and an amount from 1 to the smaller of the pool and that character's remaining hit points; it is dealt and settled
+  (a defeat with its When Defeated and Victory included) before the next pick. It ends when the pool is empty or no
+  matching character can take damage; what is left is lost. This is what lets the pool reach an Overseer once the
+  minion shielding it has fallen in the same step. If `repeatWhile` over a chosen target and a decreasing variable
+  already expresses it, the scripting agent uses that and this row becomes "exists (compose)".
+- The pool is the sum of the matched allies' ATK as it is now (Desperate Measures' +1 counts; a printed dash is 0,
+  RRG "Dash (Value)", p. 15). The damage is not an attack: no attacker, no retaliate, no overkill, no "after …
+  attacks".
+- Step 5: `removeThreat` on the area's [MISSION] side scheme by the sum of the matched allies' THW. It is not a
+  thwart: no `thwart` event, nothing "after you thwart" answers, a confused status or a crisis icon changes nothing.
+  The source is Mission Team and the player is the one making the attempt.
+
+**Tests (exact numbers).** 1 player; mission 5 threat; Sugar Man 5 hit points.
+
+1. Pool 6 against Sugar Man alone: he takes 5 and is defeated (victory display); 1 is lost. THW 4: the mission is at 1.
+2. Pool 6 with an Agent of Apocalypse (3 hit points) at the mission: Sugar Man is not offered first; 3 to the Agent
+   (encounter discard pile), then 3 to Sugar Man (3 damage of 5).
+3. Pool 2 against the Agent and Sugar Man: 2 to the Agent, who has 1 hit point left; Sugar Man is never offered.
+4. No ally matched: pool 0, no threat removed; the attempt still resolves (§3.40).
+5. The mission at 1 threat with THW 4: 1 removed, defeated if no minion is in the area.
+
+### 3.38 A Forced Response to one ability's deck discard ("Mission Response"); a discarded card that leaves
+
+> **Status: exists (verify).** `TriggerEvent cardDiscardedFromDeck { instanceId, playerId, sourceInstanceId, at }`,
+> one per card in discard order, with `activeIn: "discard"` for a card answering its own discard and
+> `settleDeckDiscards` dropping a card that a response moved (wave 7 §3.55, §4.1 Q32; the doc comment already cites
+> ruling April 30, 2026 – Ruling 4 (1)). Not run: a forced response on a card nobody controls that answers only the
+> discards of one source; that it resolves before the discarded card's own optional response (`resolve/triggers.ts`);
+> facedown cards attached from a discard pile to an enemy.
+
+**Cards.** The Shadow King 45180a, Abyss 45181a, Sugar Man 45182a, Mikhail Rasputin 45183a (§1.25); Digging Deep
+(`next_evol` 40060); also Jackpot!, White Fox and The Painted Lady (wave 7 §3.55), which answer the same discard.
+
+**Rules.** MC45 p. 5 ("a new type of Forced Response that only resolves after a player discards cards from the top
+of their deck during a mission attempt"). RRG 1.8 "Forced" (p. 20: "forced responses take priority and initiate
+before non-forced responses"; "If two or more forced abilities would initiate at the same moment, the first player
+determines the order"). **Ruling April 30, 2026 – Ruling 4 (1).**
+
+**Plan.** No engine change is expected.
+
+- A Mission Response is `forcedResponse(on.cardDiscardedFromDeck(...))` limited to discards whose source is the card
+  making the attempt (the event's `sourceInstanceId`), with "you" the player whose deck it is. It resolves **once for
+  each discarded card**, reading that card's icons. For all four Overseers the per-card results add up to the
+  printed "for each … discarded": 2 threat per [mental] icon, heal 3 per [physical] icon, 1 damage per [energy] icon
+  (each to an ally at the mission the player chooses), each card with a [wild] attached. The log shows one line per
+  card.
+- **Order, per discarded card:** the Mission Response (forced), then the player's own responses to that card
+  (Digging Deep, Jackpot!, White Fox, The Painted Lady). So:
+  - Abyss attaches a discarded Digging Deep (a [wild]) before its Response is offered: it is not offered (the card
+    is no longer where the discard put it).
+  - Against the other three, Digging Deep's icon has been counted by the Mission Response (it is a [wild], which
+    none of them counts) and the player may then take it: it is not in the slot the pairing reads, and no card is
+    discarded in its place.
+- **Abyss.** `attach { card, to: self, facedown }` from the discard pile (§3.30's effect). A facedown attached card
+  is out of play (RRG p. 23) and blank. His a face has no "+2 hit points" line: the cards do nothing there. They go
+  to their owners' discard piles when he leaves play, and are removed from the game with him if the mission fails
+  (§2.13). This is the carry-over from §3.30: both faces attach facedown player cards, from the discard pile on this
+  face and from the top of the deck on the other.
+- "Cards discarded … during a mission attempt" excludes every other discard: Famine's ten cards, Bishop's Energy
+  Absorption, a mill by an encounter card.
+
+**Tests (exact numbers).** 1 player; three allies at the mission.
+
+1. **The ruling.** Sugar Man with 4 damage. Discards: Digging Deep, Clobber, Bloodgem. Clobber's [physical]: he heals
+   3 (1 damage). The player takes Digging Deep: hand +1, two cards left to pair, at most two allies matched, the
+   deck is not touched again. Declining: three cards to pair, Digging Deep as a [wild].
+2. The Shadow King, mission at 5: Genius (two [mental]) discarded: 9. With Domino as the identity nothing changes
+   (her rule counts [wild] twice, and he counts [mental]).
+3. Abyss: Digging Deep and Bloodgem discarded with Clobber: two cards attached facedown to Abyss, no Response
+   offered, one card to pair. Abyss defeated later: both cards in their owner's discard pile.
+4. Mikhail Rasputin: Energy (two [energy]) discarded: two separate 1-damage choices among the allies at the mission;
+   both on Marrow (2 hit points) defeat her before the pairing, and X is not recounted: three cards were discarded
+   and two allies remain to pair.
+5. Mister Sinister has no Mission Response: only §3.36's limit.
+6. Famine discards 10 cards of that player's deck with Sugar Man at 4 damage: no heal.
+
+### 3.39 A named moment a script raises and other cards answer
+
+> **Status: new.** Every trigger event is raised by an engine step (`trigger-events.ts`); a script cannot raise one.
+> Searched `spec.ts`, `trigger-events.ts` and the DSL for a named, raised or custom event: none. "Resolve the
+> [ability] on [card] as if …" (§3.11) calls one known ability; this is the reverse, a moment any card may answer.
+
+**Cards.** The five missions' a faces ("Forced Response: After you resolve a mission attempt, …").
+
+**Rules.** RRG 1.8 "Response" (p. 38); "Forced" (p. 20); "Triggered Ability" (p. 45). MC45 p. 6: "Mission attempts
+are triggered by the Mission Team (171A) support card."
+
+**Plan.** **`EffectSpec raiseMoment { name: string; player: PlayerRef }`** and
+**`TriggerEvent momentRaised { name, playerId, sourceInstanceId }`** with the pattern `on.moment(name)`: a response
+window like any other ("you" is `player`), opened where the effect stands in its list. Forced before optional, the
+first player ordering ties. The engine attaches no meaning to the name; the attempt raises `"missionAttempt"` after
+step 5. Logged as `momentRaised`.
+
+- Not used for the discard (§3.38): that must be the same triggering condition as Digging Deep's Response, so that
+  RRG p. 20's priority applies between them.
+- A moment nobody answers costs nothing (the `heard` gate of wave 7 §3.55).
+
+**Tests.** An attempt with the mission on its a face: one `momentRaised`, the mission's response resolves once. An
+attempt whose step 5 defeated the mission: the moment is raised and nothing answers (the a face is gone). A second
+card with `on.moment("missionAttempt")` in a fixture resolves in the order the first player picks.
+
+**Composes with:** later boxes' named procedures; nothing in waves 1–7 needs it.
+
+### 3.40 A side scheme nobody thwarts, kept in play by a minion, that flips to a face that clears the area
+
+> **Status: exists (compose)**, on §3.33 and §3.39. Pieces: `RuleSpec cannotThwart { schemes }` with no player
+> ("binds every player"; Life-Size Decoy, `sm` 27142); `notDefeatedWithoutThreat { target, while }` (the Wrecking
+> Crew's signature schemes); named counters (`addCounters`); `flipCard` onto an `otherFaceId` face and a When
+> Defeated that flips its own card (Find the Norn Stones, `mts`; §3.22); `moveCards` to `removedFromGame` and to each
+> owner's deck, shuffled; `endGame`; `findCard` (§3.1). Not run together.
+
+**Cards.** 45166a/b–45170a/b (§1.24). The Mission Rules card's bullets 1 and 6 (§1.29).
+
+**Rules.** MC45 pp. 5–6. RRG 1.8 "Defeat" (p. 15); "Side Scheme" (p. 40); "Flip" (p. 20: with the same card type
+"the card retains all attached cards, tucked cards, status cards, and tokens"); "Double-Sided Card" (p. 17);
+"Removed from the Game" (p. 36); "When Defeated Abilities" (p. 48); "Target" (pp. 42–43: "A target that cannot be
+thwarted is not a valid target for a thwart-labeled ability").
+
+**As read.**
+
+- **Not thwarted.** No basic thwart and no thwart-labeled ability can choose it. Threat leaves it only by an
+  attempt's step 5.
+- **Not defeated while a minion is in the area.** At no threat with a minion there it stays in play at 0; the moment
+  the last minion leaves the area it is defeated (the state check, not a new attempt). An Overseer and every Agent of
+  Apocalypse added to the area count.
+- **The attempt counter** is placed by the a face's Forced Response, so an attempt that defeated the mission places
+  none, and an attempt with no ally at the mission places one.
+- **Which bullet.** The a face flips for one of two reasons, and the b face must know which. The When Defeated sets
+  a named marker on the card (`addCounters(self, "defeated", 1)`) before it flips; counters survive a flip between
+  two side schemes (RRG p. 20). The b face reads the marker. Explicit state, readable in the log.
+- **When Defeated:** each player card in the area (allies and upgrades on them) is shuffled into its owner's deck;
+  facedown cards on a defeated Abyss went to discard piles with him. Then Mission Team flips, then the mission.
+- **The fourth counter:** Mission Team is removed from the game (not a discard, §3.35), then the mission flips.
+- **The b face:** "remove each card in the mission area from the game", then its bullet. The [FINISHED] face itself
+  is a card in the mission area: §4.2 Q20 (default A: it goes last, after its bullet resolves).
+- **"Was defeated" for Victory** is the `schemeDefeated` event the When Defeated belongs to: `CampaignGameQuery
+cardsDefeated { name }` reads it though the card flipped and no card of that name is left in play
+  (`campaign.ts`'s own note on Find the Norn Stones).
+- Sabotage the Sea Wall's b face is §3.1's `find`: "find … and reveal it" (not defeated) reveals North American Sea
+  Wall from wherever it was, with hinder and surge; "find … remove it from the game" (defeated) takes it out of play
+  if it is in play, without defeating it (no victory display). It is gone first, in printed order, so its "The
+  villain cannot take damage" no longer holds when each player then deals 3 damage to an enemy of their choice.
+
+**Tests (exact numbers).** 1 player unless said.
+
+1. Mission 5, Sugar Man in the area; a basic thwart and a thwart event: the mission is no target.
+2. Mission at 2, THW 4, Sugar Man alive: 0 threat, in play, one attempt counter. A later attempt defeats Sugar Man in
+   step 4: the mission is defeated then; step 5 removes nothing; no counter is placed.
+3. Four attempts that never empty it: after the fourth, Mission Team is removed from the game; the allies at the
+   mission, the Overseer and an Agent there are removed from the game (not in a discard pile, not in the victory
+   display); the b face's "not defeated" bullet resolves.
+4. Evacuate Survivors, 2 players, failed: each player has 1 facedown encounter card. Defeated: each searches deck
+   and discard pile for 1 card.
+5. Liberate the Seattle Core, 3 players, failed: 6 threat on the main scheme. Defeated: each player has 1 Desperate
+   Measures in hand and one copy is still set aside.
+6. Find Lost Mutants defeated, 2 players: each has one campaign ally in hand, two stay set aside; each ally's
+   "enters your hand" Response is offered (§3.42).
+7. Protect the Professor failed: the game is lost at once.
+8. Fourth attempt, mission at 1 threat, no minion, one ally matched with THW 1: defeated; Mission Team shows
+   [FINISHED]; three counters.
+9. A campaign game won with the mission defeated: `cardsDefeated { name }` has one entry. Won on its a face: none.
+
+### 3.41 Minions in the area: dashed stats, never engaged, shielded by another minion
+
+> **Status: exists (verify)**, on §3.33. `PrintedStat` `null` (a dash: Hulk's THW); `RuleSpec cannotTakeDamage {
+target, while }` (Ultron, core 01136); victory (wave 3); `chooseOne` on a When Revealed with an activation as one
+> option (wave 7 §3.11); `extraBoostCards` (§3.12). Not run: a minion in play engaged with no player and in no
+> villain's area; "add [this card] to [an area]" as a When Revealed option.
+
+**Cards.** 45179a–45183a; Agent of Apocalypse 45164; Worldwide Crisis 45165 (text in §1.25, §1.28).
+
+**Rules.** RRG 1.8 "Dash (Value)" (p. 15); "Activation" (p. 6); "Engage" (p. 18); "Guard" (p. 21); "Victory X"
+(p. 46); "Choose (Option)" (p. 12); "'Cannot'" (p. 11); "Boost" (p. 11).
+
+**As read.**
+
+- An Overseer is put into play in the area: not revealed, not engaged, 5[per_hero] hit points, no status card (it
+  has no toughness). It never schemes or attacks.
+- "Cannot take damage while another minion is at the mission": another minion in the same area, which in practice is
+  an Agent of Apocalypse. The attempt's pool does not offer it (§3.37).
+- Defeated, it goes to the victory display (5 points) and Victory strikes it after a win (§3.45). Removed from the
+  game by a failed mission, it was not defeated.
+- **Agent of Apocalypse.** The player who reveals it chooses. "Add … to the mission area": it enters play there, not
+  engaged, with no activation; guard does nothing there (RRG p. 21 reads minions engaged with a player). "Or it
+  activates against you": it engages the player as any revealed minion and activates (SCH 2 or ATK 2 by form). With
+  no [MISSION] side scheme in play only the second option can be chosen.
+- Its Boost and Worldwide Crisis's name the mission, so they reach into it: "Deal 1 damage to an ally at the mission"
+  (the player the activation is against chooses; none there, nothing), "Place 1 threat on the [MISSION] side scheme".
+  "Give the activating enemy an additional boost card" is a second sentence and happens either way.
+- Worldwide Crisis's second option "take 1 damage and this card gains surge" is the player's identity.
+
+**Tests (exact numbers).** 2 players.
+
+1. Setup: Sugar Man in the area, 10 hit points, engaged with nobody. A full villain phase: he does not activate.
+2. Agent of Apocalypse revealed by player 2, added to the mission: 3 hit points, not engaged; player 2's guard check
+   for attacking the villain is unaffected. Sugar Man takes 0 of a pool while the Agent stands.
+3. The same card, "activates against you" in hero form: engaged with player 2, attacks for 2.
+4. As a boost card on the villain against player 1 with X-23 (1 damage) at the mission: X-23 has 2 damage; the
+   villain has one more boost card.
+5. Worldwide Crisis, mission at 10: first option 13. Second option: 1 damage to the player's identity, then one more
+   encounter card for them. With the mission finished: only the second.
+6. Sugar Man defeated: victory display. A game won: `overseers` has Sugar Man struck. A game lost: not struck.
+
+### 3.42 A resource icon a character is considered to have; an obligation that lives in a player's deck
+
+> **Status: extend** (the icon). Exists (verify) for the rest: an encounter card in a player's deck that answers
+> `cardEntersHand` from the hand (`on.thisEntersYourHand()`, `activeIn: "hand"`; Mystique's treacheries, wave 6
+> §3.10); an obligation that stays in its player's play area until its own Alter-Ego Action removes it (wave 7
+> §3.70); a scheme icon on an obligation in play, counted at step one (wave 7 §3.63); `dealAsEncounterCard` (wave 7
+> §3.38); hinder, surge and victory on a side scheme; `cannotTakeDamage` on the villain.
+
+**Cards.** Desperate Measures 45176; Panicked Refugees 45178; Destiny, Blink, Morph and X-Man 45172–45175; North
+American Sea Wall 45177 (text in §1.27, §1.28).
+
+**Rules.** RRG 1.8 "Resource" (p. 37); "Obligation" (p. 30); "Discard" (p. 16: "If an encounter card is discarded,
+it is placed faceup on top of the encounter discard pile"); "Ownership and Control" (p. 31: the scenario owns each
+encounter card); "Acceleration Icon" (p. 5); "Hinder X" (p. 22); "Surge" (p. 42); "Victory X" (p. 46).
+
+**Plan and reading.**
+
+- **Desperate Measures.** +1 THW, +1 ATK and +1 hit point are stat modifiers on the host. "Is considered to have a
+  wild ([wild]) resource icon in addition to its printed resource icon" is **`RuleSpec consideredResourceIcon {
+target, resource }`**, read by one reader today, §3.36's match. It does not change what the ally card would pay
+  with from a hand (the upgrade is in play and so is the ally). On an ally in a player's own area it gives the stats
+  and an icon nothing reads.
+- **Panicked Refugees.** In a player's deck by instruction (§2.14). Entering that player's hand by any route (drawn,
+  searched for, the starting hand): its Forced Response reveals it and the player draws 1 card. Revealed, an
+  obligation with no "choose" and no discard stays in that player's play area (wave 7 §3.70), where its acceleration
+  icon adds 1 threat at step one of each villain phase (RRG p. 5). Its Alter-Ego Action, by that player only (RRG
+  p. 30), exhausts their identity and removes the card from the game: this game, not the campaign. Discarded from a
+  deck (a mission attempt, Famine) it goes to the encounter discard pile (RRG p. 16), matches no ally (it has no
+  resource icon), and may come back as an encounter card: revealed from the encounter deck it enters the revealing
+  player's play area and stays, with no card drawn (its response reads a hand).
+- **The campaign allies.** "Response: After [this ally] enters your hand" is `on.thisEntersYourHand()`, optional,
+  each time: the b face's hand-out, a draw, a search, the starting hand (Morph confuses the villain before the first
+  turn). Played to the mission they are blank like any ally.
+- **North American Sea Wall.** 2 threat plus hinder 2[per_hero], surge, victory 2; while it is in play "The villain
+  cannot take damage" (every villain, with several). As a boost card it deals itself facedown to the player the
+  activation is against. It is in the villain's area, not the mission's, and players thwart it normally.
+
+**Tests (exact numbers).**
+
+1. Marrow (THW 1, ATK 2, 2 hit points, [energy]) with Desperate Measures: 2, 3, 3; matched by a [physical] card
+   (§3.36 test 6). Without it: not matched.
+2. Panicked Refugees drawn in the end phase with a hand size of 6: the player holds 6 other cards and the obligation
+   is in their play area. Next villain phase, 1 player, a main scheme with +1[per_hero]: 2 threat placed. In
+   alter-ego, the Action: identity exhausted, the card removed from the game.
+3. Panicked Refugees discarded by a mission attempt with two allies at the mission: one card left that can match;
+   the obligation is in the encounter discard pile.
+4. Blink searched for at campaign setup (§3.44): the villain takes 2 damage before the starting hands; a villain
+   with a tough status card loses it instead.
+5. North American Sea Wall revealed, 2 players: 6 threat, the revealing player is dealt another card (surge), the
+   villain takes 0 from an attack of 5. Defeated: victory display (2 points); the villain takes damage again.
+6. The same card as a boost card: 2 icons, and it is the attacked player's facedown encounter card afterward.
+
+### 3.43 "[A title] cannot enter play during this game"
+
+> **Status: extend.** `RuleSpec cannotPlay { player, cards, while }` stops a play. The unique rule's refusal covers
+> both ways in ("it cannot be played or put into play. Any effect that attempts to do so has no effect", RRG
+> pp. 45–46) but only against a matching card in play. Nothing stops a title from being put into play by an effect.
+
+**Cards.** MC45 p. 20, scenario 5's Campaign Instructions: "Professor X cannot enter play during this game."
+Professor X is `mut_gen` 32019 (reprinted `gambit` 37017), an ally.
+
+**Rules.** RRG 1.8 "'Cannot'" (p. 11); "Enters Play" (p. 18); "Play, Put into Play" (p. 32).
+
+**Plan.** **`RuleSpec cannotEnterPlay { cards: TargetQuery, while? }`**, a scenario-level rule the campaign
+instruction creates for the game: a matching card cannot be played (refused before any cost, for either
+destination of §3.34) and an effect that would put it into play does nothing to it, the card staying where it was.
+Matched by title, so any printing. The card may be in a deck, be drawn, be discarded and pay for other cards.
+
+**Tests.** A campaign game of scenario 5 with Professor X in a deck: in hand, it is not a legal play to either place;
+spent as a resource, it works; an effect that puts an ally from the discard pile into play cannot choose it. The same
+deck in scenario 4: playable.
+
+### 3.44 A card found at campaign setup that counts toward the starting hand
+
+> **Status: extend.** Campaign setup resolves before the starting hands (`afterScenarioSetup`, `campaign.ts`); a
+> deck search to hand exists; `executeDrawStartingHands` (`flow.ts`) is "a counted draw of hand-size cards, not a
+> refill" (maintainer decision 2026-09-23, `docs/campaign-mode-design.md` Q20). So a card found before step 14 is
+> today an extra card.
+
+**Cards.** The fifth bullet of every scenario's box: "Each player searches their deck for an ally and adds it to
+their hand. (This card counts towards your hand size.)"
+
+**Rules.** RRG 1.8 Appendix II steps 13 to 15 (p. 51); "Hand Size" (p. 21); "Search" (p. 39).
+
+**Plan.** **`EffectSpec countTowardStartingHand { player, amount }`**, legal only before step 14: the starting draw
+for that player is their hand size less the amount (never below 0), and the credit is cleared by the draw. The
+instruction is the search followed by this with amount 1, only for a player who found a card. The counted draw of
+Q20 is otherwise unchanged: other boxes and saved games draw as before, because no earlier instruction sets a
+credit. The mulligan is the ordinary one: the ally may be discarded, and the player draws back up to hand size.
+
+**As read.** In player order, each player looks at their whole deck, takes any ally (in an expert campaign one that
+shares a trait with their hero face: `TargetQuery.sharesTraitWith`, Team-Building Exercise `ant` 12024; **verify**
+that it reads the hero face's traits while the identity is still in alter-ego form), and shuffles. Cards the
+mission's Setup cell shuffled into the deck are in it already (printed order). An ally whose text answers entering a
+hand (§3.42) resolves then.
+
+**Tests (exact numbers).** A hand size of 6: after campaign setup the player holds 1 card, draws 5, holds 6; a
+mulligan of the ally and 2 others draws 3. A deck with no ally: nothing found, 6 drawn. Expert campaign, a hero
+with [AVENGER] only and a deck whose allies are all [X-MEN]: nothing found. A standalone game of the same scenario:
+6 drawn, no search.
+
+### 3.45 The campaign definition: random strike lists, three-cell rows, rewards, a win that loses
+
+> **Status: exists (verify).** The foundation was surveyed against this rulebook, and every piece is in
+> `packages/engine/src/campaign.ts` citing it: `LogFieldType strikeList`; `CampaignOp random` over
+> `fieldOptions { unstruckOnly }` ("MC45 p. 5"); `strike`; `CampaignPredicate notStruck`; `choose` from `collection`
+> with `CollectionFilter.categories` ("MC45 p. 24") and `sharesTraitWithIdentity` ("MC45 p. 20"); `grantCard`,
+> `removeFromCampaign`; `endCampaign` ("MC45 p. 20 … winning the last scenario can still lose the campaign");
+> `everyNodeSetup` ("MC45 p. 20 prints the same mission-area block"); `composeEncounterSets`, `setAsideCards`;
+> `CampaignGameQuery cardsDefeated`, `cardsInVictoryDisplay`; `EliminationPolicy`; the expert helpers of
+> `packages/cards/src/campaigns/expert-helpers.ts`. None has been run by a definition of this shape.
+
+**Cards.** The log (MC45 p. 24) and the five boxes. The definition is `packages/cards/src/campaigns/aoa.ts`, the
+`next_evol.ts` shape: `graph: { kind: "linear" }`, five nodes, `loss: { retry: "free", retryBaseline: "nodeStart",
+citation: "MC45 p. 4" }`, `elimination` as `mut_gen.ts`'s (expert campaign only).
+
+**Rules.** MC45 pp. 4, 6, 20, 24. RRG 1.8 "Modes of Play" (pp. 28–29); "Campaign-Specific Card" (p. 11); FAQ
+"Campaign Mode" (p. 61).
+
+**Plan (definition level, in printed order).**
+
+- **Setup, every node** (`everyNodeSetup`; scenario 5's own second bullet replaces the draw):
+  - `composeEncounterSets [age_of_apocalypse]` into the deck.
+  - `random` one option of `missions` (`unstruckOnly`), `setField currentMission`; then, by `currentMission`, the
+    `setAsideCards` that game needs (the mission's a face; and its row's cards: four Desperate Measures, one Panicked
+    Refugees for each seat, North American Sea Wall, or the four campaign allies) and the `inGame` Setup cell.
+  - `random` one option of `overseers`, `setField currentOverseer`, `setAsideCards` of that minion; `inGame`: put
+    the mission and the Overseer into the area (§3.33) and Mission Team under the first player's control.
+  - The carried rows, each gated on its result field: `resultLiberate = defeated`: each player may shuffle 1
+    Desperate Measures into their deck; `resultEvacuate = notDefeated`: each player shuffles 1 Panicked Refugees
+    in; `resultSabotage = notDefeated`: North American Sea Wall is shuffled into the encounter deck.
+  - The ally search (§3.44); scenario 5's `cannotEnterPlay` (§3.43); the expert pair (below).
+- **Victory, nodes 1 to 4:** `record` `missionDefeated` (`cardsDefeated` by the mission's name) and
+  `overseerDefeated` (`cardsInVictoryDisplay` with the [OVERSEER] trait); `strike` `currentMission`; write its
+  result field; run that row's Defeated or Not Defeated cell (`removeFromCampaign`, `choose` + `grantCard`); `strike`
+  `currentOverseer` if defeated; the expert hit point record.
+- **Victory, node 5:** Protect the Professor defeated: the campaign is won. Not defeated: `endCampaign lost`.
+- **Expert:** `hpRecord` and `hpSet` as they are; the heal is a third helper beside `healToFull` and
+  `healWithFacedownCard`, whose price is `placeThreat(3)` on the area's [MISSION] side scheme, forced for a seat with
+  no recorded hit points.
+
+**To verify.**
+
+- A later setup instruction's `when` reads a field an earlier instruction of the same list wrote (`currentMission`).
+- `setAsideCards` copies by `seatCount` for Panicked Refugees; campaign set-aside cards exist before the
+  `beforeScenarioSetup` window (§3.46 needs it).
+- A granted campaign ally (unique, one copy in the box) cannot be granted to two seats: the Defeated cell's `choose`
+  uses `excludeGranted`.
+- "From any aspect" and the deck-size exemption: §4.2 Q24, Q25. A grant today is exempt from the minimum and the
+  maximum (`CampaignSeatInput.grantedCardIds`).
+- An expert campaign is not lost by losing scenario 5: this box prints no such sentence (foundation row 15 lists the
+  boxes that do, and MC45 is not among them), so the definition has no `defeat` block.
+
+**Tests (exact numbers).** A seeded standard campaign, 2 seats.
+
+1. Scenarios 1 to 4 draw four different missions; the same seed draws the same order; after four wins `missions` has
+   four struck names and four result fields are set.
+2. Evacuate Survivors drawn in scenario 2 and not defeated: scenarios 3, 4 and 5 each start with 1 Panicked Refugees
+   in each deck (2 in the game). Defeated instead: the four copies are removed from the campaign and each
+   seat holds one granted upgrade.
+3. Liberate the Seattle Core defeated in scenario 1: in scenario 2 each player is offered 1 Desperate Measures; one
+   accepts: 1 copy is in that deck and none in the other.
+4. Find Lost Mutants defeated: two seats pick different allies; the two unpicked are simply unused. Not defeated:
+   all four are removed from the campaign.
+5. Sugar Man defeated in a won scenario 1: scenarios 2 to 5 never draw him. Defeated in a lost scenario 1: the retry
+   may.
+6. Scenario 5 won with Protect the Professor defeated: status `won`. Won with it on its a face: status `lost`.
+   Lost because it failed: the node is retried.
+7. Expert: a seat recorded at 4 of 12 starts scenario 2 at 4 hit points; paying, it is at 12 and the mission at
+   10 + 3 = 13. A seat eliminated in a won scenario 1 has no record, must pay, and made no pick in scenario 1's
+   Defeated cell.
+
+### 3.46 One printed card as two cards: an Overseer in play and its Prelate face
+
+> **Status: extend**, if §4.2 Q21 is answered A; nothing to build if B. `otherFaceId` joins two card records, and
+> the engine flips one instance between them (`resolve/other-face.ts`). No query asks "the other face of that card",
+> and nothing stops two instances, one of each face, from being in one game.
+
+**Cards.** 45179a/b–45183a/b, in a campaign game of scenario 3 only: the one game that has the `prelates` set and an
+Overseer.
+
+**Rules.** MC45 p. 14: "The [PRELATE] minions (179-183) are found on the reverse sides of the [OVERSEER] minions.
+Defeating a [PRELATE] minion does not remove its [OVERSEER] version from the campaign." **Ruling April 30, 2026 –
+Ruling 4 (2).** RRG 1.8 "Double-Sided Card" (p. 17).
+
+**The point.** The ruling settles the log: a struck Overseer leaves its Prelate in scenario 3. It does not say what
+happens inside one game, where one piece of cardboard cannot be the Overseer in the mission area and a set-aside
+Prelate at once. On the table, scenario setup comes first (the 1A Setup reveals one of five Prelates), then the
+campaign draws an Overseer from the cards that are left, and three Prelates remain set aside for the three schemes:
+exactly enough, never one to spare.
+
+**Plan (Q21 = A).** **`TargetQuery.otherFaceOf: TargetRef`** (a card whose id is the ref's `otherFaceId`). In node
+3 the definition removes from the game, before the 1A Setup (`beforeScenarioSetup`), the set-aside Prelate that is
+the other face of the Overseer drawn; the scenario then reveals one of four and three stay set aside. The draw
+order is the reverse of the table's (the Overseer first, then the Prelate), because the runner draws between games;
+the pairs that can occur are the same, their odds differ slightly. The Dossier says which Prelate is absent and why.
+
+**Tests.** Scenario 3 in a campaign with Sugar Man drawn as the Overseer: 45182b is removed from the game at setup,
+four Prelates are set aside, one is revealed, and after the three schemes none is left. With Sugar Man struck from
+the log and Abyss drawn: 45182b is in the game (the ruling), 45181b is not. Standalone: five Prelates.
+
+### 3.47 Reusable as is (pass 1c, checked against the engine unions)
+
+| Card text or instruction                                                                             | Existing vocabulary                                                                                             |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| "Shuffle the Age of Apocalypse modular set into the encounter deck"                                  | `CampaignOp composeEncounterSets` (into the deck)                                                               |
+| "Randomly select one of the available …"                                                             | `CampaignOp random` over `fieldOptions { unstruckOnly }`, from the campaign's RNG                               |
+| "The first player takes control of the Mission Team (171A) support card"                             | `setAsideCards` + `putIntoPlay` under `firstPlayer` (Venom, `sm`, MC27 p. 13)                                   |
+| "Each player shuffles a copy of Panicked Refugees into their deck"                                   | `moveCards` from the set-aside area to a player's deck, shuffled (encounter cards in player decks, wave 5 §3.5) |
+| "Shuffle the North American Sea Wall side scheme into the encounter deck"                            | `moveCards` to the encounter deck, shuffled                                                                     |
+| "Place 2[per_hero] threat on the main scheme"; "Deal each player a facedown encounter card"          | `placeThreat`, `dealEncounterCard(eachPlayer)`                                                                  |
+| "Each player searches their deck and discard pile for 1 card / an ally and adds it to their hand"    | `forEachPlayer` + the search of deck and discard pile (Suit Up 45017)                                           |
+| "Each player discards 1 card from their hand"; "each player deals 3 damage to an enemy"              | `forEachPlayer`, `discardFromHand`, `chooseTarget` + `dealDamage`                                               |
+| "Each player adds 1 copy of the Desperate Measures upgrade / one set-aside campaign ally"            | `forEachPlayer`, a pick from `encounterSetAside`, `moveCards` to hand                                           |
+| "The players lose the game"                                                                          | `endGame` (loss)                                                                                                |
+| "Find North American Sea Wall and reveal it" / "remove it from the game"                             | §3.1; `moveCards` to `removedFromGame`                                                                          |
+| "Hinder 2[per_hero]. Surge. Victory 2." / "The villain cannot take damage."                          | keywords; `cannotTakeDamage` (Madame Hydra, core 01181)                                                         |
+| "[star] Boost: Deal this card to yourself as a facedown encounter card."                             | `dealAsEncounterCard` (wave 7 §3.38)                                                                            |
+| "Give the activating enemy an additional boost card."                                                | `extraBoostCards` (§3.12)                                                                                       |
+| "Take 1 damage and this card gains surge"                                                            | `dealDamage` to your identity, a gained surge (wave 1)                                                          |
+| "Action: Exhaust Mission Team → choose a player to draw 1 card."                                     | `exhaustSelf` cost, `chooseTarget` of a player, `draw`                                                          |
+| "Alter-Ego Action: Exhaust your identity → remove this card from the game."                          | a form-limited action on an obligation in play (wave 7 §3.70)                                                   |
+| "Response: After [ally] enters your hand, …" (45172–45175)                                           | `on.thisEntersYourHand()` (wave 6 §3.10); `removeThreat`, `dealDamage`, `giveStatus`                            |
+| "Attach to an ally. Limit 1 per ally."; "+1 THW, +1 ATK, +1 hit point"                               | host `ally` with one per host; `StatModifierSpec`                                                               |
+| Expert: record, set, pay to heal; a defeated player sits out and must pay                            | `expert-helpers.ts` (wave 7 §3.46); `EliminationPolicy`                                                         |
+| "Strike the [MISSION] side scheme"; "strike its name from the campaign log"                          | `CampaignOp strike`                                                                                             |
+| "Each player chooses an upgrade / a support from any aspect … 1 copy … for the rest of the campaign" | `choose` (each seat) from `collection { categories }`, `grantCard` with `permanence: "campaign"`                |
+| "Remove … from the campaign"                                                                         | `removeFromCampaign`                                                                                            |
+| "The players … lose the campaign"                                                                    | `endCampaign { result: "lost" }`                                                                                |
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Decided by the user
@@ -1872,6 +3086,52 @@ Pass 1b's questions:
     - **A (default):** it stays where it is (§3.1's rule for an attachment found in play); nothing else happens.
     - B: it moves to the finding player's identity, as Magistrate's "attaches it to their identity" does.
 
+Pass 1c's questions:
+
+18. **A card in the mission area and an ability that only reads the table.** (§3.33. MC45 p. 5: "in play but under no
+    player's control. They cannot be affected by card abilities unless the ability refers to the mission area.")
+    Choosing or changing such a card is ruled out either way. This asks about counting and watching: "the number of
+    side schemes in play", "if a minion is in play", "after a side scheme is defeated".
+    - **A (default):** they see it. It is in play, and counting a card does not affect it.
+    - B: they do not. The mission is its own board: nothing outside it reads it, and nothing answers what happens
+      there.
+19. **An upgrade attached to an ally at the mission.** (§3.34. MC45 p. 5: "Players may attach upgrades to allies in
+    the mission area." Desperate Measures does not mention the mission, so "cannot be affected … unless the ability
+    refers to the mission area" cannot be meant to switch it off.)
+    - **A (default):** the upgrade's constant changes to its host apply (stats, hit points, a considered icon, a
+      keyword). Nobody controls it, so its Actions, Responses and resource abilities cannot be used.
+    - B: only an upgrade from the campaign sets works there (Desperate Measures); any other is inert.
+20. **The [FINISHED] face after its Forced Response.** (§3.40. "Remove each card in the mission area from the game
+    and do the following". The face is itself in the mission area.)
+    - **A (default):** it resolves its bullet, then is removed from the game with the rest. No side scheme is left
+      in play.
+    - B: it stays in play for the rest of the game, a side scheme with a dash for threat that nothing can touch.
+21. **One printed card as an Overseer and as a Prelate in the same game.** (§3.46. A campaign game of scenario 3;
+    ruling April 30, 2026 – Ruling 4 (2) covers the log, not this.)
+    - **A (default):** as the cardboard has it: the Prelate face of the Overseer in the mission area is out of that
+      game, so four Prelates are set aside and all four are used.
+    - B: the faces are independent: all five Prelates are set aside whichever Overseer is drawn.
+22. **A retried scenario: the same mission and Overseer, or a new draw?** (§2.11. MC45 p. 4: "they may reset the
+    scenario and try again with no penalty". The runner restores the campaign's RNG on a retry, so a between-games
+    draw repeats; NeXt Evolution's rule that a retry keeps the same choice is that box's own, MC40 p. 7.)
+    - **A (default):** the same two cards. A loss cannot be used to reroll the mission.
+    - B: a new draw each attempt, as resetting the table would give.
+23. **The four Age of Apocalypse cards outside the campaign.** (§1.23. The cards print "AGE OF APOCALYPSE (n/4)", not
+    "Campaign"; the boxes call them a modular set; MC45 p. 4 lists 164–183 as campaign cards; RRG p. 61's FAQ counts
+    a set as modular unless it prints its scenario's name or "Campaign".)
+    - **A (default):** campaign only. Without a mission both cards are a plain activation and a 1 damage surge.
+    - B: also offered as a modular set in standalone games.
+24. **"An upgrade from any aspect" / "a support from any aspect".** (§2.14; the log, p. 24.)
+    - **A (default):** an aspect card of any aspect, whatever the deck's aspect, that the identity may legally
+      include (the foundation's rule for MC27's "aspect card in their collection", decided 2026-09-25); not a basic
+      card and not an identity-specific one.
+    - B: basic upgrades and supports as well.
+25. **"That card does not count against your minimum deck size."** (§2.14. Earlier boxes print "minimum or maximum";
+    a grant today is exempt from both.)
+    - **A (default):** as printed: exempt from the minimum only. A 50-card deck must drop a card to take the
+      reward; a 40-card deck becomes 41 and is legal.
+    - B: exempt from both, as every earlier box's grants are.
+
 ## 5. What this asks of the other agents (pass 1a)
 
 - **`card-data-pipeline`:** emit the six sets of this pass with §1.2–§1.9: one main scheme record each from the
@@ -1917,18 +3177,83 @@ Pass 1b's questions:
   it; the three forms of the villain with the current one marked and each form's Forced Response in Inspect; power
   counters and the threshold of 4; the setup option of Q12 and the confirmation of Q13 once answered.
 
+### 5.2 Pass 1c
+
+- **`card-data-pipeline`:** the five campaign sets with §1.23–§1.31: `campaignSpecific` on four sets and the two set
+  names; the mission b faces as their own side schemes with a `cardNotes` dash; the Overseer faces with `null` SCH
+  and ATK joined to the Prelate faces by `otherFaceId`, and the normalizer rule that makes a nested minion face its
+  own card; `Mission Response` parsed as `forced-response`; Mission Team's dash cost, `flipSide` and errata; the
+  hand-authored `campaign.ts`. No Mission Rules record (§1.29). Read the scans listed in §1.31 before emitting. No
+  schema change is requested.
+- **`game-rules-architect`:** §3.33, §3.36 and §3.39 are new, one agent each, §3.33 first (everything else stands on
+  it). §3.34, §3.35, §3.37, §3.42 (the considered icon), §3.43 and §3.44 are one more case each. §3.46 waits for
+  Q21. §3.38, §3.40, §3.41 and §3.45 need no engine change unless their tests fail. When `campaign.ts` is next
+  edited, correct the `CampaignCardFace` comment (§1.23).
+- **`ability-scripting-engineer`:** nothing until §3.33–§3.39 land. Then, one agent each: (1) the mission rules
+  block, the five missions and Mission Team, with `missionAttempt()`, in
+  `packages/cards/src/wave8/aoa/campaign/missions.ts`; (2) the five Overseer faces; (3) `age_of_apocalypse` and
+  `aoa_campaign`; (4) the campaign allies and Desperate Measures; (5) the `CampaignDefinition`
+  `packages/cards/src/campaigns/aoa.ts` and its heal helper; (6) a campaign e2e. Each "exists (verify)" row is proved
+  by a test in the module's own test file before it is relied on.
+- **`encounter-ai-designer`:** the automated player's mission policy, as plain rules: when an ally goes to the
+  mission and when to its player's area (the mission's remaining threat and hit points against attempts left);
+  which Mission Team option to take (never an attempt with no ally there; the discount when an ally is about to be
+  played to the mission); the pairing that matches the most ATK and THW (§3.36), under Mister Sinister's limit; the
+  order of the pool (§3.37); Mikhail Rasputin's damage; Agent of Apocalypse's and Worldwide Crisis's choices; the
+  expert heal. In scenario 5 it must not defeat the villain while Protect the Professor is undefeated and can still
+  be. One scenario test: a mission defeated by round 3 in Unus, and one that fails on the fourth attempt.
+- **`rules-qa-engineer`:** one regression test each for ruling April 30, 2026 – Ruling 4 (1) (§3.38 test 1, both
+  branches, and the Abyss case of test 3), for answer (2) with §3.46's three games, and for the Mission Team erratum
+  (§3.35 test 2: the discount does not outlive the phase). Fixtures for the exact-number tests of §3.33–§3.37 and
+  §3.40. Campaign tests of §3.45: each mission won and failed, the reward and the cost carried to the next scenario,
+  a retry after a loss in which the Overseer was defeated, scenario 5 won three ways, a seat eliminated in a won
+  expert game. Report, do not fix, the two repo documents that read the log's columns backward (§0.2).
+- **`game-client-engineer`** (design first; MC45 is a box that needs a design pass, `docs/campaign-client-per-box.md`
+  §3, whose MC45 row is corrected by §0.2):
+  - **Dossier (the log).** Per seat: identity and, in an expert campaign, remaining hit points. The four missions in
+    the sheet's order with their three cells (Setup, Defeated, Not Defeated) readable in full; a struck row marked
+    with the cell that applied (the result the paper sheet has no box for); the five Overseer boxes, struck ones
+    marked. What carries: Desperate Measures on offer each game, Panicked Refugees each game, North American Sea
+    Wall each game, each seat's granted upgrade, support and campaign ally; cards removed from the campaign shown as
+    such.
+  - **Briefing, every scenario.** The mission drawn and the Overseer drawn, shown as drawn, not chosen, with both
+    faces of the mission and the Overseer's Mission Response in Inspect; the row's Setup cell and what its Defeated
+    and Not Defeated cells will do; what the log carries into this game; in an expert campaign each seat's hit
+    points and the heal's price (3 threat on the mission), with "must pay" for a seat that was defeated. Scenario 3:
+    which Prelate is absent and why (Q21). Scenario 5: Protect the Professor, with both ways it ends the campaign,
+    and "Professor X cannot enter play".
+  - **Aftermath.** The strike; the row's cell applied; the picks: an upgrade or a support from any aspect is a
+    collection-wide searchable picker (MC27's), a campaign ally is four cards with the ones taken marked; the
+    Overseer struck or not, with the reason; scenario 5's two endings, including a won game that lost the campaign.
+  - **In-game mission UI.** The mission area as its own region of the table, visibly apart from the villain's area
+    and from every player's: the mission with its threat and attempt counters ("2 of 4"), the Overseer with damage
+    and hit points and dashes for SCH and ATK, any Agent of Apocalypse, the allies there with their resource icon
+    shown large and their hit points, upgrades on them, and facedown cards on Abyss as a count. A Mission Rules
+    reference panel with both sides (§1.29).
+  - **Playing an ally** while a mission is in play: a destination prompt (your area or the mission) with the cost
+    after Mission Team's discount, and a short reason when a destination is refused (unique, "Play only if").
+  - **A mission attempt as a stepper** that never auto-resolves a choice: the cards discarded; the Mission Response
+    as it resolves; Digging Deep's prompt ("it will not count, and no card replaces it"); the pairing, with matches
+    lit as cards are dragged to allies, the [wild] rule shown, and Mister Sinister's limit explained when it blocks
+    a pair; the pool dealt enemy by enemy, with a shielded Overseer shown as shielded; the threat removed; then the
+    counter and the 1 damage to each ally.
+  - **Warnings and reasons.** Before a third counter becomes a fourth; in scenario 5 before an attack that would
+    defeat the villain while Protect the Professor is undefeated ("winning now loses the campaign"), with a
+    confirmation; why a mission cannot be thwarted or its cards chosen, in Inspect; why a mission at no threat is
+    still in play.
+  - **Setup pacing:** the choice frames this box adds before the first turn are the mission's Setup cell, the
+    Desperate Measures offer, the ally search and each seat's expert heal.
+  - **Teaching** (every wave: glossary, a tip, a tricky-wording hint, a Try-it): glossary entries for mission area,
+    mission attempt, Mission Response, Overseer and attempt counter; a Try-it that plays one ally to the mission and
+    makes one attempt with a known top card.
+
 ## 6. Later passes (placeholders)
 
-- **(pass 1c)** The campaign (MC45 pp. 4–7, 20, 24 and the boxes on pp. 8, 12, 14, 16 and 20): the mission area,
-  mission side schemes (`aoa_mission` 45166a–45170a), the Overseer faces (`overseer` 45179a–45183a; their Prelate
-  faces are §1.15 and §3.22), Mission Team and the player campaign cards (`aoa_basic_campaign` 45171a–45176),
-  `aoa_campaign` 45177–45178, the Age of Apocalypse set (45164–45165), the expert campaign. Rulings April 30, 2026 –
-  Ruling 4 (1) (Digging Deep in a mission attempt) and, for the campaign log's side of it, (2). Start with MC45
-  pp. 4–7 against a render (pp. 5 and 6 are diagrams with callouts; check the markdown's order), then the five
-  Campaign Instructions boxes, whose "Expert Campaign Only" bullets the markdown sorts differently from the PDF text
-  layer (§0.1). Carry over: Abyss attaches facedown cards on both faces (§3.30); scenario 5's campaign box adds
-  "Professor X cannot enter play during this game".
 - **(pass 2a)** Bishop (45001a/b) and Magik (45030a/b), their nemesis sets, the box's aspect and basic cards; the RRG
-  FAQ on Magik (p. 64). **(pass 2b)** Iceman, Jubilee (ruling June 2, 2026 – Ruling 1). **(pass 2c)** Nightcrawler,
-  Magneto.
+  FAQ on Magik (p. 64). Start with the three things pass 1c leaves for it: Bishop's Energy Absorption and Magik's
+  faceup top card both read the top of a deck that a mission attempt discards from (§3.36); the box's allies are the
+  ones a campaign game plays to the mission, so each needs its printed resource icon and its "Play only if" line
+  checked against a scan (§3.34); Sidekick (45015) attaches to "an identity-specific ally you control", which an ally
+  at the mission is not (§3.33). **(pass 2b)** Iceman, Jubilee (ruling June 2, 2026 – Ruling 1). **(pass 2c)**
+  Nightcrawler, Magneto.
 - **(pass 3)** The ordered engine build queue over every §3 row.
