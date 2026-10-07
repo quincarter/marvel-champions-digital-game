@@ -47,6 +47,14 @@ describe("scenario intros", () => {
     }
   });
 
+  test("a rulebook page intro shows the whole page in one beat, so no printed lettering is cropped", () => {
+    for (const id of ["morlock-siege", "juggernaut", "sandman", "thanos"]) {
+      const { beats, width, height } = scenarioIntroFor(id)!.page;
+      expect(beats).toHaveLength(1);
+      expect(beats[0]!.panel).toEqual({ x: 0, y: 0, w: width, h: height });
+    }
+  });
+
   test("a hero's quip degrades to narration when that hero isn't at the table", () => {
     const intro = scenarioIntroFor("rhino")!;
     const heroLines = intro.page.beats.flatMap((beat) => beat.lines).filter((line) => line.speaker.kind === "hero");

@@ -125,3 +125,7 @@ export function seatIdentityName(state: GameState, id: PlayerId): string {
 export function seatName(state: GameState, id: PlayerId, perspectiveId: PlayerId | null): string {
   return id === perspectiveId ? "You" : playerName(state, id);
 }
+
+const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six"];
+/** A small count in words ("two"), the number itself past six. */
+export const numberWord = (n: number): string => NUMBER_WORDS[n] ?? String(n);

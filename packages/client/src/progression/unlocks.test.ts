@@ -244,6 +244,17 @@ describe("storage", () => {
     });
   });
 
+  it("never counts a won Try-it lesson as a clear", () => {
+    const progress = progressOf(
+      [
+        { status: "won", guided: { kind: "mechanic" }, config: { scenarioId: "rhino", difficulty: "standard" } },
+        { status: "won", guided: { kind: "aspect" }, config: { scenarioId: "klaw" } },
+      ],
+      [],
+    );
+    expect(progress.wonScenarioIds).toEqual([]);
+  });
+
   it("reads the dev param", () => {
     expect(devUnlockAllFrom("?unlock=all")).toBe(true);
     expect(devUnlockAllFrom("?screen=seats&unlock=all")).toBe(true);

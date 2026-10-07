@@ -6,7 +6,8 @@
 
 import { activeAbilityRefs, activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
-import type { ChoiceOption, ChoicePrompt, GameState, PendingChoice, PlayerId } from "@mc/engine";
+import type { ChoiceOption, ChoicePrompt, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
+import { cardName } from "./names.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
@@ -15,6 +16,7 @@ import {
   advanceReveal,
   appendWalkthrough,
   decisionLabel,
+  defenderLineOf,
   emptyWalkthrough,
   inlineInterruptFor,
   interruptActionLabel,
@@ -519,6 +521,19 @@ describe("decisionLabel", () => {
     );
   });
 
+  test("a restricted discard says why it opened, from the prompt's own limit", () => {
+    const restricted = (limit: number) => ({
+      ...choice("player"),
+      prompt: { kind: "discardRestricted", limit } as ChoicePrompt,
+    });
+    expect(decisionLabel(restricted(2), played.state, played.viewer)).toBe(
+      "You are over the limit of two restricted cards",
+    );
+    expect(decisionLabel(restricted(3), played.state, played.viewer)).toBe(
+      "You are over the limit of three restricted cards",
+    );
+  });
+
   test("addresses another seat in the third person", () => {
     const other = "player-nobody" as PlayerId;
     expect(decisionLabel({ ...choice("player"), playerId: other }, played.state, played.viewer)).toMatch(/decides$/);
@@ -726,4 +741,26 @@ describe("inline window picks", () => {
     expect(inlineConfirmLabel(state, options, [])).toBe("Let it resolve");
     expect(inlineConfirmLabel(state, options, ["a", "b"])).toBe("Use 2");
   });
+});
+
+describe("defenderLineOf", () => {
+  test("names a labeled defense card as the defense, and says nothing for no defender", async () => {
+    const played = await playThroughVillainPhase();
+    const card = Object.keys(played.state.instances)[0]! as InstanceId;
+    const attack = (defender: unknown) =>
+      ({
+        kind: "attack",
+        enemyInstanceId: card,
+        attackedPlayerId: played.viewer,
+        boosts: [],
+        defender,
+        resolved: null,
+      }) as never;
+    const name = cardName(played.state, card);
+    expect(defenderLineOf(played.state, attack({ instanceId: card, declined: false, labeled: true }))).toBe(
+      `${name} defended.`,
+    );
+    expect(defenderLineOf(played.state, attack(null))).toBeNull();
+    expect(defenderLineOf(played.state, attack({ instanceId: null, declined: true }))).toBeNull();
+  }, 60_000);
 });

@@ -142,3 +142,9 @@ export const ASPECT_GUIDES: readonly AspectGuide[] = [JUSTICE, AGGRESSION, LEADE
 export function aspectGuideOf(aspect: CoreAspect): AspectGuide | undefined {
   return ASPECT_GUIDES.find((guide) => guide.aspect === aspect);
 }
+
+/** The dev route's `?aspect=` value: the guide it names, Justice when missing or unknown (every aspect with a guide is accepted). */
+export function devAspectOf(raw: string | null): CoreAspect {
+  const found = raw ? ASPECT_GUIDES.find((guide) => guide.aspect === raw) : undefined;
+  return found ? found.aspect : "justice";
+}

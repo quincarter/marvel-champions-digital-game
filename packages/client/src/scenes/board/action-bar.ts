@@ -7,7 +7,7 @@ import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
-import { changeFormLabel } from "../../view/change-form-label.js";
+import { changeFormButtonLabel } from "../../view/change-form-label.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
@@ -63,7 +63,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     attack: "Attack",
     thwart: "Thwart",
     recover: "Recover",
-    changeForm: formSources.length > 1 ? "Change form" : changeFormLabel(model.myForm, stacked),
+    changeForm: changeFormButtonLabel(formSources.length, model.myForm, stacked),
     endTurn: "End turn",
   };
 

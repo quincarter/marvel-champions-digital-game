@@ -108,6 +108,44 @@ describe("game over model", () => {
     expect(model.finalBlow?.cardInstanceId).toBe(source);
   });
 
+  test("a win a card's text called (the villain still standing) reads as the players winning, not a villain falling", () => {
+    const { game, record, config } = store.state;
+    const won = { ...game!, outcome: { result: "win", reason: "villainDefeated" } as const };
+    const model = gameOverModel(won, record, config, CORE_DEPS);
+
+    expect(model.tone).toBe("win");
+    expect(model.headline).toBe("The players win");
+    expect(model.headline).not.toMatch(/defeated/);
+    expect(model.summary).toContain("The scenario's own text ended the game");
+    expect(model.stats[0]!.value).not.toMatch(/cleared/);
+  });
+
+  test("a lost game leads its debrief with the engine's reason and drops the threat count when the scheme did not win", () => {
+    const { game, record, config } = store.state;
+    const exhausted = { ...game!, outcome: { result: "loss", reason: "encounterDeckExhausted" } as const };
+    const model = gameOverModel(exhausted, record, config, CORE_DEPS);
+    expect(model.beats[0]?.text).toBe("The encounter deck and its discard pile both ran out.");
+
+    const rounds = [
+      {
+        round: 2,
+        threatPlaced: 5,
+        threatRemoved: 0,
+        damageToVillain: 0,
+        crisisBlocks: 0,
+        heroesDefeated: [],
+        villainStageAdvanced: false,
+      },
+    ];
+    const withThreat = { ...emptyRecord(), rounds };
+    expect(turningPoints(game!, withThreat, "loss", "Rhino", "cardAbility", "A card ended it.")).toEqual([
+      { round: game!.round, text: "A card ended it." },
+    ]);
+    expect(turningPoints(game!, withThreat, "loss", "Rhino", "mainSchemeCompleted")).toEqual([
+      { round: 2, text: "The heaviest round for threat: 5 placed, 0 removed." },
+    ]);
+  });
+
   test("the meta line and stats describe this game, not a template", () => {
     const { game, record, config } = store.state;
     const model = gameOverModel(game!, record, config, CORE_DEPS);
@@ -212,6 +250,9 @@ describe("game over: a loss a card's text caused names the card and why", () => 
       cardInstanceId: scheme,
     });
     expect(model.cause).toBe("Robert Kelly left play. Stalked by Sabretooth ends the game.");
+    // "Where it went wrong" leads with that cause, never with a threat count that did not end this game.
+    expect(model.beats[0]).toEqual({ round: lost.round, text: model.cause });
+    expect(model.beats.some((beat) => /heaviest round/.test(beat.text))).toBe(false);
     expect(model.summary).toContain("Stalked by Sabretooth ended the game in round");
     whole(model.cause);
 

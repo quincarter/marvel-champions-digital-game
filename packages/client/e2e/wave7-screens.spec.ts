@@ -2,7 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   activeScenes,
   clickText,
-  findText,
   focusRect,
   guideStepId,
   pressKey,
@@ -46,7 +45,6 @@ import {
   openTitle,
   playCard,
   pressBoardText,
-  press,
   pressInstance,
   pressFocus,
   pressUntil,
@@ -376,41 +374,19 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
         await settle(page, { quietMs: 600, maxMs: 3000 });
         await shot(page, `a-${lesson.id}-complete`);
         expect(await complete(page), "the completion panel").toBe(true);
-        // Close the panel, then leave through the pause menu: the way out of a Try-it game is back to where it started.
+        // The panel's way out is "Back to lessons" (the phone strip says "Lessons"): no concession, no Game Over.
+        const back = phone ? /^lessons$/i : /^back to lessons$/i;
         await pressUntil(
           page,
-          () => pressBoardText(page, phone, /^close$/i),
-          async () => !(await complete(page)),
-          "Close dismisses the completion panel",
-        );
-        await pressUntil(
-          page,
-          async () => {
-            const menu = (await visibleTexts(page)).find(
-              (t) => t.scene === "Board" && /^(menu|≡)$/i.test(t.text.trim()),
-            );
-            if (menu) await press(page, phone, menu.x, menu.y);
-          },
-          () => on(page, "PauseOverlay"),
-          "Menu opens Pause",
-        );
-        await settle(page, { quietMs: 600, maxMs: 3000 });
-        await shot(page, `a-${lesson.id}-pause`);
-        await pressUntil(
-          page,
-          () => clickText(page, "Concede", { sceneKey: "PauseOverlay" }),
-          async () => (await findText(page, "Yes, concede", "PauseOverlay")).length > 0,
-          "the concede confirmation",
-        );
-        await pressUntil(
-          page,
-          () => clickText(page, "Yes, concede", { sceneKey: "PauseOverlay" }),
+          () => pressBoardText(page, phone, back),
           async () => !(await on(page, "Board")),
-          "conceding leaves the board",
+          "Back to lessons leaves the board",
         );
+        const hub = lesson.id === "pool" ? "AspectLesson" : "HowToPlay";
+        await waitFor(async () => ((await on(page, hub)) ? true : null), `${hub} opens`, 15000);
+        expect(await on(page, "GameOver"), "leaving a lesson is not a concession").toBe(false);
         await settle(page, { quietMs: 600, maxMs: 3000 });
         await shot(page, `a-${lesson.id}-after-leaving`);
-        // Known (pinned by the fixme below): at 390 the ring for Cable's "limit" step is on a hand card that is off screen.
         const unknown = problems.filter((p) => !(phone && p.startsWith("a-cable/limit: ring off screen")));
         expect(unknown, "ring and copy fit the screen at every step").toEqual([]);
         expect(errors).toEqual([]);
@@ -574,10 +550,8 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
           requested.some((url) => url.includes(`/${id}/battle`)),
           `the intro asked for ${id}'s battle track (${requested.join(", ")})`,
         ).toBe(true);
-        await page.keyboard.press("ArrowRight");
-        await settle(page, { quietMs: 800, maxMs: 4000 });
-        await shot(page, `d-intro-${id}-2`);
-        expect(await on(page, "ScenarioIntro"), "the second beat is still the intro").toBe(true);
+        // One beat, the whole page (no crop cuts the lettering): the intro is still up, and Next would deal.
+        expect(await on(page, "ScenarioIntro"), "the page is the whole intro").toBe(true);
         expect(await rawTextOnScreen(page), `${id}: no raw text on the intro`).toEqual([]);
       }
       expect(errors, "no console or page errors").toEqual([]);
@@ -645,6 +619,7 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
       await shot(page, "e-restricted-prompt");
       const texts = await textsOf(page, "ChoiceOverlay");
       expect(texts.join(" | "), "the sheet names the three cards to choose from").toMatch(/select 1|select 1–1/i);
+      expect(texts.join(" | "), "the sheet says why it opened").toMatch(/over the limit of two restricted cards/i);
       expect(await rawTextOnScreen(page)).toEqual([]);
       await answerChoice(page, 0);
       await waitFor(async () => (!(await on(page, "ChoiceOverlay")) ? true : null), "the sheet closes", 15000);
@@ -794,10 +769,10 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
 }
 
 /**
- * Defects the pass found, pinned as `test.fixme`: each body states what should hold once it is fixed, with the owning
- * file in the comment. They do not run (the pre-push gate stays green); `docs/phase7-wave7-qa-screens.md` lists them.
+ * Defects the pass found, now fixed and kept as ordinary tests (the Try-it exit is covered by the A tests above);
+ * `docs/phase7-wave7-qa-screens.md` lists them.
  */
-test.describe("pinned defects", () => {
+test.describe("regressions fixed after the pass", () => {
   test.describe("at 390", () => {
     test.use({ viewport: VIEWPORTS.phone, hasTouch: true, isMobile: true });
 
@@ -805,7 +780,7 @@ test.describe("pinned defects", () => {
     // spotlight). At 390 the hand scrolls sideways and Build Support sits off the right edge when Cable's Try-it reaches
     // its "limit" step, so TRY THIS rings a spot at x = 499..600 on a 390-wide screen and the callout points at the
     // wrong card. The step says "Tap Build Support, then Play" without saying to scroll the hand.
-    test.fixme("Cable Try-it, step 'limit': the ring is on a control that is on screen at 390", async ({ page }) => {
+    test("Cable Try-it, step 'limit': the ring is on a control that is on screen at 390", async ({ page }) => {
       test.setTimeout(240_000);
       const problems: string[] = [];
       await startLesson(page, "cable");
@@ -819,9 +794,7 @@ test.describe("pinned defects", () => {
   // `packages/content/src/schema/glossary.ts` (actionsOtherTurns). The cite reads "OWNER DECISION, NEXT EVOLUTION SPEC
   // 4.1 (2026-10-05) (CARD TEXT)": an internal spec section a player cannot look up, and "(card text)" stuck on a
   // source that is not a card ("NeXt Evolution rulebook p. 5 (card text)" too).
-  test.fixme("Rules reference: no cite names an internal spec or calls a rulebook page 'card text'", async ({
-    page,
-  }) => {
+  test("Rules reference: no cite names an internal spec or calls a rulebook page 'card text'", async ({ page }) => {
     test.setTimeout(120_000);
     await openNextEvolPage(page);
     await clickBoxPageRow(page, "actionsOtherTurns");
@@ -835,51 +808,43 @@ test.describe("pinned defects", () => {
   // Owner: `view/defend-choice.ts` `stackRowLabel` (case "event": `Response window — ${label}` with the engine's own
   // event kind). The villain phase's "The stack" panel prints "Response window — enemyAttack" while Rhino's attack
   // waits for a defender: a camelCase engine id on a player's screen.
-  test.fixme("The villain phase's stack panel words its rows without raw engine ids", async ({ page }) => {
+  test("The defend sheet's stack panel words its rows without raw engine ids", async ({ page }) => {
     test.setTimeout(240_000);
     await installWave6Helpers(page);
     await openTitle(page);
     await startFixture(page, "dev-qa-screens-game.ts", "startScreensQaGame", "warpath");
     await pressFocus(page, false, "basic:endTurn");
-    await waitFor(
-      async () =>
-        (await textsOf(page, "VillainPhaseOverlay")).some((t) => /the stack/i.test(t)) ||
-        (await on(page, "EndTurnConfirmOverlay"))
-          ? true
-          : null,
-      "the stack panel or the end-turn confirm",
-      20000,
-    );
-    if (await on(page, "EndTurnConfirmOverlay"))
-      await pressBoardText(page, false, /^end turn$/i, "EndTurnConfirmOverlay");
-    await waitFor(
-      async () => ((await textsOf(page, "VillainPhaseOverlay")).some((t) => /the stack/i.test(t)) ? true : null),
-      "the stack",
-      30000,
-    );
-    expect(
-      (await textsOf(page, "VillainPhaseOverlay")).filter((t) => /[a-z][A-Z]/.test(t) && /window/i.test(t)),
-    ).toEqual([]);
+    const rawRows: string[] = [];
+    let sawWindowRow = false;
+    const start = Date.now();
+    while (Date.now() - start < 90_000 && !sawWindowRow) {
+      const scenes = await activeScenes(page);
+      if (scenes.includes("GameOver")) break;
+      if (scenes.includes("EndTurnConfirmOverlay")) {
+        await pressBoardText(page, false, /^end turn$/i, "EndTurnConfirmOverlay");
+      } else if (scenes.includes("ChoiceOverlay")) {
+        await settle(page, { quietMs: 500, maxMs: 2500 });
+        const rows = (await textsOf(page, "ChoiceOverlay")).filter((t) => /window/i.test(t));
+        if (rows.length > 0) sawWindowRow = true;
+        rawRows.push(...rows.filter((t) => /[a-z][A-Z]/.test(t)));
+        if (sawWindowRow) break;
+        if (!(await declareDefender(page, false, -1))) await answerPreferDecline(page);
+      } else if (scenes.includes("VillainPhaseOverlay")) {
+        await skipVillainPhase(page);
+      }
+      await page.waitForTimeout(250); // loop pacing, not a blind wait
+    }
+    expect(sawWindowRow, "a defend sheet showed a window row in the stack panel").toBe(true);
+    expect(rawRows).toEqual([]);
   });
 
   // Owner: `scenes/boot.ts` `?screen=aspect&aspect=<id>` (dev jump; its `valid` set stops at "basic", its comment says
   // 'Pool is pending). Dev-only, but QA and screenshot scripts use it: `aspect=pool` opens Justice.
-  test.fixme("?screen=aspect&aspect=pool opens the 'Pool aspect page", async ({ page }) => {
+  test("?screen=aspect&aspect=pool opens the 'Pool aspect page", async ({ page }) => {
     await installWave6Helpers(page);
     await page.goto("/?unlock=all&screen=aspect&aspect=pool");
     await waitForScene(page, "AspectLesson", 30000);
     await settle(page, { quietMs: 800, maxMs: 3000 });
     expect((await textsOf(page, "AspectLesson")).join(" | ")).toMatch(/'Pool/);
-  });
-
-  // Owner: the Try-it game's end (`guide/start-aspect-tryit.ts`, `guide/start-mechanic-tryit.ts`, the completion panel
-  // in the guide controller). A finished lesson offers Close and nothing else; the way out is Menu, Concede, "Yes,
-  // concede", which lands on a "<HERO> CONCEDED" Game Over screen with Run it back, not on the hub the lesson started
-  // from. Expected by the brief: the lesson returns to How to play.
-  test.fixme("a finished Try-it can return to How to play without conceding", async ({ page }) => {
-    test.setTimeout(240_000);
-    await startLesson(page, "angel");
-    await playLessonSteps(page, false, "angel", []);
-    expect((await textsOf(page, "Board")).some((t) => /how to play|back to the hub|more lessons/i.test(t))).toBe(true);
   });
 });

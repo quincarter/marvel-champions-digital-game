@@ -690,8 +690,10 @@ describe("Psylocke: Psi-Knife and Psi-Katana", () => {
         .filter((o) => o.optionId.includes("41001a.star-psi-energy-control"))
         .map((o) => o.optionId),
     });
-    // Both blades are Knives, so no blade choice is asked; Upside the Head's own optional response is still open
-    // after the attack, and the step waits for it to settle (declined: a minimum of 0 takes no option).
+    // Both blades are Knives, so no blade choice is asked. The opening hand holds no Directed Force or Upside the
+    // Head, so no response sheet the tip never mentions opens after the attack (wave 7 QA).
+    const hand = t.me().hand.map((id) => t.state().instances[id]!.cardId);
+    expect(hand.some((id) => id === "41019" || id === "41015")).toBe(false);
     expect(t.controller.view().step?.id).toBe("attack");
     t.settle(/./);
     expect(

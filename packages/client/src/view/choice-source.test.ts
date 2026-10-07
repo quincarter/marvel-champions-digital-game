@@ -12,6 +12,7 @@
  * (`09032`) to the top of the Invocation deck.
  */
 
+import type { ChoicePrompt } from "@mc/engine";
 import { describe, expect, test } from "vitest";
 import { activeVillain, choiceId, frameId, type GameState, type PendingChoice, type StackFrame } from "@mc/engine";
 import { abilityId } from "@mc/content";
@@ -371,6 +372,27 @@ describe("costCardsPromptTitleOf", () => {
     expect(costCardsPromptTitleOf("damage", 1)).toBe("Choose a character to take 1 damage");
     expect(costCardsPromptTitleOf("damage", 2)).toBe("Choose a character to take 2 damage");
     expect(costCardsPromptTitleOf("damage")).toBe("Choose a character to take damage");
+  });
+});
+
+describe("promptTitleOf, reportFact", () => {
+  test("the minutes prompt is a running break, not a question the break screen has no list for", () => {
+    expect(
+      promptTitleOf({ kind: "reportFact", fact: "minutesAway", answer: "wholeNumber" } as ChoicePrompt, POOL_DEPS),
+    ).toBe("On a break");
+  });
+
+  test("the talked prompt keeps its yes/no question", () => {
+    expect(
+      promptTitleOf({ kind: "reportFact", fact: "talkedThisPhase", answer: "yesNo" } as ChoicePrompt, POOL_DEPS),
+    ).toBe("Did you talk this phase?");
+  });
+});
+
+describe("promptTitleOf, restricted discard", () => {
+  test("names the prompt's own limit rather than a fixed two", () => {
+    expect(promptTitleOf({ kind: "discardRestricted", limit: 2 }, POOL_DEPS)).toBe("Discard to two restricted cards");
+    expect(promptTitleOf({ kind: "discardRestricted", limit: 3 }, POOL_DEPS)).toBe("Discard to three restricted cards");
   });
 });
 

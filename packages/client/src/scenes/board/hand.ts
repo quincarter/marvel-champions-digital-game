@@ -16,6 +16,7 @@ import { McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../../u
 import { faceOf, type BoardModel, type HandCardView } from "../../view/board-model.js";
 import type { DiscardChoiceView } from "../../view/discard-choice-model.js";
 import type { IllegalReason } from "../../view/highlights.js";
+import { DEFENSE_LOCKOUT_TAG, isDefenseBarMessage } from "../../view/defense-lockout.js";
 import { handRow, type HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
@@ -589,6 +590,7 @@ const RESOURCE_GLYPH: Readonly<Record<ResourceIconType, string>> = {
  * stays available — this only picks the short form of a code the engine gave.
  */
 function shortReason(reason: IllegalReason, role: TeamUpRole | null): string | null {
+  if (isDefenseBarMessage(reason.message)) return DEFENSE_LOCKOUT_TAG;
   switch (reason.code) {
     case "wrong_form":
       return "wrong form";

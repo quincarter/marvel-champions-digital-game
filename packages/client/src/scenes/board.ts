@@ -34,6 +34,7 @@ import { cssOf } from "../ui/theme.js";
 import { McSelectionRing, McTabs, paintDotGrid } from "../ui/widgets.js";
 import { boardModel, type BoardModel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
+import { withDefenseLockout } from "../view/defense-lockout.js";
 import { appendCardHistory, emptyCardHistoryLog, type CardHistoryLog } from "../view/card-history.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
 import type { PaymentView } from "../view/payment-model.js";
@@ -49,7 +50,7 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
 import { showHoldOn } from "./hold-on.js";
 import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
-import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
+import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { aspectGuideOf } from "../guide/aspects.js";
 import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
 import { MECHANIC_TRYIT_LESSONS } from "../guide/mechanic-lessons.js";
@@ -507,7 +508,9 @@ export class BoardScene extends Phaser.Scene {
     }
 
     this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
-    this.#marks = state.legal ? highlights(state.legal.actions) : null;
+    this.#marks = state.legal
+      ? withDefenseLockout(highlights(state.legal.actions), state.game, state.perspectiveId, POOL_DEPS)
+      : null;
     const present = presentTeamUps(state.game, TEAM_UP_PAIRS);
     this.#teamUps = present.map((entry) => entry.pair);
     this.#teamUpPlayable = new Set(present.filter((entry) => entry.playable).map((entry) => entry.pair.key));
@@ -598,6 +601,9 @@ export class BoardScene extends Phaser.Scene {
           onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect)),
           completeTitle: `${label} complete`,
           completeBody: "Nice work. Find the other aspects any time in How to play.",
+          completePrimaryLabel: "Keep playing",
+          completeLeaveShortLabel: "Lessons",
+          onLeave: () => this.#leaveLesson({ scene: SCENES.aspectLesson, data: { aspect, backTo: "howToPlay" } }),
         },
         observation,
         { lockLog: false, roundDebrief: false },
@@ -615,6 +621,9 @@ export class BoardScene extends Phaser.Scene {
           onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), mechanicLessonDoneKey(mechanic))),
           completeTitle: "Try it complete",
           completeBody: "Nice work. More under New in this box, in How to play.",
+          completePrimaryLabel: "Keep playing",
+          completeLeaveShortLabel: "Lessons",
+          onLeave: () => this.#leaveLesson({ scene: SCENES.howToPlay, data: {} }),
         },
         observation,
         { lockLog: false, roundDebrief: false },
@@ -630,6 +639,18 @@ export class BoardScene extends Phaser.Scene {
       },
       observation,
     );
+  }
+
+  /**
+   * "Back to lessons" on a finished Try-it: leave the lesson game for the screen it was opened from. Not a
+   * concession: nothing is dispatched, so no result is recorded, and the lesson save is filtered out of every result
+   * reader (`SaveMeta.guided`; `engine/previous-game-facts.ts`, `progression/`).
+   */
+  #leaveLesson(to: { readonly scene: string; readonly data: object }): void {
+    appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
+    setGuideRunLevelOverride(null);
+    goToScreen(this, to.scene, to.data);
   }
 
   /**
@@ -1346,6 +1367,17 @@ export class BoardScene extends Phaser.Scene {
     this.#tabBadges.delete(tab);
     this.#tabChanged.delete(tab);
     this.#draw();
+  }
+
+  /**
+   * Scrolls the sideways hand until `rect` (a card as last drawn) is wholly on screen, then redraws so the guide's
+   * ring lands on it. Returns false when the hand cannot scroll (nothing to do). The caller does this once per step.
+   */
+  guideRevealInHand(rect: Rect): boolean {
+    if (!this.#hand.canScroll) return false;
+    this.#hand.scrollIntoView(rect);
+    this.#draw();
+    return true;
   }
 
   /** The perspective player id for `resolveAnchor`'s `instanceOfCode` — null with no game running. */

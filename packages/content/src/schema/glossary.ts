@@ -58,7 +58,18 @@ export type GlossarySource =
    * (p. 4) puts card text above the rulebook anyway. `cards` is a short label a player can find on the table, e.g.
    * "Storm 36001a".
    */
-  | { readonly kind: "card"; readonly cards: string };
+  | { readonly kind: "card"; readonly cards: string }
+  /**
+   * A printed rulebook page that is not the RRG (a product's own rules insert), worded as the player would look it up,
+   * e.g. "NeXt Evolution rulebook p. 5". It names no card, so it never reads "(card text)".
+   */
+  | { readonly kind: "rulebook"; readonly label: string }
+  /**
+   * A ruling the owner made for this game where the printed rules are silent. Shown to a player as "Ruling for this
+   * game, <date>", with no reference to the internal spec that records it. `date` is a short player-facing date, e.g.
+   * "Oct 5, 2026".
+   */
+  | { readonly kind: "owner-ruling"; readonly date: string };
 
 export type GlossaryEntryKind = "keyword" | "status" | "concept";
 
@@ -1182,7 +1193,7 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
       "A player side scheme is played from your hand during your turn and sits beside the main scheme with threat on it. Heroes and allies thwart it like any side scheme. With 1 or 2 players only one can be in play (2 with 3 or 4 players): playing another discards one, and that discard is not a defeat.",
     sources: [
       { kind: "rrg", page: 34 },
-      { kind: "card", cards: "NeXt Evolution rulebook pp. 3 and 21" },
+      { kind: "rulebook", label: "NeXt Evolution rulebook pp. 3 and 21" },
     ],
   },
   perPlayerCost: {
@@ -1193,7 +1204,7 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
       "A per player icon next to a printed cost multiplies it by the number of players who started the game. In a 2-player game a cost of 2 per player is 4, and effects that read the printed cost see 4.",
     sources: [
       { kind: "rrg", page: 32 },
-      { kind: "card", cards: "NeXt Evolution rulebook p. 5" },
+      { kind: "rulebook", label: "NeXt Evolution rulebook p. 5" },
       { kind: "ruling", date: "August 3, 2026 - Ruling 5" },
     ],
   },
@@ -1251,7 +1262,8 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
       "Hope Summers is an ally the first player controls, and she moves with the first player token. She has your hero's ATK and THW, does not count against your ally limit, and if she leaves play the players lose.",
     sources: [
       { kind: "rrg", page: 19 },
-      { kind: "card", cards: "NeXt Evolution rulebook p. 5; Hope Summers 40130" },
+      { kind: "rulebook", label: "NeXt Evolution rulebook p. 5" },
+      { kind: "card", cards: "Hope Summers 40130" },
     ],
   },
   actionsOtherTurns: {
@@ -1263,7 +1275,7 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     sources: [
       { kind: "rrg", page: 6 },
       { kind: "rrg", page: 34 },
-      { kind: "card", cards: "Owner decision, NeXt Evolution spec 4.1 (2026-10-05)" },
+      { kind: "owner-ruling", date: "Oct 5, 2026" },
     ],
   },
   routed: {
@@ -1282,7 +1294,7 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
       "In some scenarios the villain starts with a Superpower attachment already attached, put into play by its Setup keyword. Mister Sinister's scenario sets the three sets aside instead, so the keyword is ignored there and each set joins the encounter deck when its stage is revealed.",
     sources: [
       { kind: "rrg", page: 51 },
-      { kind: "card", cards: "NeXt Evolution rulebook p. 16" },
+      { kind: "rulebook", label: "NeXt Evolution rulebook p. 16" },
     ],
   },
 };

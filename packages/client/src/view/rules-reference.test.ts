@@ -268,6 +268,27 @@ describe("cite labels", () => {
     expect(citeLabelOf(sources)).toBe("RRG 1.8 pp. 42, 40 · Storm 36001a (card text)");
   });
 
+  test("a rulebook page reads as a rulebook and an owner ruling as a ruling, never as card text or a spec", () => {
+    expect(
+      playerCiteLabelOf([
+        { kind: "rrg", page: 6 },
+        { kind: "rrg", page: 34 },
+        { kind: "owner-ruling", date: "Oct 5, 2026" },
+      ]),
+    ).toBe("RRG 1.8 pp. 6, 34 · Ruling for this game, Oct 5, 2026");
+    expect(playerCiteLabelOf([{ kind: "rulebook", label: "NeXt Evolution rulebook p. 5" }])).toBe(
+      "NeXt Evolution rulebook p. 5",
+    );
+  });
+
+  test("no entry's cite names an internal spec or calls a rulebook page card text", () => {
+    const cites = everyGlossaryEntry().map((entry) => `${entry.id}: ${entry.playerCiteLabel}`);
+    expect(cites.filter((cite) => /spec \d|owner decision|rulebook[^·]*\(card text\)/i.test(cite))).toEqual([]);
+    expect(everyGlossaryEntry().find((e) => e.id === "actionsOtherTurns")?.playerCiteLabel).toBe(
+      "RRG 1.8 pp. 6, 34 · Ruling for this game, Oct 5, 2026",
+    );
+  });
+
   test("the wave 6 Weather deck entry's label fits on a line a player can read", () => {
     const entry = everyGlossaryEntry().find((e) => e.id === "weatherDeck");
     expect(entry?.playerCiteLabel.length).toBeLessThanOrEqual(75);

@@ -155,7 +155,10 @@ const COLOSSUS: MechanicTryItConfig = {
 /**
  * - Psylocke (`psylocke-justice`): she starts as Betsy Braddock with both permanent Psi-Knives already attached to her
  *   identity (her Setup, `wave7/psylocke/psylocke/identity.ts`), Knife side up. The lesson flips her to hero form and
- *   uses her basic attack on Rhino, accepting Psi-Energy Control to flip one blade to its Katana side.
+ *   uses her basic attack on Rhino, accepting Psi-Energy Control to flip one blade to its Katana side. The stacked
+ *   hand holds no Directed Force or Upside the Head: both offer their own response sheet after a basic attack, and the
+ *   lesson's tip talks only about Psi-Energy Control (wave 7 QA). It is Training Regimen, Cypher, Pete Wisdom and the
+ *   three Power of the Mind resources, none of which asks anything.
  */
 const PSYLOCKE: MechanicTryItConfig = {
   config: {
@@ -164,6 +167,18 @@ const PSYLOCKE: MechanicTryItConfig = {
     modularSetIds: ["bomb_scare"],
     players: [{ starterDeckId: "psylocke-justice" }],
     seed: 4202,
+    stack: {
+      players: {
+        0: [
+          cardId("41008"), // Training Regimen
+          cardId("41013"), // Cypher
+          cardId("41018"), // Pete Wisdom
+          cardId("41021"), // The Power of the Mind
+          cardId("41021"), // The Power of the Mind
+          cardId("41021"), // The Power of the Mind
+        ],
+      },
+    },
   },
 };
 

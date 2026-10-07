@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cardId } from "@mc/content";
 import type { GameState } from "@mc/engine";
 import { instanceId as toInstanceId, playerId } from "@mc/engine";
-import { instanceOfCode, resolveAnchor, type AnchorFrame } from "./guide-anchor.js";
+import { anchorOffScreenX, instanceOfCode, resolveAnchor, type AnchorFrame } from "./guide-anchor.js";
 import { boardLayout, REFERENCE_VIEWPORTS, type Rect } from "./layout.js";
 
 const DESKTOP: Rect = { x: 0, y: 0, ...REFERENCE_VIEWPORTS.desktop };
@@ -166,5 +166,19 @@ describe("instanceOfCode", () => {
       instances: { ...state.instances, [identity]: { cardId: cardId("01001a") } as never },
     };
     expect(instanceOfCode(withIdentity, P1, cardId("01001a"))).toBeNull();
+  });
+});
+
+describe("anchorOffScreenX", () => {
+  const screen: Rect = { x: 0, y: 0, width: 390, height: 844 };
+
+  it("is true for a hand card past the right edge, as Cable's Build Support was at 390", () => {
+    expect(anchorOffScreenX({ x: 499, y: 600, width: 101, height: 140 }, screen)).toBe(true);
+  });
+
+  it("is true for a card cut by either edge and false for one wholly on screen", () => {
+    expect(anchorOffScreenX({ x: 340, y: 600, width: 101, height: 140 }, screen)).toBe(true);
+    expect(anchorOffScreenX({ x: -20, y: 600, width: 101, height: 140 }, screen)).toBe(true);
+    expect(anchorOffScreenX({ x: 100, y: 600, width: 101, height: 140 }, screen)).toBe(false);
   });
 });

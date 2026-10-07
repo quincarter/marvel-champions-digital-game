@@ -144,6 +144,14 @@ export interface GuideControllerOptions {
   readonly completeTitle?: string;
   readonly completeBody?: string;
   readonly completePrimaryLabel?: string;
+  /**
+   * A finished lesson's way out (a Try-it): the complete panel's second button and what it does. Absent for the
+   * tutorial, whose complete panel offers Close alone. Leaving is not a concession; the caller returns to where the
+   * lesson was opened from.
+   */
+  readonly onLeave?: () => void;
+  readonly completeLeaveLabel?: string;
+  readonly completeLeaveShortLabel?: string;
 }
 
 /** Everything the Phaser adapter needs to draw one frame. `anchor` is semantic — resolving it to a screen rect is
@@ -203,6 +211,9 @@ export class GuideController {
   readonly #completeTitle: string;
   readonly #completeBody: string;
   readonly #completePrimaryLabel: string;
+  readonly #onLeave: (() => void) | undefined;
+  readonly #leaveLabel: string | null;
+  readonly #leaveShortLabel: string | null;
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
     this.#blocked = options.blocked ?? (() => false);
@@ -214,6 +225,9 @@ export class GuideController {
     this.#completeTitle = options.completeTitle ?? COMPLETE_TITLE;
     this.#completeBody = options.completeBody ?? COMPLETE_BODY;
     this.#completePrimaryLabel = options.completePrimaryLabel ?? COMPLETE_PRIMARY_LABEL;
+    this.#onLeave = options.onLeave;
+    this.#leaveLabel = options.onLeave ? (options.completeLeaveLabel ?? "Back to lessons") : null;
+    this.#leaveShortLabel = options.onLeave ? (options.completeLeaveShortLabel ?? this.#leaveLabel) : null;
     this.#state = startLessons(options.lessons, options.alreadyDone ?? []);
     this.#observation = observation;
     this.#runObserve();
@@ -239,6 +253,19 @@ export class GuideController {
     }
     this.#apply(acknowledge(this.#state));
     this.#runObserve();
+  }
+
+  /**
+   * The panel's second forward button. On a finished Try-it that is "Back to lessons" (`onLeave`); anywhere else it
+   * advances the way the primary does (lesson 5's "How do I stop it?").
+   */
+  secondary(): void {
+    if (this.hidden || this.#isHeld()) return;
+    if (!currentStep(this.#state) && this.#isComplete() && this.#onLeave) {
+      this.#onLeave();
+      return;
+    }
+    this.primary();
   }
 
   /** The footer's Back button. */
@@ -347,7 +374,17 @@ export class GuideController {
       // Waiting or complete (this module's own header) — no anchor, no gate either way: waiting has nothing on
       // the board to spotlight yet, and the finished panel isn't teaching anything.
       const panel = this.#isComplete()
-        ? completePanelContent(this.#runLabel, this.#completeTitle, this.#completeBody, this.#completePrimaryLabel)
+        ? {
+            ...completePanelContent(
+              this.#runLabel,
+              this.#completeTitle,
+              this.#completeBody,
+              this.#completePrimaryLabel,
+            ),
+            ...(this.#leaveLabel
+              ? { secondaryLabel: this.#leaveLabel, secondaryShortLabel: this.#leaveShortLabel }
+              : {}),
+          }
         : waitingPanelContent(this.#state, this.#runLabel);
       return { step: null, panel, anchor: null, tagVariant: null, gate: null, stripText: null, active: true };
     }

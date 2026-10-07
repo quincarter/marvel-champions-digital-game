@@ -40,6 +40,7 @@ import { CARDS_BY_ID, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../
 import { BOOKS } from "../content/books.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
+import { isLessonSave } from "../engine/game-storage.js";
 
 /** What the player has done, as far as Extras cares, read from storage by `extrasProgressOf`. */
 export interface ExtrasProgress {
@@ -86,6 +87,7 @@ export function identityOfSeat(seat: object): string | null {
 export function extrasProgressOf(
   saves: readonly {
     readonly status: string;
+    readonly guided?: { readonly kind: string };
     readonly config: { readonly scenarioId: string; readonly players: readonly object[] };
   }[],
   campaigns: readonly {
@@ -94,7 +96,7 @@ export function extrasProgressOf(
     readonly position: { readonly nextNodeId: string | null; readonly resolved: Readonly<Record<string, string>> };
   }[],
 ): ExtrasProgress {
-  const ended = saves.filter((save) => ENDED.has(save.status));
+  const ended = saves.filter((save) => ENDED.has(save.status) && !isLessonSave(save));
   return {
     playedHeroIds: unique(
       ended.flatMap((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),

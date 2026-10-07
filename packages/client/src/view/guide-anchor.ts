@@ -166,3 +166,12 @@ export function instanceOfCode(state: GameState, playerId: PlayerId, code: CardI
   }
   return null;
 }
+
+/**
+ * Whether a resolved card anchor lies past the screen's left or right edge: a hand card the sideways-scrolling phone
+ * hand has not scrolled to. The ring and the callout's arrow then point at nothing the player can see (wave 7 QA,
+ * Cable's "The limit is one" at 390), so the guide scrolls the hand to it first (`HandScroll#scrollIntoView`).
+ */
+export function anchorOffScreenX(rect: Rect, viewport: Rect): boolean {
+  return rect.x < viewport.x || rect.x + rect.width > viewport.x + viewport.width;
+}

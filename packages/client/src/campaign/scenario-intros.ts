@@ -173,10 +173,9 @@ function rulebookIntro(scenarioId: string, title: string, campaignId: string, pa
       width: 1800,
       height: 1800,
       lettered: true,
-      beats: [
-        { panel: { x: 300, y: 150, w: 1200, h: 1200 }, lines: [] },
-        { panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] },
-      ],
+      // One beat, the whole page: the printed lettering runs to the page's edges, and every closer crop cut a balloon
+      // through (wave 7 QA: "ATTACKING TUNNELS! I…"). The page is readable at the reader's size.
+      beats: [{ panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] }],
     },
   };
 }

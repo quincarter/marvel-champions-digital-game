@@ -72,7 +72,7 @@
  */
 import type { CorePlayer } from "@mc/cards";
 import type { SessionConfig } from "../engine/host.js";
-import type { SaveMeta, SaveStatus } from "../engine/game-storage.js";
+import { isLessonSave, type SaveMeta, type SaveStatus } from "../engine/game-storage.js";
 
 export type Difficulty = SessionConfig["difficulty"];
 
@@ -172,7 +172,8 @@ function seatKeysOf(meta: SaveMeta): { readonly keys: ReadonlySet<string>; reado
 
 /** `saves` is whatever `GameStorage.list()` returned — order doesn't matter, and the input isn't mutated. */
 export function resultsHistoryOf(saves: readonly SaveMeta[]): ResultsHistory {
-  const played = saves.filter((meta) => PLAYED_STATUSES.has(meta.status));
+  // A Try-it lesson is a teaching game, never a record row.
+  const played = saves.filter((meta) => PLAYED_STATUSES.has(meta.status) && !isLessonSave(meta));
 
   const scenarioTallies = new Map<string, { byDifficulty: Map<Difficulty, ScenarioTally>; combined: ScenarioTally }>();
   const deckKeys = new Map<string, DeckKey>();

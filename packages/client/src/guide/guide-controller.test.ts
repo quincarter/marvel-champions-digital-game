@@ -599,3 +599,39 @@ describe("GuideController — custom onLessonDone/onComplete/complete copy (guid
     expect(view.panel?.primaryLabel).toBe("Done");
   });
 });
+
+describe("GuideController: a finished Try-it can leave for its lessons (wave 7 QA)", () => {
+  const solo = [
+    { id: "solo", title: "Solo", steps: [{ id: "s1", copy: { title: "T", body: "B" }, mode: "acknowledge" as const }] },
+  ];
+
+  test("the complete panel offers Back to lessons beside Keep playing; the first leaves, the second only hides the guide", async () => {
+    const started = await new EngineSessionCore().start(TUTORIAL_CONFIG);
+    const onLeave = vi.fn();
+    const controller = new GuideController(
+      { lessons: solo, onLeave, completePrimaryLabel: "Keep playing", completeLeaveShortLabel: "Lessons" },
+      observationOf(started.snapshot),
+    );
+    controller.primary();
+
+    const panel = controller.view().panel;
+    expect(panel?.primaryLabel).toBe("Keep playing");
+    expect(panel?.secondaryLabel).toBe("Back to lessons");
+    expect(panel?.secondaryShortLabel).toBe("Lessons");
+
+    controller.secondary();
+    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(controller.hidden).toBe(false); // leaving is the scene's job; nothing was dispatched to the game
+
+    controller.primary();
+    expect(controller.hidden).toBe(true);
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  test("without onLeave (the tutorial) the complete panel has no second button", async () => {
+    const started = await new EngineSessionCore().start(TUTORIAL_CONFIG);
+    const controller = new GuideController({ lessons: solo }, observationOf(started.snapshot));
+    controller.primary();
+    expect(controller.view().panel?.secondaryLabel).toBeUndefined();
+  });
+});

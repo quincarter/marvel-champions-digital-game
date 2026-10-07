@@ -2,7 +2,7 @@ import { CORE_STARTER_DECKS } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { CARDS_BY_ID, POOL_STARTER_DECKS } from "../content/pool.js";
 import { termTextModelOf } from "../view/term-text-model.js";
-import { ASPECT_GUIDES, aspectGuideOf, type AspectGuide } from "./aspects.js";
+import { ASPECT_GUIDES, aspectGuideOf, devAspectOf, type AspectGuide } from "./aspects.js";
 
 function preconOf(guide: AspectGuide) {
   if (!guide.preconId) return undefined;
@@ -104,5 +104,16 @@ describe("aspectGuideOf", () => {
   it("returns undefined for an aspect with no guide (basic's is its own, so none here)", () => {
     expect(aspectGuideOf("pool")?.name).toBe("'Pool");
     expect(aspectGuideOf("basic")?.name).toBe("Basic");
+  });
+});
+
+describe("devAspectOf", () => {
+  it("accepts every aspect that has a guide", () => {
+    for (const guide of ASPECT_GUIDES) expect(devAspectOf(guide.aspect)).toBe(guide.aspect);
+  });
+
+  it("falls back to Justice for a missing or unknown aspect", () => {
+    expect(devAspectOf(null)).toBe("justice");
+    expect(devAspectOf("nope")).toBe("justice");
   });
 });

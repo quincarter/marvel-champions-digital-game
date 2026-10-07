@@ -8,6 +8,21 @@ fixtures: `src/store/dev-qa-screens-game.ts` (+ its Vitest check). Screenshots: 
 (`-d` is 1440, `-p` is 390). No console or page error in any run. Not run: the CPU-throttled pass (`E2E_CPU_THROTTLE=4`).
 Situation tips were not exercised in a browser beyond the tip lines inside the lessons.
 
+## Fix pass (2026-10-07)
+
+Fixed after the pass, each with a Vitest test (and the e2e tests above no longer `fixme`): Cable's off-screen ring (the guide
+scrolls the sideways hand to the card, once per step; `view/guide-anchor.ts` `anchorOffScreenX`, `scenes/board/guide-mount.ts`),
+the Try-it exit (the complete panel offers "Back to lessons", "Lessons" on the phone strip, beside "Keep playing"; a lesson save
+(`SaveMeta.guided` aspect or mechanic) is left out of Git Gud's previous-game fact, unlock progress, Extras progress and the
+results history), Angel's `FORM ×2`, Psylocke's stacked opening hand (no Directed Force or Upside the Head), the dev route
+accepting every guided aspect, the glossary cites (`rulebook` and `owner-ruling` source kinds), the stack panel's words
+(`view/trigger-event-words.ts`, exhaustive over the engine's event kinds), Game Over's debrief (leads with the loss reason, the
+threat count only for a scheme loss, a card-text win reads "The players win"), the restricted-discard line (from
+`prompt.limit`), the defense lockout (hand cards tagged "locked out", the defend sheet names them, the villain-phase walkthrough
+folds a played "(defense)" card into its defender line), the intro crop (one whole-page beat), and Break Time's sheet title
+("On a break"). Left: the spend sheet listing the card being played (engine), the Healing Factor decision under the villain
+phase panel (fixme kept), and the Break Time sheet's "select 1" line (drawn in `scenes/choice.ts`).
+
 ## Summary
 
 Nothing blocks play. Five items show wrong information (cite wording, a raw engine id, a payment list that offers the card

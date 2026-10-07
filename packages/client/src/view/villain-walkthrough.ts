@@ -16,7 +16,7 @@
  */
 
 import type { AbilityId } from "@mc/content";
-import { activeAbilityRefs } from "@mc/engine";
+import { activeAbilityRefs, cardOf } from "@mc/engine";
 import type {
   ChoiceOption,
   ChoicePrompt,
@@ -29,7 +29,7 @@ import type {
   PlayerId,
 } from "@mc/engine";
 import { logLine } from "./log-lines.js";
-import { cardName, optionLabelOf, playerName, seatName } from "./names.js";
+import { cardName, numberWord, optionLabelOf, playerName, seatName } from "./names.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
 export const VILLAIN_STEPS = [
@@ -123,8 +123,15 @@ export type ActivationBeat =
       readonly enemyInstanceId: InstanceId;
       readonly attackedPlayerId: PlayerId;
       readonly boosts: readonly BoostCardBeat[];
-      /** `defenderDeclared`/`defenseDeclined`; null before either has happened. */
-      readonly defender: { readonly instanceId: InstanceId | null; readonly declined: boolean } | null;
+      /**
+       * `defenderDeclared`/`defenseDeclined`; null before either has happened. `labeled` is a "(defense)" card played
+       * for this attack (Barely a Scratch), which defends without being declared the defender.
+       */
+      readonly defender: {
+        readonly instanceId: InstanceId | null;
+        readonly declined: boolean;
+        readonly labeled?: true;
+      } | null;
       readonly resolved: AttackBreakdown | null;
     }
   | {
@@ -326,6 +333,19 @@ export function appendWalkthrough(
           activation = { ...activation, defender: { instanceId: event.defenderInstanceId, declined: false } };
         }
         break;
+      // A "(defense)"-labeled card played during the attack: the attack's defense even though nobody was declared the
+      // defender (the engine's own record is `defenseClaimOf`; the play is what the event stream shows).
+      case "cardPlayed":
+        if (
+          activation?.kind === "attack" &&
+          !activation.defender?.instanceId &&
+          activeAbilityRefs(state, event.instanceId, deps).some(
+            (ref) => deps.abilities[ref.id]?.label?.includes("defense") === true,
+          )
+        ) {
+          activation = { ...activation, defender: { instanceId: event.instanceId, declined: false, labeled: true } };
+        }
+        break;
       case "defenseDeclined":
         if (activation?.kind === "attack" && activation.enemyInstanceId === event.attackInstanceId) {
           activation = { ...activation, defender: { instanceId: null, declined: true } };
@@ -413,8 +433,26 @@ export function decisionLabel(choice: ChoiceLike, state: GameState, viewer: Play
       if (choice.prompt.kind === "declareDefender") {
         return yours ? "Declare your defender" : `${who} declares a defender`;
       }
+      // Wave 7 QA: the sheet said nothing about why it opened. The limit is the prompt's own (Psylocke's is two).
+      if (choice.prompt.kind === "discardRestricted") {
+        const over = `over the limit of ${numberWord(choice.prompt.limit)} restricted cards`;
+        return yours ? `You are ${over}` : `${who} is ${over}`;
+      }
       return yours ? "Your decision" : `${who} decides`;
   }
+}
+
+/**
+ * The line under an attack's breakdown naming who defended, or null when nobody did. RRG "Defend": an ally's DEF never
+ * reduces the attack, so a defending ally says so; a "(defense)" card says that it was the defense. Readable from
+ * `defenderDeclared` / the labeled play without waiting for the resolved beat.
+ */
+export function defenderLineOf(state: GameState, activation: ActivationBeat): string | null {
+  if (activation.kind !== "attack" || !activation.defender || activation.defender.declined) return null;
+  const id = activation.defender.instanceId;
+  if (!id) return null;
+  if (activation.defender.labeled) return `${cardName(state, id)} defended.`;
+  return cardOf(state, id)?.type === "ally" ? `${cardName(state, id)} defended — no DEF reduction.` : null;
 }
 
 /** RRG "Peril": no table talk, and nobody else may act while it is open. */

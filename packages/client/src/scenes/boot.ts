@@ -36,7 +36,7 @@ import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";
 import { instanceId, playerId, type GameEvent } from "@mc/engine";
-import type { CoreAspect } from "@mc/content";
+import { devAspectOf } from "../guide/aspects.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -154,12 +154,7 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   // reachable any time for QA before the hub (G6c) wires into it. Falls back to Justice if `aspect` is missing or
   // names something with no `AspectGuide` yet ('Pool, §3.7).
   if (screen === "aspect") {
-    const aspect = params.get("aspect");
-    const valid = new Set(["justice", "aggression", "leadership", "protection", "basic"]);
-    return {
-      key: SCENES.aspectLesson,
-      data: { aspect: (aspect && valid.has(aspect) ? aspect : "justice") as CoreAspect },
-    };
+    return { key: SCENES.aspectLesson, data: { aspect: devAspectOf(params.get("aspect")) } };
   }
   // `?screen=howtoplay`: the "How to play" learning hub (guided mode G6c, `docs/guided-mode.md` §4), reachable
   // any time for QA.

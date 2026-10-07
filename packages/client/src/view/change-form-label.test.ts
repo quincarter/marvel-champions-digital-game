@@ -5,7 +5,7 @@
  * two widths QA found it truncating to a bare "TO HERO" / "TO A-E" at.
  */
 import { describe, expect, test } from "vitest";
-import { changeFormLabel } from "./change-form-label.js";
+import { changeFormButtonLabel, changeFormLabel } from "./change-form-label.js";
 import { minChipCellWidth } from "./chip-layout.js";
 
 /** `scenes/board/action-bar.ts` `drawActionBar`'s own cellWidth for one of the four `BASICS` cells in the stacked bar. */
@@ -32,6 +32,20 @@ describe("changeFormLabel", () => {
         const label = changeFormLabel(form, true);
         expect(minChipCellWidth(label)).toBeLessThanOrEqual(cellWidth);
       }
+    }
+  });
+});
+
+describe("changeFormButtonLabel", () => {
+  test("one destination keeps the flip label", () => {
+    expect(changeFormButtonLabel(1, "hero", true)).toBe("Flip A-E");
+  });
+
+  test("several destinations: the stacked label plus its x2 count fits a quarter-width cell at 390 and 768", () => {
+    expect(changeFormButtonLabel(3, "hero", false)).toBe("Change form");
+    for (const width of [390, 768]) {
+      const label = changeFormButtonLabel(2, "hero", true);
+      expect(minChipCellWidth(`${label} ×2`)).toBeLessThanOrEqual(stackedCellWidth(width));
     }
   });
 });

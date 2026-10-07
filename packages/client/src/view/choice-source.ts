@@ -66,7 +66,7 @@ import type {
 import { activeAbilityRefs } from "@mc/engine";
 import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { cardName } from "./names.js";
+import { cardName, numberWord } from "./names.js";
 
 /** The card (and, when unambiguous, the ability) a pending choice traces back to. */
 export interface ChoiceSource {
@@ -275,8 +275,9 @@ export function promptTitleOf(
   if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
   // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.
   if (kind === "reportFact") {
-    return prompt.fact === "minutesAway" ? "How many minutes were you away?" : "Did you talk this phase?";
+    return prompt.fact === "minutesAway" ? "On a break" : "Did you talk this phase?";
   }
+  if (kind === "discardRestricted") return `Discard to ${numberWord(prompt.limit)} restricted cards`;
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",
@@ -302,7 +303,6 @@ export function promptTitleOf(
     spendResources: "Spend resources?",
     discardOverAllyLimit: "Discard to your ally limit",
     discardOverPlayerSideSchemeLimit: "Discard to the player side scheme limit",
-    discardRestricted: "Discard to two restricted cards",
     assignIndirectDamage: "Divide this damage",
   };
   return titles[kind] ?? "Choose";

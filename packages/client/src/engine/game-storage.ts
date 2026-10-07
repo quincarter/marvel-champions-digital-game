@@ -200,3 +200,11 @@ export class MemoryGameStorage implements GameStorage {
     if (meta) this.#games.set(gameId, { ...meta, status });
   }
 }
+
+/**
+ * A save made by a Try-it lesson (an aspect's or a hero mechanic's, `SaveMeta.guided`): a teaching game, not a played
+ * scenario. Result readers (the previous-game fact Git Gud reads, progression unlocks, Extras progress, the results
+ * history) leave it out, so finishing or leaving a lesson never counts as a win, a loss or a game played.
+ */
+export const isLessonSave = (meta: { readonly guided?: { readonly kind: string } }): boolean =>
+  meta.guided?.kind === "aspect" || meta.guided?.kind === "mechanic";

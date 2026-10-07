@@ -1,0 +1,77 @@
+import type { TriggerEventKind } from "@mc/engine";
+
+/**
+ * A player-readable noun phrase for every event kind the engine can put on the stack (`StackEntry.eventKind`), for the
+ * stack panel's "Response window — <phrase>" rows. A `Record` over the engine's own union, so a new kind that has no
+ * words fails the typecheck rather than reaching the screen as a camelCase id (wave 7 QA: "Response window —
+ * enemyAttack").
+ */
+export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
+  dealDamage: "damage",
+  healDamage: "healing",
+  placeThreat: "threat placed",
+  removeThreat: "threat removed",
+  attack: "an attack",
+  thwart: "a thwart",
+  defended: "a defense",
+  enemyAttack: "an enemy attack",
+  enemyScheme: "an enemy scheme",
+  boostCardTurnedFaceup: "a boost card turned up",
+  enemyAttacksEnemy: "an enemy attacking an enemy",
+  characterAttacked: "a character attacked",
+  cardEntersPlay: "a card entering play",
+  cardPlayed: "a card played",
+  cardBeingPlayed: "a card being played",
+  cardRevealed: "a card revealed",
+  encounterCardResolved: "an encounter card resolved",
+  resourcesSpent: "resources spent",
+  resourcesGenerated: "resources generated",
+  characterDefeated: "a character defeated",
+  encounterCardRevealing: "an encounter card being revealed",
+  schemeDefeated: "a scheme defeated",
+  villainStageAdvanced: "the villain's next stage",
+  mainSchemeAdvanced: "the main scheme advancing",
+  mainSchemeCompleted: "the main scheme completed",
+  deckRanOut: "a deck running out",
+  countersRemoved: "counters removed",
+  countersPlaced: "counters placed",
+  statusDiscarded: "a status discarded",
+  statusPlaced: "a status placed",
+  hitPointsReset: "hit points reset",
+  keywordIgnored: "a keyword ignored",
+  villainSwapped: "the villain swapped",
+  mainSchemeCompleting: "the main scheme completing",
+  accelerationTokenPlaced: "an acceleration token placed",
+  encounterCardFromPlayerDeck: "an encounter card from a player deck",
+  cardEntersHand: "a card entering a hand",
+  cardDiscardedFromDeck: "a card discarded from a deck",
+  cardLeavesPlay: "a card leaving play",
+  boostCardResolved: "a boost card resolved",
+  enemyActivating: "an enemy activating",
+  boostIconsCounting: "boost icons counted",
+  basicPowerUsed: "a basic power used",
+  basicPowerUsing: "a basic power being used",
+  basicRecovery: "a recovery",
+  cardReadying: "a card readying",
+  cardReadied: "a card readied",
+  turnStarted: "a turn starting",
+  minionEngaged: "a minion engaging",
+  turnEnding: "a turn ending",
+  surgeResolving: "a surge",
+  abilityResolved: "an ability resolved",
+  cardFlipped: "a card flipped",
+  formChanged: "a form change",
+  playerPhaseEnded: "the player phase ending",
+  villainPhaseEnded: "the villain phase ending",
+  phaseBeginning: "a phase beginning",
+  phaseEnding: "a phase ending",
+  villainStepResolved: "a villain step resolved",
+  villainStepStarting: "a villain step starting",
+  discardRedirected: "a discard redirected",
+  damagePrevented: "damage prevented",
+};
+
+/** The words for one event kind. */
+export function triggerEventWords(kind: TriggerEventKind): string {
+  return TRIGGER_EVENT_WORDS[kind];
+}

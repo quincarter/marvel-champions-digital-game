@@ -34,6 +34,17 @@ describe("previousGameFacts", () => {
     expect(previousGameFacts([save("abandoned", 8), save("active", 9)], 2)).toBeNull();
   });
 
+  test("a finished Try-it lesson is not a previous game, however it ended", () => {
+    const lesson = (status: SaveStatus, updatedAt: number): SaveMeta => ({
+      ...save(status, updatedAt),
+      guided: { kind: "mechanic", mechanic: "angel" },
+    });
+    expect(lastFinishedResult([save("won", 1), lesson("lost", 9)])).toBe("won");
+    expect(
+      previousGameFacts([lesson("lost", 9), { ...lesson("won", 10), guided: { kind: "aspect", aspect: "pool" } }], 1),
+    ).toBeNull();
+  });
+
   test("every local seat gets the profile's result", () => {
     expect(previousGameFacts([save("won", 1)], 3)).toEqual([
       { wonPreviousGame: true },

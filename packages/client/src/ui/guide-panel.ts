@@ -132,6 +132,8 @@ export interface McGuidePanelContent {
    * footer's left-hand secondary slot with `backLabel`; see that field's own doc comment for why they never
    * collide in the tutorial's own data. */
   readonly secondaryLabel?: string | null;
+  /** `secondaryLabel` for a surface with no room for the full words (the phone's one-line strip). */
+  readonly secondaryShortLabel?: string | null;
   /** Shown instead of the "do this to continue" hint box, for a step with its own forward action. */
   readonly primaryLabel?: string | null;
   /** The dashed "do this to continue" hint box's text — mutually exclusive with `primaryLabel`. */
