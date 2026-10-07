@@ -18,7 +18,7 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
 | **1a** | **The box's new rules and keyword list; Unus and the Four Horsemen; the six sets those two use**         | **written** |
 | **1b** | **Apocalypse, Dark Beast, En Sabah Nur and their modular sets**                                          | **written** |
 | **1c** | **The MC45 campaign, side missions, the Mission, Overseer, Age of Apocalypse and the two Campaign sets** | **written** |
-| 2a     | Bishop, Magik and the box's player cards                                                                 | placeholder |
+| **2a** | **Bishop, Magik and the box's player cards**                                                             | **written** |
 | 2b     | Iceman, Jubilee                                                                                          | placeholder |
 | 2c     | Nightcrawler, Magneto                                                                                    | placeholder |
 | 3      | Ordered engine build queue                                                                               | placeholder |
@@ -46,8 +46,14 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
   Campaign (`aoa_campaign` 45177–45178) and the Overseer faces (`overseer` 45179a–45183a). 20 raw records and the six
   nested b faces of the missions and Mission Team, every one read; the Mission Rules card has no record (§1.29).
   Sections 0.2, 1.23–1.31, 2.11–2.16, 3.33–3.47, questions 18–25 and §5.2.
-- **Not in pass 1:** the hero packs. Placeholders are marked **(pass N)**; a card of a later pass is named here only
-  to show that a primitive composes.
+- **Pass 2a's content.** The box's player cards: Bishop / Lucas Bishop (45001a/b), his cards 45002–45010, obligation
+  45025 and nemesis set `bishop_nemesis` 45026–45029; Magik / Illyana Rasputin (45030a/b), her cards 45031–45040,
+  obligation 45053 and nemesis set `magik_nemesis` 45054–45058; Leadership 45011–45019, Aggression 45041–45047 and the
+  basic cards 45020–45024 and 45048–45052. 58 raw records and the two nested alter-ego faces, every one read, and a
+  scan read for 54 of them (§0.3). The RRG's four FAQ entries on Magik (p. 64) and the Suit Up erratum (p. 69).
+  Sections 0.3, 1.32, 3.48–3.60, questions 26–32, §5.3 and §7.1.
+- **Not yet written:** the four hero packs (passes 2b and 2c) and the build order (pass 3). Placeholders are marked
+  **(pass N)**; a card of a later pass is named here only to show that a primitive composes.
 - **Data state (2026-10-07):** `iceman`, `jubilee`, `ncrawler` and `magneto` are emitted as data-only packs under
   `packages/content/src/data/`; `aoa` is raw only (`packages/content/raw/marvelcdb/aoa.json`, 195 records). The data
   survey (`docs/phase7-wave8-data-survey.md`) landed after pass 1a; pass 1b answers its gaps 3, 7, 8, 14 and 17 and
@@ -240,6 +246,81 @@ have any characteristic other than 'wild resource'"; and MC45 p. 4 calls cards 1
 "Campaign-Specific Card" (p. 11) names them by "the word 'Campaign' printed at the bottom of the card", which
 45171a–45178 carry and the Age of Apocalypse, Mission and Overseer cards (45164–45170b, 45179a–45183a) do not (§4.2
 Q23).
+
+### 0.3 Pass 2a's sources
+
+1. **The rulebook.** Pages read: 2 (the identity callouts) and 22 (the two decklists and their introductions). Slips
+   and differences:
+   - p. 2: the Bishop callout is a preview ("After Bishop takes X damage from an attack, discard X cards from the top
+     of your deck"). The card (scan 45001a) reads "takes any amount of damage from an attack, discard an equal number
+     of cards". Same meaning; the card wins.
+   - p. 22: "When he takes any amount of damage, he discards an equal number of cards" drops "from an attack". The card
+     wins: only damage from an attack (§3.52).
+   - p. 22: Suit Up is described as printed ("an upgrade that can be played on that ally"), before the erratum.
+   - p. 22: the markdown prints Soul Strike's condition as "the [energy] or [physical] icons"; a render of the page has
+     [physical] or [wild], as the card does. The markdown's p. 2 callout of Magik's Crown has the same glyph slip
+     ("[mental] or [physical]" for [mental] or [wild]).
+   - p. 22 confirms two readings: "**While in hero form**, keep the top card of your deck faceup" (§3.48) and "Attach
+     Sidekick to one of Bishop's **identity-specific allies**" (Malcolm, Randall; §3.53).
+   - Both decklists were matched to raw by the data agent (data steps 6; `curation/aoa.ts`): 40 cards each, Bishop 15
+     identity-specific, 20 Leadership and 5 basic; Magik 15, 16 Aggression and 9 basic.
+2. **Card text.** Every record 45001a–45058 pulled from raw by script, with the nested faces 45001b and 45030b. Scans
+   read (`assets/card-art/bundles/cards/`): 45001a, 45001b, 45030a and 45030b (300 px wide, read enlarged), and
+   45002–45018, 45020, 45021, 45025–45029 and 45031–45058 except 45046 and 45047. Not read: the reprints 45019, 45046
+   and 45047 (their text is the original's) and 45022–45024, which have no scan in the bundle. They settle:
+   - **No raw slip in this pass.** Every text box, trait line, cost, stat and icon read matches raw.
+   - **A slip in an earlier pack, found on the way** (§3.58): the basic ally Colossus of `mut_gen` (32048, reprinted
+     as `wolv` 35021) prints the subtitle "Piotr Rasputin" (scan 32048); raw and the emitted data have none.
+   - Resource icons of the box's ten allies (§3.36 pairs them in a mission attempt): Malcolm [wild], Randall [wild],
+     Colossus [wild], Cable [mental], X-23 [physical], Legion [energy], Marrow [energy], Goldballs [physical], Tempus
+     [mental], Triage [energy]. MC45 p. 6's example (Randall [wild], X-23 [physical], Marrow [energy], Magik's Crown
+     [mental], Clobber [physical], Bloodgem [wild]) agrees with the five scans read (Clobber 45046 is a reprint).
+   - "Play only if" lines: Marrow "Play only if **you have** the [X-FORCE] or [X-MEN] trait."; Tempus and Stepford
+     Cuckoos "Play only if **your identity has** the [X-MEN] trait."; Bloodgem, Basic Spell and Spiritual Meditation
+     "… the [MYSTIC] trait." No other ally of the box prints one.
+   - Stats: Cable prints two consequential damage icons under ATK, every other ally one under each power. Legion
+     prints a star on THW and on ATK, Goldballs on ATK only, Belasco on SCH and on ATK. Super-Charged, Energy
+     Conversion, Advanced Suit, Scrying, Bloodgem and Spiritual Meditation print cost 0.
+   - Encounter side: Portal Through Time prints 4 threat with no per player icon, one acceleration icon (the icon of
+     45104a) and three boost icons; Ruler of Limbo 3 threat with no per player icon, one **amplify** icon and three
+     boost icons; Battle for Limbo a boost star and no boost icon. Both obligations print two boost icons.
+   - Stored Energy (45010) prints two different icons, [energy] and [physical], and no text.
+3. **RRG 1.8** entries pass 2a adds: "Basic Power" (p. 10), "Cancel" (p. 11), "Cost" (pp. 13–14: resources generated
+   beyond a cost "were not paid for that cost"; "A cost requiring 'any number' or 'up to' some number of game elements
+   requires a minimum of one"), "Defend, Defense" (p. 15), "Hit Points" (p. 22: "The phrase 'starting hit points'
+   refers to an identity's printed hit point value"), "Identity-Specific Card" (p. 23), "Initiating Abilities"
+   (p. 24), "Limit" (p. 27), "Look, Looked-At" (p. 27), "Max, Maximum" (p. 28), "Play, Put into Play" (p. 32), "Play
+   Restrictions and Permissions" (p. 33), "Printed" (p. 35), "Ranged" (p. 36), "Ready" (p. 36), "Resource Card"
+   (p. 37), "Restricted" (p. 38), "Search" (p. 39), "Steady" (p. 41), "Subtitle" (p. 41), "'Swap'" (p. 42: "Swapped
+   cards maintain the orientation (such as ready or exhausted, faceup or facedown) of the original card"), "Uses"
+   (p. 46), "Wild Resource" (p. 48), Appendix I "Player Decks" (p. 50).
+   - **FAQ "Magik (#30A)" (p. 64), four entries**, each a test in §3.48 or §3.49. One of them cites a step number
+     that the same RRG does not have: "Magik moves the card she is playing to the table in front of her during **step
+     3** of the process outlined in the Initiating Abilities section". In RRG 1.8 that is **step 1** (p. 24: "If
+     playing a card, the player places that card faceup on the table in front of them"); step 3 is "Determine the
+     cost". Either way the card has left the deck, and the next one is faceup, before the cost is paid in step 5.
+     §3.49 builds step 1 and names the difference.
+   - **Erratum "Suit Up (#17)" (p. 69)**: "an upgrade that can be attached to **an** ally" (§3.59; `curation/aoa.ts`
+     already carries it). §0 above says the p. 69 heading lists Rogue, Energy Transfer, Mystique's Manipulations and
+     Bonebreaker: that is the markdown's order. The PDF page lists Suit Up and Mission Team under "Age of Apocalypse
+     Expansion".
+4. **FFG rulings.** Every title and subtitle of the 58 records was matched against the file by script. **No ruling
+   names a card of this pass.** The only hits are on the word "Energy": Energy Channel, Aggressive Energy, and one
+   that does name the Core card 45022 reprints:
+   - **April 30, 2026 – Ruling 3 (6)**: "Haywire does not affect resource icons; Energy still provides 2 icons." A
+     card's printed icons are counted as printed (§3.52: Super-Charged, Advanced Suit, Temporal Trickery).
+   - Rulings on rules this pass uses: **April 30, 2026 – Ruling 3 (7)**, "The deck is reshuffled **before** the
+     currently resolving card enters the discard pile" (RRG p. 33; §3.48 test 5). **January 26, 2026 – Ruling 4 (7)**
+     and **March 19, 2026 – Ruling 4**, a hero and an ally with the same title and no matching subtitle or alter-ego
+     title "do not match" (RRG p. 45; §3.58). **February 28, 2026 – Ruling 7 (2)**, a card that was not in play when
+     another was revealed does not give it surge (Portal Through Time, §7.1). **March 19, 2026 – Ruling 5**, an
+     ability that reads a hidden top card "can trigger (paying cost with incomplete information …)" (the nearest
+     ruling to §4.2 Q26). **March 19, 2026 – Ruling 6**, unique cards added during setup "can share titles with cards
+     in player decks" (§3.58).
+
+No ruling of pass 2a disagrees with the RRG, and none says a printed wording of these cards gives an unintended
+result. The RRG disagrees with itself once (the FAQ's "step 3", above), and one card's wording needs the owner's
+reading (Witchfire's "Otherwise", §4.2 Q31).
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -760,6 +841,28 @@ which does not use a modular slot), and everything else arrives set aside (`setA
 - Scans still to read at emit, not read for this spec: 45165, 45166a, 45167a/b–45170a/b, 45172–45175, 45180a, 45182a,
   45183a. Raw is the only source for those texts here (45182a's text is also p. 5's callout).
 - The hand-authored `campaign.ts` (§1.23), after the five scenarios exist.
+
+### 1.32 Pass 2a: an attach host by classification (Sidekick 45015; data survey gap 2)
+
+Pass 2a asks for **one schema change**. Sidekick prints "Attach to an identity-specific ally you control." (scan
+45015). `AttachmentHost` (`packages/content/src/schema/cards/attachment-host.ts`) has `qualified` hosts narrowed by
+`HostQualifiers` (trait, keyword, title, `controlledBy: "you"`), and no qualifier reads a card's classification.
+
+- **`HostQualifiers.classification?: "identitySpecific" | "aspect" | "basic"`**, the three player-card
+  classifications the engine already reads (`classificationsOf`, `select.ts`; RRG 1.8 "Classifications", p. 12, and
+  "Identity-Specific Card", p. 23: "designated by the identity icon printed in the bottom right corner of the card").
+  Sidekick's host is `{ kind: "qualified", category: "ally", classification: "identitySpecific", controlledBy: "you" }`.
+- **Any identity's set, not only yours.** The card says "identity-specific", not "a [your hero] ally": an ally of
+  another identity's set that you control (Cameo, ruling March 19, 2026 – Ruling 6; a card taken under your control)
+  is a legal host. The survey's gloss "an ally of the identity's own set" is narrower than the card.
+- A campaign ally (45172–45175, "BASIC / CAMPAIGN") is not identity-specific. The identity card is not an ally.
+- **Parser:** `parse-text.ts`'s host reader gains "an identity-specific ally you control" (and, with it, "an
+  identity-specific [category]"); it already refuses to read the phrase as a named card (its comment at the
+  `namedCard` fallback names this card). "Max 1 per deck." is `deck_limit: 1`, already carried.
+- No other card of this pass needs a schema note. Stored Energy's two icons are two entries of the existing printed
+  resources (as Molecular Acceleration, `gambit` 37010); Marrow's two-trait "Play only if" is scripted as `playOnlyIf`
+  because `requiresIdentityTrait` holds one trait (the parser already leaves it for the script, as for Moon Girl,
+  `nova` 28018); Advanced Suit's "an [X-FORCE] or [X-MEN] ally" is `anyOf` two `qualified` hosts.
 
 ## 2. Per-scenario setup needs
 
@@ -1297,6 +1400,19 @@ change); **extend** (an existing primitive needs one more case); **new**. Each s
 | 3.45 | The campaign definition: random strike lists, three-cell rows, rewards, a win that loses           | the log (MC45 p. 24); all five scenarios                       | exists (verify)  |
 | 3.46 | One printed card as two cards: an Overseer in play and its Prelate face                            | 45179a/b–45183a/b in scenario 3                                | extend           |
 | 3.47 | Reusable as is (pass 1c)                                                                           | the rest                                                       | checked          |
+| 3.48 | The top card of a player's deck kept faceup                                                        | Magik 45030a                                                   | new              |
+| 3.49 | Playing the top card of your deck as if it was in your hand, for 1 less, once per phase            | Magik 45030a; RRG FAQ p. 64                                    | extend           |
+| 3.50 | "The top card of your deck has a [type] or [wild] resource icon"                                   | 45033–45035, 45038–45040                                       | exists (verify)  |
+| 3.51 | "If you paid for this event with a resource card"                                                  | 45007, 45008                                                   | extend           |
+| 3.52 | Resource cards as a card type: discarded, counted in hand, kept from a deck discard                | 45001a, 45002–45006, 45009, 45025, 45029                       | exists (compose) |
+| 3.53 | An attach host by classification; "your sidekick"                                                  | Sidekick 45015, Side-by-Side 45016                             | extend           |
+| 3.54 | A cost that readies a card                                                                         | Side-by-Side 45016                                             | extend           |
+| 3.55 | A deck discard cost of a chosen size                                                               | Goldballs 45041                                                | extend           |
+| 3.56 | An ally that plays itself from hand into an attack and defends without exhausting                  | Colossus 45031                                                 | exists (verify)  |
+| 3.57 | Player cards held facedown on a side scheme; a support returned when it is defeated                | Belasco 45054, Ruler of Limbo 45055                            | exists (verify)  |
+| 3.58 | The unique rule across printings: an ally whose subtitle is a hero's alter-ego                     | 45011, 45012, 45031; 45001a/b, 45030a/b                        | exists (verify)  |
+| 3.59 | A search for "an upgrade that can be attached to an ally"                                          | Suit Up 45017 (erratum, RRG p. 69)                             | extend           |
+| 3.60 | Reusable as is (pass 2a)                                                                           | the rest                                                       | checked          |
 
 ### 3.1 Find, and "find … and reveal it" when the card is already in play
 
@@ -2963,6 +3079,579 @@ the log and Abyss drawn: 45182b is in the game (the ruling), 45181b is not. Stan
 | "Remove … from the campaign"                                                                         | `removeFromCampaign`                                                                                            |
 | "The players … lose the campaign"                                                                    | `endCampaign { result: "lost" }`                                                                                |
 
+### 3.48 The top card of a player's deck kept faceup
+
+> **Status: new.** A deck is closed by rule whatever a card's `faceup` flag says (`visibility.ts`, `isDeckZone`). Two
+> exceptions exist: the cards an open decision offers out of a deck (a search, `lookAt`), and one viewer's standing
+> look at the top of the **encounter** deck (`RuleSpec mayLookAtTopOfEncounterDeck`, wave 5 §3.28). Nothing shows the
+> top card of a **player** deck to every player. Searched `visibility.ts`, `rules.ts`, `abilities.ts` and the DSL for
+> "faceup", "top of deck" and a deck-top rule.
+
+**Cards.** Magik 45030a ("Play with the top card of your deck faceup.").
+
+**Rules.** MC45 p. 22 ("While in hero form, keep the top card of your deck faceup"). RRG 1.8 "Player Deck" (p. 33:
+"The order of cards within a player's deck cannot be changed unless …"); "Look, Looked-At" (p. 27); "'Swap'" (p. 42);
+"Text Box" (p. 44); FAQ "Magik (#30A)" (p. 64), first entry. Ruling April 30, 2026 – Ruling 3 (7).
+
+**Plan.**
+
+- **`RuleSpec topOfDeckFaceup { player: PlayerRef; while? }`**, a constant on the hero face. While it is active the
+  top card of that player's deck is visible to every viewer (`visibility.ts`: a third exception, read from the rule
+  as `mayLookAtTopOfEncounterDeck` is). No flag is stored on the card: which card is visible is derived from the
+  deck's order and the rule, so a save, a replay and a reconnect cannot disagree about it.
+- **It is not a look, a reveal or a search.** Nothing triggers, the deck's order does not change, and the card is
+  still in the deck for every rule (it is not in hand, not in play).
+- **Log:** `deckTopShown { playerId, instanceId }` whenever the visible card changes while the rule is active (a
+  draw, a discard, a play from the top, a swap, a shuffle, a deck reset, a card put on top) and when the rule turns
+  on; `deckTopHidden { playerId }` when it turns off. A replay then shows what every player knew at each decision.
+- **Checked after every card move**, one card at a time: a draw of 2 shows the second card before it is drawn, as
+  the table does.
+- **Off** in alter-ego form (the line is on the hero face) and while her text box is blank (Pestilence, §3.13): the
+  card is facedown again. What a card that reads it then does is §4.2 Q26.
+- An empty deck shows nothing. A deck reset shows the new top card after the shuffle.
+- Any card can be the top card: an encounter card that lives in a player deck (Panicked Refugees, §3.42) is shown
+  like any other and stays there until it is drawn.
+
+**The mission touch point (§3.36, §3.38).** When Magik makes a mission attempt the first card discarded is the card
+everyone can see, so she knows one icon before she chooses the attempt, and Limbo, Stepping Disc, Scrying and her
+alter-ego Interrupt each set it. After the X discards the next card is shown. No Mission Response reads the rule.
+
+**Tests (exact numbers).**
+
+1. Magik in hero form, deck top Clobber: every seat's view shows Clobber on her deck. The second card is hidden from
+   every seat, hers included.
+2. She plays Spiritual Meditation from her hand and draws 2: two `deckTopShown` entries (the second card, then the
+   third).
+3. She changes to alter-ego form: `deckTopHidden`, and no seat's view shows the card. Back to hero form with nothing
+   moved: the same card is shown.
+4. Limbo's Action with Soul Strike in hand and Clobber on top: Soul Strike is shown on the deck, Clobber is in her
+   hand (RRG p. 42: the swapped card takes the faceup orientation).
+5. A deck of 2 cards and 6 cards in her discard pile; she plays Spiritual Meditation: both are drawn, the 6 cards are
+   shuffled into a new deck (Spiritual Meditation is not among them, ruling April 30, 2026 – Ruling 3 (7)), its top
+   card is shown, she is dealt 1 facedown encounter card, then she discards 1 card from her hand.
+6. Pestilence blanks her text box: hidden until the next villain phase begins, then shown.
+7. Magik makes a mission attempt with two allies at the mission and Magik's Crown on top: the Crown and the card
+   under it are discarded; the third card is shown.
+
+**Composes with:** §3.49, §3.50; any later "play with … faceup".
+
+### 3.49 Playing the top card of your deck as if it was in your hand, for 1 less, once per phase
+
+> **Status: extend.** The play-permission family exists: `playableFrom: ["discard"]` on the card itself (Lockjaw),
+> `playableAttachments` on a host (Hawkeye's Quiver, wave 2 §3.10), and `EffectSpec playFromHand`, whose `from` is the
+> hand, the set-aside area, the deck or a tuck, with a `costReduction`. None is a standing permission over the top of
+> a deck, none carries its own per-phase limit, and none lets a "play a card from your hand" effect reach outside the
+> hand.
+
+**Cards.** Magik 45030a ("Once per phase, you may play the top card of your deck as if it was in your hand, reducing
+its resource cost by 1."). Through it: Colossus 45031 (§3.56), Magic Barrier 45040, every card of her deck.
+
+**Rules.** RRG 1.8 "Initiating Abilities" (p. 24); "Play, Put into Play" (p. 32: "A card that is put into play is not
+considered to have been played"); "Play Restrictions and Permissions" (p. 33); "Limit" (p. 27: a canceled use still
+counts); "Cost" (p. 13). **FAQ "Magik (#30A)" (p. 64), all four entries.** The FAQ's "step 3" is RRG p. 24's step 1
+(§0.3).
+
+**Plan.**
+
+- **A constant `playableTopOfDeck { player: you, costReduction: 1, limit: "phase" }`** beside `playableAttachments`.
+  While it is active, the top card of the player's deck is a candidate **wherever a card in their hand could be
+  played**:
+  - a play command on their turn (`legalActions` lists it with `from: "deckTop"`);
+  - an event, or an `inHand` ability that plays its own card, offered in a timing window (Magic Barrier in the
+    villain phase; Colossus's Interrupt);
+  - the card choice of an `EffectSpec playFromHand` whose `from` is the hand (FAQ entry 2: "Any time Magik has an
+    opportunity to play a card from her hand, she may choose to play the top card of her deck instead").
+- **The same play sequence** (`resolve/play-card.ts`). Step 1 moves the card from the deck to the table, so the
+  next card is the top card at once and §3.48 logs it **before** restrictions are checked and the cost is paid (FAQ
+  entry 1). The cost is the card's cost less 1, to a floor of 0, with every other modifier applied as usual; it is
+  paid from her hand and her resource abilities. The new top card is not in her hand and cannot pay.
+- **It was played from her hand** (FAQ entry 3): the `cardBeingPlayed` / `cardPlayed` events report the hand as
+  where it was played from, so "after you play [card] from your hand" answers, and every "played this turn / round /
+  phase" count includes it. The log keeps the truth: `cardPlayed { from: "deckTop", countsAsFrom: "hand" }`.
+- **Only playing.** The top card is in the deck for everything else: it cannot be put into play "from your hand"
+  (FAQ entry 4), discarded to generate resources, chosen for a cost or an effect that names a card in hand (Malcolm,
+  Limbo's swap, Temporal Trickery), or counted in her hand.
+- **Limit.** Once per phase for the player, shared by all three routes above, used when step 1 moves the card, and
+  still used if the play is then canceled (RRG p. 27). A new phase gives a new use: one in the player phase, one in
+  the villain phase.
+- **The reduction belongs to the permission**: it applies to that play and to nothing else. Whether it adds to the
+  reduction of the effect she is playing through is §4.2 Q27 (default A: both apply).
+- Off in alter-ego form and under a blank text box, with §3.48.
+
+**As read.**
+
+- A resource card or an encounter card on top cannot be played, so nothing is offered and the limit is not used.
+- A card played from the top reads **the next card** when its own text says "the top card of your deck" (FAQ
+  entry 1): Soul Strike off the top stuns by the card that was second.
+- Form and timing are the played card's own: a Hero Action event only on her turn, a Hero Interrupt in its window.
+- An ally played this way is played, so in a campaign game it may go to the mission (§3.34), and Mission Team's
+  discount and this reduction both apply.
+- Stepping Disc played from the top is on the table while it resolves, not in her discard pile.
+
+**Tests (exact numbers).**
+
+1. **FAQ entry 1.** Deck from the top: Soul Strike (cost 2), Strength, Clobber. She plays Soul Strike from the top:
+   `deckTopShown` (Strength) is logged before any resource is spent; she pays 1; 4 damage, and the enemy is stunned
+   (Strength prints [physical]). With Genius second instead: 4 damage, no stun.
+2. **The limit.** Later that phase the new top card is not offered (`whyNot`: once per phase). In the next villain
+   phase Magic Barrier (cost 1) is on top and an enemy initiates an attack of 5: she plays it from the top for 0, 3
+   is prevented and she takes 2 (no DEF: a defense ability is not a basic defense, RRG p. 15).
+3. **FAQ entry 2.** Team-Building Exercise (`ant` 12024: "play a card from your hand that shares a trait with your
+   hero, reducing its resource cost by 1") with Colossus (X-MEN, cost 3) on top: he is offered beside her hand
+   cards. Q27 = A: she pays 1. The once per phase is used.
+4. **FAQ entry 3.** Pixie (`storm` 36017: "After you play Pixie from your hand, add an [X-MEN] ally from your discard
+   pile to your hand.") on top, Colossus in her discard pile: she plays Pixie (cost 2) for 1, the Response is
+   offered, Colossus is in her hand.
+5. **FAQ entry 4.** Mutant Protectors (`mut_gen` 32017: "put an [X-MEN] ally into play from your hand") with Colossus
+   on top and no ally in her hand: the event has no card to put into play and cannot be played. With Triage in hand:
+   only Triage is offered.
+6. **Paying.** Exorcism (cost 2) on top, a hand of one card: she pays 1 with it. With an empty hand and no resource
+   ability: not offered. Stepping Disc (cost 1) on top with an empty hand: offered, costs 0.
+7. Alter-ego form, or her text box blank: not offered; Team-Building Exercise offers hand cards only.
+8. Energy on top, or Panicked Refugees: nothing offered, the limit unused.
+9. A canceled play: an encounter ability cancels Soul Strike played from the top: the limit is used, the card is in
+   her discard pile, the next card stays shown.
+10. **Campaign.** Mission Team's discount in effect (§3.35) and Goldballs (cost 3) on top: played to the mission for 0.
+
+**Composes with:** §3.48, §3.34, §3.35, §3.56; wave 2's `playFromHand`.
+
+### 3.50 "The top card of your deck has a [type] or [wild] resource icon"
+
+> **Status: exists (verify).** `topOfDeck(1)` is a `CardSelector`, `cards(ref, filter)` narrows a selection,
+> `TargetQuery.anyPrintedResource` is the OR of printed icon types (Tombstone, `gob`), and `compare` over a count is a
+> `Predicate`. Not run: a constant modifier whose `while` reads a deck zone, so that a stat changes the moment the top
+> card does with no ability resolving (draw, discard, shuffle, swap, deck reset).
+
+**Cards.** Magik's Crown 45033 (+1 THW, [mental] or [wild]); Soulsword 45034 (+1 ATK, [physical] or [wild]); Mystical
+Armor 45035 (+1 DEF, [energy] or [wild]); Exorcism 45038 (confuse the villain, [mental] or [wild]); Soul Strike 45039
+(stun that enemy, [physical] or [wild]); Magic Barrier 45040 (3 damage to the attacker, [energy] or [wild]).
+
+**Rules.** RRG 1.8 "Printed" (p. 35); "Wild Resource" (p. 48: outside a cost a wild is only a wild, which is why each
+card names it); "Constant Ability" (p. 13); "Modifiers" (p. 29). Ruling April 30, 2026 – Ruling 3 (6).
+
+**Plan.** One helper in `@mc/cards`, `topOfYourDeckHas(type)`: at least 1 card of `topOfDeck(1, you)` matches
+`{ anyPrintedResource: [type, "wild"] }`. The three upgrades use it as the `while` of a stat modifier on the identity
+named Magik; the three events use it as the condition of their second sentence, read when that sentence resolves
+(after the threat is removed, after the damage is dealt, when the prevention is applied).
+
+- The icons are the card's printed ones. A card with two icons of one type (Genius) has that type once for this
+  test; Stored Energy would satisfy two of the three.
+- An empty deck, or a top card with no icon (an encounter card), satisfies none.
+- A facedown top card (alter-ego form, a blank text box) is §4.2 Q26. The upgrades only change a hero's stats, so
+  alter-ego form never asks the question; a blank hero text box does.
+- If the verify fails, the fix is the modifier cache's dependency on the deck's top card, not a new predicate.
+
+**Tests (exact numbers).**
+
+1. Soulsword in play (ATK 2): Clobber on top, ATK 3; Bloodgem ([wild]) on top, 3; Genius on top, 2; an empty deck, 2.
+   She draws Clobber and Genius is next: ATK is 2 with no ability resolving.
+2. All three upgrades and The Power of Aggression ([wild]) on top: THW 2, ATK 3, DEF 3.
+3. Exorcism on a scheme with 6 threat, Magik's Crown ([mental]) on top: 2 threat, the villain is confused. Clobber on
+   top: 2 threat, no confused card.
+4. Soul Strike that defeats its target: no stunned card is given to anything.
+5. Magic Barrier against an attack of 5, Mystical Armor ([energy]) on top, played from her hand: 3 prevented, she
+   takes 2, the attacker takes 3.
+6. Soulsword and a basic attack against a tough minion with Clobber on top: the attack has piercing, the tough card
+   is discarded and 3 damage is dealt.
+
+### 3.51 "If you paid for this event with a resource card"
+
+> **Status: extend.** A play records what was paid as vars on its frame (`paid.physical`, `paid.mental`,
+> `paid.energy`, `paid.wild`, `paid.total`, `overpaid.<type>`, `paid.ability.<abilityId>`; `actions.ts`), read by
+> `Predicate paidWith { resource }` and `paidWithOnly`. It records types and amounts, not which cards were discarded.
+
+**Cards.** Concussive Blast 45007 ("If you paid for this event with a resource card, ready Bishop."); Command
+Authority 45008 ("… draw 1 card.").
+
+**Rules.** RRG 1.8 "Cost" (p. 13: "a player spends resources that they generate by discarding cards from their hand
+or by using 'Resource' card abilities"; "Resources generated beyond the specified cost are considered to have been
+overpaid for that cost and were not paid for that cost"); "Resource Card" (p. 37); FAQ "Unstoppable Force (#6)"
+(p. 60: at a cost of 0 nothing was paid).
+
+**Plan.** The payment also records `paid.cards.<cardType>`: how many cards of each type were discarded from hand to
+generate its resources. **`Predicate paidWithCard { cardType: "resource"; of? }`** reads it, with `of` as `paidWith`
+has it. A resource ability (Bloodgem) is not a resource card; The Power of Leadership is one. What counts when more
+was generated than the cost is §4.2 Q28 (default A: the cost was at least 1 and a resource card was among the cards
+discarded for it).
+
+**Tests (exact numbers).**
+
+1. Concussive Blast (cost 3) paid with Strength and Clobber, Bishop exhausted: 6 damage, Bishop readies.
+2. Paid with three cards that are not resource cards: 6 damage, he stays exhausted.
+3. Paid with Stored Energy ([energy][physical]) and one other card: he readies.
+4. Command Authority (cost 2) paid with The Power of Leadership (1 [wild]: the event is not a Leadership card) and
+   one other card: 3 threat removed, 1 card drawn.
+5. Command Authority paid with a resource ability's [wild] (a fixture upgrade) and a card that is not a resource
+   card: no draw.
+6. Q28 = A: its cost reduced to 0 by a fixture, Energy discarded anyway: 3 threat removed, no draw.
+
+### 3.52 Resource cards as a card type: discarded, counted in hand, kept from a deck discard
+
+> **Status: exists (compose).** `"resource"` is a `TargetCategory`. Pieces: a hand-discard cost with a filter whose
+> cards are bound (`discardFromHandCost(1, 1, bind, filter)`, slot `discard`); `totalPrintedResources` over a slot;
+> `TargetQuery.printedResource` (a wild is only a wild); `handCountOf(you, filter)`, read live; a deck discard whose
+> cards are bound and filtered (`moveCards(topOfDeck(n), "discard", bind)` then `cards(chosen(bind), filter)`: Aunt May
+> & Uncle Ben, `spdr` 31007; wave 7 §3.55); `eventAmount` on a damage event; `maxDamageTaken` as a lasting rule
+> (wave 3 §3.15, wave 6 §3.4); the obligation shape; a superlative over hand cards with any `ValueSpec` as its
+> measure (Burn Notice); §3.39's named moment.
+
+**Cards.** Bishop 45001a; Malcolm 45002; Randall 45003; Bishop's Rifle 45004; Bishop's Uniform 45005; Super-Charged
+45006; Energy Conversion 45009; Fear the Future 45025; Temporal Trickery 45029; Advanced Suit 45014.
+
+**Rules.** RRG 1.8 "Resource Card" (p. 37); "Player Deck" (p. 33: "If the player's deck empties while the player was
+discarding cards from their deck, no further cards are discarded from the newly shuffled deck"); "Printed" (p. 35);
+"Wild Resource" (p. 48); "Max, Maximum" (p. 28: "The parenthetical '(to a maximum of [value])' within an ability
+imposes a maximum on that ability"); "Defend, Defense" (p. 15); "'Cannot'" (p. 11). Ruling April 30, 2026 – Ruling 3
+(6).
+
+**As read, card by card.**
+
+- **Energy Absorption (45001a).** A Response to each damage event in which Bishop takes 1 or more damage from an
+  attack, after defense and prevention: a basic attack or an attack ability of any enemy, and overkill damage that
+  reaches him. Not retaliate, indirect damage, a treachery's damage or a cost. X cards are discarded from the top
+  of his deck, then each resource card among them goes to his hand; the rest stay in the discard pile. The script
+  then raises the moment `"energyAbsorption"` (§3.39) for Bishop's Uniform.
+  - A deck of fewer than X cards: what is there is discarded, the deck resets with its facedown encounter card, and
+    nothing more is discarded (RRG p. 33). A resource card discarded this way that the reset shuffled into the new
+    deck is still one of "the cards discarded this way" and goes to his hand from the deck, which is not shuffled
+    again (wave 7 §4.1 Q33, the Teen Spirit precedent).
+  - These are ordinary deck discards: a card that answers its own discard answers them (wave 7 §3.55). They are not
+    a mission attempt's discards (§3.38), whoever holds Mission Team.
+- **Bishop's Uniform (45005).** "After you resolve Bishop's 'Energy Absorption' ability" is
+  `on.moment("energyAbsorption")`: only when the Response was used and not canceled, after the resource cards reached
+  his hand, which is why they count. Heals 1 per resource card in hand.
+- **Malcolm, Randall.** The cost is one resource card from hand; the ally readies (an effect: he may already be
+  ready); "If that card has a printed [physical] icon" reads the discarded card's printed icons, so a [wild] heals
+  nobody and Stored Energy heals either. Limit once per phase, each.
+- **Bishop's Rifle.** Damage is the number of resource cards in hand when the attack resolves, to the enemy chosen
+  as part of the cost; the attack has ranged (`attackKeywords { via: self }`). With none in hand it is an attack
+  for 0.
+- **Super-Charged.** The Action places 1 charge counter per printed icon on the discarded resource card (Energy 2,
+  Stored Energy 2, The Power of Leadership 1: its doubling is for paying a Leadership card). The Hero Interrupt, on
+  a basic attack, discards the card for +2 ATK per counter to at most +8 for that attack. The cap is each copy's
+  own (RRG p. 28): two copies with 4 counters each give +16.
+- **Energy Conversion.** A defense: Bishop becomes the defender if there is none, with no DEF applied. Each resource
+  card in his discard pile is shuffled into his deck (with none, nothing moves and the deck is not shuffled). "You
+  cannot take more than 3 damage from this attack" is `maxDamageTaken` on his identity until the end of the attack:
+  the excess is neither taken nor prevented (wave 6 §4.1 Q9). An ally of his that defends is not "you".
+- **Fear the Future.** The standard obligation shape. Its second option discards the obligation and every resource
+  card in hand; surge if none was discarded.
+- **Temporal Trickery.** The player discards one card of their choice among those in hand with the most printed
+  icons, and each scheme in play takes that many threat. An empty hand: nothing. In a campaign game "each scheme"
+  does not reach the mission (§3.33).
+- **Advanced Suit.** "For each resource on that card" is the discarded card's printed icons.
+
+**Tests (exact numbers).**
+
+1. Bishop (DEF 1) defends an attack of 5: he takes 4, discards 4 (Energy, Clobber, Stored Energy, Malcolm): Energy
+   and Stored Energy are in his hand, two cards in his discard pile.
+2. The same with Bishop's Uniform ready and 1 resource card already in hand: it exhausts, 3 damage healed.
+3. A tough status card takes the attack: 0 damage, no Response offered.
+4. Retaliate 1 after his basic attack: no Response.
+5. A deck of 2 (Energy, Clobber) with Strength among 5 cards in his discard pile; he takes 4: 2 are discarded, the
+   deck resets (7 cards), 1 encounter card is dealt, no third card is discarded; Energy is taken from the new deck
+   into his hand, Strength is not.
+6. Energy Conversion against an attack of 7 with Energy and Strength in his discard pile: both are shuffled into the
+   deck, he takes 3, then Energy Absorption discards 3.
+7. Malcolm exhausted with 1 damage: Stored Energy discarded: ready, 0 damage. Genius discarded: ready, 1 damage. A
+   second use that phase: refused.
+8. Bishop's Rifle with Energy, Stored Energy and Clobber in hand: 2 damage; against a retaliate 1 minion Bishop
+   takes none.
+9. Super-Charged: Energy, then Stored Energy, then Genius: 6 counters; a basic attack (ATK 2): +8, 10 damage, the
+   card is discarded.
+10. Fear the Future, second option, with Energy and Genius in hand: both discarded, the obligation discarded, no
+    surge. With no resource card: surge.
+11. Temporal Trickery with Energy (2 icons), Stored Energy (2) and Clobber (1) in hand, main scheme at 3 and a side
+    scheme at 1: the player picks Energy or Stored Energy; 5 and 3.
+
+### 3.53 An attach host by classification; "your sidekick"
+
+> **Status: extend.** `classificationsOf` (`select.ts`) reads identity-specific, aspect and basic off card data, and
+> `TargetQuery.sameClassificationAs` compares two cards (wave 6 §3.51). No query names a classification outright and
+> no attach host is narrowed by one (§1.32). "Your sidekick" needs no engine concept: `hasAttachment` exists.
+
+**Cards.** Sidekick 45015; Side-by-Side 45016.
+
+**Rules.** RRG 1.8 "Attach To" (p. 8); "Identity-Specific Card" (p. 23); "Classifications" (p. 12); "Max, Maximum"
+(p. 28: "Max X per deck"); "Upgrade" (p. 46); "Ownership and Control" (p. 31). MC45 p. 22.
+
+**Plan.**
+
+- **`TargetQuery.classification?: "identitySpecific" | "aspect" | "basic"`**, read through `classificationsOf`, and
+  the host resolver's reading of §1.32's `HostQualifiers.classification`.
+- **Sidekick.** Host: an identity-specific ally the player controls, of any identity's set. "+2 hit points" is a
+  stat modifier on the host. "Is your 'sidekick'" is not state: `yourSidekick` in `@mc/cards` is
+  `query("ally", { controller: "you", hasAttachment: { name: "Sidekick" } })`, so the designation is true exactly
+  while the upgrade is attached with its text box. The Response answers `on.basicRecovery(your identity)`: heal 2
+  from the host.
+- **Side-by-Side** names `yourSidekick` in its cost (§3.54) and "both characters" is that ally and the hero.
+- **At the mission (§3.33, §3.34).** An ally there has no controller, so it is not "an identity-specific ally you
+  control" and Sidekick cannot be played on it, although MC45 p. 5 lets upgrades attach there: the upgrade's own
+  host text still has to be met. Advanced Suit ("an [X-FORCE] or [X-MEN] ally") can attach there (traits survive the
+  blank), and nobody can trigger it (§4.2 Q19 = A). Team Training's "each ally you control" does not reach the
+  mission.
+
+**Tests (exact numbers).**
+
+1. Bishop controls Malcolm and X-23: Sidekick (cost 1) offers Malcolm only. With X-23 alone: it cannot be played
+   (no valid host, RRG p. 24 step 2).
+2. Malcolm (3 hit points) with Sidekick: 5; with Team Training too: 6. Sidekick discarded with 4 damage on him: he
+   is defeated.
+3. Lucas Bishop recovers (REC 4): 4 healed from him, then the Response heals 2 from Malcolm.
+4. Malcolm at the mission: not offered as a host.
+5. A second seat's Colossus (45031) under Bishop's control by a fixture: a legal host.
+
+### 3.54 A cost that readies a card
+
+> **Status: extend.** `AbilityCost` has `exhaustCards`, `returnToHand`, `discardCards` and `damageCards` over an
+> `InPlayCostPick`, and no cost that readies. `ready` is an effect.
+
+**Cards.** Side-by-Side 45016 ("Hero Action: Ready your sidekick → ready your hero and choose one: …").
+
+**Rules.** RRG 1.8 "Cost" (pp. 13–14: paid in full or not at all); "Cost Arrow Icon" (p. 14); "Ready" (p. 36: "If a
+player is instructed to ready an exhausted card, the card is returned to its ready state").
+
+**Plan.** **`AbilityCost.readyCards: InPlayCostPick`**: the picked cards ready as the cost. Whether a card that is
+already ready can pay it is §4.2 Q29 (default A: no; the pick offers exhausted cards only, as `exhaustCards` offers
+ready ones). An additional cost to ready the card (`RuleSpec readyCost`, wave 4 §3.19) is paid with it or the cost
+is not paid. "Ready your hero" after the arrow is the ordinary effect and does nothing to a ready hero.
+
+**Tests (exact numbers).**
+
+1. Malcolm (ATK 2, THW 1) with Sidekick, exhausted, 2 damage; Bishop (THW 2, ATK 2) exhausted, 3 damage. Side-by-Side
+   (cost 2), first option: both ready; Malcolm 1 damage, Bishop 2.
+2. Second option: Malcolm THW 2, ATK 3 and Bishop THW 3, ATK 3 until the end of the phase; back to printed in the
+   villain phase.
+3. Q29 = A: Malcolm ready: the event cannot be played. No Sidekick in play: it cannot be played.
+4. Alter-ego form: not playable (Hero Action).
+
+### 3.55 A deck discard cost of a chosen size
+
+> **Status: extend.** `AbilityCost.discardFromDeck` is a number or a `ValueSpec` with `discardFromDeckSlot` binding
+> the cards (wave 3 §3.33; Shield Spell's `eventAmount`). The paying player never chooses how many. `damageSelf` has
+> the choice shape (`{ choose: { min, max } }`).
+
+**Cards.** Goldballs 45041 ("[star] Interrupt: When Goldballs attacks, discard up to 3 cards from the top of your
+deck → Goldballs gets +X ATK for this attack, where X is the number of cards discarded this way.").
+
+**Rules.** RRG 1.8 "Cost" (p. 14: "A cost requiring 'any number' or 'up to' some number of game elements requires a
+minimum of one such game element"); "Player Deck" (p. 33); "Star Icon" (pp. 40–41).
+
+**Plan.** `discardFromDeck` also takes **`{ choose: { min: 1, max: 3 } }`**: the player picks a number from 1 to the
+smaller of 3 and the cards in the deck, pays it, and the count is bound for the effect (`+X ATK` until the end of the
+attack). A deck the cost empties resets at once; an empty deck with an empty discard pile cannot pay. The cards are
+ordinary deck discards.
+
+**Tests (exact numbers).**
+
+1. Goldballs (ATK 1) attacks, 3 discarded: 4 damage, 1 consequential damage to him.
+2. A deck of 2: 1 or 2 may be chosen; with 2 the deck resets, 1 facedown encounter card is dealt, +2 ATK.
+3. Declined: 1 damage. Zero cannot be chosen as a payment.
+4. Goldballs at the mission: no Interrupt (blank, §3.34); his ATK 1 counts in the pool.
+5. In Magik's deck: after the discards the new top card is shown (§3.48).
+
+### 3.56 An ally that plays itself from hand into an attack and defends without exhausting
+
+> **Status: exists (verify).** `inHand(interrupt(…))` (an ability active in hand, wave 4 §3.13),
+> `playFromHand { card: self }`, `declareDefender(character, { exhaust: false })` and the toughness keyword on
+> entering play. Not run:
+> an `inHand` interrupt that plays its own card and pays for it inside an enemy attack; an ally that enters play
+> after the attack began and becomes its defender; the ally limit applied at that moment.
+
+**Cards.** Colossus 45031 ("Toughness. Interrupt: When an enemy attacks you, play Colossus from your hand (paying his
+resource cost) and declare him the defender without exhausting him.").
+
+**Rules.** RRG 1.8 "Attack (Enemy Activation)" (pp. 8–9, step 2 "Declare defender"); "Defend, Defense" (p. 15: "When
+a card ability says to 'declare [an ally] the defender' of an attack, that ally becomes the defender of the attack";
+only one defender); "Toughness" (p. 45); "Ally Limit" (p. 7); "Play, Put into Play" (p. 32).
+
+**Plan.** No engine change is expected. The Interrupt is offered to the attacked player before a defender is
+declared, when the card is in their hand (or on top of Magik's deck, §3.49), the cost of 3 can be paid and the unique
+rule lets him enter (§3.58). He enters play ready with a tough status card, is declared the defender ready, and the
+attack's damage discards the tough card.
+
+**As read.**
+
+- It is a play: "after you play an ally" answers, he counts as played this round, and a fourth ally makes the
+  player discard down to three at once (the player may keep him).
+- He may also be played on the player's turn like any ally.
+- Once another character has been declared the defender the Interrupt is no longer offered.
+- In a campaign game the play's destination is §4.2 Q32 (default A: this play goes to the player's own area).
+
+**Tests (exact numbers).**
+
+1. A villain attacks Magik for 4 (ATK 3, boost 1). She plays Colossus for 3 before the boost card is turned: he is
+   the defender and ready; the tough card is discarded; he and Magik take 0.
+2. The same from the top of her deck: she pays 2 (§3.49 test, FAQ entry 2).
+3. Three allies in play: after he enters she discards one ally of her choice; with Colossus discarded the attack is
+   undefended.
+4. Two resources available: not offered.
+5. A Colossus hero in another seat: not offered (§3.58).
+
+### 3.57 Player cards held facedown on a side scheme; a support returned when it is defeated
+
+> **Status: exists (verify).** `attachCard(card, to, { facedown })` (The Painted Lady, wave 7 §3.58; Abyss, §3.30,
+> §3.38), `findCard` with an attach destination (§3.1), "threat cannot be removed … while" (§3.22), `putIntoPlay`
+> under an owner's control. Not run: a **side scheme** as the host of facedown player cards; a find that takes a
+> support out of play; a card put back into play from an attachment when its host is defeated.
+
+**Cards.** Belasco 45054; Ruler of Limbo 45055; through them S'ym 45056, Witchfire 45057, Battle for Limbo 45058.
+
+**Rules.** RRG 1.8 "Find" (p. 19); "Attachment" (p. 8); "In Play and Out of Play" (p. 23: a facedown card is out of
+play); "Villainous" (p. 47); "Amplify Icon" (p. 7); "Leaves Play" (p. 27); "Player Elimination" (p. 34).
+
+**Plan.** No engine change is expected.
+
+- **Ruler of Limbo, When Revealed.** "The Illyana Rasputin player" is the player whose identity card is 45030, in
+  either form, whoever revealed the scheme; with no such player nothing is found. She finds Limbo in §3.1's order
+  (in play, hand, discard pile, deck) and it is attached facedown to the scheme: out of play, blank, hers. Found in
+  play it leaves play; found in the deck the deck is shuffled and §3.48 shows the new top card.
+- **"When this scheme is defeated, put Limbo into play under its owner's control."** A Forced Interrupt on the
+  scheme that looks for a facedown card named Limbo attached to it: none (the When Revealed was canceled, or Limbo
+  was not found) means nothing happens. Limbo is put into play ready, not played.
+- **Belasco.** After he activates against a player (a scheme or an attack, each with a boost card: villainous), that
+  player discards 3 cards from the top of their deck; discards are settled (`settleDeckDiscards`), then, if Ruler
+  of Limbo is in play, those cards are attached to it facedown. A short deck discards what it has and resets; a card
+  the reset shuffled into the new deck is still one of "those cards" and is attached from it (wave 7 §4.1 Q33).
+- **When the scheme leaves play** every facedown card on it goes to its owner's discard pile, Limbo too unless the
+  scheme was defeated. An eliminated player's cards leave with them.
+- "Threat cannot be removed from this scheme while Belasco is in play" is §3.22's rule with a named card. The
+  amplify icon is the engine's (wave 3 §3.6).
+- Nothing counts the facedown cards. The log names each card as it is attached, since each was discarded faceup
+  first.
+
+**Tests (exact numbers).** 2 players; Magik is player 2.
+
+1. Player 1 reveals Ruler of Limbo (3 threat) with Limbo exhausted in Magik's play area: Limbo is attached facedown;
+   her Limbo abilities are gone; a later boost card with 1 icon counts 2.
+2. Belasco (SCH 1, ATK 1) is engaged with Magik in hero form and attacks: 1 boost card; she then discards 3 and all
+   three are facedown on the scheme; her discard pile gained none.
+3. The same without Ruler of Limbo in play: three cards in her discard pile.
+4. Belasco in play: a thwart of 2 against Ruler of Limbo removes nothing and it is not offered as a target.
+5. Belasco defeated, then 3 threat removed: Limbo is in play under Magik's control, ready; the three other cards are
+   in her discard pile.
+6. Limbo in her deck when the scheme is revealed: found, attached, deck shuffled, new top card shown.
+7. A deck of 2 when Belasco activates: 2 discarded, the deck resets, both are taken from the new deck and attached.
+
+### 3.58 The unique rule across printings: an ally whose subtitle is a hero's alter-ego
+
+> **Status: exists (verify).** `uniqueEntryBlocker` compares title, subtitle and alter-ego title of faceup cards in
+> play (`spec.ts`, `canEnterPlay`; RRG 1.7's rule, the Valkyrie rulings), and deck validation applies the same match
+> with the identity included. Not run: an aspect ally of one box against a hero of another; the mission area as a
+> place the blocked card cannot go.
+
+**Cards.** Cable 45011 and X-23 45012 (Leadership allies, new printings of wave 7's heroes); Colossus 45031; the
+identities 45001a/b and 45030a/b against earlier allies.
+
+**Rules.** RRG 1.8 "Unique Icon" (pp. 45–46): two unique cards match if they "share a title, and both have no
+subtitle and no alter-ego title", or if "the subtitle or alter-ego title of one matches the title, subtitle, or
+alter-ego title of the other"; "During deckbuilding, a player cannot include multiple matching cards in their deck.
+The identity is included in this evaluation"; "Once setup for a game has begun, a player is not prevented from adding
+matching cards to their deck through game effects"; a player card out of play that matches a card in play "cannot be
+played or put into play. Any effect that attempts to do so has no effect". "Subtitle" (p. 41). Appendix I "Player
+Decks" (p. 50). Rulings January 26, 2026 – Ruling 4 (7), March 19, 2026 – Ruling 4 and Ruling 6.
+
+**The matches** (searched every raw pack for these titles and subtitles):
+
+| Card of this pass                       | Matches                                                                         | By                        |
+| --------------------------------------- | ------------------------------------------------------------------------------- | ------------------------- |
+| Cable 45011, subtitle Nathan Summers    | the hero Cable / Nathan Summers (`next_evol` 40001a/b); the ally Cable 44002    | alter-ego title; subtitle |
+| X-23 45012, subtitle Laura Kinney       | the hero X-23 / Laura Kinney (`x23` 43001a/b)                                   | alter-ego title           |
+| Colossus 45031, subtitle Piotr Rasputin | the hero Colossus / Piotr Rasputin (`mut_gen` 32001a/b); the ally 32048 / 35021 | alter-ego title; subtitle |
+| Bishop / Lucas Bishop 45001a/b          | the ally Bishop, subtitle Lucas Bishop (`gambit` 37011)                         | alter-ego title           |
+| Magik / Illyana Rasputin 45030a/b       | the ally Magik, subtitle Illyana Rasputin (`mut_gen` 32042)                     | alter-ego title           |
+
+**What it means for Cable and X-23.**
+
+- **In a deck.** A Cable deck cannot include 45011 and an X-23 deck cannot include 45012 (the identity is part of the
+  evaluation). A Deadpool deck holds the identity-specific Cable 44002, so it cannot include 45011. Any other
+  Leadership deck may include both, Bishop's starter deck among them.
+- **At setup.** A Bishop deck with 45011 beside a Cable hero in another seat is a legal table: the deck rule reads
+  one player's deck and identity. Appendix I's swap for a Team-Up card is for identity-specific cards only, and
+  these are aspect cards.
+- **In the game.** The hero's identity card is in play in either form and carries both titles, so while that hero
+  is in the game 45011 (or 45012) cannot be played or put into play by anyone, to a play area or to the mission
+  (§3.34). It is a [mental] (or [physical]) resource and nothing else. Suit Up may still fetch it.
+- When that hero's player is eliminated the identity is out of the game and the ally can be played.
+
+**Colossus.** Magik's identity-specific Colossus matches the Colossus hero, so beside him it cannot be played and its
+Interrupt is not offered; Appendix I would let her swap it for a Team-Up card naming both identities, and none
+exists (the Team-Up cards that name Colossus pair him with Shadowcat and Wolverine). It also matches the basic ally
+Colossus by subtitle, **which the data does not show**: scan 32048 prints "PIOTR RASPUTIN" under the title, and raw
+and the emitted `mut_gen` 32048 and `wolv` 35021 have no subtitle. Today the engine would let that ally into play
+beside the Colossus hero and beside 45031. This is a data fix in two earlier packs (§5.3), not an engine change.
+
+**Tests.**
+
+1. Player 1 is Cable; player 2 (Bishop) holds 45011: no play is offered (`whyNot`: unique, matches Cable / Nathan
+   Summers), in hero or alter-ego form of either player; it can be discarded for 1 [mental].
+2. Player 1 is eliminated: player 2 can play it for 4.
+3. Player 1 is X-23, a campaign game: 45012 is offered for neither destination.
+4. Deck validation: Cable with 45011 illegal; X-23 with 45012 illegal; Deadpool / Leadership with 45011 illegal;
+   Bishop with 37011 illegal; Magik with 32042 illegal; Bishop's starter deck legal.
+5. After the data fix: Magik controls 45031; another player's Colossus 32048 cannot be played. A Colossus hero's deck
+   with 32048 is illegal.
+
+### 3.59 A search for "an upgrade that can be attached to an ally"
+
+> **Status: extend.** `TargetQuery.canAttachTo: TargetRef` asks whether a card's printed "attach to" allows one of
+> the cards a ref names, which must be in play (Deathlok, `next_evol` 40025). The erratum's "an ally" names no card.
+
+**Cards.** Suit Up 45017, as corrected: "Alter-Ego Action: Search your deck and discard pile for an ally and an
+upgrade that can be attached to an ally. Add them to your hand. (Shuffle.)"
+
+**Rules.** RRG 1.8 errata, "Suit Up (#17)" (p. 69); "Search" (p. 39: the player "chooses among those options"; the
+deck is shuffled); "Attach To" (p. 8); "Upgrade" (p. 46).
+
+**Plan.** **`TargetQuery.canAttachToCategory?: "ally"`**: the card's printed host allows a card of that category,
+read from card data (`AttachmentHost`), with no card in play consulted (§4.2 Q30, default A). Under A the hosts that
+qualify are `ally`, a `qualified` or `superlative` host over allies, `anyCharacter`, `friendlyCharacter` and a
+`qualified` host over `character` or `friendlyCharacter`; an upgrade with no "attach to" (it attaches to its
+controller's identity, RRG p. 46) does not. The search is two optional picks over deck and discard pile, an ally and
+such an upgrade, either of which may be missing; then one shuffle of the deck.
+
+**Tests.**
+
+1. Deck holds Malcolm, Sidekick, Advanced Suit, Bishop's Rifle: the ally pick offers Malcolm; the upgrade pick
+   offers Sidekick and Advanced Suit, not the Rifle. Both to hand, the deck shuffled once.
+2. No ally in deck or discard pile, Advanced Suit in the discard pile: Advanced Suit to hand.
+3. Q30 = A: Sidekick is offered with no identity-specific ally in play.
+4. Hero form: not playable.
+
+### 3.60 Reusable as is (pass 2a, checked against the engine unions)
+
+**Reprints** (raw `duplicate_of_code`; the wave's `reprints.ts` aliases them): Team Training 45013 → 04016, Lead from
+the Front 45018 → 01070, The Power of Leadership 45019 → 01072, Energy / Genius / Strength 45022–45024 → 01088–01090,
+Clobber 45046 → 18012, The Power of Aggression 45047 → 01055, Spiritual Meditation 45052 → 15019.
+
+| Card text                                                                                          | Existing vocabulary                                                                                            |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| "After you change to this form, add a [TEMPORAL] card in your discard pile to your hand" (45001b)  | `on.playerChangesForm("alterEgo")`, `chooseCards` over the discard pile by trait, `moveCards` to hand          |
+| "Interrupt: When you change to hero form, choose a [SPELL] in your discard pile and put it on top" | an interrupt on the form change, `chooseCards`, `moveCards` to `"deckTop"`; once per phase                     |
+| "Restricted." / "Magik gains steady" / "retaliate 1" / "Magik's basic attacks gain piercing"       | keyword data; `gainsKeyword` on the identity titled Magik; `attackKeywords { attacker, basicOnly }`            |
+| "After the villain phase begins, exhaust Limbo → swap a card in your hand with the top card"       | `on.phaseBeginning("villain")`; Domino's swap (`chooseCards` + `swapCards`, wave 7 §3.57)                      |
+| "Look at the top 3 cards of your deck. Draw one, discard one, and put one back" (Scrying)          | `lookAt(topOfDeck(3))`, two `chooseCards`, `moveCards` to hand and to discard; with fewer cards, in that order |
+| "Ready your hero. Choose a Magik card in your discard pile not named Stepping Disc …"              | `ready`, `chooseCards` with `identitySetTitled: Magik` and `not: { name }`, `moveCards` to `"deckTop"`         |
+| "Prevent 3 damage from this attack … deal 3 damage to the attacking enemy" (Magic Barrier)         | a defense-labeled interrupt on the attack's initiation, `preventDamage(3)`, `dealDamage` to the attacker       |
+| "After Cable thwarts and defeats a side scheme" / "After X-23 attacks and defeats an enemy"        | `on.schemeDefeated` / `on.defeats` by the ally's own thwart or attack; `draw`, `ready(self)`                   |
+| "After attached ally defeats a minion or side scheme, discard 1 card from your hand → heal …"      | the same events with the host as source; a hand-discard cost; §3.52's icon count                               |
+| "After Legion uses a basic power, discard the top card of your deck. If that card's printed …"     | `on.basicPowerUsed(self)`, a bound deck discard, one `if` per type on `printedResource`                        |
+| "Play only if you have the [X-FORCE] or [X-MEN] trait." (Marrow)                                   | `playOnlyIf` with an OR of two identity traits; the one-trait lines are data (`requiresIdentityTrait`)         |
+| "After Marrow enters play, deal 2 damage to an enemy" / "After Triage enters play, heal 2 …"       | `on.entersPlay(self)`, `chooseTarget`; Triage's target is a character with the X-MEN trait                     |
+| "When the villain would scheme, discard Tempus → cancel that activation. Deal yourself 1 …"        | `on.enemyActivating(villain)` narrowed to a scheme, `cancelIt()` (wave 5 §3.2), `dealEncounterCard(you)`       |
+| "After you defeat an enemy with a basic attack, exhaust Blood Rage and take 1 damage → draw 1"     | `on.defeats` by your identity's basic attack; `exhaustSelf` and `damageSelf` costs                             |
+| "After you play an [ATTACK] event, place 1 test counter here. If there are 5 …" (Test the Defense) | `on.youPlayedCard`, `placeCounters`, `counterAtLeast`, `discard(self)`, `dealDamage`                           |
+| "If your hero's remaining hit points are less than half your hero's starting hit points" (45045)   | `compare(remainingHpOf, <, printed hit points ÷ 2)`; `modifyAttack({ overkill })`                              |
+| "Uses (3 psi counters). Interrupt: When a player reveals a treachery …" (Stepford Cuckoos)         | the uses keyword; `on.encounterCardRevealed(treachery)`, `cancelRevealedCard()`, `revealEncounterCard(them)`   |
+| "Resource: Exhaust Bloodgem and take 2 damage → generate a [wild] resource."                       | a `resource` ability with `exhaustSelf` and `damageSelf: 2` (unpaid if any of it is prevented, RRG p. 14)      |
+| "Choose one: heal 3 from an identity / remove 3 threat from a scheme / deal 3 damage to an enemy"  | `chooseOne`                                                                                                    |
+| "You may flip to alter-ego form. Choose: exhaust [alter-ego] → remove … / [the other option]"      | the obligation shape (every wave); `dealDamage` to each character you control (Darkchilde)                     |
+| "Quickstrike." / "Guard." / "Villainous." / "After [minion] attacks and defeats an ally, …"        | keywords; `on.defeats` of an ally by the minion's attack                                                       |
+| "If Portal Through Time is in play, place 2 threat on it. Otherwise, find it and reveal it."       | `exists`, `placeThreat`, §3.1                                                                                  |
+| "Forced Interrupt: When a [TEMPORAL] card is revealed, it gains surge. (Limit once per phase.)"    | a surge grant on `encounterCardRevealing` by trait (Mister Knife, wave 3), with a phase limit                  |
+| "Each [LIMBO] minion in play activates against the player it is engaged with. If no … surge."      | `forEach` minion by trait in the first player's order, `enemyActivates`, a bound count, a gained surge         |
+| "[star] Boost: If Ruler of Limbo is in play, place 2 threat on it."                                | a boost ability, `exists`, `placeThreat` (it has an amplify icon of its own: §3.57 test 1)                     |
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Decided by the user
@@ -3132,6 +3821,53 @@ Pass 1c's questions:
       reward; a 40-card deck becomes 41 and is legal.
     - B: exempt from both, as every earlier box's grants are.
 
+Pass 2a's questions:
+
+26. **Magik's top card is facedown and a card reads it.** (§3.48, §3.50. Her text box is blank, as under Pestilence,
+    so the card is not shown; Soulsword, Magik's Crown, Mystical Armor, Exorcism, Soul Strike and Magic Barrier still
+    say "the top card of your deck has". Ruling March 19, 2026 – Ruling 5 lets an ability be used against a hidden
+    top card "with incomplete information".)
+    - **A (default):** the condition reads the real card. A stat bonus that applies is shown with its reason, which
+      tells the players that icon; nothing else about the card is shown.
+    - B: a card nobody may look at satisfies no condition: no bonus and no extra effect until it is faceup again.
+27. **The top card played through another "play a card from your hand" effect that reduces its cost.** (§3.49; RRG
+    FAQ p. 64, second entry; Team-Building Exercise, "reducing its resource cost by 1".)
+    - **A (default):** both reductions apply: Magik's is part of playing the top card by her ability, however the
+      chance to play arose. Colossus (cost 3) costs 1.
+    - B: only the effect's own reduction; Magik's applies to plays she starts herself.
+28. **"If you paid for this event with a resource card" when more was generated than the cost.** (§3.51; Concussive
+    Blast, Command Authority. RRG "Cost", p. 13: resources beyond the cost "were not paid for that cost", and the RRG
+    does not say which of several cards' resources are the ones beyond it.)
+    - **A (default):** true when the cost paid was at least 1 and a resource card was among the cards discarded to
+      pay it; the player is taken to have spent that card's resources first. False at a cost of 0 (FAQ "Unstoppable
+      Force (#6)", p. 60).
+    - B: true whenever a resource card was discarded during the payment, at a cost of 0 too.
+    - C: resources count in the order the cards were discarded; a resource card discarded after the cost was already
+      covered does not count.
+29. **Side-by-Side: "Ready your sidekick →" when the sidekick is already ready.** (§3.54. RRG "Ready", p. 36, speaks
+    of readying "an exhausted card"; "Cost", p. 13, has a cost paid in full.)
+    - **A (default):** the cost cannot be paid: the event needs an exhausted sidekick, as "exhaust →" needs a ready
+      card.
+    - B: it can: readying a ready card does nothing and the cost counts as paid, so the event is a hero ready plus
+      its option.
+30. **Suit Up's erratum: "an upgrade that can be attached to an ally".** (§3.59; RRG p. 69.)
+    - **A (default):** by the upgrade's printed text: its "attach to" allows an ally (an ally, a kind of ally, a
+      character, a friendly character). No ally has to be in play, and it need not fit the ally found with it.
+    - B: only an upgrade with a legal ally host in play at that moment.
+    - C: only an upgrade whose "attach to" names allies and nothing wider.
+31. **Witchfire's "Otherwise".** (45057, scan read: "Forced Response: After Witchfire attacks and defeats an ally,
+    place 1 threat on Ruler of Limbo. Otherwise, place 1 threat on the main scheme.")
+    - **A (default):** the intended reading, as S'ym and Trevor Fitzroy print it: after she attacks and defeats an
+      ally, 1 threat goes on Ruler of Limbo if it is in play, otherwise on the main scheme. An attack that defeats no
+      ally places nothing.
+    - B: as worded: 1 threat on the main scheme after every attack of hers that does not defeat an ally, and nothing
+      when she defeats one while Ruler of Limbo is out of play.
+32. **Colossus's Interrupt in a campaign game.** (§3.56, §3.34. MC45 p. 5: "When a player plays an ally, they must
+    choose" the mission or their own area; his Interrupt plays him "and declare[s] him the defender".)
+    - **A (default):** this play goes to the player's own area only: at the mission he has no controller and cannot
+      defend, so the mission is not offered for it. Played on her turn he may go to either.
+    - B: both destinations are offered; at the mission the attack goes on undefended and his cost is spent.
+
 ## 5. What this asks of the other agents (pass 1a)
 
 - **`card-data-pipeline`:** emit the six sets of this pass with §1.2–§1.9: one main scheme record each from the
@@ -3247,13 +3983,231 @@ Pass 1c's questions:
     mission attempt, Mission Response, Overseer and attempt counter; a Try-it that plays one ally to the mission and
     makes one attempt with a known top card.
 
+### 5.3 Pass 2a
+
+- **`card-data-pipeline`:** §1.32's `HostQualifiers.classification` and the parser's "an identity-specific ally you
+  control" (data survey gap 2). Check before emitting: Advanced Suit's two-trait host ("an [X-FORCE] or [X-MEN]
+  ally") as `anyOf`; Marrow's two-trait "Play only if" left to the script; `requiresIdentityTrait` on Tempus,
+  Stepford Cuckoos, Bloodgem, Basic Spell and Spiritual Meditation; `maxPerPlayer: 1` on Blood Rage, Test the Defense
+  and Team Training; "Max 1 per ally" on Advanced Suit; the uses keyword on Stepford Cuckoos; Ruler of Limbo's
+  amplify icon and Portal Through Time's acceleration icon; Battle for Limbo's boost star with no icon; the stars on
+  Legion, Goldballs and Belasco; cost 0 on the six cards of §0.3. **Two earlier packs:** add the subtitle "Piotr
+  Rasputin" to Colossus `mut_gen` 32048 and `wolv` 35021 (scan 32048; §3.58). No raw slip was found in pass 2a's own
+  records.
+- **`game-rules-architect`:** §3.48 is new and §3.49 stands on it; then §3.51, §3.53 with §1.32, §3.54, §3.55 and
+  §3.59, one more case each, one agent each. §3.50, §3.52 and §3.56–§3.58 need no engine change unless their tests
+  fail. §3.52's Uniform waits on §3.39.
+- **`ability-scripting-engineer`:** per hero, the usual split under `packages/cards/src/wave8/aoa/<hero>/`:
+  `identity.ts`, `events.ts`, `support-upgrades-allies.ts`, `obligation-nemesis.ts`, then a precon e2e. Bishop needs
+  §3.39 and §3.51; Magik §3.48–§3.50 and, for her nemesis set, §3.1. The Leadership cards wait on §3.53, §3.54 and
+  §3.59; Goldballs on §3.55; the other aspect and basic cards wait on nothing (§3.60). `topOfYourDeckHas` and
+  `yourSidekick` are helpers in `@mc/cards`. Each "exists (verify)" row is proved by a test in the module's own test
+  file before it is relied on.
+- **`encounter-ai-designer`:** the automated player's choices: Magik's once-per-phase play (prefer it when the card
+  under the top one satisfies the played card's condition); Limbo's swap at the start of the villain phase (a
+  defense on top); Bishop taking an attack undefended when Energy Absorption pays for it; Fear the Future's and
+  Darkchilde's options; which card Temporal Trickery discards; the order of Battle for Limbo's activations. With a
+  Cable, X-23 or Colossus hero at the table it never keeps the matching ally for anything but its resource.
+- **`rules-qa-engineer`:** one regression test for each of the four FAQ entries on Magik (tests 1, 3, 4 and 5 of
+  §3.49) and for the Suit Up erratum (§3.59 test 1); ruling April 30, 2026 – Ruling 3 (7) with a faceup deck (§3.48
+  test 5); ruling February 28, 2026 – Ruling 7 (2) on Portal Through Time (§7.1); the unique matches of §3.58,
+  including the Colossus data fix; fixtures for the exact-number tests of §3.50–§3.57. Deck tests (DoD §4b): both
+  starter decks legal at 40 cards; the illegal decks of §3.58 test 4; two Sidekicks or two Bloodgems in one deck
+  illegal.
+- **`game-client-engineer`:**
+  - **Magik's deck:** the top card drawn faceup on the deck for every seat, with its resource icons large enough to
+    read at table zoom; a "play from deck (1 less)" affordance that shows the reduced cost and whether the phase's
+    use is spent; when a card is played from the top, the next card turns over before the payment prompt opens. The
+    three upgrades and three events show their condition met or unmet against the current top card.
+  - **Bishop:** the cards Energy Absorption discards shown in order with the resource cards marked as they go to his
+    hand; the count of resource cards in hand on the Rifle and the Uniform; charge counters and the +8 cap on
+    Super-Charged; a "paid with a resource card" marker in the payment prompt of Concussive Blast and Command
+    Authority.
+  - **Sidekick:** a badge on the sidekick ally; Side-by-Side's reason when it cannot be played (no sidekick, or the
+    sidekick is ready under Q29 = A).
+  - **Ruler of Limbo:** the facedown cards on it as a count, Limbo marked among them, and "threat cannot be removed
+    while Belasco is in play" as the scheme's locked reason.
+  - **Unique blocks:** at deck selection and in hand, why Cable, X-23 or Colossus cannot be played beside the
+    matching hero, and that the card still pays as a resource.
+  - **Guided mode** (every wave: glossary, a tip, a tricky-wording hint, a Try-it):
+    - Glossary: resource card (a card type, not any card spent as a resource); faceup top card; "as if it was in
+      your hand"; sidekick; identity-specific ally; charge counter; psi counter.
+    - Tips: Magik: "Check the card under the top one before you play from your deck." Bishop: "An attack you take
+      refills your hand: resource cards discarded by Energy Absorption come to you." Leadership: "Sidekick only goes
+      on an ally from a hero's own set."
+    - Tricky-wording hints (Inspect notes): Magik's play counts as played from hand, and putting into play does not
+      use it (RRG p. 64); a card played from the top reads the **next** card; "printed [physical] icon" on Malcolm
+      is not met by a [wild]; "paid for this event with a resource card" needs a resource card, not a resource;
+      Goldballs must discard at least 1; Full-Body Charge reads the printed hit points; Witchfire's "Otherwise"
+      (Q31); Energy Absorption answers attacks only.
+    - Try-it lessons: (1) Magik with Soul Strike on top and a [physical] card under it: play it from the deck for 1
+      and stun. (2) Bishop takes an undefended attack of 3 with two resource cards among his top three, then fires
+      Bishop's Rifle. (3) Sidekick on Malcolm, then Side-by-Side.
+
 ## 6. Later passes (placeholders)
 
-- **(pass 2a)** Bishop (45001a/b) and Magik (45030a/b), their nemesis sets, the box's aspect and basic cards; the RRG
-  FAQ on Magik (p. 64). Start with the three things pass 1c leaves for it: Bishop's Energy Absorption and Magik's
-  faceup top card both read the top of a deck that a mission attempt discards from (§3.36); the box's allies are the
-  ones a campaign game plays to the mission, so each needs its printed resource icon and its "Play only if" line
-  checked against a scan (§3.34); Sidekick (45015) attaches to "an identity-specific ally you control", which an ally
-  at the mission is not (§3.33). **(pass 2b)** Iceman, Jubilee (ruling June 2, 2026 – Ruling 1). **(pass 2c)**
+- **(pass 2b)** Iceman, Jubilee (ruling June 2, 2026 – Ruling 1). Start with what pass 2a leaves for it: both packs'
+  allies are played to the mission in a campaign game, so each needs its printed resource icon and any "Play only
+  if" line read from a scan (§3.34, §7.1); any card that reads or discards the top of a deck is checked against
+  §3.48–§3.50, §3.52 and §3.55 before a new row is opened; every unique ally is matched against the heroes of
+  waves 6 to 8 by subtitle and alter-ego title, on the scan and not on raw alone (§3.58 found a subtitle raw does not
+  carry); an upgrade that attaches to an ally is checked against Suit Up's reading (§3.59, Q30). **(pass 2c)**
   Nightcrawler, Magneto.
 - **(pass 3)** The ordered engine build queue over every §3 row.
+
+## 7. Pass 2: hero packs
+
+### 7.1 Pass 2a: Bishop, Magik and the box's player cards
+
+Read 2026-10-07: every raw record 45001a–45058 with the two nested alter-ego faces; the scans listed in §0.3; MC45
+pp. 2 and 22; RRG pp. 64 and 69. Both starter decks are MC45 p. 22's lists (40 cards each, `curation/aoa.ts`).
+
+| Identity                         | Obligation              | Nemesis set (nemesis minion in bold)                                                       | Setup, hand size, starter deck                                                 |
+| -------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Bishop / Lucas Bishop (45001)    | Fear the Future (45025) | **Trevor Fitzroy** (45026, quickstrike), Portal Through Time, Bantam, Temporal Trickery ×2 | No Setup. 5 / 6, THW 2 ATK 2 DEF 1, REC 4, 12 hit points. Leadership, 40 cards |
+| Magik / Illyana Rasputin (45030) | Darkchilde (45053)      | **Belasco** (45054, villainous), Ruler of Limbo, S'ym, Witchfire, Battle for Limbo         | No Setup. 5 / 6, THW 1 ATK 2 DEF 2, REC 3, 10 hit points. Aggression, 40 cards |
+
+Traits: Bishop TEMPORAL, X-MEN; Lucas Bishop MUTANT, TEMPORAL; Magik MYSTIC, X-MEN; Illyana Rasputin MUTANT, MYSTIC.
+Neither alter-ego has the X-MEN trait: Marrow, Tempus and Stepford Cuckoos cannot be played in alter-ego form. Magik
+has MYSTIC on both faces.
+
+#### Bishop: resource cards as fuel
+
+He takes a hit, discards that many cards and keeps the resource cards (§3.52), then spends them: as payment that
+readies him or draws (§3.51), as cards in hand that the Rifle and the Uniform count, as discards that ready Malcolm
+and Randall or charge Super-Charged. Energy Conversion caps a hit at 3 and shuffles the spent resource cards back
+under it. His starter deck holds 3 Stored Energy, 2 The Power of Leadership, Energy, Genius and Strength: 8 resource
+cards.
+
+| Card                                                  | As read                                                                                                                                               | Needs                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Bishop 45001a, _Energy Absorption_                    | Response: after he takes any amount of damage from an attack, discard that many cards from the top of the deck; each resource card among them to hand | §3.52; raises §3.39's moment |
+| Lucas Bishop 45001b, _Temporally Displaced_           | Response: after changing to this form, a TEMPORAL card from the discard pile to hand                                                                  | §3.60                        |
+| Malcolm 45002, Randall 45003 (allies, cost 3, [wild]) | Action, once per phase: discard a resource card from hand → ready; heal 1 if it prints [physical] (Malcolm) or [energy] (Randall)                     | §3.52                        |
+| Bishop's Rifle 45004 (cost 2, restricted)             | Hero Action (attack): exhaust and choose an enemy → 1 damage per resource card in hand; ranged                                                        | §3.52                        |
+| Bishop's Uniform 45005 (cost 2)                       | Response: after you resolve "Energy Absorption", exhaust → heal 1 from Bishop per resource card in hand                                               | §3.52, §3.39                 |
+| Super-Charged 45006 ×2 (cost 0)                       | Action: discard a resource card → 1 charge counter per icon. Hero Interrupt on a basic attack: discard it → +2 ATK per counter, at most +8            | §3.52                        |
+| Concussive Blast 45007 ×2 (cost 3)                    | Hero Action (attack): 6 damage; if paid with a resource card, ready Bishop                                                                            | §3.51, §4.2 Q28              |
+| Command Authority 45008 ×2 (cost 2)                   | Hero Action (thwart): remove 3 threat; if paid with a resource card, draw 1                                                                           | §3.51, §4.2 Q28              |
+| Energy Conversion 45009 ×2 (cost 0)                   | Hero Interrupt (defense): shuffle each resource card in the discard pile into the deck; you cannot take more than 3 damage from this attack           | §3.52                        |
+| Stored Energy 45010 ×3                                | A resource card, [energy] and [physical], TEMPORAL, no text                                                                                           | data                         |
+| Fear the Future 45025                                 | May flip to alter-ego. Exhaust Lucas Bishop → remove from the game; or discard it and each resource card in hand, surge if none was discarded         | §3.52                        |
+| **Trevor Fitzroy** 45026 (SCH 2, ATK 3, 5)            | Quickstrike. After he attacks and defeats an ally: 2 threat on Portal Through Time if in play, otherwise find it and reveal it                        | §3.1, §3.60                  |
+| Portal Through Time 45027 (4 threat)                  | One acceleration icon. Forced Interrupt: when a TEMPORAL card is revealed it gains surge, once per phase                                              | §3.60                        |
+| Bantam 45028 (SCH 2, ATK 2, 3)                        | When Revealed: 2 threat on Portal Through Time if in play, otherwise find it and reveal it                                                            | §3.1                         |
+| Temporal Trickery 45029 ×2                            | Discard a card in hand with the most printed icons; 1 threat on each scheme per icon on it                                                            | §3.52                        |
+
+- **Portal Through Time** gives surge only to a card revealed while it is in play: Bantam, whose own When Revealed
+  finds and reveals it, gains none (ruling February 28, 2026 – Ruling 7 (2)). Test: Portal in play, Trevor Fitzroy
+  and then Temporal Trickery revealed in one phase: the first gains surge, the second does not (the limit). Only
+  encounter cards are revealed, so Bishop's own TEMPORAL cards never matter to it; TEMPORAL cards of other sets do.
+- **The mission (§3.36, §3.38).** Energy Absorption discards from the deck a mission attempt discards from, and is
+  not a mission attempt: no Mission Response answers it and nothing is paired. What it changes is the deck the
+  next attempt reads: resource cards leave it for his hand, and Energy Conversion shuffles them back in.
+
+#### Magik: the top of the deck
+
+Her top card is faceup in hero form (§3.48), six of her cards read its icon (§3.50), and once a phase she plays it
+as if from hand for 1 less (§3.49). Limbo, Scrying, Stepping Disc and Illyana's Interrupt choose what is there.
+
+| Card                                     | As read                                                                                                                                           | Needs                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Magik 45030a                             | Play with the top card of your deck faceup. Once per phase, play it as if it was in your hand for 1 less                                          | §3.48, §3.49; Q26, Q27 |
+| Illyana Rasputin 45030b                  | Interrupt, once per phase: when you change to hero form, a SPELL from the discard pile onto the deck (it is the faceup card as she arrives)       | §3.60                  |
+| Colossus 45031 (ally, cost 3, [wild])    | Toughness. Interrupt: when an enemy attacks you, play him from hand, paying his cost, and declare him the defender without exhausting him         | §3.56, §3.58; Q32      |
+| Limbo 45032 (support, cost 1)            | Response after the villain phase begins, or Action: exhaust → swap a card in hand with the top card of the deck                                   | §3.60 (wave 7 §3.57)   |
+| Magik's Crown 45033 (cost 2)             | Magik gains steady; +1 THW while the top card has [mental] or [wild]                                                                              | §3.50                  |
+| Soulsword 45034 (cost 1, restricted)     | Magik's basic attacks gain piercing; +1 ATK while the top card has [physical] or [wild]                                                           | §3.50                  |
+| Mystical Armor 45035 (cost 1)            | Magik gains retaliate 1; +1 DEF while the top card has [energy] or [wild]                                                                         | §3.50                  |
+| Scrying 45036 (cost 0)                   | Action: look at the top 3 cards; draw one, discard one, put one back on top                                                                       | §3.60                  |
+| Stepping Disc 45037 ×3 (cost 1)          | Hero Action: ready your hero; a Magik card in the discard pile not named Stepping Disc onto the deck                                              | §3.60                  |
+| Exorcism 45038 ×2 (cost 2)               | Hero Action (thwart): remove 4 threat; confuse the villain if the top card has [mental] or [wild]                                                 | §3.50                  |
+| Soul Strike 45039 ×2 (cost 2)            | Hero Action (attack): 4 damage; stun that enemy if the top card has [physical] or [wild]                                                          | §3.50                  |
+| Magic Barrier 45040 ×2 (cost 1)          | Hero Interrupt (defense): prevent 3 damage from the attack; 3 damage to the attacker if the top card has [energy] or [wild]                       | §3.50                  |
+| Darkchilde 45053                         | May flip to alter-ego. Exhaust Illyana Rasputin → remove from the game; or 1 damage to each character you control and discard it                  | §3.60                  |
+| **Belasco** 45054 (SCH 1★, ATK 1★, 6)    | Villainous. After he activates against you, discard the top 3 cards of your deck; if Ruler of Limbo is in play they attach to it facedown         | §3.57                  |
+| Ruler of Limbo 45055 (3 threat, amplify) | No threat removed while Belasco is in play. When Revealed: the Illyana Rasputin player finds Limbo, attached facedown; it returns when defeated   | §3.57, §3.1            |
+| S'ym 45056 (SCH 2, ATK 2, 5)             | Guard. When Revealed: 2 threat on Ruler of Limbo if in play, otherwise on the main scheme                                                         | §3.60                  |
+| Witchfire 45057 (SCH 1, ATK 3, 4)        | Quickstrike. After she attacks and defeats an ally: 1 threat on Ruler of Limbo; "Otherwise", on the main scheme                                   | §4.2 Q31               |
+| Battle for Limbo 45058                   | Each LIMBO minion in play activates against the player it is engaged with; surge if none did. Boost (star): 2 threat on Ruler of Limbo if in play | §3.60                  |
+
+- **"A Magik card"** (Stepping Disc) is a card of her identity-specific set (`identitySetTitled`): the fifteen cards
+  45031–45040, not Bloodgem or Basic Spell.
+- **Illyana's Interrupt** resolves before the form changes, so the SPELL is put on a facedown deck and is the card
+  shown when the hero face turns up. Her SPELL cards are Scrying, Exorcism, Soul Strike, Magic Barrier, Basic Spell
+  and Spiritual Meditation.
+- **Scrying with fewer than 3 cards:** she looks at what the deck has and resolves as much as it can in the printed
+  order: draw one, then discard one, then put one back. Looking does not reset the deck.
+- **Battle for Limbo:** an activation is an attack against a hero and a scheme against an alter-ego (RRG "Activation",
+  p. 6). A minion whose activation a stunned or confused card replaced did not activate (the owner's reading of
+  §4.1 Q4), so if every LIMBO minion was stopped that way the card gains surge. Belasco's activation gets a boost
+  card and then his Forced Response.
+- **The mission (§3.36).** Her faceup card is the first card her mission attempt discards (§3.48 test 7), and she
+  may play an ally from the top of her deck to the mission (§3.49 test 10).
+
+#### The aspect and basic cards
+
+| Card                                                  | As read                                                                                                                                                            | Needs             |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| Cable 45011 (Leadership ally, cost 4, [mental])       | THW 2, ATK 3 (two consequential), 3 hit points. Response: after he thwarts and defeats a side scheme, draw 1                                                       | §3.58, §3.60      |
+| X-23 45012 (Leadership ally, cost 3, [physical])      | THW 1, ATK 3, 3 hit points. Response: after she attacks and defeats an enemy, ready her                                                                            | §3.58, §3.60      |
+| Team Training 45013 ×3                                | reprint of 04016                                                                                                                                                   | reprint           |
+| Advanced Suit 45014 ×3 (cost 0)                       | Attach to an X-FORCE or X-MEN ally, max 1 per ally. After the ally defeats a minion or side scheme, discard 1 card → heal 1 per icon                               | §3.52, §3.60      |
+| Sidekick 45015 (cost 1)                               | Attach to an identity-specific ally you control. Max 1 per deck. +2 hit points, "your sidekick"; heal 2 from it after a basic recovery                             | §1.32, §3.53      |
+| Side-by-Side 45016 ×3 (cost 2)                        | Hero Action: ready your sidekick → ready your hero and heal 1 from both, or both get +1 THW and +1 ATK until the end of the phase                                  | §3.53, §3.54; Q29 |
+| Suit Up 45017 ×3 (cost 2)                             | Alter-Ego Action: search deck and discard pile for an ally and an upgrade that can be attached to an ally (erratum)                                                | §3.59; Q30        |
+| Lead from the Front 45018 ×3                          | reprint of 01070                                                                                                                                                   | reprint           |
+| The Power of Leadership 45019 ×2                      | reprint of 01072                                                                                                                                                   | reprint           |
+| Legion 45020 (basic ally, cost 3, [energy])           | THW 1★, ATK 1★, 3 hit points. After he uses a basic power, discard the top card of the deck: [energy] 2 damage, [mental] 2 threat, [physical] heal 2               | §3.60             |
+| Marrow 45021 (basic ally, cost 2, [energy])           | THW 1, ATK 2, 2 hit points. Play only if you have the X-FORCE or X-MEN trait. After she enters play, 2 damage to an enemy                                          | §3.60             |
+| Energy, Genius, Strength 45022–45024                  | reprints of 01088–01090                                                                                                                                            | reprint           |
+| Goldballs 45041 (Aggression ally, cost 3, [physical]) | THW 1, ATK 1★, 3 hit points. Interrupt when he attacks: discard up to 3 cards from the top of the deck → +X ATK for this attack                                    | §3.55             |
+| Tempus 45042 (Aggression ally, cost 2, [mental])      | THW 1, ATK 1, 2 hit points. X-MEN identity only. Interrupt: when the villain would scheme, discard her → cancel it; deal yourself 1 facedown encounter card        | §3.60             |
+| Blood Rage 45043 ×3 (cost 1)                          | Max 1 per player. After you defeat an enemy with a basic attack, exhaust and take 1 damage → draw 1                                                                | §3.60             |
+| Test the Defense 45044 ×3 (cost 1)                    | Max 1 per player. After you play an ATTACK event, 1 test counter; at 5, discard it to deal 5 damage to an enemy                                                    | §3.60             |
+| Full-Body Charge 45045 ×3 (cost 4)                    | Hero Action (attack): 8 damage; overkill if remaining hit points are less than half the hero's starting hit points                                                 | §3.60             |
+| Clobber 45046 ×3, The Power of Aggression 45047 ×2    | reprints of 18012 and 01055                                                                                                                                        | reprint           |
+| Triage 45048 (basic ally, cost 2, [energy])           | THW 1, ATK 1, 2 hit points. After he enters play, heal 2 from an X-MEN character                                                                                   | §3.60             |
+| Stepford Cuckoos 45049 (basic support, cost 3)        | X-MEN identity only. Uses (3 psi counters). Interrupt: when a player reveals a treachery, exhaust and spend 1 → cancel and discard it; that player reveals another | §3.60             |
+| Bloodgem 45050 (basic upgrade, cost 0)                | MYSTIC identity only. Max 1 per deck. Resource: exhaust and take 2 damage → a [wild]                                                                               | §3.60             |
+| Basic Spell 45051 ×3 (cost 2)                         | MYSTIC identity only. Hero Action: heal 3 from an identity, or remove 3 threat from a scheme, or 3 damage to an enemy                                              | §3.60             |
+| Spiritual Meditation 45052 ×3                         | reprint of 15019                                                                                                                                                   | reprint           |
+
+- **Cable and X-23 beside wave 7's heroes** are §3.58: the ally's subtitle is the hero's alter-ego title, so they
+  match. The matching hero's own deck cannot include the ally, and while that hero is in the game no player can play
+  the ally or send it to the mission; it stays a resource card in hand.
+- **The allies at the mission (§3.34, §3.36).** Icons from the scans: Malcolm, Randall and Colossus [wild]; Cable and
+  Tempus [mental]; X-23 and Goldballs [physical]; Legion, Marrow and Triage [energy]. The "Play only if" lines (Marrow,
+  Tempus) are checked before the destination and bar the play to the mission too; in alter-ego form neither Bishop
+  nor Magik can send either of those two anywhere. At the mission every one of the ten is blank: no Malcolm ready, no
+  Colossus tough card, no Marrow or Triage Response, no Goldballs or Legion star ability, and Tempus cannot be
+  discarded for her Interrupt. Their THW and ATK feed the attempt: Cable 2 and 3, X-23 1 and 3, Malcolm 1 and 2,
+  Randall 2 and 1, Colossus 2 and 2, Marrow 1 and 2, the other four 1 and 1.
+- **Legion.** One line resolves per type the discarded card prints, in the printed order; two icons of one type
+  resolve that line once; a [wild] resolves none (RRG "Wild Resource", p. 48); Stored Energy resolves two lines. With
+  an empty deck and discard pile nothing is discarded. "Uses a basic power" is his attack or his thwart.
+- **Tempus.** A canceled activation did not happen (wave 5 §4.1 Q3): nothing "after the villain schemes" answers,
+  no boost card is dealt for it, and in Four Horsemen the active counter does not move (§4.1 Q4). The encounter card
+  she deals herself is revealed with her other facedown encounter cards.
+- **Stepford Cuckoos.** Any player's treachery, but not one with peril revealed by another player (RRG "Peril",
+  p. 32). The canceled treachery was still revealed and goes to the discard pile (RRG "Cancel", p. 11); "another
+  encounter card" is revealed from the encounter deck by that player and is not a second dealt card. When the third
+  counter is spent the support is discarded (RRG "Uses", p. 46).
+- **Full-Body Charge.** "Starting hit points" is the printed value (RRG "Hit Points", p. 22): for Magik fewer than 5
+  remaining, for Bishop fewer than 6, whatever raises their maximum.
+- **Bloodgem.** A cost of damage is unpaid if any of it is prevented (RRG "Cost", p. 14): with a tough status card
+  the resource is not generated and the tough card is gone.
+- **Goldballs** must discard at least 1 card to use his Interrupt (RRG p. 14; §3.55).
+
+**Card data fixes** (for `card-data-pipeline`): none in these 58 records. One in earlier packs: the subtitle of
+Colossus 32048 / 35021 (§3.58). The checks before emitting are in §5.3.
+
+**Deckbuilding (DoD §4b).**
+
+- Neither identity prints a deckbuilding line. Both starter decks are 40 cards of one aspect and basic cards.
+- "Max 1 per deck": Sidekick, Bloodgem, Energy, Genius, Strength. "Max 2 per deck": The Power of Leadership, The
+  Power of Aggression.
+- "Play only if" lines are play restrictions, not deckbuilding: Marrow, Tempus, Stepford Cuckoos, Bloodgem, Basic
+  Spell and Spiritual Meditation may be in any deck that could never play them.
+- The unique rule in a deck (§3.58 test 4): Bishop without `gambit` 37011, Magik without `mut_gen` 32042, Cable
+  without 45011, X-23 without 45012, Deadpool without 45011.
