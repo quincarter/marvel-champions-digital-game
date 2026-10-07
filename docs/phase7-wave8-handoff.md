@@ -19,17 +19,17 @@ resume, the scope, and anything decided along the way. Rules for running agents 
   engine agent at a time) → scripting per hero / per scenario (≤ 3 agents, one small task each) → rules QA → custom
   decks → client wiring and Guided mode → campaign → progression → shipping.
 
-## The push hook (owner's request relayed 2026-10-07, not yet in effect)
+## The push hook is removed on this branch (owner, 2026-10-07)
 
-The request for this wave: skip the e2e pre-push gate (`.githooks/pre-push`) for this branch's pushes while the wave
-is being built, keep the commit hooks (`pre-commit` lint and format, `commit-msg`), and run `pnpm check` before every
-push. **It is not in effect yet:** the session's permission settings refused a hook-skipping push without the owner's
-own word, so pushes go through the hook as usual until the owner confirms on the PR thread or in the session. A push
-that changes nothing under `packages/` or `pnpm-lock.yaml` (docs, changelog fragments) does not run the suite anyway.
+The owner asked for the e2e pre-push hook to be removed while the wave is being built, with the commit hooks kept.
+`.githooks/pre-push` is deleted on this branch (its last version is on `main` at fc43e790); `.githooks/e2e-gate.sh`,
+`pre-commit` and `commit-msg` are untouched, so `pnpm e2e:verify` still runs the whole suite on demand. `pnpm check`
+runs before every push.
 
-**If the gate is skipped, it comes back before the wave ships.** From the first client push of step 5's final pass,
-and for every push after it up to the merge and the release to prod, the whole Playwright suite must have passed on
-what goes up (`pnpm e2e:verify` runs it ahead of time). The PR's step 8 carries a box for this.
+**The hook must be re-added before the wave ships.** Restore it (`git checkout origin/main -- .githooks/pre-push`)
+before the final few client pushes of step 5, so those pushes, the merge and the release to prod each go up with the
+whole Playwright suite passed. This PR must not merge with the file missing, or `main` loses its gate. The PR's
+step 8 carries a box for this.
 
 ## Rules policy (owner, 2026-10-07)
 
