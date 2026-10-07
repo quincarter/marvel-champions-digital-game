@@ -10,12 +10,14 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
+import { BLUE_MOON } from "./aoa/blue-moon.js";
 import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
+import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
 import {
   ICEMAN_SUPPORT_UPGRADES_ALLIES,
@@ -67,6 +69,12 @@ const SCRIPTED_MODULES: Readonly<
 > = {
   aoa: [
     {
+      module: "blue-moon",
+      cardIds: ["45139", "45140", "45141", "45142", "45143", "45144", "45145", "45146"],
+      registry: BLUE_MOON,
+      skipped: {},
+    },
+    {
       module: "clan-akkaba",
       cardIds: ["45159", "45160", "45161", "45162", "45163"],
       registry: CLAN_AKKABA,
@@ -98,6 +106,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["46002", "46003", "46004", "46005", "46006", "46007", "46008"],
       registry: ICEMAN_SUPPORT_UPGRADES_ALLIES,
       skipped: ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
+      module: "iceman/events",
+      cardIds: ["46009", "46010", "46011"],
+      registry: ICEMAN_EVENTS,
+      skipped: ICEMAN_EVENTS_SKIPPED,
     },
   ],
   jubilee: [
