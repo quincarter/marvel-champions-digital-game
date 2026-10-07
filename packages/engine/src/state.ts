@@ -745,8 +745,9 @@ export interface TableRules {
   /**
    * "A hero and an ally with the same name can't both be in play" (owner decision, 2026-10-03). FFG's rule is the
    * default: a hero and a same-titled ally with no subtitle do not match (RRG 1.8 "Unique Icon", pp. 45–46; rulings
-   * Jan 26, 2026 (4) #7 and Mar 19, 2026 (4), on Valkyrie), so the Colossus ally may be played beside the Colossus
-   * hero. With this on, a unique ally with no subtitle also matches an identity whose hero title is its title
+   * Jan 26, 2026 (4) #7 and Mar 19, 2026 (4), on Valkyrie), so the Valkyrie ally (or Ironheart's) may be played
+   * beside its hero. (The Colossus ally is refused beside the Colossus hero by the RRG itself: it prints the subtitle
+   * "Piotr Rasputin", the hero's alter-ego title.) With this on, a unique ally with no subtitle also matches an identity whose hero title is its title
    * (`cardsMatch` in `unique.ts`), so it cannot enter play while that identity is in play, in either form. Deck
    * building is not changed: the ally may still be in a deck and spent as a resource.
    */

@@ -31,6 +31,14 @@ export const MUT_GEN_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "32048",
+      subtitle: "Piotr Rasputin",
+      reason:
+        'The basic Colossus ally prints the subtitle "Piotr Rasputin" under its title; MarvelCDB\'s record has no `subname`. Without it the unique rule (RRG 1.8 "Unique") cannot match the ally against the Colossus hero (alter-ego Piotr Rasputin) or Magik\'s Colossus 45031.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/32048.png (Colossus, ally, Basic, 48), read 2026-10-07: the title line "COLOSSUS" has "PIOTR RASPUTIN" beneath it.',
+    },
+    {
       code: "32008",
       reason:
         'Steel Fist prints "Hero Action (attack):" and MarvelCDB drops the "(attack)" label (its text reads "Hero Action:"), which would script the 5 damage as plain damage instead of an attack (RRG 1.8 "Labeled Ability", p. 26). The label is restored; the erratum itself (below) only swaps the cost arrow for "to".',

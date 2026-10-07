@@ -68,7 +68,9 @@ export const WOLV_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("35021"),
     cardSetCode: "basic",
     marvelcdbCodes: ["35021"],
-    corrections: [],
+    corrections: [
+      "35021: Colossus (35021) is the reprint of the basic Colossus ally (`duplicate_of_code` 32048), which prints the subtitle \"Piotr Rasputin\"; MarvelCDB's record has no `subname`. Without it the unique rule (RRG 1.8 \"Unique\") cannot match the ally against the Colossus hero or Magik's Colossus 45031. [evidence: No scan of 35021 exists in assets/card-art/bundles/cards/ (it is a reprint, `duplicate_of_code` 32048). The original's scan 32048.png prints \"PIOTR RASPUTIN\" under \"COLOSSUS\" (read 2026-10-07), and the reprint carries the same text and stats.]",
+    ],
     duplicateOfCardId: cardId("32048"),
   },
   { cardId: cardId("35022"), cardSetCode: "basic", marvelcdbCodes: ["35022"], corrections: [] },

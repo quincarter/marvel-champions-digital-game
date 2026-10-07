@@ -37,14 +37,18 @@ describe("nameConflictsOf", () => {
   it("Colossus + Shadowcat: with the table rule each deck's ally of the other is listed", () => {
     expect(linesOf([colossus, shadowcat], ON)).toEqual([
       "Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated",
-      "Shadowcat's deck: Colossus ally · Colossus is seated",
+      "Shadowcat's deck: Colossus (Piotr Rasputin) ally · Colossus is seated",
     ]);
   });
 
-  it("with the option off only the clash that FFG's own rule makes is listed", () => {
+  it("with the option off both clashes are listed: FFG's own rule makes each one", () => {
+    // The basic Colossus ally prints the subtitle "Piotr Rasputin", the hero's alter-ego title (RRG 1.8 "Unique Icon").
     const found = nameConflictsOf([{ deck: colossus }, { deck: shadowcat }], CARDS_BY_ID);
-    expect(found.map((c) => c.line)).toEqual(["Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated"]);
-    expect(found[0]?.byTableRule).toBe(false);
+    expect(found.map((c) => c.line)).toEqual([
+      "Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated",
+      "Shadowcat's deck: Colossus (Piotr Rasputin) ally · Colossus is seated",
+    ]);
+    expect(found.map((c) => c.byTableRule)).toEqual([false, false]);
   });
 
   it("marks a card that belongs to the hero's own set: it can only be kept, not replaced", () => {
@@ -52,17 +56,30 @@ describe("nameConflictsOf", () => {
     // Colossus's deck holds the Shadowcat ally as one of his identity cards; Shadowcat's holds a basic Colossus ally.
     expect(found.map((c) => [c.cardName, c.identitySpecific])).toEqual([
       ["Shadowcat (Kitty Pryde)", true],
-      ["Colossus", false],
+      ["Colossus (Piotr Rasputin)", false],
     ]);
   });
 
   it("marks a clash that exists only by the table rule", () => {
-    const found = nameConflictsOf([{ deck: colossus }, { deck: shadowcat }], CARDS_BY_ID, ON);
-    expect(found.map((c) => [c.seat, c.cardName, c.byTableRule])).toEqual([
+    // Colossus + Shadowcat clash by FFG's rule alone, on or off.
+    const both = nameConflictsOf([{ deck: colossus }, { deck: shadowcat }], CARDS_BY_ID, ON);
+    expect(both.map((c) => [c.seat, c.cardName, c.byTableRule])).toEqual([
       [1, "Shadowcat (Kitty Pryde)", false],
-      [2, "Colossus", true],
+      [2, "Colossus (Piotr Rasputin)", false],
     ]);
-    expect(found[1]).toMatchObject({ deckId: "precon:shadowcat-aggression", againstSeat: 1, copies: 1 });
+    expect(both[1]).toMatchObject({ deckId: "precon:shadowcat-aggression", againstSeat: 1, copies: 1 });
+    // The Valkyrie ally (06012, no subtitle) beside the Valkyrie hero is the table rule's own pair.
+    const thor = precon("thor-aggression");
+    const valkyrie = precon("valkyrie-aggression");
+    const found = nameConflictsOf([{ deck: thor }, { deck: valkyrie }], CARDS_BY_ID, ON);
+    // (Valkyrie's own deck holds the Thor (Odinson) ally, which FFG's rule refuses beside Thor.)
+    expect(found.map((c) => [c.seat, c.cardId, c.cardName, c.byTableRule])).toEqual([
+      [1, "06012", "Valkyrie", true],
+      [2, "25013", "Thor (Odinson)", false],
+    ]);
+    expect(found[0]).toMatchObject({ deckId: thor.id, againstSeat: 2, copies: 1 });
+    const off = nameConflictsOf([{ deck: thor }, { deck: valkyrie }], CARDS_BY_ID);
+    expect(off.map((c) => [c.seat, c.cardId, c.byTableRule])).toEqual([[2, "25013", false]]);
   });
 
   it("a deck's clash with its own identity is not listed", () => {
@@ -129,8 +146,11 @@ describe("nameConflictsOf", () => {
   it("covers three- and four-seat tables", () => {
     const three = linesOf([precon("groot-protection"), precon("rocket-raccoon-aggression"), colossus]);
     expect(three).toHaveLength(2);
+    // Off, FFG's rule alone still lists the Colossus ally against the Colossus hero at a four-seat table.
+    const fourOff = linesOf([colossus, shadowcat, precon("wolverine-aggression"), precon("storm-leadership")]);
+    expect(fourOff).toContain("Shadowcat's deck: Colossus (Piotr Rasputin) ally · Colossus is seated");
     const four = linesOf([colossus, shadowcat, precon("wolverine-aggression"), precon("storm-leadership")], ON);
-    expect(four).toContain("Shadowcat's deck: Colossus ally · Colossus is seated");
+    expect(four).toContain("Shadowcat's deck: Colossus (Piotr Rasputin) ally · Colossus is seated");
     expect(four).toContain("Shadowcat's deck: Wolverine (Logan) ally · Wolverine is seated");
     expect(four.every((line) => line.includes("is seated"))).toBe(true);
   });
@@ -142,7 +162,7 @@ describe("nameConflictsOf", () => {
       source: { kind: "userBuilt", createdAt: "2026-10-03" },
     };
     const found = nameConflictsOf([{ deck: built }, { deck: colossus }], CARDS_BY_ID, ON);
-    expect(found.map((c) => [c.deckId, c.cardName])).toEqual([["built-1", "Colossus"]]);
+    expect(found.map((c) => [c.deckId, c.cardName])).toEqual([["built-1", "Colossus (Piotr Rasputin)"]]);
   });
 });
 

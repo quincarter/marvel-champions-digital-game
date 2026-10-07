@@ -135,7 +135,14 @@ export const MUT_GEN_PROVENANCE: readonly CardProvenance[] = [
     duplicateOfCardId: cardId("10015"),
   },
   { cardId: cardId("32047"), cardSetCode: "aggression", marvelcdbCodes: ["32047"], corrections: [] },
-  { cardId: cardId("32048"), cardSetCode: "basic", marvelcdbCodes: ["32048"], corrections: [] },
+  {
+    cardId: cardId("32048"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["32048"],
+    corrections: [
+      "32048: The basic Colossus ally prints the subtitle \"Piotr Rasputin\" under its title; MarvelCDB's record has no `subname`. Without it the unique rule (RRG 1.8 \"Unique\") cannot match the ally against the Colossus hero (alter-ego Piotr Rasputin) or Magik's Colossus 45031. [evidence: Card scan assets/card-art/bundles/cards/32048.png (Colossus, ally, Basic, 48), read 2026-10-07: the title line \"COLOSSUS\" has \"PIOTR RASPUTIN\" beneath it.]",
+    ],
+  },
   { cardId: cardId("32049"), cardSetCode: "basic", marvelcdbCodes: ["32049"], corrections: [] },
   {
     cardId: cardId("32050"),

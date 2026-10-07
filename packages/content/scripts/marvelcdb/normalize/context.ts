@@ -233,7 +233,7 @@ export function baseFields(
   return {
     id: brand("card", id),
     name: p.name,
-    ...(p.raw.subname ? { subtitle: p.raw.subname } : {}),
+    ...(p.subtitle ? { subtitle: p.subtitle } : {}),
     setCode: ctx.setCode,
     cycleId: ctx.cycleId,
     collectorNumber: collector(codes),

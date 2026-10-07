@@ -27,6 +27,14 @@ export const WOLV_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "35021",
+      subtitle: "Piotr Rasputin",
+      reason:
+        'Colossus (35021) is the reprint of the basic Colossus ally (`duplicate_of_code` 32048), which prints the subtitle "Piotr Rasputin"; MarvelCDB\'s record has no `subname`. Without it the unique rule (RRG 1.8 "Unique") cannot match the ally against the Colossus hero or Magik\'s Colossus 45031.',
+      evidence:
+        'No scan of 35021 exists in assets/card-art/bundles/cards/ (it is a reprint, `duplicate_of_code` 32048). The original\'s scan 32048.png prints "PIOTR RASPUTIN" under "COLOSSUS" (read 2026-10-07), and the reprint carries the same text and stats.',
+    },
+    {
       code: "35002",
       reason:
         'Wolverine\'s Claws is a Permanent signature weapon, exhausted for its Hero Action rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',

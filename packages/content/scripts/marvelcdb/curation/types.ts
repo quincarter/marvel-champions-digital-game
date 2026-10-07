@@ -31,6 +31,12 @@ export interface Correction {
   readonly textReplace?: { readonly find: string; readonly replace: string };
   readonly name?: string;
   /**
+   * The printed subtitle where MarvelCDB's record has no `subname` (wave 8: the basic Colossus ally, `mut_gen` 32048
+   * and its `wolv` reprint 35021, prints "Piotr Rasputin"). Replaces MarvelCDB's `subname`. Needed for the unique rule
+   * (RRG 1.8 "Unique") to match the ally against the Colossus hero by title and subtitle. Never errata.
+   */
+  readonly subtitle?: string;
+  /**
    * The card's printed type where MarvelCDB's `type_code` is wrong (wave 7, `next_evol` 40154 High Ground: typed
    * `attachment`, printed TREACHERY on the scan). Applied to the raw record before anything else reads it
    * (`applyTypeCorrections`), so every type-keyed step sees the printed type. Never errata.
