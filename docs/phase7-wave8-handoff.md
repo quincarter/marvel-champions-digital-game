@@ -214,3 +214,29 @@ This answers the data survey's open question 1 and schema gap 8. The owner sent 
   to `assets/card-art/hall-of-heroes-manifest.tsv` for 45104b.
 - For the spec (pass 1b, Apocalypse scenario): the chain is Heart of the Empire → flips to The Towering Citadel →
   reveals The Tyrant's Throne (45105a) → flips and reveals No Longer Worthy (45105b).
+
+## Rules answers from the owner (2026-10-07, second set): questions 11 to 17
+
+Answered in the project thread on 2026-10-07 for spec pass 1b (`docs/phase7-wave8.md` §4.2). Held here while a spec
+agent has the spec file open; the main session copies them into §4.1 when pass 2c is committed. Six follow the
+proposed default; **Q14 does not**.
+
+- **Q11 = A.** Scenario 3 reveals Apocalypse's next stage; it is not a change of form. The new stage enters at its
+  full printed hit points, and attachments and status cards stay. (Scenario 5's form changes are the contrast: they
+  are neither a defeat nor a reveal and do not reset hit points.)
+- **Q12 = A.** "For an easier game, begin with Apocalypse (I)" is an optional setup change, off by default on
+  standard. It is not what skirmish mode means.
+- **Q13 = A, with a note.** A player card may legally discard No Longer Worthy, which can make the scenario
+  unwinnable. No rule requires a confirmation; the confirm prompt is our UX protection, not an FFG rule, and the
+  client must word it that way.
+- **Q14 = B (not the proposed default).** The player who defeated the attached minion resolves the Setting
+  environment's Special; the text does not hand it to the engaged player. The spec's option B adds "nobody, if no
+  player did", which is what gets built unless the owner says otherwise. Note for the spec: the owner's reasoning
+  calls it a When Defeated ability; the card (45145) prints "Forced Interrupt: When attached minion is defeated".
+  The answer is the same either way.
+- **Q15 = A.** No rule limits a game to one environment or one Setting. Several can be in play, and where a card says
+  "the Setting environment" and more than one qualifies, the resolving player chooses. No setup restriction.
+- **Q16 = A.** The three-sided Apocalypse keeps his current form when stage II replaces stage I: defeated as
+  Cyberpath, stage II is revealed as Cyberpath; as Giant, Giant. Biomorph is named for setup only.
+- **Q17 = A.** Police State finds Escaped Mutant where it is. If it is already attached to a player it stays there;
+  nothing detaches or moves it (Magistrate, by contrast, says to attach it to the defeating player's identity).
