@@ -190,6 +190,13 @@ export interface ScenarioVillain {
   readonly encounterSetIds: readonly EncounterSetId[];
   /** This villain's signature side scheme (`SideSchemeCard.signatureOf`), put into play at setup. */
   readonly signatureSideSchemeCardId?: CardId;
+  /**
+   * This villain's printed side B version, a card of its own (the Four Horsemen, MC45 p. 11: "To play the scenario in
+   * skirmish or standard mode, use each villain's side A. To play the scenario in expert or heroic mode, use each
+   * villain's side B."). `villainCardId` is the A version. Which one a game uses is a per-villain choice that defaults
+   * from the difficulty (docs/phase7-wave8.md §4.1 Q9 = B), so a scenario with these has no `expertVillains`.
+   */
+  readonly sideBCardId?: CardId;
 }
 
 /**

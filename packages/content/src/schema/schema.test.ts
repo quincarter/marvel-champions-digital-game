@@ -590,6 +590,30 @@ describe("Phase 2 schema follow-ups", () => {
     expect(validateScenario(inverted).valid).toBe(false);
   });
 
+  it("a multiple-villain scenario may name each villain's side B card, which must differ from its side A card", () => {
+    const villain = (a: string, b?: string) => ({
+      villainCardId: cardId(a),
+      encounterSetIds: [],
+      ...(b === undefined ? {} : { sideBCardId: cardId(b) }),
+    });
+    const horsemen: Scenario = {
+      ...rhinoScenario,
+      villainCardId: cardId("45081a"),
+      multipleVillains: {
+        villains: [villain("45081a", "45081b"), villain("45082a", "45082b")],
+        encounterDecks: "shared",
+        activation: "activeVillainOnly",
+        winCondition: "allVillainsDefeated",
+      },
+    };
+    expect(validateScenario(horsemen).errors).toEqual([]);
+    const same = {
+      ...horsemen,
+      multipleVillains: { ...horsemen.multipleVillains, villains: [villain("45081a", "45081a"), villain("45082a")] },
+    } as unknown as Scenario;
+    expect(validateScenario(same).errors.join("\n")).toContain("sideBCardId must differ");
+  });
+
   const spiderManPrecon: StarterDeck = {
     id: starterDeckId("core-spider-man"),
     name: "Spider-Man (Core Set precon)",

@@ -1150,6 +1150,12 @@ export function validateScenario(scenario: Scenario): ValidationResult {
             `scenario villain ${villain.villainCardId} has its own encounter deck, so it needs the encounter sets to build it from`,
           );
         }
+        if (villain.sideBCardId !== undefined) {
+          if (!isNonEmptyString(villain.sideBCardId))
+            errors.push(`scenario villain ${villain.villainCardId} sideBCardId must be a card id when present`);
+          else if (villain.sideBCardId === villain.villainCardId)
+            errors.push(`scenario villain ${villain.villainCardId} sideBCardId must differ from its villainCardId`);
+        }
         if (villain.signatureSideSchemeCardId !== undefined && !isNonEmptyString(villain.signatureSideSchemeCardId)) {
           errors.push(
             `scenario villain ${villain.villainCardId} signatureSideSchemeCardId must be a card id when present`,

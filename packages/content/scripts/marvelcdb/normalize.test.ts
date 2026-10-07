@@ -5,6 +5,7 @@ import { bareCuration } from "./curation/empty.ts";
 import type { AddedRecord, Correction, LinkOverride, PackCuration } from "./curation/types.ts";
 import { AOA_CURATION } from "./curation/aoa.ts";
 import { normalizePack } from "./normalize.ts";
+import { withLocalArt } from "./normalize/art.ts";
 import { createContext } from "./normalize/context.ts";
 import { normalizeEncounterSets } from "./normalize/encounter-sets.ts";
 import { normalizeSingleCards } from "./normalize/single-cards.ts";
@@ -614,6 +615,7 @@ const LINK = AOA_CURATION.linkOverrides?.[0] as LinkOverride;
 function normalizeAoa(raw: readonly RawCard[], extra: Partial<PackCuration> = {}) {
   return normalizePack(raw, {
     ...AOA_CURATION,
+    scenarios: [],
     starterDecks: [],
     corrections: [],
     errata: [],
@@ -719,4 +721,180 @@ describe("Age of Apocalypse starter decks (MC45 p. 22), checked against raw befo
       for (const code of deck.nemesisCodes) expect(byCode.get(code), code).toBeDefined();
     });
   }
+});
+
+/**
+ * The five Age of Apocalypse scenario records (docs/phase7-wave8.md section 1.10, 1.21, data step 5), against the real
+ * raw pack. Two things stand in for work that is not this step's: 45015 Sidekick (gap 2, its attach rule is not parsed
+ * yet) is left out with the starter decks that list it, and every record without an image gets a made-up local one,
+ * because the scans are gitignored and a clean checkout has none.
+ */
+describe("Age of Apocalypse scenario records, normalized from the real raw pack", () => {
+  const rawPack = JSON.parse(readFileSync(new URL("../../raw/marvelcdb/aoa.json", import.meta.url), "utf8")) as {
+    cards: RawCard[];
+  };
+  const records = rawPack.cards.filter((c) => c.code !== "45015");
+  const allCodes = new Set(records.flatMap((c) => [c.code, ...(c.linked_card ? [c.linked_card.code] : [])]));
+  const out = normalizePack(withLocalArt(records, allCodes), { ...AOA_CURATION, starterDecks: [] });
+  const cardById = new Map(out.cards.map((c) => [c.id as string, c]));
+  const setIds = new Set(out.encounterSets.map((e) => e.id as string));
+  const scenario = (id: string) => {
+    const s = out.scenarios.find((x) => x.id === id);
+    if (!s) throw new Error(`no scenario ${id}`);
+    return s;
+  };
+  const villain = (id: string) => {
+    const c = cardById.get(id);
+    if (c?.type !== "villain") throw new Error(`${id} is not a villain card`);
+    return c;
+  };
+  const stageNumbers = (id: string) => villain(id).sides.map((side) => side.stages.map((st) => st.stageNumber));
+
+  it("emits exactly the five records, in box order, all in the aoa pack", () => {
+    expect(out.scenarios.map((s) => s.id)).toEqual([
+      "unus",
+      "four-horsemen",
+      "apocalypse",
+      "dark-beast",
+      "en-sabah-nur",
+    ]);
+    for (const s of out.scenarios) expect(s.packCode).toBe("aoa");
+  });
+
+  it("every card id, set id and main scheme a record names exists in the normalized pack (Core's Standard and Expert aside)", () => {
+    const core = new Set(["standard", "expert"]);
+    for (const s of out.scenarios) {
+      const cardIds = [
+        s.villainCardId,
+        s.mainSchemeCardId,
+        ...(s.setAsideCardIds ?? []),
+        ...(s.setAsideVillainCardIds ?? []),
+        ...(s.multipleVillains?.villains.flatMap((v) => [v.villainCardId, ...(v.sideBCardId ? [v.sideBCardId] : [])]) ??
+          []),
+      ];
+      for (const id of cardIds) expect(cardById.has(id), `${s.id}: card ${id}`).toBe(true);
+      const sets = [
+        ...s.encounterSetIds,
+        ...s.recommendedModularSetIds,
+        ...s.standardEncounterSetIds,
+        ...s.expertEncounterSetIds,
+      ];
+      for (const id of sets) expect(core.has(id) || setIds.has(id), `${s.id}: set ${id}`).toBe(true);
+      expect(s.standardEncounterSetIds).toEqual(["standard"]);
+      expect(s.expertEncounterSetIds).toEqual(["expert"]);
+      expect(cardById.get(s.mainSchemeCardId)?.type).toBe("main_scheme");
+    }
+  });
+
+  it("unus: Unus I to III in one card (II and III in expert), Hunting Gene Traitors, Unus and Infinites, Dystopian Nightmare", () => {
+    const s = scenario("unus");
+    expect(s.villainCardId).toBe("45059");
+    expect(stageNumbers("45059")).toEqual([[1, 2, 3]]);
+    expect(s.villainStages).toEqual({ standard: [1, 2], expert: [2, 3] });
+    expect(s.mainSchemeCardId).toBe("45062a");
+    expect(s.encounterSetIds).toEqual(["unus", "infinites"]);
+    expect(s.recommendedModularSetIds).toEqual(["dystopian_nightmare"]);
+    expect(s.modularSetCount).toBe(1);
+    expect(s.multipleVillains).toBeUndefined();
+    expect(s.victory).toBeUndefined();
+    // Gene Pool is put into play by the setup keyword, so nothing is set aside.
+    expect(s.setAsideCardIds).toBeUndefined();
+  });
+
+  it("four-horsemen: four A cards, each with its own B card, a shared deck, set aside until the 1A Setup", () => {
+    const s = scenario("four-horsemen");
+    const mv = s.multipleVillains;
+    if (!mv) throw new Error("no multipleVillains");
+    expect(s.villainCardId).toBe("45081a");
+    expect(mv.villains.map((v) => v.villainCardId)).toEqual(["45081a", "45082a", "45083a", "45084a"]);
+    expect(mv.villains.map((v) => v.sideBCardId)).toEqual(["45081b", "45082b", "45083b", "45084b"]);
+    expect(mv.villains.map((v) => villain(v.villainCardId).name)).toEqual(["War", "Famine", "Pestilence", "Death"]);
+    for (const v of mv.villains) {
+      const b = villain(v.sideBCardId as string);
+      expect(b.name).toBe(villain(v.villainCardId).name);
+      expect(stageNumbers(v.villainCardId)).toEqual([[1]]);
+      expect(stageNumbers(b.id as string)).toEqual([[2]]);
+      expect(v.encounterSetIds).toEqual([]);
+    }
+    expect(mv.encounterDecks).toBe("shared");
+    expect(mv.winCondition).toBe("allVillainsDefeated");
+    expect(mv.atSetup).toBe("setAside");
+    expect(s.villainStages).toEqual({ standard: [1, 1], expert: [2, 2] });
+    expect(s.expertVillains).toBeUndefined();
+    expect(s.mainSchemeCardId).toBe("45085a");
+    expect(s.encounterSetIds).toEqual(["four_horsemen"]);
+    expect(s.recommendedModularSetIds).toEqual(["dystopian_nightmare", "hounds"]);
+    expect(s.modularSetCount).toBe(2);
+  });
+
+  it("apocalypse: one four-stage villain (II to IV, III and IV in expert), Prelates and The Tyrant's Throne set aside", () => {
+    const s = scenario("apocalypse");
+    expect(s.villainCardId).toBe("45101a");
+    expect(stageNumbers("45101a")).toEqual([[1, 2, 3, 4]]);
+    expect(s.villainStages).toEqual({ standard: [2, 4], expert: [3, 4] });
+    expect(s.victory).toBe("cardAbility");
+    expect(s.mainSchemeCardId).toBe("45103a");
+    expect(s.encounterSetIds).toEqual(["apocalypse", "prelates"]);
+    expect(s.recommendedModularSetIds).toEqual(["dark_riders", "infinites"]);
+    expect(s.modularSetCount).toBe(2);
+    expect(s.setAsideCardIds).toEqual(["45179b", "45180b", "45181b", "45182b", "45183b", "45105a"]);
+    for (const id of s.setAsideCardIds?.slice(0, 5) ?? []) {
+      const prelate = cardById.get(id);
+      expect(prelate?.type).toBe("minion");
+      expect(prelate && "encounterSetIds" in prelate && prelate.encounterSetIds).toEqual(["prelates"]);
+    }
+    expect(cardById.get("45105a")?.name).toBe("The Tyrant's Throne");
+    // Heart of the Empire (45104a) is revealed from the deck, not set aside.
+    expect(s.setAsideCardIds).not.toContain("45104a");
+  });
+
+  it("dark-beast: Dark Beast I to III (II and III in expert), the three Setting sets required and set aside whole", () => {
+    const s = scenario("dark-beast");
+    expect(s.villainCardId).toBe("45118");
+    expect(stageNumbers("45118")).toEqual([[1, 2, 3]]);
+    expect(s.villainStages).toEqual({ standard: [1, 2], expert: [2, 3] });
+    expect(s.mainSchemeCardId).toBe("45121a");
+    expect(s.encounterSetIds).toEqual(["dark_beast", "savage_land", "genosha", "blue_moon"]);
+    expect(s.recommendedModularSetIds).toEqual(["dystopian_nightmare"]);
+    expect(s.modularSetCount).toBe(1);
+    const settingCards = out.cards
+      .filter(
+        (c) =>
+          "encounterSetIds" in c &&
+          c.encounterSetIds.some((id) => ["savage_land", "genosha", "blue_moon"].includes(id)),
+      )
+      .map((c) => c.id as string);
+    expect(settingCards).toHaveLength(20);
+    expect([...(s.setAsideCardIds ?? [])].sort()).toEqual([...settingCards].sort());
+    expect(s.victory).toBeUndefined();
+  });
+
+  it("en-sabah-nur: the three-sided Apocalypse starting on Biomorph, a two-stage main scheme, two modular sets", () => {
+    const s = scenario("en-sabah-nur");
+    expect(s.villainCardId).toBe("45184a");
+    const apoc = villain("45184a");
+    expect(apoc.sides.map((side) => side.side)).toEqual(["A", "B", "C"]);
+    expect(apoc.startingSide).toBe("A");
+    expect(apoc.sides.map((side) => side.stages[0]?.traits)).toEqual([
+      ["MUTANT", "BIOMORPH"],
+      ["MUTANT", "CYBERPATH"],
+      ["MUTANT", "GIANT"],
+    ]);
+    expect(stageNumbers("45184a")).toEqual([
+      [1, 2, 3],
+      [1, 2, 3],
+      [1, 2, 3],
+    ]);
+    expect(s.villainStages).toEqual({ standard: [1, 2], expert: [2, 3] });
+    expect(s.mainSchemeCardId).toBe("45147a");
+    const deck = cardById.get("45147a");
+    expect(deck?.type === "main_scheme" && deck.stages.map((st) => [st.stageNumber, st.name])).toEqual([
+      [1, undefined],
+      [2, "The Rise of Apocalypse"],
+    ]);
+    expect(s.encounterSetIds).toEqual(["en_sabah_nur"]);
+    expect(s.recommendedModularSetIds).toEqual(["celestial_tech", "clan_akkaba"]);
+    expect(s.modularSetCount).toBe(2);
+    expect(s.victory).toBeUndefined();
+  });
 });

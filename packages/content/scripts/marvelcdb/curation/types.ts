@@ -211,6 +211,12 @@ export interface MultipleVillainsCuration {
    */
   readonly villainCardCodes?: readonly string[];
   /**
+   * Each villain's side B version, parallel to `villainCardCodes` (wave 8, docs/phase7-wave8.md §1.6 and Q9 = B): the
+   * Four Horsemen print an A and a B card of the same title, which the normalizer files as two one-stage cards, and
+   * the players choose A or B per villain. Resolved to `ScenarioVillain.sideBCardId`. Absent = no B versions.
+   */
+  readonly sideBCardCodes?: readonly string[];
+  /**
    * `MultipleVillains.encounterDecks` (docs/phase7-wave4.md §1.6) — Tower Defense's one shared deck built from the
    * scenario's own sets, instead of The Wrecking Crew's one deck per villain. Absent = `"perVillain"`.
    */

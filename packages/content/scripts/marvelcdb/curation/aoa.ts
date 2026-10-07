@@ -281,8 +281,128 @@ export const AOA_CURATION: PackCuration = {
       "Protect the Professor, Finished face: the card prints a dash for its threat (spec §1.24). Emitted as startingThreat fixed(0); the engine never reads it, because nothing places threat here and the face does not outlast its own Forced Response.",
   },
 
-  // Later step (survey §8 step 5): the five scenarios.
-  scenarios: [],
+  // The three-sided Apocalypse (docs/phase7-wave8.md section 1.17): raw files each stage as 4518Na (Biomorph) linked
+  // to the hidden 4518Nb (Cyberpath), and the default reads the top-level record as side B. The Biomorph faces are the
+  // ones he starts on (45147a Setup, `startingSide: "A"`), so the top-level record is the printed side A.
+  villainFrontIsSideA: ["en_sabah_nur"],
+
+  scenarios: [
+    {
+      id: "unus",
+      name: "Unus",
+      villainSetCode: "unus",
+      // 45062a Contents: "Unus, Infinites, and Standard sets"; MC45 p. 8: Infinites "is required when playing Unus".
+      // Gene Pool (45071, Permanent and Setup) is put into play by the setup keyword, not by a set-aside list.
+      additionalEncounterSetCodes: ["infinites"],
+      recommendedModularSetCodes: ["dystopian_nightmare"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      // Q10 = A: Standard III may replace the Standard set on any scenario, so it is not a property of this record.
+      // Q1 = A: the Gene Pool modular difficulty (MC45 p. 8) is a setup control, not data here.
+      evidence:
+        'MC45 p. 8 and 45062a Contents: "Unus, Infinites, and Standard sets. One modular set (Dystopian Nightmare)." Villain deck Unus I and II (II and III in expert mode, 45059 to 45061). Infinites is required here but may be used in other scenarios; Dystopian Nightmare can be removed. Expert set per RRG 1.8 Expert Mode, p. 28 (no 1A names it).',
+    },
+    {
+      id: "four-horsemen",
+      name: "Four Horsemen",
+      villainSetCode: "four_horsemen",
+      // Each Horseman prints a side A (45081a to 45084a) and a side B (45081b to 45084b) of the same title; the
+      // normalizer files each face as its own one-stage card (the Mansion Attack shape), so `villainCardCodes` names
+      // the four A faces and `sideBCardCodes` the four B faces, parallel, individually addressable (Q9 = B: a
+      // per-villain A/B choice defaulting to A for skirmish and standard, B for expert and heroic, no "extreme" mode).
+      villainCardCode: "45081a",
+      multipleVillains: {
+        villainSetCodes: ["four_horsemen", "four_horsemen", "four_horsemen", "four_horsemen"],
+        villainCardCodes: ["45081a", "45082a", "45083a", "45084a"],
+        sideBCardCodes: ["45081b", "45082b", "45083b", "45084b"],
+        encounterDecks: "shared",
+        // 45085a Setup shuffles the four villains and reveals them in a row: they start set aside.
+        atSetup: "setAside",
+      },
+      recommendedModularSetCodes: ["dystopian_nightmare", "hounds"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      // Each face is a one-stage card numbered by its position (A = 1, B = 2). The A or B face is chosen per villain
+      // (Q9 = B), defaulting from the difficulty: A for skirmish and standard, B for expert and heroic.
+      villainStages: { standard: [1, 1], expert: [2, 2] },
+      modularSetCount: 2,
+      evidence:
+        'MC45 pp. 11 to 12 and 45085a Contents: "Four Horsemen, Standard, and two modular sets (Dystopian Nightmare and Hounds)." MC45 p. 11: "To play the scenario in skirmish or standard mode, use each villain\'s side A. To play the scenario in expert or heroic mode, use each villain\'s side B." Hounds and Dystopian Nightmare can be removed. Setup: shuffle the four Horsemen, reveal them in a row, active counter on the leftmost, each player reveals a random Four Horsemen side scheme (45086 to 45089). Winning needs all four defeated (winCondition allVillainsDefeated).',
+    },
+    {
+      id: "apocalypse",
+      name: "Apocalypse",
+      villainSetCode: "apocalypse",
+      additionalEncounterSetCodes: ["prelates"],
+      // 45103a Setup: "Set aside each unused villain card, each [PRELATE] minion, and The Tyrant\'s Throne side
+      // scheme." The five Prelates (b faces of the Overseers) and 45105a. In a campaign game one Prelate may already be
+      // out with its Overseer (Q21, default A: four set aside); that is the campaign builder's, not this record's.
+      setAsideCardCodes: ["45179b", "45180b", "45181b", "45182b", "45183b", "45105a"],
+      recommendedModularSetCodes: ["dark_riders", "infinites"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      // Stages are positions in one four-stage chain over two cards (45101a/b I and II, 45102a/b III and IV). Standard
+      // starts at II and expert at III; the easier start at I is a setup option, not scenario data (Q12, default A: off unless chosen).
+      villainStages: { standard: [2, 4], expert: [3, 4] },
+      // No stage is reached by defeating the one before; Apocalypse falls to No Longer Worthy (45105b) alone.
+      victory: "cardAbility",
+      modularSetCount: 2,
+      evidence:
+        'MC45 p. 14 and 45103a Contents: "Apocalypse, Prelates, and Standard sets. Two modular sets (Dark Riders and Infinites)." "Contents: Apocalypse (II) and Apocalypse (III). (Apocalypse (III) only for expert mode.)" MC45 p. 14: "Remove Apocalypse (II) and start with Apocalypse (III) for expert mode. For an easier game, begin with Apocalypse (I)." Dark Riders and Infinites can be removed. Win by No Longer Worthy (45105b), a card ability.',
+    },
+    {
+      id: "dark-beast",
+      name: "Dark Beast",
+      villainSetCode: "dark_beast",
+      additionalEncounterSetCodes: ["savage_land", "genosha", "blue_moon"],
+      // 45121a Setup: "Set the Blue Moon, Genosha, and Savage Land sets aside (including each environment card in
+      // those sets)." Every card of the three sets, as Mister Sinister sets its three sets aside.
+      setAsideCardCodes: [
+        "45127",
+        "45128",
+        "45129",
+        "45130",
+        "45131",
+        "45132",
+        "45133",
+        "45134",
+        "45135",
+        "45136",
+        "45137",
+        "45138",
+        "45139",
+        "45140",
+        "45141",
+        "45142",
+        "45143",
+        "45144",
+        "45145",
+        "45146",
+      ],
+      recommendedModularSetCodes: ["dystopian_nightmare"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 1,
+      evidence:
+        'MC45 p. 16 and 45121a Contents: "Dark Beast, Blue Moon, Genosha, Savage Land, and Standard sets. One modular set (Dystopian Nightmare)." Villain deck Dark Beast I and II (II and III in expert mode, 45118 to 45120). Blue Moon, Genosha and Savage Land are required here but may be used in other scenarios; Dystopian Nightmare can be removed. Dark Beast\'s When Revealed reveals a random set-aside environment (a card ability, docs/phase7-wave8.md section 2.8).',
+    },
+    {
+      id: "en-sabah-nur",
+      name: "En Sabah Nur",
+      villainSetCode: "en_sabah_nur",
+      recommendedModularSetCodes: ["celestial_tech", "clan_akkaba"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      // Apocalypse is three-sided (45184 to 45186 a/b/c): one villain card per stage, the form a side of it.
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      modularSetCount: 2,
+      evidence:
+        'MC45 p. 19 and 45147a Contents: "En Sabah Nur and Standard sets. Two modular sets (Celestial Tech and Clan Akkaba)." The main scheme deck is En Sabah Nur\'s Pyramid (45147) and The Rise of Apocalypse (45148). Apocalypse I and II (II and III in expert mode) in Biomorph form (startingSide, a card ability). Celestial Tech and Clan Akkaba can be removed; Ancient Ritual (Clan Akkaba) is Permanent and Setup.',
+    },
+  ],
 
   // MC45 p. 22 (survey §8 step 6). Each title and quantity was read from the PDF page and matched to
   // raw/marvelcdb/aoa.json by name within the hero's own cards; every printed quantity equals the raw `quantity` and
