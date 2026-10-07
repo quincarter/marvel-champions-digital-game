@@ -227,6 +227,11 @@ describe("wave 8 aoa data: card integrity", () => {
     expect(new Set(AOA_CARDS.map((c) => c.id)).size).toBe(AOA_CARDS.length);
   });
 
+  it("Ozymandias 45159 and Scarab 45160 are unique (the scans print the marker; MarvelCDB's is_unique is false)", () => {
+    expect(aoa("45159").unique).toBe(true);
+    expect(aoa("45160").unique).toBe(true);
+  });
+
   it("23 encounter sets with the card counts, and every card's sets exist", () => {
     const sizes: Record<string, number> = {};
     for (const c of AOA_CARDS) for (const id of aoaSetIds(c)) sizes[id] = (sizes[id] ?? 0) + 1;

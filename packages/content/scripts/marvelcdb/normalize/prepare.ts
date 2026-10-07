@@ -14,6 +14,8 @@ export interface Prepared {
   readonly name: string;
   /** MarvelCDB's `subname`, or a curated `Correction.subtitle`. */
   readonly subtitle?: string;
+  /** MarvelCDB's `is_unique`, or a curated `Correction.unique` where the scan disagrees. */
+  readonly unique: boolean;
   readonly traits: Trait[];
   readonly boost: number;
   readonly attack: number | null | undefined;
@@ -60,6 +62,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let text = toPlainText(r.real_text ?? r.text);
   let name = r.name;
   let subtitle: string | undefined = r.subname || undefined;
+  let unique = Boolean(r.is_unique);
   let traits = parseTraits(r.real_traits ?? r.traits);
   let boost = r.boost ?? 0;
   let attack = r.attack;
@@ -104,6 +107,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     }
     if (c.name !== undefined) name = c.name;
     if (c.subtitle !== undefined) subtitle = c.subtitle;
+    if (c.unique !== undefined) unique = c.unique;
     if (c.traits !== undefined) traits = c.traits.map((t) => t.toUpperCase());
     if (c.boost !== undefined) boost = c.boost;
     if (c.attack !== undefined) {
@@ -148,6 +152,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     raw: r,
     name,
     ...(subtitle ? { subtitle } : {}),
+    unique,
     traits: traits.map(traitOf),
     boost,
     attack,

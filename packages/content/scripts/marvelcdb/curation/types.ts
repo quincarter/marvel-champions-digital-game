@@ -37,6 +37,12 @@ export interface Correction {
    */
   readonly subtitle?: string;
   /**
+   * The card's printed unique marker (the four-pointed star before the title, RRG 1.8 "Unique Icon") where MarvelCDB's
+   * `is_unique` disagrees with the scan (wave 8, `aoa` 45159 Ozymandias and 45160 Scarab print the marker; raw has
+   * `is_unique: false`). Replaces `is_unique` for the emitted `unique`. Never errata.
+   */
+  readonly unique?: boolean;
+  /**
    * The card's printed type where MarvelCDB's `type_code` is wrong (wave 7, `next_evol` 40154 High Ground: typed
    * `attachment`, printed TREACHERY on the scan). Applied to the raw record before anything else reads it
    * (`applyTypeCorrections`), so every type-keyed step sees the printed type. Never errata.

@@ -118,6 +118,22 @@ export const AOA_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "45159",
+      reason:
+        "MarvelCDB sends `is_unique: false` for Ozymandias, but the card prints the unique marker, so the RRG 1.8 unique rule binds it.",
+      evidence:
+        'Scan 45159.png (710 x 1030): the four-pointed star prints before the title "Ozymandias", the same marker as Bishop 45001a. Every other card of the box was read against its scan (audit of 2026-10-07); only 45159 and 45160 disagree with raw.',
+      unique: true,
+    },
+    {
+      code: "45160",
+      reason:
+        "MarvelCDB sends `is_unique: false` for Scarab, but the card prints the unique marker, so the RRG 1.8 unique rule binds it.",
+      evidence:
+        'Scan 45160.png (710 x 1030): the four-pointed star prints before the title "Scarab" (ATK 3 with a reminder star, SCH 1, boost 3, Clan Akkaba 2/7).',
+      unique: true,
+    },
+    {
       code: "45129",
       reason:
         "MarvelCDB sends no `scheme` for Velociraptor, so the normalizer cannot tell a printed 1 from a dash or zero. The card prints SCH 1.",

@@ -238,7 +238,7 @@ export function baseFields(
     cycleId: ctx.cycleId,
     collectorNumber: collector(codes),
     quantityInSet: p.quantityInSet,
-    unique: Boolean(p.raw.is_unique),
+    unique: p.unique,
     ...(images ? { images } : {}),
     ...(p.cardBack ? { cardBack: p.cardBack } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),

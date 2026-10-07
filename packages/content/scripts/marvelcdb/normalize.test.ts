@@ -247,6 +247,86 @@ describe("Correction.scheme (minion SCH MarvelCDB omits)", () => {
   });
 });
 
+/** The real MarvelCDB record for Scarab (`aoa` 45160): `is_unique: false`, though the scan prints the unique marker. */
+const SCARAB = {
+  pack_code: "aoa",
+  pack_name: "Age of Apocalypse",
+  pack_legacy: false,
+  pack_wave: 8,
+  type_code: "minion",
+  type_name: "Minion",
+  faction_code: "encounter",
+  faction_name: "Encounter",
+  card_set_code: "clan_akkaba",
+  card_set_name: "Clan Akkaba",
+  card_set_type_name_code: "modular",
+  position: 160,
+  set_position: 2,
+  code: "45160",
+  name: "Scarab",
+  real_name: "Scarab",
+  cost_per_hero: false,
+  cost_star: false,
+  text: "Quickstrike.\n[star] <b>Forced Response</b>: After Scarab attacks, place 1 threat on Ancient Ritual (3 threat instead if the attack defeated an ally).",
+  real_text:
+    "Quickstrike.\n[star] <b>Forced Response</b>: After Scarab attacks, place 1 threat on Ancient Ritual (3 threat instead if the attack defeated an ally).",
+  boost: 3,
+  quantity: 1,
+  health: 5,
+  health_per_group: false,
+  health_per_hero: false,
+  scheme: 1,
+  attack: 3,
+  base_threat_fixed: false,
+  base_threat_per_group: false,
+  base_threat_star: false,
+  escalation_threat_fixed: false,
+  threat_fixed: false,
+  threat_per_group: false,
+  traits: "Clan Akkaba.",
+  real_traits: "Clan Akkaba.",
+  illustrator: "Simone Buonfantino",
+  is_unique: false,
+  hidden: false,
+  permanent: false,
+  double_sided: false,
+  octgn_id: "1ab538aa-6ad1-4d9d-83a6-3ebc3a045160",
+  attack_star: true,
+  thwart_star: false,
+  defense_star: false,
+  health_star: false,
+  recover_star: false,
+  scheme_star: false,
+  boost_star: false,
+  threat_star: false,
+  escalation_threat_star: false,
+  url: "https://marvelcdb.com/card/45160",
+  imagesrc: "/bundles/cards/45160.jpg",
+  spoiler: 1,
+} as unknown as RawCard;
+
+const uniqueCorrection: Correction = {
+  code: "45160",
+  unique: true,
+  reason: "MarvelCDB's is_unique is false but the card prints the unique marker",
+  evidence: "scan: assets/card-art/bundles/cards/45160.png, star before the title",
+};
+
+describe("Correction.unique (printed unique marker MarvelCDB lacks)", () => {
+  it("emits unique: true with the correction", () => {
+    const { ctx } = run([SCARAB], [uniqueCorrection]);
+    expect(ctx.errors).toEqual([]);
+    expect(ctx.cards.find((c) => c.id === "45160")?.unique).toBe(true);
+    expect([...ctx.usedCorrections]).toEqual([0]);
+  });
+
+  it("without the correction MarvelCDB's is_unique: false is emitted", () => {
+    const { ctx } = run([SCARAB]);
+    expect(ctx.errors).toEqual([]);
+    expect(ctx.cards.find((c) => c.id === "45160")?.unique).toBe(false);
+  });
+});
+
 const dashCorrection: Correction = {
   code: "45179a",
   dashedMinionStats: ["atk", "sch"],
