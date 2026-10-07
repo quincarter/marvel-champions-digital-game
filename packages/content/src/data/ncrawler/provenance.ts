@@ -23,7 +23,14 @@ export const NCRAWLER_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("48009"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48009"], corrections: [] },
   { cardId: cardId("48010"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48010"], corrections: [] },
   { cardId: cardId("48011"), cardSetCode: "nightcrawler", marvelcdbCodes: ["48011"], corrections: [] },
-  { cardId: cardId("48012"), cardSetCode: "protection", marvelcdbCodes: ["48012"], corrections: [] },
+  {
+    cardId: cardId("48012"),
+    cardSetCode: "protection",
+    marvelcdbCodes: ["48012"],
+    corrections: [
+      "48012: errata RRG 1.8 — Rogue: \"printed THW and ATK\" is now \"base THW and ATK\". MarvelCDB (and the scan) carry the printed wording. [evidence: RRG 1.8 p. 69, Nightcrawler Hero Pack ROGUE (#12) errata; scan 48012.jpg read, prints \"printed THW and ATK\"]",
+    ],
+  },
   { cardId: cardId("48013"), cardSetCode: "protection", marvelcdbCodes: ["48013"], corrections: [] },
   { cardId: cardId("48014"), cardSetCode: "protection", marvelcdbCodes: ["48014"], corrections: [] },
   { cardId: cardId("48015"), cardSetCode: "protection", marvelcdbCodes: ["48015"], corrections: [] },
@@ -104,7 +111,14 @@ export const NCRAWLER_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("48034"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48034"], corrections: [] },
   { cardId: cardId("48035"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48035"], corrections: [] },
   { cardId: cardId("48036"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48036"], corrections: [] },
-  { cardId: cardId("48037"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48037"], corrections: [] },
+  {
+    cardId: cardId("48037"),
+    cardSetCode: "crazy_gang",
+    marvelcdbCodes: ["48037"],
+    corrections: [
+      "48037: errata RRG 1.8 — Tweedledope: the star icon was removed from the boost field. The printed card shows the star; current data has none (MarvelCDB boost_star false, no Boost ability). Text is unchanged. [evidence: RRG 1.8 p. 69, Nightcrawler Hero Pack TWEEDLEDOPE (#37) errata; scan 48037.jpg read, prints the star bottom right]",
+    ],
+  },
   { cardId: cardId("48038"), cardSetCode: "crazy_gang", marvelcdbCodes: ["48038"], corrections: [] },
 ];
 

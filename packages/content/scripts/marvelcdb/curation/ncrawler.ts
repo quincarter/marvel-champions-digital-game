@@ -20,7 +20,28 @@ export const NCRAWLER_CURATION: PackCuration = {
   exportPrefix: "NCRAWLER",
 
   corrections: [],
-  errata: [],
+  errata: [
+    {
+      code: "48012",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Rogue: "printed THW and ATK" is now "base THW and ATK". MarvelCDB (and the scan) carry the printed wording.',
+      evidence:
+        'RRG 1.8 p. 69, Nightcrawler Hero Pack ROGUE (#12) errata; scan 48012.jpg read, prints "printed THW and ATK"',
+      currentReplace: {
+        find: "adds that character's printed THW and ATK",
+        replace: "adds that character's base THW and ATK",
+      },
+    },
+    {
+      code: "48037",
+      version: "RRG 1.8",
+      changedFields: ["boostIcons"],
+      note: "Tweedledope: the star icon was removed from the boost field. The printed card shows the star; current data has none (MarvelCDB boost_star false, no Boost ability). Text is unchanged.",
+      evidence:
+        "RRG 1.8 p. 69, Nightcrawler Hero Pack TWEEDLEDOPE (#37) errata; scan 48037.jpg read, prints the star bottom right",
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},

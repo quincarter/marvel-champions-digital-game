@@ -302,6 +302,16 @@ export const NCRAWLER_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/48012.jpg") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Rogue: \"printed THW and ATK\" is now \"base THW and ATK\". MarvelCDB (and the scan) carry the printed wording.",
+        },
+      ],
+    },
     cost: 4,
     resourceIcons: { physical: 1 },
     atk: 2,
@@ -314,7 +324,7 @@ export const NCRAWLER_CARDS: readonly AnyCard[] = [
     deckLimit: 1,
     text: {
       printed: "Action: Deal 1 damage to another friendly character → until the end of the round, Rogue gains each of that character's Traits and adds that character's printed THW and ATK to her matching powers. (Limit once per round.)",
-      current: "Action: Deal 1 damage to another friendly character → until the end of the round, Rogue gains each of that character's Traits and adds that character's printed THW and ATK to her matching powers. (Limit once per round.)",
+      current: "Action: Deal 1 damage to another friendly character → until the end of the round, Rogue gains each of that character's Traits and adds that character's base THW and ATK to her matching powers. (Limit once per round.)",
     },
     abilities: [{ id: abilityId("48012.rogue-action") }],
   },
@@ -873,6 +883,16 @@ export const NCRAWLER_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/48037.jpg") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["boostIcons"],
+          note: "Tweedledope: the star icon was removed from the boost field. The printed card shows the star; current data has none (MarvelCDB boost_star false, no Boost ability). Text is unchanged.",
+        },
+      ],
+    },
     atk: 2,
     sch: 0,
     hp: 6,

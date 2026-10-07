@@ -21,7 +21,36 @@ export const MAGNETO_CURATION: PackCuration = {
   exportPrefix: "MAGNETO",
 
   corrections: [],
-  errata: [],
+  errata: [
+    {
+      code: "49010",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Magnetic Missile: the cost arrow after the discard becomes "Then,". MarvelCDB (and the scan) carry the arrow.',
+      evidence:
+        "RRG 1.8 p. 69, Magneto Hero Pack MAGNETIC MISSILE (#10) errata; scan 49010.jpg read, prints the cost arrow",
+      currentReplace: {
+        find: "Wrapped in Metal attached → deal 5 damage",
+        replace: "Wrapped in Metal attached. Then, deal 5 damage",
+      },
+    },
+    {
+      code: "49023",
+      version: "RRG 1.8",
+      changedFields: ["aspect"],
+      note: "Deft Focus: classification is Basic, not Protection. The scan prints PROTECTION; MarvelCDB and the emitted data already say basic. Text is unchanged.",
+      evidence: "RRG 1.8 p. 69, Magneto Hero Pack DEFT FOCUS (#23) errata; scan 49023.jpg read, prints PROTECTION",
+    },
+    {
+      code: "49028",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Exodus: "equal to his total ATK" gains "for that attack". MarvelCDB (and the scan) carry the printed wording.',
+      evidence:
+        'RRG 1.8 p. 69, Magneto Hero Pack EXODUS (#28) errata; scan 49028.jpg read, prints no "for that attack"',
+      currentReplace: { find: "equal to his total ATK.", replace: "equal to his total ATK for that attack." },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},

@@ -21,7 +21,14 @@ export const MAGNETO_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("49007"), cardSetCode: "magneto", marvelcdbCodes: ["49007"], corrections: [] },
   { cardId: cardId("49008"), cardSetCode: "magneto", marvelcdbCodes: ["49008"], corrections: [] },
   { cardId: cardId("49009"), cardSetCode: "magneto", marvelcdbCodes: ["49009"], corrections: [] },
-  { cardId: cardId("49010"), cardSetCode: "magneto", marvelcdbCodes: ["49010"], corrections: [] },
+  {
+    cardId: cardId("49010"),
+    cardSetCode: "magneto",
+    marvelcdbCodes: ["49010"],
+    corrections: [
+      "49010: errata RRG 1.8 — Magnetic Missile: the cost arrow after the discard becomes \"Then,\". MarvelCDB (and the scan) carry the arrow. [evidence: RRG 1.8 p. 69, Magneto Hero Pack MAGNETIC MISSILE (#10) errata; scan 49010.jpg read, prints the cost arrow]",
+    ],
+  },
   { cardId: cardId("49011"), cardSetCode: "magneto", marvelcdbCodes: ["49011"], corrections: [] },
   { cardId: cardId("49012"), cardSetCode: "leadership", marvelcdbCodes: ["49012"], corrections: [] },
   { cardId: cardId("49013"), cardSetCode: "leadership", marvelcdbCodes: ["49013"], corrections: [] },
@@ -38,7 +45,9 @@ export const MAGNETO_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("49023"),
     cardSetCode: "basic",
     marvelcdbCodes: ["49023"],
-    corrections: [],
+    corrections: [
+      "49023: errata RRG 1.8 — Deft Focus: classification is Basic, not Protection. The scan prints PROTECTION; MarvelCDB and the emitted data already say basic. Text is unchanged. [evidence: RRG 1.8 p. 69, Magneto Hero Pack DEFT FOCUS (#23) errata; scan 49023.jpg read, prints PROTECTION]",
+    ],
     duplicateOfCardId: cardId("16024"),
   },
   {
@@ -67,7 +76,9 @@ export const MAGNETO_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("49028"),
     cardSetCode: "magneto_nemesis",
     marvelcdbCodes: ["49028"],
-    corrections: [],
+    corrections: [
+      "49028: errata RRG 1.8 — Exodus: \"equal to his total ATK\" gains \"for that attack\". MarvelCDB (and the scan) carry the printed wording. [evidence: RRG 1.8 p. 69, Magneto Hero Pack EXODUS (#28) errata; scan 49028.jpg read, prints no \"for that attack\"]",
+    ],
   },
   {
     cardId: cardId("49029"),
