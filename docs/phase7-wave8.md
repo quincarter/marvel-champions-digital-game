@@ -19,7 +19,7 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
 | **1b** | **Apocalypse, Dark Beast, En Sabah Nur and their modular sets**                                          | **written** |
 | **1c** | **The MC45 campaign, side missions, the Mission, Overseer, Age of Apocalypse and the two Campaign sets** | **written** |
 | **2a** | **Bishop, Magik and the box's player cards**                                                             | **written** |
-| 2b     | Iceman, Jubilee                                                                                          | placeholder |
+| **2b** | **Iceman, Jubilee**                                                                                      | **written** |
 | 2c     | Nightcrawler, Magneto                                                                                    | placeholder |
 | 3      | Ordered engine build queue                                                                               | placeholder |
 
@@ -52,8 +52,16 @@ passes so each stays small (the split of passes 1b to 3 is proposed; the main se
   basic cards 45020–45024 and 45048–45052. 58 raw records and the two nested alter-ego faces, every one read, and a
   scan read for 54 of them (§0.3). The RRG's four FAQ entries on Magik (p. 64) and the Suit Up erratum (p. 69).
   Sections 0.3, 1.32, 3.48–3.60, questions 26–32, §5.3 and §7.1.
-- **Not yet written:** the four hero packs (passes 2b and 2c) and the build order (pass 3). Placeholders are marked
-  **(pass N)**; a card of a later pass is named here only to show that a primitive composes.
+- **Pass 2b's content.** The Iceman pack: Iceman / Bobby Drake (46001a/b), Frostbite 46002 ×6, his cards 46003–46011,
+  Aggression 46012–46018, basic 46019–46023, obligation 46024, nemesis set `iceman_nemesis` 46025–46028 and the modular
+  set Sauron (`sauron` 46029–46032). The Jubilee pack: Jubilee / Jubilation Lee (47001a/b), her cards 47002–47010 with
+  three versions each of 47007, 47008 and 47010, Justice 47011–47017, basic 47018–47022, obligation 47023, nemesis set
+  `jubilee_nemesis` 47024–47027, the off-aspect events 47028 and 47029, and the modular set Arcade (`arcade`
+  47030–47034). 72 raw records and the two nested alter-ego faces, every one read, and a scan read for 69 of the 74
+  faces (§0.4); both packs' rules inserts, which are not in the repo. Sections 0.4, 3.61–3.70, questions 33–40, §5.4,
+  §7.2 and §7.3. No schema change.
+- **Not yet written:** two hero packs (pass 2c) and the build order (pass 3). Placeholders are marked **(pass N)**; a
+  card of a later pass is named here only to show that a primitive composes.
 - **Data state (2026-10-07):** `iceman`, `jubilee`, `ncrawler` and `magneto` are emitted as data-only packs under
   `packages/content/src/data/`; `aoa` is raw only (`packages/content/raw/marvelcdb/aoa.json`, 195 records). The data
   survey (`docs/phase7-wave8-data-survey.md`) landed after pass 1a; pass 1b answers its gaps 3, 7, 8, 14 and 17 and
@@ -321,6 +329,110 @@ Q23).
 No ruling of pass 2a disagrees with the RRG, and none says a printed wording of these cards gives an unintended
 result. The RRG disagrees with itself once (the FAQ's "step 3", above), and one card's wording needs the owner's
 reading (Witchfire's "Otherwise", §4.2 Q31).
+
+### 0.4 Pass 2b's sources
+
+1. **Card text and product rules.**
+   - **Neither pack's rules insert is in the repo.** Both were read on 2026-10-07 from Hall of Heroes' photos of the
+     printed sheets (`hallofheroeslcg.com/wp-content/uploads/2024/05/img_3025.jpg`, Iceman; `…/2024/07/img_3359.jpg`,
+     Jubilee), which are a transcriber's copy of FFG's own text and are cited as "the Iceman insert" and "the Jubilee
+     insert". They carry no page numbers.
+     - The Iceman insert, "Frostbite Upgrade", in full: "Iceman comes with six copies of an identity-specific upgrade:
+       Frostbite. These upgrades are set aside at the beginning of each game and do not count toward Iceman's deck size.
+       His kit includes many abilities that attach set-aside copies of Frostbite to enemies. Each copy has a Forced
+       Response that sets it aside after the enemy it is attached to activates or leaves play. When that happens, remove
+       that copy of Frostbite from play and set it aside where it was at the beginning of the game." It also reprints
+       the player side scheme rules and the entries for indirect damage, permanent and victory X.
+     - The Jubilee insert reprints the player side scheme rules and the entries for alliance, piercing, team-up and
+       victory X, and has no rule of its own. Its strategy box: "Use different resource types to pay for Firecracker and
+       Flash of Light"; "Spend as many different resources as you can to play Three Steps Ahead to remove more threat
+       from a scheme for each resource icon used!" (§3.62, §4.2 Q34).
+     - **One insert sentence disagrees with a card.** Both inserts say "Each of the player side schemes in this product
+       has the victory X keyword". Shopping Spree (scan 47003) prints none. The card wins (RRG "The Golden Rules", p.
+       4): defeated, it goes to its owner's discard pile.
+   - Card text: every record of `packages/content/raw/marvelcdb/iceman.json` (32 records and the nested alter-ego face)
+     and `jubilee.json` (40 and one) pulled by script, and the emitted records of
+     `packages/content/src/data/{iceman,jubilee}/cards.ts` read field by field against them.
+   - **Scans read** (`assets/card-art/bundles/cards/`, on contact sheets at 520 px a card; the 300 px identity and
+     version scans enlarged): 46001a, 46001b, 46002–46016, 46018–46020 and 46024–46032; 47001a, 47001b, 47002–47006,
+     47007a/b/c, 47008a/b/c, 47009, 47010a/b/c, 47011–47019 and 47021–47034: 69 of the 74 faces. Not read: the reprints
+     46017, 46021, 46022 and 46023 (their text is the original's) and X-Gene 47020, a reprint of 38019 with no scan in
+     the bundle. They settle:
+     - **Frostbite (46002)** prints a dash for its cost, no resource icon, "Permanent." and the set line "**FROSTBITE
+       (1/6)**": its own six-card set beside "ICEMAN (n/15)" (Snow Clone is 1/15, Chill Out! 13/15). Bobby Drake
+       (46001b) prints "Bobby Drake begins the game with 6 Frostbite upgrades set aside." above Cool Off. §3.61, §7.2.
+     - **The three versions** of Firecracker, Flash of Light and Plasmoid Energy are the same card in title, cost, type,
+       traits, text, flavor and art; they differ in the resource icon and the collector line, and each has its own
+       number in the set of fifteen: Firecracker 7A [energy] "JUBILEE (6/15)", 7B [mental] (7/15), 7C [physical] (8/15);
+       Flash of Light 8A [energy] (9/15), 8B [mental] (10/15), 8C [physical] (11/15); Plasmoid Energy 10A
+       [energy][mental] (13/15), 10B [energy][physical] (14/15), 10C [mental][physical] (15/15). §3.69, §7.3.
+     - **One raw slip in a text box:** Cryokinetic Perception (46005) prints "If that card has **the** ICE trait"; raw
+       has "an". The title is "Cryokinetic" on the card (the decklist photo's "Cyrokinetic" was a soft read). Grand
+       Finale (47009) prints that title (the curation already corrects raw's "Grande Finale"). Unlikely Duo (47022)
+       prints "Team-Up (Jubilee and Wolverine). Max 1 per deck."; raw's quantity of 2 is the pack's count, one for each
+       of the two decks that may hold it.
+     - Resource icons of the nine allies (§3.36 pairs them in a mission attempt): Snow Clone [physical]; Shark-Girl,
+       Glob, Beak, Chamber and Synch [energy]; Shadowcat [mental]; Husk [physical]; Wolverine [wild].
+     - "Play only if your identity has the [X-MEN] trait.": Glob, Shadowcat and Synch. No other ally of the two packs
+       prints a play restriction. X-Gene (reprint) prints the MUTANT line.
+     - Subtitles, each as raw has it: Shark-Girl "Iara Dos Santos", Glob "Robert Herman", Shadowcat "Kitty Pryde", Beak
+       "Barnell Bohusk", Wolverine "Logan", Chamber "Jono Starsmore", Husk "Paige Guthrie", Synch "Everett Thomas". Snow
+       Clone has none and no unique icon.
+     - Stats: Snow Clone prints a dash for THW and ATK 2 with a star; Shark-Girl THW 0 with one consequential icon and
+       ATK 2 with a star; Glob two consequential icons under THW; Wolverine two under ATK and a star; Chamber a star on
+       ATK; Husk a star on THW and on ATK. Suppressing Fire, Keep Up the Pressure, Shopping Spree and Generation X print
+       cost 0 (raw omits the field).
+     - Schemes: Keep Up the Pressure 2[per_hero] and Generation X 3[per_hero]; Shopping Spree 2 with no per player icon.
+       Playing with Fire 3 flat, an acceleration icon, three boost icons; Sauron Lives! 3 flat, a crisis icon, three
+       boost icons; Naughty Children 2 flat, a crisis icon, two boost icons; the three TRAP! schemes 2 flat with "Hinder
+       1[per_hero]", two boost icons each and one icon each: hazard (Welcome to Murderworld), amplify (Arcade's
+       Funhouse), crisis (Hall of Mirrors).
+     - Encounter cards: Pyro SCH 1, ATK 3 with a star, 4 hit points, three boost icons; Pyro's Flamethrower "+0" ATK
+       with a star, two boost icons; Burn! a boost star and no boost icon; Sauron SCH 2, ATK 2, 6, a boost star and no
+       boost icon; Life Drain a star alone in its ATK box, two boost icons; The Eye of Sauron one. Nanny SCH 2, ATK 1
+       with a star, 4, two boost icons; Battle Suit +1 ATK, two; "Lost" Child −1 SCH, one; Arcade SCH 2, ATK 2, 3,
+       three; Elaborate Trap one. Both obligations print two.
+   - The printed decklist cards (`docs/phase7-wave8-handoff.md`): Iceman's hero list is 21 cards with "Frostbite ×6" and
+     15 without; Jubilee's deck is 40 with one Unlikely Duo.
+2. **RRG 1.8** entries pass 2b adds: "Ability", Simultaneous Timing Priority (p. 5: a status card's Forced Interrupt,
+   then Forced Interrupts, then Interrupts); "Alliance" (p. 6); "Attack (Player Ability Type)" (p. 10: "each instance of
+   damage in that attack ability that does not use the word 'additional' is increased"); "Consequential Damage" (p. 13);
+   "Copy" (p. 13: "A copy of a card is defined by title … regardless of card's type, text, artwork, or any other
+   differing characteristics"); "Cost" (p. 13: "Resources generated beyond the specified cost … were not paid for that
+   cost"; p. 14: "additional cost"); "Form, Change Form" (p. 21); "Indirect Damage" (p. 24); "Labeled Ability" (p. 26);
+   "Permanent" (p. 32: "Permanent cards are set aside before step 1 of setup and are put into play later by abilities on
+   other cards"; "do not count towards a player's minimum or maximum deck size"); "Player Side Scheme" and "Player Side
+   Scheme Limit" (p. 34); "Replacement Effect" (p. 37); "Resolve" (p. 37); "Resource" (p. 37); "Set Aside, Set-Aside"
+   (p. 39); "Simultaneous Resolution" (p. 40); "Team-Up" (p. 43); "Thwart" (p. 44); "Tough" (p. 44); "Upgrade" (p. 46:
+   an upgrade not attached to another friendly character is "an extension of the controlling player's identity");
+   "Villain Defeat" (p. 47: upgrades carry over to a stage of the same title); "Wild Resource" (p. 48: "When a player
+   generates a wild resource, they may specify which resource type (energy, mental, physical, or wild) it is being used
+   as"); "'Would'" (p. 48); Appendix I "Player Decks" (p. 50: the exact quantity of each identity-specific card; the
+   Team-Up replacement); the erratum "Mutants at the Mall (#88A)" (p. 68: "discarding any other **ally** version of
+   Jubilee from play").
+   - **No RRG FAQ or erratum names a card of pass 2b.** The Mutants at the Mall erratum is about an earlier card and
+     matters now that Jubilee is a hero (§3.68, §4.2 Q39).
+3. **FFG rulings.** Every title, subtitle and ability name of the 72 records was matched against the file by script.
+   **No ruling names a card of these two packs.** "Jubilee" and "Wolverine" are matched by one:
+   - **June 2, 2026 – Ruling 1** reads the ally **Jubilee of the Wolverine pack** (`wolv` 35003: "Response: After
+     Jubilee enters play, choose an enemy. Until the end of the phase, while Wolverine or Jubilee is making a basic
+     attack against that enemy, they get +2 ATK for that attack."), not a card of this pass: "Jubilee's ability
+     **targets the chosen enemy**, not specific card instances. Each instance of Jubilee's ability in a phase grants +2
+     ATK to both Wolverine and Jubilee against that enemy, stacking across multiple triggers and functioning identically
+     with Cameo / ally versions." It was built in wave 6 (§3.43 there;
+     `wave6/wolv/wolverine/support-upgrades-allies.ts`, `titled("Wolverine", "Jubilee")`). This pass adds two cards its
+     title match reaches, the hero Jubilee (47001a) and the ally Wolverine (47002): §3.68.
+   - Rulings on rules this pass uses: **January 17, 2026 – Ruling 4 (1)**, "When generating a wild resource, you specify
+     which resource type it represents, even when overpaying a cost" (§3.62). **February 8, 2026 – Ruling 1**
+     (Coordinated Attack, `cyclops` 33016): as written the reduction is lost when the attack defeats the minion, and
+     "FFG intends for players to play it such that an attack defeating the minion **still reduces consequential
+     damage**"; Snow Clone and Chamber have the same shape (§3.67, §4.2 Q38). **January 26, 2026 – Ruling 4 (7)** and
+     **March 19, 2026 – Ruling 4** (the unique match, §3.68).
+
+No ruling of pass 2b disagrees with the RRG. One ruling states an intent its card's wording does not give (February 8,
+2026 – Ruling 1), and this pass applies that intent to two cards the ruling does not name, as a question. One insert
+sentence disagrees with a card (Shopping Spree), and one insert sentence reads more loosely than the RRG's rule on
+overpaid resources (Q34).
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -1351,68 +1463,78 @@ and the wave 1–7 specs. Statuses: **exists** (found and exercised by an earlie
 relying on it, and a failure becomes an extend here); **exists (compose)** (several existing pieces, no engine
 change); **extend** (an existing primitive needs one more case); **new**. Each section is one agent, one commit.
 
-| §    | Primitive                                                                                          | Needed by                                                      | Status           |
-| ---- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------- |
-| 3.1  | Find, and "find … and reveal it" when the card is already in play                                  | 45075b, 45097                                                  | extend           |
-| 3.2  | An amplify icon a character gains under a condition                                                | 45059–45061; printed on 45089                                  | exists (verify)  |
-| 3.3  | Keywords, an icon and hit points gained at threat thresholds on a named card                       | 45059–45061, 45067, 45069                                      | exists (compose) |
-| 3.4  | A permanent, setup side scheme that stays in play with no threat                                   | Gene Pool 45071; 45062a                                        | exists (verify)  |
-| 3.5  | A setup option that belongs to a modular set                                                       | Infinites (MC45 p. 8, "Modular Difficulty")                    | extend           |
-| 3.6  | Standard III: a counted environment that flips; replacing the Standard set                         | 45075a/b–45080                                                 | extend           |
-| 3.7  | Villains in a random row; the active counter passes to the next in the row                         | 45085a/b, 45091, 45096                                         | extend           |
-| 3.8  | "After a villain activates" with several villains                                                  | 45085b; 45092–45095                                            | exists (verify)  |
-| 3.9  | Villains that cannot be defeated while another has hit points                                      | 45081–45084 a/b                                                | exists (verify)  |
-| 3.10 | "Is considered to have at least 1 hit point"                                                       | Golden Horse 45090, Metal Wings 45091, 45096                   | new              |
-| 3.11 | Another card's Forced Response resolved "as if it just attacked you"                               | 45090, 45091, 45096                                            | extend           |
-| 3.12 | A named enemy activates; no boost card; "after this activation"; extra boost                       | 45067, 45092–45095                                             | exists (compose) |
-| 3.13 | An identity's text box blanked "until the next villain phase begins"                               | Pestilence 45083a/b, Plague and Pestilence 45088               | extend           |
-| 3.14 | Attach hosts of this pass; an attachment that moves the active counter                             | 45066, 45090, 45091, 45099                                     | exists (verify)  |
-| 3.15 | A random side scheme of a set revealed by each player at setup                                     | 45085a                                                         | exists (verify)  |
-| 3.16 | A forced change to hero form; the first copy revealed each phase gains surge                       | Hound 45098, Release the Hounds 45100                          | exists (verify)  |
-| 3.17 | Reusable as is                                                                                     | the rest                                                       | checked          |
-| 3.18 | A villain's next stage revealed when the main scheme is completed                                  | Apocalypse 45101a/b, 45102a/b                                  | extend           |
-| 3.19 | A target threat of X per player, X read from the villain's printed hit points                      | 45103b, 45111                                                  | extend           |
-| 3.20 | "When [the villain] would be defeated … instead", printed on the main scheme                       | 45103b                                                         | exists (compose) |
-| 3.21 | An attachment that ignores a named ability; winning when the villain falls                         | No Longer Worthy 45105b                                        | new              |
-| 3.22 | Chained side schemes locked while a trait's minion is in play                                      | 45104a/b, 45105a; Prelates 45179b–45183b                       | exists (verify)  |
-| 3.23 | Whole sets set aside; one environment revealed at random, its set shuffled in                      | 45118–45120, 45121a, 45127, 45133, 45139                       | exists (verify)  |
-| 3.24 | "Resolve the 'Special' ability on the [SETTING] environment"                                       | fifteen cards of scenario 4                                    | extend           |
-| 3.25 | An attachment with no "attach to" that attaches from its own When Revealed                         | Cruel Experiment 45124                                         | extend           |
-| 3.26 | A three-sided villain that changes to a named form                                                 | 45184–45186 a/b/c, 45149–45155                                 | extend           |
-| 3.27 | Named counters on the main scheme that reveal a trait's card at a threshold                        | 45147b, 45148a/b, 45150–45152                                  | exists (compose) |
-| 3.28 | An attachment's Forced Interrupt resolved "as if" its trigger just happened                        | Celestial Tech 45158; 45156, 45157                             | extend           |
-| 3.29 | A permanent side scheme that sheds threat at a threshold; redirected threat                        | Ancient Ritual 45163, 45159–45162                              | exists (verify)  |
-| 3.30 | Cards from a player's deck attached facedown to a minion, and counted                              | Abyss 45181b                                                   | exists (verify)  |
-| 3.31 | An attachment on an identity that minions of a trait seek out                                      | Escaped Mutant 45137, 45134, 45135, 45138                      | exists (verify)  |
-| 3.32 | Reusable as is (pass 1b)                                                                           | the rest                                                       | checked          |
-| 3.33 | An in-play scenario area no player controls, closed to abilities that do not name it               | every card of §1.24–§1.28; MC45 p. 5                           | new              |
-| 3.34 | An ally played into that area: the choice, no controller, a blank text box, upgrades               | every ally in a campaign game; 45176                           | extend           |
-| 3.35 | A support the first player controls that cannot be discarded; a discount by destination            | Mission Team 45171a/b                                          | extend           |
-| 3.36 | Discarded cards paired one each with characters, matched by resource icon                          | Mission Team 45171a; Mister Sinister 45179a                    | new              |
-| 3.37 | A damage pool dealt to one enemy at a time; threat removed by a total that is not a thwart         | Mission Team 45171a                                            | extend           |
-| 3.38 | A Forced Response to one ability's deck discard ("Mission Response"); a discarded card that leaves | 45180a–45183a; Digging Deep 40060                              | exists (verify)  |
-| 3.39 | A named moment a script raises and other cards answer                                              | 45166a–45170a ("After you resolve a mission attempt")          | new              |
-| 3.40 | A side scheme nobody thwarts, kept in play by a minion, that flips to a face that clears the area  | 45166a/b–45170a/b                                              | exists (compose) |
-| 3.41 | Minions in the area: dashed stats, never engaged, shielded by another minion                       | 45179a–45183a, Agent of Apocalypse 45164                       | exists (verify)  |
-| 3.42 | A resource icon a character is considered to have; an obligation that lives in a player's deck     | Desperate Measures 45176; Panicked Refugees 45178; 45172–45175 | extend           |
-| 3.43 | "[A title] cannot enter play during this game"                                                     | MC45 p. 20 (scenario 5)                                        | extend           |
-| 3.44 | A card found at campaign setup that counts toward the starting hand                                | MC45 pp. 8, 12, 14, 16, 20                                     | extend           |
-| 3.45 | The campaign definition: random strike lists, three-cell rows, rewards, a win that loses           | the log (MC45 p. 24); all five scenarios                       | exists (verify)  |
-| 3.46 | One printed card as two cards: an Overseer in play and its Prelate face                            | 45179a/b–45183a/b in scenario 3                                | extend           |
-| 3.47 | Reusable as is (pass 1c)                                                                           | the rest                                                       | checked          |
-| 3.48 | The top card of a player's deck kept faceup                                                        | Magik 45030a                                                   | new              |
-| 3.49 | Playing the top card of your deck as if it was in your hand, for 1 less, once per phase            | Magik 45030a; RRG FAQ p. 64                                    | extend           |
-| 3.50 | "The top card of your deck has a [type] or [wild] resource icon"                                   | 45033–45035, 45038–45040                                       | exists (verify)  |
-| 3.51 | "If you paid for this event with a resource card"                                                  | 45007, 45008                                                   | extend           |
-| 3.52 | Resource cards as a card type: discarded, counted in hand, kept from a deck discard                | 45001a, 45002–45006, 45009, 45025, 45029                       | exists (compose) |
-| 3.53 | An attach host by classification; "your sidekick"                                                  | Sidekick 45015, Side-by-Side 45016                             | extend           |
-| 3.54 | A cost that readies a card                                                                         | Side-by-Side 45016                                             | extend           |
-| 3.55 | A deck discard cost of a chosen size                                                               | Goldballs 45041                                                | extend           |
-| 3.56 | An ally that plays itself from hand into an attack and defends without exhausting                  | Colossus 45031                                                 | exists (verify)  |
-| 3.57 | Player cards held facedown on a side scheme; a support returned when it is defeated                | Belasco 45054, Ruler of Limbo 45055                            | exists (verify)  |
-| 3.58 | The unique rule across printings: an ally whose subtitle is a hero's alter-ego                     | 45011, 45012, 45031; 45001a/b, 45030a/b                        | exists (verify)  |
-| 3.59 | A search for "an upgrade that can be attached to an ally"                                          | Suit Up 45017 (erratum, RRG p. 69)                             | extend           |
-| 3.60 | Reusable as is (pass 2a)                                                                           | the rest                                                       | checked          |
+| §    | Primitive                                                                                            | Needed by                                                      | Status           |
+| ---- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------- |
+| 3.1  | Find, and "find … and reveal it" when the card is already in play                                    | 45075b, 45097                                                  | extend           |
+| 3.2  | An amplify icon a character gains under a condition                                                  | 45059–45061; printed on 45089                                  | exists (verify)  |
+| 3.3  | Keywords, an icon and hit points gained at threat thresholds on a named card                         | 45059–45061, 45067, 45069                                      | exists (compose) |
+| 3.4  | A permanent, setup side scheme that stays in play with no threat                                     | Gene Pool 45071; 45062a                                        | exists (verify)  |
+| 3.5  | A setup option that belongs to a modular set                                                         | Infinites (MC45 p. 8, "Modular Difficulty")                    | extend           |
+| 3.6  | Standard III: a counted environment that flips; replacing the Standard set                           | 45075a/b–45080                                                 | extend           |
+| 3.7  | Villains in a random row; the active counter passes to the next in the row                           | 45085a/b, 45091, 45096                                         | extend           |
+| 3.8  | "After a villain activates" with several villains                                                    | 45085b; 45092–45095                                            | exists (verify)  |
+| 3.9  | Villains that cannot be defeated while another has hit points                                        | 45081–45084 a/b                                                | exists (verify)  |
+| 3.10 | "Is considered to have at least 1 hit point"                                                         | Golden Horse 45090, Metal Wings 45091, 45096                   | new              |
+| 3.11 | Another card's Forced Response resolved "as if it just attacked you"                                 | 45090, 45091, 45096                                            | extend           |
+| 3.12 | A named enemy activates; no boost card; "after this activation"; extra boost                         | 45067, 45092–45095                                             | exists (compose) |
+| 3.13 | An identity's text box blanked "until the next villain phase begins"                                 | Pestilence 45083a/b, Plague and Pestilence 45088               | extend           |
+| 3.14 | Attach hosts of this pass; an attachment that moves the active counter                               | 45066, 45090, 45091, 45099                                     | exists (verify)  |
+| 3.15 | A random side scheme of a set revealed by each player at setup                                       | 45085a                                                         | exists (verify)  |
+| 3.16 | A forced change to hero form; the first copy revealed each phase gains surge                         | Hound 45098, Release the Hounds 45100                          | exists (verify)  |
+| 3.17 | Reusable as is                                                                                       | the rest                                                       | checked          |
+| 3.18 | A villain's next stage revealed when the main scheme is completed                                    | Apocalypse 45101a/b, 45102a/b                                  | extend           |
+| 3.19 | A target threat of X per player, X read from the villain's printed hit points                        | 45103b, 45111                                                  | extend           |
+| 3.20 | "When [the villain] would be defeated … instead", printed on the main scheme                         | 45103b                                                         | exists (compose) |
+| 3.21 | An attachment that ignores a named ability; winning when the villain falls                           | No Longer Worthy 45105b                                        | new              |
+| 3.22 | Chained side schemes locked while a trait's minion is in play                                        | 45104a/b, 45105a; Prelates 45179b–45183b                       | exists (verify)  |
+| 3.23 | Whole sets set aside; one environment revealed at random, its set shuffled in                        | 45118–45120, 45121a, 45127, 45133, 45139                       | exists (verify)  |
+| 3.24 | "Resolve the 'Special' ability on the [SETTING] environment"                                         | fifteen cards of scenario 4                                    | extend           |
+| 3.25 | An attachment with no "attach to" that attaches from its own When Revealed                           | Cruel Experiment 45124                                         | extend           |
+| 3.26 | A three-sided villain that changes to a named form                                                   | 45184–45186 a/b/c, 45149–45155                                 | extend           |
+| 3.27 | Named counters on the main scheme that reveal a trait's card at a threshold                          | 45147b, 45148a/b, 45150–45152                                  | exists (compose) |
+| 3.28 | An attachment's Forced Interrupt resolved "as if" its trigger just happened                          | Celestial Tech 45158; 45156, 45157                             | extend           |
+| 3.29 | A permanent side scheme that sheds threat at a threshold; redirected threat                          | Ancient Ritual 45163, 45159–45162                              | exists (verify)  |
+| 3.30 | Cards from a player's deck attached facedown to a minion, and counted                                | Abyss 45181b                                                   | exists (verify)  |
+| 3.31 | An attachment on an identity that minions of a trait seek out                                        | Escaped Mutant 45137, 45134, 45135, 45138                      | exists (verify)  |
+| 3.32 | Reusable as is (pass 1b)                                                                             | the rest                                                       | checked          |
+| 3.33 | An in-play scenario area no player controls, closed to abilities that do not name it                 | every card of §1.24–§1.28; MC45 p. 5                           | new              |
+| 3.34 | An ally played into that area: the choice, no controller, a blank text box, upgrades                 | every ally in a campaign game; 45176                           | extend           |
+| 3.35 | A support the first player controls that cannot be discarded; a discount by destination              | Mission Team 45171a/b                                          | extend           |
+| 3.36 | Discarded cards paired one each with characters, matched by resource icon                            | Mission Team 45171a; Mister Sinister 45179a                    | new              |
+| 3.37 | A damage pool dealt to one enemy at a time; threat removed by a total that is not a thwart           | Mission Team 45171a                                            | extend           |
+| 3.38 | A Forced Response to one ability's deck discard ("Mission Response"); a discarded card that leaves   | 45180a–45183a; Digging Deep 40060                              | exists (verify)  |
+| 3.39 | A named moment a script raises and other cards answer                                                | 45166a–45170a ("After you resolve a mission attempt")          | new              |
+| 3.40 | A side scheme nobody thwarts, kept in play by a minion, that flips to a face that clears the area    | 45166a/b–45170a/b                                              | exists (compose) |
+| 3.41 | Minions in the area: dashed stats, never engaged, shielded by another minion                         | 45179a–45183a, Agent of Apocalypse 45164                       | exists (verify)  |
+| 3.42 | A resource icon a character is considered to have; an obligation that lives in a player's deck       | Desperate Measures 45176; Panicked Refugees 45178; 45172–45175 | extend           |
+| 3.43 | "[A title] cannot enter play during this game"                                                       | MC45 p. 20 (scenario 5)                                        | extend           |
+| 3.44 | A card found at campaign setup that counts toward the starting hand                                  | MC45 pp. 8, 12, 14, 16, 20                                     | extend           |
+| 3.45 | The campaign definition: random strike lists, three-cell rows, rewards, a win that loses             | the log (MC45 p. 24); all five scenarios                       | exists (verify)  |
+| 3.46 | One printed card as two cards: an Overseer in play and its Prelate face                              | 45179a/b–45183a/b in scenario 3                                | extend           |
+| 3.47 | Reusable as is (pass 1c)                                                                             | the rest                                                       | checked          |
+| 3.48 | The top card of a player's deck kept faceup                                                          | Magik 45030a                                                   | new              |
+| 3.49 | Playing the top card of your deck as if it was in your hand, for 1 less, once per phase              | Magik 45030a; RRG FAQ p. 64                                    | extend           |
+| 3.50 | "The top card of your deck has a [type] or [wild] resource icon"                                     | 45033–45035, 45038–45040                                       | exists (verify)  |
+| 3.51 | "If you paid for this event with a resource card"                                                    | 45007, 45008                                                   | extend           |
+| 3.52 | Resource cards as a card type: discarded, counted in hand, kept from a deck discard                  | 45001a, 45002–45006, 45009, 45025, 45029                       | exists (compose) |
+| 3.53 | An attach host by classification; "your sidekick"                                                    | Sidekick 45015, Side-by-Side 45016                             | extend           |
+| 3.54 | A cost that readies a card                                                                           | Side-by-Side 45016                                             | extend           |
+| 3.55 | A deck discard cost of a chosen size                                                                 | Goldballs 45041                                                | extend           |
+| 3.56 | An ally that plays itself from hand into an attack and defends without exhausting                    | Colossus 45031                                                 | exists (verify)  |
+| 3.57 | Player cards held facedown on a side scheme; a support returned when it is defeated                  | Belasco 45054, Ruler of Limbo 45055                            | exists (verify)  |
+| 3.58 | The unique rule across printings: an ally whose subtitle is a hero's alter-ego                       | 45011, 45012, 45031; 45001a/b, 45030a/b                        | exists (verify)  |
+| 3.59 | A search for "an upgrade that can be attached to an ally"                                            | Suit Up 45017 (erratum, RRG p. 69)                             | extend           |
+| 3.60 | Reusable as is (pass 2a)                                                                             | the rest                                                       | checked          |
+| 3.61 | Permanent copies in their owner's set-aside area: attached from it, set aside again                  | Frostbite 46002; 46001a/b, 46007–46011, 46024                  | exists (verify)  |
+| 3.62 | The resource types a payment used                                                                    | 47004–47009, 47015; 47012, 47021                               | extend           |
+| 3.63 | An additional cost to change form                                                                    | Grounded 47023                                                 | extend           |
+| 3.64 | A player makes a basic attack or thwart on a card's instruction                                      | Cell Phone 47019                                               | extend           |
+| 3.65 | Damage an identity would take from an enemy attack placed on a support                               | Ice Wall 46008                                                 | exists (verify)  |
+| 3.66 | A player side scheme barred to heroes and allies, worked by any alter-ego, put into play by a search | Shopping Spree 47003, Jubilation Lee 47001b                    | exists (verify)  |
+| 3.67 | An upgrade on an enemy as a condition; consequential damage reduced by what the target had           | 46003, 46012–46016, 47011                                      | exists (verify)  |
+| 3.68 | Across packs: the unique rule, the Team-Up replacement and the ally Jubilee's +2 ATK                 | 46001a/b, 47001a/b, 46019, 47002, 47022, 46025; `wolv` 35003   | exists (verify)  |
+| 3.69 | Three versions of one title in an identity set                                                       | 47007a/b/c, 47008a/b/c, 47010a/b/c                             | exists (verify)  |
+| 3.70 | Reusable as is (pass 2b)                                                                             | the rest                                                       | checked          |
 
 ### 3.1 Find, and "find … and reveal it" when the card is already in play
 
@@ -3652,6 +3774,642 @@ Clobber 45046 → 18012, The Power of Aggression 45047 → 01055, Spiritual Medi
 | "Each [LIMBO] minion in play activates against the player it is engaged with. If no … surge."      | `forEach` minion by trait in the first player's order, `enemyActivates`, a bound count, a gained surge         |
 | "[star] Boost: If Ruler of Limbo is in play, place 2 threat on it."                                | a boost ability, `exists`, `placeThreat` (it has an amplify icon of its own: §3.57 test 1)                     |
 
+### 3.61 Permanent copies in their owner's set-aside area: attached from it, set aside again
+
+> **Status: exists (verify).** Setup moves every permanent player card from the deck list to its owner's set-aside area
+> before step 1, faceup, never shuffled, drawn or mulliganed (`setup.ts`, `isPermanentCard`; wave 6 §3.74, §4.1 Q15 =
+> B), and `validateDeck` leaves it out of the 40 to 50 and requires the identity set's exact quantity.
+> `CardSelector setAside { player, filter }` reads that area, `attachCard(card, to)` attaches, the destination
+> `"setAside"` returns a card to it (Touched, wave 6), and a permanent player attachment whose host leaves play is
+> unattached in its controller's play area rather than discarded (`discardWithLeavingHost`, wave 5 §3.30). Not run: an
+> upgrade attached to an **enemy** straight from the set-aside area; six copies of one permanent card; a Forced Response
+> on the unattached card that answers its former host's leaving; the area empty.
+
+**Cards.** Frostbite 46002 ×6; Iceman 46001a (_"Freeze!"_); Bobby Drake 46001b; Frozen Solid 46007; Ice Wall 46008;
+Arctic Attack 46009; Ice Blast 46010; Chill Out! 46011; Hot-Headed 46024; read by Snow Clone 46003 and Cool Off.
+
+**Rules.** RRG 1.8 "Permanent" (p. 32); "Set Aside, Set-Aside" (p. 39); "Upgrade" (p. 46); "Ownership and Control" (p.
+31); "Activation" (p. 6: "Whenever an enemy attacks or schemes, it is considered to have activated"); "Leaves Play" (p.
+27); "Villain Defeat" (p. 47); "Resolve" (p. 37); "Cost" (p. 13: a game element out of play comes from the paying
+player's "own out-of-play areas"); Appendix I (p. 50). The Iceman insert, "Frostbite Upgrade" (§0.4).
+
+**The decision (data survey gap 13 and question 8).** Frostbite is an ordinary identity-specific card with the permanent
+keyword, **the model of X-23's Claws, Psylocke's two Psi-Knives and Wolverine's Claws** (wave 6 §3.74), and not Storm's
+Weather deck (`separateDecks`, wave 6 §3.45: a shuffled, facedown deck with an order). The card's own keyword, Bobby
+Drake's first line and the insert all say the same thing, and the engine already does it:
+
+- The six copies are **in the deck list and never in the deck**: an Iceman deck lists 46002 ×6 (Appendix I: the exact
+  quantity of each identity-specific card), setup sets them aside before step 1, and they do not count toward the
+  deck's 40 to 50 cards. They are never in a hand, a deck or a discard pile at any point of a game.
+- The emitted record is right as it stands: `aspect: "hero:46001a"`, `quantityInSet: 6`, `deckLimit: 6`,
+  `keywords: [{ name: "permanent" }]`, a dash cost. `deckLimit: 6` is not a way into another deck: only an Iceman deck
+  may list an Iceman card, and it must list six.
+- What differs from the Claws: no Setup ability puts them into play. They wait in the set-aside area until an ability
+  attaches one, and their own Forced Response sends them back, so the area is a supply that refills.
+
+**As read.**
+
+- **"Attach a set-aside copy of Frostbite to [an enemy]"** is `attachCard` of one card of
+  `setAside(you, { name: "Frostbite" })`: one copy from the resolving player's own set-aside area. Every card that says
+  it is an Iceman card, so the supply is always the Bobby Drake player's. The copy enters play attached, under its
+  owner's control (the enemy has no controller to pass it to).
+- **None set aside:** nothing is attached and the rest of the ability resolves (Arctic Attack's 4 damage, Chill Out!'s 3
+  threat). _"Freeze!"_ with none attaches nothing, so it did not resolve (RRG p. 37) and Cryokinetic Perception has
+  nothing to answer: the Interrupt is not offered.
+- **Fewer copies than enemies** (Ice Blast): the player attaches what there is to enemies of their choice among those
+  named.
+- **No "Max 1 per enemy":** copies stack, −1 SCH and −1 ATK each, to a floor of 0 (RRG "Modifiers", p. 29).
+- **"After attached enemy activates"**: after an attack or a scheme of that enemy has fully resolved, each copy on it is
+  set aside by its own Forced Response. A villain that activates once per player loses it after the first. A quickstrike
+  attack is an activation. An activation that a stunned or confused card, Frozen Solid or a cancel replaced did not
+  happen (wave 5 §4.1 Q3; §4.1 Q4 here), and the copies stay.
+- **A copy attached during an activation** (_"Freeze!"_ on a defense, Ice Wall) is attached when that activation ends,
+  so it is set aside then: §4.2 Q35, default A. That is what makes a basic defense with _"Freeze!"_ worth −1 ATK for
+  that attack and nothing after it.
+- **"Or leaves play":** the host leaves, the permanent copy is unattached in its owner's play area (the engine's rule
+  above), and its Forced Response sets it aside; the log shows both steps. A villain stage replaced by a stage of the
+  **same title** keeps its upgrades (RRG p. 47) and the copy stays attached.
+- **Permanent:** no card outside the Iceman set can discard a copy, move it, take it or blank it; "discard an upgrade
+  you control" skips it (RRG p. 32). Its own Forced Response is an ability of its own card and gets through
+  (`ofPermanentCardsSet`).
+- **"Each copy of Frostbite in play"** (Cool Off), "an enemy with Frostbite attached" (Arctic Attack, Snow Clone) and
+  "with a copy of Frostbite attached" (Ice Blast) are counts and queries by title over cards in play.
+- **Hot-Headed** answers each attachment the Bobby Drake player makes, one at a time: three copies from one Ice Blast
+  are three instances of 1 damage.
+- **The mission (§3.33).** An Overseer and an Agent of Apocalypse cannot be chosen by any of these abilities: none
+  refers to the mission area.
+
+**Log.** `cardsSetAside { reason: "permanent" }` at setup (exists); `cardAttached { from: "setAside" }`;
+`cardSetAside { instanceId, by: <ability id> }` when a copy returns. A replay can count the supply at any step.
+
+**Tests (exact numbers).** Iceman THW 1, ATK 2, DEF 2, 11 hit points; a villain with SCH 1 and ATK 2.
+
+1. Setup with the starter deck (46 entries): six Frostbite faceup in his set-aside area, a deck of 40, a hand of 6, no
+   Frostbite drawn or offered in the mulligan.
+2. A basic attack: _"Freeze!"_ attaches one copy (5 set aside), then 2 damage. In the villain phase the villain attacks
+   at ATK 1 with a boost card of 1 icon; he defends and uses _"Freeze!"_ again (4 set aside, ATK 0): 1 less DEF 2 is 0
+   damage. When the activation ends both copies are set aside (6).
+3. Two players: the villain with one copy schemes against player 1 at SCH 0, the copy is set aside, and it attacks
+   player 2 at ATK 2.
+4. The villain is stunned with a copy attached: the stunned card is discarded, there is no activation and the copy
+   stays.
+5. A minion with a copy is defeated: the copy is unattached, then set aside; his discard pile gained nothing.
+6. Stage I of a villain is defeated with a copy attached and stage II has the same title: the copy is on stage II.
+7. Two copies on an enemy with SCH 1 and ATK 3: SCH 0, ATK 1.
+8. All six attached: Chill Out! removes 3 threat and attaches nothing; _"Freeze!"_ is not offered; Arctic Attack's first
+   option deals 4 damage.
+9. A fixture encounter card, "discard an upgrade you control": Frostbite is not a legal choice.
+10. Hot-Headed in play, Ice Blast on a player engaged with two minions: three copies, three instances of 1 damage, 11 to
+    8; with a tough status card, 11 to 9.
+11. Cool Off with three copies in play and Arctic Attack, Chill Out!, Ice Wall and Power Belt in his discard pile: the
+    three ICE cards are shuffled into his deck; Power Belt stays.
+
+**Composes with:** §3.39 (the moment `"freeze"`), §3.65, §3.67; wave 6 §3.74.
+
+### 3.62 The resource types a payment used
+
+> **Status: extend.** A play records the whole pool it generated as `paid.<type>` and `paid.total`, with
+> `overpaid.total` and `overpaid.<type>` beside it (`actions.ts`); `paidWith` reads one type at a time, a wild counting
+> as any (`resources.ts`); `distinctTypeCount(pool)` counts the most types a pool can be, each wild one more type not
+> otherwise present, to four, and serves the **cost** "spend 2 different resources" (`spendDifferentResources`, wave 6
+> §3.69); `ValueSpec resourceTypes` counts printed types on cards. Nothing counts the types of the resources **paid**
+> for a card with the overpaid ones left out, nothing reads several types of one payment together, and a play's payment
+> is readable only while that play resolves (`playPaymentVars`).
+
+**Cards.** Blinding Flash 47006 ("X is the number of different resource types ([energy], [mental], [physical], and
+[wild]) used to pay for this event"); Firecracker 47007a/b/c and Flash of Light 47008a/b/c ("If you paid for this card
+using 2 different resource types"); Grand Finale 47009 and Three Steps Ahead 47015 ("For each different resource type …
+you used to pay for this card"); Jubilee's Coat 47004 and Jubilee's Sunglasses 47005 ("for each different resource type
+used to pay for that event"); Multitalented 47021 ("If you paid for this event using at least 1: [physical] … [mental] …
+[energy] …"); Husk 47012 ("spend up to 3 resources → if you spent at least 1: [energy] … [mental] … [physical] …").
+
+**Rules.** RRG 1.8 "Wild Resource" (p. 48); "Cost" (p. 13: overpaid resources "were not paid for that cost"; resources
+paid for an ability on a card are paid for that card; p. 14: "up to" needs at least one); "Resource" (p. 37: "There are
+four types of resources"); FAQ "Unstoppable Force (#6)" (p. 60: at a cost of 0 nothing was paid). Ruling January 17,
+2026 – Ruling 4 (1). The Jubilee insert (§0.4).
+
+**Plan.**
+
+- **The paid resources.** A payment already knows its requirement. `paid.count` is the number of resources the cost
+  took: the card's cost after every reduction, plus any resource cost of the same play. The rest of the pool is
+  overpaid.
+- **`ValueSpec paidTypeCount { of? }`**: the most types the paid resources can be counted as,
+  `min(distinctTypeCount(pool), paid.count)`. A typed resource is its type; each wild is declared as any one of the
+  four, itself included, so two wilds are two types. `of` names another card's play, as `paidWith` has it.
+- **`EffectSpec assignPaidTypes { among: TypedResource[]; bind; of? }`** for a card that reads named types together. A
+  typed resource among the paid ones covers its own type; each paid wild covers one type of `among` not otherwise
+  covered; no more types are covered than `paid.count`. When every type of `among` that can be covered is covered,
+  nothing is asked. When the wilds or the count cannot cover them all, the player chooses which (ruling January 17,
+  2026: "you specify"). It binds `<bind>.<type>` to 1 or 0. `paidWith` is unchanged for a card that reads one type.
+- **A payment that outlives its play.** The count and the pool are stamped on the play's `cardPlayed` event, so a
+  Response to the play reads them (the Coat, the Sunglasses) after the event has left the stack.
+- **Husk.** "Spend up to 3 resources" is a resource cost of a chosen size, 1 to 3, with no type (Machine Man, `vision`
+  26022, is the precedent; `discardFromDeck { choose }` of §3.55 is the shape). Everything spent was spent: there is no
+  overpayment against a cost the player sizes, so `assignPaidTypes` runs over the spent pool with a count equal to its
+  size.
+- **Whether the engine declares for the player** is §4.2 Q33 (default A: it takes the declaration that gives the most,
+  and asks only when two declarations give different effects). **Whether overpaid resources count** is §4.2 Q34 (default
+  A: no, RRG p. 13).
+
+**As read.**
+
+- "Using 2 different resource types" is at least 2.
+- The four types are energy, mental, physical and wild: a wild left as a wild is a type of its own, which is why three
+  of the cards list it.
+- A cost of 2 can be paid with at most 2 types and a cost of 3 with at most 3 under Q34 = A: Grand Finale deals at most
+  2 + 2 + 2 + 2.
+- A cost reduced to 0: no types. Firecracker does not stun, and the Coat's Response has nothing to remove and is not
+  offered.
+- **Blinding Flash:** exactly X enemies, or every enemy if there are fewer; each gets a stunned and a confused status
+  card where it can.
+- **Grand Finale:** each "choose an enemy and deal 2 damage" is its own instance of damage in one attack (RRG p. 10);
+  the same enemy may be chosen again.
+- **Three Steps Ahead:** one thwart that removes several instances of threat (RRG p. 44); the same scheme may be chosen
+  again.
+- **Multitalented** resolves its lines in the printed order: damage, threat, heal. It is one ability labeled attack and
+  thwart (RRG p. 26): a stunned or confused identity cancels all of it and loses both cards.
+- **Husk:** [energy] adds 1 to the basic power she is using, [mental] heals 1 from her, [physical] readies her after the
+  use, each at most once however many resources of that type she spent. The player controlling her spends the resources.
+- **The Coat and the Sunglasses** answer their controller's own event ("After you play"), by trait: Multitalented is
+  both a THWART and an ATTACK event, Unlikely Duo and Waylay are ATTACK events.
+
+**Tests (exact numbers).**
+
+1. Firecracker (cost 2) paid with Plasmoid Energy 47010a ([energy][mental]): 4 damage and a stunned card. Paid with two
+   [physical] cards, or with Genius alone ([mental][mental]): 4 damage, no stun.
+2. Paid with _"Like, totally!"_ ([wild]) and Firecracker 47007c ([physical]): stunned. Paid with _"Like, totally!"_ and
+   X-Gene, two wilds: stunned (one is declared a type, the other stays wild).
+3. Grand Finale (cost 3) paid with 47010a and Flash of Light 47008c ([physical]): three types: 2 damage, then three
+   instances of 2: 8 on one enemy, or 2 each on four.
+4. **Q34 = A.** Grand Finale paid with 47010a, 47008c and Strength ([physical]): four resources, three paid, three
+   types. Paid with 47010a, 47008c and The Power of Justice (1 [wild]: not a Justice card): four types generated, three
+   paid: 8 damage, not 10.
+5. Three Steps Ahead (Justice, cost 3) paid with The Power of Justice (2 [wild]) and Firecracker 47007a ([energy]):
+   three types (ruling January 17, 2026): three removals of 2.
+6. Blinding Flash paid with three [energy]: X is 1.
+7. Jubilee's Coat ready, Flash of Light paid with [energy] and [mental] on a scheme with 6 threat: 3 removed and an
+   enemy confused; then the Response removes 2 from a scheme she chooses.
+8. Firecracker at a cost of 0 by a fixture, Energy discarded anyway: 4 damage, no stun; the Sunglasses' Response is not
+   offered.
+9. Multitalented (cost 3) paid with two [physical] cards and _"Like, totally!"_: 2 damage, and the player is asked
+   whether the wild is [mental] (remove 2 threat) or [energy] (heal 2). Paid with one card of each type: all three
+   lines, nothing asked.
+10. Husk (THW 2) thwarts and her controller spends 47010a: 3 threat removed, 1 damage healed from her. Spends Strength
+    instead: 2 removed, she readies after the thwart and its consequential damage. Declined: 2 removed.
+
+**Composes with:** §3.51 (the same payment frame), §3.63; wave 6 §3.69.
+
+### 3.63 An additional cost to change form
+
+> **Status: extend.** `RuleSpec cannotChangeForm` stops a change, `RuleSpec readyCost` prices readying a card (wave 4
+> §3.19) and `additionalThwartCost` a thwart. The `changeForm` command (`actions.ts`) and `EffectSpec changeForm` take
+> no cost. `AbilityCost { resources, sameResourceType }` is "Spend 3 resources of the same type" (Kree Combat Armor,
+> wave 3 §3.43).
+
+**Cards.** Grounded 47023: "As an additional cost to change to hero form during your turn, you must spend 2 resources of
+the same type." A later pack prints the family again (Work-Life Balance, `jj` 61030: "As an additional cost to change
+forms, discard 1 card from your hand").
+
+**Rules.** RRG 1.8 "Cost" (p. 14: "A player must pay all additional costs simultaneously with the cost that is being
+added to … if they cannot pay for all of the costs at once, then they do not pay any of the costs and the effect
+associated with the costs does not occur"); "Form, Change Form" (p. 21); "Player Turn" (p. 34); "Wild Resource" (p. 48);
+"Obligation" (p. 30: "you" is the player whose play area it is in).
+
+**Plan.** **`RuleSpec formChangeCost { player; to?: "hero" | "alterEgo"; during?: "ownTurn"; cost: AbilityCost }`**, a
+constant on a card in play. The `changeForm` command for a covered change opens the cost's payment before the flip and
+refuses when it cannot be paid (`whyNot`: the card and the cost); `legalActions` lists the change only when it can be
+paid. Which changes are covered beyond the turn's own option is §4.2 Q37 (default A: a change the player chooses to make
+during their own turn, by the option or by an ability of a card they control; a change an encounter card forces is not
+theirs to pay for and happens).
+
+**As read.**
+
+- "2 resources of the same type": two of one type, a wild standing for any (`spendSameType(2)`); [energy] and [wild]
+  pays, [energy] and [mental] does not. The resources come from her hand: neither X-Gene (a resource for an
+  identity-specific event) nor _"Like, totally!"_ (on her hero face) can pay it.
+- The cost is hers alone: no alliance, no other player.
+- Changing to alter-ego form is free. A change to hero form outside her turn is free.
+- **When Revealed: Change to alter-ego form.** A forced change (§3.16); already in alter-ego form, nothing happens. It
+  does not use her one change for the round (RRG p. 21).
+- **"After you play a Jubilee event"**: an event of her identity-specific set (Blinding Flash, Firecracker, Flash of
+  Light, Grand Finale; `identitySetTitled`), played by the Jubilation Lee player. All four are Hero Actions, so she pays
+  the cost once, or changes form by some effect outside her turn, before she can remove it.
+- The obligation stays in her play area until that Response removes it from the game; it is not discarded and prints no
+  way to flip and exhaust.
+
+**Tests (exact numbers).**
+
+1. Revealed while she is in hero form: she is in alter-ego form and the obligation is in her play area.
+2. Her next turn with Firecracker 47007a and Flash of Light 47008a in hand (an [energy] each): the change to hero form
+   is offered at "2 resources of the same type"; she discards both and flips.
+3. A hand of one [energy] card and one [mental] card: not offered. With a [mental] card and The Power of Justice
+   ([wild]): offered.
+4. In hero form she plays Firecracker: the Response is offered and Grounded is removed from the game. She plays Three
+   Steps Ahead: no Response.
+5. She changes to alter-ego form with Grounded in play: no cost.
+6. Q37 = A: a fixture Interrupt in the villain phase changes her to hero form: no cost. A fixture Action of her own on
+   her turn that changes her form: the cost is asked.
+
+**Composes with:** wave 3 §3.43, wave 4 §3.19; `jj` 61030 later.
+
+### 3.64 A player makes a basic attack or thwart on a card's instruction
+
+> **Status: extend.** A basic attack and a basic thwart are player commands with their own event frames (`actions.ts`);
+> `friendlyCharacterAttacks` makes a friendly character attack a **player** (Old Rivals, wave 4 §3.26);
+> `LastingGrantUntil nextBasicPower` and `modifyBasicPower` change a use in progress or the next one (Psychic Kicker,
+> wave 6 §3.39; Leadership Skill, `storm` 36019). No effect has a chosen player make a basic attack or thwart now.
+> Searched `spec.ts`, `abilities.ts` and the DSL for "basic" as an effect kind.
+
+**Cards.** Cell Phone 47019: "Uses (3 charge counters). Action: Exhaust Cell Phone, remove 1 charge counter from here,
+and choose a player → that player makes a basic attack or thwart with a character they control. That character gets +1
+THW and +1 ATK for this use."
+
+**Rules.** RRG 1.8 "Basic Power" (p. 10); "Attack (Player Ability Type)" (p. 10: "A character must exhaust to use this
+power"; only "without exhausting" lets an exhausted character act); "Thwart" (p. 44); "Uses" (p. 46); "Cost" (p. 13: "If
+a cost uses the word 'choose,' the player can choose targets they do not control"; no cost without a valid target).
+
+**Plan.** **`EffectSpec basicPowerBy { player: PlayerRef; powers: ("attack" | "thwart")[]; bonus?: { thw?, atk? } }`**:
+the named player chooses a ready character they control that could use one of those powers now, the power, and its
+target, and the engine runs the ordinary basic power: the character exhausts, guard, patrol, crisis and "cannot" rules
+apply, a stunned or confused character loses the status card instead, every interrupt and response to a basic attack or
+thwart is offered, an ally takes its consequential damage. The bonus is a stat modifier on that character until the
+power's event ends (`endOfEvent`). It is a use of the power for every reader: Synch, Husk, Leadership Skill, Generation
+X, Surprise Move, _"Freeze!"_.
+
+**As read.**
+
+- The chosen player may be the controller. A player with no ready character that can attack or thwart cannot be chosen;
+  with no such player the Action is not offered.
+- An Action, so any action window: another player's turn, or between steps of the villain phase.
+- The third counter spent discards it (RRG p. 46).
+- An ally at the mission is no player's and cannot be the character (§3.34).
+
+**Tests (exact numbers).**
+
+1. Jubilee controls Cell Phone (3 counters) and chooses player 2, whose ready ally has ATK 2 and one consequential icon:
+   2 counters left, the ally exhausts, deals 3, takes 1.
+2. She chooses herself, exhausted: not a legal choice. Ready (THW 1): 2 threat removed, she exhausts, and Waylay may
+   answer the thwart.
+3. Against Generation X by an X-MEN hero with THW 2: 2 + 1 + 1 = 4 removed.
+4. The chosen hero is stunned and attacks: the stunned card is discarded, the hero exhausts, the counter is spent.
+5. Third use: the card is discarded after the power resolves.
+
+### 3.65 Damage an identity would take from an enemy attack placed on a support
+
+> **Status: exists (verify).** A forced interrupt on `when.damage(…)` that resolves `instead(placeDamage(eventAmount,
+self))` and then discards itself at `damagedAtLeast(self, n)` is Armored Rhino Suit (Core 01098) and Stinger Tail
+> (`mojo` 39028), on an attachment protecting its host. Not run: a
+> **support** as the card that holds the damage; any player's identity as the protected card; "would take" (after
+> defense) rather than "would be dealt"; damage narrowed to an enemy's attack; the attacking enemy named after the card
+> is discarded.
+
+**Cards.** Ice Wall 46008: "Forced Interrupt: When an identity would take any amount of damage from an enemy attack,
+place that damage here instead. Then, if there is at least 8 damage here, discard this card and attach a set-aside copy
+of Frostbite to the enemy that just attacked."
+
+**Rules.** RRG 1.8 "Replacement Effect" (p. 37); "'Would'" (p. 48); "Ability", Simultaneous Timing Priority (p. 5);
+"Tough" (p. 44); "Defend, Defense" (p. 15); "Indirect Damage" (p. 24); "Forced" (p. 20).
+
+**As read.**
+
+- **Any identity**, of any player, in hero or alter-ego form; forced, so it is not a choice.
+- **The amount** is what the identity would take: after a basic defense's DEF, after prevention, and capped by any
+  "cannot take more than" rule.
+- **A tough status card comes first** (RRG p. 5: a status card's Forced Interrupt before other Forced Interrupts): the
+  tough card is discarded, nothing would be taken and nothing is placed.
+- **The identity took no damage:** nothing answers "after [identity] takes damage" (Bishop's Energy Absorption,
+  Berserker Frenzy), and the attack is one in which the hero took none.
+- **From an enemy attack:** a basic attack or an attack ability of a villain or minion, the identity's share of indirect
+  damage from Pyro's attack, and overkill that reaches the identity. Not retaliate, a treachery's damage, or damage to
+  an ally that defends.
+- **All of it is placed**, past 8: at 6, an attack of 5 leaves 11, and the card is discarded.
+- **"The enemy that just attacked"** is the attacker of the attack in progress. The copy is attached during that
+  activation (§4.2 Q35) and the Bobby Drake player attached it (Hot-Headed).
+- Damage on the support is counters of the engine's damage kind; nothing heals a support.
+
+**Tests (exact numbers).**
+
+1. A villain attacks Iceman for 5, undefended: 5 on Ice Wall, Iceman takes 0.
+2. He defends an attack of 5 (DEF 2): 3 placed.
+3. Ice Wall at 6, an attack of 5: 11 on it, it is discarded and a copy is on the attacker; with Hot-Headed in play
+   Iceman takes 1. Q35 = A: the copy is set aside when the activation ends.
+4. Iceman has a tough status card, an attack of 5: the tough card is discarded, 0 placed.
+5. Player 2's identity is attacked for 3: 3 placed on Iceman's Ice Wall.
+6. Pyro (ATK 3, indirect) attacks with no defender: the player assigns 2 to Iceman and 1 to Snow Clone: 2 placed, Snow
+   Clone takes 1.
+7. An ally defends; a treachery deals 2 damage to his identity; retaliate 1: nothing placed in any of the three.
+
+### 3.66 A player side scheme barred to heroes and allies, worked by any alter-ego, put into play by a search
+
+> **Status: exists (verify).** Player side schemes and their limit are wave 7's (§3.1, §3.2).
+> `RuleSpec threatCannotBeRemoved { target, exceptBy }` bars every removal a character performs except one that matches
+> (Technovirus Purge, wave 7 §3.51; §4.1 Q29 there = A: a removal no character performs is not barred). "Any player may
+> trigger this ability" is Safehouse's (`next_evol` 40197). A search that puts a card into play is ordinary. Not run:
+> `exceptBy` matching **a form** rather than a named identity; a triggered Action printed on a scheme in the villain's
+> area that every player may use; a player side scheme put into play by an effect outside any player's turn to play one.
+
+**Cards.** Shopping Spree 47003; Jubilation Lee 47001b (_Mall Rat_).
+
+**Rules.** RRG 1.8 "Player Side Scheme" and "Player Side Scheme Limit" (p. 34); "Thwart" (p. 44); "Labeled Ability" (p.
+26: a thwart is "made by that player's identity"); "Upgrade" (p. 46); "You, Your" (p. 49); "Play, Put into Play" (p.
+32); "Search" (p. 39); "Unique Icon" (p. 46). The Jubilee insert's victory sentence does not apply (§0.4).
+
+**Plan.** No engine change is expected.
+
+- **"Threat cannot be removed from this scheme by heroes or allies"** is
+  `threatCannotBeRemoved { target: self, exceptBy: <an identity in alter-ego form> }`: a removal performed by a
+  hero-form identity or an ally is barred, whatever card it comes from (a basic thwart, a thwart event, an upgrade's
+  ability: all are the identity's). The scheme is not a legal target for those. What else gets through is §4.2 Q36
+  (default A, wave 7's answer: only characters are barred).
+- **The Alter-Ego Action** is the scheme's own ability: any player in alter-ego form exhausts their own identity and
+  removes 1 threat. The scheme performs the removal, and the player who used it is the one who defeated the scheme when
+  it was the last threat.
+- **When Defeated:** that player searches their own deck and discard pile for an ITEM card and puts it into play under
+  their control: no cost, not played, a "Max 1 per player" or unique card they cannot take is not a legal pick, an
+  upgrade with an "attach to" needs a host. One shuffle.
+- **No Victory:** defeated, it goes to its owner's discard pile, comes back with a deck reset, and _Mall Rat_ can find
+  it again.
+- **_Mall Rat_** searches the deck only (a copy in hand or in the discard pile is not found), puts the scheme into play
+  with its 2 threat under Jubilee's control, and shuffles. It is not a play, so it works in any action window, the
+  villain phase included. The limit is checked as it enters (wave 7 §3.2): over the limit, the first player chooses
+  which player side scheme is discarded.
+
+**Tests (exact numbers).**
+
+1. Jubilation Lee uses _Mall Rat_: Shopping Spree is in play with 2 threat, her deck is shuffled; a second use that
+   phase is refused.
+2. She exhausts: 1 threat. Player 2, in alter-ego form, exhausts: 0, defeated by player 2, who puts an ITEM of their own
+   deck into play; the scheme is in Jubilee's discard pile, not the victory display.
+3. A hero's basic thwart, an ally's, and Flash of Light played in hero form: the scheme is not offered as a target.
+4. She controls Disguise in alter-ego form: exhausting it and her identity removes 2: defeated by her (Q36 = A); she
+   puts Jubilee's Coat into play from her discard pile for nothing.
+5. Two players, Generation X in play: _Mall Rat_ brings a second player side scheme: the first player discards one of
+   the two, which is not defeated.
+6. Shopping Spree in her discard pile: _Mall Rat_ finds nothing, the deck is shuffled, the phase's use is spent.
+7. Played from her hand in hero form for 0: in play with 2 threat, and nothing she can do in hero form removes any.
+
+### 3.67 An upgrade on an enemy as a condition; consequential damage reduced by what the target had
+
+> **Status: exists (verify).** `TargetQuery.hasAttachment` narrowed to upgrades is Cyclops's "an enemy with an upgrade
+> attached" (Optic Blast, Ricochet Beam, wave 6); `takesConsequentialDamage(target, -1, { from: "attack", if })` is
+> Cannonball and Coordinated Attack (wave 6 §3.31), read with the attack's results; an attack target's statuses are
+> snapshotted when the attack is made (`attack-target-status-snapshot.test.ts`). Not run: a count of upgrades on the
+> attacked enemy as an ATK modifier during the attack; the reduction when the attack removes the thing it reads.
+
+**Cards.** Snow Clone 46003; Shark-Girl 46012; Glob 46013; Suppressing Fire 46014; Surprise Move 46015; Take That!
+46016; Chamber 47011.
+
+**Rules.** RRG 1.8 "Consequential Damage" (p. 13: dealt "after resolving abilities that are triggered by the ally
+attacking"); "Upgrade" (p. 46); "Attachment" (p. 8: an attachment is an encounter card type, not an upgrade). Ruling
+February 8, 2026 – Ruling 1.
+
+**As read.**
+
+- **"An upgrade attached"** is a card of the upgrade type attached to that enemy, any player's: Frostbite, Frozen Solid,
+  Suppressing Fire, a Cyclops tactic, Touched. An encounter attachment is not one.
+- **Shark-Girl** gets +1 ATK per such upgrade on the enemy she is attacking, read when her damage is dealt, so an
+  upgrade attached by an Interrupt to her attack counts.
+- **Surprise Move** is checked when it is played: an upgrade that _"Freeze!"_ has just attached to the target makes it
+  playable. "If this attack defeats that enemy, ready your hero" is read when the attack ends.
+- **Suppressing Fire** is an Interrupt to the defeat, so the heal resolves while the minion and the upgrade are still in
+  play. "You" is the player who controls the upgrade, and the attack is their hero's, basic or an ability's.
+- **Snow Clone and Chamber** take 1 less consequential damage "after" attacking an enemy with Frostbite attached, or a
+  confused enemy. An attack that defeats the enemy removes the Frostbite before consequential damage is dealt, the same
+  gap the ruling of February 8, 2026 describes for Coordinated Attack, where FFG's intent is that the reduction still
+  applies. §4.2 Q38, default A: the enemy is read as it was when the attack was made.
+- Snow Clone's "Cannot have upgrades attached" is `cannotHaveAttachments` narrowed to upgrades: Sidekick, Advanced Suit
+  and Desperate Measures cannot go on it, an encounter attachment ("Lost" Child) can. At the mission its text box is
+  blank (§3.34) and an upgrade can.
+
+**Tests (exact numbers).**
+
+1. Snow Clone (ATK 2, 2 hit points) attacks a minion with Frostbite and 5 hit points: 2 damage, 0 consequential. Without
+   Frostbite: 1, and it has 1 hit point left.
+2. Q38 = A: the attack defeats a minion with Frostbite and 2 hit points: 0 consequential.
+3. Chamber (ATK 2) attacks a confused villain: 0 consequential, the confused card stays. Not confused: 1.
+4. Shark-Girl attacks a minion with Frostbite, Frozen Solid and Suppressing Fire attached and one encounter attachment:
+   2 + 3 = 5 damage.
+5. Take That! with no upgrade on any enemy: not playable. With Frostbite on the villain: 7 damage.
+6. Iceman attacks a minion with 4 hit points and nothing attached: _"Freeze!"_ attaches a copy, Surprise Move (cost 1)
+   is then playable: ATK 4, the minion is defeated, Iceman readies.
+7. Glob enters play with no upgrade on any enemy: no Response. With one: 2 damage to that enemy.
+8. A hero attacks a minion with Suppressing Fire and 3 hit points for 3: 2 damage healed from the hero.
+
+### 3.68 Across packs: the unique rule, the Team-Up replacement and the ally Jubilee's +2 ATK
+
+> **Status: exists (verify).** §3.58's rule and its deck half; the seat's replacement of a card that matches a seated
+> hero (`name-conflicts.ts`, `replacement-candidates.ts`, wave 6); the Team-Up keyword's two checks (`deck.ts`,
+> `titles.ts`); the unique rule for a revealed encounter card (`unique.ts`); the ally Jubilee's lasting bonus by title
+> (wave 6 §3.43). Not run: any of them with these packs' cards.
+
+**Cards.** The identities 46001a/b and 47001a/b; Shadowcat 46019; Wolverine 47002; Unlikely Duo 47022; Pyro 46025.
+
+**Rules.** RRG 1.8 "Unique Icon" (pp. 45–46: a non-villain encounter card that matches a card in play "is discarded and
+any effects of it entering play are ignored. If it was being revealed … the player revealing it is dealt a facedown
+encounter card"); "Team-Up" (p. 43); Appendix I (p. 50); "Max, Maximum" (p. 28); erratum "Mutants at the Mall (#88A)"
+(p. 68). Rulings June 2, 2026 – Ruling 1; January 26, 2026 – Ruling 4 (7); March 19, 2026 – Ruling 4.
+
+**The matches** (every raw pack searched by script for these titles and subtitles; subtitles read on the scans):
+
+| Card of this pass                     | Matches                                                                                     | By                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------- |
+| Iceman / Bobby Drake 46001a/b         | the ally Iceman, subtitle Bobby Drake (`rogue` 38010, Protection)                           | alter-ego title           |
+| Jubilee / Jubilation Lee 47001a/b     | the ally Jubilee, subtitle Jubilation Lee (`wolv` 35003, Wolverine's own); `mut_gen` 32088b | alter-ego title           |
+| Wolverine 47002, subtitle Logan       | the hero Wolverine / Logan (`wolv` 35001a/b); the ally Wolverine (`mut_gen` 32041)          | alter-ego title; subtitle |
+| Shadowcat 46019, subtitle Kitty Pryde | the hero Shadowcat / Kitty Pryde (`mut_gen` 32030a/b); the ally Shadowcat (`mut_gen` 32002) | alter-ego title; subtitle |
+| Pyro 46025 (minion, no subtitle)      | the minion Pyro (`mut_gen` 32075) and the villain Pyro (`mut_gen` 32123a/b)                 | title, no subtitle        |
+
+Shark-Girl, Glob, Beak, Chamber, Husk and Synch match nothing in the pool. No hero of waves 6 to 8 other than those
+above shares a title, a subtitle or an alter-ego title with a card of the two packs.
+
+**What it means.**
+
+- **In a deck.** An Iceman deck cannot include 38010. A Jubilee deck cannot include the Aggression Wolverine 32041 (her
+  own 47002 is required). A Shadowcat deck and a Colossus deck (whose set holds 32002) cannot include 46019.
+- **In the game.** Beside the Iceman hero nobody can play 38010. Beside a Wolverine hero Jubilee cannot play 47002, and
+  beside a Jubilee hero Wolverine cannot play 35003. Beside a Shadowcat hero nobody can play 46019, to a play area or to
+  the mission. Each stays a resource.
+- **The Team-Up replacement (Appendix I).** 47002 and 35003 are identity-specific cards that match the other player's
+  identity, and Unlikely Duo names both identities, so each of the two players may replace that ally with Unlikely Duo.
+  **Jubilee's starter deck already holds one, and the card prints "Max 1 per deck"**: she may make the replacement only
+  from a deck without it. The Wolverine player may, which is what the pack's second copy is for.
+- **Unlikely Duo** can be in a deck whose identity is Jubilee or Wolverine, and can be played while a friendly character
+  titled Jubilee and one titled Wolverine are in play: the two heroes, Jubilee with her ally 47002 or the ally 32041,
+  Wolverine with his ally 35003.
+- **June 2, 2026 – Ruling 1** needs no change: the ally Jubilee's bonus is keyed on the chosen enemy and reaches any
+  card titled Wolverine or Jubilee when it makes a basic attack, so it now reaches the hero Jubilee and the ally 47002.
+  No legal table of the current pool has 35003 in play beside either (the unique rule above), so the regression test is
+  a fixture.
+- **Pyro.** In Mansion Attack with the villain Pyro in play, or beside the minion 32075, the nemesis minion 46025 cannot
+  enter play: revealed, it is discarded and the player is dealt a facedown encounter card. "Attach to Pyro", "When Pyro
+  attacks you" and "if Pyro is in play" are by title, so Pyro's Flamethrower attaches to the villain Pyro and Burn!
+  discards 3.
+- **Mutants at the Mall** (`mut_gen` 32088a, erratum p. 68) puts the ally Jubilee 32088b into play. With a Jubilee hero
+  in the game she matches: §4.2 Q39.
+
+**Tests.**
+
+1. Deck validation: Iceman with 38010 illegal; Jubilee / Aggression with 32041 illegal; Colossus with 46019 illegal;
+   Shadowcat with 46019 illegal; a Wolverine deck with Unlikely Duo and without 35003 legal at a table with a Jubilee
+   hero.
+2. Player 1 is Wolverine, player 2 Jubilee: 47002 and 35003 are offered for no play; Unlikely Duo (cost 2) is playable
+   by either: an enemy is confused, 4 damage to a confused enemy.
+3. Jubilee alone with 47002 in play: Unlikely Duo is playable. 47002 is defeated: not playable (`whyNot`: Team-Up).
+4. **Ruling June 2, 2026.** By fixture the ally Jubilee's Response resolves twice in one phase on enemy E: the hero
+   Jubilee (ATK 1) makes a basic attack on E for 5; the ally Wolverine 47002 (ATK 3) for 7, with piercing; Firecracker
+   on E deals 4; a basic attack on another enemy deals 1.
+5. Mansion Attack, the villain Pyro in play, Iceman reveals 46025: discarded, one facedown encounter card dealt to him.
+   He reveals Pyro's Flamethrower: attached to the villain.
+6. Q39 = A, a Jubilee hero in Mutants at the Mall's scenario: the scheme is defeated, the Sentinel is revealed, no ally
+   Jubilee enters play.
+
+### 3.69 Three versions of one title in an identity set
+
+> **Status: exists (verify).** `validateDeck` requires each identity-set card at its `quantityInSet` by card id
+> (`requiredIdentitySet`), applies the copies-by-title limit only to cards outside the identity set, and groups copies
+> by title and subtitle (`byTitle`, RRG "Copy"). Each of the nine records is its own card with `quantityInSet: 1`. Not
+> run: an identity set in which one title is three records.
+
+**Cards.** Firecracker 47007a/b/c; Flash of Light 47008a/b/c; Plasmoid Energy 47010a/b/c.
+
+**Rules.** RRG 1.8 "Copy" (p. 13); "Max, Maximum" (p. 28); Appendix I (p. 50: "The exact quantity of each card included
+in that identity set must be included in the deck"; "No more than three copies (by title) of each nonunique card");
+"Resource Card" (p. 37).
+
+**The decision (data survey gap 21 and question 9).**
+
+- **What differs:** the resource icon and the collector line, nothing else (§0.4). The versions exist so that her own
+  cards pay in different types.
+- **They are three copies of one card** (RRG p. 13: by title, "regardless of … any other differing characteristics"),
+  and nine printed cards of her set of fifteen. A Jubilee deck holds **each of the nine records exactly once**. That is
+  three copies of each title, which is also the most Appendix I allows.
+- **`validateDeck` accepts** the nine records at one each and nothing else: a missing version is a missing identity-set
+  card, a second copy of one version is one too many, and three of 47007a with no b or c is both. It must **not** read
+  `deckLimit: 1` by title: the three records together are three copies of a title whose records each say 1, and the
+  validator never applies that limit to an identity set. The data stays as emitted (`deckLimit: 1` is MarvelCDB's count
+  per record; the cards print no "Max" line), with a `cardNotes` line saying so.
+- **Title-level rules in play** treat them as copies of each other: a count or a search by name finds all three,
+  "another copy of" and a "Max X per [period]" would count across them. No card of the pool names these titles today,
+  and none of the nine prints a "Max" line, so nothing changes behavior; the rule is recorded so that a later card does
+  not have to ask.
+- **Rules that read the card** see each version's own icons: what it pays as, §3.36's pairing in a mission attempt,
+  §3.50's top-card test, The Eye of Sauron and Burn!.
+- **One script, three ids.** The three versions of an event are one ability definition registered under three ability
+  ids; a reprint alias is not the mechanism (they are not duplicates in raw).
+
+**Tests.**
+
+1. Her starter deck: legal, 40 cards counted, the nine records once each.
+2. Without 47007b: illegal (an identity-set card is missing). With 47007a ×2: illegal. With 47007a ×3 and no 47007b or
+   47007c: illegal, three problems.
+3. No "more than three copies" or deck-limit problem is reported for Firecracker, Flash of Light or Plasmoid Energy in a
+   legal deck.
+4. A Bishop deck listing 47010a: illegal (another identity's card).
+5. A fixture count of cards named Firecracker in her discard pile holding 47007a, b and c: 3.
+6. Generation X's search with 47007a in her deck and 47007c in her discard pile: both are offered as separate cards,
+   each with its icon.
+7. Plasmoid Energy 47010b discarded to pay: 1 [energy] and 1 [physical].
+
+### 3.70 Reusable as is (pass 2b, checked against the engine unions)
+
+**Reprints** (raw `duplicate_of_code`; the wave's `reprints.ts` aliases them): Looking for Trouble 46017 → 16043,
+Team-Building Exercise 46021 → 12024, Recuperation 46022 → 15031, The Power in All of Us 46023 → 13024, The Power of
+Justice 47017 → 01062, X-Gene 47020 → 38019.
+
+**Deck discards, checked against §3.48–§3.50, §3.52 and §3.55 before any row was opened:** Playing with Fire, Pyro's
+Flamethrower, Burn! and The Eye of Sauron discard from the top of a player's deck and count printed resource icons. They
+are ordinary deck discards with a bound slot (`moveCards(topOfDeck(n), "discard", bind)`, `totalPrintedResources`, one
+`if` per type on `printedResource`): a wild is only a wild (RRG p. 48), a short deck discards what it has and resets
+without discarding more (RRG p. 33), a card that answers its own discard is not counted (wave 7 §3.55), Domino's
+doubling applies (`deckDiscardIconCount`, wave 7 §3.56), and Magik's faceup card is the first to go (§3.48). None is a
+mission attempt's discard (§3.38). **No new row.**
+
+| Card text                                                                                           | Existing vocabulary                                                                                                   |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| "Interrupt: When Iceman makes a basic attack or defense against an enemy, attach …" (46001a)        | an interrupt on his basic attack and on being declared the defender by a basic defense; §3.61; `raiseMoment`          |
+| "After you resolve your 'Freeze!' ability, exhaust this card → draw 1 card. If that card has …"     | `on.moment("freeze")` (§3.39), a bound draw, a trait test on the drawn card, `ready`                                  |
+| "You get +3 hit points. Hero Resource: Exhaust Power Belt → generate a [wild] for an [ICE] card"    | `gets("hp", 3)`; a resource ability narrowed to what is paid for (Black Widow's Gauntlet, `bkw` 08007)                |
+| "Iceman gets +1 THW, +1 ATK, and +1 DEF, and gains the [AERIAL] trait" / "shuffle this card into …" | `gets`, `gainsTrait` on the identity titled Iceman; a forced response on the change to alter-ego form                 |
+| "Hero form only. Attach to an enemy. Max 1 per enemy." (Frozen Solid)                               | data (`attachesTo`, `playRestrictions`)                                                                               |
+| "When attached enemy would activate, discard Frozen Solid instead. Then, attach …"                  | a forced interrupt on `enemyActivating` of the host with `instead` (Web Binding, `sm` 27006; wave 5 §3.2); §3.61      |
+| "Choose: deal 4 damage … and attach … / deal 6 damage to an enemy with Frostbite attached"          | `chooseOne` with a gated option; `attack`; `hasAttachment { name }`                                                   |
+| "Choose a player. Attach … to the villain and each minion engaged with that player. Deal 3 …"       | `choosePlayer`, `forEach`, §3.61, `dealDamage` to each enemy with the attachment                                      |
+| "Shuffle 1 [ICE] card from your discard pile into your deck for each copy of Frostbite in play"     | `on.playerChangesForm("alterEgo")`, `chooseCards` up to a count, `moveCards` to the deck, one shuffle                 |
+| "After you attach a Frostbite upgrade to an enemy, take 1 damage" / "After you make a basic …"      | a forced response on `cardAttached` by name and player; `on.basicRecovery`, `discard(self)`                           |
+| "[Minion]'s attacks deal indirect damage" (Pyro)                                                    | Starshark (`gmw` 16137; wave 3 §3.16)                                                                                 |
+| "Attach to Pyro. Otherwise, this card gains surge." / "Pyro gets +1 ATK for this attack for each …" | a named host with a surge fallback; a forced interrupt on the host's attack, a bound deck discard, `modifyAttack`     |
+| "This card gets +1 boost icon for each resource icon on that card" (Burn!)                          | a boost ability with a bound deck discard and `boostIconsFor`                                                         |
+| "Search the encounter deck and discard pile for the Life Drain attachment and reveal it"            | `searchAndReveal`                                                                                                     |
+| "Heal 3 damage from the activating enemy and give it a tough status card" (Sauron's boost)          | `heal`, `giveStatus` on `activatingEnemy`                                                                             |
+| "searches the encounter deck and discard pile for Sauron and deals him to themself as a facedown …" | `defeatingPlayer`, `dealAsEncounterCard` (Dreadpool, `deadpool` 44038)                                                |
+| "Attach to the minion with the highest printed hit points. It activates against you. If no …"       | a superlative host (data), `enemyActivates`, a bound result, a gained surge                                           |
+| "When attached enemy attacks you, take 2 damage and give the attacking enemy a tough status card"   | a forced interrupt on the host's attack; `dealDamage` to your identity; `giveStatus`                                  |
+| "For each resource icon discarded this way … [energy] / [mental] / [physical] / [wild]"             | a bound deck discard and four counted loops, in the printed order                                                     |
+| "While Shark-Girl is attacking an enemy, she gets +1 ATK for each upgrade attached to that enemy"   | a stat modifier whose `while` is `attackInProgress` and whose amount counts the target's upgrades (§3.67)             |
+| "Until the end of the phase, each [ATTACK] event deals 1 additional damage" (46018)                 | a lasting `cardEffectBonus` over every player's events with the trait (Embiggen!, `msm`); each instance, RRG p. 10    |
+| "Each player may search their deck and discard pile for an [ATTACK] event / identity-specific …"    | `forEachPlayer`, an optional search over two zones, `moveCards` to hand, a shuffle                                    |
+| "that scheme loses each [acceleration], [amplify], [crisis], and [hazard] icon until the end of …"  | `on.youPlayedCard(self, fromHand)`, a chosen side scheme as the cost, a lasting `losesIcon` (wave 6 §3.38)            |
+| "Remove 1 threat from a scheme for each [X-MEN] ally you control" (Beak)                            | `removeThreat` by a count                                                                                             |
+| "Resource: Exhaust Jubilee → generate a [wild] resource."                                           | a `resource` ability on the hero face with `exhaustSelf`                                                              |
+| "Wolverine's attacks gain piercing" / "After you change to alter-ego form, heal 3 damage from …"    | `attacksGainKeywords`; `on.playerChangesForm("alterEgo")`, `heal`                                                     |
+| "Stun and confuse each chosen enemy" (Blinding Flash)                                               | `chooseTarget` with a count (§3.62), two `giveStatus`                                                                 |
+| "Chamber takes -1 consequential damage after he attacks a confused enemy"                           | §3.67                                                                                                                 |
+| "Play under any player's control. Max 1 per player. Action (thwart): Exhaust Disguise and your …"   | data (`anyPlayerControl`, `maxPerPlayer`); `exhaustSelf` and an identity exhaust as costs; `thwart`                   |
+| "After your hero thwarts, deal 4 damage to an enemy (7 damage instead if that thwart removed …)"    | a hero response on the hero's thwart, basic or labeled; the thwart's `lastThreatRemoved` result                       |
+| "Each [X-MEN] character gets +1 THW while making a basic thwart against this scheme"                | a stat modifier by trait whose `while` is the basic thwart in progress against `self`                                 |
+| "Interrupt: When you use a basic power, exhaust Synch → you get +1 to that power for this use"      | `on.basicPowerUsed(your identity)`, `modifyBasicPower(1)`: attack, thwart, defense or recovery                        |
+| "Team-Up (Jubilee and Wolverine). Max 1 per deck." / "Confuse an enemy. Deal 4 damage to a …"       | keyword and deck-limit data; `giveStatus`, then `attack` on a confused enemy (it may be another one)                  |
+| "Toughness." / "After Nanny attacks you, if you control 1 or more allies, search … and reveal it"   | keyword; a forced response on her attack, a search over encounter deck, discard pile and the set-aside area           |
+| "Place 1 threat here for each different resource type … on cards in your hand" (Naughty Children)   | `resourceTypesOf` over the hand: printed icons, a wild its own type                                                   |
+| "Attach to the minion with the fewest remaining hit points. Otherwise … +3 hit points … [AERIAL]"   | a superlative host (data), a surge fallback, `gets`, `gainsTrait`                                                     |
+| "Treat attached ally as a [REGRESSED] minion with a blank text box. …" ("Lost" Child)               | `treatAttachedAllyAsMinion([REGRESSED])`; 'Pool-ized (`deadpool` 44041) is the same card, word for word               |
+| "Alliance. Choose an [X-FORCE] ally and an [X-MEN] ally and return them to their owners' hands …"   | the alliance keyword; a `returnToHand` cost over two chosen allies; `playFromHand` by each owner, cost ignored        |
+| "Alliance. When any amount of threat would be placed on the main scheme, exhaust … → prevent …"     | an interrupt on threat placement on a main scheme, an `exhaustCards` cost of two picks, `preventThreat`, `giveStatus` |
+| "Arcade cannot take damage while a [TRAP!] side scheme is in play" / "Discard cards … until …"      | `cannotTakeDamage` with a `while`; a discard-until that reveals (RRG p. 17 when the deck empties)                     |
+| "Hinder 1[per_hero]." / "is stunned. If they were already stunned, they discard an ally or …"       | keyword data; `defeatingPlayer`, `giveStatus` with the "already" branch (RRG p. 7), `chooseCards`, `placeThreat`      |
+| "Resolve the 'When Defeated' ability on each [TRAP!] side scheme as if you defeated it. If no …"    | `resolveSpecials { trigger: "whenDefeated" }` (wave 4 §3.46) with the resolving player as the defeater; a count       |
+
+**As read, where the table is not enough.**
+
+- **_"Freeze!"_** is an Interrupt to the basic attack or to the declaration, so the copy is on the enemy before damage:
+  on a defense the attack is made at 1 less ATK. "A basic defense" is being declared the defender by exhausting or by an
+  ability that declares him (RRG p. 15); a defense-labeled event is not one. The moment `"freeze"` is raised only when a
+  copy was attached.
+- **Cryokinetic Perception** resolves inside the attack or the defense: an ICE card drawn readies an Iceman who
+  exhausted for it, and he may use the same basic power again later.
+- **Frozen Solid.** The activation did not happen: no boost card, nothing "after [enemy] attacks", the copy attached by
+  the "Then" stays (§3.61). A stunned or confused enemy loses that status card first (RRG p. 5) and Frozen Solid stays
+  for the next activation. In a game of several players the villain goes on to activate against the next player.
+- **Ice Blast** is not an attack (no label): guard does not stop it, retaliate does not answer it, Keep Up the Pressure
+  does not raise it. An enemy with two copies takes 3 once. "The villain" with several villains in play is whichever the
+  engine's rule for the phrase gives (wave 5; §3.7 here).
+- **Keep Up the Pressure** raises every instance of damage that does not print "additional" in each event with the
+  ATTACK trait, any player's, played after it is defeated in that phase: Grand Finale with three types deals 3 four
+  times.
+- **Shadowcat's cost** is choosing a side scheme in play: with none, no Response. A player side scheme can be chosen.
+  The icons are lost until the end of the round even if the scheme gains one later (RRG "'Loses'", p. 27).
+- **Waylay** answers a basic thwart or a thwart ability of the hero. "Removed the last threat from a scheme" is true if
+  any scheme that thwart touched was left with none.
+- **Generation X** reaches every player's X-MEN heroes and allies, and only a basic thwart.
+- **Synch.** "You" is the identity: its basic attack, thwart, defense or recovery, in either form.
+- **Mutant Mayhem.** The two allies are different cards, each with one of the traits, controlled by anyone; one owned by
+  the scenario has no hand to return to and cannot be chosen, nor can an ally at the mission. Each owner then **plays**
+  theirs: play restrictions, the unique rule and the ally limit apply, "after you play" and "enters play" abilities
+  resolve again, and in a campaign game the destination is chosen (§3.34). An owner who cannot play theirs keeps it in
+  hand.
+- **Serve and Protect.** Any source of threat on the main scheme: the villain's scheme, step one of the villain phase,
+  an encounter card. All of that placement is prevented. Whether one character with both traits can pay is §4.2 Q40
+  (default A: two characters).
+- **Life Drain.** The minion activates against the revealing player whoever it is engaged with: an attack in hero form,
+  a scheme in alter-ego form. An ally under "Lost" Child is a minion and can be the host.
+- **The Eye of Sauron** resolves all the [energy] icons, then [mental], [physical] and [wild], each icon once.
+- **Elaborate Trap.** The schemes stay in play with their threat. With two or more, the first player orders them (RRG p.
+  40). "If no abilities were resolved" is no TRAP! side scheme in play.
+- **Arcade** cannot be assigned indirect damage while a TRAP! scheme is in play (RRG p. 24).
+- **"Lost" Child** searches reach the set-aside area because the nemesis set starts there. The ally "engages its
+  controller", keeps its damage and upgrades, and its SCH is its printed THW less 1 (the attachment's own −1), to a
+  floor of 0; a Snow Clone's dash is 0.
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Decided by the user
@@ -3868,6 +4626,65 @@ Pass 2a's questions:
       defend, so the mission is not offered for it. Played on her turn he may go to either.
     - B: both destinations are offered; at the mission the attack goes on undefended and his cost is spent.
 
+Pass 2b's questions:
+
+33. **Who declares a wild resource's type for Jubilee's cards?** (§3.62. RRG "Wild Resource", p. 48: the player "may
+    specify which resource type … it is being used as"; ruling January 17, 2026 – Ruling 4 (1): "you specify".)
+    - **A (default):** the engine takes the declaration that gives the most (the most different types; every line of
+      Multitalented or Husk that can be covered) and asks only when two declarations give different effects, as a wild
+      that can be [mental] or [energy] for Multitalented. The payment prompt shows the count before it is confirmed.
+    - B: the player declares every wild on every payment of a card that reads types.
+    - C: always automatic, the lines taken in printed order when a wild cannot cover them all.
+34. **Do overpaid resources count as "used to pay"?** (§3.62. RRG "Cost", p. 13: resources beyond the cost "were not
+    paid for that cost". The Jubilee insert's strategy box says "Spend as many different resources as you can to play
+    Three Steps Ahead … for each resource icon used".)
+    - **A (default):** no. Only the resources the cost took count, so a cost of 3 reads at most 3 types; the player is
+      taken to have paid with the resources that give the most types. The insert's box is advice, not a rule.
+    - B: every resource generated during the payment counts, so four types can be read at a cost of 3.
+35. **A copy of Frostbite attached during an enemy's activation: is it set aside when that activation ends?** (§3.61,
+    §3.65. "Forced Response: After attached enemy activates or leaves play, set this card aside." _"Freeze!"_ on a basic
+    defense and Ice Wall both attach one in the middle of an attack; Ice Wall says "the enemy that just attacked".)
+    - **A (default):** yes, as worded: it is attached when the enemy finishes activating. _"Freeze!"_ on a defense is
+      worth −1 ATK for that attack; Ice Wall's copy leaves at the end of the attack that broke the wall.
+    - B: an activation counts only for copies that were attached when it began; a copy attached during it stays until
+      the enemy's next one.
+36. **Shopping Spree: what counts as removed "by heroes or allies"?** (§3.66. "Threat cannot be removed from this scheme
+    by heroes or allies." Wave 7 §4.1 Q29 answered the sibling wording, "Characters other than Cable cannot remove
+    threat", with A: only characters are barred.)
+    - **A (default):** the same reading. A removal performed by a hero-form identity (its basic thwart, its events, its
+      upgrades' abilities) or by an ally is barred. An alter-ego's removal is not (Disguise used in alter-ego form), nor
+      one no character performs (the scheme's own Action, a support's unlabeled ability, an encounter card).
+    - B: nothing but the scheme's own Alter-Ego Action removes threat from it.
+37. **Grounded: which changes to hero form does the cost cover?** (§3.63. "As an additional cost to change to hero form
+    during your turn, you must spend 2 resources of the same type." RRG "Cost", p. 14, has an additional cost paid with
+    the cost it is added to; a forced change has no cost to add to.)
+    - **A (default):** a change she chooses to make during her own turn: the turn's option, or an ability of a card she
+      controls. Unpaid, the change does not happen. A change an encounter card forces during her turn happens without
+      it, and so does any change outside her turn.
+    - B: only the turn's own change-form option.
+    - C: every change to hero form during her turn, forced ones included: unpaid, she stays in alter-ego form.
+38. **Snow Clone and Chamber when the attack defeats the enemy.** (§3.67. "takes −1 consequential damage after it
+    attacks an enemy with Frostbite attached" / "a confused enemy". Ruling February 8, 2026 – Ruling 1, on Coordinated
+    Attack: as written the reduction is lost, and FFG intends that it still applies; "no formal errata is planned".)
+    - **A (default):** the intent, applied to these two cards: the enemy is read as it was when the attack was made, so
+      the reduction applies whether or not the attack defeats it.
+    - B: as written: read when consequential damage is dealt. A defeated enemy has no Frostbite and no status card, and
+      the ally takes the full amount.
+39. **Mutants at the Mall's ally Jubilee in a game with a Jubilee hero.** (§3.68. `mut_gen` 32088a, erratum RRG p. 68:
+    "put Jubilee into play, discarding any other **ally** version of Jubilee from play". RRG "Unique Icon", p. 46: a
+    non-villain encounter card that matches a card in play "is discarded and any effects of it entering play are
+    ignored".)
+    - **A (default):** the unique rule: the hero stays, the ally does not enter play, and the campaign log never records
+      her, so scenarios 2 to 4 are played without her.
+    - B: the scheme's instruction is a scenario rule that wins (RRG "The Golden Rules", p. 4): the ally enters play
+      beside the hero.
+    - C: as A in the game, and the log records her as rescued when the scheme was defeated.
+40. **Serve and Protect: "exhaust an [X-FORCE] character and an [X-MEN] character".** (§3.70. Mutant Mayhem's "an
+    [X-FORCE] ally and an [X-MEN] ally" returns two cards.)
+    - **A (default):** two different characters you control, one with each trait; a character with both may be either.
+      Each gets a tough status card.
+    - B: one character with both traits may pay the whole cost and gets one tough status card.
+
 ## 5. What this asks of the other agents (pass 1a)
 
 - **`card-data-pipeline`:** emit the six sets of this pass with §1.2–§1.9: one main scheme record each from the
@@ -4044,15 +4861,107 @@ Pass 2a's questions:
       and stun. (2) Bishop takes an undefended attack of 3 with two resource cards among his top three, then fires
       Bishop's Rifle. (3) Sidekick on Malcolm, then Side-by-Side.
 
+### 5.4 Pass 2b
+
+- **`card-data-pipeline`:** no schema change. **Iceman:** write the starter deck from the printed decklist card with
+  **Frostbite 46002 ×6 listed** (46 entries, 40 counted; `verified`, the X-23 note's wording for a permanent card), no
+  `separateDecks` entry and no deck-limit correction (§3.61); correct Cryokinetic Perception's text to "the ICE trait"
+  with scan 46005 as evidence; rewrite the curation's header (it says the starter deck is not curated). Check before
+  regenerating: Frostbite keeps `permanent`, `quantityInSet: 6`, `deckLimit: 6` and no `attachesTo`; Snow Clone's
+  `thw: null`; Frozen Solid's `form: "hero"` and `maxPerHost`; `maxPerHost` on Suppressing Fire; Life Drain's
+  superlative host; Pyro's and Life Drain's ATK stars; the boost stars with no icon on Burn! and Sauron; cost 0 on
+  46014, 46017 and 46018. **Jubilee:** a `cardNotes` line on each of 47007a/b/c, 47008a/b/c and 47010a/b/c (one title,
+  three versions, `deckLimit: 1` is per record; §3.69); an ability id for Grounded's constant line; a `cardNotes` line
+  on Shopping Spree for the insert's victory sentence. Check: `producesIcons` on the three Plasmoid Energy records;
+  `amplifyIcons: 1` on Arcade's Funhouse; `hinder` with `perPlayer: 1` on the three TRAP! schemes; `teamUp` names and
+  `deckLimit: 1` on Unlikely Duo; `anyPlayerControl` and `maxPerPlayer` on Disguise; the uses keyword on Cell Phone;
+  `alliance` on 47028 and 47029. Both packs: `sauron` and `arcade` flagged as modular sets the setup screen offers. No
+  raw slip other than 46005's article, 47009's title (already corrected) and 47022's quantity (already handled).
+- **`game-rules-architect`:** §3.62, §3.63 and §3.64 are one more case each, one agent each; §3.62 first (thirteen cards
+  wait on it) and beside §3.51, which changes the same payment frame. §3.61 and §3.65–§3.69 need no engine change unless
+  their tests fail; §3.61's Cryokinetic Perception waits on §3.39. Q35 changes one line of Frostbite's script, not the
+  engine.
+- **`ability-scripting-engineer`:** per hero, the usual split: `packages/cards/src/wave8/iceman/iceman/` and
+  `packages/cards/src/wave8/jubilee/jubilee/`, each with `identity.ts`, `events.ts`, `support-upgrades-allies.ts`,
+  `obligation-nemesis.ts`, then a precon e2e; each pack's aspect and basic cards in `player-cards.ts` and its modular
+  set in `sauron.ts` / `arcade.ts`, one agent each. Iceman waits on §3.39 only; Frostbite's script lives in
+  `identity.ts` with `attachFrostbite(enemy)` as a helper in `@mc/cards` that every other module calls. Jubilee waits on
+  §3.62 (her events, the Coat, the Sunglasses, Three Steps Ahead, Multitalented, Husk), §3.63 (Grounded) and §3.64 (Cell
+  Phone); a `versions(ids, definition)` helper registers one definition under the three version ids (§3.69). Each
+  "exists (verify)" row is proved by a test in the module's own test file before it is relied on.
+- **`encounter-ai-designer`:** the automated player's choices. Iceman: always _"Freeze!"_; which enemies get the copies
+  when Ice Blast has fewer than it needs (the villain first); Arctic Attack's option (6 damage when a copy is already
+  there); Cool Off's picks; defend with Ice Wall in play rather than exhaust. Jubilee: pay with the cards that give the
+  most types when the card reads them, and keep _"Like, totally!"_ for a payment one type short; _Mall Rat_ whenever she
+  is in alter-ego form with Shopping Spree in her deck; pay Grounded's cost only with a Jubilee event in hand. Encounter
+  side: the indirect damage of Pyro, Playing with Fire and Burn!; The Eye of Sauron's discard and exhaust; the order of
+  Elaborate Trap's schemes; which ally or upgrade Arcade's Funhouse takes. It never keeps Shadowcat 46019, Wolverine
+  47002 or `wolv` 35003 for anything but a resource beside the matching hero.
+- **`rules-qa-engineer`:** one regression test each for ruling June 2, 2026 – Ruling 1 with this pass's cards (§3.68
+  test 4), ruling January 17, 2026 – Ruling 4 (1) (§3.62 tests 2 and 5) and, once Q38 is answered, ruling February 8,
+  2026 – Ruling 1's intent on Snow Clone and Chamber (§3.67 tests 2 and 3). Fixtures for the exact-number tests of
+  §3.61–§3.67. Deck tests (DoD §4b): both starter decks legal (Iceman 46 entries and 40 counted, `requiredIdentitySet`
+  returning Frostbite ×6; Jubilee the nine version records); the illegal decks of §3.68 test 1 and §3.69 tests 2 and 4;
+  a second Unlikely Duo illegal; an Iceman deck with five Frostbite illegal. Each hero in a second aspect (DoD §4b):
+  Iceman with no Aggression card, and Jubilee outside Justice, whose own events still read the types that paid.
+- **`game-client-engineer`:**
+  - **Iceman:** the set-aside supply beside his identity as a counted pile ("Frostbite 4 of 6"), each copy on an enemy
+    drawn on that enemy with its −1 SCH and −1 ATK in the stat's reason, and a copy returning to the pile animated as a
+    return, not a discard; Ice Wall's damage against its threshold ("6 of 8"); Frozen Solid on an enemy marked "next
+    activation skipped"; the deck builder lists Frostbite ×6 under "set aside, not counted" and never offers it to
+    another hero.
+  - **Jubilee:** the payment prompt shows, for a card that reads types, the count as cards are added ("2 different
+    types: stuns") with each wild's declared type and the overpaid resources grayed (Q33, Q34); the three versions drawn
+    as three cards with their icon in hand, in the deck builder and in decklists ("Firecracker ×3: [energy], [mental],
+    [physical]"); Shopping Spree's locked reason for heroes and allies, its Alter-Ego Action offered to every player in
+    alter-ego form, and _Mall Rat_ on Jubilation Lee; Grounded's cost on the change-form control with the reason when it
+    cannot be paid; Cell Phone's player, character and power choice with its counters.
+  - **Both:** "an upgrade attached" lit on enemies that qualify while Take That!, Surprise Move or Glob is in hand; the
+    unique block and the Team-Up replacement at deck selection for Wolverine beside Jubilee (§3.68), with the "Max 1 per
+    deck" reason when Jubilee's deck already holds Unlikely Duo; the pair's pictures in `art/teamups/jubilee-wolverine/`
+    (DoD §5; the folder does not exist yet).
+  - **Guided mode** (every wave: glossary, a tip, a tricky-wording hint, a Try-it):
+    - Glossary: Frostbite; set-aside copy; permanent (set aside before setup, never in the deck); "an upgrade attached"
+      (a player upgrade on an enemy, not an attachment); indirect damage; resource type (four: a wild is one of them, or
+      stands for another); "different resource types"; overpaid; Team-Up; alliance; TRAP! side scheme.
+    - Tips: Iceman: "Defend with Iceman himself: Freeze! takes 1 off that attack." Iceman: "Frostbite leaves after the
+      enemy acts, so hit a frozen enemy before the villain phase." Jubilee: "Pay with two different icons: Plasmoid
+      Energy is two on its own." Jubilee: "Change to Jubilation Lee to go shopping: only an alter-ego can work on
+      Shopping Spree."
+    - Tricky-wording hints (Inspect notes): Frostbite is set aside, not discarded, and does not count toward 40; a copy
+      attached during an attack leaves when that attack ends (Q35); Ice Wall takes the damage of any player's identity
+      and is discarded at 8, not destroyed at its own choice; Frozen Solid skips an activation, and a stunned enemy uses
+      up its stunned card first; "an upgrade attached" does not count encounter attachments; overpaid resources are not
+      "used to pay" (Q34) and a cost of 0 pays with no types; "2 different resource types" is at least 2; a wild may be
+      declared a type you are missing; the three versions of Firecracker are one card for "copies" and three for icons;
+      Shopping Spree has no Victory and comes back; Grounded's cost is 2 of one type and only for changing to hero form
+      on your turn; Unlikely Duo needs both a Jubilee and a Wolverine in play, and may confuse one enemy and hit
+      another; Cell Phone's character still exhausts.
+    - Try-it lessons: (1) Iceman attacks, _"Freeze!"_ attaches Frostbite, then Take That! for 7. (2) Iceman defends an
+      attack of 3 with _"Freeze!"_ and takes 0. (3) Jubilee plays Firecracker with Plasmoid Energy and stuns. (4)
+      Jubilation Lee uses _Mall Rat_, exhausts twice over two turns and takes Jubilee's Coat.
+
 ## 6. Later passes (placeholders)
 
-- **(pass 2b)** Iceman, Jubilee (ruling June 2, 2026 – Ruling 1). Start with what pass 2a leaves for it: both packs'
-  allies are played to the mission in a campaign game, so each needs its printed resource icon and any "Play only
-  if" line read from a scan (§3.34, §7.1); any card that reads or discards the top of a deck is checked against
-  §3.48–§3.50, §3.52 and §3.55 before a new row is opened; every unique ally is matched against the heroes of
-  waves 6 to 8 by subtitle and alter-ego title, on the scan and not on raw alone (§3.58 found a subtitle raw does not
-  carry); an upgrade that attaches to an ally is checked against Suit Up's reading (§3.59, Q30). **(pass 2c)**
-  Nightcrawler, Magneto.
+- **(pass 2c)** Nightcrawler, Magneto. Start with what pass 2b leaves for it:
+  - **The inserts first.** Neither pack's rules insert is in the repo; Hall of Heroes' pack pages link a photo of each
+    (§0.4 found the Frostbite rule on Iceman's).
+  - **As for every hero pass:** each ally's printed resource icon and any "Play only if" line from a scan, for the
+    mission (§3.34); every unique card matched against the whole pool by title, subtitle and alter-ego title, on the
+    scan (§3.58, §3.68: a pack's own ally can match an earlier hero and its hero an earlier ally; Rogue 48012, Gambit
+    48021, Phoenix 49014 and Cyclops 49015 are allies of wave 6's heroes); an upgrade that attaches to an ally checked
+    against Suit Up's reading (§3.59, Q30); each player side scheme (Astonishing X-Men 48020, New Recruits 49020)
+    against wave 7 §3.1–§3.2 and §3.66.
+  - **Before a new row is opened:** a card that reads or discards the top of a deck (Magneto's _Magnetic Pull_ discards
+    until a MAGNETIC card) against §3.48–§3.50, §3.52, §3.55 and §3.70; a card that answers a named ability (Magneto's
+    Armor names _Magnetic Pull_) against §3.39, as Bishop's Uniform and Cryokinetic Perception are; a card that reads
+    what a payment was made with against §3.51 and §3.62; a permanent kit card against §3.61's deck-list model; a card
+    that comes back from the discard pile to be played again (Bamf! 48006 ×3 through _Rapid Teleportation_) against
+    §3.49's play permissions; Magneto's four linked allies (49033–49036, "Linked (New Recruits)") against wave 7's
+    linked rule.
+  - **Already flagged for it** (data survey §3): the RRG p. 69 errata on Rogue 48012, Tweedledope 48037, Magnetic
+    Missile 49010, Deft Focus 49023 and Exodus 49028, none yet in a curation; the RRG FAQ "Powerful Punch (#14)" and
+    ruling July 9, 2026 – Ruling 1 through the reprint 48017; ruling January 17, 2026 – Ruling 5 on Face the Past 49022.
 - **(pass 3)** The ordered engine build queue over every §3 row.
 
 ## 7. Pass 2: hero packs
@@ -4211,3 +5120,247 @@ Colossus 32048 / 35021 (§3.58). The checks before emitting are in §5.3.
   Spell and Spiritual Meditation may be in any deck that could never play them.
 - The unique rule in a deck (§3.58 test 4): Bishop without `gambit` 37011, Magik without `mut_gen` 32042, Cable
   without 45011, X-23 without 45012, Deadpool without 45011.
+
+### 7.2 Pass 2b: Iceman
+
+Read 2026-10-07: every raw record 46001a–46032 with the nested alter-ego face; the scans listed in §0.4; the Iceman
+insert (Hall of Heroes' photo, not in the repo); the printed decklist card. **This pass asks for no schema change.**
+
+| Identity                     | Obligation         | Nemesis set (nemesis minion in bold)                                            | Setup, hand size, starter deck                                                                                                        |
+| ---------------------------- | ------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Iceman / Bobby Drake (46001) | Hot-Headed (46024) | **Pyro** (46025, quickstrike), Playing with Fire, Pyro's Flamethrower, Burn! ×2 | Six Frostbite set aside before step 1 (permanent). 5 / 6, THW 1 ATK 2 DEF 2, REC 4, 11 hit points. Aggression, 40 cards + 6 set aside |
+
+Traits: Iceman ICE, X-MEN; Bobby Drake MUTANT. The hero has the ICE trait himself, so Team-Building Exercise plays his
+ICE cards and any X-MEN card for 1 less. Bobby Drake has neither X-MEN nor ICE: Glob and Shadowcat cannot be played in
+alter-ego form. The pack's extra modular set is **Sauron** (`sauron` 46029–46032, "SAURON (n/6)").
+
+#### Iceman: Frostbite
+
+Six permanent upgrades wait in his set-aside area (§3.61). His basic attack and his basic defense each attach one to the
+enemy (−1 SCH and −1 ATK), his events attach more, and each goes back when its enemy activates or leaves play. The
+Aggression cards of the pack read "an enemy with an upgrade attached" (§3.67), which Frostbite, Frozen Solid and
+Suppressing Fire all are.
+
+**The starter deck** (the printed decklist card, §0.4) lists 46 cards: Frostbite ×6, which setup sets aside and the deck
+size does not count, and 40 that are shuffled: 15 Iceman (Snow Clone ×2, Power Belt, Cryokinetic Perception, Ice Slide,
+Frozen Solid ×2, Ice Wall, Arctic Attack ×2, Ice Blast ×2, Chill Out! ×3), 15 Aggression (Shark-Girl, Glob, Suppressing
+Fire ×3, Surprise Move ×3, Take That! ×3, Looking for Trouble ×3, Keep Up the Pressure) and 10 basic (Shadowcat, Beak,
+Team-Building Exercise ×3, Recuperation ×3, The Power in All of Us ×2). X-23's starter deck is the shape: 41 entries,
+one of them permanent.
+
+| Card                                             | As read                                                                                                                                                         | Needs             |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| Iceman 46001a, _"Freeze!"_                       | Interrupt: when he makes a basic attack or a basic defense against an enemy, attach a set-aside copy of Frostbite to that enemy                                 | §3.61, §3.70; Q35 |
+| Bobby Drake 46001b, _Cool Off_                   | Begins the game with 6 Frostbite set aside. Response: after changing to this form, shuffle 1 ICE card from the discard pile into the deck per Frostbite in play | §3.61, §3.70      |
+| Frostbite 46002 ×6 (cost —, no icon)             | Permanent. Attached enemy gets −1 SCH and −1 ATK. Forced Response: after the attached enemy activates or leaves play, set this card aside                       | §3.61; Q35        |
+| Snow Clone 46003 ×2 (ally, cost 2, [physical])   | THW —, ATK 2★, 2 hit points. Cannot have upgrades attached. Takes 1 less consequential damage after attacking an enemy with Frostbite attached                  | §3.67; Q38        |
+| Power Belt 46004 (cost 2)                        | You get +3 hit points. Hero Resource: exhaust → a [wild] for an ICE card                                                                                        | §3.70             |
+| Cryokinetic Perception 46005 (cost 2)            | Hero Response: after you resolve _"Freeze!"_, exhaust → draw 1; if that card has the ICE trait, ready Iceman                                                    | §3.39, §3.70      |
+| Ice Slide 46006 (cost 2)                         | Iceman gets +1 THW, +1 ATK and +1 DEF and gains AERIAL. Forced Response: after you change to alter-ego form, shuffle it into your deck                          | §3.70             |
+| Frozen Solid 46007 ×2 (cost 3)                   | Hero form only. Attach to an enemy, max 1 per enemy. Forced Interrupt: when it would activate, discard this instead; then attach a set-aside Frostbite          | §3.61, §3.70      |
+| Ice Wall 46008 (support, cost 4)                 | Forced Interrupt: damage an identity would take from an enemy attack is placed here instead; at 8 or more, discard it and Frostbite the attacker                | §3.65, §3.61; Q35 |
+| Arctic Attack 46009 ×2 (cost 2)                  | Hero Action (attack): 4 damage and a set-aside Frostbite, or 6 damage to an enemy with Frostbite attached                                                       | §3.61, §3.70      |
+| Ice Blast 46010 ×2 (cost 3)                      | Hero Action: choose a player; Frostbite the villain and each minion engaged with them; 3 damage to each enemy with a copy attached                              | §3.61, §3.70      |
+| Chill Out! 46011 ×3 (cost 2)                     | Hero Action (thwart): remove 3 threat from a scheme; attach a set-aside Frostbite to an enemy                                                                   | §3.61             |
+| Hot-Headed 46024                                 | Forced Response: after you attach a Frostbite to an enemy, take 1 damage. Alter-Ego Response: after a basic recovery, discard this card                         | §3.61, §3.70      |
+| **Pyro** 46025 (SCH 1, ATK 3★, 4)                | Quickstrike. His attacks deal indirect damage                                                                                                                   | §3.70, §3.68      |
+| Playing with Fire 46026 (3 threat, acceleration) | When Defeated: the defeating player discards the top 3 cards of their deck and takes 1 indirect damage per resource icon discarded                              | §3.70             |
+| Pyro's Flamethrower 46027 (+0★ ATK)              | Attach to Pyro, otherwise surge. Forced Interrupt: when Pyro attacks you, discard the top card of your deck; +1 ATK for this attack per icon on it              | §3.70             |
+| Burn! 46028 ×2 (boost ★)                         | Discard the top 2 cards of your deck (3 with Pyro in play); 1 indirect damage per icon. Boost: discard the top card; +1 boost icon per icon on it               | §3.70             |
+
+- **A turn in numbers.** Iceman attacks the villain (SCH 2, ATK 2): _"Freeze!"_ attaches a copy, Cryokinetic Perception
+  draws Arctic Attack (ICE) and readies him, the attack deals 2, he attacks again for 2 with a second copy. In the
+  villain phase the villain schemes for 0 or attacks for 0 plus its boost icons, and both copies go back.
+- **Hot-Headed** makes every copy cost him 1 damage until he recovers as Bobby Drake. It does not offer the usual flip
+  and exhaust. A copy attached by Frozen Solid's or Ice Wall's forced ability is still attached by him.
+- **The obligation and the nemesis set are his set** for the permanent rule: no card in them removes a Frostbite, so the
+  question does not arise.
+- **Pyro's attack** is divided by the attacked player among the characters they control (RRG p. 24); Frostbite lowers it
+  first, and the part assigned to an identity goes to Ice Wall (§3.65 test 6). His Flamethrower's discard and Burn!'s
+  are ordinary deck discards (§3.70).
+- **The mission (§3.36, §3.38).** None of his cards reads or discards the top of a deck; his nemesis set does, and those
+  discards are not a mission attempt's. Frostbite cannot be attached to an enemy in the mission area (§3.33).
+
+#### The pack's Aggression and basic cards
+
+| Card                                                    | As read                                                                                                                                              | Needs        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Shark-Girl 46012 (Aggression ally, cost 2, [energy])    | THW 0, ATK 2★, 2 hit points. While attacking an enemy she gets +1 ATK per upgrade attached to it                                                     | §3.67        |
+| Glob 46013 (Aggression ally, cost 3, [energy])          | THW 2 (two consequential), ATK 2, 3 hit points. X-MEN identity only. Response: after he enters play, 2 damage to an enemy with an upgrade attached   | §3.67        |
+| Suppressing Fire 46014 ×3 (cost 0)                      | Attach to a minion, max 1 per minion. Hero Interrupt: when you attack and defeat it, heal 2 from your hero                                           | §3.67        |
+| Surprise Move 46015 ×3 (cost 1)                         | Hero Interrupt: on your basic attack against an enemy with an upgrade attached, +2 ATK; if the attack defeats it, ready your hero                    | §3.67        |
+| Take That! 46016 ×3 (cost 3)                            | Hero Action (attack): 7 damage to an enemy with an upgrade attached                                                                                  | §3.67        |
+| Looking for Trouble 46017 ×3                            | reprint of 16043                                                                                                                                     | reprint      |
+| Keep Up the Pressure 46018 (player side scheme, cost 0) | 2 threat per player. Victory 0. When Defeated: each player may search deck and discard pile for an ATTACK event; ATTACK events deal +1 this phase    | §3.70        |
+| Shadowcat 46019 (basic ally, cost 3, [mental])          | THW 2, ATK 1, 3 hit points. X-MEN identity only. Response after you play her from hand: choose a side scheme → it loses its icons until end of round | §3.68, §3.70 |
+| Beak 46020 (basic ally, cost 2, [energy])               | THW 1, ATK 1, 2 hit points. Response after you play him from hand: remove 1 threat from a scheme per X-MEN ally you control                          | §3.70        |
+| Team-Building Exercise 46021 ×3, Recuperation 46022 ×3  | reprints of 12024 and 15031                                                                                                                          | reprint      |
+| The Power in All of Us 46023 ×2                         | reprint of 13024                                                                                                                                     | reprint      |
+
+- **The allies at the mission (§3.34, §3.36).** Icons from the scans: Snow Clone [physical]; Shark-Girl, Glob and Beak
+  [energy]; Shadowcat [mental]. Glob's and Shadowcat's "Play only if" lines bar the play to the mission too. There every
+  one is blank: no Shark-Girl bonus, no Glob, Shadowcat or Beak Response (Beak's and Shadowcat's "after you play … from
+  your hand" would otherwise answer a play to the mission), and Snow Clone's "Cannot have upgrades attached" is gone, so
+  Desperate Measures can go on it. THW and ATK for the attempt: Snow Clone a dash (0) and 2, Shark-Girl 0 and 2, Glob 2
+  and 2, Shadowcat 2 and 1, Beak 1 and 1.
+- **Shadowcat beside the Shadowcat hero, or in a Colossus deck,** is §3.68.
+- **Ally upgrades (§3.59, Q30).** No upgrade of this pack can be attached to an ally: Frostbite and Frozen Solid go on
+  enemies, Suppressing Fire on a minion, the rest on nothing. Suit Up offers none of them. An ally under "Lost" Child is
+  a minion, and Suppressing Fire's printed host is still not "an ally" for Suit Up.
+- **Keep Up the Pressure** is checked against wave 7 §3.1 and §3.2 and needs nothing new: played on its owner's turn for
+  0, 2 threat per player who started, thwarted like a side scheme, one in play in a game of one or two players, Victory
+  0 to the victory display. Its lasting +1 is §3.70.
+
+#### Sauron (the pack's modular set)
+
+| Card                                    | As read                                                                                                                                                                                                                       | Needs |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Sauron 46029 (SCH 2, ATK 2, 6; boost ★) | When Revealed: search the encounter deck and discard pile for Life Drain and reveal it. Boost: heal 3 from the activating enemy and give it a tough status card                                                               | §3.70 |
+| Sauron Lives! 46030 (3 threat, crisis)  | When Defeated: the defeating player searches the encounter deck and discard pile for Sauron and deals him to themself as a facedown encounter card                                                                            | §3.70 |
+| Life Drain 46031 (ATK ★)                | Attach to the minion with the highest printed hit points; it activates against you; surge if none did. Forced Interrupt: when it attacks you, take 2 damage and give it a tough status card                                   | §3.70 |
+| The Eye of Sauron 46032 ×3              | Discard the top 2 cards of your deck (3 with Sauron in play). Per icon: [energy] 1 threat on the main scheme, [mental] discard 1 card from hand, [physical] 1 damage to your identity, [wild] exhaust a character you control | §3.70 |
+
+- Six cards with no scenario of their own: offered as a modular set wherever one is chosen (DoD §5). Sauron Lives! found
+  with Sauron already in play or in the victory display finds nothing.
+- Life Drain's host is chosen among every minion in play, Sauron included when his own When Revealed finds it (6 printed
+  hit points).
+
+**Card data fixes** (for `card-data-pipeline`): Cryokinetic Perception's text ("the ICE trait", scan 46005); the starter
+deck (above); the curation's header comment, which still says the starter deck is not curated and calls
+`auxiliaryHeroSetCodes` Storm's Weather mechanism (the alias is right; the Weather deck's `separateDecks` is not used
+here). Nothing else: Frostbite's record is right as emitted. The checks are in §5.4.
+
+**Deckbuilding (DoD §4b).**
+
+- Bobby Drake prints no deckbuilding line. A legal Iceman deck lists Frostbite ×6 and 40 to 50 other cards; the builder
+  starts a new deck with the six already in it and shows them as set aside, not counted.
+- "Max 2 per deck": The Power in All of Us. "Max 1 per enemy" and "Max 1 per minion" are play restrictions.
+- "Play only if" lines are play restrictions: Glob and Shadowcat may be in any deck.
+- The unique rule in a deck (§3.68 test 1): Iceman without `rogue` 38010; Shadowcat and Colossus without 46019.
+
+### 7.3 Pass 2b: Jubilee
+
+Read 2026-10-07: every raw record 47001a–47034 with the nested alter-ego face; the scans listed in §0.4; the Jubilee
+insert (Hall of Heroes' photo, not in the repo); the printed decklist card and `curation/jubilee.ts` (the starter deck
+and the Grand Finale title are in). **This pass asks for no schema change.**
+
+| Identity                         | Obligation       | Nemesis set (nemesis minion in bold)                                         | Setup, hand size, starter deck                                             |
+| -------------------------------- | ---------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Jubilee / Jubilation Lee (47001) | Grounded (47023) | **Nanny** (47024, toughness), Naughty Children, Battle Suit, "Lost" Child ×2 | No Setup. 5 / 6, THW 1 ATK 1 DEF 2, REC 3, 9 hit points. Justice, 40 cards |
+
+Traits: Jubilee X-MEN; Jubilation Lee MUTANT. Each "Play only if your identity has" line reads the face that is up:
+Synch cannot be played in alter-ego form and X-Gene cannot be played in hero form (once in play its Resource works in
+either). The pack's extra modular set is **Arcade** (`arcade` 47030–47034, "ARCADE (n/5)"). Mutant Mayhem (47028,
+Leadership) and Serve and Protect (47029, Protection) are in the pack and not in the starter deck.
+
+#### Jubilee: different resource types
+
+Her events read how many different resource types paid for them (§3.62). Her hero face makes a [wild], her three
+resource cards print two different icons each, and her signature events come in three versions so that the cards she
+discards pay in different types (§3.69). As Jubilation Lee she fetches Shopping Spree and works it off in alter-ego form
+for an ITEM (§3.66).
+
+| Card                                                            | As read                                                                                                                                                      | Needs           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| Jubilee 47001a, _"Like, totally!"_                              | Resource: exhaust Jubilee → generate a [wild]                                                                                                                | §3.70, §3.62    |
+| Jubilation Lee 47001b, _Mall Rat_                               | Action, once per phase: search your deck for Shopping Spree and put it into play                                                                             | §3.66           |
+| Wolverine 47002 (ally, cost 4, [wild])                          | THW 1, ATK 3★ (two consequential), 4 hit points. His attacks gain piercing. Response: after you change to alter-ego form, heal 3 from him                    | §3.68, §3.70    |
+| Shopping Spree 47003 (player side scheme, cost 0)               | 2 threat. No threat removed by heroes or allies. Alter-Ego Action, any player: exhaust your identity → remove 1. When Defeated: an ITEM into play            | §3.66; Q36      |
+| Jubilee's Coat 47004 (cost 2)                                   | +1 THW. Hero Response (thwart): after you play a THWART event, exhaust and choose a scheme → remove 1 threat per type that paid for the event                | §3.62; Q33, Q34 |
+| Jubilee's Sunglasses 47005 (cost 2)                             | +1 ATK. Hero Response (attack): after you play an ATTACK event, exhaust and choose an enemy → 1 damage per type that paid for the event                      | §3.62; Q33, Q34 |
+| Blinding Flash 47006 (cost 3)                                   | Hero Action: choose X enemies, X the number of types that paid; stun and confuse each                                                                        | §3.62; Q33, Q34 |
+| Firecracker 47007a/b/c (cost 2; [energy], [mental], [physical]) | Hero Action (attack): 4 damage to an enemy; stun it if 2 different types paid                                                                                | §3.62, §3.69    |
+| Flash of Light 47008a/b/c (cost 2; the same three icons)        | Hero Action (thwart): remove 3 threat from a scheme; confuse an enemy if 2 different types paid                                                              | §3.62, §3.69    |
+| Grand Finale 47009 (cost 3)                                     | Hero Action (attack): 2 damage to an enemy; per type that paid, choose an enemy and deal 2                                                                   | §3.62; Q33, Q34 |
+| Plasmoid Energy 47010a/b/c                                      | A resource card with two icons and no text: [energy][mental], [energy][physical], [mental][physical]                                                         | §3.69, data     |
+| Grounded 47023                                                  | To change to hero form during your turn, also spend 2 resources of one type. When Revealed: change to alter-ego form. Removed after you play a Jubilee event | §3.63; Q37      |
+| **Nanny** 47024 (SCH 2, ATK 1★, 4)                              | Toughness. Forced Response: after she attacks you, if you control an ally, search for a copy of "Lost" Child and reveal it                                   | §3.70           |
+| Naughty Children 47025 (2 threat, crisis)                       | When Revealed: 1 threat here per different resource type on cards in your hand                                                                               | §3.70           |
+| Battle Suit 47026 (+1 ATK)                                      | Attach to the minion with the fewest remaining hit points, otherwise surge. +3 hit points and AERIAL                                                         | §3.70           |
+| "Lost" Child 47027 ×2 (−1 SCH)                                  | The ally with the highest cost becomes a REGRESSED minion with a blank text box, SCH from its printed THW, engaged with its controller; otherwise surge      | §3.70           |
+
+- **The three versions** are one card each under three records; the decision is §3.69. Each is in her deck once.
+- **A payment in numbers.** Grand Finale (cost 3) paid with Plasmoid Energy 47010a and Flash of Light 47008c: three
+  types, 8 damage. Flash of Light paid with _"Like, totally!"_ and any card: two types, an enemy confused, and the Coat
+  removes 2 more.
+- **_"Like, totally!"_** is on the hero face: she exhausts, so she cannot also thwart, attack or defend with that
+  exhaust. It cannot pay Grounded's cost (alter-ego form).
+- **Wolverine** is hers and matches the Wolverine hero (§3.68). His heal is a Response of his own and resolves beside
+  the form change's other responses; Grounded's forced change to alter-ego form triggers it.
+- **Shopping Spree and Generation X** share the limit of one player side scheme in a game of one or two players (wave 7
+  §3.2): _Mall Rat_ beside Generation X makes the first player discard one.
+- **Naughty Children** counts printed types across her hand, a wild as its own type: a hand of 47010a, 47007c and The
+  Power of Justice is 4.
+- **"Lost" Child** on Wolverine: a REGRESSED minion with SCH 0 (THW 1 less 1) and ATK 3, engaged with her, blank, with
+  no consequential damage and no piercing. Defeated, the ally goes to its owner's discard pile.
+- **The mission (§3.36, §3.38).** None of her cards reads or discards the top of a deck. Her allies' icons are in the
+  next list.
+
+#### The pack's Justice, basic and off-aspect cards
+
+| Card                                            | As read                                                                                                                                                   | Needs           |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Chamber 47011 (Justice ally, cost 4, [energy])  | THW 2, ATK 2★, 3 hit points. Takes 1 less consequential damage after he attacks a confused enemy                                                          | §3.67; Q38      |
+| Husk 47012 (Justice ally, cost 4, [physical])   | THW 2★, ATK 2★, 3 hit points. Interrupt on her basic power: spend up to 3 resources → [energy] +1 to it, [mental] heal 1 from her, [physical] ready after | §3.62; Q33      |
+| Disguise 47013 ×3 (cost 1)                      | Play under any player's control, max 1 per player. Action (thwart): exhaust it and your identity → remove 2 threat from a scheme                          | §3.70, §3.66    |
+| Waylay 47014 ×3 (cost 3)                        | Hero Response (attack): after your hero thwarts, 4 damage to an enemy; 7 if that thwart removed the last threat from a scheme                             | §3.70           |
+| Three Steps Ahead 47015 ×3 (cost 3)             | Hero Action (thwart): per type that paid, choose a scheme and remove 2 threat                                                                             | §3.62; Q33, Q34 |
+| Generation X 47016 (player side scheme, cost 0) | 3 threat per player. Victory 0. X-MEN characters get +1 THW on a basic thwart against it. When Defeated: each player may fetch an identity-specific event | §3.70           |
+| The Power of Justice 47017 ×2                   | reprint of 01062                                                                                                                                          | reprint         |
+| Synch 47018 (basic ally, cost 3, [energy])      | THW 1, ATK 1, 3 hit points. X-MEN identity only. Interrupt: when you use a basic power, exhaust him → +1 to that power for this use                       | §3.70           |
+| Cell Phone 47019 ×3 (cost 2)                    | Uses (3 charge counters). Action: exhaust, spend 1 and choose a player → they make a basic attack or thwart with a character, at +1 THW and +1 ATK        | §3.64           |
+| X-Gene 47020 ×3                                 | reprint of 38019                                                                                                                                          | reprint         |
+| Multitalented 47021 ×3 (cost 3)                 | Hero Action (attack/thwart): if paid with at least 1 [physical], 2 damage; [mental], remove 2 threat; [energy], heal 2 from your identity                 | §3.62; Q33      |
+| Unlikely Duo 47022 (cost 2)                     | Team-Up (Jubilee and Wolverine). Max 1 per deck. Hero Action (attack): confuse an enemy; 4 damage to a confused enemy                                     | §3.68           |
+| Mutant Mayhem 47028 ×3 (Leadership, cost 3)     | Alliance. Hero Action: return an X-FORCE ally and an X-MEN ally to their owners' hands → those players play them for nothing                              | §3.70           |
+| Serve and Protect 47029 ×3 (Protection, cost 2) | Alliance. Hero Interrupt: when threat would be placed on the main scheme, exhaust an X-FORCE and an X-MEN character → prevent it; a tough card each       | §3.70; Q40      |
+
+- **The allies at the mission (§3.34, §3.36).** Icons from the scans: Wolverine [wild]; Chamber and Synch [energy]; Husk
+  [physical]. Synch's "Play only if" line bars the play to the mission too. There each is blank: no piercing and no heal
+  for Wolverine, no Husk Interrupt, no Synch, Chamber takes his full consequential damage (none is dealt there anyway:
+  an attempt deals 1 to each ally). THW and ATK for the attempt: Wolverine 1 and 3, Chamber 2 and 2, Husk 2 and 2, Synch
+  1 and 1.
+- **Ally upgrades (§3.59, Q30).** No upgrade of this pack prints an "attach to": Disguise is played under a player's
+  control, the rest are their controller's. Suit Up offers none of them.
+- **Unlikely Duo** is the wave's one Team-Up card (`docs/team-ups.md`, pair folder `jubilee-wolverine`). One copy is in
+  her starter deck; the pack's second is for a Wolverine deck (§3.68). The confused enemy that takes the damage is the
+  attack's target and obeys guard; the enemy that is confused need not be the same one.
+- **Disguise in alter-ego form** is a thwart by an identity that is not a hero, which is what lets it work on Shopping
+  Spree (§3.66 test 4). It is still a thwart: a confused identity loses the confused card instead.
+- **Waylay after Flash of Light:** the event is a thwart by her hero, so Waylay answers it; if Flash of Light took the
+  last threat off a scheme, 7 damage.
+- **Generation X** is checked against wave 7 §3.1 and §3.2 and needs nothing new. "An identity-specific event" is an
+  event of the searching player's own identity set (any player's deck holds only its own).
+- **Mutant Mayhem and Serve and Protect** need an X-FORCE card and an X-MEN card in play; the alliance keyword lets the
+  other players pay toward them (RRG p. 6). Neither is in a starter deck of the wave.
+
+#### Arcade (the pack's modular set)
+
+| Card                                            | As read                                                                                                                                              | Needs |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Arcade 47030 (SCH 2, ATK 2, 3)                  | Cannot take damage while a TRAP! side scheme is in play. When Revealed: discard from the encounter deck until a TRAP! side scheme; reveal it         | §3.70 |
+| Welcome to Murderworld 47031 (2 threat, hazard) | Hinder 1 per player. When Defeated: the defeating player takes 2 damage                                                                              | §3.70 |
+| Arcade's Funhouse 47032 (2 threat, amplify)     | Hinder 1 per player. When Defeated: the defeating player is stunned; already stunned, they discard an ally or upgrade they control                   | §3.70 |
+| Hall of Mirrors 47033 (2 threat, crisis)        | Hinder 1 per player. When Defeated: the defeating player is confused; already confused, 2 threat on the main scheme                                  | §3.70 |
+| Elaborate Trap 47034                            | Resolve the When Defeated ability of each TRAP! side scheme as if you defeated it; if none resolved, discard until a TRAP! side scheme and reveal it | §3.70 |
+
+- Five cards, offered as a modular set wherever one is chosen (DoD §5). Each TRAP! scheme enters play with 2 + 1 per
+  player threat.
+- "The player who defeated this side scheme" is the player whose effect removed the last threat (`defeatingPlayer`, as
+  every earlier When Defeated reads it). Under Elaborate Trap it is the revealing player.
+- A permanent upgrade (a Frostbite, a Psi-Knife) is not a legal pick for Arcade's Funhouse's discard (RRG p. 32).
+
+**Card data fixes** (for `card-data-pipeline`): none in the card records. A `cardNotes` line on each of the nine version
+records (§3.69); an ability id for Grounded's constant line, which the emitted record does not carry (its three ids are
+the obligation, the When Revealed and the Response); the insert's victory sentence noted on Shopping Spree (§0.4).
+Unlikely Duo stays `quantityInSet: 2`, `deckLimit: 1`, one copy in the starter deck. The checks are in §5.4.
+
+**Deckbuilding (DoD §4b).**
+
+- Jubilation Lee prints no deckbuilding line. Her starter deck is 40 cards: 15 Jubilee (the nine version records among
+  them), 14 Justice, 11 basic.
+- "Max 1 per deck": Unlikely Duo. "Max 2 per deck": The Power of Justice. "Max 1 per player" (Disguise, X-Gene) is a
+  play restriction.
+- Team-Up: Unlikely Duo only in a Jubilee or a Wolverine deck.
+- "Play only if" lines are play restrictions: Synch and X-Gene may be in any deck.
+- The three versions (§3.69 tests 1 to 4) and the unique rule (§3.68 test 1: Jubilee without `mut_gen` 32041).
