@@ -161,7 +161,17 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         // first match, as for the deck (docs/phase7-wave6-handoff.md §3.76).
         ids.push(...(selector.topmostOnly ? pool.slice(0, 1) : pool));
       }
-      return ids;
+      if (!selector.random) return ids;
+      // Random picks draw on the game's seeded RNG, so a replay picks the same cards.
+      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
+      const picked: InstanceId[] = [];
+      for (let i = 0; i < count && ids.length > 0; i++) {
+        const [index, rng] = nextInt(ctx.state.rng, ids.length);
+        ctx.state = { ...ctx.state, rng };
+        picked.push(ids[index] as InstanceId);
+        ids.splice(index, 1);
+      }
+      return picked;
     }
     case "encounterSetAside": {
       const matching = [...filtered(state.encounterSetAside, selector.filter)];

@@ -67,6 +67,11 @@ export const AOA_ENCOUNTER_SETS: readonly EncounterSet[] = [
   },
   { id: encounterSetId("prelates"), name: "Prelates", packCodes: [setCode("aoa")] },
   { id: encounterSetId("savage_land"), name: "Savage Land", packCodes: [setCode("aoa")] },
-  { id: encounterSetId("standard_iii"), name: "Standard III", packCodes: [setCode("aoa")] },
+  {
+    id: encounterSetId("standard_iii"),
+    name: "Standard III",
+    packCodes: [setCode("aoa")],
+    classification: "standard",
+  },
   { id: encounterSetId("unus"), name: "Unus", packCodes: [setCode("aoa")] },
 ];

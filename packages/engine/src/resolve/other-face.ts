@@ -26,7 +26,7 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
 import { cardsInPlay, controllerOf } from "../select.js";
-import type { HostStep, TriggerEvent } from "../trigger-events.js";
+import { cardFlippedEvent, type HostStep, type TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
 import { announceNewFaceEntersPlay, eventFrame, pushEvents } from "./frames.js";
 import { NO_STATUSES } from "../state.js";
@@ -38,13 +38,21 @@ export function flipToOtherFace(
   playerId: PlayerId,
   deps: EngineDeps = ctx.deps,
   reveal = false,
+  /** The player whose effect flipped the card (`cardFlipped.playerId`); `playerId` is who the new face goes to. */
+  flippedBy: PlayerId | null = null,
 ): boolean | "waiting" {
   const from = cardOf(ctx.state, id);
   const otherId: CardId | undefined = from?.otherFaceId;
   const to = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
   if (!from || !to) return false;
   const typeChanged = from.type !== to.type;
-  const hostStep: HostStep = { kind: "flipToOtherFace", id, playerId, ...(reveal ? { reveal: true } : {}) };
+  const hostStep: HostStep = {
+    kind: "flipToOtherFace",
+    id,
+    playerId,
+    ...(reveal ? { reveal: true } : {}),
+    ...(flippedBy ? { flippedBy } : {}),
+  };
   // Its attachments are discarded: their "when this leaves play" interrupts first, with it unflipped (§4.1 Q32 of
   // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
   if (typeChanged && waitsForHostStep(ctx, [id], hostStep)) return "waiting";
@@ -73,7 +81,7 @@ export function flipToOtherFace(
   }));
   emit(ctx, { type: "cardFlippedToOtherFace", instanceId: id, from: from.id, to: to.id, typeChanged });
   if (typeChanged) relocate(ctx, id, to, playerId, deps);
-  const flippedFrame = reveal ? [eventFrame(ctx, { kind: "cardFlipped", instanceId: id })] : [];
+  const flippedFrame = reveal ? [eventFrame(ctx, cardFlippedEvent(id, flippedBy))] : [];
   if (!cardsInPlay(ctx.state).includes(id)) {
     pushFrames(ctx, flippedFrame);
     return true;

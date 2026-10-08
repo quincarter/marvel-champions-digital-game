@@ -66,7 +66,7 @@ import {
   resourcesChoiceOf,
 } from "./abilities.js";
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
-import { carriedByEvent, type TriggerEvent } from "./trigger-events.js";
+import { cardFlippedEvent, carriedByEvent, type TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { attackKeywordsOf, canTakeStatus, hasKeyword, statusActive } from "./keywords.js";
 import {
@@ -2690,7 +2690,7 @@ export function payCost(
   // "Flip this card →": announced above the frame being paid for, as any flip is (docs/phase7-wave7.md §3.64).
   if (cost.flipSelf) {
     turnToFlipSide(ctx, sourceId);
-    pushEvents(ctx, [{ kind: "cardFlipped", instanceId: sourceId }]);
+    pushEvents(ctx, [cardFlippedEvent(sourceId, playerId)]);
     checkRestrictedAfterFlip(ctx, sourceId);
   }
   if (cost.spendCounters) {

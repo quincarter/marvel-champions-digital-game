@@ -62,31 +62,11 @@ const boostPursuit = () => boost(atEndOfActivation(pursuit()));
 /** "After you flip to this side" (a card of two faces: only a flip reaches the back). */
 const flipsToThisSide: EventPattern = { on: "cardFlipped", selfIs: "target" };
 
-/**
- * Pursued by the Past, side B (45075b), written but not registered. Its Forced Response answers `cardFlipped`, an event
- * that names no player, so "your" nemesis minion, side scheme and set (`you`) are unbound when it resolves and it finds
- * nothing, reveals nothing and shuffles nothing (even Core's Shadow of the Past steps find nothing here). Registered, the
- * flip to this side would do nothing at all. See `STANDARD_III_SKIPPED`.
- */
-export const STANDARD_III_UNREGISTERED: AbilityRegistry = defineAbilities({
-  // Forced Response: after you flip to this side, find your nemesis minion and reveal it. Search the set-aside area for
-  // your nemesis side scheme and reveal it. Shuffle your remaining set-aside nemesis set into the encounter deck. Flip
-  // this card over. (Each step names the nemesis set, as Core's Shadow of the Past does.)
-  "45075b.pursued-by-the-past-forced-response": forcedResponse(
-    flipsToThisSide,
-    revealCard(find(YOUR_NEMESIS_MINION), you),
-    selectCards("nemesisScheme", setAside(you, query("sideScheme", { nemesisSideSchemeOf: you }))),
-    revealCard(chosen("nemesisScheme"), you),
-    moveCards(setAside(you, { nemesisSetOf: you }), "encounterDeckShuffle"),
-    flipCard(self),
-  ),
-});
+/** Refs written but not registered. None: side B's Forced Response is registered now that a flip names its player. */
+export const STANDARD_III_UNREGISTERED: AbilityRegistry = defineAbilities({});
 
-/** Refs left unregistered, with the engine gap that holds each back. */
-export const STANDARD_III_SKIPPED: Readonly<Record<string, string>> = {
-  "45075b.pursued-by-the-past-forced-response":
-    "the cardFlipped event carries no player, so `you` (whose nemesis to find) is unbound when a flip answers it; the engine would have to name the player whose effect flipped the card (docs/phase7-wave8.md §2.5 'You is the player whose card placed the counter')",
-};
+/** Refs left unregistered, with the engine gap that holds each back. None. */
+export const STANDARD_III_SKIPPED: Readonly<Record<string, string>> = {};
 
 /**
  * Standard III (Age of Apocalypse, docs/phase7-wave8.md §2.5, §3.6, §4.1 Q2, Q3), an alternative to the Standard set.
@@ -98,8 +78,10 @@ export const STANDARD_III_SKIPPED: Readonly<Record<string, string>> = {
  * Placing several counters at once is one placement and one check. The "remove each counter" arrow is read as the
  * first effect: it is always payable, since the Forced Response only runs with at least 3 more counters than players.
  *
- * Pursued by the Past's side B (45075b) is not registered: see `STANDARD_III_UNREGISTERED`. Side A still resets and flips;
- * today the card then stays on side B and nothing else happens.
+ * Side B (45075b) answers the flip to it. The flip names the player whose effect flipped the card (`cardFlipped.playerId`),
+ * and side A's Forced Response resolves as the player who placed the counter, so side B's "you" is that same player:
+ * their nemesis minion, their nemesis side scheme, their set. Environments flip, they are not revealed (ruling June 25,
+ * 2026 – Ruling 4 (3)), so neither flip is a reveal.
  *
  * Cards (6):
  * - 45075a Pursued by the Past (environment)
@@ -119,6 +101,17 @@ export const STANDARD_III: AbilityRegistry = defineAbilities({
       removeEachCounterFrom(self, PURSUIT),
       ifThen(exists(YOUR_NEMESIS_MINION), enemyActivates(each(YOUR_NEMESIS_MINION), { against: you }), flipCard(self)),
     ]),
+  ),
+  // Pursued by the Past, side B — Forced Response: after you flip to this side, find your nemesis minion and reveal it.
+  // Search the set-aside area for your nemesis side scheme and reveal it. Shuffle your remaining set-aside nemesis set
+  // into the encounter deck. Flip this card over. (Each step names the nemesis set, as Core's Shadow of the Past does.)
+  "45075b.pursued-by-the-past-forced-response": forcedResponse(
+    flipsToThisSide,
+    revealCard(find(YOUR_NEMESIS_MINION), you),
+    selectCards("nemesisScheme", setAside(you, query("sideScheme", { nemesisSideSchemeOf: you }))),
+    revealCard(chosen("nemesisScheme"), you),
+    moveCards(setAside(you, { nemesisSetOf: you }), "encounterDeckShuffle"),
+    flipCard(self),
   ),
   // Dark Designs — When Revealed: place 1 pursuit counter on Pursued by the Past. Then, if it has any counters on it,
   // the villain schemes. [star] Boost: after this activation resolves, place 1 pursuit counter on it.

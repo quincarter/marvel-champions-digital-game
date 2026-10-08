@@ -1,5 +1,6 @@
 import type { AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
 import {
+  addVillain,
   anyOf,
   boost,
   chooseTarget,
@@ -10,20 +11,31 @@ import {
   defineAbilities,
   discard,
   each,
+  eachPlayer,
+  encounterCards,
+  encounterSetAside,
   enemyActivates,
+  forEachPlayer,
   forcedResponse,
   gainsKeyword,
   giveTough,
   heal,
   identityOf,
   ifThen,
+  moveActiveCounterToNextInRow,
   moveCards,
   named,
   on,
   query,
   remainingHpOf,
+  revealCard,
   rule,
+  selectCards,
   self,
+  setActiveVillain,
+  setup,
+  shuffleEncounterDeck,
+  thatPlayer,
   topOfDeck,
   valueAtLeast,
   whenDefeated,
@@ -37,10 +49,18 @@ import {
  * two attachments and five treacheries.
  *
  * Registered: the eight villain faces (a Forced Response and the "cannot be defeated" constant each, except
- * Pestilence's Forced Response), the four Horseman treacheries (When Revealed and Boost), Ravages of War, A Time of
- * Famine, The Specter of Death, and Metal Wings' retaliate. Skipped (`FOUR_HORSEMEN_SKIPPED`): everything that waits
- * on the villain row (engine queue task 20), the considered hit points floor (task 21), resolving a Forced Response
- * as if it just attacked (task 22) or a blank text box that lasts until the next villain phase begins (task 23).
+ * Pestilence's Forced Response), the main scheme's 1A Setup and 1B Forced Response, the four Horseman treacheries (When
+ * Revealed and Boost), Ravages of War, A Time of Famine, The Specter of Death, and Metal Wings' When Revealed and
+ * retaliate. Skipped (`FOUR_HORSEMEN_SKIPPED`): the considered hit points floor (task 21), resolving a Forced Response
+ * as if it just attacked (task 22) and a blank text box that lasts until the next villain phase begins (task 23).
+ *
+ * The row (docs/phase7-wave8.md §3.7, §3.8). 1A's Setup shuffles the four set-aside Horsemen into a row
+ * (`addVillain` with `row: "shuffled"`: `GameState.villainRow`, logged `villainRowSet`) and the leftmost takes the
+ * active counter; then each player, in player order, reveals a random side scheme of the set from the encounter deck,
+ * which is shuffled once afterward (RRG 1.8 "Search", p. 39). 1B hears every villain activation, the villain phase's
+ * and one a treachery or boost ability starts, and moves the counter one place along the row from the villain that
+ * holds it, whichever villain activated (§4.1 Q5 = A, the owner's decision). A stunned or confused villain did not
+ * activate (RRG 1.8 "Stun, Stunned", p. 41; "Confused", p. 13), so the counter stays (§4.1 Q4 = A).
  *
  * "Another villain has at least 1 hit point" is read live from the other three Horsemen by title (`named`: a villain
  * not in play reads 0). It reads `remainingHp`, so the floor of Golden Horse and Metal Wings (task 21) reaches it
@@ -49,8 +69,8 @@ import {
  * Horseman of War / Famine / Pestilence / Death: the When Revealed heals 2, gives a tough status card and starts the
  * activation (`enemyActivates`, against the player who revealed it). The Boost queues the second activation behind
  * the one it was drawn for, with no boost card (`afterCurrentActivation`, `noBoost`; Hellfire 49042 is the same
- * shape). The active counter is not touched here: it is 1B's job (45085b, skipped) and, per Q5 = A, moves one
- * position from the villain that holds it.
+ * shape). The active counter is not touched here: it is 1B's job (45085b) and, per Q5 = A, moves one position from the
+ * villain that holds it.
  *
  * Cards (20):
  * - 45081a War (villain)
@@ -129,11 +149,34 @@ const horsemanWhenRevealed = (title: Horseman) =>
 const horsemanBoost = (title: Horseman) =>
   boost(enemyActivates(named(title), { against: you, afterCurrentActivation: true, noBoost: true }));
 
+/** A side scheme of this set still in the encounter deck. */
+const HORSEMEN_SIDE_SCHEME = query("sideScheme", { inEncounterSet: "four_horsemen" });
+
 const ANY_UPGRADE_OR_SUPPORT_OF_DEFEATER = query(["upgrade", "support"], { controlledBy: defeatingPlayer });
 
 export const FOUR_HORSEMEN: AbilityRegistry = defineAbilities({
   ...villainFace("a"),
   ...villainFace("b"),
+
+  // The Horsemen of Apocalypse 1A — Setup: Shuffle the four Horsemen villains, then reveal them in a row from left to
+  // right. Place the active counter on the leftmost villain. Each player reveals a random side scheme from the Four
+  // Horsemen encounter set.
+  "45085a.setup": setup(
+    selectCards("horsemen", encounterSetAside(query("villain"))),
+    addVillain(chosen("horsemen"), { row: "shuffled" }),
+    forEachPlayer(
+      eachPlayer,
+      selectCards("scheme", encounterCards(["deck"], HORSEMEN_SIDE_SCHEME, { random: 1 })),
+      revealCard(chosen("scheme"), thatPlayer),
+    ),
+    shuffleEncounterDeck(),
+  ),
+  // 1B — Forced Response: After a villain activates, move the active counter to the next villain. ("If this stage is
+  // completed, the players lose the game" is data.) Always one place from the villain holding the counter (Q5 = A).
+  "45085b.the-horsemen-of-apocalypse-forced-response": forcedResponse(
+    on.enemyActivates(query("villain")),
+    moveActiveCounterToNextInRow,
+  ),
 
   // The Ravages of War — When Defeated: the player who defeated this scheme discards an upgrade or support they control.
   "45086.when-defeated": whenDefeated(
@@ -147,11 +190,14 @@ export const FOUR_HORSEMEN: AbilityRegistry = defineAbilities({
   "45089.when-defeated": whenDefeated(dealDamage(1, each(query("character", { controlledBy: defeatingPlayer })))),
 
   // Metal Wings — "Death gains retaliate 1" (the retaliate half of the card's one -constant ref, which also prints the
-  // hit point floor of FLOOR_WAITS: engine task 21, not scripted here). "Move the active counter to him" is the
-  // separate 45091.when-revealed ref, skipped below. Attached to Death, so the host.
+  // hit point floor of FLOOR_WAITS: engine task 21, not scripted here). Attached to Death, so the host.
   "45091.metal-wings-constant": constant(
     gainsKeyword({ name: "retaliate", value: 1 }, query("villain", { hostOfSelf: true })),
   ),
+
+  // "Attach to Death and move the active counter to him." The attaching is the card's `attachesTo` (data); the counter
+  // goes straight to Death, wherever he sits in the row (`setActiveVillain`, not a step along it).
+  "45091.when-revealed": whenRevealed(setActiveVillain(named("Death"))),
 
   "45092.when-revealed": horsemanWhenRevealed("War"),
   "45092.boost": horsemanBoost("War"),
@@ -193,13 +239,8 @@ export const FOUR_HORSEMEN_SKIPPED: Readonly<Record<string, string>> = {
   "45083a.pestilence-forced-response": PESTILENCE_WAITS,
   "45083b.pestilence-forced-response": PESTILENCE_WAITS,
   "45088.when-defeated": PESTILENCE_WAITS,
-  "45085a.setup":
-    "waits on engine queue task 20 (3.7): GameState.villainRow and a random order (villainRowSet) for the four set-aside Horsemen, and each player revealing a random side scheme of the set (3.15, exists) in step 12a",
-  "45085b.the-horsemen-of-apocalypse-forced-response":
-    "waits on engine queue task 20 (3.7): moveActiveCounter { to: nextInRow }, one position along the row from the villain that holds the counter (Q5 = A); the existing nextInActivationOrder reads printed activation orders the Horsemen do not have",
   "45090.golden-horse-constant": `the Aerial trait is expressible, but the same constant carries the floor: ${FLOOR_WAITS}`,
   "45090.golden-horse-response": FORCED_AS_IF_WAITS,
-  "45091.when-revealed": "waits on engine task 20 (villainRow / setActiveVillain)",
   "45091.metal-wings-response": FORCED_AS_IF_WAITS,
   "45096.when-revealed": `${FORCED_AS_IF_WAITS}; also task 20 (moving the counter to the next villain in the row) and the asIf floor of 1`,
 };

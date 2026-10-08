@@ -27,10 +27,11 @@ import {
   playerOrder,
   villainOf,
 } from "../query.js";
-import { nextInt } from "../rng.js";
+import { nextInt, shuffle } from "../rng.js";
 import { cardsInPlay } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { StackFrame } from "../stack.js";
+import type { HostStep } from "../trigger-events.js";
 import {
   NO_STATUSES,
   type CardInstance,
@@ -412,10 +413,23 @@ export function addVillains(
   area: GameAreaState | null,
   reveal: boolean,
   actingPlayerId: PlayerId,
+  /** `addVillain.row`: the villains enter in a shuffled order and form `GameState.villainRow` (wave 8 §3.7). */
+  row?: "shuffled",
 ): { readonly frames: readonly StackFrame[]; readonly entered: readonly InstanceId[] } {
   const frames: StackFrame[] = [];
   const entered: InstanceId[] = [];
-  for (const id of ids) {
+  const entering = ids.filter((id) => {
+    const existing = villainOf(ctx.state, id);
+    return ctx.state.encounterSetAside.includes(id) && !(existing && !existing.defeated);
+  });
+  // "Shuffle the … villains, then reveal them in a row from left to right": the seeded RNG decides the order.
+  let order: readonly InstanceId[] = entering;
+  if (row === "shuffled" && entering.length > 0) {
+    const [shuffled, rng] = shuffle(entering, ctx.state.rng);
+    ctx.state = { ...ctx.state, rng, villainRow: ctx.state.villainRow ?? [] };
+    order = shuffled;
+  }
+  for (const id of order) {
     const existing = villainOf(ctx.state, id);
     if (!ctx.state.encounterSetAside.includes(id) || (existing && !existing.defeated)) continue;
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
@@ -443,6 +457,10 @@ export function addVillains(
         ? ctx.state.villains.map((v) => (v.instanceId === id ? villain : v))
         : [...ctx.state.villains, villain],
       encounterSetAside: ctx.state.encounterSetAside.filter((other) => other !== id),
+      // Where villains sit in a row, one entering play joins at the right end (docs/phase7-wave8.md §3.7).
+      ...(ctx.state.villainRow && !ctx.state.villainRow.includes(id)
+        ? { villainRow: [...ctx.state.villainRow, id] }
+        : {}),
     };
     entered.push(id);
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
@@ -464,9 +482,21 @@ export function addVillains(
     else if (ctx.state.villainsEnteringAtSetup)
       ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };
   }
+  if (row === "shuffled" && ctx.state.villainRow && entered.length > 0) {
+    emit(ctx, { type: "villainRowSet", order: ctx.state.villainRow });
+    // "Place the active counter on the leftmost villain" (MC45 p. 11).
+    const [leftmost] = ctx.state.villainRow;
+    if (leftmost && !area) setActiveVillain(ctx, leftmost, "effect");
+  }
   // RRG 1.8 Appendix II step 11 (p. 51): a setup-keyword attachment that found no villain in play now has one.
   if (entered.length > 0) waitingSetupCardsEnterPlay(ctx);
   return { frames, entered };
+}
+
+/** A villain that leaves play leaves the row (`GameState.villainRow`; docs/phase7-wave8.md §3.7). */
+export function leaveVillainRow(ctx: Ctx, id: InstanceId): void {
+  if (ctx.state.villainRow?.includes(id))
+    ctx.state = { ...ctx.state, villainRow: ctx.state.villainRow.filter((other) => other !== id) };
 }
 
 /**
@@ -492,6 +522,7 @@ export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
       victoryDisplay: ctx.state.victoryDisplay.filter((other) => other !== id),
       encounterSetAside: [...ctx.state.encounterSetAside, id],
     };
+    leaveVillainRow(ctx, id);
     updateInstance(ctx, id, (i) => ({
       ...i,
       damage: 0,
@@ -537,6 +568,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
       ...ctx.state,
       villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, defeated: true } : v)),
     };
+    leaveVillainRow(ctx, id);
     for (const area of ctx.state.gameAreas.filter((a) => a.villainIds.includes(id))) {
       // It stays listed in its area (out of play, like a defeated villain), so text resolving for it still knows where.
       updateArea(ctx, area.areaId, (a) => ({
@@ -595,6 +627,8 @@ export function flipMainSchemeStage(
   schemeId: InstanceId,
   reveal: boolean,
   playerId: PlayerId,
+  /** The player whose effect flipped it (`cardFlipped.playerId`), carried on the waiting step. */
+  flippedBy: PlayerId | null = null,
 ): readonly StackFrame[] | false | "waiting" {
   const scheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === schemeId);
   if (!scheme || ctx.state.gameAreas.some((a) => a.mainScheme?.instanceId === schemeId)) return false;
@@ -606,7 +640,14 @@ export function flipMainSchemeStage(
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const [promoted, ...rest] = extras;
   if (central && !promoted) return false;
-  if (waitsForHostStep(ctx, [schemeId], { kind: "flipMainSchemeStage", schemeId, reveal, playerId })) return "waiting";
+  const hostStep: HostStep = {
+    kind: "flipMainSchemeStage",
+    schemeId,
+    reveal,
+    playerId,
+    ...(flippedBy ? { flippedBy } : {}),
+  };
+  if (waitsForHostStep(ctx, [schemeId], hostStep)) return "waiting";
   ctx.state = central
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };

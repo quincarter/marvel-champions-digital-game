@@ -47,7 +47,7 @@ import {
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
-import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
+import { flipMainSchemeStage, leaveAreaOnDefeat, leaveVillainRow, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
 import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
@@ -761,6 +761,7 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
     // docs/phase7-wave4.md §3.7). A defeated villain is out of play either way.
     const toVictoryDisplay = hasKeyword(ctx.state, villainId, "victory", ctx.deps);
     updateVillain(ctx, villainId, (v) => ({ ...v, defeated: true }));
+    leaveVillainRow(ctx, villainId);
     if (toVictoryDisplay) ctx.state = { ...ctx.state, victoryDisplay: [...ctx.state.victoryDisplay, villainId] };
     emit(ctx, { type: "characterDefeated", instanceId: villainId, cardId: villain.cardId });
     pushFrames(ctx, whenDefeated);

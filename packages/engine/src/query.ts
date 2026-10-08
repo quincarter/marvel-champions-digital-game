@@ -189,6 +189,22 @@ export function nextVillainInActivationOrder(state: GameState, fromId: InstanceI
   return (candidates.find((c) => c.order > current) ?? candidates[0]!).id;
 }
 
+/**
+ * The villain one place to the right of `fromId` in `GameState.villainRow`, wrapping from the rightmost to the leftmost
+ * (MC45 p. 11; docs/phase7-wave8.md §3.7). Only villains in play sit in the row. Null when there is no row, the row is
+ * empty, or `fromId` is the only villain in it ("with one villain in the row it stays"). When `fromId` is not in the row
+ * (the counter's holder left play, or nobody holds it), the leftmost.
+ */
+export function nextVillainInRow(state: GameState, fromId: InstanceId | null): InstanceId | null {
+  const row = (state.villainRow ?? []).filter((id) => villainOf(state, id)?.defeated === false);
+  const [leftmost] = row;
+  if (leftmost === undefined) return null;
+  const at = fromId === null ? -1 : row.indexOf(fromId);
+  if (at < 0) return leftmost;
+  if (row.length === 1) return null;
+  return row[(at + 1) % row.length] ?? null;
+}
+
 /** "A villain": every villain still in play, in printed order. */
 export const undefeatedVillains = (state: GameState): readonly VillainState[] =>
   state.villains.filter((villain) => !villain.defeated);

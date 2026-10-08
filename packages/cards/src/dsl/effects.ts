@@ -1108,10 +1108,10 @@ export const cards = (ref: TargetRef, filter?: TargetQuery): CardSelector => ({
 export const encounterCards = (
   zones: readonly ("deck" | "discard")[],
   filter?: TargetQuery,
-  topOrOpts?: Amount | { readonly top?: Amount; readonly topmostOnly?: boolean },
+  topOrOpts?: Amount | { readonly top?: Amount; readonly topmostOnly?: boolean; readonly random?: Amount },
   deckOf?: TargetRef,
 ): CardSelector => {
-  const opts: { readonly top?: Amount; readonly topmostOnly?: boolean } =
+  const opts: { readonly top?: Amount; readonly topmostOnly?: boolean; readonly random?: Amount } =
     topOrOpts === undefined
       ? {}
       : typeof topOrOpts === "number" || "kind" in topOrOpts
@@ -1124,6 +1124,8 @@ export const encounterCards = (
     ...(opts.top !== undefined ? { top: amount(opts.top) } : {}),
     ...(deckOf ? { deckOf } : {}),
     ...(opts.topmostOnly ? { topmostOnly: true } : {}),
+    // "A random [X] from the encounter deck" (docs/phase7-wave8.md §3.15): that many of the matches, by the seeded RNG.
+    ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
   };
 };
 /** Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). */
@@ -2106,14 +2108,20 @@ export const endGame = (
   return { kind: "endGame", result, ...(why ? { reason: why } : {}) };
 };
 /** "Add [villain] to the game area" (docs/phase7-wave2.md §3.4). */
+/**
+ * `row: "shuffled"`: "Shuffle the … villains, then reveal them in a row from left to right. Place the active counter on
+ * the leftmost villain" (The Horsemen of Apocalypse 1A, `aoa` 45085a; docs/phase7-wave8.md §3.7): the set-aside villains
+ * named enter in a seeded random order, which becomes `GameState.villainRow`, and the leftmost takes the active counter.
+ */
 export const addVillain = (
   villain: TargetRef,
-  opts: { readonly reveal?: boolean; readonly bind?: string } = {},
+  opts: { readonly reveal?: boolean; readonly bind?: string; readonly row?: "shuffled" } = {},
 ): EffectSpec => ({
   kind: "addVillain",
   villain,
   ...(opts.reveal ? { reveal: true } : {}),
   ...(opts.bind ? { bind: opts.bind } : {}),
+  ...(opts.row ? { row: opts.row } : {}),
 });
 /**
  * "Set this villain aside." (the Sinister Six's When Defeated, MC27 p. 15): back to the set-aside area as a new copy,
@@ -2122,6 +2130,13 @@ export const addVillain = (
 export const setVillainAside = (villain: TargetRef): EffectSpec => ({ kind: "setVillainAside", villain });
 /** "Move the active counter to the next villain in the activation order." (MC27 p. 15; docs/phase7-wave5.md §3.1) */
 export const moveActiveCounterToNextVillain: EffectSpec = { kind: "moveActiveCounter", to: "nextInActivationOrder" };
+/**
+ * "Move the active counter to the next villain" where the villains sit in a row (The Horsemen of Apocalypse 1B, `aoa`
+ * 45085b; MC45 p. 11): one place to the right of the villain that holds the counter in `GameState.villainRow`, wrapping
+ * to the leftmost; a lone villain keeps it. Always from the holder, whichever villain's activation asked
+ * (docs/phase7-wave8.md §3.7, §3.8, §4.1 Q5 = A).
+ */
+export const moveActiveCounterToNextInRow: EffectSpec = { kind: "moveActiveCounter", to: "nextInRow" };
 /**
  * "Move the glider counter to the main scheme with the least threat" (MC27 p. 17): every counter of `counterType`
  * (absent: every type) on the cards `from` names goes to the first card `to` names. docs/phase7-wave5.md §3.3.

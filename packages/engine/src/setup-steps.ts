@@ -90,11 +90,19 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   for (const villain of undefeatedVillains(ctx.state)) {
     applyToughness(ctx, villain.instanceId);
   }
+  // Step 11's own frames (each setup card's starting threat and its entering play) resolve before anything of step
+  // 12: they are lifted off here and put back on top once step 12's frames are pushed, so the stack reads step 11,
+  // the setup options, step 12 (RRG 1.8 Appendix II, p. 51; docs/phase7-wave8.md §3.5).
+  const heldBeforeStep11 = ctx.state.stack.length;
   putSetupCardsIntoPlay(ctx, firstPlayerId);
+  const step11Frames = ctx.state.stack.slice(0, ctx.state.stack.length - heldBeforeStep11);
+  ctx.state = { ...ctx.state, stack: ctx.state.stack.slice(step11Frames.length) };
   // RRG Appendix II step 12: main scheme 1A setup text, then each villain's, in printed order.
   // "Advance to stage 1B" is implicit (the engine already sits on 1B), so 1B's
   // own "When Revealed" resolves right after the 1A setup text.
   pushFrames(ctx, [
+    // Between step 11 and step 12: the optional setup rules the players turned on (docs/phase7-wave8.md §3.5).
+    ...setupOptionFrames(ctx),
     ...gameAbilityFrames(
       ctx,
       mainSchemeInstanceId,
@@ -112,6 +120,42 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       ...gameAbilityFrames(ctx, villain.instanceId, ["whenRevealed"], null, undefined, firstPlayerId),
     ]),
   ]);
+  ctx.state = { ...ctx.state, stack: [...step11Frames, ...ctx.state.stack] };
+}
+
+/**
+ * `ScenarioRules.setupOptions`: one `setupOptionApplied` entry and one effects frame per option, in the order listed,
+ * resolved by the first player as scenario text (no "self"). They go ahead of step 12's frames, so the cards step 11
+ * put into play are there and no Setup or When Revealed ability has resolved yet (RRG 1.8 Appendix II, p. 51). An
+ * option stated at 0 is logged and resolves its instruction for 0.
+ */
+function setupOptionFrames(ctx: Ctx): StackFrame[] {
+  const frames: StackFrame[] = [];
+  for (const option of ctx.state.scenarioRules.setupOptions ?? []) {
+    emit(ctx, {
+      type: "setupOptionApplied",
+      option: option.option,
+      amount: option.amount,
+      text: option.text,
+      citation: option.citation,
+    });
+    if (option.effects.length === 0) continue;
+    frames.push({
+      ...base(ctx),
+      kind: "effects",
+      effects: option.effects,
+      cursor: 0,
+      bindings: {},
+      vars: {},
+      scopedPlayerId: null,
+      selfInstanceId: null,
+      controllerId: ctx.state.firstPlayerId,
+      event: null,
+      eventFrameId: null,
+      instruction: { kind: "scenario", instructionId: option.option, text: option.text, citation: option.citation },
+    });
+  }
+  return frames;
 }
 
 /**

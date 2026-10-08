@@ -961,8 +961,15 @@ export type TriggerEventBody =
       readonly abilityId: AbilityId;
       readonly controllerId: PlayerId | null;
     }
-  /** A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened. */
-  | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId }
+  /**
+   * A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened.
+   *
+   * `playerId`: the player whose effect flipped the card, the "you" of the effect or cost that turned it ("After you
+   * flip to this side", Pursued by the Past side B, `aoa` 45075b; docs/phase7-wave8.md §2.5, §3.6). It is the event's
+   * player subject, so an uncontrolled card's Forced Response to its own flip resolves as that player. Absent when the
+   * flip had no "you" (an effect resolved with no player).
+   */
+  | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId; readonly playerId?: PlayerId }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
   /**
    * `fromHeroForm` / `toHeroForm`: the hero faces before and after, for an identity with more than one (a three-sided
@@ -1148,12 +1155,16 @@ export type HostStep =
   | { readonly kind: "removeMainSchemeStage"; readonly schemeId: InstanceId }
   /** `joinGameArea`, whose first change removes the joining area's own stage (docs/phase7-wave5.md §4.1 Q50). */
   | { readonly kind: "joinGameArea"; readonly fromId: GameAreaId; readonly intoId: GameAreaId | null }
-  /** `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after). */
+  /**
+   * `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after).
+   * `flippedBy`: the player whose effect flipped it (`cardFlipped.playerId`), when it had one.
+   */
   | {
       readonly kind: "flipMainSchemeStage";
       readonly schemeId: InstanceId;
       readonly reveal: boolean;
       readonly playerId: PlayerId;
+      readonly flippedBy?: PlayerId;
     }
   /**
    * `setForm` for a separated identity whose other card flips with it and discards what the identity cannot take
@@ -1175,7 +1186,16 @@ export type HostStep =
       readonly id: InstanceId;
       readonly playerId: PlayerId;
       readonly reveal?: true;
+      /** The player whose effect flipped it (`cardFlipped.playerId`), when it had one. */
+      readonly flippedBy?: PlayerId;
     };
+
+/** The `cardFlipped` announcement for a card `by` flipped (`null` or absent: the flip had no "you"). */
+export const cardFlippedEvent = (instanceId: InstanceId, by?: PlayerId | null): TriggerEvent => ({
+  kind: "cardFlipped",
+  instanceId,
+  ...(by ? { playerId: by } : {}),
+});
 
 /**
  * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after
@@ -1346,6 +1366,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
       return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
+      return of([], [event.instanceId], [event.playerId ?? null]);
     case "discardRedirected":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":

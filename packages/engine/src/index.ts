@@ -25,6 +25,7 @@ export type {
   ScenarioSetupInstruction,
   SeparateDeckState,
   SetAsideUntilCalled,
+  SetupOption,
   StatusCounts,
   VillainState,
   ZoneId,

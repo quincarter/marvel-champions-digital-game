@@ -107,7 +107,11 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
         // docs/phase7-wave4.md §1.9: RRG 1.8 "Standard Set" (p. 40) / "Expert Set" (p. 19) — a set in this
         // classification is never a modular choice. Standard II / Expert II (`hood`) print "Standard II" /
         // "Expert II" at the bottom of the card, so they're the same classification as Core's own Standard/Expert.
-        ...(id === "standard" || id === "standard_ii" ? { classification: "standard" as const } : {}),
+        // Standard III (`aoa`, MC45 p. 3) prints "Standard III" the same way and has no Expert partner
+        // (docs/phase7-wave8.md §3.6).
+        ...(id === "standard" || id === "standard_ii" || id === "standard_iii"
+          ? { classification: "standard" as const }
+          : {}),
         ...(id === "expert" || id === "expert_ii" ? { classification: "expert" as const } : {}),
         ...(separateDecks ? { separateDecks } : {}),
         ...(override?.singleVillainOnly ? { singleVillainOnly: true as const } : {}),

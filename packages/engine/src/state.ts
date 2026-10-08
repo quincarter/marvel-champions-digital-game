@@ -528,6 +528,12 @@ export interface ScenarioRules {
    */
   readonly setupInstructions?: readonly ScenarioSetupInstruction[];
   /**
+   * `GameSetupConfig.setupOptions`: the optional setup rules the players turned on, each with the amount they stated
+   * (`SetupOption`; docs/phase7-wave8.md §3.5). Absent in every game that states none, so an older save reads
+   * unchanged.
+   */
+  readonly setupOptions?: readonly SetupOption[];
+  /**
    * `GameSetupConfig.setAsideUntilCalled`: cards RRG 1.8 Appendix II step 11 (p. 51) leaves in the set-aside area
    * although they have the setup keyword. Absent in every game without such a scenario rule.
    */
@@ -557,6 +563,27 @@ export interface SetAsideUntilCalled {
  */
 export interface ScenarioSetupInstruction {
   readonly id: string;
+  readonly text: string;
+  readonly citation: string;
+  readonly effects: readonly EffectSpec[];
+}
+
+/**
+ * One optional setup rule the players turned on, with the amount they stated: a rule an encounter set's or a scenario's
+ * rulebook offers "up to the players as a group" (MC45 p. 8, "Modular Difficulty": "they may place threat on Gene Pool
+ * during setup … The amount of threat placed is up to the players as a group"; docs/phase7-wave8.md §3.5, §4.1 Q1).
+ *
+ * Resolved once, after RRG 1.8 Appendix II step 11 (the setup-keyword cards are in play) and before step 12's Setup
+ * and When Revealed abilities (p. 51), as scenario text resolved by the first player. `amount` is what the players
+ * stated and is what the `setupOptionApplied` log entry records; `effects` is the plain-data instruction the scenario
+ * builder wrote for that amount. The engine never fills an amount in from the mode: an option the setup config does
+ * not list is not applied. Part of the setup config, so of the replay baseline.
+ */
+export interface SetupOption {
+  /** The option's stable id, chosen by the scenario builder ("<encounter set>.<rule>"). */
+  readonly option: string;
+  /** The amount the players stated: a whole number, 0 or more. */
+  readonly amount: number;
   readonly text: string;
   readonly citation: string;
   readonly effects: readonly EffectSpec[];
@@ -770,6 +797,17 @@ export interface GameState {
    * rules rather than an entry in a card's `counters`; changes are logged as `activeVillainChanged`.
    */
   readonly activeVillainId: InstanceId;
+  /**
+   * The villains in play as they sit on the table, left to right, in a scenario that lays them out in a row (the Four
+   * Horsemen, MC45 p. 11: "reveal them in a row from left to right. Place the active counter on the leftmost
+   * villain"; docs/phase7-wave8.md §3.7). Explicit state: `villains` stays in printed order, and the row is where each
+   * one sits. Set by `EffectSpec addVillain` with `row: "shuffled"` (logged `villainRowSet`); once a row exists, a
+   * villain that enters play joins at the right end and one that leaves play (defeated, set aside, removed) leaves the
+   * row. A villain at 0 hit points that is not defeated is still in play and keeps its place. Read by
+   * `moveActiveCounter { to: "nextInRow" }` (`nextVillainInRow`). Absent in every scenario without a row, so an older
+   * save reads unchanged.
+   */
+  readonly villainRow?: readonly InstanceId[];
   /**
    * The main scheme: with separate game areas, the central stage outside every area (docs/phase7-wave2.md §3.1); each
    * area's own stage is its `GameAreaState.mainScheme`.

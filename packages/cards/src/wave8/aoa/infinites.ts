@@ -1,13 +1,16 @@
-import type { AbilityRegistry } from "@mc/engine";
+import type { PlayModes } from "@mc/content";
+import type { AbilityRegistry, SetupOption } from "@mc/engine";
 import {
   boost,
   constant,
   defineAbilities,
+  each,
   forcedResponse,
   gainsKeyword,
   gets,
   named,
   on,
+  perHero,
   placeThreat,
   query,
   self,
@@ -57,3 +60,42 @@ export const INFINITES: AbilityRegistry = defineAbilities({
     placeThreat(3, self),
   ),
 });
+
+/** The encounter set whose presence in a game offers `infinitesGenePoolThreat`, whatever the scenario. */
+export const INFINITES_SET_ID = "infinites";
+/** The id the `setupOptionApplied` log entry carries. */
+export const INFINITES_GENE_POOL_THREAT_OPTION = "infinites.gene-pool-threat";
+export const INFINITES_GENE_POOL_THREAT_CITATION = "MC45 p. 8";
+/** The most threat per player the option takes (the rulebook's highest recommendation). */
+export const INFINITES_GENE_POOL_THREAT_MAX = 3;
+
+/**
+ * MC45 p. 8, "Modular Difficulty" (docs/phase7-wave8.md §2.2 step 4, §3.5, §4.1 Q1 = A: a setup control, off unless the
+ * players turn it on):
+ *
+ *   "If players wish to modify the difficulty of a scenario while using the Infinites modular set, they may place
+ *    threat on Gene Pool during setup … The amount of threat placed is up to the players as a group"
+ *    » Skirmish Mode: Place 0 threat.
+ *    » Standard Mode: Place 1[per_hero] threat.
+ *    » Expert Mode: Place 2[per_hero] threat.
+ *    » Heroic Mode: Place 3[per_hero] threat.
+ *
+ * `perPlayer` is the amount the players stated, 1 to 3 per player, placed on Gene Pool after it has entered play at
+ * step 11 and before step 12 (`GameSetupConfig.setupOptions`). It is never read from the mode: the recommendations
+ * above are `infinitesGenePoolThreatRecommendation`, which is only where a setup control starts.
+ */
+export function infinitesGenePoolThreat(perPlayer: number): SetupOption {
+  if (!Number.isInteger(perPlayer) || perPlayer < 1 || perPlayer > INFINITES_GENE_POOL_THREAT_MAX)
+    throw new Error(`Gene Pool setup threat is 1 to ${INFINITES_GENE_POOL_THREAT_MAX} per player, not ${perPlayer}`);
+  return {
+    option: INFINITES_GENE_POOL_THREAT_OPTION,
+    amount: perPlayer,
+    text: `Modular Difficulty: Place ${perPlayer}[per_hero] threat on Gene Pool.`,
+    citation: INFINITES_GENE_POOL_THREAT_CITATION,
+    effects: [placeThreat(perHero(perPlayer), each(query("sideScheme", { name: "Gene Pool" })))],
+  };
+}
+
+/** The rulebook's recommended amount per player for the modes being played: where the setup control starts. */
+export const infinitesGenePoolThreatRecommendation = (modes: PlayModes): number =>
+  modes.skirmish ? 0 : modes.heroic ? 3 : modes.expert ? 2 : 1;

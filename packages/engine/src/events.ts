@@ -859,8 +859,21 @@ export type GameEvent =
       readonly from: InstanceId;
       readonly to: InstanceId;
       /** `focusedScheme`: the villain of the main scheme Focused Defense is attached to (docs/phase7-wave4.md §3.2). */
-      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme" | "activationOrder" | "noActiveVillain";
+      /** `nextInRow`: one place along `GameState.villainRow` from the villain that held it (wave 8 §3.7). */
+      readonly reason:
+        | "effect"
+        | "activeVillainDefeated"
+        | "focusedScheme"
+        | "activationOrder"
+        | "noActiveVillain"
+        | "nextInRow";
     }
+  /**
+   * The villains were laid out in a row, left to right (`GameState.villainRow`; `addVillain` with `row: "shuffled"`,
+   * docs/phase7-wave8.md §3.7). `order` is the whole row as the seeded RNG shuffled it, so a replay of the log rebuilds
+   * it without the RNG; the leftmost holds the active counter (an `activeVillainChanged` follows when that moved it).
+   */
+  | { readonly type: "villainRowSet"; readonly order: readonly InstanceId[] }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
   | {
@@ -1279,6 +1292,19 @@ export type GameEvent =
   | {
       readonly type: "scenarioSetupInstructionResolved";
       readonly instructionId: string;
+      readonly text: string;
+      readonly citation: string;
+    }
+  /**
+   * An optional setup rule the players turned on was applied with the amount they stated
+   * (`GameSetupConfig.setupOptions`; MC45 p. 8's threat on Gene Pool, docs/phase7-wave8.md §3.5), after RRG 1.8
+   * Appendix II step 11 and before step 12. `text` and `citation` are copied from the option so the trace says why the
+   * state changed without the setup config to hand. A game that states no option never logs this.
+   */
+  | {
+      readonly type: "setupOptionApplied";
+      readonly option: string;
+      readonly amount: number;
       readonly text: string;
       readonly citation: string;
     }

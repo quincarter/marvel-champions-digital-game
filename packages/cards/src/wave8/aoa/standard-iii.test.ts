@@ -35,8 +35,8 @@ vi.setConfig({ testTimeout: 120_000 });
 /**
  * Standard III (45075a/b Pursued by the Past, 45076 Dark Designs, 45077 Sinister Strike, 45078 Evil Alliance, 45079
  * Nowhere is Safe, 45080 Drawing Near), docs/phase7-wave8.md §3.6, §4.1 Q2, Q3. Rhino (Core, standard) built by
- * `coreScenario` with the set's eight cards added to the encounter deck by hand (choosing Standard III at setup is
- * engine task 19, not this module's). Pursued by the Past is Permanent and Setup, so it is in play after setup with no
+ * `coreScenario` with the set's eight cards added to the encounter deck by hand (the builders' own Standard III choice
+ * is pinned in `wave8/setup.test.ts`). Pursued by the Past is Permanent and Setup, so it is in play after setup with no
  * counters. Cards are stacked on the encounter deck (the villain's boost card first, then each player is dealt a card)
  * and revealed by real `endTurn` commands.
  */
@@ -68,8 +68,6 @@ const BOOST_2 = "01189";
 /** The Standard set's Advance: a harmless filler card to deal to the other player. */
 const FILLER = "01186";
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, STANDARD_III) };
-/** The same with side B's draft registered, to show what it would do once the engine names the player. */
-const DRAFT_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, STANDARD_III, STANDARD_III_UNREGISTERED) };
 
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 const CAPTAIN_MARVEL = { starterDeckId: "core-captain-marvel-leadership" } as const;
@@ -200,12 +198,12 @@ const activationsOf = (events: readonly GameEvent[], minion: InstanceId) =>
   events.filter((e) => e.type === "schemeResolved" && e.enemyInstanceId === minion).length;
 
 describe("registry", () => {
-  it("registers twelve of the thirteen refs, each a valid definition; side B is left out with a reason", () => {
-    expect(Object.keys(STANDARD_III).sort()).toEqual(REFS.filter((r) => r !== SIDE_B).sort());
+  it("registers all thirteen refs, each a valid definition; nothing is skipped or left unregistered", () => {
+    expect(Object.keys(STANDARD_III).sort()).toEqual([...REFS].sort());
+    expect(Object.keys(STANDARD_III)).toContain(SIDE_B);
     for (const [id, def] of Object.entries(STANDARD_III)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(STANDARD_III_SKIPPED)).toEqual([SIDE_B]);
-    expect(Object.keys(STANDARD_III_UNREGISTERED)).toEqual([SIDE_B]);
-    for (const [id, def] of Object.entries(STANDARD_III_UNREGISTERED)) expect(validateDefinition(def), id).toEqual([]);
+    expect(Object.keys(STANDARD_III_SKIPPED)).toEqual([]);
+    expect(Object.keys(STANDARD_III_UNREGISTERED)).toEqual([]);
   });
 
   it("every ability id the card data names, on both faces of Pursued by the Past, is one of the thirteen", () => {
@@ -236,7 +234,9 @@ describe("Pursued by the Past (45075a/b)", () => {
     const s = withCounters(setupGame(), 3);
     const run = round(s, { reveals: [DARK_DESIGNS] });
     expect(counters(run.state)).toBe(0);
-    expect(run.events.filter((e) => e.type === "cardFlipped" && e.instanceId === env(s))).toHaveLength(1);
+    // To side B, and side B's own flip back.
+    expect(run.events.filter((e) => e.type === "cardFlipped" && e.instanceId === env(s))).toHaveLength(2);
+    expect(isFlipped(run.state)).toBe(false);
   });
 
   it("FORCED RESPONSE (side A): below the threshold nothing happens (2 counters become 3)", () => {
@@ -265,7 +265,7 @@ describe("Pursued by the Past (45075a/b)", () => {
     expect(isFlipped(at4.state)).toBe(false);
     const at5 = round(withCounters(s, 4), { reveals: [DARK_DESIGNS, FILLER] });
     expect(counters(at5.state)).toBe(0);
-    expect(at5.events.filter((e) => e.type === "cardFlipped")).toHaveLength(1);
+    expect(at5.events.filter((e) => e.type === "cardFlipped")).toHaveLength(2);
   });
 
   it("FORCED RESPONSE (side A), 2 players: 'you' is the player whose card placed the counter. Player 2's nemesis minion activates when player 2 reveals the card; player 1's does not", () => {
@@ -284,27 +284,15 @@ describe("Pursued by the Past (45075a/b)", () => {
     const g = withNemesisInPlay(base, P1);
     const run = round(withCounters(g, 4), { reveals: [FILLER, DARK_DESIGNS] });
     expect(counters(run.state)).toBe(0);
-    expect(run.events.filter((e) => e.type === "cardFlipped")).toHaveLength(1);
+    expect(run.events.filter((e) => e.type === "cardFlipped")).toHaveLength(2);
   });
 
-  // FFG: the flip to side B finds the revealing player's nemesis. The event of the flip names no player, so `you`
-  // is unbound there (STANDARD_III_SKIPPED), and side B is not registered.
-  it("today: with side B unregistered the flip happens and nothing follows. The card stays on side B, the nemesis set stays set aside, and the villain does not scheme (Q2)", () => {
+  // The flip names the player whose effect flipped the card (`cardFlipped.playerId`), so side B's "you" is the player
+  // whose card placed the fourth counter.
+  it("side B: reveals the nemesis minion and side scheme, shuffles the rest into the encounter deck and flips back; the villain does not scheme (Q2)", () => {
     const s = withCounters(setupGame(), 3);
     const nemesis = nemesisOf(s, P1);
     const run = round(s, { reveals: [DARK_DESIGNS] });
-    expect(counters(run.state)).toBe(0);
-    expect(isFlipped(run.state)).toBe(true);
-    // Rhino's own scheme only: Dark Designs' "Then, if it has any counters on it" found none.
-    expect(schemes(run.events)).toBe(1);
-    expect(nemesisOf(run.state, P1).all).toEqual(nemesis.all);
-    expect(minionsEngagedWith(run.state, P1)).toHaveLength(0);
-  });
-
-  it.fails("side B, once the flip names the player: reveals the nemesis minion and side scheme, shuffles the rest into the encounter deck and flips back", () => {
-    const s = withCounters(setupGame(), 3);
-    const nemesis = nemesisOf(s, P1);
-    const run = round(s, { reveals: [DARK_DESIGNS] }, DRAFT_DEPS);
     expect(counters(run.state)).toBe(0);
     expect(run.events.filter((e) => e.type === "cardFlipped" && e.instanceId === env(s))).toHaveLength(2);
     expect(isFlipped(run.state)).toBe(false);
@@ -313,7 +301,31 @@ describe("Pursued by the Past (45075a/b)", () => {
     const rest = nemesis.all.filter((id) => id !== nemesis.minion && id !== nemesis.scheme);
     for (const id of rest) expect(piles(run.state).deck).toContain(id);
     expect(nemesisOf(run.state, P1).all).toHaveLength(0);
+    // Rhino's own scheme only: Dark Designs' "Then, if it has any counters on it" found none.
     expect(schemes(run.events)).toBe(1);
+  });
+
+  it("side B, 2 players: 'you' is the player whose card placed the counter. Player 2 reveals it, so player 2's nemesis set comes in and player 1's stays set aside", () => {
+    const s = withCounters(setupGame([SPIDER_MAN, CAPTAIN_MARVEL]), 4);
+    const mine = nemesisOf(s, P1);
+    const theirs = nemesisOf(s, P2);
+    const run = round(s, { reveals: [FILLER, DARK_DESIGNS] });
+    expect(counters(run.state)).toBe(0);
+    expect(isFlipped(run.state)).toBe(false);
+    expect(inst(run.state, theirs.minion!).engagedWith).toBe(P2);
+    expect(run.state.villainArea).toContain(theirs.scheme);
+    expect(nemesisOf(run.state, P2).all).toHaveLength(0);
+    expect(nemesisOf(run.state, P1).all).toEqual(mine.all);
+  });
+
+  it("after side B has brought the nemesis minion in, the next reset has it activate and the card does not flip again", () => {
+    const first = round(withCounters(setupGame(), 3), { reveals: [DARK_DESIGNS] });
+    const minion = minionsEngagedWith(first.state, P1)[0]!;
+    const quiet = round(withCounters(first.state, 0), { reveals: [DARK_DESIGNS] });
+    const again = round(withCounters(first.state, 3), { reveals: [DARK_DESIGNS] });
+    expect(counters(again.state)).toBe(0);
+    expect(again.events.filter((e) => e.type === "cardFlipped")).toHaveLength(0);
+    expect(activationsOf(again.events, minion) - activationsOf(quiet.events, minion)).toBe(1);
   });
 });
 
@@ -372,7 +384,9 @@ describe("Sinister Strike (45077)", () => {
     // 3 counters: Sinister Strike's counter resets the card, so 'Then' is false and there is no surge.
     const run = round(withCounters(setupGame(), 3), { dealt: [SINISTER_STRIKE, DARK_DESIGNS] });
     expect(counters(run.state)).toBe(0);
-    expect(count(run.events, "encounterCardRevealed")).toBe(1);
+    // Sinister Strike, then the nemesis minion and side scheme side B reveals; Dark Designs is never revealed.
+    expect(count(run.events, "encounterCardRevealed")).toBe(3);
+    expect(discarded(run.events, DARK_DESIGNS)).toBe(0);
     expect(inEncounterDeck(run.state, DARK_DESIGNS)).toHaveLength(1);
   });
 
@@ -385,9 +399,13 @@ describe("Sinister Strike (45077)", () => {
   });
 
   it("WHEN REVEALED (Hero): a reset it causes leaves no counters, so the villain does not attack", () => {
-    const run = round(withCounters(setupGame(), 3), { reveals: [SINISTER_STRIKE], hero: true });
+    const s = withCounters(setupGame(), 3);
+    const run = round(s, { reveals: [SINISTER_STRIKE], hero: true });
     expect(counters(run.state)).toBe(0);
-    expect(count(run.events, "attackResolved")).toBe(1);
+    // Rhino's own attack only. (Side B reveals Vulture, whose quickstrike is the other attack of the phase.)
+    const rhino = s.villains[0]!.instanceId;
+    expect(run.events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === rhino)).toHaveLength(1);
+    expect(count(run.events, "attackResolved")).toBe(2);
   });
 });
 
@@ -405,7 +423,8 @@ describe("Evil Alliance (45078)", () => {
   it("WHEN REVEALED: the 3 placed at once are one placement, so one check: 1 counter and 3 make 4 and reset once", () => {
     const run = round(withCounters(setupGame(), 1), { reveals: [EVIL_ALLIANCE] });
     expect(counters(run.state)).toBe(0);
-    expect(run.events.filter((e) => e.type === "cardFlipped")).toHaveLength(1);
+    // One reset: the flip to side B and side B's flip back.
+    expect(run.events.filter((e) => e.type === "cardFlipped")).toHaveLength(2);
   });
 
   it("WHEN REVEALED: with a nemesis minion in play it activates against the player and no counters are placed", () => {
@@ -514,7 +533,8 @@ describe("Drawing Near (45080)", () => {
     const top = putOnTopOfDeck(withCounters(dealt(), 2), P1, "01088");
     const run = round(top.state, {});
     expect(counters(run.state)).toBe(0);
-    expect(run.events.filter((e) => e.type === "cardFlipped")).toHaveLength(1);
+    // One reset: the flip to side B and side B's flip back.
+    expect(run.events.filter((e) => e.type === "cardFlipped")).toHaveLength(2);
   });
 
   it("FORCED RESPONSE: only for the player who has it (2 players: player 2 has it; the first player passes, so player 2's turn begins first)", () => {

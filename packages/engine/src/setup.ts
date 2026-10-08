@@ -35,6 +35,7 @@ import {
   type PlayerState,
   type ScenarioDeckState,
   type ScenarioSetupInstruction,
+  type SetupOption,
   type SeparateDeckState,
   type VillainState,
   type SetAsideModularSet,
@@ -256,6 +257,15 @@ export interface GameSetupConfig {
    * empty: the game is exactly the game it was before this field existed.
    */
   readonly scenarioSetupInstructions?: readonly ScenarioSetupInstruction[];
+  /**
+   * Optional setup rules the players turned on, each with the amount they stated (`SetupOption`): MC45 p. 8's "Modular
+   * Difficulty" for the Infinites set ("they may place threat on Gene Pool during setup … The amount of threat placed
+   * is up to the players as a group"; docs/phase7-wave8.md §3.5, §4.1 Q1 = A). Each resolves once, in order, after
+   * Appendix II step 11 and before step 12 (p. 51), and is logged `setupOptionApplied`. Nothing is applied that is not
+   * listed here: neither the builder nor the engine derives an amount from the mode. Absent or empty: the game is
+   * exactly the game it was before this field existed.
+   */
+  readonly setupOptions?: readonly SetupOption[];
   /**
    * The mode being played, standard (default) or expert (RRG 1.8 "Modes of Play", p. 29). Villain stages and the
    * expert set are the scenario builder's; the engine reads this only for "Standard Mode Only" / "Expert Mode Only"
@@ -1150,6 +1160,14 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   for (const cardId of config.setAsideUntilCalled?.cardIds ?? [])
     if (!pool[cardId]) return invalid(`setAsideUntilCalled names unknown card ${cardId}`);
   const untilCalled = setAsideUntilCalledOf(config.setAsideUntilCalled);
+  const setupOptionIds = new Set<string>();
+  for (const option of config.setupOptions ?? []) {
+    if (option.option === "") return invalid("a setup option needs an id");
+    if (setupOptionIds.has(option.option)) return invalid(`setup option ${option.option} is listed twice`);
+    if (!Number.isInteger(option.amount) || option.amount < 0)
+      return invalid(`setup option ${option.option} states ${option.amount}, which is not a whole number of 0 or more`);
+    setupOptionIds.add(option.option);
+  }
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -1179,6 +1197,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }
         : {}),
+      ...(config.setupOptions && config.setupOptions.length > 0 ? { setupOptions: config.setupOptions } : {}),
       ...(untilCalled ? { setAsideUntilCalled: untilCalled } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },

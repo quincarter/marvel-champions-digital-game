@@ -40,13 +40,17 @@ vi.setConfig({ testTimeout: 120_000 });
 
 /**
  * The Four Horsemen scenario's cards (45081a to 45084b the villains, 45085a the main scheme, the `four_horsemen` set
- * 45086 to 45096), docs/phase7-wave8.md §2.3, §3.7 to §3.15. There is no wave 8 scenario builder yet, so the game is
- * Core's Rhino config with the four Horsemen as simultaneous villains (the engine's `villains` option, one shared
- * encounter deck, row order War, Famine, Pestilence, Death) and 45085a as the main scheme. 45085a's setup and 1B are
- * not scripted yet (task 20), so the row is the list order and nothing moves the counter. Cards are stacked on the
- * encounter deck and revealed or drawn as boost cards by real `endTurn` commands.
+ * 45086 to 45096), docs/phase7-wave8.md §2.3, §3.7 to §3.15. The game is Core's Rhino config with the four Horsemen as
+ * simultaneous villains (the engine's `villains` option, one shared encounter deck) and 45085a as the main scheme.
+ *
+ * The table is seated by hand so every test starts from a known one: 45085a's Setup is left out of this file's
+ * registry (its random row and random side schemes are pinned through the real builder in `wave8/setup.test.ts`), the
+ * four villains start in play, and the row is set to War, Famine, Pestilence, Death with the active counter on War
+ * (`seated` re-seats it). 1B is registered, so every villain activation passes the counter along the row. Cards are
+ * stacked on the encounter deck and revealed or drawn as boost cards by real `endTurn` commands.
  */
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, FOUR_HORSEMEN) };
+const { "45085a.setup": _randomSetup, ...SEATED_BY_HAND } = FOUR_HORSEMEN;
+const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, SEATED_BY_HAND) };
 
 const WAR = "45081a";
 const FAMINE = "45082a";
@@ -68,12 +72,9 @@ const VILLAINS = [WAR, FAMINE, PESTILENCE, DEATH];
 const SKIPPED_REFS = [
   "45083a.pestilence-forced-response",
   "45083b.pestilence-forced-response",
-  "45085a.setup",
-  "45085b.the-horsemen-of-apocalypse-forced-response",
   "45088.when-defeated",
   "45090.golden-horse-constant",
   "45090.golden-horse-response",
-  "45091.when-revealed",
   "45091.metal-wings-response",
   "45096.when-revealed",
 ];
@@ -115,7 +116,8 @@ function setupGame(opts: { readonly players?: 1 | 2; readonly face?: "a" | "b" }
     DEPS,
   );
   if (!created.ok) throw new Error(created.error.message);
-  return settle(created.state, firstLegal, (s) => s.step.phase === "player", DEPS);
+  const s = settle(created.state, firstLegal, (state) => state.step.phase === "player", DEPS);
+  return { ...s, villainRow: s.villains.map((v) => v.instanceId) };
 }
 
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
@@ -124,6 +126,12 @@ const villain = (s: GameState, code: string): InstanceId => {
   if (!found) throw new Error(`no ${code} in play`);
   return found.instanceId;
 };
+/** The same four villains in this row, left to right, with the active counter on `holder`. */
+const seated = (s: GameState, row: readonly string[], holder: string): GameState => ({
+  ...s,
+  villainRow: row.map((code) => villain(s, code)),
+  activeVillainId: villain(s, holder),
+});
 const dataOf = (code: string) =>
   AOA_CARDS.find((c) => (c.id as string) === code)! as unknown as Record<string, unknown>;
 const events = <T extends GameEvent["type"]>(run: readonly GameEvent[], type: T) =>
@@ -204,7 +212,7 @@ const discardCount = (s: GameState) => playerOf(s, P1).discard.length;
 const inPlay = (s: GameState, code: string): InstanceId[] => cardsInPlay(s).filter((i) => codeOf(s, i) === code);
 
 describe("registry", () => {
-  it("registers every ref the card data names, except the ten skipped ones, each a valid definition", () => {
+  it("registers every ref the card data names, except the seven skipped ones, each a valid definition", () => {
     expect(Object.keys(FOUR_HORSEMEN).sort()).toEqual(ALL_REFS.filter((r) => !SKIPPED_REFS.includes(r)).sort());
     for (const [id, def] of Object.entries(FOUR_HORSEMEN)) expect(validateDefinition(def), id).toEqual([]);
     expect(Object.keys(FOUR_HORSEMEN_SKIPPED).sort()).toEqual([...SKIPPED_REFS].sort());
@@ -435,13 +443,153 @@ describe("Horseman of War / Famine / Pestilence / Death (45092 to 45095)", () =>
   });
 });
 
-describe("the 1B Forced Response and the active counter (task 20): not registered", () => {
-  it("today: nothing moves the counter after a villain activates (45085b's ref is skipped)", () => {
-    const run = round(setupGame());
+/** The active counter's moves in these events, as `[from, to, reason]` card codes. */
+const counterMoves = (run: { readonly state: GameState; readonly events: readonly GameEvent[] }) =>
+  events(run.events, "activeVillainChanged").map((e) => [codeOf(run.state, e.from), codeOf(run.state, e.to), e.reason]);
+/** Every villain attack in these events, in order, as the attacker's card code. */
+const villainAttacks = (run: { readonly state: GameState; readonly events: readonly GameEvent[] }) =>
+  events(run.events, "attackResolved")
+    .map((e) => codeOf(run.state, e.enemyInstanceId))
+    .filter((code) => VILLAINS.includes(code));
+/**
+ * Cards that do nothing when dealt and revealed: side schemes with no When Revealed and no hazard icon (Plague and
+ * Pestilence, Core's Crowd Control, A Time of Famine, The Specter of Death). The Standard set's own treacheries make
+ * the villain activate, which would pass the counter a second time.
+ */
+const QUIET = ["45088", "01108", "45087", "45089"];
+/**
+ * A round with a blank boost card and a quiet card dealt, so only step two of the villain phase moves the counter. The
+ * hero is healed and the main scheme cleared first, so a run of rounds cannot end the game.
+ */
+const quietRound = (s: GameState, n = 0, heroForm = true, boosts: readonly string[] = [BOOST_0]) => {
+  const fresh = patchInstance(patchInstance(s, identityOf(s, P1), { damage: 0 }), s.mainScheme.instanceId, {
+    threat: 0,
+  });
+  return round(fresh, { boosts, reveals: [QUIET[n % QUIET.length]!], heroForm });
+};
+/** The events of step two only: everything before the first encounter card is revealed. */
+const stepTwo = (run: { readonly state: GameState; readonly events: readonly GameEvent[] }) => {
+  const cut = run.events.findIndex((e) => e.type === "encounterCardRevealed");
+  return { state: run.state, events: cut < 0 ? run.events : run.events.slice(0, cut) };
+};
+
+describe("The Horsemen of Apocalypse 1B (45085b): the active counter passes along the row (§3.7)", () => {
+  it("the row is War, Famine, Pestilence, Death with the counter on War, as this file seats it", () => {
+    const s = setupGame();
+    expect(s.villainRow!.map((id) => codeOf(s, id))).toEqual(VILLAINS);
+    expect(activeCode(s)).toBe(WAR);
+  });
+
+  it("1 player: round 1 War attacks and the counter goes to Famine; Famine, Pestilence, Death follow; round 5 is War again", () => {
+    let s = setupGame();
+    const attackers: string[] = [];
+    for (let n = 0; n < 5; n++) {
+      // Each of the first four rounds deals a different quiet card (the earlier ones are in play by then). The fifth
+      // deals whatever the deck holds, so only its step two is read.
+      const whole =
+        n < 4 ? quietRound(s, n) : round(patchInstance(s, identityOf(s, P1), { damage: 0 }), { boosts: [BOOST_0] });
+      const run = n < 4 ? whole : stepTwo(whole);
+      expect(villainAttacks(run), `round ${n + 1}`).toHaveLength(1);
+      attackers.push(villainAttacks(run)[0]!);
+      expect(counterMoves(run)).toEqual([[VILLAINS[n % 4], VILLAINS[(n + 1) % 4], "nextInRow"]]);
+      s = whole.state;
+    }
+    expect(attackers).toEqual([WAR, FAMINE, PESTILENCE, DEATH, WAR]);
+  });
+
+  it("2 players: the active villain is read afresh for each player. War attacks player 1, Famine attacks player 2, and the counter ends on Pestilence", () => {
+    const base = setupGame({ players: 2 });
+    // A blank boost card for each villain activation, then a quiet card dealt to each player.
+    const stackedDeck = stackEncounterDeck(base, "01186", "01187", QUIET[0]!, QUIET[1]!);
+    const inHero = withForm(withForm(stackedDeck, { heroForm: 0 }, P1), { heroForm: 0 }, P2);
+    const run = driveEventsPicking(DEPS, inHero, firstLegal, endTurn(P1), endTurn(P2));
+    const targets = events(run.events, "attackResolved")
+      .filter((e) => VILLAINS.includes(codeOf(run.state, e.enemyInstanceId)))
+      .map((e) => [codeOf(run.state, e.enemyInstanceId), e.targetInstanceId]);
+    expect(targets).toEqual([
+      [WAR, identityOf(run.state, P1)],
+      [FAMINE, identityOf(run.state, P2)],
+    ]);
+    expect(counterMoves(run)).toEqual([
+      [WAR, FAMINE, "nextInRow"],
+      [FAMINE, PESTILENCE, "nextInRow"],
+    ]);
+    expect(activeCode(run.state)).toBe(PESTILENCE);
+  });
+
+  it("in alter-ego form the villain schemes, and the scheme passes the counter too", () => {
+    const run = quietRound(setupGame(), 0, false);
+    expect(villainAttacks(run)).toEqual([]);
+    expect(events(run.events, "schemeResolved")).toHaveLength(1);
+    expect(counterMoves(run)).toEqual([[WAR, FAMINE, "nextInRow"]]);
+  });
+
+  it("Q4: a stunned War does not attack (the stunned card is discarded), so he did not activate and the counter stays on War", () => {
+    const base = setupGame();
+    const stunned = patchInstance(base, villain(base, WAR), { statuses: { stunned: 1, confused: 0, tough: 0 } });
+    // No boost card is stacked: with no attack none is dealt, and the Standard set's own would be the card revealed.
+    const run = quietRound(stunned, 0, true, []);
+    expect(villainAttacks(run)).toEqual([]);
+    expect(inst(run.state, villain(run.state, WAR)).statuses.stunned).toBe(0);
+    expect(counterMoves(run)).toEqual([]);
     expect(activeCode(run.state)).toBe(WAR);
   });
 
-  it.fails("proof of the gap, Q5: Famine holds the counter; her activation moves it to Pestilence, and Death activating by the Horseman moves it on from Pestilence (the holder) to Death", () => {
+  it("Q4: a confused War does not scheme against an alter-ego, and the counter stays on War", () => {
+    const base = setupGame();
+    const confused = patchInstance(base, villain(base, WAR), { statuses: { stunned: 0, confused: 1, tough: 0 } });
+    const run = quietRound(confused, 0, false, []);
+    expect(events(run.events, "schemeResolved")).toHaveLength(0);
+    expect(counterMoves(run)).toEqual([]);
+    expect(activeCode(run.state)).toBe(WAR);
+  });
+
+  it("a Horseman at 0 hit points keeps his place in the row: he takes the counter and activates in his turn", () => {
+    const first = quietRound(withDamageOn(setupGame(), FAMINE, 9));
+    expect(activeCode(first.state)).toBe(FAMINE);
+    const second = quietRound(first.state, 1);
+    expect(villainAttacks(second)).toEqual([FAMINE]);
+    expect(activeCode(second.state)).toBe(PESTILENCE);
+  });
+});
+
+describe("'after a villain activates' with several villains (§3.8, Q5)", () => {
+  it("Horseman of Death revealed in step four: Death heals 2, gets a tough card and attacks, and each activation passes the counter one place", () => {
+    const s = withDamageOn(setupGame(), DEATH, 5);
+    const run = round(s, { boosts: [BOOST_0], reveals: [H_DEATH] });
+    expect(villainAttacks(run)).toEqual([WAR, DEATH]);
+    expect(damageOf(run.state, DEATH)).toBe(3);
+    expect(inst(run.state, villain(run.state, DEATH)).statuses.tough).toBe(1);
+    // War's own activation moved it War -> Famine. Death's moved it Famine -> Pestilence: from the holder (Famine),
+    // not from Death, the villain that activated.
+    expect(counterMoves(run)).toEqual([
+      [WAR, FAMINE, "nextInRow"],
+      [FAMINE, PESTILENCE, "nextInRow"],
+    ]);
+  });
+
+  it("War attacks with Horseman of Famine as his boost card: War's attack finishes and 1B moves the counter to Famine; then Famine activates with no boost card and 1B moves it to Pestilence; next round Pestilence is active", () => {
+    const run = round(setupGame(), { boosts: [H_FAMINE], reveals: [QUIET[0]!] });
+    expect(villainAttacks(run)).toEqual([WAR, FAMINE]);
+    expect(attacksBy(run.events, run.state, FAMINE)[0]!.boostIcons).toBe(0);
+    expect(counterMoves(run)).toEqual([
+      [WAR, FAMINE, "nextInRow"],
+      [FAMINE, PESTILENCE, "nextInRow"],
+    ]);
+    // The first move is logged before Famine's attack resolves: all of War's activation's triggers come first.
+    const order = run.events.flatMap((e) =>
+      e.type === "activeVillainChanged"
+        ? [`counter:${codeOf(run.state, e.to)}`]
+        : e.type === "attackResolved"
+          ? [`attack:${codeOf(run.state, e.enemyInstanceId)}`]
+          : [],
+    );
+    expect(order).toEqual([`attack:${WAR}`, `counter:${FAMINE}`, `attack:${FAMINE}`, `counter:${PESTILENCE}`]);
+    const next = quietRound(run.state, 1);
+    expect(villainAttacks(next)).toEqual([PESTILENCE]);
+  });
+
+  it("Q5: Famine holds the counter; her activation moves it to Pestilence, and Death activating by the Horseman moves it on from Pestilence (the holder) to Death", () => {
     const base = setupGame();
     const s = withActive(base, villain(base, FAMINE));
     const run = round(s, { boosts: [BOOST_0], reveals: [H_DEATH] });
@@ -449,6 +597,24 @@ describe("the 1B Forced Response and the active counter (task 20): not registere
     // Famine's own activation moves it Famine -> Pestilence, Death's (from the treachery) Pestilence -> Death. Both
     // are "one position from the villain holding it" (Q5 = A), so Death's activation never moves it from Death.
     expect(activeCode(run.state)).toBe(DEATH);
+  });
+
+  it("Q5, the owner's test: row [Death, Pestilence, War, Famine] with the counter on Death when Horseman of War is revealed. War heals 2, gets a tough card and attacks; the counter moves from Death to Pestilence, not to Famine (War's neighbor), and next round Pestilence is active", () => {
+    const base = withDamageOn(setupGame(), WAR, 5);
+    // Famine, the rightmost, starts with the counter: her own activation in step two wraps it to Death, the leftmost,
+    // so Death holds it when the treachery is revealed in step four.
+    const s = seated(base, [DEATH, PESTILENCE, WAR, FAMINE], FAMINE);
+    const run = round(s, { boosts: [BOOST_0], reveals: [H_WAR] });
+    expect(villainAttacks(run)).toEqual([FAMINE, WAR]);
+    expect(damageOf(run.state, WAR)).toBe(3);
+    expect(inst(run.state, villain(run.state, WAR)).statuses.tough).toBe(1);
+    expect(counterMoves(run)).toEqual([
+      [FAMINE, DEATH, "nextInRow"],
+      [DEATH, PESTILENCE, "nextInRow"],
+    ]);
+    expect(activeCode(run.state)).toBe(PESTILENCE);
+    const next = quietRound(run.state, 1);
+    expect(villainAttacks(next)).toEqual([PESTILENCE]);
   });
 });
 
@@ -490,6 +656,32 @@ describe("side schemes (45086, 45087, 45089): When Defeated", () => {
   it("Plague and Pestilence (45088): When Defeated not registered, waits on task 23", () => {
     expect(Object.keys(FOUR_HORSEMEN)).not.toContain("45088.when-defeated");
     expect(FOUR_HORSEMEN_SKIPPED["45088.when-defeated"]).toContain("task 23");
+  });
+});
+
+describe("Metal Wings (45091): When Revealed, attach to Death and move the active counter to him", () => {
+  it("revealed with Famine holding the counter: it attaches to Death and the counter goes straight to Death, past Pestilence", () => {
+    // War's own activation in step two passes the counter to Famine; Metal Wings is revealed in step four.
+    const run = round(setupGame(), { boosts: [BOOST_0], reveals: [METAL_WINGS] });
+    const death = villain(run.state, DEATH);
+    const wings = inPlay(run.state, METAL_WINGS);
+    expect(wings).toHaveLength(1);
+    expect(inst(run.state, death).attachments).toEqual(wings);
+    expect(counterMoves(run)).toEqual([
+      [WAR, FAMINE, "nextInRow"],
+      [FAMINE, DEATH, "effect"],
+    ]);
+    expect(activeCode(run.state)).toBe(DEATH);
+    expect(keywordTotal(run.state, death, "retaliate", DEPS)).toBe(1);
+  });
+
+  it("revealed with Death already holding the counter: it attaches and the counter stays", () => {
+    const base = setupGame();
+    // Pestilence starts with it, so her activation passes it to Death before the reveal.
+    const run = round(withActive(base, villain(base, PESTILENCE)), { boosts: [BOOST_0], reveals: [METAL_WINGS] });
+    expect(counterMoves(run)).toEqual([[PESTILENCE, DEATH, "nextInRow"]]);
+    expect(activeCode(run.state)).toBe(DEATH);
+    expect(inst(run.state, villain(run.state, DEATH)).attachments).toHaveLength(1);
   });
 });
 

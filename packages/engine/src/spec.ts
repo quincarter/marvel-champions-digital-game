@@ -3347,6 +3347,15 @@ export type EffectSpec =
       readonly villain: TargetRef;
       readonly reveal?: boolean;
       /**
+       * `"shuffled"`: "Shuffle the four Horsemen villains, then reveal them in a row from left to right. Place the
+       * active counter on the leftmost villain" (The Horsemen of Apocalypse 1A, `aoa` 45085a; MC45 p. 11;
+       * docs/phase7-wave8.md §3.7). The set-aside villains named are shuffled with the game's seeded RNG and enter
+       * play in that order; the order becomes `GameState.villainRow` (logged `villainRowSet { order }`) and the
+       * leftmost takes the active counter. A villain already in the row keeps its place, to the left of the new ones.
+       * With no set-aside villain named, nothing happens and no row is made.
+       */
+      readonly row?: "shuffled";
+      /**
        * The villains now in play to slot `bind`, their number to `<bind>.count`: "If no villain was put into play this
        * way" (Sinister Beatdown 2A, Surprise!; `sm` 27101a, 27112). A villain already in play does not enter again.
        * docs/phase7-wave5.md §3.1, the `putIntoPlay.bind` shape (docs/phase7-wave4.md §3.59).
@@ -3367,8 +3376,14 @@ export type EffectSpec =
    * villain who has it to the villain with the next ascending value in the order. If there is no activation order value
    * greater than the current villain's value, move the active counter to the villain with the lowest activation order
    * value." Only villains in play count; with none other in play it stays (MC27 p. 21 FAQ). docs/phase7-wave5.md §3.1.
+   *
+   * `nextInRow`: "Move the active counter to the next villain" where the villains sit in a row (The Horsemen of
+   * Apocalypse 1B, `aoa` 45085b; MC45 p. 11; docs/phase7-wave8.md §3.7): from the villain holding the counter to the
+   * one on its right in `GameState.villainRow`, wrapping from the rightmost to the leftmost. With one villain in the
+   * row it stays; with no row nothing happens. It always moves from the villain that holds the counter, whichever
+   * villain's activation caused the move (docs/phase7-wave8.md §3.8, §4.1 Q5 = A, the owner's decision).
    */
-  | { readonly kind: "moveActiveCounter"; readonly to: "nextInActivationOrder" }
+  | { readonly kind: "moveActiveCounter"; readonly to: "nextInActivationOrder" | "nextInRow" }
   /**
    * "Move the glider counter to the main scheme with the least threat" (Venom Goblin, MC27 p. 17); "moving all counters
    * on this card … to her" (SP//dr Suit 1B, `spdr` 31001b). Every counter of `counterType` (absent: of every type) on
@@ -3839,6 +3854,12 @@ export type CardSelector =
        * 04124); docs/phase7-wave6-handoff.md §3.76. No choice: an empty match yields nothing.
        */
       readonly topmostOnly?: boolean;
+      /**
+       * That many of the matching cards at random, from the game's seeded RNG, as `encounterSetAside.random`: "Each
+       * player reveals a random side scheme from the Four Horsemen encounter set" (The Horsemen of Apocalypse 1A, `aoa`
+       * 45085a; docs/phase7-wave8.md §3.15). Over every named deck's matches as one pool; fewer when fewer match.
+       */
+      readonly random?: ValueSpec;
     }
   /** A player's set-aside nemesis set. */
   | { readonly kind: "setAside"; readonly player: PlayerRef; readonly filter?: TargetQuery }

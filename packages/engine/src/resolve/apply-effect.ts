@@ -72,6 +72,7 @@ import {
   mustInstance,
   mustPlayer,
   nextVillainInActivationOrder,
+  nextVillainInRow,
   showingResources,
   turnInProgress,
   villainOf,
@@ -105,7 +106,7 @@ import {
   type ReportTarget,
   type StackFrame,
 } from "../stack.js";
-import type { LeavePatch, TriggerEvent } from "../trigger-events.js";
+import { cardFlippedEvent, type LeavePatch, type TriggerEvent } from "../trigger-events.js";
 import { uniqueEntryBlocker } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
@@ -1691,12 +1692,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // A main scheme stage with its other face emitted as its own card (docs/phase7-wave5.md §3.3): "Flip this
           // card" turns it to that face without revealing it.
           // "waiting": its attachments' leave interrupts first; the flip and its `cardFlipped` follow (wave 5 §4.1 Q32).
-          const flipped = flipMainSchemeStage(ctx, id, false, ctx.state.firstPlayerId);
+          const flipped = flipMainSchemeStage(ctx, id, false, ctx.state.firstPlayerId, context.controllerId);
           if (flipped === false || flipped === "waiting") continue;
         } else if (card?.otherFaceId !== undefined) {
           // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
           const playerId = context.controllerId ?? ctx.state.firstPlayerId;
-          if (flipToOtherFace(ctx, id, playerId, ctx.deps, effect.reveal === true) !== true) continue;
+          const turnedOver = flipToOtherFace(ctx, id, playerId, ctx.deps, effect.reveal === true, context.controllerId);
+          if (turnedOver !== true) continue;
           // "Flip this card and reveal [its other face]": it pushed the reveal and the `cardFlipped` under it.
           if (effect.reveal) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
@@ -1711,7 +1713,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         } else {
           continue;
         }
-        frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
+        // The flip names the player whose effect it was (docs/phase7-wave8.md §3.6).
+        frames.push(eventFrame(ctx, cardFlippedEvent(id, context.controllerId)));
       }
       pushFrames(ctx, frames);
       // A face now showing that is restricted can take its controller past the limit (RRG 1.8 "Restricted", p. 38:
@@ -1756,7 +1759,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (effect.toName !== undefined && currentName(ctx.state, target) === effect.toName) continue;
           updateInstance(ctx, target, (i) => ({ ...i, flipped: !i.flipped }));
           emit(ctx, { type: "cardFlipped", instanceId: target, flipped: !instance.flipped });
-          events.push({ kind: "cardFlipped", instanceId: target });
+          events.push(cardFlippedEvent(target, playerId));
         } else {
           if (!instance.facedownAs) continue; // Already in that form: nothing changes and nothing triggers.
           // One form of a type at a time (§4 Q1): the one showing turns facedown as this one turns faceup.
@@ -1808,7 +1811,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (!face || face.side === villain.side) continue;
         flipVillain(ctx, id, face.side);
         frames.push(revealNewFaceFrame(ctx, id));
-        frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
+        frames.push(eventFrame(ctx, cardFlippedEvent(id, context.controllerId)));
       }
       pushFrames(ctx, frames);
       return;
@@ -1897,6 +1900,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         contextArea(ctx.state, context),
         effect.reveal ?? false,
         actor,
+        effect.row,
       );
       // "If no villain was put into play this way" (docs/phase7-wave5.md §3.1).
       if (effect.bind) {
@@ -1929,6 +1933,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       setVillainsAside(ctx, targets(effect.villain));
       return;
     case "moveActiveCounter": {
+      if (effect.to === "nextInRow") {
+        // One place along the row from the villain that holds the counter, whichever villain's activation asked
+        // (docs/phase7-wave8.md §3.8, §4.1 Q5 = A: the owner's decision on The Horsemen of Apocalypse 1B, `aoa` 45085b).
+        const held = villainOf(ctx.state, ctx.state.activeVillainId)?.defeated === false;
+        const next = nextVillainInRow(ctx.state, held ? ctx.state.activeVillainId : null);
+        if (next) setActiveVillain(ctx, next, "nextInRow");
+        return;
+      }
       // MC27 p. 15 and its p. 21 FAQ: a lone villain keeps the counter.
       const next = nextVillainInActivationOrder(ctx.state, ctx.state.activeVillainId);
       if (next) setActiveVillain(ctx, next, "activationOrder");
