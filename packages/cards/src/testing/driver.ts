@@ -25,6 +25,9 @@ import {
   type PendingChoice,
   type PlayerId,
   isVillain,
+  legalActions,
+  wildDeclarationFault,
+  wildDeclarations,
 } from "@mc/engine";
 
 /**
@@ -150,8 +153,10 @@ function* turnCandidates(
   if (form === "alterEgo") {
     if (!identity.exhausted && identity.damage > 0 && hpLeft * 2 <= profile.maxHp)
       yield { command: { type: "basicRecover", playerId } };
-    if (!player.identity.changedFormThisRound && hpLeft * 2 > profile.maxHp)
+    if (!player.identity.changedFormThisRound && hpLeft * 2 > profile.maxHp) {
       yield { command: { type: "changeForm", playerId } };
+      yield* paidFormChanges(state, deps, playerId);
+    }
   }
 
   // 2. Play cards from hand, paying with the fewest other cards.
@@ -240,8 +245,21 @@ function* turnCandidates(
   }
 
   // 5. A badly hurt hero flips to alter-ego (after acting) to recover next turn.
-  if (form === "hero" && !player.identity.changedFormThisRound && hpLeft <= 4)
+  if (form === "hero" && !player.identity.changedFormThisRound && hpLeft <= 4) {
     yield { command: { type: "changeForm", playerId } };
+    yield* paidFormChanges(state, deps, playerId);
+  }
+}
+
+/**
+ * A form change with an additional cost in force (`RuleSpec formChangeCost`, e.g. Grounded 47023) refuses the bare
+ * `changeForm`; the legal action carries the engine's own paid example, which the driver takes as its candidate.
+ */
+function* paidFormChanges(state: GameState, deps: EngineDeps, playerId: PlayerId): Generator<Candidate> {
+  const actions = legalActions(state, playerId, deps);
+  if (actions.kind !== "turn") return;
+  for (const legal of actions.legal)
+    if (legal.action.kind === "changeForm" && legal.needsPayment) yield { command: legal.example };
 }
 
 function actionAbility(deps: EngineDeps, c: AnyCard): AbilityDefinition | undefined {
@@ -388,8 +406,10 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
     case "orderSpecials":
       // Take every optional trigger, in the offered order.
       return ids.slice(0, Math.max(choice.minSelections, choice.maxSelections));
-    case "payForCard":
     case "payForAbility":
+      if (choice.prompt.chosenResources) return spendUpTo(state, choice, choice.prompt.chosenResources);
+      return payFromOptions(state, choice, choice.prompt.cost, null);
+    case "payForCard":
       return payFromOptions(state, choice, choice.prompt.cost, null);
     case "spendResources": {
       const r = choice.prompt.requirement;
@@ -411,6 +431,20 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
       }
       return picked;
     }
+    case "declareWildTypes": {
+      // Owner ruling Q33 = B: the player declares a type for each wild. The first legal declaration, deterministically
+      // (the engine refuses an illegal one), as the option ids `<wild index>:<type>`.
+      const { wilds, pool, requirement, only } = choice.prompt;
+      const resolved = {
+        generic: requirement.generic ?? 0,
+        physical: requirement.physical ?? 0,
+        mental: requirement.mental ?? 0,
+        energy: requirement.energy ?? 0,
+        ...(requirement.wild === undefined ? {} : { wild: requirement.wild }),
+      };
+      const declared = wildDeclarations(wilds).find((d) => wildDeclarationFault(pool, d, resolved, only) === null);
+      return declared ? declared.map((type, index) => `${index}:${type}`) : fewest;
+    }
     case "discardDownToHandSize":
     case "discardOverAllyLimit":
     case "discardOverPlayerSideSchemeLimit":
@@ -420,6 +454,29 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
       // Targets, options, players, cards, attachment hosts, minion order: the first legal option(s).
       return ids.slice(0, Math.min(Math.max(choice.minSelections, 1), choice.maxSelections));
   }
+}
+
+/**
+ * A cost whose size the payer chooses ("spend up to 3 resources →"): the cost cannot be overpaid, so the options are taken
+ * in the offered order while the total stays within `max`; short of `min`, it declines (selects nothing).
+ */
+function spendUpTo(
+  state: GameState,
+  choice: PendingChoice,
+  range: { readonly min: number; readonly max: number },
+): readonly string[] {
+  const picks: string[] = [];
+  let sum = 0;
+  for (const option of choice.options) {
+    const value = option.optionId.startsWith("ability:")
+      ? 1
+      : resourceValue(state, option.optionId.slice("hand:".length) as InstanceId);
+    if (value > 0 && sum + value <= range.max) {
+      picks.push(option.optionId);
+      sum += value;
+    }
+  }
+  return sum >= range.min ? picks : [];
 }
 
 /** Picks payment options worth at least `cost`, typed cards first for a typed requirement; declines if it can't. */
