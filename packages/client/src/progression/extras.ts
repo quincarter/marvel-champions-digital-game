@@ -442,6 +442,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/dark-beast/villain-wins.mp3": "The Experiment Succeeds",
   "scenarios/dark-beast/villain-loses.mp3": "The Laboratory Falls",
   "scenarios/en-sabah-nur/battle.mp3": "The First Mutant",
+  "scenarios/en-sabah-nur/villain-wins.mp3": "A World Remade",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
