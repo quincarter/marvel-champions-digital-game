@@ -435,6 +435,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/four-horsemen/battle.mp3": "Riders of Ruin",
   "scenarios/four-horsemen/villain-wins.mp3": "The Horsemen Triumph",
   "scenarios/four-horsemen/villain-loses.mp3": "The Last Rider Falls",
+  "scenarios/apocalypse/battle.mp3": "Survival of the Fittest",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
