@@ -21,12 +21,14 @@ import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
 import { MAGIK_EVENTS } from "./aoa/magik/events.js";
 import { MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./aoa/magik/identity.js";
+import { MAGIK_OBLIGATION_NEMESIS, MAGIK_OBLIGATION_NEMESIS_SKIPPED } from "./aoa/magik/obligation-nemesis.js";
 import {
   MAGIK_SUPPORT_UPGRADES_ALLIES,
   MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./aoa/magik/support-upgrades-allies.js";
 import { SAVAGE_LAND } from "./aoa/savage-land.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
+import { AOA_ASPECT_BASIC, AOA_ASPECT_BASIC_SKIPPED } from "./aoa/aspect-basic.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_ASPECT_BASIC, ICEMAN_ASPECT_BASIC_SKIPPED } from "./iceman/aspect-basic.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
@@ -38,6 +40,7 @@ import {
   ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./iceman/iceman/support-upgrades-allies.js";
 import { ARCADE } from "./jubilee/arcade.js";
+import { JUBILEE_ASPECT_BASIC, JUBILEE_ASPECT_BASIC_SKIPPED } from "./jubilee/aspect-basic.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_EVENTS, JUBILEE_EVENTS_SKIPPED } from "./jubilee/jubilee/events.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
@@ -113,6 +116,39 @@ const SCRIPTED_MODULES: Readonly<
       skipped: BISHOP_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
+      module: "aspect-basic",
+      cardIds: [
+        "45011",
+        "45012",
+        "45013",
+        "45014",
+        "45015",
+        "45016",
+        "45017",
+        "45018",
+        "45019",
+        "45020",
+        "45021",
+        "45022",
+        "45023",
+        "45024",
+        "45041",
+        "45042",
+        "45043",
+        "45044",
+        "45045",
+        "45046",
+        "45047",
+        "45048",
+        "45049",
+        "45050",
+        "45051",
+        "45052",
+      ],
+      registry: AOA_ASPECT_BASIC,
+      skipped: AOA_ASPECT_BASIC_SKIPPED,
+    },
+    {
       module: "blue-moon",
       cardIds: ["45139", "45140", "45141", "45142", "45143", "45144", "45145", "45146"],
       registry: BLUE_MOON,
@@ -159,6 +195,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["45031", "45032", "45033", "45034", "45035"],
       registry: MAGIK_SUPPORT_UPGRADES_ALLIES,
       skipped: MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
+      module: "magik/obligation-nemesis",
+      cardIds: ["45053", "45054", "45055", "45056", "45057", "45058"],
+      registry: MAGIK_OBLIGATION_NEMESIS,
+      skipped: MAGIK_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
       module: "savage-land",
@@ -234,6 +276,27 @@ const SCRIPTED_MODULES: Readonly<
       skipped: JUBILEE_OBLIGATION_NEMESIS_SKIPPED,
     },
     { module: "jubilee/arcade", cardIds: ["47030", "47031", "47032", "47033", "47034"], registry: ARCADE, skipped: {} },
+    {
+      module: "jubilee/aspect-basic",
+      cardIds: [
+        "47011",
+        "47012",
+        "47013",
+        "47014",
+        "47015",
+        "47016",
+        "47017",
+        "47018",
+        "47019",
+        "47020",
+        "47021",
+        "47022",
+        "47028",
+        "47029",
+      ],
+      registry: JUBILEE_ASPECT_BASIC,
+      skipped: JUBILEE_ASPECT_BASIC_SKIPPED,
+    },
   ],
   ncrawler: [
     { module: "nightcrawler/identity", cardIds: ["48001a", "48001b"], registry: NIGHTCRAWLER_IDENTITY, skipped: {} },
