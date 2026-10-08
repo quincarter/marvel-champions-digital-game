@@ -40,6 +40,7 @@ import {
   discardRedirectArea,
   lingeringConsequentialRules,
   mainSchemeForRedirect,
+  staysInHand,
 } from "./rules.js";
 import { addFrameSlots, eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
@@ -831,11 +832,19 @@ export function drawUpTo(ctx: Ctx, playerId: PlayerId, target: () => number): vo
  * an encounter card (MC10 p. 17), so it enters play as a revealed obligation does (`enterPlayOnReveal`): faceup,
  * controlled by nobody (the play area holding it makes it that player's, `useAbility`'s obligation check), and
  * announced as entering play. It is placed, not revealed, so no "When Revealed" ability resolves.
+ *
+ * The exception is an obligation whose own text is about being in the hand ("Forced Response: After this card enters
+ * your hand, reveal it. Then, draw 1 card."; `staysInHand`, which already reads that text on every other encounter
+ * card): drawing it is it entering the hand, so it is drawn into the hand like any card and its own ability does the
+ * rest. Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 76), read through RRG 1.8 "The Golden Rules"
+ * (p. 4): "If the text of a card … directly contradicts the text of … the Rules Reference …, the text of the card …
+ * takes precedence." No FFG ruling says a draw counts as entering the hand for such an obligation; p. 30 above stays
+ * the rule for every obligation without that text.
  */
 function drawOne(ctx: Ctx, playerId: PlayerId): InstanceId | null {
   const top = takeTopOfDeck(ctx, playerId);
   if (!top) return null;
-  const obligation = mustCardOf(ctx.state, top).type === "obligation";
+  const obligation = mustCardOf(ctx.state, top).type === "obligation" && !staysInHand(ctx.state, ctx.deps, top);
   const to: ZoneId = obligation ? { kind: "playArea", playerId } : { kind: "hand", playerId };
   const from = relocateCard(ctx, top, to);
   emit(ctx, { type: "cardDrawn", playerId, instanceId: top });

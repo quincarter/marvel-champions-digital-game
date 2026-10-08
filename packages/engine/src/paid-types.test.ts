@@ -29,6 +29,8 @@ import {
   declaredPool,
   EMPTY_POOL,
   paidAsDeclared,
+  paidSetOptionId,
+  paidSetsAsDeclared,
   paidTypeCountOf,
   requirementOf,
   wildDeclarationFault,
@@ -341,11 +343,17 @@ interface Driven {
   readonly session: ReturnType<typeof startSession>;
   /** How many `declareWildTypes` choices were asked. */
   readonly asked: number;
+  /** How many `choosePaidResources` choices were asked (owner decision, 2026-10-08, §4.1 row 79). */
+  readonly paidAsked: number;
 }
+
+type PaidSet = Partial<Record<ResourceType, number>>;
+const paidSetId = (paid: PaidSet): string => paidSetOptionId({ ...EMPTY_POOL, ...paid });
 
 /**
  * Applies `commands`, answering each `declareWildTypes` choice with the next of `declarations` (the engine's default
- * when they run out) and every other choice with `other` (the test driver's default).
+ * when they run out), each `choosePaidResources` choice with the next of `paidSets` (the first set offered when they
+ * run out) and every other choice with `other` (the test driver's default).
  */
 function drive(
   start: GameState,
@@ -353,16 +361,23 @@ function drive(
   declarations: readonly (readonly ResourceType[])[] = [],
   other: (state: GameState) => readonly string[] = defaultPick,
   testDeps: EngineDeps = deps,
+  paidSets: readonly PaidSet[] = [],
 ): Driven {
   let asked = 0;
+  let paidAsked = 0;
   const pick = (state: GameState): readonly string[] => {
+    if (state.pendingChoice?.prompt.kind === "choosePaidResources") {
+      const paid = paidSets[paidAsked];
+      paidAsked += 1;
+      return paid ? [paidSetId(paid)] : defaultPick(state);
+    }
     if (state.pendingChoice?.prompt.kind !== "declareWildTypes") return other(state);
     const declared = declarations[asked];
     asked += 1;
     return declared ? declarationIds(declared) : defaultPick(state);
   };
   const { session, events } = driveSession(startSession(start), testDeps, commands, pick);
-  return { state: session.state, events, session, asked };
+  return { state: session.state, events, session, asked, paidAsked };
 }
 
 /** Puts each of `cards` (cost 0) into play, in order. */
@@ -390,6 +405,8 @@ interface Paying {
   readonly wildAs?: readonly ResourceType[];
   /** The answers to the `declareWildTypes` choices, in order. */
   readonly declare?: readonly (readonly ResourceType[])[];
+  /** The answers to the `choosePaidResources` choices, in order. */
+  readonly paid?: readonly PaidSet[];
 }
 
 /** Plays `card` with that payment from a fresh game; the result with the villain's damage before it subtracted. */
@@ -405,7 +422,14 @@ function playPaying(card: CardId, paying: Paying = {}): Driven & { readonly deal
     ...fromHand(...hand),
   ];
   const before = villainDamage(given.state);
-  const run = drive(given.state, [playCard(played, payment, paying.wildAs)], paying.declare);
+  const run = drive(
+    given.state,
+    [playCard(played, payment, paying.wildAs)],
+    paying.declare,
+    defaultPick,
+    deps,
+    paying.paid,
+  );
   // The payment was accepted whole: every paying card left the hand, overpaid ones included.
   for (const id of hand) expect(run.state.players[0]?.hand).not.toContain(id);
   return { ...run, dealt: villainDamage(run.state) - before };
@@ -439,6 +463,27 @@ describe("§3.62 the declared types of a payment (pure)", () => {
     );
     // Declared so that the cost is no longer paid: no paid set.
     expect(paidAsDeclared(pool({ energy: 2 }), requirementOf({ physical: 1 }))).toBeNull();
+  });
+
+  it("paidSetsAsDeclared: every set with the most types, `paidAsDeclared`'s first", () => {
+    // One of each toward 2: three sets of two types.
+    expect(paidSetsAsDeclared(pool({ physical: 1, mental: 1, energy: 1 }), requirementOf(2))).toEqual([
+      pool({ physical: 1, mental: 1 }),
+      pool({ physical: 1, energy: 1 }),
+      pool({ mental: 1, energy: 1 }),
+    ]);
+    // Two [physical] and an [energy] toward 2: two [physical] is one type, so it is no candidate (§4.1 Q34 = A).
+    expect(paidSetsAsDeclared(pool({ physical: 2, energy: 1 }), requirementOf(2))).toEqual([
+      pool({ physical: 1, energy: 1 }),
+    ]);
+    // A typed slot is filled with its own type in every set.
+    expect(
+      paidSetsAsDeclared(pool({ physical: 1, mental: 1, energy: 1 }), requirementOf({ energy: 1, generic: 1 })),
+    ).toEqual([pool({ physical: 1, energy: 1 }), pool({ mental: 1, energy: 1 })]);
+    // Nothing overpaid, a cost of 0, and a pool that does not pay: one set, the empty set, none.
+    expect(paidSetsAsDeclared(pool({ physical: 2 }), requirementOf(2))).toEqual([pool({ physical: 2 })]);
+    expect(paidSetsAsDeclared(pool({ physical: 2 }), requirementOf(0))).toEqual([EMPTY_POOL]);
+    expect(paidSetsAsDeclared(pool({ energy: 2 }), requirementOf({ physical: 1 }))).toEqual([]);
   });
 
   it("wildDeclarations: every way to declare interchangeable wilds, all left wild first", () => {
@@ -793,10 +838,27 @@ describe("§3.62 test 9: named types read together (`paidType`)", () => {
     expect(run).toMatchObject({ dealt: 111, asked: 0 });
   });
 
-  it("the typed resources already fill every line: the wild is overpaid whatever it is called, nothing asked", () => {
-    const run = playPaying(MULTITALENTED.id, { wilds: 1, cards: [STRENGTH.id, MENTAL.id, ENERGY.id] });
-    expect(run).toMatchObject({ dealt: 111, asked: 0 });
-    expect(ofType(run.events, "wildTypesDeclared")[0]).toMatchObject({ declared: ["wild"], skipped: true });
+  // Before 2026-10-08 nothing was asked here: the fixed order took the three typed resources and overpaid the wild.
+  // The wild left a wild can be one of the three paid, in place of a typed resource, and that silences a line, so the
+  // declaration matters and so does the paid set (owner decision, §4.1 row 79).
+  it("one of each type and a wild: declared a type it changes nothing; left a wild she says which three paid", () => {
+    const paying = { wilds: 1, cards: [STRENGTH.id, MENTAL.id, ENERGY.id] };
+    // Declared [physical]: the only three-type set is one of each, so nothing more is asked.
+    expect(playPaying(MULTITALENTED.id, { ...paying, declare: [["physical"]] })).toMatchObject({
+      dealt: 111,
+      asked: 1,
+      paidAsked: 0,
+    });
+    // Left a wild: four sets of three types. The first offered is the three typed resources.
+    const typed = playPaying(MULTITALENTED.id, { ...paying, declare: [["wild"]] });
+    expect(typed).toMatchObject({ dealt: 111, asked: 1, paidAsked: 1 });
+    // The wild in place of the [energy]: the [energy] line does not fire.
+    const wildPaid = playPaying(MULTITALENTED.id, {
+      ...paying,
+      declare: [["wild"]],
+      paid: [{ physical: 1, mental: 1, wild: 1 }],
+    });
+    expect(wildPaid).toMatchObject({ dealt: 11, asked: 1, paidAsked: 1 });
   });
 
   it("three wilds: one line for each type she declares", () => {
@@ -814,11 +876,103 @@ describe("§3.62 test 9: named types read together (`paidType`)", () => {
     expect(villainDamage(none.state) - before).toBe(0);
   });
 
-  it("more types than the cost took: the paid ones are filled in the order physical, mental, energy, wild", () => {
-    // Cost 2 paid with one card of each type: two resources paid, so two lines, never three (§4.1 Q34 = A). The
-    // owner's answer does not say which two; the engine's fixed order does (flagged in `paidAsDeclared`).
-    const run = playPaying(MULTITALENTED_TWO.id, { cards: [STRENGTH.id, MENTAL.id, ENERGY.id] });
-    expect(run).toMatchObject({ dealt: 11, asked: 0 });
+  // Before 2026-10-08 the fixed order physical, mental, energy, wild decided, with no prompt: always 11.
+  describe("more types than the cost took: she says which resources were paid (owner decision, §4.1 row 79)", () => {
+    // Cost 2 paid with one card of each type: two resources paid, so two lines, never three (§4.1 Q34 = A; RRG 1.8
+    // "Cost", p. 13: the third "was not paid", and no official source says which the third is).
+    const oneOfEach = { cards: [STRENGTH.id, MENTAL.id, ENERGY.id] };
+
+    it.each([
+      [{ physical: 1, mental: 1 }, 11],
+      [{ physical: 1, energy: 1 }, 101],
+      [{ mental: 1, energy: 1 }, 110],
+    ] as const)("Multitalented at a cost of 2, paid %o: %i", (paid, dealt) => {
+      const run = playPaying(MULTITALENTED_TWO.id, { ...oneOfEach, paid: [paid] });
+      expect(run).toMatchObject({ dealt, asked: 0, paidAsked: 1 });
+      expect(ofType(run.events, "paidResourcesChosen")).toEqual([
+        expect.objectContaining({ paidAs: { ...EMPTY_POOL, ...paid } }),
+      ]);
+      // No wild was generated, so no wild declaration is logged.
+      expect(ofType(run.events, "wildTypesDeclared")).toEqual([]);
+    });
+
+    it("the choice: asked of the paying player before the card resolves, one option for each set, none preselected", () => {
+      const given = giveCards(game(), p1, MULTITALENTED_TWO.id, STRENGTH.id, MENTAL.id, ENERGY.id);
+      const [multi, ...hand] = given.ids as [InstanceId, ...InstanceId[]];
+      const before = villainDamage(given.state);
+      const result = applyCommand(given.state, playCard(multi, fromHand(...hand)), deps);
+      if (!result.ok) throw new Error(result.error.message);
+      const choice = result.state.pendingChoice;
+      expect(choice).toMatchObject({
+        playerId: p1,
+        minSelections: 1,
+        maxSelections: 1,
+        prompt: {
+          kind: "choosePaidResources",
+          instanceId: multi,
+          pool: { physical: 1, mental: 1, energy: 1, wild: 0 },
+          paidCount: 2,
+          sets: [
+            { physical: 1, mental: 1, energy: 0, wild: 0 },
+            { physical: 1, mental: 0, energy: 1, wild: 0 },
+            { physical: 0, mental: 1, energy: 1, wild: 0 },
+          ],
+        },
+      });
+      expect(choice?.options.map((option) => option.optionId)).toEqual([
+        "physical:1,mental:1,energy:0,wild:0",
+        "physical:1,mental:0,energy:1,wild:0",
+        "physical:0,mental:1,energy:1,wild:0",
+      ]);
+      // The payment is spent and nothing of the card has resolved.
+      for (const id of hand) expect(result.state.players[0]?.hand).not.toContain(id);
+      expect(villainDamage(result.state)).toBe(before);
+      // A set that is not offered (all three, or two of one type) is refused and the choice stays open.
+      const answer = (optionId: string): Command => ({
+        type: "resolveChoice",
+        playerId: p1,
+        choiceId: choice!.choiceId,
+        selectedOptionIds: [optionId],
+      });
+      expect(applyCommand(result.state, answer("physical:1,mental:1,energy:1,wild:0"), deps).ok).toBe(false);
+      expect(applyCommand(result.state, answer("physical:2,mental:0,energy:0,wild:0"), deps).ok).toBe(false);
+    });
+
+    it("every set reads the same: nobody is asked (a count reader, and a line reader whose lines are all filled)", () => {
+      // Firecracker counts types: [physical][mental][energy] toward 2 is two types whichever two paid.
+      const counted = playPaying(FIRECRACKER.id, oneOfEach);
+      expect(counted).toMatchObject({ dealt: 104, asked: 0, paidAsked: 0 });
+      expect(ofType(counted.events, "paidResourcesChosen")).toEqual([]);
+      // Multitalented at its printed cost of 3 with a second [physical]: one of each is the only three-type set.
+      const filled = playPaying(MULTITALENTED.id, { cards: [STRENGTH.id, STRENGTH.id, MENTAL.id, ENERGY.id] });
+      expect(filled).toMatchObject({ dealt: 111, asked: 0, paidAsked: 0 });
+    });
+
+    it("with the wilds declared on the command, only the paid set is asked", () => {
+      // [physical], [mental] and a wild declared [energy] toward 2.
+      const run = playPaying(MULTITALENTED_TWO.id, {
+        wilds: 1,
+        cards: [STRENGTH.id, MENTAL.id],
+        wildAs: ["energy"],
+        paid: [{ mental: 1, energy: 1 }],
+      });
+      expect(run).toMatchObject({ dealt: 110, asked: 0, paidAsked: 1 });
+      expect(ofType(run.events, "wildTypesDeclared")).toEqual([
+        expect.objectContaining({
+          declared: ["energy"],
+          skipped: false,
+          paidAs: { ...EMPTY_POOL, mental: 1, energy: 1 },
+        }),
+      ]);
+    });
+
+    it("the answer replays", () => {
+      const run = playPaying(MULTITALENTED_TWO.id, { ...oneOfEach, paid: [{ mental: 1, energy: 1 }] });
+      const replayed = replay(run.session.log, deps);
+      if (!replayed.ok) throw new Error(replayed.error.message);
+      expect(replayed.state).toEqual(run.state);
+      expect(ofType(replayed.events, "paidResourcesChosen")).toHaveLength(1);
+    });
   });
 });
 

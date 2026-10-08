@@ -700,8 +700,8 @@ export interface FormChangeCost {
  * change is free. `during: "ownTurn"` is read off the step: the player phase, that player's turn.
  *
  * This says what a change the player makes would cost. Whether a given change is one the player makes (the turn's
- * option, an ability of a player card they resolve) or one an encounter card forces, which is free (§4.2 Q37 = A), is
- * the caller's to say (`changeForm`, `executeChangeForm`).
+ * option, an ability of a player card they resolve, an Action of any card they trigger: §4.1 row 80) or one an
+ * encounter card forces, which is free (§4.2 Q37 = A), is the caller's to say (`changeForm`, `executeChangeForm`).
  */
 export function formChangeCostsFor(
   state: GameState,

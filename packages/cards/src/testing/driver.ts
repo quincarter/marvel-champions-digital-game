@@ -457,8 +457,9 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
 }
 
 /**
- * A cost whose size the payer chooses ("spend up to 3 resources →"): the cost cannot be overpaid, so the options are taken
- * in the offered order while the total stays within `max`; short of `min`, it declines (selects nothing).
+ * A cost whose size the payer chooses ("spend up to 3 resources →"): this driver does not overpay it (legal, but a
+ * waste), so the options are taken in the offered order while the total stays within `max`; short of `min`, it
+ * declines (selects nothing).
  */
 function spendUpTo(
   state: GameState,

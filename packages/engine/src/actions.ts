@@ -165,7 +165,8 @@ import {
   payableWithOneType,
   canBePaidFor,
   declaredPool,
-  paidAsDeclared,
+  paidSetsAsDeclared,
+  paidTypesReading,
   poolOf,
   poolTotal,
   printedResources,
@@ -176,7 +177,6 @@ import {
   satisfies,
   scalePool,
   TYPED_RESOURCES,
-  readOfPaidTypes,
   wildDeclarationFault,
   wildDeclarations,
   type PaidTypesRead,
@@ -1201,9 +1201,10 @@ function paidRequirementOf(
   cost: AbilityCost | undefined,
   resourceVarsRead: Vars,
 ): ResolvedRequirement {
-  // A cost the player sizes took every resource generated for it: nothing is overpaid (`ResourcesChoice`, §3.62).
+  // A cost the player sizes took the size chosen (`cost.resources`, `chosenResourceCount`); anything generated beyond
+  // it is overpaid like any other cost's (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13).
   if (resourcesChoiceOf(cost)) {
-    const chosen = Math.max(0, poolTotal(pool) - requirementTotal(requirement));
+    const chosen = resourceVarsRead["cost.resources"] ?? 0;
     return { ...requirement, generic: requirement.generic + chosen };
   }
   const x = cost?.resourcesX;
@@ -2648,10 +2649,15 @@ function overpaidVars(pool: ResourcePool, requirement: ResolvedRequirement): Rec
 }
 
 /**
- * The size of a chosen-size resource cost as this payment makes it (`ResourcesChoice`; docs/phase7-wave8.md §3.62):
- * every resource generated beyond the rest of the requirement, which must be within the cost's range, since nothing is
- * overpaid against a cost the player sizes. `named` is the size the command gave beside the payment
- * (`CostSelection.resources`), which must agree. Null for any other cost.
+ * The size of a chosen-size resource cost as this payment makes it (`ResourcesChoice`; docs/phase7-wave8.md §3.62).
+ * `named` is the size the command gave beside the payment (`CostSelection.resources`): a number in the cost's range
+ * that the payment covers. Unnamed, the size is every resource generated beyond the rest of the requirement, up to
+ * the cost's `max`. Null for any other cost.
+ *
+ * Overpaying is legal, as for any cost (owner decision, 2026-10-08, §4.1 row 78, applying RRG 1.8 "Cost", p. 13:
+ * "While paying a cost, a player is permitted to generate resources beyond the specified cost. Resources generated
+ * beyond the specified cost are considered to have been overpaid for that cost and were not paid for that cost."):
+ * what is generated beyond the size is overpaid, and §4.1 Q34 = A decides which resources are the paid ones.
  */
 function chosenResourceCount(
   pool: ResourcePool,
@@ -2670,19 +2676,10 @@ function chosenResourceCount(
   if (size < choice.min) {
     return { code: "insufficient_resources", message: `spend at least ${plural(choice.min)}; the payment is ${size}` };
   }
-  if (size > choice.max) {
-    return {
-      code: "invalid_choice",
-      message: `spend at most ${plural(choice.max)}; the payment is ${size}, and this cost cannot be overpaid`,
-    };
+  if (named !== undefined && named > size) {
+    return { code: "insufficient_resources", message: `chose to spend ${plural(named)}; the payment is ${size}` };
   }
-  if (named !== undefined && named !== size) {
-    return {
-      code: "invalid_choice",
-      message: `chose to spend ${plural(named)}; the payment is ${size}, and this cost cannot be overpaid`,
-    };
-  }
-  return size;
+  return named ?? Math.min(size, choice.max);
 }
 
 /**
@@ -2704,7 +2701,7 @@ export function resourceVars(
     "paid.energy": pool.energy,
     "paid.wild": pool.wild,
     "paid.total": poolTotal(pool),
-    // Against a cost the player sizes the whole pool was spent, so nothing reads as overpaid.
+    // Against a cost the player sizes, the size chosen was paid and the rest of the pool overpaid.
     ...overpaidVars(pool, chosen === null ? requirement : { ...requirement, generic: requirement.generic + chosen }),
   };
   if (chosen !== null) vars["cost.resources"] = chosen;
@@ -3326,6 +3323,12 @@ export function paidTypeReads(
  *   pays alone for a card that only counts, and when the typed resources already fill everything a reader can read. It
  *   is not so merely because one declaration is plainly best: the engine never declares for the player. A skipped wild
  *   stays a wild where that is legal (a wild a typed slot needs is the type of that slot).
+ * - **Several sets of resources can be the paid ones** (more generated than the cost took, and as many types either
+ *   way; `paidSetsAsDeclared`). Owner decision, 2026-10-08 (§4.1 row 79; no official source says which resources are
+ *   the overpaid ones, RRG 1.8 "Cost", p. 13): when the sets read differently to a reader, the player says which was
+ *   paid (`choosePaidResources`, asked by the frame paid for, after any wild declaration); when they all read the
+ *   same, the first is taken and nobody is asked. So "every legal declaration reads the same" above compares what
+ *   each declaration lets the player reach: the readings of all its sets.
  */
 function settlePaidTypes(
   pool: ResourcePool,
@@ -3341,31 +3344,50 @@ function settlePaidTypes(
   }
   if (reads.length === 0) return { vars };
   const paidCount = requirementTotal(paidRequirement);
-  const paidAsOf = (types: readonly ResourceType[]): ResourcePool | null =>
+  // Every set of resources that can be the paid ones under a declaration (`paidSetsAsDeclared`), and what the readers
+  // read of each: one reading is a payment settled; several are the player's to choose between.
+  const setsOf = (types: readonly ResourceType[]): readonly ResourcePool[] =>
     wildDeclarationFault(pool, types, paidRequirement, only) === null
-      ? paidAsDeclared(declaredPool(pool, types), paidRequirement)
-      : null;
+      ? paidSetsAsDeclared(declaredPool(pool, types), paidRequirement)
+      : [];
+  const readings = (sets: readonly ResourcePool[]): readonly string[] =>
+    [...new Set(sets.map((paidAs) => paidTypesReading(paidAs, reads)))].sort();
   const settled = (types: readonly ResourceType[], paidAs: ResourcePool, skipped: boolean) => ({
     vars: { ...vars, ...paidAsVars(paidAs) },
     types: { paidCount, declared: { types, skipped, paidAs } },
   });
+  const asked = (declared?: { readonly types: readonly ResourceType[]; readonly skipped: boolean }) => ({
+    vars,
+    types: {
+      paidCount,
+      undeclared: {
+        pool,
+        requirement: paidRequirement,
+        ...(only.length > 0 ? { only } : {}),
+        reads,
+        ...(declared ? { declared } : {}),
+      },
+    },
+  });
+  // The wilds are settled as `types`: the paid set too when every candidate reads the same, else it is asked.
+  const withWilds = (types: readonly ResourceType[], sets: readonly ResourcePool[], skipped: boolean) => {
+    const [paidAs] = sets;
+    return paidAs && readings(sets).length === 1 ? settled(types, paidAs, skipped) : asked({ types, skipped });
+  };
   if (wildAs !== undefined) {
-    const paidAs = paidAsOf(wildAs);
-    if (paidAs) return settled(wildAs, paidAs, false);
+    const sets = setsOf(wildAs);
+    if (sets.length > 0) return withWilds(wildAs, sets, false);
   }
   const legal = wildDeclarations(pool.wild).flatMap((types) => {
-    const paidAs = paidAsOf(types);
-    return paidAs ? [{ types, paidAs }] : [];
+    const sets = setsOf(types);
+    return sets.length > 0 ? [{ types, sets }] : [];
   });
-  const reading = (paidAs: ResourcePool): string => reads.map((read) => readOfPaidTypes(paidAs, read)).join("|");
   const [first] = legal;
-  if (first && legal.every((entry) => reading(entry.paidAs) === reading(first.paidAs))) {
-    return settled(first.types, first.paidAs, true);
+  const same = (a: readonly string[], b: readonly string[]): boolean => a.join("/") === b.join("/");
+  if (first && legal.every((entry) => same(readings(entry.sets), readings(first.sets)))) {
+    return withWilds(first.types, first.sets, true);
   }
-  return {
-    vars,
-    types: { paidCount, undeclared: { pool, requirement: paidRequirement, ...(only.length > 0 ? { only } : {}) } },
-  };
+  return asked();
 }
 
 /**
@@ -5079,6 +5101,7 @@ function basicThwartWith(
           playerId: command.playerId,
           basic: true,
           amount,
+          dividedAmong: shares.map((share) => share.targetInstanceId),
           ...(useAtk ? { useAtk: true as const } : {}),
         })),
         consequential,
@@ -5124,10 +5147,59 @@ function dividedShares(
   }
   if (divide.some((share) => !Number.isInteger(share.amount) || share.amount < 1))
     return engineError("no_valid_target", "each share is at least 1", command);
-  const value = characterProfile(ctx.state, characterId, ctx.deps)?.[stat] ?? 0;
+  const value = dividedBasicPowerValue(ctx.state, ctx.deps, command.playerId, characterId, power, stat, targets);
   const total = divide.reduce((sum, share) => sum + share.amount, 0);
   if (total !== value) return engineError("no_valid_target", `the shares must total ${value}`, command);
   return divide;
+}
+
+/**
+ * What `characterId` has to divide when it divides its basic `power` among `targets`: its `stat` as it reads during
+ * that use, which is what the shares of the division must total (`dividedShares`). Read on a scratch copy of the game,
+ * so nothing here changes it.
+ *
+ * - **A bonus waiting on this power counts** ("for its next basic thwart or attack", "+1 THW and +1 ATK for this
+ *   use"; `LastingDuration nextBasicPower`): the power's own event frames start it (`startNextBasicPowerEffects`),
+ *   which is after a division's fixed shares are set, so it is read as started here.
+ * - **A thwart's stat is read while that thwart is being made**: "+1 THW while making a basic thwart against this
+ *   scheme" counts when the scheme is one of the division's (card text; RRG 1.8 "Modifiers", p. 29: a value is
+ *   recalculated with every active modifier; "Assault", p. 8, and docs/phase7-wave7.md §4.1 Q3: a divided basic
+ *   thwart is one basic thwart). The scratch copy has the thwart on its stack, as the undivided thwart has when it
+ *   reads its own THW.
+ */
+export function dividedBasicPowerValue(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  characterId: InstanceId,
+  power: "attack" | "thwart",
+  stat: "atk" | "thw",
+  targets: readonly InstanceId[],
+): number {
+  const reading = createCtx(state, deps);
+  reading.state = {
+    ...reading.state,
+    lastingEffects: reading.state.lastingEffects.map((effect) =>
+      effect.duration.kind === "nextBasicPower" &&
+      effect.duration.characterIds.includes(characterId) &&
+      effect.duration.powers.includes(power)
+        ? { ...effect, duration: { kind: "endOfPhase" as const } }
+        : effect,
+    ),
+  };
+  const [firstTarget] = targets;
+  if (power === "thwart" && firstTarget !== undefined) {
+    pushEvent(reading, {
+      kind: "thwart",
+      thwarterInstanceId: characterId,
+      schemeInstanceId: firstTarget,
+      playerId,
+      basic: true,
+      dividedAmong: targets,
+      ...(stat === "atk" ? { useAtk: true as const } : {}),
+    });
+  }
+  return characterProfile(reading.state, characterId, deps)?.[stat] ?? 0;
 }
 
 export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover" }): EngineError | null {

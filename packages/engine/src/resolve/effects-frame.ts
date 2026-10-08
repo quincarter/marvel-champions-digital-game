@@ -1091,15 +1091,22 @@ function executeChangeForm(
   // change an encounter card makes costs nothing and happens. Paid, the payment's own announcements resolve above
   // this frame, which then comes back here for the next player or the changes themselves.
   //
+  // Owner decision, 2026-10-08 (§4.1 row 80; no official source speaks to it): an Action the player triggers is a
+  // change they make whatever card prints it, an encounter card included, so it is theirs to pay for as well ("As
+  // an additional cost to change to hero form during your turn" is met to the letter). Every other encounter card
+  // ability stays free: When Revealed, forced interrupts and responses, boosts (Q37 = A), and, not ruled on, an
+  // optional interrupt or response printed on an encounter card.
+  //
   // The prompt is a payment, so a cost that picks cards ("discard 1 card from your hand") cannot be asked for here
   // yet and reads as unpayable: it needs a pick step before the payment when a card prints one.
   const source = frame.selfInstanceId === null ? undefined : cardOf(ctx.state, frame.selfInstanceId);
   const byPlayerCard = source !== undefined && isPlayerCardType(source);
+  const byAction = (frame.abilityId ? ctx.deps.abilities[frame.abilityId] : undefined)?.trigger.kind === "action";
   // The answer on the frame is a payment only if no form choice took it above.
   let answer = frame.answer !== null && !answeredForm ? frame.answer : null;
   for (const { playerId, to } of changes) {
     const key = `${FORM_COST}${playerId}`;
-    if (vars[key] !== undefined || !byPlayerCard || context.controllerId !== playerId) continue;
+    if (vars[key] !== undefined || !(byPlayerCard || byAction) || context.controllerId !== playerId) continue;
     const costs = formChangeCostsFor(ctx.state, ctx.deps, playerId, to);
     if (costs.length === 0) continue;
     const sourceInstanceIds = formChangeCostSources(costs);

@@ -160,6 +160,20 @@ export type GameEvent =
       readonly skipped: boolean;
       readonly paidAs: ResourcePool;
     }
+  /**
+   * The player said which resources of the payment for `instanceId` were the paid ones (`choosePaidResources`; owner
+   * decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 79): `paidAs` is that set by the type each resource was used
+   * as, and `overpaidAs` the rest of what the payment generated. Logged only when the player was asked, which is only
+   * when two sets read differently to a card reading the payment. `abilityId` as on `wildTypesDeclared`.
+   */
+  | {
+      readonly type: "paidResourcesChosen";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly abilityId?: AbilityId;
+      readonly paidAs: ResourcePool;
+      readonly overpaidAs: ResourcePool;
+    }
   | { readonly type: "cardExhausted"; readonly instanceId: InstanceId }
   | { readonly type: "cardReadied"; readonly instanceId: InstanceId }
   /**
@@ -1257,6 +1271,8 @@ export type GameEvent =
    * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): the card `sourceInstanceId` had `playerId` make a basic
    * power, and this is the one they chose. Logged just before the power is declared; what the power then does is
    * logged as any basic power's is. `useAtk`: a thwart they chose to make with ATK (`RuleSpec thwartWithAtk`).
+   * `divide`: they divided it (a character who may: `RuleSpec divideBasicPower`; owner decision, 2026-10-08,
+   * docs/phase7-wave8.md §4.1 row 82), with each target's share in the order chosen; `targetInstanceId` is the first.
    */
   | {
       readonly type: "basicPowerInstructed";
@@ -1266,6 +1282,7 @@ export type GameEvent =
       readonly targetInstanceId: InstanceId;
       readonly sourceInstanceId: InstanceId | null;
       readonly useAtk?: true;
+      readonly divide?: readonly { readonly targetInstanceId: InstanceId; readonly amount: number }[];
     }
   /**
    * `EffectSpec basicPowerBy` made no basic power. `noLegalUse`: the player has no ready character with a legal

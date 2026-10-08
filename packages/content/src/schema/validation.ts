@@ -1182,6 +1182,12 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   if (scenario.usesIdentityEncounterSets !== undefined && typeof scenario.usesIdentityEncounterSets !== "boolean") {
     errors.push("scenario usesIdentityEncounterSets must be a boolean");
   }
+  if (scenario.nemesisSetsSetAside !== undefined) {
+    if (scenario.nemesisSetsSetAside !== true) errors.push("scenario nemesisSetsSetAside must be true when present");
+    // It says something only where the identity sets are otherwise left out.
+    if (scenario.usesIdentityEncounterSets !== false)
+      errors.push("scenario nemesisSetsSetAside needs usesIdentityEncounterSets: false");
+  }
   if (scenario.modularSetCount !== undefined && !isNonNegativeInteger(scenario.modularSetCount)) {
     errors.push("scenario modularSetCount must be a whole number of at least 0");
   }

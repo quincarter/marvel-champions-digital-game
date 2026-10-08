@@ -144,18 +144,26 @@ describe("Panicked Refugees (45178)", () => {
     expect(playerOf(state, P1).hand).toHaveLength(handBefore);
   });
 
-  it("drawn from the deck it is placed in the play area by the obligation rule, without entering the hand", () => {
-    // RRG 1.8 "Obligation" (p. 30): a drawn obligation never reaches the hand, so the Response does not answer a draw.
+  it("drawn from the deck it enters the hand: it is revealed into the play area and replaced by a draw", () => {
+    // Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 76): drawing this card is it entering the hand, the
+    // card's own text read over RRG 1.8 "Obligation" (p. 30) by the golden rule (p. 4). Not an FFG ruling.
     let game = campaignGame({ deck: [REFUGEES] });
     const owner = playerOf(game, P1);
     game = { ...game, players: game.players.map((p) => ({ ...p, hand: [], discard: [...p.discard, ...owner.hand] })) };
     const staged = putOnTopOfDeck(game, P1, REFUGEES);
     const run = drive(staged.state, firstLegal, endTurn(P1));
-    expect(ofType(run.events, "drawnObligationPlaced")).toHaveLength(1);
-    expect(playerOf(run.state, P1).playArea).toContain(staged.ids[0]);
+    const card = staged.ids[0]!;
+    expect(ofType(run.events, "drawnObligationPlaced")).toHaveLength(0);
     expect(
-      ofType(run.events, "abilityResolved").some((e) => e.abilityId === "45178.panicked-refugees-forced-response"),
-    ).toBe(false);
+      ofType(run.events, "abilityResolved").filter((e) => e.abilityId === "45178.panicked-refugees-forced-response"),
+    ).toHaveLength(1);
+    expect(ofType(run.events, "encounterCardRevealed").some((e) => e.cardId === REFUGEES)).toBe(true);
+    expect(playerOf(run.state, P1).playArea).toContain(card);
+    expect(playerOf(run.state, P1).hand).not.toContain(card);
+    // The card after it in the log is the replacement its Forced Response draws.
+    const drawn = ofType(run.events, "cardDrawn").map((e) => e.instanceId);
+    expect(drawn.indexOf(card)).toBeGreaterThan(-1);
+    expect(drawn.length).toBeGreaterThan(drawn.indexOf(card) + 1);
   });
 
   it("its Alter-Ego Action exhausts the identity and removes the card from the game", () => {

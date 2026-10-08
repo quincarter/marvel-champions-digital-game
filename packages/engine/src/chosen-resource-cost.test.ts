@@ -11,10 +11,12 @@
  * decision §4.1 Q33 = B: the player declares each wild; the engine never picks, and skips the question only when every
  * declaration reads the same.
  *
- * **No overpayment.** The spec's reading (§3.62 "Husk"): the player sizes this cost, so everything generated was spent.
- * A payment that generates more than `max` is refused rather than capped, and §4.1 Q34's "the paid resources that give
- * the most declared types", with task 8's tie order (physical, mental, energy, wild), has nothing to select here: the
- * paid resources are the whole pool.
+ * **Overpaying is legal** (owner decision, 2026-10-08, §4.1 row 78, applying RRG 1.8 "Cost", p. 13: "While paying a
+ * cost, a player is permitted to generate resources beyond the specified cost. Resources generated beyond the specified
+ * cost are considered to have been overpaid for that cost and were not paid for that cost."). A payment that generates
+ * more than `max` pays `max` and overpays the rest; §4.1 Q34 = A makes the paid resources the ones that give the most
+ * declared types, and where several sets do and read differently the player says which (§4.1 row 79,
+ * `choosePaidResources`). Before that decision such a payment was refused ("this cost cannot be overpaid").
  *
  * Husk's printed text, as on her scan (`assets/card-art/bundles/cards/47012.jpg`): "Interrupt: When Husk uses a basic
  * power, spend up to 3 resources → if you spent at least 1: [energy] - Husk gets +1 to that power for this use.
@@ -22,7 +24,7 @@
  *
  * Every probe writes what it read as damage on the villain, so one number names the reading:
  * 1 for a [physical] line, 10 for [mental], 100 for [energy]; 1,000 for each resource of the chosen size
- * (`cost.resources`); 10,000 for each resource paid (`paid.count`); 1,000,000 for each resource overpaid (never).
+ * (`cost.resources`); 10,000 for each resource paid (`paid.count`); 1,000,000 for each resource overpaid.
  */
 
 import { flat, type AbilityId, type CardId } from "@mc/content";
@@ -34,7 +36,7 @@ import type { GameEvent } from "./events.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { legalActions, paymentFor, tryPayment } from "./legal.js";
 import { mustInstance, mustPlayer } from "./query.js";
-import { EMPTY_POOL, wildTypeOptionId, type ResourceType, type TypedResource } from "./resources.js";
+import { EMPTY_POOL, paidSetOptionId, wildTypeOptionId, type ResourceType, type TypedResource } from "./resources.js";
 import { createGame } from "./setup.js";
 import type { EffectSpec, Predicate, ValueSpec } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -263,20 +265,30 @@ interface Driven {
   readonly events: readonly GameEvent[];
   /** How many `declareWildTypes` choices were asked. */
   readonly asked: number;
+  /** How many `choosePaidResources` choices were asked. */
+  readonly paidAsked: number;
 }
 
 /**
- * Applies `commands` through a session, answering each `declareWildTypes` choice with the next of `declarations` and
- * every other choice with `other`; the log is then replayed and must give the same state.
+ * Applies `commands` through a session, answering each `declareWildTypes` choice with the next of `declarations`, each
+ * `choosePaidResources` choice with the next of `paidSets` (the first set offered when they run out) and every other
+ * choice with `other`; the log is then replayed and must give the same state.
  */
 function drive(
   start: GameState,
   commands: readonly Command[],
   declarations: readonly (readonly ResourceType[])[] = [],
   other: (state: GameState) => readonly string[] = defaultPick,
+  paidSets: readonly Partial<Record<ResourceType, number>>[] = [],
 ): Driven {
   let asked = 0;
+  let paidAsked = 0;
   const pick = (state: GameState): readonly string[] => {
+    if (state.pendingChoice?.prompt.kind === "choosePaidResources") {
+      const paid = paidSets[paidAsked];
+      paidAsked += 1;
+      return paid ? [paidSetOptionId(pool(paid))] : defaultPick(state);
+    }
     if (state.pendingChoice?.prompt.kind !== "declareWildTypes") return other(state);
     const declared = declarations[asked];
     asked += 1;
@@ -286,7 +298,7 @@ function drive(
   const replayed = replay(session.log, deps);
   if (!replayed.ok) throw new Error(replayed.error.message);
   expect(replayed.state).toEqual(session.state);
-  return { state: session.state, events, asked };
+  return { state: session.state, events, asked, paidAsked };
 }
 
 /** Puts each of `cards` (cost 0) into play, in order. */
@@ -429,17 +441,25 @@ describe("§3.62 (b) a resource cost of a chosen size: the size is what the paym
     expect(villainDamage(withCard.state) - before).toBe(101 + 2000 + 20000);
   });
 
-  it("the size may be named beside the payment (`costSelection.resources`), and must agree with it", () => {
+  it("the size may be named beside the payment (`costSelection.resources`): the payment covers it or overpays it", () => {
     expect(spend(SPENDER.id, SPEND, [ENERGY.id, STRENGTH.id], { costSelection: { resources: 2 } }).dealt).toBe(22101);
     const at = board(SPENDER.id, [ENERGY.id, MENTAL.id, STRENGTH.id]);
-    // Chose 2, offered three cards: one would be overpaid.
-    const more = refused(at.state, use(at, SPEND, fromHand(...at.hand), { costSelection: { resources: 2 } }));
-    expect(more.code).toBe("invalid_choice");
-    expect(more.message).toMatch(/chose to spend 2 resources; the payment is 3/);
-    // Chose 3, offered two.
-    expect(
-      refused(at.state, use(at, SPEND, fromHand(...at.hand.slice(0, 2)), { costSelection: { resources: 3 } })).code,
-    ).toBe("invalid_choice");
+    // Chose 2, offered three cards: two paid, one overpaid (owner decision, 2026-10-08, row 78). Which two is hers to
+    // say, since the three lines read the sets differently (row 79); the first set offered is [physical] [mental].
+    const named = use(at, SPEND, fromHand(...at.hand), { costSelection: { resources: 2 } });
+    const before = villainDamage(at.state);
+    const first = drive(at.state, [named]);
+    expect(first.paidAsked).toBe(1);
+    expect(villainDamage(first.state) - before).toBe(11 + 2000 + 20000 + 1000000);
+    const other = drive(at.state, [named], [], defaultPick, [{ mental: 1, energy: 1 }]);
+    expect(villainDamage(other.state) - before).toBe(110 + 2000 + 20000 + 1000000);
+    // Chose 3, offered two: the payment is short of the size named.
+    const short = refused(
+      at.state,
+      use(at, SPEND, fromHand(...at.hand.slice(0, 2)), { costSelection: { resources: 3 } }),
+    );
+    expect(short.code).toBe("insufficient_resources");
+    expect(short.message).toMatch(/chose to spend 3 resources; the payment is 2/);
     // A size outside the range, whatever is offered.
     for (const resources of [0, 4, 1.5]) {
       expect(refused(at.state, use(at, SPEND, fromHand(...at.hand), { costSelection: { resources } })).code).toBe(
@@ -450,7 +470,7 @@ describe("§3.62 (b) a resource cost of a chosen size: the size is what the paym
   });
 });
 
-describe("§3.62 (b) outside the range the payment is refused and nothing is spent", () => {
+describe("§3.62 (b) below the range the payment is refused; above it the rest is overpaid", () => {
   it("below the minimum: spending nothing is not a payment (RRG p. 14)", () => {
     const at = board(SPENDER.id, [ENERGY.id]);
     const none = refused(at.state, use(at, SPEND, []));
@@ -470,28 +490,50 @@ describe("§3.62 (b) outside the range the payment is refused and nothing is spe
     expect(villainDamage(three.state) - before).toBe(3000 + 30000);
   });
 
-  it('above the maximum: four cards toward "up to 3" are refused, not capped (no overpayment)', () => {
-    const at = board(SPENDER.id, [ENERGY.id, MENTAL.id, STRENGTH.id, WILD.id]);
-    const over = refused(at.state, use(at, SPEND, fromHand(...at.hand)));
-    expect(over.code).toBe("invalid_choice");
-    expect(over.message).toMatch(/spend at most 3 resources; the payment is 4, and this cost cannot be overpaid/);
-    for (const id of at.hand) expect(mustPlayer(at.state, p1).hand).toContain(id);
+  // Owner decision, 2026-10-08 (§4.1 row 78), applying RRG 1.8 "Cost" (p. 13). Before it this payment was refused:
+  // "spend at most 3 resources; the payment is 4, and this cost cannot be overpaid".
+  it('above the maximum: four cards toward "up to 3" pay three and overpay one', () => {
+    const cards = [ENERGY.id, MENTAL.id, STRENGTH.id, WILD.id];
+    // The wild declared [physical]: one of each is the only set of three types, so nothing more is asked.
+    const typed = spend(SPENDER.id, SPEND, cards, { declare: [["physical"]] });
+    expect(typed).toMatchObject({ dealt: 111 + 3000 + 30000 + 1000000, asked: 1, paidAsked: 0 });
+    // Left a wild, it can be one of the three paid: she says which three (§4.1 row 79). First offered: the typed ones.
+    const left = spend(SPENDER.id, SPEND, cards, { declare: [["wild"]] });
+    expect(left).toMatchObject({ dealt: 111 + 3000 + 30000 + 1000000, asked: 1, paidAsked: 1 });
+    expect(ofType(left.events, "paidResourcesChosen")).toEqual([
+      expect.objectContaining({
+        paidAs: pool({ physical: 1, mental: 1, energy: 1 }),
+        overpaidAs: pool({ wild: 1 }),
+      }),
+    ]);
+    // The wild in place of the [energy]: no [energy] line.
+    const at = board(SPENDER.id, cards);
+    const before = villainDamage(at.state);
+    const swapped = drive(at.state, [use(at, SPEND, fromHand(...at.hand))], [["wild"]], defaultPick, [
+      { physical: 1, mental: 1, wild: 1 },
+    ]);
+    expect(villainDamage(swapped.state) - before).toBe(11 + 3000 + 30000 + 1000000);
+    for (const id of at.hand) expect(mustPlayer(swapped.state, p1).hand).not.toContain(id);
   });
 
-  it("above the maximum by a second icon: Genius and Plasmoid Energy are four resources", () => {
-    const at = board(SPENDER.id, [GENIUS.id, PLASMOID.id]);
-    expect(refused(at.state, use(at, SPEND, fromHand(...at.hand))).code).toBe("invalid_choice");
+  it("above the maximum by a second icon: Genius and Plasmoid Energy are four resources, three paid", () => {
+    // [mental][mental] and [energy][mental]: the paid three hold both types (§4.1 Q34 = A), so there is one set and
+    // nothing to ask; the third [mental] is overpaid.
+    const run = spend(SPENDER.id, SPEND, [GENIUS.id, PLASMOID.id]);
+    expect(run).toMatchObject({ dealt: 110 + 3000 + 30000 + 1000000, asked: 0, paidAsked: 0 });
     // Either one alone is a size of 2.
+    const at = board(SPENDER.id, [GENIUS.id, PLASMOID.id]);
     const before = villainDamage(at.state);
     const one = drive(at.state, [use(at, SPEND, fromHand(at.hand[1] as InstanceId))]);
     expect(villainDamage(one.state) - before).toBe(110 + 2000 + 20000);
     expect(mustPlayer(one.state, p1).hand).toContain(at.hand[0]);
   });
 
-  it("a size of exactly 1 cannot be paid with a card of two icons", () => {
+  it("a size of exactly 1 paid with a card of two icons: one paid, one overpaid", () => {
     const at = board(ONE_ONLY.id, [GENIUS.id, ENERGY.id]);
-    expect(refused(at.state, use(at, EXACTLY_ONE, fromHand(at.hand[0] as InstanceId))).code).toBe("invalid_choice");
     const before = villainDamage(at.state);
+    const two = drive(at.state, [use(at, EXACTLY_ONE, fromHand(at.hand[0] as InstanceId))]);
+    expect(villainDamage(two.state) - before).toBe(1000 + 10000 + 1000000);
     const one = drive(at.state, [use(at, EXACTLY_ONE, fromHand(at.hand[1] as InstanceId))]);
     expect(villainDamage(one.state) - before).toBe(1000 + 10000);
   });
@@ -680,8 +722,8 @@ describe("§3.62 (b) legalActions and the payment sheet", () => {
 
   it("lists the ability when the minimum can be met, though the whole hand is more than the maximum", () => {
     const at = board(SPENDER.id, [ENERGY.id, MENTAL.id, STRENGTH.id, GENIUS.id]);
-    // Everything in hand together is well over 3 resources: paying with all of it is refused.
-    expect(refused(at.state, use(at, SPEND, fromHand(...mustPlayer(at.state, p1).hand))).code).toBe("invalid_choice");
+    // Everything in hand together is well over 3 resources: paying with all of it is legal, the rest overpaid.
+    expect(applyCommand(at.state, use(at, SPEND, fromHand(...mustPlayer(at.state, p1).hand)), deps).ok).toBe(true);
     const { legal } = listed(at.state, at.source);
     expect(legal).toBeDefined();
     expect(legal?.chosenResources).toEqual({ min: 1, max: 3 });
@@ -711,12 +753,14 @@ describe("§3.62 (b) legalActions and the payment sheet", () => {
     expect(example.payment).toHaveLength(2);
   });
 
-  it("does not list a size of exactly 1 when the only card has two icons: it cannot be overpaid", () => {
+  it("lists a size of exactly 1 when the only card has two icons (it overpays), and prefers an exact payment", () => {
     const at = board(ONE_ONLY.id, [GENIUS.id, ENERGY.id]);
     const genius = handOnly(at.state, [at.hand[0] as InstanceId]);
-    expect(listed(genius, at.source).legal).toBeUndefined();
-    expect(listed(genius, at.source).illegal?.reason).toBe("invalid_choice");
-    expect(listed(handOnly(at.state, at.hand), at.source).legal).toBeDefined();
+    const overpaying = listed(genius, at.source).legal?.example as Command & { type: "useAbility" };
+    expect(overpaying.payment).toEqual(fromHand(at.hand[0] as InstanceId));
+    // With a one-icon card in hand too, the example is the payment that fits exactly.
+    const exact = listed(handOnly(at.state, at.hand), at.source).legal?.example as Command & { type: "useAbility" };
+    expect(exact.payment).toEqual(fromHand(at.hand[1] as InstanceId));
   });
 
   it("a ready card in play that generates a resource is enough", () => {
@@ -735,8 +779,10 @@ describe("§3.62 (b) legalActions and the payment sheet", () => {
     expect(query?.suggested).toHaveLength(1);
     const ids = at.hand.map((id) => `hand:${id}`);
     expect(tryPayment(at.state, p1, action, ids.slice(0, 3), {}, deps).ok).toBe(true);
-    const over = tryPayment(at.state, p1, action, ids, {}, deps);
-    expect(over.ok === false && over.reason).toBe("invalid_choice");
+    // All four cards, five resources: legal, two overpaid.
+    expect(tryPayment(at.state, p1, action, ids, {}, deps).ok).toBe(true);
+    const none = tryPayment(at.state, p1, action, [], {}, deps);
+    expect(none.ok === false && none.reason).toBe("insufficient_resources");
   });
 });
 
@@ -841,7 +887,7 @@ describe("§3.62 test 10: Husk's Interrupt, paid for inside the window of her ba
     }
   });
 
-  it("the pay prompt carries the range; a selection of four resources is refused and the prompt stays open", () => {
+  it("the pay prompt carries the range; a selection of four resources pays three and overpays one", () => {
     const at = huskBoard([GENIUS.id, PLASMOID.id, STRENGTH.id]);
     const started = driveSession(startSession(at.state), deps, [thwart(at)], (state) =>
       state.pendingChoice?.prompt.kind === "payForAbility" ? [] : answering(true, [])(state),
@@ -870,16 +916,15 @@ describe("§3.62 test 10: Husk's Interrupt, paid for inside the window of her ba
       chosenResources: { min: 1, max: 3, payingFor: at.source },
     });
     const [genius, plasmoid, strength] = at.hand as [InstanceId, InstanceId, InstanceId];
-    const four = refused(state, answer([`hand:${genius}`, `hand:${plasmoid}`]));
-    expect(four.code).toBe("invalid_choice");
-    expect(four.message).toMatch(/spend from 1 to 3 resources; the selection is 4/);
-    expect(state.pendingChoice?.prompt.kind).toBe("payForAbility");
-    // Plasmoid Energy and Strength: three resources, all three lines.
-    step(answer([`hand:${plasmoid}`, `hand:${strength}`]));
+    // Genius and Plasmoid Energy: [mental] x3 and [energy], four resources toward "up to 3". Three are paid, and they
+    // hold both types (§4.1 Q34 = A), so the [energy] and [mental] lines fire, the [physical] line does not, and
+    // nothing more is asked. Before 2026-10-08 this selection was refused.
+    step(answer([`hand:${genius}`, `hand:${plasmoid}`]));
+    expect(state.pendingChoice).toBeNull();
     expect(threat(state)).toBe(10 - 3);
-    expect(mustInstance(state, at.source).counters.physical).toBe(1);
+    expect(mustInstance(state, at.source).counters.physical ?? 0).toBe(0);
     expect(mustInstance(state, at.source).damage).toBe(1 - 1 + 1);
-    expect(mustPlayer(state, p1).hand).toEqual([genius]);
+    expect(mustPlayer(state, p1).hand).toEqual([strength]);
   });
 
   it("(Q33 = B) she spends a wild: asked after the payment, before the Interrupt resolves; each answer its own line", () => {
@@ -901,6 +946,25 @@ describe("§3.62 test 10: Husk's Interrupt, paid for inside the window of her ba
     expect(threat(left.state)).toBe(10 - 2);
     expect(mustInstance(left.state, at.source).damage).toBe(1 + 1);
     expect(mustInstance(left.state, at.source).counters.physical ?? 0).toBe(0);
+  });
+
+  it("(row 79) four resources of four types toward her three: the wild, then which three were paid", () => {
+    const at = huskBoard([ENERGY.id, MENTAL.id, STRENGTH.id, WILD.id]);
+    const prompts: string[] = [];
+    const pick = (state: GameState): readonly string[] => {
+      prompts.push(state.pendingChoice?.prompt.kind ?? "none");
+      return answering(true, at.hand)(state);
+    };
+    // The wild left a wild and paid in place of the [energy]: no +1, so 2 threat; healed and readied.
+    const run = drive(at.state, [thwart(at)], [["wild"]], pick, [{ physical: 1, mental: 1, wild: 1 }]);
+    expect(run).toMatchObject({ asked: 1, paidAsked: 1 });
+    expect(prompts.slice(0, 2)).toEqual(["chooseTriggers", "payForAbility"]);
+    expect(threat(run.state)).toBe(10 - 2);
+    expect(mustInstance(run.state, at.source).damage).toBe(1 - 1 + 1);
+    expect(mustInstance(run.state, at.source).counters.physical).toBe(1);
+    expect(ofType(run.events, "paidResourcesChosen")).toEqual([
+      expect.objectContaining({ instanceId: at.source, abilityId: HUSK_INTERRUPT.ref.id }),
+    ]);
   });
 
   it("with nothing she could spend the Interrupt is not offered", () => {

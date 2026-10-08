@@ -139,8 +139,9 @@ export interface LegalAction {
   readonly costCounters?: { readonly min: number; readonly max: number };
   /**
    * A resource cost whose size the player chooses ("spend up to 3 resources →"; docs/phase7-wave8.md §3.62): the
-   * payment must generate from `min` to `max` resources in all, a card with two icons counting two, and cannot be
-   * overpaid. The payment itself is the choice; `example` spends the fewest sources that fit. Absent for any other cost.
+   * payment must generate at least `min` resources in all, a card with two icons counting two; up to `max` of them
+   * are paid and the rest overpaid (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 78). The payment
+   * itself is the choice; `example` spends the fewest sources that fit. Absent for any other cost.
    */
   readonly chosenResources?: { readonly min: number; readonly max: number };
   /**
@@ -305,10 +306,11 @@ const CHOSEN_SIZE_WALLETS = 8;
 
 /**
  * The wallets tried first for a cost whose size the payer chooses ("spend up to 3 resources →", `ResourcesChoice`;
- * docs/phase7-wave8.md §3.62). Nothing is overpaid against such a cost, so "everything the player holds" is refused
- * whenever it is more than the cost's `max`, and the usual wallets would call a payable ability unaffordable. These
- * are the first few payments that fit its range (`chosenSizePayments`), the fewest sources first, so `example` spends
- * the least it can. Empty for any other cost.
+ * docs/phase7-wave8.md §3.62). These are the first few payments that fit its range without overpaying it
+ * (`chosenSizePayments`), the fewest sources first, so `example` spends the least it can rather than everything the
+ * player holds. Overpaying is legal (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13), so when no
+ * payment fits exactly (one card of two icons toward a size of exactly 1) the overpaying ones are offered instead.
+ * Empty for any other cost.
  *
  * Priced for the ability's own card, which is what `useAbility` pays for unless its cost picks one; a cost that both
  * picks a card to pay for and chooses a size falls back on the usual wallets (no such card).
@@ -324,9 +326,12 @@ function chosenSizeWallets(
 ): readonly (readonly Payment[])[] {
   if (!range) return [];
   const found: (readonly Payment[])[] = [];
-  for (const payment of chosenSizePayments(state, deps, playerId, spend, range, payingFor)) {
-    found.push(payment);
-    if (found.length >= limit) break;
+  for (const overpay of [false, true]) {
+    for (const payment of chosenSizePayments(state, deps, playerId, spend, range, payingFor, overpay)) {
+      found.push(payment);
+      if (found.length >= limit) break;
+    }
+    if (found.length > 0) break;
   }
   return found;
 }
@@ -1151,7 +1156,8 @@ export interface PaymentQuery {
   readonly suggested: readonly string[];
   /**
    * The cost is a number of resources the player chooses (`LegalAction.chosenResources`): the selection must generate
-   * from `min` to `max` resources and cannot be overpaid. `requirement` is then what the rest of the cost asks (0).
+   * at least `min` resources, and what it generates beyond `max` is overpaid (owner decision, 2026-10-08).
+   * `requirement` is then what the rest of the cost asks (0).
    */
   readonly chosenResources?: { readonly min: number; readonly max: number };
 }

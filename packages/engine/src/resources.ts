@@ -323,9 +323,11 @@ export function wildDeclarations(wilds: number): readonly (readonly ResourceType
  * - The cost's typed and wild slots take their own type. Each generic slot then takes a type not yet among the paid
  *   resources while there is one, and after that anything left.
  * - **Where several sets give as many types** (three paid out of [physical], [mental], [energy] and a wild left wild)
- *   the owner's answer does not say which is taken. The generic slots are filled in the fixed order physical, mental,
- *   energy, wild, so the answer is the same on every machine and in every replay. Only a reader of named types
- *   (`Predicate paidType`) can tell the sets apart; a count cannot.
+ *   this is the first of them (`paidSetsAsDeclared`): the generic slots filled in the fixed order physical, mental,
+ *   energy, wild, so it is the same on every machine and in every replay. It is taken without asking only when no
+ *   reader of the payment can tell the sets apart; when one can (a reader of named types, `Predicate paidType`), the
+ *   player says which resources were paid (`ChoicePrompt choosePaidResources`; owner decision, 2026-10-08,
+ *   docs/phase7-wave8.md §4.1 row 79). A count cannot tell them apart.
  *
  * This is independent of `canBePaidFor` (§3.51, Q28 = A), which asks whether any reading of the payment has one card's
  * resource paid; the two can name different paid sets, and no card reads both.
@@ -358,6 +360,48 @@ export function paidAsDeclared(declared: ResourcePool, requirement: ResolvedRequ
   return paid;
 }
 
+/**
+ * Every set of resources that can be the **paid** ones out of a declared pool: as many as `requirement`, the cost's
+ * typed and wild slots filled with their own type, and the most declared types any such set gives (§4.1 Q34 = A and
+ * its follow-up). Each set once, by how many of each type it holds; `paidAsDeclared`'s set first, then the others in
+ * the order physical, mental, energy, wild. Empty when the declared pool does not pay the requirement.
+ *
+ * More than one set is a tie the rules leave open (RRG 1.8 "Cost", p. 13: overpaid resources "were not paid for that
+ * cost", without saying which). Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 79): the player says which
+ * set was paid when the sets read differently to a reader of the payment (`readOfPaidTypes`), and is not asked when
+ * they all read the same.
+ */
+export function paidSetsAsDeclared(declared: ResourcePool, requirement: ResolvedRequirement): readonly ResourcePool[] {
+  const first = paidAsDeclared(declared, requirement);
+  if (!first) return [];
+  const slots = { ...EMPTY_POOL };
+  const left = { ...declared };
+  for (const type of RESOURCE_TYPES) {
+    slots[type] = requirement[type] ?? 0;
+    left[type] -= slots[type];
+  }
+  const found: ResourcePool[] = [];
+  const fill = (index: number, generic: number, paid: ResourcePool): void => {
+    const type = RESOURCE_TYPES[index];
+    if (type === undefined) {
+      if (generic === 0) found.push(paid);
+      return;
+    }
+    for (let taken = Math.min(generic, left[type]); taken >= 0; taken--) {
+      fill(index + 1, generic - taken, { ...paid, [type]: paid[type] + taken });
+    }
+  };
+  fill(0, requirement.generic, slots);
+  const most = paidTypeCountOf(first);
+  const firstId = paidSetOptionId(first);
+  const others = found.filter((paid) => paidTypeCountOf(paid) === most && paidSetOptionId(paid) !== firstId);
+  return [first, ...others];
+}
+
+/** The option id of one paid set in a `choosePaidResources` choice: how many of each type, e.g. `physical:1,mental:2,energy:0,wild:0`. */
+export const paidSetOptionId = (paid: ResourcePool): string =>
+  RESOURCE_TYPES.map((type) => `${type}:${paid[type]}`).join(",");
+
 /** The number of different resource types among paid resources (`paidAsDeclared`), a wild left wild being its own. */
 export const paidTypeCountOf = (paid: ResourcePool): number => RESOURCE_TYPES.filter((type) => paid[type] > 0).length;
 
@@ -370,6 +414,10 @@ export function readOfPaidTypes(paid: ResourcePool, read: PaidTypesRead): string
   if ("atLeast" in read) return String(paidTypeCountOf(paid) >= read.atLeast);
   return read.types.map((type) => (paid[type] > 0 ? "1" : "0")).join("");
 }
+
+/** What every reader of a payment reads of one set of paid resources, as one comparable string (`readOfPaidTypes`). */
+export const paidTypesReading = (paid: ResourcePool, reads: readonly PaidTypesRead[]): string =>
+  reads.map((read) => readOfPaidTypes(paid, read)).join("|");
 
 /** The option id of "wild number `index` (from 0) is used as `type`" in a `declareWildTypes` choice. */
 export const wildTypeOptionId = (index: number, type: ResourceType): string => `${index}:${type}`;

@@ -351,6 +351,8 @@ export interface ScenarioCuration {
   readonly multipleVillains?: MultipleVillainsCuration;
   /** Absent = true (RRG 1.8 Appendix II steps 4-5 run normally). The Wrecking Crew insert sets this false. */
   readonly usesIdentityEncounterSets?: boolean;
+  /** With `usesIdentityEncounterSets: false`: the nemesis sets are set aside all the same (`Scenario.nemesisSetsSetAside`). */
+  readonly nemesisSetsSetAside?: true;
   /** Absent = 1 (one modular encounter set). The Wrecking Crew insert sets this 0. */
   readonly modularSetCount?: number;
   /**

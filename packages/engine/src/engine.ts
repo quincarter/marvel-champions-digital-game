@@ -154,24 +154,26 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
         : wildDeclarationFault(pool, declared, requirementOf(requirement), only);
     if (fault) return engineError("invalid_choice", fault, command);
   }
-  // docs/phase7-wave8.md §3.62: a cost the player sizes ("spend up to 3 resources →") cannot be overpaid, so a
-  // selection that generates a number of resources outside its range is refused here and the choice stays open.
-  // Selecting nothing still declines.
+  // docs/phase7-wave8.md §3.62: a cost the player sizes ("spend up to 3 resources →") needs at least its minimum, so
+  // a selection that generates fewer is refused here and the choice stays open. More than its maximum is overpaid,
+  // as for any cost (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13). Selecting nothing still declines.
   if (choice.prompt.kind === "payForAbility" && choice.prompt.chosenResources && selected.length > 0) {
     const { min, max, payingFor } = choice.prompt.chosenResources;
     const pool = priceOrNull(ctx, choice.playerId, paymentsFromOptionIds(selected), null, payingFor);
     const size = pool ? poolTotal(pool) : null;
-    if (size !== null && (size < min || size > max)) {
-      return engineError(
-        "invalid_choice",
-        `spend from ${min} to ${max} resources; the selection is ${size}, and this cost cannot be overpaid`,
-        command,
-      );
+    if (size !== null && size < min) {
+      return engineError("invalid_choice", `spend from ${min} to ${max} resources; the selection is ${size}`, command);
     }
   }
   if (choice.prompt.kind === "divide") {
     const fault = divideSelectionFault(choice.prompt, selected);
     if (fault) return engineError("invalid_choice", fault, command);
+    const least = choice.prompt.eachAtLeast ?? 0;
+    const cardOfOption = (optionId: string): string => optionId.slice(0, optionId.lastIndexOf("#"));
+    const short = [...new Set(choice.options.map((option) => cardOfOption(option.optionId)))].some(
+      (card) => selected.filter((optionId) => cardOfOption(optionId) === card).length < least,
+    );
+    if (short) return engineError("invalid_choice", `give each of the cards at least ${least}`, command);
   }
   // docs/phase7-wave8.md §3.36: one card to one character, and any limit in force on the assignment.
   if (choice.prompt.kind === "pairCards") {

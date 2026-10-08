@@ -125,9 +125,11 @@ const stepInstance = (k: number) =>
  * is in play and as it was when the attack was made once the attack has defeated it (Q38 = A, FFG ruling February 8,
  * 2026 (1): the engine's last known information for an attack's target), so a defeating attack keeps the reduction.
  *
- * **Husk (47012)**: a resource cost of a chosen size (1 to 3, nothing overpaid); everything spent was spent, so each
- * named type is read from the whole spent pool, a wild as its player declared it (Q33 = B). [energy] adds 1 to the
- * power, [mental] heals 1 from her, [physical] readies her after the use (after any consequential damage).
+ * **Husk (47012)**: a resource cost of a chosen size, 1 to 3. More may be generated and is overpaid (owner decision,
+ * 2026-10-08, section 4.1 row 78; RRG p. 13), so each named type is read from the resources paid (Q34 = A), a wild as
+ * its player declared it (Q33 = B); when which three were paid changes a line, she says which (row 79). [energy] adds
+ * 1 to the power, [mental] heals 1 from her, [physical] readies her after the use: when the thwart or attack ends,
+ * which is before its consequential damage is dealt (pinned by the test "the order, as built").
  *
  * **Waylay (47014)** is an (attack)-labeled ability that only deals damage. Q48 = A makes it an attack: the engine
  * resolves it as one attack by the identity (attack damage, retaliate, "after you attack"). Written the natural way,

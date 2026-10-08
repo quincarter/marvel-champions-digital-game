@@ -871,7 +871,9 @@ export type RuleSpec =
    * - a change the player makes by an ability of a player card they resolve asks them for the payment as the change
    *   resolves, and does not happen when they cannot or do not pay (§4.2 Q37 = A);
    * - a change an encounter card makes (an obligation's or a treachery's "change to alter-ego form") is not the
-   *   player's to pay for: it costs nothing and happens (Q37 = A).
+   *   player's to pay for: it costs nothing and happens (Q37 = A);
+   * - except by an Action printed on an encounter card that the player triggers: that is a change they make, asked
+   *   for and paid like one by their own card (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 80).
    *
    * The cost is the player's alone, paid for no card: a resource generated "for" a kind of card (`generatesFor`) and
    * another player's hand cannot pay it. Several rules that cover one change are all paid at once.
@@ -1921,16 +1923,17 @@ export interface DamageSelfChoice {
  * - **The payment is the choice.** The size is the number of resources the payment generates beyond anything else the
  *   same payment owes (a played card's own cost), so it is part of the command (`payment`) or of the logged answer to
  *   the pay prompt, and a replay makes the same one. `CostSelection.resources` may name it as well; it must then agree.
- * - **No overpayment.** The player sizes this cost, so every resource generated was spent on it: a payment that
- *   generates fewer than `min` or more than `max` is refused rather than capped, `overpaid.*` are 0 and `paid.count` is
- *   the whole payment. A card that generates two resources is two of the chosen size. This is the difference from
- *   `resourcesX` with `resource: "any"`, which caps X and lets the rest be overpaid (RRG 1.8 "Cost", p. 13).
+ * - **Overpaying is legal** (owner decision, 2026-10-08, §4.1 row 78, applying RRG 1.8 "Cost", p. 13: "While paying a
+ *   cost, a player is permitted to generate resources beyond the specified cost"). A payment that generates fewer than
+ *   `min` is refused; one that generates more than `max` pays `max` and overpays the rest; a named size
+ *   (`CostSelection.resources`) smaller than the payment overpays the difference. `paid.count` is the size and
+ *   `overpaid.*` the rest. A card that generates two resources is two toward the size.
  * - **At least one.** RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements
  *   requires a minimum of one such game element", so `min` is at least 1 and spending nothing is not triggering the
  *   ability.
  * - The size is recorded as var `cost.resources`. The types spent are read as any payment's are (`Predicate paidType`,
- *   `ValueSpec paidTypeCount`, on an ability marked `readsPaidTypes`), over the whole spent pool, each wild as its
- *   player declared it (§4.1 Q33 = B).
+ *   `ValueSpec paidTypeCount`, on an ability marked `readsPaidTypes`), over the resources paid, not the overpaid
+ *   ones (§4.1 Q34 = A), each wild as its player declared it (§4.1 Q33 = B).
  *
  * Not with `resourcesX`, `resourcesEqualTo` or `sameResourceType`.
  */

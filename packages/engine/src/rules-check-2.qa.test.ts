@@ -10,10 +10,9 @@
  * 'target'" is the shape of 47016's constant (`thwartInProgress { basic, scheme }`); the hero may divide a basic
  * thwart (Wasp's shape). The hero has THW 2.
  *
- * Today the shares of a divided thwart must total the THW read OUTSIDE any thwart (2), so the +1 can neither be
- * divided nor is it removed: it is lost. The companion test records that; the `it.fails` test is what the card says.
- * No X-Men character can divide a basic thwart in the shipped pool (only Wasp and Bombshell can), so no shipped
- * game shows it yet.
+ * Corrected 2026-10-08 (the check's one Contradicts): the shares of a divided thwart total the THW read while that
+ * thwart is being made, so the +1 is there to divide whenever the scheme is one of the division's. No X-Men character
+ * can divide a basic thwart in the shipped pool (only Wasp and Bombshell can), so no shipped game shows it yet.
  */
 
 import { describe, expect, it } from "vitest";
@@ -126,20 +125,22 @@ describe("G2: Generation X's +1 THW on a divided basic thwart (47016)", () => {
     expect(threat(after, b.other)).toBe(9 - 2);
   });
 
-  // Today: the shares must total 2 (the THW read with no thwart on the stack), and the scheme's share is not raised.
-  it("today: a thwart divided between the scheme and another totals 2; the +1 is lost", () => {
-    const b = board();
-    expect(refusal(b.state, thwart(b.hero, b.target, [b.target, 2], [b.other, 1]))).toBe("the shares must total 2");
-    const after = run(b.state, thwart(b.hero, b.target, [b.target, 1], [b.other, 1]));
-    expect([threat(after, b.target), threat(after, b.other)]).toEqual([8, 8]);
-  });
-
-  // Expected (card text; one divided thwart is one basic thwart): the hero is making a basic thwart against Generation X,
-  // so she has THW 3 to divide, and a division of 2 and 1 is legal.
-  it.fails("expected: the same thwart divided 2 and 1 is legal, because THW is 3 while thwarting it", () => {
+  // Card text; one divided thwart is one basic thwart: the hero is making a basic thwart against the scheme, so she
+  // has THW 3 to divide, however she divides it.
+  it("a thwart divided between the scheme and another has THW 3 to divide", () => {
     const b = board();
     expect(refusal(b.state, thwart(b.hero, b.target, [b.target, 2], [b.other, 1]))).toBeNull();
     const after = run(b.state, thwart(b.hero, b.target, [b.target, 2], [b.other, 1]));
+    expect([threat(after, b.target), threat(after, b.other)]).toEqual([7, 8]);
+    const otherWay = run(b.state, thwart(b.hero, b.target, [b.target, 1], [b.other, 2]));
+    expect([threat(otherWay, b.target), threat(otherWay, b.other)]).toEqual([8, 7]);
+    // The shares still total the whole THW: 1 and 1 leaves the +1 undivided.
+    expect(refusal(b.state, thwart(b.hero, b.target, [b.target, 1], [b.other, 1]))).toBe("the shares must total 3");
+  });
+
+  it("the scheme named second in the division counts too", () => {
+    const b = board();
+    const after = run(b.state, thwart(b.hero, b.other, [b.other, 1], [b.target, 2]));
     expect([threat(after, b.target), threat(after, b.other)]).toEqual([7, 8]);
   });
 });

@@ -212,6 +212,14 @@ export interface GameSetupConfig {
    * aside. Cards missing from `cards` are skipped unless `requireIdentitySets` is set. Default true.
    */
   readonly includeIdentitySets?: boolean;
+  /**
+   * The nemesis half of `includeIdentitySets` on its own: whether each identity's nemesis set is set aside. Default:
+   * as `includeIdentitySets`. True with `includeIdentitySets: false` is a scenario that leaves the obligations out
+   * and still sets the nemesis sets aside, where a card can find them (`Scenario.nemesisSetsSetAside`: per FFG ruling
+   * Jan 17, 2026, Ruling 5, "You can play Face the Past to find your set-aside nemesis minion"; the insert of the
+   * scenario that ruling is about has not been checked).
+   */
+  readonly includeNemesisSets?: boolean;
   readonly requireIdentitySets?: boolean;
   /**
    * Refuse any seat whose deck is not legal under the RRG deckbuilding rules (`validateDeck`),
@@ -851,9 +859,10 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       };
       setAside.push(separatedCardInstanceId);
     }
-    if (config.includeIdentitySets !== false) {
-      // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
-      // villain's (ruling, Jan 17, 2026 (5)).
+    // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
+    // villain's (ruling, Jan 17, 2026 (5)).
+    const withObligations = config.includeIdentitySets !== false;
+    if (withObligations) {
       const obligation = pool[identityCard.obligationCardId];
       if (obligation) {
         // RRG 1.8 "Obligation" (p. 30): "Each identity is associated with one or more obligation cards. If an identity
@@ -867,6 +876,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       } else if (config.requireIdentitySets) {
         return invalid(`obligation ${identityCard.obligationCardId} is not in the card pool`);
       }
+    }
+    if (config.includeNemesisSets ?? withObligations) {
       const nemesis = config.cards.filter(
         (card) => "encounterSetIds" in card && card.encounterSetIds.includes(identityCard.nemesisEncounterSetId),
       );

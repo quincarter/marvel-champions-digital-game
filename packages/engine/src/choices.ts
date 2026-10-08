@@ -100,11 +100,17 @@ export type ChoicePrompt =
    * the schemes it may thwart. An option's `optionId` is the target's instance id; a scheme the character may thwart
    * with ATK instead of THW (`RuleSpec thwartWithAtk`) has a second option, `<instanceId>#atk`. Exactly one is
    * selected.
+   *
+   * `mayDivide` (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 82): the character may divide this basic
+   * power (`RuleSpec divideBasicPower`), so one target or several may be selected (`maxSelections` says how many).
+   * Several are a division, attacked or thwarted in the order selected, and a `divide` choice with `eachAtLeast: 1`
+   * follows for the shares; an `#atk` option cannot be one of several.
    */
   | {
       readonly kind: "chooseBasicPowerTarget";
       readonly power: "attack" | "thwart";
       readonly characterInstanceId: InstanceId;
+      readonly mayDivide?: true;
     }
   /** Order the Special abilities of a sequence (Wakanda Forever!). */
   | { readonly kind: "orderSpecials" }
@@ -159,9 +165,10 @@ export type ChoicePrompt =
       readonly cost: number;
       /**
        * The cost is a number of resources the player chooses (`AbilityCost.resources { choose }`; docs/phase7-wave8.md
-       * §3.62): the selection must generate from `min` to `max` resources in all, a card with two icons counting two,
-       * because nothing is overpaid against a cost the player sizes. `cost` is then 0. Selecting nothing declines; a
-       * selection outside the range is refused by `resolveChoice` and the choice stays pending. `payingFor`: the card
+       * §3.62): the selection must generate at least `min` resources in all, a card with two icons counting two; up
+       * to `max` of them are paid and the rest overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost",
+       * p. 13). `cost` is then 0. Selecting nothing declines; a selection that generates fewer than `min` is refused by
+       * `resolveChoice` and the choice stays pending. `payingFor`: the card
        * the resources are generated for, which is what the selection is priced against.
        */
       readonly chosenResources?: { readonly min: number; readonly max: number; readonly payingFor: InstanceId };
@@ -210,6 +217,27 @@ export type ChoicePrompt =
       readonly pool: ResourcePool;
       readonly requirement: ResourceRequirement;
       readonly only?: readonly TypedResource[];
+    }
+  /**
+   * Which resources of a payment just made for the card `instanceId` count as paid (owner decision, 2026-10-08,
+   * docs/phase7-wave8.md §4.1 row 79). The payment generated more than the cost took, the rules do not say which
+   * resources are the overpaid ones (RRG 1.8 "Cost", p. 13), and a card that reads the types that paid reads the
+   * candidate sets differently: which line of "[physical] … [mental] … [energy] …" fires. Asked after any wilds are
+   * declared, by the same frame, and never when every set reads the same.
+   *
+   * One option per set in `sets`, in the same order, its `optionId` `paidSetOptionId` of the set
+   * (`physical:1,mental:1,energy:0,wild:1`) and its label the set in words; exactly one is selected. Each set holds
+   * `paidCount` resources out of `pool` (everything generated, each wild counted as the type it was declared), fills
+   * the cost's typed slots, and has as many types as any other (§4.1 Q34 = A). The rest of `pool` is overpaid.
+   */
+  | {
+      readonly kind: "choosePaidResources";
+      readonly instanceId: InstanceId;
+      /** The payment was for this ability of the card, not for playing it. */
+      readonly abilityId?: AbilityId;
+      readonly pool: ResourcePool;
+      readonly paidCount: number;
+      readonly sets: readonly ResourcePool[];
     }
   /**
    * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". One option per whole number from `min`
@@ -288,6 +316,9 @@ export type ChoicePrompt =
    *
    * `what: "heal"`: `amount` is the damage that will be healed (already no more than the options' cards hold), and a
    * card has one option per damage on it, up to `amount`.
+   *
+   * `eachAtLeast`: every card among the options gets at least this many points (a divided basic power's shares, each
+   * "at least 1": `basicPowerBy`); `resolveChoice` refuses a selection that leaves one short.
    */
   | {
       readonly kind: "divide";
@@ -295,6 +326,7 @@ export type ChoicePrompt =
       readonly amount: number;
       readonly maxTargets?: number;
       readonly caps?: Readonly<Record<string, number>>;
+      readonly eachAtLeast?: number;
     };
 
 export type ChoiceRef =

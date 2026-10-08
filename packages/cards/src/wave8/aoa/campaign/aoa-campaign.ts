@@ -30,7 +30,9 @@ import {
  * Panicked Refugees (45178): An obligation that lives in a player's deck by campaign instruction (section 2.14,
  *   not this module's job). "Give to" is absent, so the obligation ref is engine data (`coveredByEngineRule`); the
  *   Forced Response is the card's own hand ability on `cardEntersHand`: reveal it (an obligation then stays in that
- *   player's play area, wave 7 section 3.70), then draw 1 card. The Alter-Ego Action is the controller's only (RRG
+ *   player's play area, wave 7 section 3.70), then draw 1 card. A draw counts as entering the hand (owner decision,
+ *   2026-10-08, section 4.1 row 76: the engine draws an obligation with this text into the hand instead of placing
+ *   it by RRG p. 30), so the same ability answers a draw. The Alter-Ego Action is the controller's only (RRG
  *   p. 30): exhaust the identity, remove this card from the game (this game, not the campaign).
  *
  * Cards (2):

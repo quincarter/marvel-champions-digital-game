@@ -444,12 +444,29 @@ describe("Husk (47012): Interrupt, when she uses a basic power, spend up to 3 re
     expect(inst(after, b.ally).exhausted).toBe(true);
     expect(playerOf(after, P1).hand).toEqual([]);
   });
-  it("[physical] alone (Strength): 2 removed, and she readies after the thwart and its consequential damage", () => {
+  it("[physical] alone (Strength): 2 removed, she takes her consequential damage and ends the thwart ready", () => {
     const b = board("01090");
     const after = thwartWith(b, pays(b.hand));
     expect(threatOf(after)).toBe(10 - 2);
     expect(inst(after, b.ally).damage).toBe(1 + 1);
     expect(inst(after, b.ally).exhausted).toBe(false);
+  });
+  it("the order, as built: she readies when the thwart ends, and her consequential damage is dealt after that", () => {
+    // "Ready Husk after this use" is deferred to the end of the thwart (`atEndOfActivation`); the consequential damage
+    // is its own step after it. RRG 1.8 "Consequential Damage" (p. 13) deals it "after resolving abilities that are
+    // triggered by the ally attacking or thwarting"; no source orders it against "after this use", and nothing in the
+    // card pool can tell the two orders apart (rules check 2, entry 14). The log pins what the end state cannot show.
+    const b = board("01090");
+    const { events } = driveEventsPicking(
+      DEPS,
+      b.state,
+      picker(accept(HUSK), pays(b.hand)),
+      thwartBy(b.state, b.ally, mainOf(b.state)),
+    );
+    const consequential = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === b.ally);
+    const readied = events.findIndex((e) => e.type === "cardReadied" && e.instanceId === b.ally);
+    expect(readied).toBeGreaterThan(-1);
+    expect(consequential).toBeGreaterThan(readied);
   });
   it("Plasmoid Energy c ([mental][physical]): heals, readies, and no bonus", () => {
     const b = board("47010c");
@@ -457,6 +474,17 @@ describe("Husk (47012): Interrupt, when she uses a basic power, spend up to 3 re
     expect(threatOf(after)).toBe(10 - 2);
     expect(inst(after, b.ally).damage).toBe(1);
     expect(inst(after, b.ally).exhausted).toBe(false);
+  });
+  it("overpaid (owner decision, 2026-10-08): two Plasmoid Energy are four resources, three paid", () => {
+    // [energy][mental] and [mental][physical] toward "up to 3" (RRG 1.8 "Cost", p. 13: a cost may be overpaid). The
+    // three paid are the set with the most types (Q34 = A), one of each, so all three lines fire and nothing is
+    // asked; the second [mental] is overpaid. Before the decision this payment was refused.
+    const b = board("47010a", "47010c");
+    const after = thwartWith(b, pays(b.hand));
+    expect(threatOf(after)).toBe(10 - 3);
+    expect(inst(after, b.ally).damage).toBe(1 - 1 + 1);
+    expect(inst(after, b.ally).exhausted).toBe(false);
+    expect(playerOf(after, P1).hand).toEqual([]);
   });
   it("declined at the trigger prompt, or by paying nothing: 2 removed, nothing spent, she stays exhausted", () => {
     const b = board("47010a");
@@ -786,6 +814,31 @@ describe("Multitalented (47021): Hero Action (attack/thwart), if you paid using 
     expect(inst(left.state, b.rhino).damage).toBe(2);
     expect(threatOf(left.state, b.main)).toBe(6);
     expect(inst(left.state, b.jubilee).damage).toBe(3);
+  });
+  it("overpaid with a wild left wild (owner decision, 2026-10-08): she says which three resources were paid", () => {
+    // Four resources toward a cost of 3; the wild can be one of the three paid in place of a typed one, which
+    // silences that line, so she is asked (`choosePaidResources`). The first set offered is the three typed ones.
+    const b = board();
+    const paidPrompts = (events: readonly GameEvent[]) => events.filter((e) => e.type === "paidResourcesChosen");
+    const typed = run(b, [E, M, PH, W], declare("wild"));
+    expect(paidPrompts(typed.events)).toHaveLength(1);
+    expect(inst(typed.state, b.rhino).damage).toBe(2);
+    expect(threatOf(typed.state, b.main)).toBe(4);
+    expect(inst(typed.state, b.jubilee).damage).toBe(1);
+    // The wild in place of the [energy]: damage and threat, no heal.
+    const swapped = run(
+      b,
+      [E, M, PH, W],
+      declare("wild"),
+      answerKind("choosePaidResources", "physical:1,mental:1,energy:0,wild:1"),
+    );
+    expect(inst(swapped.state, b.rhino).damage).toBe(2);
+    expect(threatOf(swapped.state, b.main)).toBe(4);
+    expect(inst(swapped.state, b.jubilee).damage).toBe(3);
+    // Declared a type, one of each is the only three-type set: nothing more is asked.
+    const declared = run(b, [E, M, PH, W], declare("physical"));
+    expect(paidPrompts(declared.events)).toHaveLength(0);
+    expect(inst(declared.state, b.jubilee).damage).toBe(1);
   });
   it("is both an attack and a thwart: a stunned identity cancels all of it and loses the status card", () => {
     const b = board();

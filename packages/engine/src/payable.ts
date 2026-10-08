@@ -84,11 +84,15 @@ export function canPaySpend(
 }
 
 /**
- * The payments that pay a chosen-size resource cost (`AbilityCost.resources { choose }`; docs/phase7-wave8.md §3.62):
- * each set of `sources` that generates from `min` to `max` resources in all, the fewest sources first and, within a
- * size, in the order given. Nothing is overpaid against a cost the player sizes, so the whole of what the player holds
- * is usually no payment, and the search is over the small ones: every source generates at least one resource, so no
- * payment holds more than `max` of them.
+ * The payments that pay a chosen-size resource cost (`AbilityCost.resources { choose }`; docs/phase7-wave8.md §3.62)
+ * without overpaying it: each set of `sources` that generates from `min` to `max` resources in all, the fewest sources
+ * first and, within a size, in the order given. Every source generates at least one resource, so no such payment
+ * holds more than `max` of them.
+ *
+ * `overpay` (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13: a cost may be overpaid): a set that
+ * generates more than `max` is a payment too. Sets of more than `max` sources are still left out: each could drop a
+ * source and still pay, so none is needed to tell that the cost can be paid or to suggest a payment. Exact sets come
+ * first within each size only by the order given; the caller that wants an exact one asks without `overpay`.
  *
  * Each source is priced alone to rule sets out by their sum, and a set that fits is priced whole (`priceOrNull`), which
  * is what the engine will do with it: sources that cannot be spent together (`priceOf`'s faults) are not a payment,
@@ -102,25 +106,27 @@ export function* chosenSizePayments(
   sources: readonly Payment[],
   range: { readonly min: number; readonly max: number },
   payingFor: InstanceId | null,
+  overpay = false,
 ): Generator<readonly Payment[]> {
   const ctx = createCtx(state, deps);
+  const fits = (sum: number): boolean => sum >= range.min && (overpay || sum <= range.max);
   const total = (payment: readonly Payment[]): number | null => {
     const pool = priceOrNull(ctx, playerId, payment, null, payingFor);
     return pool ? poolTotal(pool) : null;
   };
   const priced = sources.flatMap((source) => {
     const alone = total([source]);
-    return alone !== null && alone > 0 && alone <= range.max ? [{ source, alone }] : [];
+    return alone !== null && alone > 0 && (overpay || alone <= range.max) ? [{ source, alone }] : [];
   });
   for (let size = 1; size <= Math.min(range.max, priced.length); size++) {
     let tried = 0;
     for (const set of subsets(priced, size)) {
       if (++tried > MAX_SUBSETS) break;
       const sum = set.reduce((n, entry) => n + entry.alone, 0);
-      if (sum < range.min || sum > range.max) continue;
+      if (!fits(sum)) continue;
       const payment = set.map((entry) => entry.source);
       const whole = total(payment);
-      if (whole !== null && whole >= range.min && whole <= range.max) yield payment;
+      if (whole !== null && fits(whole)) yield payment;
     }
   }
 }

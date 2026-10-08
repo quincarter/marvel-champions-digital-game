@@ -1680,10 +1680,11 @@ export const spendUpTo = (max: number, bind = "x"): AbilityCost => ({ resourcesX
  * docs/phase7-wave8.md §3.62): `spendChosen(3)` is a resource cost whose size the payer chooses, 1 to `max` resources
  * of any type (RRG 1.8 "Cost", p. 14: "up to" needs at least one), and `spendChosen(3, 2)` asks for at least 2.
  *
- * Unlike `spendUpTo`, nothing is overpaid: the player sizes the cost, so everything generated was spent, a payment
- * that generates more than `max` is refused, and a card with two icons is two of the size. The size is
+ * A card with two icons is two of the size. Overpaying is legal (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8
+ * "Cost", p. 13): a payment that generates more than `max` pays `max` and overpays the rest. The size is
  * `varOf("cost.resources")`. To read the types spent, mark the ability `readsPaidTypes` and read them with `paidType`
- * / `paidTypeCount`: each wild is what its player declares (§4.1 Q33 = B), asked when it can matter.
+ * / `paidTypeCount`: they read the paid resources only (§4.1 Q34 = A), each wild is what its player declares (§4.1
+ * Q33 = B), and the player says which resources were paid when that changes a reading (§4.1 row 79).
  */
 export const spendChosen = (max: number, min = 1): AbilityCost => ({ resources: { choose: { min, max } } });
 /** Where a counter cost removes from: `from` (a `TargetRef`) wins over `fromIdentity`; neither is the ability's card. */

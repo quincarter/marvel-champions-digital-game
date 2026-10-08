@@ -172,6 +172,7 @@ export function normalizeScenarios(
       villainStages: { standard: s.villainStages.standard, expert: s.villainStages.expert },
       ...(multipleVillains ? { multipleVillains } : {}),
       ...(s.usesIdentityEncounterSets === false ? { usesIdentityEncounterSets: false as const } : {}),
+      ...(s.nemesisSetsSetAside ? { nemesisSetsSetAside: true as const } : {}),
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
       ...(s.setAsideModularSetCount !== undefined ? { setAsideModularSetCount: s.setAsideModularSetCount } : {}),
       ...(s.modularSetPool

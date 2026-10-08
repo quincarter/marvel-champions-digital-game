@@ -775,7 +775,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   // An "X" cost ("spend up to 3 resources", Machine Man) totals 0 fixed resources but is still the player's decision
   // (the same guard `requestWindowPayment` has; docs/phase7-wave4.md §3.36).
   // So is a size the player chooses ("spend up to 3 resources →", `ResourcesChoice`; docs/phase7-wave8.md §3.62): the
-  // prompt carries its range, and `resolveChoice` refuses a selection outside it (nothing is overpaid).
+  // prompt carries its range, and `resolveChoice` refuses a selection below it (above it, the rest is overpaid).
   const chosenSize = resourcesChoiceOf(plan.cost ?? definition.cost);
   if (needed > 0 || definition.cost.resourcesX !== undefined || chosenSize) {
     const payingFor = plan.payingFor ?? candidate.instanceId;

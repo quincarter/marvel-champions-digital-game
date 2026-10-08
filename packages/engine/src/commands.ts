@@ -39,9 +39,9 @@ export interface CostSelection {
   readonly counters?: number;
   /**
    * How many resources a chosen-size resource cost spends (`AbilityCost.resources { choose }`; docs/phase7-wave8.md
-   * §3.62). The payment itself is the choice, since nothing is overpaid against a cost the player sizes; this names
-   * the size beside it, and a payment that generates any other number is refused. Absent: the size is whatever the
-   * payment generates, within the cost's range.
+   * §3.62). This names the size beside the payment: the payment must generate at least that many, and anything more
+   * is overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13). Absent: the size is whatever the
+   * payment generates, up to the cost's maximum.
    */
   readonly resources?: number;
 }

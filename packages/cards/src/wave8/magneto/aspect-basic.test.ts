@@ -1480,18 +1480,19 @@ describe("Face the Past (49022): find your nemesis minion, reveal it, ready your
 // ---------------------------------------------------------------------------
 // Face the Past in The Wrecking Crew (ruling January 17, 2026 - Ruling 5)
 // ---------------------------------------------------------------------------
+// Per FFG ruling Jan 17, 2026 (Ruling 5): "You can play Face the Past to find your set-aside nemesis minion; once
+// defeated, it is placed in the active villain's encounter discard pile." The Wrecking Crew insert has not been
+// checked: the repo's spec quotes it as "Nemesis cards and obligations are not used when playing this scenario", and
+// the owner's decision of 2026-10-08 (wave 8 §4.1 row 81) builds to the ruling, so the scenario sets the nemesis sets
+// aside (`Scenario.nemesisSetsSetAside`) and still shuffles no obligation in.
 describe("Face the Past in The Wrecking Crew (Breakout): only the active villain's encounter deck is interacted with", () => {
   /** Magneto's precon in the four-villain scenario; the engine's pool gets the Magneto cards on top of the scenario's. */
   function breakout(): GameState {
     const config = wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 5 });
     const players = [{ identityCardId: PRECON.identityCardId, aspects: PRECON.aspects, deck: PRECON_DECK }];
-    // The scenario's data says `usesIdentityEncounterSets: false`, so a real Breakout game sets no nemesis set aside and
-    // there is nothing for Face the Past to find; the ruling says the card can be played there, so the fixture turns
-    // the identity sets on (reported to the main session as a data question).
-    const created = createGame(
-      { ...config, cards: [...config.cards, ...MAGNETO_CARDS], players, includeIdentitySets: true },
-      DEPS,
-    );
+    // The scenario as its data builds it: no fixture override. Before 2026-10-08 it set no nemesis set aside and this
+    // fixture turned the identity sets on by hand.
+    const created = createGame({ ...config, cards: [...config.cards, ...MAGNETO_CARDS], players }, DEPS);
     if (!created.ok) throw new Error(created.error.message);
     return withForm(
       settle(created.state, firstLegal, (s) => s.step.phase === "player", DEPS),
@@ -1502,6 +1503,14 @@ describe("Face the Past in The Wrecking Crew (Breakout): only the active villain
     const s = breakout();
     expect(Object.keys(s.encounterDecks).length).toBeGreaterThanOrEqual(4);
     expect(s.activeVillainId).not.toBeNull();
+  });
+  it("Breakout sets the nemesis set aside and uses no obligation (the ruling changes the first, not the second)", () => {
+    const s = breakout();
+    const setAside = playerOf(s, P1).setAside.map((i) => codeOf(s, i));
+    expect(setAside).toContain(EXODUS);
+    const obligations = new Set(MAGNETO_CARDS.filter((c) => c.type === "obligation").map((c) => c.id as string));
+    expect(obligations.size).toBeGreaterThan(0);
+    expect(Object.values(s.instances).some((i) => obligations.has(i.cardId as string))).toBe(false);
   });
   it("Exodus found in the set-aside area is revealed; defeated, he goes to the active villain's discard pile and no other deck's", () => {
     const s0 = breakout();

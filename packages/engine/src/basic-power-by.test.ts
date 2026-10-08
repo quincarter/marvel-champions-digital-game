@@ -107,7 +107,18 @@ const TOLL = stubAbility(
   }),
 );
 
+/** Wasp's shape: "This character may divide her basic attack among any number of enemies." */
+const SPLIT = stubAbility(
+  "splitter.constant",
+  def({
+    trigger: { kind: "constant", rules: [{ kind: "divideBasicPower", power: "attack", target: { self: true } }] },
+    effects: [],
+  }),
+);
+
 const PHONE = stubSupport({ id: "phone", cost: 0, abilities: [CALL.ref] });
+const SPLITTER = stubAlly({ id: "splitter", cost: 0, atk: 2, thw: 1, hp: 3, abilities: [SPLIT.ref] });
+const THUG = stubMinion({ id: "thug", atk: 1, sch: 1, hp: 10 });
 const ORDERS = stubSupport({ id: "order", cost: 0, abilities: [ORDER.ref] });
 const LISTENER = stubSupport({ id: "listener", cost: 0, abilities: [HEAR.ref] });
 const TAXED = stubAlly({ id: "taxed", cost: 0, atk: 2, thw: null, hp: 3, abilities: [TAX.ref] });
@@ -116,7 +127,7 @@ const CRISIS = stubSideScheme({ id: "crisis", startingThreat: 3, icons: ["crisis
 const TOLLED = stubSideScheme({ id: "tolled", startingThreat: 6, abilities: [TOLL.ref] });
 const SPARK = stubResource({ id: "spark", icons: 0, produces: { energy: 1 } });
 
-const deps: EngineDeps = depsOf(CALL, ORDER, HEAR, TAX, TOLL);
+const deps: EngineDeps = depsOf(CALL, ORDER, HEAR, TAX, TOLL, SPLIT);
 
 interface Setup {
   readonly state: GameState;
@@ -144,10 +155,10 @@ const identityOf = (state: GameState, player: PlayerId) => mustPlayer(state, pla
 function setup(): Setup {
   const base = gameAtFirstTurn({
     players: 2,
-    cards: [PHONE, ORDERS, LISTENER, TAXED, BODYGUARD, CRISIS, TOLLED, SPARK],
+    cards: [PHONE, ORDERS, LISTENER, TAXED, BODYGUARD, CRISIS, TOLLED, SPARK, SPLITTER, THUG],
     deps,
-    deck: [PHONE.id, ORDERS.id, LISTENER.id, TAXED.id, SPARK.id],
-    encounter: [BODYGUARD.id, CRISIS.id, TOLLED.id, ...copiesOf(TREACHERY.id, 27)],
+    deck: [PHONE.id, ORDERS.id, LISTENER.id, TAXED.id, SPARK.id, SPLITTER.id],
+    encounter: [BODYGUARD.id, CRISIS.id, TOLLED.id, THUG.id, ...copiesOf(TREACHERY.id, 26)],
   });
   const phone = playerCardIntoPlay(base, PHONE.id);
   const order = playerCardIntoPlay(phone.state, ORDERS.id);
@@ -176,6 +187,10 @@ interface Plan {
   /** `attack:<id>` or `thwart:<id>`. */
   readonly power?: string;
   readonly target?: string;
+  /** Several targets, in order: a division (a character who may divide the power). */
+  readonly targets?: readonly string[];
+  /** The answer to the `divide` choice that follows: option ids `<target>#<n>`. */
+  readonly shares?: readonly string[];
   /** Answer a `spendResources` prompt with every option (true) or nothing (false, the default). */
   readonly pay?: boolean;
 }
@@ -189,7 +204,9 @@ function planned(plan: Plan) {
     const kind = choice.prompt.kind;
     if (kind === "choosePlayer" && plan.player) return [plan.player];
     if (kind === "chooseBasicPower" && plan.power) return [plan.power];
+    if (kind === "chooseBasicPowerTarget" && plan.targets) return plan.targets;
     if (kind === "chooseBasicPowerTarget" && plan.target) return [plan.target];
+    if (kind === "divide" && plan.shares) return plan.shares;
     if (kind === "spendResources") return plan.pay ? choice.options.map((o) => o.optionId) : [];
     return defaultPick(state);
   };
@@ -414,6 +431,145 @@ describe("basicPowerBy — 'that player makes a basic attack or thwart with a ch
       { player: P2, power: `thwart:${s.ally}`, target: s.main },
       use(s.phone, CALL),
       use(s.order, ORDER),
+    );
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+});
+
+/**
+ * Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 82): a character who may divide its basic power may
+ * divide it when Cell Phone has them make it. The card prints "makes a basic attack or thwart"; RRG 1.8 FAQ "Wasp
+ * (#1C)" (p. 61) treats her divided attack as her basic attack. No official source speaks of a basic power made on a
+ * card's instruction. Before the decision the power was made undivided, with no way to divide it.
+ */
+describe("basicPowerBy: a character who may divide the basic power may divide it (row 82)", () => {
+  /** Player 2 also controls the dividing ally (ATK 2), with a minion engaged with them beside the villain. */
+  function split() {
+    const s = setup();
+    const splitter = playerCardIntoPlay(s.state, SPLITTER.id, P2);
+    const thug = minionEngagedWith(splitter.state, THUG.id, P2);
+    return { ...s, state: thug.state, splitter: splitter.id, thug: thug.id };
+  }
+
+  it("two targets and their shares: ATK 2 + 1 is divided 2 and 1, one attack on each in the order chosen", () => {
+    const s = split();
+    const { state, events, seen } = run(
+      s.state,
+      {
+        player: P2,
+        power: `attack:${s.splitter}`,
+        targets: [s.villain, s.thug],
+        shares: [`${s.villain}#1`, `${s.villain}#2`, `${s.thug}#1`],
+      },
+      use(s.phone, CALL),
+    );
+    const targets = prompt(seen, "chooseBasicPowerTarget");
+    expect(targets?.prompt).toMatchObject({ mayDivide: true });
+    expect(targets).toMatchObject({ minSelections: 1, maxSelections: 2 });
+    const shares = prompt(seen, "divide");
+    expect(shares?.prompt).toEqual({ kind: "divide", what: "damage", amount: 3, eachAtLeast: 1 });
+    expect(shares).toMatchObject({ playerId: P2, minSelections: 3, maxSelections: 3 });
+    // Each target can take all but the 1 the other must get.
+    expect(optionIds(shares)).toEqual([`${s.villain}#1`, `${s.villain}#2`, `${s.thug}#1`, `${s.thug}#2`]);
+    expect(mustInstance(state, s.villain).damage).toBe(2);
+    expect(mustInstance(state, s.thug).damage).toBe(1);
+    expect(mustInstance(state, s.splitter).exhausted).toBe(true);
+    expect(of(events, "basicPowerInstructed")).toEqual([
+      expect.objectContaining({
+        characterInstanceId: s.splitter,
+        power: "attack",
+        targetInstanceId: s.villain,
+        divide: [
+          { targetInstanceId: s.villain, amount: 2 },
+          { targetInstanceId: s.thug, amount: 1 },
+        ],
+      }),
+    ]);
+    // The +1 was for this use: nothing is left waiting.
+    expect(state.lastingEffects).toEqual([]);
+    expect(state.stack).toEqual([]);
+  });
+
+  it("one target chosen: the power is made undivided for ATK 2 + 1, and no division is asked", () => {
+    const s = split();
+    const { state, seen } = run(
+      s.state,
+      { player: P2, power: `attack:${s.splitter}`, targets: [s.thug] },
+      use(s.phone, CALL),
+    );
+    expect(prompt(seen, "divide")).toBeUndefined();
+    expect(mustInstance(state, s.thug).damage).toBe(3);
+    expect(mustInstance(state, s.villain).damage).toBe(0);
+  });
+
+  it("a share of 0 for a chosen target is refused and the choice stays open", () => {
+    const s = split();
+    let state = s.state;
+    const step = (command: Command): void => {
+      const result = applyCommand(state, command, deps);
+      if (!result.ok) throw new Error(result.error.message);
+      state = result.state;
+    };
+    const answer = (selectedOptionIds: readonly string[]): Command => ({
+      type: "resolveChoice",
+      playerId: state.pendingChoice!.playerId,
+      choiceId: state.pendingChoice!.choiceId,
+      selectedOptionIds,
+    });
+    // Player 2 is the only player who can make a basic power, so no player is asked for.
+    step(use(s.phone, CALL));
+    expect(state.pendingChoice?.prompt.kind).toBe("chooseBasicPower");
+    step(answer([`attack:${s.splitter}`]));
+    step(answer([s.villain, s.thug]));
+    expect(state.pendingChoice?.prompt.kind).toBe("divide");
+    const none = applyCommand(state, answer([`${s.villain}#1`, `${s.villain}#2`, `${s.villain}#3`]), deps);
+    expect(none.ok).toBe(false);
+    // Fewer points than there are to divide.
+    expect(applyCommand(state, answer([`${s.villain}#1`, `${s.thug}#1`]), deps).ok).toBe(false);
+    expect(state.pendingChoice?.prompt.kind).toBe("divide");
+    step(answer([`${s.villain}#1`, `${s.thug}#1`, `${s.thug}#2`]));
+    expect(mustInstance(state, s.villain).damage).toBe(1);
+    expect(mustInstance(state, s.thug).damage).toBe(2);
+  });
+
+  it("a character with no such rule gets one target and no `mayDivide`, as before", () => {
+    const s = split();
+    const { state, seen } = run(
+      s.state,
+      { player: P2, power: `attack:${s.ally}`, target: s.villain },
+      use(s.phone, CALL),
+    );
+    const targets = prompt(seen, "chooseBasicPowerTarget");
+    expect(targets?.prompt).toEqual({ kind: "chooseBasicPowerTarget", power: "attack", characterInstanceId: s.ally });
+    expect(targets).toMatchObject({ minSelections: 1, maxSelections: 1 });
+    expect(mustInstance(state, s.villain).damage).toBe(3);
+  });
+
+  it("her thwart is not hers to divide (the rule names her attack): one scheme", () => {
+    const s = split();
+    const crisis = encounterCardInVillainArea(s.state, TOLLED.id, 6);
+    const { seen } = run(
+      crisis.state,
+      { player: P2, power: `thwart:${s.splitter}`, target: s.main },
+      use(s.phone, CALL),
+    );
+    expect(prompt(seen, "chooseBasicPowerTarget")).toMatchObject({ maxSelections: 1 });
+    expect(prompt(seen, "chooseBasicPowerTarget")?.prompt).not.toHaveProperty("mayDivide");
+  });
+
+  it("replays deep-equal", () => {
+    const s = split();
+    const { session } = run(
+      s.state,
+      {
+        player: P2,
+        power: `attack:${s.splitter}`,
+        targets: [s.thug, s.villain],
+        shares: [`${s.thug}#1`, `${s.villain}#1`, `${s.villain}#2`],
+      },
+      use(s.phone, CALL),
     );
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);

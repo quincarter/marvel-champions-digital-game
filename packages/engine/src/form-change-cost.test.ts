@@ -73,6 +73,13 @@ const LEVER_ACTION = stubAbility("lever.action", {
 });
 const LEVER = stubSideScheme({ id: "lever", startingThreat: 3, abilities: [LEVER_ACTION.ref] });
 
+/** An encounter card that forces the change: "Forced Interrupt: When threat is placed, change to hero form." */
+const SIREN_INTERRUPT = stubAbility("siren.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "placeThreat" } },
+  effects: [{ kind: "changeForm", player: { kind: "firstPlayer" }, to: "hero" }],
+});
+const SIREN = stubSideScheme({ id: "siren", startingThreat: 3, abilities: [SIREN_INTERRUPT.ref] });
+
 /** "When Revealed: Change to alter-ego form." */
 const SENT_HOME_REVEAL = stubAbility("sent-home.when-revealed", {
   trigger: { kind: "whenRevealed" },
@@ -84,7 +91,15 @@ const ENERGY = stubResource({ id: "energy", icons: 0, produces: { energy: 1 } })
 const MENTAL = stubResource({ id: "mental", icons: 0, produces: { mental: 1 } });
 const WILD = stubResource({ id: "wild", icons: 1 });
 
-const deps: EngineDeps = depsOf(CURFEW_COST, TOLL_COST, SWITCH_ACTION, ALARM_INTERRUPT, LEVER_ACTION, SENT_HOME_REVEAL);
+const deps: EngineDeps = depsOf(
+  CURFEW_COST,
+  TOLL_COST,
+  SWITCH_ACTION,
+  ALARM_INTERRUPT,
+  LEVER_ACTION,
+  SIREN_INTERRUPT,
+  SENT_HOME_REVEAL,
+);
 
 const CHANGE: ActionRef = { kind: "changeForm" };
 
@@ -99,9 +114,9 @@ interface Table {
 /** The first turn, in `form`, with these supports in play and exactly this hand. */
 function table(supports: readonly CardId[], hand: readonly CardId[], form: Form = "alterEgo"): Table {
   let state = gameAtFirstTurn({
-    cards: [CURFEW, TOLL, SWITCH, ALARM, LEVER, SENT_HOME, ENERGY, MENTAL, WILD],
+    cards: [CURFEW, TOLL, SWITCH, ALARM, LEVER, SIREN, SENT_HOME, ENERGY, MENTAL, WILD],
     deps,
-    encounter: [LEVER.id, SENT_HOME.id, ...copiesOf(SENT_HOME.id, 6)],
+    encounter: [LEVER.id, SIREN.id, SENT_HOME.id, ...copiesOf(SENT_HOME.id, 6)],
     deck: [
       CURFEW.id,
       TOLL.id,
@@ -327,6 +342,66 @@ describe("§3.63, Q37 = A: a change by an ability of the player's own card, on t
   });
 });
 
+/**
+ * Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 80): "As an additional cost to change to hero form during
+ * your turn" covers a change the player makes by triggering an Action printed on an encounter card. No RRG entry or
+ * FFG ruling speaks to it; Q37 = A (also the owner's) keeps forced changes free. Before the decision this change was
+ * free.
+ */
+describe("§3.63, row 80: an encounter card's Action the player triggers on their own turn asks for the cost", () => {
+  const pull = (t: Table) => {
+    const placed = encounterCardInVillainArea(t.state, LEVER.id, 3);
+    const command: Command = {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: placed.id,
+      abilityId: LEVER_ACTION.ref.id,
+      payment: [],
+    };
+    return { state: placed.state, command };
+  };
+
+  it("asked and paid with two of a type, the form changes", () => {
+    const t = table([CURFEW.id], [ENERGY.id, ENERGY.id]);
+    const lever = pull(t);
+    const { state, events } = drive(lever.state, [lever.command], payingWith(t.hand));
+    expect(formOf(state)).toBe("hero");
+    expect(mustPlayer(state, P1).hand).toEqual([]);
+    const types = typesOf(events);
+    expect(types).toContain("formChangeCostAsked");
+    expect(events.find((event) => event.type === "formChangeCostSettled")).toMatchObject({ outcome: "paid" });
+    expect(types.indexOf("formChangeCostSettled")).toBeLessThan(types.indexOf("formChanged"));
+  });
+
+  it("declined, nothing is spent and the form stays", () => {
+    const t = table([CURFEW.id], [ENERGY.id, ENERGY.id]);
+    const lever = pull(t);
+    const { state, events } = drive(lever.state, [lever.command], payingWith([]));
+    expect(formOf(state)).toBe("alterEgo");
+    expect(mustPlayer(state, P1).hand).toEqual(t.hand);
+    expect(events.find((event) => event.type === "formChangeCostSettled")).toMatchObject({ outcome: "declined" });
+    expect(typesOf(events)).not.toContain("formChanged");
+  });
+
+  it("unpayable ([energy] and [mental]), nobody is asked and the form stays", () => {
+    const t = table([CURFEW.id], [ENERGY.id, MENTAL.id]);
+    const lever = pull(t);
+    const { state, events } = drive(lever.state, [lever.command]);
+    expect(formOf(state)).toBe("alterEgo");
+    expect(typesOf(events)).not.toContain("formChangeCostAsked");
+    expect(events.find((event) => event.type === "formChangeCostSettled")).toMatchObject({ outcome: "unpayable" });
+  });
+
+  it("with no cost rule in play the same Action changes the form for nothing", () => {
+    const t = table([], [ENERGY.id, ENERGY.id]);
+    const lever = pull(t);
+    const { state, events } = drive(lever.state, [lever.command]);
+    expect(formOf(state)).toBe("hero");
+    expect(mustPlayer(state, P1).hand).toEqual(t.hand);
+    expect(typesOf(events)).not.toContain("formChangeCostSettled");
+  });
+});
+
 describe("§3.63, Q37 = A: a change that is not the player's to pay for costs nothing and happens", () => {
   it("an encounter card's When Revealed changes the form under a rule that covers every change", () => {
     const t = table([TOLL.id], [ENERGY.id], "hero");
@@ -340,15 +415,15 @@ describe("§3.63, Q37 = A: a change that is not the player's to pay for costs no
     expect(mustPlayer(state, P1).discard).not.toContain(t.hand[0]);
   });
 
-  it("an encounter card's Action the player triggers on their own turn changes the form for nothing", () => {
-    const t = table([CURFEW.id], [ENERGY.id, ENERGY.id]);
-    const placed = encounterCardInVillainArea(t.state, LEVER.id, 3);
-    const { state, events } = drive(placed.state, [
-      { type: "useAbility", playerId: P1, cardInstanceId: placed.id, abilityId: LEVER_ACTION.ref.id, payment: [] },
-    ]);
-    expect(formOf(state)).toBe("hero");
-    expect(mustPlayer(state, P1).hand).toEqual(t.hand);
+  it("an encounter card's forced interrupt outside the player's turn changes the form for nothing", () => {
+    // The same change as the Action below, by a card of the same kind, but forced: free (Q37 = A).
+    const t = table([TOLL.id], [ENERGY.id, ENERGY.id]);
+    const placed = encounterCardInVillainArea(t.state, SIREN.id, 3);
+    const { state, events } = drive(placed.state, [{ type: "endTurn", playerId: P1 }]);
+    expect(events.find((event) => event.type === "formChanged")).toMatchObject({ to: "hero", byEffect: true });
+    expect(typesOf(events)).not.toContain("formChangeCostAsked");
     expect(typesOf(events)).not.toContain("formChangeCostSettled");
+    for (const id of t.hand) expect(mustPlayer(state, P1).discard).not.toContain(id);
   });
 
   it("the player's own card outside their turn changes the form for nothing under a 'during your turn' rule", () => {

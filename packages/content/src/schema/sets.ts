@@ -366,6 +366,16 @@ export interface Scenario {
    */
   readonly usesIdentityEncounterSets?: boolean;
   /**
+   * With `usesIdentityEncounterSets: false`: each identity's nemesis set is set aside all the same (RRG 1.8 Appendix
+   * II, step 4), and only the obligations are left out. Absent = the nemesis sets follow `usesIdentityEncounterSets`.
+   *
+   * The Wrecking Crew, per FFG ruling Jan 17, 2026 (Ruling 5): "You can play Face the Past to find your set-aside
+   * nemesis minion; once defeated, it is placed in the active villain's encounter discard pile." Built to the ruling
+   * on the owner's decision of 2026-10-08 (docs/phase7-wave8.md §4.1 row 81); the Wrecking Crew insert, which the
+   * line above quotes from the repo's spec, has not been checked.
+   */
+  readonly nemesisSetsSetAside?: true;
+  /**
    * How many modular encounter sets the scenario's stage 1A "Contents" calls for. Absent = 1 ("One modular
    * encounter set", every Core and Green Goblin scenario). The Wrecking Crew insert, "Adjustable Difficulty":
    * "The Wrecking Crew does not use other encounter sets", so 0.

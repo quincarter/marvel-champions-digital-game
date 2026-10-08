@@ -2759,7 +2759,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       if (predicate.basic !== undefined && (event.basic === true) !== predicate.basic) return false;
       const matches = (id: InstanceId, query: TargetQuery | undefined): boolean =>
         query === undefined || matchesQuery(state, id, query, context);
-      return matches(event.thwarterInstanceId, predicate.thwarter) && matches(event.schemeInstanceId, predicate.scheme);
+      // A divided basic thwart is one basic thwart against every scheme it names (RRG 1.8 "Assault", p. 8;
+      // docs/phase7-wave7.md §4.1 Q3), so each of its shares is a thwart against all of them.
+      const schemes = event.dividedAmong ?? [event.schemeInstanceId];
+      return (
+        matches(event.thwarterInstanceId, predicate.thwarter) && schemes.some((id) => matches(id, predicate.scheme))
+      );
     }
     case "revealedFromEncounterDeck": {
       // The stack is innermost-first: the reveal this card's When Revealed belongs to.
