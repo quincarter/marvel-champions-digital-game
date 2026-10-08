@@ -1970,16 +1970,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "raiseMoment": {
       // docs/phase7-wave8.md §3.39: one moment per player named, each the "you" of their own, in player order. Logged
       // always; on the stack only when an ability could answer (`heard`), so an unanswered moment changes nothing else.
+      // §3.71: the slots it carries are copied off this frame now, with their vars, so an answer reads them once the
+      // frame is gone and no answer changes what the next one reads.
+      const carry = effect.carry ?? [];
+      const carried =
+        carry.length === 0
+          ? {}
+          : {
+              carried: Object.fromEntries(carry.map((slot) => [slot, [...(frame.bindings[slot] ?? [])]])),
+              carriedVars: Object.fromEntries(
+                Object.entries(frame.vars).filter(([key]) =>
+                  carry.some((slot) => key === slot || key.startsWith(`${slot}.`)),
+                ),
+              ),
+            };
       const raised = resolvePlayers(ctx.state, effect.player, context).map(
         (playerId): Extract<TriggerEvent, { kind: "momentRaised" }> => ({
           kind: "momentRaised",
           name: effect.name,
           playerId,
           sourceInstanceId: frame.selfInstanceId,
+          ...carried,
         }),
       );
-      for (const { name, playerId, sourceInstanceId } of raised)
-        emit(ctx, { type: "momentRaised", name, playerId, sourceInstanceId });
+      for (const { kind: _, ...moment } of raised) emit(ctx, { type: "momentRaised", ...moment });
       pushHeard(raised);
       return;
     }
@@ -2821,9 +2835,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // discarded from the newly shuffled deck". A deck that was already empty when the effect began is reset first
       // (`takeTopOfDeck`) and the discarding happens from the new deck — the same split `discardEncounterCards` makes.
       const bind = effect.bind;
+      const bindAll = effect.bindAll;
       // One player per "your deck"; several ("each player") each search their own deck, in player order, and every
       // match lands in the one slot, so `<bind>.count` is how many were found.
       const found: InstanceId[] = [];
+      // Every card discarded, in order, the match of each player the last of that player's (§3.71).
+      const discarded: InstanceId[] = [];
       let searched = 0;
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const player = getPlayer(ctx.state, playerId);
@@ -2838,10 +2855,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // The log already carries each move as `cardMoved`, the same record `discardEncounterUntil` leaves.
           moveCard(ctx, id, { kind: "discard", playerId }, "top");
           // Each card passed over is a discard from the deck too (docs/phase7-wave7.md §3.55, §4.1 Q31); only the
-          // match is in `bind`.
+          // match is in `bind`, and all of them are in `bindAll`.
+          discarded.push(id);
           recordDeckDiscard(ctx, playerId, id, {
             sourceInstanceId: frame.selfInstanceId,
-            boundOn: { frameId: frame.frameId, slot: bind },
+            boundOn: { frameId: frame.frameId, slot: bind, ...(bindAll !== undefined ? { also: [bindAll] } : {}) },
           });
           if (matchesQuery(ctx.state, id, effect.filter, context)) {
             found.push(id);
@@ -2851,11 +2869,21 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (playerDeckResets(ctx, playerId) > resets) break;
         }
       }
-      updateFrame(ctx, frame.frameId, (f) =>
-        f.kind === "effects"
-          ? { ...f, bindings: { ...f.bindings, [bind]: found }, vars: { ...f.vars, [`${bind}.count`]: found.length } }
-          : f,
-      );
+      updateFrame(ctx, frame.frameId, (f) => {
+        if (f.kind !== "effects") return f;
+        // `f.bindings` now says which cards this frame discarded from a deck (`recordDeckDiscard`), which the icon
+        // totals read (`countedResourcesOf`).
+        const all = bindAll === undefined ? null : { [bindAll]: discarded };
+        return {
+          ...f,
+          bindings: { ...f.bindings, [bind]: found, ...all },
+          vars: {
+            ...f.vars,
+            [`${bind}.count`]: found.length,
+            ...(bindAll === undefined ? {} : boundCardTotals(ctx, bindAll, discarded, { ...f.bindings, ...all })),
+          },
+        };
+      });
       // "Discard … until you discard an X, then add that card to your hand" with no X (RRG 1.8 "'Then'", p. 44): each
       // player who searched must have found one.
       if (found.length < searched) markPreThenUnresolved(ctx, frame.frameId, "discardUntilFoundNothing");

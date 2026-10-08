@@ -1483,12 +1483,31 @@ export const discardEncounterUntil = (filter: TargetQuery, bind: string): Effect
  * (Teen Spirit): follow it with `moveCards(cards(chosen(bind)), "hand")`. The match is left in the discard pile, and
  * nothing is bound when the deck runs out first (RRG 1.8 "Player Deck", p. 33 — see `EffectSpec.discardDeckUntil`).
  */
-export const discardDeckUntil = (filter: TargetQuery, bind: string, player: PlayerRef = you): EffectSpec => ({
-  kind: "discardDeckUntil",
-  player,
-  filter,
-  bind,
-});
+export const discardDeckUntil = (
+  filter: TargetQuery,
+  bind: string,
+  /** Whose deck, or the options: `bindAll` and, with it, `player`. */
+  playerOrOpts: PlayerRef | DiscardDeckUntilOptions = you,
+): EffectSpec => {
+  const opts: DiscardDeckUntilOptions = "kind" in playerOrOpts ? { player: playerOrOpts } : playerOrOpts;
+  return {
+    kind: "discardDeckUntil",
+    player: opts.player ?? you,
+    filter,
+    bind,
+    ...(opts.bindAll !== undefined ? { bindAll: opts.bindAll } : {}),
+  };
+};
+export interface DiscardDeckUntilOptions {
+  readonly player?: PlayerRef;
+  /**
+   * A slot for every card the effect discarded, the match included and last (docs/phase7-wave8.md §3.71): "for each
+   * card discarded by it" is `varValue`-style `<bindAll>.count`, "if you discarded at least 1 [mental]" is
+   * `varAtLeast("<bindAll>.mental")`. Also `.physical`, `.energy`, `.wild`, `.boostIcons`, `.starIcons`. Hand it to the
+   * cards that answer with `raiseMoment(name, you, [bindAll])`.
+   */
+  readonly bindAll?: string;
+}
 export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false): EffectSpec => ({
   kind: "tuckCards",
   cards: from,
@@ -2171,11 +2190,16 @@ export const swapVillain = (villain: TargetRef = { kind: "villain" }): EffectSpe
  * mission attempt", "After you resolve Bishop's 'Energy Absorption' ability". Put it where the thing it names is done:
  * the effects before it have resolved when the answers resolve, and the ones after it wait. `player` is the "you" of
  * the moment. The engine reads nothing into the name; a moment nobody answers does nothing.
+ *
+ * `carry` (§3.71): slots of this ability handed to the answers, with their vars. An answering ability reads the slot
+ * `"pulled"` as `chosen("moment.pulled")` and its vars as `"moment.pulled.count"`, `"moment.pulled.mental"`, in its
+ * effects and in its `while` condition alike.
  */
-export const raiseMoment = (name: string, player: PlayerRef = you): EffectSpec => ({
+export const raiseMoment = (name: string, player: PlayerRef = you, carry: readonly string[] = []): EffectSpec => ({
   kind: "raiseMoment",
   name,
   player,
+  ...(carry.length > 0 ? { carry } : {}),
 });
 /**
  * "Swap your WEATHER support in play with a support of your choice from the WEATHER deck" (Weather Control, `storm`

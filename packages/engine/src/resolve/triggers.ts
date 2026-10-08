@@ -42,7 +42,7 @@ import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
-import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
@@ -233,7 +233,15 @@ function matchesRest(
   // rules name is that player, as it is for `playerIs` and for the card's rules (`uncontrolledYouOf`; RRG 1.8
   // "Attachment", p. 8, "Obligation", p. 30). Any other uncontrolled card's queries still read "you" as no one.
   const you = controller ?? uncontrolledYouOf(state, selfId);
-  const context: EffectContext = { selfInstanceId: selfId, controllerId: you, event, bindings: {}, deps };
+  const carried = carriedByEvent(event);
+  const context: EffectContext = {
+    selfInstanceId: selfId,
+    controllerId: you,
+    event,
+    bindings: carried.bindings,
+    vars: carried.vars,
+    deps,
+  };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;
     // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5). "After a
@@ -429,7 +437,16 @@ function conditionHolds(
   event: TriggerEvent,
 ): boolean {
   if ((trigger.kind !== "interrupt" && trigger.kind !== "response") || !trigger.while) return true;
-  return evaluate(state, trigger.while, { selfInstanceId: id, controllerId: playerId, event, bindings: {}, deps });
+  // "…, if you discarded at least 1 [mental]": what the answered moment carries is read here too (§3.71).
+  const carried = carriedByEvent(event);
+  return evaluate(state, trigger.while, {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event,
+    bindings: carried.bindings,
+    vars: carried.vars,
+    deps,
+  });
 }
 
 /**

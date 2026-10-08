@@ -977,12 +977,15 @@ export type GameEvent =
   /**
    * A script raised a named moment (`EffectSpec raiseMoment`, docs/phase7-wave8.md §3.39), for `playerId` as "you".
    * Logged whether or not any ability answers it; when one could, a `triggerEvent` of kind `momentRaised` follows.
+   * `carried` / `carriedVars`: what `raiseMoment.carry` stamped on it (§3.71), absent when it carried nothing.
    */
   | {
       readonly type: "momentRaised";
       readonly name: string;
       readonly playerId: PlayerId;
       readonly sourceInstanceId: InstanceId | null;
+      readonly carried?: Readonly<Record<string, readonly InstanceId[]>>;
+      readonly carriedVars?: Readonly<Record<string, number>>;
     }
   | {
       readonly type: "abilityResolved";

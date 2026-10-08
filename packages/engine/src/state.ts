@@ -366,14 +366,15 @@ export interface EncounterFromDeck {
  * fields these are. `boundOn`: the discarding ability's set of the cards "discarded this way", as the slot `slot` of
  * frame `frameId` (the effects frame of a `moveCards` or `discardDeckUntil` with a `bind`, the frame a
  * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
- * `settleDeckDiscards`).
+ * `settleDeckDiscards`). `also`: further slots of that frame holding the card (`discardDeckUntil.bindAll`,
+ * docs/phase7-wave8.md §3.71), which drop it the same way.
  */
 export interface DeckDiscard {
   readonly playerId: PlayerId;
   readonly instanceId: InstanceId;
   readonly sourceInstanceId: InstanceId | null;
   readonly at: "discard" | "deck";
-  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string };
+  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string; readonly also?: readonly string[] };
 }
 
 /**

@@ -57,7 +57,7 @@ import {
 } from "../select.js";
 import type { CardSelector, EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, type TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
 import { selectCards } from "./cards.js";
 import { alreadyDefeated, anyAlreadyDefeated } from "./defeat.js";
@@ -549,7 +549,8 @@ export function abilityTargetFault(
     selfInstanceId: sourceId,
     controllerId: playerId,
     event,
-    bindings: {},
+    bindings: carriedByEvent(event).bindings,
+    vars: carriedByEvent(event).vars,
     deps,
     ...(definition.label?.includes("thwart") && playerId !== null ? { thwartLabeled: true } : {}),
     ...(definition.label?.includes("attack") && playerId !== null ? { attackLabeled: true } : {}),

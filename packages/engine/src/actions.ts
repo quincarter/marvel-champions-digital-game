@@ -66,7 +66,7 @@ import {
   resourcesChoiceOf,
 } from "./abilities.js";
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
-import type { TriggerEvent } from "./trigger-events.js";
+import { carriedByEvent, type TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { attackKeywordsOf, canTakeStatus, hasKeyword, statusActive } from "./keywords.js";
 import {
@@ -1918,7 +1918,15 @@ function deckDiscardCount(
   if (typeof spec === "number") return spec;
   const window = state.stack.find((f) => f.kind === "window");
   const event = window?.kind === "window" ? window.event : null;
-  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  const carried = carriedByEvent(event);
+  const context: EffectContext = {
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    event,
+    bindings: carried.bindings,
+    vars: carried.vars,
+    deps,
+  };
   return Math.max(0, resolveValue(state, spec, context, deps));
 }
 
@@ -1943,7 +1951,15 @@ export function costResourceRequirement(
   // A size the payer chooses (`ResourcesChoice`) is no fixed requirement: `resourceVars` reads it off the payment.
   const fixed = combineRequirements(fixedResourcesOf(cost), 0);
   if (cost?.resourcesEqualTo === undefined) return { requirement: fixed };
-  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  const carried = carriedByEvent(event);
+  const context: EffectContext = {
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    event,
+    bindings: carried.bindings,
+    vars: carried.vars,
+    deps,
+  };
   const computed = Math.max(0, Math.floor(resolveValue(state, cost.resourcesEqualTo, context, deps)));
   return { requirement: combineRequirements(fixed, computed), computed };
 }

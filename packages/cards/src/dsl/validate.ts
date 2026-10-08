@@ -1,6 +1,7 @@
 import {
   inPlayPicksOf,
   isResourcesChoice,
+  MOMENT_PREFIX,
   UNRESOLVED_VAR,
   type AbilityCost,
   type AbilityDefinition,
@@ -614,6 +615,11 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "searchCollection":
       scope.slots.add(effect.bind);
       scope.vars.add(`${effect.bind}.count`);
+      // Every card a player-deck "discard until" discarded, with a bound set's totals (docs/phase7-wave8.md §3.71).
+      if (effect.kind === "discardDeckUntil" && effect.bindAll !== undefined) {
+        scope.slots.add(effect.bindAll);
+        scope.prefixes.add(`${effect.bindAll}.`);
+      }
       return;
     case "moveCards":
     case "enemyAttack":
@@ -705,6 +711,12 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
     // One trait, or the traits of a character (docs/phase7-wave6.md §3.50), never both or neither.
     if (effect.kind === "grantTraitUntil" && (effect.trait === undefined) === (effect.traitsOf === undefined))
       problems.push(`${where}: needs exactly one of trait and traitsOf`);
+    // A moment carries what the ability has bound by then (docs/phase7-wave8.md §3.71): a slot bound later, or never,
+    // would reach the answers empty.
+    if (effect.kind === "raiseMoment") {
+      for (const slot of effect.carry ?? [])
+        if (!scope.slots.has(slot)) problems.push(`${where}: carried slot "${slot}" is not bound before the moment`);
+    }
     checkRefs(effect, scope, where, problems);
     nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems));
     bindsOf(effect, scope);
@@ -720,6 +732,11 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     vars: new Set(["x"]),
     prefixes: new Set(["paid.", "overpaid.", "sequence.", "self.counters."]),
   };
+  // What an answered moment carries (`raiseMoment.carry`, docs/phase7-wave8.md §3.71) is the answering ability's to
+  // read as `moment.<slot>`, slot and vars: bound by the engine from the event, never by the ability.
+  const trigger = definition.trigger;
+  if (trigger.kind === "response" && trigger.on && kindsOfPattern(trigger.on).includes("momentRaised"))
+    scope.prefixes.add(MOMENT_PREFIX);
   // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
   if (definition.cost?.conditional) scope.vars.add("cost.condition");
   // A resource ability's effects resolve with the payment, the card paid for bound to `paidFor` (engine

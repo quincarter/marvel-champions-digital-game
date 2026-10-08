@@ -334,7 +334,7 @@ export {
 } from "./campaign-state.js";
 
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
-export { damageTakenKey, eventSubjects, isAnnouncement } from "./trigger-events.js";
+export { carriedByEvent, damageTakenKey, eventSubjects, isAnnouncement, MOMENT_PREFIX } from "./trigger-events.js";
 
 export type {
   Bindings,

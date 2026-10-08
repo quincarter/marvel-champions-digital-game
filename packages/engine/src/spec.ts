@@ -2738,6 +2738,17 @@ export type EffectSpec =
       readonly player: PlayerRef;
       readonly filter: TargetQuery;
       readonly bind: string;
+      /**
+       * A second slot for every card this effect discarded, the match included, in the order they were discarded (so
+       * a match is the last card of its player's run): "for each card discarded by it", "if you discarded at least 1
+       * [mental]" (docs/phase7-wave8.md §3.71). Bound with a `moveCards` set's totals: `<bindAll>.count`, the printed
+       * icons `<bindAll>.physical` / `.mental` / `.energy` / `.wild`, `.boostIcons` and `.starIcons`
+       * (`boundCardTotals`). A card stays in the set wherever it goes next (the match added to hand, §4.1 Q42; the
+       * cards a deck reset shuffled into the new deck), except one a response to its own discard took away, which is
+       * dropped as from every "discarded this way" set (`settleDeckDiscards`, docs/phase7-wave7.md §4.1 Q32). When no
+       * card matched, the set is still every card discarded (§4.1 Q41).
+       */
+      readonly bindAll?: string;
     }
   /**
    * "Discard the top N cards of the encounter deck" (Electro, Lightning Bolt, Shock Therapy). The active villain's
@@ -3422,8 +3433,20 @@ export type EffectSpec =
    * and the ones after it wait. An ability whose effects were cancelled never reaches it. Always logged
    * (`GameEvent momentRaised`); it goes on the stack only when an ability could answer it, so a moment nobody answers
    * changes nothing else.
+   *
+   * `carry` (docs/phase7-wave8.md §3.71): slots of the raising ability whose cards, and whose vars (`<slot>` and every
+   * `<slot>.…`), are stamped on the moment as they stand when it is raised (`TriggerEvent momentRaised.carried` /
+   * `carriedVars`). An ability answering the moment reads them under `MOMENT_PREFIX`: slot `moment.<slot>`, var
+   * `moment.<slot>.count`. They are a copy: the answers resolve after the raising ability's frame may be gone, and
+   * nothing an answer does changes what the next answer reads. A slot the raising ability never bound is carried
+   * empty. Absent or empty, the moment carries nothing, as before.
    */
-  | { readonly kind: "raiseMoment"; readonly name: string; readonly player: PlayerRef }
+  | {
+      readonly kind: "raiseMoment";
+      readonly name: string;
+      readonly player: PlayerRef;
+      readonly carry?: readonly string[];
+    }
   /**
    * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
    * player's identity becomes the next version of its `progressingIdentity`, set aside at setup. RRG 1.8 "Swap"

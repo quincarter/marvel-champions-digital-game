@@ -1004,12 +1004,18 @@ export type TriggerEventBody =
    * attempt". An announcement (`isAnnouncement`): what the name stands for has already happened, so it opens a response
    * window and no interrupt window. `playerId` is "you", `sourceInstanceId` the card whose effect raised it. A pattern
    * names the moment with `eventIs: { name }`.
+   *
+   * `carried` / `carriedVars`: the slots `raiseMoment.carry` named and their vars, by the raising ability's own names
+   * (docs/phase7-wave8.md §3.71); absent when it named none. An answering ability reads them as `moment.<slot>`
+   * (`carriedByEvent`).
    */
   | {
       readonly kind: "momentRaised";
       readonly name: string;
       readonly playerId: PlayerId;
       readonly sourceInstanceId: InstanceId | null;
+      readonly carried?: Readonly<Record<string, readonly InstanceId[]>>;
+      readonly carriedVars?: Readonly<Record<string, number>>;
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
@@ -1429,4 +1435,28 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     default:
       return of([], [], []);
   }
+}
+
+/** The prefix an ability answering a moment reads its carried slots and vars under (`EffectSpec raiseMoment.carry`). */
+export const MOMENT_PREFIX = "moment.";
+
+const NOTHING_CARRIED: {
+  readonly bindings: Readonly<Record<string, readonly InstanceId[]>>;
+  readonly vars: Readonly<Record<string, number>>;
+} = { bindings: {}, vars: {} };
+
+/**
+ * What the event an ability answers hands to that ability's slots and vars (docs/phase7-wave8.md §3.71): the slots and
+ * vars a `momentRaised` carries, each under `MOMENT_PREFIX`, so the raising ability's `pulled` is the answering
+ * ability's `moment.pulled` and `pulled.count` its `moment.pulled.count`. The prefix keeps them apart from the
+ * answering ability's own slots and cost results. Every other event, and a moment that carries nothing, gives nothing.
+ *
+ * Read wherever an ability is judged or resolved against its event: its condition and targets (`resolve/triggers.ts`,
+ * `target-validity.ts`), its cost (`actions.ts`) and its frame (`abilityFrame`).
+ */
+export function carriedByEvent(event: TriggerEvent | null | undefined): typeof NOTHING_CARRIED {
+  if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
+  const prefixed = <T>(record: Readonly<Record<string, T>> | undefined): Record<string, T> =>
+    Object.fromEntries(Object.entries(record ?? {}).map(([key, item]) => [`${MOMENT_PREFIX}${key}`, item]));
+  return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
 }
