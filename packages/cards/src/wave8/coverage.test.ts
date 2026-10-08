@@ -19,6 +19,7 @@ import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
+import { INFINITES } from "./aoa/infinites.js";
 import { MAGIK_EVENTS } from "./aoa/magik/events.js";
 import { MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./aoa/magik/identity.js";
 import { MAGIK_OBLIGATION_NEMESIS, MAGIK_OBLIGATION_NEMESIS_SKIPPED } from "./aoa/magik/obligation-nemesis.js";
@@ -27,6 +28,8 @@ import {
   MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./aoa/magik/support-upgrades-allies.js";
 import { SAVAGE_LAND } from "./aoa/savage-land.js";
+import { STANDARD_III, STANDARD_III_SKIPPED } from "./aoa/standard-iii.js";
+import { UNUS, UNUS_SKIPPED } from "./aoa/unus.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { AOA_ASPECT_BASIC, AOA_ASPECT_BASIC_SKIPPED } from "./aoa/aspect-basic.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
@@ -54,6 +57,7 @@ import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
+import { CRAZY_GANG } from "./ncrawler/crazy-gang.js";
 import { NIGHTCRAWLER_EVENTS, NIGHTCRAWLER_EVENTS_SKIPPED } from "./ncrawler/nightcrawler/events.js";
 import { NIGHTCRAWLER_IDENTITY } from "./ncrawler/nightcrawler/identity.js";
 import {
@@ -179,6 +183,18 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
     {
+      module: "infinites",
+      cardIds: ["45069", "45070", "45071"],
+      registry: INFINITES,
+      skipped: {},
+    },
+    {
+      module: "standard-iii",
+      cardIds: ["45075a", "45076", "45077", "45078", "45079", "45080"],
+      registry: STANDARD_III,
+      skipped: STANDARD_III_SKIPPED,
+    },
+    {
       module: "magik/identity",
       cardIds: ["45030a", "45030b"],
       registry: MAGIK_IDENTITY,
@@ -207,6 +223,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["45127", "45128", "45129", "45130", "45131", "45132"],
       registry: SAVAGE_LAND,
       skipped: {},
+    },
+    {
+      module: "unus",
+      cardIds: ["45059", "45062a", "45063", "45064", "45065", "45066", "45067", "45068"],
+      registry: UNUS,
+      skipped: UNUS_SKIPPED,
     },
   ],
   iceman: [
@@ -343,6 +365,12 @@ const SCRIPTED_MODULES: Readonly<
         "48012.rogue-action":
           "cost picks another friendly character of any player and deals it damage (dealt, paid even if prevented); no cost does that: docs/phase7-wave8.md §3.74",
       },
+    },
+    {
+      module: "crazy-gang",
+      cardIds: ["48033", "48034", "48035", "48036", "48037", "48038"],
+      registry: CRAZY_GANG,
+      skipped: {},
     },
   ],
   magneto: [
