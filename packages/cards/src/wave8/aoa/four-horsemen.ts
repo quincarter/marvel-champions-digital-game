@@ -146,8 +146,9 @@ export const FOUR_HORSEMEN: AbilityRegistry = defineAbilities({
   // control. (The amplify icon is data.)
   "45089.when-defeated": whenDefeated(dealDamage(1, each(query("character", { controlledBy: defeatingPlayer })))),
 
-  // Metal Wings — "Death gains retaliate 1" (the first of its two constants; the data names no ref for "Attach to Death
-  // and move the active counter to him", see the report). Attached to Death, so the host.
+  // Metal Wings — "Death gains retaliate 1" (the retaliate half of the card's one -constant ref, which also prints the
+  // hit point floor of FLOOR_WAITS: engine task 21, not scripted here). "Move the active counter to him" is the
+  // separate 45091.when-revealed ref, skipped below. Attached to Death, so the host.
   "45091.metal-wings-constant": constant(
     gainsKeyword({ name: "retaliate", value: 1 }, query("villain", { hostOfSelf: true })),
   ),
@@ -198,7 +199,7 @@ export const FOUR_HORSEMEN_SKIPPED: Readonly<Record<string, string>> = {
     "waits on engine queue task 20 (3.7): moveActiveCounter { to: nextInRow }, one position along the row from the villain that holds the counter (Q5 = A); the existing nextInActivationOrder reads printed activation orders the Horsemen do not have",
   "45090.golden-horse-constant": `the Aerial trait is expressible, but the same constant carries the floor: ${FLOOR_WAITS}`,
   "45090.golden-horse-response": FORCED_AS_IF_WAITS,
-  "45091.metal-wings-constant-2": FLOOR_WAITS,
+  "45091.when-revealed": "waits on engine task 20 (villainRow / setActiveVillain)",
   "45091.metal-wings-response": FORCED_AS_IF_WAITS,
   "45096.when-revealed": `${FORCED_AS_IF_WAITS}; also task 20 (moving the counter to the next villain in the row) and the asIf floor of 1`,
 };

@@ -115,10 +115,4 @@ export const SAURON: AbilityRegistry = defineAbilities({
 });
 
 /** Refs left unregistered, each with its reason. */
-export const SAURON_SKIPPED: Readonly<Record<string, string>> = {
-  "46032.the-eye-of-sauron-constant":
-    "stale generated id: the card has one ability (the When Revealed); data item 4 of docs/phase7-wave8.md removes it",
-  "46032.the-eye-of-sauron-constant-2": "stale generated id (see the-eye-of-sauron-constant)",
-  "46032.the-eye-of-sauron-constant-3": "stale generated id (see the-eye-of-sauron-constant)",
-  "46032.the-eye-of-sauron-constant-4": "stale generated id (see the-eye-of-sauron-constant)",
-};
+export const SAURON_SKIPPED: Readonly<Record<string, string>> = {};

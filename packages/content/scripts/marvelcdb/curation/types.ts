@@ -157,6 +157,14 @@ export interface Correction {
    * additional `<card>-constant` ref beside the triggered ability's ref, which keeps its id. Never applied to text.
    */
   readonly extraConstantFrom?: string;
+  /**
+   * Non-obligation, preamble: a sentence that is the card's own When Revealed fallback although it prints no header
+   * (wave 8, `jubilee` 47026 Battle Suit: "Attach to the minion with the fewest remaining hit points. Otherwise, this
+   * card gains surge."; also the clause after an attach sentence, `aoa` 45091 Metal Wings: "Attach to Death and move the
+   * active counter to him." gives "Move the active counter to him."). Split out of the `-constant` ref into the
+   * structural `<code>.when-revealed` ref. Never applied to text.
+   */
+  readonly preambleWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 

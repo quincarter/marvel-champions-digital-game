@@ -172,13 +172,9 @@ describe("registry", () => {
     for (const reason of Object.values(SAURON_SKIPPED)) expect(reason.length).toBeGreaterThan(10);
   });
 
-  it("the skipped refs are the four stale generated ids of The Eye of Sauron", () => {
-    expect(Object.keys(SAURON_SKIPPED).sort()).toEqual([
-      "46032.the-eye-of-sauron-constant",
-      "46032.the-eye-of-sauron-constant-2",
-      "46032.the-eye-of-sauron-constant-3",
-      "46032.the-eye-of-sauron-constant-4",
-    ]);
+  it("The Eye of Sauron lists only its When Revealed, so nothing is skipped", () => {
+    expect(Object.keys(SAURON_SKIPPED)).toEqual([]);
+    expect(abilityRefIds(SET.find((c) => String(c.id) === EYE)!)).toEqual(["46032.when-revealed"]);
   });
 
   it("the set's six cards are in the encounter deck of a game that asked for it", () => {

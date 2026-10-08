@@ -36,11 +36,7 @@ import {
 import { driveEventsPicking, playFromHand, withForm } from "../../../testing/staging.js";
 import { WAVE8_CARDS } from "../../cards.js";
 import { WAVE8_DEPS } from "../../index.js";
-import {
-  JUBILEE_OBLIGATION_NEMESIS,
-  JUBILEE_OBLIGATION_NEMESIS_DRAFTS,
-  JUBILEE_OBLIGATION_NEMESIS_SKIPPED,
-} from "./obligation-nemesis.js";
+import { JUBILEE_OBLIGATION_NEMESIS, JUBILEE_OBLIGATION_NEMESIS_SKIPPED } from "./obligation-nemesis.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -69,7 +65,7 @@ const REFS = [
   "47024.nanny-forced-response",
   "47025.when-revealed",
   "47026.battle-suit-constant",
-  "47026.battle-suit-constant-2",
+  "47026.when-revealed",
   "47027.lost-child-constant",
   "47027.when-revealed",
 ];
@@ -271,15 +267,14 @@ describe("registry", () => {
   it("registers every ref, the form-change cost included, and skips none", () => {
     expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS).sort()).toEqual([...REFS].sort());
     expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS_SKIPPED)).toEqual([]);
-    expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS_DRAFTS).sort()).toEqual(["47026.when-revealed"]);
     const named = WAVE8_CARDS.filter((c) => [GROUNDED, NANNY, NAUGHTY, SUIT, LOST_CHILD].includes(c.id as string))
       .flatMap((c) => abilityRefIds(c))
       .sort();
     expect(named).toEqual([...ALL_REFS].sort());
   });
 
-  it("every definition (the draft too) validates", () => {
-    const all = { ...JUBILEE_OBLIGATION_NEMESIS, ...JUBILEE_OBLIGATION_NEMESIS_DRAFTS } as Record<string, never>;
+  it("every definition validates", () => {
+    const all = JUBILEE_OBLIGATION_NEMESIS as Record<string, never>;
     for (const [id, definition] of Object.entries(all)) expect(validateDefinition(definition), id).toEqual([]);
   });
 
@@ -654,14 +649,13 @@ describe("Battle Suit (47026)", () => {
     expect(traits(state, minionIds[0]!)).toContain("MUTANT");
   });
 
-  it("with no minion in play today the card is discarded and nothing surges (the card data lists no ability for it)", () => {
+  it("with no minion in play the card is not attached and is discarded", () => {
     const { state, events, ids } = suitRevealed([]);
     expect(ofType(events, "encounterCardRevealed").filter((e) => e.instanceId === ids[0])).toHaveLength(1);
     expect(whereIs(state, ids[0]!)).not.toMatch(/^attachedTo/);
-    expect(ofType(events, "encounterCardRevealed")).toHaveLength(1);
   });
 
-  it.fails("with no minion in play the card gains surge: the next encounter card is revealed (needs 47026.when-revealed in the card data)", () => {
+  it("with no minion in play the card gains surge: the next encounter card is revealed", () => {
     const { events } = suitRevealed([]);
     expect(ofType(events, "encounterCardRevealed").length).toBeGreaterThanOrEqual(2);
   });

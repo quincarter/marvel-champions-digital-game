@@ -792,12 +792,6 @@ export const ICEMAN_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Discard the top 2 cards of your deck (top 3 cards instead if Sauron is in play). For each resource icon discarded this way, do the following:\n[energy] — Place 1 threat on the main scheme.\n[mental] — Discard 1 card from your hand.\n[physical] — Deal 1 damage to your identity.\n[wild] — Exhaust a character you control.",
       current: "When Revealed: Discard the top 2 cards of your deck (top 3 cards instead if Sauron is in play). For each resource icon discarded this way, do the following:\n[energy] — Place 1 threat on the main scheme.\n[mental] — Discard 1 card from your hand.\n[physical] — Deal 1 damage to your identity.\n[wild] — Exhaust a character you control.",
     },
-    abilities: [
-      { id: abilityId("46032.when-revealed") },
-      { id: abilityId("46032.the-eye-of-sauron-constant") },
-      { id: abilityId("46032.the-eye-of-sauron-constant-2") },
-      { id: abilityId("46032.the-eye-of-sauron-constant-3") },
-      { id: abilityId("46032.the-eye-of-sauron-constant-4") },
-    ],
+    abilities: [{ id: abilityId("46032.when-revealed") }],
   },
 ];

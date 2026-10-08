@@ -449,12 +449,7 @@ export const JUBILEE_CARDS: readonly AnyCard[] = [
       printed: "[star] Interrupt: When Husk uses a basic power, spend up to 3 resources → if you spent at least 1:\n[energy] — Husk gets +1 to that power for this use.\n[mental] — Heal 1 damage from Husk.\n[physical] — Ready Husk after this use.",
       current: "[star] Interrupt: When Husk uses a basic power, spend up to 3 resources → if you spent at least 1:\n[energy] — Husk gets +1 to that power for this use.\n[mental] — Heal 1 damage from Husk.\n[physical] — Ready Husk after this use.",
     },
-    abilities: [
-      { id: abilityId("47012.husk-interrupt") },
-      { id: abilityId("47012.husk-constant") },
-      { id: abilityId("47012.husk-constant-2") },
-      { id: abilityId("47012.husk-constant-3") },
-    ],
+    abilities: [{ id: abilityId("47012.husk-interrupt") }],
   },
   {
     id: cardId("47013"),
@@ -663,12 +658,7 @@ export const JUBILEE_CARDS: readonly AnyCard[] = [
       printed: "Hero Action (attack/thwart): If you paid for this event using at least 1:\n[physical] — Deal 2 damage to an enemy.\n[mental] — Remove 2 threat from a scheme.\n[energy] — Heal 2 damage from your identity.",
       current: "Hero Action (attack/thwart): If you paid for this event using at least 1:\n[physical] — Deal 2 damage to an enemy.\n[mental] — Remove 2 threat from a scheme.\n[energy] — Heal 2 damage from your identity.",
     },
-    abilities: [
-      { id: abilityId("47021.multitalented-constant") },
-      { id: abilityId("47021.multitalented-constant-2") },
-      { id: abilityId("47021.multitalented-constant-3") },
-      { id: abilityId("47021.multitalented-constant-4") },
-    ],
+    abilities: [{ id: abilityId("47021.multitalented-constant") }],
   },
   {
     id: cardId("47022"),
@@ -783,7 +773,7 @@ export const JUBILEE_CARDS: readonly AnyCard[] = [
       current: "Attach to the minion with the fewest remaining hit points. Otherwise, this card gains surge.\nAttached minion gets +3 hit points and gains the Aerial trait.",
     },
     flavor: "Nanny's battle suit design belies its true capabilities.",
-    abilities: [{ id: abilityId("47026.battle-suit-constant") }, { id: abilityId("47026.battle-suit-constant-2") }],
+    abilities: [{ id: abilityId("47026.when-revealed") }, { id: abilityId("47026.battle-suit-constant") }],
   },
   {
     id: cardId("47027"),

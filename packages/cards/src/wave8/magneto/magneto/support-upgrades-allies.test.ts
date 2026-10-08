@@ -261,7 +261,7 @@ describe("registry", () => {
         expect(a.id in MAGNETO_SUPPORT_UPGRADES_ALLIES || a.id in MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED).toBe(true);
       }
     }
-    expect(Object.keys(MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED)).toHaveLength(3);
+    expect(Object.keys(MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED)).toHaveLength(0);
   });
 });
 

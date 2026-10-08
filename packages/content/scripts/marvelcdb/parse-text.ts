@@ -161,6 +161,12 @@ export interface ParseOptions {
    * ability's ref (its text and id are unchanged). The card text is unchanged.
    */
   readonly extraConstantFrom?: string;
+  /**
+   * Non-obligation: a preamble sentence that is the card's When Revealed fallback with no header (Battle Suit
+   * `jubilee` 47026, "Otherwise, this card gains surge."). Split out of the `-constant` ref into a `when-revealed` ref
+   * with the structural id `<code>.when-revealed`; the card text is unchanged.
+   */
+  readonly preambleWhenRevealed?: string;
 }
 
 const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
@@ -1036,11 +1042,17 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     let j = i;
     while (j > 0 && isListLine(lines[j - 1] as string)) j--;
     const owner = lines[j - 1] as string;
-    if (j === 0 || !owner.endsWith(":") || findHeaders(owner).length === 0) continue;
+    // A two-label action header ("Hero Action (attack/thwart):", Multitalented `jubilee` 47021) is not a header to
+    // `findHeaders` (one label only; such cards keep a `-constant` ref), but it owns its bullets all the same.
+    const twoLabelAction = /^(?:Hero |Alter-Ego )?Action \((?:attack|thwart|defense)\/(?:attack|thwart|defense)\)/.test(
+      owner,
+    );
+    if (j === 0 || !owner.endsWith(":") || (findHeaders(owner).length === 0 && !twoLabelAction)) continue;
     lines.splice(j - 1, i - j + 2, [owner, ...lines.slice(j, i + 1)].join(" "));
     i = j - 1;
   }
 
+  let preambleWhenRevealedFound = 0;
   for (const line of lines) {
     const headers = findHeaders(line);
     const preamble = line.slice(0, headers[0]?.index ?? line.length).trim();
@@ -1106,6 +1118,12 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       if (keyword) {
         flushConstant();
         keywords.push(keyword);
+        continue;
+      }
+      if (options.preambleWhenRevealed !== undefined && sentence === options.preambleWhenRevealed) {
+        flushConstant();
+        abilities.push({ kind: "when-revealed", text: sentence });
+        preambleWhenRevealedFound++;
         continue;
       }
       // docs/phase7-wave4.md §1.8: "Standard Mode Only." / "Expert Mode Only." (Formidable Foe, `hood` 24049a/b) —
@@ -1174,9 +1192,13 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
             attachesTo = hostOnly.host;
             if (hostOnly.villainName) attachesToVillainNamed = hostOnly.villainName;
-            constantBuffer.push(
-              `${(clauseSplit[2] as string)[0]?.toUpperCase()}${(clauseSplit[2] as string).slice(1)}.`,
-            );
+            const clause = `${(clauseSplit[2] as string)[0]?.toUpperCase()}${(clauseSplit[2] as string).slice(1)}.`;
+            if (options.preambleWhenRevealed !== undefined && clause === options.preambleWhenRevealed) {
+              abilities.push({ kind: "when-revealed", text: clause });
+              preambleWhenRevealedFound++;
+            } else {
+              constantBuffer.push(clause);
+            }
             continue;
           }
         }
@@ -1307,6 +1329,11 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         }
       }
     });
+  }
+  if (options.preambleWhenRevealed !== undefined && preambleWhenRevealedFound !== 1) {
+    unclassified.push(
+      `preamble When Revealed sentence "${options.preambleWhenRevealed}" found ${preambleWhenRevealedFound} times (expected 1)`,
+    );
   }
   if (options.extraConstantFrom !== undefined && extraConstantFound !== 1) {
     unclassified.push(

@@ -2434,8 +2434,8 @@ export const AOA_CARDS: readonly AnyCard[] = [
       current: "Attach to Death and move the active counter to him.\nDeath gains retaliate 1 and is considered to have at least 1 hit point remaining.\nHero Response: After you attack Death, resolve his \"Forced Response\" as if he just attacked you → discard this card.",
     },
     abilities: [
+      { id: abilityId("45091.when-revealed") },
       { id: abilityId("45091.metal-wings-constant") },
-      { id: abilityId("45091.metal-wings-constant-2") },
       { id: abilityId("45091.metal-wings-response") },
     ],
   },

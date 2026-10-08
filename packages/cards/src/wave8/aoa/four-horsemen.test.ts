@@ -73,7 +73,7 @@ const SKIPPED_REFS = [
   "45088.when-defeated",
   "45090.golden-horse-constant",
   "45090.golden-horse-response",
-  "45091.metal-wings-constant-2",
+  "45091.when-revealed",
   "45091.metal-wings-response",
   "45096.when-revealed",
 ];
@@ -157,7 +157,7 @@ const ALL_REFS = [
   "45090.golden-horse-constant",
   "45090.golden-horse-response",
   "45091.metal-wings-constant",
-  "45091.metal-wings-constant-2",
+  "45091.when-revealed",
   "45091.metal-wings-response",
   "45092.when-revealed",
   "45092.boost",

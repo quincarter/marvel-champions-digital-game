@@ -76,7 +76,9 @@ export const JUBILEE_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("47026"),
     cardSetCode: "jubilee_nemesis",
     marvelcdbCodes: ["47026"],
-    corrections: [],
+    corrections: [
+      "47026: Battle Suit prints \"Attach to the minion with the fewest remaining hit points. Otherwise, this card gains surge.\" with no When Revealed header, so the parser put the surge sentence into a -constant ref and nothing ran it on reveal. The sentence is split into the structural 47026.when-revealed ref; the other line is now the only -constant ref. The card text is unchanged. [evidence: Card scan assets/card-art/bundles/cards/47026.jpg: \"Attach to the minion with the fewest remaining hit points. Otherwise, this card gains surge.\" / \"Attached minion gets +3 hit points and gains the Aerial trait.\"]",
+    ],
   },
   {
     cardId: cardId("47027"),

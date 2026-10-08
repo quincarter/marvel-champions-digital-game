@@ -21,7 +21,6 @@ import {
   ifThen,
   moveCards,
   ofIdentitySetTitled,
-  partOf,
   placeThreat,
   playersWhere,
   query,
@@ -87,7 +86,7 @@ const JUBILEE_PLAYER = playersWhere(
  * resource type among the cards in the revealing player's hand (a wild is its own type, section 3.70).
  *
  * **Battle Suit (47026)**: the superlative host (fewest remaining hit points) and +1 ATK are data. The attached minion
- * gets +3 hit points and gains AERIAL. "Otherwise, this card gains surge" has no ability id in the card data: see `JUBILEE_OBLIGATION_NEMESIS_DRAFTS`.
+ * gets +3 hit points and gains AERIAL. "Otherwise, this card gains surge" is `47026.when-revealed`: with no minion to attach to the card gains surge.
  *
  * **"Lost" Child (47027)**: the superlative host (highest printed cost without a "Lost" Child) and -1 SCH are data. The
  * constant treats the attached ally as a REGRESSED minion with a blank text box, SCH from its printed THW and no
@@ -129,18 +128,11 @@ export const JUBILEE_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
     gets("hp", 3, query("minion", { hostOfSelf: true })),
     gainsTrait(AERIAL, query("minion", { hostOfSelf: true })),
   ),
-  "47026.battle-suit-constant-2": partOf("47026.battle-suit-constant"),
+  // "Otherwise, this card gains surge": the reveal found no minion to attach to.
+  "47026.when-revealed": whenRevealed(ifThen(isAttached(self), [], surge())),
 
   "47027.lost-child-constant": constant(treatAttachedAllyAsMinion([REGRESSED])),
   "47027.when-revealed": whenRevealed(ifThen(isAttached(self), engage(host, controllerOf(host)), surge())),
-});
-
-/** Drafts of refs the card data does not name yet, NOT registered. */
-export const JUBILEE_OBLIGATION_NEMESIS_DRAFTS: AbilityRegistry = defineAbilities({
-  // Battle Suit's "Otherwise, this card gains surge". The card data names no ability for it (only the two constants), so
-  // the engine never looks this id up: it takes effect once the card data lists `47026.when-revealed` (Lost Child's
-  // own When Revealed is the same shape).
-  "47026.when-revealed": whenRevealed(ifThen(isAttached(self), [], surge())),
 });
 
 /** Refs left unregistered, each with its reason (the coverage test reads this through its own `skipped` list). */

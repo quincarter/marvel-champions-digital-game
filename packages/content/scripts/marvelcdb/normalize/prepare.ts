@@ -51,6 +51,8 @@ export interface Prepared {
   readonly unheadedWhenRevealed?: string;
   /** A curated `Correction.extraConstantFrom` — absent for every ordinary card. */
   readonly extraConstantFrom?: string;
+  /** A curated `Correction.preambleWhenRevealed` — absent for every ordinary card. */
+  readonly preambleWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -81,6 +83,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
   let unheadedWhenRevealed: string | undefined;
   let extraConstantFrom: string | undefined;
+  let preambleWhenRevealed: string | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
@@ -89,6 +92,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
     if (c.unheadedWhenRevealed !== undefined) unheadedWhenRevealed = c.unheadedWhenRevealed;
     if (c.extraConstantFrom !== undefined) extraConstantFrom = c.extraConstantFrom;
+    if (c.preambleWhenRevealed !== undefined) preambleWhenRevealed = c.preambleWhenRevealed;
     if (c.textReplace) {
       // Wave 5 (docs/phase7-wave5.md §1.9 — Nova's "Bring the War!", 28022): MarvelCDB's own `text`/`real_text`
       // is null for this card (an empty source, not a typo to find-and-replace inside), transcribed from the
@@ -173,6 +177,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
     ...(unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed } : {}),
     ...(extraConstantFrom !== undefined ? { extraConstantFrom } : {}),
+    ...(preambleWhenRevealed !== undefined ? { preambleWhenRevealed } : {}),
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
   };
   ctx.prepared.set(r.code, p);

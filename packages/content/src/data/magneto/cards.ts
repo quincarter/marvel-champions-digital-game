@@ -121,12 +121,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
       printed: "Response: After you resolve your \"Magnetic Pull\" ability, if you discarded at least 1 of the following resource icons:\n[mental] — Magneto gets +1 THW this round.\n[physical] — Magneto gets +1 ATK this round.\n[energy] — Magneto gets +1 DEF this round.",
       current: "Response: After you resolve your \"Magnetic Pull\" ability, if you discarded at least 1 of the following resource icons:\n[mental] — Magneto gets +1 THW this round.\n[physical] — Magneto gets +1 ATK this round.\n[energy] — Magneto gets +1 DEF this round.",
     },
-    abilities: [
-      { id: abilityId("49004.magnetos-armor-response") },
-      { id: abilityId("49004.magnetos-armor-constant") },
-      { id: abilityId("49004.magnetos-armor-constant-2") },
-      { id: abilityId("49004.magnetos-armor-constant-3") },
-    ],
+    abilities: [{ id: abilityId("49004.magnetos-armor-response") }],
   },
   {
     id: cardId("49005"),

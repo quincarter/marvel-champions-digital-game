@@ -319,7 +319,9 @@ export const AOA_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("45091"),
     cardSetCode: "four_horsemen",
     marvelcdbCodes: ["45091"],
-    corrections: [],
+    corrections: [
+      "45091: Metal Wings prints \"Attach to Death and move the active counter to him.\" The parser took the host and left \"Move the active counter to him.\" in the first -constant ref, which then shifted every later ref (the retaliate and hit point floor line became -constant-2) and named no reveal-time ref. The counter move is split into the structural 45091.when-revealed ref, so the retaliate and floor line is the card's one -constant ref. The card text is unchanged. [evidence: Card scan assets/card-art/bundles/cards/45091.png: \"Attach to Death and move the active counter to him.\" / \"Death gains retaliate 1 and is considered to have at least 1 hit point remaining.\" / Hero Response line.]",
+    ],
   },
   {
     cardId: cardId("45092"),

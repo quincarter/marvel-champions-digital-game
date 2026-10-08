@@ -31,6 +31,14 @@ export const JUBILEE_CURATION: PackCuration = {
       evidence:
         "The card's own scan (assets/card-art/bundles/cards/47009.jpg) prints GRAND FINALE; the pack's printed decklist card (the owner's photo, 2026-10-07, docs/phase7-wave8-handoff.md) reads \"9 Grand Finale\".",
     },
+    {
+      code: "47026",
+      reason:
+        'Battle Suit prints "Attach to the minion with the fewest remaining hit points. Otherwise, this card gains surge." with no When Revealed header, so the parser put the surge sentence into a -constant ref and nothing ran it on reveal. The sentence is split into the structural 47026.when-revealed ref; the other line is now the only -constant ref. The card text is unchanged.',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/47026.jpg: "Attach to the minion with the fewest remaining hit points. Otherwise, this card gains surge." / "Attached minion gets +3 hit points and gains the Aerial trait."',
+      preambleWhenRevealed: "Otherwise, this card gains surge.",
+    },
   ],
   errata: [],
 

@@ -123,9 +123,4 @@ export const MAGNETO_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities(
 });
 
 /** Refs left unregistered, each with its reason. */
-export const MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "49004.magnetos-armor-constant":
-    "card data artifact: section 7.5 data item 1 regenerates Magneto's Armor to its one ability id (49004.magnetos-armor-response); the printed card has no constant",
-  "49004.magnetos-armor-constant-2": "card data artifact, see 49004.magnetos-armor-constant",
-  "49004.magnetos-armor-constant-3": "card data artifact, see 49004.magnetos-armor-constant",
-};
+export const MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {};
