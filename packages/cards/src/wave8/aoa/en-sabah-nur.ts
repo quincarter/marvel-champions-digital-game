@@ -49,12 +49,11 @@ const SUPERPOWER = trait("SUPERPOWER");
 const POWER = "power";
 
 /**
- * "Change Apocalypse to [X] form" (MC45 p. 19: a flip, "NOT the same as 'defeating' or 'revealing' the villain").
- * Spec section 3.26 wants this with `reveal: false` (engine queue task 29): today `changeVillainForm` also runs the new
- * face's reveal step, which on these nine faces has nothing to resolve (no When Revealed, incite or surge) and shows
- * only as a reveal in the log. Every use below goes through this one helper, so the flag is a one-line change.
+ * "Change Apocalypse to [X] form" (MC45 p. 19: a flip, "NOT the same as 'defeating' or 'revealing' the villain"; spec
+ * section 3.26): `reveal: false`, so the face turns and its "after Apocalypse changes to this form" resolves with no
+ * reveal step. Every use below goes through this one helper.
  */
-const changeToForm = (form: ReturnType<typeof trait>) => changeVillainForm(theVillain, form);
+const changeToForm = (form: ReturnType<typeof trait>) => changeVillainForm(theVillain, form, { reveal: false });
 /** "If Apocalypse is in [X] form": the face showing has that trait. */
 const inForm = (form: ReturnType<typeof trait>) => hasTrait(theVillain, form);
 
@@ -120,8 +119,7 @@ const formScheme = (form: ReturnType<typeof trait>) =>
  * stage change (Q16 = A, the new stage keeps the form) are not flips and resolve none. Retaliate 1 and stalwart are
  * data. The treacheries and side schemes only change the form through `changeToForm`.
  *
- * Skipped: nothing is skipped; the one open gap, queue task 29 (spec 3.26, `changeVillainForm.reveal: false`), only shows in
- * the log (see `changeToForm`).
+ * Nothing is skipped.
  *
  * Cards (9):
  * - 45147a En Sabah Nur's Pyramid (main_scheme)

@@ -1,5 +1,6 @@
 /** Stepping through an effects frame, including the effects that stop for a player choice. */
 
+import type { AbilityId } from "@mc/content";
 import { announceDeckTops } from "../deck-top.js";
 import { type EngineDeps, resolvableAs } from "../abilities.js";
 import {
@@ -2148,6 +2149,51 @@ function executeDivideDamageEvenly(
   ]);
 }
 
+/**
+ * The event a Forced Interrupt resolved "as if" its condition were met reads (`resolveSpecials` with `trigger:
+ * "forcedInterrupt"`, docs/phase7-wave8.md §3.28): an attack or a scheme against `playerId`, whichever the ability's
+ * own pattern names (the first, when it names both), by the enemy that pattern is about. That is the card itself for
+ * "when this enemy attacks" (`selfIs: "source"`); otherwise the card it is attached to ("the attached villain"), or,
+ * for a card attached to nothing, the active villain, in either case only if it is an enemy the pattern's `sourceIs`
+ * accepts. Null when the ability's condition is not an enemy activation, or there is no such enemy or player: nothing
+ * then is "as if" met. It is that ability's context only; nothing is announced.
+ */
+function asIfActivation(
+  ctx: Ctx,
+  instanceId: InstanceId,
+  abilityId: AbilityId,
+  playerId: PlayerId | null,
+): TriggerEvent | null {
+  const definition = ctx.deps.abilities[abilityId];
+  const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
+  if (!player || definition?.trigger.kind !== "interrupt") return null;
+  const pattern = definition.trigger.on;
+  const kind = [pattern.on].flat().find((on) => on === "enemyAttack" || on === "enemyScheme");
+  if (!kind) return null;
+  const about = {
+    selfInstanceId: instanceId,
+    controllerId: player.playerId,
+    event: null,
+    bindings: {},
+    deps: ctx.deps,
+  };
+  const enemy =
+    pattern.selfIs === "source"
+      ? instanceId
+      : (getInstance(ctx.state, instanceId)?.attachedTo ?? ctx.state.activeVillainId);
+  if (!enemy || !cardsInPlay(ctx.state).includes(enemy)) return null;
+  if (pattern.sourceIs && !matchesQuery(ctx.state, enemy, pattern.sourceIs, about)) return null;
+  return kind === "enemyScheme"
+    ? { kind, enemyInstanceId: enemy, playerId: player.playerId }
+    : {
+        kind,
+        enemyInstanceId: enemy,
+        attackedPlayerId: player.playerId,
+        targetPlayerId: player.playerId,
+        targetInstanceId: player.identity.instanceId,
+      };
+}
+
 /** RRG "Special": each special ability is a step of the sequence; the last step gets `sequence.final`. */
 function executeResolveSpecials(
   ctx: Ctx,
@@ -2167,12 +2213,16 @@ function executeResolveSpecials(
   const trigger = effect.trigger ?? "special";
   // "Resolve Spider-Man's 'Venom Blast' ability": only the named abilities, when the caller names any (§4.1 Q63).
   const only = effect.abilities ? new Set<string>(effect.abilities) : null;
+  // "As if it just attacked you" / "as if the attached villain just schemed against you" (§3.11, §3.28): "you".
+  const asIfPlayer = resolvingPlayer ?? context.controllerId;
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       // A "Forced Response" is a forced `response`; a card's attach instruction is not one of its When Revealed
       // abilities (`resolvableAs`).
       if (!resolvableAs(ctx.deps.abilities[ref.id], trigger)) continue;
       if (only && !only.has(ref.id)) continue;
+      // A Forced Interrupt with no enemy activation to be "as if" met is not one this resolves (§3.28).
+      if (trigger === "forcedInterrupt" && !asIfActivation(ctx, id, ref.id, asIfPlayer)) continue;
       steps.push({
         instanceId: id,
         abilityId: ref.id,
@@ -2249,20 +2299,23 @@ function executeResolveSpecials(
   // A Forced Response resolved "as if it just attacked you" (docs/phase7-wave8.md §3.11) reads its attack the same
   // way: the card's attack against the resolving player, as that ability's context only. No attack is made, so no
   // `enemyAttack` event is logged, no boost card is dealt and nothing else hears it.
-  const attackedId = resolvingPlayer ?? context.controllerId;
-  const attacked = attackedId ? getPlayer(ctx.state, attackedId) : undefined;
+  const attacked = asIfPlayer ? getPlayer(ctx.state, asIfPlayer) : undefined;
+  // A Forced Interrupt resolved "as if the attached villain just schemed against you and attacked you"
+  // (docs/phase7-wave8.md §3.28) reads the activation its own condition names, the same way (`asIfActivation`).
   const eventFor = (step: TriggerCandidate): TriggerEvent | null =>
     trigger === "whenDefeated"
       ? { kind: "characterDefeated", instanceId: step.instanceId, defeatedByPlayerId: defeatedBy }
-      : trigger === "forcedResponse" && attacked
-        ? {
-            kind: "enemyAttack",
-            enemyInstanceId: step.instanceId,
-            attackedPlayerId: attacked.playerId,
-            targetPlayerId: attacked.playerId,
-            targetInstanceId: attacked.identity.instanceId,
-          }
-        : frame.event;
+      : trigger === "forcedInterrupt"
+        ? asIfActivation(ctx, step.instanceId, step.abilityId, asIfPlayer)
+        : trigger === "forcedResponse" && attacked
+          ? {
+              kind: "enemyAttack",
+              enemyInstanceId: step.instanceId,
+              attackedPlayerId: attacked.playerId,
+              targetPlayerId: attacked.playerId,
+              targetInstanceId: attacked.identity.instanceId,
+            }
+          : frame.event;
   const frames = ordered.map(
     (step, index): StackFrame =>
       ({

@@ -1,12 +1,10 @@
 import { trait } from "@mc/content";
-import type { AbilityDefinition, AbilityRegistry, EffectSpec, PlayerRef } from "@mc/engine";
+import type { AbilityRegistry } from "@mc/engine";
 import {
   adjustBoostCount,
   alterEgoAction,
   anyOf,
   boost,
-  chooseTarget,
-  chosen,
   constant,
   controllerOf,
   defeatingPlayer,
@@ -29,7 +27,6 @@ import {
   placeThreat,
   query,
   refMatches,
-  resolveSpecialsOf,
   revealCard,
   self,
   special,
@@ -37,25 +34,13 @@ import {
   whenDefeated,
   whenRevealed,
   yourIdentity,
-  you,
 } from "../../dsl/index.js";
+import { resolveSettingSpecial, resolveSettingSpecialCost, SETTING } from "./setting.js";
 
-const SETTING = trait("SETTING");
 const GENOSHA_TRAIT = trait("GENOSHA");
-const SETTING_ENVIRONMENT = query("environment", { trait: SETTING });
 const ESCAPED_MUTANT = query("attachment", { name: "Escaped Mutant" });
 const HAS_MUTANT = { hasAttachment: { name: "Escaped Mutant" } } as const;
 const THIS_MINION = query("minion", { self: true });
-
-/**
- * "Resolve the 'Special' ability on the Setting environment", by `who`: the resolving player chooses which Setting when
- * several are in play (Q15 = A) and is "you" inside the Special. The same helper as `blue-moon.ts` and
- * `savage-land.ts` (three copies; they should move to one shared file).
- */
-const resolveSettingSpecial = (who: PlayerRef = you): EffectSpec[] => [
-  chooseTarget("setting", SETTING_ENVIRONMENT, { chooser: who }),
-  resolveSpecialsOf(chosen("setting"), who),
-];
 
 /**
  * "Your ally": the defeated ally's player. The Mech is an encounter card, so `you` names nobody in its Forced Response;
@@ -65,14 +50,6 @@ const allyOwner = ownerOf(eventTarget);
 
 /** A real player (not "nobody") defeated the card: an encounter card's damage leaves no defeating player. */
 const aPlayerDefeated = anyOf(inForm("hero", defeatingPlayer), inForm("alterEgo", defeatingPlayer));
-
-/**
- * Escaped Mutant's Alter-Ego Action is "Resolve the 'Special' ability on the Setting environment -> discard this
- * card": the Special is the COST (docs/phase7-wave8.md §3.24, queue task 27, `AbilityCost.resolveAbility` with
- * `trigger: "special"`), so the action must be unusable with no Setting environment in play. The DSL cannot type that
- * cost yet; this draft is the effect form (Special, then discard) and is NOT registered.
- */
-export const ESCAPED_MUTANT_ACTION_DRAFT: AbilityDefinition = alterEgoAction(...resolveSettingSpecial(), discard(self));
 
 /**
  * Modular encounter set `genosha` (Age of Apocalypse, docs/phase7-wave8.md §1.16, §2.8, §3.24, §3.25, §3.31, §4.1
@@ -88,7 +65,9 @@ export const ESCAPED_MUTANT_ACTION_DRAFT: AbilityDefinition = alterEgoAction(...
  * defeating player's identity (moving it from another identity); Police State reveals the found card where it is
  * (Q17 = A: an attached one stays). Both do nothing when no player defeated them.
  *
- * Escaped Mutant's Action is skipped (see `ESCAPED_MUTANT_ACTION_DRAFT`), waiting on queue task 27 (spec §8.2).
+ * Escaped Mutant's Alter-Ego Action is "Resolve the 'Special' ability on the Setting environment -> discard this
+ * card": the Special is the cost (§3.24, `resolveSettingSpecialCost`), so the action is not offered with no Setting
+ * environment in play, and with several the player picks which one's Special pays it (Q15 = A).
  *
  * Cards (6):
  * - 45133 Genosha (environment)
@@ -144,14 +123,12 @@ export const GENOSHA: AbilityRegistry = defineAbilities({
       query("minion", { trait: GENOSHA_TRAIT, engagedWithPlayer: controllerOf(host) }),
     ),
   ),
-  // "45137.escaped-mutant-action": skipped, see ESCAPED_MUTANT_ACTION_DRAFT.
+  // Alter-Ego Action: Resolve the Special on the Setting environment -> discard this card.
+  "45137.escaped-mutant-action": alterEgoAction({ cost: resolveSettingSpecialCost }, discard(self)),
 
   // Police State — Hinder 1 per hero (data). When Defeated: The player who defeated this scheme finds the Escaped
   // Mutant attachment and reveals it (found where it is, Q17 = A).
   "45138.when-defeated": whenDefeated(ifThen(aPlayerDefeated, revealCard(find(ESCAPED_MUTANT), defeatingPlayer))),
 });
 
-export const GENOSHA_SKIPPED: Readonly<Record<string, string>> = {
-  "45137.escaped-mutant-action":
-    "Its cost is resolving the Setting environment's Special, unusable with none in play (spec §3.24, queue task 27: AbilityCost.resolveAbility). ESCAPED_MUTANT_ACTION_DRAFT is the effect form, unregistered.",
-};
+export const GENOSHA_SKIPPED: Readonly<Record<string, string>> = {};

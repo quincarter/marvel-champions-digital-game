@@ -1728,6 +1728,25 @@ export const resolveForcedResponseCost = (
   },
 });
 /**
+ * "Resolve the 'Special' ability on the [SETTING] environment → discard this card" (Escaped Mutant, `aoa` 45137;
+ * High-Tech Goggles 45122; Genetic Enhancement 45123; docs/phase7-wave8.md §3.24): `resolveSpecialCost(each(query))`.
+ * The card's printed Special resolves in full, with the paying player as "you", before the effects resolve. Not
+ * payable, so the ability is not offered, with no such card in play or while resolving its Special would change
+ * nothing (§4.1 Q7 = A). `opts.choose`: when `of` names several cards the payer picks one, bound to this slot (§4.1
+ * Q15 = A); forced with exactly one. `opts.abilities`: only these, by id.
+ */
+export const resolveSpecialCost = (
+  of: TargetRef,
+  opts: { readonly choose?: string; readonly abilities?: readonly string[] } = {},
+): AbilityCost => ({
+  resolveAbility: {
+    of,
+    trigger: "special",
+    ...(opts.choose ? { choose: opts.choose } : {}),
+    ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
+  },
+});
+/**
  * "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (Thief Extraordinaire, `gambit` 37001b;
  * docs/phase7-wave6.md §3.54): the paying player looks at the top `look` cards of the encounter deck and chooses
  * `discard` of them to discard, before the effects resolve; the rest stay on top in order. The discarded cards are

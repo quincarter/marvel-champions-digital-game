@@ -2,9 +2,13 @@ import { AOA_CARDS, CORE_CARDS, cardId, encounterSetId } from "@mc/content";
 import {
   activeEncounterDeckId,
   cardsInPlay,
+  characterProfile,
   createGame,
   hasKeyword,
+  legalActions,
   maxHitPoints,
+  printedProfile,
+  showingResources,
   villainStageOf,
   type EngineDeps,
   type GameEvent,
@@ -30,14 +34,10 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { defeatWithAttack, driveEventsPicking, withForm } from "../../testing/staging.js";
+import { attachToHost } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
 import { BLUE_MOON } from "./blue-moon.js";
-import {
-  DARK_BEAST,
-  DARK_BEAST_SKIPPED,
-  GENETIC_ENHANCEMENT_ACTION_DRAFT,
-  HIGH_TECH_GOGGLES_ACTION_DRAFT,
-} from "./dark-beast.js";
+import { DARK_BEAST, DARK_BEAST_SKIPPED } from "./dark-beast.js";
 import { GENOSHA } from "./genosha.js";
 import { SAVAGE_LAND } from "./savage-land.js";
 
@@ -57,6 +57,9 @@ const EXPERIMENT = "45124";
 const GENIUS = "45125";
 const TIME_TRAVEL = "45126";
 const SAVAGE = "45127";
+const RAPTOR = "45129";
+/** Core Rhino side scheme (Breakin' & Takin').  */
+const SIDE_SCHEME = "01107";
 const GENOSHA_ENV = "45133";
 const BLUE_AREA = "45139";
 const SETS = ["savage_land", "genosha", "blue_moon"] as const;
@@ -72,7 +75,9 @@ const REFS = [
   "45120.when-revealed",
   "45121a.setup",
   "45122.boost",
+  "45122.high-tech-goggles-action",
   "45123.boost",
+  "45123.genetic-enhancement-action",
   "45124.cruel-experiment-constant",
   "45124.when-revealed",
   "45125.when-revealed-alter-ego",
@@ -173,16 +178,13 @@ function round(
 }
 
 describe("registry", () => {
-  it("registers the fourteen refs of the seven cards, each a valid definition; the two Hero Actions are skipped", () => {
+  it("registers the sixteen refs of the seven cards, each a valid definition; nothing is skipped", () => {
     expect(Object.keys(DARK_BEAST).sort()).toEqual([...REFS].sort());
     for (const [id, def] of Object.entries(DARK_BEAST)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(DARK_BEAST_SKIPPED).sort()).toEqual([
-      "45122.high-tech-goggles-action",
-      "45123.genetic-enhancement-action",
-    ]);
+    expect(Object.keys(DARK_BEAST_SKIPPED)).toEqual([]);
   });
 
-  it("the data names exactly these refs plus the skipped ones", () => {
+  it("the data names exactly these refs", () => {
     const abilityIds = (card: Record<string, unknown>): string[] =>
       ((card.abilities ?? []) as { id: string }[]).map((a) => a.id);
     const stages = (dataOf("45118").sides as { stages: Record<string, unknown>[] }[])[0]!.stages;
@@ -302,54 +304,91 @@ describe("High-Tech Goggles (45122) and Genetic Enhancement (45123)", () => {
   });
 });
 
-describe("the Hero Actions of Goggles and Enhancement, skipped: their cost is the Special (queue task 27)", () => {
+describe("the Hero Actions of Goggles and Enhancement: the exhaust and the Special are the cost (§3.24)", () => {
   const CODES = [
-    [GOGGLES, "45122.high-tech-goggles-action", HIGH_TECH_GOGGLES_ACTION_DRAFT],
-    [ENHANCEMENT, "45123.genetic-enhancement-action", GENETIC_ENHANCEMENT_ACTION_DRAFT],
+    [GOGGLES, "45122.high-tech-goggles-action"],
+    [ENHANCEMENT, "45123.genetic-enhancement-action"],
   ] as const;
-  const offered = (code: string, ref: string, draft: unknown, sets: readonly SetName[]): boolean => {
-    const deps: EngineDeps = { abilities: mergeRegistries(DEPS.abilities, { [ref]: draft as never }) };
-    const s0 = setupGame({ sets, deps });
-    const card = inDeck(s0, code)[0]!;
-    const id = card;
-    // Attach by surgery to Dark Beast, as a boost or reveal would.
-    const staged = withForm(
-      {
-        ...s0,
-        encounterDecks: {
-          ...s0.encounterDecks,
-          [activeEncounterDeckId(s0)]: {
-            deck: piles(s0).deck.filter((i) => i !== id),
-            discard: piles(s0).discard,
-          },
-        },
-        instances: {
-          ...s0.instances,
-          [id]: { ...s0.instances[id]!, faceup: true, attachedTo: beast(s0) },
-          [beast(s0)]: { ...s0.instances[beast(s0)]!, attachments: [...s0.instances[beast(s0)]!.attachments, id] },
-        },
-      },
-      { heroForm: 0 },
-    );
-    try {
-      driveEventsPicking(deps, staged, firstLegal, use(P1, id, ref));
-      return true;
-    } catch {
-      return false;
-    }
+  /** `code` attached to Dark Beast (surgery, as a boost or reveal would), player 1 in hero form. */
+  const staged = (code: string, sets: readonly SetName[]) => {
+    const s0 = setupGame({ sets });
+    const attached = attachToHost(s0, code, beast(s0));
+    return { state: withForm(attached.state, { heroForm: 0 }), id: attached.id };
   };
+  const offer = (state: GameState, ref: string) => {
+    const actions = legalActions(state, P1, DEPS);
+    if (actions.kind !== "turn") throw new Error(`not player 1's turn: ${actions.kind}`);
+    return actions.legal.find((a) => a.action.kind === "useAbility" && (a.action.abilityId as string) === ref);
+  };
+  const hero = (s: GameState) => inst(s, identityOf(s, P1));
 
-  for (const [code, ref, draft] of CODES) {
-    it(`${code}: the draft works with a Setting environment in play`, () => {
-      expect(offered(code, ref, draft, ["genosha"])).toBe(true);
+  for (const [code, ref] of CODES) {
+    it(`${code} with Blue Area of the Moon in play: the hero exhausts, takes 1 damage, the card is discarded`, () => {
+      const { state, id } = staged(code, ["blue_moon"]);
+      expect(offer(state, ref)).toBeDefined();
+      const run = driveEventsPicking(DEPS, state, firstLegal, use(P1, id, ref));
+      expect(hero(run.state).exhausted).toBe(true);
+      expect(hero(run.state).damage).toBe(hero(state).damage + 1);
+      expect(inPlayCards(run.state, code)).toHaveLength(0);
+      expect(inDiscard(run.state, code)).toHaveLength(1);
+      expect(types(run.events, "resolveAbilityCostSettled")).toMatchObject([{ trigger: "special", paid: true }]);
     });
-    it.fails(`${code} PROOF OF THE GAP: with no Setting environment in play the action should not be offered`, () => {
-      expect(offered(code, ref, draft, [])).toBe(false);
+
+    it(`${code} with the hero already exhausted: the action is not offered`, () => {
+      const { state, id } = staged(code, ["blue_moon"]);
+      const tired = patchInstance(state, identityOf(state, P1), { exhausted: true });
+      expect(offer(tired, ref)).toBeUndefined();
+      expect(() => driveEventsPicking(DEPS, tired, firstLegal, use(P1, id, ref))).toThrow();
     });
-    it(`${code} today's behavior: the effect-form draft is offered with no Setting environment`, () => {
-      expect(offered(code, ref, draft, [])).toBe(true);
+
+    it(`${code} with no Setting environment in play: the action is not offered`, () => {
+      const { state, id } = staged(code, []);
+      expect(envsInPlay(state)).toHaveLength(0);
+      expect(offer(state, ref)).toBeUndefined();
+      expect(() => driveEventsPicking(DEPS, state, firstLegal, use(P1, id, ref))).toThrow();
+      expect(inPlayCards(state, code)).toHaveLength(1);
     });
   }
+
+  it("Q7 = A: under The Savage Land with an empty deck and discard pile the Special changes nothing, so no action", () => {
+    const { state } = staged(GOGGLES, ["savage_land"]);
+    expect(offer(state, CODES[0][1])).toBeDefined();
+    const empty: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, deck: [], discard: [] } : p)),
+    };
+    expect(offer(empty, CODES[0][1])).toBeUndefined();
+  });
+
+  it("Q15 = A: with two Setting environments in play the player picks whose Special pays the cost", () => {
+    const { state: one, id } = staged(GOGGLES, ["genosha", "blue_moon"]);
+    // The other set's Setting joins the one in play (surgery: a reveal would discard the first).
+    const [GENOSHA_ID, MOON_ID] = [GENOSHA_ENV, BLUE_AREA].map(
+      (code) => Object.keys(one.instances).find((i) => codeOf(one, i as InstanceId) === code) as InstanceId,
+    );
+    const [genosha, moon] = [GENOSHA_ID!, MOON_ID!];
+    const added = envsInPlay(one).includes(genosha) ? moon : genosha;
+    const state: GameState = {
+      ...patchInstance(one, added, { faceup: true }),
+      setAsideModularSets: (one.setAsideModularSets ?? []).map((set) => ({
+        ...set,
+        instanceIds: set.instanceIds.filter((i) => i !== added),
+      })),
+      villainArea: [...one.villainArea, added],
+    };
+    expect(envsInPlay(state).sort()).toEqual([genosha, moon].sort());
+    const ref = CODES[0][1];
+    expect([...offer(state, ref)!.targets].sort()).toEqual([genosha, moon].sort());
+    expect(() => driveEventsPicking(DEPS, state, firstLegal, use(P1, id, ref))).toThrow();
+
+    const viaMoon = driveEventsPicking(DEPS, state, firstLegal, use(P1, id, ref, [], { setting: [moon] }));
+    expect(hero(viaMoon.state).damage).toBe(hero(state).damage + 1);
+    expect(specialThreat(viaMoon.events, viaMoon.state, genosha)).toBe(0);
+
+    const viaGenosha = driveEventsPicking(DEPS, state, firstLegal, use(P1, id, ref, [], { setting: [genosha] }));
+    expect(hero(viaGenosha.state).damage).toBe(hero(state).damage);
+    expect(specialThreat(viaGenosha.events, viaGenosha.state, genosha)).toBe(1);
+  });
 });
 
 describe("Cruel Experiment (45124)", () => {
@@ -372,6 +411,71 @@ describe("Cruel Experiment (45124)", () => {
     expect(inDiscard(run.state, "01098")).toHaveLength(1);
     expect(maxHitPoints(run.state, host, DEPS)).toBe(5);
     expect(hasKeyword(run.state, host, "guard", DEPS)).toBe(true);
+  });
+
+  // docs/phase7-wave8.md §3.25, ruling February 20, 2026 – Ruling 4: the card prints no "attach to", so it is turned
+  // faceup out of play and its own When Revealed attaches it.
+  it("§3.25 test 1: a treachery and a side scheme are discarded, Velociraptor is revealed and attacks at its own ATK, then the card attaches", () => {
+    const s = setupGame({ sets: ["savage_land"] });
+    const run = round(s, { boosts: [BLANK], reveals: [EXPERIMENT, BLANK_2, SIDE_SCHEME, RAPTOR], hero: true });
+    const raptor = inPlayCards(run.state, RAPTOR)[0]!;
+    const experiment = inPlayCards(run.state, EXPERIMENT)[0]!;
+    expect(inDiscard(run.state, BLANK_2)).toHaveLength(1);
+    expect(inDiscard(run.state, SIDE_SCHEME)).toHaveLength(1);
+    expect(inPlayCards(run.state, SIDE_SCHEME)).toHaveLength(0);
+    expect(types(run.events, "encounterCardRevealed").map((e) => codeOf(run.state, e.instanceId))).toEqual([
+      EXPERIMENT,
+      RAPTOR,
+    ]);
+    expect(inst(run.state, raptor).engagedWith).toBe(P1);
+    // Its quickstrike attack: printed ATK 1 (the card's +1 is not on it yet), plus its own discard's icons.
+    const attack = types(run.events, "attackResolved").filter((e) => e.enemyInstanceId === raptor);
+    expect(attack).toHaveLength(1);
+    const attackAt = run.events.indexOf(attack[0]!);
+    const attachedAt = run.events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === experiment && e.to.kind === "attachment",
+    );
+    expect(attachedAt).toBeGreaterThan(attackAt);
+    const mill = run.events
+      .slice(0, attackAt)
+      .filter((e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard");
+    // The Savage Land's Special for Dark Beast's attack (3), then Velociraptor's own discard (1).
+    expect(mill).toHaveLength(4);
+    const discarded = (mill[3] as { instanceId: InstanceId }).instanceId;
+    const icons = Object.values(showingResources(run.state, discarded)).reduce((n, v) => n + (v ?? 0), 0);
+    expect(printedProfile(run.state, raptor)!.atk).toBe(1);
+    expect(attack[0]!.baseAtk).toBe(1 + icons);
+    // Then attached: 3 + 2 hit points, guard, SCH 1 + 1, ATK 1 + 1.
+    expect(inst(run.state, experiment).attachedTo).toBe(raptor);
+    expect(maxHitPoints(run.state, raptor, DEPS)).toBe(5);
+    expect(hasKeyword(run.state, raptor, "guard", DEPS)).toBe(true);
+    expect(characterProfile(run.state, raptor, DEPS)).toMatchObject({ sch: 2, atk: 2 });
+  });
+
+  it("§3.25 test 2: no minion in the 4 cards of the deck: 4 discarded, the deck reset with one acceleration token, nothing revealed, the card discarded", () => {
+    const s = setupGame({ sets: ["savage_land"] });
+    const calm = patchInstance(s, s.mainScheme.instanceId, { threat: 0 });
+    const stacked = stackEncounterDeck(calm, BLANK, EXPERIMENT, BLANK_2, SIDE_SCHEME, "01098", "01100");
+    // The deck is those six cards and nothing else (surgery): the boost card, the dealt card, and four without a minion.
+    const six: GameState = {
+      ...stacked,
+      encounterDecks: {
+        ...stacked.encounterDecks,
+        [activeEncounterDeckId(stacked)]: { deck: piles(stacked).deck.slice(0, 6), discard: [] },
+      },
+    };
+    const run = driveEventsPicking(DEPS, withForm(six, "alterEgo"), firstLegal, endTurn(P1));
+    const searched = types(run.events, "cardMoved").filter(
+      (e) => e.from.kind === "encounterDeck" && e.to.kind === "encounterDiscard",
+    );
+    expect(searched).toHaveLength(4);
+    expect(types(run.events, "accelerationTokenAdded")).toHaveLength(1);
+    expect(types(run.events, "encounterCardRevealed").map((e) => codeOf(run.state, e.instanceId))).toEqual([
+      EXPERIMENT,
+    ]);
+    expect(inPlayCards(run.state, EXPERIMENT)).toHaveLength(0);
+    expect(inDiscard(run.state, EXPERIMENT)).toHaveLength(1);
+    expect(piles(run.state).deck).toHaveLength(5);
   });
 });
 

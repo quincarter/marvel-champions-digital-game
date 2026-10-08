@@ -92,9 +92,9 @@ import {
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
 import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
 import {
+  planResolveAbilityCost,
   resolveAbilityCostCard,
   resolveAbilityCostEffects,
-  resolveAbilityCostFault,
   resolvingWouldChange,
 } from "./resolve-ability-cost.js";
 import { canPayReadyCost, readyCardsCostEffects, withReadyCosts } from "./ready-cards-cost.js";
@@ -2232,9 +2232,11 @@ export function planCost(
   // "Resolve its 'Forced Response' as if it just attacked you →" (`resolveAbility`, `resolve-ability-cost.ts`;
   // docs/phase7-wave8.md §4.1 Q7 = A): not while resolving it would change nothing, so the ability is not offered.
   if (cost.resolveAbility) {
-    const ofId = resolveAbilityCostCard(state, deps, sourceId, playerId, cost.resolveAbility, bindings);
-    const fault = resolveAbilityCostFault(state, deps, sourceId, playerId, ofId, cost.resolveAbility);
-    if (fault) return { code: "no_valid_target", message: fault };
+    const planned = planResolveAbilityCost(state, deps, sourceId, playerId, cost.resolveAbility, choices, bindings);
+    if ("fault" in planned)
+      return { code: planned.choice ? "invalid_choice" : "no_valid_target", message: planned.fault };
+    // "The [SETTING] environment" with several in play (`choose`, §4.1 Q15 = A): the payer's pick, bound for the rest.
+    if (cost.resolveAbility.choose) bindings[cost.resolveAbility.choose] = [planned.ofId];
   }
   // "Take damage equal to its printed cost →": a value read now, with the picks above bound (`damageSelf`).
   if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") {

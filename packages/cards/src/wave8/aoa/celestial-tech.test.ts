@@ -10,7 +10,7 @@ import {
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../core/setup.js";
-import { mergeRegistries, defineAbilities } from "../../dsl/index.js";
+import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -27,7 +27,7 @@ import {
 import { driveEventsPicking } from "../../testing/staging.js";
 import { attachToHost } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
-import { CELESTIAL_TECH, CELESTIAL_TECH_SKIPPED, CELESTIAL_TECH_WHEN_REVEALED_DRAFT } from "./celestial-tech.js";
+import { CELESTIAL_TECH, CELESTIAL_TECH_SKIPPED } from "./celestial-tech.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -40,7 +40,11 @@ const ARMOR = "45156";
 const WEAPON = "45157";
 const TECH = "45158";
 const BLANK = "01186";
-const REFS = ["45156.celestial-armor-forced-interrupt", "45157.celestial-weapon-forced-interrupt"];
+const REFS = [
+  "45156.celestial-armor-forced-interrupt",
+  "45157.celestial-weapon-forced-interrupt",
+  "45158.when-revealed",
+];
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, CELESTIAL_TECH) };
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 
@@ -118,18 +122,17 @@ const status = (s: GameState, id: InstanceId, name: "stunned" | "confused" | "to
 const topDiscarded = (s: GameState, code: string) => playerOf(s, P1).discard.some((id) => codeOf(s, id) === code);
 
 describe("registry", () => {
-  it("registers the two Forced Interrupts, each valid; the Celestial Tech When Revealed is skipped", () => {
+  it("registers the two Forced Interrupts and Celestial Tech's When Revealed, each valid; nothing is skipped", () => {
     expect(Object.keys(CELESTIAL_TECH).sort()).toEqual(REFS);
     for (const [id, def] of Object.entries(CELESTIAL_TECH)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(CELESTIAL_TECH_SKIPPED)).toEqual(["45158.when-revealed"]);
-    expect(validateDefinition(CELESTIAL_TECH_WHEN_REVEALED_DRAFT)).toEqual([]);
+    expect(Object.keys(CELESTIAL_TECH_SKIPPED)).toEqual([]);
   });
 
-  it("the data names exactly these refs plus the skipped one", () => {
+  it("the data names exactly these refs", () => {
     const refs = [ARMOR, WEAPON, TECH].flatMap((code) =>
       ((dataOf(code).abilities ?? []) as { id: string }[]).map((a) => a.id),
     );
-    expect(refs.sort()).toEqual([...REFS, "45158.when-revealed"].sort());
+    expect(refs.sort()).toEqual([...REFS].sort());
   });
 
   it("the test fixtures found a Spider-Man card for each resource", () => {
@@ -240,48 +243,97 @@ describe("Celestial Weapon (45157)", () => {
   });
 });
 
-describe("Celestial Tech (45158), skipped: waits on engine queue task 30 (resolveSpecials.trigger forcedInterrupt)", () => {
-  /** The draft registered beside the set: the intended 'as if' resolution is what the first test asks for. */
-  const DRAFT_DEPS: EngineDeps = {
-    abilities: mergeRegistries(
-      WAVE7_ABILITIES,
-      CELESTIAL_TECH,
-      defineAbilities({ "45158.when-revealed": CELESTIAL_TECH_WHEN_REVEALED_DRAFT }),
-    ),
-  };
-  /**
-   * Armor on the villain with two [energy] cards on top of the deck. The villain's own scheme resolves Armor once (2
-   * healed, from 5 to 3); a revealed Celestial Tech should resolve it once more.
-   */
-  function revealTech(armor: boolean, tech: boolean): GameState {
-    let state = setupGame(DRAFT_DEPS);
-    state = patchInstance(state, villainOf(state), { damage: 5 });
-    if (armor) state = attachToHost(state, ARMOR, villainOf(state)).state;
-    state = withTopCard(state, CODE_OF.energy);
-    const second = playerOf(state, P1).deck[1]!;
-    state = patchInstance(state, second, { cardId: cardId(CODE_OF.energy) });
-    const stacked = stackEncounterDeck(state, BLANK, ...(tech ? [TECH] : ["01098"]));
-    return driveEventsPicking(DRAFT_DEPS, stacked, firstLegal, endTurn(P1)).state;
+describe("Celestial Tech (45158): each Celestial attachment's Forced Interrupt resolved as if the villain schemed and attacked (§3.28)", () => {
+  /** The top `icons.length` cards of the player's deck print these resources, from the top down. */
+  function withTopCards(state: GameState, ...icons: readonly Icon[]): GameState {
+    return icons.reduce(
+      (s, icon, at) => patchInstance(s, playerOf(s, P1).deck[at]!, { cardId: cardId(CODE_OF[icon]) }),
+      state,
+    );
   }
+  /**
+   * Rhino with 5 damage and the chosen attachments; the player's deck top is `icons`; the villain phase runs with
+   * Celestial Tech (or a harmless card) dealt to the player. The first icon is the card the villain's own scheme or
+   * attack discards through the attachment that hears it.
+   */
+  function revealTech(
+    which: { armor?: boolean; weapon?: boolean },
+    icons: readonly Icon[],
+    opts: { tech?: boolean; form?: "alterEgo" | "hero" } = {},
+  ) {
+    let state = patchInstance(setupGame(), villainOf(setupGame()), { damage: 5 });
+    if (which.armor) state = attachToHost(state, ARMOR, villainOf(state)).state;
+    if (which.weapon) state = attachToHost(state, WEAPON, villainOf(state)).state;
+    state = withTopCards(state, ...icons);
+    const stacked = stackEncounterDeck(state, BLANK, opts.tech === false ? "01098" : TECH);
+    const commands = [...(opts.form === "hero" ? [toHero(P1)] : []), endTurn(P1)];
+    return driveEventsPicking(DEPS, stacked, firstLegal, ...commands);
+  }
+  const revealedCodes = (r: { state: GameState; events: readonly GameEvent[] }) =>
+    r.events.flatMap((e) => (e.type === "encounterCardRevealed" ? [codeOf(r.state, e.instanceId)] : []));
 
   it("control: Armor alone is resolved once, by the villain's scheme (5 damage to 3)", () => {
-    const s = revealTech(true, false);
-    expect(damageOf(s, villainOf(s))).toBe(3);
+    const r = revealTech({ armor: true }, ["energy", "energy"], { tech: false });
+    expect(damageOf(r.state, villainOf(r.state))).toBe(3);
   });
 
-  it.fails("PROOF OF THE GAP: a revealed Celestial Tech resolves Armor again as if the villain schemed (3 to 1)", () => {
-    const s = revealTech(true, true);
-    expect(damageOf(s, villainOf(s))).toBe(1);
+  it("a revealed Celestial Tech resolves Armor again as if the villain schemed (3 to 1), with no second scheme", () => {
+    const control = revealTech({ armor: true }, ["energy", "energy"], { tech: false });
+    const r = revealTech({ armor: true }, ["energy", "energy"]);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(1);
+    // Nothing activated for it: the same one scheme and one boost card as the round without Celestial Tech.
+    const count = (events: readonly GameEvent[], type: GameEvent["type"]) =>
+      events.filter((e) => e.type === type).length;
+    expect(count(r.events, "schemeResolved")).toBe(count(control.events, "schemeResolved"));
+    expect(count(r.events, "boostCardDealt")).toBe(count(control.events, "boostCardDealt"));
+    expect(count(r.events, "attackResolved")).toBe(0);
+    expect(inPlay(r.state, ARMOR)).toHaveLength(1);
+    expect(revealedCodes(r)).toEqual([TECH]);
   });
 
-  it("today's behavior: the draft heals nothing more (the villain keeps 3 damage)", () => {
-    const s = revealTech(true, true);
-    expect(damageOf(s, villainOf(s))).toBe(3);
+  it("§3.28 test 2: Armor and Weapon in play, the two discards printing [physical]: a tough card, stunned, the Weapon discarded, the Armor stays, no search", () => {
+    // Hero form: the villain attacks, and the Weapon's own interrupt discards a card with no icon (nothing happens).
+    const r = revealTech({ armor: true, weapon: true }, ["none", "physical", "physical"], { form: "hero" });
+    expect(status(r.state, villainOf(r.state), "tough")).toBe(1);
+    expect(status(r.state, identityOf(r.state, P1), "stunned")).toBe(1);
+    expect(inPlay(r.state, WEAPON)).toHaveLength(0);
+    expect(inPlay(r.state, ARMOR)).toHaveLength(1);
+    expect(revealedCodes(r)).toEqual([TECH]);
+    // One card for the real attack, one for each attachment resolved by Celestial Tech.
+    const milled = r.events.filter((e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard");
+    expect(milled).toHaveLength(3);
   });
 
-  it("the search half of the draft works: with no Celestial attachment on the villain one is found and attached", () => {
-    const s = revealTech(false, true);
-    const attached = [ARMOR, WEAPON].filter((code) => inPlay(s, code).length > 0);
+  it("the Weapon is resolved by Celestial Tech even though the villain only schemed this round (alter-ego form)", () => {
+    const r = revealTech({ weapon: true }, ["physical"]);
+    expect(status(r.state, identityOf(r.state, P1), "stunned")).toBe(1);
+    // Its [physical] line discarded it (the second sentence may then search it back out of the discard pile).
+    const discarded = r.events.flatMap((e) =>
+      e.type === "cardDiscardedFromPlay" ? [codeOf(r.state, e.instanceId)] : [],
+    );
+    expect(discarded).toContain(WEAPON);
+  });
+
+  it("the first sentence discards the only Celestial attachment ([mental] Armor): the second then searches and reveals one", () => {
+    const r = revealTech({ armor: true }, ["none", "mental"]);
+    expect(status(r.state, identityOf(r.state, P1), "confused")).toBe(1);
+    const attached = [ARMOR, WEAPON].flatMap((code) => inPlay(r.state, code));
     expect(attached).toHaveLength(1);
+    expect(inst(r.state, attached[0]!).attachedTo).toBe(villainOf(r.state));
+    expect(revealedCodes(r)).toHaveLength(2);
+  });
+
+  it("§3.28 test 3: with no Celestial attachment on the villain one is found, revealed and attached", () => {
+    const r = revealTech({}, ["none"]);
+    const attached = [ARMOR, WEAPON].flatMap((code) => inPlay(r.state, code));
+    expect(attached).toHaveLength(1);
+    expect(inst(r.state, attached[0]!).attachedTo).toBe(villainOf(r.state));
+    const revealedAt = r.events.findIndex((e) => e.type === "encounterCardRevealed" && e.instanceId === attached[0]);
+    const shuffles = r.events.flatMap((e, at) =>
+      e.type === "deckShuffled" && e.zone.kind === "encounterDeck" ? [at] : [],
+    );
+    // (Shuffle.): the encounter deck is shuffled after the search.
+    expect(shuffles.some((at) => at > r.events.findIndex((e) => e.type === "encounterCardRevealed"))).toBe(true);
+    expect(revealedAt).toBeGreaterThan(-1);
   });
 });

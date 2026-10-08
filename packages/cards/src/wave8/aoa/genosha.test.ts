@@ -4,6 +4,7 @@ import {
   cardsInPlay,
   createGame,
   hasKeyword,
+  legalActions,
   type EngineDeps,
   type GameEvent,
   type GameState,
@@ -33,7 +34,7 @@ import {
 import { defeatWithAttack, driveEventsPicking, playFromHand, withForm } from "../../testing/staging.js";
 import { attachToHost } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
-import { ESCAPED_MUTANT_ACTION_DRAFT, GENOSHA, GENOSHA_SKIPPED } from "./genosha.js";
+import { GENOSHA, GENOSHA_SKIPPED } from "./genosha.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -61,6 +62,7 @@ const REFS = [
   "45135.armored-unibike-forced-response",
   "45136.genoshan-mech-forced-response",
   "45137.escaped-mutant-constant",
+  "45137.escaped-mutant-action",
   "45138.when-defeated",
 ];
 /** Core treachery of 1 and 2 boost icons with no boost ability; the Rhino attachment that does nothing. */
@@ -172,15 +174,15 @@ const control = (state: GameState) => round(state, { reveals: [] });
 const mainDelta = (a: Run, b: Run): number => mainThreat(a.state) - mainThreat(b.state);
 
 describe("registry", () => {
-  it("registers the ten refs of the six cards, each a valid definition; the Escaped Mutant action is skipped", () => {
+  it("registers the eleven refs of the six cards, each a valid definition; nothing is skipped", () => {
     expect(Object.keys(GENOSHA).sort()).toEqual([...REFS].sort());
     for (const [id, def] of Object.entries(GENOSHA)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(GENOSHA_SKIPPED)).toEqual(["45137.escaped-mutant-action"]);
+    expect(Object.keys(GENOSHA_SKIPPED)).toEqual([]);
   });
 
-  it("the data names exactly these refs plus the skipped one", () => {
+  it("the data names exactly these refs", () => {
     const refs = SET.flatMap((code) => ((dataOf(code).abilities ?? []) as { id: string }[]).map((a) => a.id));
-    expect(refs.sort()).toEqual([...REFS, "45137.escaped-mutant-action"].sort());
+    expect(refs.sort()).toEqual([...REFS].sort());
   });
 });
 
@@ -296,36 +298,47 @@ describe("Escaped Mutant (45137)", () => {
   });
 });
 
-describe("Escaped Mutant's Action (45137), skipped: its cost is the Special (queue task 27)", () => {
-  const withDraft = (): EngineDeps => ({
-    abilities: mergeRegistries(WAVE7_ABILITIES, GENOSHA, {
-      "45137.escaped-mutant-action": ESCAPED_MUTANT_ACTION_DRAFT,
-    }),
-  });
-  const actionOffered = (env: boolean): boolean => {
-    const deps = withDraft();
-    const s0 = setupGame([SPIDER_MAN], { env, deps });
-    const s = withForm(attachToHost(s0, MUTANT, identityOf(s0, P1)).state, "alterEgo");
-    // Try the action: a thrown error means it was not offered.
-    const mutant = inst(s, identityOf(s, P1)).attachments.find((a) => codeOf(s, a) === MUTANT)!;
-    try {
-      driveEventsPicking(deps, s, firstLegal, use(P1, mutant, "45137.escaped-mutant-action"));
-      return true;
-    } catch {
-      return false;
-    }
+describe("Escaped Mutant's Action (45137): the Setting environment's Special is its cost (§3.24)", () => {
+  const ACTION = "45137.escaped-mutant-action";
+  /** Escaped Mutant attached to player 1's identity, in `form`; `env: false` leaves no Setting environment in play. */
+  const staged = (env: boolean, form: "alterEgo" | "hero" = "alterEgo") => {
+    const s0 = setupGame([SPIDER_MAN], { env });
+    const attached = attachToHost(s0, MUTANT, identityOf(s0, P1));
+    const state = form === "hero" ? withForm(attached.state, { heroForm: 0 }) : withForm(attached.state, "alterEgo");
+    return { state, mutant: attached.id };
+  };
+  const offered = (state: GameState): boolean => {
+    const actions = legalActions(state, P1, DEPS);
+    return (
+      actions.kind === "turn" &&
+      actions.legal.some((a) => a.action.kind === "useAbility" && (a.action.abilityId as string) === ACTION)
+    );
   };
 
-  it("the draft's effect form works with Genosha in play: 1 threat on the main scheme, the card discarded", () => {
-    expect(actionOffered(true)).toBe(true);
+  it("with Genosha in play: 1 threat on the main scheme from the Special, then the card is discarded", () => {
+    const { state, mutant } = staged(true);
+    expect(offered(state)).toBe(true);
+    const run = driveEventsPicking(DEPS, state, firstLegal, use(P1, mutant, ACTION));
+    expect(mainThreat(run.state)).toBe(mainThreat(state) + 1);
+    expect(specialThreat(run, inPlayCards(state, GENOSHA_ENV)[0]!)).toBe(1);
+    expect(inPlayCards(run.state, MUTANT)).toHaveLength(0);
+    expect(inDiscard(run.state, MUTANT)).toHaveLength(1);
+    expect(types(run.events, "resolveAbilityCostSettled")).toMatchObject([{ trigger: "special", paid: true }]);
+    // The cost resolves before the effect (RRG 1.8 "Cost Arrow Icon", p. 14).
+    const settledAt = run.events.findIndex((e) => e.type === "resolveAbilityCostSettled");
+    const discardedAt = run.events.findIndex((e) => e.type === "cardDiscardedFromPlay" && e.instanceId === mutant);
+    expect(discardedAt).toBeGreaterThan(settledAt);
   });
 
-  it.fails("PROOF OF THE GAP: with no Setting environment in play the action should not be offered", () => {
-    expect(actionOffered(false)).toBe(false);
+  it("with no Setting environment in play the action is not offered and the command is refused", () => {
+    const { state, mutant } = staged(false);
+    expect(offered(state)).toBe(false);
+    expect(() => driveEventsPicking(DEPS, state, firstLegal, use(P1, mutant, ACTION))).toThrow();
+    expect(inPlayCards(state, MUTANT)).toHaveLength(1);
   });
 
-  it("today's behavior: the unpaid-cost gap means the effect-form draft is offered with no Setting environment", () => {
-    expect(actionOffered(false)).toBe(true);
+  it("is an Alter-Ego Action: not offered in hero form", () => {
+    expect(offered(staged(true, "hero").state)).toBe(false);
   });
 });
 

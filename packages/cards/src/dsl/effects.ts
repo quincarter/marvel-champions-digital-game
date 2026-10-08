@@ -1404,6 +1404,25 @@ export const resolveForcedResponseOf = (
   ...(opts.remainingHpAtLeast !== undefined ? { asIf: { remainingHpAtLeast: opts.remainingHpAtLeast } } : {}),
   ...withBind(opts.bind),
 });
+/**
+ * "For each [CELESTIAL] attachment in play, resolve its effect as if the attached villain just schemed against you and
+ * attacked you" (Celestial Tech, `aoa` 45158; docs/phase7-wave8.md §3.28): `resolveForcedInterruptOf(each(query))`.
+ * Each card's printed Forced Interrupts whose condition is an enemy attacking or scheming resolve with the resolving
+ * player (`player`, else this ability's "you") as "you", as if the card they are attached to (or the card itself, for
+ * "when this enemy attacks") had just done so. Nothing activates: no boost card, no attack or scheme, and no other
+ * card's "when [enemy] attacks" hears it. `abilities`: only these, by id. `bind`: `<bind>.count`, how many resolved.
+ */
+export const resolveForcedInterruptOf = (
+  ref: TargetRef,
+  opts: { readonly bind?: string; readonly player?: PlayerRef; readonly abilities?: readonly string[] } = {},
+): EffectSpec => ({
+  kind: "resolveSpecials",
+  of: ref,
+  trigger: "forcedInterrupt",
+  ...(opts.player ? { player: opts.player } : {}),
+  ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
+  ...withBind(opts.bind),
+});
 /** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */
 export const setVar = (name: string, value: Amount): EffectSpec => ({ kind: "setVar", name, value: amount(value) });
 /**
@@ -2214,11 +2233,20 @@ export const atEndOfPhase = (...effects: readonly EffectArg[]): EffectSpec => ({
  * (docs/phase7-wave8.md §3.18).
  */
 export const revealNextVillainStage = (villain: TargetRef): EffectSpec => ({ kind: "revealNextVillainStage", villain });
-/** "Change Apocalypse to [Giant] form" — a three-sided villain's face change, resolved as a flip. */
-export const changeVillainForm = (villain: TargetRef, toFaceWithTrait: Trait): EffectSpec => ({
+/**
+ * "Change Apocalypse to [Giant] form" — a three-sided villain's face change, resolved as a flip. `{ reveal: false }`:
+ * the change is not a reveal (MC45 p. 19; docs/phase7-wave8.md §3.26), so the new face's reveal step does not run;
+ * "after [the villain] changes to this form" (`cardFlipped`) still does.
+ */
+export const changeVillainForm = (
+  villain: TargetRef,
+  toFaceWithTrait: Trait,
+  options: { readonly reveal?: false } = {},
+): EffectSpec => ({
   kind: "changeVillainForm",
   villain,
   toFaceWithTrait,
+  ...(options.reveal === false ? { reveal: false as const } : {}),
 });
 /**
  * "Flip [card]" (RRG 1.8 "Flip"). `{ reveal: true }`: "Flip this card and reveal it" / "flip this card and reveal

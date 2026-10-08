@@ -2302,9 +2302,19 @@ export interface AbilityCost {
    *   (`resolvingWouldChange`), never by the abilities' shape.
    * - **Paid only by an ability that resolves.** With none resolved the cost is unpaid and the ability's effects do not
    *   resolve (`settleResolveAbilityCost`). Not for a resource ability, which is paid in the middle of another payment.
+   * - **`trigger: "special"`**: "Resolve the 'Special' ability on the [SETTING] environment → discard this card"
+   *   (docs/phase7-wave8.md §3.24). RRG 1.8 "Special" (p. 40) lets a Special resolve "through the explicit instruction
+   *   of another card ability", which this cost is. With no card for `of` (no such environment in play) the cost
+   *   cannot be paid and the ability is not offered (RRG 1.8 "Cost", p. 13).
+   * - **`choose`**: `of` may name several cards ("the [SETTING] environment" with two in play, §4.1 Q15 = A: the
+   *   resolving player chooses). The payer picks one in `costChoices[choose]`, as every cost pick is made up front, and
+   *   it is bound to that slot for the effects. With exactly one card the pick is forced and may be omitted. A card
+   *   whose abilities could change nothing is not a legal pick; the cost is payable while any one is. Absent: the first
+   *   card `of` names.
    */
   readonly resolveAbility?: {
     readonly of: TargetRef;
+    readonly choose?: string;
     readonly trigger: "forcedResponse" | "special";
     readonly abilities?: readonly AbilityId[];
     readonly asIf?: { readonly remainingHpAtLeast?: number };
@@ -2313,15 +2323,17 @@ export interface AbilityCost {
 
 /**
  * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a
- * "Forced Response" is a `response` trigger that is forced; the others are named by their own trigger kind. A card's
- * attach instruction is not one of its When Revealed abilities (docs/phase7-wave7.md §3.35).
+ * "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt` trigger that is
+ * forced; the others are named by their own trigger kind. A card's attach instruction is not one of its When Revealed
+ * abilities (docs/phase7-wave7.md §3.35).
  */
 export function resolvableAs(
   definition: AbilityDefinition | undefined,
-  trigger: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse",
+  trigger: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse" | "forcedInterrupt",
 ): boolean {
   if (!definition || definition.attachInstruction) return false;
   if (trigger === "forcedResponse") return definition.trigger.kind === "response" && definition.trigger.forced;
+  if (trigger === "forcedInterrupt") return definition.trigger.kind === "interrupt" && definition.trigger.forced;
   return definition.trigger.kind === trigger;
 }
 

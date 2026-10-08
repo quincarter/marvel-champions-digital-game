@@ -50,6 +50,7 @@ import type { Command, CostChoices, CostSelection, Payment } from "./commands.js
 import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts } from "./attach-cost.js";
+import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -498,7 +499,14 @@ function costChoiceSets(
   cost: AbilityCost | undefined,
   picks: readonly InstanceId[],
 ): readonly CostChoiceSet[] {
-  const sets = pickChoiceSets(state, deps, playerId, source, cost, picks);
+  const sets = resolveChoiceSets(
+    state,
+    deps,
+    playerId,
+    source,
+    cost,
+    pickChoiceSets(state, deps, playerId, source, cost, picks),
+  );
   const attach = cost?.attach;
   if (!attach) return sets;
   const card = attachCostCard(state, deps, source, playerId, attach);
@@ -506,6 +514,30 @@ function costChoiceSets(
   if (hosts.length === 0) return sets;
   return sets.flatMap(({ costChoices, target }) =>
     hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+  );
+}
+
+/**
+ * "Resolve the 'Special' ability on the [SETTING] environment →" with several such cards in play
+ * (`AbilityCost.resolveAbility.choose`, docs/phase7-wave8.md §3.24, §4.1 Q15 = A): each variant once per card the cost
+ * could name. `planCost` drops the ones whose abilities would change nothing. With one card or none the variants are
+ * left as they are: the pick is forced, or the engine's own check says why the cost cannot be paid.
+ */
+function resolveChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  sets: readonly CostChoiceSet[],
+): readonly CostChoiceSet[] {
+  const resolve = cost?.resolveAbility;
+  const slot = resolve?.choose;
+  if (!resolve || !slot) return sets;
+  const candidates = resolveAbilityCostCandidates(state, deps, source, playerId, resolve, {});
+  if (candidates.length < 2) return sets;
+  return sets.flatMap(({ costChoices, target }) =>
+    candidates.map((card) => ({ costChoices: { ...costChoices, [slot]: [card] }, target: target ?? card })),
   );
 }
 

@@ -498,7 +498,7 @@ describe("stage changes keep the form (Q16 = A)", () => {
   });
 });
 
-describe("a change of form is not a reveal (MC45 p. 19; engine queue task 29, spec 3.26)", () => {
+describe("a change of form is not a reveal (MC45 p. 19; spec 3.26)", () => {
   const villainReveals = (run: readonly GameEvent[], st: GameState) =>
     events(run, "encounterCardRevealed").filter((e) => e.instanceId === apoc(st));
 
@@ -507,15 +507,11 @@ describe("a change of form is not a reveal (MC45 p. 19; engine queue task 29, sp
     return { s, ...round(s, { reveals: [INTERFACE] }) };
   }
 
-  it.fails("PROOF OF THE GAP: the log shows no reveal of the villain when a treachery changes his form", () => {
+  it("the log shows no reveal of the villain when a treachery changes his form: the face turns and its Forced Response resolves", () => {
     const r = changeByTreachery();
     expect(villainReveals(r.events, r.state)).toHaveLength(0);
-  });
-
-  it("today's behavior: changeVillainForm also runs the new face's reveal step, which finds nothing to resolve on these faces", () => {
-    const r = changeByTreachery();
-    expect(villainReveals(r.events, r.state)).toHaveLength(1);
     expect(side(r.state)).toBe("B");
+    expect(events(r.events, "villainFlipped")).toMatchObject([{ instanceId: apoc(r.state), from: "A", to: "B" }]);
   });
 
   it("stalwart discards his stunned card when he turns Giant (Giant Growth defeated while he is Biomorph and stunned)", () => {

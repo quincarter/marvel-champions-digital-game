@@ -2437,7 +2437,22 @@ export type EffectSpec =
        * triggering event reads as that card's attack against the resolving player ("as if it just attacked you"; RRG
        * 1.8 "You, Your", p. 49; "Self-Referential", p. 39). docs/phase7-wave8.md §3.11.
        */
-      readonly trigger?: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse";
+      /**
+       * `"forcedInterrupt"`: "For each [CELESTIAL] attachment in play, resolve its effect as if the attached villain
+       * just schemed against you and attacked you" (Celestial Tech, `aoa` 45158; docs/phase7-wave8.md §3.28). Each
+       * card's printed Forced Interrupt abilities (an `interrupt` trigger that is `forced`) whose own condition is an
+       * enemy attacking or scheming resolve with the resolving player (`player`, else the calling ability's "you") as
+       * "you" and the card as their source, as if that condition had just been met: inside them the triggering event
+       * reads as an attack or a scheme (whichever the ability's own pattern names, the first when it names both)
+       * against the resolving player, by the card itself when the pattern is about this card (`selfIs: "source"`),
+       * otherwise by the card it is attached to ("the attached villain"; RRG 1.8 "Self-Referential", p. 39; "You,
+       * Your", p. 49), or by the active villain for a card attached to nothing, when the pattern's `sourceIs` accepts
+       * that enemy. Nothing activated: no attack or scheme is made or logged, no boost card is dealt and no other
+       * card's "when [enemy] attacks / schemes" hears it. A Forced Interrupt with any other condition, or with no such
+       * enemy in play, has no "as if" to read and is not resolved or counted. Several resolve in the order the calling
+       * ability's player chooses, as Specials do.
+       */
+      readonly trigger?: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse" | "forcedInterrupt";
       /**
        * "… as if it has at least 1 hit point" (Rough Riders): while each resolved ability's effects resolve, the card
        * they are printed on is considered to have at least this many remaining hit points, exactly as under
@@ -3632,8 +3647,21 @@ export type EffectSpec =
    * villain (`VillainSideLetter` "C") turns to the face of its current stage card whose traits include `toFaceWithTrait`.
    * `flipCard` is undefined for such a villain, since "flip" doesn't say which of the two other faces. Resolves as a flip
    * (RRG 1.8 "Flip", p. 20). Works on a two-faced villain too, when card text names the face by a trait.
+   *
+   * `reveal`: whether the new face then goes through the reveal step (its When Revealed, incite, surge and the "when
+   * revealed" windows), as a villain's flip does (the Green Goblin rule; `revealNewFaceFrame`). Default true. `false`
+   * for a scenario whose rules say the change is not a reveal (The Age of Apocalypse rulebook, MC45 p. 19: changing
+   * Apocalypse's form "is NOT the same as 'defeating' or 'revealing' the villain"; docs/phase7-wave8.md §3.26): the
+   * face turns, `villainFlipped` is logged and `cardFlipped` is raised ("after [this villain] changes to this form"),
+   * and no reveal step runs, so nothing of the new face resolves as revealed and no `encounterCardRevealed` is logged.
+   * Everything on the villain stays either way (RRG 1.8 "Flip", p. 20).
    */
-  | { readonly kind: "changeVillainForm"; readonly villain: TargetRef; readonly toFaceWithTrait: Trait }
+  | {
+      readonly kind: "changeVillainForm";
+      readonly villain: TargetRef;
+      readonly toFaceWithTrait: Trait;
+      readonly reveal?: false;
+    }
   /**
    * "Flip this card and reveal Apocalypse (II)" / "Remove this card from the game and reveal Apocalypse (III)"
    * (Apocalypse I to III, `aoa` 45101a, 45101b, 45102a; docs/phase7-wave8.md §3.18): the stage change of a villain's

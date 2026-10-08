@@ -1,5 +1,5 @@
 import { trait } from "@mc/content";
-import type { AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
+import type { AbilityRegistry, EffectSpec } from "@mc/engine";
 import {
   anyOf,
   confuse,
@@ -18,7 +18,7 @@ import {
   not,
   on,
   query,
-  resolveSpecialsOf,
+  resolveForcedInterruptOf,
   revealCard,
   self,
   stun,
@@ -46,24 +46,6 @@ const milled = (type: "physical" | "energy" | "mental") => anyOf(varAtLeast(`tec
 const discardTop = moveCards(topOfDeck(1), "discard", "tech");
 
 /**
- * Celestial Tech's When Revealed (45158): "For each [Celestial] attachment in play, resolve its effect as if the
- * attached villain just schemed against you and attacked you. If there are no [Celestial] attachments on the villain,
- * search the encounter deck and discard pile for a [Celestial] attachment and reveal it. (Shuffle.)"
- *
- * NOT REGISTERED: resolving another card's Forced Interrupt "as if" its trigger just happened needs
- * `resolveSpecials.trigger: "forcedInterrupt"` (docs/phase7-wave8.md §3.28, engine queue task 30, after task 22), which
- * `EffectSpec` does not have yet. The draft below is the whole ability with the resolve step as the nearest typeable
- * form (`resolveSpecialsOf` naming the two refs, which resolves Specials, so today it does nothing to the attachments).
- * The search half is complete. Once task 30 lands, the resolve step becomes the new trigger and the draft is registered.
- */
-export const CELESTIAL_TECH_WHEN_REVEALED_DRAFT: AbilityDefinition = whenRevealed(
-  resolveSpecialsOf(each(CELESTIAL_ON_VILLAIN), undefined, {
-    abilities: ["45156.celestial-armor-forced-interrupt", "45157.celestial-weapon-forced-interrupt"],
-  }),
-  ifThen(not(exists(CELESTIAL_ON_VILLAIN)), revealCard(find(CELESTIAL_ATTACHMENT))),
-);
-
-/**
  * Modular encounter set `celestial_tech` (Age of Apocalypse, docs/phase7-wave8.md §1.16, §3.28). Attachments "attach to
  * the villain" (data); the "you" of each Forced Interrupt is the player the villain's scheme or attack is against (an
  * encounter card has no controller, so the event's player stands in).
@@ -73,7 +55,13 @@ export const CELESTIAL_TECH_WHEN_REVEALED_DRAFT: AbilityDefinition = whenReveale
  * [mental] line and Weapon's [physical] line, after the other effect of that line, so a [wild] discards the card and
  * still resolves the rest.
  *
- * Celestial Tech 45158 is skipped (see `CELESTIAL_TECH_WHEN_REVEALED_DRAFT`), waiting on queue task 30 (spec §8.2).
+ * Celestial Tech 45158: "For each [Celestial] attachment in play, resolve its effect as if the attached villain just
+ * schemed against you and attacked you" resolves each attachment's Forced Interrupt (`resolveForcedInterruptOf`, the
+ * two named by ref id) with the revealing player as "you" and the attachment as its source; nothing activates, so no
+ * boost card is dealt and nothing is logged as an attack or a scheme. Each discards its own card from the top of the
+ * player's deck, in an order the revealing player chooses. The second sentence is read after the first has resolved,
+ * as printed: if the first discarded the only Celestial attachment on the villain, the search runs and may bring that
+ * card back from the discard pile.
  *
  * Cards (3):
  * - 45156 Celestial Armor (attachment)
@@ -92,6 +80,15 @@ export const CELESTIAL_TECH: AbilityRegistry = defineAbilities({
     on.enemyAttacks("host", { againstYou: true }),
     discardTop,
     ...weaponLines(),
+  ),
+  // When Revealed: For each [Celestial] attachment in play, resolve its effect as if the attached villain just schemed
+  // against you and attacked you. If there are no [Celestial] attachments on the villain, search the encounter deck
+  // and discard pile for a [Celestial] attachment and reveal it. (Shuffle.)
+  "45158.when-revealed": whenRevealed(
+    resolveForcedInterruptOf(each(CELESTIAL_ATTACHMENT), {
+      abilities: ["45156.celestial-armor-forced-interrupt", "45157.celestial-weapon-forced-interrupt"],
+    }),
+    ifThen(not(exists(CELESTIAL_ON_VILLAIN)), revealCard(find(CELESTIAL_ATTACHMENT))),
   ),
 });
 
@@ -113,7 +110,4 @@ function weaponLines(): EffectSpec[] {
   ];
 }
 
-export const CELESTIAL_TECH_SKIPPED: Readonly<Record<string, string>> = {
-  "45158.when-revealed":
-    "Resolving each Celestial attachment's Forced Interrupt 'as if' it just triggered needs resolveSpecials.trigger: 'forcedInterrupt' (spec §3.28, queue task 30, after task 22). CELESTIAL_TECH_WHEN_REVEALED_DRAFT is the nearest typeable form, unregistered.",
-};
+export const CELESTIAL_TECH_SKIPPED: Readonly<Record<string, string>> = {};

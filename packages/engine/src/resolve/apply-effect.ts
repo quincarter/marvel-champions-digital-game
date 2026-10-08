@@ -1799,7 +1799,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Change Apocalypse to [Giant] form" (Staggering Strength; The Age of Apocalypse): the face of the same stage card
       // whose traits include the form. RRG 1.8 "Flip" (p. 20): "A foldable, 'three-sided' card is considered to have
       // flipped any time the faceup side of the card changes", so it is a flip, with the same new-face reveal and
-      // `cardFlipped` as `flipCard`. Already in that form: nothing changes and nothing triggers.
+      // `cardFlipped` as `flipCard`. Already in that form: nothing changes and nothing triggers. `reveal: false`: the
+      // scenario's rules make the change no reveal (MC45 p. 19; docs/phase7-wave8.md §3.26), so only the flip is raised.
       const inPlay = cardsInPlay(ctx.state);
       const frames: StackFrame[] = [];
       for (const id of targets(effect.villain)) {
@@ -1811,7 +1812,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         );
         if (!face || face.side === villain.side) continue;
         flipVillain(ctx, id, face.side);
-        frames.push(revealNewFaceFrame(ctx, id));
+        if (effect.reveal !== false) frames.push(revealNewFaceFrame(ctx, id));
         frames.push(eventFrame(ctx, cardFlippedEvent(id, context.controllerId)));
       }
       pushFrames(ctx, frames);

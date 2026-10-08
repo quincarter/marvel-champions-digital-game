@@ -32,7 +32,23 @@ type ResolveAbilityCost = NonNullable<AbilityCost["resolveAbility"]>;
 const OF_SLOT = "_costResolveOf";
 const BIND = "costResolve";
 
-/** The card the cost names: the first card its ref resolves to, read with the cost's own picks bound. */
+/** Every card the cost's ref names, read with the cost's own picks bound. */
+export function resolveAbilityCostCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: ResolveAbilityCost,
+  bindings: Bindings,
+): readonly InstanceId[] {
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings, deps };
+  return resolveRef(state, cost.of, context);
+}
+
+/**
+ * The card the cost names: the payer's pick once it is bound to the cost's `choose` slot (`planResolveAbilityCost`),
+ * else the first card its ref resolves to.
+ */
 export function resolveAbilityCostCard(
   state: GameState,
   deps: EngineDeps,
@@ -41,8 +57,41 @@ export function resolveAbilityCostCard(
   cost: ResolveAbilityCost,
   bindings: Bindings,
 ): InstanceId | null {
-  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings, deps };
-  return resolveRef(state, cost.of, context)[0] ?? null;
+  const picked = cost.choose ? bindings[cost.choose]?.[0] : undefined;
+  if (picked !== undefined) return picked;
+  return resolveAbilityCostCandidates(state, deps, sourceId, playerId, cost, bindings)[0] ?? null;
+}
+
+/**
+ * Plans the cost for `planCost`: the card whose abilities will resolve, or why the cost cannot be paid. With `choose`
+ * (§4.1 Q15 = A) the card is the payer's pick in `choices[choose]`, which must be one of the cards the ref names and
+ * one whose abilities would change something; with no pick given the cost pays itself only when the choice is forced
+ * (exactly one card named), as an in-play cost pick does. The caller binds the card to the slot.
+ */
+export function planResolveAbilityCost(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: ResolveAbilityCost,
+  choices: Readonly<Record<string, readonly InstanceId[]>>,
+  bindings: Bindings,
+): { readonly ofId: InstanceId } | { readonly fault: string; readonly choice?: true } {
+  const candidates = resolveAbilityCostCandidates(state, deps, sourceId, playerId, cost, bindings);
+  let ofId: InstanceId | null = candidates[0] ?? null;
+  if (cost.choose) {
+    const given = choices[cost.choose];
+    if (given) {
+      const [pick, ...extra] = given;
+      if (pick === undefined || extra.length > 0 || !candidates.includes(pick))
+        return { fault: `choose exactly one card for ${cost.choose}`, choice: true };
+      ofId = pick;
+    } else if (candidates.length > 1) {
+      return { fault: `choose which card's ability to resolve for ${cost.choose}`, choice: true };
+    }
+  }
+  const fault = resolveAbilityCostFault(state, deps, sourceId, playerId, ofId, cost);
+  return fault || ofId === null ? { fault: fault ?? "no card whose ability this cost resolves" } : { ofId };
 }
 
 /** The effect that pays the cost: the named card's abilities of the cost's kind, with the payer as "you". */

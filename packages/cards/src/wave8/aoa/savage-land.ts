@@ -1,9 +1,7 @@
-import { trait } from "@mc/content";
-import type { AbilityRegistry, EffectSpec, PlayerRef } from "@mc/engine";
+import type { AbilityRegistry } from "@mc/engine";
 import {
   anyOf,
   boost,
-  chooseTarget,
   chosen,
   constant,
   dealAsEncounterCard,
@@ -36,21 +34,9 @@ import {
   whenRevealed,
   you,
 } from "../../dsl/index.js";
+import { resolveSettingSpecial, SETTING } from "./setting.js";
 
-const SETTING = trait("SETTING");
-const SETTING_ENVIRONMENT = query("environment", { trait: SETTING });
 const THE_SAVAGE_LAND = "The Savage Land";
-
-/**
- * "Resolve the 'Special' ability on the Setting environment", by `who`: the resolving player chooses which Setting when
- * several are in play (Q15 = A) and is "you" inside the Special (the environment has no controller of its own).
- * Nothing is asked and nothing resolves with no Setting environment in play. The same helper as `blue-moon.ts`'s
- * unexported `resolveSettingSpecial`; the two copies (and Genosha's) should move to one shared file.
- */
-const resolveSettingSpecial = (who: PlayerRef = you): EffectSpec[] => [
-  chooseTarget("setting", SETTING_ENVIRONMENT, { chooser: who }),
-  resolveSpecialsOf(chosen("setting"), who),
-];
 
 /**
  * Scenario or modular encounter set `savage_land` (Age of Apocalypse, docs/phase7-wave8.md §1.16, §2.8, §2.10, §3.1,

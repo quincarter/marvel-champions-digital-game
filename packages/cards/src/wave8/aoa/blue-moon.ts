@@ -1,9 +1,8 @@
 import { trait } from "@mc/content";
-import type { AbilityRegistry, EffectSpec, PlayerRef, Predicate } from "@mc/engine";
+import type { AbilityRegistry, Predicate } from "@mc/engine";
 import {
   anyOf,
   boost,
-  chooseTarget,
   cannotAttach,
   chosen,
   confuse,
@@ -30,7 +29,6 @@ import {
   moveCards,
   query,
   refMatches,
-  resolveSpecialsOf,
   revealCard,
   rule,
   self,
@@ -42,25 +40,13 @@ import {
   when,
   whenDefeated,
   whenRevealed,
-  you,
   yourIdentity,
 } from "../../dsl/index.js";
+import { resolveSettingSpecial, SETTING } from "./setting.js";
 
-const SETTING = trait("SETTING");
 const IMPERIAL_GUARD = trait("IMPERIAL GUARD");
-const SETTING_ENVIRONMENT = query("environment", { trait: SETTING });
 const IMPERIAL_GUARD_MINION = query("minion", { trait: IMPERIAL_GUARD });
 const TRIAL_BY_COMBAT = "Trial by Combat";
-
-/**
- * "Resolve the 'Special' ability on the Setting environment", by `who`: the resolving player chooses which Setting when
- * several are in play (Q15 = A) and is "you" inside the Special (the environment has no controller of its own).
- * Nothing is asked and nothing resolves with no Setting environment in play.
- */
-const resolveSettingSpecial = (who: PlayerRef = you): EffectSpec[] => [
-  chooseTarget("setting", SETTING_ENVIRONMENT, { chooser: who }),
-  resolveSpecialsOf(chosen("setting"), who),
-];
 
 /**
  * "If you were already [status]": read before the status is given, kept in a var so the effects still run in the

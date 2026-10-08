@@ -1,10 +1,8 @@
-import { trait } from "@mc/content";
-import type { AbilityDefinition, AbilityRegistry, EffectSpec, PlayerRef } from "@mc/engine";
+import type { AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
 import {
   anyOf,
   attachCard,
   boost,
-  chooseTarget,
   chosen,
   constant,
   defeatingPlayer,
@@ -30,7 +28,6 @@ import {
   named,
   on,
   query,
-  resolveSpecialsOf,
   revealCard,
   revealFromSetAsideModularSet,
   self,
@@ -42,36 +39,22 @@ import {
   whenRevealedHero,
   you,
 } from "../../dsl/index.js";
+import { resolveSettingSpecial, resolveSettingSpecialCost, SETTING_ENVIRONMENT } from "./setting.js";
 
-const SETTING = trait("SETTING");
-const SETTING_ENVIRONMENT = query("environment", { trait: SETTING });
 const THE_BEAST = named("Dark Beast");
 const HOST_MINION = query("minion", { hostOfSelf: true });
-
-/**
- * "Resolve the 'Special' ability on the Setting environment", by `who`: the resolving player chooses which Setting when
- * several are in play (Q15 = A) and is "you" inside the Special. The same helper as `blue-moon.ts`, `savage-land.ts` and
- * `genosha.ts` (they should move to one shared file).
- */
-const resolveSettingSpecial = (who: PlayerRef = you): EffectSpec[] => [
-  chooseTarget("setting", SETTING_ENVIRONMENT, { chooser: who }),
-  resolveSpecialsOf(chosen("setting"), who),
-];
 
 /** A real player (not "nobody") defeated the card: an encounter card's damage leaves no defeating player. */
 const aPlayerDefeated = anyOf(inForm("hero", defeatingPlayer), inForm("alterEgo", defeatingPlayer));
 
 /**
  * High-Tech Goggles and Genetic Enhancement: "Hero Action: Exhaust your hero and resolve the 'Special' ability on the
- * Setting environment -> discard this card." Both the exhaust and the Special are the COST (docs/phase7-wave8.md
- * §3.24, queue task 27: `AbilityCost.resolveAbility` with `trigger: "special"`), so the action is unusable with no
- * Setting environment in play. The DSL cannot type the Special as a cost yet; this draft pays the exhaust as a cost
- * and resolves the Special as an effect. NOT registered.
+ * Setting environment -> discard this card." Both the exhaust and the Special are the cost (docs/phase7-wave8.md
+ * §3.24), so the action is not offered while the hero is exhausted, with no Setting environment in play, or while the
+ * Special would change nothing (§4.1 Q7 = A). The attachment is on Dark Beast; any player in hero form may use it.
  */
 const goggleAction = (): AbilityDefinition =>
-  heroAction({ cost: exhaustYourHero }, ...resolveSettingSpecial(), discard(self));
-export const HIGH_TECH_GOGGLES_ACTION_DRAFT: AbilityDefinition = goggleAction();
-export const GENETIC_ENHANCEMENT_ACTION_DRAFT: AbilityDefinition = goggleAction();
+  heroAction({ cost: [exhaustYourHero, resolveSettingSpecialCost] }, discard(self));
 
 /** "Deal each player an encounter card." (stages II and III) */
 const dealEachPlayer = (): EffectSpec => forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer));
@@ -96,8 +79,8 @@ const darkBeastInterrupt = () =>
  *
  * Cruel Experiment's +1 ATK and +1 SCH are data statModifiers; the hit points and guard are constants of the host.
  *
- * The two Hero Actions (Goggles, Genetic Enhancement) are skipped, waiting on queue task 27 (spec §8.2); see
- * `HIGH_TECH_GOGGLES_ACTION_DRAFT`.
+ * The two Hero Actions (Goggles, Genetic Enhancement) pay the Setting environment's Special as part of their cost
+ * (`goggleAction`).
  *
  * Cards (7):
  * - 45118 Dark Beast (villain)
@@ -125,10 +108,11 @@ export const DARK_BEAST: AbilityRegistry = defineAbilities({
   "45121a.setup": setup(ifThen(inMode("expert"), revealCard(find(query("attachment", { name: "High-Tech Goggles" }))))),
 
   // High-Tech Goggles — Attach to Dark Beast (data, +1 SCH). [star] Boost: Attach this card to Dark Beast.
-  // "45122.high-tech-goggles-action": skipped, see HIGH_TECH_GOGGLES_ACTION_DRAFT.
+  // Hero Action: Exhaust your hero and resolve the Special on the Setting environment -> discard this card.
+  "45122.high-tech-goggles-action": goggleAction(),
   "45122.boost": boost(attachCard(self, THE_BEAST)),
   // Genetic Enhancement — Attach to Dark Beast (data, +1 ATK). [star] Boost: Attach this card to Dark Beast.
-  // "45123.genetic-enhancement-action": skipped, see GENETIC_ENHANCEMENT_ACTION_DRAFT.
+  "45123.genetic-enhancement-action": goggleAction(),
   "45123.boost": boost(attachCard(self, THE_BEAST)),
 
   // Cruel Experiment — Attached minion gets +2 hit points and gains guard (+1 ATK, +1 SCH are data).
@@ -159,9 +143,4 @@ export const DARK_BEAST: AbilityRegistry = defineAbilities({
   ),
 });
 
-export const DARK_BEAST_SKIPPED: Readonly<Record<string, string>> = {
-  "45122.high-tech-goggles-action":
-    "Exhausting the hero and resolving the Setting's Special are its cost (spec §3.24, queue task 27: AbilityCost.resolveAbility). HIGH_TECH_GOGGLES_ACTION_DRAFT is the exhaust-cost and effect-Special form, unregistered.",
-  "45123.genetic-enhancement-action":
-    "Same cost as High-Tech Goggles (queue task 27). GENETIC_ENHANCEMENT_ACTION_DRAFT is unregistered.",
-};
+export const DARK_BEAST_SKIPPED: Readonly<Record<string, string>> = {};
