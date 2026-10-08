@@ -12,6 +12,7 @@ import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
 import { BISHOP_EVENTS } from "./aoa/bishop/events.js";
 import { BISHOP_IDENTITY } from "./aoa/bishop/identity.js";
+import { BISHOP_OBLIGATION_NEMESIS, BISHOP_OBLIGATION_NEMESIS_SKIPPED } from "./aoa/bishop/obligation-nemesis.js";
 import { BISHOP_SUPPORT_UPGRADES_ALLIES } from "./aoa/bishop/support-upgrades-allies.js";
 import { BLUE_MOON } from "./aoa/blue-moon.js";
 import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
@@ -32,6 +33,10 @@ import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_EVENTS, JUBILEE_EVENTS_SKIPPED } from "./jubilee/jubilee/events.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
+import {
+  JUBILEE_OBLIGATION_NEMESIS,
+  JUBILEE_OBLIGATION_NEMESIS_SKIPPED,
+} from "./jubilee/jubilee/obligation-nemesis.js";
 import { JUBILEE_SUPPORT_UPGRADES_ALLIES } from "./jubilee/jubilee/support-upgrades-allies.js";
 import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
@@ -92,6 +97,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["45002", "45003", "45004", "45005", "45006", "45010"],
       registry: BISHOP_SUPPORT_UPGRADES_ALLIES,
       skipped: {},
+    },
+    {
+      module: "bishop/obligation-nemesis",
+      cardIds: ["45025", "45026", "45027", "45028", "45029"],
+      registry: BISHOP_OBLIGATION_NEMESIS,
+      skipped: BISHOP_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
       module: "blue-moon",
@@ -164,6 +175,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["47002", "47003", "47004", "47005", "47010a", "47010b", "47010c"],
       registry: JUBILEE_SUPPORT_UPGRADES_ALLIES,
       skipped: {},
+    },
+    {
+      module: "jubilee/obligation-nemesis",
+      cardIds: ["47023", "47024", "47025", "47026", "47027"],
+      registry: JUBILEE_OBLIGATION_NEMESIS,
+      skipped: JUBILEE_OBLIGATION_NEMESIS_SKIPPED,
     },
     { module: "jubilee/arcade", cardIds: ["47030", "47031", "47032", "47033", "47034"], registry: ARCADE, skipped: {} },
   ],
