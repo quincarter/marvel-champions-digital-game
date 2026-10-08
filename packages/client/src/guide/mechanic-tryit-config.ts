@@ -269,9 +269,9 @@ const ICEMAN: MechanicTryItConfig = {
 /**
  * - Magik (`magik-aggression`): she starts as Illyana Rasputin with a hand of six: Limbo (cost 1), The Power of Aggression
  *   (a resource card that pays for it) and four cards that react to nothing in round 1 (Blood Rage, Test the Defense,
- *   a Full-Body Charge, a Clobber). Colossus is the card on top of the deck, so once she flips it is the faceup top card;
- *   Limbo's Action then swaps a card from her hand with it. The board has no way to tap the faceup top card to play it
- *   yet (the engine offers it as `playCard` with `from: "deckTop"`), so the lesson stays with what the board can do.
+ *   a Full-Body Charge, a Clobber). Colossus (cost 3) is the card on top of the deck, so once she flips it is the faceup
+ *   top card: the lesson plays it from there for 1 less (Blood Rage and Test the Defense pay the 2), then plays Limbo
+ *   with the resource card, and Limbo's Action swaps a card from her hand with the new top card.
  */
 const MAGIK: MechanicTryItConfig = {
   config: {

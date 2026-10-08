@@ -768,7 +768,7 @@ describe("Magik: the faceup top card", () => {
     expect(t.controller.view().step?.id).toBe("intro");
   });
 
-  test("walks the flip, playing Limbo and its swap (a hand card goes on top of the deck) to completion", async () => {
+  test("walks the flip, the play from the top, Limbo and its swap (a hand card goes on top) to completion", async () => {
     const onComplete = vi.fn();
     const t = await run("magik", onComplete);
     t.controller.primary();
@@ -776,6 +776,24 @@ describe("Magik: the faceup top card", () => {
     t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
     t.settle(/./);
     expect(t.me().identity.form).toBe("hero");
+
+    // Colossus (cost 3) is the faceup top card: played from the deck he costs 1 less, so two hand cards pay.
+    expect(t.controller.view().step?.id).toBe("play-top");
+    expect(t.state().instances[t.me().deck[0]!]!.cardId).toBe("45031");
+    const colossus = t.me().deck[0]!;
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: colossus,
+      payment: [{ fromHand: t.handId("45043") }, { fromHand: t.handId("45044") }],
+      attachToInstanceId: null,
+    });
+    t.settle(/./);
+    expect(t.inPlay()).toContain("45031");
+    expect(t.state().instances[t.me().deck[0]!]!.cardId).not.toBe("45031"); // the next card shows
+
+    expect(t.controller.view().step?.id).toBe("next-card");
+    t.controller.primary();
 
     expect(t.controller.view().step?.id).toBe("play-limbo");
     t.dispatch({

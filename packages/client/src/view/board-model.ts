@@ -44,6 +44,7 @@ import {
   type Form,
   type GameState,
   type InstanceId,
+  type LegalActions,
   type PlayCost,
   type PlayerId,
   type PlayerState,
@@ -53,6 +54,7 @@ import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { keywordLabel } from "./keyword-label.js";
 import { faceVisible } from "./visibility.js";
+import { deckTopStatus, shownTopOf } from "./deck-top.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
@@ -467,6 +469,8 @@ export interface SeatRow {
   readonly minionCount: number;
   readonly statuses: readonly StatusPip[];
   readonly isFirstPlayer: boolean;
+  /** The faceup top card of this seat's deck, which every player may read; null when the deck is facedown. */
+  readonly shownTop: { readonly instanceId: InstanceId; readonly name: string } | null;
   readonly eliminated: boolean;
   /** True once this seat's turn is done this round. Never true for an eliminated seat. */
   readonly done: boolean;
@@ -476,6 +480,17 @@ export interface SeatRow {
   readonly effects: readonly string[];
   /** Cards this seat controls that another player owns: "Heroic Intuition · from Black Panther". */
   readonly borrowed: readonly string[];
+}
+
+/** The faceup top card of a player's deck (Magik): the card itself, its price from the top, and whether it can be played. */
+export interface DeckTopView {
+  /** The shown card; `currentCost` is what the engine charges to play it from the deck (1 less for Magik). */
+  readonly card: HandCardView;
+  readonly playable: boolean;
+  /** In a few words, when the card is shown but cannot be played now. */
+  readonly reason: string | null;
+  /** The reason in two words, for a tag on the pile. */
+  readonly tag: string | null;
 }
 
 export interface PileCounts {
@@ -535,6 +550,8 @@ export interface BoardModel {
   readonly hand: readonly HandCardView[];
   readonly handLimit: number;
   readonly myPiles: PileCounts;
+  /** My deck's faceup top card, when the engine shows one; null while the deck is facedown. */
+  readonly myDeckTop: DeckTopView | null;
   /** Your discard pile, top card first. Discard piles are open information (`view/visibility.ts`). */
   readonly myDiscard: readonly InstanceId[];
   /** The top of your discard, which the pile box shows faceup. */
@@ -661,7 +678,13 @@ function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPane
     }));
 }
 
-export function boardModel(state: GameState, perspectiveId: PlayerId, deps: EngineDeps): BoardModel {
+export function boardModel(
+  state: GameState,
+  perspectiveId: PlayerId,
+  deps: EngineDeps,
+  /** The viewer's legal actions, which say whether the shown top card can be played and why not. */
+  actions: LegalActions | null = null,
+): BoardModel {
   const me = getPlayer(state, perspectiveId);
   if (!me) throw new Error(`no seat ${perspectiveId}`);
 
@@ -721,6 +744,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     ],
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
+    myDeckTop: myDeckTopView(state, perspectiveId, deps, actions),
     encounterPiles: {
       deck: activeEncounterDeck(state).deck.length,
       discard: activeEncounterDeck(state).discard.length,
@@ -1392,6 +1416,17 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
  * where each one is: attached to a card in play (Hawkeye's Quiver) or in their discard pile. Attached cards first, in
  * play order, then the discard from the top.
  */
+function myDeckTopView(
+  state: GameState,
+  playerId: PlayerId,
+  deps: EngineDeps,
+  actions: LegalActions | null,
+): DeckTopView | null {
+  const top = shownTopOf(state, playerId, deps);
+  if (top === null) return null;
+  return { card: handCardView(state, top, playerId, deps), ...deckTopStatus(state, playerId, deps, top, actions) };
+}
+
 function playableOutsideHandOf(
   state: GameState,
   playerId: PlayerId,
@@ -1429,6 +1464,11 @@ export function resourceIconList(pool: Readonly<Record<ResourceIconType, number>
   return icons;
 }
 
+function shownSeatTop(state: GameState, playerId: PlayerId, deps: EngineDeps): SeatRow["shownTop"] {
+  const id = shownTopOf(state, playerId, deps);
+  return id === null ? null : { instanceId: id, name: cardOf(state, id)?.name ?? "A card" };
+}
+
 export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps): SeatRow {
   const player = getPlayer(state, playerId);
   if (!player) throw new Error(`no seat ${playerId}`);
@@ -1447,6 +1487,7 @@ export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps):
     minionCount: player.playArea.filter((id) => isMinion(state, id)).length,
     statuses: instance ? statusPips(instance) : [],
     isFirstPlayer: state.firstPlayerId === playerId,
+    shownTop: shownSeatTop(state, playerId, deps),
     eliminated: player.eliminated,
     // Turns run off `remainingPlayerIds`: a seat not in that list has had its
     // turn. An eliminated seat is dropped from that list too, which read as

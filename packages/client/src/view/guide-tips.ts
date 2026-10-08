@@ -697,8 +697,8 @@ function faceupTopCardTip({ game, lastEvents, perspectiveId }: LessonObservation
     id: "situation:faceupTopCard",
     title: "Your top card is faceup",
     body:
-      "Magik plays with her [[faceupTopCard|top card faceup]]. Once per phase you may play it for 1 less, and her " +
-      "upgrades read its resource icon.",
+      "Magik plays with her [[faceupTopCard|top card faceup]]. Tap it on your deck to play it, once per phase, " +
+      "for 1 less. Her upgrades read its resource icon.",
   };
 }
 

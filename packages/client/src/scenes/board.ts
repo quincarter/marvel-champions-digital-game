@@ -515,7 +515,8 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS));
+    const mine = state.legal?.playerId === state.perspectiveId ? state.legal.actions : null;
+    this.#model = this.#withDebugSideSchemes(boardModel(state.game, state.perspectiveId, POOL_DEPS, mine));
     this.#marks = state.legal
       ? withDefenseLockout(highlights(state.legal.actions), state.game, state.perspectiveId, POOL_DEPS)
       : null;

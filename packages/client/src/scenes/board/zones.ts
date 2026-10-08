@@ -1152,7 +1152,8 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
       .setOrigin(0.5);
     cursor += 20;
   }
-  const notes = [...seat.effects, ...seat.borrowed];
+  // A faceup top card (Magik's) is public: other seats read it to plan around her upgrades and spells.
+  const notes = [...seat.effects, ...seat.borrowed, ...(seat.shownTop ? [`top: ${seat.shownTop.name}`] : [])];
   // The yellow Team-Up blurb, under the name and HP lines (and under any status or note chips): this hero's alter-ego
   // is what keeps a present pair from being playable. Skipped when the row has no room for it.
   const blurbTop = lineY + (seat.statuses.length > 0 || notes.length > 0 ? 20 : 0);

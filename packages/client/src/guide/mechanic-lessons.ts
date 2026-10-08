@@ -1057,12 +1057,19 @@ const ICEMAN_TRYIT: Lesson = {
 };
 
 const LIMBO = cardId("45032");
+const COLOSSUS = cardId("45031");
+
+/** Colossus left the top of the deck for the table by the deck-top play (`cardPlayed` carries `from: "deckTop"`). */
+const playedFromDeckTop: LessonPredicate = (observation) =>
+  observation.lastEvents.some((event) => event.type === "cardPlayed" && event.from === "deckTop");
 
 /**
- * Magik: the faceup top card and Limbo. Illyana's hand is stacked with Limbo and a resource card, and Colossus is the top
- * card (`mechanic-tryit-config.ts`). Her hero side plays with the top card faceup (`wave8/aoa/magik/identity.ts`); Limbo's
- * Action swaps a card in her hand with it (`wave8/aoa/magik/support-upgrades-allies.ts`), logged as `cardsSwapped`. The
- * step is done once that swap has happened and no choice is left open.
+ * Magik: the faceup top card, playing it, and Limbo. Illyana's hand is stacked with Limbo, a resource card and four
+ * cards that pay for things, and Colossus (cost 3) is the top card (`mechanic-tryit-config.ts`). Her hero side plays
+ * with the top card faceup and lets her play it once per phase as if it were in her hand, for 1 less
+ * (`wave8/aoa/magik/identity.ts`); the engine logs that play as `cardPlayed { from: "deckTop" }`. Limbo's Action then
+ * swaps a card in her hand with the new top card (`wave8/aoa/magik/support-upgrades-allies.ts`), logged as
+ * `cardsSwapped`. Each step is done once its event has happened and no choice is left open.
  */
 const MAGIK_TRYIT: Lesson = {
   id: "mechanic-tryit-magik",
@@ -1091,11 +1098,37 @@ const MAGIK_TRYIT: Lesson = {
       gate: FULL_GATE,
     },
     {
+      id: "play-top",
+      anchor: { kind: "card", code: COLOSSUS },
+      copy: {
+        title: "Play the top card",
+        body:
+          "Colossus is faceup on your deck. Tap him there: he costs 3, but 1 less from the top, so pay 2 with " +
+          "Blood Rage and Test the Defense.",
+        tip: "Tap the faceup card on your deck.",
+        short: "Play Colossus from the deck.",
+        doThis: "Tap Colossus on your deck",
+      },
+      mode: "await",
+      completes: playedFromDeckTop,
+      gate: FULL_GATE,
+    },
+    {
+      id: "next-card",
+      copy: {
+        title: "The next card shows",
+        body:
+          "The moment Colossus left, the next card turned faceup. That was your one play from the top this phase: " +
+          "tap the deck again and it tells you so.",
+      },
+      mode: "acknowledge",
+    },
+    {
       id: "play-limbo",
       anchor: { kind: "zone", id: "hand" },
       copy: {
         title: "Play Limbo",
-        body: "Play Limbo from your hand, paying its 1 with The Power of Aggression. Your top card is now faceup above your deck.",
+        body: "Play Limbo from your hand, paying its 1 with The Power of Aggression.",
         tip: "Pay for Limbo with a resource card.",
         short: "Play Limbo.",
         doThis: "Play Limbo, pay with The Power of Aggression",

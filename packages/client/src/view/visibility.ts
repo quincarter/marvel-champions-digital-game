@@ -13,4 +13,19 @@
  * may not see, and this function becomes a rendering detail rather than the thing keeping the secret.
  */
 
-export { faceVisible } from "@mc/engine";
+import {
+  faceVisible as engineFaceVisible,
+  type GameState,
+  type InstanceId,
+  type TableContext,
+  type ViewerContext,
+} from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
+
+/**
+ * The engine's `faceVisible`, answering for the table when the caller names no viewer: a rule that shows a card to
+ * every player (Magik's faceup top card, `topOfDeckFaceup`) is read through the pool's deps, so a name, a log line or a
+ * prompt about that card never says "a facedown card" for a card the whole table is looking at.
+ */
+export const faceVisible = (state: GameState, id: InstanceId, view?: ViewerContext | TableContext): boolean =>
+  engineFaceVisible(state, id, view ?? { deps: POOL_DEPS });
