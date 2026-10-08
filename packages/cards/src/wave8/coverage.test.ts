@@ -10,6 +10,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
+import { BISHOP_IDENTITY } from "./aoa/bishop/identity.js";
 import { BLUE_MOON } from "./aoa/blue-moon.js";
 import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
@@ -26,6 +27,7 @@ import {
 } from "./iceman/iceman/support-upgrades-allies.js";
 import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
+import { JUBILEE_EVENTS, JUBILEE_EVENTS_SKIPPED } from "./jubilee/jubilee/events.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
 import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
@@ -70,6 +72,7 @@ const SCRIPTED_MODULES: Readonly<
   >
 > = {
   aoa: [
+    { module: "bishop/identity", cardIds: ["45001a", "45001b"], registry: BISHOP_IDENTITY, skipped: {} },
     {
       module: "blue-moon",
       cardIds: ["45139", "45140", "45141", "45142", "45143", "45144", "45145", "45146"],
@@ -124,6 +127,12 @@ const SCRIPTED_MODULES: Readonly<
   ],
   jubilee: [
     { module: "jubilee/identity", cardIds: ["47001a", "47001b"], registry: JUBILEE_IDENTITY, skipped: {} },
+    {
+      module: "jubilee/events",
+      cardIds: ["47006", "47007a", "47007b", "47007c", "47008a", "47008b", "47008c", "47009"],
+      registry: JUBILEE_EVENTS,
+      skipped: JUBILEE_EVENTS_SKIPPED,
+    },
     { module: "jubilee/arcade", cardIds: ["47030", "47031", "47032", "47033", "47034"], registry: ARCADE, skipped: {} },
   ],
   ncrawler: [
