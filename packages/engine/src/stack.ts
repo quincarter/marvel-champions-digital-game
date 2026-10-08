@@ -224,6 +224,26 @@ export type StackFrame =
        */
       readonly thwartInstanceCancelled?: true;
       /**
+       * On a player's `attack` event made by an "(attack)"-labeled ability with its controller's identity: the root
+       * effects frame of that ability's resolution. The ability is one attack (RRG 1.8 "Attack (Player Ability Type)",
+       * p. 10), so this attack does not finish with its own damage: it waits beneath that frame until the ability's
+       * last effect has resolved (`resolve/attack-ability.ts`).
+       */
+      readonly attackOf?: FrameId;
+      /**
+       * With `attackOf`: this attack has dealt its own damage and is waiting beneath its ability's root frame for the
+       * rest of the ability. Damage the ability deals to enemies meanwhile is this attack's. Once the ability's
+       * frame is gone the attack finishes: every enemy attacked (`attacked`), then "after … attacks", then "at the
+       * end of this attack". While it waits it is not "this attack" to `currentActivationFrameId`.
+       */
+      readonly attackWaiting?: true;
+      /**
+       * With `attackOf`: the enemies this attack has attacked so far, one `characterAttacked` each (its own target,
+       * then every enemy a later instruction of the ability dealt damage to), pushed when the attack finishes. An
+       * enemy named twice is attacked once (`resolve/attack-ability.ts`).
+       */
+      readonly attacked?: readonly Extract<TriggerEvent, { kind: "characterAttacked" }>[];
+      /**
        * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
        * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
        * comes, the event ends there: no interrupt, no enter-play keyword, no response (`resolve/state-checks.ts`).
@@ -629,6 +649,9 @@ export function paidForFrameId(stack: readonly StackFrame[], instanceId: Instanc
 export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId | null {
   for (const frame of stack) {
     if (frame.kind !== "event") continue;
+    // An "(attack)" ability's attack waiting for the rest of its ability (`attackWaiting`) has dealt its damage: the
+    // ability's later instructions name what they named before it waited, the activation around it if there is one.
+    if (frame.attackWaiting) continue;
     const kind = frame.event.kind;
     // `enemyAttacksEnemy` is an attack, so "this attack" names it, though not an activation (docs/phase7-wave3.md §3.23).
     if (

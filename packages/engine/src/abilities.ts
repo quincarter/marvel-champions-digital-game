@@ -168,6 +168,13 @@ export interface EventPattern {
  * except its costs. A defense label makes the identity the defender of the
  * current enemy attack if it has none (no DEF reduction, no exhaust).
  *
+ * An "(attack)" ability is one attack (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling, 2026-10-07,
+ * docs/phase7-wave8.md §4.1 Q47): once its `attack` effect, made by the controller's identity, has dealt its damage,
+ * damage the ability's `dealDamage` effects deal to enemies is that attack's (attack damage dealt by the identity, each
+ * enemy attacked once), and the attack finishes after the ability's last effect: retaliate from each attacked enemy
+ * still in play, "after … attacks", "at the end of this attack" (`resolve/attack-ability.ts`). Damage the ability
+ * deals to anything that is not an enemy stays plain damage.
+ *
  * A "(thwart)" ability is a real thwart whether or not it uses the hero's THW (owner decision, 2026-10-03): threat it
  * removes from a scheme, by `removeThreat`, `divide` or `modifyAttack.removesThreat` / `removesThreatFrom` as well as
  * by `thwart`, is a `thwart` event by the controller's identity (`EffectContext.thwartLabeled`). So patrol and

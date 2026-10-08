@@ -577,6 +577,18 @@ export type GameEvent =
       readonly reason: "dashedStat" | "leftPlay";
     }
   /**
+   * An "(attack)" ability's attack has dealt its own damage and now waits for the rest of its ability (RRG 1.8 "Attack
+   * (Player Ability Type)", p. 10: the ability is a single attack; `resolve/attack-ability.ts`). From here until the
+   * ability's last effect, damage it deals to enemies is this attack's, and the attack finishes after it: each enemy
+   * attacked (retaliate), "after … attacks", "at the end of this attack".
+   */
+  | {
+      readonly type: "attackAwaitsAbility";
+      readonly attackFrameId: FrameId;
+      readonly abilityFrameId: FrameId;
+      readonly attackerInstanceId: InstanceId;
+    }
+  /**
    * A player's attack ended before dealing damage because its attacker left play first (docs/phase7-wave4.md §4 Q20,
    * user decision 2026-09-25: Speed Demon's "(Resolve Speed Demon's attack first.)" defeating the attacking ally). No
    * damage is dealt and nothing hangs off it (no `characterAttacked`, so no retaliate).

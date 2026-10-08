@@ -54,8 +54,10 @@ import {
  * an ability labeled attack is a single attack even with several instances of damage; each "for each ... choose" is its
  * own instance, and the same enemy may be chosen again. The instances are chosen among the enemies she may attack at
  * that moment (RRG "For Each", p. 20: defeating a guard minion with one instance makes the villain a valid target for
- * the next). The first instance is the attack proper (guard, retaliate and "after attacks" responses); the rest are
- * further damage of that attack and run as `dealDamage`, as Royal Flush (`gambit` 37007) does.
+ * the next). The first instance is the `attack` effect (guard, the "when you attack" window); the rest are further
+ * damage of that attack, written as `dealDamage`: the engine makes a `dealDamage` to an enemy that follows an "(attack)"
+ * ability's `attack` that attack's (section 4.1 Q46 and Q47), so every instance is attack damage, each enemy dealt any
+ * is attacked once (one retaliate each, after the last instance) and "after you attack" answers the whole ability.
  */
 const versions = (ids: readonly string[], slug: string, definition: AbilityDefinition) =>
   Object.fromEntries(ids.map((id) => [`${id}.${slug}`, definition]));

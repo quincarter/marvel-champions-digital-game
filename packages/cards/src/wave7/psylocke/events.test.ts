@@ -189,6 +189,52 @@ describe("Flurry of Blades (41004)", () => {
     expect(damage(run.state, zero)).toBe(2);
     expect(statusOf(run.state, v, "confused")).toBe(0);
   });
+  // Owner ruling, docs/phase7-wave8.md §4.1 Q47 (RRG 1.8 "Attack (Player Ability Type)", p. 10): the ability is one
+  // attack, so each Psi-Katana's 2 damage is damage from that attack, like the first 2.
+  it("Q47, two Psi-Katanas under '+1 damage from each attack' on the villain: Stryfe takes 3 + 3 (attack, a Katana), Zero 2", () => {
+    const { state, zero } = staged(KATANAS);
+    const v = stryfe(state);
+    const marked: GameState = {
+      ...state,
+      scenarioRules: {
+        ...state.scenarioRules,
+        rules: [
+          ...(state.scenarioRules.rules ?? []),
+          { kind: "increaseDamageTaken", target: { categories: ["villain"] }, amount: 1, fromAttack: true },
+        ],
+      },
+    };
+    const run = playEvent(marked, "41004", 3, queue(v, zero, v));
+    const dealt = events(run.events, "damageDealt").map((e) => [e.targetInstanceId, e.amount]);
+    expect(dealt).toEqual([
+      [v, 3],
+      [zero, 2],
+      [v, 3],
+    ]);
+    expect(damage(run.state, v)).toBe(6);
+    expect(damage(run.state, zero)).toBe(2);
+  });
+  it("Q47, both Katanas on Stryfe under the same rule: three instances of 3 = 9", () => {
+    const { state } = staged(KATANAS);
+    const v = stryfe(state);
+    const marked: GameState = {
+      ...state,
+      scenarioRules: {
+        ...state.scenarioRules,
+        rules: [
+          ...(state.scenarioRules.rules ?? []),
+          { kind: "increaseDamageTaken", target: { categories: ["villain"] }, amount: 1, fromAttack: true },
+        ],
+      },
+    };
+    const run = playEvent(marked, "41004", 3, queue(v, v, v));
+    expect(
+      events(run.events, "damageDealt")
+        .filter((e) => e.targetInstanceId === v)
+        .map((e) => e.amount),
+    ).toEqual([3, 3, 3]);
+    expect(damage(run.state, v)).toBe(9);
+  });
   it("one of each: one confuse and one 2 damage", () => {
     const { state, zero } = staged(MIXED);
     const v = stryfe(state);

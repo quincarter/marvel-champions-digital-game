@@ -1471,6 +1471,17 @@ export type EffectSpec =
       readonly kind: "dealDamage";
       readonly target: TargetRef;
       readonly amount: ValueSpec;
+      /**
+       * `true`: the damage is an attack's, dealt by this effect's own card.
+       *
+       * Absent: plain damage, except in an "(attack)"-labeled ability whose attack by its controller's identity has
+       * dealt its own damage: this effect's damage to an **enemy** is then that attack's (dealt by the attacker, the
+       * enemy attacked, results reported to the attack), since the ability is one attack (RRG 1.8 "Attack (Player
+       * Ability Type)", p. 10; owner ruling, docs/phase7-wave8.md §4.1 Q47; `resolve/attack-ability.ts`).
+       *
+       * `false`: never an attack's, for an instruction of an "(attack)" ability a card words as something other than
+       * the attack's damage.
+       */
       readonly fromAttack?: boolean;
       readonly ignoreTough?: boolean;
       readonly bind?: string;

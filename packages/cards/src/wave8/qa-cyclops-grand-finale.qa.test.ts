@@ -43,8 +43,9 @@ vi.setConfig({ testTimeout: 120_000 });
  *
  * Grand Finale is scripted as a real `attack(2)` (first instance) and `dealDamage(2)` for each further instance
  * ("for each different type that paid": the number of instances after the first is the number of types paid, at most
- * the cost, Q34 = A). Cyclops is scripted as `applyRuleUntil(increaseDamageTaken, fromAttack, endOfPhase)`. Whether the
- * engine counts the further `dealDamage` instances as damage from an attack is what this file checks.
+ * the cost, Q34 = A). Cyclops is scripted as `applyRuleUntil(increaseDamageTaken, fromAttack, endOfPhase)`. The engine
+ * counts the further `dealDamage` instances as damage from that attack (section 4.1 row 47, Q47 = A: an "(attack)"
+ * ability is one attack, and damage it deals to enemies while resolving is damage from it), which this file checks.
  *
  * Counting note: "four instances" is the first attack plus three types paid (cost 3, E + M + PH). Paying with fewer
  * types gives fewer instances: one type = 2 instances, two types = 3.
@@ -277,12 +278,9 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     expect(inst(run.state, rhino).damage).toBe(8);
   });
 
-  // The six it.fails below state FFG's ruling (Q46 = A) and fail today: the engine gives 3 + 2 + 2 + 2 = 9 where the
-  // ruling gives 12. Only the first instance, the real `attack()`, is attack damage; the further instances are
-  // `dealDamage` effects with `fromAttack` unset (see the companion block at the end for the numbers pinned).
-  // The ruling: every instance is attack damage. If the engine gives 9 (3 + 2 + 2 + 2), only the real `attack()`
-  // instance counted. Today's number is pinned by the companion test below.
-  it.fails("Cyclops used on Rhino first: four instances of 3 = 12 (FFG's own example)", () => {
+  // FFG's ruling (Q46 = A) and the owner's general rule (Q47 = A): every instance is damage from the one attack the
+  // ability makes, so each instance against the enemy Cyclops chose takes his +1 (the engine's `attack-ability.ts`).
+  it("Cyclops used on Rhino first: four instances of 3 = 12 (FFG's own example)", () => {
     const run = begin(setupGame());
     const rhino = villainOf(run.state);
     playCyclops(run, rhino);
@@ -291,7 +289,7 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     expect(inst(run.state, rhino).damage).toBe(12);
   });
 
-  it.fails("Cyclops used on Rhino first, one type paid: two instances, 3 + 3 = 6", () => {
+  it("Cyclops used on Rhino first, one type paid: two instances, 3 + 3 = 6", () => {
     const run = begin(setupGame());
     const rhino = villainOf(run.state);
     playCyclops(run, rhino);
@@ -300,7 +298,7 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     expect(inst(run.state, rhino).damage).toBe(6);
   });
 
-  it.fails("Cyclops used on Rhino first, two types paid: three instances, 3 + 3 + 3 = 9", () => {
+  it("Cyclops used on Rhino first, two types paid: three instances, 3 + 3 + 3 = 9", () => {
     const run = begin(setupGame());
     const rhino = villainOf(run.state);
     playCyclops(run, rhino);
@@ -309,7 +307,7 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     expect(inst(run.state, rhino).damage).toBe(9);
   });
 
-  it.fails("four types paid (cost 4 fixture, Like, totally! as the fourth) under Cyclops: five instances of 3 = 15", () => {
+  it("four types paid (cost 4 fixture, Like, totally! as the fourth) under Cyclops: five instances of 3 = 15", () => {
     const base = withCost(setupGame(), FINALE, 4);
     const run = begin(base);
     const rhino = villainOf(run.state);
@@ -329,7 +327,7 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     expect(amountsTo(events, rhino).reduce((a, b) => a + b, 0)).toBe(15);
   });
 
-  it.fails("split across two enemies, Cyclops on Rhino only: +1 on the instances that hit Rhino (3 + 3), none on Melter (2 + 2)", () => {
+  it("split across two enemies, Cyclops on Rhino only: +1 on the instances that hit Rhino (3 + 3), none on Melter (2 + 2)", () => {
     const base = setupGame();
     const melterAdded = withMinion(base, "01132"); // Masters of Evil minion: 5 hit points, no Guard
     const run = begin(melterAdded.state);
@@ -347,7 +345,7 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     expect(inst(run.state, melter).damage).toBe(4);
   });
 
-  it.fails("split across two enemies, Cyclops on Melter only: the instances that hit Melter are 3, the ones on Rhino 2", () => {
+  it("split across two enemies, Cyclops on Melter only: the instances that hit Melter are 3, the ones on Rhino 2", () => {
     const melterAdded = withMinion(setupGame(), "01132");
     const run = begin(melterAdded.state);
     const rhino = villainOf(run.state);
@@ -389,39 +387,5 @@ describe("Cyclops 49015 under Grand Finale 47009 (Q46 = A: FFG's example, 2 + 2 
     if (!replayed.ok) return;
     expect(replayed.state).toEqual(run.state);
     expect(replayed.events).toEqual(run.events);
-  });
-
-  describe("companion: today's engine numbers, pinned (they differ from the ruling above; delete when the engine follows Q46)", () => {
-    it("three types under Cyclops on Rhino: 3 + 2 + 2 + 2 = 9, not 12 (only the real attack() instance is attack damage)", () => {
-      const run = begin(setupGame());
-      const rhino = villainOf(run.state);
-      playCyclops(run, rhino);
-      const events = playFinale(run, [E, M, PH], [rhino, rhino, rhino, rhino]);
-      expect(amountsTo(events, rhino)).toEqual([3, 2, 2, 2]);
-      expect(inst(run.state, rhino).damage).toBe(9);
-    });
-    it("one type under Cyclops: 3 + 2 = 5 (ruling: 6); two types: 3 + 2 + 2 = 7 (ruling: 9)", () => {
-      const one = begin(setupGame());
-      const r1 = villainOf(one.state);
-      playCyclops(one, r1);
-      expect(amountsTo(playFinale(one, [E, E, E], [r1, r1]), r1)).toEqual([3, 2]);
-      const two = begin(setupGame());
-      const r2 = villainOf(two.state);
-      playCyclops(two, r2);
-      expect(amountsTo(playFinale(two, [E, E, M], [r2, r2, r2]), r2)).toEqual([3, 2, 2]);
-    });
-    it("Cyclops on Melter only, Melter chosen for the first instance too: only that first instance gets +1", () => {
-      const added = withMinion(setupGame(), "01132");
-      const run = begin(added.state);
-      const rhino = villainOf(run.state);
-      playCyclops(run, added.id);
-      const events = playFinale(run, [E, M, PH], [added.id, rhino, added.id, rhino]);
-      expect(damageEvents(events)).toEqual([
-        { target: added.id, amount: 3 },
-        { target: rhino, amount: 2 },
-        { target: added.id, amount: 2 },
-        { target: rhino, amount: 2 },
-      ]);
-    });
   });
 });

@@ -118,6 +118,7 @@ import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
+import { attackAwaitsAbility, pushAttackedByAbility, waitBeneathAbility } from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
@@ -291,6 +292,16 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "responses": {
+      // An "(attack)" ability's attack waits for the rest of its ability before it finishes (RRG 1.8 "Attack (Player
+      // Ability Type)", p. 10: the ability is a single attack; owner ruling Q47, `attack-ability.ts`). Its results go
+      // to the instruction that made it now, as the ability's next instructions read them.
+      if (attackAwaitsAbility(ctx.state, frame)) {
+        reportResults(ctx, frame, true);
+        waitBeneathAbility(ctx, frame);
+        return;
+      }
+      // The ability has finished: each enemy its attack attacked is named (retaliate), before "after … attacks".
+      if (pushAttackedByAbility(ctx, frame)) return;
       // An instance of a "(thwart)" ability's one thwart: its results join the ability's, whose resolved `thwart` and
       // response window follow the ability's last effect (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
       if (foldThwartInstance(ctx, frame)) {
@@ -1803,28 +1814,35 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
     frameId,
     guardsIgnored(ctx.state, ctx.deps, event.attackerInstanceId, event.targetInstanceId, event.playerId),
   );
-  pushEvents(ctx, [
-    {
-      kind: "dealDamage",
-      targetInstanceId: event.targetInstanceId,
-      amount,
-      sourceInstanceId: event.attackerInstanceId,
-      fromAttack: true,
-      parentFrameId: frameId,
-      overkill: event.overkill === true || keywords.includes("overkill"),
-      viaInstanceId: event.sourceInstanceId ?? null,
-      // Only set when true, so an attack with no granted keyword logs exactly as it always has.
-      ...(keywords.includes("piercing") ? { piercing: true } : {}),
-      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
-    },
-    {
-      kind: "characterAttacked",
-      attackerInstanceId: event.attackerInstanceId,
-      targetInstanceId: event.targetInstanceId,
-      playerId: event.playerId,
-      ...(keywords.includes("ranged") ? { ranged: true } : {}),
-    },
-  ]);
+  const damage: DamageEvent = {
+    kind: "dealDamage",
+    targetInstanceId: event.targetInstanceId,
+    amount,
+    sourceInstanceId: event.attackerInstanceId,
+    fromAttack: true,
+    parentFrameId: frameId,
+    overkill: event.overkill === true || keywords.includes("overkill"),
+    viaInstanceId: event.sourceInstanceId ?? null,
+    // Only set when true, so an attack with no granted keyword logs exactly as it always has.
+    ...(keywords.includes("piercing") ? { piercing: true } : {}),
+    ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
+  };
+  const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }> = {
+    kind: "characterAttacked",
+    attackerInstanceId: event.attackerInstanceId,
+    targetInstanceId: event.targetInstanceId,
+    playerId: event.playerId,
+    ...(keywords.includes("ranged") ? { ranged: true } : {}),
+  };
+  // An "(attack)" ability's attack is not over with this damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner
+  // ruling Q47, `attack-ability.ts`): its target is named as attacked once the whole ability has resolved, with every
+  // other enemy the ability dealt damage to.
+  if (attackFrame?.kind === "event" && attackAwaitsAbility(ctx.state, attackFrame)) {
+    setFrame(ctx, { ...attackFrame, attacked: [...(attackFrame.attacked ?? []), attacked] });
+    pushEvents(ctx, [damage]);
+    return;
+  }
+  pushEvents(ctx, [damage, attacked]);
 }
 
 /**

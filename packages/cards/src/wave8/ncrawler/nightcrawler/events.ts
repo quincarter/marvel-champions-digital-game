@@ -48,7 +48,9 @@ const BAMF = query("upgrade", { name: "Bamf!" });
  *
  * **'Port and Punch (48007)**, Hero Action (attack): an attack of 3 on an enemy he may attack, then 3 damage to each
  * enemy with a copy of Bamf! attached (Star-Lord's Ricochet Shot is the same shape: the attack, then damage to others).
- * An enemy with a copy that is also the target takes both. The second part is plain damage, not an attack.
+ * An enemy with a copy that is also the target takes both. The ability is one attack, so the second part is damage from
+ * that attack and each enemy it reaches is attacked (section 4.1 Q47): the engine makes a `dealDamage` to an enemy that
+ * follows an "(attack)" ability's `attack` that attack's, so it is written as plain `dealDamage`.
  *
  * **Scout Ahead (48009)**, Hero Action (thwart): remove 3 threat from a scheme; then, if another scheme is in play, he
  * may discard a copy of Bamf! from his hand (a choice of at least 0 cards, so declining is allowed) and, only if one

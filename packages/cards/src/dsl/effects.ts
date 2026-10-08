@@ -82,6 +82,14 @@ export const heal = (n: Amount, target: TargetRef, opts: { readonly bind?: strin
  * `by`: "**the player who defeated this scheme** deals 5 damage to the villain" (Lay the Trap, `psylocke` 41016) is
  * `dealDamage(5, theVillain, { by: defeatingPlayer })`: the player the card names as dealing it. A ref that names no
  * player still deals the damage, by no player (`EffectSpec dealDamage.by`; docs/phase7-wave7.md §4.1 Q2).
+ *
+ * **In an "(attack)" ability, after its `attack(...)`:** the engine makes this damage that attack's whenever the target
+ * is an enemy (RRG 1.8 "Attack (Player Ability Type)", p. 10: the ability is a single attack; owner ruling,
+ * docs/phase7-wave8.md §4.1 Q47). Write the further instances as plain `dealDamage`: "deal 2 damage to an enemy; for
+ * each …, choose an enemy and deal 2 damage to it" is `attack(2, …)` then `dealDamage(2, …)`, and every instance
+ * takes "+1 damage from each attack", names its enemy as attacked (one retaliate each) and counts for "after you
+ * attack and defeat". Damage to your own identity or an ally is never the attack's. `fromAttack: false` keeps one
+ * instruction out of the attack; `fromAttack: true` is an attack's damage dealt by this card itself (no hero attack).
  */
 export const dealDamage = (
   n: Amount,
@@ -91,11 +99,13 @@ export const dealDamage = (
     readonly perTarget?: boolean;
     readonly sourceFromEvent?: boolean;
     readonly by?: PlayerRef;
+    readonly fromAttack?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "dealDamage",
   target,
   amount: amount(n),
+  ...(opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {}),
   ...withBind(opts.bind),
   ...(opts.perTarget ? { perTarget: true as const } : {}),
   ...(opts.sourceFromEvent ? { sourceFromEvent: true as const } : {}),

@@ -159,6 +159,12 @@ import {
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked, thwartBlockedOn } from "./event.js";
+import {
+  abilityAttackDamage,
+  abilityAttackRoot,
+  noteAttackedByAbility,
+  waitingAbilityAttack,
+} from "./attack-ability.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck } from "./target-validity.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
@@ -385,20 +391,36 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           ctx.deps,
         );
       const shared = effect.perTarget ? 0 : value(effect.amount);
+      // An "(attack)" ability is one attack (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling Q47): once
+      // its attack has dealt its own damage, damage the ability deals to an enemy is that attack's, and the enemy is
+      // attacked (`attack-ability.ts`). `fromAttack: false` says otherwise for one instruction; damage its player
+      // takes (`taken`) and damage that names another dealer (`sourceFromEvent`) are never the attack's.
+      const attack =
+        effect.fromAttack === undefined && !effect.taken && !effect.sourceFromEvent
+          ? waitingAbilityAttack(ctx.state, ctx.deps, frame)
+          : undefined;
+      const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }>[] = [];
       const events = targets(effect.target)
         .map((id) => ({ id, base: effect.perTarget ? amountFor(id) : shared }))
         .filter(({ base }) => !effect.perTarget || base > 0)
-        .map(({ id, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
-          kind: "dealDamage",
-          targetInstanceId: id,
-          amount: base + bonus,
-          sourceInstanceId:
-            (effect.sourceFromEvent && context.event?.kind === "dealDamage" ? context.event.sourceInstanceId : null) ??
-            frame.selfInstanceId,
-          fromAttack: effect.fromAttack === true,
-          ...(effect.ignoreTough ? { ignoreTough: true } : {}),
-          ...(namedBy(effect.by) === null ? { noPlayer: true } : {}),
-        }));
+        .map(({ id, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => {
+          const ofAttack = attack ? abilityAttackDamage(ctx.state, ctx.deps, attack, id) : null;
+          if (ofAttack) attacked.push(ofAttack.attacked);
+          return {
+            kind: "dealDamage",
+            targetInstanceId: id,
+            amount: base + bonus,
+            sourceInstanceId:
+              (effect.sourceFromEvent && context.event?.kind === "dealDamage"
+                ? context.event.sourceInstanceId
+                : null) ?? frame.selfInstanceId,
+            fromAttack: effect.fromAttack === true,
+            ...(effect.ignoreTough ? { ignoreTough: true } : {}),
+            ...(namedBy(effect.by) === null ? { noPlayer: true } : {}),
+            ...ofAttack?.damage,
+          };
+        });
+      if (attack) noteAttackedByAbility(ctx, attack.frameId, attacked);
       // One effect dealing damage to several characters ("each character", "two enemies") deals it simultaneously:
       // ruling, June 2, 2026 (2) answer 1 ("Damage is dealt simultaneously; resolve damage steps for both enemies at
       // the same time"), with RRG 1.8 "Damage" (p. 14) giving the steps. So every target is dealt its damage before
@@ -489,7 +511,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // RRG "Attack (Player Ability Type)": attacks can target any enemy unless guard prevents it.
       const attacked = targets(effect.target).filter((id) => canAttack(ctx.state, attacker, id, ctx.deps));
-      pushEvents(
+      // An "(attack)" ability's attack by its controller's identity belongs to the ability, and waits for it to finish
+      // (RRG 1.8 "Attack (Player Ability Type)", p. 10; `attack-ability.ts`).
+      const attackOf = abilityAttackRoot(ctx.state, ctx.deps, frame, attacker);
+      const pushed = pushEvents(
         ctx,
         attacked.map((id) => ({
           kind: "attack",
@@ -505,6 +530,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         })),
         reportTo(effect.bind),
       );
+      if (attackOf !== undefined) {
+        for (const id of pushed) updateFrame(ctx, id, (f) => (f.kind === "event" ? { ...f, attackOf } : f));
+      }
       return;
     }
     case "treatAsAlly": {
@@ -938,7 +966,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "resolveAttackAgainst": {
       const attack = ctx.state.stack.find(
-        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "attack" && !f.cancelled,
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "attack" && !f.cancelled && !f.attackWaiting,
       );
       if (!attack || attack.event.kind !== "attack") return;
       const original = attack.event;

@@ -526,12 +526,16 @@ class Observer {
       seen.mentalDetection.push(`${play.here} knives=${knives} katanas=${katanas} drew=${drawn}`);
     }
     if (play.code === "41004") {
-      // Flurry of Blades: attack 2; per Knife confuse a chosen enemy; per Katana 2 damage (not an attack) to a chosen enemy.
+      // Flurry of Blades: attack 2; per Knife confuse a chosen enemy; per Katana 2 damage to a chosen enemy. The
+      // ability is one attack, so each Katana's 2 is damage from that attack (docs/phase7-wave8.md §4.1 Q47): attack
+      // damage reported to the same attack as the first instance, which is the one not counted here.
       const attack = triggers.find((t) => t.kind === "attack" && t.phase === "initiated");
       expect(attack?.amount, `${play.here}: Flurry's attack`).toBe(2);
-      const katanaDamage = triggers.filter(
-        (t) => t.kind === "dealDamage" && t.phase === "initiated" && t.fromAttack === false && t.amount === 2,
-      ).length;
+      const attackDamage = triggers.filter(
+        (t) => t.kind === "dealDamage" && t.phase === "initiated" && t.fromAttack === true && t.parentFrameId != null,
+      );
+      const ofTheAttack = attackDamage.filter((t) => t.parentFrameId === attackDamage[0]?.parentFrameId);
+      const katanaDamage = ofTheAttack.slice(1).filter((t) => t.amount === 2).length;
       expect(katanaDamage, `${play.here}: Flurry's damage with ${katanas} Katanas`).toBeLessThanOrEqual(katanas);
       const target = attack?.targetInstanceId as InstanceId;
       const confusedAtEnd = (after.instances[target]?.statuses.confused ?? 0) > 0;

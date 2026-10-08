@@ -11,6 +11,7 @@ import {
   type GameState,
   type InstanceId,
   type PlayerId,
+  type TargetQuery,
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../../core/setup.js";
@@ -171,6 +172,20 @@ function engage(
     },
   };
 }
+/** "Increase the amount of damage [target] takes from each attack by 1" (the Cyclops ally's rule), as a scenario rule. */
+const plusOneFromAttacks = (s: GameState, target: TargetQuery): GameState => ({
+  ...s,
+  scenarioRules: {
+    ...s.scenarioRules,
+    rules: [...(s.scenarioRules.rules ?? []), { kind: "increaseDamageTaken", target, amount: 1, fromAttack: true }],
+  },
+});
+/** Fixture: this game's copy of the card gains Retaliate `value`. */
+const withRetaliate = (s: GameState, code: string, value: number): GameState => {
+  const card = s.cardPool[cardId(code)] as AnyCard & { keywords: readonly unknown[] };
+  const keywords = [...card.keywords, { name: "retaliate", value }];
+  return { ...s, cardPool: { ...s.cardPool, [code]: { ...card, keywords } as AnyCard } };
+};
 /** Rhino's next activation is stunned away. */
 const rhinoStunned = (s: GameState): GameState =>
   patchInstance(s, s.activeVillainId!, { statuses: { ...inst(s, s.activeVillainId!).statuses, stunned: 1 } });
@@ -380,6 +395,51 @@ describe("'Port and Punch (48007): 3 damage to an enemy, 3 to each enemy with Ba
     expect(playerOf(state, P1).discard).toEqual(expect.arrayContaining([staged.id, ...staged.pay]));
     expect(inst(state, identityOf(state)).exhausted).toBe(false);
     expect([bamfsOn(state, rhino), bamfsOn(state, sandman)]).toEqual([1, 1]);
+  });
+
+  // Owner ruling, docs/phase7-wave8.md section 4.1 row 47 (Q47 = A; RRG 1.8 "Attack (Player Ability Type)", p. 10): the
+  // ability is one attack, so the 3 damage to each enemy with a copy is damage from that attack, like the first 3.
+  it("Q47, '+1 damage from each attack' on the villain: Rhino (target, a copy) takes 4 then 4, Sandman (a copy) 3", () => {
+    const { state: s, rhino, sandman } = board(true, true);
+    const staged = inHand(plusOneFromAttacks(s, { categories: ["villain"] }), PORT_PUNCH);
+    const { state, events } = playStaged(staged.state, staged, picker(take(rhino)));
+    expect(damageTo(events, rhino)).toEqual([4, 4]);
+    expect(damageTo(events, sandman)).toEqual([3]);
+    expect([inst(state, rhino).damage, inst(state, sandman).damage]).toEqual([8, 3]);
+  });
+
+  it("Q47, the same rule on minions: Sandman, hit only by the second instruction, takes 4; Rhino 3 and 3", () => {
+    const { state: s, rhino, sandman } = board(true, true);
+    const staged = inHand(plusOneFromAttacks(s, { categories: ["minion"] }), PORT_PUNCH);
+    const { state, events } = playStaged(staged.state, staged, picker(take(rhino)));
+    expect(damageTo(events, rhino)).toEqual([3, 3]);
+    expect(damageTo(events, sandman)).toEqual([4]);
+    // Sandman has 4 hit points: the attack defeated him.
+    expect(cardsInPlay(state)).not.toContain(sandman);
+  });
+
+  it("Q47, retaliate once per surviving enemy attacked: Sandman (Retaliate 2, fixture), hit only by the second instruction, deals 2 once", () => {
+    const { state: s, rhino, sandman } = board(true, true);
+    const staged = inHand(withRetaliate(s, SANDMAN, 2), PORT_PUNCH);
+    const hero = identityOf(staged.state);
+    const { state, events } = playStaged(staged.state, staged, picker(take(rhino)));
+    expect(damageTo(events, rhino)).toEqual([3, 3]);
+    expect(damageTo(events, sandman)).toEqual([3]);
+    // One retaliate from Sandman (attacked by the ability, still in play); Rhino has none though hit twice.
+    expect(damageTo(events, hero)).toEqual([2]);
+    expect(inst(state, hero).damage).toBe(2);
+  });
+
+  it("Q47, an enemy the attack defeats does not retaliate: Sandman (Retaliate 2, 4 hit points) targeted with a copy takes 3 + 3", () => {
+    const { state: s, sandman } = board(false, true);
+    const staged = inHand(withRetaliate(s, SANDMAN, 2), PORT_PUNCH);
+    const hero = identityOf(staged.state);
+    const { state, events } = playStaged(staged.state, staged, picker(take(sandman)));
+    // He survives the first 3 and is defeated by the second: retaliate waits for the whole attack, and he is gone.
+    expect(damageTo(events, sandman)).toEqual([3, 3]);
+    expect(cardsInPlay(state)).not.toContain(sandman);
+    expect(damageTo(events, hero)).toEqual([]);
+    expect(inst(state, hero).damage).toBe(0);
   });
 
   it("targeting Rhino (a copy) with no copy on Sandman: Rhino takes 3 and 3, Sandman 0", () => {
