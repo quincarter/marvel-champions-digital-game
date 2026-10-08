@@ -66,6 +66,7 @@ import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { attachHostCandidates } from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
+import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
 import { canHaveAttached, cannotFlip, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
@@ -2383,6 +2384,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return (
         playerId !== undefined &&
         canPaySpend(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.resources, predicate.distinctTypes ?? 0)
+      );
+    }
+    case "canUseBasicPower": {
+      // docs/phase7-wave8.md §3.64: read as `EffectSpec basicPowerBy` would offer it.
+      return resolvePlayers(state, predicate.player, context).some((playerId) =>
+        canUseBasicPower(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.powers),
       );
     }
     case "inAdditionalForm": {

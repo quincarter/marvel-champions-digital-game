@@ -4332,9 +4332,10 @@ function payBasicPowerCost(
   power: "attack" | "thwart",
   /** Receives what the payment spent, for the caller to announce once the power is on the stack. */
   spentOut: SpentPayment[],
+  by: BasicPowerBy = OWN_BASIC_POWER,
 ): EngineError | null {
   const cost = basicPowerCost(ctx.state, ctx.deps, characterId, power);
-  if (!cost) return null;
+  if (!cost || by.assumeCostPaid === true) return null;
   const payment = command.payment ?? [];
   const plan = planCost(
     ctx.state,
@@ -4491,17 +4492,34 @@ export function insertConsequentialDamage(
 }
 
 /**
+ * How a basic attack or thwart comes to be made. Absent, it is the player's own command on their turn.
+ *
+ * `instructed` (docs/phase7-wave8.md §3.64, `EffectSpec basicPowerBy`): a card's effect has the player make it ("that
+ * player makes a basic attack or thwart with a character they control", Cell Phone 47019). It is the ordinary basic
+ * power in every respect but whose turn it is: the effect resolves in any action window, so the player's own turn is
+ * not asked for (RRG 1.8 "Action", p. 6). Everything else is checked and paid as usual.
+ *
+ * `assumeCostPaid`: the power's own additional cost (`basicPowerCosts`) is taken as paid. Only for asking whether a
+ * power could be made, on a scratch context; the caller checks the cost's affordability itself.
+ */
+export interface BasicPowerBy {
+  readonly instructed?: boolean;
+  readonly assumeCostPaid?: boolean;
+}
+const OWN_BASIC_POWER: BasicPowerBy = {};
+
+/**
  * A basic power whose extra cost spent cards announces them on top of everything the power pushed, so "after you spend
  * this card" resolves before the power does (docs/phase7-wave2.md §12) — also when a stun or confusion cancels the
  * power, since its costs are still paid (RRG 1.8 "Stun, Stunned", p. 41; "Confuse, Confused", p. 13).
  */
 function withSpentAnnounced<C extends Command & { type: "basicAttack" | "basicThwart" }>(
-  run: (ctx: Ctx, command: C, spent: SpentPayment[]) => EngineError | null,
+  run: (ctx: Ctx, command: C, spent: SpentPayment[], by: BasicPowerBy) => EngineError | null,
   characterOf: (command: C) => InstanceId,
-): (ctx: Ctx, command: C) => EngineError | null {
-  return (ctx, command) => {
+): (ctx: Ctx, command: C, by?: BasicPowerBy) => EngineError | null {
+  return (ctx, command, by = OWN_BASIC_POWER) => {
     const spent: SpentPayment[] = [];
-    const error = run(ctx, command, spent);
+    const error = run(ctx, command, spent, by);
     if (!error)
       announceResourcesSpent(
         ctx,
@@ -4522,8 +4540,8 @@ export const basicThwart = withSpentAnnounced(basicThwartPaying, (command) => co
  * initiated as usual, its thwart events marked as paid for.
  */
 export const commitPrepaidBasicThwart = withSpentAnnounced(
-  (ctx: Ctx, command: Command & { type: "basicThwart" }, spent: SpentPayment[]) =>
-    basicThwartWith(ctx, command, spent, true),
+  (ctx: Ctx, command: Command & { type: "basicThwart" }, spent: SpentPayment[], by: BasicPowerBy) =>
+    basicThwartWith(ctx, command, spent, true, by),
   (command) => command.thwarterInstanceId,
 );
 
@@ -4531,8 +4549,9 @@ function basicAttackPaying(
   ctx: Ctx,
   command: Command & { type: "basicAttack" },
   spent: SpentPayment[],
+  by: BasicPowerBy,
 ): EngineError | null {
-  const invalid = requireActivePlayer(ctx.state, command.playerId, command);
+  const invalid = by.instructed === true ? null : requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.attackerInstanceId, command);
   if (unusable) return unusable;
@@ -4580,7 +4599,7 @@ function basicAttackPaying(
   if (characterProfile(ctx.state, command.attackerInstanceId, ctx.deps)?.missing.includes("atk")) {
     return engineError("no_valid_target", "a character with a printed '—' ATK cannot attack", command);
   }
-  const unpaid = payBasicPowerCost(ctx, command, command.attackerInstanceId, "attack", spent);
+  const unpaid = payBasicPowerCost(ctx, command, command.attackerInstanceId, "attack", spent, by);
   if (unpaid) return unpaid;
   exhaustCard(ctx, command.attackerInstanceId);
   if (statusActive(ctx.state, command.attackerInstanceId, "stunned", ctx.deps)) {
@@ -4633,8 +4652,9 @@ function basicThwartPaying(
   ctx: Ctx,
   command: Command & { type: "basicThwart" },
   spent: SpentPayment[],
+  by: BasicPowerBy,
 ): EngineError | null {
-  return basicThwartWith(ctx, command, spent, false);
+  return basicThwartWith(ctx, command, spent, false, by);
 }
 
 /** `thwartCostPaid`: the schemes' additional thwart cost was already paid (`commitPrepaidBasicThwart`). */
@@ -4643,8 +4663,9 @@ function basicThwartWith(
   command: Command & { type: "basicThwart" },
   spent: SpentPayment[],
   thwartCostPaid: boolean,
+  by: BasicPowerBy,
 ): EngineError | null {
-  const invalid = requireActivePlayer(ctx.state, command.playerId, command);
+  const invalid = by.instructed === true ? null : requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
   if (unusable) return unusable;
@@ -4768,17 +4789,17 @@ function basicThwartWith(
     const cost = thwartCostTotal(ctx.state, ctx.deps, schemeIds);
     if (cost) {
       const afterOwnCosts = createCtx(ctx.state, ctx.deps);
-      const ownUnpaid = payBasicPowerCost(afterOwnCosts, command, command.thwarterInstanceId, "thwart", []);
+      const ownUnpaid = payBasicPowerCost(afterOwnCosts, command, command.thwarterInstanceId, "thwart", [], by);
       if (ownUnpaid) return ownUnpaid;
       exhaustCard(afterOwnCosts, command.thwarterInstanceId);
       if (!thwartCostsPayable(afterOwnCosts.state, ctx.deps, command.playerId, schemeIds)) {
         return engineError("no_valid_target", "you cannot pay the additional cost to thwart that scheme", command);
       }
-      askBasicThwartCost(ctx, command, schemeIds, cost);
+      askBasicThwartCost(ctx, command, schemeIds, cost, by.instructed === true);
       return null;
     }
   }
-  const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart", spent);
+  const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart", spent, by);
   if (unpaid) return unpaid;
 
   exhaustCard(ctx, command.thwarterInstanceId);

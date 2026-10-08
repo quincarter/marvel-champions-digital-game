@@ -10,9 +10,13 @@ import {
   atEndOfActivation,
   attack,
   attackTarget,
+  basicPowerBy,
+  canUseBasicPower,
   chooseCards,
+  choosePlayer,
   chooseTarget,
   chosen,
+  chosenPlayer,
   confuse,
   constant,
   dealDamage,
@@ -38,6 +42,7 @@ import {
   paidType,
   paidTypeCount,
   playFromHandIgnoringCost,
+  playersWhere,
   preventThreat,
   query,
   ready,
@@ -56,6 +61,7 @@ import {
   valueEquals,
   when,
   whenDefeated,
+  you,
   yourIdentity,
   zone,
   cards,
@@ -77,6 +83,9 @@ const XFORCE_AND_XMEN = exhaustEachCost({
   xforce: query(["identity", "ally"], { trait: X_FORCE }),
   xmen: query(["identity", "ally"], { trait: X_MEN }),
 });
+
+/** "A basic attack or thwart" (Cell Phone). */
+const ATTACK_OR_THWART = ["attack", "thwart"] as const;
 
 /** Instance k (1 to 4) of Three Steps Ahead's "for each different resource type": it exists while at least k types paid. */
 const stepInstance = (k: number) =>
@@ -105,11 +114,8 @@ const stepInstance = (k: number) =>
  * **Reprints, one script under two ids**: The Power of Justice 47017 is Core 01062's, X-Gene 47020 is `rogue` 38019's
  * (raw `duplicate_of_code`).
  *
- * **Data ids that are not abilities.** Husk 47012 lists three `husk-constant` ids beside her interrupt and Multitalented
- * 47021 lists four ids for its one Hero Action (the Hero Action line and its three bullets). docs/phase7-wave8.md §7
- * "Left for the data agent" item 3 regenerates Husk to `husk-interrupt` alone; Multitalented's bullets are the same
- * kind of drift. Husk's interrupt and Multitalented's first id (`multitalented-constant`, which holds the whole Hero
- * Action) are registered; the other ids are in `JUBILEE_ASPECT_BASIC_SKIPPED` with that reason.
+ * **Data ids.** Husk 47012 lists `husk-interrupt` alone, and Multitalented 47021 lists `multitalented-constant` alone
+ * (it holds the whole Hero Action: the header line and its three bullets). Both are registered.
  *
  * **Chamber (47011) is not registered**: Q38 = A (the enemy as it was when the attack was made) is not met when the
  * attack defeats the confused enemy; see `JUBILEE_ASPECT_BASIC_DRAFTS`.
@@ -136,7 +142,13 @@ const stepInstance = (k: number) =>
  * **Serve and Protect (47029)**: any placement on the main scheme is prevented; the two characters that paid are given
  * a tough status card each.
  *
- * **Generation X (47016) constant, Cell Phone (47019) and Mutant Mayhem (47028) are not registered**; see
+ * **Cell Phone (47019)**, docs/phase7-wave8.md §3.64: choosing the player is part of the cost, so the Action is offered
+ * only while some player has a ready character with a legal basic attack or thwart (RRG 1.8 "Cost", p. 13), and only
+ * such a player can be chosen, the controller included. That player picks the character, the power and its target and
+ * makes the ordinary basic power (`basicPowerBy`) at +1 THW and +1 ATK for that use. The charge counters, and the
+ * discard when the last is spent, are the uses keyword's (card data).
+ *
+ * **Generation X (47016) constant and Mutant Mayhem (47028) are not registered**; see
  * `JUBILEE_ASPECT_BASIC_SKIPPED`. The unregistered drafts are exported for the proofs in the test file.
  */
 export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
@@ -186,6 +198,12 @@ export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "47018.synch-interrupt": interrupt(on.basicPowerUsing(YOUR_IDENTITY), { cost: exhaustThis }, modifyBasicPower(1)),
 
+  "47019.cell-phone-action": action(
+    { cost: [exhaustThis, removeCounter("charge", 1)], while: canUseBasicPower(ATTACK_OR_THWART, eachPlayer) },
+    choosePlayer("player", you, { among: playersWhere(canUseBasicPower(ATTACK_OR_THWART, thatPlayer)) }),
+    basicPowerBy(chosenPlayer("player"), ATTACK_OR_THWART, { bonus: { thw: 1, atk: 1 } }),
+  ),
+
   "47020.x-gene-resource": reprintOf("38019.x-gene-resource"),
 
   "47021.multitalented-constant": heroAction(
@@ -224,11 +242,6 @@ export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
  * Generation X (`47016.generation-x-constant`): drafted as an always-on +1 THW for X-MEN characters, which is wrong off
  * Generation X (no predicate says "making a basic thwart against this scheme").
  *
- * Cell Phone (`47019.cell-phone-action`): "choose a player -> that player makes a basic attack or thwart with a
- * character they control" has no effect (`basicPowerBy`, docs/phase7-wave8.md section 3.64, build item 11, is not
- * built). The draft stands in with the controller's own DSL attack: no choice of player or character, no +1 THW / +1 ATK,
- * no basic power interrupts.
- *
  * Mutant Mayhem (`47028.mutant-mayhem-action`): the printed "return them to their owners' hands ->" is a cost of two
  * picks and `AbilityCost.returnToHand` takes one. The draft chooses and returns them as effects, which lets the card be
  * used with no ally to return and loses the cost semantics (RRG 1.8 "Cost", p. 13).
@@ -245,12 +258,6 @@ export const JUBILEE_ASPECT_BASIC_DRAFTS: Readonly<Record<string, AbilityDefinit
 
   "47016.generation-x-constant": constant(gets("thw", 1, query(["hero", "ally"], { trait: X_MEN }))),
 
-  "47019.cell-phone-action": action(
-    { cost: [exhaustThis, removeCounter("charge", 1)] },
-    anAttackableEnemy("enemy"),
-    attack(1, chosen("enemy")),
-  ),
-
   "47028.mutant-mayhem-action": heroAction(
     chooseTarget("xforce", query("ally", { trait: X_FORCE })),
     chooseTarget("xmen", query("ally", { trait: X_MEN })),
@@ -265,18 +272,8 @@ export const JUBILEE_ASPECT_BASIC_DRAFTS: Readonly<Record<string, AbilityDefinit
 export const JUBILEE_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
   "47011.chamber-constant":
     "the reduction is lost when the attack defeats the confused enemy (its confused card is discarded before the consequential damage is dealt); Q38 = A asks for the enemy as it was when the attack was made. The same gap as Snow Clone 46003: docs/phase7-wave8.md section 3.67",
-  "47012.husk-constant":
-    "not an ability: the data lists three extra ids beside her interrupt; docs/phase7-wave8.md §7 'Left for the data agent' item 3 regenerates the card to husk-interrupt alone",
-  "47012.husk-constant-2": "not an ability: same data drift as 47012.husk-constant",
-  "47012.husk-constant-3": "not an ability: same data drift as 47012.husk-constant",
   "47016.generation-x-constant":
     "'+1 THW while making a basic thwart against this scheme' needs a stat-modifier condition on the thwart in progress and its scheme; there is no thwartInProgress predicate (attackInProgress is attacks only) and the basicPowerUsing event carries no target scheme, so an interrupt would raise every X-MEN thwart against any scheme: docs/phase7-wave8.md §3.70 row 'Each [X-MEN] character gets +1 THW'",
-  "47019.cell-phone-action":
-    "'choose a player -> that player makes a basic attack or thwart with a character they control' needs EffectSpec basicPowerBy, which is not built: docs/phase7-wave8.md §3.64, build item 11",
-  "47021.multitalented-constant-2":
-    "not an ability: a bullet of the one Hero Action, carried by 47021.multitalented-constant (data drift like Husk's)",
-  "47021.multitalented-constant-3": "not an ability: same as 47021.multitalented-constant-2",
-  "47021.multitalented-constant-4": "not an ability: same as 47021.multitalented-constant-2",
   "47028.mutant-mayhem-action":
     "the cost 'return an X-FORCE ally and an X-MEN ally to their owners' hands' is two picks and AbilityCost.returnToHand takes one (exhaustCards takes a list); docs/phase7-wave8.md §3.70 row 'Alliance. Choose an [X-FORCE] ally and an [X-MEN] ally' assumed a two-pick return cost",
 };

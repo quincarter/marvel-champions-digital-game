@@ -3040,6 +3040,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "chooseCardType":
     case "searchCollection":
     case "reportFact":
+    case "basicPowerBy":
     case "resolveSpecials":
     case "assignDamage":
     case "dealIndirectDamage":

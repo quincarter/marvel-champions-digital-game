@@ -1537,6 +1537,9 @@ function leaveNow(
 // Lasting effects (RRG "Lasting Effects")
 // ---------------------------------------------------------------------------
 
+/** The id of the lasting effect created at `GameState.nextLastingSeq` = `seq`. */
+export const lastingEffectIdOf = (seq: number): string => `l${seq}`;
+
 export function addLastingEffect(
   ctx: Ctx,
   body: LastingEffectBody,
@@ -1545,7 +1548,7 @@ export function addLastingEffect(
 ): LastingEffect {
   const effect = {
     ...body,
-    id: `l${ctx.state.nextLastingSeq}`,
+    id: lastingEffectIdOf(ctx.state.nextLastingSeq),
     duration,
     ...(whileAttached ? { whileAttached } : {}),
   } as LastingEffect;

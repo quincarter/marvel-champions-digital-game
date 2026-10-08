@@ -575,6 +575,23 @@ export const friendlyCharacterAttacks = (
   player: PlayerRef = you,
   opts: { readonly bind?: string } = {},
 ): EffectSpec => ({ kind: "friendlyCharacterAttacks", attacker, player, ...withBind(opts.bind) });
+/**
+ * "That player makes a basic attack or thwart with a character they control. That character gets +1 THW and +1 ATK for
+ * this use." (Cell Phone, `jubilee` 47019; docs/phase7-wave8.md §3.64): `basicPowerBy(chosenPlayer("player"),
+ * ["attack", "thwart"], { bonus: { thw: 1, atk: 1 } })`. `player` chooses a ready character of theirs, one of `powers`
+ * and a legal target, and the ordinary basic power is made, on anyone's turn: the character exhausts, guard, crisis,
+ * patrol and "cannot" rules hold, a stunned or confused character loses the status card instead, "basic" triggers hear
+ * it, an ally takes its consequential damage. `bonus` is on that character for that use only. Not optional; with no
+ * legal use nothing happens, so gate the ability and the player choice with `canUseBasicPower`.
+ */
+export const basicPowerBy = (
+  player: PlayerRef,
+  powers: readonly ("attack" | "thwart")[],
+  opts: { readonly bonus?: { readonly thw?: number; readonly atk?: number } } = {},
+): EffectSpec => {
+  if (powers.length === 0) throw new Error("basicPowerBy needs at least one power");
+  return { kind: "basicPowerBy", player, powers, ...(opts.bonus ? { bonus: opts.bonus } : {}) };
+};
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,

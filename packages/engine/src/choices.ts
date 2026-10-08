@@ -79,6 +79,29 @@ export type ChoicePrompt =
   /** "Choose one" among labeled options; option ids are the option indexes. */
   | { readonly kind: "chooseOption" }
   | { readonly kind: "choosePlayer"; readonly slot: string }
+  /**
+   * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): a card's effect has `playerId` make a basic attack or
+   * thwart, and this asks with which character and which power. One option per legal pairing, its `optionId`
+   * `attack:<instanceId>` or `thwart:<instanceId>`, its `ref` the character and its label the power; a character
+   * that could do either has two options. Exactly one is selected. `powers` is what the card allows;
+   * `sourceInstanceId` the card instructing it.
+   */
+  | {
+      readonly kind: "chooseBasicPower";
+      readonly powers: readonly ("attack" | "thwart")[];
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
+   * The target of the basic power just chosen (`chooseBasicPower`): the enemies `characterInstanceId` may attack, or
+   * the schemes it may thwart. An option's `optionId` is the target's instance id; a scheme the character may thwart
+   * with ATK instead of THW (`RuleSpec thwartWithAtk`) has a second option, `<instanceId>#atk`. Exactly one is
+   * selected.
+   */
+  | {
+      readonly kind: "chooseBasicPowerTarget";
+      readonly power: "attack" | "thwart";
+      readonly characterInstanceId: InstanceId;
+    }
   /** Order the Special abilities of a sequence (Wakanda Forever!). */
   | { readonly kind: "orderSpecials" }
   /**

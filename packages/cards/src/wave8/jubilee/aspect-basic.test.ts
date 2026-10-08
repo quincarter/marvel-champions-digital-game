@@ -19,6 +19,7 @@ import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
+  P2,
   firstLegal,
   identityOf,
   inst,
@@ -62,6 +63,7 @@ const REGISTERED = [
   "47016.when-defeated",
   "47017.the-power-of-justice-constant",
   "47018.synch-interrupt",
+  "47019.cell-phone-action",
   "47020.x-gene-resource",
   "47021.multitalented-constant",
   "47022.unlikely-duo-action",
@@ -1069,48 +1071,129 @@ describe("Mutant Mayhem (47028): Alliance, return an X-FORCE ally and an X-MEN a
   });
 });
 
-describe("Cell Phone (47019): Uses 3; exhaust, remove a charge, choose a player -> they make a basic attack or thwart (NOT registered)", () => {
-  /** Wolverine (ally, ATK 3?) ready beside an exhausted Jubilee, Cell Phone in play. */
-  function board() {
+describe("Cell Phone (47019): Uses 3; exhaust, remove a charge, choose a player -> they make a basic attack or thwart at +1 THW / +1 ATK", () => {
+  const PHONE = "47019.cell-phone-action";
+  /** Wolverine (ally, ATK 3, THW 1, consequential 2 / 1) ready beside Jubilee, Cell Phone in play with 3 counters. */
+  function board(jubileeExhausted = true) {
     const g = heroGame(["47019", "47002", E, E, M, M]);
     const phone = playStaged(stage(g, ["47019"], 6).state, "47019", 2);
     const wolverine = playStaged(phone.state, "47002", 4);
     const jubilee = identityOf(wolverine.state);
     return {
-      state: patchInstance(wolverine.state, jubilee, { exhausted: true }),
+      state: patchInstance(wolverine.state, jubilee, { exhausted: jubileeExhausted }),
       phone: phone.id,
       wolverine: wolverine.id,
       jubilee,
     };
   }
-  it("is not registered: no ability, and the card still enters play with its three charge counters", () => {
-    expect("47019.cell-phone-action" in JUBILEE_ASPECT_BASIC).toBe(false);
+  it("is registered, and the card enters play with its three charge counters", () => {
+    expect(PHONE in JUBILEE_ASPECT_BASIC).toBe(true);
+    expect(PHONE in JUBILEE_ASPECT_BASIC_SKIPPED).toBe(false);
+    expect(PHONE in JUBILEE_ASPECT_BASIC_DRAFTS).toBe(false);
     const b = board();
     expect(inst(b.state, b.phone).counters.charge).toBe(3);
   });
-  it("the draft only exhausts, spends a counter and makes a 1-damage DSL attack by the identity", () => {
+  it("printed: a chosen player's character makes a basic attack at +1 ATK (Wolverine attacks, exhausts, deals his ATK + 1)", () => {
     const b = board();
-    const after = driveEventsPicking(
-      DRAFT_DEPS,
-      b.state,
-      firstLegal,
-      use(P1, b.phone, "47019.cell-phone-action"),
-    ).state;
+    const { pick, seen } = spy(firstLegal);
+    const after = driveEventsPicking(DEPS, b.state, pick, use(P1, b.phone, PHONE)).state;
+    // Jubilee is exhausted, so Wolverine is the only character offered (RRG 1.8 p. 10: a character must exhaust), and
+    // only to attack: no scheme has threat for a thwart to remove (RRG 1.8 "Thwart", p. 44).
+    expect(seen.find((p) => p.kind === "chooseBasicPower")?.options).toEqual([`attack:${b.wolverine}`]);
     expect(inst(after, b.phone).counters.charge).toBe(2);
     expect(inst(after, b.phone).exhausted).toBe(true);
-    expect(inst(after, villainOf(after)).damage).toBe(1);
-    expect(inst(after, b.wolverine).exhausted).toBe(false);
-  });
-  it.fails("printed: a chosen player's character makes a basic attack at +1 ATK (Wolverine attacks, exhausts, deals his ATK + 1)", () => {
-    const b = board();
-    const after = driveEventsPicking(
-      DRAFT_DEPS,
-      b.state,
-      firstLegal,
-      use(P1, b.phone, "47019.cell-phone-action"),
-    ).state;
     expect(inst(after, b.wolverine).exhausted).toBe(true);
-    expect(inst(after, villainOf(after)).damage).toBe(profile(b.state, b.wolverine).atk + 1);
+    expect(profile(b.state, b.wolverine).atk).toBe(3);
+    expect(inst(after, villainOf(after)).damage).toBe(4);
+    // An ordinary basic attack: he takes his 2 consequential damage, and the +1 is gone with the use.
+    expect(inst(after, b.wolverine).damage).toBe(2);
+    expect(profile(after, b.wolverine).atk).toBe(3);
+    expect(after.lastingEffects).toEqual([]);
+  });
+  it("she may choose herself: ready, Jubilee thwarts for her THW + 1 and exhausts", () => {
+    const b = board(false);
+    const main = patchInstance(b.state, mainOf(b.state), { threat: 5 });
+    const pick = picker(
+      answerKind("chooseBasicPower", `thwart:${b.jubilee}`),
+      answerKind("chooseBasicPowerTarget", mainOf(main)),
+    );
+    const after = driveEventsPicking(DEPS, main, pick, use(P1, b.phone, PHONE)).state;
+    expect(inst(after, mainOf(after)).threat).toBe(5 - (profile(main, b.jubilee).thw + 1));
+    expect(inst(after, b.jubilee).exhausted).toBe(true);
+    expect(inst(after, b.wolverine).exhausted).toBe(false);
+    expect(profile(after, b.jubilee).thw).toBe(profile(main, b.jubilee).thw);
+  });
+  it("a basic power to its readers: Synch answers Jubilee's thwart for another +1", () => {
+    const b = board(false);
+    const synch = playStaged(
+      stage(b.state, ["47018"], 6).state,
+      "47018",
+      (BY_ID.get("47018") as { cost: number }).cost,
+    );
+    const main = patchInstance(synch.state, mainOf(synch.state), { threat: 6 });
+    const pick = picker(
+      accept("synch-interrupt"),
+      answerKind("chooseBasicPower", `thwart:${b.jubilee}`),
+      answerKind("chooseBasicPowerTarget", mainOf(main)),
+    );
+    const after = driveEventsPicking(DEPS, main, pick, use(P1, b.phone, PHONE)).state;
+    expect(inst(after, synch.id).exhausted).toBe(true);
+    expect(inst(after, mainOf(after)).threat).toBe(6 - (profile(main, b.jubilee).thw + 2));
+  });
+  it("a stunned character attacks: the stunned card is discarded, he exhausts, the counter is spent, no damage", () => {
+    const b = board();
+    const stunned = status(b.state, b.wolverine, "stunned", 1);
+    const after = driveEventsPicking(DEPS, stunned, firstLegal, use(P1, b.phone, PHONE)).state;
+    expect(inst(after, b.wolverine).statuses.stunned).toBe(0);
+    expect(inst(after, b.wolverine).exhausted).toBe(true);
+    expect(inst(after, b.phone).counters.charge).toBe(2);
+    expect(inst(after, villainOf(after)).damage).toBe(0);
+    expect(inst(after, b.wolverine).damage).toBe(0);
+    expect(after.lastingEffects).toEqual([]);
+  });
+  it("guard holds: with a guard minion engaged, the villain is not offered as the attack's target", () => {
+    const b = board();
+    const guarded = engage(b.state, MERCENARY);
+    const { pick, seen } = spy(picker(answerKind("chooseBasicPower", `attack:${b.wolverine}`)));
+    const after = driveEventsPicking(DEPS, guarded.state, pick, use(P1, b.phone, PHONE)).state;
+    expect(seen.find((p) => p.kind === "chooseBasicPowerTarget")?.options).toEqual([guarded.id]);
+    expect(inst(after, villainOf(after)).damage).toBe(0);
+  });
+  it("with no ready character anywhere the Action cannot be used: nothing is exhausted or spent", () => {
+    const b = board();
+    const spent = patchInstance(b.state, b.wolverine, { exhausted: true });
+    expect(accepted(spent, use(P1, b.phone, PHONE))).toBe(false);
+  });
+  it("the third use: the last counter is spent, the power is made, and the card is discarded", () => {
+    const b = board();
+    const last = patchInstance(b.state, b.phone, { counters: { ...inst(b.state, b.phone).counters, charge: 1 } });
+    const after = driveEventsPicking(DEPS, last, firstLegal, use(P1, b.phone, PHONE)).state;
+    expect(inst(after, villainOf(after)).damage).toBe(4);
+    expect(cardsInPlay(after)).not.toContain(b.phone);
+    expect(playerOf(after, P1).discard).toContain(b.phone);
+  });
+  it("another player, off their turn: on Spider-Man's turn Jubilee has him attack for his ATK + 1", () => {
+    // Two seats: Spider-Man is player 1 and the active player, Jubilee player 2. An Action is usable on another
+    // player's turn (RRG 1.8 "Action", p. 6); the phone is put into her play area by surgery, charged.
+    const g = withForm(setupGame(["47019"], 2), { heroForm: 0 }, P1);
+    const given = moveToHand(g, P2, "47019");
+    const phone = given.ids[0]!;
+    const staged: GameState = {
+      ...patchInstance(given.state, phone, { controllerId: P2, faceup: true, counters: { charge: 3 } }),
+      players: given.state.players.map((p) =>
+        p.playerId === P2 ? { ...p, hand: p.hand.filter((id) => id !== phone), playArea: [...p.playArea, phone] } : p,
+      ),
+    };
+    const spider = identityOf(staged, P1);
+    const { pick, seen } = spy(firstLegal);
+    const after = driveEventsPicking(DEPS, staged, pick, use(P2, phone, PHONE)).state;
+    // Jubilee is in alter-ego form and has no ally: Spider-Man's player is the only one who can, so nobody is asked
+    // which player, and he is the one asked for the power (an attack: no scheme has threat to thwart).
+    expect(seen.some((p) => p.kind === "choosePlayer")).toBe(false);
+    expect(seen.find((p) => p.kind === "chooseBasicPower")?.options).toEqual([`attack:${spider}`]);
+    expect(inst(after, spider).exhausted).toBe(true);
+    expect(inst(after, villainOf(after)).damage).toBe(profile(staged, spider).atk + 1);
+    expect(inst(after, phone).counters.charge).toBe(2);
   });
 });
 

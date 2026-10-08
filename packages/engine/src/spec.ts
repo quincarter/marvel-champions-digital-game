@@ -1131,6 +1131,19 @@ export type Predicate =
       readonly distinctTypes?: number;
     }
   /**
+   * Some player `player` names could make a basic power among `powers` right now if a card's effect had them make one
+   * (`EffectSpec basicPowerBy`, docs/phase7-wave8.md §3.64): they control a ready hero-form identity or ally with a
+   * legal target for that power, read exactly as `basicPowerBy` will offer it. Over each player it is the condition
+   * of an ability whose cost chooses the player (RRG 1.8 "Cost", p. 13: with no valid target the cost cannot be paid,
+   * so the ability cannot be initiated); inside `PlayerRef where`, over the scoped player, it is "a player who can",
+   * for `choosePlayer { among }`.
+   */
+  | {
+      readonly kind: "canUseBasicPower";
+      readonly player: PlayerRef;
+      readonly powers: readonly ("attack" | "thwart")[];
+    }
+  /**
    * The card has a status card of this type. `active`: it *is* stunned/confused by the rules, which with steady takes two
    * cards (RRG 1.8 "Steady", p. 41: "not stunned unless they have two stunned status cards") — "When a stunned or
    * confused friendly character would take any amount of damage" (Beast Mode, `hood` 24014), where Warehouse District
@@ -1620,6 +1633,41 @@ export type EffectSpec =
       readonly attacker: TargetRef;
       readonly player: PlayerRef;
       readonly bind?: string;
+    }
+  /**
+   * "That player makes a basic attack or thwart with a character they control. That character gets +1 THW and +1 ATK
+   * for this use." (Cell Phone, `jubilee` 47019; docs/phase7-wave8.md §3.64.) The first player `player` names makes
+   * one basic power among `powers` now, as if they had declared it themselves, whoever's turn it is:
+   *
+   * 1. They choose the character and the power (`ChoicePrompt chooseBasicPower`): a ready hero-form identity or ally
+   *    they control that could use that power against some target right now.
+   * 2. They choose its target (`chooseBasicPowerTarget`), among the targets that basic power could legally be declared
+   *    against: guard, crisis, patrol, game areas and every "cannot" rule hold, because each candidate is the
+   *    ordinary `basicAttack` / `basicThwart` command tried on a copy of the game. A scheme a rule lets the character
+   *    thwart with ATK instead of THW (`RuleSpec thwartWithAtk`) is offered both ways.
+   * 3. A power with an additional resource cost of its own (`basicPowerCosts`) asks for the payment
+   *    (`spendResources`); paying too little makes no power (RRG 1.8 "Initiating Abilities", p. 24, step 5).
+   * 4. The power is made exactly as the command makes it (RRG 1.8 "Basic Power", p. 10): the character exhausts, a
+   *    stunned or confused character loses the status card instead (pp. 41, 13), `basicPowerUsing` / `basicPowerUsed`
+   *    are announced, the attack or thwart event is `basic`, an ally takes its consequential damage, and a scheme's
+   *    additional thwart cost is asked for as usual.
+   *
+   * `bonus`: "+N THW / +N ATK for this use": lasting stat modifiers on the character that begin before the power is
+   * made and end with its event (`LastingDuration nextBasicPower`, retimed to `endOfEvent` on the power's own event
+   * frame). A power that is not made after all (stunned, confused, an additional cost left unpaid) ends them at once.
+   *
+   * It is not optional: the text has no "may", so a player with a legal use makes one. With no legal use (no ready
+   * character, or none with a legal target) nothing happens. `Predicate canUseBasicPower` says in advance whether a
+   * player has one, for "choose a player" and for offering the ability at all.
+   *
+   * Not built: a divided basic power (`RuleSpec divideBasicPower`) is made undivided here, and a `basicPowerCosts`
+   * cost that is not resources alone must be payable with no choice of the player's or the power is not offered.
+   */
+  | {
+      readonly kind: "basicPowerBy";
+      readonly player: PlayerRef;
+      readonly powers: readonly ("attack" | "thwart")[];
+      readonly bonus?: { readonly thw?: number; readonly atk?: number };
     }
   /**
    * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
@@ -3619,6 +3667,8 @@ export type EffectSpec =
       readonly schemeInstanceIds: readonly InstanceId[];
       readonly resources: boolean;
       readonly indirectDamage: number;
+      /** The thwart is one a card's effect has the player make (`basicPowerBy`), so no turn of theirs is asked for. */
+      readonly instructed?: true;
     }
   /**
    * **Engine-internal; no DSL builder.** Allies and minions defeated by one effect resolved together

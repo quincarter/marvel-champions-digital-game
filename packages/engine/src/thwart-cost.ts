@@ -166,6 +166,8 @@ export function askBasicThwartCost(
   command: BasicThwart,
   schemeIds: readonly InstanceId[],
   cost: ThwartCost,
+  /** The thwart is one a card's effect has the player make (`EffectSpec basicPowerBy`, docs/phase7-wave8.md §3.64). */
+  instructed = false,
 ): void {
   const costly = schemeIds.filter((id) => thwartCostFor(ctx.state, ctx.deps, id) !== null);
   for (const schemeInstanceId of costly)
@@ -187,6 +189,7 @@ export function askBasicThwartCost(
     schemeInstanceIds: schemeIds,
     resources: cost.resources !== null,
     indirectDamage: cost.indirectDamage,
+    ...(instructed ? { instructed: true as const } : {}),
   };
   const effects: EffectSpec[] = cost.resources
     ? [
@@ -237,6 +240,6 @@ export function executeSettleBasicThwartCost(
   if (effect.indirectDamage > 0 && (frame.vars["thwartCostDamage.amount"] ?? 0) < effect.indirectDamage)
     return settled("damageNotTaken");
   settled("paid");
-  const error = commitPrepaidBasicThwart(ctx, command);
+  const error = commitPrepaidBasicThwart(ctx, command, effect.instructed === true ? { instructed: true } : {});
   if (error) settled("abandoned", error.message);
 }

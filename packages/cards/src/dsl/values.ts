@@ -834,6 +834,18 @@ export const paidType = (resource: TypedResource, of?: TargetRef): Predicate => 
   ...(of !== undefined ? { of } : {}),
 });
 /**
+ * Some player `player` names could make a basic attack or thwart among `powers` right now on a card's instruction
+ * (engine `canUseBasicPower`, docs/phase7-wave8.md §3.64): a ready hero-form identity or ally of theirs has a legal
+ * target, read as `basicPowerBy` will offer it. `canUseBasicPower(["attack", "thwart"], eachPlayer)` is the condition
+ * of an ability that chooses the player as a cost; `playersWhere(canUseBasicPower([...], thatPlayer))` is the players
+ * who can, for `choosePlayer(slot, you, { among })`.
+ */
+export const canUseBasicPower = (powers: readonly ("attack" | "thwart")[], player: PlayerRef = you): Predicate => ({
+  kind: "canUseBasicPower",
+  player,
+  powers,
+});
+/**
  * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and
  * resource abilities that spend would offer them, priced as the spend prices it (engine `canPayResources`). Gates an
  * option on the payment: `option("Spend …", { when: canPayResources({ energy: 1 }) }, spendResources({ energy: 1 },

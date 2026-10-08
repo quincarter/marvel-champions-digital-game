@@ -1098,6 +1098,32 @@ export type GameEvent =
   | { readonly type: "surgeGranted"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
   /**
+   * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): the card `sourceInstanceId` had `playerId` make a basic
+   * power, and this is the one they chose. Logged just before the power is declared; what the power then does is
+   * logged as any basic power's is. `useAtk`: a thwart they chose to make with ATK (`RuleSpec thwartWithAtk`).
+   */
+  | {
+      readonly type: "basicPowerInstructed";
+      readonly playerId: PlayerId;
+      readonly characterInstanceId: InstanceId;
+      readonly power: "attack" | "thwart";
+      readonly targetInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly useAtk?: true;
+    }
+  /**
+   * `EffectSpec basicPowerBy` made no basic power. `noLegalUse`: the player has no ready character with a legal
+   * target (or the effect named no player). `costNotPaid`: the power's own additional cost was not paid. `refused`:
+   * the power could no longer be declared when its turn came, with the engine's reason in `message`.
+   */
+  | {
+      readonly type: "basicPowerNotMade";
+      readonly playerId: PlayerId | null;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly reason: "noLegalUse" | "costNotPaid" | "refused";
+      readonly message?: string;
+    }
+  /**
    * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): `playerId` chose `amount`, bound as `<bind>.amount`. Also
    * logged when the range held one number and nobody was asked.
    */
