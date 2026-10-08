@@ -99,6 +99,7 @@ import {
   defeatVillainStage,
   eliminatePlayer,
   holdAtZero,
+  settleActiveCounter,
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
@@ -708,6 +709,19 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
  * (`applyDefeat` alone, `defeatedTogether` for several at once).
  */
 export function beginDefeat(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "characterDefeated" }>,
+): boolean | DefeatFollowUp {
+  const begun = beginOneDefeat(ctx, event);
+  // One of several villains that fall together (`protectionChecked`), defeated or replaced: after the last of them
+  // the active counter moves off a defeated holder, once, among the villains still in play.
+  if (event.protectionChecked === true && villainOf(ctx.state, event.instanceId)) {
+    settleActiveCounter(ctx, event.instanceId);
+  }
+  return begun;
+}
+
+function beginOneDefeat(
   ctx: Ctx,
   event: Extract<TriggerEvent, { kind: "characterDefeated" }>,
 ): boolean | DefeatFollowUp {

@@ -289,11 +289,8 @@ class Observer {
     const row = s.villainRow ?? [];
     const defeated = s.villains.filter((v) => v.defeated).length;
     // 45081 to 45084: none can be defeated while another has at least 1 hit point, so they fall together or not at all.
-    // (While the engine asks which Horseman becomes active as the holder falls, `chooseTarget` slot
-    // `_nextActiveVillain`, the four are defeated one after the other: finding F1, pinned below.)
-    const choosingNext =
-      s.pendingChoice?.prompt.kind === "chooseTarget" && s.pendingChoice.prompt.slot === "_nextActiveVillain";
-    if (!choosingNext) expect([0, 4], `${here}: ${defeated} Horsemen defeated`).toContain(defeated);
+    // (Finding F1, fixed: no state between the two is ever handed back to the player.)
+    expect([0, 4], `${here}: ${defeated} Horsemen defeated`).toContain(defeated);
     if (defeated === 0) {
       expect(row, `${here}: the whole row is in play`).toHaveLength(4);
       expect(new Set(row).size).toBe(4);
@@ -994,7 +991,7 @@ describe("Four Horsemen, staged", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// Findings pinned (the expectation is an `it.fails`, today's behavior its companion)
+// Findings (F1 is fixed: its expectation is a passing `it`)
 // ---------------------------------------------------------------------------------------------------------------
 
 describe("F1: the Horsemen fall in one step, with no question about who is active next", () => {
@@ -1038,18 +1035,9 @@ describe("F1: the Horsemen fall in one step, with no question about who is activ
   // docs/phase7-wave8.md section 3.9 ("all four are defeated in one step"): once the last hit point falls the four are
   // defeated together, so the one command that deals it ends the game and nobody is asked which Horseman is active
   // next (none will be left). The active counter's holder is always one of the four.
-  it.fails("the killing blow ends the game in the same command, with no prompt", () => {
+  it("the killing blow ends the game in the same command, with no prompt", () => {
     const stops = killingBlow();
-    expect(stops[0]).toEqual({ defeated: 4, prompt: null, options: 0, outcome: true });
-  });
-
-  it("today: the holder is defeated alone, the player is asked for the next active Horseman (3 options, then 2), then the rest fall", () => {
-    const stops = killingBlow();
-    expect(stops).toEqual([
-      { defeated: 1, prompt: "chooseTarget:_nextActiveVillain", options: 3, outcome: false },
-      { defeated: 2, prompt: "chooseTarget:_nextActiveVillain", options: 2, outcome: false },
-      { defeated: 4, prompt: null, options: 0, outcome: true },
-    ]);
+    expect(stops).toEqual([{ defeated: 4, prompt: null, options: 0, outcome: true }]);
   });
 });
 

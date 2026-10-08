@@ -865,6 +865,57 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   if (ctx.state.activeVillainId !== villainId) return null;
   // The Sinister Six's rule, MC27 p. 15 (docs/phase7-wave5.md §3.1).
   if (passActiveCounter(ctx, villainId)) return null;
+  // Villains that fall in one sweep are defeated together (ruling, Jun 2, 2026 (2) answer 1: the damage that brought
+  // them down was simultaneous), so the counter moves once, when the last of them has fallen (`settleActiveCounter`),
+  // and only villains still in play then can take it. Until that moment it stays on this defeated villain.
+  if (fallingTogetherPending(ctx.state, villainId)) return null;
+  return nextActiveVillainFrame(ctx, villainId);
+}
+
+/**
+ * Another villain's defeat from a sweep that defeats several together is still to apply: its event is on the stack
+ * (`TriggerEvent characterDefeated.protectionChecked`, set by `checkDefeats` on each of them and on nothing else).
+ */
+const fallingTogetherPending = (state: GameState, exceptId: InstanceId): boolean =>
+  state.stack.some(
+    (f) =>
+      f.kind === "event" &&
+      f.event.kind === "characterDefeated" &&
+      f.event.protectionChecked === true &&
+      f.event.instanceId !== exceptId &&
+      (f.stage === "interrupts" || f.stage === "apply") &&
+      villainOf(state, f.event.instanceId)?.defeated === false,
+  );
+
+/** The frame `nextActiveVillainFrame` returns, its question not answered yet. */
+const asksNextActive = (frame: Extract<StackFrame, { kind: "effects" }>): boolean =>
+  frame.effects.some((effect) => effect.kind === "chooseTarget" && effect.slot === NEXT_ACTIVE_SLOT);
+
+/**
+ * One of several villains defeated together has resolved, defeated or not (an interrupt replaced it). When it was the
+ * last of them and the active counter was left on a defeated villain (`removeDefeatedVillain`), the counter moves now,
+ * among the villains that are still in play. With none left it stays where it is, as it does for a single villain.
+ */
+export function settleActiveCounter(ctx: Ctx, resolvedId: InstanceId): void {
+  if (ctx.state.outcome) return;
+  if (ctx.state.scenarioRules.activeCounter === "nextInActivationOrder") return;
+  if (fallingTogetherPending(ctx.state, resolvedId)) return;
+  const holderId = ctx.state.activeVillainId;
+  const holder = holderId ? villainOf(ctx.state, holderId) : undefined;
+  if (!holderId || !holder?.defeated) return;
+  if (ctx.state.gameAreas.some((area) => area.villainIds.includes(holderId))) return;
+  // The last of them was the holder itself and its own defeat has just asked: one question, not two.
+  if (ctx.state.stack.some((f) => f.kind === "effects" && asksNextActive(f))) return;
+  const choice = nextActiveVillainFrame(ctx, holderId);
+  if (choice) pushFrames(ctx, [choice]);
+}
+
+/**
+ * "When the active villain is defeated, move the active counter to the villain whose side scheme has the most threat.
+ * (In case of a tie, the first player decides.)" (The Wrecking Crew insert.) A sole candidate takes the counter with no
+ * question; with no villain left nothing moves. Returns the frame that asks the first player, for a tie.
+ */
+function nextActiveVillainFrame(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const inPlay = cardsInPlay(ctx.state);
   const schemeThreat = (candidate: VillainState): number => {
     const id = candidate.signatureSideSchemeId;
