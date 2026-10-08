@@ -23,7 +23,7 @@ import type { Campaign } from "../../schema/index.js";
  *
  * Not included here: the campaign log's fields (identity, remaining hit points, the missions and overseers strike
  * lists, the per-mission results) and the campaign instructions are `@mc/cards`' `CampaignDefinition`, not this
- * plain-data record. `AOA_CAMPAIGN` is not yet in `CAMPAIGNS` (a later step).
+ * plain-data record. `AOA_CAMPAIGN` is registered in `CAMPAIGNS`.
  */
 export const AOA_CAMPAIGN: Campaign = {
   id: campaignId("aoa"),

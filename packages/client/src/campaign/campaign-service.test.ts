@@ -44,6 +44,9 @@ const orderOf = (state: Pick<GameState, "players" | "encounterDecks">): string =
     encounter: Object.values(state.encounterDecks).map((deck) => deck.deck),
   });
 
+const playersOf = (state: Pick<GameState, "players">): string =>
+  JSON.stringify(state.players.map((player) => [player.hand, player.deck]));
+
 describe("CampaignService", () => {
   test("signing the roster stores a fresh log on issue #1 with each seat's own deck copy", async () => {
     const campaigns = service();
@@ -121,7 +124,7 @@ describe("CampaignService", () => {
     async (campaignId) => {
       const campaigns = service();
       let record = await campaigns.start({ campaignId, seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
-      const deals: { seed: number; order: string }[] = [];
+      const deals: { seed: number; order: string; players: string }[] = [];
       let nodeId: string | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
         const answers: CampaignChoiceAnswer[] = [];
@@ -135,7 +138,7 @@ describe("CampaignService", () => {
         const config = campaigns.launchConfig(composed.record);
         const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
         const { state } = (await core.start(config)).snapshot;
-        deals.push({ seed: config.seed, order: orderOf(state) });
+        deals.push({ seed: config.seed, order: orderOf(state), players: playersOf(state) });
         core.dispatch({ type: "concede", playerId: state.firstPlayerId });
         let folded = await campaigns.fold(composed.record, core.save());
         const lossAnswers: CampaignChoiceAnswer[] = [];
@@ -146,7 +149,7 @@ describe("CampaignService", () => {
         record = folded.record;
       }
       expect(new Set(deals.map((deal) => deal.seed)).size).toBe(3);
-      expect(new Set(deals.map((deal) => deal.order)).size).toBe(3);
+      expect(new Set(deals.map((deal) => deal.players)).size).toBe(3);
       // Each lost attempt keeps its own seed, which is what Rewind's "Same hands" replays.
       expect(record.history.map((entry) => entry.seed)).toEqual(deals.map((deal) => deal.seed));
       let replay = await campaigns.compose(record);
@@ -157,7 +160,10 @@ describe("CampaignService", () => {
       }
       const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
       const { state } = (await core.start({ ...campaigns.launchConfig(replay.record), seed: deals[0]!.seed })).snapshot;
-      expect(orderOf(state)).toBe(deals[0]!.order);
+      // Age of Apocalypse draws a new mission and Overseer on every attempt (owner Q22), and some missions shuffle a
+      // card into the encounter deck (the Sea Wall), so only the players' decks and hands are the same shuffle there.
+      if (campaignId === "aoa") expect(playersOf(state)).toBe(deals[0]!.players);
+      else expect(orderOf(state)).toBe(deals[0]!.order);
     },
   );
 

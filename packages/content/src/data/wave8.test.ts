@@ -488,8 +488,8 @@ describe("Wave 8 pool wiring (docs/phase7-wave8.md)", () => {
     for (const c of own) expect(dataOnly.has(c.id as string), c.id as string).toBe(false);
   });
 
-  it("AOA_CAMPAIGN is not registered in CAMPAIGNS yet (no client story)", () => {
-    expect(CAMPAIGNS.map((c) => c.id)).not.toContain(AOA_CAMPAIGN.id);
+  it("AOA_CAMPAIGN is registered in CAMPAIGNS (the client's campaign step)", () => {
+    expect(CAMPAIGNS.map((c) => c.id)).toContain(AOA_CAMPAIGN.id);
   });
 });
 

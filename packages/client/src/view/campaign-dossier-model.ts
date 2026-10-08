@@ -31,6 +31,7 @@ import {
 } from "./campaign-pool-model.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { missionTableOf, type MissionTable } from "./campaign-mission-model.js";
 import { sideSchemeTableOf, type SideSchemeTable } from "./campaign-side-scheme-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
 import {
@@ -191,6 +192,8 @@ export interface DossierOverview {
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
   /** The player-side-scheme table and the log's other tallies (MC40 p. 24). Null for a box without the choice. */
   readonly sideSchemes: SideSchemeTable | null;
+  /** The four mission rows and five Overseers of the log sheet (MC45 p. 24). Null for a box without missions. */
+  readonly missions: MissionTable | null;
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
@@ -317,6 +320,14 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   morlocksSaved: { hidden: true },
   hopeDamage3: { hidden: true },
   hopeDamage4: { hidden: true },
+  // Age of Apocalypse (MC45 p. 24): the four mission rows and five Overseers are their own panel (`missions`), so the
+  // strike lists and the four result fields are not repeated as world rows.
+  missions: { hidden: true },
+  overseers: { hidden: true },
+  resultLiberate: { hidden: true },
+  resultEvacuate: { hidden: true },
+  resultSabotage: { hidden: true },
+  resultFind: { hidden: true },
 };
 
 /**
@@ -397,6 +408,7 @@ export function campaignDossierOverview(
     pool: campaignDossierPool(record, definition, cardTypeOf, poolCopy, firstPlayerName),
     hiddenEvidence: hiddenEvidenceEnvelope(record, definition, cardName),
     sideSchemes: sideSchemeTableOf(record, definition, cardName),
+    missions: missionTableOf(record, definition),
   };
 }
 

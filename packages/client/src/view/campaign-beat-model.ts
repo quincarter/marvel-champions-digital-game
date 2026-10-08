@@ -25,8 +25,10 @@ export function campaignBeatFor(
 ): CampaignBeatData | null {
   const campaign = config?.campaign;
   if (!campaign) return null;
+  // A stage reached by defeating the one before it, or revealed by an effect (Apocalypse's main scheme): the same beat.
   const flip = events.find(
-    (event): event is Extract<GameEvent, { type: "villainStageAdvanced" }> => event.type === "villainStageAdvanced",
+    (event): event is Extract<GameEvent, { type: "villainStageAdvanced" | "villainStageRevealed" }> =>
+      event.type === "villainStageAdvanced" || event.type === "villainStageRevealed",
   );
   if (!flip) return null;
   const stage = flip.stageIndex + 1;

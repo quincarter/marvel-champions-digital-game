@@ -19,6 +19,7 @@ const CAMPAIGN_STATUS: Readonly<Record<string, "scripted">> = {
   mut_gen: "scripted",
   mojo: "scripted",
   next_evol: "scripted",
+  aoa: "scripted",
 };
 
 describe("CAMPAIGNS registry", () => {

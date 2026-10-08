@@ -68,6 +68,12 @@ export type {
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
 export {
+  AOA_CAMPAIGN_DEFINITION,
+  AOA_DEFEATED,
+  AOA_MISSIONS,
+  AOA_NOT_DEFEATED,
+  AOA_OVERSEERS,
+  AOA_PROTECT_THE_PROFESSOR,
   CAMPAIGNS,
   campaignDefinitionOf,
   cardsOfComposedSets,

@@ -203,11 +203,14 @@ function boostCardFlippedTip({ lastEvents }: LessonObservation): Tip | null {
 }
 
 function villainStageAdvancedTip({ lastEvents }: LessonObservation): Tip | null {
-  if (!lastEvents.some((event) => event.type === "villainStageAdvanced")) return null;
+  const revealed = lastEvents.some((event) => event.type === "villainStageRevealed");
+  if (!revealed && !lastEvents.some((event) => event.type === "villainStageAdvanced")) return null;
   return {
     id: "situation:villainStageAdvanced",
     title: "The villain advanced a stage",
-    body: "Villains fight in stages. Defeating one flips the villain to its next stage — often stronger — instead of ending the game.",
+    body: revealed
+      ? "Villains fight in stages. A card effect, such as a scheme, can reveal the next stage with no defeat, at full hit points."
+      : "Villains fight in stages. Defeating one flips the villain to its next stage — often stronger — instead of ending the game.",
   };
 }
 

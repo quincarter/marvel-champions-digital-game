@@ -432,6 +432,9 @@ export function turningPoints(
     }
     if (tone === "win" && entry.villainStageAdvanced) {
       beats.push({ round: entry.round, text: `${villain} was pushed to the next stage.` });
+    } else if (tone === "win" && entry.villainStageRevealed) {
+      // Revealed by the villain's own scheme, not pushed by the players (Apocalypse).
+      beats.push({ round: entry.round, text: `${villain} moved to the next stage.` });
     }
   }
   // The heaviest threat round explains a scheme loss only; under any other loss it reads as the cause and is not.

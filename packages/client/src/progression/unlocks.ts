@@ -192,12 +192,12 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
     ],
   },
   {
-    // Age of Apocalypse's campaign is not registered yet, so the row carries no `campaignId` (the campaign step adds
-    // it, and the box's Saga tile with it); the gate is NeXt Evolution's. En Sabah Nur, the finale, pays no hero: the four hero packs take the four villains before him in
-    // release order (Iceman, Jubilee, Nightcrawler, Magneto). Owner to confirm this pairing.
+    // The gate is NeXt Evolution's. En Sabah Nur, the finale, pays no hero: the four hero packs take the four villains
+    // before him in release order (Iceman, Jubilee, Nightcrawler, Magneto). Owner to confirm this pairing.
     cycleId: "cycle8",
     name: "Age of Apocalypse",
     gate: { kind: "campaignWin", campaignId: "next_evol", hint: "Complete the NeXt Evolution campaign" },
+    campaignId: "aoa",
     starterHeroIds: ["45001a", "45030a"], // Bishop, Magik: MC45's own cast
     heroRewards: [
       { scenarioId: "unus", identityCardId: "46001a" }, // Iceman

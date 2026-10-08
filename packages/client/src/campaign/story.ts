@@ -17,6 +17,7 @@ import { MOJO_STORY } from "./stories/mojo.js";
 import { MUT_GEN_STORY } from "./stories/mut_gen.js";
 import { NEXT_EVOL_STORY } from "./stories/next_evol.js";
 import { SM_STORY } from "./stories/sm.js";
+import { AOA_STORY } from "./stories/aoa.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 
@@ -415,6 +416,7 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [MUT_GEN_STORY.campaignId]: MUT_GEN_STORY,
   [MOJO_STORY.campaignId]: MOJO_STORY,
   [NEXT_EVOL_STORY.campaignId]: NEXT_EVOL_STORY,
+  [AOA_STORY.campaignId]: AOA_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];

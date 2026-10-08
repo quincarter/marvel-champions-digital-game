@@ -20,6 +20,7 @@ import type {
   InstanceId,
   LogFieldDef,
 } from "@mc/engine";
+import { AOA_MISSIONS, AOA_PROTECT_THE_PROFESSOR } from "@mc/cards";
 import { createCampaignLog, NO_STATUSES } from "@mc/engine";
 import { campaignId, cardId, scenarioId, type AnyCard, type CardId, type Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_VERSION } from "../content/pool.js";
@@ -794,6 +795,69 @@ export async function seedNextEvolRun(
   }
   while (record.status === "active") record = await playIssue(service, record, "win");
   return record;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Age of Apocalypse (MC45), Bishop and Magik
+// ---------------------------------------------------------------------------------------------------------------
+
+export type AoaRunStop =
+  | "fresh"
+  | "afterIssue1"
+  | "afterIssue2"
+  | "afterIssue3"
+  | "afterIssue4"
+  | "lostIssue1"
+  | "finished";
+
+/**
+ * The drawn mission as a defeat event: a substituted win defeats nothing on its own, and "was defeated" is read from
+ * the game's defeat events (`cardsDefeated`), so a fixture that wants the Defeated cells hands the runner one for the
+ * mission instance the real setup put into the mission area. No event for a scenario with no such card in play.
+ */
+function missionDefeatedEvents(state: GameState): readonly GameEvent[] {
+  const names = new Set([
+    ...AOA_MISSIONS.map((row) => row.cardId as string),
+    AOA_PROTECT_THE_PROFESSOR.cardId as string,
+  ]);
+  const mission = Object.values(state.instances).find((instance) => names.has(instance.cardId as string));
+  return mission ? [{ type: "schemeDefeated", instanceId: mission.instanceId, cardId: mission.cardId }] : [];
+}
+
+/**
+ * A signed run of Age of Apocalypse (Bishop and Magik): each win is substituted (nothing here can play a scenario to a
+ * win) with the drawn mission handed over as defeated unless `missionsDefeated` is false, so the log shows the Defeated
+ * cells (a reward pick the runner asks for is declined by `autoAnswer`) or the Not Defeated ones. `"lostIssue1"`
+ * concedes issue #1 once: the log is back at the issue's start, and composing it again draws a new mission and Overseer.
+ */
+export async function seedAoaRun(
+  service: CampaignService,
+  stop: AoaRunStop = "afterIssue1",
+  options: { readonly expertCampaign?: boolean; readonly missionsDefeated?: boolean } = {},
+): Promise<CampaignRecord> {
+  let record = await service.start({
+    campaignId: "aoa",
+    seats: [nextEvolDeck("bishop"), nextEvolDeck("magik")],
+    poolVersion: POOL_VERSION,
+    seed: 4545,
+    ...(options.expertCampaign ? { expertCampaign: true } : {}),
+  });
+  if (stop === "fresh") return record;
+  if (stop === "lostIssue1") return playIssue(service, record, "loss");
+  const events = options.missionsDefeated === false ? () => [] : missionDefeatedEvents;
+  const order: readonly AoaRunStop[] = ["afterIssue1", "afterIssue2", "afterIssue3", "afterIssue4"];
+  for (const name of order) {
+    record = await playIssueWith(service, record, "win", autoAnswer, undefined, events);
+    if (stop === name) return record;
+  }
+  // `"finished"`: scenario 5 won with Protect the Professor handed over as defeated, so the campaign is won.
+  return stop === "finished" ? playIssueWith(service, record, "win", autoAnswer, undefined, events) : record;
+}
+
+/** `stop`'s own next issue, composed and won but not folded: the live Aftermath's fixture (`seedWon` in `main.ts`). */
+export async function seedAoaWonGame(service: CampaignService, stop: AoaRunStop = "fresh"): Promise<WonGame> {
+  const record = await seedAoaRun(service, stop);
+  return composeAndFabricateWin(service, record, autoAnswer);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

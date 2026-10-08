@@ -44,6 +44,7 @@ import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-mode
 import type { CampaignPoolOverview, PoolStillInPlayRow } from "../../view/campaign-pool-model.js";
 import type { HiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
 import type { Rect } from "../../view/layout.js";
+import { drawMissionTable } from "./dossier-missions.js";
 import { drawSideSchemeTable } from "./dossier-side-schemes.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -382,6 +383,10 @@ export class CampaignDossierScene extends Phaser.Scene {
       leftY =
         drawSideSchemeTable(this, { x: leftX, y: leftY, width: leftWidth, height: 0 }, loaded.overview.sideSchemes) +
         24;
+    }
+
+    if (loaded.overview.missions) {
+      leftY = drawMissionTable(this, { x: leftX, y: leftY, width: leftWidth, height: 0 }, loaded.overview.missions) + 8;
     }
 
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;

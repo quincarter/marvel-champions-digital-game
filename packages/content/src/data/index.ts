@@ -604,7 +604,7 @@ export const WAVE7_STARTER_DECKS: readonly StarterDeck[] = [
 // `magneto`). Declared here (before `PLAYABLE_CARDS`, which reads `WAVE8_CARDS`) for the same source-order reason as
 // the earlier waves. Pool membership is not a claim that a pack is scripted: `unscriptedCards` keeps unscripted
 // precons from being seated, and the client's `pool.ts` decides which scenarios and precons it offers.
-// `AOA_CAMPAIGN` is exported by `./aoa/index.js` but not registered in `CAMPAIGNS` until the box is scripted.
+// `AOA_CAMPAIGN` (exported by `./aoa/index.js`) is registered in `CAMPAIGNS` below.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./aoa/index.js";
 export * from "./iceman/index.js";
@@ -612,6 +612,7 @@ export * from "./jubilee/index.js";
 export * from "./ncrawler/index.js";
 export * from "./magneto/index.js";
 
+import { AOA_CAMPAIGN } from "./aoa/campaign.js";
 import { AOA_CARDS } from "./aoa/cards.js";
 import { AOA_ENCOUNTER_SETS } from "./aoa/encounterSets.js";
 import { AOA_SCENARIOS } from "./aoa/scenarios.js";
@@ -717,6 +718,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   MUT_GEN_CAMPAIGN,
   MOJO_CAMPAIGN,
   NEXT_EVOL_CAMPAIGN,
+  AOA_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------

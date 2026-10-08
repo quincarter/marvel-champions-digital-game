@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   cardId,
+  AOA_CAMPAIGN,
+  AOA_STARTER_DECKS,
   SM_CAMPAIGN,
   SM_STARTER_DECKS,
   TRORS_CAMPAIGN,
@@ -9,7 +11,7 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import { createCampaignLog, type CampaignGrant, type CampaignLog, type CampaignSeatSetup } from "@mc/engine";
-import { SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { AOA_CAMPAIGN_DEFINITION, SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { POOL_CARDS } from "../content/pool.js";
 import {
   campaignDeckContextOf,
@@ -62,6 +64,40 @@ function grantedLog(): CampaignLog {
     ),
   };
 }
+
+describe("campaignDeckContextOf: Age of Apocalypse's deck-size rules (MC45 p. 24, owner Q25)", () => {
+  const bishop = AOA_STARTER_DECKS[0]!;
+  const logWith = (grants: readonly CampaignGrant[]): CampaignLog => {
+    const log = createCampaignLog(AOA_CAMPAIGN_DEFINITION, {
+      id: "aoa-deck-model-test",
+      seats: [seatFor(bishop as unknown as StarterDeck, 1)],
+      modes: { campaign: { campaignId: AOA_CAMPAIGN_DEFINITION.campaignId } },
+      poolVersion: "deck-model-test",
+      seed: 1,
+    });
+    return { ...log, seats: log.seats.map((seat) => ({ ...seat, grants })) };
+  };
+
+  it("names the box's campaign sets and passes a counted reward's rule to validateDeck", () => {
+    const grants: CampaignGrant[] = [
+      { cardId: cardId("45174"), permanence: "campaign", grantedAtNodeId: "unus", deckSize: "counted" },
+      { cardId: cardId("45175"), permanence: "campaign", grantedAtNodeId: "unus" },
+    ];
+    const context = campaignDeckContextOf(AOA_CAMPAIGN, logWith(grants), 1);
+    expect(context.campaignSetIds).toEqual(expect.arrayContaining([...AOA_CAMPAIGN.campaignSetIds]));
+    expect(context.grantedCardIds).toEqual([cardId("45174"), cardId("45175")]);
+    expect(context.grantDeckSizes).toEqual([{ cardId: cardId("45174"), deckSize: "counted" }]);
+  });
+
+  it("carries no deck-size rules when no grant has one (every earlier box)", () => {
+    const context = campaignDeckContextOf(
+      AOA_CAMPAIGN,
+      logWith([{ cardId: cardId("45175"), permanence: "campaign", grantedAtNodeId: "unus" }]),
+      1,
+    );
+    expect(context.grantDeckSizes).toBeUndefined();
+  });
+});
 
 describe("campaignDeckContextOf: MC10's real content record and definition", () => {
   it("assembles the campaign set ids, identity lock and grants from the log", () => {

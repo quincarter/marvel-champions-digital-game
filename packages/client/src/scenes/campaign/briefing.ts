@@ -10,7 +10,14 @@
 import Phaser from "phaser";
 import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice, PlayerSetup } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
-import { issueNumberOf, issueStoryFor, lineForRoster, storyFor, type IssueStory } from "../../campaign/story.js";
+import {
+  issueNumberOf,
+  issueStoryFor,
+  lineForRoster,
+  setupCallCopyFor,
+  storyFor,
+  type IssueStory,
+} from "../../campaign/story.js";
 import {
   bangers,
   drawActionBar,
@@ -65,6 +72,7 @@ import { briefingSpeakerOf } from "../../view/campaign-briefing-speaker.js";
 import {
   answersOfAttempt,
   briefingViewOf,
+  DECK_NOTE_EXEMPT,
   deckProblemsOf,
   type BriefingView,
   type HandledRow,
@@ -85,6 +93,7 @@ import {
   type WaitingPanel,
 } from "../../view/campaign-modular-call-model.js";
 import { drawModularCall } from "./briefing-modular-call.js";
+import { drawMissionBriefing } from "./briefing-mission.js";
 import { drawSideSchemeCall, drawSideSchemeSettled, type SideSchemeDrawContext } from "./briefing-side-scheme.js";
 import {
   sideSchemeBriefingOf,
@@ -535,6 +544,16 @@ export class CampaignBriefingScene extends Phaser.Scene {
         (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
       );
     }
+    const missionBrief = !seatCall ? (view?.missions ?? null) : null;
+    if (missionBrief && !schemeBeside) {
+      const missionRect: Rect = {
+        x: leftRect.x,
+        y: leftBottom + 20,
+        width: leftRect.width,
+        height: Math.max(0, contentBottom - leftBottom - 20),
+      };
+      leftBottom = drawMissionBriefing(this.#schemeContext(missionRect, phone, stops), missionRect.y, missionBrief);
+    }
     if (this.#pending) {
       this.#drawYourCall(
         {
@@ -561,7 +580,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (hasPool) this.#drawHandled(rightRect, view, stops);
       else {
         const decksBottom = this.#drawDecks(rightRect, view, stops);
-        if (scheme) {
+        if (missionBrief) {
+          drawMissionBriefing(this.#schemeContext(rightRect, phone, stops), decksBottom + 24, missionBrief);
+        } else if (scheme) {
           drawSideSchemeSettled(
             this.#schemeContext(rightRect, phone, stops),
             decksBottom + 24,
@@ -1068,6 +1089,16 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!header) {
       const who = pending.seatNumber !== null ? `Seat ${pending.seatNumber}` : "Everyone decides together";
       y += label(this, rect.x, y, who, typeRole.label, accent.heroRed.hex, 1).height + 4;
+    }
+    // A box's own plain-words line about the question (`campaign/story.ts`'s `setupCalls`), above the printed rule.
+    const words = setupCallCopyFor(pending.instructionId);
+    if (words) {
+      const explain = this.add
+        .text(rect.x, y, words.explain, textStyle(typeRole.emphasis, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width);
+      y += explain.height + 8;
+      y += label(this, rect.x, y, "THE RULE", typeRole.label, surface.ink.hex, ink.label).height + 4;
     }
     const prompt = this.add
       .text(rect.x, y, pending.text, textStyle(typeRole.body, surface.ink.hex))
@@ -2018,7 +2049,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       .text(
         rect.x,
         y,
-        "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.",
+        view?.deckNote ?? DECK_NOTE_EXEMPT,
         // No letter spacing: Phaser measures a wrap line without it, so spaced text ran past the panel's edge.
         textStyle({ ...typeRole.label, letterSpacing: 0 }, surface.ink.hex, ink.label),
       )

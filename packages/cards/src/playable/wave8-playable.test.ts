@@ -243,8 +243,8 @@ describe("the Age of Apocalypse campaign cards stay campaign-only against the wh
     }
   });
 
-  it("the campaign definition is not registered: the client's Saga shelf does not list the box yet", () => {
-    expect((CAMPAIGNS as Record<string, unknown>).aoa).toBeUndefined();
+  it("the campaign definition is registered: the client's Saga shelf lists the box", () => {
+    expect((CAMPAIGNS as Record<string, unknown>).aoa).toBeDefined();
   });
 
   it("the Core starter decks are untouched by the new pool", () => {

@@ -280,9 +280,9 @@ describe("AOA_CAMPAIGN_DEFINITION: structure", () => {
     for (const draw of draws) expect(draw.perAttempt).toBe(true);
   });
 
-  it("is not listed yet: neither the cards registry nor the content list names the campaign (a later client step)", () => {
-    expect(CAMPAIGNS.aoa).toBeUndefined();
-    expect(CONTENT_CAMPAIGNS.some((campaign) => campaign.id === AOA_CAMPAIGN.id)).toBe(false);
+  it("is listed: the cards registry and the content list both name the campaign", () => {
+    expect(CAMPAIGNS.aoa).toBe(DEF);
+    expect(CONTENT_CAMPAIGNS.some((campaign) => campaign.id === AOA_CAMPAIGN.id)).toBe(true);
   });
 });
 

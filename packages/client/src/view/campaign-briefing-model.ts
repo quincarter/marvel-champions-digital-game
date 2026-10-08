@@ -29,6 +29,7 @@ import {
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { missionBriefingOf, type MissionBriefing } from "./campaign-mission-model.js";
 import { sideSchemeBriefingOf, type SideSchemeBriefing } from "./campaign-side-scheme-model.js";
 import { aspectName } from "./aspect-stamp.js";
 
@@ -72,8 +73,29 @@ export interface DeckRow {
   readonly problem?: string;
 }
 
+/** The line under the Decks panel: a card the campaign pins into a deck is exempt from deck size (MC10 p. 3) unless the box says it counts. */
+export const DECK_NOTE_EXEMPT =
+  "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.";
+export const DECK_NOTE_COUNTED =
+  "Tap a deck to edit it. Decks can change now; hero can't. A reward counts toward deck size, so a full deck drops a card to take it.";
+
+/** Whether the definition ever grants a card that counts toward deck size (`grantCard` with a `deckSize` rule, MC45 p. 24). */
+export function grantsCountTowardDeckSize(definition: CampaignDefinition | undefined): boolean {
+  if (!definition) return false;
+  const walk = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(walk);
+    if (value === null || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    if (record.kind === "grantCard" && record.deckSize !== undefined && record.deckSize !== "exempt") return true;
+    return Object.values(record).some(walk);
+  };
+  return walk([definition.everyNodeSetup ?? [], definition.graph]);
+}
+
 export interface BriefingView {
   readonly issueNumber: number;
+  /** The line under the Decks panel (`DECK_NOTE_EXEMPT`, or `DECK_NOTE_COUNTED` for a box whose grants count). */
+  readonly deckNote: string;
   readonly handled: readonly HandledRow[];
   readonly decks: readonly DeckRow[];
   /** Null for a box with no campaign pool, or an issue whose own setup reads none of it back (issue #1). */
@@ -82,6 +104,8 @@ export interface BriefingView {
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
   /** The per-scenario player-side-scheme choice and what carries in (`campaign-side-scheme-model.ts`). Null for a box without one. */
   readonly sideScheme: SideSchemeBriefing | null;
+  /** This scenario's drawn mission and Overseer, the absent Prelate and a retry's earlier draws (MC45). Null for a box without missions. */
+  readonly missions: MissionBriefing | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -617,6 +641,7 @@ export function briefingViewOf(
   const isFinale = definition ? nodeIds[nodeIds.length - 1] === record.attempt.nodeId : false;
   return {
     issueNumber,
+    deckNote: grantsCountTowardDeckSize(definition) ? DECK_NOTE_COUNTED : DECK_NOTE_EXEMPT,
     handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds, briefingNotes),
     pool:
       definition && node
@@ -625,5 +650,6 @@ export function briefingViewOf(
     decks: deckRowsOf(record, cardName, deckProblems),
     hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
     sideScheme: definition ? sideSchemeBriefingOf({ definition, record, cardName }) : null,
+    missions: definition ? missionBriefingOf(record, definition) : null,
   };
 }

@@ -285,6 +285,12 @@ if (import.meta.env.DEV) {
         fixtures.seedMojoRun(session.campaignService(), stop),
       seedMojoWon: (stop?: Parameters<typeof fixtures.seedMojoWonGame>[1]) =>
         seedWon(() => fixtures.seedMojoWonGame(session.campaignService(), stop)),
+      seedAoa: (
+        stop?: Parameters<typeof fixtures.seedAoaRun>[1],
+        options?: Parameters<typeof fixtures.seedAoaRun>[2],
+      ) => fixtures.seedAoaRun(session.campaignService(), stop, options),
+      seedAoaWon: (stop?: Parameters<typeof fixtures.seedAoaWonGame>[1]) =>
+        seedWon(() => fixtures.seedAoaWonGame(session.campaignService(), stop)),
     };
   });
 }

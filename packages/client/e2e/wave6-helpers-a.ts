@@ -220,7 +220,6 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
   })) as PendingChoiceView | null;
   // The engine has no decision open: the sheet is only still on screen while it leaves (a slow runner), and there is
   // nothing to answer. Looking for its Confirm button would wait out the whole budget.
-  if (!choice) return;
   const rects = await page.evaluate(
     () =>
       (window as unknown as { __mcChoiceDebug?: { allRects(): [string, Rect][] } }).__mcChoiceDebug?.allRects() ?? [],
@@ -230,6 +229,20 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
     await pressAt(page, r.x + r.width / 2, r.y + r.height / 2);
     await settle(page);
   };
+  if (!choice) {
+    // Setup deal asks before the live game store holds the game (a campaign's ally search, Age of Apocalypse): answer
+    // from the sheet's own controls. Behind its privacy cover, tap the cover first; otherwise pick the first card.
+    const reveal = rectOf("reveal");
+    if (reveal) {
+      await click(reveal);
+      return;
+    }
+    const first = rects.find(([k]) => k.startsWith("option:"));
+    const confirm = rectOf("confirm");
+    if (first) await click(first[1]);
+    if (confirm) await click(confirm);
+    return;
+  }
   if (choice && choice.options.length > 1 && choice.maxSelections > 0) {
     const need = Math.max(choice.minSelections, 1);
     for (const option of choice.options.slice(0, need)) {

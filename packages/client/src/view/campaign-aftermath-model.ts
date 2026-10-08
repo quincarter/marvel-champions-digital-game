@@ -15,6 +15,7 @@
  * caller surfaces the mismatch instead of sending it — this module only ever proposes what `answerFor` derives
  * from a seat's own recorded decision, never a synthesized one.
  */
+import { missionResultWordsOf } from "./campaign-mission-model.js";
 import type { AnyCard, CardId } from "@mc/content";
 import type {
   CampaignDefinition,
@@ -129,11 +130,35 @@ export function isDealtPerSeatSlot(slot: string): boolean {
   return DEALT_PER_SEAT_SLOTS.has(slot);
 }
 
+/**
+ * Where a folded win goes: the Finale when the campaign is won, the campaign-lost Rewind when the last scenario was
+ * won and the campaign lost anyway (MC45 p. 20: Protect the Professor not defeated), and the ordinary summary for every
+ * other win.
+ */
+export function postFoldDestination(status: string): "finale" | "campaignLost" | "summary" {
+  return status === "won" ? "finale" : status === "lost" ? "campaignLost" : "summary";
+}
+
 /** Slots whose shared catalog is never exclusive — see `AftermathChoiceGroup.noExclusivity`'s doc comment. */
 const NO_EXCLUSIVITY_SLOTS: ReadonlySet<string> = new Set(["aspectAdvantage"]);
 
 export function isNoExclusivitySlot(slot: string): boolean {
   return NO_EXCLUSIVITY_SLOTS.has(slot);
+}
+
+/**
+ * A `reward` pick (MC45 p. 24: "chooses an upgrade from any aspect", "a support from any aspect") reads the whole
+ * collection when it offers this many cards or more, and a short column cannot show that: it takes the search-and-grid
+ * picker `aspectAdvantage` has, and, like it, is never exclusive (two heroes may take the same title). The same slot
+ * offering a handful (Find Lost Mutants' four campaign allies, one copy each, taken for the table) stays a column.
+ */
+export const COLLECTION_PICK_FLOOR = 13;
+
+const COLLECTION_PICK_SLOTS: ReadonlySet<string> = new Set(["aspectAdvantage", "reward"]);
+
+/** Whether this choice is a whole-collection pick (`COLLECTION_PICK_FLOOR`), drawn as the picker instead of columns. */
+export function isCollectionPick(slot: string, optionCount: number): boolean {
+  return slot === "aspectAdvantage" || (COLLECTION_PICK_SLOTS.has(slot) && optionCount >= COLLECTION_PICK_FLOOR);
 }
 
 /**
@@ -204,7 +229,7 @@ export function startAftermathGroup(
     catalog,
     dealtPerSeat,
     catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
-    noExclusivity: isNoExclusivitySlot(pending.slot),
+    noExclusivity: isNoExclusivitySlot(pending.slot) || isCollectionPick(pending.slot, catalog.length),
     seatOrder: seats.map((seat) => seat.seatNumber),
     currentSeatNumber,
     confirmedSeatNumbers: [],
@@ -531,7 +556,12 @@ function loggedTagFor(
     return name ? `LOGGED · ${label}: ${name.toUpperCase()}` : null;
   }
   if (value.kind === "flag") return value.value ? `LOGGED · ${label}` : null;
-  if (value.kind === "choice") return `LOGGED · ${label}: ${value.option.toUpperCase()}`;
+  if (value.kind === "choice") {
+    // MC45 p. 24: a mission row's result reads "NOT DEFEATED", not the stored option id.
+    const mission = missionResultWordsOf(field.id, value.option);
+    if (mission) return `LOGGED · ${mission.name.toUpperCase()}: ${mission.result.toUpperCase()}`;
+    return `LOGGED · ${label}: ${value.option.toUpperCase()}`;
+  }
   // A card list reads as its count ("LOGGED · 2 FUTURE PAST CARDS"); the cards themselves are in the Dossier's Log.
   if (value.kind === "cardList") {
     return value.cardIds.length === 0

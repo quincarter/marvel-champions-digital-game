@@ -108,10 +108,14 @@ Each of these is why the corresponding shape below (`kind: "choice"` graphs, `Ca
 - **MC56 Civil War has no campaign mode at all.** MC56 p. 3: "_the Civil War expansion does not include five
   interconnected scenarios and a campaign mode_." It is a custom-scenario + competitive (PvP) expansion. PLAN.md §C3
   lists it as a campaign box with "2 scenarios"; that row is wrong. See Open question Q2.
-- **MC45 "Not Defeated" instructions are rewards, not penalties.** MC45 p. 24: failing a mission lets each player add a
-  free upgrade/support/ally from any aspect for the rest of the campaign; _defeating_ it removes cards from the
-  campaign. The log's Setup/Defeated/Not-Defeated columns are three parallel instruction lists per option, not a
-  success/failure pair.
+- **MC45's "Defeated" instructions are the rewards, and "Not Defeated" the penalties.** MC45 p. 24 (corrected: this
+  entry once read the sheet backward): defeating Evacuate Survivors, Sabotage the Sea Wall or Find Lost Mutants lets
+  each player add a free upgrade, support or campaign ally for the rest of the campaign (and, for the first two,
+  removes the mission's own bad card, Panicked Refugees or the North American Sea Wall, from the campaign); defeating
+  Liberate the Seattle Core lets each player shuffle a Desperate Measures into their deck each game. Failing a mission
+  costs: Panicked Refugees in every deck, the Sea Wall in every encounter deck, the campaign allies removed, the
+  Desperate Measures removed. The log's Setup/Defeated/Not-Defeated columns are three parallel instruction lists per
+  option, not a success/failure pair, and a not-defeated mission is a penalty to show, never a reward to pick.
 - **MC50's Board Members are game objects whose state is campaign state.** Secret counters carry over; at 4 (3 in
   expert) the environment flips to an attachment "_for the rest of the campaign_" (MC50 p. 6). This is a card instance
   whose face and counters are log state — not a number the log stores about a card.

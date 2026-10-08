@@ -74,8 +74,10 @@ import {
   answerForPending,
   continuesGroup,
   decideForSeat,
+  isCollectionPick,
   nextIssueRaisesMarket,
   offersAnswer,
+  postFoldDestination,
   readyToCommit,
   startAftermathGroup,
   type AftermathChoiceGroup,
@@ -261,8 +263,14 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
   #onFolded(record: CampaignRecord): void {
     this.#record = record;
-    if (record.status === "won") {
+    const destination = postFoldDestination(record.status);
+    if (destination === "finale") {
       goToScreen(this, SCENES.campaignFinale, { runId: record.id });
+      return;
+    }
+    if (destination === "campaignLost" && this.#nodeId) {
+      // A win that still loses the campaign (MC45 p. 20): the Rewind screen's campaign-lost variant, no retry offered.
+      goToScreen(this, SCENES.campaignRewind, { runId: record.id, nodeId: this.#nodeId });
       return;
     }
     // `this.#group` is left as-is on purpose: by the time a commit loop reaches "done", every seat in it is
@@ -743,7 +751,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const group = this.#group;
     const record = this.#record;
     if (!group || !record) return;
-    if (group.slot === "aspectAdvantage") {
+    if (isCollectionPick(group.slot, group.catalog.length)) {
       this.#drawCollectionPicker(group, rect, order, stops, phone);
       return;
     }
@@ -1249,7 +1257,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // both use the same one-seat-at-a-time confirm CTA rather than the batch "decide everyone, then commit" flow
     // below (which would deadlock here: a seat can only decide once it's current, and it only becomes current
     // through a real `fold` call the batch flow refuses to make until every seat has already decided).
-    const oneSeatAtATime = group?.dealtPerSeat || group?.slot === "aspectAdvantage";
+    const oneSeatAtATime = group?.dealtPerSeat || (group ? isCollectionPick(group.slot, group.catalog.length) : false);
     if (oneSeatAtATime && group) {
       const decision = group.decisions[group.currentSeatNumber];
       const decided = decision !== undefined && decision.kind !== "undecided";

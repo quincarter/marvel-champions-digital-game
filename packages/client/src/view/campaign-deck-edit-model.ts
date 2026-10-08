@@ -11,6 +11,7 @@
  * optional input here; MC10 never freezes a deck, so its own tests never pass one.
  */
 import {
+  grantDeckSizesOf,
   validateDeck,
   type CampaignDefinition,
   type CampaignDeckContext,
@@ -34,6 +35,8 @@ export function campaignDeckContextOf(
     campaignSetIds: [...campaign.campaignSetIds, ...(campaign.perSeatSetIds ?? [])],
     identityCardId: seat.identityCardId,
     grantedCardIds: seat.grants.map((grant) => grant.cardId),
+    // MC45 p. 24: a reward that counts toward deck size (Q25) is told to `validateDeck`; absent for every earlier box.
+    ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
     removedFromCampaign: log.removedFromCampaign,
     ...(campaign.prohibited?.cardIds ? { prohibitedCardIds: campaign.prohibited.cardIds } : {}),
     ...(campaign.prohibited?.encounterSetIds ? { prohibitedEncounterSetIds: campaign.prohibited.encounterSetIds } : {}),
