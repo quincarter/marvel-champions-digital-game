@@ -19,6 +19,7 @@ import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
+import { MAGIK_EVENTS } from "./aoa/magik/events.js";
 import { MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./aoa/magik/identity.js";
 import {
   MAGIK_SUPPORT_UPGRADES_ALLIES,
@@ -27,6 +28,7 @@ import {
 import { SAVAGE_LAND } from "./aoa/savage-land.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
+import { ICEMAN_ASPECT_BASIC, ICEMAN_ASPECT_BASIC_SKIPPED } from "./iceman/aspect-basic.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
 import { ICEMAN_OBLIGATION_NEMESIS, ICEMAN_OBLIGATION_NEMESIS_SKIPPED } from "./iceman/iceman/obligation-nemesis.js";
@@ -147,6 +149,12 @@ const SCRIPTED_MODULES: Readonly<
       skipped: MAGIK_IDENTITY_SKIPPED,
     },
     {
+      module: "magik/events",
+      cardIds: ["45036", "45037", "45038", "45039", "45040"],
+      registry: MAGIK_EVENTS,
+      skipped: {},
+    },
+    {
       module: "magik/support-upgrades-allies",
       cardIds: ["45031", "45032", "45033", "45034", "45035"],
       registry: MAGIK_SUPPORT_UPGRADES_ALLIES,
@@ -161,6 +169,25 @@ const SCRIPTED_MODULES: Readonly<
   ],
   iceman: [
     { module: "iceman/identity", cardIds: ["46001a", "46001b"], registry: ICEMAN_IDENTITY, skipped: {} },
+    {
+      module: "iceman/aspect-basic",
+      cardIds: [
+        "46012",
+        "46013",
+        "46014",
+        "46015",
+        "46016",
+        "46017",
+        "46018",
+        "46019",
+        "46020",
+        "46021",
+        "46022",
+        "46023",
+      ],
+      registry: ICEMAN_ASPECT_BASIC,
+      skipped: ICEMAN_ASPECT_BASIC_SKIPPED,
+    },
     {
       module: "iceman/support-upgrades-allies",
       cardIds: ["46002", "46003", "46004", "46005", "46006", "46007", "46008"],
