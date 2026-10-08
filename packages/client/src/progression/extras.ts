@@ -444,6 +444,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/en-sabah-nur/battle.mp3": "The First Mutant",
   "scenarios/en-sabah-nur/villain-wins.mp3": "A World Remade",
   "scenarios/en-sabah-nur/villain-loses.mp3": "The End of Eternity",
+  "campaigns/aoa/finale.mp3": "Dawn of a New Age",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
