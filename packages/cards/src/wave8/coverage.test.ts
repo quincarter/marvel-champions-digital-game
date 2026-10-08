@@ -29,6 +29,7 @@ import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_EVENTS, JUBILEE_EVENTS_SKIPPED } from "./jubilee/jubilee/events.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
+import { JUBILEE_SUPPORT_UPGRADES_ALLIES } from "./jubilee/jubilee/support-upgrades-allies.js";
 import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
@@ -132,6 +133,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["47006", "47007a", "47007b", "47007c", "47008a", "47008b", "47008c", "47009"],
       registry: JUBILEE_EVENTS,
       skipped: JUBILEE_EVENTS_SKIPPED,
+    },
+    {
+      module: "jubilee/support-upgrades-allies",
+      cardIds: ["47002", "47003", "47004", "47005", "47010a", "47010b", "47010c"],
+      registry: JUBILEE_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
     },
     { module: "jubilee/arcade", cardIds: ["47030", "47031", "47032", "47033", "47034"], registry: ARCADE, skipped: {} },
   ],
