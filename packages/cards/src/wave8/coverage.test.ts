@@ -14,10 +14,14 @@ import { BISHOP_EVENTS } from "./aoa/bishop/events.js";
 import { BISHOP_IDENTITY } from "./aoa/bishop/identity.js";
 import { BISHOP_OBLIGATION_NEMESIS, BISHOP_OBLIGATION_NEMESIS_SKIPPED } from "./aoa/bishop/obligation-nemesis.js";
 import { BISHOP_SUPPORT_UPGRADES_ALLIES } from "./aoa/bishop/support-upgrades-allies.js";
+import { APOCALYPSE, APOCALYPSE_SKIPPED } from "./aoa/apocalypse.js";
 import { BLUE_MOON } from "./aoa/blue-moon.js";
 import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
+import { DARK_BEAST, DARK_BEAST_SKIPPED } from "./aoa/dark-beast.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
+import { FOUR_HORSEMEN, FOUR_HORSEMEN_SKIPPED } from "./aoa/four-horsemen.js";
+import { GENOSHA, GENOSHA_SKIPPED } from "./aoa/genosha.js";
 import { HOUNDS } from "./aoa/hounds.js";
 import { INFINITES } from "./aoa/infinites.js";
 import { MAGIK_EVENTS } from "./aoa/magik/events.js";
@@ -27,6 +31,7 @@ import {
   MAGIK_SUPPORT_UPGRADES_ALLIES,
   MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./aoa/magik/support-upgrades-allies.js";
+import { PRELATES, PRELATES_SKIPPED } from "./aoa/prelates.js";
 import { SAVAGE_LAND } from "./aoa/savage-land.js";
 import { STANDARD_III, STANDARD_III_SKIPPED } from "./aoa/standard-iii.js";
 import { UNUS, UNUS_SKIPPED } from "./aoa/unus.js";
@@ -219,16 +224,80 @@ const SCRIPTED_MODULES: Readonly<
       skipped: MAGIK_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
+      module: "four-horsemen",
+      cardIds: [
+        "45081a",
+        "45081b",
+        "45082a",
+        "45082b",
+        "45083a",
+        "45083b",
+        "45084a",
+        "45084b",
+        "45085a",
+        "45086",
+        "45087",
+        "45088",
+        "45089",
+        "45090",
+        "45091",
+        "45092",
+        "45093",
+        "45094",
+        "45095",
+        "45096",
+      ],
+      registry: FOUR_HORSEMEN,
+      skipped: FOUR_HORSEMEN_SKIPPED,
+    },
+    {
       module: "savage-land",
       cardIds: ["45127", "45128", "45129", "45130", "45131", "45132"],
       registry: SAVAGE_LAND,
       skipped: {},
     },
     {
+      module: "genosha",
+      cardIds: ["45133", "45134", "45135", "45136", "45137", "45138"],
+      registry: GENOSHA,
+      skipped: GENOSHA_SKIPPED,
+    },
+    {
+      module: "dark-beast",
+      cardIds: ["45118", "45121a", "45122", "45123", "45124", "45125", "45126"],
+      registry: DARK_BEAST,
+      skipped: DARK_BEAST_SKIPPED,
+    },
+    {
       module: "unus",
       cardIds: ["45059", "45062a", "45063", "45064", "45065", "45066", "45067", "45068"],
       registry: UNUS,
       skipped: UNUS_SKIPPED,
+    },
+    {
+      module: "prelates",
+      cardIds: ["45179b", "45180b", "45181b", "45182b", "45183b"],
+      registry: PRELATES,
+      skipped: PRELATES_SKIPPED,
+    },
+    {
+      module: "apocalypse",
+      cardIds: [
+        "45101a",
+        "45103a",
+        "45104a",
+        "45104b",
+        "45105a",
+        "45105b",
+        "45106",
+        "45107",
+        "45108",
+        "45109",
+        "45110",
+        "45111",
+      ],
+      registry: APOCALYPSE,
+      skipped: APOCALYPSE_SKIPPED,
     },
   ],
   iceman: [
