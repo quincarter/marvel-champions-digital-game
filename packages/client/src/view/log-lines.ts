@@ -424,6 +424,8 @@ function describe(
     }
     // An upgrade put into play with no legal host stays where it was (RRG 1.8 "Attach To", p. 8).
     case "putIntoPlayRefused":
+      if (event.reason === "cannotEnterPlay")
+        return { text: `${card(event.instanceId)} cannot enter play during this game.`, voice: "player" };
       return { text: `${card(event.instanceId)} has nothing to attach to and stays where it was.`, voice: "player" };
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
@@ -832,9 +834,11 @@ function blankedBy(burst: Burst | undefined, state: GameState, source: InstanceI
 }
 
 const swapRefusedReason = (
-  reason: "missingCard" | "bothInPlay" | "cannotLeavePlay" | "unsupported" | "unique",
+  reason: "missingCard" | "bothInPlay" | "cannotLeavePlay" | "unsupported" | "unique" | "cannotEnterPlay",
 ): string => {
   switch (reason) {
+    case "cannotEnterPlay":
+      return "the card coming in cannot enter play during this game";
     case "cannotLeavePlay":
       return "the card in play cannot leave it";
     case "unique":

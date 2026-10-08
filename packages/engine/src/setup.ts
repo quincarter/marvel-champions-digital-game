@@ -109,6 +109,7 @@ function campaignDeckContextOf(
       campaignSetIds: [...campaignSetIds],
       identityCardId: seat?.identityCardId ?? "",
       grantedCardIds: granted,
+      ...(seat?.grantDeckSizes ? { grantDeckSizes: seat.grantDeckSizes } : {}),
       removedFromCampaign: campaign.removedFromCampaign,
     },
   };

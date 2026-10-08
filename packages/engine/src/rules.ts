@@ -894,6 +894,14 @@ export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: Pla
       matchesQuery(state, id, active.rule.cards, active.context),
   );
 
+/**
+ * Whether a rule stops this card from entering play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43): the one
+ * answer for a play, for an effect that puts a card into play and for a choice of a card to put into play. About a
+ * card out of play; the callers ask it only for a card that would enter play.
+ */
+export const cannotEnterPlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotEnterPlay").some(({ rule, context }) => matchesQuery(state, id, rule.cards, context));
+
 /** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
 export const cannotTriggerAction = (
   state: GameState,

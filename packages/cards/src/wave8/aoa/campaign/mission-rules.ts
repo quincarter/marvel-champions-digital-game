@@ -1,23 +1,34 @@
 import { trait } from "@mc/content";
 import type { EffectSpec, Predicate, RuleSpec, ScenarioSetupInstruction, TargetQuery, TargetRef } from "@mc/engine";
 import {
+  cannotEnterPlay,
+  chooseCards,
   chosen,
   countOf,
+  countTowardStartingHand,
   createScenarioPlayArea,
   dealPoolOneAtATime,
   each,
+  eachPlayer,
+  encounterSetAside,
   exists,
   firstPlayer,
+  forEachPlayer,
   inScenarioPlayArea,
   moveCards,
+  otherFaceOf,
   pairCards,
   putIntoPlay,
   query,
   raiseMoment,
+  refCount,
   removeThreat,
+  shuffleDeck,
+  thatPlayer,
   topOfDeck,
   totalStatOf,
   you,
+  zone,
 } from "../../../dsl/index.js";
 
 /**
@@ -135,3 +146,61 @@ export const missionSetupInstruction = (
   citation: "MC45 p. 5",
   effects: missionSetup(mission, overseer, missionTeam),
 });
+
+/** The slot of the ally a player found in the search below. */
+const FOUND_ALLY = "foundAlly";
+
+/**
+ * The fifth bullet of every scenario's Campaign Instructions (MC45 p. 20; docs/phase7-wave8.md §3.44): "Each player
+ * searches their deck for an ally and adds it to their hand. (This card counts towards your hand size.)" In player
+ * order, each player looks at their whole deck, takes an ally and shuffles (RRG 1.8 "Search", p. 39); the found card
+ * then counts toward the starting hand, so that player's draw of Appendix II step 14 is one card smaller
+ * (`countTowardStartingHand`). A player whose deck holds no ally finds nothing and draws in full. The mulligan is the
+ * ordinary one. Resolved before the starting hands are drawn (a campaign instruction of the window after scenario
+ * setup); cards the mission's Setup cell shuffled into the deck are in it already.
+ *
+ * A player whose deck holds an ally takes one: the RRG's search has no "may" ("If the player finds a card that
+ * satisfies the criteria of the search, the player adds that card").
+ *
+ * Standard campaign only. The expert sentence ("the ally you choose during Setup must share a trait with your hero")
+ * is not built: `sharesTraitWith(identityOf(...))` reads the face that is up, and at setup that is the alter-ego.
+ */
+export const allySearch = (): readonly EffectSpec[] => [
+  forEachPlayer(
+    eachPlayer,
+    chooseCards(FOUND_ALLY, zone("deck", thatPlayer, { filter: query("ally") }), {
+      min: 1,
+      max: 1,
+      chooser: thatPlayer,
+    }),
+    moveCards({ kind: "ref", ref: chosen(FOUND_ALLY) }, "hand"),
+    shuffleDeck(thatPlayer),
+    countTowardStartingHand(thatPlayer, refCount(chosen(FOUND_ALLY))),
+  ),
+];
+
+export const allySearchInstruction = (): ScenarioSetupInstruction => ({
+  id: "aoa.ally-search",
+  text: "Each player searches their deck for an ally and adds it to their hand. (This card counts towards your hand size.)",
+  citation: "MC45 p. 20",
+  effects: allySearch(),
+});
+
+/**
+ * Scenario 5's own Campaign Instruction (MC45 p. 20; docs/phase7-wave8.md §3.43): "Professor X cannot enter play
+ * during this game." A rule of that one game, passed with `MISSION_RULES` as its scenario rules. By title, so both
+ * printings are covered; the card may still be in a deck, be drawn, be discarded and pay for other cards.
+ */
+export const PROFESSOR_X_CANNOT_ENTER_PLAY: RuleSpec = cannotEnterPlay(query("ally", { name: "Professor X" }));
+
+/**
+ * Scenario 3 in a campaign (MC45 p. 14; docs/phase7-wave8.md §3.46, §4.1 Q21 = A): "The [PRELATE] minions (179-183)
+ * are found on the reverse sides of the [OVERSEER] minions", so the Prelate that is the other face of the Overseer
+ * drawn for this game is not available as a Prelate: it is removed from the game before the 1A Setup reveals one
+ * (a campaign instruction of the window before scenario setup), which leaves four set aside. `overseer` names the
+ * Overseer drawn, wherever it is (it is still set aside then). A struck Overseer's Prelate is untouched: only the
+ * one drawn for this game is named (ruling April 30, 2026, Ruling 4 (2)).
+ */
+export const removeOverseersPrelate = (overseer: TargetRef): readonly EffectSpec[] => [
+  moveCards(encounterSetAside(query("minion", otherFaceOf(overseer))), "removedFromGame"),
+];

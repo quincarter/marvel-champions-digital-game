@@ -1326,6 +1326,17 @@ export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
 export const staysInHand = (cards: TargetQuery = {}): ConstantPart => ({ rules: [{ kind: "staysInHand", cards }] });
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
+/**
+ * "[A title] cannot enter play during this game." (MC45 p. 20; docs/phase7-wave8.md §3.43) →
+ * `cannotEnterPlay(query("ally", { name: "…" }))`: a scenario rule (`GameSetupConfig.scenarioRuleSpecs`, or a campaign
+ * node's `scenarioRuleSpecs`), matched by title so every printing is covered. The card cannot be played or put into
+ * play; it may still be drawn, discarded and spent as a resource.
+ */
+export const cannotEnterPlay = (cards: TargetQuery, opts: { readonly while?: Predicate } = {}): RuleSpec => ({
+  kind: "cannotEnterPlay",
+  cards,
+  ...(opts.while ? { while: opts.while } : {}),
+});
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
 /**
  * Venom Goblin's glider counter as a scenario rule (MC27 p. 17; docs/phase7-wave5.md §3.3): the main scheme with the

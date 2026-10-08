@@ -39,7 +39,7 @@ import type {
   LogWrite,
   ResolvedInstruction,
 } from "../campaign.js";
-import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER } from "../campaign.js";
+import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, grantDeckSizesOf } from "../campaign.js";
 import { EngineInvariantError } from "../errors.js";
 import { createRng, nextUint32 } from "../rng.js";
 import {
@@ -56,6 +56,7 @@ import {
   campaignAnswerMap,
   campaignChoiceKey,
   evaluateCampaignPredicate,
+  mixWithAttempt,
   runCampaignInstructions,
   type CampaignChoiceAnswer,
   type CampaignDeps,
@@ -301,6 +302,7 @@ const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
   deck: seat.deck.cards.flatMap((line) => Array.from({ length: line.quantity }, () => line.cardId)),
   aspects: seat.deck.aspects,
   grantedCardIds: seat.grants.map((grant) => grant.cardId),
+  ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
 });
 
 const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDOW_ORDER.indexOf(instruction.window);
@@ -361,7 +363,10 @@ export function resolveBetweenGames(
   // The in-game seed comes out of the campaign's own RNG, so a game is not a second, unrecorded source of randomness.
   const [drawn, rng] = nextUint32(run.working.rng);
   run.working.rng = rng;
-  const seed = gameSeedFor(drawn, log.history.filter((entry) => entry.nodeId === node.id).length);
+  // A loss restores the campaign RNG to the node's start, so the draw above is the same on every retry; left alone,
+  // every rewound attempt would be the identical game. MC10 p. 3's "reset the scenario and try again" is a fresh game,
+  // so a retry's seed is the draw mixed with how many times the node was already played (`mixWithAttempt`).
+  const seed = mixWithAttempt(drawn, log.history.filter((entry) => entry.nodeId === node.id).length);
 
   const input: CampaignGameInput = {
     campaignId: definition.campaignId,
@@ -386,18 +391,6 @@ export function resolveBetweenGames(
     composedEncounterSets: run.composedEncounterSets,
   };
   return { kind: "done", value: { ...withWorking(log, run.working), attempt } };
-}
-
-/**
- * The in-game seed for a node's `playedBefore`-th attempt. A loss restores the campaign RNG to the node's start
- * (`retryBaseline: "nodeStart"`), so the draw above is the same on every retry; left alone, that would deal every
- * rewound attempt the identical game — same hands, same encounter deck. MC10 p. 3's "reset the scenario and try
- * again" is a fresh game, so a retry's seed is the draw mixed with how many times the node was already played:
- * still a pure function of the log (the campaign replays), and a node's first attempt keeps the draw unchanged.
- */
-function gameSeedFor(drawn: number, playedBefore: number): number {
-  if (playedBefore === 0) return drawn;
-  return nextUint32(createRng((drawn + Math.imul(playedBefore, 0x9e3779b9)) >>> 0))[0];
 }
 
 type NodeChoice =

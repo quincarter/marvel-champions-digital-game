@@ -172,6 +172,7 @@ export type {
 } from "./lasting.js";
 export {
   allyLimitFor,
+  cannotEnterPlay,
   cannotFlip,
   cannotLeavePlay,
   cardAbilitiesCannotRemove,
@@ -286,6 +287,8 @@ export type {
   CampaignWindow,
   CollectionFilter,
   EliminationPolicy,
+  GrantDeckSize,
+  GrantDeckSizeRule,
   GrantPermanence,
   LogFieldDef,
   LogFieldType,
@@ -296,7 +299,13 @@ export type {
   LossPolicy,
   ResolvedInstruction,
 } from "./campaign.js";
-export { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, DEFAULT_CAMPAIGN_WINDOW, NO_CAMPAIGN_WRITES } from "./campaign.js";
+export {
+  CAMPAIGN_LOG_SCHEMA,
+  CAMPAIGN_WINDOW_ORDER,
+  DEFAULT_CAMPAIGN_WINDOW,
+  grantDeckSizesOf,
+  NO_CAMPAIGN_WRITES,
+} from "./campaign.js";
 /**
  * The campaign runner (docs/campaign-mode-design.md §7): the four pure functions that compose the next scenario,
  * hand it to `createGame`, read the finished game back, and fold the result into the log — plus the pending-choice

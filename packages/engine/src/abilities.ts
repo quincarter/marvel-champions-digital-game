@@ -991,6 +991,28 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotPlay"; readonly player: PlayerRef; readonly cards: TargetQuery; readonly while?: Predicate }
   /**
+   * "[A title] cannot enter play during this game." (a campaign instruction, MC45 p. 20; docs/phase7-wave8.md §3.43.)
+   * A card matching `cards` cannot enter play from out of play by any means, for any player (RRG 1.8 "'Cannot'",
+   * p. 11: the restriction "is absolute, and cannot be countermanded by other abilities"):
+   *
+   * - it cannot be played: the play is refused before any cost is paid, for whichever destination it names
+   *   (`playDestination`), by the `playCard` command and by an effect that plays a card alike;
+   * - an effect that would put it into play does nothing to it, and it stays where it was
+   *   (`putIntoPlayRefused { reason: "cannotEnterPlay" }`); a choice of a card to put into play does not offer it
+   *   (`TargetQuery.canEnterPlay`, a cost's pick of a card to put into play), and a swap that would bring it into play
+   *   is refused.
+   *
+   * Only entering play is stopped (RRG 1.8 "Enters Play", p. 18). The card may be in a deck, be drawn, be discarded
+   * and be spent as a resource; an event is never in play (RRG 1.8 "Event", p. 18), so one that matches is played as
+   * always. A card already in play is not removed, and a flip is not an entry. Match by title (`{ name }`) to cover
+   * every printing. A scenario-level rule (`GameSetupConfig.scenarioRuleSpecs`), though a card may carry it.
+   *
+   * Not covered: an encounter card that is *revealed* and would enter play by its own reveal. No printed rule of this
+   * kind names an encounter card, and the RRG gives no disposition for one (the unique rule's "it is discarded" is that
+   * rule's own). Decide it when a card needs it.
+   */
+  | { readonly kind: "cannotEnterPlay"; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
    * "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (Corrupted Timestream): an action ability of a
    * card matching `on`, with that form label (absent: any), cannot be triggered.
    */

@@ -289,6 +289,12 @@ export interface PlayerState {
    */
   readonly extraMulligans?: number;
   /**
+   * Cards this player already holds that count toward their starting hand (`EffectSpec countTowardStartingHand`;
+   * docs/phase7-wave8.md §3.44): the draw of RRG 1.8 Appendix II step 14 is that much smaller, and clears it. Absent
+   * when 0, which is every game no earlier setup instruction credited.
+   */
+  readonly startingHandCredit?: number;
+  /**
    * Facts from outside the game this seat supplied at setup (`PlayerSetup.outsideFacts`; docs/phase7-wave7.md §3.83),
    * read by `Predicate outsideFact`. A setup input that never changes; absent when the seat supplied none that is
    * true.

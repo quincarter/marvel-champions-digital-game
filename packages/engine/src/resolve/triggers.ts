@@ -46,7 +46,7 @@ import { carriedByEvent, eventSubjects, type TriggerEvent } from "../trigger-eve
 import { limitReached } from "./ability.js";
 import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
-import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
+import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -956,6 +956,8 @@ export function stillOffered(
       return false;
     if (playRestrictionFault(state, deps, controllerId, card, id)) return false;
     if (cannotPlayCard(state, deps, controllerId, id)) return false;
+    // A card that plays itself in a window is still entering play (`RuleSpec cannotEnterPlay`; an event is not).
+    if (card.type !== "event" && cannotEnterPlay(state, deps, id)) return false;
   } else if (cardsInPlay(state).includes(id)) {
     if (!activeAbilityRefs(state, id, deps).some((ref) => ref.id === candidate.abilityId)) return false;
     const noTriggers = activeRules(state, deps, "cannotResolveTriggeredAbilities");

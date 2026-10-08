@@ -62,6 +62,7 @@ import {
   discardZoneFor,
   encounterDeckOf,
   getInstance,
+  beforeStartingHandsDrawn,
   getPlayer,
   hasStarIcon,
   inAnyEncounterDiscard,
@@ -131,6 +132,7 @@ import {
   boostIgnored,
   cannotActivate,
   cannotChangeForm,
+  cannotEnterPlay,
   cannotFlip,
   cannotThwart,
   canTakePlayerAttack,
@@ -224,14 +226,16 @@ export const putIntoPlayHostSlot = (id: InstanceId): string => `_putIntoPlay.hos
  *
  * Returns the ids that may proceed, and records every refusal in the game log.
  */
-function admitUniqueEntry(
-  ctx: Ctx,
-  ids: readonly InstanceId[],
-  forPlayer: PlayerId | null = null,
-): readonly InstanceId[] {
+function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId): readonly InstanceId[] {
   const admitted: InstanceId[] = [];
   for (const id of ids) {
     const card = cardOf(ctx.state, id);
+    // "[A title] cannot enter play during this game" (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43): the
+    // effect does nothing to the card, whatever its type, and it stays where it was. A card in play is not entering.
+    if (card && !cardsInPlay(ctx.state).includes(id) && cannotEnterPlay(ctx.state, ctx.deps, id)) {
+      emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: forPlayer, reason: "cannotEnterPlay" });
+      continue;
+    }
     // A villain entering play is exempt; so is a card with no data to match on (`uniqueEntryBlocker`).
     const match = uniqueEntryBlocker(ctx.state, ctx.deps, id, forPlayer);
     if (!card || !match) {
@@ -1887,6 +1891,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const extraMulligans = (player.extraMulligans ?? 0) + amount;
         updatePlayer(ctx, player.playerId, (p) => ({ ...p, extraMulligans }));
         emit(ctx, { type: "additionalMulligansGranted", playerId: player.playerId, extraMulligans });
+      }
+      return;
+    }
+    case "countTowardStartingHand": {
+      // Legal only before RRG 1.8 Appendix II step 14 (docs/phase7-wave8.md §3.44): later there is no draw to count toward.
+      if (!beforeStartingHandsDrawn(ctx.state)) return;
+      const amount = Math.trunc(resolveValue(ctx.state, effect.amount, context, ctx.deps));
+      if (amount <= 0) return;
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        const player = getPlayer(ctx.state, playerId);
+        if (!player || player.eliminated) continue;
+        const credit = (player.startingHandCredit ?? 0) + amount;
+        updatePlayer(ctx, playerId, (p) => ({ ...p, startingHandCredit: credit }));
+        emit(ctx, { type: "startingHandCredited", playerId, amount, credit });
       }
       return;
     }

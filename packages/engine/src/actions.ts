@@ -47,6 +47,7 @@ import {
   cannotFlip,
   cannotLeavePlay,
   cannotRecover,
+  cannotEnterPlay,
   cannotPlayCard,
   cannotTakeDamage,
   cannotThwart,
@@ -2192,6 +2193,10 @@ export function planCost(
       if (match) {
         return { code: "duplicate_unique_card", message: uniqueBlockedMessageIn(state, card, match) };
       }
+      // The same reading for a card a rule keeps out of play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43).
+      if (cannotEnterPlay(state, deps, pick)) {
+        return { code: "no_valid_target", message: `${card.name} cannot enter play during this game` };
+      }
     }
     const printed = printedCostOf(state, card);
     requirement = combineRequirements(requirement, printed);
@@ -3685,6 +3690,11 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if (cannotPlayCard(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)) {
     return engineError("no_valid_target", "you cannot play that card right now", command);
   }
+  // "[A title] cannot enter play during this game" (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43): refused
+  // before pricing, so the play costs nothing, and before the destination is read, so it is refused for either.
+  if (entersPlayWhenPlayed(card) && cannotEnterPlay(ctx.state, ctx.deps, command.cardInstanceId)) {
+    return engineError("no_valid_target", `${card.name} cannot enter play during this game`, command);
+  }
 
   /**
    * RRG 1.8 "Unique Icon" (pp. 45–46): "A non-villain card in an out-of-play state that
@@ -3981,6 +3991,7 @@ function playFromEffectRestrictionFault(
     return "a play restriction";
   if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId, ctx.deps))
     return "a matching unique card is in play";
+  if (entersPlayWhenPlayed(card) && cannotEnterPlay(ctx.state, ctx.deps, id)) return "it cannot enter play";
   return null;
 }
 

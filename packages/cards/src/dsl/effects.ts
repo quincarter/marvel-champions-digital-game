@@ -1745,6 +1745,16 @@ export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
  */
 export const grantAdditionalMulligans = (amount = 1): EffectSpec => ({ kind: "grantAdditionalMulligans", amount });
 /**
+ * "(This card counts towards your hand size.)" (MC45 p. 20; docs/phase7-wave8.md §3.44): after a setup instruction
+ * put cards into `player`'s hand before the starting hands are drawn, `countTowardStartingHand(player, count)` makes
+ * the starting draw that much smaller. Pass a count of the search's slot so a player who found nothing draws in full.
+ */
+export const countTowardStartingHand = (player: PlayerRef, count: Amount = 1): EffectSpec => ({
+  kind: "countTowardStartingHand",
+  player,
+  amount: amount(count),
+});
+/**
  * "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`.
  *
  * `distinctTypes` (docs/phase7-wave6.md §3.69): "Spend 2 different resources" (Director's Directions, `mojo` 39033) is

@@ -78,7 +78,14 @@ import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
-import { canHaveAttached, cannotFlip, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
+import {
+  canHaveAttached,
+  cannotEnterPlay,
+  cannotFlip,
+  canTakePlayerAttack,
+  iconsInPlay,
+  playerAttackInProgress,
+} from "./rules.js";
 import {
   currentActivationFrameId,
   PAID_AS_PREFIX,
@@ -987,7 +994,10 @@ export type QueryExclusion =
   | "cannotHaveAttached"
   /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names, or no card of its `canAttachToCategory`. */
   | "cannotAttachTo"
-  /** A card in play matches it under the unique rule, and the query's `canEnterPlay` asks for one that can enter. */
+  /**
+   * The query's `canEnterPlay` asks for a card that can enter play, and this one cannot: a card in play matches it
+   * under the unique rule, or a `RuleSpec cannotEnterPlay` names it.
+   */
   | "cannotEnterPlay"
   /** A `cannotFlip` rule names it, and the query's `canFlip` asks for a card that can be flipped. */
   | "cannotFlip"
@@ -1029,6 +1039,8 @@ export type QueryExclusion =
   /** Not a card of the nemesis encounter set of a player the query's `nemesisSetOf` names. */
   | "notNemesisSet"
   | "noSharedTrait"
+  /** Not the other face (`otherFaceId`) of a card the query's `otherFaceOf` names. */
+  | "notOtherFace"
   /** Shares no classification (identity-specific, aspect, basic) with the query's `sameClassificationAs` cards, or is not of its `classification`. */
   | "wrongClassification"
   | "wrongEncounterSet"
@@ -1192,6 +1204,9 @@ export function explainQuery(
   if (query.canEnterPlay !== undefined) {
     const [forPlayer] = resolvePlayers(state, query.canEnterPlay, context);
     if (uniqueEntryBlocker(state, context.deps ?? DEFAULT_DEPS, id, forPlayer ?? null)) return "cannotEnterPlay";
+    // Nor a card a rule keeps out of play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43).
+    if (!cardsInPlay(state).includes(id) && cannotEnterPlay(state, context.deps ?? DEFAULT_DEPS, id))
+      return "cannotEnterPlay";
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
@@ -1372,6 +1387,18 @@ export function explainQuery(
       resolveRef(state, query.sharesTraitWith, context).flatMap((other) => traitsOf(state, other, context.deps)),
     );
     if (!mine.some((trait) => theirs.has(trait))) return "noSharedTrait";
+  }
+  if (query.otherFaceOf) {
+    // "Found on the reverse sides of the [OVERSEER] minions" (MC45 p. 14; docs/phase7-wave8.md §3.46): card data only.
+    const mine = cardOf(state, id);
+    const isReverse =
+      mine !== undefined &&
+      resolveRef(state, query.otherFaceOf, context).some((other) => {
+        const theirs = cardOf(state, other);
+        if (!theirs || other === id || theirs.id === mine.id) return false;
+        return theirs.otherFaceId === mine.id || mine.otherFaceId === theirs.id;
+      });
+    if (!isReverse) return "notOtherFace";
   }
   if (query.sharesTitleWith) {
     // "The minion that shares a title with the villain" (docs/phase7-wave7.md §3.8): titles as they show now, compared

@@ -203,7 +203,19 @@ function executeScenarioSetupStep(ctx: Ctx): void {
 // (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
 function executeDrawStartingHands(ctx: Ctx): void {
   for (const player of ctx.state.players) {
-    drawCards(ctx, player.playerId, handSize(ctx.state, player.playerId, ctx.deps));
+    const size = handSize(ctx.state, player.playerId, ctx.deps);
+    // "(This card counts towards your hand size.)": a card an earlier setup instruction put in the hand is part of the
+    // starting hand, so the draw is that much smaller, and the credit is spent by it (`countTowardStartingHand`,
+    // docs/phase7-wave8.md §3.44). No credit, the draw of every other game: untouched.
+    const credit = player.startingHandCredit ?? 0;
+    if (credit <= 0) {
+      drawCards(ctx, player.playerId, size);
+      continue;
+    }
+    const drawn = Math.max(0, size - credit);
+    updatePlayer(ctx, player.playerId, ({ startingHandCredit: _spent, ...rest }) => rest);
+    emit(ctx, { type: "startingHandCreditApplied", playerId: player.playerId, handSize: size, credit, drawn });
+    drawCards(ctx, player.playerId, drawn);
   }
   setStep(ctx, {
     phase: "setup",

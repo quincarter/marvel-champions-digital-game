@@ -283,6 +283,12 @@ export const canFlip: Pick<TargetQuery, "canFlip"> = { canFlip: true };
  */
 export const sharesTitleWith = (ref: TargetRef): Pick<TargetQuery, "sharesTitleWith"> => ({ sharesTitleWith: ref });
 /**
+ * "The [PRELATE] minions are found on the reverse sides of the [OVERSEER] minions" (MC45 p. 14): the card that is the
+ * other face of a card the ref names, as a card of its own (`otherFaceId`), wherever it is:
+ * `encounterSetAside(query("minion", otherFaceOf(each(OVERSEER_AT_THE_MISSION))))`. docs/phase7-wave8.md §3.46.
+ */
+export const otherFaceOf = (ref: TargetRef): Pick<TargetQuery, "otherFaceOf"> => ({ otherFaceOf: ref });
+/**
  * The negation of a query filter, for one with no `without…` sibling: "a minion that does not share a title with a
  * card in play" is `query("minion", notMatching(sharesTitleWith(each(…))))`. The categories stay outside, so they still
  * narrow the candidates. (`not` is the `Predicate` negation; this is the `TargetQuery` one.) docs/phase7-wave7.md §3.8.

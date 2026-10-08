@@ -1015,11 +1015,12 @@ export type GameEvent =
    * A swap that could not be completed (RRG 1.8 "'Swap'", p. 42): `missingCard` (a ref named no card, or both the same
    * one), `bothInPlay` (no card swaps two cards in play; not built), `cannotLeavePlay` (the in-play card is permanent and
    * this ability is not of its set, or cannot leave play), `unsupported` (an identity or villain: `swapIdentity`,
-   * `swapVillain`), `unique` (the incoming card would break the unique rule).
+   * `swapVillain`), `unique` (the incoming card would break the unique rule), `cannotEnterPlay` (a `RuleSpec
+   * cannotEnterPlay` names the incoming card).
    */
   | {
       readonly type: "swapRefused";
-      readonly reason: "missingCard" | "bothInPlay" | "cannotLeavePlay" | "unsupported" | "unique";
+      readonly reason: "missingCard" | "bothInPlay" | "cannotLeavePlay" | "unsupported" | "unique" | "cannotEnterPlay";
       readonly instanceIds: readonly InstanceId[];
     }
   /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetSeparateDeckIfEmpty`). */
@@ -1043,6 +1044,28 @@ export type GameEvent =
   | { readonly type: "accelerationTokenRedirected"; readonly from: InstanceId; readonly to: InstanceId }
   /** `grantAdditionalMulligans` (docs/phase7-wave5.md §3.27): the player's extra mulligans now total `extraMulligans`. */
   | { readonly type: "additionalMulligansGranted"; readonly playerId: PlayerId; readonly extraMulligans: number }
+  /**
+   * `countTowardStartingHand` (docs/phase7-wave8.md §3.44): `amount` more cards the player already holds count toward
+   * their starting hand, `credit` in all.
+   */
+  | {
+      readonly type: "startingHandCredited";
+      readonly playerId: PlayerId;
+      readonly amount: number;
+      readonly credit: number;
+    }
+  /**
+   * The starting draw (RRG 1.8 Appendix II step 14, p. 51) of a player with a credit: of a hand size of `handSize`,
+   * `credit` cards were already counted, so `drawn` were drawn (never below 0). The credit is cleared. Logged before
+   * the draw's own `cardDrawn` events, and only for a player who had a credit.
+   */
+  | {
+      readonly type: "startingHandCreditApplied";
+      readonly playerId: PlayerId;
+      readonly handSize: number;
+      readonly credit: number;
+      readonly drawn: number;
+    }
   | { readonly type: "playerEliminated"; readonly playerId: PlayerId }
   | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId }
   | { readonly type: "choiceRequested"; readonly choice: PendingChoice }
@@ -1286,8 +1309,11 @@ export type GameEvent =
       readonly type: "putIntoPlayRefused";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
-      /** `noSuchArea`: `into` names an in-play scenario area the game does not have. `cardType`: no place for it there. */
-      readonly reason: "noLegalHost" | "noSuchArea" | "cardType";
+      /**
+       * `noSuchArea`: `into` names an in-play scenario area the game does not have. `cardType`: no place for it there.
+       * `cannotEnterPlay`: a `RuleSpec cannotEnterPlay` names the card (docs/phase7-wave8.md §3.43).
+       */
+      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   /**

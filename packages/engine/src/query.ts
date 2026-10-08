@@ -1043,3 +1043,27 @@ export function modeOnlyFlipped(card: AnyCard, difficulty: "standard" | "expert"
   const back = "modeOnly" in card.flipSide ? card.flipSide.modeOnly : undefined;
   return back === undefined || back === difficulty;
 }
+
+/**
+ * Whether the starting hands are still to be drawn (RRG 1.8 Appendix II step 14, p. 51): the question
+ * `EffectSpec countTowardStartingHand` asks (docs/phase7-wave8.md §3.44). A campaign window's step advances as its
+ * instructions are pushed (`executeCampaignWindow`), so the instructions of the last window before the draw resolve
+ * with the step already at `drawStartingHands`: that step has not executed while anything is still resolving.
+ * Exhaustive over the setup steps on purpose.
+ */
+export function beforeStartingHandsDrawn(state: GameState): boolean {
+  const step = state.step;
+  if (step.phase !== "setup") return false;
+  switch (step.kind) {
+    case "campaignWindow":
+      return step.window !== "afterMulligans";
+    case "scenarioSetup":
+    case "villainSetupAbilities":
+    case "scenarioSetupInstructions":
+    case "drawStartingHands":
+      return true;
+    case "mulligan":
+    case "playerSetupAbilities":
+      return false;
+  }
+}

@@ -222,7 +222,8 @@ export interface TargetQuery {
    * The decision is the one `putIntoPlay` makes as it applies (`uniqueEntryBlocker`): title, subtitle and alter-ego
    * title, faceup cards in play only, the player's own game area when the players are split, a `uniqueRuleExempt` rule
    * honored. The candidate is a card out of play; one already in play never matches itself. The player is whose area
-   * it would enter; a ref naming nobody checks against every area.
+   * it would enter; a ref naming nobody checks against every area. A card a `RuleSpec cannotEnterPlay` names is not
+   * offered either (docs/phase7-wave8.md §3.43).
    *
    * It narrows a choice only: the effect still refuses a matching card on its own.
    */
@@ -479,6 +480,21 @@ export interface TargetQuery {
    * docs/phase7-wave7.md §3.8.
    */
   readonly sharesTitleWith?: TargetRef;
+  /**
+   * The card is the other face of a card this ref names, as a card of its own: its card id is that card's
+   * `otherFaceId` (or names that card by its own `otherFaceId`; the pair is one printed card either way). MC45 p. 14:
+   * "The [PRELATE] minions (179-183) are found on the reverse sides of the [OVERSEER] minions", so with one of the five
+   * in play as an Overseer, the set-aside Prelate that is its reverse is `{ otherFaceOf: <that Overseer> }` (owner
+   * decision docs/phase7-wave8.md §4.1 Q21 = A: one piece of cardboard is not both in one game; §3.46).
+   *
+   * Read from card data alone, wherever both cards are (in play, set aside, in a deck, facedown): the question is
+   * about the printed card, not about anything it shows. Each card is read as the face it is on now (a flipped
+   * `otherFaceId` card is its other face's card, `resolve/other-face.ts`), so the instance the ref names never matches
+   * itself. A card with no `otherFaceId` pair matches nothing; so does a `flipSide` card, whose other side is no card
+   * of its own. A ref naming nothing matches nothing; one naming several cards matches the other face of any of them.
+   * Exclusion `notOtherFace`.
+   */
+  readonly otherFaceOf?: TargetRef;
   /**
    * The card belongs to an encounter set that the cards this ref names belong to: "discard cards from the encounter
    * deck until a card from the **Ant-Man Nemesis set** is discarded" (Yellowjacket's Plan, `ant` 12029) is
@@ -3388,6 +3404,23 @@ export type EffectSpec =
    * after setup. Log `additionalMulligansGranted`.
    */
   | { readonly kind: "grantAdditionalMulligans"; readonly amount: number }
+  /**
+   * "Each player searches their deck for an ally and adds it to their hand. (This card counts towards your hand
+   * size.)" (MC45 p. 20, every scenario's Campaign Instructions; docs/phase7-wave8.md §3.44.) The search is the
+   * ordinary one; this is the parenthesis: `amount` cards `player` holds before the starting hands are drawn count
+   * toward the starting hand. The draw of RRG 1.8 Appendix II step 14 (p. 51) is a counted draw of hand-size cards
+   * (docs/campaign-mode-design.md Q20), so the credit makes that player's draw their hand size less the credit, never
+   * below 0, and the draw clears it (`PlayerState.startingHandCredit`). Credits add up.
+   *
+   * It counts cards, not a card: the mulligan of step 15 is the ordinary one, so the found card may be discarded and
+   * the player draws back up to hand size (RRG 1.8 "Hand Size", p. 21).
+   *
+   * Legal only before step 14: resolved once the starting hands are drawn (the mulligan, player setup abilities, any
+   * later moment) it does nothing and logs nothing, because there is no starting draw left to count toward. An amount
+   * of 0 or less does nothing ("only for a player who found a card": pass a `refCount` of the search's slot). Log
+   * `startingHandCredited`; the draw logs `startingHandCreditApplied`.
+   */
+  | { readonly kind: "countTowardStartingHand"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
    * Advance the main scheme to its next stage (new stage's A-side When Revealed, then its starting threat). Also how the
    * engine finishes a completion after its When Completed abilities. An advance by card text is not a completion. On
