@@ -19,12 +19,18 @@ import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
+import { MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./aoa/magik/identity.js";
+import {
+  MAGIK_SUPPORT_UPGRADES_ALLIES,
+  MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./aoa/magik/support-upgrades-allies.js";
 import { SAVAGE_LAND } from "./aoa/savage-land.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
 import { ICEMAN_OBLIGATION_NEMESIS, ICEMAN_OBLIGATION_NEMESIS_SKIPPED } from "./iceman/iceman/obligation-nemesis.js";
+import { SAURON, SAURON_SKIPPED } from "./iceman/sauron.js";
 import {
   ICEMAN_SUPPORT_UPGRADES_ALLIES,
   ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
@@ -135,6 +141,18 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
     {
+      module: "magik/identity",
+      cardIds: ["45030a", "45030b"],
+      registry: MAGIK_IDENTITY,
+      skipped: MAGIK_IDENTITY_SKIPPED,
+    },
+    {
+      module: "magik/support-upgrades-allies",
+      cardIds: ["45031", "45032", "45033", "45034", "45035"],
+      registry: MAGIK_SUPPORT_UPGRADES_ALLIES,
+      skipped: MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
       module: "savage-land",
       cardIds: ["45127", "45128", "45129", "45130", "45131", "45132"],
       registry: SAVAGE_LAND,
@@ -160,6 +178,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["46024", "46025", "46026", "46027", "46028"],
       registry: ICEMAN_OBLIGATION_NEMESIS,
       skipped: ICEMAN_OBLIGATION_NEMESIS_SKIPPED,
+    },
+    {
+      module: "iceman/sauron",
+      cardIds: ["46029", "46030", "46031", "46032"],
+      registry: SAURON,
+      skipped: SAURON_SKIPPED,
     },
   ],
   jubilee: [
