@@ -156,7 +156,13 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
   for (const { mode, pick } of inPlayPicksOf(cost)) {
-    const names = { exhaust: "exhaustCards", discard: "discardCards", return: "returnToHand", damage: "damageCards" };
+    const names = {
+      exhaust: "exhaustCards",
+      ready: "readyCards",
+      discard: "discardCards",
+      return: "returnToHand",
+      damage: "damageCards",
+    };
     const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (pick.each) {
@@ -229,6 +235,14 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
   if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
+  // "Discard up to N cards from the top of your deck →" (docs/phase7-wave8.md §3.55): at least one, at most `max`.
+  if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck) {
+    const { min, max } = cost.discardFromDeck.choose;
+    if (!Number.isInteger(min) || min < 1)
+      problems.push('cost discardFromDeck: a chosen size has a min of at least 1 (RRG 1.8 "Cost", p. 14)');
+    if (!Number.isInteger(max) || max < min)
+      problems.push("cost discardFromDeck: a chosen size's max must be a whole number no smaller than min");
+  }
   if (cost.discardFromDeckSlot !== undefined && cost.discardFromDeck === undefined)
     problems.push("cost discardFromDeckSlot: only binds the cards a discardFromDeck cost discarded");
   if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
@@ -290,6 +304,9 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
     problems.push(`${path}: anyPrintedResource needs at least one resource type`);
   if (Array.isArray(record.anyOf) && record.anyOf.length === 0)
     problems.push(`${path}: anyOf needs at least one query`);
+  const printsAbility = record.printsAbility as { kinds?: unknown } | undefined;
+  if (printsAbility !== undefined && (!Array.isArray(printsAbility.kinds) || printsAbility.kinds.length === 0))
+    problems.push(`${path}: printsAbility needs at least one ability kind`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
@@ -774,6 +791,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (isResourcesChoice(cost.resources)) scope.vars.add("cost.resources");
     // A computed or chosen "take N damage →" records its amount (`AbilityCost.damageSelf`, docs/phase7-wave7.md §3.79).
     if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
+    // A chosen "discard up to N cards from the top of your deck →" records how many it discarded (wave 8 §3.55).
+    if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck)
+      scope.vars.add("cost.discardFromDeck");
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).
     for (const component of [cost, ...(cost.either ?? [])]) {

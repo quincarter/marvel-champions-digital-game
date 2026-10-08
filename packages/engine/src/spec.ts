@@ -191,6 +191,17 @@ export interface TargetQuery {
    */
   readonly canAttachTo?: TargetRef;
   /**
+   * The candidate's own printed "attach to" allows a card of this category: "an upgrade that can be attached to an
+   * ally" (Suit Up as corrected, `aoa` 45017; RRG 1.8 errata p. 69) is `{ categories: ["upgrade"],
+   * canAttachToCategory: "ally" }`. Read from card data alone (`attachment-hosts.ts hostAllowsCategory`): no card in
+   * play is consulted, so it matches with no ally in play and whether or not any ally in play would qualify (owner
+   * decision docs/phase7-wave8.md §4.1 Q30 = A). `canAttachTo` is the other question, about named cards in play.
+   *
+   * A card with no "attach to" text never matches: an upgrade without one attaches to its controller's identity
+   * (RRG 1.8 "Upgrade", p. 46). Exclusion `cannotAttachTo`. docs/phase7-wave8.md §3.59.
+   */
+  readonly canAttachToCategory?: "ally";
+  /**
    * The candidate is a card the unique rule lets enter play under this player: "chooses 1 set-aside [trait] upgrade
    * and puts it into play under their control" offers no unique card that matches a card already in play (RRG 1.8
    * "Unique Icon", pp. 45–46: such a card "cannot be played or put into play", so it is no card to choose for that).
@@ -530,6 +541,17 @@ export interface TargetQuery {
    */
   readonly sameClassificationAs?: TargetRef;
   /**
+   * The card belongs to this player-card classification: "an identity-specific ally" is `{ categories: ["ally"],
+   * classification: "identitySpecific" }` (docs/phase7-wave8.md §3.53). RRG 1.8 "Classifications" (p. 12) and
+   * "Identity-Specific Card" (p. 23), read off card data by `classificationsOf` exactly as `sameClassificationAs`
+   * reads it, so it matches wherever the card is and whoever controls it: identity-specific is a card of any
+   * identity's set (and an identity card itself), not only the set of the player asking; the five aspects are one
+   * "aspect" classification; an identity-specific card that also prints an aspect is in both. An encounter card, and
+   * a player card printed with none of the three, match nothing. The same reading narrows an attach host
+   * (`HostQualifiers.classification`, `attachment-hosts.ts`). Exclusion `wrongClassification`.
+   */
+  readonly classification?: "identitySpecific" | "aspect" | "basic";
+  /**
    * The card prints the form keyword of this type on either face ("Energy form.", "Mass form."; docs/phase7-wave4.md
    * §3.1), read from the printed card even while it is facedown: "choose a facedown energy form upgrade" (Spectrum's
    * Energy Transformation, `mts` 21001a) names cards whose own text a facedown card does not show. A player knows their
@@ -544,6 +566,24 @@ export interface TargetQuery {
    * text box has none. docs/phase7-wave4.md §3.33.
    */
   readonly abilityTiming?: readonly AbilityTimingWord[];
+  /**
+   * The card prints a triggered ability of one of these kinds limited to this form: "an attachment with the text 'Hero
+   * Action' or 'Hero Response'" is `{ categories: ["attachment"], printsAbility: { kinds: ["action", "response"], form:
+   * "hero" } }` (docs/phase7-wave8.md §3.77). RRG 1.8 "Ability" (pp. 4–5): the bold label names the ability's type and
+   * the form it is limited to.
+   *
+   * Read from the card's own printed ability list through the registry (`printedAbilityRefs`), wherever the card is
+   * (RRG 1.8 "Printed", p. 35). So, unlike `abilityTiming`, which reads the abilities the card has now, a blank text
+   * box does not hide it and a granted ability does not add to it.
+   *
+   * The label is matched whole: an ability with no form ("Action"), one limited to the other form, an Interrupt, a
+   * Resource ability and a **Forced** Response or Interrupt (another label) do not match. An ability the registry does
+   * not hold has no label to read. Exclusion `noSuchAbility`.
+   */
+  readonly printsAbility?: {
+    readonly kinds: readonly ("action" | "response")[];
+    readonly form: "hero" | "alterEgo";
+  };
 }
 
 /**
@@ -3641,6 +3681,27 @@ export type EffectSpec =
       readonly bind: string;
       readonly paidFor: FrameId | null;
     }
+  /**
+   * **Engine-internal; no DSL builder.** Paying a "discard up to N cards from the top of your deck →" cost
+   * (`AbilityCost.discardFromDeck` with `choose`, `deck-discard-choice-cost.ts`, docs/phase7-wave8.md §3.55), pushed
+   * by `payCost` above the frame `paidFor` it pays for, after the payer's `chooseNumber` pick bound as `chosen`: that
+   * many cards are discarded from the top of the payer's deck, their count is recorded on `paidFor` as var
+   * `cost.discardFromDeck`, and the cards are bound to `slot` there when one is given. Logged as
+   * `deckDiscardCostSettled`.
+   */
+  | {
+      readonly kind: "payDeckDiscardChoice";
+      readonly chosen: string;
+      readonly slot?: string;
+      readonly paidFor: FrameId | null;
+    }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of paying a "ready [a card] →" cost (`AbilityCost.readyCards`,
+   * `ready-cards-cost.ts`, docs/phase7-wave8.md §3.54): if a card bound in `slot` on this step's frame is not ready,
+   * the cost was not paid, so the frame `paidFor` is marked and its effects do not resolve. Logged as
+   * `readyCardsCostSettled` either way.
+   */
+  | { readonly kind: "settleReadyCardsCost"; readonly slot: string; readonly paidFor: FrameId | null }
   /**
    * **Engine-internal; no DSL builder.** Paying a "look at the top `look` cards of the encounter deck, discard
    * `discard` of those cards →" cost (`AbilityCost.encounterLookDiscard`, `encounter-look-cost.ts`, docs/phase7-wave6.md

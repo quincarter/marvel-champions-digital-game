@@ -64,7 +64,7 @@ import {
 } from "./campaign-state.js";
 import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
-import { attachHostCandidates } from "./attachment-hosts.js";
+import { attachHostCandidates, hostAllowsCategory } from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
@@ -926,7 +926,7 @@ export type QueryExclusion =
   | "wrongFacedown"
   /** The card prints no form keyword of the query's `printedForm` type (docs/phase7-wave4.md §3.1). */
   | "wrongForm"
-  /** No ability with one of the query's `abilityTiming` words (docs/phase7-wave4.md §3.33). */
+  /** No ability with one of the query's `abilityTiming` words (docs/phase7-wave4.md §3.33), or none printed with a `printsAbility` label. */
   | "noSuchAbility"
   | "wrongStarIcon"
   | "wrongUnique"
@@ -935,7 +935,7 @@ export type QueryExclusion =
   /** No card attached to it matches the query's `hasAttachment`. */
   | "missingAttachment"
   | "cannotHaveAttached"
-  /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names. */
+  /** Its own "attach to" text allows none of the hosts the query's `canAttachTo` names, or no card of its `canAttachToCategory`. */
   | "cannotAttachTo"
   /** A card in play matches it under the unique rule, and the query's `canEnterPlay` asks for one that can enter. */
   | "cannotEnterPlay"
@@ -979,7 +979,7 @@ export type QueryExclusion =
   /** Not a card of the nemesis encounter set of a player the query's `nemesisSetOf` names. */
   | "notNemesisSet"
   | "noSharedTrait"
-  /** Shares no classification (identity-specific, aspect, basic) with the query's `sameClassificationAs` cards. */
+  /** Shares no classification (identity-specific, aspect, basic) with the query's `sameClassificationAs` cards, or is not of its `classification`. */
   | "wrongClassification"
   | "wrongEncounterSet"
   /** The card's title is not recorded in the campaign-log field the query names (`inCampaignLogField`). */
@@ -1064,6 +1064,21 @@ export function explainQuery(
     });
     if (!has) return "noSuchAbility";
   }
+  // The labels the card prints (docs/phase7-wave8.md §3.77), not the abilities it has now: no blank or grant is read.
+  if (query.printsAbility !== undefined) {
+    const { kinds, form } = query.printsAbility;
+    const deps = context.deps ?? DEFAULT_DEPS;
+    const card = cardOf(state, id);
+    const prints =
+      card !== undefined &&
+      printedAbilityRefs(card).some((ref) => {
+        const trigger = deps.abilities[ref.id]?.trigger;
+        if (trigger?.kind === "action") return kinds.includes("action") && trigger.form === form;
+        if (trigger?.kind === "response") return kinds.includes("response") && !trigger.forced && trigger.form === form;
+        return false;
+      });
+    if (!prints) return "noSuchAbility";
+  }
   // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
@@ -1111,6 +1126,12 @@ export function explainQuery(
       return controller !== null && attachHostCandidates(state, deps, id, controller).includes(host);
     });
     if (!allowed) return "cannotAttachTo";
+  }
+  // "An upgrade that can be attached to an ally" (docs/phase7-wave8.md §3.59): the printed host text alone.
+  if (query.canAttachToCategory !== undefined) {
+    const card = cardOf(state, id);
+    const printed = card && "attachesTo" in card ? card.attachesTo : undefined;
+    if (!printed || !hostAllowsCategory(printed, query.canAttachToCategory)) return "cannotAttachTo";
   }
   // "Chooses 1 set-aside upgrade and puts it into play": not a unique card that matches one in play.
   if (query.canEnterPlay !== undefined) {
@@ -1341,6 +1362,9 @@ export function explainQuery(
     );
     if (!mine.some((classification) => theirs.has(classification))) return "wrongClassification";
   }
+  // RRG 1.8 "Classifications" (p. 12); docs/phase7-wave8.md §3.53. A printed attribute, read wherever the card is.
+  if (query.classification !== undefined && !classificationsOf(state, id).includes(query.classification))
+    return "wrongClassification";
   if (query.inEncounterSet !== undefined && !encounterSetsOf(state, id).includes(query.inEncounterSet))
     return "wrongEncounterSet";
   if (query.inCampaignLogField) {

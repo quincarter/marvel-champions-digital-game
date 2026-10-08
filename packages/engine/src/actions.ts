@@ -81,8 +81,17 @@ import {
   pickedCostDamageEffects,
   selfCostDamageEffects,
 } from "./cost-damage.js";
+import {
+  chosenDeckDiscardEffects,
+  DECK_DISCARD_MAX_VAR,
+  DECK_DISCARD_MIN_VAR,
+  deckDiscardChoiceRange,
+  deckDiscardSupply,
+  isDeckDiscardChoice,
+} from "./deck-discard-choice-cost.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
 import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
+import { canPayReadyCost, readyCardsCostEffects, withReadyCosts } from "./ready-cards-cost.js";
 import {
   attachCardSlot,
   dealDamageCostTargets,
@@ -2017,10 +2026,18 @@ export function planCost(
   // "Discard the top card of your deck →" (docs/phase7-wave3.md §3.33): the deck, or the deck the rules would already
   // have reshuffled from the discard pile (an empty deck beside a discard pile is a state built before §4 Q15's
   // immediate reset), must hold them all.
-  if (cost.discardFromDeck !== undefined) {
+  if (isDeckDiscardChoice(cost.discardFromDeck)) {
+    // "Discard up to 3 cards from the top of your deck →" (docs/phase7-wave8.md §3.55): the range the payer will pick
+    // from as the cost is paid, read now and cut to what the deck can supply (RRG 1.8 "Player Deck", p. 33).
+    const range = deckDiscardChoiceRange(player, cost.discardFromDeck);
+    if (!range) {
+      return { code: "card_not_in_zone", message: "your deck cannot supply the cards this cost discards" };
+    }
+    vars[DECK_DISCARD_MIN_VAR] = range.min;
+    vars[DECK_DISCARD_MAX_VAR] = range.max;
+  } else if (cost.discardFromDeck !== undefined) {
     const count = deckDiscardCount(state, deps, sourceId, playerId, cost.discardFromDeck);
-    const supply = player.deck.length > 0 ? player.deck.length : player.discard.length;
-    if (supply < count) {
+    if (deckDiscardSupply(player) < count) {
       return { code: "card_not_in_zone", message: `discard the top ${count} card(s) of your deck` };
     }
   }
@@ -2247,6 +2264,9 @@ export function planCost(
     const ids = planInPlayPick(state, deps, sourceId, playerId, mode, pick, choices);
     if (isFault(ids)) return ids;
     picked.push({ pick, ids });
+    // "Ready [a card] →" (`readyCards`, docs/phase7-wave8.md §3.54): an additional cost to ready a picked card is
+    // paid with this cost or the cost is not paid (RRG 1.8 "Ready", p. 36; "Cost", p. 13).
+    if (mode === "ready") requirement = withReadyCosts(state, deps, playerId, ids, requirement);
   }
   const inPlayIds = picked.flatMap((entry) => entry.ids);
   // RRG 1.8 "Cost" (p. 13): a cost's components are paid simultaneously, so one card can't pay two of them. It can't
@@ -2451,6 +2471,7 @@ function canPayInPlayPick(
 ): boolean {
   const instance = mustInstance(state, id);
   if (mode === "exhaust") return !instance.exhausted;
+  if (mode === "ready") return canPayReadyCost(state, deps, id, sourceId);
   if (mode === "damage") return canTakeCostDamage(state, deps, id, sourceId, (pick as DamageCostPick).amount);
   const sourceCardId = getInstance(state, sourceId)?.cardId;
   if (cannotLeavePlay(state, deps, id, sourceCardId)) return false;
@@ -2472,11 +2493,13 @@ function planInPlayPick(
   const verb =
     mode === "exhaust"
       ? "exhaust"
-      : mode === "discard"
-        ? "discard"
-        : mode === "damage"
-          ? "deal damage to"
-          : "return to hand";
+      : mode === "ready"
+        ? "ready"
+        : mode === "discard"
+          ? "discard"
+          : mode === "damage"
+            ? "deal damage to"
+            : "return to hand";
   const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
   const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode, pick));
   const whyNot = (id: InstanceId): PriceFault =>
@@ -2484,9 +2507,11 @@ function planInPlayPick(
       ? { code: "no_valid_target", message: `${id} is not a card in play you control that can pay ${pick.slot}` }
       : mode === "exhaust"
         ? { code: "already_exhausted", message: `${id} is already exhausted` }
-        : mode === "damage"
-          ? { code: "no_valid_target", message: `${id} cannot take all of this cost's damage` }
-          : { code: "no_valid_target", message: `${id} cannot leave play` };
+        : mode === "ready"
+          ? { code: "no_valid_target", message: `${id} is already ready, or cannot ready` }
+          : mode === "damage"
+            ? { code: "no_valid_target", message: `${id} cannot take all of this cost's damage` }
+            : { code: "no_valid_target", message: `${id} cannot leave play` };
   if (pick.each) {
     // "Exhaust … each support you control →" (`InPlayCostPick.each`): every matching card, or the cost is not paid.
     const blocked = eligible.find((id) => !candidates.includes(id));
@@ -2719,7 +2744,21 @@ export function payCost(
     const zone = locateCard(ctx.state, id);
     discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, id);
   }
-  if (cost.discardFromDeck !== undefined) {
+  if (isDeckDiscardChoice(cost.discardFromDeck)) {
+    // "Discard up to 3 cards from the top of your deck →" (`deck-discard-choice-cost.ts`, docs/phase7-wave8.md §3.55):
+    // the payer picks from the planned range and the cards are discarded in a step above the frame being paid for,
+    // which gets their count as `cost.discardFromDeck`.
+    pushEffects(ctx, {
+      effects: chosenDeckDiscardEffects(
+        plan.vars[DECK_DISCARD_MIN_VAR] ?? 0,
+        plan.vars[DECK_DISCARD_MAX_VAR] ?? 0,
+        cost.discardFromDeckSlot,
+        paidFor,
+      ),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
+  } else if (cost.discardFromDeck !== undefined) {
     const count = deckDiscardCount(ctx.state, ctx.deps, sourceId, playerId, cost.discardFromDeck);
     // "… add each SP//dr card discarded this way to your hand" (`discardFromDeckSlot`): bound on the frame being paid for.
     // That slot is what a response to one of these discards takes its card out of (docs/phase7-wave7.md §4.1 Q32).
@@ -2835,6 +2874,17 @@ export function payCost(
     const ids = plan.bindings[pick.slot] ?? [];
     if (mode === "exhaust") {
       for (const id of ids) exhaustCard(ctx, id);
+    } else if (mode === "ready") {
+      // "Ready your sidekick →" (`readyCards`, `ready-cards-cost.ts`): readied above the ability's own frame, so it
+      // resolves first; a picked card that is not ready afterward leaves that frame's effects unresolved.
+      if (ids.length > 0) {
+        pushEffects(ctx, {
+          effects: readyCardsCostEffects(pick.slot, paidFor),
+          selfInstanceId: sourceId,
+          controllerId: playerId,
+          bindings: { [pick.slot]: ids },
+        });
+      }
     } else if (mode === "damage") {
       // "Deal 1 damage to a [Web-Warrior] character you control →" (`damageCards`, `cost-damage.ts`): dealt above the
       // ability's own frame, so it resolves first; if not all of it is taken, that frame's effects don't.

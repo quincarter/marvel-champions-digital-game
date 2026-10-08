@@ -1,5 +1,5 @@
 import { trait } from "@mc/content";
-import type { AbilityCost, AbilityDefinition, AbilityRegistry } from "@mc/engine";
+import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
 import {
   addCounters,
   alterEgoAction,
@@ -10,6 +10,7 @@ import {
   attack,
   cancelIt,
   cancelRevealedCard,
+  canAttachToCategory,
   cards,
   chooseCards,
   chooseOne,
@@ -24,8 +25,8 @@ import {
   discard,
   discardFromHandCost,
   discardThis,
+  discardUpToTopOfDeckCost,
   draw,
-  each,
   exhaustThis,
   eventPlayer,
   gets,
@@ -34,6 +35,7 @@ import {
   host,
   ifThen,
   interrupt,
+  modifyAttack,
   modifyStat,
   moveCards,
   on,
@@ -43,6 +45,7 @@ import {
   product,
   query,
   ready,
+  readyCardsCost,
   remainingHpOf,
   removeCounter,
   removeThreatFromAScheme,
@@ -57,6 +60,7 @@ import {
   totalPrintedResources,
   valueAtLeast,
   valueAtMost,
+  varOf,
   when,
   YOUR_IDENTITY,
   youHaveTrait,
@@ -69,8 +73,10 @@ import { WAVE7_ABILITIES } from "../../wave7/index.js";
 const X_MEN = trait("X-MEN");
 const X_FORCE = trait("X-FORCE");
 const ATTACK_EVENT = query("event", { trait: trait("ATTACK") });
-/** "Your sidekick": the ally carrying your Sidekick upgrade (docs/phase7-wave8.md section 3.53). */
-const SIDEKICK = each(query("ally", { hasAttachment: query("upgrade", { name: "Sidekick" }), controller: "you" }));
+/** "Your sidekick": the ally you control carrying a Sidekick upgrade (docs/phase7-wave8.md section 3.53). */
+const YOUR_SIDEKICK = query("ally", { hasAttachment: query("upgrade", { name: "Sidekick" }), controller: "you" });
+/** "An upgrade that can be attached to an ally": by the upgrade's own "attach to" text (section 3.59, Q30 = A). */
+const UPGRADE_FOR_AN_ALLY = query("upgrade", canAttachToCategory("ally"));
 const MILLED = { kind: "slot", slot: "milled" } as const;
 
 /** The existing script of a card this one reprints, found by its ability id (docs/phase7-wave8.md section 3.81). */
@@ -119,7 +125,7 @@ const printsOnMilled = (type: "energy" | "mental" | "physical") =>
  * 45018 is 01070's, The Power of Leadership 45019 is 01072's, Clobber 45046 is 18012's, The Power of Aggression 45047 is
  * 01055's and Spiritual Meditation 45052 is 15019's. Energy, Genius and Strength (45022 to 45024) print no ability.
  *
- * **Advanced Suit (45014)**, **Side-by-Side (45016)**, **Suit Up (45017)** and **Goldballs (45041)** are NOT registered; see
+ * **Advanced Suit (45014)** is NOT registered; see
  * `AOA_ASPECT_BASIC_SKIPPED` and `AOA_ASPECT_BASIC_DRAFTS`.
  *
  * **Cable (45011)**, **X-23 (45012)**: the source is the ally herself or himself. Cable answers the side scheme his own
@@ -130,14 +136,31 @@ const printsOnMilled = (type: "energy" | "mental" | "physical") =>
  * and the heal counts the printed resource icons on the discarded card, a wild counted once (RRG 1.8 "Wild Resource",
  * p. 48 and "Printed", p. 35; docs/phase7-wave8.md section 3.52).
  *
- * **Sidekick (45015)**: the host qualification (an identity-specific ally you control) is card data, read by the
- * attach-host resolver of docs/phase7-wave8.md section 3.53; "your sidekick" is not state, it is the upgrade's
- * presence. The two abilities are the +2 hit points and the heal after the controller's basic recovery.
+ * **Sidekick (45015)**: the host qualification (an identity-specific ally you control, of any identity's set) is card
+ * data, read by the engine's attach-host resolver (`HostQualifiers.classification`, docs/phase7-wave8.md section
+ * 3.53), so an aspect or basic ally is refused; "your sidekick" is not state, it is the upgrade's presence. The two
+ * abilities are the +2 hit points and the heal after the controller's basic recovery.
+ *
+ * **Side-by-Side (45016)**: "Ready your sidekick" is the cost (`readyCardsCost`, docs/phase7-wave8.md section 3.54): it
+ * is payable only by an exhausted sidekick (Q29 = A), so with the sidekick ready, or with no Sidekick in play, the
+ * event cannot be played. "Both characters" are the hero and the ally the cost readied (slot `readied`). "Ready your
+ * hero" does nothing to a ready hero.
+ *
+ * **Suit Up (45017)**, as corrected (RRG 1.8 errata, p. 69: "Search your deck and discard pile for an ally and an
+ * upgrade that can be attached to an ally. Add them to your hand."): two optional picks over the deck and the discard
+ * pile, then one shuffle. Which upgrades qualify is read from each upgrade's own "attach to" text with no card in play
+ * consulted (`canAttachToCategory`, docs/phase7-wave8.md section 3.59, Q30 = A): Sidekick is offered with no
+ * identity-specific ally in play, and an upgrade with no "attach to" text (it goes by the identity) is not.
  *
  * **Legion (45020)**: one line per type the discarded card prints, in the printed order; a wild resolves none, two
  * icons of one type resolve that line once.
  *
  * **Marrow (45021)**: "Play only if you have the X-FORCE or X-MEN trait" is `playOnlyIf` over the identity.
+ *
+ * **Goldballs (45041)**: "discard up to 3 cards from the top of your deck" is a cost of a size its controller chooses
+ * as it is paid, 1 to the smaller of 3 and the cards in the deck (`discardUpToTopOfDeckCost`, docs/phase7-wave8.md
+ * section 3.55; RRG 1.8 "Cost", p. 14: "up to" still means at least one, so not paying is not using the Interrupt). X
+ * is the number of cards the cost discarded (`cost.discardFromDeck`), added to the attack in progress.
  *
  * **Tempus (45042)**: a "would scheme" interrupt that cancels the activation, then deals her controller 1 facedown
  * encounter card. Her "X-MEN identity only" line is card data (`playRestrictions`).
@@ -163,6 +186,29 @@ export const AOA_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "45015.sidekick-constant": constant(gets("hp", 2, { hostOfSelf: true })),
   "45015.sidekick-response": response(on.basicRecovery(YOUR_IDENTITY), heal(2, host)),
 
+  "45016.side-by-side-action": heroAction(
+    { cost: readyCardsCost(YOUR_SIDEKICK) },
+    ready(yourIdentity),
+    chooseOne(
+      option("Heal 1 damage from both characters", heal(1, yourIdentity), heal(1, chosen("readied"))),
+      option(
+        "Both characters get +1 THW and +1 ATK until the end of the phase",
+        modifyStat("thw", 1, yourIdentity, "endOfPhase"),
+        modifyStat("atk", 1, yourIdentity, "endOfPhase"),
+        modifyStat("thw", 1, chosen("readied"), "endOfPhase"),
+        modifyStat("atk", 1, chosen("readied"), "endOfPhase"),
+      ),
+    ),
+  ),
+
+  "45017.suit-up-action": alterEgoAction(
+    chooseCards("ally", zone(["deck", "discard"], you, { filter: query("ally") }), { min: 0, max: 1 }),
+    chooseCards("upgrade", zone(["deck", "discard"], you, { filter: UPGRADE_FOR_AN_ALLY }), { min: 0, max: 1 }),
+    moveCards(cards(chosen("ally")), "hand"),
+    moveCards(cards(chosen("upgrade")), "hand"),
+    shuffleDeck(),
+  ),
+
   "45018.lead-from-the-front-action": reprintOf("01070.lead-from-the-front-action"),
   "45019.the-power-of-leadership-constant": reprintOf("01072.the-power-of-leadership-constant"),
 
@@ -176,6 +222,12 @@ export const AOA_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "45021.marrow-constant": constant(playOnlyIf(anyOf(youHaveTrait(X_FORCE), youHaveTrait(X_MEN)))),
   "45021.marrow-response": response(on.entersPlay("self"), damageAnEnemy(2)),
+
+  "45041.goldballs-interrupt": interrupt(
+    on.attacks("self"),
+    { cost: discardUpToTopOfDeckCost(3) },
+    modifyAttack({ atkBonus: varOf("cost.discardFromDeck") }),
+  ),
 
   "45042.tempus-interrupt": interrupt(
     when.enemySchemes(query("villain")),
@@ -256,48 +308,10 @@ export const AOA_ASPECT_BASIC_DRAFTS: AbilityRegistry = {
     { cost: discardFromHandCost(1, 1) },
     heal(totalPrintedResources(chosen("discard")), host),
   ),
-
-  // Goldballs: the cost has a chosen size, which `AbilityCost.discardFromDeck` cannot say (docs/phase7-wave8.md 3.55).
-  "45041.goldballs-interrupt": interrupt(
-    on.attacks("self"),
-    { cost: { discardFromDeck: { choose: { min: 1, max: 3 } } } as unknown as AbilityCost },
-    // "+X ATK for this attack": X would be the count the cost bound; not expressible without the built cost.
-  ),
-
-  // Side-by-Side: the ready is a cost (3.54), written here as the first effect, which lets a ready sidekick pay it.
-  "45016.side-by-side-action": heroAction(
-    ready(SIDEKICK),
-    ready(yourIdentity),
-    chooseOne(
-      option("Heal 1 damage from both characters", heal(1, yourIdentity), heal(1, SIDEKICK)),
-      option(
-        "Both characters get +1 THW and +1 ATK until the end of the phase",
-        modifyStat("thw", 1, yourIdentity, "endOfPhase"),
-        modifyStat("atk", 1, yourIdentity, "endOfPhase"),
-        modifyStat("thw", 1, SIDEKICK, "endOfPhase"),
-        modifyStat("atk", 1, SIDEKICK, "endOfPhase"),
-      ),
-    ),
-  ),
-
-  // Suit Up: "an upgrade that can be attached to an ally" has no query (3.59); every upgrade is offered here.
-  "45017.suit-up-action": alterEgoAction(
-    chooseCards("ally", zone(["deck", "discard"], you, { filter: query("ally") }), { min: 0, max: 1 }),
-    chooseCards("upgrade", zone(["deck", "discard"], you, { filter: query("upgrade") }), { min: 0, max: 1 }),
-    moveCards(cards(chosen("ally")), "hand"),
-    moveCards(cards(chosen("upgrade")), "hand"),
-    shuffleDeck(),
-  ),
 };
 
 /** Refs left unregistered, each with its reason. */
 export const AOA_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
   "45014.advanced-suit-response":
     "a Response with a 'discard 1 card from your hand' cost is never offered: the trigger window's payability check (resolve/triggers.ts costPayable) plans the cost with only the default picks of cards in play and none for a hand discard, so planCost refuses it; the same response without the cost is offered. The pattern, the heal per printed icon and the host source are right",
-  "45016.side-by-side-action":
-    "section 3.54: 'Ready your sidekick' is the cost, and AbilityCost has no readyCards (exhausted cards only, Q29 = A); as an effect a ready sidekick would pay it, and the ready would be skipped by a cost the rules require paid in full",
-  "45017.suit-up-action":
-    "section 3.59: 'an upgrade that can be attached to an ally' (erratum) needs TargetQuery.canAttachToCategory, which is not built; offering every upgrade would let a hero-only or identity upgrade be found",
-  "45041.goldballs-interrupt":
-    "section 3.55: 'discard up to 3 cards from the top of your deck' is a cost of a size the player chooses (1 to 3) whose count is X for the ATK bonus; AbilityCost.discardFromDeck takes only a fixed number or a value, never a choice",
 };

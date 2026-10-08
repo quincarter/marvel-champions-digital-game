@@ -472,6 +472,34 @@ export type GameEvent =
       readonly enemyInstanceId: InstanceId;
       readonly paid: boolean;
     }
+  /**
+   * A "discard up to N cards from the top of your deck →" cost (`AbilityCost.discardFromDeck` with `choose`,
+   * docs/phase7-wave8.md §3.55) has been paid or failed: `playerId` chose `chosen` and `discarded` are the cards that
+   * left the top of their deck, top first. Fewer than chosen means the cost was not paid (RRG 1.8 "Cost", p. 13) and
+   * the effects of `instanceId`'s ability do not resolve.
+   */
+  | {
+      readonly type: "deckDiscardCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly chosen: number;
+      readonly discarded: readonly InstanceId[];
+      readonly paid: boolean;
+    }
+  /**
+   * A "ready [a card] →" cost (`AbilityCost.readyCards`, docs/phase7-wave8.md §3.54) has been paid or failed:
+   * `instanceIds` are the cards picked to ready and `readied` how many of them are ready. Fewer than all of them (a
+   * replacement took a ready) means the cost was not paid (RRG 1.8 "Cost Arrow Icon", p. 14) and the effects of
+   * `instanceId`'s ability do not resolve.
+   */
+  | {
+      readonly type: "readyCardsCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly instanceIds: readonly InstanceId[];
+      readonly readied: number;
+      readonly paid: boolean;
+    }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**

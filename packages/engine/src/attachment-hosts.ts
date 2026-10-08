@@ -23,7 +23,15 @@ import {
   villainOf,
 } from "./query.js";
 import { attachLimitFault, canHaveAttached } from "./rules.js";
-import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTargets, traitsOf } from "./select.js";
+import {
+  cardsInPlay,
+  classificationsOf,
+  contextArea,
+  controllerOf,
+  type EffectContext,
+  selectTargets,
+  traitsOf,
+} from "./select.js";
 import type { TargetQuery } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -117,6 +125,9 @@ function passesQualifiers(
   // controller (RRG 1.8 "You, Your", p. 46) — the context's controller either way. Nobody to be "you" matches nothing.
   if (host.controlledBy === "you" && (!context.controllerId || controllerOf(state, id) !== context.controllerId))
     return false;
+  // "An identity-specific ally" (docs/phase7-wave8.md §3.53): the host's printed classification (RRG 1.8
+  // "Classifications", p. 12), of any identity's set, as `TargetQuery.classification` reads it.
+  if (host.classification !== undefined && !classificationsOf(state, id).includes(host.classification)) return false;
   if (host.trait && !traitsOf(state, id, deps).includes(host.trait)) return false;
   if (host.withoutTrait && traitsOf(state, id, deps).includes(host.withoutTrait)) return false;
   const barred = host.withoutAttachmentNamed;
@@ -217,6 +228,36 @@ export function attachHostCandidates(
     bindings: {},
     deps,
   });
+}
+
+/**
+ * Whether a printed "attach to" allows a card of this category, read from the host text alone with no card in play
+ * consulted (`TargetQuery.canAttachToCategory`, docs/phase7-wave8.md §3.59; owner decision §4.1 Q30 = A: "eligibility
+ * comes from the upgrade's own attach text; no ally host needs to be in play, and the board state is not evaluated").
+ *
+ * For "ally": a host that is an ally (`ally`, a `qualified` or `superlative` host over allies), or a wider pool an
+ * ally belongs to (`anyCharacter`, `friendlyCharacter`, a `qualified` or `superlative` host over characters or
+ * friendly characters). A qualifier is not weighed (a trait, a classification, "you control"): it narrows which ally,
+ * not whether an ally. A host of several parts (`anyOf`, `ifAble`) allows what any part allows. A host that names a
+ * card (`namedCard`) or an encounter-side card does not, whatever that card happens to be.
+ */
+export function hostAllowsCategory(host: AttachmentHost, category: "ally"): boolean {
+  switch (host.kind) {
+    case "ally":
+    case "anyCharacter":
+    case "friendlyCharacter":
+      return true;
+    case "qualified":
+      return host.category === category || host.category === "character" || host.category === "friendlyCharacter";
+    case "superlative":
+      return host.among === category || host.among === "friendlyCharacter";
+    case "anyOf":
+      return host.hosts.some((part) => hostAllowsCategory(part, category));
+    case "ifAble":
+      return hostAllowsCategory(host.preferred, category) || hostAllowsCategory(host.otherwise, category);
+    default:
+      return false;
+  }
 }
 
 function rawHostCandidates(state: GameState, host: AttachmentHost, context: EffectContext): readonly InstanceId[] {

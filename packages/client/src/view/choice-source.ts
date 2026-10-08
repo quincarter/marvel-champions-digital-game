@@ -187,6 +187,7 @@ export function costCardsPromptTitleOf(mode: string | undefined, damageAmount?: 
   }
   const verbs: Record<string, string> = {
     exhaust: "Choose a card to exhaust",
+    ready: "Choose a card to ready",
     return: "Choose a card to return to hand",
     discard: "Choose a card to discard",
   };

@@ -1,4 +1,4 @@
-import { cardId, CORE_CARDS, WAVE8_CARDS, WAVE8_STARTER_DECKS } from "@mc/content";
+import { cardId, CORE_CARDS, MUT_GEN_CARDS, WAVE8_CARDS, WAVE8_STARTER_DECKS } from "@mc/content";
 import { applyCommand, createGame, type EngineDeps, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../../core/setup.js";
@@ -15,17 +15,20 @@ import {
   play,
   playerOf,
   settle,
+  threatOn,
   type Picker,
 } from "../../../testing/harness.js";
-import { driveEventsPicking, withForm } from "../../../testing/staging.js";
+import { driveEventsPicking, encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
 import { engageMinion } from "../../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
-import { MAGNETO_EVENTS, MAGNETO_EVENTS_DRAFTS, MAGNETO_EVENTS_SKIPPED } from "./events.js";
+import { NIGHTCRAWLER_OBLIGATION_NEMESIS } from "../../ncrawler/nightcrawler/obligation-nemesis.js";
+import { MAGNETO_EVENTS, MAGNETO_EVENTS_SKIPPED } from "./events.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Magneto's events (49008 to 49010), docs/phase7-wave8.md section 7.5, 3.76, 3.77. His real starter deck
+ * Magneto's events (49008 to 49010), docs/phase7-wave8.md section 7.5, 3.76, 3.77 (the label query itself is proven
+ * on fixtures in the engine's `prints-ability-query.test.ts`). His real starter deck
  * (`magneto-leadership`) against Rhino (Core, standard). Magneto: THW 2, ATK 2, DEF 2, 10 hit points. Hydra Mercenary
  * 01101 (guard, 3 hit points) is engaged and then swapped by surgery to the minion a test needs: Frenzy 49031 (4 hit
  * points, no guard), Hellfire Pawn 49040 (3 hit points, guard).
@@ -48,9 +51,12 @@ const SEAT = {
   aspects: MAGNETO.aspects,
   deck: MAGNETO.cards.flatMap((c) => Array.from({ length: c.quantity }, () => c.cardId)),
 };
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_EVENTS) };
-const DRAFT_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_EVENTS, MAGNETO_EVENTS_DRAFTS) };
-const BY_ID = new Map([...CORE_CARDS, ...WAVE8_CARDS].map((c) => [c.id as string, c]));
+// Azazel's Sword (48029) is scripted with Nightcrawler's nemesis set: the label it prints is read from that script.
+const DEPS: EngineDeps = {
+  abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_EVENTS, NIGHTCRAWLER_OBLIGATION_NEMESIS),
+};
+const POOL = [...CORE_CARDS, ...WAVE8_CARDS, ...MUT_GEN_CARDS.filter((c) => (c.id as string) === "32150")];
+const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
 const dataOf = (code: string) => BY_ID.get(code) as never as Record<string, unknown> & { abilities: { id: string }[] };
 
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
@@ -70,7 +76,7 @@ function setupGame(): GameState {
     seed: 1,
     difficulty: "standard",
     modularSetIds: [],
-    cardPool: [...CORE_CARDS, ...WAVE8_CARDS],
+    cardPool: POOL,
   } as never);
   const created = createGame({ ...config, players: [SEAT] }, DEPS);
   if (!created.ok) throw new Error(created.error.message);
@@ -132,13 +138,12 @@ const attacks = (events: readonly GameEvent[]) =>
   );
 
 describe("registry and data", () => {
-  it.each([REF.shards, REF.missile])("%s validates", (ref) => {
+  it.each(Object.values(REF))("%s validates", (ref) => {
     expect(validateDefinition(MAGNETO_EVENTS[ref]!)).toEqual([]);
   });
-  it("registers the two refs it can; Electromagnetic Blast is skipped with a reason and held as a draft", () => {
-    expect(Object.keys(MAGNETO_EVENTS).sort()).toEqual([REF.shards, REF.missile].sort());
-    expect(Object.keys(MAGNETO_EVENTS_SKIPPED)).toEqual([REF.blast]);
-    expect(Object.keys(MAGNETO_EVENTS_DRAFTS)).toEqual([REF.blast]);
+  it("registers all three refs; nothing is skipped", () => {
+    expect(Object.keys(MAGNETO_EVENTS).sort()).toEqual(Object.values(REF).sort());
+    expect(MAGNETO_EVENTS_SKIPPED).toEqual({});
     const named = [BLAST, SHARDS, MISSILE].flatMap((c) => dataOf(c).abilities.map((a) => a.id));
     expect(named.sort()).toEqual(Object.values(REF).sort());
   });
@@ -263,68 +268,132 @@ describe("Magnetic Missile (49010, errata): discard a minion with Wrapped in Met
   });
 });
 
-describe("Electromagnetic Blast (49008): skipped until TargetQuery.printsAbility exists (section 3.77, engine task 13)", () => {
+describe("Electromagnetic Blast (49008): remove 3 threat from a scheme; if that was its last, you may discard a Hero Action / Hero Response attachment", () => {
   const SWORD = "48029"; // Azazel's Sword: Hero Response
-  const SUIT = "01098"; // Armored Rhino Suit: no player ability
-  /** Takes an encounter-deck copy of `code` (swapped to `as` when given) and attaches it to the villain by surgery. */
-  function attachEncounter(state: GameState, code: string, as = code): { state: GameState; id: InstanceId } {
+  const SUIT = "01098"; // Armored Rhino Suit: a Forced Interrupt, no player ability
+  const BREAKIN = "01107"; // Breakin' & Takin': a side scheme
+  const METAL = "32150"; // Wrapped in Metal of Mutant Genesis: "Action", no form
+  /** Takes an encounter-deck copy of `code` (swapped to `as` when given) and attaches it to `host` by surgery. */
+  function attachEncounter(
+    state: GameState,
+    code: string,
+    as = code,
+    host: InstanceId = villainOf(state),
+  ): { state: GameState; id: InstanceId } {
     const deckId = Object.keys(state.encounterDecks)[0]!;
     const pile = state.encounterDecks[deckId]!;
     const id = pile.deck.find((i) => state.instances[i]?.cardId === cardId(code));
     if (!id) throw new Error(`no ${code} in the encounter deck`);
-    const villain = villainOf(state);
     const moved: GameState = {
       ...state,
       encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: pile.deck.filter((i) => i !== id) } },
     };
-    const attached = patchInstance(moved, id, { attachedTo: villain, faceup: true, cardId: cardId(as) });
+    const attached = patchInstance(moved, id, { attachedTo: host, faceup: true, cardId: cardId(as) });
     return {
-      state: patchInstance(attached, villain, { attachments: [...inst(attached, villain).attachments, id] }),
+      state: patchInstance(attached, host, { attachments: [...inst(attached, host).attachments, id] }),
       id,
     };
   }
-  /** The main scheme at `threat`, the Sword (a Hero Response) and the Suit (nothing) on the villain. */
+  /** Breakin' & Takin' in play with `threat`, the Sword (a Hero Response) and the Suit (none) on the villain. */
   function board(threat: number) {
-    const base = patchInstance(heroGame(), heroGame().mainScheme.instanceId, { threat });
-    const sword = attachEncounter(base, SUIT, SWORD);
+    const scheme = encounterCardInVillainArea(heroGame(), BREAKIN, threat);
+    const sword = attachEncounter(scheme.state, SUIT, SWORD);
     const suit = attachEncounter(sword.state, SUIT);
-    return { state: suit.state, sword: sword.id, suit: suit.id };
+    return { state: suit.state, scheme: scheme.id, sword: sword.id, suit: suit.id };
   }
+  /** Every attachment a target prompt offered while the event resolved, and the answers `prefer` names first. */
+  function blast(state: GameState, attachments: readonly InstanceId[], ...prefer: readonly string[]) {
+    const offered: string[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      offered.push(...choice.options.map((o) => o.optionId).filter((o) => attachments.includes(o as InstanceId)));
+      return taking(...prefer)(s);
+    };
+    return { run: cast(state, BLAST, 2, pick), offered };
+  }
+  const inPlay = (s: GameState, id: InstanceId): boolean => inst(s, id).attachedTo !== null;
 
-  it("with no ref registered the card does nothing: no threat removed, nothing discarded", () => {
-    const { state } = board(6);
-    const run = cast(state, BLAST, 2);
-    expect(mainThreat(run.state)).toBe(6);
+  it("the Sword's label is read from its script: a Hero Response; Wrapped in Metal (32150) prints a plain Action", () => {
+    expect(DEPS.abilities["48029.azazels-sword-response"]!.trigger).toMatchObject({ kind: "response", form: "hero" });
+    expect(DEPS.abilities["32150.wrapped-in-metal-action"]!.trigger).toEqual({ kind: "action" });
   });
-  it("what the draft does today: 3 threat comes off the scheme; with threat left no discard is offered", () => {
-    const { state } = board(6);
-    const run = cast(state, BLAST, 2, firstLegal, DRAFT_DEPS);
-    expect(mainThreat(run.state)).toBe(3);
+  it("a side scheme with 3 threat: 3 removed, the scheme is defeated, the Sword is discarded; the Suit is never offered", () => {
+    const { state, scheme, sword, suit } = board(3);
+    const { run, offered } = blast(state, [sword, suit], scheme, sword);
+    expect(run.state.villainArea).not.toContain(scheme);
+    expect(offered).toEqual([sword]);
+    expect(inPlay(run.state, sword)).toBe(false);
+    expect(inPlay(run.state, suit)).toBe(true);
+    expect(run.events.some((e) => e.type === "characterDefeated")).toBe(false);
+    expect(discardOf(run.state)).toContain(BLAST);
   });
-  it("what the draft does today: when the last threat goes, every attachment is offered (the Sword and the Suit)", () => {
-    const { state, sword, suit } = board(3);
-    const offered: string[] = [];
+  it("the scheme had 4: 1 threat left, no discard offered", () => {
+    const { state, scheme, sword, suit } = board(4);
+    const { run, offered } = blast(state, [sword, suit], scheme, sword);
+    expect(threatOn(run.state, scheme)).toBe(1);
+    expect(offered).toEqual([]);
+    expect(inPlay(run.state, sword)).toBe(true);
+  });
+  it("the scheme had 2: 2 removed, its last threat, and the discard is offered", () => {
+    const { state, scheme, sword, suit } = board(2);
+    const { run, offered } = blast(state, [sword, suit], scheme, sword);
+    expect(run.state.villainArea).not.toContain(scheme);
+    expect(offered).toEqual([sword]);
+    expect(inPlay(run.state, sword)).toBe(false);
+  });
+  it("the discard is optional: declined, the Sword stays", () => {
+    const { state, scheme, sword, suit } = board(3);
+    const prompts: number[] = [];
     const pick: Picker = (s) => {
       const choice = s.pendingChoice!;
-      if (choice.prompt.kind === "chooseTarget" && choice.options.length > 1)
-        offered.push(...choice.options.map((o) => o.optionId));
-      return firstLegal(s);
+      if (!choice.options.some((o) => o.optionId === sword)) return taking(scheme)(s);
+      prompts.push(choice.minSelections);
+      return [];
     };
-    cast(state, BLAST, 2, pick, DRAFT_DEPS);
-    expect(offered).toEqual(expect.arrayContaining([sword, suit]));
+    const run = cast(state, BLAST, 2, pick);
+    expect(prompts).toEqual([0]);
+    expect(inPlay(run.state, sword)).toBe(true);
+    expect(inPlay(run.state, suit)).toBe(true);
   });
-  // Section 3.77 test 4 proof, expected to fail: only the Sword (printing Hero Response) may be offered.
-  it.fails("only an attachment printing Hero Action or Hero Response is offered when the last threat goes", () => {
-    const { state, sword, suit } = board(3);
-    const offered: string[] = [];
-    const pick: Picker = (s) => {
-      const choice = s.pendingChoice!;
-      if (choice.prompt.kind === "chooseTarget" && choice.options.length > 1)
-        offered.push(...choice.options.map((o) => o.optionId));
-      return firstLegal(s);
-    };
-    cast(state, BLAST, 2, pick, DRAFT_DEPS);
-    expect(offered).toContain(sword);
-    expect(offered).not.toContain(suit);
+  it("the main scheme's last threat counts too (3 of 3 removed)", () => {
+    const base = heroGame();
+    const sword = attachEncounter(patchInstance(base, base.mainScheme.instanceId, { threat: 3 }), SUIT, SWORD);
+    const { run, offered } = blast(sword.state, [sword.id], sword.id);
+    expect(mainThreat(run.state)).toBe(0);
+    expect(offered).toEqual([sword.id]);
+    expect(inPlay(run.state, sword.id)).toBe(false);
+  });
+  // On the villain by surgery: on Magneto himself its "cannot thwart" would stop the thwart event being played at all.
+  it('the only attachment is Wrapped in Metal of Mutant Genesis ("Action", no form): nothing is offered', () => {
+    const scheme = encounterCardInVillainArea(heroGame(), BREAKIN, 3);
+    const metal = attachEncounter(scheme.state, SUIT, METAL);
+    const { run, offered } = blast(metal.state, [metal.id], scheme.id, metal.id);
+    expect(run.state.villainArea).not.toContain(scheme.id);
+    expect(offered).toEqual([]);
+    expect(inPlay(run.state, metal.id)).toBe(true);
+  });
+  it("with that Wrapped in Metal on Magneto he cannot thwart, so the event cannot be played", () => {
+    const scheme = encounterCardInVillainArea(heroGame(), BREAKIN, 3);
+    const metal = attachEncounter(scheme.state, SUIT, METAL, identityOf(scheme.state));
+    expect(() => cast(metal.state, BLAST, 2)).toThrow(/no_valid_target/);
+  });
+  it("a player upgrade on a minion (Magneto's own Wrapped in Metal) is not an attachment: not offered", () => {
+    const scheme = encounterCardInVillainArea(heroGame(), BREAKIN, 3);
+    const { state: engaged, minion } = withMinion(scheme.state);
+    const upgrade = attachFromHand(engaged, WRAPPED, minion);
+    const { run, offered } = blast(upgrade.state, [upgrade.id], scheme.id, upgrade.id);
+    expect(run.state.villainArea).not.toContain(scheme.id);
+    expect(offered).toEqual([]);
+    expect(inPlay(run.state, upgrade.id)).toBe(true);
+  });
+  it("confused: the confused card is discarded, no threat is removed, nothing is discarded, the event is spent", () => {
+    const { state, scheme, sword, suit } = board(3);
+    const confused = patchInstance(state, identityOf(state), { statuses: { confused: 1 } as never });
+    const { run, offered } = blast(confused, [sword, suit], scheme, sword);
+    expect(inst(run.state, identityOf(run.state)).statuses.confused ?? 0).toBe(0);
+    expect(threatOn(run.state, scheme)).toBe(3);
+    expect(offered).toEqual([]);
+    expect(inPlay(run.state, sword)).toBe(true);
+    expect(discardOf(run.state)).toContain(BLAST);
   });
 });

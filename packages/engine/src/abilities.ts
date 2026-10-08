@@ -1746,6 +1746,24 @@ export interface DiscardCombined {
  * named up front in the command's `costChoices` (keyed by the slot named here)
  * and are bound into the ability's effects under the same slot.
  */
+/**
+ * "Discard up to 3 cards from the top of your deck →" (docs/phase7-wave8.md §3.55): a deck discard cost of a size the
+ * payer chooses (`AbilityCost.discardFromDeck`).
+ *
+ * - **The range.** From `min` to the smaller of `max` and the cards the deck can supply; `min` is at least 1 (RRG 1.8
+ *   "Cost", p. 14: "up to" some number "requires a minimum of one"), so zero is never a payment: not paying is not
+ *   using the ability. A deck that cannot supply `min` cannot pay (an empty deck with an empty discard pile), and the
+ *   ability is not offered.
+ * - **Chosen as the cost is paid**, in a `chooseNumber` choice (a range of one number is not asked), logged as
+ *   `numberChosen`; then that many cards are discarded exactly as a fixed deck discard cost discards them, before the
+ *   ability's effects (RRG 1.8 "Cost Arrow Icon", p. 14). A deck the cost empties resets at once.
+ * - **The count** of cards discarded is var `cost.discardFromDeck` for the text after the arrow ("where X is the
+ *   number of cards discarded this way"); `discardFromDeckSlot` binds the cards themselves as usual.
+ */
+export interface DeckDiscardChoice {
+  readonly choose: { readonly min: number; readonly max: number };
+}
+
 /** "Take any amount of damage up to … →": the payer's choice of a `damageSelf` cost's amount (`AbilityCost.damageSelf`). */
 export interface DamageSelfChoice {
   readonly choose: { readonly min: ValueSpec; readonly max: ValueSpec };
@@ -1906,8 +1924,11 @@ export interface AbilityCost {
    *   your deck →" (Shield Spell, `mts` 21061) is `{ kind: "eventAmount" }`, read against the event whose window the
    *   ability is being used in (the innermost open window), when the cost is checked and again when it is paid.
    *   docs/phase7-wave4.md §3.42.
+   * - **A number the payer chooses**: "discard up to 3 cards from the top of your deck → … +X ATK …, where X is the
+   *   number of cards discarded this way" (docs/phase7-wave8.md §3.55) is `{ choose: { min: 1, max: 3 } }`. See
+   *   `DeckDiscardChoice`.
    */
-  readonly discardFromDeck?: number | ValueSpec;
+  readonly discardFromDeck?: number | ValueSpec | DeckDiscardChoice;
   /**
    * "Discard the top 2 cards of your deck (top 3 cards instead if you are in alter-ego form) → add each SP//dr card
    * discarded this way to your hand" (Aunt May & Uncle Ben, `spdr` 31007): the cards `discardFromDeck` discarded are
@@ -2143,6 +2164,23 @@ export interface AbilityCost {
    * pay both (RRG 1.8 "Cost", p. 13).
    */
   readonly exhaustCards?: InPlayCostPick | readonly InPlayCostPick[];
+  /**
+   * "Ready your sidekick →" (docs/phase7-wave8.md §3.54): the picked cards in play ready as the cost. See
+   * `InPlayCostPick` for the pick, and `ready-cards-cost.ts` for how it is paid.
+   *
+   * - **Exhausted cards only** (owner decision §4.1 Q29 = A): a cost that changes nothing cannot be paid, so a card
+   *   that is already ready is no candidate, as a card already exhausted is none for `exhaustCards`; nor is one that
+   *   "cannot ready" (RRG 1.8 "'Cannot'", p. 11). With no candidate the ability is not offered (RRG 1.8 "Initiating
+   *   Abilities", p. 24, steps 3 and 5).
+   * - **An additional cost to ready is part of this cost.** RRG 1.8 "Ready" (p. 36) lets a player decline an
+   *   additional cost to ready a card, and then "the card does not ready"; a cost is paid in full or not at all
+   *   (RRG 1.8 "Cost", p. 13). So the resources a `RuleSpec readyCost` asks of the payer for each picked card are
+   *   added to this cost's resource requirement and paid in the same payment, or nothing is paid.
+   * - **Not readied, not paid.** The ready resolves above the ability's frame before its effects ("Cost Arrow Icon",
+   *   p. 14), as any ready does: a "would ready" replacement and "after you ready" responses apply. If a picked card
+   *   is not ready afterward (a replacement took the ready), the cost is unpaid and the effects do not resolve.
+   */
+  readonly readyCards?: InPlayCostPick;
   /** "… return Captain America's Shield from play to your hand →": cards in play go to their owner's hand. See `InPlayCostPick`. */
   readonly returnToHand?: InPlayCostPick;
   /**
@@ -2241,11 +2279,11 @@ export interface DamageCostPick extends InPlayCostPick {
 }
 
 /** How an `InPlayCostPick` spends its cards. */
-export type InPlayCostMode = "exhaust" | "return" | "discard" | "damage";
+export type InPlayCostMode = "exhaust" | "ready" | "return" | "discard" | "damage";
 
 /**
- * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the return pick, the discard
- * pick, the damage pick.
+ * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the ready pick, the return
+ * pick, the discard pick, the damage pick.
  */
 export function inPlayPicksOf(
   cost: AbilityCost | undefined,
@@ -2255,6 +2293,7 @@ export function inPlayPicksOf(
     cost.exhaustCards === undefined ? [] : "slot" in cost.exhaustCards ? [cost.exhaustCards] : cost.exhaustCards;
   return [
     ...exhaust.map((pick) => ({ mode: "exhaust" as const, pick })),
+    ...(cost.readyCards ? [{ mode: "ready" as const, pick: cost.readyCards }] : []),
     ...(cost.returnToHand ? [{ mode: "return" as const, pick: cost.returnToHand }] : []),
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
     ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
@@ -2262,12 +2301,13 @@ export function inPlayPicksOf(
 }
 
 /**
- * A cost paid with cards in play (`AbilityCost.exhaustCards` / `returnToHand`).
+ * A cost paid with cards in play (`AbilityCost.exhaustCards` / `readyCards` / `returnToHand` / `discardCards` /
+ * `damageCards`).
  *
  * - **Who pays.** Only cards in play that the paying player controls and that match `query` are candidates (RRG 1.8
  *   "Cost", p. 14: "that player must pay costs with cards and/or game elements they control"; ruling June 25, 2026
- *   #1: Steve Rogers can't pay Shield Toss with a Shield Falcon controls). An exhaust candidate must be ready. A
- *   return candidate must be able to leave play (RRG "Cannot", p. 11).
+ *   #1: Steve Rogers can't pay Shield Toss with a Shield Falcon controls). An exhaust candidate must be ready, a
+ *   ready candidate exhausted and able to ready. A return candidate must be able to leave play (RRG "Cannot", p. 11).
  * - **How many.** `min`–`max` cards; `max` omitted means no cap. "Any number" and "up to N" still mean at least one
  *   (RRG 1.8 "Cost", p. 14), so `min` is at least 1 (`@mc/cards`' validator enforces it).
  * - **Picking.** The picks come from `costChoices[slot]`. With no picks given, the cost pays itself only when the

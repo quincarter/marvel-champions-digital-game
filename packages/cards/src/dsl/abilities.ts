@@ -1700,6 +1700,16 @@ export const discardTopOfDeckCost = (n: number | ValueSpec = 1, slot?: string): 
   ...(slot !== undefined ? { discardFromDeckSlot: slot } : {}),
 });
 /**
+ * "Discard up to N cards from the top of your deck → … where X is the number of cards discarded this way" (Goldballs,
+ * `aoa` 45041; docs/phase7-wave8.md §3.55): the payer chooses how many, from 1 (RRG 1.8 "Cost", p. 14: "up to" still
+ * means at least one) to the smaller of `max` and the cards in the deck, as the cost is paid. The text after the arrow
+ * reads the count as `varOf("cost.discardFromDeck")`; `slot` binds the discarded cards as for `discardTopOfDeckCost`.
+ */
+export const discardUpToTopOfDeckCost = (max: number, slot?: string): AbilityCost => ({
+  discardFromDeck: { choose: { min: 1, max } },
+  ...(slot !== undefined ? { discardFromDeckSlot: slot } : {}),
+});
+/**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
  * docs/phase7-wave3.md §3.36): exactly one branch is paid, the player's choice (`costSelection.branch`, the branch's
  * index here). Each branch is one cost or a list merged like `cost: [...]`. Other components of the ability's cost
@@ -1898,6 +1908,15 @@ export const exhaustEachCost = (picks: Readonly<Record<string, TargetQuery>>): A
   if (entries.length < 2) throw new Error("exhaustEachCost: name at least two slots (one pick is exhaustCardsCost)");
   return { exhaustCards: entries.map(([slot, q]) => inPlayPick(q, { slot }, slot)) };
 };
+/**
+ * "Ready your sidekick →" (Side-by-Side, `aoa` 45016; docs/phase7-wave8.md §3.54): `readyCardsCost(query("ally", {
+ * hasAttachment: … }))`. Cards in play the payer controls ready as the cost; only exhausted cards that can ready are
+ * candidates (§4.1 Q29 = A), so with none the ability cannot be used. An additional cost to ready a picked card is
+ * owed in the same payment. Same picking rules as `exhaustCardsCost`; the cards are bound to `"readied"`.
+ */
+export const readyCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
+  readyCards: inPlayPick(q, opts, "readied"),
+});
 /** "… return [cards you control] from play to your hand →" (Shield Toss). Same picking rules as `exhaustCardsCost`. */
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),

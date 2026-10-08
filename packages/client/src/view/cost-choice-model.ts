@@ -20,7 +20,6 @@ import {
   type InstanceId,
   type LegalAction,
   type PlayerId,
-  type ValueSpec,
 } from "@mc/engine";
 
 export type CostChoicePrompt =
@@ -63,7 +62,7 @@ export function actionAbilityCost(
  * `ifElse(isAlterEgo(), …)`'s "the top 2 (3 in alter-ego) cards", the same two counts Aunt May & Uncle Ben prints.
  */
 function discardFromDeckPhrase(
-  value: number | ValueSpec,
+  value: NonNullable<AbilityCost["discardFromDeck"]>,
   resolveContext: {
     readonly state: GameState;
     readonly deps: EngineDeps;
@@ -72,6 +71,11 @@ function discardFromDeckPhrase(
   } | null,
 ): string {
   if (typeof value === "number") return `the top ${value} card${value === 1 ? "" : "s"}`;
+  // "Discard up to 3 cards from the top of your deck →": a size the payer chooses (docs/phase7-wave8.md §3.55).
+  if ("choose" in value) {
+    const { min, max } = value.choose;
+    return min <= 1 ? `up to ${max} cards from the top` : `${min} to ${max} cards from the top`;
+  }
   if (value.kind !== "eventAmount") {
     if (resolveContext) {
       const { state, deps, selfInstanceId, controllerId } = resolveContext;

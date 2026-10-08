@@ -243,6 +243,15 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const canAttachTo = (host: TargetRef): Pick<TargetQuery, "canAttachTo"> => ({ canAttachTo: host });
 /**
+ * "… an upgrade that can be attached to an ally" (Suit Up as corrected, `aoa` 45017; docs/phase7-wave8.md §3.59):
+ * `query("upgrade", canAttachToCategory("ally"))`. The upgrade's own printed "attach to" allows an ally, read from card
+ * data with no card in play consulted (§4.1 Q30 = A), so it matches with no ally in play; an upgrade with no "attach
+ * to" text (it goes by its controller's identity) does not. `canAttachTo(ref)` asks about named cards in play instead.
+ */
+export const canAttachToCategory = (category: "ally"): Pick<TargetQuery, "canAttachToCategory"> => ({
+  canAttachToCategory: category,
+});
+/**
  * "… chooses 1 set-aside SPECIALIZATION upgrade and puts it into play under their control" (`x23` 43021), as a choice
  * among the cards the unique rule lets enter play: `query("upgrade", { trait, ...canEnterPlay(thatPlayer) })`. A unique
  * card that matches a card already in play "cannot be played or put into play" (RRG 1.8 "Unique Icon", pp. 45–46), so
@@ -304,6 +313,14 @@ export const sameClassificationAs = (ref: TargetRef): Pick<TargetQuery, "sameCla
   sameClassificationAs: ref,
 });
 /**
+ * "An identity-specific ally" (Sidekick's host, `aoa` 45015; docs/phase7-wave8.md §3.53) as a query:
+ * `query("ally", ofClassification("identitySpecific"))`. RRG 1.8 "Classifications" (p. 12), read off card data like
+ * `sameClassificationAs`: a card of any identity's set, whoever controls it; the five aspects are one "aspect".
+ */
+export const ofClassification = (
+  classification: NonNullable<TargetQuery["classification"]>,
+): Pick<TargetQuery, "classification"> => ({ classification });
+/**
  * "An enemy whose SCH is less than Mirage's THW" (Mirage, `storm` 36015): `query("enemy", statCompare("sch", "lt",
  * statOf(self, "thw")))`. The card's current stat (or `{ printed: true }`, its printed one) against a value re-read
  * every check; a card with no stats never matches, a dash reads 0 (RRG 1.8 "Dash (Value)", p. 15).
@@ -333,6 +350,21 @@ export const hasAttachment = (q: TargetQuery): Pick<TargetQuery, "hasAttachment"
  * `query("upgrade", printedForm("energy"), { facedown: true, controller: "you" })`.
  */
 export const printedForm = (formType: string): Pick<TargetQuery, "printedForm"> => ({ printedForm: formType });
+/**
+ * "An attachment with the text 'Hero Action' or 'Hero Response'" (Electromagnetic Blast, `magneto` 49008;
+ * docs/phase7-wave8.md §3.77): `query("attachment", printsAbility(["action", "response"], "hero"))`. A query fragment
+ * for a card whose own printed ability list has a triggered ability with one of those labels, read through the
+ * registry: a blank text box does not hide it and a granted ability does not add to it (`abilityTiming` is the reading
+ * of the abilities a card has now). The label is whole: "Action" with no form, "Hero Interrupt" and a Forced Response
+ * do not match.
+ */
+export const printsAbility = (
+  kinds: readonly ("action" | "response")[],
+  form: "hero" | "alterEgo",
+): Pick<TargetQuery, "printsAbility"> => {
+  if (kinds.length === 0) throw new Error("printsAbility needs at least one ability kind");
+  return { printsAbility: { kinds: [...kinds], form } };
+};
 /**
  * "Each Spell card in your play area" (Ebony Maw I–III, `mts` 21071–21073): a query fragment for cards in that player's
  * play area, controlled by them or not (docs/phase7-wave4.md §3.16).
