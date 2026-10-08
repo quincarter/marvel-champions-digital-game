@@ -268,7 +268,11 @@ function matchesRest(
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
       if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
-    } else if ((event.kind === "dealDamage" || event.kind === "attack") && event.targetAsDamaged !== undefined) {
+    } else if (
+      (event.kind === "dealDamage" || event.kind === "attack") &&
+      event.targetAsDamaged !== undefined &&
+      event.targetInstanceId !== null
+    ) {
       // "After Deadpool takes damage": who the target was as it took the damage (`TargetSnapshot`), since the damage
       // may have turned an identity to its other side before this is read (RRG 1.8 "Identity", p. 23: a title names
       // only the side showing it). "After Cypher attacks and damages a confused enemy": the status cards it held as

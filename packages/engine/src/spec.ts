@@ -2894,10 +2894,27 @@ export type EffectSpec =
    * RRG 1.8 "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): this is *playing* the
    * card, so form, "max per", the unique rule and `cannotPlay` all apply, and it counts as played. Restricted does not
    * stop it (RRG 1.8 "Restricted", p. 38): the limit is enforced once the card is in play.
+   *
+   * **Where the card goes.** Being a play, it is subject to a rule that gives a played card a choice of place
+   * (`RuleSpec playDestination`; MC45 p. 5: "While a [MISSION] side scheme is in play, when a player plays an ally,
+   * they must choose: either play that ally into their game area per the normal rules of the game, or play it into
+   * the mission area"; owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 60). Once the card is picked, and
+   * while such a rule names an area this card may go to, its player is asked where (a `chooseOption` prompt, option
+   * ids `PLAY_TO_OWN_AREA` and `playToAreaOption(area)`); the price is read for the place picked, with any reduction
+   * that reads the destination (`reduceNextCardCost.into`), so a card payable in only one of the places is played
+   * there without a question. `putIntoPlay` is not a play and asks nothing (RRG 1.8 p. 32: "A card that is put into
+   * play enters play in its controller's play area").
    */
   | {
       readonly kind: "playFromHand";
       readonly player: PlayerRef;
+      /**
+       * The play goes to the player's own play area and no other place is offered: for an effect that goes on to use
+       * the played card as one its player controls ("play Colossus from your hand … and declare him the defender",
+       * owner answer Q32, docs/phase7-wave8.md §4.1: a card in the mission area is under no player's control and
+       * cannot be declared, so "that play goes to the player's own area only").
+       */
+      readonly ownAreaOnly?: true;
       /**
        * Where the card is played from, "as if it were in your hand": `"setAside"` is the player's own set-aside area
        * ("Play the set-aside Death-Glow upgrade as if it were in your hand", Valkyrie's Death Perception, 25001a;

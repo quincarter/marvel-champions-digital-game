@@ -2,6 +2,7 @@ import {
   inPlayPicksOf,
   isResourcesChoice,
   MOMENT_PREFIX,
+  TOGETHER_TARGETS_SLOT,
   UNRESOLVED_VAR,
   type AbilityCost,
   type AbilityDefinition,
@@ -776,6 +777,10 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   const trigger = definition.trigger;
   if (trigger.kind === "response" && trigger.on && kindsOfPattern(trigger.on).includes("momentRaised"))
     scope.prefixes.add(MOMENT_PREFIX);
+  // An ability that answers an occurrence once (`EventPattern.together`) reads every condition's target from a slot
+  // the engine binds as it is initiated.
+  if ((trigger.kind === "response" || trigger.kind === "interrupt") && trigger.on?.together === true)
+    scope.slots.add(TOGETHER_TARGETS_SLOT);
   // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
   if (definition.cost?.conditional) scope.vars.add("cost.condition");
   // A resource ability's effects resolve with the payment, the card paid for bound to `paidFor` (engine

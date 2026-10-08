@@ -1,5 +1,5 @@
 import { trait, type Trait } from "@mc/content";
-import { TOTAL_ATK_RESULT, UNRESOLVED_VAR } from "@mc/engine";
+import { TOGETHER_TARGETS_SLOT, TOTAL_ATK_RESULT, UNRESOLVED_VAR } from "@mc/engine";
 import type {
   BasicPowerName,
   CardIcon,
@@ -185,6 +185,11 @@ export const chosen = (slot: string): TargetRef => ({ kind: "slot", slot });
 export const eventSource: TargetRef = { kind: "eventSource" };
 /** The card the triggering event happened to ("that minion", "the attacked enemy"). */
 export const eventTarget: TargetRef = { kind: "eventTarget" };
+/**
+ * "The cards discarded" for an ability that answers one occurrence once (`EventPattern.together`, "After you discard
+ * cards, …"): the target of every triggering condition it answers, where `eventTarget` is only the first's.
+ */
+export const eventTargetsTogether: TargetRef = chosen(TOGETHER_TARGETS_SLOT);
 /** "Each enemy", "each hero", "each side scheme". */
 export const each = (q: TargetQuery): TargetRef => ({ kind: "each", query: q });
 /** The card in play with this exact printed name. */

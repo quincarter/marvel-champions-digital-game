@@ -306,6 +306,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       }
       // The ability has finished: each enemy its attack attacked is named (retaliate), before "after … attacks".
       if (pushAttackedByAbility(ctx, frame)) return;
+      // An attack that attacked nobody pushed nothing but had its event stamped so (`attack.attacked` empty): finish
+      // from the stamped frame, so its "resolved" line and response window read that it attacked no enemy.
+      const stamped = findFrame(ctx.state, frame.frameId);
+      if (stamped?.kind === "event" && stamped.event !== frame.event) return executeEventFrame(ctx, stamped);
       // An instance of a "(thwart)" ability's one thwart: its results join the ability's, whose resolved `thwart` and
       // response window follow the ability's last effect (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
       if (foldThwartInstance(ctx, frame)) {
@@ -1800,20 +1804,27 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
  * pointer: BoardGameGeek ruling thread, Mar 23 2023 — not an FFG ruling). A villain whose stage is defeated and
  * advances mid-attack is the same character still in play, so its attack is unaffected (`enemy-activation.ts`).
  */
-function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {
-  if (!cardsInPlay(ctx.state).includes(event.attackerInstanceId)) {
-    emit(ctx, {
-      type: "playerAttackEnded",
-      attackerInstanceId: event.attackerInstanceId,
-      targetInstanceId: event.targetInstanceId,
-      reason: "attackerLeftPlay",
-    });
+function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {
+  const target = attack.targetInstanceId;
+  if (!cardsInPlay(ctx.state).includes(attack.attackerInstanceId)) {
+    // A label-only attack that began before any enemy was named (`beginLabelAttack`) has no target to log an end
+    // against; its attacker is an identity, whose leaving play is the player's elimination and is logged as that.
+    if (target !== null) {
+      emit(ctx, {
+        type: "playerAttackEnded",
+        attackerInstanceId: attack.attackerInstanceId,
+        targetInstanceId: target,
+        reason: "attackerLeftPlay",
+      });
+    }
     return;
   }
   // The attack of an "(attack)" ability with no attack effect (owner ruling Q48, `attack-ability.ts`): it deals no
   // damage of its own and does not use the attacker's ATK. It waits for its ability, whose damage instructions are
   // its damage and name the enemies it attacks.
-  if (event.labeled) return;
+  if (attack.labeled || target === null) return;
+  // Only a label-only attack has no target, so from here the attack has one.
+  const event = { ...attack, targetInstanceId: target };
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;

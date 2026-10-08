@@ -175,7 +175,12 @@ export type TriggerEventBody =
   | {
       readonly kind: "attack";
       readonly attackerInstanceId: InstanceId;
-      readonly targetInstanceId: InstanceId;
+      /**
+       * The attacked character. Null only on a `labeled` attack that began before any enemy could be named (its enemy
+       * is chosen after an earlier instruction of the ability, or every enemy named was guarded): it takes the first
+       * enemy an instruction attacks as its target then, and stays null if it attacks nobody.
+       */
+      readonly targetInstanceId: InstanceId | null;
       readonly playerId: PlayerId;
       /** Damage for an "(attack)" ability; absent/null = the attacker's ATK (a basic attack). */
       readonly amount?: number | null;
@@ -208,9 +213,11 @@ export type TriggerEventBody =
       /**
        * The attack an "(attack)"-labeled ability makes when it has no `attack` effect of its own (RRG 1.8 "Labeled
        * Ability", p. 26: resolving the ability "is considered to be an attack made by that player's identity"; owner
-       * ruling Q48, docs/phase7-wave8.md §4.1). It deals no damage itself: it opens as the ability's first damage
-       * instruction against an enemy is reached, and that instruction's damage, and every later one's, is this
-       * attack's (`resolve/attack-ability.ts`). `targetInstanceId` is the first enemy that instruction attacks.
+       * ruling Q48, docs/phase7-wave8.md §4.1). It deals no damage itself: it opens as the ability begins resolving,
+       * before its first instruction (p. 26: "when the labeled ability begins resolving (after costs have been
+       * paid)"; owner decision, 2026-10-08, row 61), and the damage of the ability's instructions is this attack's
+       * (`resolve/attack-ability.ts`). `targetInstanceId` is the first enemy its first damage instruction would
+       * attack, read as the attack begins, or null when none can be named yet.
        */
       readonly labeled?: true;
       /**

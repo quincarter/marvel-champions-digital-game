@@ -76,7 +76,11 @@ export type ChoicePrompt =
    * answer is the empty one, an acknowledge.
    */
   | { readonly kind: "lookAt" }
-  /** "Choose one" among labeled options; option ids are the option indexes. */
+  /**
+   * "Choose one" among labeled options; option ids are the option indexes. Also where a card an effect plays goes
+   * when the rules give a choice of place (`EffectSpec playFromHand`): its option ids are `PLAY_TO_OWN_AREA` and
+   * `playToAreaOption(area)`, each option's `ref` is the card being played, and its label says the place in words.
+   */
   | { readonly kind: "chooseOption" }
   | { readonly kind: "choosePlayer"; readonly slot: string }
   /**
@@ -300,6 +304,22 @@ export type ChoiceRef =
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   | { readonly kind: "none" };
+
+/** The option of an effect play's destination choice that plays the card to its player's own play area. */
+export const PLAY_TO_OWN_AREA = "playTo:ownArea";
+const PLAY_TO_AREA_PREFIX = "playTo:area:";
+/** The option that plays it into the in-play scenario area `area` (the mission area). */
+export const playToAreaOption = (area: string): string => `${PLAY_TO_AREA_PREFIX}${area}`;
+/**
+ * What an option id of that choice names: `null` for the player's own area, the area's name, or `undefined` when the
+ * id is not one of them (any other `chooseOption`).
+ */
+export const playDestinationOfOption = (optionId: string): string | null | undefined =>
+  optionId === PLAY_TO_OWN_AREA
+    ? null
+    : optionId.startsWith(PLAY_TO_AREA_PREFIX)
+      ? optionId.slice(PLAY_TO_AREA_PREFIX.length)
+      : undefined;
 
 export interface ChoiceOption {
   readonly optionId: string;

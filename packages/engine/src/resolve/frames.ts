@@ -10,6 +10,7 @@ import {
   ignoredAbilities,
   printedAbilityRefs,
   textBoxBlankFor,
+  TOGETHER_TARGETS_SLOT,
   withSelfHost,
 } from "../select.js";
 import type { EffectSpec } from "../spec.js";
@@ -23,7 +24,7 @@ import {
   type Vars,
   type UndeclaredWilds,
 } from "../stack.js";
-import { carriedByEvent, isAnnouncement, type TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, eventSubjects, isAnnouncement, type TriggerEvent } from "../trigger-events.js";
 import { placeExhausted } from "../effects.js";
 import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
@@ -280,7 +281,18 @@ export function abilityFrame(
     eventFrameId,
     // Read before the cost is paid: "discard this card →" leaves the effect's "attached scheme" readable (`SELF_HOST`).
     // What the answered moment carries is the ability's to read as `moment.<slot>` (`carriedByEvent`, §3.71).
-    bindings: withSelfHost(ctx.state, candidate.instanceId, { ...carriedByEvent(event).bindings, ...bindings }),
+    bindings: withSelfHost(ctx.state, candidate.instanceId, {
+      ...carriedByEvent(event).bindings,
+      // One answer for several conditions of the occurrence (`EventPattern.together`): each one's targets, once.
+      ...(candidate.together
+        ? {
+            [TOGETHER_TARGETS_SLOT]: [
+              ...new Set(candidate.together.flatMap((answered) => eventSubjects(answered).targets)),
+            ],
+          }
+        : {}),
+      ...bindings,
+    }),
     // The ability's own vars win: an ability paid for with its own resource cost (`payWindowAbility`) keeps that payment.
     vars: { ...playPaymentVars(ctx.state.stack, candidate.instanceId), ...carriedByEvent(event).vars, ...vars },
   };

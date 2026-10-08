@@ -31,7 +31,13 @@ import {
   settleFormChangeCosts,
 } from "../form-change-cost.js";
 import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
-import type { ChoiceList, ChoiceOption, ChoicePrompt } from "../choices.js";
+import {
+  PLAY_TO_OWN_AREA,
+  playToAreaOption,
+  type ChoiceList,
+  type ChoiceOption,
+  type ChoicePrompt,
+} from "../choices.js";
 import {
   type Ctx,
   emit,
@@ -45,6 +51,7 @@ import {
 } from "../ctx.js";
 import {
   addLastingEffect,
+  areaCostReductionFor,
   expireNextVillainPhaseEffects,
   dealEncounterCardTo,
   discardFromHand,
@@ -55,7 +62,7 @@ import {
   shuffleZone,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import { cannotChangeForm, formChangeCostsFor, type FormChangeCost } from "../rules.js";
+import { cannotChangeForm, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
@@ -135,6 +142,7 @@ import {
   abilityAttackOf,
   mayAttackWith,
   noteAttackedByAbility,
+  beginLabelAttack,
   openLabelAttack,
   skipUnattackable,
 } from "./attack-ability.js";
@@ -243,8 +251,10 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
-  // An "(attack)" ability with no attack effect is still one attack (owner ruling Q48): it is made as the ability
-  // reaches its first damage instruction against an enemy, which then resolves as that attack's damage.
+  // An "(attack)" ability with no attack effect is still one attack (owner ruling Q48). It begins as the ability
+  // begins resolving, before its first instruction (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08,
+  // row 61); one whose damage instructions are all inside a branch makes it as the branch reaches the first.
+  if (beginLabelAttack(ctx, frame, effect, context)) return;
   if (openLabelAttack(ctx, frame, effect, context)) return;
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
@@ -413,10 +423,27 @@ function executePlayFromHand(
       : (effect.from ?? "hand");
   // "Play an event with a 'Hero Action' ability" from a Response (`ignoreActionTiming`): the Action's turn is not asked.
   const timing: ActionTiming = effect.ignoreActionTiming === true ? "any" : "turn";
-  const fault = (id: InstanceId, player: PlayerId): string | null =>
+  // What this effect takes off the card's cost when it goes to `into`: its own reduction, plus a reduction that reads
+  // the destination ("the next ally played to the mission", docs/phase7-wave8.md §3.35). Null: the player's own area.
+  const reductionAt = (id: InstanceId, player: PlayerId, into: string | null): number =>
+    reduction + Math.max(0, areaCostReductionFor(ctx.state, ctx.deps, player, id, into));
+  const faultAt = (id: InstanceId, player: PlayerId, into: string | null): string | null =>
     paying
-      ? playWithPaymentFault(ctx, player, id, reduction, from, undefined, timing)
+      ? playWithPaymentFault(ctx, player, id, reductionAt(id, player, into), from, undefined, timing)
       : playIgnoringCostFault(ctx, player, id, from, undefined, timing);
+  // Where the card may be played: the player's own area (null), then each in-play scenario area a `playDestination`
+  // rule in force names for it (MC45 p. 5: "when a player plays an ally, they must choose"; owner decision,
+  // 2026-10-08, row 60), keeping the places the play is legal and payable at. No such rule: the own area alone, as
+  // in every game outside that campaign. `ownAreaOnly`: owner answer Q32 (the effect then uses the card as its
+  // player's own).
+  const placesFor = (id: InstanceId, player: PlayerId): readonly (string | null)[] => {
+    const type = cardOf(ctx.state, id)?.type;
+    const areas =
+      effect.ownAreaOnly !== true && (type === "ally" || type === "support")
+        ? playDestinationsOf(ctx.state, ctx.deps, id)
+        : [];
+    return [null, ...areas].filter((into) => !faultAt(id, player, into));
+  };
   // A card picked already (`card`, the cost's pick: docs/phase7-wave6.md §3.42) is the only candidate, if still legal.
   const named = effect.card ? resolveRef(ctx.state, effect.card, context) : null;
   // From the hand, the top card of the deck is a candidate too while a `playableTopOfDeck` permission lets the player
@@ -425,7 +452,7 @@ function executePlayFromHand(
     ? cardsInPlayFromZone(ctx.state, playerId, from, ctx.deps).filter(
         (id) =>
           (named === null || named.includes(id)) &&
-          !fault(id, playerId) &&
+          placesFor(id, playerId).length > 0 &&
           (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
@@ -495,11 +522,41 @@ function executePlayFromHand(
   const [card] = frame.bindings["_play.card"] ?? [];
   if (!playerId || !card) return finish();
 
+  // The place, asked as soon as the card is known and before anything else about the play: the price depends on it.
+  // `_play.into` is the answer's place among `[own area, ...areas]`, from 1. One legal place is no question.
+  const places = placesFor(card, playerId);
+  if (places.length === 0) return finish();
+  if (step === 1 && places.length > 1 && frame.vars["_play.into"] === undefined) {
+    const optionOf = (into: string | null): string => (into === null ? PLAY_TO_OWN_AREA : playToAreaOption(into));
+    if (frame.answer === null) {
+      const name = mustCardOf(ctx.state, card).name;
+      requestChoice(ctx, {
+        playerId,
+        prompt: { kind: "chooseOption" },
+        options: places.map((into) => ({
+          optionId: optionOf(into),
+          label: into === null ? `Play ${name} to your area` : `Play ${name} to the ${into}`,
+          ref: { kind: "card", instanceId: card } as const,
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    const at = places.findIndex((into) => optionOf(into) === frame.answer?.[0]);
+    if (at < 0) return finish();
+    setFrame(ctx, { ...frame, answer: null, vars: { ...frame.vars, "_play.into": at + 1 } });
+    return;
+  }
+  const into = places[(frame.vars["_play.into"] ?? 1) - 1] ?? null;
+  const reductionHere = reductionAt(card, playerId, into);
+
   // RRG 1.8 "Event" (p. 18): "If an event has more than one triggered ability on it, the player playing it chooses one
   // of those abilities to trigger". Asked only among the Action abilities this effect could play now, and before the
   // host and the payment, since each ability has its own cost (RRG 1.8 "Initiating Abilities", p. 24, steps 2–3).
   // `_play.ability` is the chosen one's place among them, from 1.
-  const actions = eventActionsForEffectPlay(ctx, playerId, card, paying ? reduction : null, from, timing);
+  const actions = eventActionsForEffectPlay(ctx, playerId, card, paying ? reductionHere : null, from, timing);
   if (step === 1) {
     let chosen = actions.length === 1 ? actions[0] : undefined;
     if (actions.length > 1) {
@@ -524,7 +581,7 @@ function executePlayFromHand(
     }
     if (!paying) {
       finish();
-      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing));
+      grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing, into));
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
@@ -568,7 +625,7 @@ function executePlayFromHand(
 
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
-  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction, action, from);
+  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reductionHere, action, from);
   if (requirement === null) return finish();
 
   if (frame.answer === null) {
@@ -589,7 +646,10 @@ function executePlayFromHand(
   }
   const payment = paymentsFromOptionIds(frame.answer ?? []);
   finish();
-  grantWhileResolving(playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action, from));
+  // `playWithPayment` adds the destination's reduction to the effect's own, and uses it up.
+  grantWhileResolving(
+    playWithPayment(ctx, playerId, card, payment, attachTo, reduction, playBindings, action, from, undefined, into),
+  );
 }
 
 /**

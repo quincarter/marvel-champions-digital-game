@@ -199,8 +199,13 @@ describe("§3.38 the Mission Responses", () => {
     expect(characterProfile(run.state, t.overseer, CAMPAIGN_DEPS)).toMatchObject({ maxHp: 5 });
   });
 
-  it("test 4: Mikhail Rasputin: Energy (two [energy]) discarded: two separate 1-damage choices among the allies at the mission. Both on Marrow (2 hit points) defeat her before the cards are assigned, and X is not recounted: three cards, two allies", () => {
-    const t = table(MIKHAIL, [ENERGY, CLOBBER, BLOODGEM]);
+  /** An attempt under Mikhail Rasputin with `top` discarded, every ally choice answered with Marrow or `target`. */
+  function mikhail(
+    top: readonly string[],
+    target: (t: Table) => InstanceId = (t) => t.marrow,
+    extra: readonly string[] = [],
+  ) {
+    const t = table(MIKHAIL, top, extra);
     const choices: string[][] = [];
     const run = attempt(
       t,
@@ -209,23 +214,42 @@ describe("§3.38 the Mission Responses", () => {
         const choice = state.pendingChoice;
         if (choice?.prompt.kind === "chooseTarget" && choice.options.some((o) => o.optionId === t.marrow)) {
           choices.push(choice.options.map((o) => o.optionId));
-          return [t.marrow];
+          return [target(t)];
         }
         return firstLegal(state);
       },
     );
+    // Mikhail's damage only: the mission's own "deal 1 damage to each ally at the mission" follows the attempt.
+    const hits = (id: InstanceId) =>
+      of(run.events, "damageDealt").filter((e) => e.targetInstanceId === id && e.sourceInstanceId === t.overseer);
+    return { t, run, choices, hits };
+  }
+
+  // RRG 1.8 "'For Each'" (p. 20); owner decision, 2026-10-08 (row 62, rules check M8). Before it this was two choices
+  // and two instances of 1.
+  it("test 4: Mikhail Rasputin: Energy (two [energy]) discarded: one ally is chosen once and takes one instance of 2. On Marrow (2 hit points) it defeats her before the cards are assigned, and X is not recounted: three cards, two allies", () => {
+    const { t, run, choices, hits } = mikhail([ENERGY, CLOBBER, BLOODGEM]);
     expect(resolved(run.events, "45183a.mikhail-rasputin-forced-response")).toBe(1);
-    expect(choices).toEqual([
-      [t.randall, t.x23, t.marrow],
-      [t.randall, t.x23, t.marrow],
-    ]);
-    expect(of(run.events, "damageDealt").filter((e) => e.targetInstanceId === t.marrow)).toMatchObject([
-      { amount: 1, sourceInstanceId: t.overseer },
-      { amount: 1, sourceInstanceId: t.overseer },
-    ]);
+    expect(choices).toEqual([[t.randall, t.x23, t.marrow]]);
+    expect(hits(t.marrow)).toMatchObject([{ amount: 2, sourceInstanceId: t.overseer }]);
     expect(playerOf(run.state, P1).discard).toContain(t.marrow);
     expect(run.offered).toMatchObject([{ allies: [t.randall, t.x23] }]);
     expect(run.offered[0]?.cards).toHaveLength(3);
+  });
+
+  it("test 4: two discarded cards with [energy] are still one answer: Energy and Energy are one choice and one instance of 4, on one ally", () => {
+    const { t, run, choices, hits } = mikhail([ENERGY, ENERGY, CLOBBER], (table) => table.randall, [ENERGY]);
+    expect(resolved(run.events, "45183a.mikhail-rasputin-forced-response")).toBe(1);
+    expect(choices).toEqual([[t.randall, t.x23, t.marrow]]);
+    expect(hits(t.randall)).toMatchObject([{ amount: 4, sourceInstanceId: t.overseer }]);
+    expect(hits(t.x23)).toEqual([]);
+    expect(hits(t.marrow)).toEqual([]);
+  });
+
+  it("test 4: no [energy] discarded: Mikhail's response does not resolve and nobody is asked", () => {
+    const { run, choices } = mikhail([CLOBBER, CLOBBER, BLOODGEM]);
+    expect(resolved(run.events, "45183a.mikhail-rasputin-forced-response")).toBe(0);
+    expect(choices).toEqual([]);
   });
 });
 

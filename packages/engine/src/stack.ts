@@ -31,6 +31,12 @@ export interface TriggerCandidate {
    * p. 45). Absent for the window's own event.
    */
   readonly sharedEvent?: { readonly index: number; readonly event: TriggerEvent };
+  /**
+   * On a candidate whose pattern answers an occurrence once (`EventPattern.together`): every condition of the window
+   * that matched it, in the order they resolved, the one it answers first. Its ability frame names their targets in
+   * the slot `TOGETHER_TARGETS_SLOT`.
+   */
+  readonly together?: readonly TriggerEvent[];
 }
 
 export const candidateOf = (source: AbilitySource, forced: boolean): TriggerCandidate => ({

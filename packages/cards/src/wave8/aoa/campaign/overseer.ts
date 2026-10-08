@@ -8,10 +8,10 @@ import {
   defineAbilities,
   eventPlayer,
   eventTarget,
+  eventTargetsTogether,
   exists,
   forcedResponse,
   heal,
-  ifThen,
   pairLimit,
   placeThreat,
   query,
@@ -20,7 +20,6 @@ import {
   scaled,
   self,
   totalPrintedResources,
-  valueAtLeast,
 } from "../../../dsl/index.js";
 import { ALLY_AT_THE_MISSION, AT_THE_MISSION, MISSION_AREA, MISSION_TEAM, theMission } from "./mission-rules.js";
 
@@ -48,8 +47,21 @@ import { ALLY_AT_THE_MISSION, AT_THE_MISSION, MISSION_AREA, MISSION_TEAM, theMis
  * Abyss (45181a): the discarded card is attached to him facedown, out of play and blank, and is no longer one of the
  *   cards the attempt assigns (`settleDeckDiscards`). His a face prints no "+2 hit points" line.
  * Sugar Man (45182a): heal 3 damage from him for each [physical] icon.
- * Mikhail Rasputin (45183a): 1 damage to an ally at the mission for each [energy] icon, each its own choice by the
- *   player who discarded. X was counted when the cards were discarded, so an ally defeated here is not recounted.
+ * Mikhail Rasputin (45183a): one ally at the mission, chosen once by the player who discarded, takes 1 damage for
+ *   each [energy] icon as a single instance. Official rule, RRG 1.8 "'For Each'" (p. 20): "If an effect with 'for
+ *   each' requires a target, that effect applies to a single target unless the 'for each' clause includes a 'choose'
+ *   instruction", and "If a 'for each' effect without a 'choose' instruction deals damage or removes threat, it is
+ *   considered a single instance of damage dealt or threat removed"; his text prints no "choose". Owner decision,
+ *   2026-10-08 (docs/phase7-wave8.md §4.1 row 62, rules check M8): N damage to one chosen ally, not 1 per icon.
+ *   Interpretation: "each [energy] resource discarded" counts the icons of every card the attempt discarded, so the
+ *   response answers the discard once (`together`), not once for each card that shows the icon. (Alternative: one
+ *   instance per discarded card, which would be two targets for two cards.) X was counted when the cards were
+ *   discarded, so an ally defeated here is not recounted.
+ *
+ * The other three, against the same entry: The Shadow King and Sugar Man name their one target, so the single-target
+ * rule is met, and placing threat and healing are not among the effects the entry counts as "a single instance"; they
+ * still resolve once for each discarded card that shows the icon, with the printed total. Abyss prints "each card",
+ * not "for each".
  *
  * Cards (5):
  * - 45179a Mister Sinister (minion)
@@ -69,11 +81,6 @@ const missionDiscardOf = (icon: Icon): EventPattern => ({
 const iconsOf = (icon: Icon) => totalPrintedResources(eventTarget, [icon]);
 const missionResponse = (icon: Icon, ...effects: readonly EffectSpec[]) =>
   reaching(MISSION_AREA, forcedResponse(missionDiscardOf(icon), ...effects));
-/** "Deal 1 damage to an ally at the mission": the discarding player chooses; with none there, nothing. */
-const oneDamageToAnAllyAtTheMission = (slot: string): readonly EffectSpec[] => [
-  chooseTarget(slot, ALLY_AT_THE_MISSION, { chooser: eventPlayer }),
-  dealDamage(1, chosen(slot)),
-];
 
 /** "Cannot take damage while another minion is at the mission." */
 const shielded = () =>
@@ -114,12 +121,15 @@ export const OVERSEER: AbilityRegistry = defineAbilities({
 
   "45183a.mikhail-rasputin-constant": shielded(),
   // Mission Response: After you discard cards, deal 1 damage to an ally at the mission for each energy resource
-  // ([energy]) discarded. No player card prints more than three icons of one type.
-  "45183a.mikhail-rasputin-forced-response": missionResponse(
-    "energy",
-    ...oneDamageToAnAllyAtTheMission("first"),
-    ifThen(valueAtLeast(iconsOf("energy"), 2), oneDamageToAnAllyAtTheMission("second")),
-    ifThen(valueAtLeast(iconsOf("energy"), 3), oneDamageToAnAllyAtTheMission("third")),
+  // ([energy]) discarded. One ally, chosen by the discarding player (with none there, nothing), and one instance of
+  // damage for every [energy] icon the attempt discarded (RRG 1.8 "'For Each'", p. 20; owner decision, 2026-10-08).
+  "45183a.mikhail-rasputin-forced-response": reaching(
+    MISSION_AREA,
+    forcedResponse(
+      { ...missionDiscardOf("energy"), together: true },
+      chooseTarget("ally", ALLY_AT_THE_MISSION, { chooser: eventPlayer }),
+      dealDamage(totalPrintedResources(eventTargetsTogether, ["energy"]), chosen("ally")),
+    ),
   ),
 });
 

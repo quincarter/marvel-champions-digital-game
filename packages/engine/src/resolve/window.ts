@@ -99,9 +99,44 @@ function windowCandidates(
       sharedEvent: { index, event },
     })),
   );
-  return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
-    (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
+  return answeredTogether(
+    ctx,
+    frame,
+    [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
+      (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
+    ),
   );
+}
+
+/**
+ * "After you discard cards" (`EventPattern.together`): an ability whose pattern answers the occurrence once is one
+ * candidate however many of the window's conditions match it. The first one's candidate stays, carrying every
+ * condition it answers (`TriggerCandidate.together`); the others are dropped.
+ */
+function answeredTogether(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  candidates: readonly TriggerCandidate[],
+): readonly TriggerCandidate[] {
+  const kept: TriggerCandidate[] = [];
+  const at = new Map<string, number>();
+  for (const candidate of candidates) {
+    const trigger = ctx.deps.abilities[candidate.abilityId]?.trigger;
+    const together = (trigger?.kind === "interrupt" || trigger?.kind === "response") && trigger.on.together === true;
+    if (!together) {
+      kept.push(candidate);
+      continue;
+    }
+    const key = `${candidate.instanceId}:${candidate.abilityId}`;
+    const event = answered(frame, candidate).event;
+    const index = at.get(key);
+    const first = index === undefined ? undefined : kept[index];
+    if (index === undefined || first === undefined) {
+      at.set(key, kept.length);
+      kept.push({ ...candidate, together: [event] });
+    } else kept[index] = { ...first, together: [...(first.together ?? []), event] };
+  }
+  return kept;
 }
 
 /**
@@ -230,8 +265,9 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
     // A response to a card's discard from a deck, chosen before an earlier response in the queue moved that card: it
     // has nothing left to act on, and is not initiated (docs/phase7-wave7.md §3.55).
-    const answering = answered(frame, next).event;
-    if (answering.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, answering))
+    // One that answers several discards at once (`EventPattern.together`) still has the others to act on.
+    const answering = next.together ?? [answered(frame, next).event];
+    if (answering.every((each) => each.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, each)))
       return setFrame(ctx, { ...frame, queue: rest });
     // Another player defended this attack, or resolved a "(defense)" ability for it, since this one was picked or
     // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).

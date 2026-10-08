@@ -278,6 +278,13 @@ export function lastingReaches(
 export const PLAYED_VIA_SLOT = "playedVia";
 
 /**
+ * The slot of an ability frame naming the targets of every triggering condition it answers at once
+ * (`EventPattern.together`): "for each [energy] resource discarded" counts the icons of all the cards one discard put
+ * in the discard pile, whichever of them the answer is listed under.
+ */
+export const TOGETHER_TARGETS_SLOT = "together.targets";
+
+/**
  * The slot a lasting stat modifier's `amount` reads the card whose stat is being read from (`EffectSpec
  * modifyStatUntil`, docs/phase7-wave6.md §3.43: "while Wolverine or Jubilee is making a basic attack …, **they** get
  * +2 ATK"). Bound only for that read.

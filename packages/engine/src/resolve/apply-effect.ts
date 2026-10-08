@@ -947,12 +947,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             categoriesOf(ctx.state, id).includes("character") &&
             canTakePlayerAttack(ctx.state, ctx.deps, attack, id),
         );
-        if (!character || character === attack.event.targetInstanceId) return;
+        const from = attack.event.targetInstanceId;
+        // An attack that has named no enemy yet (a label-only attack begun before its first instruction,
+        // `beginLabelAttack`) has no target to move: its instructions name the characters it attacks.
+        if (!character || from === null || character === from) return;
         setFrame(ctx, { ...attack, event: { ...attack.event, targetInstanceId: character } });
         emit(ctx, {
           type: "playerAttackRetargeted",
           attackerInstanceId: attack.event.attackerInstanceId,
-          fromInstanceId: attack.event.targetInstanceId,
+          fromInstanceId: from,
           targetInstanceId: character,
           playerId: attack.event.playerId,
         });

@@ -1,19 +1,20 @@
 /**
- * Wave 8 rules check (docs/phase7-wave8-rules-check.md): the pin for the one engine rule the check found to contradict
- * a primary source. An `it.fails` states what the source says; a companion states what the game does today. The card
- * side's pin is in `packages/cards/src/wave8/rules-check.qa.test.ts`.
+ * Wave 8 rules check (docs/phase7-wave8-rules-check.md): the pins for the engine rules the check found to contradict
+ * a primary source. A pin starts as an `it.fails` stating what the source says beside a companion stating what the
+ * game does; once the behavior is corrected it is a plain `it` and the companion is gone. The card side's pin is in
+ * `packages/cards/src/wave8/rules-check.qa.test.ts`.
  *
- * The second pin (an ally an effect plays does not offer the mission area) is MC45 p. 5: "When a player plays an ally,
+ * The second pin (an ally an effect plays did not offer the mission area; fixed 2026-10-08, row 60) is MC45 p. 5: "When a player plays an ally,
  * they must choose: either play that ally into their game area per the normal rules of the game, or play it into the
  * mission area." RRG 1.8 "Play, Put Into Play" (p. 32): an effect that says "play" plays the card.
  *
  * RRG 1.8 "Labeled Ability" (p. 26): "The identity of the player using the labeled ability is considered to be
  * performing the labeled effect when the labeled ability begins resolving (after costs have been paid)"; "When a
  * player resolves an ability labeled '(attack),' that ability is considered to be an attack made by that player's
- * identity." The engine (`resolve/attack-ability.ts`, `openLabelAttack`) opens a label-only attack's `attack` event,
- * and so its "when you attack" interrupt window, at the ability's first damage instruction that names an attackable
- * enemy, so an instruction written before it resolves before the attack is made. Synthetic cards only, as in
- * `attack-label.test.ts`.
+ * identity." The engine used to open a label-only attack's `attack` event, and so its "when you attack" interrupt
+ * window, at the ability's first damage instruction that names an attackable enemy, so an instruction written before
+ * it resolved before the attack was made. Fixed on the owner's decision of 2026-10-08 (row 61):
+ * `resolve/attack-ability.ts`, `beginLabelAttack`. Synthetic cards only, as in `attack-label.test.ts`.
  */
 
 import { flat } from "@mc/content";
@@ -85,21 +86,15 @@ const attackBegins = (e: GameEvent) =>
 const counterPlaced = (e: GameEvent) => e.type === "counterAdded";
 
 describe("rules check: when a label-only attack begins (RRG 1.8 'Labeled Ability', p. 26)", () => {
-  it.fails("expected: the attack begins as the ability begins resolving, before its first instruction", () => {
+  // Fixed 2026-10-08 (owner decision, docs/phase7-wave8.md §4.1 row 61): `beginLabelAttack`. The companion "today"
+  // test, which pinned the old order, went with the fix; the rule's other cases are in `attack-label.test.ts`.
+  it("the attack begins as the ability begins resolving, before its first instruction", () => {
     const events = played();
     const attack = indexOf(events, attackBegins);
     const counter = indexOf(events, counterPlaced);
     expect(attack).toBeGreaterThanOrEqual(0);
     expect(counter).toBeGreaterThanOrEqual(0);
     expect(attack).toBeLessThan(counter);
-  });
-
-  it("today: the attack begins at its first damage instruction, after the preliminary instruction has resolved", () => {
-    const events = played();
-    const attack = indexOf(events, attackBegins);
-    const counter = indexOf(events, counterPlaced);
-    expect(counter).toBeGreaterThanOrEqual(0);
-    expect(counter).toBeLessThan(attack);
   });
 });
 
@@ -177,17 +172,12 @@ const offeredTheArea = (events: readonly GameEvent[]): boolean =>
   );
 
 describe("rules check: an ally that an effect plays offers the mission area (MC45 p. 5)", () => {
-  it.fails("expected: the player is offered the mission area as well as their own area", () => {
-    expect(offeredTheArea(rushedRecruit().events)).toBe(true);
-  });
-
-  it("today: the effect plays the ally to the player's own area with no choice of place", () => {
+  // Fixed 2026-10-08 (owner decision, docs/phase7-wave8.md §4.1 row 60): `executePlayFromHand`. The companion "today"
+  // test, which pinned the play to the player's own area with no question, went with the fix; the rule's other cases
+  // (each place, the price by place, "put into play", `ownAreaOnly`) are in `play-destination-effect.test.ts`.
+  it("the player is offered the mission area as well as their own area", () => {
     const { events, state } = rushedRecruit();
     expect(state.scenarioPlayAreas?.[AREA]?.cards.length).toBe(1); // the area is open, with the errand in it
-    expect(offeredTheArea(events)).toBe(false);
-    const home = state.players[0]!.playArea.filter(
-      (id) => state.cardPool[state.instances[id]!.cardId]?.type === "ally",
-    );
-    expect(home.length).toBeGreaterThan(0);
+    expect(offeredTheArea(events)).toBe(true);
   });
 });

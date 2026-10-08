@@ -45,6 +45,7 @@ export type {
   DecisionAuthority,
   PendingChoice,
 } from "./choices.js";
+export { PLAY_TO_OWN_AREA, playDestinationOfOption, playToAreaOption } from "./choices.js";
 
 export {
   effectChoiceAuthority,
@@ -415,6 +416,7 @@ export {
   resolveValue,
   selectTargets,
   shownDeckTop,
+  TOGETHER_TARGETS_SLOT,
   traitsOf,
 } from "./select.js";
 

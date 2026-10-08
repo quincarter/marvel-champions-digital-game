@@ -50,7 +50,10 @@ const swapHandWithTop = [
  * **Colossus (45031)**: active in hand; when an enemy attacks you, play him from the hand paying his cost, then declare
  * him the defender without exhausting him. The engine offers an in-hand interrupt that plays its own card only while
  * the card can be played and paid for (RRG 1.8 "Initiating Abilities", p. 24, step 2), so with a hand that cannot pay
- * his 3 it is not offered. Toughness is data.
+ * his 3 it is not offered. Toughness is data. His play goes to the player's own area with no choice of place, mission
+ * in play or not (`ownAreaOnly`): owner answer Q32 (docs/phase7-wave8.md §4.1), "Colossus 45031's Interrupt plays him
+ * and makes him the defender, which the mission area cannot satisfy: that play goes to the player's own area only."
+ * Every other effect that plays an ally offers the mission area (MC45 p. 5; owner decision, 2026-10-08, row 60).
  *
  * Cards (5):
  * - 45031 Colossus (ally)
@@ -63,7 +66,7 @@ export const MAGIK_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "45031.colossus-interrupt": inHand(
     interrupt(
       on.enemyAttacks({ categories: ["villain", "minion"] }, { againstYou: true }),
-      playFromHandReducingCost(0, you, { filter: query("ally", { self: true }) }),
+      playFromHandReducingCost(0, you, { filter: query("ally", { self: true }), ownAreaOnly: true }),
       declareDefender(self, { exhaust: false }),
     ),
   ),

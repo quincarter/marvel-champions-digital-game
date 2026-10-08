@@ -28,6 +28,16 @@ import type { TriggerEventKind } from "./trigger-events.js";
 export interface EventPattern {
   /** One event kind, or several: "After Madame Hydra schemes or attacks" → `["enemyScheme", "enemyAttack"]`. */
   readonly on: TriggerEventKind | readonly TriggerEventKind[];
+  /**
+   * "After you discard **cards**, …": one answer for the whole occurrence. When several triggering conditions share a
+   * window (the cards one effect discarded from a deck; RRG 1.8 "Triggering Condition", p. 45) and more than one
+   * matches this pattern, the ability resolves once for all of them, not once for each: in the window it is one
+   * candidate, answering the first of them. Its effects read every matching condition's target as the slot
+   * `TOGETHER_TARGETS_SLOT` (`eventTarget` is the first's), so an amount "for each [icon] discarded" is counted over
+   * all of them and dealt once (RRG 1.8 "'For Each'", p. 20: a single target and a single instance without a
+   * "choose"). Read where a window gathers its candidates (`resolve/window.ts`); a lone condition is a batch of one.
+   */
+  readonly together?: true;
   readonly selfIs?: "source" | "target" | "either";
   readonly playerIs?: "controller";
   /** The originally-attacked player rather than the final target (RRG p.9). */
@@ -1569,7 +1579,10 @@ export type RuleSpec =
    * it as `LegalAction.destinations`). A choice between two legal plays, not a forced move: without `into` the card is
    * played as always. Its cost, play restrictions, "max per", the unique rule and `cannotPlay` are checked as for any
    * play (RRG 1.8 "Play, Put into Play", p. 32), before the destination matters, and it is a play: "after you play an
-   * ally" answers it. Only a play has the choice: a card an effect plays or puts into play goes to its player's area.
+   * ally" answers it. Only a play has the choice, whoever makes it: a card an effect plays is asked about as it
+   * resolves (`EffectSpec playFromHand`; owner decision, 2026-10-08, §4.1 row 60), and a card an effect puts into play
+   * goes to its player's area with no question (RRG 1.8 p. 32: "A card that is put into play enters play in its
+   * controller's play area").
    *
    * There the card is in play under no player's control (`placeInScenarioPlayArea`): the ally limit counts allies a
    * player controls (RRG 1.8 "Ally Limit", p. 7), and no player can exhaust it or attack, thwart or defend with it.

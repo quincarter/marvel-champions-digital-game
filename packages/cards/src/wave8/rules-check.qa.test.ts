@@ -16,9 +16,9 @@ vi.setConfig({ testTimeout: 120_000 });
 
 /**
  * Wave 8 rules check (docs/phase7-wave8-rules-check.md): one pin for each behavior the check found to contradict a
- * primary source. Each pin is a pair: an `it.fails` that states what the source says should happen (so it turns green
- * when the game is fixed, and the owner flips it to a plain `it`), and a companion that states what the game does today
- * (so a change of behavior in either direction shows up here, on purpose).
+ * primary source. Each pin starts as a pair: an `it.fails` that states what the source says should happen, and a
+ * companion that states what the game does. Once the behavior is corrected the `it.fails` is a plain `it` and the
+ * companion is gone.
  *
  * The engine-rule pin of the same check is in `packages/engine/src/rules-check.qa.test.ts`.
  *
@@ -36,7 +36,7 @@ const DIGGING_DEEP = "40060";
 const ENERGY = "01088"; // Energy: two [energy] resource icons.
 const MIKHAIL = "45183a";
 
-/** Mikhail Rasputin's Mission Response, which the check found built as one choice for each [energy] icon. */
+/** Mikhail Rasputin's Mission Response, which the check found built as one choice for each [energy] icon (since fixed). */
 function mikhailAttempt() {
   const game = campaignGame({
     deck: [RANDALL, X23, MARROW, CROWN, CLOBBER, CLOBBER, BLOODGEM, DIGGING_DEEP],
@@ -72,15 +72,11 @@ describe("rules check: Mikhail Rasputin's Mission Response against RRG 1.8 'For 
   // applies to a single target unless the 'for each' clause includes a 'choose' instruction", and "a 'for each' effect
   // without a 'choose' instruction ... is considered a single instance of damage dealt". The card prints no "choose",
   // so Energy's two [energy] icons choose one ally once and deal it one instance of 2 damage.
-  it.fails("expected: one ally is chosen once and takes one instance of 2 damage", () => {
+  // Fixed 2026-10-08 (owner decision, docs/phase7-wave8.md §4.1 row 62). The companion "today" test, which pinned the
+  // two choices and two instances of 1, went with the fix; the other cases are in `mission-responses.test.ts`.
+  it("one ally is chosen once and takes one instance of 2 damage", () => {
     const run = mikhailAttempt();
     expect(run.choices).toBe(1);
     expect(run.hits).toEqual([2]);
-  });
-
-  it("today: the player is asked once for each [energy] icon and the ally takes two separate instances of 1", () => {
-    const run = mikhailAttempt();
-    expect(run.choices).toBe(2);
-    expect(run.hits).toEqual([1, 1]);
   });
 });

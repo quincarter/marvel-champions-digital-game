@@ -4272,20 +4272,39 @@ export function playWithPayment(
    * §3.62). Absent, the play's own frame asks its player when a card reads them and the declaration can matter.
    */
   wildAs?: readonly ResourceType[],
+  /**
+   * The in-play scenario area the card is played into (`RuleSpec playDestination`, docs/phase7-wave8.md §3.34), which
+   * the effect's player chose; null for their own play area. A reduction that reads the destination is part of the
+   * price and is used up, as for a `playCard` command with `into`.
+   */
+  into: string | null = null,
 ): FrameId | null {
   const chosen = eventActionToPlay(ctx, mustCardOf(ctx.state, id), id, playerId, abilityId);
   if (chosen && isFault(chosen)) return null;
   const ability = chosen?.definition;
   const deckTop = deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from);
-  const reduction = extraReduction + (deckTop?.costReduction ?? 0);
+  const reduction =
+    extraReduction +
+    (deckTop?.costReduction ?? 0) +
+    Math.max(0, areaCostReductionFor(ctx.state, ctx.deps, playerId, id, into));
   const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, reduction, {}, null, {
     abilityId: chosen?.abilityId ?? null,
     wildAs,
   });
   if (isFault(priced)) return null;
   const spent = commitPlay(ctx, playerId, id, payment, priced, deckTop);
+  if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const bindings = { ...priced.plan.bindings, ...extraBindings };
-  pushPlayCardFrame(ctx, id, playerId, attachTo, triggeredAction(chosen), playFrameCost(priced, bindings));
+  pushPlayCardFrame(
+    ctx,
+    id,
+    playerId,
+    attachTo,
+    triggeredAction(chosen),
+    playFrameCost(priced, bindings),
+    playerId,
+    into ?? undefined,
+  );
   const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, ability?.cost, priced.plan);
   announceResourcesSpent(ctx, playerId, spent, id, "playCard");
@@ -4306,6 +4325,8 @@ export function playIgnoringCost(
   /** The event's Action ability the player chose; absent, the only one this effect could play. */
   abilityId?: AbilityId,
   timing: ActionTiming = "turn",
+  /** The in-play scenario area the card is played into, as for `playWithPayment`; null for the player's own area. */
+  into: string | null = null,
 ): FrameId | null {
   if (playIgnoringCostFault(ctx, playerId, id, from, abilityId, timing)) return null;
   const usable = eventActionsForEffectPlay(ctx, playerId, id, null, from, timing);
@@ -4324,10 +4345,21 @@ export function playIgnoringCost(
   };
   const priced: PricedPlay = { pool: EMPTY_POOL, plan, vars };
   commitPlay(ctx, playerId, id, [], priced, deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from));
+  // "The next ally played to the mission": this was that ally, though nothing was paid for the reduction to lower.
+  if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const card = mustCardOf(ctx.state, id);
   const attachTo = card.type === "upgrade" ? mustPlayer(ctx.state, playerId).identity.instanceId : null;
   const triggered = actionId ? { triggeredAbilityId: actionId, event: null, eventFrameId: null } : undefined;
-  pushPlayCardFrame(ctx, id, playerId, attachTo, triggered, { bindings: { ...plan.bindings, ...extraBindings }, vars });
+  pushPlayCardFrame(
+    ctx,
+    id,
+    playerId,
+    attachTo,
+    triggered,
+    { bindings: { ...plan.bindings, ...extraBindings }, vars },
+    playerId,
+    into ?? undefined,
+  );
   return ctx.state.stack[0]?.frameId ?? null;
 }
 

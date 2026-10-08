@@ -2157,6 +2157,12 @@ export const playFromHandReducingCost = (
      * playing it still applies (`EffectSpec playFromHand.ignoreActionTiming`).
      */
     readonly ignoreActionTiming?: boolean;
+    /**
+     * The play goes to the player's own play area, with no choice of place where a rule would give one (the mission
+     * area, MC45 p. 5): for an effect that then uses the played card as its player's own (`EffectSpec
+     * playFromHand.ownAreaOnly`; Colossus 45031, owner answer Q32).
+     */
+    readonly ownAreaOnly?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "playFromHand",
@@ -2165,6 +2171,7 @@ export const playFromHandReducingCost = (
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
   ...(opts.ignoreActionTiming ? { ignoreActionTiming: true as const } : {}),
+  ...(opts.ownAreaOnly ? { ownAreaOnly: true as const } : {}),
 });
 /**
  * "Play the set-aside Death-Glow upgrade as if it were in your hand" (Valkyrie's Death Perception, 25001a;
