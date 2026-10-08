@@ -32,7 +32,7 @@ campaign box; the box's own cast joins at once, and every other hero's precon is
 | Sinister Motives         | Complete The Mad Titan's Shadow campaign   | Ghost-Spider and Spider-Man (Miles Morales) at once (MC27's cast); Nova (Sandman), Ironheart (Venom), Spider-Ham (Mysterio), SP//dr Suit (The Sinister Six)                  |
 | Mutant Genesis           | Complete the Sinister Motives campaign     | Colossus and Shadowcat at once (MC32's cast); Cyclops (Sabretooth), Phoenix (Project Wideawake), Wolverine (Master Mold), Storm (Mansion Attack), Gambit and Rogue (Magneto) |
 | NeXt Evolution           | Complete the Mutant Genesis campaign       | Cable and Domino at once (MC40's cast); Psylocke (Morlock Siege), Angel (On the Run), X-23 (Juggernaut), Deadpool (Mister Sinister)                                          |
-| Age of Apocalypse        | Complete the NeXt Evolution campaign       | Bishop and Magik at once (MC45's cast); Iceman (Unus), Jubilee (Four Horsemen), Nightcrawler (Apocalypse), Magneto (Dark Beast)                                            |
+| Age of Apocalypse        | Complete the NeXt Evolution campaign       | Bishop and Magik at once (MC45's cast); Iceman (Unus), Jubilee (Four Horsemen), Nightcrawler (Apocalypse), Magneto (Dark Beast)                                              |
 
 On the Saga shelf a campaign still follows the shelf's own order (win a volume on Standard to open the next) unless
 it was opened by hand. Adding a wave to the app's pool means adding its row to `UNLOCK_WAVES`: `unlocks.test.ts`
