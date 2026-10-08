@@ -289,5 +289,9 @@ describe("cannotEnterPlay told apart by the game", () => {
     const setting = Object.entries(POOL_DEPS.abilities).find(([, ability]) => ability.cost?.resolveAbility?.choose);
     expect(setting, "an ability whose cost resolves a chosen Setting").toBeDefined();
     expect(playAimPrompt(state, POOL_DEPS, aim(setting![0]))).toBe(`${name}: choose the Setting`);
+    // Rock, Paper, Scissors' action discards a hand card as its cost: the board asks which one, up front.
+    expect(playAimPrompt(state, POOL_DEPS, aim("44056.rock-paper-scissors-action"))).toBe(
+      `${name}: choose a card for its cost`,
+    );
   });
 });

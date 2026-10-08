@@ -32,7 +32,11 @@ const setup = {
   deckSize: (page: Page) => hook<number>(page, "__mcTableSetupDebug", "encounterDeckSize").then((o) => o ?? -1),
   summary: (page: Page) =>
     hook<[string, string][]>(page, "__mcTableSetupDebug", "summary").then((o) => new Map(o ?? [])),
-  pick: (page: Page, id: string) => clickStop(page, "__mcTableSetupDebug", `modular:${id}`),
+  // The grid scrolls (the Standard set row above it leaves Longshot's row under the fold), so bring the tile into the panel first.
+  pick: async (page: Page, id: string) => {
+    await scrollModularTileIntoPanel(page, `modular:${id}`);
+    await clickStop(page, "__mcTableSetupDebug", `modular:${id}`);
+  },
 };
 
 const onSetup = async (page: Page): Promise<boolean> => (await activeScenes(page)).includes("Setup");
