@@ -41,6 +41,25 @@ describe("how this works notes", () => {
     expect(named("44032")).toBe("The Merc with the Mouth");
     expect(named("40132")).toBe("Black Tom Cassidy");
     expect(named("40043")).toBe("Jackpot!");
+    expect(named("45007")).toBe("Concussive Blast");
+    expect(named("45032")).toBe("Limbo");
+    expect(named("46016")).toBe("Take That!");
+    expect(named("47023")).toBe("Grounded");
+    expect(named("48006")).toBe("Bamf!");
+    expect(named("49007")).toBe("Wrapped in Metal");
+    expect(named("49019")).toBe('"You Got This!"');
+    expect(named("45171a")).toBe("Mission Team");
+  });
+
+  test("the wave 8 hero and scenario cards carry notes that name the mechanic", () => {
+    const note = (id: string) => howThisWorksFor(CARDS_BY_ID.get(id));
+    expect(note("45001a")).toMatch(/Resource cards/);
+    expect(note("46001a")).toMatch(/Frostbite/);
+    expect(note("47007a")).toMatch(/different resource types/);
+    expect(note("48006")).toMatch(/basic defense/);
+    expect(note("49001a")).toMatch(/MAGNETIC/);
+    expect(note("45081a")).toMatch(/another villain/);
+    expect(note("45170a")).toMatch(/cannot thwart/);
   });
 
   test("a card with no tricky wording has no note, and no card means no note", () => {

@@ -94,6 +94,7 @@ export type GlossaryBoxId =
   | "cycle6"
   | "mojo"
   | "cycle7"
+  | "cycle8"
   | "later";
 
 /** Which "New in this box" group a concept belongs under: a hero's own mechanic, or a scenario's. Keywords have their own group. */
@@ -212,7 +213,45 @@ export type ConceptId =
   | "hopeSummers"
   | "actionsOtherTurns"
   | "routed"
-  | "setupAttachments";
+  | "setupAttachments"
+  // Wave 8 (Age of Apocalypse, guided mode §3.14).
+  | "energyAbsorption"
+  | "paidWith"
+  | "faceupTopCard"
+  | "limbo"
+  | "frostbite"
+  | "jubileeVersions"
+  | "grounded"
+  | "cellPhone"
+  | "bamf"
+  | "magneticPull"
+  | "magneticBubble"
+  | "wrappedInMetal"
+  | "attackAbilityOne"
+  | "attackTargets"
+  | "basicPowerStat"
+  | "effectDefender"
+  | "mainSchemeBSide"
+  | "hitPointBonusEnds"
+  | "villainsFallTogether"
+  | "genePool"
+  | "modularDifficulty"
+  | "fourHorsemen"
+  | "horsemenSetup"
+  | "prelates"
+  | "apocalypseDefeat"
+  | "settingEnvironments"
+  | "enSabahNur"
+  | "pursuedByThePast"
+  | "crazyGang"
+  | "celestialTech"
+  | "arcadeTraps"
+  | "missionArea"
+  | "missionAttempt"
+  | "overseers"
+  | "missionOutcomes"
+  | "campaignRewards"
+  | "allySearch";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -270,6 +309,43 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "actionsOtherTurns",
   "routed",
   "setupAttachments",
+  "energyAbsorption",
+  "paidWith",
+  "faceupTopCard",
+  "limbo",
+  "frostbite",
+  "jubileeVersions",
+  "grounded",
+  "cellPhone",
+  "bamf",
+  "magneticPull",
+  "magneticBubble",
+  "wrappedInMetal",
+  "attackAbilityOne",
+  "attackTargets",
+  "basicPowerStat",
+  "effectDefender",
+  "mainSchemeBSide",
+  "hitPointBonusEnds",
+  "villainsFallTogether",
+  "genePool",
+  "modularDifficulty",
+  "fourHorsemen",
+  "horsemenSetup",
+  "prelates",
+  "apocalypseDefeat",
+  "settingEnvironments",
+  "enSabahNur",
+  "pursuedByThePast",
+  "crazyGang",
+  "celestialTech",
+  "arcadeTraps",
+  "missionArea",
+  "missionAttempt",
+  "overseers",
+  "missionOutcomes",
+  "campaignRewards",
+  "allySearch",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -386,6 +462,44 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   actionsOtherTurns: { box: "cycle7", group: "hero", alsoCore: true },
   routed: { box: "cycle7", group: "scenario" },
   setupAttachments: { box: "cycle7", group: "scenario" },
+  // Age of Apocalypse. The attack, defense, main scheme and hit point rules were built for it but reach every box.
+  energyAbsorption: { box: "cycle8", group: "hero" },
+  paidWith: { box: "cycle8", group: "hero" },
+  faceupTopCard: { box: "cycle8", group: "hero" },
+  limbo: { box: "cycle8", group: "hero" },
+  frostbite: { box: "cycle8", group: "hero" },
+  jubileeVersions: { box: "cycle8", group: "hero" },
+  grounded: { box: "cycle8", group: "hero" },
+  cellPhone: { box: "cycle8", group: "hero" },
+  bamf: { box: "cycle8", group: "hero" },
+  magneticPull: { box: "cycle8", group: "hero" },
+  magneticBubble: { box: "cycle8", group: "hero" },
+  wrappedInMetal: { box: "cycle8", group: "hero" },
+  attackAbilityOne: { box: "cycle8", group: "hero", alsoCore: true },
+  attackTargets: { box: "cycle8", group: "hero", alsoCore: true },
+  basicPowerStat: { box: "cycle8", group: "hero", alsoCore: true },
+  effectDefender: { box: "cycle8", group: "hero", alsoCore: true },
+  mainSchemeBSide: { box: "cycle8", group: "scenario", alsoCore: true },
+  hitPointBonusEnds: { box: "cycle8", group: "hero", alsoCore: true },
+  villainsFallTogether: { box: "cycle8", group: "scenario" },
+  genePool: { box: "cycle8", group: "scenario" },
+  modularDifficulty: { box: "cycle8", group: "scenario" },
+  fourHorsemen: { box: "cycle8", group: "scenario" },
+  horsemenSetup: { box: "cycle8", group: "scenario" },
+  prelates: { box: "cycle8", group: "scenario" },
+  apocalypseDefeat: { box: "cycle8", group: "scenario" },
+  settingEnvironments: { box: "cycle8", group: "scenario" },
+  enSabahNur: { box: "cycle8", group: "scenario" },
+  pursuedByThePast: { box: "cycle8", group: "scenario" },
+  crazyGang: { box: "cycle8", group: "scenario" },
+  celestialTech: { box: "cycle8", group: "scenario" },
+  arcadeTraps: { box: "cycle8", group: "scenario" },
+  missionArea: { box: "cycle8", group: "scenario" },
+  missionAttempt: { box: "cycle8", group: "scenario" },
+  overseers: { box: "cycle8", group: "scenario" },
+  missionOutcomes: { box: "cycle8", group: "scenario" },
+  campaignRewards: { box: "cycle8", group: "scenario" },
+  allySearch: { box: "cycle8", group: "scenario" },
 };
 
 function tagged<Id extends GlossaryId>(raw: Record<Id, UntaggedEntry<Id>>): Record<Id, GlossaryEntry<Id>> {
@@ -1295,6 +1409,371 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     sources: [
       { kind: "rrg", page: 51 },
       { kind: "rulebook", label: "NeXt Evolution rulebook p. 16" },
+    ],
+  },
+  // ---------------------------------------------------------------------------------------------------------------
+  // Wave 8 (Age of Apocalypse): guided mode `docs/guided-mode.md` §3.14. "Age of Apocalypse rulebook" is MC45
+  // (`docs/campaign-modes/markdown/mc45_age_of_apocalypse.md`). "Ruling for this game" cites an owner answer in
+  // `docs/phase7-wave8.md` §4.1. Entries on a reading the owner has not confirmed (`docs/phase7-wave8-rules-check.md`)
+  // say what the game does today and carry the label in their source: a later ruling is a one-line edit.
+  // ---------------------------------------------------------------------------------------------------------------
+  energyAbsorption: {
+    id: "energyAbsorption",
+    kind: "concept",
+    displayName: "Energy Absorption (Bishop)",
+    definition:
+      "After Bishop takes damage from an attack, discard that many cards from the top of your deck. Each resource card discarded this way goes to your hand; the rest stay in the discard pile. Taking hits is how his deck feeds his hand, so his upgrades and events read the resource cards you hold.",
+    sources: [{ kind: "card", cards: "Bishop 45001a; Bishop's Uniform 45005; Bishop's Rifle 45004" }],
+  },
+  paidWith: {
+    id: "paidWith",
+    kind: "concept",
+    displayName: "Cards that read how you paid",
+    definition:
+      "Some cards read what paid for them: Bishop's events check for a resource card, Jubilee's count the different resource types spent. Only resources actually spent count, so overpaying adds no types. You declare what each wild counts as, and the game skips the question when every choice reads the same.",
+    sources: [
+      { kind: "rrg", page: 37 },
+      { kind: "card", cards: "Concussive Blast 45007; Grand Finale 47009" },
+      { kind: "owner-ruling", date: "Oct 7, 2026" },
+    ],
+  },
+  faceupTopCard: {
+    id: "faceupTopCard",
+    kind: "concept",
+    displayName: "Magik's faceup top card",
+    definition:
+      "In hero form the top card of Magik's deck is faceup. Once per phase you may play it as if it were in your hand, for 1 less. Her upgrades and events read that card's resource icon: a wild icon counts as every type. When the top card changes, so does what they give.",
+    sources: [{ kind: "card", cards: "Magik 45030a; Magik's Crown 45033; Soulsword 45034; Mystical Armor 45035" }],
+  },
+  limbo: {
+    id: "limbo",
+    kind: "concept",
+    displayName: "Limbo and Illyana's spells",
+    definition:
+      "Limbo swaps a card in your hand with the top card of your deck, so you choose what Magik's faceup card will be. Illyana's interrupt puts a SPELL from your discard pile on top of your deck when you change to hero form. It resolves before the change, and only once per phase.",
+    sources: [{ kind: "card", cards: "Limbo 45032; Magik 45030a; Stepping Disc 45037" }],
+  },
+  frostbite: {
+    id: "frostbite",
+    kind: "concept",
+    displayName: 'Frostbite and "Freeze!" (Iceman)',
+    definition:
+      'Iceman starts with six Frostbite upgrades set aside. "Freeze!" attaches one to an enemy when he makes a basic attack or defense against it. Frostbite gives -1 SCH and -1 ATK, and goes back to the set-aside pile when its host activates or leaves play. An enemy with Frostbite has an upgrade attached, which Take That! needs.',
+    sources: [{ kind: "card", cards: "Iceman 46001a; Frostbite 46002; Take That! 46016" }],
+  },
+  jubileeVersions: {
+    id: "jubileeVersions",
+    kind: "concept",
+    displayName: "Jubilee's lettered cards",
+    definition:
+      "Firecracker, Flash of Light and Plasmoid Energy each come in three versions, a, b and c, that differ only in resource icon. Her deck holds one of each version. They share a title, so a count or search by title sees all three.",
+    sources: [{ kind: "card", cards: "Firecracker 47007a-c; Flash of Light 47008a-c; Plasmoid Energy 47010a-c" }],
+  },
+  grounded: {
+    id: "grounded",
+    kind: "concept",
+    displayName: "Grounded (Jubilee)",
+    definition:
+      "Grounded makes changing to hero form during your turn cost 2 resources of the same type. When it is revealed you change to alter-ego form. Playing a Jubilee event removes it from the game. It is her obligation, so it starts in her play area.",
+    sources: [{ kind: "card", cards: "Grounded 47023" }],
+  },
+  cellPhone: {
+    id: "cellPhone",
+    kind: "concept",
+    displayName: "Cell Phone",
+    definition:
+      "Cell Phone has 3 charge counters. Spend one and exhaust it to choose a player, who makes a basic attack or thwart with a character they control. That character gets +1 THW and +1 ATK for the use.",
+    sources: [{ kind: "card", cards: "Cell Phone 47019" }],
+  },
+  bamf: {
+    id: "bamf",
+    kind: "concept",
+    displayName: "Bamf! (Nightcrawler)",
+    definition:
+      "Bamf! attaches to an enemy, one per enemy. When that enemy attacks, discard it to make Nightcrawler the defender without exhausting him. A defender an effect declares makes a basic defense. Other cards discard Bamf! from an enemy or your hand, and Rapid Teleportation brings copies back.",
+    sources: [
+      { kind: "card", cards: "Bamf! 48006; Tally Ho! 48011; Teleport Drop 48008; Nightcrawler 48001a" },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
+    ],
+  },
+  magneticPull: {
+    id: "magneticPull",
+    kind: "concept",
+    displayName: "Magnetic Pull (Magneto)",
+    definition:
+      "Once per round, discard cards from the top of your deck until a MAGNETIC card is discarded, then add it to your hand. Other cards read the result: Magneto's Armor checks which resource icons were discarded, and Old Grievances counts how many cards were.",
+    sources: [{ kind: "card", cards: "Magneto 49001a; Magneto's Armor 49004; Old Grievances 49027" }],
+  },
+  magneticBubble: {
+    id: "magneticBubble",
+    kind: "concept",
+    displayName: "Magnetic Bubble",
+    definition:
+      "Damage you would take is placed on Magnetic Bubble instead of on you. When 6 or more damage is on it, it is discarded. Magneto has retaliate 1 while it is in play.",
+    sources: [{ kind: "card", cards: "Magnetic Bubble 49006" }],
+  },
+  wrappedInMetal: {
+    id: "wrappedInMetal",
+    kind: "concept",
+    displayName: "Wrapped in Metal",
+    definition:
+      "Hero form only. Attach it to a non-ELITE minion: the minion cannot activate, and its printed text box is treated as blank. Magnetic Missile discards a minion that has Wrapped in Metal attached to deal 5 damage to an enemy and stun it.",
+    sources: [{ kind: "card", cards: "Wrapped in Metal 49007; Magnetic Missile 49010" }],
+  },
+  attackAbilityOne: {
+    id: "attackAbilityOne",
+    kind: "concept",
+    displayName: "(Attack) abilities are one attack",
+    definition:
+      "An ability labeled (attack) is one attack, whether or not it uses ATK. All the damage it deals to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability resolves. Today an attack bonus applies to each damage instance, but not to damage worded as additional.",
+    sources: [
+      { kind: "rrg", page: 10 },
+      { kind: "rrg", page: 38 },
+      { kind: "owner-ruling", date: "Oct 7, 2026" },
+    ],
+  },
+  attackTargets: {
+    id: "attackTargets",
+    kind: "concept",
+    displayName: "Who an attack targets",
+    definition:
+      "Each enemy an attack ability targets counts as attacked, and guard is checked for each one when it would be attacked. An enemy that only takes incidental damage, such as overkill damage reaching the villain, was not attacked: no guard check and no retaliate.",
+    sources: [
+      { kind: "rrg", page: 21 },
+      { kind: "rrg", page: 31 },
+      { kind: "owner-ruling", date: "Oct 7, 2026" },
+    ],
+  },
+  basicPowerStat: {
+    id: "basicPowerStat",
+    kind: "concept",
+    displayName: "Which stat powers a basic power",
+    definition:
+      'When an effect lets a basic thwart use ATK, the game reports the stat actually powering it. A card that adds the ally\'s matching power, like "You Got This!", adds the stat used: ATK for a thwart powered by ATK.',
+    sources: [
+      { kind: "rrg", page: 10 },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
+    ],
+  },
+  effectDefender: {
+    id: "effectDefender",
+    kind: "concept",
+    displayName: "Defenders an effect declares",
+    definition:
+      "When an ability declares a character as the defender, as Bamf! does, that character makes a basic defense, so responses to a basic defense apply to it. Playing a (defense)-labeled event is not by itself a basic defense.",
+    sources: [
+      { kind: "rrg", page: 15 },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
+    ],
+  },
+  mainSchemeBSide: {
+    id: "mainSchemeBSide",
+    kind: "concept",
+    displayName: "A main scheme's B side before it turns",
+    definition:
+      "While a main scheme shows its A side, its B side is not active: its abilities cannot trigger. They start to apply when the scheme turns to the B side, and do not trigger retroactively for something that already happened.",
+    sources: [
+      { kind: "rrg", page: 27 },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
+    ],
+  },
+  hitPointBonusEnds: {
+    id: "hitPointBonusEnds",
+    kind: "concept",
+    displayName: "A hit point bonus that ends",
+    definition:
+      "If a bonus like Desperate Measures' +1 hit point stops applying and leaves an ally or minion with damage equal to or greater than its hit points, that character is defeated.",
+    sources: [{ kind: "rrg", page: 22 }],
+  },
+  villainsFallTogether: {
+    id: "villainsFallTogether",
+    kind: "concept",
+    displayName: "Villains defeated together",
+    definition:
+      "Villains that fall at the same time are defeated in one step, not one after another. A Horseman cannot be defeated while another villain has at least 1 hit point, so the last Horsemen can fall together.",
+    sources: [
+      { kind: "rrg", page: 47 },
+      { kind: "card", cards: "War 45081a; Famine 45082a; Pestilence 45083a; Death 45084a" },
+    ],
+  },
+  genePool: {
+    id: "genePool",
+    kind: "concept",
+    displayName: "Gene Pool (Unus)",
+    definition:
+      "Gene Pool is a permanent side scheme in play from setup. The more threat on it, the stronger Unus gets: at 3 he gains retaliate 1, at 6 stalwart, at 9 an amplify icon. The main scheme adds 1 each villain phase, and an ally defeated by anything but consequential damage adds 3.",
+    sources: [{ kind: "card", cards: "Unus 45059; Gene Pool 45071; Hunting Gene Traitors 45062a" }],
+  },
+  modularDifficulty: {
+    id: "modularDifficulty",
+    kind: "concept",
+    displayName: "Infinites: Modular Difficulty",
+    definition:
+      "With the Infinites set, players may put extra threat on Gene Pool during setup to make the scenario harder. The rulebook only recommends amounts. The game offers it as a setup option that stays off unless you turn it on.",
+    sources: [
+      { kind: "card", cards: "Gene Pool 45071; Infinite Soldier 45069" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 8" },
+      { kind: "owner-ruling", date: "Oct 7, 2026" },
+    ],
+  },
+  fourHorsemen: {
+    id: "fourHorsemen",
+    kind: "concept",
+    displayName: "The Four Horsemen",
+    definition:
+      "Four villains sit in a row, and the active counter marks which acts. After a villain activates, the counter moves to the next one. A Horseman cannot be defeated while another villain has at least 1 hit point. Golden Horse and Metal Wings make their villain count as having at least 1.",
+    sources: [{ kind: "card", cards: "The Horsemen of Apocalypse 45085a; Golden Horse 45090; Metal Wings 45091" }],
+  },
+  horsemenSetup: {
+    id: "horsemenSetup",
+    kind: "concept",
+    displayName: "Horsemen sides and side schemes",
+    definition:
+      "Each Horseman has an A and a B side, and setup picks one for each. The difficulty sets the default and you can change any of them. Each player also reveals a random side scheme from the Four Horsemen set. Pestilence blanks your identity's text box, except traits, until the next villain phase.",
+    sources: [
+      { kind: "card", cards: "War 45081a; Pestilence 45083a; The Horsemen of Apocalypse 45085a" },
+      { kind: "owner-ruling", date: "Oct 7, 2026" },
+    ],
+  },
+  prelates: {
+    id: "prelates",
+    kind: "concept",
+    displayName: "Apocalypse: Prelates and chained schemes",
+    definition:
+      "Apocalypse's scenario chains side schemes: Heart of the Empire, then The Towering Citadel, then The Tyrant's Throne. Threat cannot be removed from them while a Prelate minion is in play. Defeating one reveals a random set-aside Prelate and deals each other player an encounter card.",
+    sources: [
+      { kind: "card", cards: "Heart of the Empire 45104a; The Towering Citadel 45104b; The Tyrant's Throne 45105a" },
+    ],
+  },
+  apocalypseDefeat: {
+    id: "apocalypseDefeat",
+    kind: "concept",
+    displayName: 'Apocalypse: "would be defeated, instead"',
+    definition:
+      "When Apocalypse would be defeated, he instead discards his attachments and heals all damage, and the main scheme loses threat equal to the numeral in his printed hit points. A completed main scheme brings in his next stage. The last side scheme flips to No Longer Worthy, and then defeating him wins.",
+    sources: [{ kind: "card", cards: "Apocalypse 45101a; The Age of Apocalypse 45103a; No Longer Worthy 45105b" }],
+  },
+  settingEnvironments: {
+    id: "settingEnvironments",
+    kind: "concept",
+    displayName: "Dark Beast: Setting environments",
+    definition:
+      "Dark Beast reveals a random set-aside Setting environment. Only one Setting is in play at a time: revealing another discards the rest. Each has a Special, and Dark Beast resolves the Setting's Special when he attacks you. A card can also ask you to resolve the Special as a cost.",
+    sources: [
+      { kind: "card", cards: "Dark Beast 45118; The Savage Land 45127; Genosha 45133; Blue Area of the Moon 45139" },
+    ],
+  },
+  enSabahNur: {
+    id: "enSabahNur",
+    kind: "concept",
+    displayName: "En Sabah Nur: forms and power counters",
+    definition:
+      "Apocalypse changes form over three stages: Biomorph, Cyberpath and Giant. Each villain phase the pyramid gains a power counter. At 4, the first player removes them and discards encounter cards until a Superpower card is discarded, then reveals it.",
+    sources: [
+      { kind: "card", cards: "En Sabah Nur's Pyramid 45147a; Biomorphic Blast 45150; Staggering Strength 45149" },
+    ],
+  },
+  pursuedByThePast: {
+    id: "pursuedByThePast",
+    kind: "concept",
+    displayName: "Standard III: Pursued by the Past",
+    definition:
+      "Standard III replaces Shadow of the Past with this permanent environment, in play from setup. Cards in the set add pursuit counters. At 3 more counters than there are players they are removed: your nemesis minion activates, or if it is not in play, the nemesis set comes in and the card flips.",
+    sources: [
+      { kind: "card", cards: "Pursued by the Past 45075a; Dark Designs 45076" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 3" },
+    ],
+  },
+  crazyGang: {
+    id: "crazyGang",
+    kind: "concept",
+    displayName: "The Crazy Gang (Nightcrawler)",
+    definition:
+      "After a non-Elite minion schemes against a player, that minion is dealt to the player as a facedown encounter card. With more than one player, that facedown card is then passed to the next player.",
+    sources: [{ kind: "card", cards: "The Crazy Gang 48033; Queen of Hearts 48034" }],
+  },
+  celestialTech: {
+    id: "celestialTech",
+    kind: "concept",
+    displayName: "Celestial Tech",
+    definition:
+      "Celestial Armor and Celestial Weapon attach to the villain. When the villain schemes or attacks you, you discard the top card of your deck and read its resource: energy, mental and physical each do one thing, and wild does all of them.",
+    sources: [{ kind: "card", cards: "Celestial Armor 45156; Celestial Weapon 45157; Celestial Tech 45158" }],
+  },
+  arcadeTraps: {
+    id: "arcadeTraps",
+    kind: "concept",
+    displayName: "Arcade and Trap! side schemes",
+    definition:
+      "Arcade cannot take damage while a Trap! side scheme is in play. Each Trap! side scheme hurts the player who defeats it: damage, a stun, or a confuse. Elaborate Trap resolves those effects as if you had defeated them.",
+    sources: [{ kind: "card", cards: "Arcade 47030; Welcome to Murderworld 47031; Elaborate Trap 47034" }],
+  },
+  missionArea: {
+    id: "missionArea",
+    kind: "concept",
+    displayName: "The mission area",
+    definition:
+      "In campaign games the mission side scheme and its Overseer sit in the mission area: in play, but no player controls them. Abilities cannot reach it unless they name it, and players cannot thwart the scheme. A hero's basic attack cannot target an enemy there. An ally played there has a blank text box except traits.",
+    sources: [
+      { kind: "card", cards: "Mission Team 45171a" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook pp. 5-6" },
+      { kind: "rulebook", label: "Owner's interpretation, Oct 8, 2026 (no basic attacks there)" },
+    ],
+  },
+  missionAttempt: {
+    id: "missionAttempt",
+    kind: "concept",
+    displayName: "Mission attempts",
+    definition:
+      "Mission Team makes a mission attempt: discard cards from the top of your deck equal to the allies at the mission and pair each with a different ally. An ally takes part if its resource icon matches its card (wild matches any). Total ATK is a damage pool for enemies there, and total THW removes threat.",
+    sources: [
+      { kind: "card", cards: "Mission Team 45171a" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 6" },
+    ],
+  },
+  overseers: {
+    id: "overseers",
+    kind: "concept",
+    displayName: "Overseers and Mission Responses",
+    definition:
+      "An Overseer is an Elite minion in the mission area. It cannot take damage while another minion is at the mission, and the mission cannot be defeated while any minion is there. A Mission Response is a Forced Response that resolves after you discard cards for a mission attempt.",
+    sources: [
+      { kind: "card", cards: "Sugar Man 45182a; Mikhail Rasputin 45183a" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook pp. 5-6" },
+    ],
+  },
+  missionOutcomes: {
+    id: "missionOutcomes",
+    kind: "concept",
+    displayName: "After a mission",
+    definition:
+      "When a scenario is won, the campaign log strikes the mission's name and applies its Defeated or Not Defeated line; a defeated Overseer is struck too. A lost scenario can be retried, and the retry draws a new mission and Overseer from those not struck.",
+    sources: [
+      { kind: "card", cards: "Liberate the Seattle Core 45166a-b" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 24" },
+      { kind: "owner-ruling", date: "Oct 7, 2026" },
+    ],
+  },
+  campaignRewards: {
+    id: "campaignRewards",
+    kind: "concept",
+    displayName: "Campaign rewards and deck size",
+    definition:
+      "A reward card from a defeated mission does not count against your minimum deck size. Today the game counts it as one of the 40, so 39 ordinary cards plus the reward is legal. This reading is under review.",
+    sources: [
+      { kind: "card", cards: "Desperate Measures 45176" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 24 · reading under review" },
+    ],
+  },
+  allySearch: {
+    id: "allySearch",
+    kind: "concept",
+    displayName: "Campaign ally search and Professor X",
+    definition:
+      "In campaign games, setup has each player search their deck for an ally and add it to their hand, and it counts toward hand size. In the last scenario Protect the Professor replaces the random mission, and Professor X cannot enter play. Defeating the mission wins the campaign; failing it loses.",
+    sources: [
+      { kind: "card", cards: "Protect the Professor 45170a-b" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook pp. 12, 20" },
     ],
   },
 };

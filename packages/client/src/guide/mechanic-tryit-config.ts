@@ -241,6 +241,178 @@ const X23: MechanicTryItConfig = {
   },
 };
 
+/**
+ * - Iceman (`iceman-aggression`): he starts as Bobby Drake with six Frostbite upgrades set aside. The lesson flips him
+ *   to hero form and makes his basic attack on Rhino, accepting "Freeze!" (an interrupt on a basic attack) to attach a
+ *   Frostbite. The stacked hand is Ice Blast, Chill Out! and Ice Slide, then the seed's own cards; the lesson test checks
+ *   the hand holds nothing else that reacts to a basic attack (Surprise Move), so the only offer is "Freeze!".
+ */
+const ICEMAN: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "iceman-aggression" }],
+    seed: 4801,
+    stack: {
+      players: {
+        0: [
+          cardId("46010"), // Ice Blast
+          cardId("46011"), // Chill Out!
+          cardId("46006"), // Ice Slide
+        ],
+      },
+    },
+  },
+};
+
+/**
+ * - Magik (`magik-aggression`): she starts as Illyana Rasputin with a hand of six: Limbo (cost 1), The Power of Aggression
+ *   (a resource card that pays for it) and four cards that react to nothing in round 1 (Blood Rage, Test the Defense,
+ *   a Full-Body Charge, a Clobber). Colossus is the card on top of the deck, so once she flips it is the faceup top card;
+ *   Limbo's Action then swaps a card from her hand with it. The board has no way to tap the faceup top card to play it
+ *   yet (the engine offers it as `playCard` with `from: "deckTop"`), so the lesson stays with what the board can do.
+ */
+const MAGIK: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "magik-aggression" }],
+    seed: 4802,
+    stack: {
+      players: {
+        0: [
+          cardId("45032"), // Limbo
+          cardId("45047"), // The Power of Aggression: pays for Limbo
+          cardId("45043"), // Blood Rage
+          cardId("45044"), // Test the Defense
+          cardId("45045"), // Full-Body Charge
+          cardId("45046"), // Clobber
+          cardId("45031"), // Colossus: the faceup top card after she flips
+        ],
+      },
+    },
+  },
+};
+
+/**
+ * - Magneto (`magneto-leadership`): he starts as Erik Lehnsherr with a hand of six (three Won't Stay Down and three
+ *   Squared Off: neither is MAGNETIC and none reacts to anything in round 1). The deck's top three are Noble Sacrifice
+ *   and You Got This! (not MAGNETIC) and then Magneto's Helmet (MAGNETIC), so the lesson's Magnetic Pull discards two
+ *   cards and adds the Helmet to his hand.
+ */
+const MAGNETO: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "magneto-leadership" }],
+    seed: 4803,
+    stack: {
+      players: {
+        0: [
+          cardId("49016"), // Won't Stay Down
+          cardId("49016"),
+          cardId("49016"),
+          cardId("49017"), // Squared Off
+          cardId("49017"),
+          cardId("49017"),
+          cardId("49018"), // Noble Sacrifice: discarded by the pull
+          cardId("49019"), // You Got This!: discarded by the pull
+          cardId("49003"), // Magneto's Helmet: the MAGNETIC card the pull stops at
+        ],
+      },
+    },
+  },
+};
+
+/**
+ * - Jubilee (`jubilee-justice`): she starts as Jubilation Lee with a hand of six: Firecracker (47007a, cost 2), Plasmoid
+ *   Energy (47010a, which makes an [energy] and a [mental] resource at once) and, as filler that reacts to nothing in
+ *   round 1, three Waylays and a Three Steps Ahead. Paying for Firecracker with the one Plasmoid Energy spends two
+ *   different resource types, so the stun on its text applies. No wild is spent, so no declaration is asked.
+ */
+const JUBILEE: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "jubilee-justice" }],
+    seed: 4804,
+    stack: {
+      players: {
+        0: [
+          cardId("47007a"), // Firecracker
+          cardId("47010a"), // Plasmoid Energy: [energy] + [mental]
+          cardId("47014"), // Waylay (filler)
+          cardId("47014"),
+          cardId("47014"),
+          cardId("47015"), // Three Steps Ahead (filler)
+        ],
+      },
+    },
+  },
+};
+
+/**
+ * - Bishop (`bishop-leadership`): he starts as Lucas Bishop with a hand of six (three Team Training and three Advanced
+ *   Suit: none reacts to damage). The deck's top two are Stored Energy, so Energy Absorption finds resource cards at
+ *   once. The lesson flips him, ends his turn, and Rhino attacks him in the villain phase; he defends or not, takes
+ *   damage, and Energy Absorption discards that many cards from his deck.
+ */
+const BISHOP: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "bishop-leadership" }],
+    seed: 4805,
+    stack: {
+      players: {
+        0: [
+          cardId("45013"), // Team Training
+          cardId("45013"),
+          cardId("45013"),
+          cardId("45014"), // Advanced Suit
+          cardId("45014"),
+          cardId("45014"),
+          cardId("45010"), // Stored Energy: Energy Absorption's first discards
+          cardId("45010"),
+        ],
+      },
+    },
+  },
+};
+
+/**
+ * - Nightcrawler (`nightcrawler-protection`): he starts as Kurt Wagner with a hand of six: Bamf! (cost 0) and, as filler
+ *   that reacts to nothing in round 1, three Change of Fortune and two Under Control. The lesson flips him, attaches
+ *   Bamf! to Rhino, ends the turn, and when Rhino attacks, Bamf! offers to make Nightcrawler the defender without
+ *   exhausting him.
+ */
+const NIGHTCRAWLER: MechanicTryItConfig = {
+  config: {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    modularSetIds: ["bomb_scare"],
+    players: [{ starterDeckId: "nightcrawler-protection" }],
+    seed: 4806,
+    stack: {
+      players: {
+        0: [
+          cardId("48006"), // Bamf!
+          cardId("48014"), // Change of Fortune (filler)
+          cardId("48014"),
+          cardId("48014"),
+          cardId("48015"), // Under Control (filler)
+          cardId("48015"),
+        ],
+      },
+    },
+  },
+};
+
 export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTryItConfig>> = {
   storm: STORM,
   phoenix: PHOENIX,
@@ -252,4 +424,10 @@ export const MECHANIC_TRYIT_CONFIGS: Readonly<Record<MechanicTryItId, MechanicTr
   angel: ANGEL,
   cable: CABLE,
   x23: X23,
+  iceman: ICEMAN,
+  magik: MAGIK,
+  magneto: MAGNETO,
+  jubilee: JUBILEE,
+  bishop: BISHOP,
+  nightcrawler: NIGHTCRAWLER,
 };

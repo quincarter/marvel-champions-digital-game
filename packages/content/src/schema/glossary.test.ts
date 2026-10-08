@@ -257,6 +257,98 @@ describe("wave 6 mechanics (guided mode section 3.14)", () => {
   });
 });
 
+describe("wave 8 mechanics (guided mode section 3.14)", () => {
+  const WAVE_8_IDS = [
+    "energyAbsorption",
+    "paidWith",
+    "faceupTopCard",
+    "limbo",
+    "frostbite",
+    "jubileeVersions",
+    "grounded",
+    "cellPhone",
+    "bamf",
+    "magneticPull",
+    "magneticBubble",
+    "wrappedInMetal",
+    "attackAbilityOne",
+    "attackTargets",
+    "basicPowerStat",
+    "effectDefender",
+    "mainSchemeBSide",
+    "hitPointBonusEnds",
+    "villainsFallTogether",
+    "genePool",
+    "modularDifficulty",
+    "fourHorsemen",
+    "horsemenSetup",
+    "prelates",
+    "apocalypseDefeat",
+    "settingEnvironments",
+    "enSabahNur",
+    "pursuedByThePast",
+    "crazyGang",
+    "celestialTech",
+    "arcadeTraps",
+    "missionArea",
+    "missionAttempt",
+    "overseers",
+    "missionOutcomes",
+    "campaignRewards",
+    "allySearch",
+  ] as const;
+
+  it("every wave 8 concept id has a sourced concept entry in cycle8", () => {
+    for (const id of WAVE_8_IDS) {
+      const entry = glossaryEntry(id);
+      expect(entry?.kind, id).toBe("concept");
+      expect(entry?.introducedIn, id).toBe("cycle8");
+      expect(entry?.sources.length, id).toBeGreaterThan(0);
+    }
+    expect(GLOSSARY_ENTRIES.filter((e) => e.introducedIn === "cycle8")).toHaveLength(WAVE_8_IDS.length);
+  });
+
+  it("the general rules that reach every box also apply to Core, and nothing else here does", () => {
+    const core = WAVE_8_IDS.filter((id) => glossaryEntry(id)?.appliesToCore).sort();
+    expect(core).toEqual([
+      "attackAbilityOne",
+      "attackTargets",
+      "basicPowerStat",
+      "effectDefender",
+      "hitPointBonusEnds",
+      "mainSchemeBSide",
+    ]);
+  });
+
+  it("a rule an owner answer settles cites that answer; a reading under review says so in its source", () => {
+    for (const id of [
+      "attackAbilityOne",
+      "attackTargets",
+      "basicPowerStat",
+      "effectDefender",
+      "mainSchemeBSide",
+    ] as const) {
+      expect(
+        glossaryEntry(id)?.sources.some((s) => s.kind === "owner-ruling"),
+        id,
+      ).toBe(true);
+    }
+    expect(glossaryEntry("campaignRewards")?.sources).toContainEqual(
+      expect.objectContaining({ kind: "rulebook", label: expect.stringMatching(/under review/) }),
+    );
+    expect(glossaryEntry("missionArea")?.sources).toContainEqual(
+      expect.objectContaining({ kind: "rulebook", label: expect.stringMatching(/interpretation/) }),
+    );
+  });
+
+  it("uses American spelling and no dashes in what a player reads", () => {
+    for (const id of WAVE_8_IDS) {
+      const entry = glossaryEntry(id)!;
+      expect(`${entry.displayName} ${entry.definition}`, id).not.toMatch(/colour|behaviour|[–—]/i);
+    }
+  });
+});
+
 describe("glossaryEntry", () => {
   it("looks up a keyword by id", () => {
     expect(glossaryEntry("guard")?.displayName).toBe("Guard");
@@ -366,9 +458,15 @@ describe("introducedIn (the How to play hub's 'New in this box' pages)", () => {
     for (const entry of marked) expect(["core", "later"], entry.id).not.toContain(entry.introducedIn);
     expect(marked.map((e) => e.id).sort()).toEqual([
       "actionsOtherTurns",
+      "attackAbilityOne",
+      "attackTargets",
+      "basicPowerStat",
       "counters",
+      "effectDefender",
       "encounterDeckEmpty",
+      "hitPointBonusEnds",
       "labeledAbility",
+      "mainSchemeBSide",
       "setup",
       "unusualCosts",
     ]);
