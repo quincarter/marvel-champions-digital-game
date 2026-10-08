@@ -15,6 +15,8 @@ import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment, Res
 import { createCtx, emit, moveCard, updateFrame, updateInstance, type Ctx } from "./ctx.js";
 import {
   addCounters,
+  areaCostReductionFor,
+  consumeAreaCostReductions,
   consumeCostReductions,
   costReductionFor,
   dealEncounterCardTo,
@@ -2492,7 +2494,8 @@ function canPayInPlayPick(
   if (mode === "ready") return canPayReadyCost(state, deps, id, sourceId);
   if (mode === "damage") return canTakeCostDamage(state, deps, id, sourceId, (pick as DamageCostPick).amount);
   const sourceCardId = getInstance(state, sourceId)?.cardId;
-  if (cannotLeavePlay(state, deps, id, sourceCardId)) return false;
+  // "Cannot be discarded" (docs/phase7-wave8.md §3.35) stops the discard cost only; a return to hand is not one.
+  if (cannotLeavePlay(state, deps, id, sourceCardId, mode === "discard")) return false;
   if (permanentStopsLeaving(state, deps, id, sourceCardId)) return false;
   // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
   return mode === "discard" || instance.ownerId !== null;
@@ -3159,13 +3162,21 @@ export function playCostOf(
   cardInstanceId: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
   attachTo: InstanceId | null = null,
+  /**
+   * The in-play scenario area the play would go to (`LegalAction.destinations`): the price there, with any reduction
+   * that reads the destination ("the next ally played to the mission", docs/phase7-wave8.md §3.35). Null or absent:
+   * the play to the player's own area.
+   */
+  into: string | null = null,
 ): PlayCost | null {
   const card = cardOf(state, cardInstanceId);
   if (!card || !("cost" in card) || typeof card.cost !== "number") return null;
   const modifiers = playCostContributions(state, deps, playerId, cardInstanceId, attachTo);
   const printed = printedCostOf(state, card);
   const modified = Math.max(0, printed + modifiers.reduce((total, entry) => total + entry.delta, 0));
-  const reduction = costReductionFor(state, deps, playerId, cardInstanceId);
+  const reduction =
+    costReductionFor(state, deps, playerId, cardInstanceId) +
+    Math.max(0, areaCostReductionFor(state, deps, playerId, cardInstanceId, into));
   // The top card of the deck under `playableTopOfDeck` (docs/phase7-wave8.md §3.49): what playing it from there costs,
   // with the permission's card listed last as the source of its reduction. Applied where the play's own reductions
   // are (`ownPlayCost`'s `extraReduction`), after the modifiers.
@@ -3755,6 +3766,13 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (fault) return engineError(fault.code, fault.message, command);
     extraReduction += ctx.deps.abilities[abilityId]?.playCostReduction?.amount ?? 0;
   }
+  // "Reduce the cost of the next ally played to the mission this phase by 2" (docs/phase7-wave8.md §3.35): a reduction
+  // that reads the destination is part of this play's price only when the play names that area.
+  const intoArea = command.into?.scenarioPlayArea ?? null;
+  extraReduction += Math.max(
+    0,
+    areaCostReductionFor(ctx.state, ctx.deps, command.playerId, command.cardInstanceId, intoArea),
+  );
 
   const priced = pricePlay(
     ctx,
@@ -3773,6 +3791,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if (isFault(priced)) return engineError(priced.code, priced.message, command);
 
   const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced, deckTop);
+  if (intoArea !== null) consumeAreaCostReductions(ctx, command.playerId, command.cardInstanceId, intoArea);
   for (const { instanceId, abilityId } of reductions) {
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;

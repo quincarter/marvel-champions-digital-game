@@ -820,6 +820,9 @@ export type GameEvent =
    * A character kept in play at zero or fewer remaining hit points by a "cannot be defeated" rule is no longer under
    * one (the card granting it left play, its condition ended): the defeat sweep that follows defeats it by the game's
    * rule, with no defeating player and no defeating card (docs/phase7-wave7.md §3.34, §4.1 Q21).
+   *
+   * Also a side scheme kept in play at no threat by a `notDefeatedWithoutThreat` rule that stopped covering it
+   * (docs/phase7-wave8.md §3.40): its `schemeDefeated` follows at once.
    */
   | { readonly type: "defeatProtectionEnded"; readonly instanceId: InstanceId; readonly cardId: CardId }
   /**
@@ -1287,6 +1290,36 @@ export type GameEvent =
       readonly reason: "noLegalHost" | "noSuchArea" | "cardType";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
+  /**
+   * A sequential damage pool has finished (`EffectSpec assignDamage.sequential`, docs/phase7-wave8.md §3.37): of
+   * `pool` damage, `dealt` was dealt, one character at a time (each a `damageDealt` of its own, before this), and
+   * `lost` was left when no character could take it. `dealt` counts what the pool spent, whatever a tough status card
+   * or another prevention then stopped.
+   */
+  | {
+      readonly type: "damagePoolResolved";
+      readonly playerId: PlayerId | null;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly pool: number;
+      readonly dealt: number;
+      readonly lost: number;
+    }
+  /**
+   * `EffectSpec pairCards` resolved (docs/phase7-wave8.md §3.36): `playerId` assigned each `cardInstanceId` to
+   * `characterInstanceId`, and `matched` says whether the two share a resource icon, so a replay shows why a
+   * character did or did not take part. A card left unassigned is in no pair. Logged with no pairs when there was
+   * nothing to assign (no card, no character); `playerId` is null only when the effect named no player.
+   */
+  | {
+      readonly type: "cardsPaired";
+      readonly playerId: PlayerId | null;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly pairs: readonly {
+        readonly cardInstanceId: InstanceId;
+        readonly characterInstanceId: InstanceId;
+        readonly matched: boolean;
+      }[];
+    }
   /**
    * A note recorded on a card's play (`modifyCardEffect.note`, docs/phase7-wave6.md §3.52: "remove up to 3 charge
    * counters → that event deal +1 damage for each counter removed", read by Charged Card). `total` is the note's value

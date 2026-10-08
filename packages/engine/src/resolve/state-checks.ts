@@ -12,7 +12,7 @@
  * interrupt or response to its entering play, and before anything else resolves (`pendingEntry`).
  */
 
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, AnyCard } from "@mc/content";
 import type { AbilityRegistry, RuleSpec } from "../abilities.js";
 import {
   discardStatusCards,
@@ -22,7 +22,16 @@ import {
   setActiveVillain,
   type StatusDiscarded,
 } from "../effects.js";
-import { currentName, mainSchemeStageOf, mainSchemeStateOf, maxHitPoints, undefeatedVillains } from "../query.js";
+import {
+  cardBackOf,
+  cardOf,
+  currentName,
+  isPlayerCardType,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
+  maxHitPoints,
+  undefeatedVillains,
+} from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateFrame, updateInstance } from "../ctx.js";
 import { announceDeckTops } from "../deck-top.js";
 import { statusCapacity } from "../keywords.js";
@@ -39,7 +48,7 @@ import {
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
-import { defeatHeldOff } from "../rules.js";
+import { defeatHeldOff, notDefeatedWithoutThreat } from "../rules.js";
 import { limitReached } from "./ability.js";
 import { atZero, checkDefeats } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
@@ -49,7 +58,7 @@ import {
   checkRestrictedLimits,
   usesCountersOnEntering,
 } from "./enter-play.js";
-import { abilityFrame } from "./frames.js";
+import { abilityFrame, eventFrame } from "./frames.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
@@ -122,6 +131,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   applyFocusedActiveVillain(ctx);
   // …and a character at zero hit points that "cannot be defeated" no longer is defeated (wave 7 §4.1 Q21).
   if (checkDefeatProtectionEnded(ctx)) return true;
+  // …and a side scheme at no threat that "cannot be defeated while …" no longer is defeated (wave 8 §3.40).
+  if (checkSchemeProtectionEnded(ctx)) return true;
   // …and a damaged character whose hit point bonus ended at or below its damage is defeated (RRG 1.8 p. 22).
   if (checkHitPointsFell(ctx)) return true;
   // …and the top card of a deck kept faceup is logged when the rule itself turns on or off with nothing moved (a form
@@ -322,9 +333,24 @@ export function applyFirstPlayerControl(ctx: Ctx): void {
       if (attached === null) moveCard(ctx, id, { kind: "playArea", playerId: first });
       updateInstance(ctx, id, (instance) => ({ ...instance, controllerId: first }));
       emit(ctx, { type: "controllerChanged", instanceId: id, from, to: first, reason: "firstPlayer" });
+      // RRG 1.8 "Ownership and Control" (p. 31): "When a player takes control of a campaign-specific or
+      // scenario-specific player card … with a player card back, that player becomes the owner of that card until the
+      // game ends or another player takes control of that card." So such a card a player owns is the new first
+      // player's, and a first player's elimination, which discards the cards they own (p. 34, step 4), leaves it in
+      // play (Mission Team, docs/phase7-wave8.md §3.35 test 5).
+      const card = cardOf(ctx.state, id);
+      const owner = ctx.state.instances[id]?.ownerId ?? null;
+      if (owner !== null && owner !== first && card && isSpecificPlayerCard(card)) {
+        updateInstance(ctx, id, (instance) => ({ ...instance, ownerId: first }));
+        emit(ctx, { type: "ownershipChanged", instanceId: id, playerId: first });
+      }
     }
   }
 }
+
+/** A campaign-specific or scenario-specific player card with a player card back (RRG 1.8 "Ownership and Control", p. 31). */
+const isSpecificPlayerCard = (card: AnyCard): boolean =>
+  "specificTo" in card && card.specificTo !== undefined && isPlayerCardType(card) && cardBackOf(card) === "player";
 
 /**
  * RRG 1.8 "Ownership and Control" (p. 31): "Upgrades on a card that changes control also change control to the same new
@@ -400,6 +426,44 @@ function checkDefeatProtectionEnded(ctx: Ctx): boolean {
   const depth = ctx.state.stack.length;
   checkDefeats(ctx);
   return ctx.state.stack.length > depth || ctx.state.outcome !== null;
+}
+
+/**
+ * A `notDefeatedWithoutThreat` rule stopped covering a side scheme it kept in play at no threat
+ * (`GameState.heldAtNoThreat`): the rule's `while` ended or the card granting it left play. "The [MISSION] side scheme
+ * cannot be defeated while there are any minions in the mission area" (MC45 p. 5; docs/phase7-wave8.md §3.40): with
+ * the last minion gone the scheme has "no threat remaining on it" and nothing forbids its defeat, so RRG 1.8 "Defeat"
+ * (p. 15) applies at once, between frames, before anything else continues. No removal of threat caused it, so the
+ * defeat has no defeating player and no defeating card, as a character's has when its protection ends (docs/phase7-
+ * wave7.md §4.1 Q21): "after you defeat a side scheme" is not offered. Its When Defeated resolves as for any defeat.
+ *
+ * A held scheme that has threat again, or is out of play, is dropped and nothing happens when the rule ends. Returns
+ * true when it put a defeat on the stack.
+ */
+function checkSchemeProtectionEnded(ctx: Ctx): boolean {
+  const held = ctx.state.heldAtNoThreat ?? [];
+  if (held.length === 0) return false;
+  const inPlay = cardsInPlay(ctx.state);
+  const atNoThreat = held.filter((id) => inPlay.includes(id) && ctx.state.instances[id]?.threat === 0);
+  const kept = atNoThreat.filter((id) => notDefeatedWithoutThreat(ctx.state, ctx.deps, id));
+  if (kept.length !== held.length) {
+    const { heldAtNoThreat: _dropped, ...rest } = ctx.state;
+    ctx.state = kept.length > 0 ? { ...ctx.state, heldAtNoThreat: kept } : rest;
+  }
+  const released = atNoThreat.filter((id) => !kept.includes(id));
+  if (released.length === 0) return false;
+  const frames: StackFrame[] = [];
+  for (const id of released) {
+    const cardId = ctx.state.instances[id]!.cardId;
+    emit(ctx, { type: "defeatProtectionEnded", instanceId: id, cardId });
+    emit(ctx, { type: "schemeDefeated", instanceId: id, cardId });
+    frames.push(
+      eventFrame(ctx, { kind: "schemeDefeated", instanceId: id, defeatedByPlayerId: null, sourceInstanceId: null }),
+    );
+  }
+  // Pushed last first, so the first released resolves first.
+  pushFrames(ctx, frames.reverse());
+  return true;
 }
 
 /**

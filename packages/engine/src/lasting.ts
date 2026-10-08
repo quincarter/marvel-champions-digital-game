@@ -119,12 +119,20 @@ export type LastingEffectBody =
    *
    * `amount` is **signed**: positive reduces, negative increases ("the next event you play costs 3 additional
    * resources" — Physical Toll, `drs` pack — is `amount: -3`). The pricing path floors the result at 0 either way.
+   *
+   * `into` (docs/phase7-wave8.md §3.35): "the next ally played **to the mission** this phase". The reduction reads the
+   * play's destination: only a play into that in-play scenario area (the `playCard` command's `into`) is priced with it
+   * and uses it up, and a play to a player's own area neither uses nor ends it. `anyPlayer`: the card says "the next
+   * ally played", not "you play", so the next matching play by any player uses it; `playerId` is then only the player
+   * whose effect made it. A reduction by destination is a reduction: a negative `amount` there is read as 0.
    */
   | {
       readonly kind: "costReduction";
       readonly playerId: PlayerId;
       readonly amount: number;
       readonly cardFilter?: TargetQuery;
+      readonly into?: { readonly scenarioPlayArea: string };
+      readonly anyPlayer?: true;
     }
   /** "Until the end of the phase, X gets +N STAT". `amount` is re-evaluated on every read. */
   | (LastingReach & {

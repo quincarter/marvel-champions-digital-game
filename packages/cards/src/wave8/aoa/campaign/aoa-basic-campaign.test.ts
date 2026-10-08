@@ -25,7 +25,17 @@ const BLINK = "45173";
 const MORPH = "45174";
 const XMAN = "45175";
 const CODES = ["45171a", DESTINY, BLINK, MORPH, XMAN, "45176"];
-const REGISTERED = ["45172.destiny-response", "45173.blink-response", "45174.morph-response", "45175.x-man-response"];
+const REGISTERED = [
+  "45171a.mission-team-constant",
+  "45171a.mission-team-action",
+  "45171b.mission-team-constant",
+  "45171b.mission-team-action",
+  "45172.destiny-response",
+  "45173.blink-response",
+  "45174.morph-response",
+  "45175.x-man-response",
+  "45176.desperate-measures-constant",
+];
 const refs = AOA_CARDS.filter((c) => CODES.includes(c.id as string)).flatMap((c) => abilityRefIds(c));
 
 /** Accepts an optional response (the first offered option that is not the pass) when one is offered. */
@@ -59,20 +69,11 @@ const resolved = (events: readonly GameEvent[], ref: string) =>
 const villainOf = (s: GameState): InstanceId => activeVillain(s)!.instanceId;
 
 describe("registry", () => {
-  it("registers the four allies' responses as valid definitions; Mission Team and Desperate Measures are skipped", () => {
+  it("registers every ref of the set as a valid definition: Mission Team's two faces, the four allies' responses and Desperate Measures; nothing is skipped", () => {
     expect(Object.keys(AOA_BASIC_CAMPAIGN).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(AOA_BASIC_CAMPAIGN)) expect(validateDefinition(def), id).toEqual([]);
-    expect([...Object.keys(AOA_BASIC_CAMPAIGN), ...Object.keys(AOA_BASIC_CAMPAIGN_SKIPPED)].sort()).toEqual(
-      [...refs].sort(),
-    );
-    expect(Object.keys(AOA_BASIC_CAMPAIGN_SKIPPED).sort()).toEqual([
-      "45171a.mission-team-action",
-      "45171a.mission-team-constant",
-      "45171b.mission-team-action",
-      "45171b.mission-team-constant",
-      "45176.desperate-measures-constant",
-    ]);
-    for (const [id, reason] of Object.entries(AOA_BASIC_CAMPAIGN_SKIPPED)) expect(reason, id).toMatch(/task/);
+    expect(Object.keys(AOA_BASIC_CAMPAIGN).sort()).toEqual([...refs].sort());
+    expect(AOA_BASIC_CAMPAIGN_SKIPPED).toEqual({});
   });
 });
 

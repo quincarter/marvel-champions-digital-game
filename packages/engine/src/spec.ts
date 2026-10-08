@@ -2939,12 +2939,57 @@ export type EffectSpec =
    * `tuckedUnder`; the card stays listed in `GameState.villains` as `defeated`.
    */
   | { readonly kind: "tuckCards"; readonly cards: CardSelector; readonly under: TargetRef; readonly facedown?: boolean }
-  /** "Assign X damage among heroes and allies": the chooser places it one point at a time; each character then takes its share as one damage event. */
+  /**
+   * "Assign each of the discarded cards to a different ally at the mission. If a resource icon on the ally matches a
+   * resource icon on the card assigned to it, that ally participates." (MC45 p. 6, steps 1 and 2 of a mission attempt;
+   * docs/phase7-wave8.md §3.36.) `chooser` assigns each card `cards` names to a different card `with` matches, in one
+   * choice with every pairing laid out (`ChoicePrompt pairCards`): a card may be left unassigned, and with fewer
+   * cards than characters the chooser decides which characters get one.
+   *
+   * A pair **matches** (`match: "resourceIcon"`) when the two share a resource type; `wild: "either"` lets a [wild] on
+   * either side stand for any type the other side has. The assigned card's icons are the ones it prints; the
+   * character's are its printed ones plus any it is considered to have (`RuleSpec consideredResourceIcon`). A card
+   * with no resource icon can be assigned and matches nothing.
+   *
+   * `limit`: a restriction on the assignment this text prints itself; a `RuleSpec pairLimit` in force for the area
+   * `with` names adds one the same way. The cards are not moved.
+   *
+   * Binds the slots `<bind>.matched` (the characters whose pair matches) and `<bind>.paired` (every character given a
+   * card), and the vars `<bind>.pairs` (pairs made) and `<bind>.count` (pairs that match). With no card, no character
+   * or no chooser nothing is asked and all four are empty or 0. Logged as `cardsPaired` either way.
+   */
+  | {
+      readonly kind: "pairCards";
+      readonly cards: TargetRef;
+      readonly with: TargetQuery;
+      readonly chooser: PlayerRef;
+      readonly match: "resourceIcon";
+      readonly wild: "either";
+      readonly limit?: PairLimit;
+      readonly bind: string;
+    }
+  /**
+   * "Assign X damage among heroes and allies": the chooser places it one point at a time; each character then takes its share as one damage event.
+   *
+   * `sequential` (docs/phase7-wave8.md §3.37): "Deal damage from this pool to enemies at the mission one at a time
+   * until there is no damage in the pool or there are no enemies remaining at the mission" (MC45 p. 6, step 4 of a
+   * mission attempt). The chooser picks one character `among` matches that can take damage (it has hit points
+   * remaining and no "cannot take damage" covers it), then how much of the pool it is dealt, from 1 to the smaller of
+   * the pool and its remaining hit points (not asked when that is 1). That damage is dealt as one damage event and
+   * settled, a defeat with its When Defeated and Victory included, before the next pick, so a character another one
+   * shielded is offered once the shield has fallen. It ends when the pool is empty or no matching character can take
+   * damage; what is left is lost. The damage is this ability's and not an attack. Logged as `damagePoolResolved`.
+   *
+   * `bind` (sequential only): `<bind>.amount` (the pool), `<bind>.dealt` (what was dealt from it, before any
+   * prevention) and `<bind>.lost`.
+   */
   | {
       readonly kind: "assignDamage";
       readonly amount: ValueSpec;
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;
+      readonly sequential?: true;
+      readonly bind?: string;
     }
   /**
    * "Deal N indirect damage to each player" / "… to you" (RRG 1.8 "Indirect Damage", p. 24). Each player divides it
@@ -3922,6 +3967,19 @@ export type EffectSpec =
       /** `"turn"`: "…the next superpower card you play this turn" (Deft Focus, `magneto` 49023; docs/phase7-wave2.md §13). */
       readonly duration: "phase" | "round" | "turn" | "untilPlayed";
       readonly cardFilter?: TargetQuery;
+      /**
+       * "Reduce the cost of the next ally played **to the mission** this phase by 2." (Mission Team, `aoa` 45171a;
+       * docs/phase7-wave8.md §3.35): the reduction is used only by a play into this in-play scenario area (`RuleSpec
+       * playDestination`, the `playCard` command's `into`). A matching card played to a player's own area is priced
+       * without it and leaves it waiting.
+       */
+      readonly into?: { readonly scenarioPlayArea: string };
+      /**
+       * "The next ally played", not "the next ally you play": one reduction, used by the next matching play of any
+       * player. `player` then names only whose effect it is (the log). Without it each player `player` names gets a
+       * reduction of their own, as before.
+       */
+      readonly anyPlayer?: true;
     }
   /**
    * "Discard this obligation after you play an event" (Physical Toll, `drs` pack): a delayed effect whose timing
@@ -4166,6 +4224,16 @@ export interface DefeatFollowUp {
  * owned by its owner ("Place this card in the Invocation deck discard pile", "place it back on top of the Invocation
  * deck faceup", "Shuffle the Invocation card under here into the Invocation deck"); any other card is left where it is.
  */
+/**
+ * A restriction on a pairing (`EffectSpec pairCards`, `RuleSpec pairLimit`; docs/phase7-wave8.md §3.36).
+ * `distinctBy: "resourceIcon"`: "Players cannot assign cards with the same resource icon ([energy], [mental],
+ * [physical], or [wild]) to more than one ally" (Mister Sinister, `aoa` 45179a): no two assigned cards share a printed
+ * resource type, [wild] being a type of its own here. A card with several types shares if any type is shared.
+ */
+export interface PairLimit {
+  readonly distinctBy: "resourceIcon";
+}
+
 export type CardDestination =
   /** "Put it faceup into The Collection": a scenario out-of-play area, cards faceup (docs/phase7-wave3.md §3.14). */
   | { readonly scenarioArea: string }

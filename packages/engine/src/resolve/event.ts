@@ -1730,6 +1730,16 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       sourceInstanceId: event.sourceInstanceId,
     };
     pushFrames(ctx, [eventFrame(ctx, defeated)]);
+  } else if (
+    isSideScheme &&
+    after.threat === 0 &&
+    !permanentStopsLeaving(ctx.state, ctx.deps, event.schemeInstanceId, undefined)
+  ) {
+    // Left in play at no threat by a rule that may end (docs/phase7-wave8.md §3.40): watched, so that it is defeated
+    // the moment the rule stops covering it (`checkSchemeProtectionEnded`).
+    const held = ctx.state.heldAtNoThreat ?? [];
+    if (!held.includes(event.schemeInstanceId))
+      ctx.state = { ...ctx.state, heldAtNoThreat: [...held, event.schemeInstanceId] };
   }
 }
 

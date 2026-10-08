@@ -16,6 +16,7 @@ import {
   type DeckDiscarder,
   defeatFromPlay,
   drawCards,
+  isDiscardDestination,
   isWaitingLeave,
   leavePlay,
   leavingWithHost,
@@ -316,7 +317,7 @@ export function moveCardsTo(
     }
     // Likewise a card that "cannot leave play" (one limited to card abilities: when a card's ability moves it,
     // docs/phase7-wave7.md §3.10): refused here, so the face and home a moved card is given below are not set on it.
-    if (inPlay.has(id) && cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
+    if (inPlay.has(id) && cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, isDiscardDestination(destination))) {
       emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
       continue;
     }

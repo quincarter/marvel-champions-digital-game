@@ -3107,6 +3107,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "reportFact":
     case "basicPowerBy":
     case "resolveSpecials":
+    case "pairCards":
     case "assignDamage":
     case "dealIndirectDamage":
     case "divideDamageEvenly":
@@ -3118,10 +3119,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (amount === 0) return;
       if (effect.duration === "turn" && !turnInProgress(ctx.state)) return;
       const filter = effect.cardFilter ? { cardFilter: effect.cardFilter } : {};
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+      // By destination, and for whoever plays next (docs/phase7-wave8.md §3.35): one effect, not one per player.
+      const where = {
+        ...(effect.into ? { into: effect.into } : {}),
+        ...(effect.anyPlayer ? { anyPlayer: true as const } : {}),
+      };
+      const players = resolvePlayers(ctx.state, effect.player, context);
+      for (const playerId of effect.anyPlayer ? players.slice(0, 1) : players) {
         addLastingEffect(
           ctx,
-          { kind: "costReduction", playerId, amount, ...filter },
+          { kind: "costReduction", playerId, amount, ...filter, ...where },
           effect.duration === "untilPlayed"
             ? { kind: "untilCardPlayed", playerId, ...filter }
             : {

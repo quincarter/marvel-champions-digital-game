@@ -1010,7 +1010,7 @@ function listensForLeavingPlay(deps: EngineDeps): boolean {
  * p. 8, not a card ability) or under a "cannot leave play" rule. docs/phase7-wave5.md §3.30.
  */
 function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
-  return isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id);
+  return isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true);
 }
 
 /**
@@ -1021,7 +1021,11 @@ function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
  */
 function discardedWithoutHost(ctx: Ctx, id: InstanceId): boolean {
   const instance = mustInstance(ctx.state, id);
-  return instance.ownerId === null && instance.controllerId === null && !cannotLeavePlay(ctx.state, ctx.deps, id);
+  return (
+    instance.ownerId === null &&
+    instance.controllerId === null &&
+    !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true)
+  );
 }
 
 /**
@@ -1147,6 +1151,22 @@ function leavingFrameFor(state: GameState, id: InstanceId): EventFrame | undefin
  * window and one response window (§4.1 Q33; `openLeavingInterrupts`). A card already leaving (its window open, or its
  * apply step moving it) does not wait again.
  */
+/**
+ * Whether a leaving is a discard, for "cannot be discarded" (`cannotLeavePlay` with `by: "discard"`): a `leavePlay`
+ * that says so, a `moveCards` to a discard pile, an attachment going with its host (RRG 1.8 "Attach To", p. 8). A
+ * defeat and a swap are not read as one.
+ */
+const isDiscardRequest = (request: LeaveRequest): boolean =>
+  request.kind === "zone"
+    ? request.discarded
+    : request.kind === "moveCards"
+      ? isDiscardDestination(request.destination)
+      : request.kind === "withHost";
+
+/** `CardDestination`s that are a discard pile (RRG 1.8 "Discard", p. 16). */
+export const isDiscardDestination = (destination: CardDestination): boolean =>
+  destination === "discard" || destination === "separateDiscard";
+
 export function waitsForLeaveInterrupts(
   ctx: Ctx,
   id: InstanceId,
@@ -1159,7 +1179,7 @@ export function waitsForLeaveInterrupts(
   const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
   if (
     permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) ||
-    cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)
+    cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, isDiscardRequest(request))
   )
     return false;
   const already = leavingFrameFor(ctx.state, id);
@@ -1341,7 +1361,7 @@ export function leavePlay(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
     return "stayed";
   }
-  if (cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, discarded)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return "stayed";
   }
@@ -1396,7 +1416,7 @@ export function leavePlayAtOnce(
   }
   // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
   if (leavingCancelled(ctx.state, id)) return;
-  if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }
@@ -1721,10 +1741,62 @@ export function costReductionFor(
 ): number {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   return state.lastingEffects.reduce((sum, effect) => {
-    if (effect.kind !== "costReduction" || effect.playerId !== playerId) return sum;
+    // A reduction by destination is priced by the play that names the destination (`areaCostReductionFor`).
+    if (effect.kind !== "costReduction" || effect.into || !reductionIsFor(effect, playerId)) return sum;
     if (effect.cardFilter && !matchesQuery(state, cardInstanceId, effect.cardFilter, context)) return sum;
     return sum + effect.amount;
   }, 0);
+}
+
+type CostReductionEffect = Extract<LastingEffect, { kind: "costReduction" }>;
+
+/** Whose play a "next card" reduction waits for: its player's, or any player's ("the next ally played"). */
+const reductionIsFor = (effect: CostReductionEffect, playerId: PlayerId): boolean =>
+  effect.anyPlayer === true || effect.playerId === playerId;
+
+/** The reductions by destination that a play of this card by `playerId` into `area` uses (docs/phase7-wave8.md §3.35). */
+function areaCostReductions(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  area: string,
+): readonly CostReductionEffect[] {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  return state.lastingEffects.filter(
+    (effect): effect is CostReductionEffect =>
+      effect.kind === "costReduction" &&
+      effect.into?.scenarioPlayArea === area &&
+      reductionIsFor(effect, playerId) &&
+      (!effect.cardFilter || matchesQuery(state, cardInstanceId, effect.cardFilter, context)),
+  );
+}
+
+/**
+ * "Reduce the cost of the next ally played to the mission this phase by 2" (docs/phase7-wave8.md §3.35): the total of
+ * the reductions waiting on a play of this card into the in-play scenario area `area`, on top of `costReductionFor`'s.
+ * 0 for a play to the player's own area (`area` null), which these do not read.
+ */
+export function areaCostReductionFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  area: string | null,
+): number {
+  if (area === null) return 0;
+  return areaCostReductions(state, deps, playerId, cardInstanceId, area).reduce((sum, e) => sum + e.amount, 0);
+}
+
+/** The card was played into `area`: every reduction by that destination it matched is used up. */
+export function consumeAreaCostReductions(
+  ctx: Ctx,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  area: string,
+): void {
+  for (const effect of areaCostReductions(ctx.state, ctx.deps, playerId, cardInstanceId, area))
+    endLastingEffect(ctx, effect.id, "consumed");
 }
 
 /**
@@ -1763,7 +1835,7 @@ export function consumeCostReductions(
 ): void {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.kind !== "costReduction" || effect.playerId !== playerId) continue;
+    if (effect.kind !== "costReduction" || effect.into || !reductionIsFor(effect, playerId)) continue;
     if (effect.cardFilter && !matchesQuery(ctx.state, cardInstanceId, effect.cardFilter, context)) continue;
     endLastingEffect(ctx, effect.id, "consumed");
   }

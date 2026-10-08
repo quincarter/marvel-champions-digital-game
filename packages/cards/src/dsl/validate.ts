@@ -604,6 +604,18 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
       return;
+    // A sequential pool's `<bind>.amount` / `.dealt` / `.lost` (docs/phase7-wave8.md §3.37).
+    case "assignDamage":
+      if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
+      return;
+    // The characters whose assigned card matches, every character given one, and the two counts
+    // (docs/phase7-wave8.md §3.36).
+    case "pairCards":
+      scope.slots.add(`${effect.bind}.matched`);
+      scope.slots.add(`${effect.bind}.paired`);
+      scope.vars.add(`${effect.bind}.pairs`);
+      scope.vars.add(`${effect.bind}.count`);
+      return;
     // The one card a "find" found (docs/phase7-wave6.md §3.48).
     case "findCard":
       if (effect.bind) scope.slots.add(effect.bind);

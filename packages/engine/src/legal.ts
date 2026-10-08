@@ -48,6 +48,7 @@ import { chosenSizePayments } from "./payable.js";
 import type { PendingChoice } from "./choices.js";
 import type { Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { createCtx } from "./ctx.js";
+import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts } from "./attach-cost.js";
 import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
@@ -157,6 +158,13 @@ export interface LegalAction {
    * which and sends the area as the `playCard` command's `into`. Absent when there is no choice to make.
    */
   readonly destinations?: readonly string[];
+  /**
+   * The play is legal only into one of `destinations`: the player cannot pay for it in their own play area, and can
+   * where a reduction that reads the destination applies ("Reduce the cost of the next ally played to the mission
+   * this phase by 2", docs/phase7-wave8.md §3.35). `example` then names the first such area as its `into`, and the
+   * client offers no play to the player's own area. Absent whenever the own-area play is legal.
+   */
+  readonly destinationOnly?: true;
   /**
    * A change of form with an additional cost (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the cards the
    * cost is printed on. The action is listed legal only when the cost can be paid; `example` carries a payment that
@@ -764,18 +772,31 @@ function evaluatePlayOf(
       }
     }
   }
-  const evaluated = evaluate(
-    state,
-    deps,
-    {
-      kind: "playCard",
-      instanceId: id,
-      ...(deckTopPermission(state, deps, playerId)?.instanceId === id ? { from: "deckTop" as const } : {}),
-    },
-    variants,
-    withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost)),
-  );
-  return withDestinations(state, deps, id, withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost)));
+  const action: ActionRef = {
+    kind: "playCard",
+    instanceId: id,
+    ...(deckTopPermission(state, deps, playerId)?.instanceId === id ? { from: "deckTop" as const } : {}),
+  };
+  const tryWallets = withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost));
+  const own = evaluate(state, deps, action, variants, tryWallets);
+  const ranged = (evaluated: Evaluated): Evaluated =>
+    withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
+  if ("legal" in own) return withDestinations(state, deps, id, ranged(own));
+  // Not playable to the player's own area. A reduction that reads the destination may still pay for it there
+  // (docs/phase7-wave8.md §3.35): the same variants, each naming the area.
+  for (const area of playDestinationsOf(state, deps, id)) {
+    if (areaCostReductionFor(state, deps, playerId, id, area) <= 0) continue;
+    const there = variants.map((variant) => ({
+      ...variant,
+      build: (payment: readonly Payment[]): Command => {
+        const command = variant.build(payment);
+        return command.type === "playCard" ? { ...command, into: { scenarioPlayArea: area } } : command;
+      },
+    }));
+    const evaluated = withDestinations(state, deps, id, ranged(evaluate(state, deps, action, there, tryWallets)));
+    if ("legal" in evaluated) return { legal: { ...evaluated.legal, destinationOnly: true } };
+  }
+  return own;
 }
 
 /**
@@ -785,6 +806,8 @@ function evaluatePlayOf(
 function withDestinations(state: GameState, deps: EngineDeps, id: InstanceId, evaluated: Evaluated): Evaluated {
   if (!("legal" in evaluated) || evaluated.legal.example.type !== "playCard") return evaluated;
   const example = evaluated.legal.example;
+  // The example pays for the play it names. Another area may price the card lower, never higher, and overpaying is
+  // legal (RRG 1.8 "Cost", p. 13), so the same payment is accepted wherever the play itself is.
   const destinations = playDestinationsOf(state, deps, id).filter(
     (area) => probe(state, deps, { ...example, into: { scenarioPlayArea: area } }).ok,
   );
@@ -1120,6 +1143,11 @@ export interface PaymentContext {
   readonly costSelection?: CostSelection;
   /** One of `LegalAction.abilities`: the event's Action ability being triggered. Absent: the first of them. */
   readonly abilityId?: AbilityId;
+  /**
+   * One of `LegalAction.destinations`: the in-play scenario area the card is played into, which the price may read
+   * (docs/phase7-wave8.md §3.35). Absent: the player's own play area.
+   */
+  readonly into?: string;
 }
 
 /** An action that carries a payment, resolved down to a single command shape. */
@@ -1213,7 +1241,8 @@ function payableFor(
             deps,
             host,
             0,
-            deckTopCostReduction(state, deps, playerId, id),
+            deckTopCostReduction(state, deps, playerId, id) +
+              Math.max(0, areaCostReductionFor(state, deps, playerId, id, options.into ?? null)),
           )
         : null;
     return {
@@ -1227,6 +1256,7 @@ function payableFor(
         ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
         ...(selection ? { costSelection: selection } : {}),
         ...(abilityId ? { abilityId } : {}),
+        ...(options.into !== undefined ? { into: { scenarioPlayArea: options.into } } : {}),
       }),
       excludeInstanceId: id,
       reserved: new Set([id, ...picks]),

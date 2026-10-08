@@ -149,6 +149,8 @@ import {
   slotTargetValid,
   UNRESOLVED_VAR,
 } from "./target-validity.js";
+import { executePairCards } from "./pair-cards.js";
+import { executeSequentialDamage } from "./sequential-damage.js";
 import { markPreThenUnresolved } from "./then.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
@@ -253,6 +255,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "searchCollection") return executeSearchCollection(ctx, frame, effect, context);
   if (effect.kind === "reportFact") return executeReportFact(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
+  if (effect.kind === "pairCards") return executePairCards(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
   if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
   if (effect.kind === "divideDamageEvenly") return executeDivideDamageEvenly(ctx, frame, effect, context);
@@ -1936,6 +1939,8 @@ function executeAssignDamage(
   effect: Extract<EffectSpec, { kind: "assignDamage" }>,
   context: EffectContext,
 ): void {
+  // One character at a time, each settled before the next pick (docs/phase7-wave8.md §3.37).
+  if (effect.sequential) return executeSequentialDamage(ctx, frame, effect, context);
   const vars: Record<string, number> = { ...frame.vars };
   if (vars["_assign.left"] === undefined)
     vars["_assign.left"] = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));

@@ -22,6 +22,7 @@ import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
 import { getPlayer, handSize } from "./query.js";
+import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
 import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
@@ -170,6 +171,11 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
   }
   if (choice.prompt.kind === "divide") {
     const fault = divideSelectionFault(choice.prompt, selected);
+    if (fault) return engineError("invalid_choice", fault, command);
+  }
+  // docs/phase7-wave8.md §3.36: one card to one character, and any limit in force on the assignment.
+  if (choice.prompt.kind === "pairCards") {
+    const fault = pairSelectionFault(choice.prompt, selected);
     if (fault) return engineError("invalid_choice", fault, command);
   }
 

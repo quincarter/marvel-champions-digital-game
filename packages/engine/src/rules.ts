@@ -23,6 +23,7 @@ import {
   minionsEngagedWith,
   sameGameArea,
   sharedMainSchemes,
+  showingResources,
   villainOf,
 } from "./query.js";
 import {
@@ -50,8 +51,15 @@ import {
   type ActiveRule,
   type EffectContext,
 } from "./select.js";
-import { combineRequirements, type ResolvedRequirement } from "./resources.js";
-import type { AttackKeyword, CardDestination, TargetQuery } from "./spec.js";
+import {
+  addPools,
+  combineRequirements,
+  EMPTY_POOL,
+  poolOf,
+  type ResolvedRequirement,
+  type ResourcePool,
+} from "./resources.js";
+import type { AttackKeyword, CardDestination, PairLimit, TargetQuery } from "./spec.js";
 import type { Bindings, LingeringDamageRule, StackFrame, Vars } from "./stack.js";
 import type { FrameId } from "./ids.js";
 import type { Form, GameAreaState, GameState } from "./state.js";
@@ -964,12 +972,22 @@ export const canDivideBasicPower = (
 /**
  * "This card cannot leave play while …" (`cannotLeavePlay`). `sourceCardId`: the card whose ability, or whose ability's
  * cost, would move it, as `permanentStopsLeaving` reads it; none for a move the game's rules make. A rule limited to
- * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card.
+ * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card. `discard`:
+ * the move is a discard, a move to a discard pile; a rule limited to discards (`by: "discard"`, "cannot be discarded",
+ * docs/phase7-wave8.md §3.35) stops only that, with or without a source card.
  */
-export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId, sourceCardId?: CardId): boolean =>
+export const cannotLeavePlay = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceCardId?: CardId,
+  discard = false,
+): boolean =>
   activeRules(state, deps, "cannotLeavePlay").some(
     ({ rule, context }) =>
-      (rule.by !== "cardAbilities" || sourceCardId !== undefined) && matchesQuery(state, id, rule.target, context),
+      (rule.by !== "cardAbilities" || sourceCardId !== undefined) &&
+      (rule.by !== "discard" || discard) &&
+      matchesQuery(state, id, rule.target, context),
   );
 
 /**
@@ -1323,6 +1341,34 @@ export const cannotBeDefeated = (state: GameState, deps: EngineDeps, id: Instanc
  */
 export const consideredAboveZero = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   (hitPointFloor(state, id, deps) ?? 0) >= 1;
+
+/**
+ * The limit a `pairLimit` rule in force puts on a pairing of cards with the characters in the in-play scenario area
+ * `area` (docs/phase7-wave8.md §3.36), or null. One kind of limit exists, so the first rule found is the answer.
+ */
+export function pairLimitFor(state: GameState, deps: EngineDeps, area: string | null): PairLimit | null {
+  if (area === null) return null;
+  return activeRules(state, deps, "pairLimit").find(({ rule }) => rule.area === area)?.rule.limit ?? null;
+}
+
+/**
+ * The resource icons a card in play has (docs/phase7-wave8.md §3.42): the ones the face it shows prints
+ * (`showingResources`), plus one for each `consideredResourceIcon` rule in force that matches it ("is considered to
+ * have a wild resource icon in addition to its printed resource icon"). `considered` is that second part alone, for a
+ * log line or an inspect panel that tells the two apart.
+ */
+export function resourceIconsInPlay(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+): { readonly icons: ResourcePool; readonly considered: ResourcePool } {
+  let considered: ResourcePool = EMPTY_POOL;
+  for (const { rule, context } of activeRules(state, deps, "consideredResourceIcon")) {
+    if (matchesQuery(state, id, rule.target, context))
+      considered = addPools(considered, poolOf({ [rule.resource]: 1 }));
+  }
+  return { icons: addPools(showingResources(state, id), considered), considered };
+}
 
 /**
  * What keeps a character whose dial reads zero in play: "cannot be defeated", or being considered to have hit points.

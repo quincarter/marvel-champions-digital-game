@@ -9,6 +9,7 @@ import type {
   LastingUntil,
   NextBasicPowerUntil,
   LogWriteMode,
+  PairLimit,
   PlayerRef,
   PlayerZone,
   Predicate,
@@ -1029,12 +1030,44 @@ export const reduceNextCardCost = (
   n: Amount,
   duration: NextCardCostDuration,
   cardFilter?: TargetQuery,
+  /**
+   * "Reduce the cost of the next ally played to the mission this phase by 2." (Mission Team, `aoa` 45171a;
+   * docs/phase7-wave8.md §3.35) → `reduceNextCardCost(you, 2, "phase", query("ally"), { into: INTO_THE_MISSION,
+   * anyPlayer: true })`. `into`: only a play into that in-play scenario area uses the reduction. `anyPlayer`: "the
+   * next ally played", whoever plays it.
+   */
+  opts: { readonly into?: { readonly scenarioPlayArea: string }; readonly anyPlayer?: true } = {},
 ): EffectSpec => ({
   kind: "reduceNextCardCost",
   player,
   amount: amount(n),
   duration,
   ...(cardFilter ? { cardFilter } : {}),
+  ...(opts.into ? { into: opts.into } : {}),
+  ...(opts.anyPlayer ? { anyPlayer: true as const } : {}),
+});
+/**
+ * "Assign each of the discarded cards to a different ally at the mission. If a resource icon on the ally matches a
+ * resource icon on the card assigned to it, that ally participates." (MC45 p. 6, steps 1 and 2 of a mission attempt;
+ * docs/phase7-wave8.md §3.36) → `pairCards(chosenCards("discarded"), ALLY_AT_THE_MISSION, "pairing")`. The player
+ * assigns each card of `cards` to a different card `characters` matches; a [wild] on either side matches any icon.
+ * Binds `<bind>.matched` (the characters whose card matches, a slot), `<bind>.paired` (every character given a card),
+ * `<bind>.pairs` and `<bind>.count` (how many pairs were made, and how many match).
+ */
+export const pairCards = (
+  cards: TargetRef,
+  characters: TargetQuery,
+  bind: string,
+  opts: { readonly chooser?: PlayerRef; readonly limit?: PairLimit } = {},
+): EffectSpec => ({
+  kind: "pairCards",
+  cards,
+  with: characters,
+  chooser: opts.chooser ?? you,
+  match: "resourceIcon",
+  wild: "either",
+  ...(opts.limit ? { limit: opts.limit } : {}),
+  bind,
 });
 /**
  * How long a "the next card you play …" cost change waits. `"untilPlayed"` is the unbounded form — no phase or
@@ -1615,6 +1648,25 @@ export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef =
   amount: amount(n),
   among,
   chooser,
+});
+/**
+ * "Deal damage from this pool to enemies at the mission one at a time until there is no damage in the pool or there
+ * are no enemies remaining at the mission." (MC45 p. 6, step 4 of a mission attempt; docs/phase7-wave8.md §3.37) →
+ * `dealPoolOneAtATime(pool, MINION_AT_THE_MISSION)`. The chooser picks one character that can take damage and how
+ * much of the pool it takes; that is dealt and settled, a defeat included, before the next pick; what nobody can
+ * take is lost. Not an attack. `bind`: `<bind>.amount`, `<bind>.dealt`, `<bind>.lost`.
+ */
+export const dealPoolOneAtATime = (
+  n: Amount,
+  among: TargetQuery,
+  opts: { readonly chooser?: PlayerRef; readonly bind?: string } = {},
+): EffectSpec => ({
+  kind: "assignDamage",
+  amount: amount(n),
+  among,
+  chooser: opts.chooser ?? you,
+  sequential: true,
+  ...withBind(opts.bind),
 });
 export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
 /**

@@ -2,8 +2,8 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
-import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { StatusName } from "./spec.js";
+import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
+import type { PairLimit, StatusName } from "./spec.js";
 import type { Form } from "./state.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -232,6 +232,27 @@ export type ChoicePrompt =
    * choice open while its clock runs and answers when the break ends.
    */
   | { readonly kind: "reportFact"; readonly fact: ReportedFact; readonly answer: ReportedFactAnswer }
+  /**
+   * `EffectSpec pairCards` (docs/phase7-wave8.md §3.36; MC45 p. 6, step 2 of a mission attempt): assign each of
+   * `cards` to a different one of `with`. One option per card and character, its `optionId` `<card>><character>`
+   * (`pairOptionId`), its `ref` the character and its label "card → character". The selection is the whole
+   * assignment: any number of options from none to the smaller of the two counts, no card and no character twice
+   * (`resolveChoice` checks through `pairSelectionFault`; a refused selection leaves the choice open).
+   *
+   * `icons`: the resource types of each card (printed) and each character (printed plus considered), by instance id.
+   * `matching`: the option ids whose pair matches, so a client can show which characters would take part before the
+   * player commits. `limit`: a restriction in force ("cards with the same resource icon cannot be assigned to more
+   * than one ally"), which the selection must also satisfy. `sourceInstanceId`: the card whose ability asks.
+   */
+  | {
+      readonly kind: "pairCards";
+      readonly cards: readonly InstanceId[];
+      readonly with: readonly InstanceId[];
+      readonly icons: Readonly<Record<string, readonly ResourceType[]>>;
+      readonly matching: readonly string[];
+      readonly limit?: PairLimit;
+      readonly sourceInstanceId: InstanceId | null;
+    }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */

@@ -175,6 +175,7 @@ export {
   cannotFlip,
   cannotLeavePlay,
   cardAbilitiesCannotRemove,
+  resourceIconsInPlay,
   cannotTakeDamage,
   playDestinationsOf,
   countSchemeIcons,
@@ -205,6 +206,7 @@ export {
 export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
+export { pairOfOptionId, pairOptionId, pairSelectionFault, resourceIconsMatch } from "./resolve/pair-cards.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
@@ -229,6 +231,7 @@ export type {
   LastingUntil,
   LastingGrantUntil,
   NextBasicPowerUntil,
+  PairLimit,
   PlayerRef,
   PlayerZone,
   Predicate,

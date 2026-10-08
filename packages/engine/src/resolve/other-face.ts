@@ -8,7 +8,8 @@
  * card never leaves play. On another type it goes where its new type lives, as a revealed card of that type would
  * (`enterPlayOnReveal`): a minion engaged with `playerId`, an ally or other player-type card under `playerId`'s control,
  * an attachment on its first legal host (none: it leaves play, and a double-sided card leaving play is removed from the
- * game), a scheme or environment in the villain's area. Either way the new face is then treated as entering play: a
+ * game), a scheme or environment in the villain's area. A card in an in-play scenario area (`scenarioPlayArea`,
+ * docs/phase7-wave8.md §3.33, §3.40) stays in that area, under no player's control, whatever its new type. Either way the new face is then treated as entering play: a
  * side scheme gets its starting threat and hinder, a minion engages, "enters play" triggers fire. The RRG does not say
  * a flip enters play; the printed faces assume it (Defensive Protocols' "Hinder 2"). docs/phase7-wave4.md §4 Q17 (user decision 2026-09-24).
  *
@@ -158,6 +159,14 @@ function relocate(ctx: Ctx, id: InstanceId, to: AnyCard, playerId: PlayerId, dep
     };
   }
   const where = locateCard(ctx.state, id);
+  // A card in an in-play scenario area stays in it whatever its new face is (docs/phase7-wave8.md §3.33, §3.40): the
+  // card never leaves play (RRG 1.8 "Flip", p. 20), cards there are under no player's control and engaged with nobody
+  // (MC45 p. 5), and the area is where its new face is found by the text that clears it. An attachment face still
+  // looks for its host below.
+  if (where?.kind === "scenarioPlayArea" && to.type !== "attachment") {
+    updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, engagedWith: null }));
+    return;
+  }
   switch (to.type) {
     case "minion":
       moveCard(ctx, id, { kind: "playArea", playerId });

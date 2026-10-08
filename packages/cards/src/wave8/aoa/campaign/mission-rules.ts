@@ -1,12 +1,22 @@
 import { trait } from "@mc/content";
 import type { EffectSpec, Predicate, RuleSpec, ScenarioSetupInstruction, TargetQuery, TargetRef } from "@mc/engine";
 import {
+  chosen,
+  countOf,
   createScenarioPlayArea,
+  dealPoolOneAtATime,
   each,
   exists,
+  firstPlayer,
   inScenarioPlayArea,
+  moveCards,
+  pairCards,
   putIntoPlay,
   query,
+  raiseMoment,
+  removeThreat,
+  topOfDeck,
+  totalStatOf,
   you,
 } from "../../../dsl/index.js";
 
@@ -33,6 +43,43 @@ export const theMission: TargetRef = each(THE_MISSION);
 export const missionInPlay: Predicate = exists(THE_MISSION);
 export const ALLY_AT_THE_MISSION: TargetQuery = query("ally", AT_THE_MISSION);
 export const MINION_AT_THE_MISSION: TargetQuery = query("minion", AT_THE_MISSION);
+/** Mission Team (45171a/b), on either face: the card whose Action makes a mission attempt. */
+export const MISSION_TEAM: TargetQuery = query("support", { name: "Mission Team" });
+/** The moment "After you resolve a mission attempt" answers (`raiseMoment`, section 3.39). */
+export const MISSION_ATTEMPT = "missionAttempt";
+/** The slot of the cards an attempt discarded from the top of the deck (step 1). */
+const DISCARDED = "attempt";
+/** The pairing of step 2: `pairing.matched` is the allies that participate. */
+const PAIRING = "pairing";
+const participants = chosen(`${PAIRING}.matched`);
+
+/**
+ * "When a player makes a mission attempt, they resolve the following five steps in order" (MC45 p. 6; sections 2.13,
+ * 3.36 to 3.39). A script, used by Mission Team's Action: the engine knows no "mission".
+ *
+ * 1. "Discard X cards from the top of their deck, where X is the number of allies at the mission." A deck that runs out
+ *    resets and "no further cards are discarded from the newly shuffled deck" (RRG 1.8 "Player Deck", p. 33). Each
+ *    discard is announced before step 2: the Overseer's Mission Response (forced, first; RRG 1.8 "Forced", p. 20), then
+ *    a discarded card's own Response. A card a response took away is no longer in the slot (ruling April 30, 2026 –
+ *    Ruling 4 (1): "it does not count for the mission attempt and no replacement card is drawn").
+ * 2. "Assign each of the discarded cards to a different ally at the mission." An ally whose card shares a resource icon
+ *    with it participates, a [wild] on either side matching anything. The cards stay in the discard pile.
+ * 3. and 4. A pool of the participants' total ATK, dealt to the enemies at the mission one at a time, each settled
+ *    before the next; what nobody can take is lost. Not an attack.
+ * 5. "Remove X threat from the [MISSION] side scheme, where X is the total THW of all participating allies." Not a
+ *    thwart (RRG 1.8 "Thwart", p. 44): nothing exhausts and no ally takes consequential damage.
+ *
+ * Then the moment the mission's own Forced Response answers. It is raised whatever the steps did: an attempt with no
+ * ally at the mission discards nothing and still counts. A mission step 5 defeated has flipped by then, so nothing
+ * answers.
+ */
+export const missionAttempt = (): readonly EffectSpec[] => [
+  moveCards(topOfDeck(countOf(ALLY_AT_THE_MISSION), you), "discard", DISCARDED),
+  pairCards(chosen(DISCARDED), ALLY_AT_THE_MISSION, PAIRING),
+  dealPoolOneAtATime(totalStatOf(participants, "atk"), MINION_AT_THE_MISSION),
+  removeThreat(totalStatOf(participants, "thw"), theMission),
+  raiseMoment(MISSION_ATTEMPT, you),
+];
 
 /**
  * The Mission Rules card's side A, bullet by bullet, as far as the engine can state them today:
@@ -63,17 +110,28 @@ export const MISSION_RULES: readonly RuleSpec[] = [
 /**
  * Campaign setup's mission and Overseer (MC45 p. 5; §2.12 steps 3 and 4), as one instruction the campaign resolves in
  * the window after scenario setup: the area is created, the drawn mission enters play there with 5[per_hero] threat,
- * and the drawn Overseer is put into play there, engaged with nobody. Both cards start set aside.
+ * and the drawn Overseer is put into play there, engaged with nobody. `missionTeam` (§2.12 step 5): "The first player
+ * takes control of the Mission Team (171A) support card, [MISSION] side faceup", ready, in their play area. Every
+ * card starts set aside.
  */
-export const missionSetup = (mission: TargetRef, overseer?: TargetRef): readonly EffectSpec[] => [
+export const missionSetup = (
+  mission: TargetRef,
+  overseer?: TargetRef,
+  missionTeam?: TargetRef,
+): readonly EffectSpec[] => [
   createScenarioPlayArea(MISSION_AREA),
   putIntoPlay(mission, you, { into: INTO_THE_MISSION }),
   ...(overseer ? [putIntoPlay(overseer, you, { into: INTO_THE_MISSION })] : []),
+  ...(missionTeam ? [putIntoPlay(missionTeam, firstPlayer)] : []),
 ];
 
-export const missionSetupInstruction = (mission: TargetRef, overseer?: TargetRef): ScenarioSetupInstruction => ({
+export const missionSetupInstruction = (
+  mission: TargetRef,
+  overseer?: TargetRef,
+  missionTeam?: TargetRef,
+): ScenarioSetupInstruction => ({
   id: "aoa.mission-setup",
-  text: "Randomly select one of the available [MISSION] side schemes and reveal it. Put a random Overseer minion into play in the mission area.",
+  text: "Randomly select one of the available [MISSION] side schemes and reveal it. Put a random Overseer minion into play in the mission area. The first player takes control of the Mission Team (171A) support card, [MISSION] side faceup.",
   citation: "MC45 p. 5",
-  effects: missionSetup(mission, overseer),
+  effects: missionSetup(mission, overseer, missionTeam),
 });

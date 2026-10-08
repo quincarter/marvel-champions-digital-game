@@ -148,7 +148,8 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
 
 /**
  * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay` (one limited to card
- * abilities counts when there is a `source`, docs/phase7-wave7.md §3.10), and not Permanent
+ * abilities counts when there is a `source`, docs/phase7-wave7.md §3.10; one limited to discards always counts,
+ * docs/phase7-wave8.md §3.35), and not Permanent
  * unless `source` is of its own set (RRG 1.8 "Permanent", p. 32: "not valid targets for card effects that would cause
  * the permanent card to leave play", the constant ability limiting it to effects on cards not from this card's set;
  * `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46).
@@ -160,7 +161,7 @@ export const canDiscardFromPlay = (
   source: InstanceId | null = null,
 ): boolean => {
   const sourceCardId = source === null ? undefined : getInstance(state, source)?.cardId;
-  return !permanentStopsLeaving(state, deps, id, sourceCardId) && !cannotLeavePlay(state, deps, id, sourceCardId);
+  return !permanentStopsLeaving(state, deps, id, sourceCardId) && !cannotLeavePlay(state, deps, id, sourceCardId, true);
 };
 
 /** The character an `attack` effect attacks with: its `attacker`, else the controller's identity (`apply-effect.ts`). */

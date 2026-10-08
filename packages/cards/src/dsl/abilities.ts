@@ -709,6 +709,31 @@ export const consideredToHaveHitPoints = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Attached ally … is considered to have a wild ([wild]) resource icon in addition to its printed resource icon."
+ * (Desperate Measures, `aoa` 45176; docs/phase7-wave8.md §3.42) →
+ * `constant(..., consideredToHaveResourceIcon(query("ally", { hostOfSelf: true }), "wild"))`. One more icon for every
+ * reader of the icons of a card in play (a mission attempt's pairing, `pairCards`); nothing it pays with changes.
+ */
+export const consideredToHaveResourceIcon = (
+  target: TargetQuery,
+  resource: "physical" | "mental" | "energy" | "wild",
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "consideredResourceIcon", target, resource, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "Players cannot assign cards with the same resource icon ([energy], [mental], [physical], or [wild]) to more than
+ * one ally each mission attempt." (Mister Sinister, `aoa` 45179a; docs/phase7-wave8.md §3.36) →
+ * `constant(pairLimit("mission"))`: every pairing with the characters in that in-play scenario area (`pairCards`) is
+ * held to it while this card's constant is in effect.
+ */
+export const pairLimit = (area: string, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({
+    kind: "pairLimit",
+    area,
+    limit: { distinctBy: "resourceIcon" },
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "While Baron Zemo is engaged with you, you cannot thwart" → `constant(cannotThwart(you))`; "The engaged player cannot
  * thwart side schemes" (Life-Size Decoy, `sm` 27142) → `constant(cannotThwart(engagedPlayerOf(self), { schemes:
  * query("sideScheme") }))`. Without `schemes`, every scheme. A scheme the player cannot thwart is not a legal target of
@@ -1458,10 +1483,14 @@ export const textBoxCannotBeBlanked = (): ConstantPart => rule({ kind: "textBoxC
  * Q7) → `constant(cannotLeavePlay({ self: true }, { by: "cardAbilities" }))`: a card ability's move or "defeat" does
  * nothing to it and a cost cannot be paid with it, but damage from any source still defeats it at 0 hit points, and
  * the ally limit, a host leaving play and player elimination still remove it.
+ *
+ * "Mission Team cannot be discarded" (`aoa` 45171a/b; docs/phase7-wave8.md §3.35) →
+ * `constant(cannotLeavePlay({ self: true }, { by: "discard" }))`: no discard moves it, it is no target for one and
+ * cannot pay a discard cost; removal from the game and a flip still work.
  */
 export const cannotLeavePlay = (
   target: TargetQuery,
-  opts: { readonly while?: Predicate; readonly by?: "cardAbilities" } = {},
+  opts: { readonly while?: Predicate; readonly by?: "cardAbilities" | "discard" } = {},
 ): ConstantPart =>
   rule({
     kind: "cannotLeavePlay",

@@ -941,6 +941,14 @@ export interface GameState {
    */
   readonly heldAtZero?: readonly InstanceId[];
   /**
+   * Side schemes whose last threat was removed while a `notDefeatedWithoutThreat` rule covered them, left in play at no
+   * threat (`resolve/event.ts` `applyRemoveThreat`). Watched between frames like `heldAtZero`: one that has threat
+   * again or has left play is dropped, and one the rule stops covering is defeated at once (RRG 1.8 "Defeat", p. 15;
+   * `resolve/state-checks.ts` `checkSchemeProtectionEnded`; docs/phase7-wave8.md §3.40: "The [MISSION] side scheme
+   * cannot be defeated while there are any minions in the mission area"). Absent in a game that never held one.
+   */
+  readonly heldAtNoThreat?: readonly InstanceId[];
+  /**
    * The hit points each damaged character in play was last seen to have, keyed by instance id, so a fall is noticed
    * the moment it happens: RRG 1.8 "Hit Points" (p. 22), an ally or minion whose "+X hit points" "ceases to be in
    * effect" with damage on it equal to or greater than its hit points is defeated, and an identity's or villain's dial

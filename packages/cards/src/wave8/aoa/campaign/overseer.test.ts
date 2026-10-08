@@ -24,14 +24,40 @@ const SHIELDS = [
 ];
 
 describe("Overseer (45179a to 45183a)", () => {
-  it("registers the five 'cannot take damage' constants and skips the pairing limit and the four Mission Responses", () => {
-    expect(Object.keys(OVERSEER).sort()).toEqual([...SHIELDS].sort());
-    expect([...Object.keys(OVERSEER), ...Object.keys(OVERSEER_SKIPPED)].sort()).toEqual(refsOf(CODES).sort());
+  it("registers all ten refs as valid definitions: the five 'cannot take damage' constants, the pairing limit and the four Mission Responses; nothing is skipped", () => {
+    expect(Object.keys(OVERSEER).sort()).toEqual(refsOf(CODES).sort());
     expect(refsOf(CODES)).toHaveLength(10);
-    for (const [id, reason] of Object.entries(OVERSEER_SKIPPED)) expect(reason, id).toMatch(/task/);
-    // The tasks that have landed are no longer named as missing.
-    for (const reason of Object.values(OVERSEER_SKIPPED)) expect(reason).not.toMatch(/tasks? 3[123]\b/);
+    for (const shield of SHIELDS) expect(OVERSEER[shield], shield).toBeDefined();
+    expect(OVERSEER_SKIPPED).toEqual({});
     for (const [id, definition] of Object.entries(OVERSEER)) expect(validateDefinition(definition), id).toEqual([]);
+  });
+
+  it("§3.38 test 5: Mister Sinister has no Mission Response, only the pairing limit of the mission area", () => {
+    expect(refsOf(["45179a"])).toEqual(["45179a.mister-sinister-constant", "45179a.mister-sinister-constant-2"]);
+    expect(OVERSEER["45179a.mister-sinister-constant-2"]?.trigger).toMatchObject({
+      kind: "constant",
+      rules: [{ kind: "pairLimit", area: "mission", limit: { distinctBy: "resourceIcon" } }],
+    });
+  });
+
+  it("§3.38 test 6: a Mission Response answers only a discard whose source is Mission Team, and only a card that shows its icon", () => {
+    const icons: Record<string, string> = {
+      "45180a.the-shadow-king-forced-response": "mental",
+      "45181a.abyss-forced-response": "wild",
+      "45182a.sugar-man-forced-response": "physical",
+      "45183a.mikhail-rasputin-forced-response": "energy",
+    };
+    for (const [id, icon] of Object.entries(icons)) {
+      expect(OVERSEER[id]?.trigger, id).toMatchObject({
+        kind: "response",
+        forced: true,
+        on: {
+          on: "cardDiscardedFromDeck",
+          sourceIs: { categories: ["support"], name: "Mission Team" },
+          targetIs: { anyPrintedResource: [icon] },
+        },
+      });
+    }
   });
 
   it("names the mission on every face (the printed lines the scripts stand for)", () => {

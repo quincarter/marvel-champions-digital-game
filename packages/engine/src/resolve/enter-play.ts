@@ -242,7 +242,9 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
   if (entering === null && counted.some((id) => stillEntering(ctx, id))) return false;
   const played = entering === null ? undefined : playFrameOf(ctx.state.stack, entering);
   const options = counted.filter(
-    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+    (id) =>
+      !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) &&
+      !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true),
   );
   const over = Math.min(counted.length - limit, options.length);
   if (over === 0) return false;
@@ -292,7 +294,9 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
   const { load, limit, held } = restrictedStanding(ctx.state, ctx.deps, playerId);
   if (load <= limit) return false;
   const options = held.filter(
-    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+    (id) =>
+      !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) &&
+      !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true),
   );
   const over = Math.min(load - limit, options.length);
   if (over === 0) return false;
