@@ -114,6 +114,29 @@ describe("attack lines", () => {
       }),
     ).toBe(`${name(hand[0]!)} can't attack ${name(villain)}, so it takes no damage from that attack.`);
   });
+
+  test("a canceled attack is told as canceled, not as a target that can't be attacked", () => {
+    const line = textOf({
+      type: "attackTargetSkipped",
+      attackerInstanceId: hand[0]!,
+      targetInstanceId: villain,
+      sourceInstanceId: null,
+      reason: "attackCancelled",
+    });
+    expect(line).toBe(`${name(hand[0]!)}'s attack on ${name(villain)} was canceled, so it takes no damage.`);
+    expect(line).not.toContain("can't attack");
+  });
+
+  test("counters that return to the pool as a main scheme advances are not a card's removal", () => {
+    const base = { type: "counterRemoved", instanceId: villain, counterType: "magnet" } as const;
+    expect(textOf({ ...base, amount: 3, returnedOnAdvance: true })).toBe(
+      `3 magnet counters return to the pool as ${name(villain)} advances.`,
+    );
+    expect(textOf({ ...base, amount: 1, returnedOnAdvance: true })).toBe(
+      `1 magnet counter returns to the pool as ${name(villain)} advances.`,
+    );
+    expect(textOf({ ...base, amount: 2 })).toBe(`${name(villain)} loses 2 magnet counters.`);
+  });
 });
 
 describe("costs", () => {

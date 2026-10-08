@@ -544,6 +544,14 @@ function describe(
     // An "(attack)" ability's damage instruction skipped an enemy its player cannot attack (guard): without this line
     // the villain silently takes none of "each enemy"'s damage.
     case "attackTargetSkipped":
+      // Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 65): the enemy could be attacked, but the attack was
+      // canceled, so the instruction's damage to it isn't dealt. Not "can't attack": that is the guard reading below.
+      if (event.reason === "attackCancelled") {
+        return {
+          text: `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} was canceled, so it takes no damage.`,
+          voice: "player",
+        };
+      }
       return {
         text: `${card(event.attackerInstanceId)} can't attack ${card(event.targetInstanceId)}, so it takes no damage from that attack.`,
         voice: "player",
@@ -702,6 +710,13 @@ function describe(
     // A counter put on or taken off a card by an ability (Phoenix Force's power counters, a Uses card's tokens).
     case "counterAdded":
     case "counterRemoved": {
+      // RRG 1.8 "Main Scheme" (p. 27), step 1: a main scheme's counters go back to the pool as it advances.
+      if (event.type === "counterRemoved" && event.returnedOnAdvance) {
+        return {
+          text: `${event.amount} ${event.counterType} counter${event.amount === 1 ? "" : "s"} return${event.amount === 1 ? "s" : ""} to the pool as ${card(event.instanceId)} advances.`,
+          voice: "villain",
+        };
+      }
       const added = event.type === "counterAdded";
       return {
         text: `${card(event.instanceId)} ${added ? "gets" : "loses"} ${event.amount} ${event.counterType} counter${event.amount === 1 ? "" : "s"}.`,

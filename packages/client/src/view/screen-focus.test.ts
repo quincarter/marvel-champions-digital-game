@@ -268,6 +268,20 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("Deck builder in campaign mode: each reward's toggle is a stop, between the deck actions and Save", () => {
+    const order = deckBuilderFocusOrder({
+      identityChosen: true,
+      identityIds: [],
+      aspectIds: [],
+      typeFilterIds: [],
+      poolCardIds: ["c1"],
+      showName: false,
+      showPreconClear: false,
+      rewardIds: ["0:45173"],
+    });
+    expect(order.slice(order.indexOf("pack:sort") + 1)).toEqual(["reward:0:45173", "save", "filter-text", "card:c1"]);
+  });
+
   test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
     expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual([
       "back",

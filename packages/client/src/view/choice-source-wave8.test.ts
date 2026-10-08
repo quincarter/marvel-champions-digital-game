@@ -5,7 +5,9 @@
  */
 
 import {
+  PLAY_TO_OWN_AREA,
   frameId,
+  playToAreaOption,
   inPlayPicksOf,
   type ChoicePrompt,
   type GameState,
@@ -17,7 +19,12 @@ import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { costCardsPromptTitleOf, promptTitleOf } from "./choice-source.js";
+import {
+  costCardsPromptTitleOf,
+  playDestinationTitleOf,
+  promptTitleOf,
+  setupOptionQuestionFor,
+} from "./choice-source.js";
 import { basicReasonWording, exclusionWording, exclusionWordingFor } from "./highlights.js";
 import { paymentSubjectWords } from "./change-form-choice.js";
 import { costPickSlot, playAimPrompt } from "./play-aim.js";
@@ -293,5 +300,66 @@ describe("cannotEnterPlay told apart by the game", () => {
     expect(playAimPrompt(state, POOL_DEPS, aim("44056.rock-paper-scissors-action"))).toBe(
       `${name}: choose a card for its cost`,
     );
+  });
+});
+
+describe("the effect-path destination question (MC45 p. 5; docs/phase7-wave8.md §3.34)", () => {
+  const option = (optionId: string, label: string) => ({
+    optionId,
+    label,
+    ref: { kind: "cardDefinition", cardId: "x" } as never,
+  });
+  const destinations = [
+    option(PLAY_TO_OWN_AREA, "Play Colossus to your area"),
+    option(playToAreaOption("mission"), "Play Colossus to the mission"),
+  ];
+
+  test("asks where the ally goes instead of a bare 'Choose one'", () => {
+    expect(title({ kind: "chooseOption" }, { minSelections: 1, options: destinations })).toBe(
+      "Where does Colossus go?",
+    );
+    expect(playDestinationTitleOf(undefined, destinations)).toBe("Where does Colossus go?");
+  });
+
+  test("any other option choice keeps its own title", () => {
+    const other = [option("opt:0", "Rejoin at full"), option("opt:1", "Sit this scenario out")];
+    expect(title({ kind: "chooseOption" }, { minSelections: 1, options: other })).toBe("Choose one");
+    expect(title({ kind: "chooseOption" })).toBe("Choose one");
+    expect(playDestinationTitleOf(undefined, [])).toBeNull();
+    expect(playDestinationTitleOf(undefined, [...destinations, ...other])).toBeNull();
+  });
+});
+
+describe("the expert campaign's rejoin and heal questions (MC45 p. 20; owner decision, 2026-10-08)", () => {
+  const instruction = {
+    kind: "campaign",
+    instructionId: "mc45.s2.setup.heal",
+    text: "",
+    citation: "MC45 p. 12",
+  } as const;
+  const prompt = { kind: "chooseOption" } as ChoicePrompt;
+
+  test("a defeated seat is asked to rejoin; a living one whether to heal", () => {
+    expect(
+      setupOptionQuestionFor(instruction, prompt, [
+        { label: "Rejoin at full · +3 threat" },
+        { label: "Sit this scenario out" },
+      ]),
+    ).toBe("Rejoin your team?");
+    expect(
+      setupOptionQuestionFor(instruction, prompt, [{ label: "Heal to full · +3 threat" }, { label: "Decline" }]),
+    ).toBe("Heal your identity to full?");
+  });
+
+  test("any other option choice, or a scenario instruction, keeps the generic header", () => {
+    expect(setupOptionQuestionFor(instruction, prompt, [{ label: "Yes" }, { label: "No" }])).toBeNull();
+    expect(
+      setupOptionQuestionFor({ ...instruction, kind: "scenario" }, prompt, [{ label: "Rejoin at full · +3 threat" }]),
+    ).toBeNull();
+    expect(
+      setupOptionQuestionFor(instruction, { kind: "chooseCards", slot: "x" } as unknown as ChoicePrompt, [
+        { label: "Rejoin at full" },
+      ]),
+    ).toBeNull();
   });
 });

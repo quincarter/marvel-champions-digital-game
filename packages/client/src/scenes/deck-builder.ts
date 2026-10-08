@@ -46,8 +46,9 @@
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
+import type { CardId } from "@mc/content";
 import { POOL_CARDS, POOL_HERO_SHELF_PACKS, POOL_PACKS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
-import { qualifiedHeroName } from "../view/hero-names.js";
+import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
@@ -98,11 +99,13 @@ import {
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { campaignService, deckStorage } from "../session.js";
 import {
+  campaignDeckContextWithGrants,
   campaignDeckEditModel,
   campaignDeckSizeLabel,
   campaignDeckSizeSplit,
   prohibitedCampaignCardIds,
   removedFromCampaignCardIds,
+  setRewardIncluded,
   type CampaignDeckEditModel,
   type CampaignDeckEditRow,
 } from "../view/campaign-deck-edit-model.js";
@@ -390,6 +393,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         poolCardIds: pool.map((card) => card.id as string),
         showName: !this.#campaign,
         showPreconClear: !this.#campaign,
+        rewardIds: (this.#campaignModel?.rewards ?? []).map((reward, at) => `${at}:${reward.cardId as string}`),
       }),
       this.#stops,
     );
@@ -481,6 +485,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     y = this.#drawPackAndSort(left, y, inner, deck);
     if (!this.#campaign) y = this.#drawNameField(left, y, inner, deck);
     y = this.#drawLegalityLine(left, y, inner, deck);
+    y = this.#drawRewardsStrip(left, y, inner, false);
     y = this.#drawCostCurve(left, y, inner, deck, false);
     y = this.#drawYourDeckList(left, y, inner, deck, false);
     y = this.#drawPreconClearSave(left, y, inner, deck);
@@ -566,6 +571,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let rightY = top + 8;
     if (!this.#campaign) rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
     rightY = this.#drawLegalityLine(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
+    rightY = this.#drawRewardsStrip(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, true);
     rightY += 4;
     const actionsTop = bottom - hit.target * 2 - 24;
     rightY = this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true, actionsTop - 8 - rightY);
@@ -823,6 +829,99 @@ export class DeckBuilderScene extends Phaser.Scene {
     return y + hit.target + 16;
   }
 
+  /**
+   * Campaign mode's rewards strip (MC45 p. 24; owner decision, 2026-10-08): every reward the seat chose, in the deck
+   * or not, each with its status in words and a button that flips it. A reward left out has no line in the list, so
+   * this strip is the only place it can be put back. Nothing is drawn when the seat has no reward.
+   */
+  #drawRewardsStrip(left: number, top: number, column: number, onDark: boolean): number {
+    const rewards = this.#campaignModel?.rewards ?? [];
+    if (rewards.length === 0) return top;
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
+    const ground = onDark ? surface.paper.hex : surface.ink.hex;
+    label(this, left, top, "campaign rewards", typeRole.label, ground, onDark ? ink.secondary : ink.label);
+    let y = top + 18;
+    const buttonWidth = Math.min(132, Math.floor(column * 0.4));
+    rewards.forEach((reward, at) => {
+      const card = POOL.find((candidate) => candidate.id === reward.cardId);
+      const textWidth = column - buttonWidth - 8;
+      const name = this.add
+        .text(left, y, card ? cardDisplayName(card) : (reward.cardId as string), textStyle(typeRole.rowTitle, ground))
+        .setWordWrapWidth(textWidth);
+      const status = this.add
+        .text(
+          left,
+          y + name.height + 2,
+          `${reward.included ? "✓" : "–"} ${reward.status}`,
+          textStyle(typeRole.body, ground, onDark ? ink.secondary : ink.label),
+        )
+        .setWordWrapWidth(textWidth);
+      const textHeight = name.height + 2 + status.height;
+      const rowHeight = Math.max(hit.target, textHeight);
+      const rect: Rect = {
+        x: left + column - buttonWidth,
+        y: y + (rowHeight - hit.target) / 2,
+        width: buttonWidth,
+        height: hit.target,
+      };
+      const toggle = (): void => void this.#toggleReward(reward.cardId, !reward.included);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: onDark ? "onInk" : "secondary",
+          label: reward.toggleLabel,
+          type: typeRole.label,
+          rect,
+          enabled: !this.#busy && !frozen,
+          ...(frozen && this.#campaignModel?.editingDisabledReason
+            ? { reason: this.#campaignModel.editingDisabledReason }
+            : {}),
+          onClick: toggle,
+        }),
+      );
+      this.#stops.set(`reward:${at}:${reward.cardId as string}`, { rect, activate: toggle });
+      y += rowHeight + 8;
+    });
+    return y + 4;
+  }
+
+  /**
+   * Flips a reward and keeps the editor in step. The run is written at once (the grant's `leftOut` and the stored
+   * line), so leaving without "Save changes" still keeps the choice; the open deck, the grants and the context are
+   * rebuilt from the same pure edit, so unsaved changes to other lines are not lost.
+   */
+  async #toggleReward(cardId: CardId, included: boolean): Promise<void> {
+    const campaign = this.#campaign;
+    const deck = this.#deck;
+    if (this.#busy || !campaign || !deck || this.#campaignModel?.editingDisabled) return;
+    this.#busy = true;
+    this.#rebuild();
+    const record = await campaignService().load(campaign.runId);
+    if (!record) {
+      this.#busy = false;
+      this.#status = "This campaign run is gone — nothing was saved.";
+      this.#rebuild();
+      return;
+    }
+    try {
+      await campaignService().setSeatRewardIncluded(record, campaign.seatNumber, cardId, included);
+    } catch (error) {
+      this.#busy = false;
+      this.#status = error instanceof Error ? error.message : "This reward could not be changed.";
+      this.#rebuild();
+      return;
+    }
+    const edit = setRewardIncluded(deck, campaign.grants, cardId, included);
+    this.#campaign = {
+      ...campaign,
+      grants: edit.grants,
+      context: campaignDeckContextWithGrants(campaign.context, edit.grants),
+    };
+    this.#deck = { ...deck, cards: edit.deck.cards };
+    this.#busy = false;
+    this.#status = null;
+    this.#rebuild();
+  }
+
   #drawLegalityLine(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
     const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, POOL);
@@ -908,7 +1007,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       ? (entry: DeckListEntry): string | null => {
           const row = this.#campaignRowFor(entry.cardId as string);
           const faceNote = row?.face ? `On its ${row.face} (Enhanced) side. ` : "";
-          const reason = row?.lockedReason ?? row?.refusedReason ?? null;
+          const reason = row?.lockedReason ?? row?.refusedReason ?? row?.rewardNote ?? null;
           return faceNote ? `${faceNote}${reason ?? ""}`.trim() : reason;
         }
       : undefined;

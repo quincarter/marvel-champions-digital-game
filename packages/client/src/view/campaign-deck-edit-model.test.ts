@@ -15,6 +15,7 @@ import { AOA_CAMPAIGN_DEFINITION, SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINIT
 import { POOL_CARDS } from "../content/pool.js";
 import {
   campaignDeckContextOf,
+  campaignDeckContextWithGrants,
   campaignDeckEditModel,
   campaignDeckSizeLabel,
   campaignDeckSizeSplit,
@@ -215,6 +216,20 @@ describe("an Age of Apocalypse reward in the deck editor (MC45 p. 24; owner deci
     // Asking for the state it is already in changes nothing, and neither does a card that is no reward.
     expect(setRewardIncluded(deck, grants, BLINK, true)).toEqual({ deck, grants });
     expect(setRewardIncluded(deck, grants, title.line.cardId, false)).toEqual({ deck, grants });
+  });
+
+  it("the context follows the grants when a reward is flipped, so the editor can rebuild it without reloading the run", () => {
+    const deck = { ...base, cards: [...base.cards, { cardId: BLINK, quantity: 1 }] };
+    const inGrants = [reward("45173")];
+    const outGrants = [reward("45173", true)];
+    const context = campaignDeckContextOf(AOA_CAMPAIGN, logOf(deck, inGrants), 1);
+    expect(context.grantedCardIds).toEqual([BLINK]);
+    const out = campaignDeckContextWithGrants(context, outGrants);
+    expect(out).toEqual(campaignDeckContextOf(AOA_CAMPAIGN, logOf(deck, outGrants), 1));
+    expect(out.grantedCardIds).toEqual([]);
+    expect(out.optionalGrantCardIds).toBeUndefined();
+    expect(out.grantDeckSizes).toBeUndefined();
+    expect(campaignDeckContextWithGrants(out, inGrants)).toEqual(context);
   });
 
   it("a deck needs 40 cards besides the reward: 39 and the reward is one short, and 50 and the reward is one over", () => {

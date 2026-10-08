@@ -12,6 +12,7 @@
  */
 import {
   grantDeckSizesOf,
+  includedGrantsOf,
   validateDeck,
   type CampaignDefinition,
   type CampaignDeckContext,
@@ -30,24 +31,46 @@ export function campaignDeckContextOf(
 ): CampaignDeckContext {
   const seat = log.seats.find((candidate) => candidate.seatNumber === seatNumber);
   if (!seat) throw new Error(`campaign ${log.campaignId} has no seat ${seatNumber}`);
-  // A reward the player left out of the deck (`CampaignGrant.leftOut`) is no granted copy of this deck list.
-  const included = seat.grants.filter((grant) => grant.leftOut !== true);
-  const optional = included.filter((grant) => grant.optional === true).map((grant) => grant.cardId);
   return {
     campaignId: log.campaignId as string,
     campaignSetIds: [...campaign.campaignSetIds, ...(campaign.perSeatSetIds ?? [])],
     identityCardId: seat.identityCardId,
-    grantedCardIds: included.map((grant) => grant.cardId),
-    // MC45 p. 24: a reward that counts toward the 50 and not the 40 (owner decision, 2026-10-08) is told to
-    // `validateDeck`; absent for every earlier box.
-    ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
-    // MC45 p. 24, "They may include 1 copy of that card in their deck": the copies the player may leave out.
-    ...(optional.length > 0 ? { optionalGrantCardIds: optional } : {}),
+    ...grantFieldsOf(seat.grants),
     removedFromCampaign: log.removedFromCampaign,
     ...(campaign.prohibited?.cardIds ? { prohibitedCardIds: campaign.prohibited.cardIds } : {}),
     ...(campaign.prohibited?.encounterSetIds ? { prohibitedEncounterSetIds: campaign.prohibited.encounterSetIds } : {}),
     ...(options.frozenNonCampaignCards ? { frozenNonCampaignCards: options.frozenNonCampaignCards } : {}),
   };
+}
+
+/**
+ * The context fields that follow from a seat's grants: the copies the deck holds (a reward left out is none of them,
+ * `includedGrantsOf`), the deck-size rules and the rewards the player may leave out. `campaignDeckContextOf` builds
+ * them from the log; a builder screen that flips a reward rebuilds them from its own grants.
+ */
+function grantFieldsOf(
+  grants: readonly CampaignGrant[],
+): Pick<CampaignDeckContext, "grantedCardIds" | "grantDeckSizes" | "optionalGrantCardIds"> {
+  const included = includedGrantsOf(grants);
+  const optional = included.filter((grant) => grant.optional === true).map((grant) => grant.cardId);
+  const sizes = grantDeckSizesOf(grants);
+  return {
+    grantedCardIds: included.map((grant) => grant.cardId),
+    // MC45 p. 24: a reward that counts toward the 50 and not the 40 (owner decision, 2026-10-08) is told to
+    // `validateDeck`; absent for every earlier box.
+    ...(sizes.length > 0 ? { grantDeckSizes: sizes } : {}),
+    // MC45 p. 24, "They may include 1 copy of that card in their deck": the copies the player may leave out.
+    ...(optional.length > 0 ? { optionalGrantCardIds: optional } : {}),
+  };
+}
+
+/** `context` again after the seat's grants changed (a reward put in or left out): only the grant-derived fields move. */
+export function campaignDeckContextWithGrants(
+  context: CampaignDeckContext,
+  grants: readonly CampaignGrant[],
+): CampaignDeckContext {
+  const { grantedCardIds: _g, grantDeckSizes: _s, optionalGrantCardIds: _o, ...rest } = context;
+  return { ...rest, ...grantFieldsOf(grants) };
 }
 
 /**
@@ -345,7 +368,7 @@ export function seatDeckSizeSplit(seat: {
   readonly deck: Pick<DeckContents, "cards">;
   readonly grants: readonly CampaignGrant[];
 }): { readonly counted: number; readonly pinned: number } {
-  const included = seat.grants.filter((grant) => grant.leftOut !== true);
+  const included = includedGrantsOf(seat.grants);
   const mustKeep = new Set(included.filter((grant) => grant.optional !== true).map((grant) => grant.cardId));
   let counted = 0;
   let pinned = 0;

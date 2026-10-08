@@ -139,6 +139,8 @@ export interface DeckBuilderFocusInput {
    */
   readonly showName?: boolean;
   readonly showPreconClear?: boolean;
+  /** Campaign deck-edit mode's rewards strip: one stop per reward's in/out toggle, by the id the scene registers it under. */
+  readonly rewardIds?: readonly string[];
 }
 
 /**
@@ -164,6 +166,7 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "pack:sort",
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
+    ...(input.rewardIds ?? []).map((id) => `reward:${id}`),
     "save",
     "filter-text",
     ...input.poolCardIds.map((id) => `card:${id}`),

@@ -567,10 +567,12 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     id: "guard",
     kind: "keyword",
     displayName: "Guard",
-    definition: "While a minion with this keyword is engaged with you, none of your cards can attack the villain.",
+    definition:
+      "While a minion with this keyword is engaged with you, none of your cards can attack the villain. An attack card whose only target is the guarded villain can't be played.",
     sources: [
       { kind: "rrg", page: 21 },
       { kind: "ruling", date: "April 30, 2026 - Ruling 2" },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
     ],
   },
   hinder: {
@@ -1129,7 +1131,7 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Counters (steel, power, charge, magnet, ratings)",
     definition:
-      "Cards invent their own counters, and each is an ordinary all-purpose counter kept on the card that names it. A cost that removes counters can only be paid while enough are there, and a card's counters are lost when it leaves play.",
+      "Cards invent their own counters, and each is an ordinary all-purpose counter kept on the card that names it. A cost that removes counters can only be paid while enough are there, and a card's counters are lost when it leaves play. Counters on a main scheme go back to the pool when it advances; acceleration tokens stay.",
     sources: [
       { kind: "rrg", page: 6 },
       { kind: "rrg", page: 27 },
@@ -1525,11 +1527,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "(Attack) abilities are one attack",
     definition:
-      "An ability labeled (attack) is one attack, whether or not it uses ATK. All the damage it deals to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability resolves. Today an attack bonus applies to each damage instance, but not to damage worded as additional.",
+      "An ability labeled (attack) is one attack, whether or not it uses ATK. All the damage it deals to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability resolves. A card that only deals damage begins its attack as it starts resolving, so a stun can cancel it and no damage is dealt. Today an attack bonus applies to each damage instance, but not to damage worded as additional.",
     sources: [
       { kind: "rrg", page: 10 },
       { kind: "rrg", page: 38 },
       { kind: "owner-ruling", date: "Oct 7, 2026" },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
     ],
   },
   attackTargets: {

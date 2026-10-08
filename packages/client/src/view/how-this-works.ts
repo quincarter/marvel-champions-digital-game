@@ -101,7 +101,7 @@ note(
 );
 note(
   ["32141"],
-  "Magnet counters collect on the main scheme. At 3, it removes 3 and reveals the next Magnetic card from the encounter deck.",
+  "Magnet counters collect on the main scheme. At 3, it removes 3 and reveals the next Magnetic card from the encounter deck. They return to the pool when the scheme advances.",
 );
 note(
   ["32087"],

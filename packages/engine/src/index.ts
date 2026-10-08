@@ -305,6 +305,7 @@ export {
   CAMPAIGN_WINDOW_ORDER,
   DEFAULT_CAMPAIGN_WINDOW,
   grantDeckSizesOf,
+  includedGrantsOf,
   NO_CAMPAIGN_WRITES,
 } from "./campaign.js";
 /**

@@ -54,6 +54,7 @@
 import type { AbilityId } from "@mc/content";
 import type {
   ChoiceList,
+  ChoiceOption,
   ChoicePrompt,
   EngineDeps,
   GameState,
@@ -63,7 +64,7 @@ import type {
   SetupInstructionSource,
   StackFrame,
 } from "@mc/engine";
-import { activeAbilityRefs } from "@mc/engine";
+import { activeAbilityRefs, playDestinationOfOption } from "@mc/engine";
 import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardName, numberWord } from "./names.js";
@@ -168,6 +169,25 @@ const SETUP_PLAYER_QUESTIONS: Readonly<Record<string, string>> = {
 export function setupPlayerQuestionFor(instruction: SetupInstructionSource, prompt: ChoicePrompt): string | null {
   if (instruction.kind !== "campaign" || prompt.kind !== "choosePlayer") return null;
   return SETUP_PLAYER_QUESTIONS[instruction.instructionId] ?? null;
+}
+
+/**
+ * The question of an expert campaign's heal instruction (`healForThreat`, `healWithFacedownCard`; MC45 pp. 12 to 20):
+ * the engine's `chooseOption` carries only the two answers, so the sheet would read "Campaign setup: choose one". A
+ * defeated seat is asked to rejoin ("Rejoin at full · +3 threat" / "Sit this scenario out"); a living one, whether to
+ * heal. Read off the first option's label, since the instruction ids differ in each scenario. Null for any other
+ * option choice.
+ */
+export function setupOptionQuestionFor(
+  instruction: SetupInstructionSource,
+  prompt: ChoicePrompt,
+  options: readonly { readonly label: string }[],
+): string | null {
+  if (instruction.kind !== "campaign" || prompt.kind !== "chooseOption") return null;
+  const first = options[0]?.label ?? "";
+  if (first.startsWith("Rejoin at full")) return "Rejoin your team?";
+  if (first.startsWith("Heal to full")) return "Heal your identity to full?";
+  return null;
 }
 
 /**
@@ -326,6 +346,26 @@ export function isDeckDiscardSize(state: GameState | undefined, choice: Pick<Pen
 const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a card type" };
 
 /**
+ * "Where does Colossus go?" for the engine's effect-path destination question (`EffectSpec playFromHand` while a
+ * mission is in play, MC45 p. 5): a `chooseOption` whose every option id names a place (`playDestinationOfOption`)
+ * and whose `ref` is the card being played. The same words as the hand's destination bar
+ * (`play-destination.ts`'s `PlayDestinationChoice.prompt`). Null for any other `chooseOption`.
+ */
+export function playDestinationTitleOf(
+  state: GameState | undefined,
+  options: readonly { readonly optionId: string; readonly label: string; readonly ref: ChoiceOption["ref"] }[],
+): string | null {
+  if (options.length === 0 || options.some((option) => playDestinationOfOption(option.optionId) === undefined)) {
+    return null;
+  }
+  const ref = options[0]!.ref;
+  if (state && ref.kind === "card") return `Where does ${cardName(state, ref.instanceId)} go?`;
+  // Without the state to read the card from, the label says it: "Play <name> to your area".
+  const named = /^Play (.+) to (?:your area|the .+)$/.exec(options[0]!.label);
+  return named ? `Where does ${named[1]} go?` : "Where does it go?";
+}
+
+/**
  * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
  * here so it can be unit tested the way every other view model in this file is). `orderCards`/`chooseBottomCards`
  * (`reorderCards`'s three-step split, `packages/engine/src/resolve/effects-frame.ts`) share one kind family across
@@ -335,7 +375,7 @@ const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a car
 export function promptTitleOf(
   prompt: ChoicePrompt,
   deps: EngineDeps,
-  counts?: Pick<PendingChoice, "minSelections"> & Partial<Pick<PendingChoice, "frameId">>,
+  counts?: Pick<PendingChoice, "minSelections"> & Partial<Pick<PendingChoice, "frameId" | "options">>,
   /** With the choice's frame, lets a `chooseNumber` raised by a deck-discard cost say what the number is for. */
   state?: GameState,
 ): string {
@@ -376,6 +416,10 @@ export function promptTitleOf(
     return prompt.formChangeCost
       ? formChangeCostTitleOf(prompt.requirement, prompt.formChangeCost)
       : spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  }
+  if (kind === "chooseOption" && counts?.options) {
+    const destination = playDestinationTitleOf(state, counts.options);
+    if (destination) return destination;
   }
   if (kind === "chooseBasicPower") return basicPowerTitleOf(prompt.powers);
   if (kind === "chooseBasicPowerTarget") return basicPowerTargetTitleOf(prompt.power);
@@ -445,6 +489,8 @@ export function choiceHeaderText(
   } else if (instruction) {
     const question = setupPlayerQuestionFor(instruction, choice.prompt);
     if (question) return question;
+    const optionQuestion = setupOptionQuestionFor(instruction, choice.prompt, choice.options);
+    if (optionQuestion) return optionQuestion;
     named = instructionHeaderName(instruction);
   } else {
     return genericTitle;
