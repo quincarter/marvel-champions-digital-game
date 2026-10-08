@@ -150,6 +150,12 @@ function soleMinionOfSet(state: GameState, setId: string, cardId: string): boole
   return minions.length === 1 && minions[0] === cardId;
 }
 
+/** `EffectContext.lastKnown` for a card that is no longer in play; undefined for one in play or not recorded. */
+const lastKnownOf = (state: GameState, id: InstanceId, context: EffectContext): LastKnownCard | undefined => {
+  const known = context.lastKnown?.[id];
+  return known !== undefined && !cardsInPlay(state).includes(id) ? known : undefined;
+};
+
 /** Everything an effect needs to turn authoring-time refs into concrete ids. */
 export interface EffectContext {
   readonly selfInstanceId: InstanceId | null;
@@ -186,6 +192,19 @@ export interface EffectContext {
    * context is that of an ability that picks or changes cards and does not refer to the area.
    */
   readonly reaches?: "all" | { readonly scenarioPlayArea: string };
+  /**
+   * Last known information about cards that may have left play, by card: what was attached to each and the status
+   * cards it held (`LastKnownCard`). A query's `hasAttachment`, `hasStatus` and `hasAnyStatus` read it for a card that
+   * is no longer in play; a card still in play is always read live. Set only where a ruling asks for it: an ally's
+   * consequential damage after an attack that defeated its target (`rules.ts` `lastKnownFromAttack`).
+   */
+  readonly lastKnown?: Readonly<Record<InstanceId, LastKnownCard>>;
+}
+
+/** A card as it last was in play, as far as `EffectContext.lastKnown` carries it. */
+export interface LastKnownCard {
+  readonly attachments: readonly InstanceId[];
+  readonly statuses: Readonly<Record<"stunned" | "confused" | "tough", number>>;
 }
 
 /** `AbilityDefinition.reaches` as a context field: spread into the context an ability's queries are read in. */
@@ -1175,8 +1194,10 @@ export function explainQuery(
     // A facedown attachment is out of play (RRG 1.8 p. 23): no "with an upgrade attached" unless facedown ones are asked for.
     const counts = (attached: InstanceId): boolean =>
       wanted.facedown === true || !isFacedownAttachment(state, attached);
-    if (!instance.attachments.some((attached) => counts(attached) && matchesQuery(state, attached, wanted, context)))
-      return "missingAttachment";
+    // A card that has left play: what was attached to it as last known (`EffectContext.lastKnown`).
+    const known = lastKnownOf(state, id, context);
+    const attachments = known ? known.attachments : instance.attachments.filter(counts);
+    if (!attachments.some((attached) => matchesQuery(state, attached, wanted, context))) return "missingAttachment";
   }
   // "Attach it to another character": only a host that can take that card (`cannotHaveAttachments`).
   if (query.canHaveAttached !== undefined) {
@@ -1246,11 +1267,16 @@ export function explainQuery(
   if (query.hasCounter !== undefined && (instance.counters[query.hasCounter] ?? 0) <= 0) return "missingCounter";
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged)
     return query.damaged ? "notDamaged" : "damaged";
-  if (query.hasStatus && instance.statuses[query.hasStatus] <= 0) return "missingStatus";
+  // The status cards of a card that has left play are its last known ones (`EffectContext.lastKnown`).
+  const statuses =
+    query.hasStatus || query.hasAnyStatus !== undefined
+      ? (lastKnownOf(state, id, context)?.statuses ?? instance.statuses)
+      : instance.statuses;
+  if (query.hasStatus && statuses[query.hasStatus] <= 0) return "missingStatus";
   // "A status card in play": a character carrying at least one of any type (RRG 1.8 "Status Cards", p. 42 lists
   // exactly three). Counts the cards present, so a steady character's second stunned card still reads as "has one".
   if (query.hasAnyStatus !== undefined) {
-    const any = STATUS_NAMES.some((status) => instance.statuses[status] > 0);
+    const any = STATUS_NAMES.some((status) => statuses[status] > 0);
     if (any !== query.hasAnyStatus) return query.hasAnyStatus ? "missingStatus" : "hasStatus";
   }
   // Room for a status card of that type, by the check `giveStatus` itself makes (RRG 1.8 "Status Cards", p. 41).
@@ -1385,6 +1411,15 @@ export function explainQuery(
     const mine = traitsOf(state, id, context.deps);
     const theirs = new Set(
       resolveRef(state, query.sharesTraitWith, context).flatMap((other) => traitsOf(state, other, context.deps)),
+    );
+    if (!mine.some((trait) => theirs.has(trait))) return "noSharedTrait";
+  }
+  if (query.sharesTraitWithHeroOf) {
+    // "Must share a trait with your hero", asked while the identity is on its alter-ego side (MC45 p. 20;
+    // docs/phase7-wave8.md §3.44): the hero side's printed traits, whichever side is up.
+    const mine = traitsOf(state, id, context.deps);
+    const theirs = new Set(
+      heroIdentitiesOf(state, query.sharesTraitWithHeroOf, context).flatMap((identity) => identity.hero.traits),
     );
     if (!mine.some((trait) => theirs.has(trait))) return "noSharedTrait";
   }
@@ -2121,6 +2156,24 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
       if (attack?.kind !== "event" || attack.event.kind !== "enemyAttack") return [];
       const enemy = attack.event.enemyInstanceId;
       return cardsInPlay(state).includes(enemy) ? [enemy] : [];
+    }
+    case "attackedCharacter": {
+      // The innermost attack (by one of `attacker`, when given), as `PlayerRef attackedPlayer` finds it.
+      const attackers = ref.attacker ? resolveRef(state, ref.attacker, context) : null;
+      for (const f of state.stack) {
+        if (f.kind !== "event") continue;
+        const event = f.event;
+        const attacker =
+          event.kind === "enemyAttack"
+            ? event.enemyInstanceId
+            : event.kind === "attack" || event.kind === "enemyAttacksEnemy"
+              ? event.attackerInstanceId
+              : null;
+        if (attacker === null || (attackers !== null && !attackers.includes(attacker))) continue;
+        const target = "targetInstanceId" in event ? event.targetInstanceId : null;
+        return target !== null && getInstance(state, target) ? [target] : [];
+      }
+      return [];
     }
     case "activatingEnemy": {
       // The innermost enemy activation, attack or scheme (the stack is innermost-first).

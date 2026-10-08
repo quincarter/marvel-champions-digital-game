@@ -50,7 +50,7 @@ import {
   discardFromHand,
   expirePaidForEffects,
   giveStatus,
-  setForm,
+  changeIdentityForm,
   settleAwaitingAttackEffects,
   shuffleZone,
 } from "../effects.js";
@@ -683,7 +683,7 @@ function executeDivide(
     // A played card's damage bonus (`modifyCardEffect`, Aggressive Energy) is added once to each enemy that takes a
     // share, not once per point or once overall: ruling, June 25, 2026 (2) ("+1 damage to each enemy damaged by the
     // effect"), the same per-instance reading as `dealDamage` (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
-    const bonus = cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
+    const bonus = cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "damage");
     // Each enemy's share is an instance of the ability's one attack, and that enemy is attacked.
     const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }>[] = [];
     const events = [...shares].map(([targetInstanceId, points]): Extract<TriggerEvent, { kind: "dealDamage" }> => {
@@ -1087,7 +1087,7 @@ function executeChangeForm(
   for (const { playerId, to, heroForm } of changes) {
     // RRG 1.8 "Cost" (p. 14): unpaid, "the effect associated with the costs does not occur".
     if (vars[`${FORM_COST}${playerId}`] === FORM_COST_UNPAID) continue;
-    const event = setForm(ctx, playerId, to, false, heroForm);
+    const event = changeIdentityForm(ctx, playerId, to, false, heroForm);
     if (event) changed.push(event);
   }
   pushEvents(ctx, changed);

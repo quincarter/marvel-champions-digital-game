@@ -67,8 +67,9 @@ vi.setConfig({ testTimeout: 240_000 });
  * - Energy Conversion (45009): a resource card of his discard pile is shuffled into his deck, and he takes at most 3
  *   damage from that attack.
  *
- * Known gap, not asserted: Portal Through Time (45027) is unregistered (docs/phase7-wave8.md section 3.60, its surge is
- * an engine gap), so the only path to it is Bantam or Trevor Fitzroy finding it, and it has no ability when it does.
+ * Portal Through Time (45027) is registered (its Forced Interrupt gives surge to the first TEMPORAL card revealed each
+ * phase while it is in play); the only path to it is Bantam or Trevor Fitzroy finding it. Not asserted here: its own
+ * module's tests stage it.
  */
 
 const BISHOP = { starterDeckId: "bishop-leadership" } as const;

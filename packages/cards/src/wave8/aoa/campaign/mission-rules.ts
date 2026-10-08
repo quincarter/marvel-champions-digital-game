@@ -23,6 +23,7 @@ import {
   raiseMoment,
   refCount,
   removeThreat,
+  sharesTraitWithHeroOf,
   shuffleDeck,
   thatPlayer,
   topOfDeck,
@@ -162,28 +163,35 @@ const FOUND_ALLY = "foundAlly";
  * A player whose deck holds an ally takes one: the RRG's search has no "may" ("If the player finds a card that
  * satisfies the criteria of the search, the player adds that card").
  *
- * Standard campaign only. The expert sentence ("the ally you choose during Setup must share a trait with your hero")
- * is not built: `sharesTraitWith(identityOf(...))` reads the face that is up, and at setup that is the alter-ego.
+ * `sharesTraitWithHero` is the expert campaign's sentence (MC45 p. 20: "When playing expert campaign, the ally you
+ * choose during Setup must share a trait with your hero"; docs/phase7-wave8.md §2.16): only an ally that shares a trait
+ * with the hero side of that player's identity card is offered. The hero side as printed, because every identity is
+ * still on its alter-ego side then (`sharesTraitWithHeroOf`; `sharesTraitWith(identityOf(...))` reads the side that is
+ * up). A player with no such ally in their deck finds nothing and draws in full.
  */
-export const allySearch = (): readonly EffectSpec[] => [
+export const allySearch = (opts: { readonly sharesTraitWithHero?: boolean } = {}): readonly EffectSpec[] => [
   forEachPlayer(
     eachPlayer,
-    chooseCards(FOUND_ALLY, zone("deck", thatPlayer, { filter: query("ally") }), {
-      min: 1,
-      max: 1,
-      chooser: thatPlayer,
-    }),
+    chooseCards(
+      FOUND_ALLY,
+      zone("deck", thatPlayer, {
+        filter: query("ally", opts.sharesTraitWithHero ? sharesTraitWithHeroOf(thatPlayer) : {}),
+      }),
+      { min: 1, max: 1, chooser: thatPlayer },
+    ),
     moveCards({ kind: "ref", ref: chosen(FOUND_ALLY) }, "hand"),
     shuffleDeck(thatPlayer),
     countTowardStartingHand(thatPlayer, refCount(chosen(FOUND_ALLY))),
   ),
 ];
 
-export const allySearchInstruction = (): ScenarioSetupInstruction => ({
+export const allySearchInstruction = (
+  opts: { readonly sharesTraitWithHero?: boolean } = {},
+): ScenarioSetupInstruction => ({
   id: "aoa.ally-search",
   text: "Each player searches their deck for an ally and adds it to their hand. (This card counts towards your hand size.)",
   citation: "MC45 p. 20",
-  effects: allySearch(),
+  effects: allySearch(opts),
 });
 
 /**

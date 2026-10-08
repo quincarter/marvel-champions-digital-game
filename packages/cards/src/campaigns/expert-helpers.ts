@@ -2,13 +2,13 @@
  * The four expert-campaign instructions every box prints in nearly the same words (docs/phase7-wave7.md §3.46): record
  * remaining hit points after a win (capped at the base value), set them at the next setup, and the paid heal that
  * lets a player restore their identity to full, which a defeated player must pay to rejoin (wave 6 §4.1 Q11). The
- * heal's price is the box's: an acceleration token on the main scheme (`healToFull`) or a facedown encounter card
- * (`healWithFacedownCard`).
+ * heal's price is the box's: an acceleration token on the main scheme (`healToFull`), a facedown encounter card
+ * (`healWithFacedownCard`) or threat on a scheme the box names (`healForThreat`).
  *
  * First used by `next_evol.ts`. `mut_gen.ts`, `mts.ts` and `mojo.ts` still carry their own copies of the same shapes
  * and are not touched here.
  */
-import type { CampaignInstruction } from "@mc/engine";
+import type { CampaignInstruction, TargetRef } from "@mc/engine";
 import { DEFAULT_CAMPAIGN_WINDOW } from "@mc/engine";
 import {
   addAccelerationToken,
@@ -23,6 +23,7 @@ import {
   identityOf,
   ifThen,
   option,
+  placeThreat,
   setRemainingHitPoints,
   thatPlayer,
 } from "../dsl/index.js";
@@ -117,6 +118,46 @@ export function healWithFacedownCard(id: string, citation: string): CampaignInst
             campaignLogAtLeast("remainingHp", 1, { seat: thatPlayer }),
             chooseOneBy(thatPlayer, option("Heal to full · +1 facedown card", deal, healFull), option("Decline", [])),
             [deal, healFull],
+          ),
+        ),
+      ],
+    },
+  };
+}
+
+/**
+ * "Expert Campaign Only: Each player may place 3 threat on the [MISSION] side scheme to heal their identity to its
+ * full hit point value." (MC45 pp. 12, 14, 16, 20; docs/phase7-wave8.md §2.16.) The price is `threat` on `scheme`,
+ * flat and once for each player who heals: with two players healing, the scheme gains twice the amount. `scheme` must
+ * be able to reach the card (the mission is in a closed area, and a ref that names the area reaches it). `schemeName`
+ * is how the printed sentence names the scheme. Forced for a seat recorded at 0 or with no record (a seat that sat out
+ * the Victory steps "can rejoin their teammates by placing 3 threat on that scenario's [MISSION] side scheme", MC45
+ * p. 20), as `healToFull`.
+ */
+export function healForThreat(
+  id: string,
+  citation: string,
+  threat: number,
+  scheme: TargetRef,
+  schemeName: string,
+): CampaignInstruction {
+  const pay = placeThreat(threat, scheme);
+  const healFull = heal(damageOn(identityOf(thatPlayer)), identityOf(thatPlayer));
+  return {
+    id,
+    text: `Expert Campaign Only: Each player may place ${threat} threat on the ${schemeName} to heal their identity to its full hit point value.`,
+    citation,
+    whenModes: { expertCampaign: true },
+    step: {
+      kind: "inGame",
+      window: DEFAULT_CAMPAIGN_WINDOW,
+      effects: [
+        forEachPlayer(
+          eachPlayer,
+          ifThen(
+            campaignLogAtLeast("remainingHp", 1, { seat: thatPlayer }),
+            chooseOneBy(thatPlayer, option(`Heal to full · +${threat} threat`, pay, healFull), option("Decline", [])),
+            [pay, healFull],
           ),
         ),
       ],

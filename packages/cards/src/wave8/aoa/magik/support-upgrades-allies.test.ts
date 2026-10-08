@@ -32,11 +32,7 @@ import {
 import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
 import { MAGIK_IDENTITY } from "./identity.js";
-import {
-  COLOSSUS_INTERRUPT_DRAFT,
-  MAGIK_SUPPORT_UPGRADES_ALLIES,
-  MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
-} from "./support-upgrades-allies.js";
+import { MAGIK_SUPPORT_UPGRADES_ALLIES, MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED } from "./support-upgrades-allies.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -76,10 +72,6 @@ const MAGIK_SEAT = {
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(WAVE7_ABILITIES, MAGIK_IDENTITY, MAGIK_SUPPORT_UPGRADES_ALLIES),
 };
-const DRAFT_DEPS: EngineDeps = {
-  abilities: mergeRegistries(DEPS.abilities, { [REF.colossus]: COLOSSUS_INTERRUPT_DRAFT }),
-};
-
 const codeOf = (s: GameState, id: InstanceId): string => (getInstance(s, id)?.cardId as string | undefined) ?? "?";
 const codes = (s: GameState, ids: readonly InstanceId[]): string[] => ids.map((id) => codeOf(s, id));
 const handOf = (s: GameState, p: PlayerId = P1): string[] => codes(s, playerOf(s, p).hand);
@@ -121,18 +113,15 @@ function withUpgrade(s0: GameState, code: string): GameState {
 }
 
 describe("registry", () => {
-  const refs = Object.values(REF).filter((r) => r !== REF.colossus);
-  it("registers every ref of the group except Colossus, each valid and named on its card", () => {
+  const refs = Object.values(REF);
+  it("registers every ref of the group, each valid and named on its card", () => {
     expect(Object.keys(MAGIK_SUPPORT_UPGRADES_ALLIES).sort()).toEqual([...refs].sort());
     for (const ref of refs) expect(validateDefinition(MAGIK_SUPPORT_UPGRADES_ALLIES[ref]!)).toEqual([]);
-    expect(validateDefinition(COLOSSUS_INTERRUPT_DRAFT)).toEqual([]);
     for (const id of [COLOSSUS, LIMBO, CROWN, SOULSWORD, ARMOR]) {
       const card = AOA_CARDS.find((c) => c.id === cardId(id)) as never as { abilities: { id: string }[] };
-      for (const a of card.abilities) {
-        expect(a.id in MAGIK_SUPPORT_UPGRADES_ALLIES || a.id in MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED).toBe(true);
-      }
+      for (const a of card.abilities) expect(a.id in MAGIK_SUPPORT_UPGRADES_ALLIES).toBe(true);
     }
-    expect(Object.keys(MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED)).toEqual([REF.colossus]);
+    expect(MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED).toEqual({});
   });
 });
 
@@ -317,7 +306,7 @@ function colossusHand(blank: boolean): { s: GameState; colossus: InstanceId } {
 function villainPhase(s: GameState) {
   const offers: string[] = [];
   const run = driveEventsPicking(
-    DRAFT_DEPS,
+    DEPS,
     s,
     (st) => {
       const c = st.pendingChoice!;
@@ -337,12 +326,8 @@ function villainPhase(s: GameState) {
   return { ...run, offers };
 }
 
-describe("Colossus 45031 (unregistered: no affordability gate for an in-hand self-play interrupt)", () => {
-  it("is skipped with a reason", () => {
-    expect(MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED[REF.colossus]).toMatch(/affordab/);
-  });
-
-  it("the draft, when the cost can be paid: he is played for 3, becomes the defender ready, and his tough card absorbs the attack", () => {
+describe("Colossus 45031: an in-hand interrupt that plays him (paying his cost) and declares him the defender, ready", () => {
+  it("when the cost can be paid: he is played for 3, becomes the defender ready, and his tough card absorbs the attack", () => {
     const { s, colossus } = colossusHand(false);
     const { state, events, offers } = villainPhase(s);
     expect(offers.length).toBeGreaterThanOrEqual(1);
@@ -363,17 +348,12 @@ describe("Colossus 45031 (unregistered: no affordability gate for an in-hand sel
     expect(events.filter((e) => e.type === "damagePrevented")).toHaveLength(1);
   });
 
-  it("today: with a hand that cannot pay 3 the interrupt is still offered, and taking it does nothing", () => {
+  it("with a hand that cannot pay 3 the interrupt is not offered, and he stays in the hand (RRG p. 24, step 2)", () => {
     const { s, colossus } = colossusHand(true);
     const { state, offers, events } = villainPhase(s);
-    expect(offers.length).toBeGreaterThanOrEqual(1);
+    expect(offers).toEqual([]);
     expect(playerOf(state, P1).playArea).not.toContain(colossus);
     expect(handOf(state)).toContain(COLOSSUS);
     expect(events.some((e) => e.type === "cardPlayed" && e.instanceId === colossus)).toBe(false);
-  });
-
-  it.fails("proof of the gap: with a hand that cannot pay 3 the interrupt is not offered", () => {
-    const { s } = colossusHand(true);
-    expect(villainPhase(s).offers).toEqual([]);
   });
 });

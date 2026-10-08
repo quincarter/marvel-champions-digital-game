@@ -117,8 +117,9 @@ const stepInstance = (k: number) =>
  * **Data ids.** Husk 47012 lists `husk-interrupt` alone, and Multitalented 47021 lists `multitalented-constant` alone
  * (it holds the whole Hero Action: the header line and its three bullets). Both are registered.
  *
- * **Chamber (47011) is not registered**: Q38 = A (the enemy as it was when the attack was made) is not met when the
- * attack defeats the confused enemy; see `JUBILEE_ASPECT_BASIC_DRAFTS`.
+ * **Chamber (47011)**: 1 less consequential damage after he attacks a confused enemy. The enemy is read live while it
+ * is in play and as it was when the attack was made once the attack has defeated it (Q38 = A, FFG ruling February 8,
+ * 2026 (1): the engine's last known information for an attack's target), so a defeating attack keeps the reduction.
  *
  * **Husk (47012)**: a resource cost of a chosen size (1 to 3, nothing overpaid); everything spent was spent, so each
  * named type is read from the whole spent pool, a wild as its player declared it (Q33 = B). [energy] adds 1 to the
@@ -152,6 +153,15 @@ const stepInstance = (k: number) =>
  * `JUBILEE_ASPECT_BASIC_SKIPPED`. The unregistered drafts are exported for the proofs in the test file.
  */
 export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
+  "47011.chamber-constant": constant(
+    rule(
+      takesConsequentialDamage({ self: true }, -1, {
+        from: "attack",
+        if: refMatches(attackTarget(), query("enemy", { hasStatus: "confused" }), { anywhere: true }),
+      }),
+    ),
+  ),
+
   "47012.husk-interrupt": interrupt(
     on.basicPowerUsing("self"),
     { cost: spendChosen(3), readsPaidTypes: { types: ["energy", "mental", "physical"] } },
@@ -235,10 +245,6 @@ export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
  * them wrongly); the test file proves each with an `it.fails` and pins today's behavior beside it. Register one by
  * moving it into the registry above once its proof passes.
  *
- * Chamber (`47011.chamber-constant`): the reduction reads the attacked enemy's confused status when the consequential
- * damage is dealt. An attack that defeats the enemy has discarded the status by then, so the reduction is lost (Q38 = A
- * asks for the enemy as it was when the attack was made). The same gap as Snow Clone (`46003.snow-clone-constant-2`).
- *
  * Generation X (`47016.generation-x-constant`): drafted as an always-on +1 THW for X-MEN characters, which is wrong off
  * Generation X (no predicate says "making a basic thwart against this scheme").
  *
@@ -247,15 +253,6 @@ export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
  * used with no ally to return and loses the cost semantics (RRG 1.8 "Cost", p. 13).
  */
 export const JUBILEE_ASPECT_BASIC_DRAFTS: Readonly<Record<string, AbilityDefinition>> = {
-  "47011.chamber-constant": constant(
-    rule(
-      takesConsequentialDamage({ self: true }, -1, {
-        from: "attack",
-        if: refMatches(attackTarget(), query("enemy", { hasStatus: "confused" }), { anywhere: true }),
-      }),
-    ),
-  ),
-
   "47016.generation-x-constant": constant(gets("thw", 1, query(["hero", "ally"], { trait: X_MEN }))),
 
   "47028.mutant-mayhem-action": heroAction(
@@ -270,8 +267,6 @@ export const JUBILEE_ASPECT_BASIC_DRAFTS: Readonly<Record<string, AbilityDefinit
 
 /** Refs of this module's cards left unregistered, each with its reason; `coverage.test.ts` pins them. */
 export const JUBILEE_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "47011.chamber-constant":
-    "the reduction is lost when the attack defeats the confused enemy (its confused card is discarded before the consequential damage is dealt); Q38 = A asks for the enemy as it was when the attack was made. The same gap as Snow Clone 46003: docs/phase7-wave8.md section 3.67",
   "47016.generation-x-constant":
     "'+1 THW while making a basic thwart against this scheme' needs a stat-modifier condition on the thwart in progress and its scheme; there is no thwartInProgress predicate (attackInProgress is attacks only) and the basicPowerUsing event carries no target scheme, so an interrupt would raise every X-MEN thwart against any scheme: docs/phase7-wave8.md §3.70 row 'Each [X-MEN] character gets +1 THW'",
   "47028.mutant-mayhem-action":

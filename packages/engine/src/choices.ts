@@ -108,13 +108,17 @@ export type ChoicePrompt =
    * A cost paid with cards in play whose cards are the player's choice, asked inside a timing window before the
    * payment (`InPlayCostPick`; docs/phase7-wave4.md §3.17): "exhaust an [Avenger] character and a [Guardian] character"
    * asks once per slot. Options are the candidates; selecting fewer than `min` backs out of the card or ability.
+   *
+   * Mode `discardFromHand` (slot `discard`): the cards in hand a "discard N cards from your hand →" cost
+   * (`AbilityCost.discardFromHand`) of an interrupt or response is paid with, asked the same way; its options are
+   * cards in hand, and a card picked is left out of the payment options that follow.
    */
   | {
       readonly kind: "chooseCostCards";
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly slot: string;
-      readonly mode: InPlayCostMode;
+      readonly mode: InPlayCostMode | "discardFromHand";
     }
   /**
    * An "up to N" counter cost of an interrupt or response the player chose to use inside a timing window ("remove up

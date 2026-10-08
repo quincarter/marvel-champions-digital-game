@@ -19,7 +19,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { coreScenario } from "../../../core/setup.js";
-import { defineAbilities, mergeRegistries } from "../../../dsl/index.js";
+import { mergeRegistries } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
@@ -80,10 +80,9 @@ type Seat = typeof ICEMAN_SEAT | typeof SPIDER_MAN;
 
 /**
  * Frostbite's Forced Response ships as its activation half (the leaves-play half is `FROSTBITE_FORCED_RESPONSE_GAP`);
- * Snow Clone's reduction is skipped because its section proof fails (3.67, Q38 = A). The module exports both as printed in
- * `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS`. `DEPS` is the shipped registry plus the drafted Snow Clone ref.
- * `FULL_TEXT_DEPS` swaps in the drafts as printed (the full Frostbite text replaces the shipped half); the tests that
- * need them to pass are `it.fails`. When the engine can run the drafts, register them and turn the `it.fails` into `it`.
+ * the module exports the full text in `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS`. `DEPS` is the shipped registry.
+ * `FULL_TEXT_DEPS` swaps in the draft as printed (the full Frostbite text replaces the shipped half); the tests that
+ * need it to pass are `it.fails`. When the engine can run the draft, register it and turn the `it.fails` into `it`.
  */
 const SHIPPED_WITHOUT_FROSTBITE_RESPONSE = Object.fromEntries(
   Object.entries(ICEMAN_SUPPORT_UPGRADES_ALLIES).filter(([ref]) => ref !== "46002.frostbite-forced-response"),
@@ -91,10 +90,7 @@ const SHIPPED_WITHOUT_FROSTBITE_RESPONSE = Object.fromEntries(
 const depsWith = (...fixtures: readonly AbilityRegistry[]): EngineDeps => ({
   abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_IDENTITY, ICEMAN_SUPPORT_UPGRADES_ALLIES, ...fixtures),
 });
-const SNOW_CLONE_DRAFT = defineAbilities({
-  "46003.snow-clone-constant-2": ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS["46003.snow-clone-constant-2"]!,
-});
-const DEPS: EngineDeps = depsWith(SNOW_CLONE_DRAFT);
+const DEPS: EngineDeps = depsWith();
 const FULL_TEXT_DEPS: EngineDeps = {
   abilities: mergeRegistries(
     WAVE7_ABILITIES,
@@ -219,13 +215,13 @@ const villainPhase = (s: GameState, pick: Picker = declineFreeze, boosts: readon
 
 describe("registry", () => {
   const registered = Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES).sort();
-  it("registers nine refs (Frostbite's Forced Response as its activation half); Snow Clone's reduction and Cryokinetic Perception's are skipped and only drafted", () => {
+  it("registers ten refs (Frostbite's Forced Response as its activation half); Cryokinetic Perception's is skipped", () => {
     const refs = ICEMAN_CARDS.filter((c) => (c.id as string) >= "46002" && (c.id as string) <= "46008").flatMap(
       abilityRefIds,
     );
     expect(refs).toHaveLength(11);
-    const skipped = ["46003.snow-clone-constant-2", "46005.cryokinetic-perception-response"];
-    expect(registered).toHaveLength(9);
+    const skipped = ["46005.cryokinetic-perception-response"];
+    expect(registered).toHaveLength(10);
     expect(registered).toEqual(refs.filter((id) => !skipped.includes(id)).sort());
     expect(Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED).sort()).toEqual(skipped);
   });
@@ -238,6 +234,7 @@ describe("registry", () => {
       "46002.frostbite-constant",
       "46002.frostbite-forced-response",
       "46003.snow-clone-constant",
+      "46003.snow-clone-constant-2",
       "46004.power-belt-constant",
       "46004.power-belt-resource",
       "46006.ice-slide-constant",
@@ -437,7 +434,7 @@ describe("Frostbite (46002): a second player's enemy", () => {
   });
 });
 
-describe("Snow Clone (46003): cannot have upgrades (registered) and the reduction (drafted, skipped)", () => {
+describe("Snow Clone (46003): cannot have upgrades, and 1 less consequential damage after attacking an enemy with Frostbite", () => {
   /** Snow Clone in play (cost 2, ATK 2, 2 hit points), a Sandman engaged with Iceman, and a handful of hand cards left. */
   function cloneGame() {
     const { state: s, id: minion } = withMinion(heroGame());
@@ -483,21 +480,14 @@ describe("Snow Clone (46003): cannot have upgrades (registered) and the reductio
     const without = run(s, takeFreeze, attack(s, villainOf(s), clone)).state;
     expect(inst(without, clone).damage).toBe(1);
   });
-  // Section 3.67 proof, expected to fail: the Frostbite is unattached from the defeated minion before the consequential
-  // damage is dealt, so the draft's condition is false and Snow Clone takes 1 where Q38 = A says 0.
-  it.fails("Q38 = A: the attack that defeats the enemy keeps the reduction (Sandman 2 damage of 4, Frostbite on, Snow Clone hits 2)", () => {
+  // Section 3.67 test 2: the Frostbite is unattached from the defeated minion before the consequential damage is dealt;
+  // the enemy is read as it was when the attack was made (Q38 = A), so the reduction holds.
+  it("Q38 = A: the attack that defeats the enemy keeps the reduction (Sandman 2 damage of 4, Frostbite on, Snow Clone hits 2)", () => {
     const { state: s, clone, minion } = cloneGame();
     const frozen = patchInstance(freeze(s, 1, minion), minion, { damage: 2 });
-    const { state } = driveEventsPicking(FULL_TEXT_DEPS, frozen, takeFreeze, attack(frozen, minion, clone));
+    const { state } = run(frozen, takeFreeze, attack(frozen, minion, clone));
     expect(playerOf(state, P1).playArea).not.toContain(minion);
     expect(inst(state, clone).damage).toBe(0);
-  });
-  it("what the engine does instead: the defeating attack costs Snow Clone its 1 consequential damage", () => {
-    const { state: s, clone, minion } = cloneGame();
-    const frozen = patchInstance(freeze(s, 1, minion), minion, { damage: 2 });
-    const { state } = driveEventsPicking(FULL_TEXT_DEPS, frozen, takeFreeze, attack(frozen, minion, clone));
-    expect(playerOf(state, P1).playArea).not.toContain(minion);
-    expect(inst(state, clone).damage).toBe(1);
   });
   it("the same defeat with no Frostbite: Snow Clone takes the 1 consequential damage", () => {
     const { state: s, clone, minion } = cloneGame();

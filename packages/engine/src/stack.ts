@@ -309,6 +309,16 @@ export type StackFrame =
        * occurrence. Absent until the window opens; `stillOffered` drops one that can no longer be initiated.
        */
       readonly optionalAtOpen?: readonly TriggerCandidate[];
+      /**
+       * Interrupt windows only: the optional abilities that were live as the window opened and listen for this kind
+       * of event (`hearersOf`), by key, whether or not their whole condition was met then. One of them whose
+       * condition comes to be met while the window is open, before the event resolves, is offered then ("When you
+       * make a basic attack against an enemy with an upgrade attached", after another interrupt attached one): RRG 1.8
+       * "Interrupt" (p. 25), the triggering condition is still imminent, and "Initiating Abilities" (p. 24), an ability
+       * is checked as it is initiated. An ability that was not live at the open is never in this list, so the rule of
+       * `optionalAtOpen` stands for it. Offered ones join `optionalAtOpen`, so none is offered twice.
+       */
+      readonly heardAtOpen?: readonly string[];
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];

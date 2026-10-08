@@ -193,6 +193,37 @@ describe("§3.44 the ally search of every scenario's Campaign Instructions (MC45
     expect(playerOf(created, P1)).not.toHaveProperty("startingHandCredit");
   });
 
+  it("expert campaign: only an ally sharing a trait with the hero side is offered, though Peter Parker is up", () => {
+    // Spider-Man's hero side is [AVENGER]; Peter Parker's side is [GENIUS]. Hawkeye 01066 is an [AVENGER] ally.
+    const HAWKEYE = "01066";
+    const created = rhino({ deck: [HAWKEYE], instructions: [allySearchInstruction({ sharesTraitWithHero: true })] });
+    const identity = created.cardPool[playerOf(created, P1).identity.cardId]!;
+    if (identity.type !== "hero_identity") throw new Error("not an identity");
+    expect(playerOf(created, P1).identity.form).toBe("alterEgo");
+    expect(identity.alterEgo.traits.some((t) => identity.hero.traits.includes(t))).toBe(false);
+    const search = created.pendingChoice!;
+    expect(search.prompt.kind).toBe("chooseCards");
+    const offered = search.options.map((o) => created.cardPool[created.instances[o.optionId as InstanceId]!.cardId]!);
+    expect(offered.map((card) => card.id)).toContain(HAWKEYE);
+    for (const card of offered) {
+      expect(card.type).toBe("ally");
+      expect(("traits" in card ? card.traits : []).some((t) => identity.hero.traits.includes(t))).toBe(true);
+    }
+    // Fewer than every ally of the deck: the Justice precon's other allies are no Avengers.
+    const allies = playerOf(created, P1).deck.filter((id) => typeOf(created, id) === "ally");
+    expect(search.options.length).toBeLessThan(allies.length);
+  });
+
+  it("expert campaign, a deck whose allies share no trait with the hero: nothing found, nobody asked, 6 drawn", () => {
+    const sharesNone = (card: AnyCard): boolean =>
+      card.type !== "ally" || !card.traits.some((t) => (t as string) === "AVENGER");
+    const created = rhino({ keep: sharesNone, instructions: [allySearchInstruction({ sharesTraitWithHero: true })] });
+    expect(playerOf(created, P1).deck.some((id) => typeOf(created, id) === "ally")).toBe(true);
+    expect(created.pendingChoice?.prompt.kind).toBe("mulligan");
+    expect(playerOf(created, P1).hand).toHaveLength(6);
+    expect(playerOf(created, P1)).not.toHaveProperty("startingHandCredit");
+  });
+
   it("a standalone game of the same scenario: 6 drawn, no search", () => {
     const created = rhino({});
     expect(created.pendingChoice?.prompt.kind).toBe("mulligan");

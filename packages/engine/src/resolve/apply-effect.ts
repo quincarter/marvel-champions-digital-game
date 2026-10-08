@@ -391,7 +391,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "dealDamage": {
       // "Increase the amount of damage that event deals by 2" (Embiggen!): every instance this card deals (RRG 1.8
       // "Event", p. 19; FAQ "Embiggen (#10)", p. 59), but not damage its player takes (`taken`, wave 6 §3.41, Q21).
-      const bonus = effect.taken ? 0 : cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
+      // Nor an instruction that is itself additional damage of an earlier instance (`additional`, owner ruling Q53).
+      const increased = !effect.taken && !effect.additional;
+      const bonus = increased ? cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "damage") : 0;
       // `perTarget`: the amount is read for each target, that target bound to `AFFECTED_SLOT`; a target owed none is
       // dealt no damage.
       const amountFor = (id: InstanceId): number =>
@@ -422,7 +424,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           return {
             kind: "dealDamage",
             targetInstanceId: id,
-            amount: base + bonus + (ofAttack?.extra ?? 0),
+            amount: base + bonus + (increased ? (ofAttack?.extra ?? 0) : 0),
             sourceInstanceId:
               (effect.sourceFromEvent && context.event?.kind === "dealDamage"
                 ? context.event.sourceInstanceId
@@ -475,7 +477,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "removeThreat": {
       // "Increase the amount of threat that event removes by 2" (Shrink): every instance this card removes.
-      const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
+      const amount = value(effect.amount) + cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "threatRemoved");
       const by = namedBy(effect.by);
       pushEvents(
         ctx,
@@ -510,7 +512,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
       // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,
       // so it raises the damage dealt without healing more from the source.
-      amount += cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
+      amount += cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "damage");
       // RRG 1.8 "Stun" (p. 41): "If a stunned identity or ally attempts to attack or use an attack ability, discard
       // the stunned card instead. Costs associated with the attack attempt … must still be paid." An ability that
       // creates several attacks spends the stun on the first of them only — FAQ "Dance of Death (#4)" (p. 59):
@@ -671,7 +673,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         return blocked === null;
       });
       // A "(thwart)" event's threat removal is an instance too (RRG 1.8 "Thwart", p. 44).
-      const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
+      const amount = value(effect.amount) + cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "threatRemoved");
       // Each scheme is an instance of the one thwart a "(thwart)" ability makes by its controller's identity (RRG 1.8
       // "Thwart", p. 44): tied to the ability's frame, which answers "after you thwart" once (`thwart-session.ts`).
       const ofAbility =
@@ -1451,6 +1453,29 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           { kind: "endOfCardResolution", instanceId: id },
         );
       }
+      return;
+    }
+    case "modifyCardEffectsUntil": {
+      const damage = effect.damage ? value(effect.damage) : 0;
+      const threatRemoved = effect.threatRemoved ? value(effect.threatRemoved) : 0;
+      if (damage === 0 && threatRemoved === 0) return;
+      if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+      addLastingEffect(
+        ctx,
+        {
+          kind: "cardEffectBonusFor",
+          cards: effect.cards,
+          scope: {
+            selfInstanceId: frame.selfInstanceId,
+            controllerId: frame.controllerId,
+            vars: frame.vars,
+            bindings: frame.bindings,
+          },
+          damage,
+          threatRemoved,
+        },
+        { kind: effect.until },
+      );
       return;
     }
     case "createScenarioArea":
@@ -3105,10 +3130,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "gainSurge": {
-      const reveal = ctx.state.stack.find(
-        (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === frame.selfInstanceId,
-      );
-      if (reveal) setFrame(ctx, { ...reveal, surgeGained: true });
+      const revealOf = (id: InstanceId | null) =>
+        ctx.state.stack.find((f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === id);
+      if (effect.target === undefined) {
+        const reveal = revealOf(frame.selfInstanceId);
+        if (reveal) setFrame(ctx, { ...reveal, surgeGained: true });
+        return;
+      }
+      // "It gains surge" (`target`): another card, for the reveal it is in the middle of.
+      for (const id of targets(effect.target)) {
+        const reveal = revealOf(id);
+        if (!reveal || reveal.surgeGained) continue;
+        setFrame(ctx, { ...reveal, surgeGained: true });
+        emit(ctx, { type: "surgeGranted", instanceId: id, playerId: reveal.playerId });
+      }
       return;
     }
     case "setVar":

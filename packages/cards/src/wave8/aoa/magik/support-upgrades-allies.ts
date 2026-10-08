@@ -1,4 +1,4 @@
-import type { AbilityDefinition, AbilityRegistry, TargetRef } from "@mc/engine";
+import type { AbilityRegistry, TargetRef } from "@mc/engine";
 import {
   action,
   attacksGainKeywords,
@@ -47,8 +47,10 @@ const swapHandWithTop = [
  * `while` is `topOfYourDeckHas(type)`, the top card faceup with that printed icon or a wild (section 3.50). Restricted
  * (Soulsword) is card data. A modifier whose `while` reads the deck follows the top card with no ability resolving.
  *
- * **Colossus (45031)** is not registered (`MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED`, `COLOSSUS_INTERRUPT_DRAFT`): the open
- * affordability gap for an in-hand self-play interrupt still stands. Toughness is data.
+ * **Colossus (45031)**: active in hand; when an enemy attacks you, play him from the hand paying his cost, then declare
+ * him the defender without exhausting him. The engine offers an in-hand interrupt that plays its own card only while
+ * the card can be played and paid for (RRG 1.8 "Initiating Abilities", p. 24, step 2), so with a hand that cannot pay
+ * his 3 it is not offered. Toughness is data.
  *
  * Cards (5):
  * - 45031 Colossus (ally)
@@ -58,6 +60,14 @@ const swapHandWithTop = [
  * - 45035 Mystical Armor (upgrade)
  */
 export const MAGIK_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
+  "45031.colossus-interrupt": inHand(
+    interrupt(
+      on.enemyAttacks({ categories: ["villain", "minion"] }, { againstYou: true }),
+      playFromHandReducingCost(0, you, { filter: query("ally", { self: true }) }),
+      declareDefender(self, { exhaust: false }),
+    ),
+  ),
+
   "45032.limbo-response": response(on.phaseBeginning("villain"), { cost: exhaustThis }, ...swapHandWithTop),
   "45032.limbo-action": action({ cost: exhaustThis }, ...swapHandWithTop),
 
@@ -71,20 +81,5 @@ export const MAGIK_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "45035.mystical-armor-constant-2": constant(gets("def", 1, MAGIK, { while: topOfYourDeckHas("energy") })),
 });
 
-/**
- * Colossus's Interrupt as it should read (not registered, see the skipped map): active in hand, when an enemy attacks
- * you, play him from the hand paying his cost, then declare him the defender without exhausting him.
- */
-export const COLOSSUS_INTERRUPT_DRAFT: AbilityDefinition = inHand(
-  interrupt(
-    on.enemyAttacks({ categories: ["villain", "minion"] }, { againstYou: true }),
-    playFromHandReducingCost(0, you, { filter: query("ally", { self: true }) }),
-    declareDefender(self, { exhaust: false }),
-  ),
-);
-
-/** Refs left unregistered, each with its reason. */
-export const MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "45031.colossus-interrupt":
-    "the draft below plays and defends correctly when the hand can pay his 3, but an inHand interrupt that plays its own card has no affordability gate: it is offered when the cost cannot be paid, and taking it does nothing (the trigger is spent and no defender is declared). Not registered until the engine hides it, as a card in hand is hidden from the play command when unaffordable",
-};
+/** Refs left unregistered, each with its reason. None is left. */
+export const MAGIK_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {};

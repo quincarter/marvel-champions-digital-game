@@ -970,6 +970,32 @@ export type TriggerEventBody =
    * flip had no "you" (an effect resolved with no player).
    */
   | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId; readonly playerId?: PlayerId }
+  /**
+   * A player's identity is about to change form (the hero/alter-ego flip, or a change between hero faces): "Interrupt:
+   * When you change to hero form, …" printed on the face being left, which is still the face showing while this
+   * event's interrupt window is open. The "would" twin of `formChanged`, as `cardReadying` is to a ready: its apply
+   * step makes the change (`setForm`) and announces `formChanged`. Pushed only when an interrupt listens for it
+   * (`changeIdentityForm`); otherwise the identity turns at once, as it did before this event existed. Interrupt-only:
+   * "after you change form" answers `formChanged`.
+   *
+   * An additional cost to change form (`RuleSpec formChangeCost`) is paid before this event resolves: RRG 1.8
+   * "Initiating Abilities" (p. 24), costs are paid (step 5) before the change becomes imminent, so the order is cost,
+   * this interrupt window, the change, then `formChanged`.
+   *
+   * `to`, `change` and `identityInstanceId` read as on `formChanged` (the identity is the event's target). An additional
+   * form change ("[type] form") has no such window.
+   */
+  | {
+      readonly kind: "formChanging";
+      readonly playerId: PlayerId;
+      readonly to: "hero" | "alterEgo";
+      readonly change: "identity";
+      readonly identityInstanceId: InstanceId;
+      /** The once-per-round player action, which this change uses up (`setForm`). */
+      readonly voluntary: boolean;
+      /** The hero face changed to, for an identity with more than one. */
+      readonly heroFormIndex: number;
+    }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
   /**
    * `fromHeroForm` / `toHeroForm`: the hero faces before and after, for an identity with more than one (a three-sided
@@ -1246,6 +1272,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // "When you make a basic recovery … instead of healing damage" (wave 6 §3.40): the healing is still to come.
     case "basicRecovery":
     case "turnEnding":
+    // "Interrupt: When you change to hero form" (`formChanging`): the change is still to come.
+    case "formChanging":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1427,6 +1455,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // An additional form's card, or the identity for the hero/alter-ego flip.
     case "formChanged":
       return of([], [event.formCardInstanceId ?? event.identityInstanceId ?? null], [event.playerId]);
+    case "formChanging":
+      return of([], [event.identityInstanceId], [event.playerId]);
     case "turnStarted":
     case "turnEnding":
       return of([], [], [event.playerId]);

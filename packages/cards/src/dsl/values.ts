@@ -136,6 +136,15 @@ export const defendingCharacter: TargetRef = { kind: "defendingCharacter" };
 /** "The attacking enemy" from a trigger that is not the attack's own (Flow Like Water; docs/phase7-wave4.md §3.34). */
 export const attackingEnemy: TargetRef = { kind: "attackingEnemy" };
 /**
+ * "That enemy" in a constant's "While [X] is attacking an enemy, … attached to that enemy" (Shark-Girl, `iceman` 46012):
+ * the character the attack in progress is against, read off the stack, so a constant can name it (`attackTarget()` is a
+ * slot only an `attack` effect binds). `attacker`: whose attack, default this card's own.
+ */
+export const attackedBy = (attacker: TargetRef = { kind: "self" }): TargetRef => ({
+  kind: "attackedCharacter",
+  attacker,
+});
+/**
  * The enemy whose activation (attack or scheme) is in progress, innermost first, while it is in play ("give him an
  * additional boost card for this activation" only when he is the one activating). Works in a Boost ability.
  */
@@ -242,6 +251,14 @@ export const printedCostAtLeast = (bound: number | ValueSpec): Pick<TargetQuery,
  * to share). docs/phase7-wave2.md §20.1.
  */
 export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitWith"> => ({ sharesTraitWith: ref });
+/**
+ * "… must share a trait with your hero" asked while the identity may be on its alter-ego side (MC45 p. 20's expert
+ * ally search at campaign setup): the printed traits of the hero side of `player`'s identity card, whichever side is
+ * up. `sharesTraitWith(identityOf(player))` reads the side that is up instead.
+ */
+export const sharesTraitWithHeroOf = (player: PlayerRef = you): Pick<TargetQuery, "sharesTraitWithHeroOf"> => ({
+  sharesTraitWithHeroOf: player,
+});
 /**
  * "… that can be attached to Deathlok" (`next_evol` 40025): `query("upgrade", canAttachTo(self))`, over cards anywhere
  * (a discard pile, a hand). The card's own printed host decides, as when it is played: the hosts its "attach to" text

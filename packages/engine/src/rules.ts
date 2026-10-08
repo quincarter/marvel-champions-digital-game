@@ -50,6 +50,7 @@ import {
   traitsOf,
   type ActiveRule,
   type EffectContext,
+  type LastKnownCard,
 } from "./select.js";
 import {
   addPools,
@@ -62,7 +63,7 @@ import {
 import type { AttackKeyword, CardDestination, PairLimit, TargetQuery } from "./spec.js";
 import type { Bindings, LingeringDamageRule, StackFrame, Vars } from "./stack.js";
 import type { FrameId } from "./ids.js";
-import type { Form, GameAreaState, GameState } from "./state.js";
+import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
 /**
@@ -359,12 +360,36 @@ function consequentialScopeMatches(
   if (!damage) return false;
   if (scope.from !== "any" && scope.from !== damage.from) return false;
   if (!scope.if) return true;
+  const lastKnown = lastKnownFromAttack(damage);
   return evaluate(state, scope.if, {
     ...context,
     event: damage.event,
     vars: { ...context.vars, ...damage.vars },
     bindings: { ...context.bindings, ...damage.slots },
+    ...(lastKnown ? { lastKnown } : {}),
   });
+}
+
+/**
+ * The attacked character as the attack was made, for a consequential-damage condition that reads it after the attack
+ * defeated it (`EffectContext.lastKnown`): the attachments and status cards the attack's frame recorded beside its
+ * `target` slot (`applyPlayerAttack`), found under whatever prefix the attack reported them with (`attack.target`,
+ * `attack.targetAttachments`, `attack.targetStatus.confused`). Owner ruling Q38 = A (docs/phase7-wave8.md §4.1),
+ * following FFG's ruling of February 8, 2026 (1) on RRG 1.8 "Consequential Damage" (p. 13): the designer intent is
+ * that "after attacking [an enemy in some state]" still holds when the attack defeats that enemy. Undefined when no
+ * attack reported a target.
+ */
+function lastKnownFromAttack(damage: ConsequentialDamage): EffectContext["lastKnown"] {
+  let known: Record<InstanceId, LastKnownCard> | undefined;
+  for (const [key, ids] of Object.entries(damage.slots)) {
+    if (key !== "target" && !key.endsWith(".target")) continue;
+    const [id] = ids;
+    if (id === undefined || ids.length !== 1) continue;
+    const statuses = { stunned: 0, confused: 0, tough: 0 };
+    for (const status of STATUS_NAMES) statuses[status] = damage.vars[`${key}Status.${status}`] ?? 0;
+    known = { ...known, [id]: { attachments: damage.slots[`${key}Attachments`] ?? [], statuses } };
+  }
+  return known;
 }
 
 /**

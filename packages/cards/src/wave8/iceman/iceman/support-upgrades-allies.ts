@@ -79,11 +79,10 @@ export const attachFrostbite = (enemy: TargetRef): readonly EffectSpec[] => [
  * `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS` to swap in once the engine has a former-host response.
  *
  * **Snow Clone (46003)** cannot have upgrades attached (an encounter attachment can go on it). Its consequential damage
- * is reduced by 1 after it attacks an enemy with Frostbite attached (`46003.snow-clone-constant-2`, NOT registered). It
- * works against an enemy that survives. When the attack defeats the enemy the Frostbite is already unattached when
- * the consequential damage is dealt, so the reduction is lost, against Q38 = A (ruling February 8, 2026 - Ruling 1; the
- * engine keeps Coordinated Attack's rule as last known information, but not an upgrade's attachment to a defeated
- * target). See `skipped` and `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS`.
+ * is reduced by 1 after it attacks an enemy with Frostbite attached (`46003.snow-clone-constant-2`). The enemy is read
+ * live while it is in play and as it was when the attack was made once the attack has defeated it (Q38 = A; ruling
+ * February 8, 2026 - Ruling 1: the engine's last known information for an attack's target), so a defeating attack
+ * keeps the reduction although the Frostbite is no longer attached by then.
  *
  * **Power Belt (46004)**: +3 hit points on the identity it is attached to; a hero resource that generates a wild
  * resource only for an ICE card.
@@ -111,6 +110,15 @@ export const ICEMAN_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
 
   "46003.snow-clone-constant": constant(
     rule({ kind: "cannotHaveAttachments", target: { self: true }, from: "upgrade" }),
+  ),
+
+  "46003.snow-clone-constant-2": constant(
+    rule(
+      takesConsequentialDamage({ self: true }, -1, {
+        from: "attack",
+        if: refMatches(attackTarget(), query("enemy", { hasAttachment: FROSTBITE }), { anywhere: true }),
+      }),
+    ),
   ),
 
   "46004.power-belt-constant": constant(gets("hp", 3, YOUR_IDENTITY)),
@@ -156,34 +164,21 @@ export const FROSTBITE_FORCED_RESPONSE_GAP =
   "46002.frostbite-forced-response ships the activation half only: after the host leaves play the unattached permanent copy hears no response (on.leavesPlay('host') no longer matches), so it stays in its owner's play area instead of being set aside";
 
 /**
- * The drafts: the full printed Frostbite ref (a draft, because the registered one is its activation half) and the one
- * skipped ref written out as printed, NOT registered (the registry above must not hold Snow Clone's; the coverage test
- * pins that). The full Frostbite draft replaces the registered ref; it cannot sit beside it. They exist so the tests can show exactly where each one fails, and to register unchanged once the engine
- * can run them: move each entry into the registry and delete it from `skipped`.
+ * The draft: the full printed Frostbite ref (a draft, because the registered one is its activation half). It replaces
+ * the registered ref; it cannot sit beside it. It exists so the tests can show exactly where it fails, and to register
+ * unchanged once the engine can run it.
  *
- * Frostbite's Forced Response: the leaves-play half is never heard (section 3.61). Snow Clone's consequential-damage
- * reduction reads the target's Frostbite after the attack defeated it, when the copy is already unattached: Q38 = A (the
- * enemy as it was when the attack was made) is not kept (section 3.67).
+ * Frostbite's Forced Response: the leaves-play half is never heard (section 3.61).
  */
 export const ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS: AbilityRegistry = defineAbilities({
   "46002.frostbite-forced-response": forcedResponse(
     on.either(on.enemyActivates("host"), on.leavesPlay("host")),
     moveCards(cards(self), "setAside"),
   ),
-  "46003.snow-clone-constant-2": constant(
-    rule(
-      takesConsequentialDamage({ self: true }, -1, {
-        from: "attack",
-        if: refMatches(attackTarget(), query("enemy", { hasAttachment: FROSTBITE }), { anywhere: true }),
-      }),
-    ),
-  ),
 });
 
 /** Refs left unregistered, each with its reason (Frostbite's ref is registered, partially: `FROSTBITE_FORCED_RESPONSE_GAP`) (the coverage test reads this through its own `skipped` list). */
 export const ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "46003.snow-clone-constant-2":
-    "section 3.67 proof fails: an attack that defeats the enemy leaves its Frostbite already unattached, so the 'enemy with Frostbite attached' condition is false and Q38 = A (read the enemy as when the attack was made) is not kept",
   "46005.cryokinetic-perception-response":
     "reads the card its own 'draw 1 card' drew (trait ICE) and the draw effect binds no card or slot; spec section 3.70 lists a bound draw as existing vocabulary",
 };

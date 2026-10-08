@@ -57,10 +57,11 @@ vi.setConfig({ testTimeout: 240_000 });
  * (46001b), Take That! (46016, one attack, Q48), the hazard extra deal (RRG 1.8 "Hazard Icon", p. 21), and ready-and-
  * draw at the end of the player phase (RRG 1.8 "Player Phase").
  *
- * Known gaps, asserted only as "no error": Shark-Girl 46012, Keep Up the Pressure 46018, the leaves-play half of
- * Frostbite 46002's Forced Response, Snow Clone 46003's consequential-damage reading (Q38), Cryokinetic Perception
- * 46005's bound draw, and Hot-Headed 46024's Forced Response are unregistered or held. Surprise Move 46015 is not
- * offered after "Freeze!" attaches Frostbite in the same basic attack (pinned in `../aspect-basic.test.ts`).
+ * Known gaps, asserted only as "no error": the leaves-play half of Frostbite 46002's Forced Response, Cryokinetic
+ * Perception 46005's bound draw, and Hot-Headed 46024's Forced Response are unregistered or held. Shark-Girl 46012,
+ * Keep Up the Pressure 46018, Snow Clone 46003's reduction (Q38) and Surprise Move 46015 after "Freeze!" are registered
+ * and proven in their own modules' tests (`../aspect-basic.test.ts`, `./support-upgrades-allies.test.ts`); these games
+ * assert nothing card-specific about them.
  */
 
 const DECK_ID = "iceman-aggression";

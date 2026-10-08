@@ -1169,6 +1169,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       return invalid(`setup option ${option.option} states ${option.amount}, which is not a whole number of 0 or more`);
     setupOptionIds.add(option.option);
   }
+  // The scenario's own rules, then the rules its campaign puts in force for this game (`CampaignNode.scenarioRuleSpecs`:
+  // MC45 p. 5's Mission Rules card, p. 20's "Professor X cannot enter play during this game").
+  const scenarioRuleSpecs = [...(config.scenarioRuleSpecs ?? []), ...(config.campaign?.scenarioRuleSpecs ?? [])];
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -1194,7 +1197,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.activeCounter ? { activeCounter: config.activeCounter } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
-      ...(config.scenarioRuleSpecs && config.scenarioRuleSpecs.length > 0 ? { rules: config.scenarioRuleSpecs } : {}),
+      ...(scenarioRuleSpecs.length > 0 ? { rules: scenarioRuleSpecs } : {}),
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }
         : {}),

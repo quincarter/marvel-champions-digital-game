@@ -125,16 +125,14 @@ const printsOnMilled = (type: "energy" | "mental" | "physical") =>
  * 45018 is 01070's, The Power of Leadership 45019 is 01072's, Clobber 45046 is 18012's, The Power of Aggression 45047 is
  * 01055's and Spiritual Meditation 45052 is 15019's. Energy, Genius and Strength (45022 to 45024) print no ability.
  *
- * **Advanced Suit (45014)** is NOT registered; see
- * `AOA_ASPECT_BASIC_SKIPPED` and `AOA_ASPECT_BASIC_DRAFTS`.
- *
  * **Cable (45011)**, **X-23 (45012)**: the source is the ally herself or himself. Cable answers the side scheme his own
  * thwart defeats (an event that removes the last threat is not his); X-23 answers an attack of her own that defeats
  * the enemy.
  *
- * **Advanced Suit (45014)** is NOT registered (see `AOA_ASPECT_BASIC_SKIPPED`); its draft: "attached ally defeats" is the ally as the source of the defeat (an attack or a thwart),
+ * **Advanced Suit (45014)**: "attached ally defeats" is the ally as the source of the defeat (an attack or a thwart),
  * and the heal counts the printed resource icons on the discarded card, a wild counted once (RRG 1.8 "Wild Resource",
- * p. 48 and "Printed", p. 35; docs/phase7-wave8.md section 3.52).
+ * p. 48 and "Printed", p. 35; docs/phase7-wave8.md section 3.52). The card to discard is picked inside the response
+ * window (`chooseCostCards`, mode `discardFromHand`); with no card in hand the Response is not offered.
  *
  * **Sidekick (45015)**: the host qualification (an identity-specific ally you control, of any identity's set) is card
  * data, read by the engine's attach-host resolver (`HostQualifiers.classification`, docs/phase7-wave8.md section
@@ -182,6 +180,12 @@ export const AOA_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "45012.x-23-response": response(on.attacks("self", { defeats: true }), ready(self)),
 
   "45013.team-training-constant": reprintOf("04016.team-training-constant"),
+
+  "45014.advanced-suit-response": response(
+    { ...on.defeats(query("ally", { hostOfSelf: true })), targetIs: query(["minion", "sideScheme"]) },
+    { cost: discardFromHandCost(1, 1) },
+    heal(totalPrintedResources(chosen("discard")), host),
+  ),
 
   "45015.sidekick-constant": constant(gets("hp", 2, { hostOfSelf: true })),
   "45015.sidekick-response": response(on.basicRecovery(YOUR_IDENTITY), heal(2, host)),
@@ -296,22 +300,8 @@ export const AOA_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "45052.spiritual-meditation-action": reprintOf("15019.spiritual-meditation-action"),
 });
 
-/**
- * The skipped refs written out as close to printed as the DSL allows, NOT registered (the registry above must not
- * hold them). Each draft is wrong in the way its `AOA_ASPECT_BASIC_SKIPPED` reason says; register one unchanged once
- * the engine can run it.
- */
-export const AOA_ASPECT_BASIC_DRAFTS: AbilityRegistry = {
-  // Advanced Suit: written as printed; the hand-discard cost keeps a Response from ever being offered (see the reason).
-  "45014.advanced-suit-response": response(
-    { ...on.defeats(query("ally", { hostOfSelf: true })), targetIs: query(["minion", "sideScheme"]) },
-    { cost: discardFromHandCost(1, 1) },
-    heal(totalPrintedResources(chosen("discard")), host),
-  ),
-};
+/** Drafts of skipped refs, exported for the proofs in the test file. None is left: every ref is registered. */
+export const AOA_ASPECT_BASIC_DRAFTS: AbilityRegistry = {};
 
-/** Refs left unregistered, each with its reason. */
-export const AOA_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "45014.advanced-suit-response":
-    "a Response with a 'discard 1 card from your hand' cost is never offered: the trigger window's payability check (resolve/triggers.ts costPayable) plans the cost with only the default picks of cards in play and none for a hand discard, so planCost refuses it; the same response without the cost is offered. The pattern, the heal per printed icon and the host source are right",
-};
+/** Refs left unregistered, each with its reason. None is left. */
+export const AOA_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

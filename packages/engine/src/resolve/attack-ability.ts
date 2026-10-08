@@ -44,11 +44,28 @@
  * (`openLabelAttack`): an `attack` event by that identity (`attack.labeled`) with its "when … attacks" interrupt
  * window, which deals no damage of its own and goes straight to waiting beneath the ability's root frame. The
  * instruction then resolves, and its damage and every later instruction's is that attack's, exactly as above. The
- * root frame remembers the attack was made (`labelAttackMade`), so there is one per resolution. "This attack deals N
- * additional damage" on a label-only attack (`modifyAttack.extraDamage` on its frame) is added to each instance (RRG
- * 1.8 p. 10: "each instance of damage in that attack ability that does not use the word 'additional' is increased by
- * the specified amount"). An ability whose damage is only to its player's own characters attacks nothing and makes no
- * attack. Covered instructions: `dealDamage` and `divide` of damage; no shipped "(attack)" ability uses another.
+ * root frame remembers the attack was made (`labelAttackMade`), so there is one per resolution. An ability whose damage
+ * is only to its player's own characters attacks nothing and makes no attack. Covered instructions: `dealDamage` and
+ * `divide` of damage; no shipped "(attack)" ability uses another.
+ *
+ * **"That attack deals N additional damage" increases every instance** (owner ruling Q53, 2026-10-08; RRG 1.8 p. 10:
+ * "When an attack ability has its damage increased by another ability, each instance of damage in that attack ability
+ * that does not use the word 'additional' is increased by the specified amount"; "'For Each'", p. 20: "that modifier
+ * is applied to each instance of the 'for each' effect"). `modifyAttack.extraDamage` is a var on the attack's own
+ * frame: the attack's own damage adds it (`applyPlayerAttack`), and so does each later damage instruction of the
+ * ability against an enemy (`abilityAttackDamage.extra`), for an attack with an `attack` effect and for a label-only
+ * attack alike. Two limits:
+ *
+ * - **Not twice to additional damage.** An instruction the card words as additional damage of an earlier instance
+ *   (`dealDamage.additional`) is a modification of that instance, not an instance (RRG 1.8 "Alteration Effect", p. 7;
+ *   the Repulsor Blast FAQ), and gets no increase of its own.
+ * - **One attack only.** The var belongs to the attack it was given to. In an ability that makes several attacks, an
+ *   instruction's damage is the attack's made last before it (`waitingAbilityAttack`), and reads that attack's var:
+ *   the other attacks of the ability, and their instances, get nothing (RRG 1.8 p. 10: "An ability that increases the
+ *   damage of an attack only increases the damage of one of that ability's attacks").
+ *
+ * Damage that is not the attack's gets none of it: an instruction marked `fromAttack: false`, damage to the ability's
+ * own player, damage to a card that is not an enemy.
  *
  * **Guard restricts attack targeting, checked per enemy as it would be attacked** (owner ruling Q49; RRG 1.8 "Guard",
  * p. 21: "that player cannot use cards they control to attack a villain"; "Attack (Player Ability Type)", p. 10: "Hero
@@ -371,9 +388,11 @@ export function abilityAttackDamage(
     vars: attack.vars,
   });
   return {
-    // A label-only attack has no damage of its own for "this attack deals N additional damage" to add to: each of
-    // its instances is increased (RRG 1.8 "Attack (Player Ability Type)", p. 10).
-    extra: event.labeled ? Math.max(0, attack.vars.extraDamage ?? 0) : 0,
+    // "This attack deals N additional damage" (`modifyAttack.extraDamage` on the attack's frame) increases each
+    // instance of the attack's damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling Q53): the attack's
+    // own damage (`applyPlayerAttack`) and each later instruction's, through here. The caller leaves it off an
+    // instruction that is itself additional damage (`dealDamage.additional`).
+    extra: Math.max(0, attack.vars.extraDamage ?? 0),
     damage: {
       sourceInstanceId: event.attackerInstanceId,
       fromAttack: true,

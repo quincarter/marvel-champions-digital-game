@@ -12,6 +12,7 @@ import {
   type StatusDiscarded,
   readyCard,
   removeCounters,
+  setForm,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
@@ -78,7 +79,7 @@ import {
   runCarriedHostStep,
 } from "./cards.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
-import type { GameState } from "../state.js";
+import { STATUS_NAMES, type GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 import {
@@ -662,6 +663,12 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId, event.sourceInstanceId ?? null);
       return;
+    case "formChanging": {
+      // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.
+      const changed = setForm(ctx, event.playerId, event.to, event.voluntary, event.heroFormIndex);
+      if (changed) pushFrames(ctx, [eventFrame(ctx, changed)]);
+      return;
+    }
     case "basicRecovery":
       // REC as it is now, so an interrupt that changed it first counts (docs/phase7-wave6.md §3.40).
       healRecovery(ctx, event.characterInstanceId);
@@ -1797,6 +1804,21 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   // attached minion", Coordinated Attack 33016; docs/phase7-wave6.md §3.31). `attack.damaged` names only a character
   // that took damage.
   addFrameSlots(ctx, frameId, { target: [event.targetInstanceId] });
+  // The attacked character as the attack is made (owner ruling Q38 = A, docs/phase7-wave8.md §4.1; FFG ruling
+  // February 8, 2026 (1), designer intent): what was attached to it (`targetAttachments`) and the status cards it held
+  // (`targetStatus.<status>`), reported beside `target`. An ally's consequential damage reads them as last known
+  // information when the attack defeated the character and its status cards and attachments left with it ("takes 1
+  // less consequential damage after attacking a confused enemy / an enemy with Frostbite attached";
+  // `lastKnownFromAttack`, `rules.ts`). Recorded only when there is something to record.
+  const attackedAs = mustInstance(ctx.state, event.targetInstanceId);
+  if (attackedAs.attachments.length > 0) addFrameSlots(ctx, frameId, { targetAttachments: attackedAs.attachments });
+  const heldStatuses = Object.fromEntries(
+    STATUS_NAMES.filter((status) => attackedAs.statuses[status] > 0).map((status) => [
+      `targetStatus.${status}`,
+      attackedAs.statuses[status],
+    ]),
+  );
+  if (Object.keys(heldStatuses).length > 0) addFrameVars(ctx, frameId, heldStatuses);
   // "That attack gains overkill" (Hulk Smash) / "this attack gains piercing" (Piercing Strike): every way of granting
   // an attack keyword is folded in here, once, and stamped on the events the attack pushes. An interrupt's
   // `modifyAttack` records its grant as a var on this attack's own event frame, the same var an enemy attack reads

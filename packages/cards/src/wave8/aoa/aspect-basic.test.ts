@@ -16,7 +16,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../ability-refs.js";
 import { coreScenario } from "../../core/setup.js";
-import { host, heal, mergeRegistries, on, query, response } from "../../dsl/index.js";
+import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -46,8 +46,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Age of Apocalypse aspect and basic cards (45011 to 45024, 45041 to 45052), docs/phase7-wave8.md section 7.1, 3.52 to
  * 3.60. Real commands in a real game: Bishop's (Leadership, `bishop-leadership`) or Magik's (Aggression,
  * `magik-aggression`) precon against Rhino (Core, standard, no modular set), with the cards under test added to the
- * deck by code (`requireLegalDecks: false`). Advanced Suit is the one card still skipped in the module; its section
- * proves where the draft fails.
+ * deck by code (`requireLegalDecks: false`). Every ref of the group is registered.
  */
 const CABLE = "45011";
 const X23 = "45012";
@@ -95,6 +94,7 @@ const REFS = [
   "45011.cable-response",
   "45012.x-23-response",
   "45013.team-training-constant",
+  "45014.advanced-suit-response",
   "45015.sidekick-constant",
   "45015.sidekick-response",
   "45016.side-by-side-action",
@@ -120,15 +120,6 @@ const REFS = [
 
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(WAVE7_ABILITIES, BISHOP_IDENTITY, MAGIK_IDENTITY, AOA_ASPECT_BASIC),
-};
-const DRAFT_DEPS: EngineDeps = {
-  abilities: mergeRegistries(
-    WAVE7_ABILITIES,
-    BISHOP_IDENTITY,
-    MAGIK_IDENTITY,
-    AOA_ASPECT_BASIC,
-    AOA_ASPECT_BASIC_DRAFTS,
-  ),
 };
 const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...AOA_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
@@ -408,66 +399,66 @@ describe("X-23 (45012): Response after she attacks and defeats an enemy, ready h
   });
 });
 
-describe("Advanced Suit (45014), skipped: where the draft fails", () => {
+describe("Advanced Suit (45014): after attached ally defeats a minion or side scheme, discard 1 card from hand to heal per resource", () => {
   /** X-23 (3 hit points, 1 damage) with Advanced Suit beside a minion her ATK 3 attack defeats. */
-  function suited(deps: EngineDeps) {
+  function suited() {
     const ally = withAlly(heroGame([BISHOP()]), X23);
-    const attached = playStaged(inHand(ally.state, SUIT), picker(), { attach: ally.id }, deps).state;
+    const attached = playStaged(inHand(ally.state, SUIT), picker(), { attach: ally.id }).state;
     const m = withMinion(patchInstance(attached, ally.id, { damage: 1 }));
     const hurt = patchInstance(m.state, m.id, { damage: hitPointsOf("01102") - 3 });
     return { hurt, ally: ally.id, minion: m.id };
   }
-  const answer = (deps: EngineDeps) => {
-    const s = suited(deps);
-    return run(s.hurt, picker({ accept: ["advanced-suit-response"] }), deps, attackCmd(s.hurt, s.ally, s.minion));
-  };
-  it("the draft validates and attaches to the X-FORCE ally", () => {
-    expect(validateDefinition(AOA_ASPECT_BASIC_DRAFTS["45014.advanced-suit-response"]!)).toEqual([]);
-    const s = suited(DRAFT_DEPS);
+  const costPrompts = (seen: readonly Seen[]) => seen.filter((p) => p.kind === "chooseCostCards");
+  it("registered as printed: it validates and attaches to the X-FORCE ally", () => {
+    expect(validateDefinition(AOA_ASPECT_BASIC["45014.advanced-suit-response"]!)).toEqual([]);
+    const s = suited();
     expect(attachedTo(s.hurt, SUIT, s.ally)).toBeDefined();
   });
-  it.fails("registered as printed, the Response is offered after the ally defeats the minion", () => {
-    expect(offered(answer(DRAFT_DEPS).seen, "advanced-suit-response")).toBe(true);
-  });
-  it("pins today: registered as printed it is never offered (the hand-discard cost is not planned in a trigger window)", () => {
-    expect(offered(answer(DRAFT_DEPS).seen, "advanced-suit-response")).toBe(false);
-  });
-  it("the pattern is right: the same Response without the cost is offered and heals", () => {
-    const costless: EngineDeps = {
-      abilities: {
-        ...DRAFT_DEPS.abilities,
-        "45014.advanced-suit-response": response(
-          { ...on.defeats(query("ally", { hostOfSelf: true })), targetIs: query(["minion", "sideScheme"]) },
-          heal(1, host),
-        ),
-      },
-    };
-    const s = suited(costless);
-    const { state, seen } = run(
+  it("the Response is offered after the ally defeats the minion; the card picked from hand is discarded and heals 1 per resource on it", () => {
+    const s = suited();
+    const hand = playerOf(s.hurt, P1).hand;
+    const card = hand.find((id) => iconsOf(s.hurt, id) === 1)!;
+    const { state, seen } = go(
       s.hurt,
-      picker({ accept: ["advanced-suit-response"] }),
-      costless,
+      picker({ accept: ["advanced-suit-response"], pick: [card] }),
       attackCmd(s.hurt, s.ally, s.minion),
     );
     expect(offered(seen, "advanced-suit-response")).toBe(true);
-    // 1 damage + 1 consequential - 1 healed
+    // The window asks which card: every card in hand is an option.
+    expect(costPrompts(seen)).toHaveLength(1);
+    expect([...costPrompts(seen)[0]!.options].sort()).toEqual([...hand].sort());
+    expect(playerOf(state, P1).discard).toContain(card);
+    expect(playerOf(state, P1).hand).not.toContain(card);
+    // 1 damage + 1 consequential - 1 healed (the card's one printed resource)
     expect(damageOf(state, s.ally)).toBe(1);
   });
-  it("the hero's own defeat of a minion is not the ally's: not offered even without the cost", () => {
-    const costless: EngineDeps = {
-      abilities: {
-        ...DRAFT_DEPS.abilities,
-        "45014.advanced-suit-response": response(
-          { ...on.defeats(query("ally", { hostOfSelf: true })), targetIs: query(["minion", "sideScheme"]) },
-          heal(1, host),
-        ),
-      },
+  it("picking no card backs out: nothing is discarded or healed", () => {
+    const s = suited();
+    const before = playerOf(s.hurt, P1).hand;
+    const { state, seen } = go(
+      s.hurt,
+      (st) =>
+        st.pendingChoice!.prompt.kind === "chooseCostCards" ? [] : picker({ accept: ["advanced-suit-response"] })(st),
+      attackCmd(s.hurt, s.ally, s.minion),
+    );
+    expect(costPrompts(seen)).toHaveLength(1);
+    expect(playerOf(state, P1).hand).toEqual(before);
+    expect(damageOf(state, s.ally)).toBe(2);
+  });
+  it("with no card in hand the cost cannot be paid: the Response is not offered", () => {
+    const s = suited();
+    const empty: GameState = {
+      ...s.hurt,
+      players: s.hurt.players.map((p) => (p.playerId === P1 ? { ...p, hand: [], deck: [...p.deck, ...p.hand] } : p)),
     };
-    const s = suited(costless);
-    const { seen } = run(
+    const { seen } = go(empty, picker({ accept: ["advanced-suit-response"] }), attackCmd(empty, s.ally, s.minion));
+    expect(offered(seen, "advanced-suit-response")).toBe(false);
+  });
+  it("the hero's own defeat of a minion is not the ally's: not offered", () => {
+    const s = suited();
+    const { seen } = go(
       s.hurt,
       picker({ accept: ["advanced-suit-response"] }),
-      costless,
       attackCmd(s.hurt, identityOf(s.hurt), s.minion),
     );
     expect(offered(seen, "advanced-suit-response")).toBe(false);

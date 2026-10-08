@@ -101,11 +101,18 @@ export const dealDamage = (
     readonly sourceFromEvent?: boolean;
     readonly by?: PlayerRef;
     readonly fromAttack?: boolean;
+    /**
+     * "… deal N **additional** damage to that enemy" as its own instruction: additional damage of an earlier instance,
+     * so "that event/attack deals N additional damage" is not added to it again (`EffectSpec dealDamage.additional`,
+     * owner ruling Q53). Prefer one `dealDamage` with the summed amount when the script can compute it.
+     */
+    readonly additional?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "dealDamage",
   target,
   amount: amount(n),
+  ...(opts.additional ? { additional: true as const } : {}),
   ...(opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {}),
   ...withBind(opts.bind),
   ...(opts.perTarget ? { perTarget: true as const } : {}),
@@ -332,7 +339,11 @@ export const addCounters = (
   ...(opts.upTo !== undefined ? { upTo: amount(opts.upTo) } : {}),
   ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
-export const surge = (): EffectSpec => ({ kind: "gainSurge" });
+/**
+ * "This card gains surge" (`surge()`), or "**it** gains surge" of another card being revealed (`surge(eventTarget)` in
+ * an interrupt on `on.encounterCardRevealed(...)`: Portal Through Time, `aoa` 45027).
+ */
+export const surge = (target?: TargetRef): EffectSpec => ({ kind: "gainSurge", ...(target ? { target } : {}) });
 
 // ---------------------------------------------------------------------------
 // Control flow and choices
@@ -2054,6 +2065,24 @@ export const modifyCardEffect = (
   ...(opts.damage !== undefined ? { damage: amount(opts.damage) } : {}),
   ...(opts.threatRemoved !== undefined ? { threatRemoved: amount(opts.threatRemoved) } : {}),
   ...(opts.note ? { note: { name: opts.note.name, value: amount(opts.note.value) } } : {}),
+});
+
+/**
+ * "Until the end of the phase, each ATTACK event deals 1 additional damage" (Keep Up the Pressure, `iceman` 46018): the
+ * bonus of `modifyCardEffect` for every card matching `cards` that resolves until then, whoever plays it. Each instance
+ * of damage such a card deals is increased (owner ruling Q53), except one marked `additional` and damage its own
+ * player takes.
+ */
+export const modifyCardEffectsUntil = (
+  cards: TargetQuery,
+  opts: { readonly damage?: Amount; readonly threatRemoved?: Amount },
+  until: "endOfPhase" | "endOfRound" | "endOfTurn",
+): EffectSpec => ({
+  kind: "modifyCardEffectsUntil",
+  cards,
+  ...(opts.damage !== undefined ? { damage: amount(opts.damage) } : {}),
+  ...(opts.threatRemoved !== undefined ? { threatRemoved: amount(opts.threatRemoved) } : {}),
+  until,
 });
 
 /**

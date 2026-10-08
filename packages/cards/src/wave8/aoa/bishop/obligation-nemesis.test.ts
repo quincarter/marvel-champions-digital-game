@@ -1,7 +1,6 @@
 import { AOA_CARDS, AOA_STARTER_DECKS, WAVE7_CARDS, cardId, type AnyCard } from "@mc/content";
 import {
   activeEncounterDeckId,
-  applyCommand,
   createGame,
   type Command,
   type EngineDeps,
@@ -31,11 +30,7 @@ import {
 } from "../../../testing/harness.js";
 import { driveEventsPicking, driveStepwise, withForm } from "../../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
-import {
-  BISHOP_OBLIGATION_NEMESIS,
-  BISHOP_OBLIGATION_NEMESIS_SKIPPED,
-  PORTAL_THROUGH_TIME_DRAFT,
-} from "./obligation-nemesis.js";
+import { BISHOP_OBLIGATION_NEMESIS, BISHOP_OBLIGATION_NEMESIS_SKIPPED } from "./obligation-nemesis.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -79,10 +74,6 @@ const PORTAL_REF = "45027.portal-through-time-forced-interrupt";
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(WAVE7_ABILITIES, BISHOP_OBLIGATION_NEMESIS),
 };
-/** The same with the Portal's draft registered (the draft is not in the shipped registry). */
-const DRAFT_DEPS: EngineDeps = {
-  abilities: mergeRegistries(DEPS.abilities, { [PORTAL_REF]: PORTAL_THROUGH_TIME_DRAFT }),
-};
 const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...AOA_CARDS];
 const DATA = (code: string) => AOA_CARDS.find((c) => (c.id as string) === code)! as any;
 
@@ -104,7 +95,6 @@ const encounterDeckCodes = (s: GameState): string[] =>
 const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
   events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 const count = (codes: readonly string[], code: string): number => codes.filter((c) => c === code).length;
-const accepted = (s: GameState, c: Command): boolean => applyCommand(s, c, DEPS).ok;
 
 function setupGame(seats: readonly Seat[], seed = 1): GameState {
   const config = coreScenario("rhino", {
@@ -338,20 +328,16 @@ const revealsOf = (events: readonly GameEvent[], id: InstanceId) =>
   ofType(events, "encounterCardRevealed").filter((e) => e.instanceId === id);
 
 describe("registry", () => {
-  it("registers every ref of the five cards but the Portal's, which is skipped with a reason", () => {
+  it("registers every ref of the five cards; nothing is skipped", () => {
     const refs = AOA_CARDS.filter((c) => (c.id as string) >= FEAR && (c.id as string) <= TRICKERY).flatMap(
       abilityRefIds,
     );
     expect([...refs].sort()).toEqual([...REFS].sort());
-    expect(Object.keys(BISHOP_OBLIGATION_NEMESIS).sort()).toEqual(REFS.filter((r) => r !== PORTAL_REF).sort());
-    expect(Object.keys(BISHOP_OBLIGATION_NEMESIS_SKIPPED)).toEqual([PORTAL_REF]);
-    expect(BISHOP_OBLIGATION_NEMESIS_SKIPPED[PORTAL_REF]).toMatch(/surge/);
+    expect(Object.keys(BISHOP_OBLIGATION_NEMESIS).sort()).toEqual([...REFS].sort());
+    expect(BISHOP_OBLIGATION_NEMESIS_SKIPPED).toEqual({});
   });
-  it.each(REFS.filter((r) => r !== PORTAL_REF))("%s validates", (id) => {
+  it.each(REFS)("%s validates", (id) => {
     expect(validateDefinition(BISHOP_OBLIGATION_NEMESIS[id as never]!)).toEqual([]);
-  });
-  it("the Portal's draft validates", () => {
-    expect(validateDefinition(PORTAL_THROUGH_TIME_DRAFT)).toEqual([]);
   });
   it("the trigger of each ref: the obligation and the When Revealed abilities, Fitzroy's Forced Response", () => {
     const t = (id: string) => BISHOP_OBLIGATION_NEMESIS[id as never]!.trigger;
@@ -709,52 +695,57 @@ describe("Trevor Fitzroy (45026)", () => {
   });
 });
 
-describe("Portal Through Time (45027): skipped, see BISHOP_OBLIGATION_NEMESIS_SKIPPED", () => {
+describe("Portal Through Time (45027): the first TEMPORAL card revealed each phase while it is in play gains surge", () => {
   const granted = (events: readonly GameEvent[], id: InstanceId) =>
     ofType(events, "surgeGranted").filter((e) => e.instanceId === id);
-  /** Portal in play (surgery), then Temporal Trickery revealed to Bishop's player alone: the card the Portal should surge. */
-  function trickeryWithPortalInPlay(deps: EngineDeps) {
+  /** Portal in play (surgery), then Temporal Trickery revealed to Bishop's player alone. */
+  function trickeryWithPortalInPlay() {
     const base = alterEgoGame(ONE);
     const portal = findCard(base, PORTAL);
     const s = put(base, portal, "villain", { threat: 4 });
     const trickery = asideCopies(s, TRICKERY)[0]!;
-    return { ...reveal(s, trickery, { deps }), portal };
+    return { ...reveal(s, trickery), portal };
   }
   /**
    * Two players: Bishop's player reveals Bantam, whose When Revealed finds and reveals the Portal; the other player then
-   * reveals Temporal Trickery in the same phase. The Portal is in play and unused, so the Trickery should gain surge.
+   * reveals Temporal Trickery in the same phase. The Portal is in play and unused, so the Trickery gains surge.
    */
-  function bantamThenTrickery(deps: EngineDeps) {
+  function bantamThenTrickery() {
     const base = alterEgoGame(TWO);
     const bantam = findCard(base, BANTAM);
     const trickery = asideCopies(base, TRICKERY)[0]!;
     const staged = stageDeck(base, [...times(2, "boost" as const), bantam, trickery, ...times(8, "boost" as const)]);
-    const r = runWithDeps(deps, staged, firstLegal, ...endPhase(staged));
+    const r = runWithDeps(DEPS, staged, firstLegal, ...endPhase(staged));
     return { ...r, bantam, trickery, portal: findCard(base, PORTAL) };
   }
 
-  it("is not registered: the shipped registry has no Portal ability", () => {
-    expect(BISHOP_OBLIGATION_NEMESIS[PORTAL_REF as never]).toBeUndefined();
+  it("a forced interrupt limited once per phase", () => {
+    const definition = BISHOP_OBLIGATION_NEMESIS[PORTAL_REF as never]!;
+    expect(definition.trigger).toMatchObject({ kind: "interrupt", forced: true });
+    expect(definition.limit).toEqual({ count: 1, period: "phase" });
   });
-  it("shipped today: a Temporal card revealed with the Portal in play gains no surge", () => {
-    const r = trickeryWithPortalInPlay(DEPS);
-    expect(granted(r.events, r.id)).toEqual([]);
-  });
-  it("the draft (first TEMPORAL reveal each phase gains surge) works when no TEMPORAL card was revealed earlier that phase", () => {
-    const r = trickeryWithPortalInPlay(DRAFT_DEPS);
+  it("a TEMPORAL card revealed with the Portal in play gains surge, once", () => {
+    const r = trickeryWithPortalInPlay();
     expect(granted(r.events, r.id)).toHaveLength(1);
+    // The surge reveals one more card after the Trickery.
+    expect(ofType(r.events, "encounterCardRevealed").length).toBeGreaterThanOrEqual(2);
   });
-  it("companion: the draft under-grants after Bantam, which counts as the phase's first TEMPORAL reveal (today's behavior)", () => {
-    const r = bantamThenTrickery(DRAFT_DEPS);
+  it("Bantam reveals the Portal (no surge for Bantam: the Portal was not in play), then the next TEMPORAL card that phase gains surge", () => {
+    const r = bantamThenTrickery();
     expect(revealsOf(r.events, r.portal)).toHaveLength(1);
     expect(revealsOf(r.events, r.trickery)).toHaveLength(1);
-    expect(granted(r.events, r.trickery)).toEqual([]);
-  });
-  it.fails("Bantam reveals the Portal, then another TEMPORAL card revealed in the same phase gains surge (the draft cannot)", () => {
-    const r = bantamThenTrickery(DRAFT_DEPS);
+    expect(granted(r.events, r.bantam)).toEqual([]);
     expect(granted(r.events, r.trickery)).toHaveLength(1);
   });
-  it("accepts commands: the harness still applies (sanity)", () => {
-    expect(accepted(alterEgoGame(ONE), endTurn(P1))).toBe(true);
+  it("once per phase: only one grant in the phase, however many TEMPORAL cards follow", () => {
+    const base = alterEgoGame(TWO);
+    const portal = findCard(base, PORTAL);
+    const s = put(base, portal, "villain", { threat: 4 });
+    const [first, second] = asideCopies(s, TRICKERY);
+    const staged = stageDeck(s, [...times(2, "boost" as const), first!, second!, ...times(8, "boost" as const)]);
+    const r = runWithDeps(DEPS, staged, firstLegal, ...endPhase(staged));
+    expect(revealsOf(r.events, first!)).toHaveLength(1);
+    expect(ofType(r.events, "surgeGranted")).toHaveLength(1);
+    expect(granted(r.events, first!)).toHaveLength(1);
   });
 });

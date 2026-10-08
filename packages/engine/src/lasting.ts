@@ -177,6 +177,18 @@ export type LastingEffectBody =
       readonly threatRemoved: number;
     }
   /**
+   * "Until the end of the phase, each ATTACK event deals 1 additional damage" (`EffectSpec modifyCardEffectsUntil`): the
+   * same bonus as `cardEffectBonus`, for every card matching `cards` that resolves while it lasts, whoever plays it.
+   * `cards` is read against the resolving card, with `scope` as the card and player the effect came from.
+   */
+  | {
+      readonly kind: "cardEffectBonusFor";
+      readonly cards: TargetQuery;
+      readonly scope: LastingScope;
+      readonly damage: number;
+      readonly threatRemoved: number;
+    }
+  /**
    * A `RuleSpec` with a clock on it: "**You cannot change form** until your next turn ends" (Care for Cassie),
    * "**You cannot ready your identity** until your next turn ends" (Need for Speed). docs/phase7-wave2.md §22.
    *

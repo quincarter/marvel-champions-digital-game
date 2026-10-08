@@ -380,6 +380,9 @@ export function resolveBetweenGames(
     seed,
     ...(run.setAsideCards.length > 0 ? { setAsideCards: run.setAsideCards } : {}),
     ...(requiredModularSetIdsOf(node).length > 0 ? { requiredModularSetIds: requiredModularSetIdsOf(node) } : {}),
+    ...(node.scenarioRuleSpecs && node.scenarioRuleSpecs.length > 0
+      ? { scenarioRuleSpecs: node.scenarioRuleSpecs }
+      : {}),
   };
   const attempt: CampaignAttempt = {
     nodeId: node.id,

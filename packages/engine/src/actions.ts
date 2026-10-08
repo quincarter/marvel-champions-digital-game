@@ -30,7 +30,7 @@ import {
   healDamage,
   permanentStopsLeaving,
   removeCounters,
-  setForm,
+  changeIdentityForm,
   startNextBasicPowerEffects,
   turnToFlipSide,
 } from "./effects.js";
@@ -310,7 +310,7 @@ export function changeForm(ctx: Ctx, command: Command & { type: "changeForm" }):
   const payment = command.payment ?? [];
   if (costs.length === 0) {
     if (payment.length > 0) return engineError("invalid_choice", "this change of form costs nothing", command);
-    const changed = setForm(ctx, command.playerId, to, true, heroForm);
+    const changed = changeIdentityForm(ctx, command.playerId, to, true, heroForm);
     if (changed) pushEvent(ctx, changed);
     return null;
   }
@@ -319,10 +319,11 @@ export function changeForm(ctx: Ctx, command: Command & { type: "changeForm" }):
     return engineError(planned.code, formChangeCostMessage(ctx.state, costs, to, planned.message), command);
   }
   const spent = payFormChangeCosts(ctx, command.playerId, planned, to, payment);
-  const changed = setForm(ctx, command.playerId, to, true, heroForm);
+  const changed = changeIdentityForm(ctx, command.playerId, to, true, heroForm);
   if (changed) pushEvent(ctx, changed);
-  // Above the change on the stack, so the rest of the cost and "after you spend this card" resolve before "after you
-  // change form" (RRG 1.8 "Initiating Abilities", p. 24, steps 5–6).
+  // Above the change on the stack, so the rest of the cost and "after you spend this card" resolve before "when you
+  // change form" (`formChanging`, when an interrupt listens) and "after you change form" (RRG 1.8 "Initiating
+  // Abilities", p. 24, steps 5–6).
   settleFormChangeCosts(ctx, command.playerId, planned, spent);
   return null;
 }
@@ -506,10 +507,43 @@ export const inHandForPlaying = (state: GameState, deps: EngineDeps, playerId: P
  * ability is not a play of its card and stays off there.
  */
 export const playsOwnCardFromHand = (definition: AbilityDefinition): boolean =>
-  definition.activeIn === "hand" &&
-  definition.effects.some(
-    (effect) => effect.kind === "playFromHand" && (effect.from ?? "hand") === "hand" && effect.card?.kind === "self",
+  definition.activeIn === "hand" && ownCardPlayOf(definition) !== undefined;
+
+/** The top-level effect that plays the ability's own card from the hand: named (`card: self`) or filtered to it. */
+const ownCardPlayOf = (definition: AbilityDefinition) =>
+  definition.effects.find(
+    (effect): effect is Extract<EffectSpec, { kind: "playFromHand" }> =>
+      effect.kind === "playFromHand" &&
+      (effect.from ?? "hand") === "hand" &&
+      (effect.card?.kind === "self" || effect.filter?.self === true),
   );
+
+/**
+ * Why an in-hand ability that plays its own card (`playsOwnCardFromHand`) could not play it right now, or null: the
+ * card's play restrictions and, when its cost is paid, whether everything the player could spend covers it, exactly as
+ * the effect itself judges the card when it resolves (`playWithPaymentFault` / `playIgnoringCostFault`). RRG 1.8
+ * "Initiating Abilities" (p. 24, step 2): an ability whose cost cannot be paid is not initiated, and the card's
+ * resource cost is the cost of this play ("play Colossus from your hand (paying his resource cost)"), so a timing
+ * window does not offer the ability while this is non-null. An optional play ("you may play …") is never a fault.
+ */
+export function ownCardPlayFault(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+  definition: AbilityDefinition,
+  event: TriggerEvent | null,
+): string | null {
+  const effect = ownCardPlayOf(definition);
+  if (!effect || effect.optional === true) return null;
+  const ctx = createCtx(state, deps);
+  const timing: ActionTiming = effect.ignoreActionTiming === true ? "any" : "turn";
+  if (effect.ignoreCost === true) return playIgnoringCostFault(ctx, playerId, id, "hand", undefined, timing);
+  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event, bindings: {}, deps };
+  const reduction =
+    effect.costReduction === undefined ? 0 : Math.max(0, resolveValue(state, effect.costReduction, context, deps));
+  return playWithPaymentFault(ctx, playerId, id, reduction, "hand", undefined, timing);
+}
 
 /**
  * The printed play restrictions the engine enforces beyond form, control and per-player/per-host maximums
@@ -1706,7 +1740,7 @@ function cardsSpentEvents(
  * abilities' own costs name as picks. A hand card can't also be picked for a "discard N cards" cost, and an in-play card
  * can't also pay an `InPlayCostPick` (RRG 1.8 "Cost", p. 13).
  */
-const handCardsIn = (payment: readonly Payment[]): ReadonlySet<InstanceId> =>
+export const handCardsIn = (payment: readonly Payment[]): ReadonlySet<InstanceId> =>
   new Set(
     payment.flatMap((entry) =>
       "fromHand" in entry
@@ -5142,6 +5176,66 @@ export type { PriceFault };
  */
 export function discardCombinedTotal(state: GameState, ids: readonly InstanceId[], combined: DiscardCombined): number {
   return ids.reduce((sum, id) => sum + discardCombinedValue(state, id, combined), 0);
+}
+
+/**
+ * The cards a "discard N cards from your hand →" cost (`AbilityCost.discardFromHand`) could be paid with, in hand
+ * order: every card `planCost` would accept as a pick. The paying player's hand, or every hand for an alliance card
+ * (`paidAsGroup`); never the source card itself, a card the cost's `filter` leaves out, or one that "cannot be chosen
+ * to be discarded".
+ */
+export function handDiscardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+): readonly InstanceId[] {
+  const discard = cost?.discardFromHand;
+  if (!discard) return [];
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  const hands = paidAsGroup(state, deps, sourceId)
+    ? [playerId, ...playerOrder(state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
+    : [playerId];
+  return hands
+    .flatMap((id) => getPlayer(state, id)?.hand ?? [])
+    .filter(
+      (id) =>
+        id !== sourceId &&
+        (!discard.filter || matchesQuery(state, id, discard.filter, context)) &&
+        !cannotChooseToDiscard(state, deps, id),
+    );
+}
+
+/**
+ * Default picks for a hand-discard cost, so an interrupt or response with one can be judged payable in a timing window
+ * (`costPayable`), as `defaultInPlayPicks` does for cards in play: the first `min` candidates, or for a `combined`
+ * threshold the largest shares until it is reached. Undefined when the cost has no such component. With too few
+ * candidates the picks fall short and `planCost` reports why the cost can't be paid.
+ */
+export function defaultHandDiscardPicks(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+): readonly InstanceId[] | undefined {
+  const discard = cost?.discardFromHand;
+  if (!discard) return undefined;
+  const candidates = handDiscardCandidates(state, deps, sourceId, playerId, cost);
+  const combined = discard.combined;
+  if (!combined) return candidates.slice(0, discard.min);
+  const largest = [...candidates].sort(
+    (a, b) => discardCombinedValue(state, b, combined) - discardCombinedValue(state, a, combined),
+  );
+  const picks: InstanceId[] = [];
+  let total = 0;
+  for (const id of largest) {
+    if (total >= combined.atLeast && picks.length >= discard.min) break;
+    picks.push(id);
+    total += discardCombinedValue(state, id, combined);
+  }
+  return picks;
 }
 
 /** One card's share of `discardCombinedTotal`. */

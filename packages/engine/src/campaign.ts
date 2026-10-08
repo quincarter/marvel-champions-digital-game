@@ -30,6 +30,7 @@ import type {
   ScenarioId,
   Trait,
 } from "@mc/content";
+import type { RuleSpec } from "./abilities.js";
 import type { RngState } from "./rng.js";
 import type { CardSelector, EffectSpec, Predicate, TargetCategory, TargetQuery, ValueSpec } from "./spec.js";
 
@@ -126,6 +127,18 @@ export interface CampaignNode {
    * empty: the builder's choice is free, as it was before this field existed.
    */
   readonly requiredModularSetIds?: readonly string[];
+  /**
+   * Rules the campaign puts in force for the whole of this node's game, printed in the rulebook rather than on a card:
+   * MC45 p. 5's Mission Rules card (it has no card record), and p. 20's "Professor X cannot enter play during this
+   * game." Plain `RuleSpec`s, exactly what a scenario builder passes as `GameSetupConfig.scenarioRuleSpecs`.
+   *
+   * A rule, not a setup instruction: nothing resolves and nothing is traced. `resolveBetweenGames` freezes the list
+   * into `CampaignGameInput.scenarioRuleSpecs`, and `createGame` adds it to the scenario's own rules, after them. So
+   * the rules are part of the game's replay baseline and no caller has to remember to pass them. Not gated by mode or
+   * by the log: a rule that should hold only sometimes says so in its own `while`. Absent or empty: no rule, and the
+   * game input is what it was before the field existed.
+   */
+  readonly scenarioRuleSpecs?: readonly RuleSpec[];
   readonly setup: readonly CampaignInstruction[];
   readonly victory: readonly CampaignInstruction[];
   /**
@@ -1209,6 +1222,12 @@ export interface CampaignGameInput {
    * so every earlier game input is unchanged.
    */
   readonly requiredModularSetIds?: readonly string[];
+  /**
+   * `CampaignNode.scenarioRuleSpecs`, copied here so the rules are part of the game's own replay baseline: `createGame`
+   * puts them in force with the scenario's own (`GameSetupConfig.scenarioRuleSpecs`), after them. Absent when the node
+   * states none, so every earlier game input is unchanged.
+   */
+  readonly scenarioRuleSpecs?: readonly RuleSpec[];
 }
 
 /**

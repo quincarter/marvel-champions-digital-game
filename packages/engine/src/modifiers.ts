@@ -173,18 +173,31 @@ export function amplifyIconsInPlay(state: GameState, deps: EngineDeps): number {
 /**
  * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): the
  * bonus one resolving card carries, added to every instance that card's own effects produce (RRG 1.8 "Event", p. 19).
+ * A lasting bonus over every card of a kind ("each ATTACK event deals 1 additional damage", `cardEffectBonusFor`) is
+ * part of it while the resolving card matches.
+ *
+ * Per instance means per instance (owner ruling Q53, docs/phase7-wave8.md §4.1; RRG 1.8 "Attack (Player Ability
+ * Type)", p. 10; "For Each", p. 20): the caller adds this to each damage instruction of the card, and leaves it off
+ * an instruction that is itself additional damage of an earlier instance (`EffectSpec dealDamage.additional`; RRG 1.8
+ * "Alteration Effect", p. 7: "Additional").
  */
 export function cardEffectBonus(
   state: GameState,
+  deps: EngineDeps,
   sourceId: InstanceId | null,
   field: "damage" | "threatRemoved",
 ): number {
   if (!sourceId) return 0;
-  return state.lastingEffects.reduce(
-    (sum, effect) =>
-      effect.kind === "cardEffectBonus" && effect.sourceInstanceId === sourceId ? sum + effect[field] : sum,
-    0,
-  );
+  let total = 0;
+  for (const effect of state.lastingEffects) {
+    if (effect.kind === "cardEffectBonus") {
+      if (effect.sourceInstanceId === sourceId) total += effect[field];
+    } else if (effect.kind === "cardEffectBonusFor" && effect[field] !== 0) {
+      const context: EffectContext = { ...effect.scope, event: null, deps, reaches: "all" };
+      if (matchesQuery(state, sourceId, effect.cards, context)) total += effect[field];
+    }
+  }
+  return total;
 }
 
 /** The base value set by a "has a base X of N" ability, if any (the last one in play order wins). */

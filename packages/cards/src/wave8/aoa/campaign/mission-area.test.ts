@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import { endTurn, firstLegal, inst, instancesOf, moveToHand, P1, playerOf } from "../../../testing/harness.js";
 import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { AOA_ASPECT_BASIC } from "../aspect-basic.js";
-import { COLOSSUS_INTERRUPT_DRAFT } from "../magik/support-upgrades-allies.js";
+import { MAGIK_SUPPORT_UPGRADES_ALLIES } from "../magik/support-upgrades-allies.js";
 import { MISSION_AREA, MISSION_RULES } from "./mission-rules.js";
 import { atTheMission, CAMPAIGN_DEPS, campaignGame } from "./testing.js";
 
@@ -26,8 +26,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * The mission area with the box's own player cards (docs/phase7-wave8.md §3.34, §3.55 test 4, §3.56 and §4.1 Q32):
  * Spider-Man against Rhino with Evacuate Survivors (45167a) and Sugar Man (45182a) in the mission area and the
  * Mission Rules card's rules in force (`MISSION_RULES`, `campaignGame`'s `mission`). The allies are added to his deck
- * by code. Colossus's Interrupt is still a draft in his own module (its affordability gate is open), so it is
- * registered here only to show where its play goes.
+ * by code, and Colossus's Interrupt comes from his own module's registry.
  */
 const X23 = "45012";
 const MARROW = "45021";
@@ -35,7 +34,7 @@ const COLOSSUS = "45031";
 const GOLDBALLS = "45041";
 const COLOSSUS_REF = "45031.colossus-interrupt";
 const DEPS: EngineDeps = {
-  abilities: { ...CAMPAIGN_DEPS.abilities, ...AOA_ASPECT_BASIC, [COLOSSUS_REF]: COLOSSUS_INTERRUPT_DRAFT },
+  abilities: { ...CAMPAIGN_DEPS.abilities, ...AOA_ASPECT_BASIC, ...MAGIK_SUPPORT_UPGRADES_ALLIES },
 };
 const INTO = { scenarioPlayArea: MISSION_AREA } as const;
 

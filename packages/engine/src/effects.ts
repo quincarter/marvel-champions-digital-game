@@ -122,6 +122,34 @@ export function setForm(
 }
 
 /**
+ * Changes a player's identity form, through a `formChanging` event when an interrupt listens for the change ("Interrupt:
+ * When you change to hero form, …" on the face being left), else at once (`setForm`). Returns the event for the caller
+ * to push: the `formChanging` whose apply step will make the change, or the `formChanged` announcement of a change
+ * already made; null when the player is already in that form. Any additional cost is the caller's to pay first.
+ */
+export function changeIdentityForm(
+  ctx: Ctx,
+  playerId: PlayerId,
+  to: "hero" | "alterEgo",
+  voluntary: boolean,
+  heroFormIndex = 0,
+): TriggerEvent | null {
+  const identity = mustPlayer(ctx.state, playerId).identity;
+  if (identity.form === to && identity.heroFormIndex === (to === "hero" ? heroFormIndex : null)) return null;
+  const would: TriggerEvent = {
+    kind: "formChanging",
+    playerId,
+    to,
+    change: "identity",
+    identityInstanceId: identity.instanceId,
+    voluntary,
+    heroFormIndex,
+  };
+  if (hasCandidates(ctx.state, ctx.deps, would, "interrupt")) return would;
+  return setForm(ctx, playerId, to, voluntary, heroFormIndex);
+}
+
+/**
  * Swaps a progressing identity for its next version (`EffectSpec swapIdentity`, docs/phase7-wave5.md §3.23): the
  * identity instance and the set-aside instance of the next version trade card ids, so the identity keeps its damage,
  * counters, statuses, attachments, exhaustion and form (RRG 1.8 "Swap", p. 42: the dial "remains at the same value")

@@ -5,7 +5,7 @@ import {
   applyRuleUntil,
   atEndOfAttack,
   attackInProgress,
-  attackTarget,
+  attackedBy,
   chooseCards,
   chooseTarget,
   chosen,
@@ -25,6 +25,7 @@ import {
   type losesIcon,
   moveCards,
   cards,
+  modifyCardEffectsUntil,
   modifyStat,
   on,
   query,
@@ -77,8 +78,15 @@ const SHADOWCAT_ICONS: readonly Parameters<typeof losesIcon>[0][] = ["accelerati
  * **Reprints, one script under two ids**: Looking for Trouble 46017 is `gmw` 16043's, Team-Building Exercise 46021 is
  * `ant` 12024's, Recuperation 46022 is `scw` 15031's and The Power in All of Us 46023 is 13024's.
  *
- * **Shark-Girl (46012)** and **Keep Up the Pressure (46018)** are NOT registered; see `ICEMAN_ASPECT_BASIC_SKIPPED` and
- * `ICEMAN_ASPECT_BASIC_DRAFTS`.
+ * **Keep Up the Pressure (46018)**: When Defeated, each player may take an ATTACK event from their deck or discard pile
+ * (the deck is shuffled either way), then until the end of the phase each ATTACK event deals 1 additional damage
+ * (`modifyCardEffectsUntil`): every instance of damage an event with the ATTACK trait deals while it lasts, whoever
+ * plays it (owner ruling Q53; RRG 1.8 "Attack (Player Ability Type)", p. 10, and "Event", p. 19), never an instance
+ * that is itself additional damage and never damage its own player takes.
+ *
+ * **Shark-Girl (46012)**: a constant on herself, live only while an attack of hers against an enemy is in progress, whose
+ * amount counts the upgrades attached to the enemy that attack is against (`attackedBy()`, read off the attack on the
+ * stack). An upgrade attached during the attack before its damage is dealt counts.
  *
  * **Glob (46013)**: the target is part of the Response, so with no enemy that has an upgrade attached he answers
  * nothing. "Play only if your identity has the X-Men trait" is card data (`playRestrictions`).
@@ -87,8 +95,9 @@ const SHADOWCAT_ICONS: readonly Parameters<typeof losesIcon>[0][] = ["accelerati
  * Change of Fortune, `ncrawler` 48014). It is an Interrupt to the defeat, so the heal resolves while the minion and the
  * upgrade are still in play.
  *
- * **Surprise Move (46015)**: the target is checked when the basic attack is made, so an upgrade attached by an earlier
- * Interrupt (Iceman's "Freeze!") counts. "If this attack defeats that enemy" is read when the attack ends.
+ * **Surprise Move (46015)**: the target is checked when the card is played, so an upgrade attached by an earlier
+ * Interrupt to the same attack (Iceman's "Freeze!") counts: the interrupt window offers Surprise Move once "Freeze!"
+ * has resolved (the engine's `heardAtOpen`). "If this attack defeats that enemy" is read when the attack ends.
  *
  * **Take That! (46016)** is an "(attack)" ability that only deals damage: the engine makes it one attack by the
  * identity (Q48 = A), so its damage is attack damage, guard limits the choice (Q49) and retaliate and "after you
@@ -98,6 +107,15 @@ const SHADOWCAT_ICONS: readonly Parameters<typeof losesIcon>[0][] = ["accelerati
  * rule (docs/phase7-wave6.md section 3.38).
  */
 export const ICEMAN_ASPECT_BASIC: AbilityRegistry = defineAbilities({
+  "46012.shark-girl-constant": constant(
+    gets(
+      "atk",
+      countOf(query("upgrade", { host: attackedBy() })),
+      { self: true },
+      { while: attackInProgress({ attacker: { self: true }, target: query("enemy") }) },
+    ),
+  ),
+
   "46013.glob-response": response(
     on.entersPlay("self"),
     chooseTarget("enemy", ENEMY_WITH_UPGRADE),
@@ -123,6 +141,20 @@ export const ICEMAN_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "46017.looking-for-trouble-action": reprintOf("16043.looking-for-trouble-action"),
 
+  "46018.when-defeated": whenDefeated(
+    forEachPlayer(
+      eachPlayer,
+      chooseCards("found", zone(["deck", "discard"], thatPlayer, { filter: ATTACK_EVENT }), {
+        min: 0,
+        max: 1,
+        chooser: thatPlayer,
+      }),
+      moveCards(cards(chosen("found")), "hand"),
+      shuffleDeck(thatPlayer),
+    ),
+    modifyCardEffectsUntil(ATTACK_EVENT, { damage: 1 }, "endOfPhase"),
+  ),
+
   "46019.shadowcat-response": response(
     after.youPlayThis(),
     chooseTarget("scheme", query("sideScheme")),
@@ -142,44 +174,8 @@ export const ICEMAN_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "46023.the-power-in-all-of-us-constant": reprintOf("13024.the-power-in-all-of-us-constant"),
 });
 
-/**
- * The skipped refs written out as printed, NOT registered (the registry above must not hold them). Register each
- * unchanged once the engine can run it: move the entry into the registry and delete it from the skipped map.
- *
- * Shark-Girl: the amount counts the upgrades on the enemy of the attack in progress; a constant ability has no ref to
- * that enemy (`attackTarget()` is a slot an `attack` effect binds). Keep Up the Pressure: the search half only; the
- * lasting "each Attack event deals 1 additional damage" has no primitive (`cardEffectBonus` is bound to one resolving
- * card).
- */
-export const ICEMAN_ASPECT_BASIC_DRAFTS: AbilityRegistry = {
-  // Not passed through `defineAbilities`: the validator refuses it ("slot attack.target is read before it is bound").
-  "46012.shark-girl-constant": constant(
-    gets(
-      "atk",
-      countOf(query("upgrade", { host: attackTarget() })),
-      { self: true },
-      { while: attackInProgress({ attacker: { self: true }, target: query("enemy") }) },
-    ),
-  ),
+/** Drafts of skipped refs, exported for the proofs in the test file. None is left: every ref is registered. */
+export const ICEMAN_ASPECT_BASIC_DRAFTS: AbilityRegistry = {};
 
-  "46018.when-defeated": whenDefeated(
-    forEachPlayer(
-      eachPlayer,
-      chooseCards("found", zone(["deck", "discard"], thatPlayer, { filter: ATTACK_EVENT }), {
-        min: 0,
-        max: 1,
-        chooser: thatPlayer,
-      }),
-      moveCards(cards(chosen("found")), "hand"),
-      shuffleDeck(thatPlayer),
-    ),
-  ),
-};
-
-/** Refs left unregistered, each with its reason. */
-export const ICEMAN_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "46012.shark-girl-constant":
-    "section 3.67: the ATK bonus counts the upgrades attached to the enemy being attacked, and a constant ability has no ref to the attack's target (attackTarget() is bound only by an attack effect); no count of the attacked enemy's upgrades is expressible",
-  "46018.when-defeated":
-    "its second sentence, 'until the end of the phase, each ATTACK event deals 1 additional damage', needs a lasting bonus over every Attack event played this phase; cardEffectBonus is bound to one resolving card (Embiggen!), so only the search half could be scripted and half would be an approximation",
-};
+/** Refs left unregistered, each with its reason. None is left. */
+export const ICEMAN_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

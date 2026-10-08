@@ -3,6 +3,8 @@
 import {
   announceResourcesSpent,
   commitPlay,
+  handCardsIn,
+  handDiscardCandidates,
   playFrameCost,
   inPlayCostCandidates,
   isPriceFault,
@@ -43,7 +45,7 @@ import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
-import { candidatesFor, stillOffered } from "./triggers.js";
+import { candidatesFor, hearerKey, hearersOf, stillOffered } from "./triggers.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -100,6 +102,22 @@ function windowCandidates(
   return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
     (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
   );
+}
+
+/**
+ * The optional candidates of an interrupt window that were listening as it opened (`heardAtOpen`), were not offered
+ * then or since (`optionalAtOpen`), and can be initiated now: their condition was completed while the window was open.
+ * None for a response window, whose occurrence is over, and none until the window has recorded who was listening.
+ */
+function lateCandidates(ctx: Ctx, frame: Frame<"window">, would: boolean): readonly TriggerCandidate[] {
+  if (frame.timing !== "interrupt" || !frame.heardAtOpen || frame.heardAtOpen.length === 0) return [];
+  const keyOf = (candidate: TriggerCandidate): string =>
+    hearerKey(candidate.instanceId, candidate.abilityId, candidate.sharedEvent?.index);
+  const offered = new Set((frame.optionalAtOpen ?? []).map(keyOf));
+  const waiting = frame.heardAtOpen.filter((key) => !offered.has(key));
+  if (waiting.length === 0) return [];
+  const listening = new Set(waiting);
+  return windowCandidates(ctx, frame, false, would).filter((candidate) => listening.has(keyOf(candidate)));
 }
 
 /** Whether the candidate's interrupt reads "would" (`trigger.would`): the window's earlier tier. */
@@ -219,6 +237,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).
     if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...frame, queue: rest });
     if (askCostPick(ctx, frame, next, rest)) return;
+    if (askHandDiscard(ctx, frame, next, rest)) return;
     if (askCostCounters(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
@@ -229,8 +248,28 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   const tierIndex = frame.wouldTier ?? frame.tierIndex;
   const forced = TIERS[tierIndex];
   if (forced === undefined) {
+    // An optional interrupt that resolved may have completed the condition of another that was listening as the
+    // window opened (`heardAtOpen`): those are offered now, in a further optional round, until none is new.
+    // Nothing optional was offered in this window: nothing optional resolved, so no condition was completed since.
+    const late = (frame.optionalAtOpen ?? []).length > 0 ? lateCandidates(ctx, frame, would) : [];
+    if (late.length > 0) {
+      emit(ctx, {
+        type: "windowOpened",
+        event: frame.event,
+        timing: frame.timing,
+        ...(would ? { would: true as const } : {}),
+        candidates: late.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
+      });
+      setFrame(ctx, {
+        ...frame,
+        pending: late,
+        optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late],
+        askingPlayerIds: controllersToAsk(ctx.state, late),
+      });
+      return;
+    }
     if (would) {
-      const { wouldTier: _done, optionalAtOpen: _wouldOptional, ...rest } = frame;
+      const { wouldTier: _done, optionalAtOpen: _wouldOptional, heardAtOpen: _wouldHeard, ...rest } = frame;
       setFrame(ctx, rest);
       return;
     }
@@ -243,18 +282,36 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   // the forced tier switched on is not offered for an occurrence it did not hear. The "would" tiers and the ordinary
   // ones are each read as they open.
   const atOpen = tierIndex === 0 ? windowCandidates(ctx, frame, false, would) : undefined;
+  // Interrupt windows: who was listening as it opened (`heardAtOpen`), so a listener whose condition is completed
+  // while the window is open can still be offered.
+  const heard =
+    tierIndex === 0 && frame.timing === "interrupt"
+      ? [
+          ...(frame.alsoEvents ?? []).flatMap((event, index) =>
+            hearersOf(ctx.state, ctx.deps, event, frame.timing, index),
+          ),
+          ...hearersOf(ctx.state, ctx.deps, frame.event, frame.timing),
+        ]
+      : undefined;
+  // A listener the forced tier completed the condition of joins the optional tier's first round.
+  const late = forced ? [] : lateCandidates(ctx, frame, would);
   const candidates = forced
     ? windowCandidates(ctx, frame, true, would)
-    : (frame.optionalAtOpen ?? windowCandidates(ctx, frame, false, would)).filter(
-        (candidate) =>
-          stillImminent(ctx, frame, candidate) &&
-          stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
-      );
+    : [
+        ...(frame.optionalAtOpen ?? windowCandidates(ctx, frame, false, would)).filter(
+          (candidate) =>
+            stillImminent(ctx, frame, candidate) &&
+            stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
+        ),
+        ...late,
+      ];
   const advanced = {
     ...frame,
     ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
     ...(atOpen ? { optionalAtOpen: atOpen } : {}),
+    ...(late.length > 0 ? { optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late] } : {}),
+    ...(heard ? { heardAtOpen: heard } : {}),
   };
   if (candidates.length === 0) {
     setFrame(ctx, advanced);
@@ -544,6 +601,75 @@ function askCostPick(
   return false;
 }
 
+/** `CostChoices` key (and binding slot) of a hand-discard cost's picks (`AbilityCost.discardFromHand`). */
+const HAND_DISCARD_SLOT = "discard";
+
+/**
+ * Asks the candidate's controller which cards from hand pay its "discard N cards from your hand →" cost
+ * (`AbilityCost.discardFromHand`), after its picks of cards in play and before its payment: RRG 1.8 "Initiating
+ * Abilities" (p. 24), the cost is determined (step 3) before it is paid (step 5). Asked as a `chooseCostCards` choice
+ * with mode `discardFromHand`; selecting fewer than the cost's `min` backs out, as for a pick of cards in play. Asked
+ * even when the hand holds exactly `min` candidates, since those cards may also be what the player would pay
+ * resources with. Not asked with too few candidates (`planCost` refuses the cost), nor for a cost with no minimum and
+ * no `combined` threshold, which pays with no discard as it did before a window asked.
+ */
+function askHandDiscard(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  candidate: TriggerCandidate,
+  rest: readonly TriggerCandidate[],
+): boolean {
+  const controller = candidate.controllerId;
+  const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  const discard = cost?.discardFromHand;
+  if (!controller || !discard || (discard.min <= 0 && !discard.combined)) return false;
+  const choices = costChoicesFor(frame, candidate);
+  if (choices[HAND_DISCARD_SLOT] !== undefined) return false;
+  const candidates = handDiscardCandidates(ctx.state, ctx.deps, candidate.instanceId, controller, cost);
+  if (candidates.length < Math.max(discard.min, 1)) return false;
+  setFrame(ctx, {
+    ...frame,
+    queue: rest,
+    awaiting: "costPick",
+    paying: candidate,
+    costPicks: {
+      key: candidateKey(candidate),
+      choices,
+      asking: HAND_DISCARD_SLOT,
+      ...costSelectionFor(frame, candidate),
+    },
+  });
+  requestChoice(ctx, {
+    playerId: controller,
+    prompt: {
+      kind: "chooseCostCards",
+      instanceId: candidate.instanceId,
+      abilityId: candidate.abilityId,
+      slot: HAND_DISCARD_SLOT,
+      mode: "discardFromHand",
+    },
+    options: candidates.map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id },
+    })),
+    minSelections: 0,
+    maxSelections: Math.min(candidates.length, discard.max ?? candidates.length),
+    frameId: frame.frameId,
+  });
+  return true;
+}
+
+/** The payment options left once the cards picked for the candidate's hand-discard cost are kept out of them. */
+function withoutHandDiscards(
+  frame: Frame<"window">,
+  candidate: TriggerCandidate,
+  options: readonly ChoiceOption[],
+): readonly ChoiceOption[] {
+  const picked = new Set((costChoicesFor(frame, candidate)[HAND_DISCARD_SLOT] ?? []).map((id) => `hand:${id}`));
+  return picked.size === 0 ? options : options.filter((option) => !picked.has(option.optionId));
+}
+
 /**
  * The answer to a `chooseCostCards` choice: record the pick and put the candidate back at the head of the queue, so the
  * next pick (or its payment) is asked. Fewer than the pick's `min` backs out of the candidate.
@@ -551,9 +677,13 @@ function askCostPick(
 function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly string[], slot: string | null): void {
   const candidate = frame.paying;
   const { costPicks: _dropped, ...cleared } = { ...frame, answer: null, awaiting: null, paying: null };
-  const pick = candidate
-    ? inPlayPicksOf(ctx.deps.abilities[candidate.abilityId]?.cost).find((entry) => entry.pick.slot === slot)?.pick
-    : undefined;
+  const cost = candidate ? ctx.deps.abilities[candidate.abilityId]?.cost : undefined;
+  // A pick of cards in play, or the hand-discard cost's (`askHandDiscard`), which needs at least one card.
+  const pick =
+    inPlayPicksOf(cost).find((entry) => entry.pick.slot === slot)?.pick ??
+    (slot === HAND_DISCARD_SLOT && cost?.discardFromHand
+      ? { slot: HAND_DISCARD_SLOT, min: Math.max(cost.discardFromHand.min, 1) }
+      : undefined);
   if (!candidate || !pick || answer.length < pick.min) return setFrame(ctx, cleared);
   const picked = answer.map((id) => id as InstanceId);
   setFrame(ctx, {
@@ -613,7 +743,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   const chosenSize = resourcesChoiceOf(plan.cost ?? definition.cost);
   if (needed > 0 || definition.cost.resourcesX !== undefined || chosenSize) {
     const payingFor = plan.payingFor ?? candidate.instanceId;
-    const options = paymentOptions(ctx, controller, null, payingFor);
+    const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, controller, null, payingFor));
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
     requestChoice(ctx, {
       playerId: controller,
@@ -653,7 +783,8 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
     controller,
     definition.cost,
     costChoicesFor(frame, candidate),
-    new Set(),
+    // A hand card spent on the resources cannot also be the card discarded for the cost (RRG 1.8 "Cost", p. 13).
+    handCardsIn(payment),
     selection,
     on.event,
   );
@@ -741,7 +872,7 @@ function requestWindowPayment(
     playWindowEvent(ctx, playing, []);
     return;
   }
-  const options = paymentOptions(ctx, controller, candidate.instanceId);
+  const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, controller, candidate.instanceId));
   setFrame(ctx, { ...frame, queue: rest, awaiting: "pay", paying: candidate });
   requestChoice(ctx, {
     playerId: controller,

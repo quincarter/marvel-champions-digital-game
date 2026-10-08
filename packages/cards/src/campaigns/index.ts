@@ -14,6 +14,10 @@ import { NEXT_EVOL_CAMPAIGN_DEFINITION } from "./next_evol.js";
 import { SM_CAMPAIGN_DEFINITION } from "./sm.js";
 import { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
+// Age of Apocalypse (MC45) is exported and deliberately not in `CAMPAIGNS` below: the client opens a box on the Saga
+// shelf when `campaignDefinitionOf` knows it, and this box's screens are a later client step (docs/phase7-wave8.md
+// §8.5). That step adds the entry here and `AOA_CAMPAIGN` to `@mc/content`'s `CAMPAIGNS`.
+export { AOA_CAMPAIGN_DEFINITION } from "./aoa.js";
 export { cardsOfComposedSets } from "./composed-sets.js";
 export { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 export { MOJO_CAMPAIGN_DEFINITION, mojoCheckedOffSets, mojoModularSetPicks } from "./mojo.js";

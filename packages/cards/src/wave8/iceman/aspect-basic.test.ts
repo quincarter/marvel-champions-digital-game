@@ -2,6 +2,7 @@ import { cardId, ICEMAN_CARDS, WAVE8_CARDS, WAVE8_STARTER_DECKS, type AnyCard } 
 import {
   activeEncounterDeckId,
   applyCommand,
+  characterProfile,
   countSchemeIcons,
   createGame,
   type Command,
@@ -18,6 +19,7 @@ import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
+  endTurn,
   P2,
   firstLegal,
   identityOf,
@@ -44,7 +46,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Iceman pack aspect and basic cards (46012 to 46023), docs/phase7-wave8.md section 7.2, 3.67, 3.68, 3.70. Real
  * commands in a real game: Iceman's starter deck (`iceman-aggression`) against Rhino, with the cards under test added to
  * the deck by code (`requireLegalDecks: false`). A frostbitten enemy is made by Iceman's real "Freeze!" attack.
- * Shark-Girl and Keep Up the Pressure are skipped in the module; their sections prove where each fails.
+ * Every ref of the group is registered.
  */
 const GLOB = "46013";
 const FIRE = "46014";
@@ -52,15 +54,18 @@ const MOVE = "46015";
 const THAT = "46016";
 const SHADOWCAT = "46019";
 const BEAK = "46020";
-const STAGED = new Set([GLOB, FIRE, MOVE, THAT, SHADOWCAT, BEAK, "46009", "46010", "46011"]);
+const PRESSURE = "46018";
+const STAGED = new Set([GLOB, FIRE, MOVE, THAT, PRESSURE, SHADOWCAT, BEAK, "46009", "46010", "46011"]);
 const FREEZE = "46001a.freeze";
 const FROSTBITE_CODE = "46002";
 const REFS = [
+  "46012.shark-girl-constant",
   "46013.glob-response",
   "46014.suppressing-fire-interrupt",
   "46015.surprise-move-interrupt",
   "46016.take-that-action",
   "46017.looking-for-trouble-action",
+  "46018.when-defeated",
   "46019.shadowcat-response",
   "46020.beak-response",
   "46021.team-building-exercise-action",
@@ -267,7 +272,7 @@ const offered = (seen: readonly { kind: string; options: string[] }[], ref: stri
   seen.some((p) => p.kind === "chooseTriggers" && p.options.some((o) => o.includes(ref)));
 
 describe("registry", () => {
-  it("holds exactly the ten registered refs; the two skipped ones are not registered", () => {
+  it("holds exactly the twelve registered refs; nothing is skipped", () => {
     expect(Object.keys(ICEMAN_ASPECT_BASIC).sort()).toEqual([...REFS].sort());
   });
   it("every ability ref of 46012 to 46023 is registered or skipped with a reason, and nothing else", () => {
@@ -283,9 +288,6 @@ describe("registry", () => {
   });
   it.each(REFS)("%s validates", (id) => {
     expect(validateDefinition(ICEMAN_ASPECT_BASIC[id]!)).toEqual([]);
-  });
-  it("Keep Up the Pressure's draft (the search half) validates", () => {
-    expect(validateDefinition(ICEMAN_ASPECT_BASIC_DRAFTS["46018.when-defeated"]!)).toEqual([]);
   });
   it("the four reprints are the earlier cards' own scripts", () => {
     const pairs: readonly [string, string][] = [
@@ -417,17 +419,21 @@ describe("Surprise Move (46015): Hero Interrupt, +2 ATK on a basic attack agains
     const s = withResources(moveToHand(s0, P1, MOVE).state, 3);
     return { minion, ...run(s, picker({ accept: [FREEZE, "surprise-move"], pay: 1 }), attack(s, minion)) };
   }
-  it.fails("section 3.67 test 6 (engine gap): after 'Freeze!' attaches a copy during the attack, Surprise Move is playable: ATK 4 defeats the 4-hit-point minion and Iceman readies", () => {
+  it("section 3.67 test 6: after 'Freeze!' attaches a copy during the attack, Surprise Move is offered in the same window: ATK 4 defeats the 4-hit-point minion and Iceman readies", () => {
     const { state, seen, minion } = freezeThenMove();
-    expect(offered(seen, "surprise-move")).toBe(true);
+    // The window opens with only "Freeze!" (the minion has nothing attached); once it resolves, Surprise Move's
+    // condition is met and the window offers it.
+    const offers = seen.filter((p) => p.kind === "chooseTriggers").map((p) => p.options);
+    expect(offers).toEqual([[expect.stringContaining(FREEZE)], [expect.stringContaining("surprise-move")]]);
     expect(inPlay(state, minion)).toBe(false);
     expect(inst(state, identityOf(state)).exhausted).toBe(false);
   });
-  it("pins today: the interrupt window offers only 'Freeze!' (Surprise Move's target condition is read when the window opens), so the minion survives on 2 damage", () => {
-    const { state, seen, minion } = freezeThenMove();
-    expect(seen.map((p) => p.options)).toEqual([[expect.stringContaining(FREEZE)]]);
-    expect(frostbiteOn(state, minion)).toBe(1);
-    expect(inPlay(state, minion)).toBe(true);
+  it("declining 'Freeze!' leaves Surprise Move unoffered: the minion has no upgrade and survives on 2 damage", () => {
+    const { state: s0, id: minion } = withMinion(heroGame(), P1, "01102");
+    const s = withResources(moveToHand(s0, P1, MOVE).state, 3);
+    const { state, seen } = run(s, picker({ accept: ["surprise-move"], pay: 1 }), attack(s, minion));
+    expect(offered(seen, "surprise-move")).toBe(false);
+    expect(frostbiteOn(state, minion)).toBe(0);
     expect(damageOf(state, minion)).toBe(2);
   });
 });
@@ -533,12 +539,12 @@ describe("Beak (46020): Response after you play him, remove 1 threat from a sche
   });
 });
 
-describe("Shark-Girl (46012), skipped: where the draft fails", () => {
+describe("Shark-Girl (46012): while she attacks an enemy, +1 ATK for each upgrade attached to that enemy", () => {
   const SHARK = "46012";
-  /** Shark-Girl attacks a Sandman with two Frostbite attached; returns the damage she deals. */
-  function sharkDamage(): number | undefined {
+  /** Shark-Girl in play and ready beside a Sandman with `frostbites` Frostbite attached, and Rhino with `onRhino`. */
+  function shark(frostbites: number, onRhino = 0) {
     const { state: s0, id: minion } = withMinion(heroGame([ICE(SHARK)]), P1, "01102");
-    const frozen = freeze(s0, 2, minion);
+    const frozen = freeze(freeze(s0, frostbites, minion), onRhino);
     const given = moveToHand(withResources(frozen, 6), P1, SHARK);
     const id = given.ids[0]!;
     const played = driveEventsPicking(
@@ -547,38 +553,94 @@ describe("Shark-Girl (46012), skipped: where the draft fails", () => {
       picker(),
       play(P1, id, payers(given.state, P1, 2, [id])),
     ).state;
-    const attacker = patchInstance(played, id, { exhausted: false });
-    const result = driveEventsPicking(DEPS, attacker, picker(), {
+    return { state: patchInstance(played, id, { exhausted: false }), id, minion };
+  }
+  const sharkAttack = (s: GameState, id: InstanceId, target: InstanceId) =>
+    driveEventsPicking(DEPS, s, picker(), {
       type: "basicAttack",
       playerId: P1,
       attackerInstanceId: id,
-      targetInstanceId: minion,
+      targetInstanceId: target,
     });
-    return damageTo(result.events, minion)[0];
-  }
-  it.fails("draft: the constant validates (it does not: the attack's target slot is read before it is bound)", () => {
-    expect(validateDefinition(ICEMAN_ASPECT_BASIC_DRAFTS["46012.shark-girl-constant"]!)).toEqual([]);
+  it("the registered constant validates", () => {
+    expect(validateDefinition(ICEMAN_ASPECT_BASIC["46012.shark-girl-constant"]!)).toEqual([]);
   });
-  it("the validator's reason is the unbound slot", () => {
-    expect(validateDefinition(ICEMAN_ASPECT_BASIC_DRAFTS["46012.shark-girl-constant"]!).join(" ")).toContain(
-      "attack.target",
-    );
+  it("two upgrades attached to the enemy she attacks: 2 + 2 = 4 damage", () => {
+    const t = shark(2);
+    expect(damageTo(sharkAttack(t.state, t.id, t.minion).events, t.minion)[0]).toBe(4);
   });
-  it.fails("with two upgrades attached she should deal 2 + 2 = 4 damage", () => {
-    expect(sharkDamage()).toBe(4);
+  it("no upgrade on the enemy she attacks: her printed 2, whatever another enemy has attached", () => {
+    const t = shark(0, 2);
+    expect(damageTo(sharkAttack(t.state, t.id, t.minion).events, t.minion)[0]).toBe(2);
   });
-  it("pins today: unscripted she deals her printed 2", () => {
-    expect(sharkDamage()).toBe(2);
+  it("outside her attack she has her printed ATK, and Iceman's attack on that enemy gets nothing from her", () => {
+    const t = shark(2);
+    expect(characterProfile(t.state, t.id, DEPS)?.atk).toBe(2);
+    const iceman = identityOf(t.state);
+    const base = characterProfile(t.state, iceman, DEPS)!.atk!;
+    const hit = driveEventsPicking(DEPS, t.state, picker(), attack(t.state, t.minion));
+    expect(damageTo(hit.events, t.minion)[0]).toBe(base);
   });
 });
 
-describe("Keep Up the Pressure (46018), skipped: where the draft fails", () => {
-  it("the draft holds the search half only: it has no +1 damage effect", () => {
-    const draft = JSON.stringify(ICEMAN_ASPECT_BASIC_DRAFTS["46018.when-defeated"]);
-    expect(draft).not.toContain("cardEffectBonus");
-    expect(draft).not.toContain("modifyCardEffect");
+describe("Keep Up the Pressure (46018): When Defeated, each player may fetch an ATTACK event; ATTACK events deal +1 this phase", () => {
+  /** Rhino frostbitten, Keep Up the Pressure in play with 1 threat, Iceman ready, `takes` copies of Take That! in hand. */
+  function pressured(takes = 1) {
+    const frozen = freeze(heroGame([ICE(THAT, THAT)]), 1);
+    const staged = inHand(frozen, PRESSURE);
+    const played = playStaged(staged).state;
+    const scheme = staged.id;
+    const s = patchInstance(ready(played, identityOf(played)), scheme, { threat: 1 });
+    // One call for every copy: a second call would find the copy already in hand.
+    const given = moveToHand(s, P1, ...Array.from({ length: takes }, () => THAT));
+    return { state: withResources(given.state, 6), scheme, hand: given.ids };
+  }
+  const defeat = (s: GameState, scheme: InstanceId, pick: Picker = picker()) =>
+    run(s, pick, { type: "basicThwart", playerId: P1, thwarterInstanceId: identityOf(s), schemeInstanceId: scheme });
+  const playThat = (s: GameState, id: InstanceId) =>
+    driveEventsPicking(DEPS, s, picker(), play(P1, id, payers(s, P1, 3, [id])));
+  const bonuses = (s: GameState) => s.lastingEffects.filter((e) => e.kind === "cardEffectBonusFor");
+
+  it("the registered script validates", () => {
+    expect(validateDefinition(ICEMAN_ASPECT_BASIC["46018.when-defeated"]!)).toEqual([]);
   });
-  it.fails("documented gap: the draft should also give every Attack event +1 damage this phase (no primitive exists)", () => {
-    expect(JSON.stringify(ICEMAN_ASPECT_BASIC_DRAFTS["46018.when-defeated"])).toContain("modifyCardEffect");
+  it("defeated: the player is offered the ATTACK events of their deck and discard pile, takes one, and the deck is shuffled", () => {
+    const t = pressured(0);
+    const { state, events, seen } = defeat(t.state, t.scheme);
+    const search = seen.find((p) => p.kind === "chooseCards")!;
+    expect(search.options.length).toBeGreaterThan(0);
+    for (const option of search.options)
+      expect((BY_ID.get(codeOf(t.state, option as InstanceId)) as unknown as { traits: string[] }).traits).toContain(
+        "ATTACK",
+      );
+    expect(events.some((e) => e.type === "deckShuffled")).toBe(true);
+    expect(bonuses(state)).toMatchObject([{ damage: 1, duration: { kind: "endOfPhase" } }]);
+  });
+  it("until the end of the phase each ATTACK event deals 1 additional damage: Take That! deals 8, and so does a second copy", () => {
+    const t = pressured(2);
+    const after = defeat(t.state, t.scheme).state;
+    const first = playThat(after, t.hand[0]!);
+    expect(damageTo(first.events, villainOf(first.state))).toEqual([8]);
+    const second = playThat(first.state, t.hand[1]!);
+    expect(damageTo(second.events, villainOf(second.state))).toEqual([8]);
+  });
+  it("without the scheme defeated Take That! deals its printed 7", () => {
+    const t = pressured(1);
+    const hit = playThat(t.state, t.hand[0]!);
+    expect(damageTo(hit.events, villainOf(hit.state))).toEqual([7]);
+  });
+  it("only ATTACK events: Iceman's basic attack is not increased", () => {
+    const t = pressured(0);
+    const after = defeat(t.state, t.scheme).state;
+    const s = ready(after, identityOf(after));
+    const atk = characterProfile(s, identityOf(s), DEPS)!.atk!;
+    const hit = run(s, picker(), attack(s, villainOf(s)));
+    expect(damageTo(hit.events, villainOf(hit.state))).toEqual([atk]);
+  });
+  it("the bonus ends with the phase", () => {
+    const t = pressured(0);
+    const after = defeat(t.state, t.scheme).state;
+    const ended = run(after, picker(), endTurn(P1)).state;
+    expect(bonuses(ended)).toEqual([]);
   });
 });

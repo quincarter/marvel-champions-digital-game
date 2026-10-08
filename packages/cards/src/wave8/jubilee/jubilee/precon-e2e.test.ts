@@ -68,8 +68,9 @@ vi.setConfig({ testTimeout: 240_000 });
  * Child search only when the attacked player controls an ally), the hazard extra deal (RRG 1.8 "Hazard Icon", p. 21)
  * and ready-and-draw at the end of the player phase (RRG 1.8 "Player Phase").
  *
- * Held, asserted only as "no error": Chamber 47011, Generation X's constant 47016 and Mutant Mayhem 47028 (unregistered
- * drafts, see `../aspect-basic.ts`).
+ * Held, asserted only as "no error": Generation X's constant 47016 and Mutant Mayhem 47028 (unregistered drafts, see
+ * `../aspect-basic.ts`). Chamber 47011 is registered and proven in `../aspect-basic.test.ts`; these games assert
+ * nothing card-specific about him.
  */
 
 const DECK_ID = "jubilee-justice";

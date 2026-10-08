@@ -1,23 +1,24 @@
 import { trait } from "@mc/content";
-import type { AbilityDefinition, AbilityRegistry, EventPattern } from "@mc/engine";
+import type { AbilityRegistry, EventPattern } from "@mc/engine";
 import {
   bindTargets,
   cards,
   chooseCards,
   chosen,
-  constant,
   defineAbilities,
   each,
   engagedPlayerOf,
   exists,
   find,
-  firstRevealGainsSurge,
+  eventTarget,
+  forcedInterrupt,
   forcedResponse,
   handCountOf,
   ifThen,
   moveCards,
   named,
   on,
+  oncePerPhase,
   placeThreat,
   totalPrintedResources,
   query,
@@ -80,7 +81,10 @@ const FITZROY_DEFEATS_ALLY: EventPattern = {
  * printed resource icons (the hand is bound as a slot, `superlative` keeps every tied card, `chooseCards` picks one),
  * then each scheme in play (main and side) takes 1 threat per printed icon on it. An empty hand does nothing.
  *
- * **Portal Through Time (45027)**: not registered, see `BISHOP_OBLIGATION_NEMESIS_SKIPPED`.
+ * **Portal Through Time (45027)**, "Forced Interrupt: When a TEMPORAL card is revealed, it gains surge. (Limit once per
+ * phase.)": a forced interrupt of the side scheme in play on the card being revealed, giving that card surge
+ * (`surge(eventTarget)`), limited by its own uses. A TEMPORAL card revealed before the Portal entered play that phase
+ * (Bantam, which finds it) used nothing, so the next TEMPORAL card revealed that phase gains surge.
  */
 export const BISHOP_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "45025.obligation": obligation("Lucas Bishop", {
@@ -96,6 +100,12 @@ export const BISHOP_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 
   "45026.trevor-fitzroy-forced-response": forcedResponse(FITZROY_DEFEATS_ALLY, portalOrFind(engagedPlayerOf(self))),
 
+  "45027.portal-through-time-forced-interrupt": forcedInterrupt(
+    on.encounterCardRevealed({ trait: TEMPORAL }),
+    { limit: oncePerPhase },
+    surge(eventTarget),
+  ),
+
   "45028.when-revealed": whenRevealed(portalOrFind(you)),
 
   "45029.when-revealed": whenRevealed(
@@ -107,24 +117,5 @@ export const BISHOP_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   ),
 });
 
-/**
- * Portal Through Time, "Forced Interrupt: When a TEMPORAL card is revealed, it gains surge. (Limit once per phase.)",
- * as far as today's engine can say it: `firstRevealGainsSurge` reads "the first TEMPORAL card revealed this phase" from
- * the round's whole reveal history, not "the first one revealed while this scheme is in play". The two differ when a
- * TEMPORAL card was revealed earlier in the phase than the Portal (Bantam, which finds the Portal: the next TEMPORAL
- * card that phase, say Trevor Fitzroy, should gain surge and would not). Left unregistered (a subtly wrong card is worse
- * than a missing one); the engine would need a surge grant to another card from a limited interrupt. Exported for the
- * `it.fails` proof.
- */
-export const PORTAL_THROUGH_TIME_DRAFT: AbilityDefinition = constant(
-  firstRevealGainsSurge(
-    query(["minion", "treachery", "sideScheme", "attachment", "environment"], { trait: TEMPORAL }),
-    "phase",
-  ),
-);
-
-/** Refs left unregistered, each with its reason (the coverage test reads this through its own `skipped` list). */
-export const BISHOP_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {
-  "45027.portal-through-time-forced-interrupt":
-    "needs a surge grant to the revealed card from a Forced Interrupt limited once per phase by its own uses; firstRevealGainsSurge counts TEMPORAL reveals made before the Portal entered play (Bantam), so it under-grants",
-};
+/** Refs left unregistered, each with its reason. None is left. */
+export const BISHOP_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {};

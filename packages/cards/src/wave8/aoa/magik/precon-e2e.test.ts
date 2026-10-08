@@ -7,6 +7,7 @@ import {
   deckTopPlayOf,
   handSize,
   iconsInPlay,
+  keywordsOf,
   printedResources,
   replay,
   sessionApply,
@@ -78,8 +79,8 @@ vi.setConfig({ testTimeout: 240_000 });
  * - hazard deals one extra card per icon in player order (RRG "Hazard Icon", p. 21); ready and draw happen at the end of
  *   the player phase (RRG Appendix II "Player Phase", p. 51).
  *
- * Known gaps, asserted only to cause no error: Illyana Rasputin's interrupt 45030b (unregistered, no window before the
- * form change) and Colossus 45031 (unregistered, no affordability gate on an in-hand self-play interrupt).
+ * Illyana Rasputin's interrupt 45030b (the window before the form change) and Colossus 45031 (his in-hand interrupt,
+ * offered only when affordable) are registered; the last section stages each.
  */
 
 const MAGIK = { starterDeckId: "magik-aggression" } as const;
@@ -517,7 +518,9 @@ class Observer {
           villain &&
           top &&
           magikAfter.identity.form === "hero" &&
-          !events.some((x) => x.type === "statusRemoved")
+          !events.some((x) => x.type === "statusRemoved") &&
+          // Unus gains stalwart at 6 threat on Gene Pool: a stalwart villain cannot be confused (RRG "Stalwart", p. 40).
+          !keywordsOf(after, villain, WAVE8_DEPS).some((k) => k.name === "stalwart")
         ) {
           if (hasIcon(after, top, "mental")) {
             expect(after.instances[villain]!.statuses.confused, `${here}: ${nm(top)} shows mental: confused`).toBe(1);
@@ -843,8 +846,7 @@ describe("Staged: the top card of her deck", () => {
   });
 
   it("she may play it once per phase at 1 less: Colossus (3) from the top costs 2, then no second play", () => {
-    // Colossus is unregistered (no ability), so this proves only the permission and the reduced cost; his interrupt
-    // is held (docs/phase7-wave8.md section 3.60): playing him as an ally from hand raises no error.
+    // The permission and the reduced cost only; his interrupt is staged in the last section.
     const s = stackDeck(heroRhino(), "45031", LIMBO);
     const pay = playerOf(s, P1).hand.slice(0, 2);
     const colossus = playerOf(s, P1).deck[0]!;
@@ -1049,14 +1051,44 @@ describe("Staged: Belasco is villainous and draws a boost card each activation (
   });
 });
 
-describe("Held cards cause no error", () => {
-  it("Illyana's interrupt (45030b) is unregistered: changing to hero form just shows the top card", () => {
+describe("Staged: Illyana's interrupt and Colossus", () => {
+  it("Illyana's interrupt (45030b): accepted before the change to hero form, the SPELL from her discard pile is the top card shown", () => {
+    const stacked = stackDeck(rhino(1), SCRYING, LIMBO);
+    const scrying = playerOf(stacked, P1).deck[0]!;
+    const s: GameState = {
+      ...stacked,
+      players: stacked.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.slice(1), discard: [scrying, ...p.discard] } : p,
+      ),
+    };
+    const forms: string[] = [];
+    const next = applyOk(s, { type: "changeForm", playerId: P1 }, WAVE8_DEPS).state;
+    const done = settle(
+      next,
+      (st) => {
+        const choice = st.pendingChoice!;
+        if (choice.prompt.kind !== "chooseTriggers") return firstLegal(st);
+        forms.push(playerOf(st, P1).identity.form);
+        return choice.options
+          .filter((o) => o.optionId.endsWith("45030b.illyana-rasputin-interrupt"))
+          .map((o) => o.optionId);
+      },
+      undefined,
+      WAVE8_DEPS,
+    );
+    expect(forms).toEqual(["alterEgo"]);
+    expect(playerOf(done, P1).identity.form).toBe("hero");
+    expect(playerOf(done, P1).deck[0]).toBe(scrying);
+    expect(shownDeckTop(done, WAVE8_DEPS, P1)).toBe(scrying);
+  });
+  it("declined (the default pick), changing to hero form just shows the top card", () => {
     const s = rhino(1);
     const next = applyOk(s, { type: "changeForm", playerId: P1 }, WAVE8_DEPS).state;
     const done = settle(next, firstLegal, undefined, WAVE8_DEPS);
     expect(playerOf(done, P1).identity.form).toBe("hero");
+    expect(shownDeckTop(done, WAVE8_DEPS, P1)).toBe(playerOf(done, P1).deck[0]);
   });
-  it("Colossus (45031) in hand through a villain phase causes no error", () => {
+  it("Colossus (45031) in hand through villain phases: the game holds every invariant and replays", () => {
     const s = stackDeck(heroRhino(1), "45031");
     const inHand = {
       ...s,

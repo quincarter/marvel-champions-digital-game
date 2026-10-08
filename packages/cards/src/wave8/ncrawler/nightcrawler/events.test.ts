@@ -1,4 +1,12 @@
-import { NCRAWLER_CARDS, NCRAWLER_STARTER_DECKS, VNM_CARDS, WAVE7_CARDS, cardId, type AnyCard } from "@mc/content";
+import {
+  NCRAWLER_CARDS,
+  NCRAWLER_STARTER_DECKS,
+  VNM_CARDS,
+  WAVE7_CARDS,
+  WOLV_CARDS,
+  cardId,
+  type AnyCard,
+} from "@mc/content";
 import {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -406,6 +414,43 @@ describe("'Port and Punch (48007): 3 damage to an enemy, 3 to each enemy with Ba
     expect(damageTo(events, rhino)).toEqual([4, 4]);
     expect(damageTo(events, sandman)).toEqual([3]);
     expect([inst(state, rhino).damage, inst(state, sandman).damage]).toEqual([8, 3]);
+  });
+
+  // Owner ruling, docs/phase7-wave8.md section 4.1 row 53 (Q53 = A; RRG 1.8 "Attack (Player Ability Type)", p. 10: "each
+  // instance of damage in that attack ability that does not use the word 'additional' is increased by the specified
+  // amount"): "that attack deals 1 additional damage" (Warrior Skill, `wolv` 35016, put into play with its counters by
+  // surgery) is added to each instance, the damage to each enemy with a copy included, for one counter.
+  it("Q53, 'that attack deals 1 additional damage' (Warrior Skill): Rhino (target, a copy) takes 4 then 4, Sandman (a copy) 4", () => {
+    const { state: s, rhino, sandman } = board(true, true);
+    const owner = playerOf(s, P1);
+    const spare = owner.deck.find((id) => !KIT.has(codeOf(s, id)) && iconsOf(s, id) === 0) ?? owner.deck.at(-1)!;
+    // The card joins this game's pool (the pool holds only the cards the game was created with).
+    const skill = WOLV_CARDS.find((c) => (c.id as string) === "35016")!;
+    const pooled: GameState = { ...s, cardPool: { ...s.cardPool, [skill.id]: skill } };
+    const skilled: GameState = {
+      ...patchInstance(pooled, spare, {
+        cardId: cardId("35016"),
+        faceup: true,
+        controllerId: P1,
+        counters: { warrior: 3 },
+      }),
+      players: s.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((id) => id !== spare), playArea: [...p.playArea, spare] } : p,
+      ),
+    };
+    const staged = inHand(skilled, PORT_PUNCH);
+    const { state, events } = playStaged(
+      staged.state,
+      staged,
+      picker(accept("35016.warrior-skill-interrupt"), take(rhino)),
+    );
+    expect(damageTo(events, rhino)).toEqual([4, 4]);
+    expect(damageTo(events, sandman)).toEqual([4]);
+    expect(inst(state, spare).counters.warrior).toBe(2);
+    const attacks = events.filter(
+      (e) => e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack",
+    );
+    expect(attacks).toHaveLength(1);
   });
 
   it("Q47, the same rule on minions: Sandman, hit only by the second instruction, takes 4; Rhino 3 and 3", () => {

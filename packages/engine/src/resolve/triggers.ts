@@ -7,6 +7,8 @@ import {
   deckTopPlayableBy,
   deckTopPlayOf,
   playsOwnCardFromHand,
+  ownCardPlayFault,
+  defaultHandDiscardPicks,
   defaultInPlayPicks,
   isPriceFault,
   paymentOptions,
@@ -74,8 +76,9 @@ function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: Abili
  * `fromHand`: an event played inside the window (`inHandCandidates`), whose cost is its printed cost plus its ability's
  * (`playRequirement`, as `playWindowEvent` prices it); otherwise the ability's own cost, paid from the card it is on.
  *
- * The non-resource parts are checked as `planCost` checks them, with the default picks of cards in play (a pick the
- * player makes later in the window, `costPick`, docs/phase7-wave4.md §3.17). The resources are checked against the most
+ * The non-resource parts are checked as `planCost` checks them, with the default picks of cards in play and of cards in
+ * hand for a hand-discard cost (picks the player makes later in the window, `costPick`, docs/phase7-wave4.md §3.17;
+ * a card picked for the discard still counts as a payment source here, part of the same upper bound). The resources are checked against the most
  * the player could generate: every payment source they could choose (`paymentOptions`, the same list the window's payment
  * prompt offers), each priced on its own and summed. That is an upper bound — two sources whose own costs clash still
  * both count — so an ability is only withheld when no payment could pay it; one that passes may still be declined at
@@ -93,13 +96,16 @@ function costPayable(
 ): boolean {
   const cost = definition.cost;
   if (!cost && !fromHand) return true;
+  // "Discard 1 card from your hand →" (`AbilityCost.discardFromHand`): default picks from the hand, as `legalActions`
+  // supplies them for an action, so the cost is judged on whether the hand holds enough cards it accepts.
+  const handPicks = defaultHandDiscardPicks(state, deps, id, playerId, cost);
   const plan = planCost(
     state,
     deps,
     id,
     playerId,
     cost,
-    defaultInPlayPicks(state, deps, id, playerId, cost),
+    { ...defaultInPlayPicks(state, deps, id, playerId, cost), ...(handPicks ? { discard: handPicks } : {}) },
     new Set(),
     {},
     event,
@@ -534,6 +540,8 @@ function gatherCandidates(
 ): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
+  // A change of form about to happen is interrupt-only: "after you change form" answers `formChanged`.
+  if (timing === "response" && event.kind === "formChanging") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
@@ -840,6 +848,9 @@ function inHandCandidates(
           if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
           if (cancelHasNoTarget(state, deps, definition, event)) continue;
           if (!forced && abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
+          // "Play Colossus from your hand (paying his resource cost)": an optional in-hand ability that plays its own
+          // card is not offered while the card could not be played or paid for (`ownCardPlayFault`).
+          if (!forced && ownCardPlayFault(state, deps, player.playerId, id, definition, event) !== null) continue;
           found.push({ instanceId: id, abilityId: ref.id, controllerId: player.playerId, forced, fromHand: false });
         }
       }
@@ -874,6 +885,55 @@ function inHandCandidates(
           forced: false,
           fromHand: true,
         });
+      }
+    }
+  }
+  return found;
+}
+
+/** A candidate's key in `Frame<"window">.heardAtOpen`: its card, its ability and, in a shared window, its condition. */
+export const hearerKey = (instanceId: InstanceId, abilityId: AbilityId, sharedIndex?: number): string =>
+  `${instanceId}:${abilityId}${sharedIndex === undefined ? "" : `@${sharedIndex}`}`;
+
+/**
+ * The optional abilities of this timing that are live right now and listen for this kind of event, whatever the rest
+ * of their condition says (`Frame<"window">.heardAtOpen`): on a card in play with the ability active, an event in a
+ * hand (or playable from an attachment or the top of a deck) with an ability of this timing, or a card's own
+ * "while in your hand" ability. Liveness only; `candidatesFor` judges everything else when one is offered.
+ */
+export function hearersOf(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  sharedIndex?: number,
+): readonly string[] {
+  const listens = (definition: AbilityDefinition | undefined): boolean => {
+    const trigger = definition?.trigger;
+    if (!trigger || trigger.kind !== timing || trigger.forced) return false;
+    const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes(event.kind);
+  };
+  const found: string[] = [];
+  for (const id of cardsInPlay(state)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.activeIn === "hand" || definition?.activeIn === "discard") continue;
+      if (listens(definition)) found.push(hearerKey(id, ref.id, sharedIndex));
+    }
+  }
+  for (const player of playerOrder(state)) {
+    const elsewhere = [
+      ...attachmentsPlayableBy(state, deps, player.playerId),
+      ...deckTopPlayableBy(state, deps, player.playerId),
+    ];
+    for (const id of [...player.hand, ...elsewhere]) {
+      const card = cardOf(state, id);
+      if (!card || !("abilities" in card)) continue;
+      for (const ref of card.abilities) {
+        const definition = deps.abilities[ref.id];
+        if (card.type !== "event" && definition?.activeIn !== "hand") continue;
+        if (listens(definition)) found.push(hearerKey(id, ref.id, sharedIndex));
       }
     }
   }
@@ -967,6 +1027,7 @@ export function stillOffered(
     const fromDeckTop = playsOwnCardFromHand(definition) && deckTopPlayOf(state, deps, controllerId, id) !== null;
     if (!getPlayer(state, controllerId)?.hand.includes(id) && !fromDeckTop) return false;
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId)) return false;
+    if (ownCardPlayFault(state, deps, controllerId, id, definition, event) !== null) return false;
   } else if (!answersFromOutOfPlay(event, id)) {
     return false; // it left play while the forced tier resolved
   }

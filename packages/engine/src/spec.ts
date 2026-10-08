@@ -456,6 +456,18 @@ export interface TargetQuery {
    */
   readonly sharesTraitWith?: TargetRef;
   /**
+   * The card has at least one trait in common with the **hero side** of these players' identity cards, as printed,
+   * whichever side is up: MC45 p. 20, "When playing expert campaign, the ally you choose during Setup must share a
+   * trait with your hero", resolved at campaign setup, when every identity is still on its alter-ego side (RRG 1.8
+   * Appendix II step 1, p. 50). `sharesTraitWith: identityOf(…)` reads the side that is up, so there it compares
+   * against the alter-ego's traits (docs/phase7-wave8.md §3.44).
+   *
+   * The card's own traits are read live (`traitsOf`); the hero's are its printed ones (`HeroIdentityCard.hero.traits`),
+   * because a trait a hero gains is gained by a side that is in play. An identity card with several hero sides is one
+   * record with one `hero`. A player ref that names nobody, or a hero with no traits, matches nothing.
+   */
+  readonly sharesTraitWithHeroOf?: PlayerRef;
+  /**
    * The card's title equals the title of at least one card this ref names: "each minion that shares a title with the
    * top villain", "the minion with the same title as the villain", and under `not`, "a minion that does not share a
    * title with a card in play" (the Marauder scenarios, where a character is printed as both a villain and a minion).
@@ -676,6 +688,15 @@ export type TargetRef =
    * attack in progress, innermost first, if it is in play; none outside an attack. docs/phase7-wave4.md §3.34.
    */
   | { readonly kind: "attackingEnemy" }
+  /**
+   * "**That enemy**" of "While [this ally] is attacking an enemy, she gets +1 ATK for each upgrade attached to that
+   * enemy" on a constant ability, which has no event and no bound slot to name the attack's target from: the character
+   * the innermost attack on the stack is against (a player's attack, an enemy attack, or an enemy attacking an enemy:
+   * the event's current target, as `Predicate attackInProgress` reads its `target`), wherever that character is.
+   * `attacker`: only an attack one of these characters is making counts (`{ kind: "self" }`: "while this card is
+   * attacking"), as on `PlayerRef attackedPlayer`. None with no such attack on the stack.
+   */
+  | { readonly kind: "attackedCharacter"; readonly attacker?: TargetRef }
   /**
    * "The enemy whose activation this is" (the Brotherhood boosts in Mansion Attack, 32133-32136: "If the villain is
    * [Name], give him an additional boost card for this activation"): the enemy of the innermost enemy activation on the
@@ -1589,6 +1610,18 @@ export type EffectSpec =
        */
       readonly taken?: boolean;
       /**
+       * "… deal 2 **additional** damage to that enemy": this instruction is additional damage of an earlier instance,
+       * not an instance of its own (RRG 1.8 "Alteration Effect", p. 7: "The additional modifier is resolved
+       * simultaneously with any ability it is modifying"; FAQ on Repulsor Blast). So no per-instance increase is added
+       * to it a second time: neither "that event deals N additional damage" (`modifyCardEffect`,
+       * `modifyCardEffectsUntil`) nor "that attack deals N additional damage" (`modifyAttack.extraDamage`), which RRG
+       * 1.8 "Attack (Player Ability Type)" (p. 10) gives to "each instance of damage in that attack ability that does
+       * not use the word 'additional'" (owner ruling Q53, docs/phase7-wave8.md §4.1). It is still that attack's
+       * damage in every other way. Prefer one instruction with the summed amount when the script can compute it; this
+       * is for a rider that has to be its own instruction.
+       */
+      readonly additional?: true;
+      /**
        * "Deal 2 damage to each enemy for each bomb counter removed from it" (Boom Boom, `mut_gen` 32090): `amount` is
        * read once per target, with that target bound to slot `AFFECTED_SLOT` ("affected", as `modifyStatUntil` binds
        * the card whose stat is read), instead of once for every target. A target whose amount is 0 or less is dealt
@@ -1833,6 +1866,11 @@ export type EffectSpec =
        * amount with any `cardEffectBonus` (Embiggen!) already in it. Cumulative across effects, and gone with the
        * attack. It is dealt damage, so a tough status, reductions and overkill/excess see the total (RRG 1.8
        * "Overkill", p. 31). An enemy's attack reads `atkBonus` instead.
+       *
+       * It modifies the attack, so each instance of damage an "(attack)" ability's attack deals is increased, the
+       * later damage instructions of the ability included (owner ruling Q53; RRG 1.8 "Attack (Player Ability Type)",
+       * p. 10), except an instruction that is itself additional damage (`dealDamage.additional`), and only for the
+       * one attack it was given to (`resolve/attack-ability.ts`).
        */
       readonly extraDamage?: ValueSpec;
       /**
@@ -2635,8 +2673,16 @@ export type EffectSpec =
       readonly extraBoostCards?: number | ValueSpec;
       readonly boostIconsEach?: ValueSpec;
     }
-  /** "This card gains surge": the encounter card whose ability this is surges when its reveal finishes. */
-  | { readonly kind: "gainSurge" }
+  /**
+   * "This card gains surge": the encounter card whose ability this is surges when its reveal finishes.
+   *
+   * `target`: "When a TEMPORAL card is revealed, **it** gains surge" on another card (a forced interrupt of a side
+   * scheme in play answering `encounterCardRevealing`, its "(Limit once per phase.)" the ability's own limit): each
+   * card the ref names that is being revealed right now gains surge for that reveal and logs `surgeGranted`. A card
+   * not being revealed, or one whose reveal already has surge, is left alone (RRG 1.8 "Surge", p. 42: the keyword
+   * resolves once, after the card's reveal).
+   */
+  | { readonly kind: "gainSurge"; readonly target?: TargetRef }
   /**
    * "Either spend [E][M][P] resources or …" / "Choose to either spend a
    * [energy] resource or …": asks `player` for a payment (a `spendResources`
@@ -3255,6 +3301,21 @@ export type EffectSpec =
    * produce while it resolves, and it ends when that card finishes resolving — a card returned to hand and replayed
    * in the same phase does not keep it. Prevention is not removal, so Shrink does nothing for a prevent effect.
    */
+  /**
+   * "Until the end of the phase, each ATTACK event deals 1 additional damage" (Keep Up the Pressure, `iceman` 46018):
+   * `modifyCardEffect`'s bonus for every card matching `cards` that resolves until `until`, whoever plays it (a lasting
+   * `cardEffectBonusFor`). RRG 1.8 "Event" (p. 19) and "'For Each'" (p. 20): each instance of damage such a card deals
+   * is increased; "Attack (Player Ability Type)" (p. 10) and owner ruling Q53: not an instance that is itself
+   * additional damage (`dealDamage.additional`), and not damage the card's own player takes (`taken`). "Until the end
+   * of the turn" outside a turn creates nothing (RRG 1.8 "Lasting Effects", p. 26), as for `applyRuleUntil`.
+   */
+  | {
+      readonly kind: "modifyCardEffectsUntil";
+      readonly cards: TargetQuery;
+      readonly damage?: ValueSpec;
+      readonly threatRemoved?: ValueSpec;
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn";
+    }
   | {
       readonly kind: "modifyCardEffect";
       readonly card: TargetRef;

@@ -56,6 +56,7 @@ const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
 
 const HUSK = "47012.husk-interrupt";
 const REGISTERED = [
+  "47011.chamber-constant",
   HUSK,
   "47013.disguise-action",
   "47014.waylay-response",
@@ -315,48 +316,42 @@ describe("Chamber (47011): takes 1 less consequential damage after he attacks a 
     expect(playerOf(state, P1).playArea).toContain(ally);
     expect(profile(state, ally)).toMatchObject({ atk: 2, thw: 2 });
   });
-  it("the draft: attacking a confused villain, no consequential damage and the confused card stays", () => {
-    const a = withAlly("47011", 4);
-    const rhino = villainOf(a.state);
-    const s = status(a.state, rhino, "confused", 1);
-    const after = driveEventsPicking(DRAFT_DEPS, s, firstLegal, attackBy(s, a.ally, rhino)).state;
-    expect(inst(after, rhino).damage).toBe(2);
-    expect(inst(after, a.ally).damage).toBe(0);
-    expect(inst(after, rhino).statuses.confused).toBe(1);
-  });
-  it("the draft: an enemy that is not confused costs him 1, and so does a thwart", () => {
-    const a = withAlly("47011", 4);
-    const rhino = villainOf(a.state);
-    const hit = driveEventsPicking(DRAFT_DEPS, a.state, firstLegal, attackBy(a.state, a.ally, rhino)).state;
-    expect(inst(hit, a.ally).damage).toBe(1);
-    const s = patchInstance(status(a.state, rhino, "confused", 1), mainOf(a.state), { threat: 5 });
-    const thwarted = driveEventsPicking(DRAFT_DEPS, s, firstLegal, thwartBy(s, a.ally, mainOf(s))).state;
-    expect(inst(thwarted, a.ally).damage).toBe(1);
-  });
-  it("today, with the ref left unregistered, he takes the 1 even from a confused villain", () => {
+  it("attacking a confused villain: no consequential damage and the confused card stays", () => {
     const a = withAlly("47011", 4);
     const rhino = villainOf(a.state);
     const s = status(a.state, rhino, "confused", 1);
     const after = driveEventsPicking(DEPS, s, firstLegal, attackBy(s, a.ally, rhino)).state;
-    expect(inst(after, a.ally).damage).toBe(1);
+    expect(inst(after, rhino).damage).toBe(2);
+    expect(inst(after, a.ally).damage).toBe(0);
+    expect(inst(after, rhino).statuses.confused).toBe(1);
   });
-  /** Shocker (3 hit points) with 2 damage and a confused card is defeated by Chamber's 2 ATK. */
-  function killingBlow(deps: EngineDeps) {
+  it("an enemy that is not confused costs him 1, and so does a thwart", () => {
+    const a = withAlly("47011", 4);
+    const rhino = villainOf(a.state);
+    const hit = driveEventsPicking(DEPS, a.state, firstLegal, attackBy(a.state, a.ally, rhino)).state;
+    expect(inst(hit, a.ally).damage).toBe(1);
+    const s = patchInstance(status(a.state, rhino, "confused", 1), mainOf(a.state), { threat: 5 });
+    const thwarted = driveEventsPicking(DEPS, s, firstLegal, thwartBy(s, a.ally, mainOf(s))).state;
+    expect(inst(thwarted, a.ally).damage).toBe(1);
+  });
+  /** Shocker (3 hit points) with 2 damage is defeated by Chamber's 2 ATK; `confused` gives it a confused card first. */
+  function killingBlow(confused: boolean) {
     const a = withAlly("47011", 4);
     const e = engage(a.state, SHOCKER);
-    const s = status(patchInstance(e.state, e.id, { damage: 2 }), e.id, "confused", 1);
-    const after = driveEventsPicking(deps, s, firstLegal, attackBy(s, a.ally, e.id)).state;
+    const hurt = patchInstance(e.state, e.id, { damage: 2 });
+    const s = confused ? status(hurt, e.id, "confused", 1) : hurt;
+    const after = driveEventsPicking(DEPS, s, firstLegal, attackBy(s, a.ally, e.id)).state;
     return { after, ally: a.ally, enemy: e.id };
   }
-  it("the draft, today: the attack that defeats the confused enemy loses the reduction (1 damage)", () => {
-    const k = killingBlow(DRAFT_DEPS);
-    expect(playerOf(k.after, P1).playArea).not.toContain(k.enemy);
-    expect(inst(k.after, k.ally).damage).toBe(1);
-  });
-  it.fails("Q38 = A: the attack that defeats the confused enemy keeps the reduction (0 damage)", () => {
-    const k = killingBlow(DRAFT_DEPS);
+  it("Q38 = A: the attack that defeats the confused enemy keeps the reduction (0 damage)", () => {
+    const k = killingBlow(true);
     expect(playerOf(k.after, P1).playArea).not.toContain(k.enemy);
     expect(inst(k.after, k.ally).damage).toBe(0);
+  });
+  it("the attack that defeats an enemy that was not confused costs him the 1", () => {
+    const k = killingBlow(false);
+    expect(playerOf(k.after, P1).playArea).not.toContain(k.enemy);
+    expect(inst(k.after, k.ally).damage).toBe(1);
   });
 });
 

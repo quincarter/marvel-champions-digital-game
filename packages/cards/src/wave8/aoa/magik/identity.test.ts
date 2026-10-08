@@ -28,10 +28,9 @@ import {
   settle,
   toHero,
 } from "../../../testing/harness.js";
-import { mergeRegistries } from "../../../dsl/index.js";
 import { driveEventsPicking, withDamage } from "../../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
-import { ILLYANA_INTERRUPT_DRAFT, MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./identity.js";
+import { MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./identity.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -60,8 +59,6 @@ const MAGIK_SEAT = {
   deck: DECK.cards.flatMap((c) => Array.from({ length: c.quantity }, () => c.cardId)),
 };
 const DEPS: EngineDeps = { abilities: { ...WAVE7_ABILITIES, ...MAGIK_IDENTITY } };
-/** The same with the unregistered Illyana interrupt draft in, to prove what the engine cannot yet do with it. */
-const DRAFT_DEPS: EngineDeps = { abilities: mergeRegistries(DEPS.abilities, { [INTERRUPT]: ILLYANA_INTERRUPT_DRAFT }) };
 
 const codeOf = (s: GameState, id: InstanceId): string => (getInstance(s, id)?.cardId as string | undefined) ?? "?";
 const deckOf = (s: GameState, p: PlayerId = P1): string[] => playerOf(s, p).deck.map((id) => codeOf(s, id));
@@ -148,22 +145,18 @@ const applyCommandResult = (state: GameState, command: Command) => applyCommand(
 const cardPlayed = (events: readonly GameEvent[]) => events.filter((e) => e.type === "cardPlayed");
 
 describe("Magik identity registry", () => {
-  it.each([FACEUP, PLAYABLE])("%s validates", (id) => {
+  it.each([FACEUP, PLAYABLE, INTERRUPT])("%s validates", (id) => {
     expect(validateDefinition(MAGIK_IDENTITY[id]!)).toEqual([]);
   });
-  it("the draft validates", () => {
-    expect(validateDefinition(ILLYANA_INTERRUPT_DRAFT)).toEqual([]);
-  });
-  it("registers the two constants of the hero face; the alter-ego interrupt is skipped with a reason", () => {
-    expect(Object.keys(MAGIK_IDENTITY).sort()).toEqual([FACEUP, PLAYABLE]);
+  it("registers the two constants of the hero face and the alter-ego interrupt; nothing is skipped", () => {
+    expect(Object.keys(MAGIK_IDENTITY).sort()).toEqual([FACEUP, PLAYABLE, INTERRUPT]);
     const card = AOA_CARDS.find((c) => c.id === cardId("45030a")) as never as {
       hero: { abilities: { id: string }[] };
       alterEgo: { abilities: { id: string }[] };
     };
     expect(card.hero.abilities.map((a) => a.id)).toEqual([FACEUP, PLAYABLE]);
     expect(card.alterEgo.abilities.map((a) => a.id)).toEqual([INTERRUPT]);
-    expect(Object.keys(MAGIK_IDENTITY_SKIPPED)).toEqual([INTERRUPT]);
-    expect(MAGIK_IDENTITY_SKIPPED[INTERRUPT]).toMatch(/before the form changes/);
+    expect(MAGIK_IDENTITY_SKIPPED).toEqual({});
   });
   it("shapes: two separate constants, the second carrying the once-per-phase limit", () => {
     expect(MAGIK_IDENTITY[FACEUP]!.trigger).toMatchObject({ kind: "constant", rules: [{ kind: "topOfDeckFaceup" }] });
@@ -173,8 +166,8 @@ describe("Magik identity registry", () => {
       playableTopOfDeck: { costReduction: 1 },
     });
     expect(MAGIK_IDENTITY[PLAYABLE]!.limit).toEqual({ count: 1, period: "phase" });
-    expect(ILLYANA_INTERRUPT_DRAFT.trigger).toMatchObject({ kind: "interrupt", forced: false });
-    expect(ILLYANA_INTERRUPT_DRAFT.limit).toEqual({ count: 1, period: "phase" });
+    expect(MAGIK_IDENTITY[INTERRUPT]!.trigger).toMatchObject({ kind: "interrupt", forced: false });
+    expect(MAGIK_IDENTITY[INTERRUPT]!.limit).toEqual({ count: 1, period: "phase" });
   });
 });
 
@@ -278,40 +271,77 @@ describe("45030a.magik-constant-2: play the top card as if from hand, 1 less, on
   });
 });
 
-describe("45030b.illyana-rasputin-interrupt (unregistered: no window before a form change)", () => {
+describe("45030b.illyana-rasputin-interrupt: before she changes to hero form, a SPELL from the discard pile goes on top of her deck", () => {
   const withSpells = () =>
     discarding(stackDeck(setupGame(), SCRYING, SOUL_STRIKE, EXORCISM, LIMBO), SCRYING, SOUL_STRIKE);
-  const chosenSpell = (s: GameState) => picker({ accept: true, spell: SOUL_STRIKE })(s);
 
-  it("today: with the draft registered, the change to hero form offers no interrupt and the deck is untouched", () => {
+  it("is offered while she is still Illyana Rasputin, with the top of the deck still facedown", () => {
     const s = withSpells();
-    let asked = false;
-    const run = driveEventsPicking(
-      DRAFT_DEPS,
+    const asked: { form: string; shown: InstanceId | null }[] = [];
+    driveEventsPicking(
+      DEPS,
       s,
       (st) => {
-        asked ||= st.pendingChoice!.prompt.kind === "chooseTriggers";
-        return chosenSpell(st);
+        if (st.pendingChoice!.prompt.kind === "chooseTriggers")
+          asked.push({ form: playerOf(st, P1).identity.form, shown: shown(st) ?? null });
+        return picker({ accept: true, spell: SOUL_STRIKE })(st);
       },
       toHero(),
     );
-    expect(asked).toBe(false);
+    expect(asked).toEqual([{ form: "alterEgo", shown: null }]);
+  });
+
+  it("accepted, the chosen SPELL is on top of the deck as she arrives in hero form, and it is the card shown", () => {
+    const run = driveEventsPicking(DEPS, withSpells(), picker({ accept: true, spell: SOUL_STRIKE }), toHero());
+    expect(playerOf(run.state, P1).identity.form).toBe("hero");
+    expect(codeOf(run.state, topOf(run.state))).toBe(SOUL_STRIKE);
+    expect(discardOf(run.state)).toEqual([SCRYING]);
+    expect(shown(run.state)).toBe(topOf(run.state));
+    // The SPELL moved before the identity turned; the top card is shown only once she is Magik.
+    const types = run.events.map((e) => e.type);
+    expect(types.indexOf("deckTopShown")).toBeGreaterThan(types.indexOf("formChanged"));
+    const shownEvents = run.events.filter((e) => e.type === "deckTopShown");
+    expect(shownEvents).toHaveLength(1);
+    expect(shownEvents[0]).toMatchObject({ instanceId: topOf(run.state) });
+  });
+
+  it("declined, the change to hero form still happens and the deck is untouched", () => {
+    const s = withSpells();
+    const run = driveEventsPicking(DEPS, s, picker({ accept: false }), toHero());
     expect(playerOf(run.state, P1).identity.form).toBe("hero");
     expect(discardOf(run.state).sort()).toEqual([SCRYING, SOUL_STRIKE].sort());
     expect(deckOf(run.state)).toEqual(deckOf(s));
   });
 
-  it("today: the engine's formChanged announcement comes after the identity has turned", () => {
-    const run = driveEventsPicking(DRAFT_DEPS, withSpells(), picker({ accept: true }), toHero());
-    const types = run.events.map((e) => e.type);
-    expect(types.indexOf("formChanged")).toBeGreaterThanOrEqual(0);
-    expect(types.indexOf("deckTopShown")).toBeGreaterThan(types.indexOf("formChanged"));
+  it("with no SPELL in her discard pile it is not offered", () => {
+    const s = stackDeck(setupGame(), SCRYING, SOUL_STRIKE, EXORCISM, LIMBO);
+    let asked = false;
+    const run = driveEventsPicking(
+      DEPS,
+      s,
+      (st) => {
+        asked ||= st.pendingChoice!.prompt.kind === "chooseTriggers";
+        return picker({ accept: true })(st);
+      },
+      toHero(),
+    );
+    expect(asked).toBe(false);
+    expect(playerOf(run.state, P1).identity.form).toBe("hero");
   });
 
-  it.fails("proof of the gap: accepted, the chosen SPELL is on top of the deck as she arrives in hero form", () => {
-    const run = driveEventsPicking(DRAFT_DEPS, withSpells(), picker({ accept: true, spell: SOUL_STRIKE }), toHero());
-    expect(codeOf(run.state, topOf(run.state))).toBe(SOUL_STRIKE);
-    expect(discardOf(run.state)).toEqual([SCRYING]);
-    expect(shown(run.state)).toBe(topOf(run.state));
+  it("the change to alter-ego form is not the one it names: not offered", () => {
+    const s = discarding(heroOf(stackDeck(setupGame(), SCRYING, SOUL_STRIKE, EXORCISM, LIMBO)), SCRYING);
+    let asked = false;
+    const run = driveEventsPicking(
+      DEPS,
+      s,
+      (st) => {
+        asked ||= st.pendingChoice!.prompt.kind === "chooseTriggers";
+        return picker({ accept: true })(st);
+      },
+      { type: "changeForm", playerId: P1 },
+    );
+    expect(asked).toBe(false);
+    expect(playerOf(run.state, P1).identity.form).toBe("alterEgo");
   });
 });

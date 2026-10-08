@@ -2718,6 +2718,13 @@ export const on = {
   youChangeIdentityForm: (): EventPattern =>
     pattern("formChanged", { playerIs: "controller", eventIs: { change: "identity" } }),
   /**
+   * "**Interrupt**: When you change to hero form, …" (Illyana Rasputin, `aoa` 45030b): your identity's hero/alter-ego
+   * change, heard before the identity turns (`formChanging`), while the face being left is still the one showing. `to`
+   * narrows it to one direction. Interrupts only; "After you change form" is `youChangeForm` / `youChangeIdentityForm`.
+   */
+  youWouldChangeIdentityForm: (to?: "hero" | "alterEgo"): EventPattern =>
+    pattern("formChanging", { playerIs: "controller" }, to ? { eventIs: { to } } : {}),
+  /**
    * "After you change to this energy form" / "After you change to this mass form" printed on the form card itself (Gamma,
    * Dense): an additional form change that turned this card's face up (docs/phase7-wave4.md §3.1).
    */
