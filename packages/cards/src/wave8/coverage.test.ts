@@ -15,6 +15,7 @@ import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
 import { HOUNDS } from "./aoa/hounds.js";
+import { SAVAGE_LAND } from "./aoa/savage-land.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
@@ -26,6 +27,7 @@ import {
 import { ARCADE } from "./jubilee/arcade.js";
 import { JUBILEE_ABILITIES } from "./jubilee/index.js";
 import { JUBILEE_IDENTITY } from "./jubilee/jubilee/identity.js";
+import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
@@ -98,6 +100,12 @@ const SCRIPTED_MODULES: Readonly<
       registry: HOUNDS,
       skipped: {},
     },
+    {
+      module: "savage-land",
+      cardIds: ["45127", "45128", "45129", "45130", "45131", "45132"],
+      registry: SAVAGE_LAND,
+      skipped: {},
+    },
   ],
   iceman: [
     { module: "iceman/identity", cardIds: ["46001a", "46001b"], registry: ICEMAN_IDENTITY, skipped: {} },
@@ -160,6 +168,33 @@ const SCRIPTED_MODULES: Readonly<
     },
   ],
   magneto: [
+    {
+      module: "aspect-basic",
+      cardIds: [
+        "49012",
+        "49013",
+        "49014",
+        "49015",
+        "49016",
+        "49017",
+        "49018",
+        "49019",
+        "49020",
+        "49021",
+        "49022",
+        "49023",
+        "49024",
+        "49025",
+        "49026",
+        "49033",
+        "49034",
+        "49035",
+        "49036",
+        "49037",
+      ],
+      registry: MAGNETO_ASPECT_BASIC,
+      skipped: MAGNETO_ASPECT_BASIC_SKIPPED,
+    },
     {
       module: "hellfire",
       cardIds: ["49038", "49039", "49040", "49041", "49042"],
