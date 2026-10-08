@@ -126,8 +126,6 @@ const cardName = (s: GameState, id: InstanceId) => s.cardPool[s.instances[id]!.c
 /** Enemies in play: the villain(s) and every minion. */
 const enemiesOf = (s: GameState): InstanceId[] =>
   cardsInPlay(s).filter((id) => cardType(s, id) === "villain" || cardType(s, id) === "minion");
-const frostbitesOn = (s: GameState, enemy: InstanceId): InstanceId[] =>
-  s.instances[enemy]!.attachments.filter((a) => codeOf(s, a) === FROSTBITE);
 const setAsideFrostbite = (s: GameState, p: PlayerId): number =>
   playerOf(s, p).setAside.filter((id) => codeOf(s, id) === FROSTBITE).length;
 
@@ -615,20 +613,13 @@ describe("Staged: Frostbite after its host activates (46002 Forced Response)", (
   }
 
   // Card text: "Forced Response: After attached enemy activates or leaves play, set this card aside." The activation half
-  // is documented as unregistered in support-upgrades-allies.ts (the ref has one trigger and cannot be split), so in
-  // the shipped registry (WAVE8_DEPS) a copy attached by "Freeze!" stays on the villain through its activation.
-  it.fails("EXPECTED: the copy attached by Freeze! is set aside after Rhino activates (six aside again)", () => {
+  // ships (the leaves-play half is FROSTBITE_FORCED_RESPONSE_GAP), so the copy attached by "Freeze!" goes back.
+  it("the copy attached by Freeze! is set aside after Rhino activates (six aside again)", () => {
     const { result } = afterVillainActivation(1);
     const end = result.session.state;
     expect(attachedCopies(end), "no Frostbite left on the villain after its activation").toBe(0);
     expect(setAsideFrostbite(end, P1)).toBe(6);
-  });
-  it("TODAY: the copy stays attached after the villain's activation, and no copy is ever set aside again", () => {
-    const { result, villain } = afterVillainActivation(1);
-    const end = result.session.state;
-    expect(frostbitesOn(end, villain).length).toBeGreaterThanOrEqual(1);
-    expect(setAsideFrostbite(end, P1)).toBeLessThan(6);
-    expect(seen.frostbiteReturned.filter((x) => x.startsWith("staged-frostbite"))).toHaveLength(0);
+    expect(seen.frostbiteReturned.filter((x) => x.startsWith("staged-frostbite")).length).toBeGreaterThanOrEqual(1);
     expectReplays(result);
   });
 });
@@ -638,8 +629,9 @@ describe("Targeted checks seen across the games", () => {
     const counts = Object.fromEntries(Object.entries(seen).map(([k, v]) => [k, v.length]));
     console.info(JSON.stringify(counts));
     const missing = Object.entries(counts)
-      // frostbiteReturned stays 0: the Forced Response is unregistered (pinned in the staged Frostbite tests above).
-      .filter(([k, n]) => n === 0 && k !== "frostbiteReturned")
+      // freezeNoCopy (Freeze! with none set aside) no longer arises: Frostbite now comes back after each activation, so
+      // the six copies do not run out. The unit tests stage that case.
+      .filter(([k, n]) => n === 0 && k !== "freezeNoCopy")
       .map(([k]) => k);
     expect(missing, `never seen: ${missing.join(", ")}`).toEqual([]);
   });

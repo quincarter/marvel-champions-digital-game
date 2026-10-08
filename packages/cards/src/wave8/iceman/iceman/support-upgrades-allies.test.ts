@@ -19,7 +19,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { coreScenario } from "../../../core/setup.js";
-import { cards, defineAbilities, forcedResponse, mergeRegistries, moveCards, on, self } from "../../../dsl/index.js";
+import { defineAbilities, mergeRegistries } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
@@ -47,6 +47,7 @@ import {
   ICEMAN_SUPPORT_UPGRADES_ALLIES,
   ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS,
   ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+  FROSTBITE_FORCED_RESPONSE_GAP,
 } from "./support-upgrades-allies.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -78,24 +79,30 @@ const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" };
 type Seat = typeof ICEMAN_SEAT | typeof SPIDER_MAN;
 
 /**
- * Two refs are skipped in the module because their section proofs fail (Frostbite's Forced Response: 3.61, its
- * leaves-play half; Snow Clone's reduction when the attack defeats the enemy: 3.67, Q38 = A). The module exports both as
- * printed in `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS`, unregistered. These tests run everything that works: `DEPS` has
- * the drafted Snow Clone ref and, for Frostbite, `HALF`, the activation half alone (the draft's `enemyActivates` half).
- * `FULL_TEXT_DEPS` has the drafts as printed; the tests that need them to pass are `it.fails`. When the engine can run
- * the drafts, register them, drop `HALF`, and turn the `it.fails` into `it`.
+ * Frostbite's Forced Response ships as its activation half (the leaves-play half is `FROSTBITE_FORCED_RESPONSE_GAP`);
+ * Snow Clone's reduction is skipped because its section proof fails (3.67, Q38 = A). The module exports both as printed in
+ * `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS`. `DEPS` is the shipped registry plus the drafted Snow Clone ref.
+ * `FULL_TEXT_DEPS` swaps in the drafts as printed (the full Frostbite text replaces the shipped half); the tests that
+ * need them to pass are `it.fails`. When the engine can run the drafts, register them and turn the `it.fails` into `it`.
  */
-const HALF = defineAbilities({
-  "46002.frostbite-forced-response": forcedResponse(on.enemyActivates("host"), moveCards(cards(self), "setAside")),
-});
+const SHIPPED_WITHOUT_FROSTBITE_RESPONSE = Object.fromEntries(
+  Object.entries(ICEMAN_SUPPORT_UPGRADES_ALLIES).filter(([ref]) => ref !== "46002.frostbite-forced-response"),
+) as AbilityRegistry;
 const depsWith = (...fixtures: readonly AbilityRegistry[]): EngineDeps => ({
   abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_IDENTITY, ICEMAN_SUPPORT_UPGRADES_ALLIES, ...fixtures),
 });
 const SNOW_CLONE_DRAFT = defineAbilities({
   "46003.snow-clone-constant-2": ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS["46003.snow-clone-constant-2"]!,
 });
-const DEPS: EngineDeps = depsWith(HALF, SNOW_CLONE_DRAFT);
-const FULL_TEXT_DEPS: EngineDeps = depsWith(ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS);
+const DEPS: EngineDeps = depsWith(SNOW_CLONE_DRAFT);
+const FULL_TEXT_DEPS: EngineDeps = {
+  abilities: mergeRegistries(
+    WAVE7_ABILITIES,
+    ICEMAN_IDENTITY,
+    SHIPPED_WITHOUT_FROSTBITE_RESPONSE,
+    ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS,
+  ),
+};
 
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
 const setAsideCodes = (s: GameState, p: PlayerId = P1): string[] => playerOf(s, p).setAside.map((id) => codeOf(s, id));
@@ -212,23 +219,24 @@ const villainPhase = (s: GameState, pick: Picker = declineFreeze, boosts: readon
 
 describe("registry", () => {
   const registered = Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES).sort();
-  it("registers eight refs; Frostbite's Forced Response, Snow Clone's reduction and Cryokinetic Perception's are skipped and only drafted", () => {
+  it("registers nine refs (Frostbite's Forced Response as its activation half); Snow Clone's reduction and Cryokinetic Perception's are skipped and only drafted", () => {
     const refs = ICEMAN_CARDS.filter((c) => (c.id as string) >= "46002" && (c.id as string) <= "46008").flatMap(
       abilityRefIds,
     );
     expect(refs).toHaveLength(11);
-    const skipped = [
-      "46002.frostbite-forced-response",
-      "46003.snow-clone-constant-2",
-      "46005.cryokinetic-perception-response",
-    ];
-    expect(registered).toHaveLength(8);
+    const skipped = ["46003.snow-clone-constant-2", "46005.cryokinetic-perception-response"];
+    expect(registered).toHaveLength(9);
     expect(registered).toEqual(refs.filter((id) => !skipped.includes(id)).sort());
     expect(Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED).sort()).toEqual(skipped);
+  });
+  it("records the leaves-play gap as a note and keeps the full printed text as a draft", () => {
+    expect(FROSTBITE_FORCED_RESPONSE_GAP).toContain("activation half only");
+    expect(ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS["46002.frostbite-forced-response"]).toBeDefined();
   });
   it("names every registered ref", () => {
     expect(registered).toEqual([
       "46002.frostbite-constant",
+      "46002.frostbite-forced-response",
       "46003.snow-clone-constant",
       "46004.power-belt-constant",
       "46004.power-belt-resource",
@@ -379,10 +387,10 @@ describe("Frostbite (46002): set aside after the attached enemy activates", () =
     expect(supply(state)).toBe(6);
     expect(frostbiteInPlayAnywhere(state)).toBe(0);
   });
-  it("what the engine does instead: the copy is unattached in the owner's play area, not set aside", () => {
+  it("what the shipped half does instead: the copy is unattached in the owner's play area, not set aside", () => {
     const { state: s, id } = withMinion(heroGame());
     const staged = withDamage(s, id, 2);
-    const { state, events } = driveEventsPicking(FULL_TEXT_DEPS, staged, takeFreeze, attack(staged, id));
+    const { state, events } = driveEventsPicking(DEPS, staged, takeFreeze, attack(staged, id));
     expect(frostbiteMoves(events)).toEqual(["attach", "playArea"]);
     expect(supply(state)).toBe(5);
     const [copy] = instancesOf(state, FROSTBITE_CODE).filter((i) => playerOf(state, P1).playArea.includes(i));

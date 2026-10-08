@@ -12,7 +12,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { coreScenario } from "../../../core/setup.js";
-import { cards, defineAbilities, forcedResponse, mergeRegistries, moveCards, on, self } from "../../../dsl/index.js";
+import { defineAbilities, mergeRegistries } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
@@ -54,7 +54,7 @@ vi.setConfig({ testTimeout: 120_000 });
  *
  * Hot-Headed's Forced Response is not registered (the engine announces no event when a card is attached; see the
  * module): its tests use `DRAFTS_DEPS`, and the tests that need it to work are `it.fails`. Frostbite's own Forced
- * Response is not registered either: `HALF` supplies its activation half, as in the other Iceman test files. Never
+ * Response ships as its activation half only (the leaves-play half is a known gap). Never
  * assert where a defeated host's Frostbite ends up.
  */
 const FROSTBITE_CODE = "46002";
@@ -92,9 +92,6 @@ const NO_ICONS = FROSTBITE_CODE;
 const BOOST_FILLER = "01186";
 const DEAL_FILLER = "01105";
 
-const HALF = defineAbilities({
-  "46002.frostbite-forced-response": forcedResponse(on.enemyActivates("host"), moveCards(cards(self), "setAside")),
-});
 const depsWith = (...fixtures: readonly ReturnType<typeof defineAbilities>[]): EngineDeps => ({
   abilities: mergeRegistries(
     WAVE7_ABILITIES,
@@ -102,7 +99,6 @@ const depsWith = (...fixtures: readonly ReturnType<typeof defineAbilities>[]): E
     ICEMAN_SUPPORT_UPGRADES_ALLIES,
     ICEMAN_EVENTS,
     ICEMAN_OBLIGATION_NEMESIS,
-    HALF,
     ...fixtures,
   ),
 });

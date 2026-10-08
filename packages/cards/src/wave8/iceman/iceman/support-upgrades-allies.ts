@@ -68,14 +68,15 @@ export const attachFrostbite = (enemy: TargetRef): readonly EffectSpec[] => [
  * - 46008 Ice Wall (support)
  *
  * **Frostbite (46002)** is a permanent upgrade attached to an enemy, from its owner's set-aside area. Its constant takes
- * 1 from the host's SCH and ATK, once per copy, to the engine's floor of 0. Its Forced Response is NOT registered:
- * "After attached enemy activates or leaves play, set this card aside" is `on.either(on.enemyActivates("host"),
- * on.leavesPlay("host"))` with `moveCards(cards(self), "setAside")`. The activation half works, including Q35 = A (a
- * copy attached during an activation, by a basic defense or by Ice Wall, is set aside after that same activation: no
- * grace activation). The leaves-play half does not: the engine unattaches the permanent copy into its owner's play
- * area before the host's move, so no response ever sees "host" as the leaving card and the copy stays in play
- * unattached. The ref has one trigger, so it cannot be split into an activation response and a leaves-play
- * interrupt; registering half of it would be an approximation. See `skipped`.
+ * 1 from the host's SCH and ATK, once per copy, to the engine's floor of 0. Its Forced Response is registered PARTIALLY
+ * (see `FROSTBITE_FORCED_RESPONSE_GAP`): the printed "After attached enemy activates or leaves play, set this card
+ * aside" is `on.either(on.enemyActivates("host"), on.leavesPlay("host"))` with `moveCards(cards(self), "setAside")`, and
+ * only the activation half ships. That half includes Q35 = A (a copy attached during an activation, by a basic defense
+ * or by Ice Wall, is set aside after that same activation: no grace activation). The leaves-play half does not work:
+ * the engine unattaches the permanent copy into its owner's play area before the host's move, so no response ever sees
+ * "host" as the leaving card and the copy stays in play unattached (a defeated or removed host strands the copy).
+ * Registering the full text changes nothing today, so the shipped ref is the activation half; the full text stays in
+ * `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS` to swap in once the engine has a former-host response.
  *
  * **Snow Clone (46003)** cannot have upgrades attached (an encounter attachment can go on it). Its consequential damage
  * is reduced by 1 after it attacks an enemy with Frostbite attached (`46003.snow-clone-constant-2`, NOT registered). It
@@ -104,6 +105,9 @@ export const attachFrostbite = (enemy: TargetRef): readonly EffectSpec[] => [
  */
 export const ICEMAN_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "46002.frostbite-constant": constant(gets("sch", -1, THE_HOST_ENEMY), gets("atk", -1, THE_HOST_ENEMY)),
+
+  // Activation half only; the leaves-play half is FROSTBITE_FORCED_RESPONSE_GAP.
+  "46002.frostbite-forced-response": forcedResponse(on.enemyActivates("host"), moveCards(cards(self), "setAside")),
 
   "46003.snow-clone-constant": constant(
     rule({ kind: "cannotHaveAttachments", target: { self: true }, from: "upgrade" }),
@@ -144,8 +148,17 @@ export const ICEMAN_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
 });
 
 /**
- * The two skipped refs written out as printed, NOT registered (the registry above must not hold them; the coverage test
- * pins that). They exist so the tests can show exactly where each one fails, and to register unchanged once the engine
+ * What the registered Frostbite Forced Response (46002) does not do: "or leaves play" (docs/phase7-wave8.md section 3.61).
+ * When the host leaves play the permanent copy is unattached into its owner's play area first, so no response hears the
+ * former host leaving and the copy is not set aside. The full printed text is in the drafts below.
+ */
+export const FROSTBITE_FORCED_RESPONSE_GAP =
+  "46002.frostbite-forced-response ships the activation half only: after the host leaves play the unattached permanent copy hears no response (on.leavesPlay('host') no longer matches), so it stays in its owner's play area instead of being set aside";
+
+/**
+ * The drafts: the full printed Frostbite ref (a draft, because the registered one is its activation half) and the one
+ * skipped ref written out as printed, NOT registered (the registry above must not hold Snow Clone's; the coverage test
+ * pins that). The full Frostbite draft replaces the registered ref; it cannot sit beside it. They exist so the tests can show exactly where each one fails, and to register unchanged once the engine
  * can run them: move each entry into the registry and delete it from `skipped`.
  *
  * Frostbite's Forced Response: the leaves-play half is never heard (section 3.61). Snow Clone's consequential-damage
@@ -167,10 +180,8 @@ export const ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS: AbilityRegistry = defineAbil
   ),
 });
 
-/** Refs left unregistered, each with its reason (the coverage test reads this through its own `skipped` list). */
+/** Refs left unregistered, each with its reason (Frostbite's ref is registered, partially: `FROSTBITE_FORCED_RESPONSE_GAP`) (the coverage test reads this through its own `skipped` list). */
 export const ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "46002.frostbite-forced-response":
-    "section 3.61 proof fails: after the host leaves play the unattached permanent copy hears no response (on.leavesPlay('host') no longer matches); no former-host response pattern exists",
   "46003.snow-clone-constant-2":
     "section 3.67 proof fails: an attack that defeats the enemy leaves its Frostbite already unattached, so the 'enemy with Frostbite attached' condition is false and Q38 = A (read the enemy as when the attack was made) is not kept",
   "46005.cryokinetic-perception-response":

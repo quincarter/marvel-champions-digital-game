@@ -13,7 +13,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { coreScenario } from "../../../core/setup.js";
-import { cards, defineAbilities, forcedResponse, mergeRegistries, moveCards, on, self } from "../../../dsl/index.js";
+import { mergeRegistries } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
@@ -45,8 +45,8 @@ vi.setConfig({ testTimeout: 120_000 });
  * Hero face: THW 1, ATK 2, DEF 2, 11 hit points. Rhino (stage 1): ATK 2, SCH 1, 14 hit points per hero. Sandman
  * (01102, relabeled from an encounter card): ATK 3, SCH 2, 4 hit points; Mercenary (01101): 3 hit points.
  *
- * Frostbite's Forced Response is not registered (the supports module pins the gap, section 3.61): the engine here runs
- * `HALF`, its activation half, as the supports tests do. A defeated Frostbitten enemy leaves its copy unattached in the
+ * Frostbite's Forced Response ships as its activation half (the supports module pins the leaves-play gap, section 3.61).
+ * A defeated Frostbitten enemy leaves its copy unattached in the
  * play area rather than set aside, so no test asserts where that copy ends up, and none reads "Frostbite attached" after
  * a defeating attack. A copy that was never attached (the host was defeated before the attach step) stays set aside.
  */
@@ -58,11 +58,8 @@ const KIT = new Set([ARCTIC, BLAST, CHILL]);
 const FREEZE = "46001a.freeze";
 const REFS = ["46009.arctic-attack-action", "46010.ice-blast-action", "46011.chill-out-action"];
 
-const HALF = defineAbilities({
-  "46002.frostbite-forced-response": forcedResponse(on.enemyActivates("host"), moveCards(cards(self), "setAside")),
-});
 const DEPS: EngineDeps = {
-  abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_IDENTITY, ICEMAN_SUPPORT_UPGRADES_ALLIES, ICEMAN_EVENTS, HALF),
+  abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_IDENTITY, ICEMAN_SUPPORT_UPGRADES_ALLIES, ICEMAN_EVENTS),
 };
 const POOL: readonly AnyCard[] = [...WAVE8_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));

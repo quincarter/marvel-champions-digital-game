@@ -14,7 +14,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../ability-refs.js";
 import { coreScenario } from "../../core/setup.js";
-import { cards, defineAbilities, forcedResponse, mergeRegistries, moveCards, on, self } from "../../dsl/index.js";
+import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -68,17 +68,13 @@ const REFS = [
   "46023.the-power-in-all-of-us-constant",
 ];
 
-// Frostbite's Forced Response is not registered (section 3.61); the activation half is enough for these tests.
-const HALF = defineAbilities({
-  "46002.frostbite-forced-response": forcedResponse(on.enemyActivates("host"), moveCards(cards(self), "setAside")),
-});
+// Frostbite's Forced Response ships as its activation half (section 3.61 gap: leaves play), enough for these tests.
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(
     WAVE7_ABILITIES,
     ICEMAN_IDENTITY,
     ICEMAN_SUPPORT_UPGRADES_ALLIES,
     ICEMAN_EVENTS,
-    HALF,
     ICEMAN_ASPECT_BASIC,
   ),
 };
