@@ -468,7 +468,9 @@ describe("'Port and Punch (48007): 3 damage to an enemy, 3 to each enemy with Ba
     expect([inst(state, sandman).damage, inst(state, rhino).damage]).toEqual([3, 0]);
   });
 
-  it("Guard: with Mercenary (Guard) engaged Rhino cannot be the target, yet Rhino's copy still takes its 3", () => {
+  // Owner ruling Q49 (docs/phase7-wave8.md §4.1; RRG 1.8 "Guard", p. 21): guard is read for every enemy the attack
+  // targets, when that enemy would be attacked. The second instruction attacks each enemy with a copy.
+  it("Q49, guard: with Mercenary (Guard, 3 hit points) engaged Rhino cannot be the target; the first 3 defeats the Mercenary, so Rhino's copy can then be attacked for 3", () => {
     const base = heroGame();
     const rhino = base.activeVillainId!;
     const merc = engage(base, MERCENARY);
@@ -483,6 +485,29 @@ describe("'Port and Punch (48007): 3 damage to an enemy, 3 to each enemy with Ba
     expect(damageTo(events, rhino)).toEqual([3]);
     expect(cardsInPlay(state)).not.toContain(merc.id);
     expect(inst(state, rhino).damage).toBe(3);
+    expect(events.filter((e) => e.type === "attackTargetSkipped")).toEqual([]);
+  });
+
+  it("Q49, guard: a Mercenary that survives the first 3 (a tough status card) still guards, so Rhino's copy is not attacked and takes nothing", () => {
+    const base = heroGame();
+    const rhino = base.activeVillainId!;
+    const merc = engage(base, MERCENARY);
+    const tough = patchInstance(merc.state, merc.id, { statuses: { stunned: 0, confused: 0, tough: 1 } });
+    const a = attachBamf(tough, rhino);
+    const staged = inHand(a.state, PORT_PUNCH);
+    const { state, events } = playStaged(staged.state, staged, picker(take(merc.id)));
+    expect(cardsInPlay(state)).toContain(merc.id);
+    expect(damageTo(events, rhino)).toEqual([]);
+    expect(inst(state, rhino).damage).toBe(0);
+    expect(bamfsOn(state, rhino)).toBe(1);
+    expect(events.flatMap((e) => (e.type === "attackTargetSkipped" ? [e.targetInstanceId] : []))).toEqual([rhino]);
+    // Rhino was not attacked: the one attack names the Mercenary alone.
+    const attacked = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "characterAttacked"
+        ? [e.event.targetInstanceId]
+        : [],
+    );
+    expect(attacked).toEqual([merc.id]);
   });
 
   it("is refused in alter-ego form (Hero Action)", () => {

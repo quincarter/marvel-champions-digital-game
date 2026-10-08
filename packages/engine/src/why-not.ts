@@ -22,7 +22,7 @@ import { cardOf, getInstance, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
 import { legalDefenders } from "./resolve/enemy-activation.js";
 import { defenseBarredCandidates } from "./resolve/triggers.js";
-import { slotTargetValid } from "./resolve/target-validity.js";
+import { attackTargetAllowed, slotTargetValid } from "./resolve/target-validity.js";
 import { cannotDefend, mustDefendWithAlly } from "./rules.js";
 import { cardsInPlay, controllerOf, explainQuery, isAlly, type QueryExclusion } from "./select.js";
 import type { GameState } from "./state.js";
@@ -144,6 +144,11 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
       (!movesFromSlot || (getInstance(state, id)?.threat ?? 0) > 0)
     ) {
       exclusions.push({ instanceId: id, reason: "cannotRemoveThreat" });
+    }
+    // An enemy an "(attack)" ability would attack through this slot that its player's identity may not attack (guard;
+    // owner ruling Q49, `attackTargetAllowed`): the same code an `attackableBy` query gives.
+    else if (!attackTargetAllowed(state, deps, rest, effect.slot, id, context)) {
+      exclusions.push({ instanceId: id, reason: "cannotBeAttacked" });
     }
   }
   return exclusions;

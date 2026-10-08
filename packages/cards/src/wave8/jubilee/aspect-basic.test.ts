@@ -8,6 +8,7 @@ import {
   createGame,
   type Command,
   type EngineDeps,
+  type GameEvent,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -655,10 +656,17 @@ describe("Waylay (47014): Hero Response (attack), after your hero thwarts, 4 dam
     const targets = probe.seen.find((p) => p.kind === "chooseTarget")!;
     expect(targets.options).toEqual([guard.id]);
   });
-  it("Q48 pin: its damage is not yet an attack event (no attackResolved, so no retaliate); Q48 = A will change this", () => {
+  it("Q48 = A: the label makes it one attack by Jubilee on the enemy, and its 4 damage is attack damage", () => {
     const b = board(5, true);
-    const { events } = thwartAndWaylay(b, take(villainOf(b.state)));
-    expect(events.filter((e) => e.type === "attackResolved")).toEqual([]);
+    const rhino = villainOf(b.state);
+    const { events } = thwartAndWaylay(b, take(rhino));
+    const attacks = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack" ? [e.event] : [],
+    );
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0]).toMatchObject({ attackerInstanceId: b.jubilee, labeled: true });
+    expect(attacks[0]!.attacked).toEqual([rhino]);
+    expect(attacks[0]!.results?.damage).toBe(4);
   });
   it("is not offered after an attack, only after a thwart", () => {
     const b = board(5, true);
@@ -789,9 +797,18 @@ describe("Multitalented (47021): Hero Action (attack/thwart), if you paid using 
     expect(threatOf(state, b.main)).toBe(6);
     expect(inst(state, b.jubilee).statuses.stunned).toBe(0);
   });
-  it("Q48 pin: its damage line is not yet an attack event (no attackResolved); Q48 = A will change this", () => {
+  it("Q48 = A: its damage line is one attack by Jubilee; with no [physical] paid there is no damage and no attack", () => {
     const b = board();
-    expect(run(b, [PH, "01090"]).events.filter((e) => e.type === "attackResolved")).toEqual([]);
+    const attacksIn = (events: readonly GameEvent[]) =>
+      events.flatMap((e) =>
+        e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack" ? [e.event] : [],
+      );
+    const attacks = attacksIn(run(b, [PH, "01090"]).events);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0]).toMatchObject({ attackerInstanceId: b.jubilee, labeled: true });
+    expect(attacks[0]!.attacked).toEqual([b.rhino]);
+    expect(attacks[0]!.results?.damage).toBe(2);
+    expect(attacksIn(run(b, [E, M, M]).events)).toEqual([]);
   });
 });
 

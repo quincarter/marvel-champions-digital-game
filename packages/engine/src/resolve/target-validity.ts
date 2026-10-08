@@ -45,7 +45,16 @@ import {
   patrolledBy,
   schemeActivationDestination,
 } from "../rules.js";
-import { activeRules, cardsInPlay, type EffectContext, resolveRef, resolveValue, selectTargets } from "../select.js";
+import {
+  activeRules,
+  canAttack,
+  cardsInPlay,
+  categoriesOf,
+  type EffectContext,
+  resolveRef,
+  resolveValue,
+  selectTargets,
+} from "../select.js";
 import type { CardSelector, EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -54,6 +63,7 @@ import { selectCards } from "./cards.js";
 import { alreadyDefeated, anyAlreadyDefeated } from "./defeat.js";
 import { threatRemovalBlocked, thwartForbiddenOn } from "./event.js";
 import { thwartCostPayable } from "../thwart-cost.js";
+import { isAttackInstruction } from "./attack-ability.js";
 
 /**
  * Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). `fromAttack`: the damage is an
@@ -195,6 +205,56 @@ function attackCanDamage(
   });
 }
 
+/**
+ * The effects inside `value` through which an "(attack)" ability would attack the card bound to `slot`: an `attack`
+ * aimed at it, and a `dealDamage` instruction aimed at it that is the attack's damage (`isAttackInstruction`). A
+ * branch, an option and post-"then" text are read too.
+ */
+function attacksThroughSlot(value: unknown, slot: string, found: EffectSpec[] = []): EffectSpec[] {
+  if (Array.isArray(value)) {
+    for (const item of value) attacksThroughSlot(item, slot, found);
+    return found;
+  }
+  if (value === null || typeof value !== "object") return found;
+  const record = value as Readonly<Record<string, unknown>>;
+  if ((record.kind === "attack" || record.kind === "dealDamage") && refersToSlot(record.target, slot)) {
+    const effect = value as Extract<EffectSpec, { kind: "attack" | "dealDamage" }>;
+    if (effect.kind === "attack" || isAttackInstruction(effect)) found.push(effect);
+  }
+  for (const item of Object.values(record)) attacksThroughSlot(item, slot, found);
+  return found;
+}
+
+/** The identity an "(attack)" ability's damage attacks with: its controller's (RRG 1.8 "Labeled Ability", p. 26). */
+const labeledAttacker = (state: GameState, context: EffectContext): InstanceId | null =>
+  context.controllerId == null ? null : (getPlayer(state, context.controllerId)?.identity.instanceId ?? null);
+
+/**
+ * Whether the enemy `id` may be chosen for `slot` in an "(attack)" ability (`EffectContext.attackLabeled`), given the
+ * effects that follow the choice (`rest`): when one of them attacks the chosen card (`attacksThroughSlot`), only an
+ * enemy the attacking character may attack right now. RRG 1.8 "Attack (Player Ability Type)" (p. 10): "Hero and ally
+ * attacks can target any enemy, unless a card ability (such as guard) is preventing that enemy from being attacked";
+ * owner ruling Q49 (docs/phase7-wave8.md §4.1): guard is checked for every enemy the attack targets, as it would be
+ * attacked, and a chosen-target instruction does not offer a guarded villain. Unlike `slotTargetValid` this is not
+ * "valid if any effect can affect it": whatever else the ability does to the chosen enemy ("Confuse that enemy"), it
+ * may not be attacked. Anything that is not an enemy, an unlabeled ability and a slot nothing attacks through are
+ * always allowed.
+ */
+export function attackTargetAllowed(
+  state: GameState,
+  deps: EngineDeps,
+  rest: readonly EffectSpec[],
+  slot: string,
+  id: InstanceId,
+  context: EffectContext,
+): boolean {
+  if (!context.attackLabeled || !categoriesOf(state, id).includes("enemy")) return true;
+  return attacksThroughSlot(rest, slot).every((effect) => {
+    const attacker = effect.kind === "attack" ? attackerOf(state, effect, context) : labeledAttacker(state, context);
+    return attacker === null || canAttack(state, attacker, id, deps);
+  });
+}
+
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */
 function judgedCanAffect(
   state: GameState,
@@ -204,6 +264,11 @@ function judgedCanAffect(
   context: EffectContext,
 ): boolean {
   if (effect.kind === "dealDamage") {
+    // An "(attack)" ability's damage to an enemy attacks it (owner rulings Q48 and Q49): not one it may not attack.
+    if (context.attackLabeled && isAttackInstruction(effect) && categoriesOf(state, id).includes("enemy")) {
+      const attacker = labeledAttacker(state, context);
+      if (attacker !== null && !canAttack(state, attacker, id, deps)) return false;
+    }
     return canDealDamageTo(state, deps, id, context.selfInstanceId, effect.fromAttack === true);
   }
   if (effect.kind === "attack") return attackCanDamage(state, deps, effect, id, context);
@@ -431,7 +496,9 @@ function choiceCandidates(
   judge: boolean,
 ): readonly InstanceId[] {
   if (effect.kind === "chooseCards") return selectCards(createCtx(state, deps), effect.from, context);
-  const candidates = selectTargets(state, effect.query, context);
+  const candidates = selectTargets(state, effect.query, context).filter((id) =>
+    attackTargetAllowed(state, deps, rest, effect.slot, id, context),
+  );
   return judge ? candidates.filter((id) => slotTargetValid(state, deps, rest, effect.slot, id, context)) : candidates;
 }
 
@@ -485,6 +552,7 @@ export function abilityTargetFault(
     bindings: {},
     deps,
     ...(definition.label?.includes("thwart") && playerId !== null ? { thwartLabeled: true } : {}),
+    ...(definition.label?.includes("attack") && playerId !== null ? { attackLabeled: true } : {}),
   };
   // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
   // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
@@ -496,7 +564,8 @@ export function abilityTargetFault(
   const effects = definition.effects;
   // A move's source is judged whatever is in play: a scheme with no threat is no source.
   const moves = effects.some((effect) => effect.kind === "moveThreat");
-  const judge = moves || targetsCanBeInvalid(state, deps, playerId);
+  // An "(attack)" ability's named enemy can be one its player may not attack (guard): judged whatever else is in play.
+  const judge = moves || context.attackLabeled === true || targetsCanBeInvalid(state, deps, playerId);
   // The opening choices that are required and have nothing to choose. Only the choices before the ability's first
   // other effect are read: a later one chooses among what the effects before it leave (a card one of them drew or
   // discarded), which cannot be known until they resolve, so it is judged as it resolves.

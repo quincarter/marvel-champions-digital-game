@@ -161,9 +161,11 @@ import {
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked, thwartBlockedOn } from "./event.js";
 import {
   abilityAttackDamage,
+  abilityAttackOf,
   abilityAttackRoot,
+  isAttackInstruction,
   noteAttackedByAbility,
-  waitingAbilityAttack,
+  skipUnattackable,
 } from "./attack-ability.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck } from "./target-validity.js";
@@ -395,12 +397,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // its attack has dealt its own damage, damage the ability deals to an enemy is that attack's, and the enemy is
       // attacked (`attack-ability.ts`). `fromAttack: false` says otherwise for one instruction; damage its player
       // takes (`taken`) and damage that names another dealer (`sourceFromEvent`) are never the attack's.
-      const attack =
-        effect.fromAttack === undefined && !effect.taken && !effect.sourceFromEvent
-          ? waitingAbilityAttack(ctx.state, ctx.deps, frame)
-          : undefined;
+      // Each enemy the instruction names is attacked as it resolves, so guard is read for it now (owner ruling Q49):
+      // one the identity may not attack is skipped. A label-only attack (Q48) reads it whether or not its attack is
+      // open, since an instruction whose every enemy is guarded opens none.
+      const ability = isAttackInstruction(effect) ? abilityAttackOf(ctx.state, ctx.deps, frame) : undefined;
+      const attack = ability?.waiting;
+      const named = targets(effect.target);
       const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }>[] = [];
-      const events = targets(effect.target)
+      const events = (ability ? skipUnattackable(ctx, ability, frame.selfInstanceId, named) : named)
         .map((id) => ({ id, base: effect.perTarget ? amountFor(id) : shared }))
         .filter(({ base }) => !effect.perTarget || base > 0)
         .map(({ id, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => {
@@ -409,7 +413,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           return {
             kind: "dealDamage",
             targetInstanceId: id,
-            amount: base + bonus,
+            amount: base + bonus + (ofAttack?.extra ?? 0),
             sourceInstanceId:
               (effect.sourceFromEvent && context.event?.kind === "dealDamage"
                 ? context.event.sourceInstanceId

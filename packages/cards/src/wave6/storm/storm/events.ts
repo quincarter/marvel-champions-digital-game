@@ -49,8 +49,10 @@ const specialOf = (title: string) => resolveSpecials(query("support", { trait: W
  *   Special of the support now in play resolves even if the swap could not be completed.
  * - **Torrential Rain (36010)**: "(thwart)" is a label only: removing threat is not a thwart (no crisis, no thwart
  *   triggers), and the 3 is divided among schemes like Inconspicuous (`04038`). Hurricane's Special only if it is in play.
- * - **Lightning Bolt (36011)**: "(attack)" is a label only: 8 damage is not an attack (no guard, no retaliate). The
- *   enemy is any enemy, chosen by the player.
+ * - **Lightning Bolt (36011)**: "(attack)" with no attack effect: the engine resolves the ability as one attack by
+ *   Storm (owner rulings Q48 and Q49, docs/phase7-wave8.md §4.1), so its 8 damage is attack damage, the enemy is one
+ *   she may attack (guard) and retaliate answers it. Thunderstorm's Special is the support's own ability, not the
+ *   attack's.
  * - **Flash Freeze (36012)**: interrupt to the villain attacking Storm herself, not an ally (ruling Dec 17, 2025 (3):
  *   it triggers "when" the villain attacks, so it is playable only when Storm is attacked). The -3 ATK is lasting for the
  *   phase and applies only while the villain or an engaged minion is attacking her (the amount is read per attacker,

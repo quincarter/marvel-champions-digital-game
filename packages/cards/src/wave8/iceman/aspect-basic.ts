@@ -90,8 +90,9 @@ const SHADOWCAT_ICONS: readonly Parameters<typeof losesIcon>[0][] = ["accelerati
  * **Surprise Move (46015)**: the target is checked when the basic attack is made, so an upgrade attached by an earlier
  * Interrupt (Iceman's "Freeze!") counts. "If this attack defeats that enemy" is read when the attack ends.
  *
- * **Take That! (46016)** is an "(attack)" ability that only deals damage: Q48 (not yet built) makes it an attack
- * event; today it is damage from a card effect, so retaliate, guard and "after you attack" do not see it.
+ * **Take That! (46016)** is an "(attack)" ability that only deals damage: the engine makes it one attack by the
+ * identity (Q48 = A), so its damage is attack damage, guard limits the choice (Q49) and retaliate and "after you
+ * attack" answer it.
  *
  * **Shadowcat (46019)**: the chosen side scheme loses each of the four icons until the end of the round, as a lasting
  * rule (docs/phase7-wave6.md section 3.38).

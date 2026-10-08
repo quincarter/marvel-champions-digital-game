@@ -42,7 +42,7 @@ import {
  * **Exorcism (45038)** and **Soul Strike (45039)** read "the top card of your deck" after the main effect resolved
  * (`topOfYourDeckHas`, section 3.50): [mental] or [wild] confuses the villain; [physical] or [wild] stuns the enemy that
  * took the damage. Soul Strike is an (attack)-labeled event that only deals damage: the natural `damageAnEnemy`, which
- * today is not yet an attack event (Q48 = A will convert it; the test pins today's behavior).
+ * the engine resolves as one attack by the identity (Q48 = A), the choice limited to enemies she may attack (Q49).
  *
  * **Magic Barrier (45040)** is a defense-labeled interrupt to any enemy attack: `modifyAttack({ preventDamage: 3 })`
  * (Brazen Defense's shape), then 3 damage (not an attack) to the attacker if the top card has [energy] or [wild].

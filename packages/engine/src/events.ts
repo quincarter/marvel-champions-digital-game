@@ -612,6 +612,19 @@ export type GameEvent =
       readonly attackerInstanceId: InstanceId;
     }
   /**
+   * A damage instruction of an "(attack)" ability named an enemy its player's identity may not attack right now (a
+   * guard minion engaged with that player and the villain, a `cannotAttack` rule), so that enemy is not attacked and is
+   * dealt none of that instruction's damage (RRG 1.8 "Guard", p. 21; owner ruling Q49, docs/phase7-wave8.md §4.1: guard
+   * is checked for every enemy the attack targets, at the time that enemy would be attacked). The instruction's other
+   * targets are dealt theirs. `sourceInstanceId`: the card whose ability it is.
+   */
+  | {
+      readonly type: "attackTargetSkipped";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
    * A player's attack ended before dealing damage because its attacker left play first (docs/phase7-wave4.md §4 Q20,
    * user decision 2026-09-25: Speed Demon's "(Resolve Speed Demon's attack first.)" defeating the attacking ally). No
    * damage is dealt and nothing hangs off it (no `characterAttacked`, so no retaliate).

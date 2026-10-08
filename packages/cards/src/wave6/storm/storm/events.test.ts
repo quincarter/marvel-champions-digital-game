@@ -152,11 +152,27 @@ describe("Storm's hero-kit events (36009-36013)", () => {
       expect(inst(state, villainOf(state)).damage).toBe(10);
     });
 
-    it("deals only 8 when Thunderstorm is not in play, and is not an attack: a guarding or retaliating enemy does not hit back", () => {
-      const { state: withMinion, id: minion } = engageMinion(stormWith(CLEAR_SKIES), "01101", P1);
-      const { state } = cast(withMinion, "36011", 3, aiming(villainOf(withMinion)));
+    it("deals only 8 when Thunderstorm is not in play", () => {
+      const start = stormWith(CLEAR_SKIES);
+      const { state } = cast(start, "36011", 3, aiming(villainOf(start)));
       expect(inst(state, villainOf(state)).damage).toBe(8);
-      expect(inst(state, minion).damage).toBe(0);
+    });
+
+    // Owner rulings Q48 and Q49 (docs/phase7-wave8.md §4.1): every "(attack)" ability is an attack, so guard limits
+    // whom it may target (RRG 1.8 "Guard", p. 21). Before them this test read "is not an attack: a guarding … enemy
+    // does not hit back" and expected 8 on the villain past an engaged Hydra Mercenary.
+    it("is an attack: with a guard minion engaged the villain is not offered, and the bolt goes to the minion", () => {
+      const { state: withMinion, id: minion } = engageMinion(stormWith(CLEAR_SKIES), "01101", P1);
+      const offered: string[][] = [];
+      const watching: Picker = (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "chooseTarget") offered.push(choice.options.map((o) => o.optionId));
+        return aiming(villainOf(withMinion))(s);
+      };
+      const { state } = cast(withMinion, "36011", 3, watching);
+      expect(offered).toEqual([[minion]]);
+      expect(inst(state, villainOf(state)).damage).toBe(0);
+      expect(playerOf(state, P1).playArea).not.toContain(minion);
     });
   });
 

@@ -1768,6 +1768,10 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
     });
     return;
   }
+  // The attack of an "(attack)" ability with no attack effect (owner ruling Q48, `attack-ability.ts`): it deals no
+  // damage of its own and does not use the attacker's ATK. It waits for its ability, whose damage instructions are
+  // its damage and name the enemies it attacks.
+  if (event.labeled) return;
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;

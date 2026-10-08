@@ -239,8 +239,9 @@ export type StackFrame =
       readonly attackWaiting?: true;
       /**
        * With `attackOf`: the enemies this attack has attacked so far, one `characterAttacked` each (its own target,
-       * then every enemy a later instruction of the ability dealt damage to), pushed when the attack finishes. An
-       * enemy named twice is attacked once (`resolve/attack-ability.ts`).
+       * then every enemy a later instruction of the ability targeted), pushed when the attack finishes. An enemy
+       * named twice is attacked once. Only an instruction's own targets are added: an enemy that merely took damage
+       * from the attack (an overkill spill) is not attacked (owner ruling Q50; `resolve/attack-ability.ts`).
        */
       readonly attacked?: readonly Extract<TriggerEvent, { kind: "characterAttacked" }>[];
       /**
@@ -406,6 +407,12 @@ export type StackFrame =
       readonly defeatedLeavingSource?: CardId;
       /** The one thwart this "(thwart)" ability is making, on the root frame of its resolution (`ThwartSession`). */
       readonly thwart?: ThwartSession;
+      /**
+       * On the root frame of an "(attack)"-labeled ability with no `attack` effect: the ability's one attack has been
+       * made (`TriggerEvent attack.labeled`, `resolve/attack-ability.ts`), so no later damage instruction makes
+       * another, whether that attack is waiting beneath this frame or was cancelled.
+       */
+      readonly labelAttackMade?: true;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

@@ -268,14 +268,22 @@ describe("Close Call (16158)", () => {
 
 describe("Defy Danger (16159)", () => {
   it("(attack): deals 5 damage to an enemy, discards the top encounter card, takes 1 damage per boost icon discarded (16159.defy-danger-constant, 16159.defy-danger-action)", () => {
-    const hero = runWave3(grootVsRhinoWithMarket("16159"), toHero());
+    // Crowd Control (01108, 2 boost icons) on top of the encounter deck; the top card of Groot's own deck must stay.
+    const hero = stackEncounterDeck(runWave3(grootVsRhinoWithMarket("16159"), toHero()), "01108");
     const identity = identityOf(hero);
     const villain = hero.villains[0]!.instanceId;
     const beforeVillainDamage = inst(hero, villain).damage;
+    const beforeOwnDamage = inst(hero, identity).damage;
+    const ownTop = playerOf(hero, P1).deck[0]!;
+    const encounterTop = activeEncounterDeck(hero).deck[0]!;
+    expect(hero.instances[encounterTop]!.cardId).toBe("01108");
     const { state: played } = playFromHand(hero, "16159", 1);
     expect(inst(played, villain).damage).toBe(beforeVillainDamage + 5);
-    // Whatever boost icons the discarded encounter card printed, the identity took exactly that many damage.
-    expect(inst(played, identity).damage).toBeGreaterThanOrEqual(0);
+    // "Discard the top card of the encounter deck": that card is in the encounter discard pile, and the player's deck
+    // was not touched. 1 damage for each of its 2 boost icons.
+    expect(activeEncounterDeck(played).discard).toContain(encounterTop);
+    expect(playerOf(played, P1).discard).not.toContain(ownTop);
+    expect(inst(played, identity).damage).toBe(beforeOwnDamage + 2);
   });
 });
 
@@ -290,18 +298,10 @@ describe("Defy Danger (16159) under the attack-ability rule (docs/phase7-wave8.m
       rules: [...(s.scenarioRules.rules ?? []), { kind: "increaseDamageTaken", target, amount: 1, fromAttack: true }],
     },
   });
-  /**
-   * Two boost icons are discarded whichever deck the script reads: Crowd Control (01108, 2 icons) is put on top of
-   * the encounter deck, and this game's copy of the top card of Groot's own deck is given 2 as a fixture. (The script
-   * discards from the player's deck today although the card says the encounter deck: reported, not changed here.)
-   */
+  /** Two boost icons are discarded: Crowd Control (01108, 2 icons) is put on top of the encounter deck. */
   function staged(): GameState {
     const hero = stackEncounterDeck(runWave3(grootVsRhinoWithMarket("16159"), toHero()), "01108");
-    const top = hero.instances[playerOf(hero, P1).deck[0]!]!.cardId;
-    const pooled = { ...hero, cardPool: { ...hero.cardPool, [top]: { ...hero.cardPool[top]!, boostIcons: 2 } } };
-    return plusOneFromAttacks(plusOneFromAttacks(pooled as GameState, { categories: ["villain"] }), {
-      categories: ["identity"],
-    });
+    return plusOneFromAttacks(plusOneFromAttacks(hero, { categories: ["villain"] }), { categories: ["identity"] });
   }
   const damageEvents = (events: readonly GameEvent[]) =>
     events.flatMap((e) =>

@@ -153,6 +153,14 @@ export interface EffectContext {
    * `abilityLacksValidTarget`; absent for every other ability and for a delayed effect.
    */
   readonly thwartLabeled?: boolean;
+  /**
+   * The same for an ability labeled "(attack)" (RRG 1.8 "Labeled Ability", p. 26: "that ability is considered to be an
+   * attack made by that player's identity"; owner rulings Q48 and Q49, docs/phase7-wave8.md §4.1): damage such an
+   * ability deals to an enemy is an attack on that enemy by the controller's identity, so an enemy that identity may
+   * not attack (guard, `cannotAttack`) is no target for it (`resolve/attack-ability.ts`, `target-validity.ts`). Set by
+   * `contextOf` and by `abilityLacksValidTarget`.
+   */
+  readonly attackLabeled?: boolean;
 }
 
 /** The context a lasting effect evaluates in: the ability that created it. */

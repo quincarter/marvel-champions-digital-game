@@ -456,10 +456,19 @@ describe("Take That! (46016): Hero Action (attack), 7 damage to an enemy with an
     expect(inPlay(state, minion)).toBe(false);
     expect(damageOf(state, villainOf(state))).toBe(0);
   });
-  it("Q48 pin: the damage-only attack event is not yet an attack event (no attackResolved event, so no retaliate)", () => {
-    // Today it is plain damage with an (attack) label; Q48 = A will make it an attack and this changes.
-    const { events } = playStaged(inHand(freeze(heroGame(), 1), THAT));
-    expect(events.filter((e) => e.type === "attackResolved")).toEqual([]);
+  it("Q48 = A: the label makes it one attack by Iceman on the enemy, and its 7 damage is attack damage", () => {
+    const { state, events } = playStaged(inHand(freeze(heroGame(), 1), THAT));
+    const attacks = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack" ? [e.event] : [],
+    );
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0]).toMatchObject({ attackerInstanceId: identityOf(state), labeled: true });
+    expect(attacks[0]!.attacked).toEqual([villainOf(state)]);
+    expect(attacks[0]!.results?.damage).toBe(7);
+    const dealt = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "dealDamage" ? [e.event] : [],
+    );
+    expect(dealt.map((d) => d.fromAttack)).toEqual([true]);
   });
 });
 

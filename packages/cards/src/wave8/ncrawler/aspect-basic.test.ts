@@ -1175,9 +1175,9 @@ describe("Combine Forces (48031) and Gunboat Diplomacy (48032): Alliance, exhaus
   });
 
   describe("Gunboat Diplomacy", () => {
-    /** A Breakin' & Takin' side scheme with 3 threat, Rhino, and the engaged minions. */
-    function ready() {
-      const a = alliance([MERCENARY]);
+    /** A Breakin' & Takin' side scheme with 3 threat, Rhino, and the engaged minion (Melter: no guard). */
+    function ready(minion = MELTER) {
+      const a = alliance([minion]);
       const side = encounterCardInVillainArea(a.state, BREAKIN, 3);
       return { ...a, state: side.state, side: side.id, main: side.state.mainScheme.instanceId };
     }
@@ -1204,6 +1204,44 @@ describe("Combine Forces (48031) and Gunboat Diplomacy (48032): Alliance, exhaus
       expect(inst(state, a.engaged[0]!).damage).toBe(1);
       expect(inst(state, a.siryn).exhausted).toBe(true);
       expect(inst(state, a.nc).exhausted).toBe(true);
+    });
+    // Owner rulings Q48 to Q50 (docs/phase7-wave8.md §4.1): the division of damage is the ability's one attack, on each
+    // enemy given a share, and guard is read for each (RRG 1.8 "Guard", p. 21).
+    it("its damage is one attack by Nightcrawler on each enemy given a share", () => {
+      const a = ready();
+      const rhino = a.state.activeVillainId!;
+      const { events } = driveEventsPicking(
+        DEPS,
+        a.state,
+        picker(divideAs({ threat: { [a.side]: 3, [a.main]: 1 }, damage: { [rhino]: 3, [a.engaged[0]!]: 1 } })),
+        play(P1, a.gunboat, [payer(a.state, [a.combine, a.gunboat])], { costChoices: costFor(a) }),
+      );
+      const attacks = events.flatMap((e) =>
+        e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack" ? [e.event] : [],
+      );
+      expect(attacks).toHaveLength(1);
+      expect(attacks[0]).toMatchObject({ attackerInstanceId: a.nc, labeled: true });
+      expect([...attacks[0]!.attacked!].sort()).toEqual([rhino, a.engaged[0]!].sort());
+      const shares = events.flatMap((e) =>
+        e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "dealDamage" ? [e.event] : [],
+      );
+      expect(shares.map((d) => d.fromAttack)).toEqual([true, true]);
+    });
+    it("a guard minion engaged with Nightcrawler: Rhino is not offered a share, and all 4 go to the minion", () => {
+      const a0 = ready(MERCENARY);
+      const a = { ...a0, state: patchInstance(a0.state, a0.main, { threat: 3 }) };
+      const rhino = a.state.activeVillainId!;
+      const probe = spy(picker(divideAs({ threat: { [a.side]: 3, [a.main]: 1 } })));
+      const { state } = driveEventsPicking(
+        DEPS,
+        a.state,
+        probe.pick,
+        play(P1, a.gunboat, [payer(a.state, [a.combine, a.gunboat])], { costChoices: costFor(a) }),
+      );
+      // Two divisions are asked about: threat among the schemes; the damage has one candidate, so it is not asked.
+      expect(probe.seen.filter((p) => p.kind === "divide")).toHaveLength(1);
+      expect(inst(state, rhino).damage).toBe(0);
+      expect(inPlay(state, MERCENARY)).toEqual([]);
     });
     /** Played with Nightcrawler carrying a status card: the whole labeled ability is cancelled (RRG 1.8 p. 26). */
     function withStatus(status: "confused" | "stunned") {

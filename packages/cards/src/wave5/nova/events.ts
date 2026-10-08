@@ -83,9 +83,10 @@ import {
  *
  * **Pitchback (28012)**: "Play only if your identity has the Aerial trait." is data
  * (`playRestrictions.requiresIdentityTrait`). "Hero Response (attack): After your hero attacks, deal 4 damage to
- * an enemy." is `damageAnEnemy(4)`, not `attack(...)` — the printed effect is "deal … damage", not a second attack
- * (the "(attack)" label only categorizes the triggered ability itself, the same reading Into the Fray's excess-
- * damage line and Pitchback's own aggression-aspect precedent both give).
+ * an enemy." is `damageAnEnemy(4)`, the printed "deal … damage". The "(attack)" label makes resolving it one attack
+ * by the hero (owner ruling Q48, docs/phase7-wave8.md §4.1; the engine's rule, `resolve/attack-ability.ts`), so the
+ * enemy is one the hero may attack, and "after your hero attacks" is true of the attack it makes for any other card
+ * that asks (another copy in hand included). A copy never answers its own attack: it has left the hand by then.
  *
  * **No Quarter (28013)**: `Requirement ([physical])` is data (`keywords: [{ name: "requirement", icon:
  * "physical" }]`), enforced generically by the engine reading `requirementResources` (`packages/content/src/schema

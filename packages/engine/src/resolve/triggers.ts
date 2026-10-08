@@ -259,31 +259,39 @@ function matchesRest(
       // the attack damaged it, since its defeat took them out of play (owner ruling 2026-10-06). Only the top-level
       // name and status clauses are read from the snapshot; the rest, and a clause inside `anyOf`/`not`, read the card
       // as it now is.
-      const { name, titled, hasStatus, hasAnyStatus, ...live } = query;
       const was = event.targetAsDamaged;
       const id = event.targetInstanceId;
-      if (name !== undefined && was.name !== name) return false;
-      if (
-        titled !== undefined &&
-        !characterNames(state, titled, context).some((wanted) => snapshotTitledAs(state, id, was.titles, wanted))
-      )
-        return false;
-      const held = was.statuses;
-      if (held !== undefined) {
-        if (hasStatus !== undefined && held[hasStatus] <= 0) return false;
-        if (hasAnyStatus !== undefined && STATUS_NAMES.some((status) => held[status] > 0) !== hasAnyStatus)
+      const asDamaged = (): boolean => {
+        const { name, titled, hasStatus, hasAnyStatus, ...live } = query;
+        if (name !== undefined && was.name !== name) return false;
+        if (
+          titled !== undefined &&
+          !characterNames(state, titled, context).some((wanted) => snapshotTitledAs(state, id, was.titles, wanted))
+        )
           return false;
-      }
-      // A snapshot stamped before it carried statuses: those clauses read the live card with the rest.
-      const rest: TargetQuery =
-        held !== undefined
-          ? live
-          : {
-              ...live,
-              ...(hasStatus !== undefined ? { hasStatus } : {}),
-              ...(hasAnyStatus !== undefined ? { hasAnyStatus } : {}),
-            };
-      if (!matchesQuery(state, id, rest, context)) return false;
+        const held = was.statuses;
+        if (held !== undefined) {
+          if (hasStatus !== undefined && held[hasStatus] <= 0) return false;
+          if (hasAnyStatus !== undefined && STATUS_NAMES.some((status) => held[status] > 0) !== hasAnyStatus)
+            return false;
+        }
+        // A snapshot stamped before it carried statuses: those clauses read the live card with the rest.
+        const rest: TargetQuery =
+          held !== undefined
+            ? live
+            : {
+                ...live,
+                ...(hasStatus !== undefined ? { hasStatus } : {}),
+                ...(hasAnyStatus !== undefined ? { hasAnyStatus } : {}),
+              };
+        return matchesQuery(state, id, rest, context);
+      };
+      // An "(attack)" ability's attack attacked every enemy it targeted (`attack.attacked`, owner ruling Q50): "after
+      // you attack a minion" is satisfied by any of them. Only the first target has a snapshot; the others are read
+      // as they now are.
+      const others = event.kind === "attack" ? subjects.targets.filter((target) => target !== id) : [];
+      const first = subjects.targets.includes(id) && asDamaged();
+      if (!first && !others.some((target) => matchesQuery(state, target, query, context))) return false;
     } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }
   if (pattern.sourceIs) {

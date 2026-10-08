@@ -118,9 +118,9 @@ const stepInstance = (k: number) =>
  * named type is read from the whole spent pool, a wild as its player declared it (Q33 = B). [energy] adds 1 to the
  * power, [mental] heals 1 from her, [physical] readies her after the use (after any consequential damage).
  *
- * **Waylay (47014)** is an (attack)-labeled ability that only deals damage. Q48 = A makes it an attack; that engine
- * change is not built yet, so today its damage is plain damage (no retaliate, no "after you attack"). Written the
- * natural way, the target chosen among the enemies the identity may attack (guard), so the rule will apply as it lands.
+ * **Waylay (47014)** is an (attack)-labeled ability that only deals damage. Q48 = A makes it an attack: the engine
+ * resolves it as one attack by the identity (attack damage, retaliate, "after you attack"). Written the natural way,
+ * the target chosen among the enemies the identity may attack (guard).
  * The 7 damage is read from the thwarted scheme: the thwart left it with no threat (a thwart's own event carries no
  * `lastThreatRemoved`, which only the removal records).
  *
@@ -128,7 +128,8 @@ const stepInstance = (k: number) =>
  * (RRG 1.8 "Thwart", p. 44), the same scheme may be chosen again.
  *
  * **Multitalented (47021)** is (attack)/(thwart) in one ability and resolves in the printed order: damage, threat,
- * heal. Like Waylay its damage line is damage only (Q48).
+ * heal. Like Waylay its damage line is damage only, and is the ability's one attack (Q48); with no [physical] paid
+ * nothing is attacked.
  *
  * **Unlikely Duo (47022)**: confuse an enemy, then attack a confused enemy (possibly another) for 4.
  *

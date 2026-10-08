@@ -294,6 +294,55 @@ describe("Gambit's events (37006-37009, 37014, 37015, 37019-37021, 37031)", () =
       const { state, command } = staged(remy(), ROYAL_FLUSH, 3);
       expect(rejected(state, command)).toBe(true);
     });
+
+    // Owner rulings Q48 to Q50 (docs/phase7-wave8.md §4.1): the label makes the ability one attack by Gambit (RRG 1.8
+    // "Labeled Ability", p. 26), its three instances are that attack's damage, and each enemy it targets is attacked
+    // once (RRG 1.8 "Attack (Player Ability Type)", p. 10).
+    it("is one attack: three instances of attack damage, and an enemy hit twice retaliates once, after the third", () => {
+      const base = engaged(withCharges(hero(), 1), MODOK);
+      const { state, command } = staged(base.state, ROYAL_FLUSH, 3);
+      const villain = villainOf(state);
+      const gambit = identityOf(state, P1);
+      const { state: after, events } = drive(
+        state,
+        command,
+        picks({ throwCount: 1, targets: [villain, base.id, base.id] }),
+      );
+      const attacks = events.flatMap((e) =>
+        e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack" ? [e.event] : [],
+      );
+      expect(attacks).toHaveLength(1);
+      expect(attacks[0]).toMatchObject({ attackerInstanceId: gambit, labeled: true });
+      expect(attacks[0]!.attacked).toEqual([villain, base.id]);
+      expect(attacks[0]!.results?.damage).toBe(3);
+      const instances = events.flatMap((e) =>
+        e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "dealDamage" && e.event.fromAttack
+          ? [e.event]
+          : [],
+      );
+      expect(instances.map((d) => d.targetInstanceId)).toEqual([villain, base.id, base.id]);
+      expect(instances.every((d) => d.sourceInstanceId === gambit)).toBe(true);
+      // MODOK (retaliate 2) took two instances and retaliates once, after the whole attack.
+      const taken = ofType(events, "damageDealt").map((d) => d.targetInstanceId);
+      expect(taken).toEqual([villain, base.id, base.id, gambit]);
+      expect(damageOf(after, gambit)).toBe(2);
+    });
+
+    it("guard is read for each instance: with a Hydra Mercenary engaged no instance is offered the villain", () => {
+      const base = engaged(withCharges(hero(), 1), MERCENARY);
+      const { state, command } = staged(base.state, ROYAL_FLUSH, 3);
+      const villain = villainOf(state);
+      const offered: string[][] = [];
+      const watching: Picker = (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "chooseTarget") offered.push(choice.options.map((o) => o.optionId));
+        return picks({ throwCount: 1, targets: [villain, villain, villain] })(s);
+      };
+      const { state: after } = drive(state, command, watching);
+      expect(offered.length).toBeGreaterThan(0);
+      expect(offered.every((options) => !options.includes(villain))).toBe(true);
+      expect(damageOf(after, villain)).toBe(0);
+    });
   });
 
   describe("Natural Agility (37008): place 1 charge counter (cost), +1 DEF per counter", () => {

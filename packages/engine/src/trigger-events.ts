@@ -205,6 +205,23 @@ export type TriggerEventBody =
        * not against (`notAttacked`) is not read.
        */
       readonly targetAsDamaged?: TargetSnapshot;
+      /**
+       * The attack an "(attack)"-labeled ability makes when it has no `attack` effect of its own (RRG 1.8 "Labeled
+       * Ability", p. 26: resolving the ability "is considered to be an attack made by that player's identity"; owner
+       * ruling Q48, docs/phase7-wave8.md §4.1). It deals no damage itself: it opens as the ability's first damage
+       * instruction against an enemy is reached, and that instruction's damage, and every later one's, is this
+       * attack's (`resolve/attack-ability.ts`). `targetInstanceId` is the first enemy that instruction attacks.
+       */
+      readonly labeled?: true;
+      /**
+       * On an "(attack)" ability's attack once it has finished: every enemy it attacked, in order, each once (RRG 1.8
+       * "Attack (Player Ability Type)", p. 10: "When an attack targets multiple enemies, the attacking character is
+       * considered to have attacked each of those enemies"; owner ruling Q50). These are the enemies an instruction of
+       * the ability targeted, never an enemy that only lost hit points to it (an overkill spill). The event's targets
+       * (`eventSubjects`, so `targetIs`, `eventTarget`) are these when present. Absent when it is exactly
+       * `[targetInstanceId]`, so a one-target attack reads as it always has; always present on a `labeled` attack.
+       */
+      readonly attacked?: readonly InstanceId[];
     }
   | {
       readonly kind: "thwart";
@@ -1286,7 +1303,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "removeThreat":
       return of([event.sourceInstanceId], [event.schemeInstanceId], [event.playerId ?? null]);
     case "attack":
-      return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
+      // An "(attack)" ability's attack that attacked several enemies attacked each of them (`attack.attacked`).
+      return of([event.attackerInstanceId], event.attacked ?? [event.targetInstanceId], [event.playerId]);
     case "thwart":
       // A "(thwart)" ability that removed threat from several schemes thwarted each of them (`thwart.instances`).
       return of(

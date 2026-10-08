@@ -124,6 +124,15 @@ import { candidateOption } from "./window.js";
 import { thwartBlockedOn } from "./event.js";
 import { abilityRootFrameId, announceAbilityThwart } from "./thwart-session.js";
 import {
+  abilityAttackDamage,
+  abilityAttackOf,
+  mayAttackWith,
+  noteAttackedByAbility,
+  openLabelAttack,
+  skipUnattackable,
+} from "./attack-ability.js";
+import {
+  attackTargetAllowed,
   canDealDamageTo,
   canRemoveThreatFrom,
   canThwartScheme,
@@ -148,6 +157,11 @@ export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectCont
   frame.abilityId !== undefined &&
   deps.abilities[frame.abilityId]?.label?.includes("thwart")
     ? { thwartLabeled: true }
+    : {}),
+  ...(frame.controllerId !== null &&
+  frame.abilityId !== undefined &&
+  deps.abilities[frame.abilityId]?.label?.includes("attack")
+    ? { attackLabeled: true }
     : {}),
 });
 
@@ -219,6 +233,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
+  // An "(attack)" ability with no attack effect is still one attack (owner ruling Q48): it is made as the ability
+  // reaches its first damage instruction against an enemy, which then resolves as that attack's damage.
+  if (openLabelAttack(ctx, frame, effect, context)) return;
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
@@ -585,7 +602,12 @@ function executeDivide(
   }
   const what = effect.what;
   const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
-  const matched = selectTargets(ctx.state, effect.among, context);
+  // An "(attack)" ability's division of damage attacks each enemy given a share (owner rulings Q48 to Q50,
+  // `attack-ability.ts`): an enemy its player's identity may not attack right now (guard) is not offered.
+  const attack = what === "damage" ? abilityAttackOf(ctx.state, ctx.deps, frame) : undefined;
+  const matched = selectTargets(ctx.state, effect.among, context).filter(
+    (id) => attack === undefined || mayAttackWith(ctx.state, ctx.deps, attack, id),
+  );
   // "Up to" (docs/phase7-wave3.md §3.41, §4 Q16): at least 1 point whenever something can be targeted, so only
   // targets the division can affect are offered (RRG 1.8 "Target", p. 43), and with none nothing happens.
   // A "(thwart)" ability's division offers only the schemes its player can thwart, "up to" or not (RRG 1.8 "Target",
@@ -638,18 +660,34 @@ function executeDivide(
     // share, not once per point or once overall: ruling, June 25, 2026 (2) ("+1 damage to each enemy damaged by the
     // effect"), the same per-instance reading as `dealDamage` (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
     const bonus = cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
-    pushFrames(ctx, [
-      damageGroupFrame(
+    // Each enemy's share is an instance of the ability's one attack, and that enemy is attacked.
+    const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }>[] = [];
+    const events = [...shares].map(([targetInstanceId, points]): Extract<TriggerEvent, { kind: "dealDamage" }> => {
+      const ofAttack = attack?.waiting
+        ? abilityAttackDamage(ctx.state, ctx.deps, attack.waiting, targetInstanceId)
+        : null;
+      if (ofAttack) attacked.push(ofAttack.attacked);
+      return {
+        kind: "dealDamage",
+        targetInstanceId,
+        amount: points + bonus + (ofAttack?.extra ?? 0),
+        sourceInstanceId: frame.selfInstanceId,
+        fromAttack: false,
+        ...ofAttack?.damage,
+      };
+    });
+    if (attack?.waiting) {
+      // Guard minions the attacker ignores are recorded as ignored; nothing is skipped (only attackable enemies were offered).
+      skipUnattackable(
         ctx,
-        [...shares].map(([targetInstanceId, points]) => ({
-          kind: "dealDamage",
-          targetInstanceId,
-          amount: points + bonus,
-          sourceInstanceId: frame.selfInstanceId,
-          fromAttack: false,
-        })),
-        effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
-      ),
+        attack,
+        frame.selfInstanceId,
+        attacked.map((event) => event.targetInstanceId),
+      );
+      noteAttackedByAbility(ctx, attack.waiting.frameId, attacked);
+    }
+    pushFrames(ctx, [
+      damageGroupFrame(ctx, events, effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null),
     ]);
     return;
   }
@@ -2230,8 +2268,12 @@ function requestTargetChoice(
   // Only valid targets are offered (RRG 1.8 "Target", pp. 42–43): those some effect in the rest of this program can
   // affect. The main scheme is no target for a "(thwart)" while its player is patrolled (docs/phase7-wave3.md §3.5).
   const rest = frame.effects.slice(frame.cursor + 1);
-  const legal = selectTargets(ctx.state, effect.query, context).filter((id) =>
-    slotTargetValid(ctx.state, ctx.deps, rest, effect.slot, id, context),
+  // An enemy an "(attack)" ability would attack through this slot must be one its player's identity may attack (guard;
+  // owner ruling Q49, `attackTargetAllowed`).
+  const legal = selectTargets(ctx.state, effect.query, context).filter(
+    (id) =>
+      slotTargetValid(ctx.state, ctx.deps, rest, effect.slot, id, context) &&
+      attackTargetAllowed(ctx.state, ctx.deps, rest, effect.slot, id, context),
   );
   // "X enemies": the count can be a value bound earlier in the ability (Shield Toss).
   const wanted =

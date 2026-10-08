@@ -327,10 +327,19 @@ describe("Soul Strike (45039): 4 damage to an enemy; stun it if the top card has
     expect(inst(run.state, rhinoOf(run.state)).damage).toBe(4);
     expect(stunned(run.state)).toBe(0);
   });
-  it("Q48 pin: the damage-only attack event is not yet an attack event (no attackResolved event, so no retaliate)", () => {
-    // Today `damageAnEnemy` is plain damage with an (attack) label; Q48 = A will make it an attack and this changes.
+  it("Q48 = A: the label makes it one attack by Magik on the enemy, and its 4 damage is attack damage", () => {
     const run = cast(heroGame(), STRIKE, 2, { top: [SCRYING] });
-    expect(run.events.filter((e) => e.type === "attackResolved")).toEqual([]);
+    const attacks = run.events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "attack" ? [e.event] : [],
+    );
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0]).toMatchObject({ attackerInstanceId: identityOf(run.state), labeled: true });
+    expect(attacks[0]!.attacked).toEqual([rhinoOf(run.state)]);
+    expect(attacks[0]!.results?.damage).toBe(4);
+    const dealt = run.events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "dealDamage" ? [e.event] : [],
+    );
+    expect(dealt.map((d) => d.fromAttack)).toEqual([true]);
   });
 });
 

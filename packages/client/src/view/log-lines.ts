@@ -491,6 +491,16 @@ function describe(
         text: `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} ends — ${card(event.attackerInstanceId)} left play first.`,
         voice: "player",
       };
+    // An "(attack)" ability's damage instruction skipped an enemy its player cannot attack (guard): without this line
+    // the villain silently takes none of "each enemy"'s damage.
+    case "attackTargetSkipped":
+      return {
+        text: `${card(event.attackerInstanceId)} can't attack ${card(event.targetInstanceId)}, so it takes no damage from that attack.`,
+        voice: "player",
+      };
+    // Bookkeeping: the attack's own damage line and its "after the attack" lines say everything a player reads.
+    case "attackAwaitsAbility":
+      return null;
     // The scheme half of the same breakdown, worded the same way. The third term only appears when something actually
     // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
     // has no equivalent that is always present.
