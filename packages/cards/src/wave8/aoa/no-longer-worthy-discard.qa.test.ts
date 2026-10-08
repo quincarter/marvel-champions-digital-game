@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 import { cardId, CORE_CARDS, MUT_GEN_CARDS, WAVE8_CARDS, WAVE8_STARTER_DECKS } from "@mc/content";
 import { createGame, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
@@ -139,18 +137,7 @@ describe("Q13: a player card discarding No Longer Worthy (45105b)", () => {
     "Q13 = A: an unrestricted player discard offers No Longer Worthy, it leaves play, is removed from the game (45105b text; docs 3.21) and cannot return",
   );
 
-  const clientSources = (dir: string): string[] =>
-    readdirSync(dir).flatMap((name) => {
-      const p = join(dir, name);
-      return statSync(p).isDirectory() ? clientSources(p) : p.endsWith(".ts") && !p.endsWith(".test.ts") ? [p] : [];
-    });
-
-  // docs/phase7-wave8.md 5.1 specifies this client wording. Not built: nothing under packages/client/src carries it.
-  it.fails("the app warns once, in its own words, before a player card discards No Longer Worthy (docs 5.1)", () => {
-    const root = join(import.meta.dirname, "../../../../client/src");
-    const text = clientSources(root)
-      .map((p) => readFileSync(p, "utf8"))
-      .join("\n");
-    expect(text).toContain("This warning is the app's, not the game's.");
-  });
+  // docs/phase7-wave8.md 5.1 specifies this client wording. Not built: nothing under packages/client/src carries it,
+  // and no shipped card can reach No Longer Worthy to need it.
+  it.todo("the app warns once, in its own words, before a player card discards No Longer Worthy (docs 5.1)");
 });
