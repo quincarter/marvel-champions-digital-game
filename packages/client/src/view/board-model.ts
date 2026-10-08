@@ -598,7 +598,14 @@ function separateDeckPiles(state: GameState, me: PlayerState): readonly Separate
 function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPanel[] {
   // A villain tucked under a card (Routed) is out of play: not on the table, not a target, not "defeated" in the row.
   const tucked = new Set(Object.values(state.instances).flatMap((instance) => instance.tucked));
-  return state.villains
+  // A villain row (Four Horsemen) sets the left-to-right order; villains it omits follow in printed order.
+  const row = state.villainRow;
+  const rank = (id: InstanceId): number => {
+    const at = row ? row.indexOf(id) : -1;
+    return at < 0 ? (row?.length ?? 0) : at;
+  };
+  const ordered = row ? [...state.villains].sort((a, b) => rank(a.instanceId) - rank(b.instanceId)) : state.villains;
+  return ordered
     .filter((villain) => !tucked.has(villain.instanceId))
     .map((villain) => ({
       panel: characterPanel(state, villain.instanceId, deps),

@@ -132,6 +132,48 @@ describe("boardModel with more than one villain (The Wrecking Crew's Breakout)",
   });
 });
 
+describe("boardModel villain row order (Four Horsemen's row, driven through state.villainRow)", () => {
+  const names = (m: ReturnType<typeof boardModel>) => m.villains.map((v) => v.panel.name);
+
+  test("a villain row reorders the panels left to right", async () => {
+    const store = await intoPlay(SPIDER_MAN_VS_BREAKOUT);
+    const state = store.state.game!;
+    const ids = state.villains.map((v) => v.instanceId);
+    const villainRow = [ids[2]!, ids[0]!, ids[3]!, ids[1]!];
+    const model = boardModel({ ...state, villainRow }, store.state.perspectiveId!, POOL_DEPS);
+    expect(model.villains.map((v) => v.panel.instanceId)).toEqual(villainRow);
+  });
+
+  test("no villain row keeps printed order exactly", async () => {
+    const store = await intoPlay(SPIDER_MAN_VS_BREAKOUT);
+    const state = store.state.game!;
+    expect(state.villainRow).toBeUndefined();
+    expect(names(boardModel(state, store.state.perspectiveId!, POOL_DEPS))).toEqual([
+      "Wrecker",
+      "Thunderball",
+      "Piledriver",
+      "Bulldozer",
+    ]);
+  });
+
+  test("a row that omits a villain puts it after the row, in printed order", async () => {
+    const store = await intoPlay(SPIDER_MAN_VS_BREAKOUT);
+    const state = store.state.game!;
+    const ids = state.villains.map((v) => v.instanceId);
+    const model = boardModel({ ...state, villainRow: [ids[3]!, ids[1]!] }, store.state.perspectiveId!, POOL_DEPS);
+    expect(model.villains.map((v) => v.panel.instanceId)).toEqual([ids[3], ids[1], ids[0], ids[2]]);
+  });
+
+  test("the active flag follows activeVillainId wherever the row puts that villain", async () => {
+    const store = await intoPlay(SPIDER_MAN_VS_BREAKOUT);
+    const state = store.state.game!;
+    const ids = state.villains.map((v) => v.instanceId);
+    const villainRow = [ids[3]!, ids[2]!, ids[1]!, ids[0]!];
+    const model = boardModel({ ...state, villainRow, activeVillainId: ids[2]! }, store.state.perspectiveId!, POOL_DEPS);
+    expect(model.villains.map((v) => v.active)).toEqual([false, true, false, false]);
+  });
+});
+
 describe("boardModel with one villain (every scenario before The Wrecking Crew)", () => {
   test("villains has exactly one entry, identical to the kept `villain` accessor", async () => {
     const store = await intoPlay(KLAW_SOLO);
