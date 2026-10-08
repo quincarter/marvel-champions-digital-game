@@ -35,6 +35,7 @@
  * Unchanged: a basic attack, an attack by another character (an ally's), an attack an unlabeled ability makes, and an
  * "(attack)" ability's attack that was never made (no frame waits, so its later damage is plain damage).
  * An ability with several `attack` effects still makes one `attack` event each; each waits and finishes in order.
+ * When each begins is below ("An ability with an `attack` effect begins its attack the same way").
  *
  * **A cancelled attack deals no damage** (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65, rules check
  * A6: "cancelling a damage-only attack cancels its damage too"). No official text names the case. What the decision
@@ -115,19 +116,84 @@
  *   `target-validity.ts`; RRG 1.8 "Target", p. 43: "A target that cannot be attacked is not a valid target for an
  *   attack-labeled ability"; owner decision, 2026-10-08, row 64). So this case is left to an ability whose enemies
  *   are not known as it is initiated (a branch, "each minion" with none in play) or become guarded as it resolves.
- * - **An attack is begun only by an ability that can attack an enemy.** It begins when one of the ability's own
- *   (top-level) damage instructions could name an enemy: its target is not known yet, or it names one now. An
- *   ability whose damage instructions name only its player's own characters makes no attack, as before. One whose
- *   damage instructions all sit inside a branch ("if a [physical] resource was paid, deal 2 damage to an enemy")
- *   makes its attack as the branch reaches the instruction (`openLabelAttack`), so a resolution that never takes
- *   the branch makes none, as before. (Alternative: every "(attack)" ability attacks from its start whatever it
- *   then does, which p. 26 read alone supports; not adopted, to keep those two behaviors.)
- * - **Not done: an ability with an `attack` effect.** P. 26 speaks of every labeled ability, so it covers these too,
- *   but their attack is still made by the `attack` instruction: the event's target, amount and keywords are that
- *   instruction's (one event for each enemy it names, each with its own window), and "when … attacks" interrupts read
- *   them ("when you make a ranged attack", "attacks a confused enemy"). So an instruction written before the `attack`
- *   effect (a discard that sets the damage, a status given first) still resolves before the window. Beginning those
- *   attacks with the ability needs the event split from its damage; reported to the owner, 2026-10-08, not decided.
+ * - **An attack is begun only by an ability that can attack an enemy.** It begins when one of the ability's damage
+ *   instructions on the path it is about to resolve could name an enemy: its target is not known yet, or it names
+ *   one now. An ability whose damage instructions name only its player's own characters makes no attack, as before.
+ *   One whose damage instructions sit inside a branch not decided as it begins ("place a counter here; if there is a
+ *   counter here, deal 2 damage to an enemy"), or reached with nothing resolving before them, makes its attack as the
+ *   branch reaches the instruction (`openLabelAttack`), so a resolution that never takes the branch makes none, as
+ *   before. What "decided as it begins" reads is stated with row 73 below (`attackAhead`), and since row 73 a damage
+ *   instruction in a branch already decided, after another instruction, begins the attack with the ability.
+ *   (Alternative: every "(attack)" ability attacks from its start whatever it then does, which p. 26 read alone
+ *   supports; not adopted, to keep those two behaviors.)
+ *
+ * **An ability with an `attack` effect begins its attack the same way** (owner decision, 2026-10-08,
+ * docs/phase7-wave8.md §4.1 row 73, rules check A1, second half: "Fix all affected older cards so the attack begins
+ * when the ATK attack actually starts resolving. Keep attack timing consistent."). Official rule: the same sentence of
+ * p. 26, which speaks of every labeled ability. When another instruction resolves before the ability's `attack`
+ * instruction (a discard that sets the damage, a status given first, an enemy that attacks first), the attack begins
+ * before that instruction, with its "when … attacks" window, and its damage is dealt when the `attack` instruction is
+ * reached. The attack's beginning is split from its damage:
+ *
+ * - **It begins** (`beginLabelAttack`) as an `attack` event marked `begun`, by the identity, with amount 0. Its
+ *   interrupt window resolves and it waits beneath the ability's root frame (`attackBegun`), exactly as a label-only
+ *   attack does. A cancel in that window is the cancelled attack of row 65 (above): the instructions before the
+ *   `attack` instruction still resolve, the `attack` instruction makes no attack.
+ * - **The `attack` instruction takes it over** (`resumeBegunAttack`): the ability's first `attack` instruction by
+ *   that identity gives the waiting event its target, amount, overkill and keywords and puts the same frame back on
+ *   top of the stack at its damage step. No second event, no second window. What the window put on the frame is still
+ *   there when the damage is computed: `modifyAttack`'s additional damage, ATK bonus and keywords, and effects
+ *   lasting "for this attack". The attack then waits for the rest of its ability as before (Q47).
+ * - **Damage instructions written before it are the attack's too** ("Deal 1 damage to each minion. Deal 8 damage to
+ *   an enemy": one attack, RRG 1.8 p. 10), since the attack is waiting when they resolve: attack damage by the
+ *   identity, each enemy named attacked, guard read for each, the attack's increase added to each instance (Q53).
+ *   Before row 73 they were plain damage, dealt before the attack existed.
+ *
+ * Interpretations (not official text), each with its alternative:
+ *
+ * - **What is read ahead as the ability begins** (`attackAhead`). The engine follows the ability's instructions in
+ *   order from its first one that is not an opening target choice, as far as their outcome is already decided: an
+ *   `if` by its condition as it stands now ("if you paid for this card using a [physical] resource"), post-"then"
+ *   text as resolving, a choice among options only when every option offered leads to an attack ("discard up to 4
+ *   cards → deal …"). The attack begins with the ability when that path reaches an instruction that makes an attack
+ *   (an `attack` instruction by the identity, or a damage instruction able to name an enemy) and something resolves
+ *   before it. A branch not taken makes no attack, as before. An attack reached only through something not decided
+ *   yet (a branch whose condition does not hold yet, a loop, one option of several) begins as its instruction is
+ *   reached, as before. An attack whose own instruction is the first to resolve begins there, which is the same
+ *   moment. (Alternatives: every "(attack)" ability attacks from its start whatever it then does, which p. 26 read
+ *   alone supports, declined with row 61 to keep "a branch not taken makes no attack"; or never read into a branch,
+ *   which leaves "Stun an enemy. If you paid with [physical], deal 3 damage to that enemy" beginning its attack after
+ *   the stun.) The same reading now applies to a label-only attack: one whose damage sits in a branch already decided
+ *   as the ability begins, after another instruction, begins with the ability instead of at that damage instruction.
+ * - **What its window hears.** The target is read as for a label-only attack: the first enemy the identity may
+ *   attack that an instruction of the attack names, taken in order (a damage instruction before the `attack`
+ *   instruction first), or none (`null`) when it is chosen later. The keywords and overkill are the `attack`
+ *   instruction's ("when you make a ranged attack" hears a ranged one). The amount is not known and reads 0.
+ *   (Alternative: the amount as it would be if nothing more resolved first; not built, since a discard or a boost
+ *   icon count would make it a guess.)
+ * - **An `attack` instruction that names several enemies** ("each enemy") makes one event per enemy, as it always
+ *   has. The begun attack is the first of them (the enemy its window heard, if that instruction still names it); the
+ *   others are made as the instruction is reached, each with its own window. (Alternative: the other enemies' events
+ *   skip their window and copy the first's modifiers; not built. No shipped ability with an instruction before such
+ *   an `attack` exists.)
+ * - **An ability that makes several separate attacks** (two `attack` instructions) still makes one attack per
+ *   instruction. The first begins as the ability begins (through `beginLabelAttack` when something precedes it,
+ *   otherwise at its own instruction, the same moment); each later one begins as its instruction is reached, with
+ *   its own window. P. 26 has the identity attacking from the ability's start, which the first attack satisfies; p. 10
+ *   ("An ability that increases the damage of an attack only increases the damage of one of that ability's attacks")
+ *   has each attack hear "when you attack" on its own, and an attack that had begun before the one in front of it
+ *   finished would have its window before that attack's damage and defeats. (Alternative: every attack of the
+ *   ability begins at the start, in order; not built.)
+ * - **A stun received while the ability resolves does not stop an attack that has begun.** RRG 1.8 "Stun, Stunned"
+ *   (p. 41): "When this character would attack, remove each stunned status card from it instead" and "If a stunned
+ *   identity or ally attempts to attack or use an attack ability, discard the stunned card instead." The attempt was
+ *   made as the ability began, with no stunned card (a stunned identity's whole ability is cancelled then, p. 26,
+ *   `labelCancels`), so the `attack` instruction that takes a begun attack over does not read the status again and
+ *   the stunned card stays for the next attack. An attack that begins at its own instruction reads it there, as
+ *   before. (Alternative: the instruction discards the stunned card and deals nothing, which is what happened before
+ *   row 73 when "that enemy attacks you" stunned the hero before "deal 5 damage to that enemy".)
+ * - **An attack that began and whose instruction is never reached, or names no enemy it may attack by then**, is the
+ *   label-only case above: it attacked the enemies its other damage instructions named, or nobody.
  *
  * **"That attack deals N additional damage" increases every instance** (owner ruling Q53, 2026-10-08; RRG 1.8 p. 10:
  * "When an attack ability has its damage increased by another ability, each instance of damage in that attack ability
@@ -172,12 +238,21 @@
  * minion only a later instruction named.
  */
 
-import { type Ctx, emit, findFrame, updateFrame } from "../ctx.js";
+import { type Ctx, emit, findFrame, pushFrames, updateFrame } from "../ctx.js";
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf } from "../keywords.js";
-import { canAttack, cardsInPlay, categoriesOf, type EffectContext, resolveRef, selectTargets } from "../select.js";
+import {
+  canAttack,
+  cardsInPlay,
+  categoriesOf,
+  type EffectContext,
+  evaluate,
+  resolveRef,
+  selectTargets,
+} from "../select.js";
 import type { EffectSpec } from "../spec.js";
+import type { ReportTarget } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { type Frame, pushEvents } from "./frames.js";
@@ -383,7 +458,127 @@ function namedByAttackInstruction(
   return null;
 }
 
-/** Pushes a label-only attack's one `attack` event on top of `frame`, tied to the ability's root frame `rootId`. */
+type AttackKeywords = NonNullable<Attack["keywords"]>;
+
+/** An instruction that makes or continues an "(attack)" ability's attack, as read ahead while the ability begins. */
+interface AttackMaker {
+  /** The cards it names right now: empty when its target is not chosen yet. */
+  readonly named: readonly InstanceId[];
+  /** An `attack` instruction by the identity (it takes the begun attack over); otherwise a damage instruction. */
+  readonly attackEffect: boolean;
+  readonly overkill: boolean;
+  readonly keywords: AttackKeywords;
+}
+
+/** What `attackAhead` has read so far along the path the ability will resolve. */
+interface AttackAhead {
+  /** In resolution order: damage instructions, ending with the first `attack` instruction if the path reaches one. */
+  makers: AttackMaker[];
+  /** An instruction that is neither a target choice nor a branch resolves before the next one read. */
+  preceded: boolean;
+  /** `preceded` as the first maker was reached. */
+  firstPreceded: boolean;
+  /** Nothing further is read: an `attack` instruction was reached, or a choice not yet made. */
+  done: boolean;
+}
+
+/**
+ * Reads ahead along the instructions an "(attack)" ability is about to resolve, as far as their outcome is decided
+ * now, for the instructions that make its attack (file header, "What is read ahead as the ability begins"; an
+ * interpretation of RRG 1.8 "Labeled Ability", p. 26). Nothing is resolved: conditions and targets are only read.
+ */
+function attackAhead(
+  state: GameState,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+  identity: InstanceId,
+  ahead: AttackAhead,
+): void {
+  const inPlay = cardsInPlay(state);
+  const isEnemy = (id: InstanceId): boolean => inPlay.includes(id) && categoriesOf(state, id).includes("enemy");
+  const found = (maker: AttackMaker): void => {
+    if (ahead.makers.length === 0) ahead.firstPreceded = ahead.preceded;
+    ahead.makers.push(maker);
+  };
+  for (const instruction of effects) {
+    if (ahead.done) return;
+    switch (instruction.kind) {
+      // Choosing a target is not an instruction that resolves before the attack (RRG 1.8 "Target", p. 42).
+      case "chooseTarget":
+        break;
+      case "attack": {
+        const by = instruction.attacker ? resolveRef(state, instruction.attacker, context)[0] : identity;
+        if (by !== identity) {
+          // Another character's attack (an ally's) is not the ability's own.
+          ahead.preceded = true;
+          break;
+        }
+        found({
+          named: resolveRef(state, instruction.target, context),
+          attackEffect: true,
+          overkill: instruction.overkill === true,
+          keywords: instruction.keywords ?? [],
+        });
+        // A later `attack` instruction is another attack, which begins as it is reached.
+        ahead.done = true;
+        break;
+      }
+      case "if": {
+        const taken = evaluate(state, instruction.condition, context);
+        attackAhead(state, taken ? instruction.then : (instruction.otherwise ?? []), context, identity, ahead);
+        break;
+      }
+      // Post-"then" text resolves unless the text before it fails to (RRG 1.8 "'Then'", p. 44), which is not known yet.
+      case "then":
+        attackAhead(state, instruction.effects, context, identity, ahead);
+        break;
+      case "chooseOne": {
+        // Not chosen yet: the attack is certain only when every option that would be offered makes one.
+        const options = instruction.options
+          .filter((option) => option.condition === undefined || evaluate(state, option.condition, context))
+          .map((option) => {
+            const within: AttackAhead = { makers: [], preceded: ahead.preceded, firstPreceded: false, done: false };
+            attackAhead(state, option.effects, context, identity, within);
+            return within;
+          });
+        const firsts = options.flatMap((option) => option.makers.slice(0, 1));
+        const [first] = firsts;
+        if ((instruction.count ?? 1) !== 1 || first === undefined || firsts.length < options.length) {
+          ahead.preceded = true;
+          break;
+        }
+        // What the options agree on: the same enemy named, the keywords each of them gives the attack.
+        const sameNamed = firsts.every(
+          (maker) => maker.named.length === first.named.length && maker.named.every((id, at) => id === first.named[at]),
+        );
+        if (ahead.makers.length === 0) ahead.preceded = options.some((option) => option.firstPreceded);
+        found({
+          named: sameNamed ? first.named : [],
+          attackEffect: firsts.every((maker) => maker.attackEffect),
+          overkill: firsts.every((maker) => maker.overkill),
+          keywords: first.keywords.filter((keyword) => firsts.every((maker) => maker.keywords.includes(keyword))),
+        });
+        ahead.done = true;
+        break;
+      }
+      default: {
+        const named = namedByAttackInstruction(state, instruction, context);
+        // A damage instruction that names nothing yet (its target is chosen later) or names an enemy can attack; one
+        // that names only its player's own characters cannot. Anything else resolves before the attack's damage.
+        if (named !== null && (named.length === 0 || named.some(isEnemy))) {
+          found({ named, attackEffect: false, overkill: false, keywords: [] });
+        }
+        ahead.preceded = true;
+      }
+    }
+  }
+}
+
+/**
+ * Pushes the `attack` event an "(attack)" ability begins with on top of `frame`, tied to the ability's root frame
+ * `rootId`: a label-only attack's one event (`labeled`), or, with `begun`, the event an ability's `attack` instruction
+ * will take over (`attack.begun`, `attackBegun` on its frame).
+ */
 function pushLabelAttack(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -391,6 +586,7 @@ function pushLabelAttack(
   identity: InstanceId,
   playerId: PlayerId,
   target: InstanceId | null,
+  begun?: Pick<AttackMaker, "overkill" | "keywords">,
 ): void {
   updateFrame(ctx, rootId, (other) => (other.kind === "effects" ? { ...other, labelAttackMade: true } : other));
   const [pushed] = pushEvents(ctx, [
@@ -401,23 +597,39 @@ function pushLabelAttack(
       playerId,
       amount: 0,
       basic: false,
-      labeled: true,
+      ...(begun
+        ? {
+            begun: true as const,
+            overkill: begun.overkill,
+            ...(begun.keywords.length > 0 ? { keywords: begun.keywords } : {}),
+          }
+        : { labeled: true as const }),
       sourceInstanceId: frame.selfInstanceId,
       ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
     },
   ]);
   if (pushed !== undefined) {
-    updateFrame(ctx, pushed, (other) => (other.kind === "event" ? { ...other, attackOf: rootId } : other));
+    updateFrame(ctx, pushed, (other) =>
+      other.kind === "event" ? { ...other, attackOf: rootId, ...(begun ? { attackBegun: true as const } : {}) } : other,
+    );
   }
 }
 
 /**
- * A label-only attack begins (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08, row 61): called before
- * each effect of an effects frame resolves. On the root frame of an "(attack)" ability with no `attack` effect that
- * has made no attack yet, at its first instruction that is not an opening target choice, this pushes the ability's
- * one `attack` event (`attack.labeled`) on top of the frame and returns true without advancing it. The attack's
- * interrupt window resolves, it deals nothing, and it waits beneath the frame; the frame then resolves the same
- * instruction. The rules it follows (which instructions count, the target it begins with) are in the file header.
+ * An "(attack)" ability's attack begins as the ability begins resolving (official rule: RRG 1.8 "Labeled Ability",
+ * p. 26; owner decisions, 2026-10-08, rows 61 and 73): called before each effect of an effects frame resolves. On the
+ * root frame of an "(attack)" ability that has begun no attack this way yet, at its first instruction that is not an
+ * opening target choice, this pushes an `attack` event on top of the frame and returns true without advancing it. The
+ * attack's interrupt window resolves, it deals nothing, and it waits beneath the frame; the frame then resolves the
+ * same instruction.
+ *
+ * - An ability with no `attack` effect: its one attack (`attack.labeled`), whose damage is the ability's damage
+ *   instructions'.
+ * - An ability with an `attack` effect that another instruction resolves before: that attack, begun early
+ *   (`attack.begun`), which the `attack` instruction takes over when it is reached (`resumeBegunAttack`). When the
+ *   `attack` instruction is itself the first to resolve nothing is pushed here: the instruction makes its event now.
+ *
+ * The rules it follows (what is read ahead, the target it begins with) are interpretations, stated in the file header.
  */
 export function beginLabelAttack(
   ctx: Ctx,
@@ -427,27 +639,116 @@ export function beginLabelAttack(
 ): boolean {
   // An opening target choice is made before the attack begins, and an instruction being answered has begun.
   if (effect.kind === "chooseTarget" || frame.answer !== null) return false;
-  if (frame.controllerId === null || frame.labelAttackMade || !isLabelOnlyAttack(ctx.deps, frame)) return false;
+  if (frame.controllerId === null || frame.labelAttackMade || !isAttackLabeled(ctx.deps, frame)) return false;
   if (abilityRootFrameId(ctx.state, frame) !== frame.frameId) return false;
+  const labelOnly = isLabelOnlyAttack(ctx.deps, frame);
+  // An ability with an `attack` effect begins an attack here only as it begins resolving: each attack it makes after
+  // that begins at its own instruction (file header, "An ability that makes several separate attacks").
+  if (!labelOnly && !frame.effects.slice(0, frame.cursor).every((earlier) => earlier.kind === "chooseTarget"))
+    return false;
   const playerId = frame.controllerId;
   const identity = ctx.state.players.find((player) => player.playerId === playerId)?.identity.instanceId;
   if (identity === undefined) return false;
-  const inPlay = cardsInPlay(ctx.state);
-  const isEnemy = (id: InstanceId): boolean => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy");
-  let attacks = false;
-  let target: InstanceId | null = null;
-  for (const instruction of frame.effects.slice(frame.cursor)) {
-    const named = namedByAttackInstruction(ctx.state, instruction, context);
-    if (named === null) continue;
-    // Nothing named yet (its target is chosen later) or an enemy named: this instruction can attack.
-    if (named.length > 0 && !named.some(isEnemy)) continue;
-    attacks = true;
-    target = named.find((id) => isEnemy(id) && canAttack(ctx.state, identity, id, ctx.deps)) ?? null;
-    if (target !== null) break;
+  const ahead: AttackAhead = { makers: [], preceded: false, firstPreceded: false, done: false };
+  attackAhead(ctx.state, frame.effects.slice(frame.cursor), context, identity, ahead);
+  const [first] = ahead.makers;
+  if (first === undefined) return false;
+  if (!ahead.firstPreceded) {
+    // Nothing resolves before the attack's own instruction. An `attack` instruction makes its event now, as it always
+    // has; a damage instruction reached through a branch makes the attack as it is reached (`openLabelAttack`).
+    if (first.attackEffect || namedByAttackInstruction(ctx.state, effect, context) === null) return false;
   }
-  if (!attacks) return false;
-  pushLabelAttack(ctx, frame, frame.frameId, identity, playerId, target);
+  const inPlay = cardsInPlay(ctx.state);
+  const mayAttack = (id: InstanceId): boolean =>
+    inPlay.includes(id) &&
+    categoriesOf(ctx.state, id).includes("enemy") &&
+    canAttack(ctx.state, identity, id, ctx.deps);
+  // The first enemy the identity may attack that an instruction of the attack names, in order.
+  const target = ahead.makers.flatMap((maker) => maker.named.filter(mayAttack))[0] ?? null;
+  const instruction = ahead.makers.find((maker) => maker.attackEffect);
+  pushLabelAttack(
+    ctx,
+    frame,
+    frame.frameId,
+    identity,
+    playerId,
+    target,
+    labelOnly ? undefined : { overkill: instruction?.overkill === true, keywords: instruction?.keywords ?? [] },
+  );
   return true;
+}
+
+/** The attack `rootId`'s ability began early that no `attack` instruction has taken over yet (`attackBegun`). */
+function begunAttackWaiting(state: GameState, rootId: FrameId, attackerId: InstanceId): AttackFrame | undefined {
+  return state.stack.find(
+    (other): other is AttackFrame =>
+      other.kind === "event" &&
+      other.event.kind === "attack" &&
+      other.attackOf === rootId &&
+      other.attackWaiting === true &&
+      other.attackBegun === true &&
+      other.event.attackerInstanceId === attackerId,
+  );
+}
+
+/**
+ * Whether the "(attack)" ability `rootId` belongs to began an attack by `attackerId` as it began resolving that is
+ * still waiting for its `attack` instruction. That instruction does not read the attacker's stunned status again: the
+ * attempt to attack was made as the ability began (RRG 1.8 "Stun, Stunned", p. 41; an interpretation, file header).
+ */
+export const hasBegunAttack = (state: GameState, rootId: FrameId | undefined, attackerId: InstanceId): boolean =>
+  rootId !== undefined && begunAttackWaiting(state, rootId, attackerId) !== undefined;
+
+/**
+ * The enemy the attack `rootId`'s ability began with takes when an `attack` instruction that names `targets` reaches
+ * it: the enemy its window heard if the instruction still names it, else the first. Undefined when no attack is
+ * waiting to be taken over or the instruction names no enemy (the attack then stays as it began).
+ */
+export function begunAttackTarget(
+  state: GameState,
+  rootId: FrameId,
+  attackerId: InstanceId,
+  targets: readonly InstanceId[],
+): InstanceId | undefined {
+  const waiting = begunAttackWaiting(state, rootId, attackerId);
+  if (waiting === undefined) return undefined;
+  const heard = waiting.event.targetInstanceId;
+  return heard !== null && targets.includes(heard) ? heard : targets[0];
+}
+
+/**
+ * An `attack` instruction takes over the attack its ability began as it began resolving (row 73): the waiting event is
+ * given the instruction's attack on `target` (`begunAttackTarget`), its amount, overkill and keywords, and its frame
+ * goes back on top of the stack at its damage step (logged as `framePushed`). Its interrupt window is not opened
+ * again, and everything that window put on the frame stays (`modifyAttack`'s vars, what "for this attack" effects are
+ * timed to).
+ */
+export function resumeBegunAttack(
+  ctx: Ctx,
+  rootId: FrameId,
+  attackerId: InstanceId,
+  target: InstanceId,
+  made: { readonly amount: number; readonly overkill: boolean; readonly keywords: AttackKeywords },
+  reportTo: ReportTarget | null,
+): void {
+  const waiting = begunAttackWaiting(ctx.state, rootId, attackerId);
+  if (waiting === undefined) return;
+  const { attackWaiting: _waiting, attackBegun: _begun, ...frame } = waiting;
+  const { keywords: _keywords, ...event } = waiting.event;
+  const resumed: Frame<"event"> = {
+    ...frame,
+    stage: "apply",
+    reportTo,
+    event: {
+      ...event,
+      targetInstanceId: target,
+      amount: made.amount,
+      overkill: made.overkill,
+      ...(made.keywords.length > 0 ? { keywords: made.keywords } : {}),
+    },
+  };
+  ctx.state = { ...ctx.state, stack: ctx.state.stack.filter((other) => other.frameId !== waiting.frameId) };
+  pushFrames(ctx, [resumed]);
 }
 
 /**
@@ -541,15 +842,18 @@ export function waitBeneathAbility(ctx: Ctx, frame: AttackFrame): void {
  */
 export function pushAttackedByAbility(ctx: Ctx, frame: Frame<"event">): boolean {
   if (!frame.attackWaiting || frame.event.kind !== "attack") return false;
-  // A label-only attack whose instructions attacked nothing after all attacked no enemy, its first target included.
-  if (frame.attacked === undefined && (!frame.event.labeled || frame.event.attacked !== undefined)) return false;
+  // An attack no instruction of its own made: a label-only attack, or one begun with its ability that no `attack`
+  // instruction took over (`attackBegun`). It attacked the enemies the ability's damage instructions named.
+  const labelMade = frame.event.labeled === true || frame.attackBegun === true;
+  // One whose instructions attacked nothing after all attacked no enemy, the target it began with included.
+  if (frame.attacked === undefined && (!labelMade || frame.event.attacked !== undefined)) return false;
   const once = (frame.attacked ?? []).filter(
     (event, index, all) => all.findIndex((other) => other.targetInstanceId === event.targetInstanceId) === index,
   );
   const ids = once.map((event) => event.targetInstanceId);
   const { attacked: _named, ...rest } = frame;
-  // Always stamped on a label-only attack, which is how a second pass here knows this one was made.
-  const asMade = !frame.event.labeled && ids.length === 1 && ids[0] === frame.event.targetInstanceId;
+  // Always stamped on such an attack, which is how a second pass here knows this one was made.
+  const asMade = !labelMade && ids.length === 1 && ids[0] === frame.event.targetInstanceId;
   const event: Attack = asMade ? frame.event : { ...frame.event, attacked: ids };
   const finishing = { ...rest, event };
   ctx.state = {

@@ -170,8 +170,11 @@ import {
   abilityAttackOf,
   abilityAttackRoot,
   attackEffectCancelled,
+  begunAttackTarget,
+  hasBegunAttack,
   isAttackInstruction,
   noteAttackedByAbility,
+  resumeBegunAttack,
   skipForCancelledAttack,
   skipUnattackable,
 } from "./attack-ability.js";
@@ -523,15 +526,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // the first attack. The second and third attack can be performed as normal." An "(attack)"-labeled ability
       // never reaches here: its label cancels the whole ability first (`labelCancels`), which is the RRG's rule for
       // labeled abilities and is what Dance of Death's missing label distinguishes it from.
-      if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
+      // An "(attack)" ability's attack by its controller's identity belongs to the ability, and waits for it to finish
+      // (RRG 1.8 "Attack (Player Ability Type)", p. 10; `attack-ability.ts`).
+      const attackOf = abilityAttackRoot(ctx.state, ctx.deps, frame, attacker);
+      // An attack the ability began as it began resolving (RRG 1.8 "Labeled Ability", p. 26; owner decision,
+      // 2026-10-08, row 73) was attempted then, so a stunned card received since does not replace it (interpretation,
+      // `attack-ability.ts`): this instruction only deals the damage of an attack already under way.
+      if (!hasBegunAttack(ctx.state, attackOf, attacker) && statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
         announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
         return;
       }
       // RRG "Attack (Player Ability Type)": attacks can target any enemy unless guard prevents it.
       const attackable = targets(effect.target).filter((id) => canAttack(ctx.state, attacker, id, ctx.deps));
-      // An "(attack)" ability's attack by its controller's identity belongs to the ability, and waits for it to finish
-      // (RRG 1.8 "Attack (Player Ability Type)", p. 10; `attack-ability.ts`).
-      const attackOf = abilityAttackRoot(ctx.state, ctx.deps, frame, attacker);
       // Once an attack of that ability was cancelled, the ability's one attack makes no more (owner decision,
       // 2026-10-08, row 65).
       const cancelled = attackOf !== undefined && attackEffectCancelled(ctx.state, ctx.deps, frame);
@@ -539,24 +545,34 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         skipForCancelledAttack(ctx, { attackerId: attacker, frameId: frame.frameId }, frame.selfInstanceId, attackable);
       }
       const attacked = cancelled ? [] : attackable;
+      // The attack the ability began with is this instruction's attack on one of its enemies: the same event, put back
+      // at its damage step with that target and this amount, with no second interrupt window (`resumeBegunAttack`).
+      // Any other enemy the instruction names gets its own event, as it always has, resolved after it.
+      const begun = attackOf === undefined ? undefined : begunAttackTarget(ctx.state, attackOf, attacker, attacked);
       const pushed = pushEvents(
         ctx,
-        attacked.map((id) => ({
-          kind: "attack",
-          attackerInstanceId: attacker,
-          targetInstanceId: id,
-          playerId: controller,
-          amount,
-          basic: false,
-          overkill: effect.overkill === true,
-          ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
-          sourceInstanceId: frame.selfInstanceId,
-          ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
-        })),
+        attacked
+          .filter((id) => id !== begun)
+          .map((id) => ({
+            kind: "attack",
+            attackerInstanceId: attacker,
+            targetInstanceId: id,
+            playerId: controller,
+            amount,
+            basic: false,
+            overkill: effect.overkill === true,
+            ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
+            sourceInstanceId: frame.selfInstanceId,
+            ...(frame.abilityId !== undefined ? { sourceAbilityId: frame.abilityId } : {}),
+          })),
         reportTo(effect.bind),
       );
       if (attackOf !== undefined) {
         for (const id of pushed) updateFrame(ctx, id, (f) => (f.kind === "event" ? { ...f, attackOf } : f));
+        if (begun !== undefined) {
+          const made = { amount, overkill: effect.overkill === true, keywords: effect.keywords ?? [] };
+          resumeBegunAttack(ctx, attackOf, attacker, begun, made, reportTo(effect.bind));
+        }
       }
       return;
     }

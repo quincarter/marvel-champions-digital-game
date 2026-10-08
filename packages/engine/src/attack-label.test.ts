@@ -19,6 +19,11 @@
  *   considered to be performing the labeled effect when the labeled ability begins resolving (after costs have been
  *   paid)." The engine's readings on top of it (opening target choices first, the target the attack begins with) are
  *   in `resolve/attack-ability.ts`.
+ * - **Row 73 (rules check A1, second half), owner decision 2026-10-08.** An ability with an `attack` effect begins
+ *   its attack the same way: when another instruction resolves before that effect, the attack and its window open
+ *   before that instruction, and the effect deals the damage of the attack already begun. Same sentence of p. 26.
+ *   The readings on top of it (what is read ahead, several attacks, a stun received meanwhile) are interpretations,
+ *   stated with their alternatives in `resolve/attack-ability.ts`.
  *
  * Synthetic cards only: every event costs 0 and the hero is the default test hero (10 hit points, ATK 2). Every play
  * is replayed from its log and compared (`play`).
@@ -92,6 +97,12 @@ const VILLAIN_WATCH = stubAbility("villain-watch.interrupt", {
   effects: [{ kind: "addCounters", target: marker("villain-watch"), counterType: "seen", amount: n(1) }],
 });
 
+/** "Forced Interrupt: When you make a ranged attack, place 1 counter here." */
+const RANGE_WATCH = stubAbility("range-watch.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "attack", playerIs: "controller", attackHas: ["ranged"] } },
+  effects: [{ kind: "addCounters", target: marker("range-watch"), counterType: "seen", amount: n(1) }],
+});
+
 /** "Forced Interrupt: When you attack, cancel that attack. Place 1 counter here." */
 const PARRY = stubAbility("parry.interrupt", {
   trigger: { kind: "interrupt", forced: true, on: { on: "attack", playerIs: "controller" } },
@@ -120,6 +131,7 @@ const MINION_HUNTER_S = support("minion-hunter", MINION_HUNTER);
 const VILLAIN_HUNTER_S = support("villain-hunter", VILLAIN_HUNTER);
 const SHARPENED_S = support("sharpened", SHARPENED);
 const VILLAIN_WATCH_S = support("villain-watch", VILLAIN_WATCH);
+const RANGE_WATCH_S = support("range-watch", RANGE_WATCH);
 const PARRY_S = support("parry", PARRY);
 const VILLAIN_PARRY_S = support("villain-parry", VILLAIN_PARRY);
 const SUPPORTS = [
@@ -129,11 +141,22 @@ const SUPPORTS = [
   VILLAIN_HUNTER_S,
   SHARPENED_S,
   VILLAIN_WATCH_S,
+  RANGE_WATCH_S,
   PREP_S,
   PARRY_S,
   VILLAIN_PARRY_S,
 ];
-const PASSIVES = [MARKED, FOLLOW_UP, MINION_HUNTER, VILLAIN_HUNTER, SHARPENED, VILLAIN_WATCH, PARRY, VILLAIN_PARRY];
+const PASSIVES = [
+  MARKED,
+  FOLLOW_UP,
+  MINION_HUNTER,
+  VILLAIN_HUNTER,
+  SHARPENED,
+  VILLAIN_WATCH,
+  RANGE_WATCH,
+  PARRY,
+  VILLAIN_PARRY,
+];
 
 const villain = (id: string, keywords: readonly KeywordInstance[] = []) =>
   stubVillain({ id, stages: [{ hp: flat(40), atk: 2, sch: 1, keywords }] });
@@ -244,7 +267,87 @@ const JAB_THEN_PREP = event("jab-then-prep", [damage(3, theVillain), { kind: "th
 const ONE_TWO = event("one-two", [attack(2, eachMinion), attack(3, theVillain), damage(1, eachMinion)]);
 /** "Hero Action (attack): Deal 3 damage to the villain." twice over, as two attack effects. */
 const DOUBLE_HIT = event("double-hit", [attack(3, theVillain), attack(3, theVillain)]);
+const prepHas = (atLeast: number) =>
+  ({
+    kind: "compare",
+    left: { kind: "counters", of: marker("prep"), counterType: "prep" },
+    op: "atLeast",
+    right: n(atLeast),
+  }) as const;
+/** "Hero Action (attack): Place 1 counter on Prep. Deal 3 damage to the villain. Place 1 counter on Prep. Deal 3 …" */
+const PREP_DOUBLE = event("prep-double", [prepare, attack(3, theVillain), prepare, attack(3, theVillain)]);
+/** "Hero Action (attack): Place 1 counter on Prep. Choose an enemy. Deal 3 damage to that enemy." (attack effect) */
+const PREP_AIM_HIT = event("prep-aim-hit", [prepare, anEnemy(), attack(3, chosen("enemy"))]);
+/** "Hero Action (attack): Deal 1 damage to each minion. Deal 3 damage to an enemy." (damage, then an attack effect) */
+const STOMP = event("stomp", [damage(1, eachMinion), anEnemy(), attack(3, chosen("enemy"))]);
+/** "Hero Action (attack): Place 1 counter on Prep. Deal 2 damage to each minion." (attack effect) */
+const PREP_SWEEP = event("prep-sweep", [prepare, attack(2, eachMinion)]);
+/** A branch already decided as the ability begins (always true): "…Place 1 counter on Prep. If …, deal 3 damage…". */
+const PREP_SURE_HIT = event("prep-sure-hit", [
+  prepare,
+  { kind: "if", condition: prepHas(0), then: [attack(3, theVillain)] },
+]);
+/** A branch decided by the instruction before it: not known as the ability begins. */
+const PREP_MAYBE_HIT = event("prep-maybe-hit", [
+  prepare,
+  { kind: "if", condition: prepHas(1), then: [attack(3, theVillain)] },
+]);
+/** A branch never taken. */
+const PREP_NEVER_HIT = event("prep-never-hit", [
+  prepare,
+  { kind: "if", condition: prepHas(5), then: [attack(3, theVillain)] },
+]);
+/** The label-only twin of PREP_SURE_HIT: a damage instruction in a branch already decided. */
+const PREP_SURE_JAB = event("prep-sure-jab", [
+  prepare,
+  { kind: "if", condition: prepHas(0), then: [damage(3, theVillain)] },
+]);
+/** "Hero Action (attack): Choose one: place 1 counter on Prep and deal 2 damage to the villain, or … deal 3 damage." */
+const PREP_EITHER = event("prep-either", [
+  {
+    kind: "chooseOne",
+    chooser: { kind: "controller" },
+    options: [
+      { label: "two", effects: [prepare, attack(2, theVillain)] },
+      { label: "three", effects: [prepare, attack(3, theVillain)] },
+    ],
+  },
+]);
+/** "Hero Action (attack): Choose one: place 1 counter on Prep, or deal 3 damage to the villain." */
+const PREP_OR_HIT = event("prep-or-hit", [
+  prepare,
+  {
+    kind: "chooseOne",
+    chooser: { kind: "controller" },
+    options: [
+      { label: "hit", effects: [attack(3, theVillain)] },
+      { label: "prep", effects: [prepare] },
+    ],
+  },
+]);
+/** "Hero Action (attack): You are stunned. Deal 3 damage to the villain." */
+const DAZED_HIT = event("dazed-hit", [
+  { kind: "giveStatus", target: yourIdentity, status: "stunned" },
+  attack(3, theVillain),
+]);
+/** "Hero Action (attack): Place 1 counter on Prep. Deal 3 damage to the villain. This attack gains ranged." */
+const PREP_SHOT: ReturnType<typeof event> = event("prep-shot", [
+  prepare,
+  { kind: "attack", target: theVillain, amount: n(3), keywords: ["ranged"] },
+]);
 const EVENTS = [
+  PREP_DOUBLE,
+  PREP_AIM_HIT,
+  STOMP,
+  PREP_SWEEP,
+  PREP_SURE_HIT,
+  PREP_MAYBE_HIT,
+  PREP_NEVER_HIT,
+  PREP_SURE_JAB,
+  PREP_EITHER,
+  PREP_OR_HIT,
+  DAZED_HIT,
+  PREP_SHOT,
   RECKLESS,
   JAB_THEN_PREP,
   ONE_TWO,
@@ -568,6 +671,273 @@ describe("Row 61 (A1): a label-only attack begins as its ability begins resolvin
     expect(at(after.events, chose)).toBeLessThan(at(after.events, begins));
     expect(at(after.events, begins)).toBeLessThan(at(after.events, firstDamage));
     expect(attacksOf(after.events, "initiated")[0]?.targetInstanceId).toBe(offered(after.events)[0]![0]);
+  });
+});
+
+describe("Row 73 (A1, second half): an ability with an attack effect begins its attack as it begins resolving", () => {
+  // Official rule, RRG 1.8 "Labeled Ability" (p. 26): "The identity of the player using the labeled ability is
+  // considered to be performing the labeled effect when the labeled ability begins resolving (after costs have been
+  // paid)." Owner decision, 2026-10-08: the attack of an ability that makes an ATK attack after an earlier instruction
+  // begins then too. Each test marked "interpretation" checks a reading stated in `resolve/attack-ability.ts`.
+  const at = (events: readonly GameEvent[], test: (e: GameEvent) => boolean): number => events.findIndex(test);
+  const indexes = (events: readonly GameEvent[], test: (e: GameEvent) => boolean): number[] =>
+    events.flatMap((e, index) => (test(e) ? [index] : []));
+  const begins = (e: GameEvent) => e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "attack";
+  const prepared = (e: GameEvent) => e.type === "counterAdded" && e.counterType === "prep";
+  const chose = (e: GameEvent) => e.type === "targetChosen";
+  const anyDamage = (e: GameEvent) => e.type === "damageDealt";
+  const stunnedTable = (t: Table): Table => {
+    const hero = mustInstance(t.state, t.hero);
+    return {
+      ...t,
+      state: {
+        ...t.state,
+        instances: { ...t.state.instances, [t.hero]: { ...hero, statuses: { ...hero.statuses, stunned: 1 } } },
+      },
+    };
+  };
+
+  it("an earlier instruction resolves inside the attack: begun, then the counter, then the damage; one event, one window", () => {
+    const t = table(THORNY_V, [PREP_S, FOLLOW_UP_S, VILLAIN_HUNTER_S]);
+    const after = play(t, PREP_HIT);
+    expect(at(after.events, begins)).toBeGreaterThanOrEqual(0);
+    expect(at(after.events, begins)).toBeLessThan(at(after.events, prepared));
+    expect(at(after.events, prepared)).toBeLessThan(at(after.events, anyDamage));
+    // One attack event. As it begins it is marked, names the enemy its attack instruction names and has no amount.
+    const [made, ...more] = attacksOf(after.events, "initiated");
+    expect(more).toEqual([]);
+    expect(made).toMatchObject({ begun: true, targetInstanceId: t.villain, amount: 0, attackerInstanceId: t.hero });
+    expect(made?.labeled).toBeUndefined();
+    // The instruction took that event over: it resolves as any attack does (its amount, its one target, no list).
+    const [resolved, ...others] = attacksOf(after.events, "resolved");
+    expect(others).toEqual([]);
+    expect(resolved).toMatchObject({ targetInstanceId: t.villain, amount: 3 });
+    expect(resolved?.results?.damage).toBe(3);
+    expect(resolved?.attacked).toBeUndefined();
+    const [instance] = dealt(after.events);
+    expect(instance).toMatchObject({ fromAttack: true, sourceInstanceId: t.hero, targetInstanceId: t.villain });
+    // The same frame deals the damage: it waited beneath the ability twice (as it began, after its damage).
+    const waits = after.events.flatMap((e) => (e.type === "attackAwaitsAbility" ? [e.attackFrameId] : []));
+    expect(waits).toHaveLength(2);
+    expect(new Set(waits).size).toBe(1);
+    expect(instance?.parentFrameId).toBe(waits[0]);
+    // Retaliate and "after you attack [the villain]" follow the ability's last instruction, once.
+    expect(amountsTo(after.events, t.villain)).toEqual([3]);
+    expect(attackedIn(after.events)).toEqual([t.villain]);
+    expect(amountsTo(after.events, t.hero)).toEqual([1]);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(1);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(1);
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(1);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("'when you attack' fires before the earlier instruction, and what it gives the attack reaches the later damage", () => {
+    const t = table(PLAIN_V, [PREP_S, SHARPENED_S, VILLAIN_WATCH_S]);
+    const after = play(t, PREP_HIT);
+    const answered = at(after.events, (e) => e.type === "counterAdded" && e.counterType === "seen");
+    expect(answered).toBeGreaterThanOrEqual(0);
+    expect(answered).toBeLessThan(at(after.events, prepared));
+    // "That attack deals 1 additional damage", given in the window before the counter: 3 + 1 when the damage resolves.
+    expect(amountsTo(after.events, t.villain)).toEqual([4]);
+    // Each interrupt answered once: the instruction opened no second window.
+    expect(counters(after.state, t.supports[2]!, "seen")).toBe(1);
+    expect(attacksOf(after.events, "initiated")).toHaveLength(1);
+  });
+
+  it("the window hears the attack instruction's keywords: 'when you make a ranged attack'", () => {
+    const t = table(PLAIN_V, [PREP_S, RANGE_WATCH_S]);
+    const shot = play(t, PREP_SHOT);
+    expect(attacksOf(shot.events, "initiated")[0]).toMatchObject({ begun: true, keywords: ["ranged"] });
+    expect(counters(shot.state, t.supports[1]!, "seen")).toBe(1);
+    expect(dealt(shot.events)[0]).toMatchObject({ ranged: true });
+    // An attack that is not ranged is not heard.
+    const plain = table(PLAIN_V, [PREP_S, RANGE_WATCH_S]);
+    expect(counters(play(plain, PREP_HIT).state, plain.supports[1]!, "seen")).toBe(0);
+  });
+
+  it("an enemy chosen after the earlier instruction: the attack begins with no target, and an interrupt that names one does not hear it", () => {
+    const t = table(THORNY_V, [PREP_S, SHARPENED_S, VILLAIN_WATCH_S, VILLAIN_HUNTER_S]);
+    const after = play(t, PREP_AIM_HIT);
+    expect(at(after.events, begins)).toBeLessThan(at(after.events, prepared));
+    expect(at(after.events, prepared)).toBeLessThan(at(after.events, chose));
+    expect(attacksOf(after.events, "initiated")).toHaveLength(1);
+    expect(attacksOf(after.events, "initiated")[0]).toMatchObject({ begun: true, targetInstanceId: null });
+    expect(counters(after.state, t.supports[2]!, "seen")).toBe(0);
+    // An interrupt that asks nothing of the target heard it: 3 + 1. The attack is on the villain from then on.
+    expect(amountsTo(after.events, t.villain)).toEqual([4]);
+    expect(attacksOf(after.events, "resolved")[0]).toMatchObject({ targetInstanceId: t.villain });
+    expect(attackedIn(after.events)).toEqual([t.villain]);
+    expect(amountsTo(after.events, t.hero)).toEqual([1]);
+    expect(counters(after.state, t.supports[3]!, "attacks")).toBe(1);
+  });
+
+  it("a stunned identity: the whole ability is cancelled as it begins and the stunned card discarded (RRG 1.8 pp. 26, 41)", () => {
+    // P. 26: "If a player triggers a labeled ability while their identity has one or more status cards that cancel any
+    // of the labeled ability types, the entire ability (except for its costs) is canceled". P. 41: "If a stunned
+    // identity or ally attempts to attack or use an attack ability, discard the stunned card instead."
+    const t = stunnedTable(table(PLAIN_V, [PREP_S, FOLLOW_UP_S]));
+    const after = play(t, PREP_HIT);
+    expect(mustInstance(after.state, t.hero).statuses.stunned).toBe(0);
+    expect(attacksOf(after.events, "initiated")).toEqual([]);
+    expect(taken(after.events)).toEqual([]);
+    // The earlier instruction is part of the cancelled ability: no counter.
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(0);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(0);
+  });
+
+  it("interpretation: a stunned card received after the attack began does not replace it, and stays", () => {
+    const t = table(PLAIN_V);
+    const after = play(t, DAZED_HIT);
+    const stunnedAt = at(after.events, (e) => e.type === "statusGiven");
+    expect(at(after.events, begins)).toBeGreaterThanOrEqual(0);
+    expect(at(after.events, begins)).toBeLessThan(stunnedAt);
+    expect(after.events.some((e) => e.type === "statusRemoved")).toBe(false);
+    expect(amountsTo(after.events, t.villain)).toEqual([3]);
+    expect(mustInstance(after.state, t.hero).statuses.stunned).toBe(1);
+  });
+
+  it("a cancel in the window that opened early: the earlier instruction still resolves, the attack instruction deals nothing (row 65)", () => {
+    const t = table(THORNY_V, [PREP_S, PARRY_S, FOLLOW_UP_S]);
+    const after = play(t, PREP_HIT);
+    expect(counters(after.state, t.supports[1]!, "cancelled")).toBe(1);
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(1);
+    expect(taken(after.events)).toEqual([]);
+    expect(skipped(after.events)).toEqual([t.villain]);
+    expect(attacksOf(after.events, "resolved")).toEqual([]);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(0);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("interpretation: an ability with two attacks: the first begins with the ability, the second as its instruction is reached", () => {
+    const t = table(THORNY_V, [PREP_S, SHARPENED_S, FOLLOW_UP_S]);
+    const after = play(t, PREP_DOUBLE);
+    const [firstBegins, secondBegins, ...moreBegins] = indexes(after.events, begins);
+    const [firstPrep, secondPrep] = indexes(after.events, prepared);
+    const [firstDamage, secondDamage] = indexes(
+      after.events,
+      (e) => e.type === "damageDealt" && e.targetInstanceId === t.villain,
+    );
+    expect(moreBegins).toEqual([]);
+    expect(firstBegins!).toBeLessThan(firstPrep!);
+    expect(firstPrep!).toBeLessThan(firstDamage!);
+    expect(firstDamage!).toBeLessThan(secondPrep!);
+    expect(secondPrep!).toBeLessThan(secondBegins!);
+    expect(secondBegins!).toBeLessThan(secondDamage!);
+    const [first, second] = attacksOf(after.events, "initiated");
+    expect(first?.begun).toBe(true);
+    expect(second?.begun).toBeUndefined();
+    // Each attack has its own window: "that attack deals 1 additional damage" reaches each once (RRG 1.8 p. 10).
+    expect(amountsTo(after.events, t.villain)).toEqual([4, 4]);
+    // Two attacks: two "after you attack", and the villain retaliates against each, after the ability.
+    expect(attacksOf(after.events, "resolved")).toHaveLength(2);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(2);
+    expect(amountsTo(after.events, t.hero)).toEqual([1, 1]);
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(2);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("an ability whose attack instruction resolves first is unchanged: no early event, the window at that instruction", () => {
+    for (const card of [VOLLEY, DOUBLE_HIT, ONE_TWO]) {
+      const after = play(table(PLAIN_V, [], [DUMMY]), card);
+      expect(attacksOf(after.events, "initiated").some((made) => made.begun)).toBe(false);
+    }
+  });
+
+  it("an attack inside a branch that is not taken makes no attack", () => {
+    const t = table(THORNY_V, [PREP_S, FOLLOW_UP_S, SHARPENED_S]);
+    const after = play(t, PREP_NEVER_HIT);
+    expect(attacksOf(after.events, "initiated")).toEqual([]);
+    expect(taken(after.events)).toEqual([]);
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(1);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(0);
+  });
+
+  it("interpretation: a branch already decided as the ability begins is read: its attack begins with the ability", () => {
+    for (const card of [PREP_SURE_HIT, PREP_SURE_JAB]) {
+      const t = table(PLAIN_V, [PREP_S, SHARPENED_S]);
+      const after = play(t, card);
+      expect(at(after.events, begins)).toBeGreaterThanOrEqual(0);
+      expect(at(after.events, begins)).toBeLessThan(at(after.events, prepared));
+      expect(attacksOf(after.events, "initiated")).toHaveLength(1);
+      expect(amountsTo(after.events, t.villain)).toEqual([4]);
+    }
+  });
+
+  it("interpretation: a branch the earlier instruction decides is not read: its attack begins as it is reached", () => {
+    const t = table(PLAIN_V, [PREP_S, SHARPENED_S]);
+    const after = play(t, PREP_MAYBE_HIT);
+    expect(at(after.events, prepared)).toBeLessThan(at(after.events, begins));
+    expect(attacksOf(after.events, "initiated")).toHaveLength(1);
+    expect(attacksOf(after.events, "initiated")[0]?.begun).toBeUndefined();
+    expect(amountsTo(after.events, t.villain)).toEqual([4]);
+  });
+
+  it("interpretation: a choice begins the attack early only when every option makes one", () => {
+    const t = table(PLAIN_V, [PREP_S, SHARPENED_S]);
+    const either = play(t, PREP_EITHER);
+    expect(at(either.events, begins)).toBeLessThan(at(either.events, prepared));
+    expect(attacksOf(either.events, "initiated")).toHaveLength(1);
+    expect(attacksOf(either.events, "initiated")[0]).toMatchObject({ begun: true, targetInstanceId: t.villain });
+    // The first option is the default pick: 2 + 1.
+    expect(amountsTo(either.events, t.villain)).toEqual([3]);
+    // One option does not attack: nothing begins until the option chosen reaches its attack instruction.
+    const maybe = table(PLAIN_V, [PREP_S, SHARPENED_S]);
+    const orHit = play(maybe, PREP_OR_HIT);
+    expect(at(orHit.events, prepared)).toBeLessThan(at(orHit.events, begins));
+    expect(attacksOf(orHit.events, "initiated")[0]?.begun).toBeUndefined();
+    expect(amountsTo(orHit.events, maybe.villain)).toEqual([4]);
+  });
+
+  it("damage written before the attack instruction is that attack's: attack damage, each enemy attacked, one retaliate each", () => {
+    const t = table(PLAIN_V, [SHARPENED_S, MINION_HUNTER_S, VILLAIN_HUNTER_S], [SPIKY]);
+    const after = play(t, STOMP);
+    const [made, ...more] = attacksOf(after.events, "initiated");
+    expect(more).toEqual([]);
+    // It begins before the first damage, against the first enemy an instruction names: the minion.
+    expect(made).toMatchObject({ begun: true, targetInstanceId: t.minions[0]! });
+    expect(at(after.events, begins)).toBeLessThan(at(after.events, anyDamage));
+    // 1 + 1 to the minion, then 3 + 1 to the enemy chosen (the villain, the default pick): each instance increased.
+    expect(amountsTo(after.events, t.minions[0]!)).toEqual([2]);
+    expect(amountsTo(after.events, t.villain)).toEqual([4]);
+    expect(
+      dealt(after.events)
+        .filter((d) => d.targetInstanceId !== t.hero)
+        .map((d) => d.fromAttack),
+    ).toEqual([true, true]);
+    const [resolved] = attacksOf(after.events, "resolved");
+    expect(resolved).toMatchObject({ targetInstanceId: t.villain, attacked: [t.minions[0]!, t.villain] });
+    expect(attackedIn(after.events)).toEqual([t.minions[0]!, t.villain]);
+    // The minion retaliates once, after the whole ability.
+    expect(amountsTo(after.events, t.hero)).toEqual([2]);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(1);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(1);
+  });
+
+  it("interpretation: an attack instruction naming several enemies: the begun attack is the first, the others get their own event", () => {
+    const t = table(PLAIN_V, [PREP_S, SHARPENED_S], [DUMMY, SPIKY]);
+    const after = play(t, PREP_SWEEP);
+    const made = attacksOf(after.events, "initiated");
+    expect(made.map((attack) => attack.begun === true)).toEqual([true, false]);
+    expect(made.map((attack) => attack.targetInstanceId)).toEqual(t.minions);
+    expect(indexes(after.events, begins)[0]!).toBeLessThan(at(after.events, prepared));
+    expect(at(after.events, prepared)).toBeLessThan(indexes(after.events, begins)[1]!);
+    expect(amountsTo(after.events, t.minions[0]!)).toEqual([3]);
+    expect(amountsTo(after.events, t.minions[1]!)).toEqual([3]);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("an attack that began and finds no enemy to attack at its instruction attacked nobody", () => {
+    // "Each minion" with none in play: the attack began (p. 26), its instruction names nobody.
+    const t = table(THORNY_V, [PREP_S, FOLLOW_UP_S, VILLAIN_HUNTER_S, MINION_HUNTER_S]);
+    const after = play(t, PREP_SWEEP);
+    expect(attacksOf(after.events, "initiated")).toHaveLength(1);
+    expect(attacksOf(after.events, "initiated")[0]).toMatchObject({ begun: true, targetInstanceId: null });
+    expect(taken(after.events)).toEqual([]);
+    expect(attacksOf(after.events, "resolved")[0]).toMatchObject({ targetInstanceId: null, attacked: [] });
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(1);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(0);
+    expect(counters(after.state, t.supports[3]!, "attacks")).toBe(0);
+    expect(after.state.stack).toEqual([]);
   });
 });
 

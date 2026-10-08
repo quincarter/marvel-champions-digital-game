@@ -1838,7 +1838,12 @@ function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "atta
   // damage of its own and does not use the attacker's ATK. It waits for its ability, whose damage instructions are
   // its damage and name the enemies it attacks.
   if (attack.labeled || target === null) return;
-  // Only a label-only attack has no target, so from here the attack has one.
+  // An attack that began with its ability, before the `attack` instruction that deals its damage (RRG 1.8 "Labeled
+  // Ability", p. 26; owner decision, 2026-10-08, row 73): it deals nothing as it begins. That instruction puts this
+  // frame back at its apply step with its target and amount (`resumeBegunAttack`), and the damage is dealt then.
+  const begunFrame = findFrame(ctx.state, frameId);
+  if (begunFrame?.kind === "event" && begunFrame.attackBegun) return;
+  // Only an attack that began before an enemy could be named has no target, so from here the attack has one.
   const event = { ...attack, targetInstanceId: target };
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;

@@ -2,7 +2,14 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
-import { RESOURCE_TYPES, type ResolvedRequirement, type ResourcePool, type TypedResource } from "./resources.js";
+import {
+  RESOURCE_TYPES,
+  type PaidTypesRead,
+  type ResolvedRequirement,
+  type ResourcePool,
+  type ResourceType,
+  type TypedResource,
+} from "./resources.js";
 import type { EffectSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { ZoneId } from "./state.js";
@@ -152,11 +159,19 @@ export interface LingeringDamageRule {
  * A payment whose wilds its player has still to declare (docs/phase7-wave8.md §3.62, §4.1 Q33 = B), kept on the play
  * frame of the card paid for (or the frame of the ability paid for) until the `declareWildTypes` choice is answered: everything the payment generated, what
  * the cost took (the rest is overpaid), and the types the card may be paid with when it limits them (`paymentOnly`).
+ *
+ * The same record holds a payment whose **paid resources** its player has still to name (`choosePaidResources`; owner
+ * decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 79): `reads` is everything that reads the payment's types, which
+ * is what tells whether two sets of paid resources differ, and `declared` the wilds once they are declared (on the
+ * command, by the choice, or left as they are because no declaration could matter: `skipped`), after which only the
+ * paid set is left to ask.
  */
 export interface UndeclaredWilds {
   readonly pool: ResourcePool;
   readonly requirement: ResolvedRequirement;
   readonly only?: readonly TypedResource[];
+  readonly reads?: readonly PaidTypesRead[];
+  readonly declared?: { readonly types: readonly ResourceType[]; readonly skipped: boolean };
 }
 
 interface FrameBase {
@@ -250,6 +265,15 @@ export type StackFrame =
        * from the attack (an overkill spill) is not attacked (owner ruling Q50; `resolve/attack-ability.ts`).
        */
       readonly attacked?: readonly Extract<TriggerEvent, { kind: "characterAttacked" }>[];
+      /**
+       * With `attackOf`: this attack began as its ability began resolving, before the `attack` instruction that deals
+       * its damage (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 73), and
+       * no `attack` instruction has taken it over yet. Its interrupt window has resolved and it waits beneath the
+       * ability's root frame; the ability's first `attack` instruction by that identity puts it back on top to deal
+       * its damage (`resumeBegunAttack`, `resolve/attack-ability.ts`) and clears this. Still set when the attack
+       * finishes: no instruction made it, so it attacked only the enemies the ability's damage instructions named.
+       */
+      readonly attackBegun?: true;
       /**
        * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
        * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
@@ -424,9 +448,11 @@ export type StackFrame =
       /** The one thwart this "(thwart)" ability is making, on the root frame of its resolution (`ThwartSession`). */
       readonly thwart?: ThwartSession;
       /**
-       * On the root frame of an "(attack)"-labeled ability with no `attack` effect: the ability's one attack has been
-       * made (`TriggerEvent attack.labeled`, `resolve/attack-ability.ts`), so no later damage instruction makes
-       * another, whether that attack is waiting beneath this frame or was cancelled.
+       * On the root frame of an "(attack)"-labeled ability: the attack it begins as it begins resolving has been made
+       * (`beginLabelAttack`, `resolve/attack-ability.ts`: the one attack of an ability with no `attack` effect,
+       * `TriggerEvent attack.labeled`, or the attack an ability with an `attack` effect began before that instruction,
+       * `attack.begun`), so no later instruction begins another that way, whether that attack is waiting beneath this
+       * frame or was cancelled.
        */
       readonly labelAttackMade?: true;
       /**

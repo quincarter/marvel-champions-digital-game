@@ -176,9 +176,9 @@ export type TriggerEventBody =
       readonly kind: "attack";
       readonly attackerInstanceId: InstanceId;
       /**
-       * The attacked character. Null only on a `labeled` attack that began before any enemy could be named (its enemy
-       * is chosen after an earlier instruction of the ability, or every enemy named was guarded): it takes the first
-       * enemy an instruction attacks as its target then, and stays null if it attacks nobody.
+       * The attacked character. Null only on a `labeled` or `begun` attack that began before any enemy could be named
+       * (its enemy is chosen after an earlier instruction of the ability, or every enemy named was guarded): it takes
+       * the first enemy an instruction attacks as its target then, and stays null if it attacks nobody.
        */
       readonly targetInstanceId: InstanceId | null;
       readonly playerId: PlayerId;
@@ -221,6 +221,18 @@ export type TriggerEventBody =
        */
       readonly labeled?: true;
       /**
+       * The attack of an "(attack)"-labeled ability that has an `attack` effect, begun as the ability began resolving
+       * because another instruction resolves before that effect (RRG 1.8 "Labeled Ability", p. 26: "when the labeled
+       * ability begins resolving (after costs have been paid)"; owner decision, 2026-10-08, row 73;
+       * `resolve/attack-ability.ts`). Its interrupt window opens then. Until its `attack` instruction is reached the
+       * event carries what could be read as it began: `targetInstanceId` (the enemy that instruction names if it is
+       * already chosen, else null), the instruction's `keywords` and `overkill`, and `amount` 0 (the damage is not
+       * known yet). The instruction then takes this event over and gives it its target, amount and keywords, so the
+       * resolved event reads as any other attack's. An attack no instruction took over attacked only the enemies the
+       * ability's other damage instructions named (`attacked`, always present on it).
+       */
+      readonly begun?: true;
+      /**
        * On an "(attack)" ability's attack once it has finished: every enemy it attacked, in order, each once (RRG 1.8
        * "Attack (Player Ability Type)", p. 10: "When an attack targets multiple enemies, the attacking character is
        * considered to have attacked each of those enemies"; owner ruling Q50). These are the enemies an instruction of
@@ -244,6 +256,12 @@ export type TriggerEventBody =
       readonly basic?: boolean;
       /** A basic thwart made with ATK instead of THW (the Assault keyword, or "may use their ATK"; §3.11). */
       readonly useAtk?: boolean;
+      /**
+       * Every scheme of the one divided basic thwart this share belongs to, this share's own included (RRG 1.8
+       * "Assault", p. 8, and docs/phase7-wave7.md §4.1 Q3: a divided basic thwart is one basic thwart). The character
+       * is thwarting each of them for as long as any share is resolving, which is what `thwartInProgress` reads.
+       */
+      readonly dividedAmong?: readonly InstanceId[];
       /** "…, ignoring any crisis icons in play": passed to the threat removal this thwart makes. */
       readonly ignoreCrisis?: boolean;
       /** "…, ignoring the patrol keyword": this thwart is not stopped by patrol (docs/phase7-wave4.md §3.32). */
