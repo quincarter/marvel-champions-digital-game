@@ -16,6 +16,14 @@ export type LastingDuration =
   | { readonly kind: "endOfPhase" }
   /** "Until the end of the round" / "this round". */
   | { readonly kind: "endOfRound" }
+  /**
+   * "Until the next villain phase begins" (Pestilence, `aoa` 45083; docs/phase7-wave8.md §3.13): ends as the villain
+   * phase starts, whichever phase it was made in. It lasts through the end of the round it was made in when that was a
+   * villain phase, and through the whole player phase after it. RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect
+   * expires as soon as the timing point specified by its duration is reached", so it is gone before anything answers
+   * the villain phase beginning and before step one (`expireNextVillainPhaseEffects`).
+   */
+  | { readonly kind: "nextVillainPhaseBegins" }
   /** "Until the end of this turn" / "this turn": the active player's turn (docs/phase7-wave2.md §13). */
   | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */

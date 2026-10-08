@@ -7,7 +7,12 @@
  */
 
 import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
-import { dealEncounterCardTo, discardStatusCards, setActiveVillain } from "../effects.js";
+import {
+  dealEncounterCardTo,
+  discardStatusCards,
+  expireNextVillainPhaseEffects,
+  setActiveVillain,
+} from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { cannotActivate, iconsInPlay } from "../rules.js";
@@ -48,6 +53,9 @@ const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly Playe
 export function executePlaceThreat(ctx: Ctx): void {
   const step = ctx.state.step;
   if (step.kind === "placeThreat" && !step.placed) {
+    // "Until the next villain phase begins" (docs/phase7-wave8.md §3.13): gone before step one. The player phase's end
+    // already ended those that existed then (`finishPlayerPhase`); this catches one made while that end resolved.
+    expireNextVillainPhaseEffects(ctx);
     setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
     if (ctx.state.gameAreas.length === 0) {
       // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21

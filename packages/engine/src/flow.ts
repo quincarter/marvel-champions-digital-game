@@ -13,7 +13,14 @@ import {
   stepAfterScenarioSetupInstructions,
   stepAfterVillainSetupAbilities,
 } from "./setup-steps.js";
-import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
+import {
+  drawCards,
+  drawUpTo,
+  endLastingEffect,
+  expireLastingEffects,
+  expirePlayerTurnEffects,
+  untilNextVillainPhase,
+} from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
@@ -509,7 +516,18 @@ function finishPlayerPhase(ctx: Ctx): void {
   const delayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
   expireLastingEffects(ctx, "endOfPhase");
   // Pushed first, so it resolves after everything the player phase's end queues and before step one.
-  pushIfHeard(ctx, { kind: "phaseBeginning", phase: "villain" });
+  const beginning: TriggerEvent = { kind: "phaseBeginning", phase: "villain" };
+  const untilNow = untilNextVillainPhase(ctx.state);
+  if (untilNow.length === 0) pushIfHeard(ctx, beginning);
+  else {
+    // "Until the next villain phase begins" (docs/phase7-wave8.md §3.13) ends between the two: after the player phase's
+    // end has resolved under it, and before the villain phase's beginning is answered (RRG 1.8 "Lasting Effects",
+    // p. 26: it "expires as soon as the timing point specified by its duration is reached"). So who hears the beginning
+    // is read as the game will stand then, with those effects gone (a text box they blanked is back).
+    const then = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((e) => !untilNow.includes(e)) };
+    if (heard(then, ctx.deps, beginning)) pushEvent(ctx, beginning);
+    pushEffects(ctx, { effects: [{ kind: "villainPhaseBegins" }], selfInstanceId: null, controllerId: null });
+  }
   announce(ctx, { kind: "playerPhaseEnded" });
   if (listened) {
     pushEvent(ctx, ending);

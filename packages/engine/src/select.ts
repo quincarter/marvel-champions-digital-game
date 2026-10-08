@@ -1652,6 +1652,42 @@ export function deckTopFaceupPlayers(state: GameState, deps: EngineDeps): readon
   return players;
 }
 
+/** Characters whose floor is being read right now: a floor rule's own `while` reads their true dial (no re-entry). */
+const readingFloorOf = new Set<InstanceId>();
+
+/**
+ * The floor a `consideredRemainingHp` rule puts on what readers see as this character's remaining hit points
+ * (docs/phase7-wave8.md §3.10): the highest `atLeast` among the rules in force that match it, undefined with none.
+ * "As if it has at least 1 hit point" while an ability resolves (`resolveSpecials.asIf`, §3.11) is such a rule, granted
+ * for as long as that ability's effects last, so it is read here with the rest.
+ */
+export function hitPointFloor(state: GameState, id: InstanceId, deps: EngineDeps): number | undefined {
+  if (readingFloorOf.has(id)) return undefined;
+  readingFloorOf.add(id);
+  try {
+    let floor: number | undefined;
+    for (const { rule, context } of activeRules(state, deps, "consideredRemainingHp")) {
+      if (floor !== undefined && rule.atLeast <= floor) continue;
+      if (matchesQuery(state, id, rule.target, context)) floor = rule.atLeast;
+    }
+    return floor;
+  } finally {
+    readingFloorOf.delete(id);
+  }
+}
+
+/**
+ * A character's remaining hit points as every reader of the game state sees them: the dial (maximum hit points minus
+ * damage, never below 0), raised to any `consideredRemainingHp` floor in force (§3.10, §4.1 Q6 = A). Undefined for a
+ * card with no hit points. `remainingHitPoints` (`query.ts`) is the true dial.
+ */
+export function consideredRemainingHitPoints(state: GameState, id: InstanceId, deps: EngineDeps): number | undefined {
+  const max = maxHitPoints(state, id, deps);
+  const instance = getInstance(state, id);
+  if (max === undefined || !instance) return undefined;
+  return Math.max(0, max - instance.damage, hitPointFloor(state, id, deps) ?? 0);
+}
+
 /**
  * The card showing on top of `playerId`'s deck under a `topOfDeckFaceup` rule: the deck's first card while the rule
  * holds for that player, null when it does not or the deck is empty. The single derivation `faceVisible`, the
@@ -2192,8 +2228,7 @@ export function resolveValue(
     }
     case "remainingHp": {
       const [id] = resolveRef(state, value.of, context);
-      const max = id ? maxHitPoints(state, id, deps) : undefined;
-      return id && max !== undefined ? Math.max(0, max - (getInstance(state, id)?.damage ?? 0)) : 0;
+      return id ? (consideredRemainingHitPoints(state, id, deps) ?? 0) : 0;
     }
     case "conditional":
       return evaluate(state, value.if, { ...context, deps })

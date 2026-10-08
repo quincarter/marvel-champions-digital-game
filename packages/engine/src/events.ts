@@ -473,6 +473,21 @@ export type GameEvent =
       readonly paid: boolean;
     }
   /**
+   * A "resolve its 'Forced Response' … →" cost (`AbilityCost.resolveAbility`, docs/phase7-wave8.md §3.11) has been
+   * paid or failed: `resolved` of `ofInstanceId`'s abilities of kind `trigger` resolved for `playerId`. None, or
+   * nothing they could have changed when the cost was paid (§4.1 Q7 = A), means the cost was not paid (RRG 1.8 "Cost
+   * Arrow Icon", p. 14) and the effects of `instanceId`'s ability do not resolve.
+   */
+  | {
+      readonly type: "resolveAbilityCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly ofInstanceId: InstanceId;
+      readonly trigger: "forcedResponse" | "special";
+      readonly resolved: number;
+      readonly paid: boolean;
+    }
+  /**
    * A "discard up to N cards from the top of your deck →" cost (`AbilityCost.discardFromDeck` with `choose`,
    * docs/phase7-wave8.md §3.55) has been paid or failed: `playerId` chose `chosen` and `discarded` are the cards that
    * left the top of their deck, top first. Fewer than chosen means the cost was not paid (RRG 1.8 "Cost", p. 13) and

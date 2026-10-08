@@ -135,6 +135,13 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   // docs/phase7-wave7.md §3.19 (b): the attack is such a step too.
   if (definition.trigger.kind === "resource" && looks.some((part) => part.enemyAttack))
     problems.push("cost enemyAttack: not on a resource ability");
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.resolveAbility))
+    problems.push("cost resolveAbility: not on a resource ability");
+  for (const part of looks) {
+    const floor = part.resolveAbility?.asIf?.remainingHpAtLeast;
+    if (floor !== undefined && (!Number.isInteger(floor) || floor < 1))
+      problems.push("cost resolveAbility: asIf.remainingHpAtLeast must be a whole number of at least 1");
+  }
   if (!cost.conditional) return;
   const { conditional, ...common } = cost;
   for (const branch of [conditional.then, conditional.else]) {

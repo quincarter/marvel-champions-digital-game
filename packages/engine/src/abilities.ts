@@ -1690,6 +1690,32 @@ export type RuleSpec =
    */
   | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly while?: Predicate }
   /**
+   * "Attached villain … is considered to have at least 1 hit point." (docs/phase7-wave8.md §3.10, owner decision §4.1
+   * Q6 = A): a floor on what every reader sees as a matching character's remaining hit points. The dial and the damage
+   * on the card are untouched: damage is still dealt and taken, and healing still heals. While the rule is in force
+   *
+   * - `ValueSpec remainingHp`, and so every predicate built on it ("if he has at least 1 hit point", "while another
+   *   villain has at least 1 hit point"), reads at least `atLeast` (`consideredRemainingHitPoints`);
+   * - with `atLeast` of 1 or more the character does not have "zero or fewer remaining hit points" (RRG 1.8 "Defeat",
+   *   p. 15), so the defeat check does not defeat it. It is watched like a character under "cannot be defeated"
+   *   (`GameState.heldAtZero`) and falls the moment the rule ends with the dial still at zero. A defeat by an effect
+   *   that says "defeat" does not read the dial and is not stopped.
+   *
+   * Read from the true dial, not through the floor: a host chosen by remaining hit points ("attach to the villain with
+   * the fewest hit points", `SuperlativeHost`), excess damage (RRG 1.8 "Excess Damage", p. 19), the cap on assigned
+   * indirect damage and the dial a preview shows (`CounterSnapshot.remainingHitPoints`, beside which `consideredHp`
+   * reports the floor).
+   *
+   * A rule's own `while` that reads remaining hit points reads the true dial for the character it is deciding about,
+   * so a floor cannot hold itself up.
+   */
+  | {
+      readonly kind: "consideredRemainingHp";
+      readonly target: TargetQuery;
+      readonly atLeast: number;
+      readonly while?: Predicate;
+    }
+  /**
    * A card in play reads the resource types that paid for another card: "After you play a THWART event, … remove 1
    * threat from that scheme for each different resource type used to pay for that event" (Jubilee's Coat 47004, and
    * her Sunglasses 47005 for an ATTACK event; docs/phase7-wave8.md §3.62). While the rule is in force, a payment its
@@ -2241,6 +2267,41 @@ export interface AbilityCost {
    *   the middle of another payment.
    */
   readonly enemyAttack?: { readonly enemy: TargetRef; readonly against: "you" };
+  /**
+   * "Resolve its 'Forced Response' as if it just attacked you →" (Golden Horse, `aoa` 45090; Metal Wings 45091;
+   * docs/phase7-wave8.md §3.11): the printed abilities of kind `trigger` on `of` (the first card the ref names) resolve
+   * as the cost, with the paying player as "you". See `resolve-ability-cost.ts` and `EffectSpec resolveSpecials`, whose
+   * `abilities` and `asIf` these are.
+   *
+   * - **Resolved in full before the effects.** The abilities are steps `payCost` pushes above the frame being paid for
+   *   (RRG 1.8 "Cost Arrow Icon", p. 14), after the rest of the cost.
+   * - **Payable only while resolving them would change something** (owner decision §4.1 Q7 = A): not when the card has
+   *   no live ability of the kind, and not when what it has would leave the game as it is (a discard with nothing to
+   *   discard). The ability is then not offered. Judged by resolving them on a copy of the state
+   *   (`resolvingWouldChange`), never by the abilities' shape.
+   * - **Paid only by an ability that resolves.** With none resolved the cost is unpaid and the ability's effects do not
+   *   resolve (`settleResolveAbilityCost`). Not for a resource ability, which is paid in the middle of another payment.
+   */
+  readonly resolveAbility?: {
+    readonly of: TargetRef;
+    readonly trigger: "forcedResponse" | "special";
+    readonly abilities?: readonly AbilityId[];
+    readonly asIf?: { readonly remainingHpAtLeast?: number };
+  };
+}
+
+/**
+ * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a
+ * "Forced Response" is a `response` trigger that is forced; the others are named by their own trigger kind. A card's
+ * attach instruction is not one of its When Revealed abilities (docs/phase7-wave7.md §3.35).
+ */
+export function resolvableAs(
+  definition: AbilityDefinition | undefined,
+  trigger: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse",
+): boolean {
+  if (!definition || definition.attachInstruction) return false;
+  if (trigger === "forcedResponse") return definition.trigger.kind === "response" && definition.trigger.forced;
+  return definition.trigger.kind === trigger;
 }
 
 /**

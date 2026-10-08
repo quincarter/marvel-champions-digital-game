@@ -77,6 +77,8 @@ function hostMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost[
     case "printedHp":
       return printedHpOf(state, id);
     case "remainingHp":
+      // The true dial, never a `consideredRemainingHp` floor (docs/phase7-wave8.md §3.10): a second "attach to the
+      // villain with the fewest hit points" still goes to the villain that is really lowest.
       return remainingHitPoints(state, id, deps) ?? 0;
     case "printedAtk":
       return printedProfile(state, id)?.atk ?? 0;

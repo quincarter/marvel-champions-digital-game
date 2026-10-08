@@ -1,7 +1,7 @@
 /** Stepping through an effects frame, including the effects that stop for a player choice. */
 
 import { announceDeckTops } from "../deck-top.js";
-import type { EngineDeps } from "../abilities.js";
+import { type EngineDeps, resolvableAs } from "../abilities.js";
 import {
   cardsInPlayFromZone,
   hostChoicesForEffectPlay,
@@ -44,6 +44,7 @@ import {
 } from "../ctx.js";
 import {
   addLastingEffect,
+  expireNextVillainPhaseEffects,
   dealEncounterCardTo,
   discardFromHand,
   expirePaidForEffects,
@@ -107,6 +108,7 @@ import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
 import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
 import { executeSettleEnemyAttackCost } from "../enemy-attack-cost.js";
+import { executeSettleResolveAbilityCost } from "../resolve-ability-cost.js";
 import { executePayDeckDiscardChoice } from "../deck-discard-choice-cost.js";
 import { executeSettleReadyCardsCost } from "../ready-cards-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
@@ -267,6 +269,13 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "payEncounterLookDiscard") return executePayEncounterLookDiscard(ctx, frame, effect);
   // docs/phase7-wave7.md §3.19 (b): "attached villain attacks you →", settled once the attack has resolved.
   if (effect.kind === "settleEnemyAttackCost") return executeSettleEnemyAttackCost(ctx, frame, effect);
+  // docs/phase7-wave8.md §3.13: "until the next villain phase begins" ends here, as the villain phase begins.
+  if (effect.kind === "villainPhaseBegins") {
+    setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
+    return expireNextVillainPhaseEffects(ctx);
+  }
+  // docs/phase7-wave8.md §3.11: "resolve its 'Forced Response' →", settled once the abilities have resolved.
+  if (effect.kind === "settleResolveAbilityCost") return executeSettleResolveAbilityCost(ctx, frame, effect);
   // docs/phase7-wave8.md §3.55: "discard up to 3 cards from the top of your deck →", after the payer's pick.
   if (effect.kind === "payDeckDiscardChoice") return executePayDeckDiscardChoice(ctx, frame, effect);
   // docs/phase7-wave8.md §3.54: "ready [a card] →", settled once the ready has resolved.
@@ -2160,9 +2169,9 @@ function executeResolveSpecials(
   const only = effect.abilities ? new Set<string>(effect.abilities) : null;
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
-      const definition = ctx.deps.abilities[ref.id];
-      // A card's attach instruction is not one of its When Revealed abilities (docs/phase7-wave7.md §3.35).
-      if (definition?.trigger.kind !== trigger || definition.attachInstruction) continue;
+      // A "Forced Response" is a forced `response`; a card's attach instruction is not one of its When Revealed
+      // abilities (`resolvableAs`).
+      if (!resolvableAs(ctx.deps.abilities[ref.id], trigger)) continue;
       if (only && !only.has(ref.id)) continue;
       steps.push({
         instanceId: id,
@@ -2237,27 +2246,54 @@ function executeResolveSpecials(
   // event: "the player who defeated [this card]" is the resolving player (§4.1 Q10). The event is only that ability's
   // context; no defeat happens, so no `characterDefeated` is logged, nothing leaves play and no window opens.
   const defeatedBy = resolvingPlayer ?? context.controllerId;
+  // A Forced Response resolved "as if it just attacked you" (docs/phase7-wave8.md §3.11) reads its attack the same
+  // way: the card's attack against the resolving player, as that ability's context only. No attack is made, so no
+  // `enemyAttack` event is logged, no boost card is dealt and nothing else hears it.
+  const attackedId = resolvingPlayer ?? context.controllerId;
+  const attacked = attackedId ? getPlayer(ctx.state, attackedId) : undefined;
   const eventFor = (step: TriggerCandidate): TriggerEvent | null =>
     trigger === "whenDefeated"
       ? { kind: "characterDefeated", instanceId: step.instanceId, defeatedByPlayerId: defeatedBy }
-      : frame.event;
-  pushFrames(
-    ctx,
-    ordered.map(
-      (step, index): StackFrame =>
-        ({
-          ...abilityFrame(
-            ctx,
-            step,
-            eventFor(step),
-            null,
-            {},
-            { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
-          ),
-          ...returnTo,
-        }) as StackFrame,
-    ),
+      : trigger === "forcedResponse" && attacked
+        ? {
+            kind: "enemyAttack",
+            enemyInstanceId: step.instanceId,
+            attackedPlayerId: attacked.playerId,
+            targetPlayerId: attacked.playerId,
+            targetInstanceId: attacked.identity.instanceId,
+          }
+        : frame.event;
+  const frames = ordered.map(
+    (step, index): StackFrame =>
+      ({
+        ...abilityFrame(
+          ctx,
+          step,
+          eventFor(step),
+          null,
+          {},
+          { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
+        ),
+        ...returnTo,
+      }) as StackFrame,
   );
+  // "… as if it has at least 1 hit point" (`asIf`): the floor of §3.10 on each ability's own card, for exactly as long
+  // as that ability's effects resolve (`endOfPaidFor` follows the ability into its effects frame and ends with it).
+  const floor = effect.asIf?.remainingHpAtLeast;
+  if (floor !== undefined) {
+    ordered.forEach((step, index) => {
+      addLastingEffect(
+        ctx,
+        {
+          kind: "ruleGrant",
+          rule: { kind: "consideredRemainingHp", target: { self: true }, atLeast: floor },
+          scope: { selfInstanceId: step.instanceId, controllerId: step.controllerId, vars: {}, bindings: {} },
+        },
+        { kind: "endOfPaidFor", frameId: frames[index]!.frameId },
+      );
+    });
+  }
+  pushFrames(ctx, frames);
   for (const { id, amount } of [...incites].reverse()) {
     pushEffects(ctx, {
       effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: amount } }],

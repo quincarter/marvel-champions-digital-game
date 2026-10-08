@@ -39,7 +39,7 @@ import {
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
-import { cannotBeDefeated } from "../rules.js";
+import { defeatHeldOff } from "../rules.js";
 import { limitReached } from "./ability.js";
 import { atZero, checkDefeats } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
@@ -372,6 +372,7 @@ function applyFocusedActiveVillain(ctx: Ctx): void {
 /**
  * "X cannot be defeated" stopped covering a character it kept in play at zero or fewer remaining hit points
  * (`GameState.heldAtZero`): the card granting the rule left play, or its `while` ended (docs/phase7-wave7.md §3.34).
+ * The same watch covers a character "considered to have at least 1 hit point" (docs/phase7-wave8.md §3.10).
  * RRG 1.8 "Defeat" (p. 15), "If a character has zero or fewer remaining hit points … it is defeated", applies again the
  * moment nothing forbids it, so the defeat sweep runs here, between frames, before anything else continues. It carries
  * no damage, so the defeat has no defeating player and no defeating card: "after you defeat" is not offered and
@@ -387,7 +388,7 @@ function checkDefeatProtectionEnded(ctx: Ctx): boolean {
   if (held.length === 0) return false;
   const inPlay = cardsInPlay(ctx.state);
   const stillAtZero = held.filter((id) => inPlay.includes(id) && atZero(ctx, id));
-  const kept = stillAtZero.filter((id) => cannotBeDefeated(ctx.state, ctx.deps, id));
+  const kept = stillAtZero.filter((id) => defeatHeldOff(ctx.state, ctx.deps, id));
   if (kept.length !== held.length) ctx.state = { ...ctx.state, heldAtZero: kept };
   const released = stillAtZero.filter((id) => !kept.includes(id));
   if (released.length === 0) return false;

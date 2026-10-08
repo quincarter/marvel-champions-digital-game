@@ -35,6 +35,7 @@ import type { EngineDeps } from "../abilities.js";
 import {
   cannotBeDefeated,
   cannotTakeDamage,
+  consideredAboveZero,
   cannotThwart,
   damageTakenAfterConstants,
   damageTakenAllowance,
@@ -714,6 +715,12 @@ export function beginDefeat(
   const profile = characterProfile(ctx.state, id, ctx.deps);
   // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
   if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;
+  // "Considered to have at least 1 hit point" (docs/phase7-wave8.md §3.10): not at zero for a defeat by hit points,
+  // even one already on the stack. A defeat by effect does not read the dial.
+  if (event.byEffect !== true && consideredAboveZero(ctx.state, ctx.deps, id)) {
+    holdAtZero(ctx, id);
+    return false;
+  }
   // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
   // `protectionChecked`: villains that fell together in one sweep had their "cannot be defeated while …" read then, before
   // either applied (docs/phase7-wave4.md §3.3).

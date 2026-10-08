@@ -2470,7 +2470,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
       const duration: LastingDuration = activation
         ? { kind: "endOfEvent", frameId: activation }
-        : { kind: effect.until === "endOfRound" || effect.until === "endOfTurn" ? effect.until : "endOfPhase" };
+        : effect.until === "endOfRound" || effect.until === "endOfTurn" || effect.until === "nextVillainPhaseBegins"
+          ? { kind: effect.until }
+          : { kind: "endOfPhase" };
       // Which card made the blank, for the Permanent keyword's same-set exception (docs/phase7-wave5.md §4.1 Q31).
       const sourceCardId = frame.selfInstanceId ? getInstance(ctx.state, frame.selfInstanceId)?.cardId : undefined;
       const source = sourceCardId ? { sourceCardId } : {};

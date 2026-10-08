@@ -32,7 +32,7 @@ import {
   villainStageCount,
   villainStageOf,
 } from "../query.js";
-import { cannotBeDefeated, leavingPlayLoses } from "../rules.js";
+import { defeatHeldOff, leavingPlayLoses } from "../rules.js";
 import { nextInt, shuffle } from "../rng.js";
 import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
@@ -537,7 +537,8 @@ export const anyAlreadyDefeated = (state: GameState): boolean =>
 
 /**
  * A defeat at zero or fewer remaining hit points did not happen because a "cannot be defeated" rule covers the
- * character: RRG 1.8 "Hit Points" and "Defeat" (p. 15) defeat a character with "zero or fewer remaining hit points",
+ * character, or because it "is considered to have at least 1 hit point" (`consideredRemainingHp`,
+ * docs/phase7-wave8.md §3.10): RRG 1.8 "Hit Points" and "Defeat" (p. 15) defeat a character with "zero or fewer remaining hit points",
  * and "'Cannot'" (p. 11) is absolute while the rule lasts, so the character stays in play, still takes damage and can
  * still be healed. It is recorded (`GameState.heldAtZero`) so the rule ending defeats it at once
  * (`checkDefeatProtectionEnded`, docs/phase7-wave7.md §4.1 Q21).
@@ -578,7 +579,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
     if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) return false;
-    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId)) {
+    if (defeatHeldOff(ctx.state, ctx.deps, instanceId)) {
       holdAtZero(ctx, instanceId);
       return false;
     }
@@ -637,7 +638,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
       if (isPermanent(ctx.state, id, ctx.deps)) continue;
-      if (cannotBeDefeated(ctx.state, ctx.deps, id)) {
+      if (defeatHeldOff(ctx.state, ctx.deps, id)) {
         holdAtZero(ctx, id);
         continue;
       }
@@ -707,10 +708,13 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
 /** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */
 function identityAtZero(ctx: Ctx, identityId: InstanceId): boolean {
-  return atZero(ctx, identityId) && !cannotBeDefeated(ctx.state, ctx.deps, identityId);
+  return atZero(ctx, identityId) && !defeatHeldOff(ctx.state, ctx.deps, identityId);
 }
 
-/** A character in play with zero or fewer remaining hit points. */
+/**
+ * A character in play whose dial reads zero or fewer remaining hit points. The true dial: whether a
+ * `consideredRemainingHp` floor then keeps it from being defeated is `defeatHeldOff`'s question.
+ */
 export function atZero(ctx: Ctx, id: InstanceId): boolean {
   const profile = characterProfile(ctx.state, id, ctx.deps);
   const instance = getInstance(ctx.state, id);

@@ -1,4 +1,4 @@
-import type { KeywordInstance, KeywordName, Trait } from "@mc/content";
+import { abilityId, type KeywordInstance, type KeywordName, type Trait } from "@mc/content";
 import type {
   AbilityCost,
   CardIcon,
@@ -692,6 +692,22 @@ export const gainsTraitsOf = (
   traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
+/**
+ * "Attached villain … is considered to have at least 1 hit point" (Golden Horse, `aoa` 45090; Metal Wings 45091;
+ * docs/phase7-wave8.md §3.10) → `constant(consideredToHaveHitPoints(query("villain", { hostOfSelf: true })))`. Every
+ * reading of a matching character's remaining hit points is at least `atLeast` (default 1), and with 1 or more it is not
+ * defeated at zero. The dial is untouched (`RuleSpec consideredRemainingHp`).
+ */
+export const consideredToHaveHitPoints = (
+  target: TargetQuery,
+  opts: { readonly atLeast?: number; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "consideredRemainingHp",
+    target,
+    atLeast: opts.atLeast ?? 1,
+    ...(opts.while ? { while: opts.while } : {}),
+  });
 /**
  * "While Baron Zemo is engaged with you, you cannot thwart" → `constant(cannotThwart(you))`; "The engaged player cannot
  * thwart side schemes" (Life-Size Decoy, `sm` 27142) → `constant(cannotThwart(engagedPlayerOf(self), { schemes:
@@ -1676,6 +1692,25 @@ export const placeCountersCost = (
  */
 export const enemyAttacksYouCost = (enemy: TargetRef): AbilityCost => ({ enemyAttack: { enemy, against: "you" } });
 /**
+ * "Resolve its 'Forced Response' as if it just attacked you →" (Golden Horse, `aoa` 45090; Metal Wings 45091;
+ * docs/phase7-wave8.md §3.11): `resolveForcedResponseCost(host)`. The card's printed Forced Response resolves in full,
+ * with the paying player as "you", before the effects resolve; nothing attacks. Not payable, so the ability is not
+ * offered, while that card has no live Forced Response or resolving it would change nothing (§4.1 Q7 = A).
+ * `opts.abilities`: only these, by id. `opts.remainingHpAtLeast`: "as if it has at least N hit points" while it
+ * resolves (cards whose own constant text supplies the floor pass none).
+ */
+export const resolveForcedResponseCost = (
+  of: TargetRef,
+  opts: { readonly abilities?: readonly string[]; readonly remainingHpAtLeast?: number } = {},
+): AbilityCost => ({
+  resolveAbility: {
+    of,
+    trigger: "forcedResponse",
+    ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
+    ...(opts.remainingHpAtLeast !== undefined ? { asIf: { remainingHpAtLeast: opts.remainingHpAtLeast } } : {}),
+  },
+});
+/**
  * "Look at the top 2 cards of the encounter deck. Discard 1 of those cards →" (Thief Extraordinaire, `gambit` 37001b;
  * docs/phase7-wave6.md §3.54): the paying player looks at the top `look` cards of the encounter deck and chooses
  * `discard` of them to discard, before the effects resolve; the rest stay on top in order. The discarded cards are
@@ -2079,6 +2114,13 @@ export const on = {
        * attack's interrupt window opens, so a keyword another interrupt of that attack grants comes too late.
        */
       readonly has?: readonly AttackKeyword[];
+      /**
+       * "After **you** attack attached villain" on a card nobody controls (Golden Horse, `aoa` 45090): the attack is the
+       * player's who is "you" for this ability, on an encounter card the player whose attack it is (RRG 1.8 "Ability",
+       * p. 4: any player can use such an ability). With `by: query("identity")` it is that player's identity attacking,
+       * not an ally of theirs (RRG 1.8 "You, Your", p. 49). A query's own `controller: "you"` reads as no one there.
+       */
+      readonly byYou?: boolean;
     } = {},
   ): EventPattern => {
     const results: Record<string, number> = {};
@@ -2088,6 +2130,7 @@ export const on = {
     return pattern(
       "attack",
       asSource(by),
+      opts.byYou ? { playerIs: "controller" } : {},
       opts.target ? { targetIs: opts.target } : {},
       opts.basic ? { attackKind: "basic" } : {},
       opts.has && opts.has.length > 0 ? { attackHas: opts.has } : {},

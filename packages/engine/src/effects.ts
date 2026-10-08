@@ -1581,6 +1581,21 @@ export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRo
   }
 }
 
+/** The lasting effects that end when the villain phase next begins (`LastingDuration nextVillainPhaseBegins`). */
+export const untilNextVillainPhase = (state: GameState): readonly LastingEffect[] =>
+  state.lastingEffects.filter((effect) => effect.duration.kind === "nextVillainPhaseBegins");
+
+/**
+ * "Until the next villain phase begins" (docs/phase7-wave8.md §3.13): the villain phase is beginning, so every lasting
+ * effect waiting on that ends. Reached twice by design, and the second finds nothing unless something was made in
+ * between: once beneath the player phase's end (`finishPlayerPhase`, the `villainPhaseBegins` step), so the effect is
+ * gone before anything answers the phase beginning; and as step one starts (`executePlaceThreat`), for an effect made
+ * while the player phase's end was still resolving.
+ */
+export function expireNextVillainPhaseEffects(ctx: Ctx): void {
+  for (const effect of untilNextVillainPhase(ctx.state)) endLastingEffect(ctx, effect.id, "expired");
+}
+
 /**
  * `characterId` is using basic power `power`, whose event frames are `frameIds` (`resolve`s last-to-first, so the last
  * is the one that finishes last): every lasting effect waiting on that character's next basic power of that kind

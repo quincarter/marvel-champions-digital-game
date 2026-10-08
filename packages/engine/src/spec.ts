@@ -7,8 +7,14 @@ import type { AbilityId, CardId, KeywordInstance, KeywordName, Trait } from "@mc
  * expires the moment that turn ends. Created while no turn is in progress it is not created at all — RRG 1.8 "Lasting
  * Effects" (p. 26): "A lasting effect that expires at the end of a specified time period can only be initiated during
  * that time period."
+ *
+ * `nextVillainPhaseBegins` (docs/phase7-wave8.md §3.13): "until the next villain phase begins". A round is the player
+ * phase and then the villain phase (RRG 1.8 "Round Sequence"), so this is not the end of a round: made during a villain
+ * phase it lasts the rest of that phase and the whole of the next player phase; made during the player phase, the rest
+ * of it. It expires as the villain phase starts, after everything the end of the player phase resolves and before the
+ * villain phase's own beginning is answered and its step one (`LastingDuration nextVillainPhaseBegins`).
  */
-export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn";
+export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn" | "nextVillainPhaseBegins";
 /**
  * "That ally gets +2 THW and +2 ATK for its next basic thwart or attack action this phase" (Psychic Kicker, 34034;
  * docs/phase7-wave6.md §3.39, §4.1 Q23): a lasting stat, trait or keyword grant that waits for the target character's
@@ -2091,7 +2097,13 @@ export type EffectSpec =
       readonly affects?: TargetQuery;
       readonly until: LastingGrantUntil;
     }
-  /** "Until the end of the phase, treat this card's printed text box as if it were blank" (Edison's Giant Robot). */
+  /**
+   * "Until the end of the phase, treat this card's printed text box as if it were blank" (Edison's Giant Robot);
+   * "treat your identity's text box as if it were blank (except for TRAITS) until the next villain phase begins"
+   * (Pestilence, `aoa` 45083; docs/phase7-wave8.md §3.13). On an identity the blank is on the card, as the constant
+   * form's is (`RuleSpec blankTextBox`, docs/phase7-wave7.md §4.1 Q12 = A): both faces, keywords included, traits and
+   * the printed stat line kept, and changing form restores nothing.
+   */
   | { readonly kind: "blankTextBox"; readonly target: TargetRef; readonly until: LastingUntil }
   /**
    * "You cannot change form **until your next turn ends**" (Care for Cassie, `ant` 12025) / "You cannot ready your
@@ -2409,7 +2421,26 @@ export type EffectSpec =
        * defeated [this card]" (`PlayerRef defeatingPlayer`) is the resolving player (`player`, else the calling
        * ability's "you"): docs/phase7-wave6.md §3.17, §4.1 Q10.
        */
-      readonly trigger?: "special" | "whenRevealed" | "whenDefeated";
+      /**
+       * `"forcedResponse"`: "Resolve the 'Forced Response' on the active villain as if it … attacked you" (Rough Riders,
+       * `aoa` 45096; Golden Horse 45090 and Metal Wings 45091 as a cost, `AbilityCost.resolveAbility`). Each card's
+       * printed Forced Response abilities (a `response` trigger that is `forced`) resolve with the resolving player
+       * (`player`, else the calling ability's "you") as "you" and the card as their source. Only what the card itself
+       * prints: an ability an attachment gives it is that attachment's. Nothing attacked: no attack is made or logged,
+       * no boost card is dealt, and no "after [enemy] attacks" ability of any other card hears it. Inside them the
+       * triggering event reads as that card's attack against the resolving player ("as if it just attacked you"; RRG
+       * 1.8 "You, Your", p. 49; "Self-Referential", p. 39). docs/phase7-wave8.md §3.11.
+       */
+      readonly trigger?: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse";
+      /**
+       * "… as if it has at least 1 hit point" (Rough Riders): while each resolved ability's effects resolve, the card
+       * they are printed on is considered to have at least this many remaining hit points, exactly as under
+       * `RuleSpec consideredRemainingHp` (docs/phase7-wave8.md §3.10), every reader included. It is a `ruleGrant`
+       * lasting effect on that card that ends with the ability's effects (`LastingDuration endOfPaidFor` on its
+       * frame), so the log shows it start and end. With several cards named at once, each card's floor starts as the
+       * sequence does.
+       */
+      readonly asIf?: { readonly remainingHpAtLeast?: number };
       /**
        * Only these abilities, by ref id: "resolve Spider-Man's 'Venom Blast' ability" (Web-Shot, `sm` 27034) names one
        * of the two Specials printed on 27030a, so the other ("Spider Camouflage") must not resolve. A printed ability's
@@ -3717,6 +3748,27 @@ export type EffectSpec =
    * `readyCardsCostSettled` either way.
    */
   | { readonly kind: "settleReadyCardsCost"; readonly slot: string; readonly paidFor: FrameId | null }
+  /**
+   * **Engine-internal; no DSL builder.** The timing point "the villain phase begins", for the lasting effects that end
+   * there (`LastingDuration nextVillainPhaseBegins`, docs/phase7-wave8.md §3.13). Pushed as the player phase finishes,
+   * beneath everything its end queues and above the villain phase's own beginning, and only when such an effect exists.
+   */
+  | { readonly kind: "villainPhaseBegins" }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of paying a "resolve its 'Forced Response' … →" cost
+   * (`AbilityCost.resolveAbility`, `resolve-ability-cost.ts`, docs/phase7-wave8.md §3.11): reads `<bind>.count`, how
+   * many of `of`'s abilities resolved, and `wouldChange`, whether resolving them could change the game when the cost
+   * was paid. With none resolved, or nothing they could change, the cost was not paid, so the frame `paidFor` is
+   * marked and its effects do not resolve. Logged as `resolveAbilityCostSettled` either way.
+   */
+  | {
+      readonly kind: "settleResolveAbilityCost";
+      readonly of: InstanceId;
+      readonly trigger: "forcedResponse" | "special";
+      readonly bind: string;
+      readonly wouldChange: boolean;
+      readonly paidFor: FrameId | null;
+    }
   /**
    * **Engine-internal; no DSL builder.** Paying a "look at the top `look` cards of the encounter deck, discard
    * `discard` of those cards →" cost (`AbilityCost.encounterLookDiscard`, `encounter-look-cost.ts`, docs/phase7-wave6.md

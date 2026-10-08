@@ -91,6 +91,12 @@ import {
 } from "./deck-discard-choice-cost.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
 import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
+import {
+  resolveAbilityCostCard,
+  resolveAbilityCostEffects,
+  resolveAbilityCostFault,
+  resolvingWouldChange,
+} from "./resolve-ability-cost.js";
 import { canPayReadyCost, readyCardsCostEffects, withReadyCosts } from "./ready-cards-cost.js";
 import {
   attachCardSlot,
@@ -2223,6 +2229,13 @@ export function planCost(
     const fault = enemyAttackCostFault(state, deps, enemyId, playerId);
     if (fault) return { code: "no_valid_target", message: fault };
   }
+  // "Resolve its 'Forced Response' as if it just attacked you →" (`resolveAbility`, `resolve-ability-cost.ts`;
+  // docs/phase7-wave8.md §4.1 Q7 = A): not while resolving it would change nothing, so the ability is not offered.
+  if (cost.resolveAbility) {
+    const ofId = resolveAbilityCostCard(state, deps, sourceId, playerId, cost.resolveAbility, bindings);
+    const fault = resolveAbilityCostFault(state, deps, sourceId, playerId, ofId, cost.resolveAbility);
+    if (fault) return { code: "no_valid_target", message: fault };
+  }
   // "Take damage equal to its printed cost →": a value read now, with the picks above bound (`damageSelf`).
   if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") {
     const context: EffectContext = {
@@ -2866,6 +2879,20 @@ export function payCost(
     const enemyId = enemyAttackCostEnemy(ctx.state, ctx.deps, sourceId, playerId, cost.enemyAttack, plan.bindings);
     if (enemyId === null) throw new EngineInvariantError("enemy attack cost unpaid: no enemy");
     pushEffects(ctx, { ...enemyAttackCostEffects(enemyId, paidFor), selfInstanceId: sourceId, controllerId: playerId });
+  }
+  // "Resolve its 'Forced Response' as if it just attacked you →" (`resolveAbility`, `resolve-ability-cost.ts`): the
+  // abilities resolve in full above the frame being paid for; none resolved leaves the cost unpaid, and that frame's
+  // effects don't resolve. Read, and judged able to change the game, before a `discardSelf` in the same cost moves the
+  // card the other is named from.
+  if (cost.resolveAbility) {
+    const ofId = resolveAbilityCostCard(ctx.state, ctx.deps, sourceId, playerId, cost.resolveAbility, plan.bindings);
+    if (ofId === null) throw new EngineInvariantError("resolve-ability cost unpaid: no card");
+    const wouldChange = resolvingWouldChange(ctx.state, ctx.deps, sourceId, playerId, ofId, cost.resolveAbility);
+    pushEffects(ctx, {
+      ...resolveAbilityCostEffects(ofId, cost.resolveAbility, wouldChange, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
   }
   // A cost is part of its card's ability, so the Permanent keyword's same-set exception reads that card (§4.1 Q46).
   const source = getInstance(ctx.state, sourceId)?.cardId;

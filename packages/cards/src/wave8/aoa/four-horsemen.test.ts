@@ -1,8 +1,14 @@
-import { AOA_CARDS, CORE_CARDS, encounterSetId } from "@mc/content";
+import { AOA_CARDS, CORE_CARDS, encounterSetId, trait } from "@mc/content";
 import {
+  activeAbilityRefs,
+  characterProfile,
   createGame,
   cardsInPlay,
+  consideredRemainingHitPoints,
+  handSize,
   keywordTotal,
+  remainingHitPoints,
+  traitsOf,
   type Command,
   type EngineDeps,
   type GameEvent,
@@ -34,7 +40,7 @@ import {
 } from "../../testing/staging.js";
 import { attachToHost } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
-import { FOUR_HORSEMEN, FOUR_HORSEMEN_SKIPPED, PESTILENCE_FORCED_RESPONSE_DRAFT } from "./four-horsemen.js";
+import { FOUR_HORSEMEN, FOUR_HORSEMEN_SKIPPED } from "./four-horsemen.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -59,7 +65,9 @@ const DEATH = "45084a";
 const RAVAGES = "45086";
 const TIME_OF_FAMINE = "45087";
 const SPECTER = "45089";
+const GOLDEN_HORSE = "45090";
 const METAL_WINGS = "45091";
+const ROUGH_RIDERS = "45096";
 const H_WAR = "45092";
 const H_FAMINE = "45093";
 const H_PESTILENCE = "45094";
@@ -69,15 +77,8 @@ const BOOST_0 = "01186";
 const AUNT_MAY = "01006";
 
 const VILLAINS = [WAR, FAMINE, PESTILENCE, DEATH];
-const SKIPPED_REFS = [
-  "45083a.pestilence-forced-response",
-  "45083b.pestilence-forced-response",
-  "45088.when-defeated",
-  "45090.golden-horse-constant",
-  "45090.golden-horse-response",
-  "45091.metal-wings-response",
-  "45096.when-revealed",
-];
+/** Every ref is registered since engine tasks 21 to 23 (docs/phase7-wave8.md §3.10, §3.11, §3.13). */
+const SKIPPED_REFS: readonly string[] = [];
 
 function setupGame(opts: { readonly players?: 1 | 2; readonly face?: "a" | "b" } = {}): GameState {
   const players = opts.players ?? 1;
@@ -212,11 +213,11 @@ const discardCount = (s: GameState) => playerOf(s, P1).discard.length;
 const inPlay = (s: GameState, code: string): InstanceId[] => cardsInPlay(s).filter((i) => codeOf(s, i) === code);
 
 describe("registry", () => {
-  it("registers every ref the card data names, except the seven skipped ones, each a valid definition", () => {
+  it("registers every ref the card data names, each a valid definition, and skips none", () => {
     expect(Object.keys(FOUR_HORSEMEN).sort()).toEqual(ALL_REFS.filter((r) => !SKIPPED_REFS.includes(r)).sort());
     for (const [id, def] of Object.entries(FOUR_HORSEMEN)) expect(validateDefinition(def), id).toEqual([]);
     expect(Object.keys(FOUR_HORSEMEN_SKIPPED).sort()).toEqual([...SKIPPED_REFS].sort());
-    expect(validateDefinition(PESTILENCE_FORCED_RESPONSE_DRAFT)).toEqual([]);
+    expect(FOUR_HORSEMEN_SKIPPED).toEqual({});
   });
 
   it("every ability id the card data names is registered or skipped with a reason", () => {
@@ -367,22 +368,173 @@ describe("Death (45084a/b): Forced Response, deal 1 damage to each character you
   });
 });
 
-describe("Pestilence (45083a/b): Forced Response not registered, waits on task 23", () => {
-  const pestilence = () => {
-    const s = setupGame();
-    return round(withActive(s, villain(s, PESTILENCE)));
+const SPIDER_SENSE = "01001a.spider-sense";
+const PLAGUE = "45088";
+/** The lasting blanks on a card, as their durations. */
+const blanksOn = (s: GameState, id: InstanceId) =>
+  s.lastingEffects.filter((e) => e.kind === "blankTextBox" && e.targets.includes(id)).map((e) => e.duration.kind);
+/** `round`, counting the windows that offer Spider-Sense ("When the villain initiates an attack against you"). */
+function roundWatching(state: GameState, opts: { boosts?: readonly string[]; reveals?: readonly string[] } = {}) {
+  let offered = 0;
+  const pick = (s: GameState) => {
+    if (s.pendingChoice?.options.some((o) => o.ref?.kind === "ability" && o.ref.abilityId === SPIDER_SENSE))
+      offered += 1;
+    return firstLegal(s);
+  };
+  const blanks = ["01186", "01186", "01187", "01187"];
+  const code = (c: string) => (c === BOOST_0 ? blanks.shift()! : c);
+  const stacked = stackEncounterDeck(state, ...(opts.boosts ?? [BOOST_0]).map(code), ...(opts.reveals ?? []).map(code));
+  const run = driveEventsPicking(DEPS, withForm(stacked, { heroForm: 0 }), pick, endTurn(P1));
+  return { ...run, offered };
+}
+/** The position of the first event of `type` matching `where`, or -1. */
+const firstAt = <T extends GameEvent["type"]>(
+  run: readonly GameEvent[],
+  type: T,
+  where: (e: Extract<GameEvent, { type: T }>) => boolean = () => true,
+) => run.findIndex((e) => e.type === type && where(e as Extract<GameEvent, { type: T }>));
+/** Plague and Pestilence in play with 1 threat, defeated by Spider-Man's basic thwart. */
+const defeatPlague = (s: GameState) => {
+  const { state, id } = encounterCardInVillainArea(s, PLAGUE, 1);
+  const ready = patchInstance(withForm(state, { heroForm: 0 }), identityOf(state, P1), { exhausted: false });
+  return driveEventsPicking(DEPS, ready, firstLegal, {
+    type: "basicThwart",
+    playerId: P1,
+    thwarterInstanceId: identityOf(state, P1),
+    schemeInstanceId: id,
+  });
+};
+
+describe("Pestilence (45083a/b): Forced Response, the identity's text box is blank until the next villain phase begins (§3.13)", () => {
+  const pestilenceActive = (face: "a" | "b" = "a") => {
+    const s = setupGame({ face });
+    return withActive(s, villain(s, `45083${face}`));
   };
 
-  it("today: Pestilence attacks and the identity's text box is not blanked (the ref is skipped)", () => {
-    const run = pestilence();
-    expect(attacksBy(run.events, run.state, PESTILENCE)).toHaveLength(1);
+  it("round 1: Spider-Sense is offered on Pestilence's own attack (the blank comes after it), then not on War's attack later in the same villain phase", () => {
+    // Pestilence attacks in step two; Horseman of War, dealt in step four, makes War attack.
+    const run = roundWatching(pestilenceActive(), { boosts: [BOOST_0], reveals: [H_WAR] });
+    expect(villainAttacks(run)).toEqual([PESTILENCE, WAR]);
+    expect(run.offered).toBe(1);
+    const spidey = identityOf(run.state, P1);
+    expect(blanksOn(run.state, spidey)).toEqual(["nextVillainPhaseBegins"]);
+    expect(run.state.step.phase).toBe("player");
+    expect(run.state.round).toBe(2);
+  });
+
+  it("the control: with Pestilence at 0 (no blank) Spider-Sense is offered on both attacks", () => {
+    const zero = withDamageOn(pestilenceActive(), PESTILENCE, 9);
+    const run = roundWatching(zero, { boosts: [BOOST_0], reveals: [H_WAR] });
+    expect(villainAttacks(run)).toEqual([PESTILENCE, WAR]);
+    expect(run.offered).toBe(2);
     expect(textBoxBlank(run.state, identityOf(run.state, P1))).toBe(false);
   });
 
-  it.fails("proof of the gap: after Pestilence attacks, the identity's text box is still blank in the next player phase", () => {
-    const run = pestilence();
+  it("round 2's player phase: the identity is still blank on both faces; hand size, stats, hit points and traits are unchanged", () => {
+    const start = pestilenceActive();
+    const spidey = identityOf(start, P1);
+    const inHero = withForm(start, { heroForm: 0 });
+    const before = {
+      profile: characterProfile(inHero, spidey, DEPS),
+      traits: traitsOf(inHero, spidey, DEPS),
+      hand: handSize(inHero, P1, DEPS),
+    };
+    expect(activeAbilityRefs(inHero, spidey, DEPS).map((r) => r.id as string)).toContain(SPIDER_SENSE);
+    const run = roundWatching(start, { boosts: [BOOST_0], reveals: [QUIET[0]!] });
     expect(run.state.step.phase).toBe("player");
-    expect(textBoxBlank(run.state, identityOf(run.state, P1))).toBe(true);
+    expect(textBoxBlank(run.state, spidey)).toBe(true);
+    const hero = withForm(run.state, { heroForm: 0 });
+    expect(activeAbilityRefs(hero, spidey, DEPS)).toEqual([]);
+    expect(handSize(hero, P1, DEPS)).toBe(before.hand);
+    expect(traitsOf(hero, spidey, DEPS)).toEqual(before.traits);
+    expect(characterProfile(hero, spidey, DEPS)).toEqual(before.profile);
+    // Peter Parker's side is blank too: the blank is on the card.
+    expect(activeAbilityRefs(withForm(run.state, "alterEgo"), spidey, DEPS)).toEqual([]);
+  });
+
+  it("round 2's villain phase: the blank ended before step one, and Spider-Sense is offered again on the active villain's attack", () => {
+    const first = roundWatching(pestilenceActive(), { boosts: [BOOST_0], reveals: [QUIET[0]!] });
+    // 1B passed the counter to Death, who attacks in round 2.
+    expect(activeCode(first.state)).toBe(DEATH);
+    const healed = patchInstance(first.state, identityOf(first.state, P1), { damage: 0 });
+    const second = roundWatching(healed, { boosts: [BOOST_0], reveals: [QUIET[1]!] });
+    expect(villainAttacks(second)).toEqual([DEATH]);
+    expect(second.offered).toBe(1);
+    const expired = firstAt(second.events, "lastingEffectEnded", (e) => e.reason === "expired");
+    expect(expired).toBeGreaterThan(-1);
+    expect(firstAt(second.events, "threatPlaced")).toBeGreaterThan(expired);
+    expect(textBoxBlank(second.state, identityOf(second.state, P1))).toBe(false);
+  });
+
+  it("at 0 hit points Pestilence attacks and blanks nothing; side B's Forced Response is the same as side A's", () => {
+    const zero = withDamageOn(pestilenceActive(), PESTILENCE, 9);
+    const none = roundWatching(zero, { boosts: [BOOST_0], reveals: [QUIET[0]!] });
+    expect(attacksBy(none.events, none.state, PESTILENCE)).toHaveLength(1);
+    expect(textBoxBlank(none.state, identityOf(none.state, P1))).toBe(false);
+
+    const sideB = roundWatching(pestilenceActive("b"), { boosts: [BOOST_0], reveals: [QUIET[0]!] });
+    expect(attacksBy(sideB.events, sideB.state, "45083b")).toHaveLength(1);
+    expect(blanksOn(sideB.state, identityOf(sideB.state, P1))).toEqual(["nextVillainPhaseBegins"]);
+  });
+
+  it("Golden Horse on Pestilence, used on the player's turn: the blank lasts the rest of the player phase and is gone before step one of that round's villain phase", () => {
+    const base = setupGame();
+    const horsed = attachToHost(base, GOLDEN_HORSE, villain(base, PESTILENCE));
+    const used = attackUsing(horsed.state, PESTILENCE, GOLDEN_HORSE);
+    expect(used.offered).toBe(1);
+    const spidey = identityOf(used.state, P1);
+    expect(blanksOn(used.state, spidey)).toEqual(["nextVillainPhaseBegins"]);
+    expect(inPlay(used.state, GOLDEN_HORSE)).toHaveLength(0);
+    // War, the active villain, attacks in step two of the same round: Spider-Sense is offered.
+    const run = roundWatching(used.state, { boosts: [BOOST_0], reveals: [QUIET[0]!] });
+    expect(run.offered).toBe(1);
+    expect(textBoxBlank(run.state, spidey)).toBe(false);
+  });
+});
+
+describe("Plague and Pestilence (45088): When Defeated (§3.13)", () => {
+  it("the player who defeated it has their identity's text box blank until that round's villain phase begins", () => {
+    const run = defeatPlague(setupGame());
+    const spidey = identityOf(run.state, P1);
+    expect(inPlay(run.state, PLAGUE)).toHaveLength(0);
+    expect(blanksOn(run.state, spidey)).toEqual(["nextVillainPhaseBegins"]);
+    expect(activeAbilityRefs(run.state, spidey, DEPS)).toEqual([]);
+    // The same round's villain phase: gone before step one, so Spider-Sense is offered on War's attack.
+    const next = roundWatching(run.state, { boosts: [BOOST_0], reveals: [QUIET[1]!] });
+    expect(next.offered).toBe(1);
+    expect(textBoxBlank(next.state, spidey)).toBe(false);
+  });
+
+  it("a second blank from it in round 2's player phase ends at the same moment as Pestilence's from round 1", () => {
+    const s = setupGame();
+    const first = roundWatching(withActive(s, villain(s, PESTILENCE)), { boosts: [BOOST_0], reveals: [QUIET[1]!] });
+    const healed = patchInstance(first.state, identityOf(first.state, P1), { damage: 0 });
+    const second = defeatPlague(healed);
+    const spidey = identityOf(second.state, P1);
+    expect(blanksOn(second.state, spidey)).toEqual(["nextVillainPhaseBegins", "nextVillainPhaseBegins"]);
+    const ids = second.state.lastingEffects.filter((e) => e.kind === "blankTextBox").map((e) => e.id);
+    const run = roundWatching(second.state, { boosts: [BOOST_0], reveals: [QUIET[2]!] });
+    const ends = run.events.flatMap((e, index) =>
+      e.type === "lastingEffectEnded" && ids.includes(e.id) ? [{ id: e.id, index }] : [],
+    );
+    expect(ends.map((e) => e.id)).toEqual(ids);
+    expect(ends[1]!.index - ends[0]!.index).toBe(1);
+    expect(firstAt(run.events, "threatPlaced")).toBeGreaterThan(ends[1]!.index);
+    expect(textBoxBlank(run.state, spidey)).toBe(false);
+  });
+
+  it("defeated by another player, it is that player's identity that is blank", () => {
+    const s = setupGame({ players: 2 });
+    const turned = driveEventsPicking(DEPS, s, firstLegal, endTurn(P1)).state;
+    const { state, id } = encounterCardInVillainArea(turned, PLAGUE, 1);
+    const run = driveEventsPicking(DEPS, withForm(state, { heroForm: 0 }, P2), firstLegal, {
+      type: "basicThwart",
+      playerId: P2,
+      thwarterInstanceId: identityOf(state, P2),
+      schemeInstanceId: id,
+    });
+    expect(textBoxBlank(run.state, identityOf(run.state, P2))).toBe(true);
+    expect(textBoxBlank(run.state, identityOf(run.state, P1))).toBe(false);
   });
 });
 
@@ -466,6 +618,13 @@ const quietRound = (s: GameState, n = 0, heroForm = true, boosts: readonly strin
     threat: 0,
   });
   return round(fresh, { boosts, reveals: [QUIET[n % QUIET.length]!], heroForm });
+};
+/** A round whose only dealt card is `code`, the hero healed and the main scheme cleared first. */
+const quietRoundWith = (s: GameState, code: string) => {
+  const fresh = patchInstance(patchInstance(s, identityOf(s, P1), { damage: 0 }), s.mainScheme.instanceId, {
+    threat: 0,
+  });
+  return round(fresh, { boosts: [BOOST_0], reveals: [code] });
 };
 /** The events of step two only: everything before the first encounter card is revealed. */
 const stepTwo = (run: { readonly state: GameState; readonly events: readonly GameEvent[] }) => {
@@ -652,10 +811,262 @@ describe("side schemes (45086, 45087, 45089): When Defeated", () => {
     expect(heroDamage(run.state)).toBe(1);
     expect(inst(run.state, inPlay(run.state, "01059")[0]!).damage).toBe(1);
   });
+});
 
-  it("Plague and Pestilence (45088): When Defeated not registered, waits on task 23", () => {
-    expect(Object.keys(FOUR_HORSEMEN)).not.toContain("45088.when-defeated");
-    expect(FOUR_HORSEMEN_SKIPPED["45088.when-defeated"]).toContain("task 23");
+describe("considered to have at least 1 hit point (Golden Horse 45090, Metal Wings 45091; §3.10, Q6 = A)", () => {
+  const horseOn = (s: GameState, code: string) => attachToHost(s, GOLDEN_HORSE, villain(s, code)).state;
+  const withAuntMay = (s: GameState) => playFromHand(DEPS, withForm(s, { heroForm: 0 }), AUNT_MAY, 1).state;
+
+  it("Golden Horse is data: attaches to the villain with the fewest hit points without the Aerial trait", () => {
+    expect(dataOf(GOLDEN_HORSE).attachesTo).toEqual({
+      kind: "superlative",
+      among: "villain",
+      order: "lowest",
+      measure: "remainingHp",
+      withoutTrait: trait("AERIAL"),
+    });
+  });
+
+  it("War at 0 with Golden Horse reads 1 hit point (the dial stays 0), so after he attacks the player discards a support", () => {
+    const s = withAuntMay(horseOn(withDamageOn(setupGame(), WAR, 9), WAR));
+    expect(remainingHitPoints(s, villain(s, WAR), DEPS)).toBe(0);
+    expect(consideredRemainingHitPoints(s, villain(s, WAR), DEPS)).toBe(1);
+    const run = round(s);
+    expect(attacksBy(run.events, run.state, WAR)).toHaveLength(1);
+    expect(inPlay(run.state, AUNT_MAY)).toHaveLength(0);
+  });
+
+  it("the other Horsemen's constants read the floor with no change to them: all four at 0, Golden Horse on Famine, and nobody is defeated", () => {
+    let s = setupGame();
+    for (const code of [WAR, PESTILENCE, DEATH]) s = withDamageOn(s, code, 9);
+    s = horseOn(withDamageOn(s, FAMINE, 7), FAMINE);
+    const run = attack(s, FAMINE);
+    expect(damageOf(run.state, FAMINE)).toBe(9);
+    expect(events(run.events, "characterDefeated")).toHaveLength(0);
+    expect(run.state.villains.every((v) => !v.defeated)).toBe(true);
+    expect(run.state.outcome).toBeNull();
+    // A further attack on a Horseman at 0 changes nothing either.
+    const again = attack(run.state, WAR);
+    expect(events(again.events, "characterDefeated")).toHaveLength(0);
+    expect(again.state.outcome).toBeNull();
+  });
+
+  it("the floor gone (the horse discarded with all four at 0), all four fall together and the players win", () => {
+    let s = setupGame();
+    for (const code of VILLAINS) s = withDamageOn(s, code, 9);
+    const horsed = attachToHost(s, GOLDEN_HORSE, villain(s, FAMINE));
+    // The watch on a character at 0 starts when the defeat check first passes it over: an attack on Death does that.
+    const held = attack(horsed.state, DEATH);
+    expect(held.state.outcome).toBeNull();
+    // Surgery: the horse off the table. The next check finds nothing holding any of the four.
+    const famine = villain(held.state, FAMINE);
+    const off = patchInstance(patchInstance(held.state, famine, { attachments: [] }), horsed.id, { attachedTo: null });
+    const run = attack(off, WAR);
+    expect(events(run.events, "characterDefeated")).toHaveLength(4);
+    expect(run.state.outcome).toEqual({ result: "win", reason: "allVillainsDefeated" });
+  });
+
+  it("Golden Horse on War: War has the Aerial trait, and a second Golden Horse revealed goes to the lowest villain without it (Famine), not to War", () => {
+    const base = withDamageOn(withDamageOn(setupGame(), WAR, 8), FAMINE, 3);
+    const first = horseOn(base, WAR);
+    expect(traitsOf(first, villain(first, WAR), DEPS)).toContain(trait("AERIAL"));
+    expect(traitsOf(first, villain(first, FAMINE), DEPS)).not.toContain(trait("AERIAL"));
+    const run = round(first, { boosts: [BOOST_0], reveals: [GOLDEN_HORSE] });
+    expect(inst(run.state, villain(run.state, WAR)).attachments).toHaveLength(1);
+    expect(inst(run.state, villain(run.state, FAMINE)).attachments).toHaveLength(1);
+    expect(traitsOf(run.state, villain(run.state, FAMINE), DEPS)).toContain(trait("AERIAL"));
+  });
+
+  it("the host is chosen by the true dial: Pestilence really at 0 takes the first horse, and Famine at 1 the second", () => {
+    // Pestilence at 0 has no floor and no Aerial trait; Famine at 1 left. The horse goes to Pestilence, the real lowest.
+    const s = withDamageOn(withDamageOn(setupGame(), PESTILENCE, 9), FAMINE, 8);
+    const run = round(s, { boosts: [BOOST_0], reveals: [GOLDEN_HORSE] });
+    expect(inst(run.state, villain(run.state, PESTILENCE)).attachments).toHaveLength(1);
+    // Now floored at 1, tied with Famine by the considered value, Pestilence is out by trait and Famine is next.
+    const next = quietRoundWith(run.state, GOLDEN_HORSE);
+    expect(inst(next.state, villain(next.state, FAMINE)).attachments).toHaveLength(1);
+  });
+
+  it("Metal Wings on Death at 4: an attack on Death deals its damage and the attacker takes 1 (retaliate 1)", () => {
+    const s0 = withDamageOn(setupGame(), DEATH, 5);
+    const { state } = attachToHost(s0, METAL_WINGS, villain(s0, DEATH));
+    const run = attack(state, DEATH);
+    expect(damageOf(run.state, DEATH)).toBe(7);
+    expect(heroDamage(run.state)).toBe(1);
+  });
+
+  it("Metal Wings on Death at 0: Death reads 1 hit point, his Forced Response still deals 1 to each character, and the other three at 0 are not defeated", () => {
+    let s = setupGame();
+    for (const code of VILLAINS) s = withDamageOn(s, code, 9);
+    const winged = attachToHost(s, METAL_WINGS, villain(s, DEATH)).state;
+    expect(consideredRemainingHitPoints(winged, villain(winged, DEATH), DEPS)).toBe(1);
+    // The control: Death with 1 hit point of his own and no Metal Wings, the other three at 0.
+    const alive = withDamageOn(s, DEATH, 8);
+    const control = round(withActive(alive, villain(alive, DEATH)), { boosts: [BOOST_0], reveals: [QUIET[0]!] });
+    expect(control.state.outcome).toBeNull();
+    const run = round(withActive(winged, villain(winged, DEATH)), { boosts: [BOOST_0], reveals: [QUIET[0]!] });
+    expect(attacksBy(run.events, run.state, DEATH)).toHaveLength(1);
+    // Both resolve the Forced Response (1 damage); Metal Wings prints +1 ATK, the one point of difference.
+    expect(heroDamage(run.state) - heroDamage(control.state)).toBe(1);
+    expect(heroDamage(run.state)).toBeGreaterThanOrEqual(2);
+    expect(events(run.events, "characterDefeated")).toHaveLength(0);
+    expect(run.state.outcome).toBeNull();
+  });
+});
+
+/** Whether a window is offering the Hero Response of `code` (Golden Horse or Metal Wings). */
+const offers = (s: GameState, code: string) =>
+  s.pendingChoice?.prompt.kind === "chooseTriggers" &&
+  s.pendingChoice.options.some((o) => o.ref?.kind === "ability" && codeOf(s, o.ref.instanceId) === code);
+/** A basic attack on `target` by Spider-Man, taking the Hero Response of `code` when a window offers it. */
+const attackUsing = (s: GameState, target: string, code: string) => {
+  let offered = 0;
+  const pick = (state: GameState) => {
+    if (!offers(state, code)) return firstLegal(state);
+    offered += 1;
+    return state
+      .pendingChoice!.options.filter((o) => o.ref?.kind === "ability" && codeOf(state, o.ref.instanceId) === code)
+      .map((o) => o.optionId);
+  };
+  const ready = patchInstance(withForm(s, { heroForm: 0 }), identityOf(s, P1), { exhausted: false });
+  const run = driveEventsPicking(DEPS, ready, pick, hit(s, identityOf(s, P1), villain(s, target)));
+  return { ...run, offered };
+};
+
+describe("Golden Horse (45090) and Metal Wings (45091): Hero Response, resolve its Forced Response as if it just attacked you → discard this card (§3.11)", () => {
+  it("Golden Horse on Famine (at 5): after a basic attack the response is offered; used, 10 cards are discarded, the horse is discarded, and Famine has not attacked", () => {
+    const base = withDamageOn(setupGame(), FAMINE, 4);
+    const horsed = attachToHost(base, GOLDEN_HORSE, villain(base, FAMINE));
+    const before = playerOf(horsed.state, P1);
+    expect(before.deck.length).toBeGreaterThanOrEqual(10);
+    const run = attackUsing(horsed.state, FAMINE, GOLDEN_HORSE);
+    expect(run.offered).toBe(1);
+    expect(discardCount(run.state) - before.discard.length).toBe(10);
+    expect(playerOf(run.state, P1).deck.length).toBe(before.deck.length - 10);
+    expect(inPlay(run.state, GOLDEN_HORSE)).toHaveLength(0);
+    expect(inst(run.state, villain(run.state, FAMINE)).attachments).toEqual([]);
+    // No attack by Famine: no boost card, no damage, the active counter (1B hears activations) still on War.
+    expect(attacksBy(run.events, run.state, FAMINE)).toHaveLength(0);
+    expect(events(run.events, "boostCardDealt")).toHaveLength(0);
+    expect(heroDamage(run.state)).toBe(heroDamage(horsed.state));
+    expect(counterMoves(run)).toEqual([]);
+    expect(events(run.events, "resolveAbilityCostSettled")).toMatchObject([
+      { trigger: "forcedResponse", resolved: 1, paid: true, ofInstanceId: villain(run.state, FAMINE) },
+    ]);
+  });
+
+  it("all four at 0, Golden Horse on Famine: nobody is defeated; the player attacks Famine and uses the response (discard 10, discard the horse) and all four fall, the game is won", () => {
+    let s = setupGame();
+    for (const code of VILLAINS) s = withDamageOn(s, code, 9);
+    const horsed = attachToHost(s, GOLDEN_HORSE, villain(s, FAMINE));
+    const before = discardCount(horsed.state);
+    const run = attackUsing(horsed.state, FAMINE, GOLDEN_HORSE);
+    expect(run.offered).toBe(1);
+    expect(discardCount(run.state) - before).toBe(10);
+    expect(events(run.events, "characterDefeated")).toHaveLength(4);
+    expect(run.state.outcome).toEqual({ result: "win", reason: "allVillainsDefeated" });
+    // Nobody fell before the horse left: every defeat comes after its discard.
+    const left = run.events.findIndex(
+      (e) => e.type === "cardDiscardedFromPlay" && codeOf(run.state, e.instanceId) === GOLDEN_HORSE,
+    );
+    const fell = run.events.findIndex((e) => e.type === "characterDefeated");
+    expect(left).toBeGreaterThan(-1);
+    expect(fell).toBeGreaterThan(left);
+  });
+
+  it("the same table with the response declined: nobody is defeated and the horse stays", () => {
+    let s = setupGame();
+    for (const code of VILLAINS) s = withDamageOn(s, code, 9);
+    const horsed = attachToHost(s, GOLDEN_HORSE, villain(s, FAMINE));
+    const run = attack(horsed.state, FAMINE);
+    expect(events(run.events, "characterDefeated")).toHaveLength(0);
+    expect(inPlay(run.state, GOLDEN_HORSE)).toHaveLength(1);
+    expect(run.state.outcome).toBeNull();
+  });
+
+  it("Q7 = A: Golden Horse on War with no upgrade or support in play is not offered (the Forced Response can change nothing); with Aunt May in play it is, and she is discarded with the horse", () => {
+    const horsed = attachToHost(setupGame(), GOLDEN_HORSE, villain(setupGame(), WAR));
+    expect(cardsInPlay(horsed.state).filter((i) => playerOf(horsed.state, P1).playArea.includes(i))).toEqual([]);
+    const bare = attackUsing(horsed.state, WAR, GOLDEN_HORSE);
+    expect(bare.offered).toBe(0);
+    expect(inPlay(bare.state, GOLDEN_HORSE)).toHaveLength(1);
+
+    const { state } = playFromHand(DEPS, withForm(horsed.state, { heroForm: 0 }), AUNT_MAY, 1);
+    const run = attackUsing(state, WAR, GOLDEN_HORSE);
+    expect(run.offered).toBe(1);
+    expect(inPlay(run.state, AUNT_MAY)).toHaveLength(0);
+    expect(inPlay(run.state, GOLDEN_HORSE)).toHaveLength(0);
+    expect(attacksBy(run.events, run.state, WAR)).toHaveLength(0);
+  });
+
+  it("an attack on a villain the horse is not on does not offer it", () => {
+    const horsed = attachToHost(setupGame(), GOLDEN_HORSE, villain(setupGame(), FAMINE));
+    expect(attackUsing(horsed.state, DEATH, GOLDEN_HORSE).offered).toBe(0);
+  });
+
+  it("Metal Wings on Death at 0: after an attack on Death (retaliate 1 first) the response deals 1 to Spider-Man and his ally, and Metal Wings is discarded", () => {
+    const base = withDamageOn(setupGame(), DEATH, 9);
+    const { state: withAlly } = playFromHand(DEPS, withForm(base, { heroForm: 0 }), "01059", 4);
+    const winged = attachToHost(withAlly, METAL_WINGS, villain(withAlly, DEATH));
+    const run = attackUsing(winged.state, DEATH, METAL_WINGS);
+    expect(run.offered).toBe(1);
+    // 1 from retaliate, 1 from Death's Forced Response; the ally takes the Forced Response's 1 only.
+    expect(heroDamage(run.state)).toBe(2);
+    expect(inst(run.state, inPlay(run.state, "01059")[0]!).damage).toBe(1);
+    expect(inPlay(run.state, METAL_WINGS)).toHaveLength(0);
+    expect(keywordTotal(run.state, villain(run.state, DEATH), "retaliate", DEPS)).toBe(0);
+    expect(attacksBy(run.events, run.state, DEATH)).toHaveLength(0);
+  });
+});
+
+describe("Rough Riders (45096): When Revealed (§3.11, §3.7 test 3)", () => {
+  /** A round in alter-ego form with a confused active villain, so step two makes no activation and deals no boost card. */
+  const reveal = (s: GameState) => {
+    const holder = s.activeVillainId!;
+    const quiet = patchInstance(s, holder, { statuses: { stunned: 0, confused: 1, tough: 0 } });
+    const run = round(quiet, { boosts: [], reveals: [ROUGH_RIDERS], heroForm: false });
+    const cut = run.events.findIndex((e) => e.type === "encounterCardRevealed");
+    return { state: run.state, events: run.events.slice(cut) };
+  };
+
+  it("the counter on Death (the last in the row): Death's Forced Response, the counter wraps to War once, War's Forced Response; 1B does not move it again", () => {
+    const base = playFromHand(DEPS, withForm(setupGame(), { heroForm: 0 }), AUNT_MAY, 1).state;
+    const s = withActive(base, villain(base, DEATH));
+    const before = heroDamage(s);
+    const run = reveal(s);
+    // Death: 1 damage to each character you control. War: discard an upgrade or support you control.
+    expect(heroDamage(run.state) - before).toBe(1);
+    expect(inPlay(run.state, AUNT_MAY)).toHaveLength(0);
+    expect(counterMoves(run)).toEqual([[DEATH, WAR, "nextInRow"]]);
+    expect(activeCode(run.state)).toBe(WAR);
+    // Nothing attacked or schemed: no activation for 1B to hear.
+    expect(villainAttacks(run)).toEqual([]);
+    expect(events(run.events, "schemeResolved")).toHaveLength(0);
+    expect(events(run.events, "boostCardDealt")).toHaveLength(0);
+    const resolved = events(run.events, "abilityResolved").map((e) => e.abilityId as string);
+    expect(resolved.filter((id) => id.endsWith("-forced-response"))).toEqual([
+      "45084a.death-forced-response",
+      "45081a.war-forced-response",
+    ]);
+  });
+
+  it("the counter on Pestilence at 0, the next is Death at 0: each resolves as if it has at least 1 hit point; the identity's text box is blank until the next villain phase begins; the counter is on Death; 1 damage to the identity and to each ally", () => {
+    let base = playFromHand(DEPS, withForm(setupGame(), { heroForm: 0 }), "01059", 4).state;
+    for (const code of [PESTILENCE, DEATH]) base = withDamageOn(base, code, 9);
+    const s = withActive(base, villain(base, PESTILENCE));
+    const before = heroDamage(s);
+    const run = reveal(s);
+    expect(activeCode(run.state)).toBe(DEATH);
+    expect(counterMoves(run)).toEqual([[PESTILENCE, DEATH, "nextInRow"]]);
+    // Pestilence's: the identity's text box is blank until the next villain phase begins.
+    expect(blanksOn(run.state, identityOf(run.state, P1))).toEqual(["nextVillainPhaseBegins"]);
+    expect(heroDamage(run.state) - before).toBe(1);
+    expect(inst(run.state, inPlay(run.state, "01059")[0]!).damage).toBe(1);
+    // The floor lasted only while each Forced Response resolved, and nobody fell.
+    expect(run.state.lastingEffects.filter((e) => e.kind === "ruleGrant")).toEqual([]);
+    expect(consideredRemainingHitPoints(run.state, villain(run.state, DEATH), DEPS)).toBe(0);
+    expect(run.state.villains.every((v) => !v.defeated)).toBe(true);
+    expect(damageOf(run.state, DEATH)).toBe(9);
   });
 });
 

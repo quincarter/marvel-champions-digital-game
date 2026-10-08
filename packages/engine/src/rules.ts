@@ -32,6 +32,7 @@ import {
   categoriesOf,
   focusedMainSchemeId,
   gliderMainSchemeId,
+  hitPointFloor,
   contextArea,
   controllerOf,
   evaluate,
@@ -1314,6 +1315,21 @@ export const cannotBeDefeated = (state: GameState, deps: EngineDeps, id: Instanc
   activeRules(state, deps, "cannotBeDefeated").some(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
+
+/**
+ * A `consideredRemainingHp` floor of 1 or more covers this character (docs/phase7-wave8.md §3.10, §4.1 Q6 = A): it does
+ * not have "zero or fewer remaining hit points" (RRG 1.8 "Defeat", p. 15) whatever its dial reads, so it is not
+ * defeated for its hit points.
+ */
+export const consideredAboveZero = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  (hitPointFloor(state, id, deps) ?? 0) >= 1;
+
+/**
+ * What keeps a character whose dial reads zero in play: "cannot be defeated", or being considered to have hit points.
+ * Either way it is watched (`GameState.heldAtZero`) and falls when nothing holds it any more.
+ */
+export const defeatHeldOff = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  consideredAboveZero(state, deps, id) || cannotBeDefeated(state, deps, id);
 
 /** A side scheme at no threat that is not defeated for it (`notDefeatedWithoutThreat`; signature side schemes). */
 export const notDefeatedWithoutThreat = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>

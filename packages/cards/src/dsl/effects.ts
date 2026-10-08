@@ -941,6 +941,18 @@ export const gainTraitsOfUntil = (
   ...(options.whileAttached ? { whileAttached: { card: options.whileAttached, to: options.to ?? source } } : {}),
 });
 /**
+ * "Treat your identity's text box as if it were blank (except for [TRAITS]) until the next villain phase begins"
+ * (Pestilence, `aoa` 45083; Plague and Pestilence 45088; docs/phase7-wave8.md §3.13):
+ * `blankTextBoxUntil(identityOf(you), "nextVillainPhaseBegins")`; "until the end of the phase" on any card (Edison's
+ * Giant Robot). On an identity the whole card is blank, both faces and its keywords, traits and the stat line kept
+ * (RRG 1.8 "Text Box", p. 44; "Traits", p. 45), as under the constant `blanksTextBox`.
+ */
+export const blankTextBoxUntil = (target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "blankTextBox",
+  target,
+  until,
+});
+/**
  * A `RuleSpec` restriction that outlives its own card — "You cannot change form until your next turn ends." (Care
  * for Cassie, `ant` 12025) / "You cannot ready your identity until your next turn ends." (Need for Speed, `qsv`
  * 14024): both discard themselves in the same breath that imposes the restriction, so it has to survive as a
@@ -1365,6 +1377,31 @@ export const resolveWhenDefeatedOf = (
   of: ref,
   trigger: "whenDefeated",
   ...(opts.player ? { player: opts.player } : {}),
+  ...withBind(opts.bind),
+});
+/**
+ * "Resolve the 'Forced Response' on the active villain as if it has at least 1 hit point and attacked you" (Rough
+ * Riders, `aoa` 45096; docs/phase7-wave8.md §3.11): `resolveForcedResponseOf(theVillain, { remainingHpAtLeast: 1 })`.
+ * Each card's printed Forced Response abilities resolve with the resolving player (`player`, else this ability's "you")
+ * as "you". Nothing attacks: no boost card, no damage of an attack, and no "after [enemy] attacks" of another card.
+ * `remainingHpAtLeast`: while each resolves, its card is considered to have at least that many hit points (§3.10).
+ * `abilities`: only these, by id. `bind`: `<bind>.count`, how many were resolved.
+ */
+export const resolveForcedResponseOf = (
+  ref: TargetRef,
+  opts: {
+    readonly bind?: string;
+    readonly player?: PlayerRef;
+    readonly abilities?: readonly string[];
+    readonly remainingHpAtLeast?: number;
+  } = {},
+): EffectSpec => ({
+  kind: "resolveSpecials",
+  of: ref,
+  trigger: "forcedResponse",
+  ...(opts.player ? { player: opts.player } : {}),
+  ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
+  ...(opts.remainingHpAtLeast !== undefined ? { asIf: { remainingHpAtLeast: opts.remainingHpAtLeast } } : {}),
   ...withBind(opts.bind),
 });
 /** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */
