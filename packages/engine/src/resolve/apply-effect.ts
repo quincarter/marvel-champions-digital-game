@@ -198,7 +198,7 @@ import {
   teamworkFrame,
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
-import { insertConsequentialDamage, pushConsequentialDamage } from "../actions.js";
+import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
 import { enterPlayOnReveal, revealFrame, revealNewFaceFrame, upgradeHostCandidates } from "./reveal.js";
 
@@ -819,7 +819,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           });
         }
       }
-      if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
+      if (effect.defenseUsesAtk) {
+        delta.defenseUsesAtk = 1;
+        // The basic defense being made against this attack is now powered by ATK (docs/phase7-wave8.md §4.1 Q54).
+        setBasicPowerStat(ctx, null, "defense", "atk");
+      }
       // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.
       if (effect.boostIconsEach) delta.boostIconsEach = value(effect.boostIconsEach);
       const extra =
@@ -1027,14 +1031,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "basicPowerUsing",
       );
       if (!using || using.event.kind !== "basicPowerUsing") return;
-      const stat: StatName =
-        using.event.power === "attack"
-          ? "atk"
-          : using.event.power === "thwart"
-            ? "thw"
-            : using.event.power === "defense"
-              ? "def"
-              : "rec";
+      // The stat powering this use, not the power's name: a basic thwart made with ATK is raised through ATK (RRG 1.8
+      // "Assault", p. 8: "Abilities that increase a character's 'basic power' can be used to increase that character's
+      // ATK when that character thwarts a scheme with assault"; docs/phase7-wave8.md §4.1 Q54). A card that prints the
+      // stat ("+2 THW for that thwart") names it with `stat`.
+      const stat: StatName = effect.stat ?? using.event.stat;
       // "For this use": the activation the power belongs to (its own `attack`/`thwart` event, or the enemy attack a
       // basic defense answers), which is on the stack beneath this window and ends when that use does. A basic recovery
       // is neither an attack nor an activation: its use is its own `basicRecovery` event (docs/phase7-wave6.md §3.40),
@@ -3269,6 +3270,7 @@ function useThwForBasicAttack(ctx: Ctx, frame: Frame<"effects">): void {
   const attack = isBasicAttack(triggering) ? triggering : isBasicAttack(current) ? current : undefined;
   if (!attack) return;
   setFrame(ctx, { ...attack, vars: { ...attack.vars, useThw: 1 } });
+  if (attack.event.kind === "attack") setBasicPowerStat(ctx, attack.event.attackerInstanceId, "attack", "thw");
 }
 
 /**

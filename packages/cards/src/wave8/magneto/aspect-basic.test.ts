@@ -1165,6 +1165,43 @@ describe('"You Got This!" (49019): discard an ally to add its matching power to 
     expect(inst(a.state, g.rhino).damage).toBe(3);
     expect(10 - inst(t.state, mainOf(t.state)).threat).toBe(4);
   });
+  // docs/phase7-wave8.md §4.1 Q54 = B; RRG 1.8 "Assault" (p. 8): the thwart uses ATK, so the matching power is ATK.
+  describe("a basic thwart made with ATK (Keep Them Busy 43018, a player side scheme with Assault)", () => {
+    const KEEP_THEM_BUSY = "43018";
+    /** Phoenix (THW 2, ATK 1) in play, the event in hand, Keep Them Busy in play with 10 threat. */
+    function gotAssault() {
+      const g = got(["49014"], MG(KEEP_THEM_BUSY), false);
+      const moved = moveToHand(g.state, P1, KEEP_THEM_BUSY);
+      const scheme = moved.ids[0]!;
+      const state: GameState = {
+        ...moved.state,
+        players: moved.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== scheme) } : p,
+        ),
+        villainArea: [...moved.state.villainArea, scheme],
+      };
+      return { ...g, state: patchInstance(state, scheme, { threat: 10, faceup: true }), scheme };
+    }
+    const thwartScheme = (g: ReturnType<typeof gotAssault>, pick: Picker) =>
+      driveEventsPicking(GOT_DEPS, g.state, pick, basicThwart(g.state, g.scheme));
+    it("without the event Magneto removes his ATK 2 from it", () => {
+      const g = gotAssault();
+      expect(inst(thwartScheme(g, firstLegal).state, g.scheme).threat).toBe(8);
+    });
+    it("the discarded Phoenix adds her ATK 1, not her THW 2: ATK 2 + 1 = 3 removed (10 to 7), and the hero is ready", () => {
+      const g = gotAssault();
+      const r = thwartScheme(g, picker(accept(GOT_THIS), payOne(g.ids), take(g.allyIds[0]!)));
+      expect(playerOf(r.state, P1).discard).toContain(g.allyIds[0]!);
+      expect(inst(r.state, g.scheme).threat).toBe(7);
+      expect(inst(r.state, identityOf(r.state)).exhausted).toBe(false);
+    });
+    it("the same table's ordinary thwart of the main scheme still adds her THW 2: 2 + 2 = 4 removed", () => {
+      const g = gotAssault();
+      const r = thwartWith(g, g.allyIds[0]!);
+      expect(inst(r.state, mainOf(r.state)).threat).toBe(6);
+      expect(inst(r.state, g.scheme).threat).toBe(10);
+    });
+  });
   it("for this use only: the readied hero's next basic attack deals the printed 2", () => {
     const g = got(["49013"]);
     const r = attackWith(g, g.allyIds[0]!);

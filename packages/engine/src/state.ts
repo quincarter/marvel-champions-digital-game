@@ -493,6 +493,13 @@ export interface MainSchemeState {
    * the predicate is false for every cause.
    */
   readonly advancedBy?: MainSchemeAdvancedBy;
+  /**
+   * Present while this stage's A side is the faceup one (docs/phase7-wave8.md §4.1 Q56): from setup until Appendix II
+   * step 12b flips 1A to 1B, and from an advance until its step 3 flips the new stage (RRG 1.8 pp. 51, 27). The B
+   * side's abilities are not live until then (`activeAbilityRefs`); the A side's Setup and When Revealed abilities are
+   * resolved by the frames pushed for them. Removed by the `mainSchemeTurnsToB` event. Absent: the B side is faceup.
+   */
+  readonly faceupSide?: "A";
 }
 
 /**

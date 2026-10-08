@@ -862,6 +862,35 @@ describe("Sisterly Bond (43007): Hero Interrupt, Honey Badger's basic thwart or 
     expect(attackWith(staged({ claws: true }), accepting(SISTERLY_BOND)).dealt).toBe(4);
     expect(thwartWith(staged({ claws: true }), accepting(SISTERLY_BOND)).removed).toBe(3);
   });
+  // docs/phase7-wave8.md §4.1 Q54 = B; RRG 1.8 "Assault" (p. 8): the thwart uses ATK, so the matching power is ATK.
+  describe("a basic thwart made with ATK (Keep Them Busy 43018, a player side scheme with Assault)", () => {
+    /** Claw Mastery played (X-23 THW 2, ATK 3), Keep Them Busy in play with 10 threat. */
+    const stagedAssault = () => {
+      const st = staged({ claws: true });
+      const g = given(st.state, "43018");
+      const state: GameState = {
+        ...g.state,
+        players: g.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== g.id) } : p,
+        ),
+        villainArea: [...g.state.villainArea, g.id],
+      };
+      return { ...st, state: patchInstance(state, g.id, { threat: 10, faceup: true }), scheme: g.id };
+    };
+    const thwartScheme = (st: ReturnType<typeof stagedAssault>, pick: Picker) => {
+      const r = driveEventsPicking(DEPS, st.state, pick, basicThwart(st.state, st.scheme, st.hb));
+      return 10 - inst(r.state, st.scheme).threat;
+    };
+    it("without it Honey Badger removes her ATK 1 from it", () => {
+      expect(thwartScheme(stagedAssault(), firstLegal)).toBe(1);
+    });
+    it("she gains X-23's ATK 3, not her THW 2: 1 + 3 = 4 removed", () => {
+      expect(thwartScheme(stagedAssault(), accepting(SISTERLY_BOND))).toBe(4);
+    });
+    it("the same table's ordinary thwart of the main scheme still gains X-23's THW 2: 1 + 2 = 3", () => {
+      expect(thwartWith(stagedAssault(), accepting(SISTERLY_BOND)).removed).toBe(3);
+    });
+  });
   it("is optional: declined, she deals 1 and the card stays in hand", () => {
     const st = staged();
     const r = attackWith(st, firstLegal);

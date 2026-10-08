@@ -12,7 +12,7 @@ import {
 } from "./abilities.js";
 import type { ChoiceOption } from "./choices.js";
 import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment, ResourceAbilityUse } from "./commands.js";
-import { createCtx, emit, moveCard, updateFrame, updateInstance, type Ctx } from "./ctx.js";
+import { createCtx, emit, moveCard, setFrame, updateFrame, updateInstance, type Ctx } from "./ctx.js";
 import {
   addCounters,
   areaCostReductionFor,
@@ -70,8 +70,8 @@ import {
   fixedResourcesOf,
   resourcesChoiceOf,
 } from "./abilities.js";
-import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
-import { cardFlippedEvent, carriedByEvent, type TriggerEvent } from "./trigger-events.js";
+import type { BasicPowerName, EffectSpec, StatName, TargetRef, ValueSpec } from "./spec.js";
+import { BASIC_POWER_STAT, cardFlippedEvent, carriedByEvent, type TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { attackKeywordsOf, canTakeStatus, hasKeyword, statusActive } from "./keywords.js";
 import {
@@ -5014,7 +5014,7 @@ function basicThwartWith(
       command,
     );
   }
-  announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
+  announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId, thwartStat);
   const consequential = pushConsequentialDamage(
     ctx,
     command.thwarterInstanceId,
@@ -5060,7 +5060,7 @@ function basicThwartWith(
       updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, thwartCostPaid: true } : f));
     }
   }
-  announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId);
+  announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId, thwartStat);
   return null;
 }
 
@@ -5129,7 +5129,7 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
   // identity is still exhausted and has still made a basic recovery (§4.1 Q20). Unheard, it heals at once as before.
   const identityId = player.identity.instanceId;
   const recovery: TriggerEvent = { kind: "basicRecovery", characterInstanceId: identityId, playerId: command.playerId };
-  const using: TriggerEvent = { ...recovery, kind: "basicPowerUsing", power: "recover" };
+  const using: TriggerEvent = { ...recovery, kind: "basicPowerUsing", power: "recover", stat: "rec" };
   if (!heard(ctx.state, ctx.deps, recovery) && !heard(ctx.state, ctx.deps, using)) {
     healDamage(ctx, identityId, profile.rec, identityId);
     announceBasicPower(ctx, identityId, "recover", command.playerId);
@@ -5149,10 +5149,11 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
 export function announceBasicPower(
   ctx: Ctx,
   characterId: InstanceId,
-  power: "attack" | "thwart" | "defense" | "recover",
+  power: BasicPowerName,
   playerId: PlayerId,
+  stat: StatName = BASIC_POWER_STAT[power],
 ): void {
-  const event: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: characterId, power, playerId };
+  const event: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: characterId, power, stat, playerId };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
 
@@ -5165,11 +5166,37 @@ export function announceBasicPower(
 export function announceBasicPowerUsing(
   ctx: Ctx,
   characterId: InstanceId,
-  power: "attack" | "thwart" | "defense" | "recover",
+  power: BasicPowerName,
   playerId: PlayerId,
+  stat: StatName = BASIC_POWER_STAT[power],
 ): void {
-  const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, playerId };
+  const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, stat, playerId };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+}
+
+/**
+ * A substitution made while a basic power is being used ("uses their THW instead of their ATK", "use its ATK instead
+ * of its DEF") rewrites the stat on that use's announcements still on the stack, so whatever answers them later reads
+ * the stat actually powering the use (docs/phase7-wave8.md §4.1 Q54). The nearest announcement of each kind is this
+ * use's (the top of the stack first; `characterId` null is whoever is using `power`): a basic power made inside another's window has resolved or sits above it.
+ */
+export function setBasicPowerStat(
+  ctx: Ctx,
+  characterId: InstanceId | null,
+  power: BasicPowerName,
+  stat: StatName,
+): void {
+  for (const kind of ["basicPowerUsing", "basicPowerUsed"] as const) {
+    const frame = ctx.state.stack.find(
+      (f) =>
+        f.kind === "event" &&
+        f.event.kind === kind &&
+        (characterId === null || f.event.characterInstanceId === characterId) &&
+        f.event.power === power,
+    );
+    if (frame?.kind !== "event" || frame.event.kind !== kind || frame.event.stat === stat) continue;
+    setFrame(ctx, { ...frame, event: { ...frame.event, stat } });
+  }
 }
 
 export function endTurn(ctx: Ctx, command: Command & { type: "endTurn" }): EngineError | null {

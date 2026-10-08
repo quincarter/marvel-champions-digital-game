@@ -42,6 +42,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   keywordIgnored: "a keyword ignored",
   villainSwapped: "the villain swapped",
   mainSchemeCompleting: "the main scheme completing",
+  mainSchemeTurnsToB: "the main scheme turning to its B side",
   accelerationTokenPlaced: "an acceleration token placed",
   encounterCardFromPlayerDeck: "an encounter card from a player deck",
   cardEntersHand: "a card entering a hand",

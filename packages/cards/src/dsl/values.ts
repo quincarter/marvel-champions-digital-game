@@ -1074,14 +1074,25 @@ export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
 /** "If there is N or more threat on <scheme>" — the spelling the Wrecking Crew signature side schemes print. */
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
 /**
- * "…add X-23's **matching** power…" (Sisterly Bond 43007): the basic power being used is (one of) these, read off the
- * `basicPowerUsing` event the ability interrupts (the one `modifyBasicPower` reads), so an interrupt to "thwarts or
- * attacks" can give `modifyBasicPower` the matching stat: `ifThen(basicPowerIs("thwart"), modifyBasicPower(statOf(X,
- * "thw")), modifyBasicPower(statOf(X, "atk")))`. False outside a basic-power use.
+ * Which basic power is being used (one of these), read off the `basicPowerUsing` event the ability interrupts (the one
+ * `modifyBasicPower` reads): "if it is a defense, …; otherwise …" ("Freeze!" 46001a). False outside a basic-power use.
+ * It names the power, not the stat behind it: a card's "matching power" is `basicPowerStatIs` (a thwart made with ATK
+ * is still the thwart power).
  */
 export const basicPowerIs = (...power: readonly BasicPowerName[]): Predicate => ({
   kind: "basicPowerIs",
   power: power.length === 1 ? power[0]! : power,
+});
+/**
+ * "…add that ally's **matching** power…" ("You Got This!" 49019, Sisterly Bond 43007; docs/phase7-wave8.md §4.1 Q54):
+ * the basic power being used is powered by (one of) these stats, read off the same event `basicPowerIs` reads. A
+ * basic thwart made with ATK (assault, RRG 1.8 p. 8; "may use their ATK instead of their THW") is `"atk"`, so
+ * "matching" is the stat in use and never inferred from the power's name:
+ * `ifThen(basicPowerStatIs("atk"), modifyBasicPower(statOf(X, "atk")), modifyBasicPower(statOf(X, "thw")))`.
+ */
+export const basicPowerStatIs = (...stat: readonly StatName[]): Predicate => ({
+  kind: "basicPowerStatIs",
+  stat: stat.length === 1 ? stat[0]! : stat,
 });
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });

@@ -410,6 +410,35 @@ export function setDefender(
 }
 
 /**
+ * A character is making a basic defense: declared at the Declare Defender step, or declared the defender by a card
+ * ability (`declareDefenderByEffect`; docs/phase7-wave8.md §4.1 Q55, RRG 1.8 "Defend, Defense", p. 15: "When a card
+ * ability says to 'declare [a hero] the defender' of an attack, that hero is considered to be making a basic
+ * defense"). Each caller announces it once per defense. Resolving a "(defense)"-labeled ability is not one (p. 16:
+ * "Resolving a defense-labeled ability is not a basic defense"), so the label alone never reaches here.
+ */
+function announceBasicDefense(ctx: Ctx, defenderId: InstanceId, defenderPlayer: PlayerId): void {
+  // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
+  const used: TriggerEvent = {
+    kind: "basicPowerUsed",
+    characterInstanceId: defenderId,
+    power: "defense",
+    stat: "def",
+    playerId: defenderPlayer,
+  };
+  if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
+  // "When you use one of your hero's basic powers … DEF" (§17.4), pushed second so it resolves first — before
+  // the attack's own damage step reads the defender's DEF (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9).
+  const using: TriggerEvent = {
+    kind: "basicPowerUsing",
+    characterInstanceId: defenderId,
+    power: "defense",
+    stat: "def",
+    playerId: defenderPlayer,
+  };
+  if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
+}
+
+/**
  * Records that `playerId` resolved a "(defense)"-labeled ability during the enemy attack in progress, if they are the
  * first to: the record other players' defense abilities are barred by (`defenseBarFor`). Nothing outside an attack.
  */
@@ -512,10 +541,16 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
       byEffect: true,
     });
   if (procedure) {
+    // The character already making this basic defense (declared at the step, or by an earlier ability) is not making
+    // a second one.
+    const alreadyBasic = procedure.defenderInstanceId === defenderId && procedure.basicDefense;
     if (procedure.defenderInstanceId === defenderId) setFrame(ctx, { ...procedure, basicDefense: basic });
     else {
       logDeclared(procedure.enemyInstanceId);
       setDefender(ctx, procedure, defenderId, defenderPlayer, basic);
+    }
+    if (!alreadyBasic && (basic || procedure.defenderInstanceId !== defenderId)) {
+      announceBasicDefense(ctx, defenderId, defenderPlayer);
     }
     return;
   }
@@ -523,6 +558,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return;
   const already = (frame.slots[DEFENDER_SLOT] ?? [])[0] === defenderId;
+  const alreadyBasic = already && (frame.vars.declaredBasicDefense ?? 0) > 0;
   setFrame(ctx, {
     ...frame,
     event: { ...frame.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer },
@@ -539,6 +575,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
       basic,
     });
   }
+  if (!alreadyBasic && (basic || !already)) announceBasicDefense(ctx, defenderId, defenderPlayer);
 }
 
 export function pushEnemyAttackFrame(
@@ -720,23 +757,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         // (owner ruling 2026-10-06; `declareDefenderByEffect` reads an effect's declaration the same way).
         if (frame.defenderInstanceId === defenderId) setFrame(ctx, { ...next, basicDefense: true });
         else setDefender(ctx, next, defenderId, defenderPlayer, true);
-        // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
-        const used: TriggerEvent = {
-          kind: "basicPowerUsed",
-          characterInstanceId: defenderId,
-          power: "defense",
-          playerId: defenderPlayer,
-        };
-        if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
-        // "When you use one of your hero's basic powers … DEF" (§17.4), pushed second so it resolves first — before
-        // the attack's own damage step reads the defender's DEF (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9).
-        const using: TriggerEvent = {
-          kind: "basicPowerUsing",
-          characterInstanceId: defenderId,
-          power: "defense",
-          playerId: defenderPlayer,
-        };
-        if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
+        announceBasicDefense(ctx, defenderId, defenderPlayer);
         return;
       }
       // A defender an effect declared (`declareDefender`, §3.22): an ally, or a hero already making a basic defense,

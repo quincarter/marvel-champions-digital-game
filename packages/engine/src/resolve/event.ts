@@ -1,5 +1,6 @@
 /** Event frames (interrupts → apply → responses) and the state change each event kind makes. */
 
+import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
@@ -644,6 +645,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applySchemeDefeated(ctx, event);
     case "mainSchemeCompleting":
       return applyMainSchemeCompleting(ctx, event);
+    case "mainSchemeTurnsToB":
+      applyMainSchemeTurnsToB(ctx, event);
+      return;
     case "enemyActivating":
       continueActivation(ctx, event);
       return;

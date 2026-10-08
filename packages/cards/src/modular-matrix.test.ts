@@ -22,7 +22,8 @@ import { cardsInPlay, createGame, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { abilityRefIds } from "./ability-refs.js";
 import { PLAYABLE_ABILITIES, PLAYABLE_DEPS } from "./playable/index.js";
-import { firstLegal, settle } from "./testing/harness.js";
+import { endTurn, firstLegal, settle, stackEncounterDeck } from "./testing/harness.js";
+import { driveEventsPicking } from "./testing/staging.js";
 import {
   EXTRA_SETS,
   MATRIX_HEROES,
@@ -408,27 +409,14 @@ function deckProblems(state: GameState, setId: string): string[] {
 }
 
 /**
- * Scenarios whose own text keeps one environment in play. Absorbing Man's None Shall Pass 1B (04079): "Forced Interrupt:
- * When an environment enters play, discard each other environment card in play", and its 1A Setup puts a random
- * environment into play at Appendix II step 12, after step 11 has put a modular set's setup-keyword environment into
- * play (the Setting sets' Blue Area of the Moon 45139, Genosha 45133 and The Savage Land 45127). The Setting
- * environment is discarded and shuffled back with 1A's discards, so it is in the game and not in play; the test
- * "Absorbing Man keeps one environment" below pins exactly that.
- */
-const ONE_ENVIRONMENT_SCENARIOS: ReadonlySet<string> = new Set(["absorbing-man"]);
-
-/**
  * RRG 1.8 "Setup (Keyword)" (p. 40) and step 11 of setup (p. 51): a card with the setup keyword begins the game in play,
  * wherever its set is used, and a scenario-specific card of the set (the Milano) is in the game at all. Read only for
- * a pairing the builder built itself.
+ * a pairing the builder built itself. No scenario is exempt: at Absorbing Man the Setting sets' environment stays in
+ * play beside the scenario's own (docs/phase7-wave8.md §4.1 Q56; the tests "Absorbing Man and a Setting set" below).
  */
-function setCardProblems(state: GameState, setId: string, scenarioId: string): string[] {
+function setCardProblems(state: GameState, setId: string): string[] {
   const problems: string[] = [];
   const inPlay = new Set<string>(cardsInPlay(state).map((id) => state.instances[id]!.cardId));
-  if (ONE_ENVIRONMENT_SCENARIOS.has(scenarioId)) {
-    // The set's environment began in play at step 11 and the scenario's own environment then replaced it.
-    for (const card of setupKeywordCardsOfSet(setId).filter((c) => c.type === "environment")) inPlay.add(card.id);
-  }
   for (const card of scenarioCardsOfSet(setId))
     if (!Object.values(state.instances).some((instance) => instance.cardId === card.id))
       problems.push(`${card.id} ${card.name} (scenario card of ${setId}) is not in the game`);
@@ -472,7 +460,7 @@ function runPairing(setId: string, scenarioIndex: number, setIndex: number, expe
       problems.push(
         ...deckProblems(created.state, setId),
         ...setupProblems(created.state),
-        ...(built.config ? setCardProblems(settleSetup(created.state), setId, scenario.id) : []),
+        ...(built.config ? setCardProblems(settleSetup(created.state), setId) : []),
       );
   } catch (error) {
     problems.push(`createGame threw: ${(error as Error).message}`);
@@ -563,13 +551,26 @@ describe("modular set x scenario: every pairing builds", () => {
 
   // F2 (fixed): MaGog accepts any modular set (39002a: the players may name any set); covered by the test above.
 
-  it.each([
+  // docs/phase7-wave8.md §4.1 Q56 (owner ruling, B). None Shall Pass 1B (04079): "Forced Interrupt: When an environment
+  // enters play, discard each other environment card in play." RRG 1.8 Appendix II (p. 51): step 11 puts the Setting
+  // set's setup-keyword environment into play and step 12a resolves 1A's Setup ("Discard cards from the encounter deck
+  // until an environment is discarded. Put that card into play …") while 1A is the faceup side; step 12b flips to 1B.
+  // 1B is not active for either, and does not trigger retroactively when it becomes active: both environments remain
+  // unless a later active effect removes one.
+  describe.each([
     ["blue_moon", "45139"],
     ["genosha", "45133"],
     ["savage_land", "45127"],
-  ])(
-    "Absorbing Man keeps one environment: the %s set's setup environment is replaced by the scenario's own (None Shall Pass 04079)",
-    (setId, environmentId) => {
+  ])("Absorbing Man and a Setting set: %s (its setup environment %s)", (setId, settingId) => {
+    const OWN_ENVIRONMENTS = ["04080", "04081", "04082", "04083"];
+    const codeOf = (state: GameState, id: string): string => state.instances[id]!.cardId as string;
+    const environmentsInPlay = (state: GameState): string[] =>
+      cardsInPlay(state)
+        .map((id) => codeOf(state, id))
+        .filter((code) => PLAYABLE_CARDS.find((card) => card.id === code)!.type === "environment")
+        .sort();
+    /** The game through setup, in the first player's first turn, with every event of setup. */
+    function setUp() {
       const scenario = PLAYABLE_SCENARIOS.find((s) => s.id === "absorbing-man")!;
       const built = buildPairing(setId, scenario, {
         seed: 1,
@@ -578,13 +579,60 @@ describe("modular set x scenario: every pairing builds", () => {
       });
       const created = createGame(built.config!, PLAYABLE_DEPS);
       if (!created.ok) throw new Error(created.error.message);
-      const state = settleSetup(created.state);
-      const environments = cardsInPlay(state)
-        .map((id) => PLAYABLE_CARDS.find((card) => card.id === state.instances[id]!.cardId)!)
-        .filter((card) => card.type === "environment");
-      // One environment in play, Absorbing Man's own; the Setting environment is still in the game, out of play.
-      expect(environments.map((card) => card.setCode as string)).toEqual(["trors"]);
-      expect(Object.values(state.instances).filter((instance) => instance.cardId === environmentId)).toHaveLength(1);
-    },
-  );
+      const settled = driveEventsPicking(PLAYABLE_DEPS, created.state, firstLegal);
+      expect(settled.state.step.phase).toBe("player");
+      return { state: settled.state, events: [...created.events, ...settled.events] };
+    }
+
+    it("both environments are in play after setup: the Setting set's and the scenario's own", () => {
+      const { state } = setUp();
+      const inPlay = environmentsInPlay(state);
+      expect(inPlay).toHaveLength(2);
+      expect(inPlay).toContain(settingId);
+      expect(inPlay.filter((code) => OWN_ENVIRONMENTS.includes(code))).toHaveLength(1);
+      // Nothing was discarded from play during setup.
+      expect(state.mainScheme.faceupSide).toBeUndefined();
+    });
+
+    it("the order: the Setting environment enters play (step 11), then 1A's Setup puts the scenario's own into play (12a), then None Shall Pass turns to 1B (12b)", () => {
+      const { state, events } = setUp();
+      const order = events.flatMap((event) => {
+        if (event.type === "cardDiscardedFromPlay") return [`${event.cardId} discarded from play`];
+        if (event.type !== "triggerEvent" || event.phase !== "resolved") return [];
+        if (event.event.kind === "mainSchemeTurnsToB") return ["None Shall Pass turns to 1B"];
+        if (event.event.kind !== "cardEntersPlay") return [];
+        const code = codeOf(state, event.event.instanceId);
+        if (code === settingId) return ["Setting environment enters play"];
+        return OWN_ENVIRONMENTS.includes(code) ? ["own environment enters play"] : [];
+      });
+      expect(order).toEqual([
+        "Setting environment enters play",
+        "own environment enters play",
+        "None Shall Pass turns to 1B",
+      ]);
+    });
+
+    it("a later environment entering play while 1B is active discards each other environment", () => {
+      const { state } = setUp();
+      const [own] = environmentsInPlay(state).filter((code) => OWN_ENVIRONMENTS.includes(code));
+      // Another of the scenario's environments ("[star] Boost: Put this card into play") is the villain's boost card.
+      const next = OWN_ENVIRONMENTS.find((code) => code !== own)!;
+      const staged = stackEncounterDeck(state, next);
+      const { state: after, events } = driveEventsPicking(PLAYABLE_DEPS, staged, firstLegal, endTurn());
+      const entered = events.findIndex(
+        (event) =>
+          event.type === "triggerEvent" &&
+          event.event.kind === "cardEntersPlay" &&
+          codeOf(after, event.event.instanceId) === next,
+      );
+      expect(entered).toBeGreaterThan(-1);
+      const discarded = events.flatMap((event, index) =>
+        event.type === "cardDiscardedFromPlay" && index > entered ? [event.cardId as string] : [],
+      );
+      expect(discarded).toEqual(expect.arrayContaining([settingId, own!]));
+      // Whatever else the villain phase revealed, None Shall Pass keeps one environment from now on.
+      expect(environmentsInPlay(after)).toHaveLength(1);
+      expect(environmentsInPlay(after)).not.toContain(settingId);
+    });
+  });
 });

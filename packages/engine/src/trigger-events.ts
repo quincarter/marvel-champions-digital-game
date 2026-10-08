@@ -1,7 +1,7 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
-import type { CardDestination, StatusName } from "./spec.js";
+import type { CardDestination, StatName, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
 import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
@@ -731,6 +731,19 @@ export type TriggerEventBody =
    */
   | { readonly kind: "mainSchemeCompleting"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
   /**
+   * A main scheme stage turns from its A side to its B side (docs/phase7-wave8.md §4.1 Q56; RRG 1.8 Appendix II step
+   * 12b, p. 51, and "Main Scheme" advance step 3, p. 27). Pushed behind the A side's own Setup / When Revealed frames.
+   * Its apply step makes the B side the faceup one (`MainSchemeState.faceupSide`), so that side's abilities are live
+   * from then on, and puts the B side's `resolve` abilities on the stack in that order, resolved by `playerId`.
+   */
+  | {
+      readonly kind: "mainSchemeTurnsToB";
+      readonly schemeInstanceId: InstanceId;
+      readonly stageIndex: number;
+      readonly resolve: readonly ("setup" | "whenRevealed")[];
+      readonly playerId: PlayerId;
+    }
+  /**
    * An enemy **would** activate (docs/phase7-wave5.md §3.2): "Hero Interrupt: When an enemy would activate, cancel that
    * activation" (Web Binding, `sm` 27006); "Forced Interrupt: When a villain would activate, if no villain is in play,
    * resolve this card's 'Ambush!' ability. Continue that activation." (Sinister Synchronization 1B / Sinister Beatdown
@@ -896,11 +909,19 @@ export type TriggerEventBody =
    * Speed; Captain Marvel ally 04032). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
    * confused thwart "is not considered to have used a basic power", so it is announced only once the power resolves.
    * Announced only when an ability could react. The *interrupt* side of the same moment is `basicPowerUsing`.
+   *
+   * `stat`: the stat powering this use, which is not always the power's own (docs/phase7-wave8.md §4.1 Q54). A basic
+   * thwart against a scheme with assault, or one a rule lets the character make with ATK, is `power: "thwart"` with
+   * `stat: "atk"` (RRG 1.8 "Assault", p. 8); "uses their THW instead of their ATK" makes an attack `stat: "thw"`, and
+   * "use its ATK instead of its DEF" a defense `stat: "atk"`. Otherwise THW, ATK, DEF or REC by the power. A
+   * substitution made while the event waits on the stack rewrites it (`setBasicPowerStat`), so a card reads the stat
+   * here and never infers it from the power's name.
    */
   | {
       readonly kind: "basicPowerUsed";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly stat: StatName;
       readonly playerId: PlayerId;
     }
   /**
@@ -918,11 +939,15 @@ export type TriggerEventBody =
    *
    * A basic recovery pushes it too, on top of its `basicRecovery` event (docs/phase7-wave6.md §3.40). Recovery is an
    * alter-ego power (RRG 1.8 "Recover, Recovery", p. 36), so the Hero Interrupts that name no power never see it.
+   *
+   * `stat`: the stat powering this use (see `basicPowerUsed`): what `modifyBasicPower` adds to, and what
+   * `Predicate basicPowerStatIs` and `eventIs: { stat }` read.
    */
   | {
       readonly kind: "basicPowerUsing";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly stat: StatName;
       readonly playerId: PlayerId;
     }
   /**
@@ -1270,6 +1295,17 @@ export interface LeavePatch {
 }
 
 /**
+ * The stat a basic power uses when nothing substitutes another (RRG 1.8 "Basic Power", p. 10): the default of the
+ * `stat` on `basicPowerUsing` / `basicPowerUsed`.
+ */
+export const BASIC_POWER_STAT = {
+  attack: "atk",
+  thwart: "thw",
+  defense: "def",
+  recover: "rec",
+} as const satisfies Record<"attack" | "thwart" | "defense" | "recover", StatName>;
+
+/**
  * Announcement events describe a state change that the engine has already made
  * (a card moved, a stage advanced). They only open a response window — there is
  * nothing left to interrupt.
@@ -1327,7 +1363,7 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
     case "resourcesSpent":
     /**
-     * "Forced Interrupt: When an environment enters play, …" (None Shall Pass 1A): the card is already in the play
+     * "Forced Interrupt: When an environment enters play, …" (None Shall Pass 1B): the card is already in the play
      * area by the time this is pushed, but nothing it does *on* entering has happened yet — the enter-play keywords
      * (toughness, uses counters, the restricted and ally-limit checks) are this event's own apply step
      * (`resolve/event.ts`), so an interrupt runs before them and a response after, which is also what RRG 1.8
@@ -1336,6 +1372,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardEntersPlay":
     // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
     case "mainSchemeCompleting":
+    // The stage's turn to its B side is this event's apply step (docs/phase7-wave8.md §4.1 Q56).
+    case "mainSchemeTurnsToB":
     // "When an enemy would activate" (docs/phase7-wave5.md §3.2): the activation is still to come.
     case "enemyActivating":
     // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
@@ -1433,6 +1471,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
     case "mainSchemeCompleting":
+    case "mainSchemeTurnsToB":
       return of([], [event.schemeInstanceId], []);
     case "enemyActivating":
       return of([event.enemyInstanceId], [event.enemyInstanceId], [event.playerId]);

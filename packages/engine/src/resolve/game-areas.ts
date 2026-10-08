@@ -43,6 +43,7 @@ import {
 import { cardsMatch } from "../unique.js";
 import { schemeEntryThreat } from "./enter-play.js";
 import { base, eventFrame, gameAbilityFrames, pushEvent } from "./frames.js";
+import { mainSchemeStageFrames } from "./main-scheme-side.js";
 import { waitingSetupCardsEnterPlay } from "./setup-cards.js";
 
 const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
@@ -195,6 +196,7 @@ export function putMainSchemeStageIntoPlay(
     stageIndex,
     completed: false,
     accelerationTokens: 0,
+    faceupSide: "A",
   };
   ctx.state = {
     ...ctx.state,
@@ -203,10 +205,8 @@ export function putMainSchemeStageIntoPlay(
     extraMainSchemes: [...(ctx.state.extraMainSchemes ?? []), scheme],
   };
   emit(ctx, { type: "mainSchemeStageRevealed", schemeInstanceId: id, stageIndex, playerId });
-  const stage = mainSchemeStageOf(ctx.state, scheme);
   return [
-    ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.aSide.abilities, playerId),
-    ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.abilities, playerId),
+    ...mainSchemeStageFrames(ctx, id, "whenRevealed", ["whenRevealed"], playerId),
     eventFrame(ctx, {
       kind: "placeThreat",
       schemeInstanceId: id,

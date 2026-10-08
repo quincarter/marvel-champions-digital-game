@@ -1187,6 +1187,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       stageIndex: 0,
       completed: false,
       accelerationTokens: 0,
+      // Side 1A is faceup until Appendix II step 12b (RRG 1.8 p. 51).
+      faceupSide: "A",
     },
     gameAreas: [],
     nextGameAreaSeq: 1,

@@ -351,6 +351,7 @@ export {
 
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export {
+  BASIC_POWER_STAT,
   carriedByEvent,
   damageTakenKey,
   eventSubjects,

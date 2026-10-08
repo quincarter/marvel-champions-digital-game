@@ -47,6 +47,7 @@ import {
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
+import { mainSchemeStageFrames } from "./main-scheme-side.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, leaveVillainRow, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
 import { applyFirstPlayerControl } from "./state-checks.js";
@@ -435,18 +436,22 @@ export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceI
  * Revealed reads this advance's (docs/phase7-wave7.md §3.12), and is copied onto the log event and the trigger event.
  */
 function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, advancedBy: MainSchemeAdvancedBy): void {
-  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageIndex: nextIndex, completed: false, advancedBy }));
+  updateMainSchemeState(ctx, schemeId, (s) => ({
+    ...s,
+    stageIndex: nextIndex,
+    completed: false,
+    advancedBy,
+    faceupSide: "A",
+  }));
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme) return;
-  const stage = mainSchemeStageOf(ctx.state, scheme);
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
   updateInstance(ctx, schemeId, (i) => ({ ...i, threat: 0 }));
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
-    ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, stage.aSide.abilities, ctx.state.firstPlayerId),
-    ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], ctx.state.firstPlayerId),
     // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
     // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
     // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).

@@ -423,7 +423,7 @@ describe("event-driven situations", () => {
     const events: GameEvent[] = [
       {
         type: "triggerEvent",
-        event: { kind: "basicPowerUsed", characterInstanceId: heroId, power: "recover", playerId: me },
+        event: { kind: "basicPowerUsed", characterInstanceId: heroId, power: "recover", stat: "rec", playerId: me },
         phase: "resolved",
       },
     ];
@@ -437,7 +437,7 @@ describe("event-driven situations", () => {
     const events: GameEvent[] = [
       {
         type: "triggerEvent",
-        event: { kind: "basicPowerUsed", characterInstanceId: heroId, power: "attack", playerId: me },
+        event: { kind: "basicPowerUsed", characterInstanceId: heroId, power: "attack", stat: "atk", playerId: me },
         phase: "resolved",
       },
     ];

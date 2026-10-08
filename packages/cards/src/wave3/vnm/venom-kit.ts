@@ -219,7 +219,8 @@ export const VENOM_KIT = defineAbilities({
   // (module docblock).
   "20013.making-an-entrance-interrupt": heroInterrupt(
     on.basicPowerUsing(YOUR_IDENTITY, { power: "thwart" }),
-    modifyBasicPower(2),
+    // The card prints "+2 THW", so the bonus is to THW whatever stat powers the thwart.
+    modifyBasicPower(2, { stat: "thw" }),
     atEndOfActivation(ifThen(valueEquals(threatOn(eventTarget), 0), heal(2, yourIdentity))),
   ),
 

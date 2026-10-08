@@ -4,7 +4,7 @@ import {
   allOf,
   anyOf,
   applyRuleUntil,
-  basicPowerIs,
+  basicPowerStatIs,
   canPayResources,
   chooseCards,
   chooseOne,
@@ -139,8 +139,9 @@ const NEMESIS_MINION = query("minion", { nemesisMinionOf: you });
  * **"You Got This!" (49019)**, Hero Response after the hero exhausts for a basic thwart or attack: the cost discards
  * an ally the player controls and records its THW, ATK and DEF as they stood in play (`stats`, §3.81: Surge with her
  * bonus adds 3 to an attack, though the card in the discard pile reads 2); the matching power is added to the hero's
- * for this use and the hero is readied. With no ally to discard it is not offered. "Matching" follows the basic power
- * (a thwart adds THW, an attack ATK), as Sisterly Bond 43007 does.
+ * for this use and the hero is readied. With no ally to discard it is not offered. "Matching" is the stat powering
+ * the basic power (§4.1 Q54 = B): an attack adds ATK, a thwart THW, and a thwart made with ATK (a scheme with assault,
+ * RRG 1.8 p. 8) adds the ally's ATK, as Sisterly Bond 43007 does.
  *
  * **New Recruits (49020)**: Victory 0, 2 threat per player and "Play only if your identity has the X-Men trait" are
  * data. Its When Defeated is each player's own choice among the set-aside NEW allies (the linked allies, set aside
@@ -226,7 +227,7 @@ export const MAGNETO_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "49019.you-got-this-response": heroResponse(
     on.basicPowerUsing(YOUR_HERO, { power: ["attack", "thwart"] }),
     { cost: discardCardsCost(query("ally", { controller: "you" }), { stats: true }) },
-    ifThen(basicPowerIs("thwart"), modifyBasicPower(varOf("discarded.thw")), modifyBasicPower(varOf("discarded.atk"))),
+    ifThen(basicPowerStatIs("atk"), modifyBasicPower(varOf("discarded.atk")), modifyBasicPower(varOf("discarded.thw"))),
     ready(yourIdentity),
   ),
 

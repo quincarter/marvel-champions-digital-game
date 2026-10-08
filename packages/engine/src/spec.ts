@@ -1297,14 +1297,22 @@ export type Predicate =
   /** A result of the triggering event is at least `amount` ("if this attack dealt damage"). */
   | { readonly kind: "eventResultAtLeast"; readonly key: string; readonly amount: number }
   /**
-   * The basic power being used is (one of) `power`: "add X-23's **matching** power to Honey Badger's power for this
-   * use" branches on it to give `modifyBasicPower` the matching stat. Read off the triggering event when that is a
+   * The basic power being used is (one of) `power`. It names the power, not the stat powering it: "matching power"
+   * is `basicPowerStatIs` (docs/phase7-wave8.md §4.1 Q54). Read off the triggering event when that is a
    * `basicPowerUsing` or `basicPowerUsed`; otherwise off the `basicPowerUsing` event on the stack, the one
    * `modifyBasicPower` itself reads, so the predicate and the effect always agree on "that power". False when no
    * basic power is being used. The names are the event's: a defense is `"defense"`, a recovery `"recover"` (RRG 1.8
    * "Basic Power", p. 10).
    */
   | { readonly kind: "basicPowerIs"; readonly power: BasicPowerName | readonly BasicPowerName[] }
+  /**
+   * The basic power being used is powered by (one of) `stat` (docs/phase7-wave8.md §4.1 Q54): "add that ally's
+   * **matching** power to your hero's power for this use" matches the stat in use, so a basic thwart made with ATK
+   * (RRG 1.8 "Assault", p. 8; `RuleSpec thwartWithAtk`) adds the ally's ATK. Read where `basicPowerIs` reads the
+   * power: the triggering `basicPowerUsing` / `basicPowerUsed` event's `stat`, else the `basicPowerUsing` event on
+   * the stack. False when no basic power is being used.
+   */
+  | { readonly kind: "basicPowerStatIs"; readonly stat: StatName | readonly StatName[] }
   /**
    * The triggering attack/activation's `results` record at least `amount` damage taken by the card(s) `of` names,
    * summed (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that attack", when an
@@ -2078,8 +2086,17 @@ export type EffectSpec =
    * everything else: "after you attack" responses, attack keywords, and the ATK field's consequential damage, which
    * was put on the stack as the attack was made (RRG 1.8 "Consequential Damage", p. 13). Recorded as var `useThw` on
    * the attack's event frame, so it lasts for that attack only. An attack that is not basic is untouched.
+   *
+   * "That power" is the stat powering the use (the event's `stat`; docs/phase7-wave8.md §4.1 Q54), so the bonus to a
+   * basic thwart made with ATK is to ATK (RRG 1.8 "Assault", p. 8). `stat` is for a card that prints the stat it
+   * raises ("it gets +2 THW for that thwart"): the bonus is to that stat whatever powers the use.
    */
-  | { readonly kind: "modifyBasicPower"; readonly amount?: ValueSpec; readonly useStat?: "thw" }
+  | {
+      readonly kind: "modifyBasicPower";
+      readonly amount?: ValueSpec;
+      readonly useStat?: "thw";
+      readonly stat?: StatName;
+    }
   /**
    * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67): the pending
    * consequential damage of each target's current attack or thwart is cancelled. Consequential damage is put on the stack

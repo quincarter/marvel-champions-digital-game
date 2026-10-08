@@ -19,17 +19,11 @@ import { isPermanentCard } from "./deck.js";
 import { applyToughness, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import {
-  encounterDeckOf,
-  mainSchemeStage,
-  mainSchemeValue,
-  mustCardOf,
-  undefeatedVillains,
-  villainOf,
-} from "./query.js";
+import { encounterDeckOf, mainSchemeValue, mustCardOf, undefeatedVillains, villainOf } from "./query.js";
 import { announce, applyEnterPlayKeywords, gameAbilityFrames, shuffleSeparateDeck } from "./resolve/index.js";
 import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
+import { mainSchemeStageFrames } from "./resolve/main-scheme-side.js";
 import { encounterSetupCardEntersPlay, waitingSetupCardsEnterPlay } from "./resolve/setup-cards.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
@@ -97,22 +91,14 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   putSetupCardsIntoPlay(ctx, firstPlayerId);
   const step11Frames = ctx.state.stack.slice(0, ctx.state.stack.length - heldBeforeStep11);
   ctx.state = { ...ctx.state, stack: ctx.state.stack.slice(step11Frames.length) };
-  // RRG Appendix II step 12: main scheme 1A setup text, then each villain's, in printed order.
-  // "Advance to stage 1B" is implicit (the engine already sits on 1B), so 1B's
-  // own "When Revealed" resolves right after the 1A setup text.
+  // RRG Appendix II step 12: main scheme 1A setup text, the flip to 1B and its "When Revealed", then each villain's,
+  // in printed order. Side 1A is the faceup one through step 11 and step 12a (`MainSchemeState.faceupSide`).
   pushFrames(ctx, [
     // Between step 11 and step 12: the optional setup rules the players turned on (docs/phase7-wave8.md §3.5).
     ...setupOptionFrames(ctx),
-    ...gameAbilityFrames(
-      ctx,
-      mainSchemeInstanceId,
-      ["setup"],
-      null,
-      mainSchemeStage(ctx.state).aSide.abilities,
-      firstPlayerId,
-    ),
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["setup"], null, undefined, firstPlayerId),
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["whenRevealed"], null, undefined, firstPlayerId),
+    // Steps 12a and 12b: 1A's Setup, then the flip to 1B, whose own Setup and When Revealed resolve once it is the
+    // faceup side (docs/phase7-wave8.md §4.1 Q56).
+    ...mainSchemeStageFrames(ctx, mainSchemeInstanceId, "setup", ["setup", "whenRevealed"], firstPlayerId),
     ...undefeatedVillains(ctx.state).flatMap((villain) => [
       ...gameAbilityFrames(ctx, villain.instanceId, ["setup"], null, undefined, firstPlayerId),
       // RRG Appendix II "Resolve Scenario Setup and When Revealed Abilities": the starting villain

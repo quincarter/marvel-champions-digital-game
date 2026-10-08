@@ -189,8 +189,16 @@ export const resetHitPoints = (target: TargetRef): EffectSpec => setRemainingHit
  * whichever basic power is being used, read off the `basicPowerUsing` event on the stack (`on.basicPowerUsing`
  * must be this ability's own trigger) and lasting only for that one activation. Does nothing outside a basic-power
  * use — an ability that reaches for this effect with no `basicPowerUsing` on the stack resolves into nothing.
+ *
+ * "That power" is the stat powering the use (docs/phase7-wave8.md §4.1 Q54): a basic thwart made with ATK gets the
+ * bonus to ATK (RRG 1.8 "Assault", p. 8). `opts.stat` is for a card that prints the stat it raises ("it gets +2 THW
+ * for that thwart", Making an Entrance 20013): the bonus is to that stat whatever powers the use.
  */
-export const modifyBasicPower = (n: Amount): EffectSpec => ({ kind: "modifyBasicPower", amount: amount(n) });
+export const modifyBasicPower = (n: Amount, opts: { readonly stat?: StatName } = {}): EffectSpec => ({
+  kind: "modifyBasicPower",
+  amount: amount(n),
+  ...(opts.stat ? { stat: opts.stat } : {}),
+});
 /**
  * "That character uses their THW instead of their ATK" (Befuddle 33033, "Interrupt: When a character makes a basic
  * attack against attached minion"; docs/phase7-wave6.md §3.32): the basic attack being made deals the attacker's THW

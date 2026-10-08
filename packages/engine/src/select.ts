@@ -2690,6 +2690,17 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       if (power === undefined) return false;
       return typeof predicate.power === "string" ? predicate.power === power : predicate.power.includes(power);
     }
+    case "basicPowerStatIs": {
+      const triggering = context.event;
+      const stat =
+        triggering?.kind === "basicPowerUsing" || triggering?.kind === "basicPowerUsed"
+          ? triggering.stat
+          : state.stack.flatMap((f) =>
+              f.kind === "event" && f.event.kind === "basicPowerUsing" ? [f.event.stat] : [],
+            )[0];
+      if (stat === undefined) return false;
+      return typeof predicate.stat === "string" ? predicate.stat === stat : predicate.stat.includes(stat);
+    }
     case "eventDamageTakenAtLeast": {
       const results = context.event?.results;
       if (!results) return false;
@@ -3431,7 +3442,9 @@ function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly Abilit
   }
   if (card.type === "main_scheme") {
     const scheme = mainSchemeStateOf(state, id);
-    return scheme ? mainSchemeStageOf(state, scheme).abilities : [];
+    // A stage whose A side is still the faceup one has no live B-side abilities (docs/phase7-wave8.md §4.1 Q56; RRG
+    // 1.8 Appendix II step 12, p. 51). The A side's own abilities resolve through the frames pushed for them.
+    return scheme && scheme.faceupSide !== "A" ? mainSchemeStageOf(state, scheme).abilities : [];
   }
   return "abilities" in card ? card.abilities : [];
 }
