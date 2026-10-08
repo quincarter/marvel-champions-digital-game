@@ -67,7 +67,12 @@ import { JUBILEE_SUPPORT_UPGRADES_ALLIES } from "./jubilee/jubilee/support-upgra
 import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
+import { MAGNETO_EVENTS, MAGNETO_EVENTS_SKIPPED } from "./magneto/magneto/events.js";
 import { MAGNETO_IDENTITY, MAGNETO_IDENTITY_SKIPPED } from "./magneto/magneto/identity.js";
+import {
+  MAGNETO_OBLIGATION_NEMESIS,
+  MAGNETO_OBLIGATION_NEMESIS_SKIPPED,
+} from "./magneto/magneto/obligation-nemesis.js";
 import {
   MAGNETO_SUPPORT_UPGRADES_ALLIES,
   MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED,
@@ -502,6 +507,18 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["49001a", "49001b"],
       registry: MAGNETO_IDENTITY,
       skipped: MAGNETO_IDENTITY_SKIPPED,
+    },
+    {
+      module: "magneto/events",
+      cardIds: ["49008", "49009", "49010"],
+      registry: MAGNETO_EVENTS,
+      skipped: MAGNETO_EVENTS_SKIPPED,
+    },
+    {
+      module: "magneto/obligation-nemesis",
+      cardIds: ["49027", "49028", "49029", "49030", "49031", "49032"],
+      registry: MAGNETO_OBLIGATION_NEMESIS,
+      skipped: MAGNETO_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
       module: "magneto/support-upgrades-allies",
