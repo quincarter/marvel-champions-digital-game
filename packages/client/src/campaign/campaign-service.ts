@@ -32,6 +32,7 @@ import {
 } from "@mc/engine";
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
+import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
@@ -265,6 +266,8 @@ export class CampaignService {
    * Between issues a seat may change aspects and deck contents, never the identity (MC10 p. 3). The caller has
    * already validated `deck` with `campaign-deck-edit-model.ts`; this refuses only what would corrupt the log — an
    * identity change, or editing while an issue is composed (discard the attempt first, so its snapshot is not stale).
+   * A reward the edit took out of the list is marked left out (`reconcileRewards`; MC45 p. 24, "They may include"), so
+   * the log never names a granted copy the deck does not hold.
    */
   async setSeatDeck(record: CampaignRecord, seatNumber: number, deck: Deck): Promise<CampaignRecord> {
     if (record.attempt) throw new Error("discard the composed issue before editing a deck");
@@ -275,8 +278,36 @@ export class CampaignService {
       ...record,
       seats: record.seats.map((candidate) =>
         candidate.seatNumber === seatNumber
-          ? { ...candidate, deck: { identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards } }
+          ? {
+              ...candidate,
+              deck: { identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards },
+              grants: reconcileRewards(deck, candidate.grants),
+            }
           : candidate,
+      ),
+    });
+  }
+
+  /**
+   * Puts a reward the seat chose into its deck, or leaves it out, for the games to come (MC45 p. 24: "They may
+   * include 1 copy of that card in their deck for the rest of the campaign"; owner decision, 2026-10-08). The grant
+   * stays in the log either way. Refused while an issue is composed, as `setSeatDeck` is.
+   */
+  async setSeatRewardIncluded(
+    record: CampaignRecord,
+    seatNumber: number,
+    cardId: CardId,
+    included: boolean,
+  ): Promise<CampaignRecord> {
+    if (record.attempt) throw new Error("discard the composed issue before editing a deck");
+    const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
+    if (!seat) throw new Error(`campaign ${record.id} has no seat ${seatNumber}`);
+    const edit = setRewardIncluded(seat.deck, seat.grants, cardId, included);
+    if (edit.grants === seat.grants) return record;
+    return this.#put(record, {
+      ...record,
+      seats: record.seats.map((candidate) =>
+        candidate.seatNumber === seatNumber ? { ...candidate, deck: edit.deck, grants: edit.grants } : candidate,
       ),
     });
   }

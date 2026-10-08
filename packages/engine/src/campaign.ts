@@ -638,6 +638,13 @@ export type CampaignOp =
        * Absent: `"exempt"`, and the grant is recorded without the field, exactly as before it existed.
        */
       readonly deckSize?: GrantDeckSize;
+      /**
+       * `"optional"`: the player decides, each game, whether the granted copy is in the deck (`CampaignGrant.optional`,
+       * `CampaignGrant.leftOut`). MC45 p. 24: "They may include 1 copy of that card in their deck for the rest of the
+       * campaign." The copy starts in the deck. Absent: MC10 p. 3's "Added cards must be included in the player's
+       * deck", and the grant is recorded without the field.
+       */
+      readonly inclusion?: "optional";
     }
   | { readonly kind: "revokeCard"; readonly seat: "self" | "each"; readonly card: CampaignValue }
   /**
@@ -1004,12 +1011,20 @@ export interface GrantDeckSizeRule {
 }
 
 /**
+ * The grants whose copy is in the seat's deck: every grant but an optional one the player has left out
+ * (`CampaignGrant.leftOut`). These are the copies the deck list holds, so they are what deck validation and the
+ * game's setup are told about (`CampaignDeckContext.grantedCardIds`, `CampaignSeatInput.grantedCardIds`).
+ */
+export const includedGrantsOf = (grants: readonly CampaignGrant[]): readonly CampaignGrant[] =>
+  grants.filter((grant) => grant.leftOut !== true);
+
+/**
  * The deck-size rules of a seat's grants, one entry for each granted copy that is not `"exempt"`, in grant order
  * (`DeckContext.campaign.grantDeckSizes`, `CampaignSeatInput.grantDeckSizes`). Empty for every grant made without a
- * rule, which is every grant of the boxes before MC45.
+ * rule, which is every grant of the boxes before MC45. A copy the player has left out of the deck states no rule.
  */
 export const grantDeckSizesOf = (grants: readonly CampaignGrant[]): readonly GrantDeckSizeRule[] =>
-  grants.flatMap((grant) =>
+  includedGrantsOf(grants).flatMap((grant) =>
     grant.deckSize === undefined || grant.deckSize === "exempt"
       ? []
       : [{ cardId: grant.cardId, deckSize: grant.deckSize }],
@@ -1021,6 +1036,19 @@ export interface CampaignGrant {
   readonly permanence: GrantPermanence;
   /** How the copy counts toward deck size (`GrantDeckSize`). Absent: `"exempt"`, as every grant was before the field. */
   readonly deckSize?: GrantDeckSize;
+  /**
+   * The player may leave this copy out of the deck (`grantCard`'s `inclusion: "optional"`; MC45 p. 24, "They may
+   * include 1 copy of that card in their deck for the rest of the campaign"). The grant itself is the record that the
+   * card was chosen and stays for the campaign either way. Absent: the copy must be in the deck (MC10 p. 3).
+   */
+  readonly optional?: true;
+  /**
+   * An optional grant whose copy is not in `CampaignSeat.deck` right now. Written down rather than read off the deck
+   * list, because the list cannot tell a reward from a copy of the same title the player chose (the two count
+   * differently toward deck size). Set and cleared between games by whoever edits the deck; never set on a grant
+   * that is not `optional`.
+   */
+  readonly leftOut?: true;
   /** Which face the grant is on: MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side. */
   readonly face?: string;
   /** The node that granted it, for the sheet and for `LossPolicy.retryBaseline`. */
@@ -1247,7 +1275,7 @@ export interface CampaignLogView {
 export interface CampaignSeatInput {
   readonly seatNumber: number;
   readonly identityCardId: CardId;
-  /** The expanded deck list, grants included. */
+  /** The expanded deck list, grants included (less an optional grant the player left out, `CampaignGrant.leftOut`). */
   readonly deck: readonly CardId[];
   readonly aspects: readonly CoreAspect[];
   /** Which of `deck` are campaign grants: legal here, and exempt from min/max deck size (MC10 p. 3). */

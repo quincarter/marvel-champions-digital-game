@@ -15,7 +15,7 @@ import {
 import { POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import { preconDecks } from "./deck-list-model.js";
 import { briefingViewOf } from "./campaign-briefing-model.js";
-import { DECK_NOTE_COUNTED, DECK_NOTE_EXEMPT, grantsCountTowardDeckSize } from "./campaign-briefing-model.js";
+import { DECK_NOTE_EXEMPT, DECK_NOTE_REWARD, grantsCountTowardDeckSize } from "./campaign-briefing-model.js";
 import { campaignDossierOverview } from "./campaign-dossier-model.js";
 import { aftermathLogTags } from "./campaign-aftermath-model.js";
 import { plainWriteRows } from "./campaign-write-words.js";
@@ -243,12 +243,15 @@ describe("the Dossier overview", () => {
 });
 
 describe("the Briefing's deck note", () => {
-  it("says a reward counts toward deck size for this box (owner Q25) and keeps the pinned-card line for the others", () => {
+  it("says a reward is not one of the 40 and is one of the 50 for this box (owner decision, 2026-10-08) and keeps the pinned-card line for the others", () => {
     expect(grantsCountTowardDeckSize(DEF)).toBe(true);
     expect(grantsCountTowardDeckSize(campaignDefinitionOf("trors"))).toBe(false);
     const composed = compose(fresh(2));
     const record = { ...composed, recordSchema: 1, name: "x", box: "MC45", createdAt: 0, updatedAt: 0 } as never;
-    expect(briefingViewOf(record, (id) => id as string, 1, DEF, ["unus"])?.deckNote).toBe(DECK_NOTE_COUNTED);
+    expect(briefingViewOf(record, (id) => id as string, 1, DEF, ["unus"])?.deckNote).toBe(DECK_NOTE_REWARD);
+    expect(DECK_NOTE_REWARD).toBe(
+      "Tap a deck to edit it. Decks can change now; hero can't. A reward isn't one of your 40 cards, but it is one of your 50.",
+    );
     const trors = campaignDefinitionOf("trors")!;
     expect(DECK_NOTE_EXEMPT).toMatch(/don't count toward deck size/);
     expect(grantsCountTowardDeckSize(trors)).toBe(false);

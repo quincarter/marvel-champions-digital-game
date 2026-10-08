@@ -39,7 +39,7 @@ import type {
   LogWrite,
   ResolvedInstruction,
 } from "../campaign.js";
-import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, grantDeckSizesOf } from "../campaign.js";
+import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, grantDeckSizesOf, includedGrantsOf } from "../campaign.js";
 import { EngineInvariantError } from "../errors.js";
 import { createRng, nextUint32 } from "../rng.js";
 import {
@@ -301,7 +301,8 @@ const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
   identityCardId: seat.identityCardId,
   deck: seat.deck.cards.flatMap((line) => Array.from({ length: line.quantity }, () => line.cardId)),
   aspects: seat.deck.aspects,
-  grantedCardIds: seat.grants.map((grant) => grant.cardId),
+  // An optional grant the player left out is not in `deck`, so it is not named as a granted copy either.
+  grantedCardIds: includedGrantsOf(seat.grants).map((grant) => grant.cardId),
   ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
 });
 

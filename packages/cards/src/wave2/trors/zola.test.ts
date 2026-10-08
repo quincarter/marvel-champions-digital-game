@@ -104,6 +104,33 @@ describe("Zola scenario", () => {
     expect(inst(first, scheme).counters.test ?? 0).toBe(1);
   });
 
+  // Official rule, RRG 1.8 "Main Scheme" (p. 27), as the main scheme deck advances: "Return all tokens (except
+  // acceleration tokens) that were on that card to the token pool"; "All-purpose counters are considered tokens for
+  // all game purposes" (p. 6). Neither stage's text says the test counters stay (owner row 58, docs/phase7-wave8.md).
+  it("The Island of Dr. Zola completed with 2 test counters: they are returned, and The Mad Doctor's first step-one counter is its only one", () => {
+    const start = zolaVsHeroes();
+    const scheme = start.mainScheme.instanceId;
+    const primed = patchInstance(start, scheme, { threat: 50, counters: { test: 2 } });
+    const { state, events } = driveEvents(WAVE2_DEPS, runWave2(primed, toHero()), endTurn());
+    expect(state.mainScheme.stageIndex).toBe(1);
+    // Up to the first enemy activation: the advance, 2A's reveals, then 2B's own "after resolving step one".
+    const firstActivation = events.findIndex((e) => e.type === "enemyActivated");
+    const stepOne = firstActivation < 0 ? events : events.slice(0, firstActivation);
+    const removed = stepOne.flatMap((e) => (e.type === "counterRemoved" && e.counterType === "test" ? [e] : []));
+    expect(removed).toEqual([
+      { type: "counterRemoved", instanceId: scheme, counterType: "test", amount: 2, returnedOnAdvance: true },
+    ]);
+    const placed = stepOne.flatMap((e) => (e.type === "counterAdded" && e.counterType === "test" ? [e.amount] : []));
+    expect(placed).toEqual([1]);
+    // One counter, not three: no minion is put into play by the Forced Response.
+    expect(
+      stepOne.some((e) => e.type === "abilityResolved" && e.abilityId === "04113b.the-mad-doctor-forced-response"),
+    ).toBe(true);
+    expect(
+      stepOne.some((e) => e.type === "cardMoved" && e.from.kind === "encounterDiscard" && e.to.kind === "playArea"),
+    ).toBe(false);
+  });
+
   it("Ultimate Bio-Servant: gets +1 ATK for each attachment on it", () => {
     const start = zolaVsHeroes();
     const bioServant = cardsInPlay(start).find((id) => start.instances[id]?.cardId === "04114")!;

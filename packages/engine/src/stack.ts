@@ -429,6 +429,13 @@ export type StackFrame =
        * another, whether that attack is waiting beneath this frame or was cancelled.
        */
       readonly labelAttackMade?: true;
+      /**
+       * On the root frame of an "(attack)"-labeled ability: an attack it made by its controller's identity was
+       * cancelled (`cancelAbilityAttack`, `resolve/attack-ability.ts`), so nothing more of that attack resolves: the
+       * ability's remaining damage instructions deal no enemy damage and its remaining `attack` effects are cancelled
+       * with it (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65).
+       */
+      readonly attackCancelled?: true;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

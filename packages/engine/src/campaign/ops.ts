@@ -672,6 +672,7 @@ function grantCard(
   cardId: CardId,
   permanence: CampaignGrant["permanence"],
   deckSize?: GrantDeckSize,
+  inclusion?: "optional",
 ): void {
   // The default is recorded as no field at all, so a grant of a box that states no rule is what it always was.
   const grant: CampaignGrant = {
@@ -679,6 +680,7 @@ function grantCard(
     permanence,
     grantedAtNodeId: run.nodeId,
     ...(deckSize !== undefined && deckSize !== "exempt" ? { deckSize } : {}),
+    ...(inclusion === "optional" ? { optional: true as const } : {}),
   };
   updateSeat(run, seatNumber, (seat) => {
     const line = seat.deck.cards.find((entry) => entry.cardId === cardId);
@@ -709,6 +711,9 @@ function revokeCard(run: CampaignRun, seatNumber: number, cardId: CardId): void 
   updateSeat(run, seatNumber, (seat) => {
     const index = seat.grants.findIndex((grant) => grant.cardId === cardId);
     if (index < 0) return seat;
+    const grants = seat.grants.filter((_, at) => at !== index);
+    // A copy the player left out of the deck (`CampaignGrant.leftOut`) is not in the list to take back.
+    if (seat.grants[index]!.leftOut) return { ...seat, grants };
     return {
       ...seat,
       deck: {
@@ -717,7 +722,7 @@ function revokeCard(run: CampaignRun, seatNumber: number, cardId: CardId): void 
           entry.cardId === cardId ? (entry.quantity > 1 ? [{ ...entry, quantity: entry.quantity - 1 }] : []) : [entry],
         ),
       },
-      grants: seat.grants.filter((_, at) => at !== index),
+      grants,
     };
   });
 }
@@ -977,7 +982,7 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
             // counting what the deck already holds (Q8, decided 2026-09-25).
             const count = op.copies === "maximum" ? maximumGrant(run, seatNumber, cardId) : 1;
             for (let copy = 0; copy < count; copy++) {
-              grantCard(run, seatNumber, cardId as CardId, op.permanence, op.deckSize);
+              grantCard(run, seatNumber, cardId as CardId, op.permanence, op.deckSize, op.inclusion);
             }
           }
         });

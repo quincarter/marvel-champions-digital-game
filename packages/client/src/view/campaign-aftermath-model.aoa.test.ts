@@ -94,11 +94,13 @@ describe("Age of Apocalypse rewards on the Aftermath", () => {
     for (const mission of ["Evacuate Survivors", "Sabotage the Sea Wall"]) {
       const choice = rewardPrompt(mission);
       expect(choice.slot).toBe("reward");
-      expect(choice.optional).toBe(true);
+      // Owner decision, 2026-10-08 (row 67): the pick is mandatory, so the Aftermath draws no decline row for it.
+      expect(choice.optional).toBe(false);
       expect(choice.options.length, mission).toBeGreaterThanOrEqual(COLLECTION_PICK_FLOOR);
       expect(isCollectionPick(choice.slot, choice.options.length)).toBe(true);
       const group = startAftermathGroup(choice, [{ seatNumber: 1, heroName: "Bishop" }], (id) => optionOf(cardId(id)));
       expect(group.noExclusivity).toBe(true);
+      expect(group.optional).toBe(false);
     }
   });
 

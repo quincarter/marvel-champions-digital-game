@@ -33,8 +33,47 @@
  *   effects lasting "for this attack" end.
  *
  * Unchanged: a basic attack, an attack by another character (an ally's), an attack an unlabeled ability makes, and an
- * "(attack)" ability's attack that was cancelled or never made (no frame waits, so its later damage is plain damage).
+ * "(attack)" ability's attack that was never made (no frame waits, so its later damage is plain damage).
  * An ability with several `attack` effects still makes one `attack` event each; each waits and finishes in order.
+ *
+ * **A cancelled attack deals no damage** (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65, rules check
+ * A6: "cancelling a damage-only attack cancels its damage too"). No official text names the case. What the decision
+ * rests on, RRG 1.8 "Cancel" (p. 11): "Cancel abilities interrupt the initiation of effects and prevent them from
+ * resolving" and "Cancel effects are considered a subtype of replacement effect, with the canceled effect being
+ * replaced with no effect. Abilities dependent on the canceled effect cannot trigger as the canceled effect is not
+ * considered to have occurred"; "Attack (Player Ability Type)" (p. 10): "An ability labeled as an attack is considered
+ * a single attack, even if that attack deals multiple instances of damage", so the instances of damage are the attack
+ * that was cancelled. When an `attack` event of an "(attack)" ability by its controller's identity is cancelled (an
+ * interrupt's `cancelTriggeringEvent` in its "when … attacks" window), the ability's root frame is marked
+ * (`attackCancelled`, `cancelAbilityAttack`) and from then on:
+ *
+ * - **its damage instructions deal enemies nothing**: a `dealDamage` that would be the attack's
+ *   (`isAttackInstruction`) and a division of damage skip every enemy, each logged as `attackTargetSkipped` with
+ *   `reason: "attackCancelled"`, and a chosen-enemy instruction is offered no enemy. No enemy is attacked, nothing
+ *   retaliates, and nothing answers "after … attacks" (the event's `cancelled` line, no response window);
+ * - **its remaining `attack` effects are cancelled too** (the ability is one attack, p. 10): one not yet reached makes
+ *   no event, and one whose event is already on the stack (the next enemy of "each enemy") is cancelled before its
+ *   interrupt window;
+ * - **post-"then" text does not resolve** when the text before it held a cancelled instruction (`preThenUnresolved`,
+ *   cause `attackCancelled`; RRG 1.8 "'Then'", p. 44).
+ *
+ * Interpretations beyond that text, each with its alternative:
+ *
+ * - **The ability's other instructions still resolve**: a status given, a card drawn, damage its player takes, damage
+ *   to a card that is not an enemy, an instruction the script keeps out of the attack (`fromAttack: false`). The
+ *   attack was cancelled, not the ability, and this is what a cancelled "(thwart)" already does (`thwart-session.ts`:
+ *   every instance of threat removal goes, the rest of the ability resolves). An instruction that reads the cancelled
+ *   damage ("if that enemy was defeated", "for each damage dealt") finds nothing. (Alternative: the whole ability is
+ *   cancelled except its costs, which is what RRG 1.8 "Labeled Ability", p. 26, says of a labeled ability cancelled
+ *   by a status card: "the entire ability (except for its costs) is canceled". That sentence is about status cards
+ *   only, so it was not extended here; reported to the owner.)
+ * - **Damage already dealt stays dealt.** A label-only attack's window opens before its first instruction, so nothing
+ *   precedes the cancel. In an ability with several `attack` effects an earlier one may have resolved: its damage
+ *   stands, the enemies it attacked were attacked (they retaliate, and "after … attacks" answers that event when the
+ *   ability finishes), and only what comes after the cancel is stopped. P. 11 prevents effects "from initiating"; it
+ *   undoes nothing. (Alternative: the earlier attack's "after" abilities are silenced too; not built.)
+ * - **A stunned identity is not this case**: its whole ability is cancelled by the status card first (p. 26,
+ *   `labelCancels`), as before.
  *
  * **Every "(attack)" ability is an attack** (owner ruling Q48, 2026-10-07; RRG 1.8 "Labeled Ability", p. 26: "When a
  * player resolves an ability labeled '(attack),' that ability is considered to be an attack made by that player's
@@ -71,8 +110,11 @@
  * - **Guard is not read as the attack begins**, only for each enemy as it would be attacked (Q49, below). An attack
  *   that begins and whose every enemy turns out to be guarded attacked nobody: it resolves with an empty
  *   `attack.attacked`, nothing retaliates, "after you attack" with no target clause answers it (the identity made an
- *   attack, p. 26) and "after you attack [an enemy]" does not. An ability that names only enemies that cannot be
- *   attacked is still refused before it is played (`target-validity.ts`; RRG 1.8 "Target", p. 43).
+ *   attack, p. 26) and "after you attack [an enemy]" does not. An ability whose attack names only enemies that cannot
+ *   be attacked is refused before it is played, whatever else it does (`attackNamesNoAttackableEnemy` in
+ *   `target-validity.ts`; RRG 1.8 "Target", p. 43: "A target that cannot be attacked is not a valid target for an
+ *   attack-labeled ability"; owner decision, 2026-10-08, row 64). So this case is left to an ability whose enemies
+ *   are not known as it is initiated (a branch, "each minion" with none in play) or become guarded as it resolves.
  * - **An attack is begun only by an ability that can attack an enemy.** It begins when one of the ability's own
  *   (top-level) damage instructions could name an enemy: its target is not known yet, or it names one now. An
  *   ability whose damage instructions name only its player's own characters makes no attack, as before. One whose
@@ -140,6 +182,7 @@ import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { type Frame, pushEvents } from "./frames.js";
 import { guardsIgnored, recordKeywordsIgnored } from "./keyword-ignored.js";
+import { markPreThenUnresolved } from "./then.js";
 import { abilityRootFrameId } from "./thwart-session.js";
 
 type Attack = Extract<TriggerEvent, { kind: "attack" }>;
@@ -193,13 +236,67 @@ export interface AbilityAttack {
   readonly playerId: PlayerId;
   /** The attack's frame, waiting beneath the ability: absent when a label-only attack made none (or it was cancelled). */
   readonly waiting: AttackFrame | undefined;
+  /** An attack of this ability was cancelled: its instructions deal enemies no more damage (row 65, file header). */
+  readonly cancelled: boolean;
+  /** The effects frame whose instruction is resolving (a branch's own frame), marked when its damage is cancelled. */
+  readonly frameId: FrameId;
 }
+
+/** Whether an attack of the "(attack)" ability `frame` belongs to was cancelled (`cancelAbilityAttack`). */
+function abilityAttackCancelled(state: GameState, frame: Frame<"effects">): boolean {
+  const root = findFrame(state, abilityRootFrameId(state, frame));
+  return root?.kind === "effects" && root.attackCancelled === true;
+}
+
+/**
+ * An `attack` event was cancelled: when it is an "(attack)" ability's attack by its controller's identity (`attackOf`),
+ * the ability's root frame remembers it, so the rest of that attack does not resolve (owner decision, 2026-10-08, row
+ * 65; file header).
+ */
+export function cancelAbilityAttack(ctx: Ctx, frame: Frame<"event">): void {
+  if (frame.event.kind !== "attack" || frame.attackOf === undefined) return;
+  updateFrame(ctx, frame.attackOf, (root) => (root.kind === "effects" ? { ...root, attackCancelled: true } : root));
+}
+
+/** Whether this attack event's ability has had an attack cancelled, so this one is cancelled with it. */
+export function cancelledWithAbilityAttack(state: GameState, frame: Frame<"event">): boolean {
+  if (frame.event.kind !== "attack" || frame.attackOf === undefined || frame.attackWaiting) return false;
+  const root = findFrame(state, frame.attackOf);
+  return root?.kind === "effects" && root.attackCancelled === true;
+}
+
+/**
+ * Logs the enemies an instruction of a cancelled attack would have attacked (`attackTargetSkipped`, reason
+ * `attackCancelled`) and marks the instruction's frame as not fully resolved, for a later "then".
+ */
+export function skipForCancelledAttack(
+  ctx: Ctx,
+  attack: Pick<AbilityAttack, "attackerId" | "frameId">,
+  sourceInstanceId: InstanceId | null,
+  enemies: readonly InstanceId[],
+): void {
+  for (const id of enemies) {
+    emit(ctx, {
+      type: "attackTargetSkipped",
+      attackerInstanceId: attack.attackerId,
+      targetInstanceId: id,
+      sourceInstanceId,
+      reason: "attackCancelled",
+    });
+  }
+  if (enemies.length > 0) markPreThenUnresolved(ctx, attack.frameId, "attackCancelled");
+}
+
+/** The root frame of `frame`'s "(attack)" ability when an attack of it was cancelled, for an `attack` effect to read. */
+export const attackEffectCancelled = (state: GameState, deps: EngineDeps, frame: Frame<"effects">): boolean =>
+  isAttackLabeled(deps, frame) && abilityAttackCancelled(state, frame);
 
 /**
  * The attack the damage instructions of `frame`'s ability are part of: defined while one of its attacks waits for it
  * (Q47), and for a label-only attack throughout (Q48), so that guard is read for an instruction even when no attack
- * could be opened for it. Undefined for an unlabeled ability, and for an "(attack)" ability with an `attack` effect
- * that has made no attack (cancelled, or not reached yet): its damage is then plain damage, as before.
+ * could be opened for it, and once an attack of the ability was cancelled (`cancelled`). Undefined for an unlabeled
+ * ability, and for an "(attack)" ability with an `attack` effect that has made no attack (not reached yet): its damage
+ * is then plain damage, as before.
  */
 export function abilityAttackOf(
   state: GameState,
@@ -211,20 +308,30 @@ export function abilityAttackOf(
   const identity = state.players.find((player) => player.playerId === playerId)?.identity.instanceId;
   if (identity === undefined) return undefined;
   const waiting = waitingAbilityAttack(state, deps, frame);
-  if (!waiting && !isLabelOnlyAttack(deps, frame)) return undefined;
-  return { attackerId: waiting?.event.attackerInstanceId ?? identity, playerId, waiting };
+  const cancelled = abilityAttackCancelled(state, frame);
+  if (!waiting && !cancelled && !isLabelOnlyAttack(deps, frame)) return undefined;
+  return {
+    attackerId: waiting?.event.attackerInstanceId ?? identity,
+    playerId,
+    waiting,
+    cancelled,
+    frameId: frame.frameId,
+  };
 }
 
 /**
  * Whether the attack may attack `targetId` right now (owner ruling Q49): always for a card that is not an enemy (the
- * instruction's damage to it is not an attack on it), else `canAttack` (guard, a `cannotAttack` rule).
+ * instruction's damage to it is not an attack on it), else `canAttack` (guard, a `cannotAttack` rule). No enemy once
+ * the attack was cancelled (row 65).
  */
 export const mayAttackWith = (
   state: GameState,
   deps: EngineDeps,
   attack: AbilityAttack,
   targetId: InstanceId,
-): boolean => !categoriesOf(state, targetId).includes("enemy") || canAttack(state, attack.attackerId, targetId, deps);
+): boolean =>
+  !categoriesOf(state, targetId).includes("enemy") ||
+  (!attack.cancelled && canAttack(state, attack.attackerId, targetId, deps));
 
 /**
  * The targets of a damage instruction that names its enemies, less the enemies the attack may not attack as it
@@ -237,6 +344,12 @@ export function skipUnattackable(
   sourceInstanceId: InstanceId | null,
   targets: readonly InstanceId[],
 ): readonly InstanceId[] {
+  if (attack.cancelled) {
+    // The attack was cancelled: its damage to enemies is not dealt (row 65); anything else it names is dealt its own.
+    const isEnemy = (id: InstanceId): boolean => categoriesOf(ctx.state, id).includes("enemy");
+    skipForCancelledAttack(ctx, attack, sourceInstanceId, targets.filter(isEnemy));
+    return targets.filter((id) => !isEnemy(id));
+  }
   return targets.filter((id) => {
     if (mayAttackWith(ctx.state, ctx.deps, attack, id)) {
       if (attack.waiting) {

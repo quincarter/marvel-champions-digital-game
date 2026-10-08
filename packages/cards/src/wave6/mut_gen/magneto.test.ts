@@ -439,6 +439,58 @@ describe("the main scheme stages (32142a, 32143a)", () => {
       expect(revealed(events)).toContain("32149");
     }
   });
+
+  // Official rule, RRG 1.8 "Main Scheme" (p. 27), as the main scheme deck advances: "1. Remove the top main scheme
+  // card from the game. Return all tokens (except acceleration tokens) that were on that card to the token pool … 2.
+  // Resolve any 'When Revealed' ability on the 'A' side of the new top card … 3. Flip the top card of the main scheme
+  // deck to its 'B' side" (owner row 58, docs/phase7-wave8.md §4.1). So the magnet counters left on a stage go back
+  // with it; 2A places 1 and 3A places 2 on the new card before it turns, where its B side is not yet in play to
+  // answer them (Q56); and the new stage starts with exactly that many.
+  it("played through both advances: leftover magnets are returned, Factory Online starts with 1 and The Rule of Magnus with 2", () => {
+    const returned = (events: readonly GameEvent[]) =>
+      of(events, "counterRemoved").flatMap((e) => (e.returnedOnAdvance ? [[e.counterType, e.amount]] : []));
+    const removedByCards = (events: readonly GameEvent[]) =>
+      of(events, "counterRemoved").filter((e) => e.counterType === "magnet" && !e.returnedOnAdvance);
+    // Staging only: hit points to spare, so the hero outlasts Magneto and the M-Type Sentinels for two villain phases.
+    const sturdy = (state: GameState) => patchInstance(state, identityOf(state), { damage: -40 });
+
+    // Asteroid M (1B) with 2 magnet counters, one villain phase from completing.
+    // Both side schemes are dealt with first (Sabotage Master Mold in the victory display, Physical Strain on Magneto),
+    // so neither A side searches the encounter deck and the cards stacked for each villain phase stay in order.
+    const cleared = sabotaged(withoutDealtCards(hero(magnetoGame())));
+    const strained = thwartAway(cleared, inPlay(cleared, "32145a")[0]!);
+    expect(attachedCodes(strained, villain(strained))).toEqual(["32145b"]);
+    const first = completeStage(sturdy(withMagnetCounters(strained, 2)), [BOOST, QUIET]);
+    expect(first.state.outcome).toBeNull();
+    expect(first.state.mainScheme.stageIndex).toBe(1);
+    expect(returned(first.events)).toEqual([["magnet", 2]]);
+    const types = first.events.map((e) => e.type);
+    expect(types.indexOf("counterRemoved")).toBeLessThan(types.indexOf("mainSchemeAdvanced"));
+    // 2A places its 1; nothing answers it (1 counter, and 2B is not faceup yet).
+    expect(counters(stageReveal(first.events))).toEqual([1]);
+    // Magneto then attacks: his Forced Response places the second. Two counters: 2B hears it and does nothing.
+    expect(abilitiesResolved(first.events).filter((id) => id === "32138.magneto-forced-response")).toHaveLength(1);
+    expect(removedByCards(first.events)).toEqual([]);
+    expect(magnetCounters(first.state)).toBe(2);
+    expect(revealed(first.events)).not.toContain("32149");
+
+    // Factory Online (2B) with those 2, one villain phase from completing. The boost card, then Magnetic Bubble for
+    // the response to find, then a quiet reveal.
+    const second = completeStage(first.state, [BOOST, "32149", QUIET]);
+    expect(second.state.outcome).toBeNull();
+    expect(second.state.mainScheme.stageIndex).toBe(2);
+    expect(returned(second.events)).toEqual([["magnet", 2]]);
+    // 3A places its 2; still nothing answers.
+    const reveal = stageReveal(second.events);
+    expect(counters(reveal)).toEqual([2]);
+    expect(revealed(reveal)).toEqual([]);
+    expect(removedByCards(reveal)).toEqual([]);
+    // Magneto attacks: the third counter is placed on 3B, which answers it: 3 removed, a Magnetic card revealed.
+    expect(abilitiesResolved(second.events)).toContain("32143b.the-rule-of-magnus-forced-response");
+    expect(removedByCards(second.events)).toEqual([expect.objectContaining({ amount: 3 })]);
+    expect(magnetCounters(second.state)).toBe(0);
+    expect(revealed(second.events)).toContain("32149");
+  });
 });
 
 describe("Magneto II and III (32139, 32140): When Revealed", () => {

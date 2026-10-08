@@ -22,8 +22,9 @@
  * spread, a close-up spilling past its frame) are boxed to the panel they belong to.
  *
  * **Plain-words calls.** The between-games and in-game choices this box raises are worded here once
- * (`setupCalls`, `aftermathCalls`) so no prompt shows only the rulebook's sentence. A reward counts as one of the deck's
- * cards (owner Q25), which is why each note says so.
+ * (`setupCalls`, `aftermathCalls`) so no prompt shows only the rulebook's sentence. A reward is not one of the 40
+ * cards a deck needs and is one of the 50 it may hold, and Desperate Measures counts toward neither limit (owner
+ * decisions, 2026-10-08; MC45 p. 24), which is why each note says so.
  */
 import type { AftermathCallCopy, CampaignStory, ComicPage, SetupCallCopy, StorySpeaker } from "../story.js";
 
@@ -99,25 +100,30 @@ const beats = (file: string, count: number) =>
   Array.from({ length: count }, (_, beatIndex) => ({ page: file, beatIndex }));
 
 /** Evacuate Survivors, Sabotage the Sea Wall and Find Lost Mutants hand out a card when defeated (MC45 p. 24). */
-const REWARD_NOTE = "A reward is one of your deck's cards: it counts toward deck size.";
+const REWARD_NOTE = "A reward isn't one of your 40 cards, but it is one of your 50.";
+/**
+ * Owner decisions, 2026-10-08 (MC45 p. 24: "Each player chooses …. They may include 1 copy of that card in their
+ * deck for the rest of the campaign."): each hero must pick, so there is no decline row; whether the card is in the
+ * deck is decided in the deck editor before each game; a title the deck already has is offered too.
+ */
+const REWARD_CHOICE_NOTE = "Each hero picks one. You choose before each game whether it is in your deck.";
 const rewardCall = (kind: "an upgrade" | "a support" | "a campaign ally", note: string): AftermathCallCopy => ({
-  heading: `Take ${kind}, or none.`,
-  declineLabel: "Take nothing",
-  waiting: "Offered once the hero before has decided.",
+  heading: `Take ${kind}.`,
+  waiting: "Offered once the hero before has picked.",
   nothing: "Nothing to take.",
   note,
 });
 const UPGRADE_CALL = rewardCall(
   "an upgrade",
-  `Pick one upgrade from any aspect. Each hero may add one copy for the rest of the campaign. ${REWARD_NOTE}`,
+  `Any upgrade from any aspect, even one your deck already has. ${REWARD_CHOICE_NOTE} ${REWARD_NOTE}`,
 );
 const SUPPORT_CALL = rewardCall(
   "a support",
-  `Pick one support from any aspect. Each hero may add one copy for the rest of the campaign. ${REWARD_NOTE}`,
+  `Any support from any aspect, even one your deck already has. ${REWARD_CHOICE_NOTE} ${REWARD_NOTE}`,
 );
 const ALLY_CALL = rewardCall(
   "a campaign ally",
-  `One copy of each ally, so a pick is taken for the whole table. ${REWARD_NOTE}`,
+  `One copy of each ally, so a pick is taken for the whole table. ${REWARD_CHOICE_NOTE} ${REWARD_NOTE}`,
 );
 
 /** The reward cells of scenarios 1 to 4: the rows that give a card when defeated. */
@@ -130,9 +136,14 @@ const rewardCalls = (): Record<string, AftermathCallCopy> =>
     ]),
   );
 
+/**
+ * MC45 p. 20. Owner decision, 2026-10-08: a hero defeated last scenario may decline to rejoin. Sitting the scenario
+ * out and being asked again at the next is an interpretation (the print does not say what declining means).
+ */
 const HEAL: SetupCallCopy = {
   name: "Expert heal",
-  explain: "Expert campaign: place 3 threat on the mission to heal your hero to full hit points, or decline.",
+  explain:
+    "Expert campaign: place 3 threat on the mission to heal your hero to full hit points, or decline. A hero defeated last scenario pays it to rejoin, or sits this scenario out.",
 };
 const ALLY_SEARCH: SetupCallCopy = {
   name: "Ally search",
@@ -157,7 +168,7 @@ export const AOA_STORY: CampaignStory = {
     "mc45.setup.carried.desperate-measures": {
       name: "Desperate Measures",
       explain:
-        "Liberate the Seattle Core was defeated, so each hero may shuffle one Desperate Measures into their deck for this game. It counts toward deck size.",
+        "Liberate the Seattle Core was defeated, so each hero may shuffle one Desperate Measures into their deck for this game. It doesn't count toward deck size.",
     },
     "mc45.s2.setup.heal": HEAL,
     "mc45.s3.setup.heal": HEAL,

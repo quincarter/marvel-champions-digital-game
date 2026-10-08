@@ -320,11 +320,12 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
     ]);
   });
 
-  it("a rule an owner answer settles cites that answer; a reading under review says so in its source", () => {
+  it("a rule an owner answer settles cites that answer; an interpretation says so in its source", () => {
     for (const id of [
       "attackAbilityOne",
       "attackTargets",
       "basicPowerStat",
+      "campaignRewards",
       "effectDefender",
       "mainSchemeBSide",
     ] as const) {
@@ -333,8 +334,13 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
         id,
       ).toBe(true);
     }
-    expect(glossaryEntry("campaignRewards")?.sources).toContainEqual(
-      expect.objectContaining({ kind: "rulebook", label: expect.stringMatching(/under review/) }),
+    // Owner decision, 2026-10-08 (rows 63 and 66): the reading is settled, so nothing says "under review".
+    const rewards = glossaryEntry("campaignRewards")!;
+    expect(JSON.stringify(rewards)).not.toMatch(/under review|one of the 40, so 39/);
+    expect(rewards.definition).toMatch(/not one of the 40 cards your deck needs/);
+    expect(rewards.definition).toMatch(/one of the 50/);
+    expect(rewards.definition).toMatch(
+      /Desperate Measures is shuffled in during setup and counts toward neither limit/,
     );
     expect(glossaryEntry("missionArea")?.sources).toContainEqual(
       expect.objectContaining({ kind: "rulebook", label: expect.stringMatching(/interpretation/) }),

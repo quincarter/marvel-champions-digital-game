@@ -190,6 +190,12 @@ export interface CampaignDeckContext {
    */
   readonly grantDeckSizes?: readonly GrantDeckSizeRule[];
   /**
+   * The granted copies the player may leave out of the deck (`CampaignGrant.optional`; MC45 p. 24, "They may include
+   * 1 copy of that card in their deck"): one entry for each such copy of `grantedCardIds`. Read only to word a copy
+   * limit problem, which then says the reward can be left out. Absent: every grant must be in the deck (MC10 p. 3).
+   */
+  readonly optionalGrantCardIds?: readonly string[];
+  /**
    * RRG 1.8 p. 29 removals, **by face**: ruling April 30, 2026 (4) answer 2 keeps the other face of a
    * double-sided card available. A deck lists a card by its front face, so only a removal with no `face` refuses it.
    */
@@ -513,6 +519,26 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   /** How many copies of a title the campaign gave this player (MC10 p. 3); 0 for everything it did not. */
   const grantedCopies = (cardId: string): number =>
     campaign === undefined ? 0 : campaign.grantedCardIds.filter((granted) => granted === cardId).length;
+  /**
+   * What a copy-limit problem adds when a campaign reward the player may leave out is among the copies: the reward
+   * counts toward the title's limit like any copy (`CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT`), and the campaign offers
+   * it even when the deck already holds the title (MC45 p. 24; owner decision, 2026-10-08), so the message says how
+   * to fix the deck. Empty for every other deck.
+   */
+  const rewardAdvice = (cardIds: readonly string[], quantityOf: (cardId: string) => number): string => {
+    const rewards = cardIds.reduce(
+      (n, cardId) =>
+        n +
+        Math.min(
+          quantityOf(cardId),
+          grantedCopies(cardId),
+          (campaign?.optionalGrantCardIds ?? []).filter((optional) => optional === cardId).length,
+        ),
+      0,
+    );
+    if (rewards === 0) return "";
+    return ` ${rewards === 1 ? "1 of them is a campaign reward" : `${rewards} of them are campaign rewards`}: remove a copy of your own, or leave the reward out of the deck.`;
+  };
   /**
    * RRG 1.8 p. 29, by face. A deck lists a card by its front face, so a removal that names the *other* face leaves
    * the card usable — ruling April 30, 2026 (4) answer 2, "Prelate versions of minions remain available … even if
@@ -1067,13 +1093,15 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         ids,
       );
     } else if (total > limit) {
+      const advice = rewardAdvice(ids, (cardId) => group.find((line) => line.card.id === cardId)?.quantity ?? 0);
       add(
         "copy_limit",
-        limit === DECK_COPY_LIMIT
+        (limit === DECK_COPY_LIMIT
           ? `${title} has ${copies(total)}; a deck may include no more than ${DECK_COPY_LIMIT} copies of a non-unique card (by title).`
           : identityCap !== undefined && limit === identityCap && (printedLimit ?? 0) > identityCap
             ? `${title} has ${copies(total)}; ${identityName}'s deckbuilding allows no more than ${copies(limit)} of any card outside the identity set.`
-            : `${title} has ${copies(total)}, but its deck limit is ${limit}: no more than ${copies(limit)} may be in a deck.`,
+            : `${title} has ${copies(total)}, but its deck limit is ${limit}: no more than ${copies(limit)} may be in a deck.`) +
+          advice,
         ids,
       );
     }
@@ -1093,7 +1121,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
     if (a.quantity > 1) {
       add(
         "unique_match",
-        `${uniqueLabel(a.card)} is unique, and a deck cannot include matching unique cards, so it may be included only once (this deck has ${a.quantity}).`,
+        `${uniqueLabel(a.card)} is unique, and a deck cannot include matching unique cards, so it may be included only once (this deck has ${a.quantity}).${rewardAdvice([a.card.id], () => a.quantity)}`,
         [a.card.id],
       );
     }

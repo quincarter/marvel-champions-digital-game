@@ -1759,10 +1759,11 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Campaign rewards and deck size",
     definition:
-      "A reward card from a defeated mission does not count against your minimum deck size. Today the game counts it as one of the 40, so 39 ordinary cards plus the reward is legal. This reading is under review.",
+      "A reward card from a defeated mission is not one of the 40 cards your deck needs, and it is one of the 50 your deck may hold: build 40 ordinary cards, then add the reward. Each hero must pick a reward, even of a title their deck already has, and chooses before each game whether it is in the deck; the usual copy limits still apply. Desperate Measures is shuffled in during setup and counts toward neither limit.",
     sources: [
       { kind: "card", cards: "Desperate Measures 45176" },
-      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 24 · reading under review" },
+      { kind: "rulebook", label: "Age of Apocalypse rulebook p. 24" },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
     ],
   },
   allySearch: {

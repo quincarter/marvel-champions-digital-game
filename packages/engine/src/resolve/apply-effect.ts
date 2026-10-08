@@ -169,8 +169,10 @@ import {
   abilityAttackDamage,
   abilityAttackOf,
   abilityAttackRoot,
+  attackEffectCancelled,
   isAttackInstruction,
   noteAttackedByAbility,
+  skipForCancelledAttack,
   skipUnattackable,
 } from "./attack-ability.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
@@ -526,10 +528,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         return;
       }
       // RRG "Attack (Player Ability Type)": attacks can target any enemy unless guard prevents it.
-      const attacked = targets(effect.target).filter((id) => canAttack(ctx.state, attacker, id, ctx.deps));
+      const attackable = targets(effect.target).filter((id) => canAttack(ctx.state, attacker, id, ctx.deps));
       // An "(attack)" ability's attack by its controller's identity belongs to the ability, and waits for it to finish
       // (RRG 1.8 "Attack (Player Ability Type)", p. 10; `attack-ability.ts`).
       const attackOf = abilityAttackRoot(ctx.state, ctx.deps, frame, attacker);
+      // Once an attack of that ability was cancelled, the ability's one attack makes no more (owner decision,
+      // 2026-10-08, row 65).
+      const cancelled = attackOf !== undefined && attackEffectCancelled(ctx.state, ctx.deps, frame);
+      if (cancelled) {
+        skipForCancelledAttack(ctx, { attackerId: attacker, frameId: frame.frameId }, frame.selfInstanceId, attackable);
+      }
+      const attacked = cancelled ? [] : attackable;
       const pushed = pushEvents(
         ctx,
         attacked.map((id) => ({

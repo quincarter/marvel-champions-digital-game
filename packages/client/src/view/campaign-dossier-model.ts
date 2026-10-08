@@ -42,6 +42,7 @@ import {
   signedCount,
   fieldIdWords,
 } from "./campaign-run-model.js";
+import { seatDeckSizeSplit } from "./campaign-deck-edit-model.js";
 import { resolvedWritesOf, unlistedFieldIds } from "./campaign-log-deltas.js";
 import { idWords } from "./campaign-option-labels.js";
 import { plainWriteRows } from "./campaign-write-words.js";
@@ -1157,13 +1158,7 @@ export function campaignDossierHero(
 
   // `seat.deck.cards` already includes the granted lines (design Q5's "campaign's own copy"), so a grant would be
   // double-counted if just summed — split the same way the Briefing's own `deckRowsOf` does (`campaign-briefing-model.ts`).
-  const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
-  let deckSize = 0;
-  let pinnedCount = 0;
-  for (const line of seat.deck.cards) {
-    if (grantedIds.has(line.cardId)) pinnedCount += line.quantity;
-    else deckSize += line.quantity;
-  }
+  const { counted: deckSize, pinned: pinnedCount } = seatDeckSizeSplit(seat);
   const role = seat.fields["role"];
   const stats: DossierHeroStatRow[] = [
     ...(role?.kind === "choice" ? [{ label: "Role", value: idWords(role.option), note: "chosen in #1" }] : []),

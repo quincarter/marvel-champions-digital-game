@@ -92,6 +92,24 @@ const VILLAIN_WATCH = stubAbility("villain-watch.interrupt", {
   effects: [{ kind: "addCounters", target: marker("villain-watch"), counterType: "seen", amount: n(1) }],
 });
 
+/** "Forced Interrupt: When you attack, cancel that attack. Place 1 counter here." */
+const PARRY = stubAbility("parry.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "attack", playerIs: "controller" } },
+  effects: [
+    { kind: "cancelTriggeringEvent" },
+    { kind: "addCounters", target: marker("parry"), counterType: "cancelled", amount: n(1) },
+  ],
+});
+/** "Forced Interrupt: When you attack the villain, cancel that attack." (an attack on a minion is let through) */
+const VILLAIN_PARRY = stubAbility("villain-parry.interrupt", {
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "attack", playerIs: "controller", targetIs: { categories: ["villain"] } },
+  },
+  effects: [{ kind: "cancelTriggeringEvent" }],
+});
+
 const support = (id: string, ability: StubAbility) => stubSupport({ id, cost: 0, abilities: [ability.ref] });
 /** A support with no text, to hold the counter an instruction places before the damage. */
 const PREP_S = stubSupport({ id: "prep", cost: 0, abilities: [] });
@@ -102,8 +120,20 @@ const MINION_HUNTER_S = support("minion-hunter", MINION_HUNTER);
 const VILLAIN_HUNTER_S = support("villain-hunter", VILLAIN_HUNTER);
 const SHARPENED_S = support("sharpened", SHARPENED);
 const VILLAIN_WATCH_S = support("villain-watch", VILLAIN_WATCH);
-const SUPPORTS = [MARKED_S, FOLLOW_UP_S, MINION_HUNTER_S, VILLAIN_HUNTER_S, SHARPENED_S, VILLAIN_WATCH_S, PREP_S];
-const PASSIVES = [MARKED, FOLLOW_UP, MINION_HUNTER, VILLAIN_HUNTER, SHARPENED, VILLAIN_WATCH];
+const PARRY_S = support("parry", PARRY);
+const VILLAIN_PARRY_S = support("villain-parry", VILLAIN_PARRY);
+const SUPPORTS = [
+  MARKED_S,
+  FOLLOW_UP_S,
+  MINION_HUNTER_S,
+  VILLAIN_HUNTER_S,
+  SHARPENED_S,
+  VILLAIN_WATCH_S,
+  PREP_S,
+  PARRY_S,
+  VILLAIN_PARRY_S,
+];
+const PASSIVES = [MARKED, FOLLOW_UP, MINION_HUNTER, VILLAIN_HUNTER, SHARPENED, VILLAIN_WATCH, PARRY, VILLAIN_PARRY];
 
 const villain = (id: string, keywords: readonly KeywordInstance[] = []) =>
   stubVillain({ id, stages: [{ hp: flat(40), atk: 2, sch: 1, keywords }] });
@@ -186,7 +216,43 @@ const PREP_SPRAY = event("prep-spray", [prepare, damage(2, theVillain), damage(1
 const PREP_SWAT = event("prep-swat", [prepare, damage(1, eachMinion)]);
 /** "Hero Action (attack): Place 1 counter on Prep. Take 2 damage." Nothing is attacked. */
 const PREP_WINCE = event("prep-wince", [prepare, damage(2, yourIdentity)]);
+/** "Hero Action (attack): Place 1 counter on Prep. Deal 3 damage to the villain." (with an attack effect) */
+const PREP_HIT = event("prep-hit", [prepare, attack(3, theVillain)]);
+/** "Hero Action (attack): Place 1 counter on Prep. Then, deal 3 damage to the villain." */
+const PREP_THEN_JAB = event("prep-then-jab", [prepare, { kind: "then", effects: [damage(3, theVillain)] }]);
+/** "Hero Action (attack): Place 1 counter on Prep. If Prep has a counter on it, deal 3 damage to the villain." */
+const PREP_MAYBE_JAB = event("prep-maybe-jab", [
+  prepare,
+  {
+    kind: "if",
+    condition: {
+      kind: "compare",
+      left: { kind: "counters", of: marker("prep"), counterType: "prep" },
+      op: "atLeast",
+      right: n(1),
+    },
+    then: [damage(3, theVillain)],
+  },
+]);
+/** "Hero Action (attack): Place 1 counter on Prep. Deal 3 damage to the villain." (the damage kept out of the attack) */
+const PREP_ASIDE = event("prep-aside", [prepare, damage(3, theVillain, false)]);
+/** "Hero Action (attack): Deal 3 damage to the villain. Take 2 damage. Place 1 counter on Prep." */
+const RECKLESS = event("reckless", [damage(3, theVillain), damage(2, yourIdentity), prepare]);
+/** "Hero Action (attack): Deal 3 damage to the villain. Then, place 1 counter on Prep." */
+const JAB_THEN_PREP = event("jab-then-prep", [damage(3, theVillain), { kind: "then", effects: [prepare] }]);
+/** "Hero Action (attack): Deal 2 damage to each minion. Deal 3 damage to the villain. Deal 1 damage to each minion." */
+const ONE_TWO = event("one-two", [attack(2, eachMinion), attack(3, theVillain), damage(1, eachMinion)]);
+/** "Hero Action (attack): Deal 3 damage to the villain." twice over, as two attack effects. */
+const DOUBLE_HIT = event("double-hit", [attack(3, theVillain), attack(3, theVillain)]);
 const EVENTS = [
+  RECKLESS,
+  JAB_THEN_PREP,
+  ONE_TWO,
+  DOUBLE_HIT,
+  PREP_HIT,
+  PREP_THEN_JAB,
+  PREP_MAYBE_JAB,
+  PREP_ASIDE,
   PREP_JAB,
   AIMED,
   LATE_AIM,
@@ -597,6 +663,207 @@ describe("Q49: guard is checked for each enemy an attack targets, as it would be
     const after = play(t, SCATTER);
     expect(amountsTo(after.events, t.villain)).toEqual([]);
     expect(amountsTo(after.events, t.minions[0]!)).toEqual([4]);
+  });
+});
+
+describe("Row 64 (A4): an '(attack)' ability whose attack names only an enemy it may not attack cannot be initiated", () => {
+  // Owner decision, 2026-10-08, on RRG 1.8 "Target" (p. 43): "A target that cannot be attacked is not a valid target
+  // for an attack-labeled ability." Its other instruction (the counter on Prep) does not make it playable.
+  it("with another instruction before its damage to the guarded villain it is not playable, and the play is refused unpaid", () => {
+    const guarded = table(PLAIN_V, [PREP_S], [SENTRY]);
+    for (const card of [PREP_JAB, PREP_HIT, PREP_THEN_JAB, FLURRY, JAB]) expect(playable(guarded, card)).toBe(false);
+    const given = giveCard(guarded.state, P1, PREP_JAB.card.id);
+    const refused = applyCommand(
+      given.state,
+      { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
+    expect(refused.ok).toBe(false);
+    // The reason a villain-only attack already gave ("Deal 3 damage to the villain" alone).
+    if (!refused.ok)
+      expect(refused.error).toMatchObject({ code: "no_valid_target", message: "this event has no valid target" });
+  });
+
+  it("with no guard minion, or a minion that does not guard, each is playable and deals its damage", () => {
+    for (const engaged of [[], [DUMMY]]) {
+      for (const card of [PREP_JAB, PREP_HIT, PREP_THEN_JAB]) {
+        const t = table(PLAIN_V, [PREP_S], engaged);
+        expect(playable(t, card)).toBe(true);
+        expect(amountsTo(play(t, card).events, t.villain)).toEqual([3]);
+      }
+    }
+  });
+
+  it("an ability with another enemy it may attack stays playable: the guarded villain is skipped as it resolves (Q49)", () => {
+    for (const card of [PREP_SPRAY, SPRAY, BLAST, STRIKE, SCATTER, VOLLEY]) {
+      expect(playable(table(PLAIN_V, [PREP_S], [SENTRY]), card)).toBe(true);
+    }
+    const t = table(PLAIN_V, [PREP_S], [SENTRY]);
+    const after = play(t, PREP_SPRAY);
+    expect(skipped(after.events)).toEqual([t.villain]);
+    expect(amountsTo(after.events, t.minions[0]!)).toEqual([1]);
+  });
+
+  it("nothing is refused on a guess: damage inside a branch, damage kept out of the attack, no label", () => {
+    const guarded = table(PLAIN_V, [PREP_S], [SENTRY]);
+    // A branch may not be taken, so the ability may resolve without attacking; as it resolves the villain is skipped.
+    expect(playable(guarded, PREP_MAYBE_JAB)).toBe(true);
+    const maybe = play(guarded, PREP_MAYBE_JAB);
+    expect(amountsTo(maybe.events, guarded.villain)).toEqual([]);
+    expect(skipped(maybe.events)).toEqual([guarded.villain]);
+    expect(counters(maybe.state, guarded.supports[0]!, "prep")).toBe(1);
+    // Damage that is not the attack's is not an attack on the villain: guard does not stop it.
+    expect(playable(guarded, PREP_ASIDE)).toBe(true);
+    expect(playable(guarded, LOOSE_JAB)).toBe(true);
+    // An attack that names no enemy in play is not judged (as before): "each minion" with none engaged.
+    expect(playable(table(PLAIN_V, [PREP_S]), PREP_SWAT)).toBe(true);
+  });
+
+  it("a stunned hero may still attempt it (RRG 1.8 'Stun, Stunned', p. 41): the stunned card is discarded instead", () => {
+    const guarded = table(PLAIN_V, [PREP_S], [SENTRY]);
+    const hero = mustInstance(guarded.state, guarded.hero);
+    const stunned: Table = {
+      ...guarded,
+      state: {
+        ...guarded.state,
+        instances: {
+          ...guarded.state.instances,
+          [guarded.hero]: { ...hero, statuses: { ...hero.statuses, stunned: 1 } },
+        },
+      },
+    };
+    expect(playable(stunned, PREP_JAB)).toBe(true);
+    const after = play(stunned, PREP_JAB);
+    expect(mustInstance(after.state, stunned.hero).statuses.stunned).toBe(0);
+    expect(amountsTo(after.events, stunned.villain)).toEqual([]);
+    expect(counters(after.state, stunned.supports[0]!, "prep")).toBe(0);
+  });
+});
+
+describe("Row 65 (A6): a cancelled '(attack)' ability's attack deals no damage", () => {
+  // Owner decision, 2026-10-08: "cancelling a damage-only attack cancels its damage too". RRG 1.8 "Cancel" (p. 11):
+  // "Cancel effects are considered a subtype of replacement effect, with the canceled effect being replaced with no
+  // effect"; "Attack (Player Ability Type)" (p. 10): "An ability labeled as an attack is considered a single attack,
+  // even if that attack deals multiple instances of damage."
+  const cancelledAttacks = (events: readonly GameEvent[]) =>
+    events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "cancelled" && e.event.kind === "attack" ? [e.event] : [],
+    );
+  const cancelSkips = (events: readonly GameEvent[]): InstanceId[] =>
+    events.flatMap((e) =>
+      e.type === "attackTargetSkipped" && e.reason === "attackCancelled" ? [e.targetInstanceId] : [],
+    );
+  const discarded = (state: GameState, card: (typeof EVENTS)[number]): boolean =>
+    mustPlayer(state, P1).discard.some((id) => mustInstance(state, id).cardId === card.card.id);
+
+  it("a label-only attack: its one instance is not dealt, nothing retaliates, nothing answers 'after you attack'", () => {
+    const t = table(THORNY_V, [PARRY_S, FOLLOW_UP_S, VILLAIN_HUNTER_S]);
+    const after = play(t, JAB);
+    expect(taken(after.events)).toEqual([]);
+    expect(cancelledAttacks(after.events)).toHaveLength(1);
+    expect(attacksOf(after.events, "resolved")).toEqual([]);
+    expect(cancelSkips(after.events)).toEqual([t.villain]);
+    expect(attackedIn(after.events)).toEqual([]);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(0);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(0);
+    // The event was still played: its cost stays paid and it is discarded (RRG 1.8 "Cancel", p. 11).
+    expect(discarded(after.state, JAB)).toBe(true);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("every instance of the one attack goes: three sentences, 'each enemy', a division", () => {
+    const flurry = table(PLAIN_V, [PARRY_S]);
+    const three = play(flurry, FLURRY);
+    expect(taken(three.events)).toEqual([]);
+    expect(cancelSkips(three.events)).toEqual([flurry.villain, flurry.villain, flurry.villain]);
+    // One attack, one window: the interrupt answered once.
+    expect(counters(three.state, flurry.supports[0]!, "cancelled")).toBe(1);
+
+    const spread = table(PLAIN_V, [PARRY_S], [DUMMY, SPIKY]);
+    const blast = play(spread, BLAST);
+    expect(taken(blast.events)).toEqual([]);
+    expect(cancelSkips(blast.events)).toEqual([spread.villain, ...spread.minions]);
+
+    const scatter = play(table(PLAIN_V, [PARRY_S], [DUMMY]), SCATTER);
+    expect(taken(scatter.events)).toEqual([]);
+    expect(scatter.events.some((e) => e.type === "choiceRequested" && e.choice.prompt.kind === "divide")).toBe(false);
+  });
+
+  it("interpretation: the ability's other instructions still resolve (a status, damage its player takes, a counter)", () => {
+    const strike = table(PLAIN_V, [PARRY_S]);
+    const struck = play(strike, STRIKE);
+    expect(taken(struck.events)).toEqual([]);
+    expect(mustInstance(struck.state, strike.villain).statuses.confused).toBe(1);
+
+    const reckless = table(PLAIN_V, [PARRY_S, PREP_S]);
+    const after = play(reckless, RECKLESS);
+    expect(taken(after.events)).toEqual([{ target: reckless.hero, amount: 2 }]);
+    expect(counters(after.state, reckless.supports[1]!, "prep")).toBe(1);
+
+    // Damage the script keeps out of the attack is not the attack's, so it is not cancelled with it.
+    const kept = table(PLAIN_V, [PARRY_S], [DUMMY]);
+    const aside = play(kept, ASIDE);
+    expect(amountsTo(aside.events, kept.minions[0]!)).toEqual([]);
+    expect(amountsTo(aside.events, kept.villain)).toEqual([1]);
+  });
+
+  it("post-'then' text does not resolve after a cancelled instruction (RRG 1.8 \"'Then'\", p. 44)", () => {
+    const t = table(PLAIN_V, [PARRY_S, PREP_S]);
+    const after = play(t, JAB_THEN_PREP);
+    expect(taken(after.events)).toEqual([]);
+    expect(after.events).toContainEqual({ type: "preThenUnresolved", cause: "attackCancelled" });
+    expect(after.events.some((e) => e.type === "thenSkipped")).toBe(true);
+    expect(counters(after.state, t.supports[1]!, "prep")).toBe(0);
+    // Not cancelled: the counter is placed.
+    const open = table(PLAIN_V, [PREP_S]);
+    expect(counters(play(open, JAB_THEN_PREP).state, open.supports[0]!, "prep")).toBe(1);
+  });
+
+  it("an ability with an attack effect: its later damage instructions are not dealt as plain damage", () => {
+    const t = table(THORNY_V, [PARRY_S, FOLLOW_UP_S], [DUMMY]);
+    const after = play(t, VOLLEY);
+    expect(taken(after.events)).toEqual([]);
+    expect(cancelSkips(after.events)).toEqual([t.minions[0]!]);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(0);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("its remaining attack effects are cancelled with it, with no window of their own", () => {
+    // "Each minion": two attack events from one effect. The first is cancelled in its window, the second with it.
+    const sweep = table(PLAIN_V, [PARRY_S], [DUMMY, SPIKY]);
+    const swept = play(sweep, SWEEP);
+    expect(taken(swept.events)).toEqual([]);
+    expect(cancelledAttacks(swept.events)).toHaveLength(2);
+    expect(counters(swept.state, sweep.supports[0]!, "cancelled")).toBe(1);
+    // A second attack effect, not yet reached, makes no event.
+    const twice = table(PLAIN_V, [PARRY_S]);
+    const hit = play(twice, DOUBLE_HIT);
+    expect(taken(hit.events)).toEqual([]);
+    expect(cancelledAttacks(hit.events)).toHaveLength(1);
+    expect(cancelSkips(hit.events)).toEqual([twice.villain]);
+    expect(counters(hit.state, twice.supports[0]!, "cancelled")).toBe(1);
+  });
+
+  it("interpretation: damage dealt before the cancel stays dealt, and that enemy was attacked", () => {
+    const t = table(PLAIN_V, [VILLAIN_PARRY_S, MINION_HUNTER_S, VILLAIN_HUNTER_S], [SPIKY]);
+    const after = play(t, ONE_TWO);
+    // 2 to the minion; the attack on the villain is cancelled; the last sentence's 1 to the minion is not dealt.
+    expect(amountsTo(after.events, t.minions[0]!)).toEqual([2]);
+    expect(amountsTo(after.events, t.villain)).toEqual([]);
+    expect(cancelSkips(after.events)).toEqual([t.minions[0]!]);
+    // The minion was attacked by the first attack: it retaliates, and "after you attack a minion" answers.
+    expect(attackedIn(after.events)).toEqual([t.minions[0]!]);
+    expect(amountsTo(after.events, t.hero)).toEqual([2]);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(1);
+    expect(counters(after.state, t.supports[2]!, "attacks")).toBe(0);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("an unlabeled ability makes no attack, so there is nothing to cancel: its damage is dealt", () => {
+    const t = table(PLAIN_V, [PARRY_S]);
+    const after = play(t, LOOSE_JAB);
+    expect(amountsTo(after.events, t.villain)).toEqual([3]);
+    expect(counters(after.state, t.supports[0]!, "cancelled")).toBe(0);
   });
 });
 

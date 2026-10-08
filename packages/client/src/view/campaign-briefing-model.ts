@@ -32,6 +32,7 @@ import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-
 import { missionBriefingOf, type MissionBriefing } from "./campaign-mission-model.js";
 import { sideSchemeBriefingOf, type SideSchemeBriefing } from "./campaign-side-scheme-model.js";
 import { aspectName } from "./aspect-stamp.js";
+import { seatDeckSizeSplit } from "./campaign-deck-edit-model.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -73,11 +74,15 @@ export interface DeckRow {
   readonly problem?: string;
 }
 
-/** The line under the Decks panel: a card the campaign pins into a deck is exempt from deck size (MC10 p. 3) unless the box says it counts. */
+/**
+ * The line under the Decks panel: a card the campaign pins into a deck is exempt from deck size (MC10 p. 3) unless the
+ * box says it counts. Age of Apocalypse's rewards are not one of the 40 and are one of the 50 (owner decision,
+ * 2026-10-08; MC45 p. 24 prints "That card does not count against your minimum deck size").
+ */
 export const DECK_NOTE_EXEMPT =
   "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.";
-export const DECK_NOTE_COUNTED =
-  "Tap a deck to edit it. Decks can change now; hero can't. A reward counts toward deck size, so a full deck drops a card to take it.";
+export const DECK_NOTE_REWARD =
+  "Tap a deck to edit it. Decks can change now; hero can't. A reward isn't one of your 40 cards, but it is one of your 50.";
 
 /** Whether the definition ever grants a card that counts toward deck size (`grantCard` with a `deckSize` rule, MC45 p. 24). */
 export function grantsCountTowardDeckSize(definition: CampaignDefinition | undefined): boolean {
@@ -94,7 +99,7 @@ export function grantsCountTowardDeckSize(definition: CampaignDefinition | undef
 
 export interface BriefingView {
   readonly issueNumber: number;
-  /** The line under the Decks panel (`DECK_NOTE_EXEMPT`, or `DECK_NOTE_COUNTED` for a box whose grants count). */
+  /** The line under the Decks panel (`DECK_NOTE_EXEMPT`, or `DECK_NOTE_REWARD` for a box whose rewards count). */
   readonly deckNote: string;
   readonly handled: readonly HandledRow[];
   readonly decks: readonly DeckRow[];
@@ -601,13 +606,7 @@ export function deckRowsOf(
   problems: ReadonlyMap<number, string> = new Map(),
 ): readonly DeckRow[] {
   return record.seats.map((seat) => {
-    const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
-    let deckSize = 0;
-    let pinnedCount = 0;
-    for (const line of seat.deck.cards) {
-      if (grantedIds.has(line.cardId)) pinnedCount += line.quantity;
-      else deckSize += line.quantity;
-    }
+    const { counted: deckSize, pinned: pinnedCount } = seatDeckSizeSplit(seat);
     return {
       seatNumber: seat.seatNumber,
       heroName: cardName(seat.identityCardId),
@@ -641,7 +640,7 @@ export function briefingViewOf(
   const isFinale = definition ? nodeIds[nodeIds.length - 1] === record.attempt.nodeId : false;
   return {
     issueNumber,
-    deckNote: grantsCountTowardDeckSize(definition) ? DECK_NOTE_COUNTED : DECK_NOTE_EXEMPT,
+    deckNote: grantsCountTowardDeckSize(definition) ? DECK_NOTE_REWARD : DECK_NOTE_EXEMPT,
     handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds, briefingNotes),
     pool:
       definition && node

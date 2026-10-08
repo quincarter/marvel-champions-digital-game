@@ -284,7 +284,8 @@ export interface SetupCallCopy {
  */
 export interface AftermathCallCopy {
   readonly heading: string;
-  readonly declineLabel: string;
+  /** The decline row. Absent for a choice that cannot be declined (Age of Apocalypse's rewards), which shows no such row. */
+  readonly declineLabel?: string;
   readonly waiting: string;
   readonly note: string;
   /** The line under a hero's name when the engine has nothing to offer them (settled, never blocks). */

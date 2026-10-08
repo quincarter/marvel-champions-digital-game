@@ -220,6 +220,53 @@ describe("CampaignService", () => {
     await expect(campaigns.setSeatDeck(edited, 1, ROSTER[1]!.deck)).rejects.toThrow(/locked/);
   });
 
+  test("a reward is left out of a deck and put back through the service, and a deck saved without it marks it left out (MC45 p. 24; owner decision, 2026-10-08)", async () => {
+    const campaigns = service();
+    const started = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    // A stand-in reward: an optional grant of a card the seat's deck does not hold, as a won mission leaves it.
+    const reward = POOL_CARDS.find(
+      (card) => card.type === "upgrade" && !started.seats[0]!.deck.cards.some((line) => line.cardId === card.id),
+    )!.id;
+    const record = {
+      ...started,
+      seats: started.seats.map((seat) =>
+        seat.seatNumber === 1
+          ? {
+              ...seat,
+              deck: { ...seat.deck, cards: [...seat.deck.cards, { cardId: reward, quantity: 1 }] },
+              grants: [
+                {
+                  cardId: reward,
+                  permanence: "campaign" as const,
+                  grantedAtNodeId: "crossbones",
+                  deckSize: "maximumOnly" as const,
+                  optional: true as const,
+                },
+              ],
+            }
+          : seat,
+      ),
+    };
+    const holds = (candidate: Pick<typeof started, "seats">): boolean =>
+      candidate.seats[0]!.deck.cards.some((line) => line.cardId === reward);
+
+    const out = await campaigns.setSeatRewardIncluded(record, 1, reward, false);
+    expect(holds(out)).toBe(false);
+    expect(out.seats[0]!.grants).toMatchObject([{ cardId: reward, optional: true, leftOut: true }]);
+    expect(await campaigns.load(out.id)).toEqual(out);
+    const back = await campaigns.setSeatRewardIncluded(out, 1, reward, true);
+    expect(holds(back)).toBe(true);
+    expect(back.seats[0]!.grants[0]).not.toHaveProperty("leftOut");
+    // Already in: nothing is written.
+    expect(await campaigns.setSeatRewardIncluded(back, 1, reward, true)).toBe(back);
+
+    // The deck builder saves a list without the reward's line: the log marks the reward left out to match.
+    const hawkeye = ROSTER[0]!.deck;
+    const saved = await campaigns.setSeatDeck(back, 1, hawkeye);
+    expect(holds(saved)).toBe(false);
+    expect(saved.seats[0]!.grants).toMatchObject([{ cardId: reward, leftOut: true }]);
+  });
+
   test("an Expert Campaign run stores the modifier where the runner reads it, so expert-only instructions run", async () => {
     const campaigns = service();
     const record = await campaigns.start({

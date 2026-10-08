@@ -99,6 +99,7 @@ import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets
 import { campaignService, deckStorage } from "../session.js";
 import {
   campaignDeckEditModel,
+  campaignDeckSizeLabel,
   campaignDeckSizeSplit,
   prohibitedCampaignCardIds,
   removedFromCampaignCardIds,
@@ -829,9 +830,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     // deck size, so the legal-count line says so rather than reading a plain total that includes them.
     const cardCountText = this.#campaignModel
       ? (() => {
-          const split = campaignDeckSizeSplit(this.#campaignModel!);
-          const pinnedSuffix = split.pinned > 0 ? ` + ${split.pinned} pinned` : "";
-          return `${split.counted} cards${pinnedSuffix}`;
+          // A reward is counted apart too (MC45 p. 24): "40 cards + 1 reward".
+          return campaignDeckSizeLabel(campaignDeckSizeSplit(this.#campaignModel!));
         })()
       : deckCountText(deckStatsOf(deck, POOL));
     const legalityText = verdict.ok

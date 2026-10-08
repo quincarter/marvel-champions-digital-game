@@ -144,6 +144,7 @@ import {
   noteAttackedByAbility,
   beginLabelAttack,
   openLabelAttack,
+  skipForCancelledAttack,
   skipUnattackable,
 } from "./attack-ability.js";
 import {
@@ -689,9 +690,17 @@ function executeDivide(
   // An "(attack)" ability's division of damage attacks each enemy given a share (owner rulings Q48 to Q50,
   // `attack-ability.ts`): an enemy its player's identity may not attack right now (guard) is not offered.
   const attack = what === "damage" ? abilityAttackOf(ctx.state, ctx.deps, frame) : undefined;
-  const matched = selectTargets(ctx.state, effect.among, context).filter(
-    (id) => attack === undefined || mayAttackWith(ctx.state, ctx.deps, attack, id),
-  );
+  const among = selectTargets(ctx.state, effect.among, context);
+  const matched = among.filter((id) => attack === undefined || mayAttackWith(ctx.state, ctx.deps, attack, id));
+  // Its attack was cancelled: no enemy is given a share (owner decision, 2026-10-08, row 65), said once.
+  if (attack?.cancelled && frame.answer === null) {
+    skipForCancelledAttack(
+      ctx,
+      attack,
+      frame.selfInstanceId,
+      among.filter((id) => !matched.includes(id)),
+    );
+  }
   // "Up to" (docs/phase7-wave3.md §3.41, §4 Q16): at least 1 point whenever something can be targeted, so only
   // targets the division can affect are offered (RRG 1.8 "Target", p. 43), and with none nothing happens.
   // A "(thwart)" ability's division offers only the schemes its player can thwart, "up to" or not (RRG 1.8 "Target",

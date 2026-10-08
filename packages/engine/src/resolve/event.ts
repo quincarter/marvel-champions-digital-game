@@ -122,7 +122,13 @@ import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
-import { attackAwaitsAbility, pushAttackedByAbility, waitBeneathAbility } from "./attack-ability.js";
+import {
+  attackAwaitsAbility,
+  cancelAbilityAttack,
+  cancelledWithAbilityAttack,
+  pushAttackedByAbility,
+  waitBeneathAbility,
+} from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
@@ -164,6 +170,13 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
           return;
         }
         openThwartSession(ctx, frame.event);
+      }
+      // An "(attack)" ability is a single attack (RRG 1.8 "Attack (Player Ability Type)", p. 10): once one of its
+      // attack events was cancelled, the ones that follow are cancelled with it, with no window of their own (owner
+      // decision, 2026-10-08, row 65; `attack-ability.ts`).
+      if (cancelledWithAbilityAttack(ctx.state, frame)) {
+        setFrame(ctx, { ...frame, stage: "apply", cancelled: true });
+        return;
       }
       // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33), and so do
       // characters defeated by one effect (§4.1 Q49).
@@ -252,6 +265,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       if (frame.cancelled && frame.event.kind === "thwart" && !frame.thwartCostAsked) {
         cancelThwartSession(ctx, frame.event);
       }
+      // A cancelled attack of an "(attack)" ability: the rest of that attack does not resolve (`attack-ability.ts`).
+      if (frame.cancelled) cancelAbilityAttack(ctx, frame);
       if (frame.cancelled) {
         // A cancelled last placement of step one still checks the main schemes the batch's earlier placements
         // reached, once, before their shared responses (docs/phase7-wave5.md §4.1 Q71).

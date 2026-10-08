@@ -105,6 +105,35 @@ const removedIds = (log: CampaignLog): readonly string[] => log.removedFromCampa
 const results = (log: CampaignLog) =>
   Object.fromEntries(AOA_MISSIONS.map((row) => [row.name, optionOf(log, row.resultField)]));
 
+/** A card of the deck's own aspect or a basic card: one the player chose, not of the identity set. */
+const ofAspect = (id: string): boolean => {
+  const found = cardOf(id);
+  const aspect = found !== undefined && "aspect" in found ? found.aspect : undefined;
+  return ["aggression", "justice", "leadership", "protection", "basic"].includes(aspect ?? "");
+};
+
+/** A deck of the seat's own cards plus enough basic cards of the pool, one copy each, to hold `size` cards. */
+const deckOfSize = (deck: CampaignLog["seats"][number]["deck"], size: number, without: readonly string[] = []) => {
+  const cards = deck.cards.filter((line) => !without.includes(line.cardId));
+  const held = new Set(cards.map((line) => cardOf(line.cardId)?.name));
+  const count = (): number => cards.reduce((n, line) => n + line.quantity, 0);
+  while (count() > size) {
+    const line = cards.findIndex((entry) => entry.quantity > 1 && ofAspect(entry.cardId));
+    if (line < 0) throw new Error(`could not trim the deck to ${size} cards`);
+    cards[line] = { ...cards[line]!, quantity: cards[line]!.quantity - 1 };
+  }
+  for (const card of WAVE8_CARDS) {
+    if (count() >= size) break;
+    if (!["event", "resource", "support", "upgrade"].includes(card.type)) continue;
+    if (!("aspect" in card) || card.aspect !== "basic" || held.has(card.name)) continue;
+    if (!validateDeck({ ...deck, cards: [...cards, { cardId: card.id, quantity: 1 }] }, DEPS.pool).ok) continue;
+    cards.push({ cardId: card.id, quantity: 1 });
+    held.add(card.name);
+  }
+  if (count() !== size) throw new Error(`could not build a deck of ${size} cards`);
+  return { ...deck, cards };
+};
+
 // ---------------------------------------------------------------------------------------------------------------
 // Structure
 // ---------------------------------------------------------------------------------------------------------------
@@ -261,7 +290,7 @@ describe("AOA_CAMPAIGN_DEFINITION: structure", () => {
     ]);
   });
 
-  it("the rewards are granted counted toward deck size (§4.1 Q25), and the two draws are per attempt (Q22 = B)", () => {
+  it("the rewards count toward the maximum only and Desperate Measures toward neither limit (owner decisions, 2026-10-08, rows 63 and 66), and the two draws are per attempt (Q22 = B)", () => {
     const found: Record<string, unknown>[] = [];
     const walk = (value: unknown): void => {
       if (Array.isArray(value)) value.forEach(walk);
@@ -274,7 +303,14 @@ describe("AOA_CAMPAIGN_DEFINITION: structure", () => {
     everyInstruction().forEach((instruction) => walk(instruction.step));
     const grants = found.filter((op) => op.kind === "grantCard");
     expect(grants.length).toBeGreaterThan(0);
-    for (const grant of grants) expect(grant.deckSize).toBe("counted");
+    // Every `campaign` grant is a reward (an upgrade, a support, a campaign ally); the one `thisGame` grant is
+    // Desperate Measures.
+    // Three reward cells in each of four Victory lists, and the one carried row.
+    expect(grants).toHaveLength(13);
+    for (const grant of grants) {
+      expect(grant.deckSize, String(grant.permanence)).toBe(grant.permanence === "campaign" ? "maximumOnly" : "exempt");
+    }
+    expect(grants.filter((grant) => grant.permanence === "thisGame")).toHaveLength(1);
     const draws = found.filter((op) => op.kind === "random");
     expect(draws.map((draw) => draw.slot)).toEqual(["mission", "overseer"]);
     for (const draw of draws) expect(draw.perAttempt).toBe(true);
@@ -385,8 +421,8 @@ describe("AOA campaign §3.45 (2): Evacuate Survivors, drawn in scenario 2", () 
     expect(optionOf(done.log, "resultEvacuate")).toBe(AOA_DEFEATED);
     expect(removedIds(done.log)).toContain(PANICKED_REFUGEES);
     expect(done.asked.map((choice) => [choice.slot, choice.seatNumber, choice.optional])).toEqual([
-      ["reward", 1, true],
-      ["reward", 2, true],
+      ["reward", 1, false],
+      ["reward", 2, false],
     ]);
     // "An upgrade from any aspect": upgrades only, of an aspect (basic is not one, §4.1 Q24), several aspects offered.
     for (const choice of done.asked) {
@@ -401,7 +437,13 @@ describe("AOA campaign §3.45 (2): Evacuate Survivors, drawn in scenario 2", () 
     for (const seat of [0, 1]) {
       expect(grantsOf(done.log, seat)).toHaveLength(1);
       const [grant] = grantsOf(done.log, seat);
-      expect(grant).toMatchObject({ permanence: "campaign", deckSize: "counted", grantedAtNodeId: "four-horsemen" });
+      expect(grant).toEqual({
+        cardId: grant!.cardId,
+        permanence: "campaign",
+        deckSize: "maximumOnly",
+        optional: true,
+        grantedAtNodeId: "four-horsemen",
+      });
       expect(cardOf(grant!.cardId)?.type).toBe("upgrade");
       expect(done.log.seats[seat]!.deck.cards.find((line) => line.cardId === grant!.cardId)?.quantity).toBe(1);
     }
@@ -415,12 +457,121 @@ describe("AOA campaign §3.45 (2): Evacuate Survivors, drawn in scenario 2", () 
     expect(anywhere(state, grantsOf(done.log, 0)[0]!.cardId)).not.toHaveLength(0);
   });
 
-  it("a player may decline the upgrade: no grant, and the mission is still recorded as defeated", () => {
+  it("the pick is mandatory (owner decision, 2026-10-08, row 67): no seat is offered 'none', and an empty answer is refused", () => {
     const second = evacuateSecond();
-    const done = apply(second.log, resultOf(second.log, { missionDefeated: true }), declineAll);
-    expect(done.asked).toHaveLength(2);
-    expect(done.log.seats.map((seat) => seat.grants)).toEqual([[], []]);
+    const result = resultOf(second.log, { missionDefeated: true });
+    // `declineAll` declines only what is optional: asked for a reward, it has to take one.
+    const done = apply(second.log, result, declineAll);
+    expect(done.asked.map((choice) => [choice.slot, choice.optional, choice.count])).toEqual([
+      ["reward", false, 1],
+      ["reward", false, 1],
+    ]);
+    expect(done.log.seats.map((seat) => seat.grants.length)).toEqual([1, 1]);
     expect(optionOf(done.log, "resultEvacuate")).toBe(AOA_DEFEATED);
+    const none: Pick = (choice) => (choice.slot === "reward" ? [] : declineAll(choice));
+    expect(() => apply(second.log, result, none)).toThrow(/needs 1 picks, and was answered with 0/);
+  });
+
+  it("including the reward is the player's choice each game: left out, the grant stays in the log and the game is dealt without the copy", () => {
+    const second = evacuateSecond();
+    const done = apply(second.log, resultOf(second.log, { missionDefeated: true }), rewardFirst).log;
+    const picked = grantsOf(done, 0)[0]!.cardId;
+    // What the deck editor writes when seat 1 leaves the reward out: the flag, and the copy off the deck list.
+    const without: CampaignLog = {
+      ...done,
+      seats: done.seats.map((seat, index) =>
+        index === 0
+          ? {
+              ...seat,
+              deck: { ...seat.deck, cards: seat.deck.cards.filter((line) => line.cardId !== picked) },
+              grants: seat.grants.map((grant) => ({ ...grant, leftOut: true as const })),
+            }
+          : seat,
+      ),
+    };
+    const third = compose(without);
+    const [one, two] = third.start.input.seats;
+    expect(countIn(one!.deck, picked)).toBe(0);
+    expect(one!.grantedCardIds).toEqual([]);
+    expect(one!.grantDeckSizes).toBeUndefined();
+    expect(two!.grantedCardIds).toEqual([grantsOf(done, 1)[0]!.cardId]);
+    const state = settled(build(third.log).state, atAllySearch);
+    expect(state.players[0]!.deck.map((id) => codeOf(state, id))).not.toContain(picked);
+    // The record of the choice is still the seat's for the rest of the campaign.
+    expect(grantsOf(third.log, 0)).toMatchObject([{ cardId: picked, permanence: "campaign", leftOut: true }]);
+    const after = apply(third.log, resultOf(third.log)).log;
+    expect(grantsOf(after, 0)).toMatchObject([{ cardId: picked, optional: true, leftOut: true }]);
+  });
+
+  it("every eligible upgrade is offered, a title the deck already holds included; the copy limit is deck validation's (owner decision, 2026-10-08, row 68)", () => {
+    const second = evacuateSecond();
+    const result = resultOf(second.log, { missionDefeated: true });
+    const asked = apply(second.log, result, rewardFirst).asked;
+    for (const choice of asked) {
+      const seat = second.log.seats[choice.seatNumber! - 1]!;
+      const held = seat.deck.cards.filter((line) => {
+        const card = cardOf(line.cardId);
+        return card?.type === "upgrade" && ofAspect(line.cardId) && "aspect" in card && card.aspect !== "basic";
+      });
+      // Each Core precon holds an aspect upgrade, and it is one of the options.
+      const offered = held.filter((line) => choice.options.includes(line.cardId));
+      expect(offered.length, `seat ${choice.seatNumber}`).toBeGreaterThan(0);
+    }
+    // Seat 1 takes a title its deck holds three copies of: the grant is made, and validation reports the fourth.
+    const seat = second.log.seats[0]!;
+    const title = asked[0]!.options
+      .map((id) => cardOf(id)!)
+      .find((card) => "deckLimit" in card && card.deckLimit === 3 && !card.unique && card.aspect === "leadership")!;
+    const own = seat.deck.cards.find((line) => line.cardId === title.id)?.quantity ?? 0;
+    const trim = seat.deck.cards.find(
+      (line) => line.cardId !== title.id && line.quantity >= 3 - own && ofAspect(line.cardId),
+    )!;
+    const three: CampaignLog = {
+      ...second.log,
+      seats: second.log.seats.map((candidate, index) =>
+        index === 0
+          ? {
+              ...candidate,
+              deck: {
+                ...candidate.deck,
+                cards: [
+                  ...candidate.deck.cards
+                    .filter((line) => line.cardId !== title.id)
+                    .map((line) => (line === trim ? { ...line, quantity: line.quantity - (3 - own) } : line))
+                    .filter((line) => line.quantity > 0),
+                  { cardId: title.id, quantity: 3 },
+                ],
+              },
+            }
+          : candidate,
+      ),
+    };
+    const take: Pick = (choice) =>
+      choice.slot === "reward" ? [choice.seatNumber === 1 ? title.id : choice.options[0]!] : declineAll(choice);
+    const done = apply(three, result, take).log.seats[0]!;
+    expect(done.deck.cards.find((line) => line.cardId === title.id)?.quantity).toBe(4);
+    const verdictOf = (deck: typeof done.deck, grants: typeof done.grants) => {
+      const verdict = validateDeck(deck, DEPS.pool, {
+        campaign: {
+          campaignId: DEF.campaignId as string,
+          campaignSetIds: AOA_CAMPAIGN.campaignSetIds.map((id) => id as string),
+          identityCardId: done.identityCardId as string,
+          grantedCardIds: grants.map((grant) => grant.cardId as string),
+          grantDeckSizes: grantDeckSizesOf(grants),
+          optionalGrantCardIds: grants.filter((grant) => grant.optional).map((grant) => grant.cardId as string),
+        },
+      });
+      return verdict.ok ? [] : verdict.problems.map((problem) => problem.message);
+    };
+    expect(verdictOf(done.deck, done.grants)).toEqual([
+      `${title.name} has 4 copies; a deck may include no more than 3 copies of a non-unique card (by title). 1 of them is a campaign reward: remove a copy of your own, or leave the reward out of the deck.`,
+    ]);
+    // Leaving the reward out: three copies of the player's own and no granted copy is a legal deck again.
+    const backToThree = {
+      ...done.deck,
+      cards: done.deck.cards.map((line) => (line.cardId === title.id ? { ...line, quantity: 3 } : line)),
+    };
+    expect(verdictOf(backToThree, [])).toEqual([]);
   });
 });
 
@@ -446,8 +597,10 @@ describe("AOA campaign §3.45 (3): Liberate the Seattle Core, defeated in scenar
     ]);
     const [one, two] = second.start.input.seats;
     expect([countIn(one!.deck, DESPERATE_MEASURES), countIn(two!.deck, DESPERATE_MEASURES)]).toEqual([1, 0]);
-    expect(one!.grantDeckSizes).toEqual([{ cardId: DESPERATE_MEASURES, deckSize: "counted" }]);
+    // Owner decision, 2026-10-08 (row 66): the copy counts toward neither limit, so no deck-size rule is stated.
+    expect(one!.grantDeckSizes).toBeUndefined();
     expect(two!.grantDeckSizes).toBeUndefined();
+    expect(grantsOf(second.log, 0)[0]!.deckSize).toBeUndefined();
     const state = settled(build(second.log).state, atAllySearch);
     expect([inDeck(state, 0, DESPERATE_MEASURES), inDeck(state, 1, DESPERATE_MEASURES)]).toEqual([1, 0]);
     expect(anywhere(state, DESPERATE_MEASURES)).toHaveLength(1);
@@ -495,7 +648,7 @@ describe("AOA campaign §3.45 (4): Find Lost Mutants", () => {
     ]);
     expect(done.log.seats.map((seat) => seat.grants.map((grant) => grant.cardId))).toEqual([["45172"], ["45173"]]);
     for (const seat of [0, 1]) {
-      expect(grantsOf(done.log, seat)[0]).toMatchObject({ permanence: "campaign", deckSize: "counted" });
+      expect(grantsOf(done.log, seat)[0]).toMatchObject({ permanence: "campaign", deckSize: "maximumOnly" });
     }
     expect(optionOf(done.log, "resultFind")).toBe(AOA_DEFEATED);
     for (const ally of ALLIES) expect(removedIds(done.log), ally).not.toContain(ally);
@@ -700,14 +853,35 @@ describe("AOA campaign §3.45 (7): the expert campaign", () => {
     expect([hpOf(both, 0), hpOf(both, 1), missionThreat(both)]).toEqual([12, 10, 16]);
   });
 
-  it("a seat eliminated in a won scenario 1 made no pick in its Defeated cell, has no record, and must pay", () => {
+  const REJOIN = "Rejoin at full · +3 threat";
+  const SIT_OUT = "Sit this scenario out";
+  const isRejoin = (state: GameState): boolean =>
+    state.pendingChoice?.prompt.kind === "chooseOption" &&
+    state.pendingChoice.options.some((option) => option.label === SIT_OUT);
+  /** Declines the heal, and answers the rejoin with `label`. */
+  const rejoinPick =
+    (label: string): Picker =>
+    (state) =>
+      isRejoin(state)
+        ? [state.pendingChoice!.options.find((option) => option.label === label)!.optionId]
+        : healPick(false)(state);
+  /** Scenario 1 (Find Lost Mutants) won with seat 2 defeated: the log, and what its Victory steps asked. */
+  const seatTwoDefeated = () => {
     // Scenario 1's mission must be one whose Defeated cell asks each player: Find Lost Mutants.
     const first = compose(logDrawing(FIND, EXPERT));
-    const done = apply(
-      first.log,
-      resultOf(first.log, { missionDefeated: true, hp: { 1: 4 }, sittingOut: [2] }),
-      rewardFirst,
-    );
+    return apply(first.log, resultOf(first.log, { missionDefeated: true, hp: { 1: 4 }, sittingOut: [2] }), rewardFirst);
+  };
+  /** Scenario 2 of that log, settled to the point seat 2 is asked whether to rejoin (seat 1 has declined the heal). */
+  const askedToRejoin = (log: CampaignLog) => {
+    const second = compose(log);
+    const built = build(second.log);
+    const atHeal = settled(built.state, (state) => isHeal(state) || isRejoin(state));
+    const asked = isRejoin(atHeal) ? atHeal : step(atHeal, healPick(false));
+    return { second, built, asked };
+  };
+
+  it("a seat defeated in a won scenario 1 made no pick in its Defeated cell and has no record; rejoining costs 3 threat (MC45 p. 20)", () => {
+    const done = seatTwoDefeated();
     expect(done.asked.map((choice) => [choice.slot, choice.seatNumber])).toEqual([["reward", 1]]);
     expect(done.log.seats.map((seat) => seat.grants.length)).toEqual([1, 0]);
     expect(done.log.seats.map((seat) => seat.fields.remainingHp)).toEqual([{ kind: "number", value: 4 }, undefined]);
@@ -715,14 +889,87 @@ describe("AOA campaign §3.45 (7): the expert campaign", () => {
     expect(struckOf(done.log, "missions")).toEqual([FIND]);
     expect(optionOf(done.log, "resultFind")).toBe(AOA_DEFEATED);
 
-    // Scenario 2: seat 1 is offered the heal and declines; seat 2 is not asked, pays 3 threat and is at full.
-    const asked = settled(build(compose(done.log).log).state, isHeal);
-    expect(asked.pendingChoice!.playerId).toBe(asked.players[0]!.playerId);
+    // Scenario 2: seat 1 is offered the heal and declines; seat 2 is asked whether to rejoin.
+    const atHeal = settled(build(compose(done.log).log).state, isHeal);
+    expect(atHeal.pendingChoice!.playerId).toBe(atHeal.players[0]!.playerId);
+    expect(missionThreat(atHeal)).toBe(10);
+    const asked = step(atHeal, healPick(false));
+    expect(asked.pendingChoice!.playerId).toBe(asked.players[1]!.playerId);
+    // Owner decision, 2026-10-08 (row 72): the player may decline, so there are two answers and neither is forced.
+    expect(asked.pendingChoice!.options.map((option) => option.label)).toEqual([REJOIN, SIT_OUT]);
     expect(missionThreat(asked)).toBe(10);
-    const after = step(asked, healPick(false));
-    expect(isHeal(after)).toBe(false);
+    // Rejoining: 3 threat on the mission, full hit points, and seat 2 plays the scenario.
+    const after = step(asked, rejoinPick(REJOIN));
+    expect(isHeal(after) || isRejoin(after)).toBe(false);
     expect([hpOf(after, 0), hpOf(after, 1)]).toEqual([4, 10]);
     expect(missionThreat(after)).toBe(13);
+    expect(after.players.map((player) => player.eliminated)).toEqual([false, false]);
+  });
+
+  it("declining to rejoin (owner decision, 2026-10-08): the seat sits this scenario out, pays nothing, and is asked again at the next (interpretation)", () => {
+    const { second, built, asked } = askedToRejoin(seatTwoDefeated().log);
+    const out = step(asked, rejoinPick(SIT_OUT));
+    // No threat is placed, the player is out of this game, and the game goes on with seat 1.
+    expect(missionThreat(out)).toBe(10);
+    expect(out.players.map((player) => player.eliminated)).toEqual([false, true]);
+    const playing = firstTurn(out, rejoinPick(SIT_OUT));
+    expect(playing.outcome).toBeNull();
+    expect(playing.step.phase).toBe("player");
+    expect(hpOf(playing, 0)).toBe(4);
+
+    // Won without them: the seat takes no part in the Victory steps again (MC45 p. 20) and still has no record.
+    const won: GameState = { ...playing, outcome: { result: "win", reason: "villainDefeated" } };
+    const result = campaignResultOf(DEF, second.log, won, built.events, WAVE8_DEPS);
+    expect(result.outcome).toBe("won");
+    expect(result.sittingOut).toEqual([2]);
+    const after = apply(second.log, result, rewardFirst);
+    expect(after.asked.every((choice) => choice.seatNumber !== 2)).toBe(true);
+    expect(after.log.status).toBe("active");
+    expect(after.log.position.nextNodeId).toBe("apocalypse");
+    expect(after.log.seats[1]!.fields.remainingHp).toBeUndefined();
+    expect(after.log.seats[0]!.fields.remainingHp).toEqual({ kind: "number", value: 4 });
+
+    // Scenario 3: the seat is in the game's seats again and is offered the same two answers; this time it rejoins.
+    const third = askedToRejoin(after.log);
+    expect(third.second.start.input.seats.map((seat) => seat.seatNumber)).toEqual([1, 2]);
+    expect(third.asked.pendingChoice!.playerId).toBe(third.asked.players[1]!.playerId);
+    expect(third.asked.pendingChoice!.options.map((option) => option.label)).toEqual([REJOIN, SIT_OUT]);
+    const back = step(third.asked, rejoinPick(REJOIN));
+    expect(back.players.map((player) => player.eliminated)).toEqual([false, false]);
+    expect(hpOf(back, 1)).toBe(10);
+    expect(missionThreat(back)).toBe(13);
+  });
+
+  it("every player sitting out loses that game, and the campaign's loss rule applies as printed: the scenario is retried (MC45 p. 4)", () => {
+    // A log in which neither seat has a record. No won game leaves one (a win needs a surviving player), so seat 1's
+    // record is taken out by hand to reach the case.
+    const done = seatTwoDefeated().log;
+    const neither: CampaignLog = {
+      ...done,
+      seats: done.seats.map((seat) => {
+        const { remainingHp: _remainingHp, ...fields } = seat.fields;
+        return { ...seat, fields };
+      }),
+    };
+    const second = compose(neither);
+    const built = build(second.log);
+    const first = settled(built.state, isRejoin);
+    expect(first.pendingChoice!.playerId).toBe(first.players[0]!.playerId);
+    const next = step(first, rejoinPick(SIT_OUT));
+    expect(isRejoin(next)).toBe(true);
+    expect(next.pendingChoice!.playerId).toBe(next.players[1]!.playerId);
+    // The first player sat out: the token and Mission Team passed to seat 2 (RRG 1.8 "First Player", p. 19).
+    expect(next.firstPlayerId).toBe(next.players[1]!.playerId);
+    expect(next.players[1]!.playArea.map((id) => codeOf(next, id))).toContain(MISSION_TEAM);
+    const lost = settled(next, (state) => state.outcome !== null, rejoinPick(SIT_OUT));
+    expect(lost.players.map((player) => player.eliminated)).toEqual([true, true]);
+    expect(lost.outcome?.result).toBe("loss");
+    const result = campaignResultOf(DEF, second.log, lost, built.events, WAVE8_DEPS);
+    expect(result.outcome).toBe("lost");
+    const after = apply(second.log, result).log;
+    expect(after.status).toBe("active");
+    expect(after.position.nextNodeId).toBe("four-horsemen");
+    expect(struckOf(after, "missions")).toEqual([FIND]);
   });
 
   it("the ally search offers only an ally that shares a trait with the player's hero; a deck with none finds nothing", () => {
@@ -977,39 +1224,56 @@ describe("AOA campaign §3.45: to verify", () => {
     expect(state.removedFromGame.map((id) => codeOf(state, id))).not.toContain(struck.cardId.replace("a", "b"));
   });
 
-  it("the rewards and the deck-size rule: counted toward both limits, read through `grantDeckSizesOf`", () => {
+  it("the rewards and the deck-size rule: a reward is not one of the 40 and is one of the 50 (owner decision, 2026-10-08, row 63)", () => {
     const first = compose(logDrawing(FIND));
     const done = apply(first.log, resultOf(first.log, { missionDefeated: true }), rewardFirst).log;
     const seat = done.seats[0]!;
     const rules = grantDeckSizesOf(seat.grants);
-    expect(rules).toEqual([{ cardId: "45172", deckSize: "counted" }]);
-    const context = (grantDeckSizes: typeof rules | undefined) => ({
-      campaign: {
-        campaignId: DEF.campaignId as string,
-        campaignSetIds: AOA_CAMPAIGN.campaignSetIds.map((id) => id as string),
-        identityCardId: seat.identityCardId as string,
-        grantedCardIds: seat.grants.map((grant) => grant.cardId as string),
-        ...(grantDeckSizes ? { grantDeckSizes } : {}),
-      },
+    expect(rules).toEqual([{ cardId: "45172", deckSize: "maximumOnly" }]);
+    const problemsOf = (ordinary: number) => {
+      const deck = deckOfSize(seat.deck, ordinary, ["45172"]);
+      const verdict = validateDeck(
+        { ...deck, cards: [...deck.cards, { cardId: cardId("45172"), quantity: 1 }] },
+        DEPS.pool,
+        {
+          campaign: {
+            campaignId: DEF.campaignId as string,
+            campaignSetIds: AOA_CAMPAIGN.campaignSetIds.map((id) => id as string),
+            identityCardId: seat.identityCardId as string,
+            grantedCardIds: seat.grants.map((grant) => grant.cardId as string),
+            grantDeckSizes: rules,
+          },
+        },
+      );
+      return verdict.ok ? [] : verdict.problems.map((problem) => [problem.code, problem.message]);
+    };
+    // The Core precon is 40 cards: with the ally it holds 41, and 40 of them are ordinary.
+    expect(seat.deck.cards.reduce((n, line) => n + line.quantity, 0)).toBe(41);
+    expect(problemsOf(40)).toEqual([]);
+    // 39 ordinary cards plus the reward is one short: the reward is not one of the 40.
+    expect(problemsOf(39)).toEqual([["deck_size", expect.stringMatching(/39/)]]);
+    // 49 plus the reward is the fiftieth card; 50 plus the reward is one over.
+    expect(problemsOf(49)).toEqual([]);
+    expect(problemsOf(50)).toEqual([["deck_size", expect.stringMatching(/51/)]]);
+  });
+
+  it("Desperate Measures counts toward neither limit: a 50-card deck takes it, and a 39-card deck is still short (owner decision, 2026-10-08, row 66)", () => {
+    const won = playNode(logDrawing(LIBERATE), { missionDefeated: true }).log;
+    const withDeck = (size: number): CampaignLog => ({
+      ...won,
+      seats: won.seats.map((seat, index) => (index === 0 ? { ...seat, deck: deckOfSize(seat.deck, size) } : seat)),
     });
-    const problemsOf = (deck: typeof seat.deck, grantDeckSizes: typeof rules | undefined): readonly string[] => {
-      const verdict = validateDeck(deck, DEPS.pool, context(grantDeckSizes));
-      return verdict.ok ? [] : verdict.problems.map((problem) => problem.code);
-    };
-    // The Core precon is 40 cards: with the ally it is 41 and legal.
-    expect(problemsOf(seat.deck, rules)).toEqual([]);
-    // One ordinary card short: 39 + the reward is 40 and legal (the follow-up to Q25); exempt, it would be 39.
-    const ofAspect = (id: string, aspect: string): boolean => {
-      const found = cardOf(id);
-      return found !== undefined && "aspect" in found && found.aspect === aspect;
-    };
-    const line = seat.deck.cards.find((entry) => ofAspect(entry.cardId, "leadership") && entry.quantity > 1)!;
-    const short = {
-      ...seat.deck,
-      cards: seat.deck.cards.map((entry) => (entry === line ? { ...entry, quantity: entry.quantity - 1 } : entry)),
-    };
-    expect(problemsOf(short, rules)).toEqual([]);
-    expect(problemsOf(short, undefined)).toContain("deck_size");
+    const take: Pick = (choice) => (choice.slot === "desperateMeasures" ? [DESPERATE_MEASURES] : declineAll(choice));
+    const full = compose(withDeck(50), take);
+    const [seat] = full.start.input.seats;
+    expect(seat!.deck).toHaveLength(51);
+    expect(countIn(seat!.deck, DESPERATE_MEASURES)).toBe(1);
+    expect(seat!.grantDeckSizes).toBeUndefined();
+    // The real game accepts the 51-card list: 50 cards of the player's and the copy the campaign shuffles in.
+    const state = settled(build(full.log).state, atAllySearch);
+    expect(inDeck(state, 0, DESPERATE_MEASURES)).toBe(1);
+    // It does not make up the minimum either: 39 cards and the copy is refused at setup.
+    expect(() => build(compose(withDeck(39), take).log)).toThrow(/setup failed/);
   });
 });
 
@@ -1085,7 +1349,7 @@ describe("AOA campaign: a whole standard campaign on one seed", () => {
     // Each seat holds an upgrade (Evacuate), a support (Sabotage) and a campaign ally (Find), all for the campaign.
     for (const seat of log.seats) {
       expect(seat.grants.map((grant) => cardOf(grant.cardId)?.type).sort()).toEqual(["ally", "support", "upgrade"]);
-      for (const grant of seat.grants) expect(grant).toMatchObject({ permanence: "campaign", deckSize: "counted" });
+      for (const grant of seat.grants) expect(grant).toMatchObject({ permanence: "campaign", deckSize: "maximumOnly" });
     }
     expect([...removedIds(log)].sort()).toEqual([SEA_WALL, PANICKED_REFUGEES]);
 

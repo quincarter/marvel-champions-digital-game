@@ -33,10 +33,14 @@
  *   scenario, gated on the result field: Desperate Measures is offered to each player (a `thisGame` grant, so the
  *   card is in the shuffled deck and gone again after the game), Panicked Refugees is shuffled into each deck, North
  *   American Sea Wall into the encounter deck. Each resolves before the ally search.
- * - **Rewards** (an upgrade, a support, a campaign ally) are `campaign` grants with `deckSize: "counted"` (§4.1 Q25
- *   and its follow-up: the reward is one of the deck's cards for both limits). "They may include" makes the pick
- *   optional. The aspect picks leave out a title the deck already holds, so a grant never takes a title past its copy
- *   limit; the campaign allies are one card each, so a pick takes it for the table (`excludeGranted`).
+ * - **Rewards** (an upgrade, a support, a campaign ally) are `campaign` grants with `deckSize: "maximumOnly"`: a
+ *   reward is not one of the 40 a deck needs and is one of the 50 it may hold (owner decision, 2026-10-08, §4.1 row
+ *   63, which supersedes the Q25 follow-up; MC45 p. 24 prints the first half, "That card does not count against your
+ *   minimum deck size", and is silent on the maximum). "Each player chooses" makes the pick required and "They may
+ *   include" makes the copy optional in the deck (owner decision, row 67; `inclusion: "optional"`). The aspect picks
+ *   offer every eligible card, a title the deck already holds included, and deck validation enforces the copy limit
+ *   (owner decision, row 68); the campaign allies are one card each, so a pick takes it for the table
+ *   (`excludeGranted`).
  * - **Rules of the game.** The Mission Rules card has no record: its bullets are scenario rules of every node
  *   (`CampaignNode.scenarioRuleSpecs`), and scenario 5 adds "Professor X cannot enter play during this game".
  * - **Scenario 3** (p. 14; §4.1 Q21 = A): the Prelate on the reverse of the drawn Overseer is removed from the game
@@ -44,8 +48,11 @@
  * - **Scenario 5** (p. 20): Protect the Professor defeated wins the campaign. Won with it not defeated, the campaign
  *   is lost (`endCampaign`). If the mission fails, its own text loses the game and the scenario is retried.
  * - **Expert campaign** (p. 20): hit points recorded after scenarios 1 to 4 and set in 2 to 5; the heal costs 3 threat
- *   on the mission and is forced for a seat with no record; the ally search is narrowed to the hero's traits. This box
- *   prints no "lose the campaign" for a lost game, so there is no `defeat` block.
+ *   on the mission. A seat with no record (defeated in a scenario the others won) either pays it to rejoin or sits
+ *   this scenario out and is asked again at the next (owner decision, 2026-10-08, row 72; what declining means is an
+ *   interpretation, see `healForThreat`). The ally search is narrowed to the hero's traits. This box prints no "lose
+ *   the campaign" for a lost game, so there is no `defeat` block: a game every player sat out of or was defeated in
+ *   is lost and retried (p. 4).
  *
  * ---------------------------------------------------------------------------------------------------------------
  * NOT AUTHORED: nothing.
@@ -410,8 +417,10 @@ const SETUP_CELLS: readonly CampaignInstruction[] = [
  * start of each game" is before the ally search and the starting hands (§2.14).
  *
  * Desperate Measures is offered to each player between games and granted for this game only, so the copy is in the
- * deck when it is shuffled and is not in the seat's deck list afterward; a retry offers it again. It is counted
- * toward deck size like any card of the deck (§4.1 Q25 and its follow-up).
+ * deck when it is shuffled and is not in the seat's deck list afterward; a retry offers it again. It counts toward
+ * neither deck-size limit (owner decision, 2026-10-08, §4.1 row 66: it is shuffled in during setup, after the deck is
+ * built). The print differs: MC45 p. 24 says only "That card does not count against your minimum deck size" and is
+ * silent on the maximum, where the owner's decision exempts it from both.
  */
 const CARRIED_ROWS: readonly CampaignInstruction[] = [
   cardsFor("mc45.setup.carried.desperate-measures", LIBERATE.defeated, resultIs(LIBERATE, AOA_DEFEATED), [
@@ -434,7 +443,8 @@ const CARRIED_ROWS: readonly CampaignInstruction[] = [
               seat: "self",
               card: choiceOf("desperateMeasures"),
               permanence: "thisGame",
-              deckSize: "counted",
+              // Owner decision, 2026-10-08 (§4.1 row 66): neither limit; a 50-card deck can take it.
+              deckSize: "exempt",
             },
           ],
         },
@@ -528,22 +538,45 @@ const PRELATE_OF_THE_OVERSEER: CampaignInstruction = {
 // Victory (MC45 pp. 8, 12, 14, 16; the cells of p. 24)
 // ---------------------------------------------------------------------------------------------------------------
 
-/** "Each player chooses …. They may include … in their deck for the rest of the campaign." One pick for each seat. */
+/**
+ * "Each player chooses …. They may include … in their deck for the rest of the campaign." (MC45 p. 24.) One pick for
+ * each seat.
+ *
+ * Owner decision, 2026-10-08 (§4.1 row 67), which the print supports: "chooses" has no "may", so the pick is required
+ * of every seat that is offered one; "They may include" is about the deck, so the grant is `inclusion: "optional"`
+ * and the deck editor decides each game whether the copy is in the deck. `choiceMade` guards only the case of a seat
+ * with nothing to choose from.
+ */
 const reward = (from: Extract<CampaignOp, { kind: "choose" }>["from"]): CampaignOp => ({
   kind: "forEachSeat",
   ops: [
-    { kind: "choose", slot: "reward", chooser: "eachSeat", optional: true, from },
+    { kind: "choose", slot: "reward", chooser: "eachSeat", from },
     {
       kind: "if",
       when: { kind: "choiceMade", slot: "reward" },
       then: [
-        { kind: "grantCard", seat: "self", card: choiceOf("reward"), permanence: "campaign", deckSize: "counted" },
+        // Owner decision, 2026-10-08 (§4.1 row 63): not one of the 40, one of the 50. MC45 p. 24 prints the minimum
+        // half ("That card does not count against your minimum deck size") and nothing about the maximum.
+        {
+          kind: "grantCard",
+          seat: "self",
+          card: choiceOf("reward"),
+          permanence: "campaign",
+          deckSize: "maximumOnly",
+          inclusion: "optional",
+        },
       ],
     },
   ],
 });
+/**
+ * "An upgrade from any aspect", "a support from any aspect" (MC45 p. 24). Owner decision, 2026-10-08 (§4.1 row 68):
+ * every eligible card is offered, a title the deck already holds included. The sheet prints no exclusion, and the copy
+ * limit (RRG 1.8 Appendix I) is enforced where it is for any deck, by `validateDeck`, which tells the player to drop a
+ * copy or leave the reward out.
+ */
 const aspectReward = (category: TargetCategory): CampaignOp =>
-  reward({ kind: "collection", filter: { categories: [category], aspects: ANY_ASPECT, notInOwnDeck: true } });
+  reward({ kind: "collection", filter: { categories: [category], aspects: ANY_ASPECT } });
 
 /** What each row's two cells do after a win, beyond writing the result. */
 const CELLS: Readonly<
@@ -764,7 +797,8 @@ export const AOA_CAMPAIGN_DEFINITION: CampaignDefinition = {
   ],
   // MC45 p. 20 "Elimination and Victory": a player defeated in a scenario their teammates win takes no part in its
   // Victory steps (no pick in a Defeated cell, no hit points recorded). They rejoin by paying the heal (`healForThreat`),
-  // so there is no `rejoinAtPrintedHitPoints`.
+  // so there is no `rejoinAtPrintedHitPoints`; or they decline and sit the next scenario out (owner decision,
+  // 2026-10-08), which leaves them with no record again.
   elimination: {
     id: "mc45.elimination",
     text: "In an expert campaign, if a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario.",

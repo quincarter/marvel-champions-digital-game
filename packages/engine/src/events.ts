@@ -23,6 +23,8 @@ import type { ReportedFact } from "./outside-facts.js";
  * - `revealFoundNothing` / `revealCancelled`: "Reveal that card" had no card, or the revealed card's effects were
  *   cancelled ("cancel the effects of that card and discard it");
  * - `nothingToCancel`: a cancel found nothing to cancel, or what it would cancel cannot be cancelled;
+ * - `attackCancelled`: a damage instruction or an `attack` effect of an "(attack)" ability dealt an enemy nothing
+ *   because the ability's attack was cancelled (`resolve/attack-ability.ts`, owner decision 2026-10-08, row 65);
  * - `activationDidNotHappen`: "X attacks you" / "X schemes" did not happen: a stunned/confused status cancelled it,
  *   the enemy is not in play, or the activation was skipped or cancelled.
  */
@@ -33,6 +35,7 @@ export type PreThenFailure =
   | "revealFoundNothing"
   | "revealCancelled"
   | "nothingToCancel"
+  | "attackCancelled"
   | "activationDidNotHappen"
   /** A swap that could not be completed (`swapRefused`, docs/phase7-wave6.md §3.47). */
   | "swapNotCompleted"
@@ -677,12 +680,17 @@ export type GameEvent =
    * dealt none of that instruction's damage (RRG 1.8 "Guard", p. 21; owner ruling Q49, docs/phase7-wave8.md §4.1: guard
    * is checked for every enemy the attack targets, at the time that enemy would be attacked). The instruction's other
    * targets are dealt theirs. `sourceInstanceId`: the card whose ability it is.
+   *
+   * `reason: "attackCancelled"`: the enemy could be attacked, but the ability's attack was cancelled, so the
+   * instruction's damage to it is not dealt (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65; RRG 1.8
+   * "Cancel", p. 11). Absent for an enemy that cannot be attacked.
    */
   | {
       readonly type: "attackTargetSkipped";
       readonly attackerInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly sourceInstanceId: InstanceId | null;
+      readonly reason?: "attackCancelled";
     }
   /**
    * A player's attack ended before dealing damage because its attacker left play first (docs/phase7-wave4.md §4 Q20,
@@ -1174,6 +1182,11 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly counterType: string;
       readonly amount: number;
+      /**
+       * The counters were on a main scheme stage that advanced and went back to the token pool with it (RRG 1.8 "Main
+       * Scheme", p. 27, step 1): not a removal by a card.
+       */
+      readonly returnedOnAdvance?: true;
     }
   | {
       readonly type: "statusGiven";

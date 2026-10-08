@@ -25,6 +25,11 @@
  * removed from it, so a scheme its threat cannot be removed from is no source (owner ruling 2026-10-06,
  * docs/phase7-wave7.md §4.1).
  *
+ * "A target that cannot be attacked is not a valid target for an attack-labeled ability" (p. 43): an "(attack)" ability
+ * whose attack names no enemy its player may attack cannot be initiated, whatever else it does
+ * (`attackNamesNoAttackableEnemy`; owner decision, 2026-10-08), as a "(thwart)" ability with no scheme to thwart cannot
+ * (`thwartNamesNoValidScheme`).
+ *
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
  * `attack`, `discardFromPlay`, `flipCard`, `defeat` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
  * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
@@ -588,6 +593,7 @@ export function abilityTargetFault(
   if (tuckNamesNoCard(state, deps, effects, context)) return "target";
   if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return "target";
   if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return "target";
+  if (context.attackLabeled && attackNamesNoAttackableEnemy(state, deps, effects, context)) return "target";
   return judge && fixedTargetsAllInvalid(state, deps, effects, context) ? "target" : null;
 }
 
@@ -793,6 +799,100 @@ function thwartNamesNoValidScheme(
       }
     } else if (nestedEffects(effect).length === 0 && holdsThreatRemoval(effect)) verdicts.push("unknown");
   }
+  return verdicts.length > 0 && verdicts.every((verdict) => verdict === "invalid");
+}
+
+/** Whether this value holds an attacking instruction somewhere inside it (a container `nestedEffects` does not open). */
+function holdsAttackInstruction(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(holdsAttackInstruction);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "attack" || record.kind === "dealDamage") return true;
+  if (record.kind === "divide" && record.what === "damage") return true;
+  return Object.values(record).some(holdsAttackInstruction);
+}
+
+/**
+ * An "(attack)" ability whose attack names no enemy its player may attack cannot be initiated, whatever else it does
+ * (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 64, rules check A4; the attack-side twin of
+ * `thwartNamesNoValidScheme`). Official text it rests on, RRG 1.8 "Target": "A target that cannot be attacked is not a
+ * valid target for an attack-labeled ability" (p. 43), "the villain" is a target, and an ability that requires targets
+ * "can only be initiated if it has at least one valid target" (p. 42); "Guard" (p. 21): "that player cannot use cards
+ * they control to attack a villain without this keyword"; ruling Apr 30, 2026 (2): "If a minion with Guard engages
+ * during Step 5, you cannot initiate an attack effect against the villain in Step 6." What the owner decided beyond
+ * that text: the ability's other instructions, which have a target of their own (the boost card whose icons "Hero
+ * Interrupt (attack): … cancel the boost icons on that card. Deal 1 damage to the villain for each boost icon canceled
+ * this way" cancels), do not make it initiable. (Alternative, as built before: the ability resolves and its damage to
+ * the guarded villain is skipped.) Before this, only an ability made of nothing but judged instructions aimed at named
+ * cards was refused (`fixedTargetsAllInvalid`: "Hero Action (attack): Deal 2 damage to the villain").
+ *
+ * Every instruction through which the ability always attacks is judged: an `attack` effect, a `dealDamage` that is the
+ * attack's damage (`isAttackInstruction`) and a division of damage, in the ability's own effect list and its
+ * post-"then" text:
+ *
+ * - **fixed enemies** ("the villain", "each enemy", "that minion"): valid if the ref names an enemy the attacking
+ *   character may attack (`canAttack`: guard, a `cannotAttack` rule); a ref that names nothing right now is not judged,
+ *   and one that names only cards that are not enemies is not an attack at all;
+ * - **a chosen enemy** (a `chooseTarget` slot, a division's `among`): valid if one of the candidates may be attacked,
+ *   and only those are offered as it resolves (`attackTargetAllowed`).
+ *
+ * The ability cannot be initiated when it has at least one such instruction and none of them is valid: one with another
+ * enemy it may attack ("Deal 2 damage to the villain. Deal 1 damage to each minion", with the guard minion engaged)
+ * still initiates, and the villain is skipped as it resolves (Q49). Nothing is refused on a guess: an instruction
+ * inside a branch or an option (the ability may resolve without attacking, as `openLabelAttack` allows), one whose
+ * target or attacker reads a binding, one that could also name a card that is not an enemy, and an effect container
+ * this module does not open all count as valid. A stunned identity never reaches here (`abilityTargetFault`).
+ */
+function attackNamesNoAttackableEnemy(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  type Verdict = "valid" | "invalid" | "unknown";
+  const all = flattenEffects(effects);
+  const inPlay = cardsInPlay(state);
+  const verdicts: Verdict[] = [];
+  const among = (named: readonly InstanceId[], attacker: InstanceId | null): Verdict | null => {
+    const present = named.filter((id) => inPlay.includes(id));
+    if (present.length === 0) return "unknown";
+    const enemies = present.filter((id) => categoriesOf(state, id).includes("enemy"));
+    // Damage to the player's own characters only is not an attack on anything.
+    if (enemies.length === 0) return null;
+    if (enemies.length !== present.length || attacker === null) return "unknown";
+    return enemies.some((id) => canAttack(state, attacker, id, deps)) ? "valid" : "invalid";
+  };
+  const note = (verdict: Verdict | null): void => {
+    if (verdict !== null) verdicts.push(verdict);
+  };
+  const visit = (list: readonly EffectSpec[], always: boolean): void => {
+    for (const effect of list) {
+      if (effect.kind === "attack" || (effect.kind === "dealDamage" && isAttackInstruction(effect))) {
+        const attacker =
+          effect.kind === "attack" ? attackerOf(state, effect, context) : labeledAttacker(state, context);
+        if (!always || (effect.kind === "attack" && effect.attacker && readsBindings(effect.attacker))) {
+          verdicts.push("unknown");
+        } else if (effect.target.kind === "slot") {
+          const slot = effect.target.slot;
+          const choice = all.find((other) => other.kind === "chooseTarget" && other.slot === slot);
+          if (choice?.kind !== "chooseTarget" || !isRequiredChoice(choice) || readsBindings(choice.query)) {
+            verdicts.push("unknown");
+          } else note(among(selectTargets(state, choice.query, context), attacker));
+        } else if (readsBindings(effect.target)) verdicts.push("unknown");
+        else note(among(resolveRef(state, effect.target, context), attacker));
+      } else if (effect.kind === "dealDamage") {
+        // Kept out of the attack by its script, or damage its player takes: not an attack on anything.
+        continue;
+      } else if (effect.kind === "divide") {
+        if (effect.what !== "damage") continue;
+        if (!always || readsBindings(effect.among)) verdicts.push("unknown");
+        else note(among(selectTargets(state, effect.among, context), labeledAttacker(state, context)));
+      } else if (effect.kind === "then") visit(effect.effects, always);
+      else if (nestedEffects(effect).length > 0) for (const nested of nestedEffects(effect)) visit(nested, false);
+      else if (holdsAttackInstruction(effect)) verdicts.push("unknown");
+    }
+  };
+  visit(effects, true);
   return verdicts.length > 0 && verdicts.every((verdict) => verdict === "invalid");
 }
 

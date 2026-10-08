@@ -170,7 +170,7 @@ export function isCollectionPick(slot: string, optionCount: number): boolean {
 export function declineLabelOf(
   group: Pick<AftermathChoiceGroup, "dealtPerSeat"> & Partial<Pick<AftermathChoiceGroup, "copy">>,
 ): string {
-  if (group.copy) return group.copy.declineLabel;
+  if (group.copy?.declineLabel !== undefined) return group.copy.declineLabel;
   return group.dealtPerSeat ? "Keep none" : "No mark for me";
 }
 

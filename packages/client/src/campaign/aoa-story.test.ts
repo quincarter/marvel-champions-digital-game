@@ -73,13 +73,39 @@ describe("the Age of Apocalypse story", () => {
     expect(setupCallCopyFor("mc45.setup.carried.desperate-measures")?.name).toBe("Desperate Measures");
     expect(setupCallCopyFor("mc45.setup.ally-search")?.name).toBe("Ally search");
     expect(setupCallCopyFor("mc45.s3.setup.heal")?.explain).toMatch(/3 threat/);
+    // Owner decision, 2026-10-08 (row 72): a defeated hero may decline to rejoin, and the call says what that means.
+    expect(setupCallCopyFor("mc45.s3.setup.heal")?.explain).toBe(
+      "Expert campaign: place 3 threat on the mission to heal your hero to full hit points, or decline. A hero defeated last scenario pays it to rejoin, or sits this scenario out.",
+    );
     for (const n of [1, 2, 3, 4]) {
-      expect(aftermathCallCopyFor(`mc45.s${n}.victory.evacuate.defeated`)?.heading).toBe("Take an upgrade, or none.");
-      expect(aftermathCallCopyFor(`mc45.s${n}.victory.sabotage.defeated`)?.heading).toBe("Take a support, or none.");
-      expect(aftermathCallCopyFor(`mc45.s${n}.victory.find.defeated`)?.heading).toBe("Take a campaign ally, or none.");
+      expect(aftermathCallCopyFor(`mc45.s${n}.victory.evacuate.defeated`)?.heading).toBe("Take an upgrade.");
+      expect(aftermathCallCopyFor(`mc45.s${n}.victory.sabotage.defeated`)?.heading).toBe("Take a support.");
+      expect(aftermathCallCopyFor(`mc45.s${n}.victory.find.defeated`)?.heading).toBe("Take a campaign ally.");
     }
-    // Owner Q25: a reward counts toward deck size, and the note says so.
-    expect(aftermathCallCopyFor("mc45.s1.victory.evacuate.defeated")?.note).toMatch(/counts toward deck size/);
+    // Owner decisions, 2026-10-08: a reward is not one of the 40 and is one of the 50; Desperate Measures counts
+    // toward neither limit. The notes say so, and nothing states the superseded rule.
+    for (const id of ["evacuate", "sabotage", "find"]) {
+      expect(aftermathCallCopyFor(`mc45.s1.victory.${id}.defeated`)?.note).toMatch(
+        /A reward isn't one of your 40 cards, but it is one of your 50\./,
+      );
+    }
+    expect(setupCallCopyFor("mc45.setup.carried.desperate-measures")?.explain).toBe(
+      "Liberate the Seattle Core was defeated, so each hero may shuffle one Desperate Measures into their deck for this game. It doesn't count toward deck size.",
+    );
+    expect(JSON.stringify([story.setupCalls, story.aftermathCalls])).not.toMatch(/counts toward deck size/);
+    // Owner decisions, 2026-10-08 (rows 67 and 68): the pick is mandatory, so no call words a way to decline it; the
+    // card's place in the deck is the player's choice each game; a title the deck holds is offered.
+    for (const copy of Object.values(story.aftermathCalls ?? {})) {
+      expect(copy.declineLabel).toBeUndefined();
+      expect(copy.heading).not.toMatch(/none/i);
+      expect(copy.note).toMatch(/Each hero picks one\. You choose before each game whether it is in your deck\./);
+    }
+    expect(aftermathCallCopyFor("mc45.s1.victory.evacuate.defeated")?.note).toBe(
+      "Any upgrade from any aspect, even one your deck already has. Each hero picks one. You choose before each game whether it is in your deck. A reward isn't one of your 40 cards, but it is one of your 50.",
+    );
+    expect(aftermathCallCopyFor("mc45.s1.victory.find.defeated")?.note).toBe(
+      "One copy of each ally, so a pick is taken for the whole table. Each hero picks one. You choose before each game whether it is in your deck. A reward isn't one of your 40 cards, but it is one of your 50.",
+    );
   });
 
   test("the instruction every call names carries a choice (a pick or an optional offer), not a record", () => {

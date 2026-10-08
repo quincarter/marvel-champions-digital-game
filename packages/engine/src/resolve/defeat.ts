@@ -2,6 +2,7 @@
 
 import { type Ctx, emit, moveCard, nextInstanceId, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
 import {
+  ACCELERATION_COUNTER,
   attachmentsWaitForHost,
   discardWithLeavingHost,
   endGame,
@@ -429,7 +430,14 @@ export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceI
 }
 
 /**
- * RRG "Main Scheme": excess threat does not carry over; acceleration tokens do.
+ * RRG 1.8 "Main Scheme" (p. 27), when the main scheme deck advances: "1. Remove the top main scheme card from the
+ * game. Return all tokens (except acceleration tokens) that were on that card to the token pool and discard each card
+ * attached to it." "All-purpose counters are considered tokens for all game purposes" ("All-Purpose Counter", p. 6).
+ * So excess threat does not carry over and neither does a counter of any type (magnet, test, power, knock) or a damage
+ * token; acceleration tokens do, wherever the scheme keeps them (`MainSchemeState.accelerationTokens`, or its
+ * `acceleration` counter for a scheme beside the central one). Each counter type returned is logged as a
+ * `counterRemoved` with `returnedOnAdvance`; it is not a removal a card made, so nothing answers it. Cards attached to
+ * the old stage are not discarded here (not built; reported to the owner, 2026-10-08).
  * The new stage's A side is revealed first (its "When Revealed" resolves), then
  * the B side (its own "When Revealed", if any), then the B side's starting
  * threat is placed. `advancedBy` replaces the scheme's last cause before any of that resolves, so the new stage's When
@@ -448,7 +456,18 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, ad
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
-  updateInstance(ctx, schemeId, (i) => ({ ...i, threat: 0 }));
+  const returned = Object.entries(mustInstance(ctx.state, schemeId).counters).filter(
+    ([type, amount]) => type !== ACCELERATION_COUNTER && amount > 0,
+  );
+  updateInstance(ctx, schemeId, (i) => ({
+    ...i,
+    threat: 0,
+    damage: 0,
+    counters: ACCELERATION_COUNTER in i.counters ? { [ACCELERATION_COUNTER]: i.counters[ACCELERATION_COUNTER]! } : {},
+  }));
+  for (const [counterType, amount] of returned) {
+    emit(ctx, { type: "counterRemoved", instanceId: schemeId, counterType, amount, returnedOnAdvance: true });
+  }
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
     ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], ctx.state.firstPlayerId),

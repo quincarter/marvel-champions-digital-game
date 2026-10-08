@@ -467,8 +467,17 @@ describe("the main scheme (45147a): power counters", () => {
     expect(mainSchemeStage(r.state).stageNumber).toBe(2);
     expect(events(r.events, "mainSchemeAdvanced")).toHaveLength(1);
     expect(inPlayCards(r.state, GROWTH)).toHaveLength(1);
-    // The counters go back to the pool with the old stage (RRG p. 27); 2B's own step-one response then ran.
-    expect(powerOn(r.state)).toBeLessThanOrEqual(1);
+    // Official rule, RRG 1.8 "Main Scheme" (p. 27): "Return all tokens (except acceleration tokens) that were on that
+    // card to the token pool." The 3 power counters go back with 1B (neither stage's text says they stay), so 2B's own
+    // step-one response then places the new stage's first counter and reveals nothing.
+    expect(r.events).toContainEqual({
+      type: "counterRemoved",
+      instanceId: r.state.mainScheme.instanceId,
+      counterType: "power",
+      amount: 3,
+      returnedOnAdvance: true,
+    });
+    expect(powerOn(r.state)).toBe(1);
   });
 });
 

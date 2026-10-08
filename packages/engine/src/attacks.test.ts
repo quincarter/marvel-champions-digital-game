@@ -127,9 +127,13 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
     const roundTwo = settle(runWith(deps, state, endTurn), undefined, deps);
     expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === guard.id)).toBe(true);
     const given = giveCards(roundTwo, p1, "kick");
-    const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(damageOn(after, activeVillain(after).instanceId)).toBe(0);
-    expect(mustPlayer(after, p1).discard).toContain(given.ids[0]);
+    // RRG 1.8 "Target" (p. 43): "A target that cannot be attacked is not a valid target for an attack-labeled ability",
+    // so the event cannot be played at all (owner decision, 2026-10-08, row 64; it used to resolve and deal nothing).
+    const hero = runWith(deps, given.state, toHero);
+    const refused = applyCommand(hero, play(given.ids[0] as InstanceId), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(mustPlayer(hero, p1).hand).toContain(given.ids[0]);
   });
 
   it("a stunned identity's (attack) ability is canceled except for its costs, and the stun is removed", () => {
