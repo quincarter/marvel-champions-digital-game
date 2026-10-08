@@ -11,6 +11,7 @@ import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
 import { BISHOP_IDENTITY } from "./aoa/bishop/identity.js";
+import { BISHOP_SUPPORT_UPGRADES_ALLIES } from "./aoa/bishop/support-upgrades-allies.js";
 import { BLUE_MOON } from "./aoa/blue-moon.js";
 import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
@@ -21,6 +22,7 @@ import { AOA_ABILITIES } from "./aoa/index.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
 import { ICEMAN_IDENTITY } from "./iceman/iceman/identity.js";
+import { ICEMAN_OBLIGATION_NEMESIS, ICEMAN_OBLIGATION_NEMESIS_SKIPPED } from "./iceman/iceman/obligation-nemesis.js";
 import {
   ICEMAN_SUPPORT_UPGRADES_ALLIES,
   ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
@@ -75,6 +77,12 @@ const SCRIPTED_MODULES: Readonly<
   aoa: [
     { module: "bishop/identity", cardIds: ["45001a", "45001b"], registry: BISHOP_IDENTITY, skipped: {} },
     {
+      module: "bishop/support-upgrades-allies",
+      cardIds: ["45002", "45003", "45004", "45005", "45006", "45010"],
+      registry: BISHOP_SUPPORT_UPGRADES_ALLIES,
+      skipped: {},
+    },
+    {
       module: "blue-moon",
       cardIds: ["45139", "45140", "45141", "45142", "45143", "45144", "45145", "45146"],
       registry: BLUE_MOON,
@@ -124,6 +132,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["46009", "46010", "46011"],
       registry: ICEMAN_EVENTS,
       skipped: ICEMAN_EVENTS_SKIPPED,
+    },
+    {
+      module: "iceman/obligation-nemesis",
+      cardIds: ["46024", "46025", "46026", "46027", "46028"],
+      registry: ICEMAN_OBLIGATION_NEMESIS,
+      skipped: ICEMAN_OBLIGATION_NEMESIS_SKIPPED,
     },
   ],
   jubilee: [
