@@ -10,6 +10,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { WAVE8_ABILITIES } from "./index.js";
+import { BISHOP_EVENTS } from "./aoa/bishop/events.js";
 import { BISHOP_IDENTITY } from "./aoa/bishop/identity.js";
 import { BISHOP_SUPPORT_UPGRADES_ALLIES } from "./aoa/bishop/support-upgrades-allies.js";
 import { BLUE_MOON } from "./aoa/blue-moon.js";
@@ -39,6 +40,10 @@ import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
 import { NIGHTCRAWLER_EVENTS, NIGHTCRAWLER_EVENTS_SKIPPED } from "./ncrawler/nightcrawler/events.js";
 import { NIGHTCRAWLER_IDENTITY } from "./ncrawler/nightcrawler/identity.js";
+import {
+  NIGHTCRAWLER_OBLIGATION_NEMESIS,
+  NIGHTCRAWLER_OBLIGATION_NEMESIS_SKIPPED,
+} from "./ncrawler/nightcrawler/obligation-nemesis.js";
 import { NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES } from "./ncrawler/nightcrawler/support-upgrades-allies.js";
 
 describe("wave 8 ability registry", () => {
@@ -76,6 +81,12 @@ const SCRIPTED_MODULES: Readonly<
 > = {
   aoa: [
     { module: "bishop/identity", cardIds: ["45001a", "45001b"], registry: BISHOP_IDENTITY, skipped: {} },
+    {
+      module: "bishop/events",
+      cardIds: ["45007", "45008", "45009"],
+      registry: BISHOP_EVENTS,
+      skipped: {},
+    },
     {
       module: "bishop/support-upgrades-allies",
       cardIds: ["45002", "45003", "45004", "45005", "45006", "45010"],
@@ -169,6 +180,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["48002", "48003", "48004", "48005", "48006"],
       registry: NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES,
       skipped: {},
+    },
+    {
+      module: "nightcrawler/obligation-nemesis",
+      cardIds: ["48026", "48027", "48028", "48029", "48030"],
+      registry: NIGHTCRAWLER_OBLIGATION_NEMESIS,
+      skipped: NIGHTCRAWLER_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
       module: "aspect-basic",
