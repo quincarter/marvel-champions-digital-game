@@ -16,10 +16,12 @@ import { BISHOP_OBLIGATION_NEMESIS, BISHOP_OBLIGATION_NEMESIS_SKIPPED } from "./
 import { BISHOP_SUPPORT_UPGRADES_ALLIES } from "./aoa/bishop/support-upgrades-allies.js";
 import { APOCALYPSE, APOCALYPSE_SKIPPED } from "./aoa/apocalypse.js";
 import { BLUE_MOON } from "./aoa/blue-moon.js";
+import { CELESTIAL_TECH, CELESTIAL_TECH_SKIPPED } from "./aoa/celestial-tech.js";
 import { CLAN_AKKABA } from "./aoa/clan-akkaba.js";
 import { DARK_BEAST, DARK_BEAST_SKIPPED } from "./aoa/dark-beast.js";
 import { DARK_RIDERS } from "./aoa/dark-riders.js";
 import { DYSTOPIAN_NIGHTMARE } from "./aoa/dystopian-nightmare.js";
+import { EN_SABAH_NUR, EN_SABAH_NUR_SKIPPED } from "./aoa/en-sabah-nur.js";
 import { FOUR_HORSEMEN, FOUR_HORSEMEN_SKIPPED } from "./aoa/four-horsemen.js";
 import { GENOSHA, GENOSHA_SKIPPED } from "./aoa/genosha.js";
 import { HOUNDS } from "./aoa/hounds.js";
@@ -37,6 +39,11 @@ import { STANDARD_III, STANDARD_III_SKIPPED } from "./aoa/standard-iii.js";
 import { UNUS, UNUS_SKIPPED } from "./aoa/unus.js";
 import { AOA_ABILITIES } from "./aoa/index.js";
 import { AOA_ASPECT_BASIC, AOA_ASPECT_BASIC_SKIPPED } from "./aoa/aspect-basic.js";
+import { AGE_OF_APOCALYPSE, AGE_OF_APOCALYPSE_SKIPPED } from "./aoa/campaign/age-of-apocalypse.js";
+import { AOA_BASIC_CAMPAIGN, AOA_BASIC_CAMPAIGN_SKIPPED } from "./aoa/campaign/aoa-basic-campaign.js";
+import { AOA_CAMPAIGN, AOA_CAMPAIGN_SKIPPED } from "./aoa/campaign/aoa-campaign.js";
+import { AOA_MISSION, AOA_MISSION_SKIPPED } from "./aoa/campaign/aoa-mission.js";
+import { OVERSEER, OVERSEER_SKIPPED } from "./aoa/campaign/overseer.js";
 import { ICEMAN_ABILITIES } from "./iceman/index.js";
 import { ICEMAN_ASPECT_BASIC, ICEMAN_ASPECT_BASIC_SKIPPED } from "./iceman/aspect-basic.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./iceman/iceman/events.js";
@@ -60,6 +67,11 @@ import { JUBILEE_SUPPORT_UPGRADES_ALLIES } from "./jubilee/jubilee/support-upgra
 import { MAGNETO_ASPECT_BASIC, MAGNETO_ASPECT_BASIC_SKIPPED } from "./magneto/aspect-basic.js";
 import { HELLFIRE, HELLFIRE_SKIPPED } from "./magneto/hellfire.js";
 import { MAGNETO_ABILITIES } from "./magneto/index.js";
+import { MAGNETO_IDENTITY, MAGNETO_IDENTITY_SKIPPED } from "./magneto/magneto/identity.js";
+import {
+  MAGNETO_SUPPORT_UPGRADES_ALLIES,
+  MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./magneto/magneto/support-upgrades-allies.js";
 import { NCRAWLER_ABILITIES } from "./ncrawler/index.js";
 import { NCRAWLER_ASPECT_BASIC } from "./ncrawler/aspect-basic.js";
 import { CRAZY_GANG } from "./ncrawler/crazy-gang.js";
@@ -164,10 +176,22 @@ const SCRIPTED_MODULES: Readonly<
       skipped: {},
     },
     {
+      module: "celestial-tech",
+      cardIds: ["45156", "45157", "45158"],
+      registry: CELESTIAL_TECH,
+      skipped: CELESTIAL_TECH_SKIPPED,
+    },
+    {
       module: "clan-akkaba",
       cardIds: ["45159", "45160", "45161", "45162", "45163"],
       registry: CLAN_AKKABA,
       skipped: {},
+    },
+    {
+      module: "en-sabah-nur",
+      cardIds: ["45147a", "45149", "45150", "45151", "45152", "45153", "45154", "45155", "45184a"],
+      registry: EN_SABAH_NUR,
+      skipped: EN_SABAH_NUR_SKIPPED,
     },
     {
       module: "dark-riders",
@@ -279,6 +303,36 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["45179b", "45180b", "45181b", "45182b", "45183b"],
       registry: PRELATES,
       skipped: PRELATES_SKIPPED,
+    },
+    {
+      module: "campaign/overseer",
+      cardIds: ["45179a", "45180a", "45181a", "45182a", "45183a"],
+      registry: OVERSEER,
+      skipped: OVERSEER_SKIPPED,
+    },
+    {
+      module: "campaign/aoa-mission",
+      cardIds: ["45166a", "45166b", "45167a", "45167b", "45168a", "45168b", "45169a", "45169b", "45170a", "45170b"],
+      registry: AOA_MISSION,
+      skipped: AOA_MISSION_SKIPPED,
+    },
+    {
+      module: "campaign/age-of-apocalypse",
+      cardIds: ["45164", "45165"],
+      registry: AGE_OF_APOCALYPSE,
+      skipped: AGE_OF_APOCALYPSE_SKIPPED,
+    },
+    {
+      module: "campaign/aoa-basic-campaign",
+      cardIds: ["45171a", "45172", "45173", "45174", "45175", "45176"],
+      registry: AOA_BASIC_CAMPAIGN,
+      skipped: AOA_BASIC_CAMPAIGN_SKIPPED,
+    },
+    {
+      module: "campaign/aoa-campaign",
+      cardIds: ["45177", "45178"],
+      registry: AOA_CAMPAIGN,
+      skipped: AOA_CAMPAIGN_SKIPPED,
     },
     {
       module: "apocalypse",
@@ -443,6 +497,18 @@ const SCRIPTED_MODULES: Readonly<
     },
   ],
   magneto: [
+    {
+      module: "magneto/identity",
+      cardIds: ["49001a", "49001b"],
+      registry: MAGNETO_IDENTITY,
+      skipped: MAGNETO_IDENTITY_SKIPPED,
+    },
+    {
+      module: "magneto/support-upgrades-allies",
+      cardIds: ["49002", "49003", "49004", "49005", "49006", "49007", "49011"],
+      registry: MAGNETO_SUPPORT_UPGRADES_ALLIES,
+      skipped: MAGNETO_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
     {
       module: "aspect-basic",
       cardIds: [
