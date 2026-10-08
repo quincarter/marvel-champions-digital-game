@@ -405,6 +405,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/morlock-siege/villain-loses.mp3": "The Morlocks Stand",
   "scenarios/morlock-siege/villain-wins.mp3": "Teeth in the Tunnel",
   "scenarios/unus/battle.mp3": "Force of Will",
+  "scenarios/unus/villain-loses.mp3": "Barrier Broken",
   "scenarios/unus/villain-wins.mp3": "The Unbreakable Barrier",
   "scenarios/on-the-run/battle.mp3": "The Hunt for Hope",
   "scenarios/on-the-run/villain-loses.mp3": "Iron Ascent",
