@@ -741,11 +741,21 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly boostIcons: number;
     }
+  /**
+   * A character was declared the defender of an enemy attack (RRG 1.8 "Defend, Defense", p. 15). Without `byEffect`: the
+   * Declare Defender step's own declaration (step 2 of the attack, p. 9), `playerId` the attacked player who decided,
+   * the defender exhausted next. `byEffect`: a card ability declared it ("declare [character] the defender [without
+   * exhausting them]", `EffectSpec declareDefender`), `playerId` the defender's controller; the character is the
+   * attack's defender all the same (a hero's is a basic defense, p. 15), and nothing else about the step is implied
+   * (no exhaustion unless the effect says so). Logged once per declaration: an effect naming the character that
+   * already defends declares nothing new.
+   */
   | {
       readonly type: "defenderDeclared";
       readonly attackInstanceId: InstanceId;
       readonly defenderInstanceId: InstanceId;
       readonly playerId: PlayerId;
+      readonly byEffect?: true;
     }
   | { readonly type: "defenseDeclined"; readonly attackInstanceId: InstanceId; readonly playerId: PlayerId }
   /** The declared defender left play before damage: the attack is undefended and targets that player's identity (RRG 1.8 p. 9 step 5). */

@@ -1,12 +1,14 @@
 import { JUBILEE_STARTER_DECKS, WAVE8_CARDS as CONTENT_CARDS } from "@mc/content";
 import {
   cardsInPlay,
+  characterProfile,
   iconsInPlay,
   createGame,
   handSize,
   replay,
   sessionApply,
   startSession,
+  traitsOf,
   type Command,
   type GameEvent,
   type GameSession,
@@ -68,8 +70,8 @@ vi.setConfig({ testTimeout: 240_000 });
  * Child search only when the attacked player controls an ally), the hazard extra deal (RRG 1.8 "Hazard Icon", p. 21)
  * and ready-and-draw at the end of the player phase (RRG 1.8 "Player Phase").
  *
- * Held, asserted only as "no error": Generation X's constant 47016 and Mutant Mayhem 47028 (unregistered drafts, see
- * `../aspect-basic.ts`). Chamber 47011 is registered and proven in `../aspect-basic.test.ts`; these games assert
+ * Generation X (47016): an X-MEN character's basic thwart against it removes at least its THW + 1. Mutant Mayhem
+ * 47028 is not in this deck. Chamber 47011 is registered and proven in `../aspect-basic.test.ts`; these games assert
  * nothing card-specific about him.
  */
 
@@ -108,6 +110,7 @@ const PRINTED_DECK: Record<string, readonly [string, number]> = {
 
 const seen = {
   wildsAsked: [] as string[],
+  generationXThwart: [] as string[],
   wildsSkipped: [] as string[],
   blindingFlash: [] as string[],
   firecracker: [] as string[],
@@ -146,6 +149,7 @@ const seen = {
 };
 
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
+const GENERATION_X = "47016";
 const cardType = (s: GameState, id: InstanceId) => s.cardPool[s.instances[id]!.cardId]!.type;
 const cardName = (s: GameState, id: InstanceId) => s.cardPool[s.instances[id]!.cardId]!.name;
 
@@ -455,6 +459,26 @@ class Observer {
       expect(declared[0]!.playerId, `${here}: asked of the payer`).toBe(before.pendingChoice.playerId);
     }
     for (const e of ofType(events, "wildTypesDeclared")) if (e.skipped) seen.wildsSkipped.push(here);
+
+    // Generation X (47016): an X-MEN character's basic thwart against it removes at least its THW + 1 (or all of it).
+    if (
+      command.type === "basicThwart" &&
+      !command.divide &&
+      !command.useAtk &&
+      codeOf(before, command.schemeInstanceId) === GENERATION_X &&
+      traitsOf(before, command.thwarterInstanceId, WAVE8_DEPS).map(String).includes("X-MEN") &&
+      before.instances[command.thwarterInstanceId]!.statuses.confused === 0
+    ) {
+      const had = before.instances[command.schemeInstanceId]!.threat;
+      const left = cardsInPlay(after).includes(command.schemeInstanceId)
+        ? after.instances[command.schemeInstanceId]!.threat
+        : 0;
+      const thw = characterProfile(before, command.thwarterInstanceId, WAVE8_DEPS)!.thw;
+      expect(had - left, `${here}: Generation X gives the thwarting X-MEN character +1 THW`).toBeGreaterThanOrEqual(
+        Math.min(had, thw + 1),
+      );
+      seen.generationXThwart.push(here);
+    }
 
     // "Like, totally!" (47001a): her hero resource ability, one [wild], exhausting her, used to pay for a card.
     if (

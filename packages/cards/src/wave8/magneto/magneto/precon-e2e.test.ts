@@ -7,6 +7,7 @@ import {
   handSize,
   iconsInPlay,
   printedResources,
+  remainingHitPoints,
   replay,
   sessionApply,
   startSession,
@@ -56,10 +57,11 @@ vi.setConfig({ testTimeout: 240_000 });
  * MAGNETIC card), Wrapped in Metal and Magnetic Missile (49010: discards a wrapped minion, 5 damage and stun, not an
  * attack), Metal Shards (49009: one attack of 7), Survivor (49001b: top 3 of the discard pile shuffled into the deck),
  * Frenzy, Fabian Cortez and Angry Acolyte, the hazard extra deal (RRG 1.8 "Hazard Icon", p. 21), and ready-and-draw at
- * the end of the player phase (RRG 1.8 "Player Phase").
+ * the end of the player phase (RRG 1.8 "Player Phase"), M (49012: the minion she defeats had fewer remaining hit points)
+ * and "You Got This!" (49019: an ally discarded as the cost, the hero readied).
  *
- * Known gaps, asserted only as "no error": Exodus 49028's Forced Response (needs the attack's total ATK; unregistered)
- * and Power and Decadence 49042's When Revealed (held).
+ * Exodus (49028): after his attack he discards as many cards as his total ATK for it (ATK plus boost icons).
+ * Power and Decadence (49042): revealed, it is given to the villain as a facedown boost card and not discarded.
  */
 
 const DECK_ID = "magneto-leadership";
@@ -117,9 +119,13 @@ const seen = {
   wrappedAttached: [] as string[],
   missile: [] as string[],
   metalShards: [] as string[],
+  mDefeat: [] as string[],
+  youGotThis: [] as string[],
   blast: [] as string[],
   survivor: [] as string[],
   asteroid: [] as string[],
+  exodus: [] as string[],
+  decadenceRevealed: [] as string[],
   frenzy: [] as string[],
   fabian: [] as string[],
   acolyte: [] as string[],
@@ -393,6 +399,40 @@ class Observer {
     });
 
     // Electromagnetic Blast (49008): 3 threat off a scheme (a hero action thwart).
+    // M (49012): the minion she defeats had fewer remaining hit points than she has.
+    each("49012.m-response", (seg, opener) => {
+      const m = opener.instanceId;
+      const chosenMinions = seg.flatMap((e) => (e.type === "targetChosen" && e.slot === "minion" ? e.instanceIds : []));
+      expect(chosenMinions.length, `${here}: M's Response names one minion`).toBe(1);
+      const minion = chosenMinions[0]!;
+      expect(cardType(before, minion), `${here}: M defeats a minion`).toBe("minion");
+      expect(
+        remainingHitPoints(before, minion, WAVE8_DEPS)!,
+        `${here}: fewer remaining hit points than M`,
+      ).toBeLessThan(remainingHitPoints(after, m, WAVE8_DEPS) ?? 4);
+      expect(cardsInPlay(after), `${here}: the minion is defeated`).not.toContain(minion);
+      seen.mDefeat.push(here);
+    });
+
+    // "You Got This!" (49019): an ally is discarded as the cost and the hero is readied.
+    each("49019.you-got-this-response", (seg, opener) => {
+      const player = opener.controllerId!;
+      const allyLeft = events.some(
+        (e) =>
+          e.type === "cardMoved" &&
+          e.from.kind === "playArea" &&
+          e.to.kind === "discard" &&
+          cardType(before, e.instanceId) === "ally",
+      );
+      expect(allyLeft, `${here}: "You Got This!" discards an ally`).toBe(true);
+      const identity = after.players.find((p) => p.playerId === player)!.identity.instanceId;
+      expect(
+        seg.some((e) => e.type === "cardReadied" && e.instanceId === identity),
+        `${here}: "You Got This!" readies the hero`,
+      ).toBe(true);
+      seen.youGotThis.push(here);
+    });
+
     each("49008.electromagnetic-blast-action", (seg) => {
       const removed = seg.filter((e) => e.type === "threatRemoved");
       expect(removed.length, `${here}: at most one scheme loses threat`).toBeLessThanOrEqual(1);
@@ -461,11 +501,46 @@ class Observer {
       ).toBeLessThanOrEqual(2);
       seen.frenzy.push(here);
     });
+    // Exodus (49028): he discards as many cards as his total ATK for that attack (his ATK plus the boost icons of the
+    // attack, whatever was defended); fewer only when the deck ran short.
+    each("49028.exodus-forced-response", (seg, opener, index) => {
+      const attack = events
+        .slice(0, index)
+        .filter(
+          (e): e is Extract<GameEvent, { type: "attackResolved" }> =>
+            e.type === "attackResolved" && e.enemyInstanceId === opener.instanceId,
+        )
+        .at(-1);
+      expect(attack, `${here}: Exodus's Forced Response follows his attack`).toBeDefined();
+      const total = attack!.baseAtk + attack!.boostIcons;
+      const discarded = seg.filter(
+        (e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard",
+      ).length;
+      expect(discarded, `${here}: Exodus discards his total ATK (${total}) at most`).toBeLessThanOrEqual(total);
+      if (!seg.some((e) => e.type === "deckShuffled"))
+        expect(discarded, `${here}: Exodus discards ${total}`).toBe(total);
+      seen.exodus.push(here);
+    });
     each("49030.boost", () => {
       seen.fabian.push(here);
     });
     each("49032.when-revealed", () => {
       seen.acolyte.push(here);
+    });
+    // Power and Decadence (49042) When Revealed: the revealed card itself goes facedown onto the villain as a boost
+    // card dealt outside its activation, and is not discarded by its reveal.
+    each("49042.when-revealed", (seg, opener) => {
+      const given = seg.filter(
+        (e) => e.type === "boostCardDealt" && e.instanceId === opener.instanceId && e.outsideActivation === true,
+      );
+      expect(given, `${here}: Power and Decadence is given as a facedown boost card`).toHaveLength(1);
+      expect(
+        seg.some(
+          (e) => e.type === "cardMoved" && e.instanceId === opener.instanceId && e.to.kind === "encounterDiscard",
+        ),
+        `${here}: Power and Decadence is not discarded by its reveal`,
+      ).toBe(false);
+      seen.decadenceRevealed.push(here);
     });
     each("49042.boost", () => {
       seen.hellfire.push(`${here} 49042`);
@@ -759,8 +834,12 @@ describe("Targeted checks seen across the games", () => {
     const counts = Object.fromEntries(Object.entries(seen).map(([k, v]) => [k, v.length]));
     console.info(JSON.stringify(counts));
     expect(seen.pullTwiceInRound, "Magnetic Pull is once per round").toEqual([]);
+    // Not required: these checks run whenever a game reaches them, but no seed here does. youGotThis: the greedy driver
+    // never takes that optional Response (it would spend an ally); exodus: the nemesis minion never gets to attack.
+    // `../aspect-basic.test.ts` and `./obligation-nemesis.test.ts` play both cards out.
+    const optional = ["pullTwiceInRound", "youGotThis", "exodus"];
     const missing = Object.entries(counts)
-      .filter(([k, n]) => n === 0 && k !== "pullTwiceInRound")
+      .filter(([k, n]) => n === 0 && !optional.includes(k))
       .map(([k]) => k);
     expect(missing, `never seen: ${missing.join(", ")}`).toEqual([]);
   });

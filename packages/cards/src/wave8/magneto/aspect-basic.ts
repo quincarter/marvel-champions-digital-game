@@ -4,6 +4,7 @@ import {
   allOf,
   anyOf,
   applyRuleUntil,
+  basicPowerIs,
   canPayResources,
   chooseCards,
   chooseOne,
@@ -11,6 +12,7 @@ import {
   chosen,
   constant,
   dealDamage,
+  defeat,
   defineAbilities,
   discardCardsCost,
   discardThis,
@@ -29,6 +31,8 @@ import {
   hasStatus,
   heal,
   heroAction,
+  heroResponse,
+  modifyBasicPower,
   made,
   ifThen,
   discardEncounterUntil,
@@ -46,6 +50,8 @@ import {
   alterEgoAction,
   ready,
   refCount,
+  remainingHpCompare,
+  remainingHpOf,
   removeStatus,
   removeThreat,
   response,
@@ -66,6 +72,7 @@ import {
   encounterCards,
   setAside,
   you,
+  YOUR_HERO,
 } from "../../dsl/index.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
 
@@ -118,12 +125,10 @@ const NEMESIS_MINION = query("minion", { nemesisMinionOf: you });
  * **Reprints, one script under two ids**: Deft Focus 49023 is `gmw` 16024's (raw `duplicate_of_code`; the Basic
  * classification is an erratum already in the data). Energy, Genius and Strength print no ability.
  *
- * **M (49012) is not registered.** "Defeat a minion with fewer remaining hit points than M" restricts the minions
- * that may be chosen by a comparison of their remaining hit points with M's, and no `TargetQuery` field compares
- * remaining hit points (`statCompare` has no hit-point stat, `maxPrintedHp` is the printed number, `remainingHpOf`
- * is a value for predicates and `superlative`). Choosing any minion and then checking would offer targets the card
- * does not allow, so it is left out; docs/phase7-wave8.md §3.81 row "After M enters play" names "a target query on
- * `remainingHp`", which does not exist.
+ * **M (49012)**, Response after she enters play: defeat a minion with fewer remaining hit points than she has, chosen
+ * among the minions the comparison allows (`remainingHpCompare`, §3.81; her own remaining hit points are read each time
+ * a minion is tested, so an M that entered play damaged compares with what she has left). With no such minion the
+ * Response is not offered. A defeat is not damage: a tough status card does not stop it.
  *
  * **Kid Omega (49013)**: each bullet is a spend, offered only to a player who can pay it (RRG 1.8 "Choose (Option)",
  * p. 12), and the effect follows only a spend that was made.
@@ -131,13 +136,11 @@ const NEMESIS_MINION = query("minion", { nemesisMinionOf: you });
  * **Cyclops (49015)**: Q46 = A, the +1 applies to every instance of damage the enemy takes from an attack. The grant
  * names the chosen enemy through its slot, lasts to the end of the phase and reaches every player's attacks.
  *
- * **"You Got This!" (49019) is not registered.** "Discard an ally you control →" is a cost, and the ally's power is read
- * after the cost has been paid, when the ally is already in the discard pile: `statOf` then returns its printed
- * number, not the number it had in play. The two agree for Kid Omega, Phoenix and Cyclops (nothing modifies them) and
- * differ for Surge with her bonus (3 in play, 2 read afterwards; docs/phase7-wave8.md §8 says "Surge with her bonus adds
- * 3"). No DSL value reads a discarded card's last stat. Choosing the ally as an effect, reading its power and only then
- * discarding it gives the right number, but turns a cost into an effect, so it is left to the main session to accept;
- * the test file proves both forms side by side.
+ * **"You Got This!" (49019)**, Hero Response after the hero exhausts for a basic thwart or attack: the cost discards
+ * an ally the player controls and records its THW, ATK and DEF as they stood in play (`stats`, §3.81: Surge with her
+ * bonus adds 3 to an attack, though the card in the discard pile reads 2); the matching power is added to the hero's
+ * for this use and the hero is readied. With no ally to discard it is not offered. "Matching" follows the basic power
+ * (a thwart adds THW, an attack ATK), as Sisterly Bond 43007 does.
  *
  * **New Recruits (49020)**: Victory 0, 2 threat per player and "Play only if your identity has the X-Men trait" are
  * data. Its When Defeated is each player's own choice among the set-aside NEW allies (the linked allies, set aside
@@ -158,6 +161,12 @@ const NEMESIS_MINION = query("minion", { nemesisMinionOf: you });
  * player, so it covers the identity and every ally the player controls (docs/phase7-wave8.md §3.81).
  */
 export const MAGNETO_ASPECT_BASIC: AbilityRegistry = defineAbilities({
+  "49012.m-response": response(
+    on.entersPlay("self"),
+    chooseTarget("minion", query("minion", remainingHpCompare("lt", remainingHpOf(self)))),
+    defeat(chosen("minion")),
+  ),
+
   "49013.kid-omega-response": response(
     on.entersPlay("self"),
     chooseOne(
@@ -212,6 +221,13 @@ export const MAGNETO_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     { cost: discardCardsCost(query("ally", { controller: "you" })) },
     heal(printedHpOf(chosen("discarded")), yourIdentity),
     giveTough(yourIdentity),
+  ),
+
+  "49019.you-got-this-response": heroResponse(
+    on.basicPowerUsing(YOUR_HERO, { power: ["attack", "thwart"] }),
+    { cost: discardCardsCost(query("ally", { controller: "you" }), { stats: true }) },
+    ifThen(basicPowerIs("thwart"), modifyBasicPower(varOf("discarded.thw")), modifyBasicPower(varOf("discarded.atk"))),
+    ready(yourIdentity),
   ),
 
   "49020.when-defeated": whenDefeated(
@@ -299,9 +315,4 @@ export const MAGNETO_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards left unregistered, each with its reason; `coverage.test.ts` pins them. */
-export const MAGNETO_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "49019.you-got-this-response":
-    "the discard is a cost and `statOf` of the discarded ally reads its printed stat, not the stat it had in play (Surge with her bonus: 3 in play, 2 afterwards); no value snapshots a cost-discarded card: docs/phase7-wave8.md §3.81 row 'After you exhaust your hero'",
-  "49012.m-response":
-    "'defeat a minion with fewer remaining hit points than M' needs a target query comparing remaining hit points; no TargetQuery field does (statCompare has no hp stat): docs/phase7-wave8.md §3.81 row 'After M enters play'",
-};
+export const MAGNETO_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

@@ -57,8 +57,12 @@ vi.setConfig({ testTimeout: 240_000 });
  * (46001b), Take That! (46016, one attack, Q48), the hazard extra deal (RRG 1.8 "Hazard Icon", p. 21), and ready-and-
  * draw at the end of the player phase (RRG 1.8 "Player Phase").
  *
- * Known gaps, asserted only as "no error": the leaves-play half of Frostbite 46002's Forced Response, Cryokinetic
- * Perception 46005's bound draw, and Hot-Headed 46024's Forced Response are unregistered or held. Shark-Girl 46012,
+ * Frostbite 46002's "or leaves play" half is checked in every state: once everything has resolved, no copy sits
+ * unattached in a play area (a copy whose host left play was set aside).
+ *
+ * Hot-Headed 46024's Forced Response is checked per window: while it is in play, it answers each Frostbite attached.
+ *
+ * Cryokinetic Perception 46005: each use draws a card, and a card without ICE does not ready Iceman. Shark-Girl 46012,
  * Keep Up the Pressure 46018, Snow Clone 46003's reduction (Q38) and Surprise Move 46015 after "Freeze!" are registered
  * and proven in their own modules' tests (`../aspect-basic.test.ts`, `./support-upgrades-allies.test.ts`); these games
  * assert nothing card-specific about them.
@@ -67,6 +71,7 @@ vi.setConfig({ testTimeout: 240_000 });
 const DECK_ID = "iceman-aggression";
 const ICE = { starterDeckId: DECK_ID } as const;
 const FROSTBITE = "46002";
+const HOT_HEADED_CODE = "46024";
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 const SAURON_CARDS = ["46029", "46030", "46031", "46032"];
 const NEMESIS_CARDS = ["46025", "46026", "46027", "46028"];
@@ -104,6 +109,9 @@ const seen = {
   freezeMoment: [] as string[],
   frostbiteAttached: [] as string[],
   frostbiteReturned: [] as string[],
+  frostbiteReturnedWithHost: [] as string[],
+  hotHeaded: [] as string[],
+  cryokineticPerception: [] as string[],
   frostbiteOnEnemy: [] as string[],
   arcticAttack: [] as string[],
   iceBlast: [] as string[],
@@ -190,6 +198,10 @@ function checkState(s: GameState, dealtTo: ReadonlyMap<string, PlayerId>, where:
           if (!modifiersFor(s, WAVE8_DEPS, host, stat).some((m) => m.sourceInstanceId === id && m.amount === -1))
             fail(`Frostbite (${id}) does not lower ${cardName(s, host)}'s ${stat.toUpperCase()}`);
       if (host) seen.frostbiteOnEnemy.push(where);
+      // 46002 Forced Response, "or leaves play": a copy whose host left play is set aside, so once everything has
+      // resolved no copy sits unattached in a play area.
+      if (!host && !s.pendingChoice && s.stack.length === 0 && s.players.some((p) => p.playArea.includes(id)))
+        fail(`Frostbite (${id}) is unattached in a play area: its host left play and it was not set aside`);
     }
   }
 }
@@ -284,6 +296,22 @@ class Observer {
       seen.frostbiteAttached.push(`${here} ${m.instanceId}`);
     for (const m of moved(events, FROSTBITE, "attachment", "setAside"))
       seen.frostbiteReturned.push(`${here} ${m.instanceId}`);
+    // Its host left play: the permanent copy is unattached into the play area, then set aside by its Forced Response.
+    for (const m of moved(events, FROSTBITE, "playArea", "setAside"))
+      seen.frostbiteReturnedWithHost.push(`${here} ${m.instanceId}`);
+
+    // Hot-Headed (46024) Forced Response: while it sits in the Bobby Drake player's play area, each Frostbite one of
+    // his abilities attaches to an enemy costs him 1 damage (only his cards attach Frostbite in these games).
+    const hotHeadedIn = (s: GameState) =>
+      s.players.some((p) => p.playArea.some((id) => codeOf(s, id) === HOT_HEADED_CODE));
+    if (hotHeadedIn(before) && hotHeadedIn(after) && !after.outcome) {
+      const attached = moved(events, FROSTBITE, "setAside", "attachment").length;
+      const answered = events.filter(
+        (e) => e.type === "abilityResolved" && String(e.abilityId) === "46024.hot-headed-forced-response",
+      ).length;
+      expect(answered, `${here}: Hot-Headed answers each Frostbite attached`).toBe(attached);
+      if (answered > 0) seen.hotHeaded.push(here);
+    }
 
     // "Freeze!" (46001a): an Interrupt on his basic attack or basic defense; a set-aside Frostbite goes on the enemy and
     // the moment "freeze" is raised; with none set aside, neither happens.
@@ -301,6 +329,19 @@ class Observer {
         seen.freezeMoment.push(here);
         (first.type === "basicAttack" ? seen.freezeAttack : seen.freezeDefense).push(here);
       } else seen.freezeNoCopy.push(here);
+    });
+
+    // Cryokinetic Perception (46005): exhausted to draw 1 card after "Freeze!"; an ICE card drawn readies Iceman.
+    each("46005.cryokinetic-perception-response", (seg) => {
+      const drawn = seg.find((e): e is Extract<GameEvent, { type: "cardDrawn" }> => e.type === "cardDrawn");
+      if (drawn) {
+        const card = after.cardPool[after.instances[drawn.instanceId]!.cardId]!;
+        const ice = "traits" in card && (card.traits as readonly string[]).includes("ICE");
+        const identity = after.players.find((p) => p.playerId === drawn.playerId)!.identity.instanceId;
+        const readied = seg.some((e) => e.type === "cardReadied" && e.instanceId === identity);
+        if (!ice) expect(readied, `${here}: no ICE card drawn, Iceman is not readied by it`).toBe(false);
+        seen.cryokineticPerception.push(`${here} ${ice ? "ice" : "other"}`);
+      }
     });
 
     // Arctic Attack (46009): one attack of 4 (then a copy) or of 6 (against an enemy with a copy attached).
@@ -613,8 +654,8 @@ describe("Staged: Frostbite after its host activates (46002 Forced Response)", (
     return { result, villain };
   }
 
-  // Card text: "Forced Response: After attached enemy activates or leaves play, set this card aside." The activation half
-  // ships (the leaves-play half is FROSTBITE_FORCED_RESPONSE_GAP), so the copy attached by "Freeze!" goes back.
+  // Card text: "Forced Response: After attached enemy activates or leaves play, set this card aside." The activation
+  // half: the copy attached by "Freeze!" goes back.
   it("the copy attached by Freeze! is set aside after Rhino activates (six aside again)", () => {
     const { result } = afterVillainActivation(1);
     const end = result.session.state;

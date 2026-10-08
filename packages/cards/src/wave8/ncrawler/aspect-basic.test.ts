@@ -15,20 +15,7 @@ import {
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../core/setup.js";
-import {
-  action,
-  baseStatOf,
-  chooseTarget,
-  chosen,
-  dealDamage,
-  defineAbilities,
-  gainTraitsOfUntil,
-  mergeRegistries,
-  modifyStat,
-  oncePerRound,
-  query,
-  self,
-} from "../../dsl/index.js";
+import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -56,9 +43,7 @@ vi.setConfig({ testTimeout: 120_000 });
 /**
  * Nightcrawler pack aspect and basic cards (48012 to 48025, 48031, 48032), docs/phase7-wave8.md §7.4, §3.74, §3.81.
  * Nightcrawler's real Protection precon against Rhino through `coreScenario`, the engine given this module's registry on
- * top of every earlier wave. Cards that work from any deck are also played with Spider-Man in the seat. Rogue's
- * 48012.rogue-action is skipped in the module (no cost picks another friendly character and deals it damage), so the
- * Rogue section below runs a clearly marked test-only variant to prove the primitives §3.74 names.
+ * top of every earlier wave. Cards that work from any deck are also played with Spider-Man in the seat.
  */
 const NORTHSTAR = "48013.northstar-interrupt";
 const FORTUNE = "48014.change-of-fortune-response";
@@ -75,6 +60,7 @@ const MOIRA = "48022.moira-mactaggert-response";
 const COMBINE = "48031.combine-forces-action";
 const GUNBOAT = "48032.gunboat-diplomacy-constant";
 const ALL_REFS = [
+  "48012.rogue-action",
   NORTHSTAR,
   FORTUNE,
   CONTROL,
@@ -324,9 +310,9 @@ describe("aspect-basic registry", () => {
   it.each(ALL_REFS)("%s validates", (id) => {
     expect(validateDefinition(NCRAWLER_ASPECT_BASIC[id]!)).toEqual([]);
   });
-  it("holds exactly these refs; Rogue's is not registered (skipped, the cost has no primitive)", () => {
+  it("holds exactly these refs, Rogue's included", () => {
     expect(Object.keys(NCRAWLER_ASPECT_BASIC).sort()).toEqual([...ALL_REFS].sort());
-    expect("48012.rogue-action" in NCRAWLER_ASPECT_BASIC).toBe(false);
+    expect("48012.rogue-action" in NCRAWLER_ASPECT_BASIC).toBe(true);
   });
   it("the three reprints are the very definitions of the cards they reprint (one script, two ids)", () => {
     expect(NCRAWLER_ASPECT_BASIC[PUNCH]).toBe(WAVE7_ABILITIES["32014.powerful-punch-constant"]);
@@ -1288,26 +1274,12 @@ describe("Combine Forces (48031) and Gunboat Diplomacy (48032): Alliance, exhaus
 });
 
 /**
- * Rogue (48012) is NOT scripted: this module skips `48012.rogue-action` because her cost ("Deal 1 damage to another
- * friendly character") has no primitive that picks a character of any player's and deals it damage. What these tests
- * prove is the part §3.74 listed as "not run": the lasting trait grant and the lasting stat bonus read another
- * character's base THW and ATK live, a star or X defined by text included (ruling January 17, 2026, Ruling 1). They run
- * a TEST-ONLY stand-in that deals the damage as its first effect instead of as a cost, registered only in this file's
- * engine dependencies. It is not the card's script and is not exported.
+ * Rogue (48012): the cost deals 1 damage to another friendly character she picks, any player's (docs/phase7-wave8.md
+ * §3.74, tests 1 and 6 to 10). The lasting trait grant and stat bonus read that character's base THW and ATK live, a
+ * star or X defined by text included (ruling January 17, 2026, Ruling 1).
  */
-describe("Rogue (48012) primitives proof, with a test-only stand-in for the skipped ability", () => {
-  const FRIEND = query(["identity", "ally"], { excluding: self });
-  const standIn = defineAbilities({
-    "48012.rogue-action": action(
-      { limit: oncePerRound },
-      chooseTarget("friend", FRIEND),
-      dealDamage(1, chosen("friend")),
-      gainTraitsOfUntil(chosen("friend"), self, "endOfRound"),
-      modifyStat("thw", baseStatOf(chosen("friend"), "thw"), self, "endOfRound"),
-      modifyStat("atk", baseStatOf(chosen("friend"), "atk"), self, "endOfRound"),
-    ),
-  });
-  const ROGUE_DEPS: EngineDeps = { abilities: mergeRegistries(DEPS.abilities, standIn) };
+describe("Rogue (48012): deal 1 damage to another friendly character to take its traits and base THW and ATK", () => {
+  const ROGUE_DEPS: EngineDeps = DEPS;
   const ROGUE = "48012.rogue-action";
 
   /** Rogue (THW 2, ATK 2, 3 hit points) and Gambit holding a 2-icon card (THW 2, ATK 2), in play beside Nightcrawler. */
@@ -1343,11 +1315,14 @@ describe("Rogue (48012) primitives proof, with a test-only stand-in for the skip
     playerOf(s, P1)
       .hand.filter((h) => !except.includes(h) && iconsOf(s, h) > 0)
       .slice(0, n);
-  const useRogue = (s: GameState, rogue: InstanceId, pick: Picker) =>
-    driveEventsPicking(ROGUE_DEPS, s, pick, use(P1, rogue, ROGUE));
+  const rogueOn = (rogue: InstanceId, friend: InstanceId) => use(P1, rogue, ROGUE, [], { friend: [friend] });
+  const useRogue = (s: GameState, rogue: InstanceId, friend: InstanceId) =>
+    driveEventsPicking(ROGUE_DEPS, s, firstLegal, rogueOn(rogue, friend));
 
-  it("the stand-in is exactly what the module skipped: the module registers no 48012 ref", () => {
-    expect(Object.keys(NCRAWLER_ASPECT_BASIC).filter((k) => k.startsWith("48012"))).toEqual([]);
+  it("the damage is the cost: a chosen deal-damage cost of 1 on another identity or ally, once per round", () => {
+    const definition = NCRAWLER_ASPECT_BASIC[ROGUE]!;
+    expect(definition.cost?.dealDamage).toMatchObject({ amount: 1, choose: { slot: "friend" } });
+    expect(definition.limit).toMatchObject({ count: 1, period: "round" });
   });
   it("test 1 of §3.74 (Gambit, 2-icon card): Rogue is THW 2 ATK 2 before, Gambit THW 2 ATK 2 with 3 hit points", () => {
     const { state, rogue, gambit } = table();
@@ -1357,21 +1332,21 @@ describe("Rogue (48012) primitives proof, with a test-only stand-in for the skip
   it("test 6: dealing 1 damage to Gambit leaves him 2 hit points; Rogue is THW 4, ATK 4 and has the THIEF and X-MEN traits", () => {
     const { state: s, rogue, gambit } = table();
     expect(traitsOf(s, rogue, ROGUE_DEPS).map(String)).not.toContain("THIEF");
-    const { state } = useRogue(s, rogue, picker(take(gambit)));
+    const { state } = useRogue(s, rogue, gambit);
     expect(inst(state, gambit).damage).toBe(1);
     expect(profile(state, rogue, ROGUE_DEPS)).toMatchObject({ thw: 4, atk: 4 });
     expect(traitsOf(state, rogue, ROGUE_DEPS).map(String)).toEqual(expect.arrayContaining(["THIEF", "X-MEN"]));
   });
   it("test 7 (no upgrade): Nightcrawler's base THW 2 and ATK 1 give Rogue THW 4 and ATK 3", () => {
     const { state: s, rogue, nc } = table();
-    const { state } = useRogue(s, rogue, picker(take(nc)));
+    const { state } = useRogue(s, rogue, nc);
     expect(inst(state, nc).damage).toBe(1);
     expect(profile(state, rogue, ROGUE_DEPS)).toMatchObject({ thw: 4, atk: 3 });
   });
   it("test 8: a tough status card on the target is discarded instead of the damage, and she copies anyway", () => {
     const { state: s, rogue, nc } = table();
     const tough = patchInstance(s, nc, { statuses: { stunned: 0, confused: 0, tough: 1 } });
-    const { state } = useRogue(tough, rogue, picker(take(nc)));
+    const { state } = useRogue(tough, rogue, nc);
     expect(inst(state, nc).statuses.tough).toBe(0);
     expect(inst(state, nc).damage).toBe(0);
     expect(profile(state, rogue, ROGUE_DEPS)).toMatchObject({ thw: 4, atk: 3 });
@@ -1379,18 +1354,35 @@ describe("Rogue (48012) primitives proof, with a test-only stand-in for the skip
   it("test 9 (Q43 = A): the target is Gambit with 1 hit point left: he is defeated, she has none of his traits or powers", () => {
     const { state: s, rogue, gambit } = table();
     const dying = patchInstance(s, gambit, { damage: 2 });
-    const { state } = useRogue(dying, rogue, picker(take(gambit)));
+    const { state } = useRogue(dying, rogue, gambit);
     expect(playerOf(state, P1).playArea).not.toContain(gambit);
     expect(profile(state, rogue, ROGUE_DEPS)).toMatchObject({ thw: 2, atk: 2 });
     expect(traitsOf(state, rogue, ROGUE_DEPS).map(String)).not.toContain("THIEF");
   });
   it("test 10: next round the bonus is gone and the Action is offered again; this round it is once only", () => {
     const { state: s, rogue, nc } = table();
-    const { state: used } = useRogue(s, rogue, picker(take(nc)));
-    expect(accepted(used, use(P1, rogue, ROGUE), ROGUE_DEPS)).toBe(false);
+    const { state: used } = useRogue(s, rogue, nc);
+    expect(accepted(used, rogueOn(rogue, nc), ROGUE_DEPS)).toBe(false);
     const { state: next } = villainPhase2(used);
     expect(profile(next, rogue, ROGUE_DEPS)).toMatchObject({ thw: 2, atk: 2 });
-    expect(accepted(next, use(P1, rogue, ROGUE), ROGUE_DEPS)).toBe(true);
+    expect(accepted(next, rogueOn(rogue, nc), ROGUE_DEPS)).toBe(true);
+  });
+  it("'another friendly character': not herself, not an enemy; with two friends the command must name one", () => {
+    const { state: s, rogue, gambit } = table();
+    expect(accepted(s, rogueOn(rogue, rogue), ROGUE_DEPS)).toBe(false);
+    expect(accepted(s, rogueOn(rogue, s.activeVillainId!), ROGUE_DEPS)).toBe(false);
+    expect(accepted(s, use(P1, rogue, ROGUE), ROGUE_DEPS)).toBe(false);
+    expect(accepted(s, rogueOn(rogue, gambit), ROGUE_DEPS)).toBe(true);
+  });
+  it("the damage is dealt before the copy: the cost's 1 damage comes first in the log, from Rogue", () => {
+    const { state: s, rogue, gambit } = table();
+    const { events } = useRogue(s, rogue, gambit);
+    const hit = events.findIndex(
+      (e) => e.type === "damageDealt" && e.targetInstanceId === gambit && e.sourceInstanceId === rogue,
+    );
+    const copied = events.findIndex((e) => e.type === "lastingEffectAdded");
+    expect(hit).toBeGreaterThan(-1);
+    expect(copied).toBeGreaterThan(hit);
   });
   const villainPhase2 = (s: GameState) => {
     let state = runWith(ROGUE_DEPS, stackEncounterDeck(s, CROWD_CONTROL, MERCENARY), endTurn(P1));

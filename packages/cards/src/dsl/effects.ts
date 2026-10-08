@@ -58,10 +58,16 @@ const withBind = (bind: string | undefined) => (bind !== undefined ? { bind } : 
 // Damage, healing, threat
 // ---------------------------------------------------------------------------
 
-export const draw = (n: Amount = 1, player: PlayerRef = you): EffectSpec => ({
+/**
+ * "Draw N cards." `bind`: the cards drawn go in that slot (`chosen(bind)`) and their number in `<bind>.count`, for
+ * "draw 1 card. If that card has the ICE trait, …" (Cryokinetic Perception, `iceman` 46005): read the card with
+ * `refMatches(chosen(bind), query, { anywhere: true })`, since it is in hand.
+ */
+export const draw = (n: Amount = 1, player: PlayerRef = you, opts: { readonly bind?: string } = {}): EffectSpec => ({
   kind: "draw",
   player,
   amount: amount(n),
+  ...withBind(opts.bind),
 });
 export const drawUpTo = (n: Amount, player: PlayerRef = you): EffectSpec => ({
   kind: "drawUpTo",

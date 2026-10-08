@@ -281,7 +281,8 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...(cost.encounterLookDiscard ? [cost.encounterLookDiscard.slot] : []),
     ...(cost.attach ? [cost.attach.to.slot, ...(cost.attach.bind ? [cost.attach.bind] : [])] : []),
-    ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
+    ...(cost.dealDamage?.choose ? [cost.dealDamage.choose.slot] : []),
+    ...inPlayPicksOf(cost).flatMap(({ pick }) => [pick.slot, ...(pick.bindHosts ? [pick.bindHosts] : [])]),
   ];
   if (new Set(slots).size !== slots.length)
     problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
@@ -620,6 +621,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "findCard":
       if (effect.bind) scope.slots.add(effect.bind);
       return;
+    // `draw` with a bind: the cards drawn and `<bind>.count` (docs/phase7-wave8.md §3.70).
+    case "draw":
     case "lookAt":
       if (effect.bind) {
         scope.slots.add(effect.bind);
@@ -819,13 +822,28 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       if (component.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
     }
     if (cost.either) scope.vars.add("cost.branch");
+    if (cost.dealDamage?.choose) scope.slots.add(cost.dealDamage.choose.slot);
     for (const { pick } of inPlayPicksOf(cost)) {
       scope.slots.add(pick.slot);
+      if (pick.bindHosts) scope.slots.add(pick.bindHosts);
+      if (pick.snapshotStats) for (const stat of ["thw", "atk", "def"]) scope.vars.add(`${pick.slot}.${stat}`);
       if (pick.bind) scope.vars.add(pick.bind);
     }
   }
   if (definition.trigger.kind === "constant") {
-    checkRefs(definition.trigger, scope, "constant", problems);
+    // A constant modifier's `while` and amount are read with the card whose stat it is bound to "affected" (engine
+    // `AFFECTED_SLOT`): "each X-MEN character gets +1 THW while making a basic thwart against this scheme".
+    const { modifiers, ...rest } = definition.trigger;
+    checkRefs(rest, scope, "constant", problems);
+    if (modifiers !== undefined) {
+      const reading = { ...scope, slots: new Set([...scope.slots, "affected"]) };
+      modifiers.forEach((modifier, index) => {
+        const { while: condition, amount, ...other } = modifier;
+        checkRefs(other, scope, "constant", problems);
+        if (condition !== undefined) checkRefs(condition, reading, `constant modifiers[${index}] while`, problems);
+        if (typeof amount !== "number") checkRefs(amount, reading, `constant modifiers[${index}] amount`, problems);
+      });
+    }
     return;
   }
   walk(definition.effects, scope, "effects", problems);

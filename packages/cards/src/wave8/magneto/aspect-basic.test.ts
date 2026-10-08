@@ -24,32 +24,7 @@ import {
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { coreScenario } from "../../core/setup.js";
-import {
-  YOUR_HERO,
-  basicPowerIs,
-  discard,
-  discardCardsCost,
-  heroResponse,
-  modifyBasicPower,
-  ready as readyEffect,
-  setVar,
-  statOf,
-  varOf,
-  yourIdentity,
-  chooseTarget,
-  chosen,
-  defineAbilities,
-  ifThen,
-  mergeRegistries,
-  not,
-  on,
-  query,
-  remainingHpOf,
-  response,
-  self,
-  defeat,
-  valueAtLeast,
-} from "../../dsl/index.js";
+import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -82,9 +57,6 @@ vi.setConfig({ testTimeout: 120_000 });
  * own cards (Magnetic Pull and the rest) are inert. Cards that work from any deck are also played from a Core hero's
  * seat: Spider-Man (Justice precon) or Captain Marvel (Leadership precon), the cards added to the deck illegally
  * (`requireLegalDecks: false`).
- *
- * M's `49012.m-response` is skipped in the module (no target query compares remaining hit points), so the M section
- * below runs a clearly marked test-only stand-in to prove the half that works.
  */
 const KID_OMEGA = "49013.kid-omega-response";
 const PHOENIX = "49014.phoenix-response";
@@ -104,7 +76,9 @@ const ANOLE = "49034.anole-constant";
 const BLING = "49035.bling-constant";
 const INDRA = "49036.indra-constant";
 const ATOM = "49037.children-of-the-atom-constant";
+const M_REF = "49012.m-response";
 const ALL_REFS = [
+  M_REF,
   KID_OMEGA,
   PHOENIX,
   CYCLOPS,
@@ -112,6 +86,7 @@ const ALL_REFS = [
   WSD_ACTION,
   SQUARED,
   NOBLE,
+  GOT_THIS,
   RECRUITS,
   QUEEN_CONSTANT,
   QUEEN_RESPONSE,
@@ -123,7 +98,6 @@ const ALL_REFS = [
   INDRA,
   ATOM,
 ];
-const M_REF = "49012.m-response";
 
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, MAGNETO_ASPECT_BASIC) };
 const POOL: readonly AnyCard[] = [
@@ -429,13 +403,9 @@ describe("aspect-basic registry", () => {
   it.each(ALL_REFS)("%s validates", (id) => {
     expect(validateDefinition(MAGNETO_ASPECT_BASIC[id]!)).toEqual([]);
   });
-  it("holds exactly these refs; M's and \"You Got This!\"'s are not registered and sit in the skipped map with their reasons", () => {
+  it("holds exactly these refs, M's and \"You Got This!\"'s included; nothing is skipped", () => {
     expect(Object.keys(MAGNETO_ASPECT_BASIC).sort()).toEqual([...ALL_REFS].sort());
-    expect(M_REF in MAGNETO_ASPECT_BASIC).toBe(false);
-    expect(GOT_THIS in MAGNETO_ASPECT_BASIC).toBe(false);
-    expect(Object.keys(MAGNETO_ASPECT_BASIC_SKIPPED).sort()).toEqual([GOT_THIS, M_REF].sort());
-    expect(MAGNETO_ASPECT_BASIC_SKIPPED[M_REF]).toContain("remaining hit points");
-    expect(MAGNETO_ASPECT_BASIC_SKIPPED[GOT_THIS]).toContain("printed stat");
+    expect(Object.keys(MAGNETO_ASPECT_BASIC_SKIPPED)).toEqual([]);
   });
   it("every ability ref the 20 cards name is registered or skipped, none twice", () => {
     const ids = [
@@ -463,7 +433,7 @@ describe("aspect-basic registry", () => {
     const named = ids.flatMap((id) =>
       ((BY_ID.get(id) as unknown as { abilities: { id: string }[] }).abilities ?? []).map((a) => a.id as string),
     );
-    expect(named.sort()).toEqual([...ALL_REFS, M_REF, GOT_THIS].sort());
+    expect(named.sort()).toEqual([...ALL_REFS].sort());
   });
   it("Deft Focus (49023) is the very definition of the card it reprints, gmw 16024 (one script, two ids)", () => {
     expect(MAGNETO_ASPECT_BASIC[DEFT]).toBe(WAVE7_ABILITIES["16024.deft-focus-action"]);
@@ -503,50 +473,57 @@ describe("aspect-basic registry", () => {
 });
 
 // ---------------------------------------------------------------------------
-// M (49012): skipped. Pinned data plus a test-only stand-in for the half that can be built.
+// M (49012)
 // ---------------------------------------------------------------------------
-describe("M (49012): not registered; the stand-in proves the Response, the defeat and the stats", () => {
-  /** TEST-ONLY, not exported and not registered: offers every minion, then checks the comparison the card cannot state as a query. */
-  const standIn = defineAbilities({
-    [M_REF]: response(
-      on.entersPlay("self"),
-      chooseTarget("minion", query("minion")),
-      ifThen(not(valueAtLeast(remainingHpOf(chosen("minion")), remainingHpOf(self))), defeat(chosen("minion"))),
-    ),
-  });
-  const M_DEPS: EngineDeps = { abilities: mergeRegistries(DEPS.abilities, standIn) };
+describe("M (49012): after she enters play, defeat a minion with fewer remaining hit points than she has", () => {
   const cast = (damageOnMinion: number, code = MERCENARY, seat: Seat = MG()) => {
     const hero = heroGame([seat]);
     const staged = stage(hero, ["49012"]);
     const eng = engage(staged.state, code);
     const hurt = withDamage(eng.state, eng.id, damageOnMinion);
     const probe = spy(picker(accept(M_REF), take(eng.id)));
-    const played = playStaged(hurt, "49012", 4, { except: staged.ids, pick: probe.pick, deps: M_DEPS });
+    const played = playStaged(hurt, "49012", 4, { except: staged.ids, pick: probe.pick });
     return { ...played, minion: eng.id, seen: probe.seen, before: hurt };
   };
 
-  it("without the ability she is a plain ally: THW 2, ATK 3, 4 hit points, cost 4 paid, no prompt", () => {
+  it("declined, she is a plain ally: THW 2, ATK 3, 4 hit points, cost 4 paid, the minion untouched", () => {
     const hero = heroGame();
     const staged = stage(hero, ["49012"]);
     const eng = engage(staged.state, MERCENARY);
-    const { state, id } = playStaged(eng.state, "49012", 4, { except: staged.ids });
+    const probe = spy(picker());
+    const { state, id } = playStaged(eng.state, "49012", 4, { except: staged.ids, pick: probe.pick });
+    expect(offered(probe.seen, M_REF)).toBe(true);
     expect(playerOf(state, P1).playArea).toContain(id);
     expect(profile(state, id)).toMatchObject({ thw: 2, atk: 3, maxHp: 4 });
     expect(inst(state, eng.id).damage).toBe(0);
     expect(playerOf(state, P1).playArea).toContain(eng.id);
   });
-  it("stand-in: a 3-hit-point minion (fewer than her 4) is defeated after she enters play", () => {
+  it("a 3-hit-point minion (fewer than her 4) is defeated after she enters play", () => {
     const { state, minion } = cast(0);
     expect(playerOf(state, P1).playArea).not.toContain(minion);
     expect(encounterDiscard(state)).toContain(MERCENARY);
   });
-  it("stand-in: Sandman, 4 hit points (not fewer), survives; remaining hit points are the measure, a damaged one falls", () => {
+  it("Sandman, 4 hit points (not fewer), is no target and the Response is not offered; with 1 damage he is, and falls", () => {
     const survives = cast(0, SANDMAN);
+    expect(offered(survives.seen, M_REF)).toBe(false);
     expect(playerOf(survives.state, P1).playArea).toContain(survives.minion);
     const damaged = cast(1, SANDMAN);
+    expect(offered(damaged.seen, M_REF)).toBe(true);
     expect(playerOf(damaged.state, P1).playArea).not.toContain(damaged.minion);
   });
-  it("stand-in: the defeat is not damage, so a tough status card does not stop it (Sandman, 1 damage taken, tough card on him)", () => {
+  it("only the minions the comparison allows are offered: a Mercenary (3) beside a Sandman (4)", () => {
+    const hero = heroGame();
+    const staged = stage(hero, ["49012"]);
+    const merc = engage(staged.state, MERCENARY);
+    const sand = engage(merc.state, SANDMAN);
+    const probe = spy(picker(accept(M_REF), take(sand.id, merc.id)));
+    const { state } = playStaged(sand.state, "49012", 4, { except: staged.ids, pick: probe.pick });
+    const asked = probe.seen.filter((p) => p.kind === "chooseTarget");
+    for (const prompt of asked) expect(prompt.options).not.toContain(sand.id);
+    expect(playerOf(state, P1).playArea).toContain(sand.id);
+    expect(playerOf(state, P1).playArea).not.toContain(merc.id);
+  });
+  it("the defeat is not damage, so a tough status card does not stop it (Sandman, 1 damage taken, tough card on him)", () => {
     const hero = heroGame();
     const staged = stage(hero, ["49012"]);
     const eng = engage(staged.state, SANDMAN);
@@ -556,12 +533,11 @@ describe("M (49012): not registered; the stand-in proves the Response, the defea
     const { state } = playStaged(armored, "49012", 4, {
       except: staged.ids,
       pick: picker(accept(M_REF), take(eng.id)),
-      deps: M_DEPS,
     });
     expect(playerOf(state, P1).playArea).not.toContain(eng.id);
     expect(encounterDiscard(state)).toContain(SANDMAN);
   });
-  it("stand-in, from Captain Marvel's seat: the same, cost 4 paid", () => {
+  it("from Captain Marvel's seat: the same, cost 4 paid", () => {
     const { state, minion, id } = cast(0, MERCENARY, CM("49012"));
     expect(playerOf(state, P1).playArea).toContain(id);
     expect(playerOf(state, P1).playArea).not.toContain(minion);
@@ -1128,42 +1104,10 @@ describe("Noble Sacrifice (49018): discard an ally you control to heal its print
 });
 
 // ---------------------------------------------------------------------------
-// "You Got This!" (49019): skipped. Two test-only drafts, neither exported nor registered.
+// "You Got This!" (49019)
 // ---------------------------------------------------------------------------
-const GOT_TRIGGER = on.basicPowerUsing(YOUR_HERO, { power: ["attack", "thwart"] });
-const ALLY_YOU_CONTROL = query("ally", { controller: "you" });
-/** DRAFT A, the printed shape: the discard is the cost. The power is read after the ally has left play. */
-const GOT_AS_COST = defineAbilities({
-  [GOT_THIS]: heroResponse(
-    GOT_TRIGGER,
-    { cost: discardCardsCost(ALLY_YOU_CONTROL) },
-    ifThen(
-      basicPowerIs("thwart"),
-      modifyBasicPower(statOf(chosen("discarded"), "thw")),
-      modifyBasicPower(statOf(chosen("discarded"), "atk")),
-    ),
-    readyEffect(yourIdentity),
-  ),
-});
-/** DRAFT B: the ally is chosen as an effect, its power frozen into a variable while it is in play, then it is discarded. */
-const GOT_AS_EFFECT = defineAbilities({
-  [GOT_THIS]: heroResponse(
-    GOT_TRIGGER,
-    chooseTarget("ally", ALLY_YOU_CONTROL),
-    ifThen(
-      basicPowerIs("thwart"),
-      setVar("added", statOf(chosen("ally"), "thw")),
-      setVar("added", statOf(chosen("ally"), "atk")),
-    ),
-    discard(chosen("ally")),
-    modifyBasicPower(varOf("added")),
-    readyEffect(yourIdentity),
-  ),
-});
-const GOT_DEPS: EngineDeps = { abilities: mergeRegistries(DEPS.abilities, GOT_AS_EFFECT) };
-const GOT_COST_DEPS: EngineDeps = { abilities: mergeRegistries(DEPS.abilities, GOT_AS_COST) };
-
-describe('"You Got This!" (49019): not registered; draft B (choose, read, discard) proves the behavior, draft A (cost) shows the gap', () => {
+describe('"You Got This!" (49019): discard an ally to add its matching power to the hero\'s basic thwart or attack, and ready the hero', () => {
+  const GOT_DEPS: EngineDeps = DEPS;
   const GOT = "49019";
   /** The given allies in play and the event in hand; Rhino and the main scheme at known values. */
   function got(allyCodes: readonly string[], seat: Seat = MG(), legal = true) {
@@ -1172,13 +1116,9 @@ describe('"You Got This!" (49019): not registered; draft B (choose, read, discar
     const st = stage(withScheme, [GOT]);
     return { ...st, allyIds: base.ids, rhino: st.state.activeVillainId! };
   }
-  const attackWith = (
-    g: ReturnType<typeof got>,
-    ally: InstanceId | null,
-    o: { decline?: boolean; deps?: EngineDeps } = {},
-  ) => {
+  const attackWith = (g: ReturnType<typeof got>, ally: InstanceId | null, o: { decline?: boolean } = {}) => {
     const probe = spy(picker(...(o.decline ? [] : [accept(GOT_THIS), payOne(g.ids)]), ...(ally ? [take(ally)] : [])));
-    const r = driveEventsPicking(o.deps ?? GOT_DEPS, g.state, probe.pick, basicAttack(g.state, g.rhino));
+    const r = driveEventsPicking(GOT_DEPS, g.state, probe.pick, basicAttack(g.state, g.rhino));
     return { ...r, seen: probe.seen };
   };
   const thwartWith = (g: ReturnType<typeof got>, ally: InstanceId | null) => {
@@ -1187,7 +1127,7 @@ describe('"You Got This!" (49019): not registered; draft B (choose, read, discar
     return { ...r, seen: probe.seen };
   };
 
-  it("pinned data: Leadership event, cost 1, Hero Response; its one ref is skipped, not registered", () => {
+  it("pinned data: Leadership event, cost 1, Hero Response; the discard is its cost, with the ally's powers recorded", () => {
     const card = BY_ID.get("49019") as unknown as {
       cost: number;
       aspect: string;
@@ -1196,14 +1136,10 @@ describe('"You Got This!" (49019): not registered; draft B (choose, read, discar
     };
     expect(card).toMatchObject({ cost: 1, aspect: "leadership", type: "event" });
     expect(card.text.current).toContain("Hero Response: After you exhaust your hero to make a basic thwart or attack");
-    expect(GOT_THIS in MAGNETO_ASPECT_BASIC).toBe(false);
-  });
-  it("where nothing modifies the ally the two drafts agree: Kid Omega adds 2 either way (the difference is Surge's bonus, below)", () => {
-    const g = got(["49013"]);
-    for (const deps of [GOT_DEPS, GOT_COST_DEPS]) {
-      const r = attackWith(g, g.allyIds[0]!, { deps });
-      expect(inst(r.state, g.rhino).damage).toBe(4);
-    }
+    expect(MAGNETO_ASPECT_BASIC[GOT_THIS]!.cost?.discardCards).toMatchObject({
+      slot: "discarded",
+      snapshotStats: true,
+    });
   });
   it("attack: Magneto ATK 2 + Kid Omega ATK 2 = 4; the ally is discarded, the event is paid (1) and discarded, the hero is ready", () => {
     const g = got(["49013"]);
@@ -1242,13 +1178,12 @@ describe('"You Got This!" (49019): not registered; draft B (choose, read, discar
     expect(playerOf(r.state, P1).hand).toContain(g.ids[0]!);
     expect(playerOf(r.state, P1).playArea).toContain(g.allyIds[0]!);
   });
-  it("with no ally in play: the cost form (draft A) is not offered; the effect form (draft B) is offered and does nothing, which is not the printed card", () => {
+  it("with no ally in play it is not offered: the cost cannot be paid", () => {
     const g = got([]);
-    const cost = attackWith(g, null, { deps: GOT_COST_DEPS });
-    expect(offered(cost.seen, GOT_THIS)).toBe(false);
-    expect(inst(cost.state, g.rhino).damage).toBe(2);
-    const effect = attackWith(g, null);
-    expect(offered(effect.seen, GOT_THIS)).toBe(true);
+    const r = attackWith(g, null);
+    expect(offered(r.seen, GOT_THIS)).toBe(false);
+    expect(inst(r.state, g.rhino).damage).toBe(2);
+    expect(playerOf(r.state, P1).hand).toContain(g.ids[0]!);
   });
   it("not offered for the hero's basic defense", () => {
     const g = got(["49013"]);
@@ -1910,7 +1845,7 @@ describe("New Recruits (49020): a player side scheme that, defeated, gives each 
     const { state } = playStaged(staged.state, "49018", 1, { except: staged.ids, pick: picker(take(indra)) });
     expect(inst(state, identityOf(state)).damage).toBe(4);
   });
-  it('"You Got This!" and Surge with her bonus (ATK 3 in play): the effect-form draft (value frozen first) adds 3, 2 + 3 = 5; the printed cost adds 2, 2 + 2 = 4', () => {
+  it('"You Got This!" and Surge with her bonus (ATK 3 in play): her power as it stood in play is added, 2 + 3 = 5', () => {
     const r = defeated([MG()], { p1: "49033" });
     const surge = playerOf(r.state, P1).hand.find((id) => codeOf(r.state, id) === "49033")!;
     const pay = playerOf(r.state, P1)
@@ -1920,15 +1855,14 @@ describe("New Recruits (49020): a player side scheme that, defeated, gives each 
     expect(profile(played, surge).atk).toBe(3);
     const staged = stage(ready(played, identityOf(played)), ["49019"]);
     const rhino = staged.state.activeVillainId!;
-    const run = (deps: EngineDeps) =>
-      driveEventsPicking(
-        deps,
-        staged.state,
-        picker(accept(GOT_THIS), payOne(staged.ids), take(surge)),
-        basicAttack(staged.state, rhino),
-      );
-    expect(inst(run(GOT_DEPS).state, rhino).damage).toBe(5);
-    expect(inst(run(GOT_COST_DEPS).state, rhino).damage).toBe(4);
+    const { state } = driveEventsPicking(
+      DEPS,
+      staged.state,
+      picker(accept(GOT_THIS), payOne(staged.ids), take(surge)),
+      basicAttack(staged.state, rhino),
+    );
+    expect(inst(state, rhino).damage).toBe(5);
+    expect(playerOf(state, P1).discard).toContain(surge);
   });
   it("New Recruits with a second player side scheme in play: the limit (1 for one or two players) discards one of the two", () => {
     const TRAP = "41016"; // Lay the Trap (`psylocke`): another player side scheme

@@ -797,10 +797,14 @@ export function discardFromDeckAsCost(
  * from the new deck (RRG 1.8 "Player Deck", p. 33: "the player continues to draw cards up to the specified number").
  * A drawn obligation goes to the play area (`drawOne`) and still counts as one of the `count` cards drawn.
  */
-export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
+export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
+  const drawn: InstanceId[] = [];
   for (let i = 0; i < count; i++) {
-    if (!drawOne(ctx, playerId)) return;
+    const card = drawOne(ctx, playerId);
+    if (card === null) break;
+    drawn.push(card);
   }
+  return drawn;
 }
 
 /**
@@ -816,21 +820,21 @@ export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
 export function drawUpTo(ctx: Ctx, playerId: PlayerId, target: () => number): void {
   // Cards that do not count toward hand size do not fill it (docs/phase7-wave5.md §3.18).
   while (handCountTowardHandSize(ctx.state, playerId, ctx.deps) < target()) {
-    if (!drawOne(ctx, playerId)) return;
+    if (drawOne(ctx, playerId) === null) return;
   }
 }
 
 /**
- * Draws the top card of `playerId`'s deck; false when there is none. An obligation in a player deck (The Rise of Red
+ * Draws the top card of `playerId`'s deck and returns it; null when there is none. An obligation in a player deck (The Rise of Red
  * Skull's expert campaign sets, MC10 p. 17) is drawn but never reaches the hand: "If a player draws an obligation card
  * from their player deck, they place that obligation into their play area" (RRG 1.8 "Obligation", p. 30). It is still
  * an encounter card (MC10 p. 17), so it enters play as a revealed obligation does (`enterPlayOnReveal`): faceup,
  * controlled by nobody (the play area holding it makes it that player's, `useAbility`'s obligation check), and
  * announced as entering play. It is placed, not revealed, so no "When Revealed" ability resolves.
  */
-function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
+function drawOne(ctx: Ctx, playerId: PlayerId): InstanceId | null {
   const top = takeTopOfDeck(ctx, playerId);
-  if (!top) return false;
+  if (!top) return null;
   const obligation = mustCardOf(ctx.state, top).type === "obligation";
   const to: ZoneId = obligation ? { kind: "playArea", playerId } : { kind: "hand", playerId };
   const from = relocateCard(ctx, top, to);
@@ -842,7 +846,7 @@ function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
   // An encounter card drawn into the hand (Mysterio, docs/phase7-wave5.md §3.5) is recorded for the flow to announce.
   settlePlayerDecks(ctx, from, to, top);
   if (obligation) pushEvent(ctx, { kind: "cardEntersPlay", instanceId: top, playerId });
-  return true;
+  return top;
 }
 
 /**
@@ -1038,7 +1042,24 @@ function listensForLeavingPlay(deps: EngineDeps): boolean {
  * p. 8, not a card ability) or under a "cannot leave play" rule. docs/phase7-wave5.md §3.30.
  */
 function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
-  return isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true);
+  return staysWithoutHost(ctx.state, ctx.deps, id);
+}
+
+const staysWithoutHost = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true);
+
+/**
+ * The attachments on `hostId` that its leaving play will leave in play, unattached (`discardWithLeavingHost`: a player's
+ * permanent or "cannot leave play" card; a facedown one is out of play and an unowned permanent encounter one is
+ * discarded). Read while the host is still in play, for `TriggerEvent cardLeavesPlay.strandedAttachments`.
+ */
+function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: InstanceId): readonly InstanceId[] {
+  return mustInstance(state, hostId).attachments.filter((id) => {
+    const attachment = getInstance(state, id);
+    if (!attachment || isFacedownAttachment(state, id) || !staysWithoutHost(state, deps, id)) return false;
+    const unowned = attachment.ownerId === null && attachment.controllerId === null;
+    return !unowned || cannotLeavePlay(state, deps, id, undefined, true);
+  });
 }
 
 /**
@@ -1081,12 +1102,14 @@ function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
   // An uncontrolled card whose "you" the rules name (an obligation in a play area, an attachment on a player card):
   // that player is who it leaves play for (`speakerId`), read now because nothing says so once it has moved.
   const speakerId = controllerId === null ? uncontrolledYouOf(state, id) : null;
+  const stranded = strandedAttachmentsOf(state, deps, id);
   return {
     instanceId: id,
     cardId: mustInstance(state, id).cardId,
     controllerId,
     ...(speakerId !== null ? { speakerId } : {}),
     traits: traitsOf(state, id, deps),
+    ...(stranded.length > 0 ? { strandedAttachments: stranded } : {}),
   };
 }
 

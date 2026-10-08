@@ -42,7 +42,7 @@ import {
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import { TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
 import {
   addFrameSlots,
   addFrameVars,
@@ -118,7 +118,8 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
 /**
  * Out-of-play zones a chosen card can be given from as a boost card (`giveBoostCard.card`, docs/phase7-wave6.md §3.16).
  * Not the removed-from-game area (ruling December 17, 2025 (4): such a card "cannot be returned to the game by any
- * means"), the victory display, a card tucked under another, nor one mid-reveal or mid-resolution.
+ * means"), the victory display, a card tucked under another, nor one mid-resolution. A card mid-reveal is in none of
+ * these zones and is allowed on its own terms (`beingRevealed`).
  */
 export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["kind"]>([
   "hand",
@@ -134,6 +135,17 @@ export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["k
   "scenarioDiscard",
   "scenarioArea",
 ]);
+
+/**
+ * Whether `id` is a card whose reveal is in progress and that is still in front of the player it was dealt to (zone
+ * `dealtEncounter`; RRG 1.8 "Reveal", p. 37): the one card outside `BOOST_SOURCE_ZONES` that `giveBoostCard.card` may
+ * give, for "When Revealed: … Give this card to that villain as a facedown boost card" (docs/phase7-wave8.md §3.79).
+ * A card being resolved for any other reason (a played event, an obligation) is not.
+ */
+export function beingRevealed(state: GameState, id: InstanceId): boolean {
+  if (locateCard(state, id)?.kind !== "dealtEncounter") return false;
+  return state.stack.some((frame) => frame.kind === "reveal" && frame.instanceId === id);
+}
 
 /**
  * "Take the topmost [Magnetic] card in the encounter discard pile and give it to Magneto as a facedown boost card"
@@ -489,9 +501,22 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
   const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
   if (exhaust) exhaustCard(ctx, defenderId);
   const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  // The log's `defenderDeclared`, as the Declare Defender step logs its own (RRG 1.8 "Defend, Defense", p. 15: an
+  // ability's declaration makes the character the defender just as the step's does), marked `byEffect`.
+  const logDeclared = (enemyInstanceId: InstanceId): void =>
+    emit(ctx, {
+      type: "defenderDeclared",
+      attackInstanceId: enemyInstanceId,
+      defenderInstanceId: defenderId,
+      playerId: defenderPlayer,
+      byEffect: true,
+    });
   if (procedure) {
     if (procedure.defenderInstanceId === defenderId) setFrame(ctx, { ...procedure, basicDefense: basic });
-    else setDefender(ctx, procedure, defenderId, defenderPlayer, basic);
+    else {
+      logDeclared(procedure.enemyInstanceId);
+      setDefender(ctx, procedure, defenderId, defenderPlayer, basic);
+    }
     return;
   }
   const activation = currentActivationFrameId(ctx.state.stack);
@@ -505,6 +530,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
     slots: { ...frame.slots, [DEFENDER_SLOT]: [defenderId] },
   });
   if (!already) {
+    logDeclared(frame.event.enemyInstanceId);
     announce(ctx, {
       kind: "defended",
       defenderInstanceId: defenderId,
@@ -789,6 +815,10 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         basicDefense: frame.basicDefense,
       });
       if (!planned) return;
+      // "His total ATK for that attack" (docs/phase7-wave8.md §3.81): the enemy's ATK as this attack reads it, "+N ATK
+      // for this attack" and the boost icons counted included, before any defense (RRG 1.8 "Attack (Enemy Activation)"
+      // step 4, p. 9). The attack event's result `totalAtk`; `damage` is what the attack then dealt.
+      addFrameVars(ctx, frame.eventFrameId, { [TOTAL_ATK_RESULT]: planned.baseAtk + frame.boostIcons });
       const vars = activationVars(ctx, frame.eventFrameId);
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
       // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic

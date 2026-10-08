@@ -326,6 +326,14 @@ export interface TargetQuery {
    */
   readonly statCompare?: StatComparison;
   /**
+   * The card's remaining hit points compared with a value, re-read every check: "defeat a minion with fewer remaining
+   * hit points than [this ally]" (docs/phase7-wave8.md §3.81) is `{ remainingHpCompare: { op: "lt", value: <this
+   * card's remaining hit points> } }`. Remaining hit points as every reader sees them (`consideredRemainingHitPoints`:
+   * maximum minus damage, a "considered to have" floor included; RRG 1.8 "Hit Points", p. 22). A card with no hit
+   * points never matches; one with infinite hit points has more than any number. Exclusion `statComparisonFailed`.
+   */
+  readonly remainingHpCompare?: { readonly op: StatComparison["op"]; readonly value: ValueSpec };
+  /**
    * Printed resource cost at most this much (events print none, read as 0): "an Avenger ally from your hand with
    * printed cost equal to or less than the number of time counters on Quinjet" (`cap` pack) — a `ValueSpec` bound
    * re-read every check, unlike `maxPrintedHp`'s fixed number, since "the number of time counters on Quinjet"
@@ -1505,6 +1513,22 @@ export type Predicate =
       readonly attacker?: TargetQuery;
       readonly target?: TargetQuery;
       readonly defender?: TargetQuery;
+      readonly basic?: boolean;
+    }
+  /**
+   * "Each [X-Men] character gets +1 THW while making a basic thwart against this scheme" (docs/phase7-wave8.md §3.70):
+   * the sibling of `attackInProgress` for a thwart. The innermost `thwart` on the stack (a character's basic thwart,
+   * or an instance of a "(thwart)" ability's threat removal by its identity) matches every query given: `thwarter` is
+   * the thwarting character, `scheme` the scheme it removes threat from. False with no thwart on the stack, so a stat
+   * modifier gated by it applies only while that thwart resolves, which is when a basic thwart reads its THW (RRG 1.8
+   * "Thwart", p. 44). `basic`: true matches only a character's basic thwart (RRG 1.8 "Basic Power", p. 10), false
+   * only any other; absent: either. In a constant modifier, `{ inSlot: "affected" }` names the character whose stat
+   * is being read (`AFFECTED_SLOT`), so only the character making the thwart gets the bonus.
+   */
+  | {
+      readonly kind: "thwartInProgress";
+      readonly thwarter?: TargetQuery;
+      readonly scheme?: TargetQuery;
       readonly basic?: boolean;
     }
   /**
@@ -3099,7 +3123,14 @@ export type EffectSpec =
       /** The attacked character, when the attack has piercing (RRG 1.8 "Piercing", p. 32): only its share pierces. */
       readonly piercingFor?: InstanceId;
     }
-  | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
+  /**
+   * "Draw N cards." `bind`: the cards this draw drew are bound to that slot, in the order drawn, and their number is
+   * the var `<bind>.count`, so the rest of the ability can read them: "draw 1 card. If that card has the [Ice] trait,
+   * ready [hero]" (docs/phase7-wave8.md §3.70) with `refMatches` read `anywhere` (the card is in hand, not in play).
+   * A drawn obligation, placed in the play area instead of the hand (RRG 1.8 "Obligation", p. 30), is still a card
+   * drawn and is bound. An empty deck and discard pile draw nothing: the slot is empty and the count 0.
+   */
+  | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly bind?: string }
   /**
    * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand
    * for each boost icon discarded this way" (Power Drain). `player` may name several players ("each player"): each
@@ -3441,6 +3472,12 @@ export type EffectSpec =
    * the activation that follows (its boost icons, its Boost ability), before and in addition to the automatic one,
    * and is then discarded to its own discard pile. `count` is ignored. No card found, nothing given. A `noBoost`
    * activation (§3.15) still resolves it, like any boost card dealt outside the activation.
+   *
+   * The card being revealed can be given too ("When Revealed: … Give this card to that villain as a facedown boost
+   * card", docs/phase7-wave8.md §3.79): `card: { kind: "self" }` in its own When Revealed, while it is still in front
+   * of the player it was dealt to. Its reveal goes on (a surge it has still resolves) and does not discard it: it is
+   * on the enemy by then (RRG 1.8 "Treachery", p. 45, discards a treachery "after resolving"; a card an effect moved
+   * stays where it went, docs/phase7-wave4.md §3.45).
    */
   | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec; readonly card?: TargetRef }
   /**

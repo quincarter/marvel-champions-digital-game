@@ -747,7 +747,12 @@ export function withSelfHost(state: GameState, instanceId: InstanceId, bindings:
 function hostOfSelfId(state: GameState, context: EffectContext): InstanceId | null {
   if (!context.selfInstanceId) return null;
   const live = getInstance(state, context.selfInstanceId)?.attachedTo ?? null;
-  return live ?? context.bindings[SELF_HOST]?.[0] ?? null;
+  if (live !== null) return live;
+  // Its host left play and it stayed (a permanent attachment): to that leaving it is still "attached [card]".
+  const event = context.event;
+  if (event?.kind === "cardLeavesPlay" && event.strandedAttachments?.includes(context.selfInstanceId))
+    return event.instanceId;
+  return context.bindings[SELF_HOST]?.[0] ?? null;
 }
 
 /**
@@ -1309,6 +1314,12 @@ export function explainQuery(
     if (!profile) return "statComparisonFailed";
     const own = (profile.missing as readonly string[]).includes(stat) ? 0 : profile[stat];
     if (!compareStat(own, op, resolveValue(state, value, context))) return "statComparisonFailed";
+  }
+  if (query.remainingHpCompare !== undefined) {
+    const { op, value } = query.remainingHpCompare;
+    const remaining = consideredRemainingHitPoints(state, id, context.deps ?? DEFAULT_DEPS);
+    if (remaining === undefined || !compareStat(remaining, op, resolveValue(state, value, context)))
+      return "statComparisonFailed";
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
@@ -2721,6 +2732,16 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         matches(target, predicate.target) &&
         matches(defender, predicate.defender)
       );
+    }
+    case "thwartInProgress": {
+      // The stack is innermost-first, as `attackInProgress` reads it.
+      const frame = state.stack.find((f) => f.kind === "event" && f.event.kind === "thwart");
+      if (frame?.kind !== "event" || frame.event.kind !== "thwart") return false;
+      const event = frame.event;
+      if (predicate.basic !== undefined && (event.basic === true) !== predicate.basic) return false;
+      const matches = (id: InstanceId, query: TargetQuery | undefined): boolean =>
+        query === undefined || matchesQuery(state, id, query, context);
+      return matches(event.thwarterInstanceId, predicate.thwarter) && matches(event.schemeInstanceId, predicate.scheme);
     }
     case "revealedFromEncounterDeck": {
       // The stack is innermost-first: the reveal this card's When Revealed belongs to.

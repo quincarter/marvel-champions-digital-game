@@ -3,6 +3,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   after,
   alterEgoAction,
+  attackTotalAtk,
   boost,
   chosen,
   coveredByEngineRule,
@@ -12,7 +13,6 @@ import {
   discardEncounterUntil,
   each,
   enemyActivates,
-  eventResult,
   exhaustYourHero,
   forcedResponse,
   ifThen,
@@ -44,10 +44,10 @@ const AN_ACOLYTE = query("minion", { trait: trait("ACOLYTE") });
  * included (Q42 = A), as one instance of X (`takeDamage`: tough and Magnetic Bubble see the whole amount). The
  * Alter-Ego Action exhausts the alter-ego and discards the card.
  *
- * **Exodus (49028)**: Steady, Toughness and Villainous are data. His Forced Response is NOT registered: the number is
- * "his total ATK for that attack" (ATK, modifiers and boost icons, before the defender's DEF) and no value of the DSL
- * reports it (`eventResult("damage")` is the damage the attack dealt, after DEF). See `MAGNETO_OBLIGATION_NEMESIS_DRAFTS`
- * and `MAGNETO_OBLIGATION_NEMESIS_SKIPPED`.
+ * **Exodus (49028)**: Steady, Toughness and Villainous are data. Forced Response: after he attacks you, discard cards
+ * from the top of your deck equal to "his total ATK for that attack" (errata RRG 1.8): his ATK with its modifiers and
+ * the boost icons counted for the attack (Villainous deals him a boost card), before the defender's DEF
+ * (`attackTotalAtk`). A defended attack discards as many as an undefended one.
  *
  * **Martyr for Mutants (49029)**: 3 threat per player, amplify and 3 boost icons are data. When Defeated: the defeating
  * player discards the top 9 cards of their deck (a short deck discards what it has and resets, RRG p. 33).
@@ -79,7 +79,10 @@ export const MAGNETO_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   ),
   "49027.old-grievances-action": alterEgoAction({ cost: exhaustYourHero }, discard(self)),
 
-  // Exodus: "49028.exodus-forced-response" is not registered, see the drafts below.
+  "49028.exodus-forced-response": forcedResponse(
+    after.enemyAttacks("self", { againstYou: true }),
+    moveCards(topOfDeck(attackTotalAtk, you), "discard"),
+  ),
 
   "49029.when-defeated": whenDefeated(moveCards(topOfDeck(9, defeatingPlayer), "discard")),
 
@@ -101,23 +104,5 @@ export const MAGNETO_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   ),
 });
 
-/**
- * Exodus's Forced Response as close as today's vocabulary writes it, unregistered: it discards one card per point of
- * damage the attack dealt (`eventResult("damage")`, after the defender's DEF), where the card says his total ATK for
- * that attack. They agree while the attack is undefended and unreduced and differ when the hero defends or a shield
- * takes some. Once the engine reports an enemy attack's total ATK (ATK, modifiers and boost icons, before DEF; e.g. a
- * result key `atk` on the attack's event), register this with that value and turn the `it.fails` of
- * `obligation-nemesis.test.ts` into `it`.
- */
-export const MAGNETO_OBLIGATION_NEMESIS_DRAFTS: AbilityRegistry = defineAbilities({
-  "49028.exodus-forced-response": forcedResponse(
-    after.enemyAttacks("self", { againstYou: true }),
-    moveCards(topOfDeck(eventResult("damage"), you), "discard"),
-  ),
-});
-
 /** Refs of this set left unregistered, each with its reason. */
-export const MAGNETO_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {
-  "49028.exodus-forced-response":
-    'no value reads an enemy attack\'s total ATK (ATK, modifiers and boost icons, before DEF); eventResult("damage") is the damage dealt after DEF (docs/phase7-wave8.md section 3.81 assumes it exists)',
-};
+export const MAGNETO_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {};

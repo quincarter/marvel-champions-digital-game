@@ -34,7 +34,7 @@ import {
 import { driveEventsPicking, withForm } from "../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
 import { JUBILEE_ABILITIES } from "./index.js";
-import { JUBILEE_ASPECT_BASIC, JUBILEE_ASPECT_BASIC_DRAFTS, JUBILEE_ASPECT_BASIC_SKIPPED } from "./aspect-basic.js";
+import { JUBILEE_ASPECT_BASIC, JUBILEE_ASPECT_BASIC_SKIPPED } from "./aspect-basic.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -49,7 +49,6 @@ const DECK = JUBILEE.cards.flatMap((c) => Array.from({ length: c.quantity }, () 
 const ABILITIES = mergeRegistries(WAVE7_ABILITIES, JUBILEE_ABILITIES);
 const DEPS: EngineDeps = { abilities: ABILITIES };
 /** The unregistered drafts added on top, to prove what they do and where they stop. */
-const DRAFT_DEPS: EngineDeps = { abilities: { ...ABILITIES, ...JUBILEE_ASPECT_BASIC_DRAFTS } };
 /** Wave 7 (Core and every earlier pack, X-FORCE allies among them) and this pack. */
 const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...JUBILEE_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
@@ -61,6 +60,7 @@ const REGISTERED = [
   "47013.disguise-action",
   "47014.waylay-response",
   "47015.three-steps-ahead-action",
+  "47016.generation-x-constant",
   "47016.when-defeated",
   "47017.the-power-of-justice-constant",
   "47018.synch-interrupt",
@@ -68,6 +68,7 @@ const REGISTERED = [
   "47020.x-gene-resource",
   "47021.multitalented-constant",
   "47022.unlikely-duo-action",
+  "47028.mutant-mayhem-action",
   "47029.serve-and-protect-interrupt",
 ];
 
@@ -1016,53 +1017,77 @@ describe("Generation X (47016): 3 threat per player, Victory 0, When Defeated ea
     const after = driveEventsPicking(DEPS, b.state, firstLegal, thwartBy(b.state, b.jubilee, b.scheme)).state;
     expect(playerOf(after, P1).hand.length).toBe(handBefore);
   });
-  it("Generation X's +1 THW for X-MEN characters has no script (skipped), so a basic thwart against it removes just THW", () => {
+  it("each X-MEN character gets +1 THW while making a basic thwart against it: Jubilee removes THW + 1", () => {
     const b = board(5);
     const thw = profile(b.state, b.jubilee).thw;
     const after = driveEventsPicking(DEPS, b.state, firstLegal, thwartBy(b.state, b.jubilee, b.scheme)).state;
-    expect(threatOf(after, b.scheme)).toBe(5 - thw);
+    expect(threatOf(after, b.scheme)).toBe(5 - (thw + 1));
+    // Outside the thwart her THW reads as printed.
+    expect(profile(after, b.jubilee).thw).toBe(thw);
   });
-  it("the draft (an always-on +1 THW) gives it against Generation X, but also against the main scheme", () => {
+  it("against Generation X only: her basic thwart against the main scheme removes just her THW", () => {
     const b = board(5);
     const thw = profile(b.state, b.jubilee).thw;
     const main = patchInstance(b.state, mainOf(b.state), { threat: 5 });
-    const draftThwart = (scheme: InstanceId) =>
-      driveEventsPicking(DRAFT_DEPS, main, firstLegal, thwartBy(main, b.jubilee, scheme)).state;
-    expect(threatOf(draftThwart(b.scheme), b.scheme)).toBe(5 - (thw + 1));
-    expect(threatOf(draftThwart(mainOf(main)))).toBe(5 - (thw + 1));
+    const after = driveEventsPicking(DEPS, main, firstLegal, thwartBy(main, b.jubilee, mainOf(main))).state;
+    expect(threatOf(after)).toBe(5 - thw);
+    expect(threatOf(after, b.scheme)).toBe(5);
   });
-  it.fails("the printed text: +1 THW against Generation X only, none against the main scheme (no thwart-in-progress predicate)", () => {
-    const b = board(5);
-    const thw = profile(b.state, b.jubilee).thw;
-    const main = patchInstance(b.state, mainOf(b.state), { threat: 5 });
-    const draftThwart = (scheme: InstanceId) =>
-      driveEventsPicking(DRAFT_DEPS, main, firstLegal, thwartBy(main, b.jubilee, scheme)).state;
-    expect(threatOf(draftThwart(b.scheme), b.scheme)).toBe(5 - (thw + 1));
-    expect(threatOf(draftThwart(mainOf(main)))).toBe(5 - thw);
+  it("an X-MEN ally gets it too (Wolverine 47002, THW 1: 2 removed); an ally without the trait does not (Siryn 42012)", () => {
+    const SIRYN = "42012";
+    const g = heroGame(["47016", "47002", SIRYN, E, E, M, M]);
+    const scheme = playStaged(stage(g, ["47016"], 8).state, "47016", 0);
+    const wolverine = playStaged(scheme.state, "47002", 4);
+    const siryn = playStaged(stage(wolverine.state, [SIRYN], 6).state, SIRYN, 4);
+    const s = patchInstance(siryn.state, scheme.id, { threat: 6 });
+    const byWolverine = driveEventsPicking(DEPS, s, firstLegal, thwartBy(s, wolverine.id, scheme.id)).state;
+    expect(6 - threatOf(byWolverine, scheme.id)).toBe(profile(s, wolverine.id).thw + 1);
+    const bySiryn = driveEventsPicking(DEPS, s, firstLegal, thwartBy(s, siryn.id, scheme.id)).state;
+    expect(6 - threatOf(bySiryn, scheme.id)).toBe(profile(s, siryn.id).thw);
   });
 });
 
-describe("Mutant Mayhem (47028): Alliance, return an X-FORCE ally and an X-MEN ally -> those players play them for free (NOT registered)", () => {
+describe("Mutant Mayhem (47028): Alliance, return an X-FORCE ally and an X-MEN ally -> those players play them for free", () => {
   const SIRYN = "42012"; // X-FORCE ally, cost 4
-  /** Siryn (X-FORCE) in play, Mutant Mayhem and three payers in hand; no X-MEN ally. */
-  function board() {
-    const g = heroGame(["47028", SIRYN, E, E, M, M]);
+  const WOLVERINE = "47002"; // X-MEN ally, cost 4
+  /** Siryn (X-FORCE) in play, and Wolverine (X-MEN) when `both`; Mutant Mayhem and three payers in hand. */
+  function board(both: boolean) {
+    const g = heroGame(["47028", SIRYN, E, E, E, E, M, M, M, M]);
     const siryn = playStaged(stage(g, [SIRYN], 6).state, SIRYN, 4);
-    const hand = handOf(siryn.state, "47028", E, M, PH);
-    return { state: hand.state, siryn: siryn.id, mayhem: hand.ids[0]!, paid: hand.ids.slice(1) };
+    const wolverine = both ? playStaged(stage(siryn.state, [WOLVERINE], 6).state, WOLVERINE, 4) : null;
+    const hand = handOf(wolverine?.state ?? siryn.state, "47028", E, M, PH);
+    return {
+      state: hand.state,
+      siryn: siryn.id,
+      wolverine: wolverine?.id ?? null,
+      mayhem: hand.ids[0]!,
+      paid: hand.ids.slice(1),
+    };
   }
-  it("is not registered: with the shipped scripts the card has no ability and its text does nothing", () => {
-    expect("47028.mutant-mayhem-action" in JUBILEE_ASPECT_BASIC).toBe(false);
-    expect("47028.mutant-mayhem-action" in JUBILEE_ASPECT_BASIC_SKIPPED).toBe(true);
+  it("the return is its cost: two picks, one X-FORCE ally and one X-MEN ally", () => {
+    const cost = JUBILEE_ASPECT_BASIC["47028.mutant-mayhem-action"]!.cost!;
+    expect(cost.returnToHand).toMatchObject([{ slot: "xforce" }, { slot: "xmen" }]);
   });
-  it("the draft (choose and return as effects) is playable with no X-MEN ally to return: the cost is not enforced", () => {
-    const b = board();
-    expect(accepted(b.state, play(P1, b.mayhem, [...b.paid]))).toBe(true);
+  it("with no X-MEN ally to return the cost cannot be paid, so the card is not playable", () => {
+    const b = board(false);
+    expect(accepted(b.state, play(P1, b.mayhem, [...b.paid]))).toBe(false);
   });
-  it.fails("printed: with no X-MEN ally to return the cost cannot be paid, so the card is not playable", () => {
-    const b = board();
-    const draft = { ...b, state: b.state };
-    expect(applyCommand(draft.state, play(P1, b.mayhem, [...b.paid]), DRAFT_DEPS).ok).toBe(false);
+  it("both returned to hand, then played for nothing: fresh copies in play, their damage gone", () => {
+    const b = board(true);
+    const hurt = patchInstance(patchInstance(b.state, b.siryn, { damage: 1 }), b.wolverine!, {
+      damage: 2,
+      exhausted: true,
+    });
+    const handBefore = playerOf(hurt, P1).hand.length;
+    const { state, events } = driveEventsPicking(DEPS, hurt, firstLegal, play(P1, b.mayhem, [...b.paid]));
+    for (const id of [b.siryn, b.wolverine!]) {
+      expect(playerOf(state, P1).playArea).toContain(id);
+      expect(inst(state, id)).toMatchObject({ damage: 0, exhausted: false });
+      const moves = events.flatMap((e) => (e.type === "cardMoved" && e.instanceId === id ? [e.to.kind] : []));
+      expect(moves).toEqual(["hand", "playArea"]);
+    }
+    // Only Mutant Mayhem and what paid for it left the hand: the allies cost nothing.
+    expect(playerOf(state, P1).hand.length).toBe(handBefore - 1 - b.paid.length);
   });
 });
 
@@ -1084,7 +1109,6 @@ describe("Cell Phone (47019): Uses 3; exhaust, remove a charge, choose a player 
   it("is registered, and the card enters play with its three charge counters", () => {
     expect(PHONE in JUBILEE_ASPECT_BASIC).toBe(true);
     expect(PHONE in JUBILEE_ASPECT_BASIC_SKIPPED).toBe(false);
-    expect(PHONE in JUBILEE_ASPECT_BASIC_DRAFTS).toBe(false);
     const b = board();
     expect(inst(b.state, b.phone).counters.charge).toBe(3);
   });

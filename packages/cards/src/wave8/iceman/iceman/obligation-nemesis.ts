@@ -55,11 +55,9 @@ const YOU_RECOVER = { ...on.basicPowerUsed(YOUR_IDENTITY), eventIs: { power: "re
  * **Hot-Headed (46024)**: "Give to the Bobby Drake player" is engine data (`obligationCardId`). The Alter-Ego
  * Response is registered: after a basic recovery the Bobby Drake player may discard it (optional, an alter-ego
  * response, so refused in hero form). Its Forced Response, "after you attach a Frostbite upgrade to an enemy, take 1
- * damage", is NOT registered: the engine announces no event when a card is attached (the `attach` effect moves the card
- * and says nothing; no trigger event kind names an attach, and `cardEntersPlay` is not raised for an upgrade attached
- * from the set-aside area), so no pattern can hear "a Frostbite was attached", whether by "Freeze!", Ice Blast, Frozen
- * Solid or Ice Wall. Section 3.61 lists Hot-Headed under "exists (verify)" and calls the log event `cardAttached`;
- * neither the log event nor the trigger exists. See `skipped` and `ICEMAN_OBLIGATION_NEMESIS_DRAFTS`.
+ * damage", hears the engine's `cardAttached` (an ability attached a card to a host): once per copy that lands on an
+ * enemy, by the Bobby Drake player's own "Freeze!", Ice Blast, Arctic Attack, Chill Out!, Frozen Solid or Ice Wall
+ * ("you attach": the player resolving the attaching ability). A copy another player's ability attached is not his.
  *
  * **Pyro (46025)**: Quickstrike is data. His attacks deal indirect damage (Starshark's constant): the attacked player
  * divides his ATK, after Frostbite and boost icons, among the characters they control. Nothing in the card reads or
@@ -79,6 +77,10 @@ const YOU_RECOVER = { ...on.basicPowerUsed(YOUR_IDENTITY), eventIs: { power: "re
  */
 export const ICEMAN_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "46024.obligation": coveredByEngineRule(),
+  "46024.hot-headed-forced-response": forcedResponse(
+    after.cardAttached(query("upgrade", { name: "Frostbite" }), { to: query("enemy"), by: "you" }),
+    takeDamage(1),
+  ),
   "46024.hot-headed-response": alterEgoResponse(YOU_RECOVER, discard(self)),
 
   "46025.pyro-constant": constant(rule({ kind: "attacksDealIndirectDamage", attacker: { self: true } })),
@@ -106,21 +108,5 @@ export const ICEMAN_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "46028.boost": boost(moveCards(topOfDeck(1, you), "discard", "burn"), adjustBoostCount(ICONS_DISCARDED("burn"))),
 });
 
-/**
- * Hot-Headed's Forced Response written as nearly as the DSL allows, NOT registered. It listens for a Frostbite upgrade
- * entering play, the only pattern that names a card being attached to anything, and it is never heard: attaching a card
- * announces nothing (see the header). When the engine announces an attach, replace the pattern with it, move the entry
- * into the registry and delete it from `skipped`.
- */
-export const ICEMAN_OBLIGATION_NEMESIS_DRAFTS: AbilityRegistry = defineAbilities({
-  "46024.hot-headed-forced-response": forcedResponse(
-    after.entersPlay(query("upgrade", { name: "Frostbite" })),
-    takeDamage(1),
-  ),
-});
-
 /** Refs left unregistered, each with its reason (the coverage test reads this through its own `skipped` list). */
-export const ICEMAN_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {
-  "46024.hot-headed-forced-response":
-    "section 3.61 (exists, verify) fails: no trigger event is announced when a card is attached (no cardAttached event kind; cardEntersPlay is not raised for an upgrade attached from the set-aside area), so 'after you attach a Frostbite upgrade to an enemy' cannot be heard",
-};
+export const ICEMAN_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {};

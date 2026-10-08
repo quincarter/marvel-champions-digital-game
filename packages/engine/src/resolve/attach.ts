@@ -24,6 +24,7 @@ import { cardOf, getInstance, mustInstance } from "../query.js";
 import { canHaveAttached, cannotBeUnattached } from "../rules.js";
 import { cardsInPlay, controllerOf, isFacedownAttachment } from "../select.js";
 import type { GameState } from "../state.js";
+import type { TriggerEvent } from "../trigger-events.js";
 
 /**
  * Whether `id` can be attached to `host` now: the host is in play and is not the card itself, the card is not one that
@@ -74,6 +75,22 @@ export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown 
   else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
   settleUpgradeControl(ctx, id, heldByHost ? ownerId : mustInstance(ctx.state, id).controllerId);
   return true;
+}
+
+/**
+ * `attachCard`, reporting the `TriggerEvent cardAttached` to announce: one when the card landed on a host it was not on
+ * before, none when it could not be attached or was already there. The caller pushes it when an ability listens.
+ */
+export function attachCardBy(
+  ctx: Ctx,
+  id: InstanceId,
+  host: InstanceId,
+  playerId: PlayerId | null,
+  facedown = false,
+): readonly TriggerEvent[] {
+  const was = getInstance(ctx.state, id)?.attachedTo ?? null;
+  if (!attachCard(ctx, id, host, facedown) || was === host) return [];
+  return [{ kind: "cardAttached", instanceId: id, hostInstanceId: host, playerId }];
 }
 
 /**

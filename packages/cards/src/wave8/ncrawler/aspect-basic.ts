@@ -1,7 +1,9 @@
 import { trait } from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry, Predicate } from "@mc/engine";
 import {
+  action,
   atEndOfAttack,
+  baseStatOf,
   boostIconsOn,
   cards,
   chooseCards,
@@ -11,6 +13,7 @@ import {
   constant,
   damageThisCardCost,
   dealDamage,
+  dealDamageToChosenCost,
   defeat,
   defineAbilities,
   discardEncounterUntil,
@@ -22,6 +25,7 @@ import {
   eventSource,
   exhaustEachCost,
   exhaustThis,
+  gainTraitsOfUntil,
   gets,
   heal,
   heroAction,
@@ -33,6 +37,7 @@ import {
   modifyStat,
   not,
   on,
+  oncePerRound,
   putIntoPlay,
   query,
   removeThreat,
@@ -96,11 +101,12 @@ const XFORCE_AND_XMEN = exhaustEachCost({
  * Core 01079's and Moira MacTaggert 48022 is `rogue` 38018's (raw `duplicate_of_code`, aliased as wave 7 aliased its
  * own). Energy, Genius and Strength print no ability.
  *
- * **Rogue (48012) is not registered.** Her cost is "Deal 1 damage to another friendly character", a character of any
- * player's that she picks, and dealing is paid even if prevented (RRG 1.8 "Cost", p. 14). `dealDamageCost` damages
- * only cards a cost pick bound, `damageCardsCost` takes only the payer's own characters and refuses one a tough
- * status card would protect, and no cost picks a character without doing something else to it. Scripting the damage
- * as the first effect instead would be an approximation. Docs/phase7-wave8.md §3.74 test 6 to 10 wait on that pick.
+ * **Rogue (48012)**, Action, once per round: the cost deals 1 damage to another friendly character, a character of any
+ * player's that she picks (`dealDamageToChosenCost`, §3.74), and dealing is paid even if the damage is prevented
+ * (RRG 1.8 "Cost", p. 14), so a tough status card on the target is spent and she copies anyway. Until the end of the
+ * round she has each of that character's traits and adds its base THW and ATK to her own (errata RRG 1.8: "base", not
+ * "printed"). Both are read from the character continuously (Q43 = A): if it leaves play, the 1 damage defeating it
+ * included, she has neither.
  *
  * **Gambit (48021)** reads the boost icons printed on the card tucked under him as the base of both powers (a star is
  * no icon, an amplify icon in play adds none because the card is never turned faceup as a boost card). The Response is
@@ -118,6 +124,16 @@ const XFORCE_AND_XMEN = exhaustEachCost({
  * RRG 1.8 p. 59) a card with no icons to cancel is no reason to take the damage, so it is not offered then.
  */
 export const NCRAWLER_ASPECT_BASIC: AbilityRegistry = defineAbilities({
+  "48012.rogue-action": action(
+    {
+      cost: dealDamageToChosenCost(query(["identity", "ally"], { excluding: self }), 1, "friend"),
+      limit: oncePerRound,
+    },
+    gainTraitsOfUntil(chosen("friend"), self, "endOfRound"),
+    modifyStat("thw", baseStatOf(chosen("friend"), "thw"), self, "endOfRound"),
+    modifyStat("atk", baseStatOf(chosen("friend"), "atk"), self, "endOfRound"),
+  ),
+
   "48013.northstar-interrupt": interrupt(
     { on: "boostCardTurnedFaceup", activation: "attack", eventAtLeast: { boostIcons: 1 } },
     { cost: damageThisCardCost(1) },

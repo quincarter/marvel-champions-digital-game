@@ -85,10 +85,16 @@ export function modifiersFor(
       };
       for (const modifier of definition.trigger.modifiers ?? []) {
         if (!wanted(modifier.stat)) continue;
-        if (modifier.while && !evaluate(state, modifier.while, context)) continue;
         if (!matchesQuery(state, targetId, modifier.target, context)) continue;
+        // The card being read is bound (`AFFECTED_SLOT`), as a lasting modifier binds it below: "each [X-Men]
+        // character gets +1 THW while making a basic thwart against this scheme" holds for the one making it.
+        const reading =
+          modifier.while || typeof modifier.amount !== "number"
+            ? { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } }
+            : context;
+        if (modifier.while && !evaluate(state, modifier.while, reading)) continue;
         const amount =
-          typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
+          typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, reading, deps);
         found.push({
           sourceInstanceId: sourceId,
           stat: modifier.stat,

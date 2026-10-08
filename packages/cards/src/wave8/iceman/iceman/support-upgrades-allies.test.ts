@@ -43,12 +43,7 @@ import {
 import { driveEventsPicking, playFromHand, withDamage, withForm } from "../../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
 import { ICEMAN_IDENTITY } from "./identity.js";
-import {
-  ICEMAN_SUPPORT_UPGRADES_ALLIES,
-  ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS,
-  ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED,
-  FROSTBITE_FORCED_RESPONSE_GAP,
-} from "./support-upgrades-allies.js";
+import { ICEMAN_SUPPORT_UPGRADES_ALLIES, ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED } from "./support-upgrades-allies.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -78,27 +73,10 @@ const ICEMAN_SEAT = {
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" };
 type Seat = typeof ICEMAN_SEAT | typeof SPIDER_MAN;
 
-/**
- * Frostbite's Forced Response ships as its activation half (the leaves-play half is `FROSTBITE_FORCED_RESPONSE_GAP`);
- * the module exports the full text in `ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS`. `DEPS` is the shipped registry.
- * `FULL_TEXT_DEPS` swaps in the draft as printed (the full Frostbite text replaces the shipped half); the tests that
- * need it to pass are `it.fails`. When the engine can run the draft, register it and turn the `it.fails` into `it`.
- */
-const SHIPPED_WITHOUT_FROSTBITE_RESPONSE = Object.fromEntries(
-  Object.entries(ICEMAN_SUPPORT_UPGRADES_ALLIES).filter(([ref]) => ref !== "46002.frostbite-forced-response"),
-) as AbilityRegistry;
 const depsWith = (...fixtures: readonly AbilityRegistry[]): EngineDeps => ({
   abilities: mergeRegistries(WAVE7_ABILITIES, ICEMAN_IDENTITY, ICEMAN_SUPPORT_UPGRADES_ALLIES, ...fixtures),
 });
 const DEPS: EngineDeps = depsWith();
-const FULL_TEXT_DEPS: EngineDeps = {
-  abilities: mergeRegistries(
-    WAVE7_ABILITIES,
-    ICEMAN_IDENTITY,
-    SHIPPED_WITHOUT_FROSTBITE_RESPONSE,
-    ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS,
-  ),
-};
 
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
 const setAsideCodes = (s: GameState, p: PlayerId = P1): string[] => playerOf(s, p).setAside.map((id) => codeOf(s, id));
@@ -215,19 +193,13 @@ const villainPhase = (s: GameState, pick: Picker = declineFreeze, boosts: readon
 
 describe("registry", () => {
   const registered = Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES).sort();
-  it("registers ten refs (Frostbite's Forced Response as its activation half); Cryokinetic Perception's is skipped", () => {
+  it("registers all eleven refs; nothing is skipped", () => {
     const refs = ICEMAN_CARDS.filter((c) => (c.id as string) >= "46002" && (c.id as string) <= "46008").flatMap(
       abilityRefIds,
     );
     expect(refs).toHaveLength(11);
-    const skipped = ["46005.cryokinetic-perception-response"];
-    expect(registered).toHaveLength(10);
-    expect(registered).toEqual(refs.filter((id) => !skipped.includes(id)).sort());
-    expect(Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED).sort()).toEqual(skipped);
-  });
-  it("records the leaves-play gap as a note and keeps the full printed text as a draft", () => {
-    expect(FROSTBITE_FORCED_RESPONSE_GAP).toContain("activation half only");
-    expect(ICEMAN_SUPPORT_UPGRADES_ALLIES_DRAFTS["46002.frostbite-forced-response"]).toBeDefined();
+    expect(registered).toEqual([...refs].sort());
+    expect(Object.keys(ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED)).toEqual([]);
   });
   it("names every registered ref", () => {
     expect(registered).toEqual([
@@ -237,6 +209,7 @@ describe("registry", () => {
       "46003.snow-clone-constant-2",
       "46004.power-belt-constant",
       "46004.power-belt-resource",
+      "46005.cryokinetic-perception-response",
       "46006.ice-slide-constant",
       "46006.ice-slide-forced-response",
       "46007.frozen-solid-forced-interrupt",
@@ -372,26 +345,18 @@ describe("Frostbite (46002): set aside after the attached enemy activates", () =
     expect(frostbiteOn(state, villainOf(state))).toBe(1);
     expect(supply(state)).toBe(5);
   });
-  // Section 3.61 proof, expected to fail: the copy is unattached into the owner's play area before the host's move and no
-  // response hears it (events: setAside -> attachment, attachment -> playArea, then the minion to the discard pile).
-  it.fails("set aside when the attached enemy leaves play: a minion defeated by Iceman's own attack", () => {
+  // Section 3.61: the permanent copy is unattached into its owner's play area as the host moves (RRG 1.8 "Permanent",
+  // p. 32), still hears "attached enemy leaves play" and is set aside.
+  it("set aside when the attached enemy leaves play: a minion defeated by Iceman's own attack", () => {
     const { state: s, id } = withMinion(heroGame());
     // Sandman has 4 hit points and 2 damage: Freeze! attaches before the attack's 2 damage defeats him.
     const staged = withDamage(s, id, 2);
-    const { state, events } = driveEventsPicking(FULL_TEXT_DEPS, staged, takeFreeze, attack(staged, id));
+    const { state, events } = driveEventsPicking(DEPS, staged, takeFreeze, attack(staged, id));
     expect(playerOf(state, P1).playArea).not.toContain(id);
-    expect(frostbiteMoves(events)).toEqual(["attach", "setAside"]);
+    expect(frostbiteMoves(events)).toEqual(["attach", "playArea", "setAside"]);
     expect(supply(state)).toBe(6);
     expect(frostbiteInPlayAnywhere(state)).toBe(0);
-  });
-  it("what the shipped half does instead: the copy is unattached in the owner's play area, not set aside", () => {
-    const { state: s, id } = withMinion(heroGame());
-    const staged = withDamage(s, id, 2);
-    const { state, events } = driveEventsPicking(DEPS, staged, takeFreeze, attack(staged, id));
-    expect(frostbiteMoves(events)).toEqual(["attach", "playArea"]);
-    expect(supply(state)).toBe(5);
-    const [copy] = instancesOf(state, FROSTBITE_CODE).filter((i) => playerOf(state, P1).playArea.includes(i));
-    expect(inst(state, copy!).attachedTo).toBeNull();
+    expect(playerOf(state, P1).playArea.map((i) => codeOf(state, i))).not.toContain(FROSTBITE_CODE);
   });
 });
 
@@ -863,10 +828,76 @@ describe("Ice Wall (46008)", () => {
   });
 });
 
-describe("Cryokinetic Perception (46005): skipped", () => {
-  it("has no registered ability yet: it needs a draw that binds the card it drew (docs/phase7-wave8.md section 3.70)", () => {
-    expect(ICEMAN_SUPPORT_UPGRADES_ALLIES["46005.cryokinetic-perception-response"]).toBeUndefined();
-    expect(ICEMAN_SUPPORT_UPGRADES_ALLIES_SKIPPED["46005.cryokinetic-perception-response"]).toMatch(/draw/);
-    expect(CRYO).toBe("46005");
+describe("Cryokinetic Perception (46005): after Freeze!, exhaust to draw 1 card; an ICE card readies Iceman", () => {
+  const CRYO_RESPONSE = "46005.cryokinetic-perception-response";
+  /** Takes "Freeze!" and, when `cryo`, the response it opens; counts how often that response was offered. */
+  const cryoPicker =
+    (cryo: boolean, offered: string[] = []): Picker =>
+    (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind !== "chooseTriggers") return takeFreeze(s);
+      const ids = choice.options.map((o) => o.optionId as string);
+      const freezeOption = ids.find((id) => id.endsWith(FREEZE));
+      if (freezeOption) return [freezeOption];
+      const response = ids.find((id) => id.endsWith(CRYO_RESPONSE));
+      if (response) offered.push(response);
+      return response && cryo ? [response] : [];
+    };
+  /** Cryokinetic Perception in play (cost 2), hero form, and the card `top` relabeled onto the top of the deck. */
+  function cryoGame(top: string) {
+    const { state: played, id: cryo } = playFromHand(DEPS, heroGame(), CRYO, 2);
+    const first = playerOf(played, P1).deck[0]!;
+    return { state: patchInstance(played, first, { cardId: cardId(top) }), cryo, first };
+  }
+  // Snow Clone 46003 prints the ICE trait; Power Belt 46004 does not.
+  it("the card data: Snow Clone has ICE and Power Belt has not", () => {
+    const traits = (code: string) => (ICEMAN_CARDS.find((c) => (c.id as string) === code) as any).traits;
+    expect(traits(SNOW_CLONE)).toContain(trait("ICE"));
+    expect(traits(POWER_BELT)).not.toContain(trait("ICE"));
+  });
+  it("an ICE card drawn: it is in hand, Cryokinetic Perception is exhausted and Iceman is ready after his basic attack", () => {
+    const { state: s, cryo, first } = cryoGame(SNOW_CLONE);
+    const hand = playerOf(s, P1).hand.length;
+    const { state, events } = run(s, cryoPicker(true), attack(s, villainOf(s)));
+    expect(frostbiteOn(state, villainOf(state))).toBe(1);
+    expect(playerOf(state, P1).hand).toContain(first);
+    expect(playerOf(state, P1).hand).toHaveLength(hand + 1);
+    expect(inst(state, cryo).exhausted).toBe(true);
+    expect(inst(state, identityOf(state)).exhausted).toBe(false);
+    // The attack still resolved: 2 damage on Rhino.
+    expect(inst(state, villainOf(state)).damage).toBe(2);
+    expect(events.filter((e) => e.type === "cardDrawn")).toHaveLength(1);
+  });
+  it("a card without ICE drawn: it is in hand and Iceman stays exhausted", () => {
+    const { state: s, cryo, first } = cryoGame(POWER_BELT);
+    const { state } = run(s, cryoPicker(true), attack(s, villainOf(s)));
+    expect(playerOf(state, P1).hand).toContain(first);
+    expect(inst(state, cryo).exhausted).toBe(true);
+    expect(inst(state, identityOf(state)).exhausted).toBe(true);
+  });
+  it("optional: declined, nothing is drawn and the card stays ready", () => {
+    const { state: s, cryo, first } = cryoGame(SNOW_CLONE);
+    const offered: string[] = [];
+    const { state } = run(s, cryoPicker(false, offered), attack(s, villainOf(s)));
+    expect(offered).toHaveLength(1);
+    expect(playerOf(state, P1).deck[0]).toBe(first);
+    expect(inst(state, cryo).exhausted).toBe(false);
+    expect(inst(state, identityOf(state)).exhausted).toBe(true);
+  });
+  it("not offered while exhausted, nor when Freeze! was not taken", () => {
+    const { state: s, cryo } = cryoGame(SNOW_CLONE);
+    const spent: string[] = [];
+    run(patchInstance(s, cryo, { exhausted: true }), cryoPicker(true, spent), attack(s, villainOf(s)));
+    expect(spent).toHaveLength(0);
+    const noFreeze: Picker = (st) => (st.pendingChoice!.prompt.kind === "chooseTriggers" ? [] : takeFreeze(st));
+    const { state } = run(s, noFreeze, attack(s, villainOf(s)));
+    expect(frostbiteOn(state, villainOf(state))).toBe(0);
+    expect(inst(state, cryo).exhausted).toBe(false);
+  });
+  it("on the basic defense: the Freeze! taken while defending Rhino's attack opens the same response", () => {
+    const { state: s, cryo, first } = cryoGame(SNOW_CLONE);
+    const { state } = villainPhase(s, cryoPicker(true));
+    expect(playerOf(state, P1).hand).toContain(first);
+    expect(inst(state, cryo).exhausted).toBe(true);
   });
 });

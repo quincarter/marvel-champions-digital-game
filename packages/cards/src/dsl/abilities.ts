@@ -1971,6 +1971,17 @@ export interface InPlayCostOptions {
   /** The var that receives how many cards paid: "draw 1 card for each ally exhausted this way". */
   readonly bind?: string;
   /**
+   * "Discard a copy of Bamf! **from an enemy** → deal 8 damage to **that enemy**" (Teleport Drop, `ncrawler` 48008):
+   * the slot that receives the cards the picks were attached to as the cost was paid (`InPlayCostPick.bindHosts`).
+   */
+  readonly hosts?: string;
+  /**
+   * "Discard an ally you control → add **that ally's matching power**" ("You Got This!", `magneto` 49019): the picks'
+   * THW, ATK and DEF as they stand in play when the cost is paid, as the vars `<slot>.thw`, `<slot>.atk` and
+   * `<slot>.def` (`InPlayCostPick.snapshotStats`). `statOf` on the paid card would read the printed card instead.
+   */
+  readonly stats?: true;
+  /**
    * "Discard the **highest-cost** upgrade you control →" (Arm Cannon, `sm` 27147): only the matching cards tied for the
    * highest (or lowest) printed cost can pay; a tie is the payer's pick (`InPlayCostPick.superlative`).
    */
@@ -1993,6 +2004,8 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
       min: opts.min ?? 0,
       each: true,
       ...(opts.bind ? { bind: opts.bind } : {}),
+      ...(opts.hosts ? { bindHosts: opts.hosts } : {}),
+      ...(opts.stats ? { snapshotStats: true as const } : {}),
       ...(opts.superlative ? { superlative: { order: opts.superlative, measure: "printedCost" as const } } : {}),
     };
   }
@@ -2004,6 +2017,8 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
     min,
     ...(max !== "any" ? { max } : {}),
     ...(opts.bind ? { bind: opts.bind } : {}),
+    ...(opts.hosts ? { bindHosts: opts.hosts } : {}),
+    ...(opts.stats ? { snapshotStats: true as const } : {}),
     ...(opts.superlative ? { superlative: { order: opts.superlative, measure: "printedCost" as const } } : {}),
   };
 };
@@ -2043,6 +2058,19 @@ export const readyCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): Ab
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),
 });
+/**
+ * "Choose an X-Force ally and an X-Men ally and return them to their owners' hands →" (Mutant Mayhem, `jubilee`
+ * 47028): one card per slot, each slot its own query, and one card cannot pay two slots. `returnEachToHandCost({
+ * xforce: query("ally", { trait: X_FORCE }), xmen: query("ally", { trait: X_MEN }) })` binds each card to its slot for
+ * the effects. On an alliance card the picks may be any player's cards; otherwise the payer's own, as for
+ * `returnToHandCost`.
+ */
+export const returnEachToHandCost = (picks: Readonly<Record<string, TargetQuery>>): AbilityCost => {
+  const entries = Object.entries(picks);
+  if (entries.length < 2)
+    throw new Error("returnEachToHandCost: name at least two slots (one pick is returnToHandCost)");
+  return { returnToHand: entries.map(([slot, q]) => inPlayPick(q, { slot }, slot)) };
+};
 /**
  * "Discard an upgrade you control →" (Lethal Weapon, `nebu` 22030); "Discard an ally you control →" (Noble Sacrifice);
  * "Discard a [Tech] upgrade you control →" (Repurpose): cards in play discarded to pay. Same picking rules as
@@ -2084,6 +2112,16 @@ export const attachCost = (
  * `AbilityCost.dealDamage`.
  */
 export const dealDamageCost = (target: TargetRef, n: number): AbilityCost => ({ dealDamage: { target, amount: n } });
+/**
+ * "Deal 1 damage to another friendly character →" (Rogue, `ncrawler` 48012; docs/phase7-wave8.md §3.74): the payer
+ * picks one card in play matching `q`, any player's, and this card deals it `n` damage as the cost. The pick is bound
+ * to `slot` ("that character" in the effects). Paid whatever the target does with the damage (RRG 1.8 "Cost", p. 14:
+ * "If dealing damage is a cost, that cost is considered paid even if some or all of that damage is prevented").
+ * `AbilityCost.dealDamage.choose`.
+ */
+export const dealDamageToChosenCost = (q: TargetQuery, n: number, slot = "damaged"): AbilityCost => ({
+  dealDamage: { target: { kind: "slot", slot }, amount: n, choose: { slot, query: q } },
+});
 /** "Pay the printed cost of [a card] →" */
 /**
  * "Pay the printed cost of an ally in any player's discard pile →" (Make the Call).
@@ -2561,6 +2599,20 @@ export const on = {
    * "reset his hit points instead" with `printedHpOf`/max. Response only; a villain's next stage is not a reset.
    */
   hitPointsReset: (who?: Who): EventPattern => pattern("hitPointsReset", who === undefined ? {} : asTarget(who)),
+  /**
+   * "After you attach a Frostbite upgrade to an enemy" (Hot-Headed, `iceman` 46024): an ability attached `card` to a
+   * host matching `to` (absent: any host), by an `attachCard` effect, a `findCard` that attaches, or an attach cost
+   * (docs/phase7-wave8.md §3.61). Response only, once per card that landed on a new host; several attached by one
+   * effect share one response window. `by: "you"`: only cards this card's controller's ability attached. A card
+   * played or revealed onto its own printed host is not an attach by an ability: that is `entersPlay`.
+   */
+  cardAttached: (card: TargetQuery, opts: { readonly to?: Who; readonly by?: "you" } = {}): EventPattern =>
+    pattern(
+      "cardAttached",
+      { sourceIs: card },
+      opts.to === undefined ? {} : asTarget(opts.to),
+      opts.by === "you" ? { playerIs: "controller" } : {},
+    ),
   /**
    * "After you ignore the guard or patrol keyword on a minion" (Acute Control, `mut_gen` 32034) with `["guard",
    * "patrol"]`; "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035) with `["crisis"]`

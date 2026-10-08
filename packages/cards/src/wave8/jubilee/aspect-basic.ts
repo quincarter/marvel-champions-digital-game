@@ -39,6 +39,7 @@ import {
   modifyBasicPower,
   moveCards,
   on,
+  ownerOf,
   paidType,
   paidTypeCount,
   playFromHandIgnoringCost,
@@ -49,13 +50,16 @@ import {
   refMatches,
   removeCounter,
   removeThreat,
+  returnEachToHandCost,
   rule,
   self,
   shuffleDeck,
   spendChosen,
   takesConsequentialDamage,
   thatPlayer,
+  theAffectedCard,
   thwart,
+  thwartInProgress,
   threatOn,
   valueAtLeast,
   valueEquals,
@@ -149,8 +153,15 @@ const stepInstance = (k: number) =>
  * makes the ordinary basic power (`basicPowerBy`) at +1 THW and +1 ATK for that use. The charge counters, and the
  * discard when the last is spent, are the uses keyword's (card data).
  *
- * **Generation X (47016) constant and Mutant Mayhem (47028) are not registered**; see
- * `JUBILEE_ASPECT_BASIC_SKIPPED`. The unregistered drafts are exported for the proofs in the test file.
+ * **Generation X (47016)** constant: each X-MEN character gets +1 THW while it is making a basic thwart against this
+ * scheme (`thwartInProgress`, §3.70): only the character thwarting, only against Generation X, only a basic thwart
+ * (an event's or ability's thwart is not a character's basic power; a basic thwart made with ATK gains nothing from a
+ * THW bonus).
+ *
+ * **Mutant Mayhem (47028)**, Alliance, Hero Action: the cost returns one X-FORCE ally and one X-MEN ally to their
+ * owners' hands (two picks, one card cannot be both; as an alliance card's cost any player's allies can pay, RRG 1.8
+ * "Alliance", p. 6); then each owner plays their ally from hand, ignoring its resource cost. With either ally missing
+ * the cost cannot be paid and the card cannot be played.
  */
 export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "47011.chamber-constant": constant(
@@ -191,6 +202,11 @@ export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     stepInstance(4),
   ),
 
+  "47016.generation-x-constant": constant(
+    gets("thw", 1, query(["hero", "ally"], { trait: X_MEN }), {
+      while: thwartInProgress({ thwarter: theAffectedCard, scheme: { self: true }, basic: true }),
+    }),
+  ),
   "47016.when-defeated": whenDefeated(
     forEachPlayer(
       eachPlayer,
@@ -238,37 +254,18 @@ export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     giveTough(chosen("xforce")),
     giveTough(chosen("xmen")),
   ),
-});
-
-/**
- * The scripts this module cannot register yet, as printed text would have them (the engine cannot run them, or runs
- * them wrongly); the test file proves each with an `it.fails` and pins today's behavior beside it. Register one by
- * moving it into the registry above once its proof passes.
- *
- * Generation X (`47016.generation-x-constant`): drafted as an always-on +1 THW for X-MEN characters, which is wrong off
- * Generation X (no predicate says "making a basic thwart against this scheme").
- *
- * Mutant Mayhem (`47028.mutant-mayhem-action`): the printed "return them to their owners' hands ->" is a cost of two
- * picks and `AbilityCost.returnToHand` takes one. The draft chooses and returns them as effects, which lets the card be
- * used with no ally to return and loses the cost semantics (RRG 1.8 "Cost", p. 13).
- */
-export const JUBILEE_ASPECT_BASIC_DRAFTS: Readonly<Record<string, AbilityDefinition>> = {
-  "47016.generation-x-constant": constant(gets("thw", 1, query(["hero", "ally"], { trait: X_MEN }))),
 
   "47028.mutant-mayhem-action": heroAction(
-    chooseTarget("xforce", query("ally", { trait: X_FORCE })),
-    chooseTarget("xmen", query("ally", { trait: X_MEN })),
-    moveCards(cards(chosen("xforce")), "hand"),
-    moveCards(cards(chosen("xmen")), "hand"),
-    playFromHandIgnoringCost(),
-    playFromHandIgnoringCost(),
+    {
+      cost: returnEachToHandCost({
+        xforce: query("ally", { trait: X_FORCE }),
+        xmen: query("ally", { trait: X_MEN }),
+      }),
+    },
+    playFromHandIgnoringCost(ownerOf(chosen("xforce")), { card: chosen("xforce") }),
+    playFromHandIgnoringCost(ownerOf(chosen("xmen")), { card: chosen("xmen") }),
   ),
-};
+});
 
 /** Refs of this module's cards left unregistered, each with its reason; `coverage.test.ts` pins them. */
-export const JUBILEE_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "47016.generation-x-constant":
-    "'+1 THW while making a basic thwart against this scheme' needs a stat-modifier condition on the thwart in progress and its scheme; there is no thwartInProgress predicate (attackInProgress is attacks only) and the basicPowerUsing event carries no target scheme, so an interrupt would raise every X-MEN thwart against any scheme: docs/phase7-wave8.md §3.70 row 'Each [X-MEN] character gets +1 THW'",
-  "47028.mutant-mayhem-action":
-    "the cost 'return an X-FORCE ally and an X-MEN ally to their owners' hands' is two picks and AbilityCost.returnToHand takes one (exhaustCards takes a list); docs/phase7-wave8.md §3.70 row 'Alliance. Choose an [X-FORCE] ally and an [X-MEN] ally' assumed a two-pick return cost",
-};
+export const JUBILEE_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

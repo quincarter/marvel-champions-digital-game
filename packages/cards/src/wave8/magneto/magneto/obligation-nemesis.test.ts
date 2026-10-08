@@ -30,11 +30,7 @@ import { defeatWithAttack, driveEventsPicking, withForm } from "../../../testing
 import { engageMinion } from "../../../wave6/mut_gen/project-wideawake-testing.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
 import { MAGNETO_IDENTITY } from "./identity.js";
-import {
-  MAGNETO_OBLIGATION_NEMESIS,
-  MAGNETO_OBLIGATION_NEMESIS_DRAFTS,
-  MAGNETO_OBLIGATION_NEMESIS_SKIPPED,
-} from "./obligation-nemesis.js";
+import { MAGNETO_OBLIGATION_NEMESIS, MAGNETO_OBLIGATION_NEMESIS_SKIPPED } from "./obligation-nemesis.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -65,6 +61,7 @@ const REFS = [
   "49027.obligation",
   "49027.old-grievances-forced-response",
   GRIEVANCE_ACTION,
+  "49028.exodus-forced-response",
   "49029.when-defeated",
   "49030.when-defeated",
   "49030.boost",
@@ -72,7 +69,6 @@ const REFS = [
   "49031.boost",
   "49032.when-revealed",
 ];
-const EXODUS_REF = "49028.exodus-forced-response";
 
 const MAGNETO = WAVE8_STARTER_DECKS.find((d) => d.id === "magneto-leadership")!;
 const SEAT = {
@@ -82,7 +78,6 @@ const SEAT = {
 };
 const BASE = mergeRegistries(WAVE7_ABILITIES, MAGNETO_IDENTITY, MAGNETO_OBLIGATION_NEMESIS);
 const DEPS: EngineDeps = { abilities: BASE };
-const DRAFT_DEPS: EngineDeps = { abilities: mergeRegistries(BASE, MAGNETO_OBLIGATION_NEMESIS_DRAFTS) };
 const dataOf = (code: string) =>
   WAVE8_CARDS.find((c) => (c.id as string) === code) as never as Record<string, unknown> & {
     abilities: { id: string }[];
@@ -205,14 +200,13 @@ describe("registry and data", () => {
   it.each(REFS)("%s validates", (ref) => {
     expect(validateDefinition(MAGNETO_OBLIGATION_NEMESIS[ref]!)).toEqual([]);
   });
-  it("registers the nine refs it can; Exodus's Forced Response is skipped with a reason and held as a draft", () => {
+  it("registers all ten refs; nothing is skipped", () => {
     expect(Object.keys(MAGNETO_OBLIGATION_NEMESIS).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(MAGNETO_OBLIGATION_NEMESIS_SKIPPED)).toEqual([EXODUS_REF]);
-    expect(Object.keys(MAGNETO_OBLIGATION_NEMESIS_DRAFTS)).toEqual([EXODUS_REF]);
+    expect(Object.keys(MAGNETO_OBLIGATION_NEMESIS_SKIPPED)).toEqual([]);
     const named = [OLD_GRIEVANCES, EXODUS, MARTYR, FABIAN, FRENZY, ACOLYTE_TREACHERY].flatMap((c) =>
       dataOf(c).abilities.map((a) => a.id),
     );
-    expect(named.sort()).toEqual([...REFS, EXODUS_REF].sort());
+    expect(named.sort()).toEqual([...REFS].sort());
   });
   it("printed data: keywords, stats and the nemesis flag the abilities rely on", () => {
     const d = (c: string) => dataOf(c) as never as Record<string, any>;
@@ -409,38 +403,43 @@ describe("Angry Acolyte (49032): each ACOLYTE minion engaged activates against i
   });
 });
 
-describe("Exodus (49028): skipped until an enemy attack reports its total ATK", () => {
+describe("Exodus (49028): after he attacks you, discard cards from the top of your deck equal to his total ATK for that attack", () => {
   /**
-   * Exodus engaged (ATK 2); Rhino's boost card, then Exodus's own: 01100 prints 2 boost icons, so his total ATK for the
-   * attack is 4. Magneto lets Rhino's attack through and defends Exodus's with his basic defense (DEF 2): the damage dealt is 2.
+   * Exodus engaged (ATK 2); Rhino's boost card, then Exodus's own (Villainous): 01100 prints 2 boost icons, so his total
+   * ATK for the attack is 4. Magneto lets Rhino's attack through and, when `defended`, defends Exodus's with his basic
+   * defense (DEF 2): the damage dealt is then 2, his total ATK still 4.
    */
-  const attacked = (deps: EngineDeps) => {
-    const base = withMinion(heroGame(deps), EXODUS);
-    const s0 = stageTop(base.state, ADVANCE, "01100", ADVANCE, ADVANCE);
-    // Rhino attacks first (no defense), then Exodus (Magneto defends).
+  const attacked = (defended: boolean, boost = "01100") => {
+    const base = withMinion(heroGame(DEPS), EXODUS);
+    const s0 = stageTop(base.state, ADVANCE, boost, ADVANCE, ADVANCE);
+    // Rhino attacks first (no defense), then Exodus.
     let prompts = 0;
     const defend: Picker = (s) => {
       const choice = s.pendingChoice!;
       if (choice.prompt.kind !== "declareDefender") return firstLegal(s);
       prompts += 1;
-      return prompts === 1 ? ["decline"] : [identityOf(s)];
+      return prompts === 1 || !defended ? ["decline"] : [identityOf(s)];
     };
-    return { s0, run: driveEventsPicking(deps, s0, defend, endTurn(P1)) };
+    const run = driveEventsPicking(DEPS, s0, defend, endTurn(P1));
+    return { s0, run };
   };
-  const extra = (deps: EngineDeps): number => {
-    const { s0, run } = attacked(deps);
+  const extra = (defended: boolean, boost?: string): number => {
+    const { s0, run } = attacked(defended, boost);
     return extraDiscards(s0, run.state);
   };
 
-  it("with no ref registered his attack discards nothing from the deck", () => {
-    expect(extra(DEPS)).toBe(0);
+  it("undefended: ATK 2 plus 2 boost icons, 4 cards discarded and 4 damage taken", () => {
+    const { s0, run } = attacked(false);
+    expect(extraDiscards(s0, run.state)).toBe(4);
+    const hit = run.events.flatMap((e) =>
+      e.type === "attackResolved" && e.baseAtk === 2 && e.boostIcons === 2 ? [e] : [],
+    );
+    expect(hit.at(-1)).toMatchObject({ damageDealt: 4 });
   });
-  it("what the draft does today: he discards as many cards as the attack dealt damage after DEF (2), not his total ATK", () => {
-    expect(extra(DRAFT_DEPS)).toBe(2);
+  it("the number is his total ATK for that attack (ATK 2 plus the boost icons), whatever the defense: 4, not the 2 dealt", () => {
+    expect(extra(true)).toBe(4);
   });
-  // Section 3.81 ("the number is the attack's ATK with its boost icons; a defended attack discards as many"), expected
-  // to fail: total ATK is 2 + 2 icons = 4 whatever the defense.
-  it.fails("the number is his total ATK for that attack (ATK 2 plus the boost icons), whatever the defense", () => {
-    expect(extra(DRAFT_DEPS)).toBe(4);
+  it("a boost card with no icons: his total ATK is his ATK, 2 cards", () => {
+    expect(extra(false, ADVANCE)).toBe(2);
   });
 });

@@ -335,6 +335,10 @@ describe("Colossus 45031: an in-hand interrupt that plays him (paying his cost) 
     expect(events.find((e) => e.type === "cardPlayed" && e.instanceId === colossus)).toMatchObject({
       resourcesPaid: 3,
     });
+    // The ability's declaration is logged like the Declare Defender step's own, marked as an effect's.
+    expect(events.filter((e) => e.type === "defenderDeclared" && e.defenderInstanceId === colossus)).toEqual([
+      expect.objectContaining({ type: "defenderDeclared", defenderInstanceId: colossus, playerId: P1, byEffect: true }),
+    ]);
     expect(types).toContain("statusGiven");
     expect(types).toContain("damagePrevented");
     expect(types).toContain("statusRemoved");

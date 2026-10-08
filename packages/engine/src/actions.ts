@@ -109,6 +109,7 @@ import {
   payAttachCost,
   payDealDamageCost,
   planAttachCost,
+  planDealDamageChoice,
 } from "./attach-cost.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
@@ -2260,6 +2261,12 @@ export function planCost(
     if (isFault(attached)) return attached;
     Object.assign(bindings, attached);
   }
+  // "Deal 1 damage to another friendly character →" (`dealDamage.choose`, docs/phase7-wave8.md §3.74): the payer's pick.
+  if (cost.dealDamage?.choose) {
+    const chosen = planDealDamageChoice(state, deps, sourceId, playerId, cost.dealDamage.choose, choices, bindings);
+    if (isFault(chosen)) return chosen;
+    Object.assign(bindings, chosen);
+  }
   if (
     cost.dealDamage &&
     dealDamageCostTargets(state, deps, sourceId, playerId, cost.dealDamage.target, bindings).length === 0
@@ -2342,7 +2349,7 @@ export function planCost(
   if (new Set(spentInPlay).size !== spentInPlay.length || inPlayIds.some((id) => reserved.has(id))) {
     return { code: "invalid_choice", message: "one card cannot pay two parts of a cost" };
   }
-  for (const { pick, ids } of picked) bindInPlayPick(pick, ids, bindings, vars);
+  for (const { pick, ids } of picked) bindInPlayPick(state, deps, pick, ids, bindings, vars);
   return { requirement, bindings, vars, payingFor, ...(selected ? { cost } : {}) };
 }
 
@@ -2430,6 +2437,8 @@ function planGivenCards(
 }
 
 function bindInPlayPick(
+  state: GameState,
+  deps: EngineDeps,
   pick: InPlayCostPick,
   picks: readonly InstanceId[],
   bindings: Record<string, readonly InstanceId[]>,
@@ -2437,6 +2446,20 @@ function bindInPlayPick(
 ): void {
   bindings[pick.slot] = picks;
   if (pick.bind) vars[pick.bind] = picks.length;
+  // "… from an enemy → … that enemy" (`bindHosts`): what each pick is attached to now, before the cost moves it.
+  if (pick.bindHosts) {
+    const hosts = picks.flatMap((id) => getInstance(state, id)?.attachedTo ?? []);
+    bindings[pick.bindHosts] = [...new Set(hosts)];
+  }
+  // "… add that ally's matching power" (`snapshotStats`): the picks' powers now, before the cost takes them from play.
+  if (pick.snapshotStats) {
+    for (const stat of ["thw", "atk", "def"] as const) {
+      vars[`${pick.slot}.${stat}`] = picks.reduce((sum, id) => {
+        const profile = characterProfile(state, id, deps);
+        return sum + (!profile || (profile.missing as readonly string[]).includes(stat) ? 0 : profile[stat]);
+      }, 0);
+    }
+  }
 }
 
 /**

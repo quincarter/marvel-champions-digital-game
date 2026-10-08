@@ -50,7 +50,7 @@ import type { Command, CostChoices, CostSelection, Payment } from "./commands.js
 import { createCtx } from "./ctx.js";
 import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
-import { attachCostCard, attachCostHosts } from "./attach-cost.js";
+import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
 import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
@@ -524,12 +524,41 @@ function costChoiceSets(
     pickChoiceSets(state, deps, playerId, source, cost, picks),
   );
   const attach = cost?.attach;
-  if (!attach) return sets;
+  if (!attach) return damageChoiceSets(state, deps, playerId, source, cost, sets);
   const card = attachCostCard(state, deps, source, playerId, attach);
   const hosts = card === null ? [] : attachCostHosts(state, deps, source, playerId, attach, card);
   if (hosts.length === 0) return sets;
+  return damageChoiceSets(
+    state,
+    deps,
+    playerId,
+    source,
+    cost,
+    sets.flatMap(({ costChoices, target }) =>
+      hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+    ),
+  );
+}
+
+/**
+ * "Deal 1 damage to another friendly character →" (`AbilityCost.dealDamage.choose`, docs/phase7-wave8.md §3.74): each
+ * variant once per card the payer may pick. With no candidate the variants are left as they are and the engine's own
+ * check (`planCost`) refuses them, so the ability is not offered.
+ */
+function damageChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  sets: readonly CostChoiceSet[],
+): readonly CostChoiceSet[] {
+  const choose = cost?.dealDamage?.choose;
+  if (!choose) return sets;
+  const candidates = dealDamageCostChoices(state, deps, source, playerId, choose);
+  if (candidates.length === 0) return sets;
   return sets.flatMap(({ costChoices, target }) =>
-    hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+    candidates.map((card) => ({ costChoices: { ...costChoices, [choose.slot]: [card] }, target: target ?? card })),
   );
 }
 

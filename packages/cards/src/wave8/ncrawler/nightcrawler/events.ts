@@ -3,7 +3,6 @@ import {
   action,
   aScheme,
   anAttackableEnemy,
-  anEnemy,
   attack,
   attackingEnemy,
   cards,
@@ -12,7 +11,7 @@ import {
   chosen,
   dealDamage,
   defineAbilities,
-  discard,
+  discardCardsCost,
   discardFromHandCost,
   each,
   eventSource,
@@ -63,10 +62,10 @@ const BAMF = query("upgrade", { name: "Bamf!" });
  * copy as its source and its controller as the player): that copy goes from the discard pile to hand, then 3 damage to
  * the attacking enemy. The damage is not an attack.
  *
- * **Teleport Drop (48008) is skipped.** "Discard a copy of Bamf! from an enemy -> deal 8 damage to that enemy" needs
- * the enemy the cost's copy was attached to, and no reference to the host of a cost pick exists (`discardCardsCost`
- * binds the card only, and it is unattached once paid). The only way to write it is to choose the enemy first and
- * discard its copy as an effect, which changes when the copy is lost (not a cost). See `NIGHTCRAWLER_EVENTS_SKIPPED`.
+ * **Teleport Drop (48008)**, Hero Action (attack): the cost discards one copy of Bamf! he controls that is attached
+ * to an enemy he may attack (RRG 1.8 "Guard", p. 21: the enemy the copy is on is the attack's target, so a copy on an
+ * enemy he cannot attack cannot pay), and names that enemy for the effects (`hosts`, section 3.72): an attack of 8 on
+ * it, then a stun. The copy is lost as the cost, before the attack: nothing that stops the attack brings it back.
  */
 export const NIGHTCRAWLER_EVENTS: AbilityRegistry = defineAbilities({
   "48007.port-and-punch-action": heroAction(
@@ -74,6 +73,18 @@ export const NIGHTCRAWLER_EVENTS: AbilityRegistry = defineAbilities({
     anAttackableEnemy("enemy"),
     attack(3, chosen("enemy")),
     dealDamage(3, each(query("enemy", { hasAttachment: BAMF }))),
+  ),
+
+  "48008.teleport-drop-action": heroAction(
+    {
+      label: "attack",
+      cost: discardCardsCost(
+        query("upgrade", { name: "Bamf!", host: each(query("enemy", { attackableBy: yourIdentity })) }),
+        { hosts: "enemy" },
+      ),
+    },
+    attack(8, chosen("enemy")),
+    stun(chosen("enemy")),
   ),
 
   "48009.scout-ahead-action": heroAction(
@@ -104,27 +115,5 @@ export const NIGHTCRAWLER_EVENTS: AbilityRegistry = defineAbilities({
   ),
 });
 
-/**
- * Teleport Drop (48008) as nearly as the DSL can write it, NOT registered: the enemy is chosen first and the copy is
- * discarded by an effect. As printed the discard is the cost, so it is paid (and the copy lost) before the attack
- * resolves and cannot be undone by anything that stops the attack. This draft shows the rest of the card working.
- */
-export const NIGHTCRAWLER_EVENTS_DRAFTS: AbilityRegistry = defineAbilities({
-  "48008.teleport-drop-action": heroAction(
-    { label: "attack" },
-    chooseTargetWithBamf(),
-    discard({ kind: "attachmentsOf", of: chosen("enemy"), filter: BAMF }),
-    attack(8, chosen("enemy")),
-    stun(chosen("enemy")),
-  ),
-});
-
-function chooseTargetWithBamf() {
-  return anEnemy("enemy", { attackableBy: yourIdentity, hasAttachment: BAMF });
-}
-
 /** Refs left unregistered, each with its reason (the coverage test reads this through its own `skipped` list). */
-export const NIGHTCRAWLER_EVENTS_SKIPPED: Readonly<Record<string, string>> = {
-  "48008.teleport-drop-action":
-    "section 3.72: the cost 'discard a copy of Bamf! from an enemy' leaves no way to name that enemy for the effects (no host-of-cost-pick reference; discardCardsCost binds the card only); an effect-side discard would change cost into effect",
-};
+export const NIGHTCRAWLER_EVENTS_SKIPPED: Readonly<Record<string, string>> = {};

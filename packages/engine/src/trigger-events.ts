@@ -675,6 +675,22 @@ export type TriggerEventBody =
    */
   | { readonly kind: "hitPointsReset"; readonly instanceId: InstanceId }
   /**
+   * An ability attached a card to a host (docs/phase7-wave8.md §3.61): "Forced Response: After you attach a [named]
+   * upgrade to an enemy, take 1 damage." An announcement (response only), pushed by the one way an ability attaches a
+   * card (`attachCard`: the `attach` effect, `findCard`'s `{ attachTo }`, an attach cost) once per card that landed on
+   * a new host, already attached, and only when an ability listens. A card already on that host did not move and
+   * announces nothing. `playerId`: the player resolving the ability or paying the cost ("you attach"), null for an
+   * encounter card's ability with no player. Not announced for a card played or revealed onto the host its own
+   * "attach to" names: that card enters play (`cardEntersPlay`), and RRG 1.8 "Attach To" (p. 8) keeps the two apart
+   * ("the 'attach to' phrase on a card is not resolved if another ability causes that card to attach").
+   */
+  | {
+      readonly kind: "cardAttached";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly playerId: PlayerId | null;
+    }
+  /**
    * A character ignored a guard or patrol keyword, or a crisis icon, that would otherwise have stopped the attack or
    * thwart it just made (docs/phase7-wave6.md §3.8, §4.1 Q6): "After you ignore the guard or patrol keyword on a minion"
    * (Acute Control, `mut_gen` 32034), "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035).
@@ -833,6 +849,14 @@ export type TriggerEventBody =
       readonly speakerId?: PlayerId;
       readonly to: ZoneId["kind"];
       readonly traits: readonly Trait[];
+      /**
+       * The attachments that stay in play, unattached, once this card has left: a player's permanent or "cannot leave
+       * play" card on it (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8). Read while it was still in play. To each of
+       * them this event's card is still "attached [card]" (`hostOfSelf`, `TargetRef host`), so "After attached enemy
+       * leaves play, set this card aside" on a permanent upgrade hears its former host leave (docs/phase7-wave8.md
+       * §3.61). Absent when there is none.
+       */
+      readonly strandedAttachments?: readonly InstanceId[];
       readonly leaving?: LeaveRequest;
       readonly interruptsResolved?: true;
     }
@@ -1113,9 +1137,19 @@ export type TriggerEventBody =
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
  * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
  * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`). A `removeThreat` that took its scheme
- * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34).
+ * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34). An enemy attack that reached its
+ * damage step records `totalAtk` (`TOTAL_ATK_RESULT`).
  */
 export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
+
+/**
+ * The result key an enemy attack records "its total ATK for that attack" under (docs/phase7-wave8.md §3.81): the
+ * enemy's ATK as the attack's damage step read it (constant modifiers and "+N ATK for this attack" included; a printed
+ * dash is an unmodifiable 0) plus the boost icons counted for it, before the defender's DEF (RRG 1.8 "Attack (Enemy
+ * Activation)" step 4, p. 9). Absent (read as 0) for an attack that never reached that step: a stunned enemy, a
+ * cancelled attack. The result `damage` is what the attack then dealt.
+ */
+export const TOTAL_ATK_RESULT = "totalAtk";
 
 /**
  * The result key an attack/activation records one character's damage taken under (docs/phase7-wave5.md §4.1 Q65):
@@ -1444,6 +1478,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // and "you".
     case "statusPlaced":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The attached card is the source ("a Frostbite upgrade"), its host the target ("to an enemy"), the attacher "you".
+    case "cardAttached":
+      return of([event.instanceId], [event.hostInstanceId], [event.playerId]);
     // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
     case "hitPointsReset":
       return of([], [event.instanceId], []);

@@ -489,10 +489,7 @@ const SCRIPTED_MODULES: Readonly<
         "48032",
       ],
       registry: NCRAWLER_ASPECT_BASIC,
-      skipped: {
-        "48012.rogue-action":
-          "cost picks another friendly character of any player and deals it damage (dealt, paid even if prevented); no cost does that: docs/phase7-wave8.md §3.74",
-      },
+      skipped: {},
     },
     {
       module: "crazy-gang",

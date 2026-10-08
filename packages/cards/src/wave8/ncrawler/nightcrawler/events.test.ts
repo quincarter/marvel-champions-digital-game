@@ -44,7 +44,7 @@ import {
 } from "../../../testing/harness.js";
 import { driveEvents, driveEventsPicking, encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
-import { NIGHTCRAWLER_EVENTS, NIGHTCRAWLER_EVENTS_DRAFTS, NIGHTCRAWLER_EVENTS_SKIPPED } from "./events.js";
+import { NIGHTCRAWLER_EVENTS, NIGHTCRAWLER_EVENTS_SKIPPED } from "./events.js";
 import { NIGHTCRAWLER_IDENTITY } from "./identity.js";
 import { NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
 
@@ -58,8 +58,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * (01101, ATK 1, 3 hit points) are the minions; Breakin' & Takin' (01107) is the side scheme, the main scheme is given 7 threat. Boost cards: Breakin' & Takin'
  * (01107, 2 icons, also a side scheme), Advance (01186, 0 icons). Only a villain is dealt a boost card, so a minion's attack has none.
  *
- * Teleport Drop (48008) is skipped in the module (no way to name the host of the copy its cost discards). The
- * unregistered draft is exercised in the last block: it runs everything but the cost.
+ * Teleport Drop (48008): its cost discards a copy of Bamf! from an enemy and names that enemy for the attack.
  */
 const PORT_PUNCH = "48007";
 const TELEPORT_DROP = "48008";
@@ -69,6 +68,7 @@ const TALLY = "48011";
 const BAMF = "48006";
 const REFS = [
   "48007.port-and-punch-action",
+  "48008.teleport-drop-action",
   "48009.scout-ahead-action",
   "48010.port-away-action",
   "48011.tally-ho-response",
@@ -82,15 +82,6 @@ const DEPS: EngineDeps = {
     NIGHTCRAWLER_IDENTITY,
     NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES,
     NIGHTCRAWLER_EVENTS,
-  ),
-};
-const DRAFT_DEPS: EngineDeps = {
-  abilities: mergeRegistries(
-    WAVE7_ABILITIES,
-    NIGHTCRAWLER_IDENTITY,
-    NIGHTCRAWLER_SUPPORT_UPGRADES_ALLIES,
-    NIGHTCRAWLER_EVENTS,
-    NIGHTCRAWLER_EVENTS_DRAFTS,
   ),
 };
 const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...VNM_CARDS, ...NCRAWLER_CARDS];
@@ -351,12 +342,9 @@ describe("registry", () => {
   it.each(REFS)("%s validates", (id) => {
     expect(validateDefinition(NIGHTCRAWLER_EVENTS[id]!)).toEqual([]);
   });
-  it("holds exactly the four refs; Teleport Drop is skipped with its reason and only drafted", () => {
+  it("holds exactly the five refs; nothing is skipped", () => {
     expect(Object.keys(NIGHTCRAWLER_EVENTS).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(NIGHTCRAWLER_EVENTS_SKIPPED)).toEqual(["48008.teleport-drop-action"]);
-    expect(NIGHTCRAWLER_EVENTS_SKIPPED["48008.teleport-drop-action"]).toMatch(/cost/);
-    expect(Object.keys(NIGHTCRAWLER_EVENTS_DRAFTS)).toEqual(["48008.teleport-drop-action"]);
-    expect(validateDefinition(NIGHTCRAWLER_EVENTS_DRAFTS["48008.teleport-drop-action"]!)).toEqual([]);
+    expect(Object.keys(NIGHTCRAWLER_EVENTS_SKIPPED)).toEqual([]);
   });
   it("the emitted data: five events with these costs, each one energy icon, Hero Action text where printed", () => {
     const rows = [PORT_PUNCH, TELEPORT_DROP, SCOUT, PORT_AWAY, TALLY].map((code) => {
@@ -1045,8 +1033,8 @@ describe("Tally Ho! (48011): after Bamf! makes Nightcrawler the defender, return
   });
 });
 
-describe("Teleport Drop (48008): skipped, drafted without its cost", () => {
-  const draftBoard = () => {
+describe("Teleport Drop (48008): discard a copy of Bamf! from an enemy to deal 8 damage to that enemy and stun it", () => {
+  const board = () => {
     const base0 = withResources(heroGame(), 3);
     const rhino = base0.activeVillainId!;
     const a = attachBamf(base0, rhino);
@@ -1054,32 +1042,77 @@ describe("Teleport Drop (48008): skipped, drafted without its cost", () => {
     return { state: ev.state, rhino, copy: a.id, id: ev.ids[0]!, pay: payers(ev.state, P1, 2, [ev.ids[0]!]) };
   };
 
-  it("the registry does not hold it: with the real registry the card does nothing (no damage, the copy stays)", () => {
-    const { state: s, rhino, copy, id, pay: cards } = draftBoard();
-    const { state, events } = driveEventsPicking(DEPS, s, picker(take(rhino)), play(P1, id, cards));
-    expect(damageTo(events, rhino)).toEqual([]);
-    expect(bamfsOn(state, rhino)).toBe(1);
-    expect(inst(state, copy).attachedTo).toBe(rhino);
+  it("the discard is the cost (cost.discardCards), bound with its host", () => {
+    const definition = NIGHTCRAWLER_EVENTS["48008.teleport-drop-action"]!;
+    expect(definition.cost?.discardCards).toMatchObject({ slot: "discarded", bindHosts: "enemy", min: 1, max: 1 });
   });
 
-  it("the draft runs the rest: the copy is discarded, Rhino takes 8 and is stunned", () => {
-    const { state: s, rhino, copy, id, pay: cards } = draftBoard();
-    const { state, events } = driveEventsPicking(DRAFT_DEPS, s, picker(take(rhino)), play(P1, id, cards));
+  it("one copy on Rhino: the copy is discarded, Rhino takes one attack of 8 and is stunned", () => {
+    const { state: s, rhino, copy, id, pay: cards } = board();
+    const { state, events } = driveEventsPicking(DEPS, s, picker(), play(P1, id, cards));
     expect(damageTo(events, rhino)).toEqual([8]);
     expect(inst(state, rhino).statuses.stunned).toBe(1);
     expect(playerOf(state, P1).discard).toContain(copy);
     expect(bamfsOn(state, rhino)).toBe(0);
+    // The copy leaves before the damage: it is the cost.
+    const left = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === copy);
+    const hit = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === rhino);
+    expect(left).toBeGreaterThan(-1);
+    expect(hit).toBeGreaterThan(left);
   });
 
-  it("the draft needs an enemy with a copy: with none it cannot be played", () => {
+  it("copies on two enemies: the copy picked as the cost names its own enemy, the other is untouched", () => {
     const base0 = withResources(heroGame(), 3);
-    const ev = moveToHand(base0, P1, TELEPORT_DROP);
+    const rhino = base0.activeVillainId!;
+    const minion = engage(base0, SANDMAN);
+    const onRhino = attachBamf(minion.state, rhino);
+    const onMinion = attachBamf(onRhino.state, minion.id);
+    const ev = moveToHand(onMinion.state, P1, TELEPORT_DROP);
     const cards = payers(ev.state, P1, 2, [ev.ids[0]!]);
-    expect(applyCommand(ev.state, play(P1, ev.ids[0]!, cards), DRAFT_DEPS).ok).toBe(false);
+    // The command must name the copy: two can pay.
+    expect(accepted(ev.state, play(P1, ev.ids[0]!, cards))).toBe(false);
+    const { state, events } = driveEventsPicking(
+      DEPS,
+      ev.state,
+      picker(),
+      play(P1, ev.ids[0]!, cards, { costChoices: { discarded: [onMinion.id] } }),
+    );
+    expect(damageTo(events, rhino)).toEqual([]);
+    expect(bamfsOn(state, rhino)).toBe(1);
+    expect(playerOf(state, P1).discard).toContain(onMinion.id);
+    // Sandman has 4 hit points: 8 damage defeats him.
+    expect(cardsInPlay(state)).not.toContain(minion.id);
   });
 
-  it.fails("pinned gap: as printed the discard is the cost (cost.discardCards), the draft discards in its effects", () => {
-    const draft = NIGHTCRAWLER_EVENTS_DRAFTS["48008.teleport-drop-action"]!;
-    expect(draft.cost?.discardCards).toBeDefined();
+  it("guard: with a Mercenary engaged, the copy on Rhino cannot pay (he cannot be attacked); the Mercenary's can", () => {
+    const base0 = withResources(heroGame(), 3);
+    const rhino = base0.activeVillainId!;
+    const merc = engage(base0, MERCENARY);
+    const onRhino = attachBamf(merc.state, rhino);
+    const ev = moveToHand(onRhino.state, P1, TELEPORT_DROP);
+    const cards = payers(ev.state, P1, 2, [ev.ids[0]!]);
+    expect(accepted(ev.state, play(P1, ev.ids[0]!, cards))).toBe(false);
+    expect(accepted(ev.state, play(P1, ev.ids[0]!, cards, { costChoices: { discarded: [onRhino.id] } }))).toBe(false);
+    const onMerc = attachBamf(ev.state, merc.id);
+    const pay = payers(onMerc.state, P1, 2, [ev.ids[0]!]);
+    // One copy can pay, so the pick is forced.
+    const { state, events } = driveEventsPicking(DEPS, onMerc.state, picker(), play(P1, ev.ids[0]!, pay));
+    expect(cardsInPlay(state)).not.toContain(merc.id);
+    expect(damageTo(events, rhino)).toEqual([]);
+    expect(bamfsOn(state, rhino)).toBe(1);
+  });
+
+  it("it needs a copy on an enemy: with none attached it cannot be played, though a copy is in hand", () => {
+    const base0 = withResources(heroGame(), 3);
+    const inHandCopy = moveToHand(base0, P1, BAMF);
+    const ev = moveToHand(inHandCopy.state, P1, TELEPORT_DROP);
+    const cards = payers(ev.state, P1, 2, [ev.ids[0]!, inHandCopy.ids[0]!]);
+    expect(accepted(ev.state, play(P1, ev.ids[0]!, cards))).toBe(false);
+  });
+
+  it("is refused in alter-ego form (Hero Action)", () => {
+    const { state: s, id, pay: cards } = board();
+    expect(accepted(withForm(s, "alterEgo"), play(P1, id, cards))).toBe(false);
+    expect(accepted(s, play(P1, id, cards))).toBe(true);
   });
 });

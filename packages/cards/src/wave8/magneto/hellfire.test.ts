@@ -28,7 +28,7 @@ import {
 } from "../../testing/harness.js";
 import { driveEvents, playFromHand, withForm } from "../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../wave7/index.js";
-import { HELLFIRE, HELLFIRE_DRAFTS, HELLFIRE_SKIPPED } from "./hellfire.js";
+import { HELLFIRE, HELLFIRE_SKIPPED } from "./hellfire.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -61,8 +61,6 @@ const RHINO_SCH = 1;
 /** The threat each villain phase places on the main scheme before anything activates (1 per round, 1 player or 2). */
 const PHASE_THREAT = 1;
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, HELLFIRE) };
-/** The drafted Power and Decadence When Revealed, as printed, for the section 3.79 proof. */
-const DRAFT_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, HELLFIRE, HELLFIRE_DRAFTS) };
 
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 const CAPTAIN_MARVEL = { starterDeckId: "core-captain-marvel-leadership" } as const;
@@ -147,17 +145,23 @@ const attack = (s: GameState, target: InstanceId, p: PlayerId = P1): GameState =
   driveEvents(DEPS, s, attackCommand(s, target, p)).state;
 
 describe("registry", () => {
-  it("registers the six refs of the five cards, each a valid definition", () => {
+  it("registers the seven refs of the five cards, each a valid definition", () => {
     expect(Object.keys(HELLFIRE).sort()).toEqual(
-      [SHAW_RESPONSE, SELENE_CONSTANT, SELENE_BOOST, PAWN_BOOST, CIRCLE_REVEAL, DECADENCE_BOOST].sort(),
+      [
+        SHAW_RESPONSE,
+        SELENE_CONSTANT,
+        SELENE_BOOST,
+        PAWN_BOOST,
+        CIRCLE_REVEAL,
+        DECADENCE_REVEAL,
+        DECADENCE_BOOST,
+      ].sort(),
     );
     for (const [id, def] of Object.entries(HELLFIRE)) expect(validateDefinition(def), id).toEqual([]);
   });
 
-  it("Power and Decadence's When Revealed is skipped with its reason, drafted as printed and valid", () => {
-    expect(Object.keys(HELLFIRE_SKIPPED)).toEqual([DECADENCE_REVEAL]);
-    expect(Object.keys(HELLFIRE_DRAFTS)).toEqual([DECADENCE_REVEAL]);
-    expect(validateDefinition(HELLFIRE_DRAFTS[DECADENCE_REVEAL]!)).toEqual([]);
+  it("nothing is skipped", () => {
+    expect(Object.keys(HELLFIRE_SKIPPED)).toEqual([]);
   });
 
   it("Hellfire Pawn's Boost is the same definition object as Mutant Genesis 32058's", () => {
@@ -518,31 +522,28 @@ describe("Power and Decadence (49042)", () => {
     expect([card.boostIcons, card.starIcon, card.keywords]).toEqual([0, true, []]);
   });
 
-  // Section 3.79 proof, expected to fail: the card being revealed cannot be given as a boost card (BOOST_SOURCE_ZONES).
-  it.fails("DECADENCE_REVEAL: the villain gets a tough status card and this card as its one facedown boost card", () => {
+  // Section 3.79: the card being revealed goes onto the villain, facedown, instead of the encounter discard pile.
+  it("DECADENCE_REVEAL: the villain gets a tough status card and this card as its one facedown boost card", () => {
     const s0 = setupGame();
     const toughBefore = toughOf(s0);
-    const s = driveRound(DRAFT_DEPS, s0, [BOOST_1, DECADENCE]);
+    const s = round(s0, [BOOST_1, DECADENCE]);
     expect(toughOf(s)).toBe(toughBefore + 1);
     const waiting = inst(s, villainOf(s)).boostCards;
     expect(waiting).toHaveLength(1);
     expect(codeOf(s, waiting[0]!)).toBe(DECADENCE);
+    expect(inst(s, waiting[0]!).faceup).toBe(false);
     expect(inEncounterDiscard(s, DECADENCE)).toHaveLength(0);
   });
 
-  it("what the engine does instead: the villain gets the tough status card and no boost card, and the treachery is discarded", () => {
-    const s0 = setupGame();
-    const toughBefore = toughOf(s0);
-    const s = driveRound(DRAFT_DEPS, s0, [BOOST_1, DECADENCE]);
-    expect(toughOf(s)).toBe(toughBefore + 1);
+  it("DECADENCE_REVEAL then DECADENCE_BOOST: next round the waiting card is turned up with Rhino's own, and he activates again with no boost card", () => {
+    const s0 = round(setupGame(), [BOOST_1, DECADENCE]);
+    const before = damageOf(s0, P1);
+    // Rhino's automatic card (1 icon), then the card revealed to the player.
+    const s = round(s0, [BOOST_1, BOOST_2], { hero: true });
+    // The waiting Power and Decadence (0 icons) and the automatic card (1 icon): 2 + 1; then again, no boost card: 2.
+    // The tough status card it gave Rhino is his; the hero's damage is not reduced by it.
+    expect(damageOf(s, P1) - before).toBe(RHINO_ATK + 1 + RHINO_ATK);
     expect(inst(s, villainOf(s)).boostCards).toEqual([]);
-    expect(inEncounterDiscard(s, DECADENCE)).toHaveLength(1);
-  });
-
-  it("with no ref registered the revealed card does nothing: no tough status card, discarded", () => {
-    const s0 = setupGame();
-    const s = round(s0, [BOOST_1, DECADENCE]);
-    expect(toughOf(s)).toBe(toughOf(s0));
     expect(inEncounterDiscard(s, DECADENCE)).toHaveLength(1);
   });
 

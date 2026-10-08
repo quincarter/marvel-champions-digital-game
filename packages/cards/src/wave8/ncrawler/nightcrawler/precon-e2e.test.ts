@@ -53,7 +53,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * Mechanics read from events: Bamf! (the defender is declared without exhausting Nightcrawler, the copy goes to the
  * discard pile, the moment "bamf" is raised), Tally Ho! (the copy returns to hand, 3 damage that is not attack damage),
  * 'Port and Punch (one attack; the 3 damage to each enemy with a Bamf! is attack damage, docs/phase7-wave8.md §4.1
- * Q47 to Q50), Daytripper (a copy attached, 1 damage to each enemy with one), Rapid Teleportation (once per phase),
+ * Q47 to Q50), Rogue (her cost: 1 damage from her to another friendly character), Teleport Drop (a copy discarded from an enemy as the cost, one attack of 8 on that enemy), Daytripper (a copy attached, 1 damage to each enemy with one), Rapid Teleportation (once per phase),
  * Kurt Wagner's search (once per round, shuffled), the hazard extra deal (RRG 1.8 "Hazard Icon", p. 21; "Villain
  * Phase", p. 47), Azazel's Boost going to the Nightcrawler seat, and ready-and-draw at the end of the player phase (after every player has had a turn: RRG 1.8 "Player Phase"; the handoff said "end of turn", which is the same moment in a one-player game).
  */
@@ -107,6 +107,8 @@ const seen = {
   hazardExtraDeal: [] as string[],
   hazardAuditSkipped: [] as string[],
   portAndPunchStunned: [] as string[],
+  teleportDrop: [] as string[],
+  rogue: [] as string[],
   endOfPlayerPhaseReadyAndDraw: [] as string[],
   crazyGangCard: [] as string[],
   nemesisCard: [] as string[],
@@ -334,6 +336,42 @@ class Observer {
         seen.portAndPunchExtraHit.push(here);
       }
       seen.portAndPunch.push(here);
+    });
+
+    // Teleport Drop (48008): the cost discards a copy of Bamf! from an enemy; one attack of 8 on that enemy, then a stun.
+    each("48008.teleport-drop-action", (seg) => {
+      const dropped = events.filter(
+        (e) =>
+          e.type === "cardMoved" &&
+          e.cardId === (BAMF as never) &&
+          e.from.kind === "attachment" &&
+          e.to.kind === "discard",
+      ) as Extract<GameEvent, { type: "cardMoved" }>[];
+      expect(dropped.length, `${here}: Teleport Drop discards a copy of Bamf! from an enemy`).toBeGreaterThanOrEqual(1);
+      const hosts = dropped.map((m) => (m.from as { hostInstanceId: InstanceId }).hostInstanceId);
+      const attacks = seg.map(trigger).filter((t) => t !== null && t.kind === "attack" && t.phase === "initiated");
+      // A stunned Nightcrawler's attack is not made (RRG 1.8 "Stunned"); the copy is still spent: it was the cost.
+      if (attacks.length === 0 && seg.some((e) => e.type === "statusRemoved")) return;
+      expect(attacks, `${here}: Teleport Drop is one attack`).toHaveLength(1);
+      expect(attacks[0]!.amount, `${here}: the attack is 8`).toBe(8);
+      expect(hosts, `${here}: the attack is on the enemy the copy was on`).toContain(attacks[0]!.targetInstanceId);
+      seen.teleportDrop.push(here);
+    });
+
+    // Rogue (48012): the cost deals 1 damage from her to another friendly character (an identity or an ally).
+    each("48012.rogue-action", (seg) => {
+      const rogue = (seg[0] as Extract<GameEvent, { type: "abilityResolved" }>).instanceId;
+      const hits = events
+        .map(trigger)
+        .filter(
+          (t) => t !== null && t.kind === "dealDamage" && t.phase === "initiated" && t.sourceInstanceId === rogue,
+        );
+      expect(hits.length, `${here}: Rogue's cost deals damage once`).toBeGreaterThanOrEqual(1);
+      const target = hits[0]!.targetInstanceId as InstanceId;
+      expect(hits[0]!.amount, `${here}: Rogue's cost is 1 damage`).toBe(1);
+      expect(target, `${here}: another character, not Rogue herself`).not.toBe(rogue);
+      expect(["hero_identity", "ally"], `${here}: a friendly character`).toContain(cardType(before, target));
+      seen.rogue.push(here);
     });
 
     // Daytripper (48002): a Bamf! attached, then 1 damage to each enemy with one.

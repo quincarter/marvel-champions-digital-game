@@ -438,6 +438,8 @@ export interface LeftPlay {
   readonly speakerId?: PlayerId;
   readonly to: ZoneId["kind"];
   readonly traits: readonly Trait[];
+  /** The attachments its leaving left in play, unattached (`TriggerEvent cardLeavesPlay.strandedAttachments`). */
+  readonly strandedAttachments?: readonly InstanceId[];
   /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
   readonly interruptsResolved?: true;
 }

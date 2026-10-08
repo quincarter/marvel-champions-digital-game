@@ -2313,8 +2313,16 @@ export interface AbilityCost {
    *   is not ready afterward (a replacement took the ready), the cost is unpaid and the effects do not resolve.
    */
   readonly readyCards?: InPlayCostPick;
-  /** "… return Captain America's Shield from play to your hand →": cards in play go to their owner's hand. See `InPlayCostPick`. */
-  readonly returnToHand?: InPlayCostPick;
+  /**
+   * "… return Captain America's Shield from play to your hand →": cards in play go to their owner's hand. See
+   * `InPlayCostPick`.
+   *
+   * A list is several picks paid together, each into its own slot, as for `exhaustCards`: "Choose an [X-Force] ally
+   * and an [X-Men] ally and return them to their owners' hands →" (docs/phase7-wave8.md §3.70) is two picks of one
+   * card, and one card cannot pay both (RRG 1.8 "Cost", p. 13). With either pick short of a candidate the cost cannot
+   * be paid.
+   */
+  readonly returnToHand?: InPlayCostPick | readonly InPlayCostPick[];
   /**
    * "Discard an upgrade you control →" (Lethal Weapon, `nebu` 22030); "Discard an ally you control →" (Noble Sacrifice,
    * `magneto` 49018); "Discard a [Tech] upgrade you control →" (Repurpose, `spdr` 31016); "Discard an ally or
@@ -2355,8 +2363,20 @@ export interface AbilityCost {
    * - **Payable while it names a card in play.** With none, the cost cannot be paid (RRG 1.8 "Cost", p. 13).
    * - **Before the effects.** One `dealDamage` event per target, pushed above the frame being paid for (RRG 1.8 "Cost
    *   Arrow Icon", p. 14), after the rest of the cost is paid (so after an `attach` in the same cost).
+   *
+   * `choose`: "Deal 1 damage to another friendly character →" (docs/phase7-wave8.md §3.74): the payer picks exactly
+   * one card in play matching `query` (read with the payer as "you" and the ability's card as "self"), in
+   * `costChoices[slot]`; with one candidate the pick is forced and may be omitted. The pick is bound to `slot` for
+   * `target` (usually `{ kind: "slot", slot }`) and for the effects ("… that character's traits"). Any player's card
+   * can be picked: it is the target of the cost, not a card it is paid with (as an attach cost's host, `AttachCost`),
+   * and dealing is paid whatever the target does with the damage. With no candidate the cost cannot be paid and the
+   * ability is not offered. `legalActions` offers one variant per candidate.
    */
-  readonly dealDamage?: { readonly target: TargetRef; readonly amount: number };
+  readonly dealDamage?: {
+    readonly target: TargetRef;
+    readonly amount: number;
+    readonly choose?: { readonly slot: string; readonly query: TargetQuery };
+  };
   /**
    * "Attached villain attacks you →" (docs/phase7-wave7.md §3.19 (b)): `enemy` (the first card the ref names) attacks
    * the paying player as the cost. See `enemy-attack-cost.ts`.
@@ -2468,12 +2488,12 @@ export function inPlayPicksOf(
   cost: AbilityCost | undefined,
 ): readonly { readonly mode: InPlayCostMode; readonly pick: InPlayCostPick }[] {
   if (!cost) return [];
-  const exhaust =
-    cost.exhaustCards === undefined ? [] : "slot" in cost.exhaustCards ? [cost.exhaustCards] : cost.exhaustCards;
+  const listOf = (picks: InPlayCostPick | readonly InPlayCostPick[] | undefined): readonly InPlayCostPick[] =>
+    picks === undefined ? [] : "slot" in picks ? [picks] : picks;
   return [
-    ...exhaust.map((pick) => ({ mode: "exhaust" as const, pick })),
+    ...listOf(cost.exhaustCards).map((pick) => ({ mode: "exhaust" as const, pick })),
     ...(cost.readyCards ? [{ mode: "ready" as const, pick: cost.readyCards }] : []),
-    ...(cost.returnToHand ? [{ mode: "return" as const, pick: cost.returnToHand }] : []),
+    ...listOf(cost.returnToHand).map((pick) => ({ mode: "return" as const, pick })),
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
     ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
   ];
@@ -2504,6 +2524,21 @@ export interface InPlayCostPick {
   readonly min: number;
   readonly max?: number;
   readonly bind?: string;
+  /**
+   * "Discard a copy of [upgrade] from an enemy → deal 8 damage to **that enemy**" (docs/phase7-wave8.md §3.72): the
+   * cards the picks were attached to, read as the cost is planned (while they are still attached), bound to this slot
+   * for the effects. One entry per distinct host, in pick order; a pick that is not attached adds none. The host is
+   * read here because the pick is off it once the cost is paid (RRG 1.8 "Cost", p. 13: paid before the effects).
+   */
+  readonly bindHosts?: string;
+  /**
+   * "Discard an ally you control → add that ally's matching power …" (docs/phase7-wave8.md §3.81): the picked cards'
+   * powers as they stand in play when the cost is planned, modifiers included, recorded as the vars `<slot>.thw`,
+   * `<slot>.atk` and `<slot>.def` (summed over the picks; a dash, or a card with no such power, as 0: RRG 1.8 "Dash
+   * (Value)", p. 15). The effects read the card as it was when it paid, not the printed card the discard pile holds:
+   * a cost is paid before the effects (RRG 1.8 "Cost", p. 13), and by then its modifiers are gone.
+   */
+  readonly snapshotStats?: true;
   /**
    * "Discard the highest-cost upgrade you control →" (Arm Cannon, `sm` 27147): only the cards matching `query` that the
    * payer controls and that tie for the highest (or lowest) `measure` among them can pay; a tie is the payer's pick. The

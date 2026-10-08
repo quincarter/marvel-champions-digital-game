@@ -116,7 +116,7 @@ import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
 import { applyFindCard, findToDeal, findToReveal, shuffleSearchedDecks } from "./find.js";
-import { attachCard, settleUpgradeControl } from "./attach.js";
+import { attachCardBy, settleUpgradeControl } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -179,6 +179,7 @@ import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 import {
+  beingRevealed,
   BOOST_SOURCE_ZONES,
   dealBoostCard,
   dealChosenBoostCard,
@@ -1248,8 +1249,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "draw": {
       const amount = value(effect.amount);
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        drawCards(ctx, playerId, amount);
+      const drawn = resolvePlayers(ctx.state, effect.player, context).flatMap((playerId) =>
+        drawCards(ctx, playerId, amount),
+      );
+      // "Draw 1 card. If that card …" (`bind`): the cards drawn, and how many, for the rest of the ability.
+      if (effect.bind !== undefined) {
+        addFrameSlots(ctx, frame.frameId, { [effect.bind]: drawn });
+        addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: drawn.length });
       }
       return;
     }
@@ -1392,7 +1398,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Any card in play may be the host: an enemy, another player's identity in either form or ally (docs/phase7-
       // wave6.md §3.49). A card that "cannot be unattached" (the Power Stone, docs/phase7-wave3.md §3.19) or a host that
       // "cannot have cards attached" (Odin, docs/phase7-wave4.md §3.8) leaves the card where it was (`attachCard`).
-      for (const id of targets(effect.card)) attachCard(ctx, id, host, effect.facedown === true);
+      // "After you attach …" (`TriggerEvent cardAttached`): each card that landed, once the effect has attached them all.
+      const attached = targets(effect.card).flatMap((id) =>
+        attachCardBy(ctx, id, host, context.controllerId ?? null, effect.facedown === true),
+      );
+      pushHeard(attached);
       return;
     }
     case "engage": {
@@ -1705,7 +1715,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (!holderId) return;
         for (const id of targets(effect.card)) {
           const zone = locateCard(ctx.state, id)?.kind;
-          if (!zone || !BOOST_SOURCE_ZONES.has(zone) || inPlay.includes(id)) continue;
+          // "Give this card to that villain as a facedown boost card" on a card being revealed (docs/phase7-wave8.md
+          // §3.79): it is given from in front of the player it was dealt to, and its reveal then finds it moved and
+          // does not discard it (`resolve/reveal.ts`, "finish").
+          const given = zone !== undefined && (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id));
+          if (!given || inPlay.includes(id)) continue;
           dealChosenBoostCard(ctx, holderId, id);
         }
         return;

@@ -33,11 +33,7 @@ import { driveEventsPicking, withDamage, withForm } from "../../../testing/stagi
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
 import { ICEMAN_EVENTS } from "./events.js";
 import { ICEMAN_IDENTITY } from "./identity.js";
-import {
-  ICEMAN_OBLIGATION_NEMESIS,
-  ICEMAN_OBLIGATION_NEMESIS_DRAFTS,
-  ICEMAN_OBLIGATION_NEMESIS_SKIPPED,
-} from "./obligation-nemesis.js";
+import { ICEMAN_OBLIGATION_NEMESIS, ICEMAN_OBLIGATION_NEMESIS_SKIPPED } from "./obligation-nemesis.js";
 import { ICEMAN_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -52,10 +48,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * (0). Boost cards that must do nothing are Advance 01186 (0 boost icons); a revealed card that must do nothing is
  * "I'm Tough!" 01105 (0 boost icons).
  *
- * Hot-Headed's Forced Response is not registered (the engine announces no event when a card is attached; see the
- * module): its tests use `DRAFTS_DEPS`, and the tests that need it to work are `it.fails`. Frostbite's own Forced
- * Response ships as its activation half only (the leaves-play half is a known gap). Never
- * assert where a defeated host's Frostbite ends up.
+ * Hot-Headed's Forced Response hears the engine's `cardAttached` (an ability attached a card to a host).
  */
 const FROSTBITE_CODE = "46002";
 const HOT_HEADED = "46024";
@@ -72,6 +65,7 @@ const ICE_BLAST = "46010";
 
 const REFS = [
   "46024.obligation",
+  "46024.hot-headed-forced-response",
   "46024.hot-headed-response",
   "46025.pyro-constant",
   "46026.when-defeated",
@@ -80,7 +74,6 @@ const REFS = [
   "46028.when-revealed",
   "46028.boost",
 ];
-const HOT_HEADED_FORCED = "46024.hot-headed-forced-response";
 const HOT_HEADED_RESPONSE = "46024.hot-headed-response";
 
 /** Printed icons by relabeled code, for the arithmetic of the tests. */
@@ -103,7 +96,6 @@ const depsWith = (...fixtures: readonly ReturnType<typeof defineAbilities>[]): E
   ),
 });
 const DEPS: EngineDeps = depsWith();
-const DRAFTS_DEPS: EngineDeps = depsWith(ICEMAN_OBLIGATION_NEMESIS_DRAFTS);
 const POOL: readonly AnyCard[] = [...WAVE8_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
 const DATA = (code: string) => ICEMAN_CARDS.find((c) => (c.id as string) === code)! as any;
@@ -350,18 +342,16 @@ function freezeOn(s: GameState, target: InstanceId): GameState {
 }
 
 describe("registry", () => {
-  it("registers every ref of the five cards but Hot-Headed's Forced Response, which is skipped with its reason", () => {
+  it("registers every ref of the five cards; nothing is skipped", () => {
     const refs = ICEMAN_CARDS.filter((c) => (c.id as string) >= HOT_HEADED && (c.id as string) <= BURN).flatMap(
       abilityRefIds,
     );
-    expect([...refs].sort()).toEqual([...REFS, HOT_HEADED_FORCED].sort());
+    expect([...refs].sort()).toEqual([...REFS].sort());
     expect(Object.keys(ICEMAN_OBLIGATION_NEMESIS).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(ICEMAN_OBLIGATION_NEMESIS_SKIPPED)).toEqual([HOT_HEADED_FORCED]);
-    expect(Object.keys(ICEMAN_OBLIGATION_NEMESIS_DRAFTS)).toEqual([HOT_HEADED_FORCED]);
+    expect(Object.keys(ICEMAN_OBLIGATION_NEMESIS_SKIPPED)).toEqual([]);
   });
-  it.each([...REFS, HOT_HEADED_FORCED])("%s validates", (id) => {
-    const definition = ICEMAN_OBLIGATION_NEMESIS[id as never] ?? ICEMAN_OBLIGATION_NEMESIS_DRAFTS[id as never];
-    expect(validateDefinition(definition!)).toEqual([]);
+  it.each([...REFS])("%s validates", (id) => {
+    expect(validateDefinition(ICEMAN_OBLIGATION_NEMESIS[id as never]!)).toEqual([]);
   });
   it("Hot-Headed's Alter-Ego Response is an optional response, the Flamethrower's interrupt and Burn!'s boost are forced/boost", () => {
     expect(ICEMAN_OBLIGATION_NEMESIS[HOT_HEADED_RESPONSE as never]!.trigger).toMatchObject({
@@ -511,7 +501,7 @@ describe("Hot-Headed (46024)", () => {
     });
   });
 
-  describe("Forced Response: after you attach a Frostbite upgrade to an enemy, take 1 damage (skipped: section 3.61, no attach event)", () => {
+  describe("Forced Response: after you attach a Frostbite upgrade to an enemy, take 1 damage (section 3.61)", () => {
     /** Hot-Headed in the Bobby Drake player's play area (staging), Iceman in hero form. */
     function hotHeaded(s: GameState): GameState {
       const id = instancesOf(s, HOT_HEADED)[0]!;
@@ -540,33 +530,36 @@ describe("Hot-Headed (46024)", () => {
         ...s,
         players: s.players.map((p) => ({ ...p, setAside: p.setAside.filter((i) => codeOf(s, i) !== FROSTBITE_CODE) })),
       };
-      const { state } = freezeRhino(DRAFTS_DEPS, none);
+      const { state } = freezeRhino(DEPS, none);
       expect(damageOf(state, identityOf(state))).toBe(0);
       expect(damageOf(state, villainOf(state))).toBe(2);
       expect(frostbiteOn(state, villainOf(state))).toBe(0);
     });
-    it.fails("1 copy attached by 'Freeze!': Iceman takes 1 damage (the draft; fails until an attach event is heard)", () => {
+    it("1 copy attached by 'Freeze!': Iceman takes 1 damage", () => {
       const s = hotHeaded(heroGame());
-      const { state } = freezeRhino(DRAFTS_DEPS, s);
+      const { state } = freezeRhino(DEPS, s);
       expect(frostbiteOn(state, villainOf(state))).toBe(1);
       expect(damageOf(state, identityOf(state))).toBe(1);
     });
-    it.fails("3 copies from one Ice Blast (villain and two minions): three instances, 3 damage: 11 to 8 (the draft)", () => {
+    it("revealed in play, not staged: the obligation given to the Bobby Drake player hears his next 'Freeze!'", () => {
+      const { state: held, id } = reveal(setupGame([ICE]), HOT_HEADED);
+      expect(playerOf(held, P1).playArea).toContain(id);
+      const ready = patchInstance(withForm(clean(held), { heroForm: 0 }, P1), identityOf(held), { exhausted: false });
+      const before = damageOf(ready, identityOf(ready));
+      const { state } = freezeRhino(DEPS, ready);
+      expect(frostbiteOn(state, villainOf(state))).toBe(1);
+      expect(damageOf(state, identityOf(state))).toBe(before + 1);
+    });
+    it("3 copies from one Ice Blast (villain and two minions): three instances, 3 damage: 11 to 8", () => {
       let s = hotHeaded(heroGame());
       const a = withMinionFixture(s, "01102");
       const b = withMinionFixture(a.state, "01102");
       s = b.state;
       const given = moveToHand(withResources(s, 8), P1, ICE_BLAST);
       const pay = payers(given.state, P1, 3, [given.ids[0]!]);
-      const { state } = driveEventsPicking(DRAFTS_DEPS, given.state, picker(), play(P1, given.ids[0]!, pay));
+      const { state } = driveEventsPicking(DEPS, given.state, picker(), play(P1, given.ids[0]!, pay));
       expect(supply(state)).toBe(3);
       expect(damageOf(state, identityOf(state))).toBe(3);
-    });
-    it("today the draft is not heard: one 'Freeze!' copy costs Iceman nothing (pinned: flips when the engine announces an attach)", () => {
-      const s = hotHeaded(heroGame());
-      const { state } = freezeRhino(DRAFTS_DEPS, s);
-      expect(frostbiteOn(state, villainOf(state))).toBe(1);
-      expect(damageOf(state, identityOf(state))).toBe(0);
     });
   });
 });

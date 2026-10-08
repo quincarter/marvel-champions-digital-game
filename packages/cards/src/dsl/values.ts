@@ -1,5 +1,5 @@
 import { trait, type Trait } from "@mc/content";
-import { UNRESOLVED_VAR } from "@mc/engine";
+import { TOTAL_ATK_RESULT, UNRESOLVED_VAR } from "@mc/engine";
 import type {
   BasicPowerName,
   CardIcon,
@@ -611,6 +611,15 @@ export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => 
 });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
+/**
+ * "A minion with fewer remaining hit points than M" (M, `magneto` 49012): `query("minion", remainingHpCompare("lt",
+ * remainingHpOf(self)))`. The card's remaining hit points against a value re-read every check; a card with no hit
+ * points never matches.
+ */
+export const remainingHpCompare = (
+  op: StatComparison["op"],
+  against: Amount,
+): Pick<TargetQuery, "remainingHpCompare"> => ({ remainingHpCompare: { op, value: amount(against) } });
 /** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
 export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost", of });
 /**
@@ -635,6 +644,12 @@ export const distinctAspectsOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "d
 /** "That damage" / "it" in an interrupt: the triggering event's amount. */
 export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });
+/**
+ * "[The enemy's] total ATK for that attack" (Exodus, `magneto` 49028): the enemy attack being answered, its ATK with
+ * modifiers, "+N ATK for this attack" and the boost icons counted, before the defender's DEF. Read on an
+ * `enemyAttacks` response; `eventResult("damage")` is what the attack dealt after DEF.
+ */
+export const attackTotalAtk: ValueSpec = eventResult(TOTAL_ATK_RESULT);
 export const handSizeOf = (player: PlayerRef = you, printed = false): ValueSpec =>
   printed ? { kind: "handSize", player, printed } : { kind: "handSize", player };
 /**
@@ -763,7 +778,20 @@ export const attackInProgress = (of: {
   readonly basic?: boolean;
 }): Predicate => ({ kind: "attackInProgress", ...of });
 /**
- * Inside a `modifyStatOf` amount: the card whose stat is being read (the engine's `AFFECTED_SLOT`). "While Wolverine
+ * "Each X-MEN character gets +1 THW while making a basic thwart against this scheme" (Generation X, `jubilee` 47016):
+ * the innermost thwart on the stack matches every query given; the sibling of `attackInProgress`. As a constant
+ * modifier's `while`: `gets("thw", 1, query(["hero", "ally"], { trait: X_MEN }), { while: thwartInProgress({ thwarter:
+ * theAffectedCard, scheme: { self: true }, basic: true }) })`.
+ */
+export const thwartInProgress = (of: {
+  readonly thwarter?: TargetQuery;
+  readonly scheme?: TargetQuery;
+  /** `true`: only a character's basic thwart; `false`: only any other thwart. */
+  readonly basic?: boolean;
+}): Predicate => ({ kind: "thwartInProgress", ...of });
+/**
+ * Inside a `modifyStatOf` amount, or a constant modifier's `while` or amount: the card whose stat is being read (the
+ * engine's `AFFECTED_SLOT`). "While Wolverine
  * or Jubilee is making a basic attack against that enemy, **they** get +2 ATK" (Jubilee 35003; docs/phase7-wave6.md
  * §3.43) is `ifElse(attackInProgress({ attacker: theAffectedCard, target: { inSlot: "enemy" }, basic: true }), 2, 0)`.
  */
