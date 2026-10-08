@@ -432,6 +432,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "campaigns/next_evol/interlude.mp3": "Regroup at Graymalkin",
   "packs/gmw/villain-loses.mp3": "Saviors of the Galaxy",
   "packs/gmw/villain-wins.mp3": "The Unending Reign",
+  "scenarios/four-horsemen/battle.mp3": "Riders of Ruin",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
