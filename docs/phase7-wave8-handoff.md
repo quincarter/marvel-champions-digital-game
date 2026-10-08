@@ -103,6 +103,40 @@ The PR's checklist is the live record; this is the short version.
 - **Still to correct:** `docs/campaign-mode-design.md` §1.2 and `docs/campaign-client-per-box.md` §3 read the MC45
   campaign log backward (on the sheet Defeated is the reward and Not Defeated the cost).
 
+## State (2026-10-08, second day)
+
+`origin/feature/wave-8` is the source of truth; the PR's "Resume here" paragraph names the last verified commit and what
+is in flight. In short:
+
+- **Card scripting: all 54 modules are done** (`packages/cards/src/wave8/`). A ref the engine cannot support yet is left
+  unregistered in its module's `…_SKIPPED` map with the queue task it waits on, an exported draft where one can be
+  typed, an `it.fails` proof and a companion test of today's behavior. When an engine piece lands, move the draft into
+  the registry, delete the skip, and turn the `it.fails` into a plain `it`.
+- **Engine:** queue tasks 1 to 17 are built (spec §8.2), plus the attack rules the owner ruled on as Q47 to Q50
+  (`packages/engine/src/resolve/attack-ability.ts`). Tasks 18 to 43 remain: 18 to 30 are scenario pieces, 31 to 38 are
+  the mission area (34 campaign refs wait on it), 39 to 43 the rest. One engine agent at a time; batches of three to
+  five small tasks per agent have worked.
+- **Scenario builder:** `wave8Scenario(id, options)` and `wave8StarterDeckSetup(id)` in
+  `packages/cards/src/wave8/setup.ts`. The scripted scenario tests still build on `coreScenario("rhino")` with fields
+  swapped in; moving them to the builder is optional cleanup.
+- **Precon games:** all six heroes have a `precon-e2e.test.ts` (seeded full games, per-command invariants, log
+  replay). Iceman's found one defect (Frostbite never returned to the set-aside area), fixed in 777c25ca.
+- **Not started:** rules QA pass, custom decks (4b), client wiring and Guided mode, the MC45 campaign client,
+  progression, shipping. The wave is **not** in the playable pool (`UNSCRIPTED_WAVE8_PACKS`, `PACK_STATUS`).
+
+Working notes that cost time to learn:
+
+- Scripting agents share `packages/cards/src/wave8/coverage.test.ts`. Commit finished modules together once no agent
+  is mid-edit in it, or the commit carries another agent's half-written entry.
+- A usage limit can stop every agent at once. Their edits stay in the working tree; resume each by message and it picks
+  up where it stopped. Ask agents to stop at a boundary where typecheck and coverage pass.
+- `pnpm --filter @mc/cards exec vitest run <path>` takes paths relative to `packages/cards`; `oxlint` and `oxfmt` take
+  paths from the repo root. A wrong path exits non-zero without running anything: read the "Tests" line.
+- The cards package has no node types: no `process` in test files (`console.info` prints a tally).
+- A plain regen of a wave 8 pack flips many `imageRef` lines from `.jpg` to `.png`; restore them before committing.
+- Hazard deals one extra card per icon in player order (RRG p. 21), and heroes ready and draw at the end of the player
+  phase. Earlier briefs said otherwise; the engine was right.
+
 ## Lessons carried in
 
 - Match every card title in the packs' raw data against the rulings file by script instead of trusting a hand search.
