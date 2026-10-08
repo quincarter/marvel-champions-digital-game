@@ -31,7 +31,7 @@ import {
 } from "@mc/engine";
 import { artFor, type ArtSource } from "../art/art-source.js";
 import { faceOf } from "./board-model.js";
-import { exclusionWording } from "./highlights.js";
+import { exclusionWording, exclusionWordingFor } from "./highlights.js";
 import { cardName } from "./names.js";
 
 /** One legal target, aimed at and worded. */
@@ -160,8 +160,21 @@ export function groupBlockedByMessage(
  * this into a screen yet (see the module doc comment); it is built and tested so the next screen that opens a
  * `chooseTarget` through a panel like this one has nothing left to word.
  */
-export function excludedGroupsOf(state: GameState, exclusions: readonly ChoiceExclusion[]): readonly ExcludedGroup[] {
-  return groupExclusionsByCode(exclusions, (id) => cardName(state, id));
+export function excludedGroupsOf(
+  state: GameState,
+  exclusions: readonly ChoiceExclusion[],
+  /** With the engine's deps, a code that stands for two reasons (`cannotEnterPlay`) is worded by the real one. */
+  deps?: EngineDeps,
+): readonly ExcludedGroup[] {
+  if (!deps) return groupExclusionsByCode(exclusions, (id) => cardName(state, id));
+  const byLabel = new Map<string, { code: ExclusionCode; names: string[] }>();
+  for (const entry of exclusions) {
+    const label = exclusionWordingFor(state, deps, entry.reason, entry.instanceId);
+    const bucket = byLabel.get(label) ?? { code: entry.reason, names: [] };
+    bucket.names.push(cardName(state, entry.instanceId));
+    byLabel.set(label, bucket);
+  }
+  return [...byLabel.entries()].map(([label, { code, names }]) => ({ code, label, names }));
 }
 
 /** `excludedGroupsOf`, minus the `GameState` — exposed for tests the same way `groupBlockedByMessage` is. */

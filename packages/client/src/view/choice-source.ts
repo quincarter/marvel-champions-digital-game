@@ -190,6 +190,8 @@ export function costCardsPromptTitleOf(mode: string | undefined, damageAmount?: 
     ready: "Choose a card to ready",
     return: "Choose a card to return to hand",
     discard: "Choose a card to discard",
+    // The cards in hand a "discard N cards from your hand" cost of an interrupt or response is paid with.
+    discardFromHand: "Choose cards to discard from hand",
   };
   return (mode && verbs[mode]) ?? "Choose a card for this cost";
 }
@@ -264,6 +266,35 @@ export function formChangeCostTitleOf(
   return `Spend ${total} ${noun}, ${sameType} of one type, ${destination}`;
 }
 
+/**
+ * The mission's damage pool (`EffectSpec assignDamage` with `sequential`, wave 8 §3.37): the engine asks first for the
+ * character (a `chooseTarget` in slot `assignDamage`) and then, when the character can take more than 1, how much of
+ * the pool (a `chooseNumber` whose frame is still on the same effect). The pool left is not on the prompt; it is the
+ * frame variable `_pool.left`, read here the way the deck-discard size is.
+ */
+export const DAMAGE_POOL_SLOT = "assignDamage";
+const DAMAGE_POOL_LEFT = "_pool.left";
+
+/** The damage left in the pool the choice's frame is dealing out, or null when that frame is not dealing one. */
+export function damagePoolLeft(
+  state: GameState | undefined,
+  choice: Partial<Pick<PendingChoice, "frameId">>,
+): number | null {
+  if (!state || choice.frameId === null || choice.frameId === undefined) return null;
+  const frame = state.stack.find((candidate) => candidate.frameId === choice.frameId);
+  if (frame?.kind !== "effects" || frame.effects[frame.cursor]?.kind !== "assignDamage") return null;
+  return frame.vars[DAMAGE_POOL_LEFT] ?? null;
+}
+
+/** "Mission damage pool, 3 left: choose a target" / "...: deal how much?"; "N left" is left out when the pool is unreadable. */
+export function damagePoolTitleOf(step: "target" | "amount", left: number | null): string {
+  const pool = left === null ? "Mission damage pool" : `Mission damage pool, ${left} left`;
+  return `${pool}: ${step === "target" ? "choose a target" : "deal how much?"}`;
+}
+
+/** "Pair the cards with characters" (`pairCards`, wave 8 §3.36): the pairing model is `view/pair-cards-model.ts`. */
+export const PAIR_CARDS_TITLE = "Pair the cards with characters";
+
 /** "Choose who attacks", "Choose who thwarts", "Choose who attacks or thwarts" (`chooseBasicPower`, wave 8 §3.64). */
 export function basicPowerTitleOf(powers: readonly ("attack" | "thwart")[]): string {
   const hasAttack = powers.includes("attack");
@@ -324,7 +355,13 @@ export function promptTitleOf(
     return costCardsPromptTitleOf(prompt.mode, amount);
   }
   if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+  if (kind === "pairCards") return PAIR_CARDS_TITLE;
+  if (kind === "chooseTarget" && prompt.slot === DAMAGE_POOL_SLOT) {
+    return damagePoolTitleOf("target", counts ? damagePoolLeft(state, counts) : null);
+  }
   if (kind === "chooseNumber") {
+    const left = counts ? damagePoolLeft(state, counts) : null;
+    if (left !== null) return damagePoolTitleOf("amount", left);
     if (counts && isDeckDiscardSize(state, { frameId: counts.frameId ?? null })) {
       const noun = prompt.max === 1 ? "card" : "cards";
       return prompt.min <= 1
@@ -368,7 +405,7 @@ export function promptTitleOf(
     searchCollection: "Search your collection",
     chooseOption: "Choose one",
     choosePlayer: "Choose a player",
-    orderSpecials: "Order the special abilities",
+    orderSpecials: "Order these abilities",
     payForCard: "Pay for this card?",
     payForAbility: "Pay for this ability?",
     spendResources: "Spend resources?",

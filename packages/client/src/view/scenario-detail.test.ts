@@ -113,10 +113,12 @@ describe("shelfSubtitleOf", () => {
       expect(shelfSubtitleOf(detail(id))).toMatch(/^Stages? I/);
   });
 
-  test("in the real pool, the two Museum scenarios and the two Marauders scenarios (Morlock Siege, On the Run) are the only villain names shared", () => {
+  test("in the real pool, the two Museum scenarios, the two Marauders scenarios (Morlock Siege, On the Run) and Apocalypse with En Sabah Nur are the only villain names shared", () => {
     const names = POOL_SCENARIOS.map((s) => detail(s.id as string).villainName);
     const shared = POOL_SCENARIOS.filter((_, i) => names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!));
     expect(shared.map((s) => s.id as string).sort()).toEqual([
+      "apocalypse",
+      "en-sabah-nur",
       "escape-the-museum",
       "infiltrate-the-museum",
       "morlock-siege",

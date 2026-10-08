@@ -18,6 +18,7 @@ import {
   cardOf,
   cardTypeName,
   getCard,
+  getInstance,
   type EngineDeps,
   type GameEvent,
   type GameState,
@@ -205,6 +206,27 @@ function describe(
               voice: "villain",
             }
           : { text: `${card(event.instanceId)} is put into ${event.to.name}.`, voice: "villain" };
+      }
+      // The mission area (wave 8 §3.33): in play, under no player's control. A move into it that the area's own
+      // `scenarioPlayAreaEntered` already words (the event beside it) is left to that line.
+      if (event.to.kind === "scenarioPlayArea") {
+        if (event.from.kind === "scenarioPlayArea") {
+          return {
+            text: `${card(event.instanceId)} moves from the ${event.from.name} area to the ${event.to.name} area.`,
+            voice: "villain",
+          };
+        }
+        const worded = burst?.events.some(
+          (other, at) =>
+            other.type === "scenarioPlayAreaEntered" &&
+            other.instanceId === event.instanceId &&
+            Math.abs(at - burst.at) <= 2,
+        );
+        if (worded) return null;
+        return { text: `${card(event.instanceId)} is put into the ${event.to.name} area.`, voice: "villain" };
+      }
+      if (event.from.kind === "scenarioPlayArea") {
+        return { text: `${card(event.instanceId)} leaves the ${event.from.name} area.`, voice: "villain" };
       }
       return null;
     // A set-aside modular set joining the deck (Mojo's 1B, The Hood): which one, since the board only shows a deck grow.
@@ -406,14 +428,27 @@ function describe(
     case "uniqueEntryBlocked": {
       // Both cards usually carry the same title, so each is named by its type ("the Proxima Midnight minion",
       // "the villain Proxima Midnight") and the reason is said in a few words (RRG 1.8 "Unique", pp. 45-46).
-      const blocked = card(event.instanceId);
-      const blockedType = typeWord(state, event.instanceId);
+      // A blocked flip names the face that could not enter (`event.cardId`), not the card still showing its old one.
+      const face = getCard(state, event.cardId);
+      const flipped = face !== undefined && getInstance(state, event.instanceId)?.cardId !== event.cardId;
+      const blocked = face?.name ?? card(event.instanceId);
+      const blockedType = face ? face.type.replace(/_/g, " ") : typeWord(state, event.instanceId);
       const matchedType = typeWord(state, event.matchedInstanceId);
       const inPlay =
         blockedType === matchedType && blocked === card(event.matchedInstanceId)
           ? "another is already in play"
           : `the ${matchedType} ${card(event.matchedInstanceId)} is in play`;
       const subject = /^the /i.test(blocked) ? `${blocked} ${blockedType}` : `The ${blocked} ${blockedType}`;
+      if (flipped) {
+        const before = card(event.instanceId);
+        return {
+          text:
+            event.disposition === "discarded"
+              ? `${before} can't flip to ${subject}, so it is discarded: unique, and ${inPlay}.`
+              : `${before} can't flip to ${subject}: unique, and ${inPlay}.`,
+          voice: event.disposition === "discarded" ? "scenario" : "player",
+        };
+      }
       return {
         text:
           event.disposition === "discarded"
@@ -426,6 +461,13 @@ function describe(
     case "putIntoPlayRefused":
       if (event.reason === "cannotEnterPlay")
         return { text: `${card(event.instanceId)} cannot enter play during this game.`, voice: "player" };
+      if (event.reason === "noSuchArea")
+        return { text: `${card(event.instanceId)} stays where it was: there is no such area.`, voice: "player" };
+      if (event.reason === "cardType")
+        return {
+          text: `${card(event.instanceId)} stays where it was: that kind of card can't go there.`,
+          voice: "player",
+        };
       return { text: `${card(event.instanceId)} has nothing to attach to and stays where it was.`, voice: "player" };
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
@@ -458,7 +500,13 @@ function describe(
         voice: "player",
       };
     case "defenderDeclared":
-      return { text: `${card(event.defenderInstanceId)} defends.`, voice: "player" };
+      // A card ability declared the defender (`byEffect`): no exhaustion or choice is implied, so it is not "defends".
+      return {
+        text: event.byEffect
+          ? `${card(event.defenderInstanceId)} is declared the defender against ${card(event.attackInstanceId)}.`
+          : `${card(event.defenderInstanceId)} defends.`,
+        voice: "player",
+      };
     case "defenseDeclined":
       return { text: `${who(event.playerId)} did not defend.`, voice: "player" };
     // Psychic Misdirection (`modifyAttack.damageTo`, docs/phase7-wave6.md §3.36): the whole amount lands on another
@@ -569,7 +617,8 @@ function describe(
     // (docs/phase7-wave3.md §3.8).
     case "surgeGranted":
       return {
-        text: `${card(event.instanceId)} gains surge — first of its kind revealed this round.`,
+        // From a printed rule (the first of its kind each round) or another card's ability: the event names neither.
+        text: `${card(event.instanceId)} gains surge.`,
         voice: "villain",
       };
     case "accelerationTokenAdded":
@@ -767,6 +816,88 @@ function describe(
       if (event.skipped) return null;
       return {
         text: `${who(event.playerId)} ${verb(event.playerId, "count", "counts")} the wild${event.declared.length === 1 ? "" : "s"} as ${event.declared.join(", ")}.`,
+        voice: "player",
+      };
+    // docs/phase7-wave8.md §3.11: "resolve its 'Forced Response' / 'Special' →" as the cost.
+    case "resolveAbilityCostSettled": {
+      const what = event.trigger === "special" ? "Special" : "Forced Response";
+      return {
+        text: event.paid
+          ? `${card(event.ofInstanceId)}'s ${what} resolved as a cost.`
+          : `${card(event.ofInstanceId)}'s ${what} didn't resolve, so the cost wasn't paid.`,
+        voice: "player",
+      };
+    }
+    // docs/phase7-wave8.md §3.18: a villain's next stage revealed with no defeat.
+    case "villainStageRevealed":
+      return {
+        text: `${card(event.instanceId)} moves to stage ${event.toStageNumber}, at full hit points.`,
+        voice: "villain",
+      };
+    // docs/phase7-wave8.md §3.21: an ability that had triggered but a rule says to ignore.
+    case "abilityIgnored": {
+      const label = abilityShortLabelOf(state, event.instanceId, event.abilityId, deps);
+      return {
+        text: `${card(event.instanceId)}'s ${label ?? "ability"} is ignored.`,
+        voice: "scenario",
+      };
+    }
+    // docs/phase7-wave8.md §3.10: a "considered to have hit points" rule stopped applying with the dial at zero.
+    case "hitPointsFell":
+      return {
+        text: `${card(event.instanceId)}'s hit points fell to ${event.to}, below its ${event.damage} damage.`,
+        voice: "player",
+      };
+    // docs/phase7-wave8.md §3.33: the mission area.
+    case "scenarioPlayAreaCreated":
+      return {
+        text: `The ${event.name} area is set up${event.closed ? ", closed to most card abilities" : ""}.`,
+        voice: "scenario",
+      };
+    case "scenarioPlayAreaEntered":
+      return {
+        text:
+          event.from === "inPlay"
+            ? `${card(event.instanceId)} moves to the ${event.name} area; no player controls it now.`
+            : `${card(event.instanceId)} enters play in the ${event.name} area, under no player's control.`,
+        voice: "villain",
+      };
+    // docs/phase7-wave8.md §3.36: a pairing; a pair that doesn't match is said in words, never by color alone.
+    case "cardsPaired": {
+      const subject = event.playerId ? who(event.playerId) : "A player";
+      if (event.pairs.length === 0) return { text: `${subject} had no cards to pair.`, voice: "player" };
+      const pairs = event.pairs
+        .map(
+          (pair) =>
+            `${card(pair.cardInstanceId)} with ${card(pair.characterInstanceId)} (${pair.matched ? "match" : "no match"})`,
+        )
+        .join(", ");
+      return {
+        text: `${subject} paired ${pairs}.`,
+        voice: "player",
+      };
+    }
+    // docs/phase7-wave8.md §3.37: a pool of damage dealt out one character at a time.
+    case "damagePoolResolved":
+      return {
+        text: `Damage pool of ${event.pool}: ${event.dealt} dealt${event.lost > 0 ? `, ${event.lost} lost` : ""}.`,
+        voice: "player",
+      };
+    // docs/phase7-wave8.md §3.44: cards already held that count toward the starting hand.
+    case "startingHandCredited":
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "count", "counts")} ${event.amount} card${event.amount === 1 ? "" : "s"} toward the starting hand${event.credit !== event.amount ? ` (${event.credit} in all)` : ""}.`,
+        voice: "player",
+      };
+    case "startingHandCreditApplied":
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} ${event.drawn} for a hand of ${event.handSize}; ${event.credit} already counted.`,
+        voice: "player",
+      };
+    // RRG 1.8 "Ownership and Control" (p. 31): a player became a card's owner by taking it.
+    case "ownershipChanged":
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} ownership of ${card(event.instanceId)}.`,
         voice: "player",
       };
     case "deckDiscardNotCounted":

@@ -214,3 +214,196 @@ describe("moments, deck top and wilds", () => {
     expect(textOf({ ...declared, skipped: true })).toBeNull();
   });
 });
+
+describe("abilities resolved as a cost, ignored abilities and hit points", () => {
+  test("a resolved-ability cost says which kind of ability, paid or not", () => {
+    const common = { instanceId: hand[0]!, playerId: me, ofInstanceId: hand[1]!, resolved: 1 };
+    expect(textOf({ type: "resolveAbilityCostSettled", ...common, trigger: "special", paid: true })).toBe(
+      `${name(hand[1]!)}'s Special resolved as a cost.`,
+    );
+    expect(
+      textOf({ type: "resolveAbilityCostSettled", ...common, trigger: "forcedResponse", resolved: 0, paid: false }),
+    ).toBe(`${name(hand[1]!)}'s Forced Response didn't resolve, so the cost wasn't paid.`);
+  });
+
+  test("a villain revealing its next stage", () => {
+    expect(
+      textOf({
+        type: "villainStageRevealed",
+        instanceId: villain,
+        stageIndex: 1,
+        fromStageNumber: 1,
+        toStageNumber: 2,
+        cause: "effect",
+      }),
+    ).toBe(`${name(villain)} moves to stage 2, at full hit points.`);
+  });
+
+  test("an ignored ability names the card, and the ability when it can", () => {
+    const line = textOf({ type: "abilityIgnored", instanceId: hand[0]!, abilityId: "no.such-ability" as never });
+    expect(line).toMatch(new RegExp(`^${name(hand[0]!).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'s .+ is ignored\\.$`));
+  });
+
+  test("hit points that fell below the damage", () => {
+    expect(
+      textOf({ type: "hitPointsFell", instanceId: hand[0]!, cardId: "x" as never, from: 1, to: 0, damage: 3 }),
+    ).toBe(`${name(hand[0]!)}'s hit points fell to 0, below its 3 damage.`);
+  });
+});
+
+describe("the mission area", () => {
+  const into = { kind: "scenarioPlayArea", name: "mission" } as const;
+
+  test("created, open or closed", () => {
+    expect(textOf({ type: "scenarioPlayAreaCreated", name: "mission", closed: false })).toBe(
+      "The mission area is set up.",
+    );
+    expect(textOf({ type: "scenarioPlayAreaCreated", name: "mission", closed: true })).toBe(
+      "The mission area is set up, closed to most card abilities.",
+    );
+  });
+
+  test("a card entering from out of play and one already in play", () => {
+    const entered = (from: "outOfPlay" | "inPlay") =>
+      textOf({
+        type: "scenarioPlayAreaEntered",
+        name: "mission",
+        instanceId: hand[0]!,
+        cardId: "x" as never,
+        from,
+        controllerBefore: me,
+        engagedBefore: null,
+      });
+    expect(entered("outOfPlay")).toBe(`${name(hand[0]!)} enters play in the mission area, under no player's control.`);
+    expect(entered("inPlay")).toBe(`${name(hand[0]!)} moves to the mission area; no player controls it now.`);
+  });
+
+  test("cardMoved names the area going in and out, and leaves a move the area already worded", () => {
+    const base = { type: "cardMoved", instanceId: hand[0]!, cardId: "x" as never } as const;
+    const hands = { kind: "hand", playerId: me } as const;
+    expect(textOf({ ...base, from: hands, to: into })).toBe(`${name(hand[0]!)} is put into the mission area.`);
+    expect(textOf({ ...base, from: into, to: { kind: "discard", playerId: me } })).toBe(
+      `${name(hand[0]!)} leaves the mission area.`,
+    );
+    expect(textOf({ ...base, from: into, to: { kind: "scenarioPlayArea", name: "camp" } })).toBe(
+      `${name(hand[0]!)} moves from the mission area to the camp area.`,
+    );
+    // With the entered event beside it, the move adds nothing.
+    const entered = {
+      type: "scenarioPlayAreaEntered",
+      name: "mission",
+      instanceId: hand[0]!,
+      cardId: "x" as never,
+      from: "outOfPlay",
+      controllerBefore: null,
+      engagedBefore: null,
+    } as const;
+    const move = { ...base, from: hands, to: into } as const;
+    const events: GameEvent[] = [move, entered];
+    expect(logLine(move, state, me, POOL_DEPS, false, undefined, { events, at: 0 })).toBeNull();
+    expect(logLine(entered, state, me, POOL_DEPS, false, undefined, { events, at: 1 })?.text).toContain("enters play");
+  });
+});
+
+describe("pairing and the damage pool", () => {
+  test("a pairing says which pairs matched in words", () => {
+    const [a, b, c] = [hand[0]!, hand[1]!, hand[2]!];
+    expect(
+      textOf({
+        type: "cardsPaired",
+        playerId: me,
+        sourceInstanceId: null,
+        pairs: [
+          { cardInstanceId: a, characterInstanceId: b, matched: true },
+          { cardInstanceId: c, characterInstanceId: villain, matched: false },
+        ],
+      }),
+    ).toBe(`You paired ${name(a)} with ${name(b)} (match), ${name(c)} with ${name(villain)} (no match).`);
+    expect(textOf({ type: "cardsPaired", playerId: null, sourceInstanceId: null, pairs: [] })).toBe(
+      "A player had no cards to pair.",
+    );
+  });
+
+  test("the pool reports what was dealt and what was lost", () => {
+    const pool = { type: "damagePoolResolved", playerId: me, sourceInstanceId: null } as const;
+    expect(textOf({ ...pool, pool: 5, dealt: 3, lost: 2 })).toBe("Damage pool of 5: 3 dealt, 2 lost.");
+    expect(textOf({ ...pool, pool: 4, dealt: 4, lost: 0 })).toBe("Damage pool of 4: 4 dealt.");
+  });
+});
+
+describe("starting hand credit, surge, ownership and defenders", () => {
+  test("a credit toward the starting hand, and the draw it shortens", () => {
+    expect(textOf({ type: "startingHandCredited", playerId: me, amount: 1, credit: 1 })).toBe(
+      "You count 1 card toward the starting hand.",
+    );
+    expect(textOf({ type: "startingHandCredited", playerId: me, amount: 2, credit: 3 })).toBe(
+      "You count 2 cards toward the starting hand (3 in all).",
+    );
+    expect(textOf({ type: "startingHandCreditApplied", playerId: me, handSize: 5, credit: 2, drawn: 3 })).toBe(
+      "You draw 3 for a hand of 5; 2 already counted.",
+    );
+  });
+
+  test("surge from a card's ability reads as plainly as surge from a rule", () => {
+    expect(textOf({ type: "surgeGranted", instanceId: villain, playerId: me })).toBe(`${name(villain)} gains surge.`);
+  });
+
+  test("ownership taken", () => {
+    expect(textOf({ type: "ownershipChanged", instanceId: hand[0]!, playerId: me })).toBe(
+      `You take ownership of ${name(hand[0]!)}.`,
+    );
+  });
+
+  test("a defender declared by an effect is not a defense made", () => {
+    const declared = {
+      type: "defenderDeclared",
+      attackInstanceId: villain,
+      defenderInstanceId: hand[0]!,
+      playerId: me,
+    } as const;
+    expect(textOf(declared)).toBe(`${name(hand[0]!)} defends.`);
+    expect(textOf({ ...declared, byEffect: true })).toBe(
+      `${name(hand[0]!)} is declared the defender against ${name(villain)}.`,
+    );
+  });
+});
+
+describe("unique entry blocked and refused entries", () => {
+  test("a blocked flip names the face that could not enter, not the card showing its old one", () => {
+    const [shown, flipsTo] = [hand[0]!, hand[1]!];
+    const face = state.instances[flipsTo]!.cardId;
+    expect(state.instances[shown]!.cardId).not.toBe(face);
+    const line = textOf({
+      type: "uniqueEntryBlocked",
+      instanceId: shown,
+      cardId: face,
+      matchedInstanceId: villain,
+      disposition: "noEffect",
+    })!;
+    expect(line).toContain(`${name(shown)} can't flip to `);
+    expect(line).toContain(name(flipsTo));
+    expect(line).toContain("unique");
+  });
+
+  test("an ordinary blocked entry keeps its wording", () => {
+    const line = textOf({
+      type: "uniqueEntryBlocked",
+      instanceId: hand[0]!,
+      cardId: state.instances[hand[0]!]!.cardId,
+      matchedInstanceId: villain,
+      disposition: "discarded",
+    })!;
+    expect(line).toMatch(/ is discarded: unique, and /);
+    expect(line).not.toContain("can't flip");
+  });
+
+  test("each refusal gives its reason in a few words", () => {
+    const refused = (reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay") =>
+      textOf({ type: "putIntoPlayRefused", instanceId: hand[0]!, playerId: me, reason });
+    const n = name(hand[0]!);
+    expect(refused("cannotEnterPlay")).toBe(`${n} cannot enter play during this game.`);
+    expect(refused("noSuchArea")).toBe(`${n} stays where it was: there is no such area.`);
+    expect(refused("cardType")).toBe(`${n} stays where it was: that kind of card can't go there.`);
+    expect(refused("noLegalHost")).toBe(`${n} has nothing to attach to and stays where it was.`);
+  });
+});

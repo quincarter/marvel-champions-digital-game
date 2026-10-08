@@ -9,14 +9,18 @@
  * board must not reflow while the player's hand is already moving.
  */
 
-import type {
-  ActionRef,
-  EngineErrorCode,
-  ExclusionCode,
-  InstanceId,
-  LegalAction,
-  LegalActions,
-  PlayerId,
+import {
+  cannotEnterPlay,
+  uniqueEntryBlocker,
+  type ActionRef,
+  type EngineDeps,
+  type EngineErrorCode,
+  type ExclusionCode,
+  type GameState,
+  type InstanceId,
+  type LegalAction,
+  type LegalActions,
+  type PlayerId,
 } from "@mc/engine";
 
 /** The five buttons in the design's action bar. */
@@ -221,7 +225,8 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   missingAttachment: "doesn't have the right attachment",
   cannotHaveAttached: "can't have that card attached",
   cannotAttachTo: "can't be attached there",
-  cannotEnterPlay: "a matching unique card is in play",
+  // One code for two reasons; `exclusionWordingFor` tells them apart when it has the game.
+  cannotEnterPlay: "a matching unique card is in play, or a rule bars it",
   cannotFlip: "can't be flipped",
   wrongOwner: "not owned by you",
   missingPrintedResource: "doesn't print the needed resource",
@@ -274,6 +279,30 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
 /** `EXCLUSION_WORDING`, defaulting honestly rather than throwing on a code this table hasn't been kept in sync with. */
 export function exclusionWording(code: ExclusionCode): string {
   return EXCLUSION_WORDING[code] ?? "not a legal target";
+}
+
+/** Why a card cannot enter play, in a few words: the unique rule's wording, a scenario rule's, or both. */
+export const UNIQUE_ENTRY_WORDING = "a matching unique card is in play";
+export const RULE_BARS_ENTRY_WORDING = "a rule keeps it out of play";
+
+/**
+ * `exclusionWording`, told apart by the game where one code stands for two reasons: `cannotEnterPlay` is shown for a
+ * card the unique rule keeps out (a matching card is in play) and for one a `RuleSpec cannotEnterPlay` names. Asks the
+ * engine which, rather than restating either rule; with neither it falls back to the code's own wording.
+ */
+export function exclusionWordingFor(
+  state: GameState,
+  deps: EngineDeps,
+  code: ExclusionCode,
+  id: InstanceId,
+  forPlayer: PlayerId | null = null,
+): string {
+  if (code !== "cannotEnterPlay") return exclusionWording(code);
+  const unique = uniqueEntryBlocker(state, deps, id, forPlayer) !== null;
+  const barred = cannotEnterPlay(state, deps, id);
+  if (barred && !unique) return RULE_BARS_ENTRY_WORDING;
+  if (unique && !barred) return UNIQUE_ENTRY_WORDING;
+  return exclusionWording(code);
 }
 
 /**

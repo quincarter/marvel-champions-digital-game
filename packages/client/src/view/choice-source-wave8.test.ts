@@ -4,12 +4,25 @@
  * deck-discard cost's size (§3.55), and the exclusion codes those prompts surface.
  */
 
-import { frameId, type ChoicePrompt, type GameState, type StackFrame } from "@mc/engine";
-import { describe, expect, test } from "vitest";
+import {
+  frameId,
+  inPlayPicksOf,
+  type ChoicePrompt,
+  type GameState,
+  type InstanceId,
+  type StackFrame,
+  type TriggerEventKind,
+} from "@mc/engine";
+import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS } from "../content/pool.js";
-import { promptTitleOf } from "./choice-source.js";
-import { basicReasonWording, exclusionWording } from "./highlights.js";
+import { LocalEngineHost } from "../engine/local-host.js";
+import { SessionStore } from "../store/session-store.js";
+import { costCardsPromptTitleOf, promptTitleOf } from "./choice-source.js";
+import { basicReasonWording, exclusionWording, exclusionWordingFor } from "./highlights.js";
 import { paymentSubjectWords } from "./change-form-choice.js";
+import { costPickSlot, playAimPrompt } from "./play-aim.js";
+import { cardName } from "./names.js";
+import { triggerEventWords } from "./trigger-event-words.js";
 
 const title = (prompt: unknown, counts?: Parameters<typeof promptTitleOf>[2], state?: GameState): string =>
   promptTitleOf(prompt as ChoicePrompt, POOL_DEPS, counts, state);
@@ -114,5 +127,167 @@ describe("why-not wording", () => {
     expect(paymentSubjectWords({ kind: "changeForm" })).toBe("Change form");
     expect(paymentSubjectWords({ kind: "changeForm", to: "alterEgo" })).toBe("Change to alter-ego");
     expect(paymentSubjectWords({ kind: "basicRecover" })).toBe("This action");
+  });
+});
+
+describe("pairing prompt", () => {
+  test("pairCards has a title of its own", () => {
+    expect(title({ kind: "pairCards", cards: [], with: [], icons: {}, matching: [], sourceInstanceId: null })).toBe(
+      "Pair the cards with characters",
+    );
+  });
+});
+
+describe("the mission's damage pool", () => {
+  const frame = (cursor: number, left?: number): StackFrame =>
+    ({
+      kind: "effects",
+      frameId: frameId("f7"),
+      effects: [{ kind: "assignDamage" }, { kind: "draw" }],
+      cursor,
+      vars: left === undefined ? {} : { "_pool.left": left },
+    }) as unknown as StackFrame;
+  const stateWith = (...frames: StackFrame[]): GameState => ({ stack: frames }) as unknown as GameState;
+  const choice = { minSelections: 1, frameId: frameId("f7") };
+  const target = { kind: "chooseTarget", slot: "assignDamage", abilityId: null };
+
+  test("the character pick says it is the damage pool and how much is left", () => {
+    expect(title(target, choice, stateWith(frame(0, 5)))).toBe("Mission damage pool, 5 left: choose a target");
+  });
+
+  test("the amount that follows names the pool and what is left of it", () => {
+    expect(title({ kind: "chooseNumber", min: 1, max: 3 }, choice, stateWith(frame(0, 3)))).toBe(
+      "Mission damage pool, 3 left: deal how much?",
+    );
+  });
+
+  test("with the frame out of reach the title still says it is the pool, without a count", () => {
+    expect(title(target)).toBe("Mission damage pool: choose a target");
+    expect(title(target, choice, stateWith())).toBe("Mission damage pool: choose a target");
+  });
+
+  test("any other target slot or number keeps its own title", () => {
+    expect(title({ kind: "chooseTarget", slot: "enemy", abilityId: null }, choice, stateWith(frame(0, 5)))).toBe(
+      "Choose a target",
+    );
+    // The same frame, but the cursor has moved on from the damage pool.
+    expect(title({ kind: "chooseNumber", min: 1, max: 3 }, choice, stateWith(frame(1, 5)))).toBe(
+      "Choose a number from 1 to 3",
+    );
+  });
+});
+
+describe("cost prompts", () => {
+  test("a cost paid with cards in hand names the verb", () => {
+    expect(
+      title({ kind: "chooseCostCards", instanceId: "c", abilityId: "a", slot: "discard", mode: "discardFromHand" }),
+    ).toBe("Choose cards to discard from hand");
+    expect(costCardsPromptTitleOf("discardFromHand")).toBe("Choose cards to discard from hand");
+    expect(costCardsPromptTitleOf(undefined)).toBe("Choose a card for this cost");
+  });
+
+  test("ordering special abilities is neutral about Forced Interrupts and Responses", () => {
+    expect(title({ kind: "orderSpecials" })).toBe("Order these abilities");
+  });
+});
+
+describe("cost picks on a play or an ability", () => {
+  test("the Setting a Special cost resolves is a pick in the slot the cost names", () => {
+    const cost = {
+      resolveAbility: { of: { kind: "each" }, choose: "setting", trigger: "special" },
+    } as unknown as Parameters<typeof costPickSlot>[0];
+    expect(costPickSlot(cost)).toBe("setting");
+  });
+
+  test("a character that takes a cost's damage is a pick in its slot (Rogue 48012)", () => {
+    const cost = POOL_DEPS.abilities["48012.rogue-action"]?.cost;
+    expect(cost?.dealDamage?.choose?.slot).toBe("friend");
+    expect(costPickSlot(cost)).toBe("friend");
+  });
+
+  test("picks among cards in play that pay a cost are not a single slot", () => {
+    // Teleport Drop's Bamf! (slot discarded) and Mutant Mayhem's two returned allies (xforce, xmen) are asked by
+    // `in-play-cost-choice.ts`, one slot at a time, never aimed through a single target.
+    expect(costPickSlot(POOL_DEPS.abilities["48008.teleport-drop-action"]?.cost)).toBeNull();
+    expect(costPickSlot(POOL_DEPS.abilities["47028.mutant-mayhem-action"]?.cost)).toBeNull();
+    const slots = (id: string) => inPlayPicksOf(POOL_DEPS.abilities[id]?.cost).map(({ pick }) => pick.slot);
+    expect(slots("48008.teleport-drop-action")).toEqual(["discarded"]);
+    expect(slots("47028.mutant-mayhem-action")).toEqual(["xforce", "xmen"]);
+  });
+
+  test("no cost, no slot", () => {
+    expect(costPickSlot(undefined)).toBeNull();
+  });
+});
+
+describe("trigger event words", () => {
+  test("a form change and a card attached read as phrases", () => {
+    const kinds: readonly TriggerEventKind[] = ["formChanging", "formChanged", "cardAttached"];
+    expect(kinds.map(triggerEventWords)).toEqual(["a form change", "a form change", "a card attached"]);
+  });
+});
+
+describe("why-not wording for the mission area", () => {
+  test("areas and the other face read in a few words", () => {
+    expect(exclusionWording("notInScenarioPlayArea")).toBe("not at the mission");
+    expect(exclusionWording("closedScenarioPlayArea")).toBe("in the mission area, which this ability does not reach");
+    expect(exclusionWording("notOtherFace")).toBe("not the other side of that card");
+  });
+
+  test("a card kept out of play names both reasons when the game is not at hand", () => {
+    expect(exclusionWording("cannotEnterPlay")).toBe("a matching unique card is in play, or a rule bars it");
+  });
+});
+
+describe("cannotEnterPlay told apart by the game", () => {
+  let state: GameState;
+  let hand: InstanceId[];
+
+  beforeAll(async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 3,
+    });
+    for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
+      await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+    }
+    state = store.state.game!;
+    hand = [...state.players[0]!.hand];
+  }, 30_000);
+
+  test("a card a rule bars says so; a card nothing bars keeps the combined words", () => {
+    const barred = hand.find((id) => state.instances[id]?.cardId !== undefined)!;
+    const name = cardName(state, barred);
+    const withRule = {
+      ...state,
+      scenarioRules: { ...state.scenarioRules, rules: [{ kind: "cannotEnterPlay", cards: { name } }] },
+    } as unknown as GameState;
+    expect(exclusionWordingFor(withRule, POOL_DEPS, "cannotEnterPlay", barred)).toBe("a rule keeps it out of play");
+    expect(exclusionWordingFor(state, POOL_DEPS, "cannotEnterPlay", barred)).toBe(
+      "a matching unique card is in play, or a rule bars it",
+    );
+    expect(exclusionWordingFor(state, POOL_DEPS, "notInPlay", barred)).toBe("not in play");
+  });
+
+  test("the aim question names the pick a cost asks for", () => {
+    const aim = (abilityId: string) =>
+      ({
+        action: { kind: "useAbility", instanceId: hand[0]!, abilityId },
+        example: { type: "useAbility", playerId: state.players[0]!.playerId },
+        targets: [],
+        blockedTargets: [],
+        needsPayment: false,
+      }) as unknown as Parameters<typeof playAimPrompt>[2];
+    const name = cardName(state, hand[0]!);
+    expect(playAimPrompt(state, POOL_DEPS, aim("48012.rogue-action"))).toBe(`${name}: choose who takes the damage`);
+    const setting = Object.entries(POOL_DEPS.abilities).find(([, ability]) => ability.cost?.resolveAbility?.choose);
+    expect(setting, "an ability whose cost resolves a chosen Setting").toBeDefined();
+    expect(playAimPrompt(state, POOL_DEPS, aim(setting![0]))).toBe(`${name}: choose the Setting`);
   });
 });

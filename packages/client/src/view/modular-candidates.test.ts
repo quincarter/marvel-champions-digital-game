@@ -42,6 +42,21 @@ describe("modular candidates, pinned for three scenarios (everything unlocked)",
   test("Rhino: Bomb Scare recommended, then every modular set by cycle", () => {
     expect(byGroup(modularCandidatesFor(scenarioOf("rhino")))).toMatchInlineSnapshot(`
       {
+        "Age of Apocalypse": [
+          "blue_moon",
+          "celestial_tech",
+          "clan_akkaba",
+          "dark_riders",
+          "dystopian_nightmare",
+          "genosha",
+          "hounds",
+          "infinites",
+          "savage_land",
+          "sauron",
+          "arcade",
+          "crazy_gang",
+          "hellfire",
+        ],
         "Core Set": [
           "legions_of_hydra",
           "masters_of_evil",
@@ -148,6 +163,21 @@ describe("modular candidates, pinned for three scenarios (everything unlocked)",
   test("Sabretooth: Brotherhood and Mystique recommended; its own set is never offered", () => {
     expect(byGroup(modularCandidatesFor(scenarioOf("sabretooth")))).toMatchInlineSnapshot(`
       {
+        "Age of Apocalypse": [
+          "blue_moon",
+          "celestial_tech",
+          "clan_akkaba",
+          "dark_riders",
+          "dystopian_nightmare",
+          "genosha",
+          "hounds",
+          "infinites",
+          "savage_land",
+          "sauron",
+          "arcade",
+          "crazy_gang",
+          "hellfire",
+        ],
         "Core Set": [
           "bomb_scare",
           "legions_of_hydra",
@@ -324,7 +354,7 @@ describe("what counts as modular", () => {
     for (const g of groups) if (seen[seen.length - 1] !== g) seen.push(g);
     expect(new Set(seen).size, "each group is one run").toBe(seen.length);
     expect(seen.slice(0, 3)).toEqual([RECOMMENDED_GROUP_ID, "core", "wave1"]);
-    expect(seen[seen.length - 1]).toBe("cycle7");
+    expect(seen[seen.length - 1]).toBe("cycle8");
   });
 });
 

@@ -36,6 +36,7 @@ import {
   handCardResources,
   remainingHitPoints,
   scale,
+  scenarioPlayAreaOf,
   schemesInPlay,
   selfDamageThreshold,
   type CardInstance,
@@ -392,6 +393,36 @@ export interface ScenarioAreaPanel {
   readonly count: number;
 }
 
+/**
+ * One card in an in-play scenario area such as the mission area (`ZoneId scenarioPlayArea`, docs/phase7-wave8.md
+ * §3.33): in play, owned but controlled by nobody. It carries what the ally and villain-area panels carry: `panel` is
+ * the character panel (name, type line, hit points or damage, counters, exhausted, keywords, statuses, art) for every
+ * card, and `scheme` adds the threat meter when the card is a side scheme (the mission itself). Upgrades and other
+ * attachments hang under their host on `panel.attachments` (and `scheme.attachments`), not as cards of their own.
+ */
+export interface ScenarioPlayAreaCard {
+  readonly instanceId: InstanceId;
+  readonly name: string;
+  /** "Ally", "Side scheme · Crisis": the type line. */
+  readonly subtitle: string;
+  readonly panel: CharacterPanel;
+  /** The scheme meter for a side scheme, else null. */
+  readonly scheme: SchemePanel | null;
+  /** Threat on the card: a scheme's meter, or threat a character holds. 0 draws nothing. */
+  readonly threat: number;
+  /** Always null: a card here has no controller, and the board says so rather than naming a seat. */
+  readonly controlledBy: null;
+}
+
+/** An in-play scenario area: its name and its unattached cards in the order they entered it. */
+export interface ScenarioPlayAreaPanel {
+  readonly name: string;
+  /** A closed area is not reached by an ability that does not name it (MC45 p. 5). */
+  readonly closed: boolean;
+  readonly cards: readonly ScenarioPlayAreaCard[];
+  readonly count: number;
+}
+
 export interface HandCardView {
   readonly instanceId: InstanceId;
   readonly name: string;
@@ -488,6 +519,8 @@ export interface BoardModel {
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /** The scenario's in-play areas no player controls (the mission area, docs/phase7-wave8.md §3.33). Empty for every scenario that has none. */
+  readonly scenarioPlayAreas: readonly ScenarioPlayAreaPanel[];
   /**
    * The modular sets still set aside, for a scenario that set some aside (MojoMania's genre sets; Wheel of Genres
    * loses the game when the deck resets with none remaining). Null when the game never set any aside, which is
@@ -656,6 +689,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id, deps)),
     scenarioAreas: scenarioAreaPanels(state),
+    scenarioPlayAreas: scenarioPlayAreaPanels(state, deps),
     setAside: setAsidePanel(state),
     scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
@@ -1218,6 +1252,30 @@ export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel
   }));
 }
 
+/**
+ * Every in-play scenario area, in the order they were created, each with its cards in the order they entered it.
+ * Built from `state.scenarioPlayAreas` alone; empty when the game has none.
+ */
+export function scenarioPlayAreaPanels(state: GameState, deps: EngineDeps): readonly ScenarioPlayAreaPanel[] {
+  return Object.entries(state.scenarioPlayAreas ?? {}).map(([name, area]) => {
+    const cards = area.cards.map((id): ScenarioPlayAreaCard => {
+      const panel = characterPanel(state, id, deps);
+      const isScheme = cardOf(state, id)?.type === "side_scheme" || cardOf(state, id)?.type === "player_side_scheme";
+      const scheme = isScheme ? schemePanel(state, id, deps, false) : null;
+      return {
+        instanceId: id,
+        name: panel.name,
+        subtitle: scheme?.subtitle ?? panel.subtitle,
+        panel,
+        scheme,
+        threat: scheme?.threat ?? panel.threat,
+        controlledBy: null,
+      };
+    });
+    return { name, closed: area.closed, cards, count: cards.length };
+  });
+}
+
 export function environmentPanel(state: GameState, id: InstanceId, deps: EngineDeps): EnvironmentPanel {
   const card = cardOf(state, id);
   const damage = getInstance(state, id)?.damage ?? 0;
@@ -1274,13 +1332,19 @@ export function counterNote(counters: readonly { readonly name: string; readonly
     .join(", ");
 }
 
+/** The mission's internal mark of its own defeat, read by its back face; never shown. */
+const INTERNAL_AREA_COUNTER = "defeated";
+
 /** Every counter kind on a card, in a stable order, skipping kinds that have run to zero. */
 export function countersOf(
   state: GameState,
   id: InstanceId,
 ): readonly { readonly name: string; readonly count: number }[] {
+  // A mission carries an internal "defeated" mark its back face reads ("if the mission was defeated"); it is bookkeeping,
+  // not a counter a player places or removes, so it is hidden on a card in a scenario play area. "attempt" is shown.
+  const inArea = scenarioPlayAreaOf(state, id) !== null;
   return Object.entries(getInstance(state, id)?.counters ?? {})
-    .filter(([, count]) => count > 0)
+    .filter(([name, count]) => count > 0 && !(inArea && name === INTERNAL_AREA_COUNTER))
     .map(([name, count]) => ({ name, count }));
 }
 
