@@ -9,6 +9,9 @@
  * (`applySetupOption`), refusing an action the offer does not list. `reconcileWithOffer` drops a stored choice that no
  * longer applies, which is how a changed difficulty or modular pick clears a Gene Pool amount or an Expert set.
  *
+ * The Standard and Expert set rows are folded into the difficulty row (`splitOptionRows`, owner decision 2026-10-08);
+ * their actions and focus order are unchanged.
+ *
  * Every control is an action string (`standardSet:standard_iii`, `genePool:up`, `horseman:2:B`, `easierStart:toggle`):
  * the scene hands the string back and never interprets it, and the focus order lists the same strings.
  */
@@ -221,13 +224,24 @@ export function setupOptionRowsOf(
       id: "easierStart",
       name: "Easier start: begin at Apocalypse (I)",
       meta: draft.easierStart ? "On · begins at stage I" : "Off · begins at stage II",
-      span: 2,
+      span: 1,
       active: draft.easierStart,
       help: "Apocalypse begins at stage I instead of II: more hit points to start, a gentler first turn (standard mode only).",
       control: { kind: "toggle", action: "easierStart:toggle" },
     });
   }
   return rows;
+}
+
+/** The Standard and Expert set rows: a few chips each, drawn inside the difficulty row (not as option cards of their own). */
+export const isSetChoiceRow = (row: SetupOptionRow): boolean => row.id === "standardSet" || row.id === "expertSet";
+
+/** The rows split by where they are drawn: the set choices folded into the difficulty row, and the option cards under it. */
+export function splitOptionRows(rows: readonly SetupOptionRow[]): {
+  readonly setChoices: readonly SetupOptionRow[];
+  readonly cards: readonly SetupOptionRow[];
+} {
+  return { setChoices: rows.filter(isSetChoiceRow), cards: rows.filter((row) => !isSetChoiceRow(row)) };
 }
 
 /** Every action the rows list, in draw order: the focus order's option stops. */

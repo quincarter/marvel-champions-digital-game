@@ -82,8 +82,31 @@ export const MODULAR_CARD_HEIGHT = 58;
 const MODULAR_CARD_MIN_WIDTH = 170;
 /** A seat card: a radio dot, the hero's name, and a small "FIRST PLAYER"/"SEAT N" label. Wide only — narrow uses `NARROW_SEATING_CARD_HEIGHT`. */
 export const SEAT_CARD_HEIGHT = 60;
-/** One setup-option card (wide and tablet portrait; `view/setup-options.ts`): a name at the left, its controls at the right. */
-export const OPTION_CARD_HEIGHT = 56;
+/**
+ * One setup-option card (wide and tablet portrait; `view/setup-options.ts`): a name at the left, its controls at the
+ * right. 8px of padding around a `hit.target` control (60 = 8 + 44 + 8), so a stepper's buttons and the Horsemen's A/B
+ * chips are full 44px targets.
+ */
+export const OPTION_CARD_HEIGHT = 60;
+/** The Horsemen's card when its four labels sit over their A/B pairs: 8 + a 14px label + 2 + a 44px chip + 8. */
+export const OPTION_GROUPS_STACKED_HEIGHT = 76;
+/** The room the name zone of a multi-group option card takes at the left (the scene draws the name inside it). */
+export const OPTION_GROUPS_NAME_ZONE = 130;
+/** Below this width a Horseman's label no longer fits beside its two 44px chips, and the label goes over them. */
+const OPTION_GROUP_INLINE_MIN_WIDTH = 170;
+
+/** The gap between difficulty cards (and the set-choice card that takes the spare slot). */
+export const DIFFICULTY_SLOT_GAP = 12;
+/** The folded set-choice card (Standard / Expert set chips, `view/setup-options.ts`): padding around each `hit.target` chip row. */
+const SETS_CARD_PAD = 6;
+const SETS_ROW_GAP = 4;
+/** A stacked set row's small name over its chips. */
+const SETS_LABEL_HEIGHT = 14;
+const SETS_LABEL_GAP = 2;
+/** At or above this slot width the set name sits beside its chips; below it, over them. */
+const SETS_INLINE_MIN_WIDTH = 260;
+/** The name zone of an inline set row. */
+export const SETS_INLINE_NAME_WIDTH = 96;
 const OPTION_CARD_GAP = 12;
 /** Tower Defense's own setup-damage toggle row (wide, docs/phase7-wave4.md §4 Q4): same shape as an option card, stacked under them — a single full-width card, only for Tower Defense itself. */
 export const TOWER_DEFENSE_DAMAGE_ROW_HEIGHT = 56;
@@ -118,6 +141,13 @@ export interface TableSetupLayoutInput {
   readonly nemesisLines: number;
   /** How many columns (1 or 2) each setup-option card takes (`setupOptionRowsOf`), in draw order; absent is none. Wide and tablet portrait. */
   readonly optionSpans?: readonly (1 | 2)[];
+  /** How many chip groups each option card holds (the Horsemen's four; 0 for a toggle or stepper), parallel to `optionSpans`. Absent is all 0. */
+  readonly optionGroupCounts?: readonly number[];
+  /**
+   * How many Standard / Expert set rows (0 to 2) are folded into the difficulty row (`splitOptionRows`): they take the
+   * spare slot beside the difficulty cards, or a strip of their own under them when the row has no spare slot.
+   */
+  readonly setChoiceRows?: number;
   /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): true only for Tower Defense. Wide only — defaults to `false`. */
   readonly hasTowerDefenseSetupDamage?: boolean;
   /** The Hood's own "choose which modular sets are in" candidate count (`view/hood-modular-sets.ts`) — 0 for every other scenario. Wide only — defaults to `0`. */
@@ -148,6 +178,12 @@ export interface TableSetupLayout {
   readonly sidebar: Rect | null;
   readonly difficultyHeader: Rect;
   readonly difficultyRow: Rect;
+  /** How many equal slots the difficulty row is divided into: the cards, plus the set-choice card when it takes the spare slot. */
+  readonly difficultySlots: number;
+  /** The folded Standard / Expert set-choice card (inside `difficultyRow`'s spare slot, or a strip under it); zero-area when the scenario offers none. */
+  readonly setsCard: Rect;
+  /** Each set name sits beside its chips (true) or over them (false). */
+  readonly setsInline: boolean;
   /** The setup-option cards (Standard/Expert set, Gene Pool, Horsemen, easier start) in a two-column grid right under `difficultyRow`, one rect per `TableSetupLayoutInput.optionSpans` entry. */
   readonly optionCards: readonly Rect[];
   /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under the option cards, wide only — zero-area unless `TableSetupLayoutInput.hasTowerDefenseSetupDamage`. */
@@ -201,6 +237,9 @@ export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[]
     layout.step,
     layout.difficultyHeader,
     layout.difficultyRow,
+    ...(layout.setsCard.height > 0 && layout.setsCard.y >= layout.difficultyRow.y + layout.difficultyRow.height
+      ? [layout.setsCard]
+      : []),
     layout.modularHeader,
     layout.modularGrid,
     layout.seatingHeader,
@@ -288,41 +327,102 @@ function trimRowBudgets(
   }
 }
 
+/** Whether the folded set-choice card puts each name beside its chips (a wide slot) or over them. */
+export const setsCardInline = (slotWidth: number): boolean => slotWidth >= SETS_INLINE_MIN_WIDTH;
+
+/** The height of the set-choice card holding `rows` set rows (1 or 2): every chip row is a full `hit.target`. */
+export function setsCardHeight(rows: number, inline: boolean): number {
+  if (rows <= 0) return 0;
+  const rowHeight = inline ? hit.target : SETS_LABEL_HEIGHT + SETS_LABEL_GAP + hit.target;
+  return SETS_CARD_PAD * 2 + rows * rowHeight + (rows - 1) * SETS_ROW_GAP;
+}
+
+export interface SetChoiceRowRects {
+  /** Where the set's name goes (a line over the chips, or the zone beside them). */
+  readonly name: Rect;
+  /** The strip the chips share; each chip is as tall as the strip. */
+  readonly chips: Rect;
+}
+
+/** Where each of the card's set rows draws its name and chip strip. */
+export function setChoiceRowRects(card: Rect, rows: number, inline: boolean): readonly SetChoiceRowRects[] {
+  const out: SetChoiceRowRects[] = [];
+  const rowHeight = inline ? hit.target : SETS_LABEL_HEIGHT + SETS_LABEL_GAP + hit.target;
+  const innerX = card.x + 8;
+  const innerWidth = card.width - 16;
+  for (let index = 0; index < rows; index++) {
+    const top = card.y + SETS_CARD_PAD + index * (rowHeight + SETS_ROW_GAP);
+    if (inline) {
+      out.push({
+        name: { x: innerX, y: top, width: SETS_INLINE_NAME_WIDTH, height: hit.target },
+        chips: {
+          x: innerX + SETS_INLINE_NAME_WIDTH,
+          y: top,
+          width: innerWidth - SETS_INLINE_NAME_WIDTH,
+          height: hit.target,
+        },
+      });
+    } else {
+      out.push({
+        name: { x: innerX, y: top, width: innerWidth, height: SETS_LABEL_HEIGHT },
+        chips: { x: innerX, y: top + SETS_LABEL_HEIGHT + SETS_LABEL_GAP, width: innerWidth, height: hit.target },
+      });
+    }
+  }
+  return out;
+}
+
+/** The rect of difficulty slot `index` of `slots` equal-width slots across `row`. */
+export function difficultySlotRect(row: Rect, slots: number, index: number): Rect {
+  const slotWidth = (row.width - DIFFICULTY_SLOT_GAP * (slots - 1)) / slots;
+  return { x: row.x + index * (slotWidth + DIFFICULTY_SLOT_GAP), y: row.y, width: slotWidth, height: row.height };
+}
+
+/** Whether a multi-group option card (the Horsemen) puts the labels over the A/B pairs because the card is too narrow for them beside. */
+export function optionGroupsStacked(cardWidth: number, groupCount: number): boolean {
+  if (groupCount < 2) return false;
+  const zone = cardWidth - OPTION_GROUPS_NAME_ZONE - 18;
+  return (zone - 12 * (groupCount - 1)) / groupCount < OPTION_GROUP_INLINE_MIN_WIDTH;
+}
+
 /**
  * Lays the option cards in a two-column grid starting at `y`: a one-column card sits beside the next one-column card,
  * a two-column card takes a row of its own. Returns the rects and where the grid ends.
  */
 function planOptionCards(
   spans: readonly (1 | 2)[],
+  groupCounts: readonly number[],
   x: number,
   y: number,
   width: number,
 ): { readonly rects: readonly Rect[]; readonly bottom: number } {
   const half = (width - OPTION_CARD_GAP) / 2;
   const rects: Rect[] = [];
-  let row = 0;
+  let top = y;
   let column = 0;
-  for (const span of spans) {
-    if (span === 2 && column === 1) {
-      row += 1;
-      column = 0;
-    }
-    const top = y + row * (OPTION_CARD_HEIGHT + ROW_GAP);
+  let rowHeight = OPTION_CARD_HEIGHT;
+  const closeRow = (): void => {
+    top += rowHeight + ROW_GAP;
+    column = 0;
+    rowHeight = OPTION_CARD_HEIGHT;
+  };
+  spans.forEach((span, index) => {
+    if (span === 2 && column === 1) closeRow();
+    const groups = groupCounts[index] ?? 0;
+    const height = span === 2 && optionGroupsStacked(width, groups) ? OPTION_GROUPS_STACKED_HEIGHT : OPTION_CARD_HEIGHT;
+    rowHeight = Math.max(rowHeight, height);
     if (span === 2) {
-      rects.push({ x, y: top, width, height: OPTION_CARD_HEIGHT });
-      row += 1;
-      column = 0;
+      rects.push({ x, y: top, width, height });
+      closeRow();
     } else {
-      rects.push({ x: x + column * (half + OPTION_CARD_GAP), y: top, width: half, height: OPTION_CARD_HEIGHT });
+      rects.push({ x: x + column * (half + OPTION_CARD_GAP), y: top, width: half, height });
       column += 1;
-      if (column === 2) {
-        row += 1;
-        column = 0;
-      }
+      if (column === 2) closeRow();
     }
-  }
-  const rowsUsed = row + (column === 1 ? 1 : 0);
-  return { rects, bottom: rowsUsed === 0 ? y : y + rowsUsed * (OPTION_CARD_HEIGHT + ROW_GAP) - ROW_GAP };
+  });
+  const open = column === 1;
+  const bottom = rects.length === 0 ? y : open ? top + rowHeight : top - ROW_GAP;
+  return { rects, bottom };
 }
 
 function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): TableSetupLayout {
@@ -356,12 +456,32 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   let y = bodyTop;
   const difficultyHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 8;
-  const difficultyRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: DIFFICULTY_CARD_HEIGHT };
-  y += DIFFICULTY_CARD_HEIGHT;
+  // The Standard / Expert set chips take the row's spare slot (the owner, 2026-10-08: fold them into the difficulty row
+  // to save height); a row with no spare slot (three difficulties) gets a strip under the cards instead.
+  const setRows = input.setChoiceRows ?? 0;
+  const difficultySlots = Math.max(3, input.difficultyCount);
+  const setsInSlot = setRows > 0 && input.difficultyCount < difficultySlots;
+  const slotWidth = (bodyWidth - DIFFICULTY_SLOT_GAP * (difficultySlots - 1)) / difficultySlots;
+  const setsInline = setsInSlot ? setsCardInline(slotWidth) : true;
+  const difficultyHeight = Math.max(DIFFICULTY_CARD_HEIGHT, setsInSlot ? setsCardHeight(setRows, setsInline) : 0);
+  const difficultyRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: difficultyHeight };
+  y += difficultyHeight;
+  let setsCard: Rect = { x: bodyLeft, y: difficultyRow.y, width: 0, height: 0 };
+  if (setsInSlot) setsCard = difficultySlotRect(difficultyRow, difficultySlots, input.difficultyCount);
+  else if (setRows > 0) {
+    setsCard = { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: setsCardHeight(setRows, true) };
+    y = setsCard.y + setsCard.height;
+  }
 
   // The setup-option cards (`view/setup-options.ts`): a two-column grid right under the difficulty cards, one card per
   // choice the scenario offers (zero cards for a scenario with none).
-  const options = planOptionCards(input.optionSpans ?? [], bodyLeft, y + ROW_GAP, bodyWidth);
+  const options = planOptionCards(
+    input.optionSpans ?? [],
+    input.optionGroupCounts ?? [],
+    bodyLeft,
+    y + ROW_GAP,
+    bodyWidth,
+  );
   if (options.rects.length > 0) y = options.bottom;
 
   // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under the
@@ -484,6 +604,9 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     sidebar,
     difficultyHeader,
     difficultyRow,
+    difficultySlots,
+    setsCard,
+    setsInline,
     optionCards: options.rects,
     towerDefenseDamageRow,
     modularHeader,
@@ -539,11 +662,28 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   let y = HEADER_HEIGHT + pad;
   const difficultyHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 6;
-  const difficultyRow: Rect = { x: left, y, width: column, height: NARROW_DIFFICULTY_CARD_HEIGHT };
+  // The Standard / Expert set chips take a third slot beside the two difficulty cards (a few more points of height for a
+  // 44px chip row, against the 68px the separate option card cost); with three difficulties they get a strip under them.
+  const narrowSetRows = input.setChoiceRows ?? 0;
+  const narrowSetsInSlot = narrowSetRows > 0 && input.difficultyCount < 3;
+  const difficultySlots = narrowSetsInSlot ? 3 : Math.max(1, input.difficultyCount);
+  const narrowSlotWidth = (column - DIFFICULTY_SLOT_GAP * (difficultySlots - 1)) / difficultySlots;
+  const setsInline = narrowSetsInSlot ? setsCardInline(narrowSlotWidth) : true;
+  const difficultyHeight = Math.max(
+    NARROW_DIFFICULTY_CARD_HEIGHT,
+    narrowSetsInSlot ? setsCardHeight(narrowSetRows, setsInline) : 0,
+  );
+  const difficultyRow: Rect = { x: left, y, width: column, height: difficultyHeight };
   y += difficultyRow.height + gap;
+  let setsCard: Rect = { x: left, y: difficultyRow.y, width: 0, height: 0 };
+  if (narrowSetsInSlot) setsCard = difficultySlotRect(difficultyRow, difficultySlots, input.difficultyCount);
+  else if (narrowSetRows > 0) {
+    setsCard = { x: left, y, width: column, height: setsCardHeight(narrowSetRows, true) };
+    y += setsCard.height + gap;
+  }
 
   // The setup-option cards, in the same two-column grid as the wide page.
-  const narrowOptions = planOptionCards(input.optionSpans ?? [], left, y, column);
+  const narrowOptions = planOptionCards(input.optionSpans ?? [], input.optionGroupCounts ?? [], left, y, column);
   if (narrowOptions.rects.length > 0) y = narrowOptions.bottom + gap;
 
   const modularHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
@@ -680,6 +820,9 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     sidebar: null,
     difficultyHeader,
     difficultyRow,
+    difficultySlots,
+    setsCard,
+    setsInline,
     // The Hood's own modular-set choice and Tower Defense's toggle are wide-layout only today (`wideLayout`'s own
     // doc comment) — narrow (tablet portrait) keeps its existing composition otherwise, so these are always
     // zero-area here regardless of `hoodSetCount`.
@@ -778,8 +921,12 @@ export type CompactModularEntry =
  */
 export function compactOptionHeight(kind: "groups" | "toggle" | "stepper", groupCount: number): number {
   if (kind !== "groups") return 64;
-  return groupCount > 1 ? 28 + Math.ceil(groupCount / 2) * 60 : 28 + 48;
+  return groupCount > 1 ? 28 + Math.ceil(groupCount / 2) * COMPACT_GROUP_CELL_HEIGHT : 28 + 48;
 }
+/** A Standard / Expert set row on the phone: the name at the left, a full 44px chip row at the right (4px of padding each side). */
+export const COMPACT_SET_CHOICE_HEIGHT = hit.target + 8;
+/** One Horseman's cell on the phone: a 14px label, then A/B chips a full `hit.target` tall. */
+export const COMPACT_GROUP_CELL_HEIGHT = 66;
 export const COMPACT_FIRST_PLAYER_ROW_HEIGHT = 58;
 export const COMPACT_SEED_ROW_HEIGHT = 100;
 export const COMPACT_ROW_GAP = 10;

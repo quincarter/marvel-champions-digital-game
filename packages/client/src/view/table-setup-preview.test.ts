@@ -356,4 +356,42 @@ describe("Apocalypse's easier start in the preview", () => {
     expect(stageRangeFor(apocalypse, "standard", 3)).toEqual(stageRangeFor(apocalypse, "standard"));
     expect(stageRangeFor(apocalypse, "standard", 0)[0]).toBe(1);
   });
+
+  test("the standard card says where the game begins; the expert card keeps its own stage", () => {
+    const easier = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart: true });
+    const printed = difficultyCardsFor(apocalypse);
+    const folded = difficultyCardsFor(apocalypse, easier.villainStartStageIndex);
+    const standard = (cards: ReturnType<typeof difficultyCardsFor>) => cards.find((c) => c.id === "standard")!;
+    const expert = (cards: ReturnType<typeof difficultyCardsFor>) => cards.find((c) => c.id === "expert")!;
+    expect(standard(printed).description).toContain("Starts at stage II.");
+    expect(standard(folded).description).toContain("Starts at stage I.");
+    expect(expert(folded).description).toBe(expert(printed).description);
+  });
+
+  test("the main scheme line is X per player, X the hit points of the stage the game begins on", () => {
+    const printed = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1 });
+    const easier = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart: true });
+    const before = tableSetupPreviewOf(printed, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const after = tableSetupPreviewOf(easier, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    // 9 per hero from stage II (the dial), 8 from stage I (docs/phase7-wave8.md section 2.7); never the printed 0.
+    expect(before.mainSchemeThreat).toBe(9);
+    expect(after.mainSchemeThreat).toBe(8);
+    expect(gameSummaryRowsOf(after).find((r) => r.label === "Main scheme")?.value).toBe("8 threat · accel 1");
+    const expert = tableSetupPreviewOf(
+      buildScenario("apocalypse", { difficulty: "expert", players, seed: 1 }),
+      apocalypse,
+      "expert",
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+    expect(expert.mainSchemeThreat).toBe(10);
+  });
+
+  test("a scenario whose target is printed is not touched", () => {
+    const config = buildScenario("rhino", { difficulty: "standard", players, seed: 1 });
+    const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const scheme = CARDS_BY_ID.get(rhino.mainSchemeCardId as string);
+    if (scheme?.type !== "main_scheme") throw new Error("not a main scheme");
+    expect(preview.mainSchemeThreat).toBe(scale(scheme.stages[0]!.targetThreat, 1));
+  });
 });

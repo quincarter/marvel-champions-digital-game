@@ -42,7 +42,7 @@
  * `EncounterDeckPreview`/`@mc/engine`'s `scale` exactly as before — nothing
  * added here restates a rule or invents a count `@mc/content` doesn't carry.
  */
-import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
+import type { AnyCard, CardId, CardType, EncounterSet, MainSchemeStage, Scenario } from "@mc/content";
 import { autoIncludedSetsInGame, scale, type GameSetupConfig, type TableRules } from "@mc/engine";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
@@ -280,11 +280,13 @@ export interface DifficultyCard {
  * one-line description — derived from `stageRangeFor`'s own starting stage
  * for this scenario, never invented flavor text. Heroic is out of scope (§4
  * — `difficultyOptionsFor` never offers it), so this never returns more than
- * "Standard"/"Expert"/Breakout's own "Extreme".
+ * "Standard"/"Expert"/Breakout's own "Extreme". `standardStartStageIndex` is the game's own start when the
+ * player began earlier than the printed stage (the easier start), so the card says where the game really begins.
  */
-export function difficultyCardsFor(scenario: Scenario): readonly DifficultyCard[] {
+export function difficultyCardsFor(scenario: Scenario, standardStartStageIndex?: number): readonly DifficultyCard[] {
   return difficultyOptionsFor(scenario).map((difficulty) => {
-    const [lo] = stageRangeFor(scenario, difficulty);
+    // A start before the printed one (Apocalypse's easier start) belongs to the standard card only: expert keeps its own.
+    const [lo] = stageRangeFor(scenario, difficulty, difficulty === "standard" ? standardStartStageIndex : undefined);
     const name = difficulty === "standard" ? "Standard" : difficulty === "expert" ? "Expert" : "Extreme";
     const description =
       difficulty === "standard"
@@ -294,6 +296,26 @@ export function difficultyCardsFor(scenario: Scenario): readonly DifficultyCard[
           : `Every villain's A and B version in play. Starts at stage ${roman(lo)}.`;
     return { id: difficulty, name, description };
   });
+}
+
+/**
+ * The main scheme's target threat at the deal. A stage whose target is "X" (`printedX`: Apocalypse's scheme, X = the
+ * numeral in his printed hit points) prints 0; the real target is the villain's starting stage's hit points, scaled
+ * per player, so it follows the stage the game begins on (the easier start).
+ */
+function mainSchemeThreatOf(
+  stage: MainSchemeStage,
+  scenario: Scenario,
+  cardsById: ReadonlyMap<string, AnyCard>,
+  playerCount: number,
+  startStageNumber: number,
+): number {
+  if (!stage.printedX?.includes("targetThreat")) return scale(stage.targetThreat, playerCount);
+  const villain = cardsById.get(scenario.villainCardId as string);
+  if (villain?.type !== "villain") return 0;
+  const side = villain.sides.find((s) => s.side === (villain.startingSide ?? "A")) ?? villain.sides[0];
+  const hp = side?.stages.find((s) => s.stageNumber === startStageNumber)?.hp;
+  return hp ? scale(hp, playerCount) : 0;
 }
 
 export function tableSetupPreviewOf(
@@ -347,7 +369,7 @@ export function tableSetupPreviewOf(
     villainStageLabel: roman(stageRange[0]),
     villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount, config.villainStartStageIndex),
     villainStageSpan: stageRange[1] - stageRange[0] + 1,
-    mainSchemeThreat: scale(firstStage.targetThreat, playerCount),
+    mainSchemeThreat: mainSchemeThreatOf(firstStage, scenario, cardsById, playerCount, stageRange[0]),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),
     startingThreatPerPlayer: firstStage.startingThreat.perPlayer,

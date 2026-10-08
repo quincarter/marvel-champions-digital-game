@@ -32,7 +32,7 @@ const setup = {
   deckSize: (page: Page) => hook<number>(page, "__mcTableSetupDebug", "encounterDeckSize").then((o) => o ?? -1),
   summary: (page: Page) =>
     hook<[string, string][]>(page, "__mcTableSetupDebug", "summary").then((o) => new Map(o ?? [])),
-  // The grid scrolls (the Standard set row above it leaves Longshot's row under the fold), so bring the tile into the panel first.
+  // A short page keeps the grid in a scrolling panel, so bring the tile into the panel first (a no-op when the grid is drawn whole).
   pick: async (page: Page, id: string) => {
     await scrollModularTileIntoPanel(page, `modular:${id}`);
     await clickStop(page, "__mcTableSetupDebug", `modular:${id}`);
@@ -214,7 +214,8 @@ async function scrollModularTileIntoPanel(page: Page, key: string): Promise<void
       return [hook.stops().find((s) => s.key === k) ?? null, hook.modularViewport()] as const;
     }, key);
     if (!stop) throw new Error(`no "${key}" control on Table setup`);
-    if (!panel) throw new Error("the modular grid is not scrolling, so the tile should be on screen already");
+    // The grid is drawn whole (not scrolling) on a page with room, so the tile is on screen already.
+    if (!panel) return;
     if (stop.y >= panel.y && stop.y + stop.height <= panel.y + panel.height) return;
     await page.mouse.move(panel.x + panel.width / 2, panel.y + panel.height / 2);
     await page.mouse.wheel(0, stop.y < panel.y ? -200 : 200);

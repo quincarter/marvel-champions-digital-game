@@ -80,6 +80,11 @@ import {
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
+import {
+  easierStartBriefingOf,
+  easierStartIsOn,
+  type EasierStartBriefing,
+} from "../../view/campaign-easier-start-model.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
@@ -93,6 +98,7 @@ import {
   type WaitingPanel,
 } from "../../view/campaign-modular-call-model.js";
 import { drawModularCall } from "./briefing-modular-call.js";
+import { drawEasierStart } from "./briefing-easier-start.js";
 import { drawMissionBriefing } from "./briefing-mission.js";
 import { drawSideSchemeCall, drawSideSchemeSettled, type SideSchemeDrawContext } from "./briefing-side-scheme.js";
 import {
@@ -544,6 +550,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
       );
     }
+    const easierStart = !seatCall && record.attempt ? this.#easierStartFor(record) : null;
     const missionBrief = !seatCall ? (view?.missions ?? null) : null;
     if (missionBrief && !schemeBeside) {
       const missionRect: Rect = {
@@ -553,6 +560,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
         height: Math.max(0, contentBottom - leftBottom - 20),
       };
       leftBottom = drawMissionBriefing(this.#schemeContext(missionRect, phone, stops), missionRect.y, missionBrief);
+    }
+    // Apocalypse's easier start (issue #3, standard mode): beside the decks on a wide screen, else under the section above.
+    if (easierStart && !schemeBeside) {
+      leftBottom = drawEasierStart(
+        this.#schemeContext({ ...leftRect, y: leftBottom + 20 }, phone, stops),
+        leftBottom + 20,
+        easierStart,
+        () => void this.#toggleEasierStart(),
+      );
     }
     if (this.#pending) {
       this.#drawYourCall(
@@ -580,14 +596,27 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (hasPool) this.#drawHandled(rightRect, view, stops);
       else {
         const decksBottom = this.#drawDecks(rightRect, view, stops);
+        let rightBottom = decksBottom;
         if (missionBrief) {
-          drawMissionBriefing(this.#schemeContext(rightRect, phone, stops), decksBottom + 24, missionBrief);
+          rightBottom = drawMissionBriefing(
+            this.#schemeContext(rightRect, phone, stops),
+            decksBottom + 24,
+            missionBrief,
+          );
         } else if (scheme) {
-          drawSideSchemeSettled(
+          rightBottom = drawSideSchemeSettled(
             this.#schemeContext(rightRect, phone, stops),
             decksBottom + 24,
             scheme,
             (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+          );
+        }
+        if (easierStart) {
+          drawEasierStart(
+            this.#schemeContext(rightRect, phone, stops),
+            rightBottom + 24,
+            easierStart,
+            () => void this.#toggleEasierStart(),
           );
         }
       }
@@ -687,6 +716,23 @@ export class CampaignBriefingScene extends Phaser.Scene {
         onPage: (direction) => this.#briefingRegion?.scrollByPx(direction * 400),
       });
     this.#route.set([...stops.keys()], stops);
+  }
+
+  /** The easier-start toggle for the composed issue (`view/campaign-easier-start-model.ts`): null when the issue does not offer it. */
+  #easierStartFor(record: CampaignRecord): EasierStartBriefing | null {
+    try {
+      return easierStartBriefingOf(record, campaignService().launchConfig(record));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Flips the toggle (stored on the run, off by default) and redraws; nothing is composed again. */
+  async #toggleEasierStart(): Promise<void> {
+    const record = this.#record;
+    if (!record?.attempt || this.#starting) return;
+    this.#record = await campaignService().setEasierStart(record, !easierStartIsOn(record));
+    if (this.sys.isActive()) this.#draw();
   }
 
   /** The lowest edge of everything drawn at the top level since `fromIndex`, graphics aside (they only frame text). */

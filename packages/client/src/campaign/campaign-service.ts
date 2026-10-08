@@ -34,6 +34,7 @@ import type { SessionConfig, SavedGame } from "../engine/host.js";
 import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
+import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
@@ -176,16 +177,21 @@ export class CampaignService {
     if (!attempt) return record;
     const { attempt: _dropped, ...rest } = record;
     const before = attempt.logBefore;
-    return this.#put(record, {
-      ...rest,
-      seats: withRemovedCardsOutOfDecks({ seats: before.seats, removedFromCampaign: record.removedFromCampaign }).seats,
-      shared: before.shared,
-      hidden: before.hidden,
-      // RRG 1.8 p. 29: a removal outlives even a retry, so it outlives an attempt that was never played.
-      removedFromCampaign: record.removedFromCampaign,
-      position: before.position,
-      rng: before.rng,
-    });
+    return this.#put(
+      record,
+      {
+        ...rest,
+        seats: withRemovedCardsOutOfDecks({ seats: before.seats, removedFromCampaign: record.removedFromCampaign })
+          .seats,
+        shared: before.shared,
+        hidden: before.hidden,
+        // RRG 1.8 p. 29: a removal outlives even a retry, so it outlives an attempt that was never played.
+        removedFromCampaign: record.removedFromCampaign,
+        position: before.position,
+        rng: before.rng,
+      },
+      { keepEasierStart: true },
+    );
   }
 
   /**
@@ -205,8 +211,29 @@ export class CampaignService {
 
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
   launchConfig(record: CampaignRecord): SessionConfig {
-    const config = campaignLaunchConfig(this.definitionFor(record), record);
+    const config = withEasierStart(campaignLaunchConfig(this.definitionFor(record), record), record);
     return record.tableRules ? { ...config, tableRules: record.tableRules } : config;
+  }
+
+  /**
+   * Switches Apocalypse's easier start on or off for the composed issue (the Briefing's toggle; off by default). Refused
+   * unless the composed issue offers it (Apocalypse, standard mode), so a stale tap changes nothing. Stored on the
+   * record for this node only, kept through a deck edit and dropped when the game is folded.
+   */
+  async setEasierStart(record: CampaignRecord, on: boolean): Promise<CampaignRecord> {
+    const attempt = record.attempt;
+    if (!attempt) throw new Error("compose the issue before choosing its start");
+    const offered = easierStartBriefingOf(record, campaignLaunchConfig(this.definitionFor(record), record));
+    if (!offered) throw new Error(`issue "${attempt.nodeId}" does not offer an easier start`);
+    if (easierStartIsOn(record) === on) return record;
+    const { easierStartNodeId: _off, ...rest } = record;
+    const next: CampaignRecord = {
+      ...rest,
+      ...(on ? { easierStartNodeId: attempt.nodeId } : {}),
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    return next;
   }
 
   /**
@@ -357,9 +384,25 @@ export class CampaignService {
     return next;
   }
 
-  async #put(previous: CampaignRecord, log: CampaignLog): Promise<CampaignRecord> {
+  /**
+   * `keepEasierStart`: the easier start rides along when the new log still holds that node's composed issue, or when no
+   * issue was composed on either side (a deck edit); a fold (an attempt before, none after) drops it, so a retry of the
+   * node starts with it off. A discarded attempt is composed again, so it passes the flag to keep it.
+   */
+  async #put(
+    previous: CampaignRecord,
+    log: CampaignLog,
+    options: { readonly keepEasierStart?: boolean } = {},
+  ): Promise<CampaignRecord> {
+    const keepEasierStart =
+      previous.easierStartNodeId !== undefined &&
+      (options.keepEasierStart === true ||
+        log.attempt?.nodeId === previous.easierStartNodeId ||
+        (!log.attempt && !previous.attempt));
+    // The runner spreads the whole record into the log it returns, so a stale flag must be taken off before it is decided.
+    const { easierStartNodeId: _stale, ...bare } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId">;
     const next: CampaignRecord = {
-      ...log,
+      ...bare,
       recordSchema: previous.recordSchema,
       name: previous.name,
       box: previous.box,
@@ -367,6 +410,7 @@ export class CampaignService {
       updatedAt: this.#now(),
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
+      ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
     };
     await this.storage.put(next);
     return next;

@@ -8,11 +8,13 @@ import type { SetupDraft } from "./setup-draft.js";
 import {
   applySetupOption,
   effectiveHorsemanSides,
+  isSetChoiceRow,
   offerOf,
   optionActionsOf,
   reconcileWithOffer,
   setChipLabel,
   setupOptionRowsOf,
+  splitOptionRows,
 } from "./setup-options.js";
 
 const SET_NAMES = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
@@ -317,5 +319,34 @@ describe("what the engine gets", () => {
     expect(config).not.toHaveProperty("horsemanSides");
     const started = await new EngineSessionCore().start({ ...config });
     expect(started.snapshot.state).toBeDefined();
+  });
+});
+
+describe("the set choices folded into the difficulty row", () => {
+  test("splitOptionRows takes the Standard and Expert set rows out of the option cards and keeps every action", () => {
+    const expert = setDifficulty(draftFor("rhino"), "expert");
+    const rows = rowsOf(expert);
+    const { setChoices, cards } = splitOptionRows(rows);
+    expect(setChoices.map((row) => row.id)).toEqual(["standardSet", "expertSet"]);
+    expect(setChoices.every(isSetChoiceRow)).toBe(true);
+    expect(cards).toEqual([]);
+    // The focus order lists the same actions it did, in the same order.
+    expect(optionActionsOf([...setChoices, ...cards])).toEqual(optionActionsOf(rows));
+    // Expert set only while expert is the difficulty (reconcile is unchanged).
+    expect(splitOptionRows(rowsOf(draftFor("rhino"))).setChoices.map((row) => row.id)).toEqual(["standardSet"]);
+  });
+
+  test("the other options stay cards, in draw order, after the set rows", () => {
+    const { setChoices, cards } = splitOptionRows(rowsOf(draftFor("four-horsemen")));
+    expect(setChoices.map((row) => row.id)).toEqual(["standardSet"]);
+    expect(cards.map((row) => row.id)).toEqual(["horsemanSides"]);
+    expect(cards.every((row) => !isSetChoiceRow(row))).toBe(true);
+    const apocalypse = splitOptionRows(rowsOf(draftFor("apocalypse")));
+    expect(apocalypse.cards.map((row) => row.id)).toContain("easierStart");
+  });
+
+  test("the easier start shares a row with Gene Pool (a half-width card)", () => {
+    const row = rowsOf(draftFor("apocalypse")).find((r) => r.id === "easierStart")!;
+    expect(row.span).toBe(1);
   });
 });

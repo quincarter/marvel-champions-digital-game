@@ -91,8 +91,10 @@ import {
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   applySetupOption,
+  isSetChoiceRow,
   optionActionsOf,
   setupOptionRowsOf,
+  splitOptionRows,
   type OptionChip,
   type SetupOptionRow,
 } from "../view/setup-options.js";
@@ -101,8 +103,11 @@ import {
   COMPACT_FIRST_PLAYER_ROW_HEIGHT,
   COMPACT_GROUP_ROW_HEIGHT,
   COMPACT_GROUP_ROW_PREFIX,
+  COMPACT_GROUP_CELL_HEIGHT,
+  COMPACT_ROW_GAP,
   COMPACT_MODULAR_ROW_HEIGHT,
   COMPACT_SEED_ROW_HEIGHT,
+  COMPACT_SET_CHOICE_HEIGHT,
   GAME_SUMMARY_ROW_COUNT,
   compactOptionHeight,
   PANEL_HEADER_HEIGHT,
@@ -111,6 +116,11 @@ import {
   ROW_GAP,
   compactRowIndex,
   compactRowRects,
+  difficultySlotRect,
+  optionGroupsStacked,
+  OPTION_GROUPS_NAME_ZONE,
+  setChoiceRowRects,
+  SETS_INLINE_NAME_WIDTH,
   tableSetupCompactLayout,
   tableSetupLayout,
   type TableSetupCompactLayout,
@@ -165,6 +175,9 @@ interface CompactRowData {
   /** The Hood's own nine modular set candidates, by id — empty for every other scenario. */
   readonly hoodOptionById: ReadonlyMap<string, HoodModularSetOption>;
 }
+
+/** A Horseman's name beside its A/B pair: wide enough for "Pestilence" at the label size. */
+const HORSEMAN_LABEL_WIDTH = 72;
 
 export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
@@ -268,7 +281,6 @@ export class TableSetupScene extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
-    const difficultyCards = difficultyCardsFor(scenario);
 
     const deckOptions = this.#deckOptions();
     const seatedOptions = this.#draft.seats
@@ -282,7 +294,9 @@ export class TableSetupScene extends Phaser.Scene {
     const modularCap = scenario.modularSetCount ?? 1;
 
     // The setup options this scenario offers under the draft's difficulty and modular picks (`playableScenarioOffer`).
-    const optionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES);
+    const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES);
+    // The Standard / Expert set chips are folded into the difficulty row; the rest are cards under it.
+    const { setChoices, cards: optionRows } = splitOptionRows(allOptionRows);
     // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
     // The Hood's own "choose 7 modular encounter sets and set them aside" (§2.3, §3.18): empty for every other scenario.
@@ -296,6 +310,7 @@ export class TableSetupScene extends Phaser.Scene {
     let gameSummaryRows: readonly GameSummaryRow[] = [];
     let encounterDeckSize = 0;
     let preview: TableSetupPreview | null = null;
+    let previewStartStageIndex: number | undefined;
     if (players.length > 0) {
       const config = buildScenario(
         this.#draft.scenarioId,
@@ -306,6 +321,7 @@ export class TableSetupScene extends Phaser.Scene {
           tableRulesOf(appSession().settings),
         ),
       );
+      previewStartStageIndex = config.villainStartStageIndex;
       preview = tableSetupPreviewOf(config, scenario, this.#draft.difficulty, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
       compositionRows = compositionRowsOf(preview.encounterDeck);
       whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
@@ -313,6 +329,11 @@ export class TableSetupScene extends Phaser.Scene {
       gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
       encounterDeckSize = preview.encounterDeckSize;
     }
+    // The cards say where the game begins: Apocalypse's easier start moves the standard card's stage to I.
+    const difficultyCards = difficultyCardsFor(
+      scenario,
+      this.#draft.difficulty === "standard" && this.#draft.easierStart ? previewStartStageIndex : undefined,
+    );
 
     // Dev e2e hook (never referenced by product code): what the setup screen shows right now — each modular chip with
     // whether it is chosen, the picks in the order they were made, the two header counts and the summary rows — and
@@ -361,6 +382,7 @@ export class TableSetupScene extends Phaser.Scene {
         encounterDeckSize,
         preview,
         optionRows,
+        setChoices,
         hoodOptions,
       );
       return;
@@ -389,6 +411,8 @@ export class TableSetupScene extends Phaser.Scene {
       whatsInThereRows: whatsInThereRows.length,
       nemesisLines,
       optionSpans: optionRows.map((row) => row.span),
+      optionGroupCounts: optionRows.map((row) => (row.control.kind === "groups" ? row.control.groups.length : 0)),
+      setChoiceRows: setChoices.length,
       hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
       hoodSetCount: hoodOptions.length,
     });
@@ -465,9 +489,10 @@ export class TableSetupScene extends Phaser.Scene {
       "Difficulty",
       bodyColor,
     );
-    this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.wide);
-    // The setup-option cards (Standard/Expert set, Gene Pool threat, Horsemen's sides, easier start), a two-column
-    // grid under Difficulty: one card per choice the scenario offers, none for a scenario with none.
+    this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.difficultySlots);
+    if (setChoices.length > 0) this.#drawSetsCard(layout.setsCard, setChoices, layout.setsInline);
+    // The setup-option cards (Gene Pool threat, Horsemen's sides, easier start), a two-column grid under Difficulty:
+    // one card per choice the scenario offers, none for a scenario with none.
     optionRows.forEach((row, index) => {
       const rect = layout.optionCards[index];
       if (rect) this.#drawOptionCard(rect, row, false);
@@ -636,7 +661,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#route?.set(
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
-        optionActions: optionActionsOf(optionRows),
+        optionActions: optionActionsOf(allOptionRows),
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
         hoodSetIds: hoodOptions.map((o) => o.id),
@@ -669,6 +694,7 @@ export class TableSetupScene extends Phaser.Scene {
     encounterDeckSize: number,
     preview: TableSetupPreview | null,
     optionRows: readonly SetupOptionRow[],
+    setChoices: readonly SetupOptionRow[],
     hoodOptions: readonly HoodModularSetOption[],
   ): void {
     this.#compactRegion?.destroy();
@@ -699,9 +725,12 @@ export class TableSetupScene extends Phaser.Scene {
       candidateModularIds: modularOptions.map((o) => o.id),
       candidateModularEntries: modularEntries,
       modularHeaderRightLabel: modularRightLabel,
-      optionRows: optionRows.map((row) => ({
+      // The set choices keep their rows (a name and 44px chips each); the other options follow, as before.
+      optionRows: [...setChoices, ...optionRows].map((row) => ({
         id: row.id,
-        height: compactOptionHeight(row.control.kind, row.control.kind === "groups" ? row.control.groups.length : 1),
+        height: isSetChoiceRow(row)
+          ? COMPACT_SET_CHOICE_HEIGHT
+          : compactOptionHeight(row.control.kind, row.control.kind === "groups" ? row.control.groups.length : 1),
       })),
       hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
       hoodSetIds: hoodOptions.map((o) => o.id),
@@ -742,7 +771,7 @@ export class TableSetupScene extends Phaser.Scene {
       compositionRows,
       whatsInThereRows,
       nemesisStandby,
-      optionById: new Map(optionRows.map((row) => [row.id, row])),
+      optionById: new Map([...setChoices, ...optionRows].map((row) => [row.id, row])),
       hoodOptionById,
     };
 
@@ -788,7 +817,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#route?.set(
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
-        optionActions: optionActionsOf(optionRows),
+        optionActions: optionActionsOf([...setChoices, ...optionRows]),
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
         modularStopIds: modularEntries.map((e) => (e.kind === "group" ? `modulargroup:${e.id}` : `modular:${e.id}`)),
@@ -902,7 +931,10 @@ export class TableSetupScene extends Phaser.Scene {
     }
     if (id.startsWith("option:")) {
       const row = data.optionById.get(id.slice("option:".length));
-      if (row) this.#drawOptionCard(rect, row, true, id);
+      // The row's height includes the gap to the next one; the card itself stops short of it.
+      const card: Rect = { ...rect, height: rect.height - COMPACT_ROW_GAP };
+      if (row && isSetChoiceRow(row)) this.#drawCompactSetRow(card, row, id);
+      else if (row) this.#drawOptionCard(card, row, true, id);
       return;
     }
     if (id === "towerDefenseSetupDamage") {
@@ -1454,23 +1486,14 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   /**
-   * DIFFICULTY: up to three equal-width cards (Heroic stays out of scope, §4), each with a real description
-   * wrapped to as many lines as it needs. Wide reserves a third empty slot even at two real cards (D05's own
-   * shape); narrow sizes cards to exactly `cards.length` instead — reserving a third of the row for nothing
-   * would leave a real description ("Standard encounter set only. Starts at stage I.") only ~110px to wrap into,
-   * clipping mid-sentence on a phone (`docs/design-renders` fidelity pass, 2026-09-18).
+   * DIFFICULTY: equal-width cards (Heroic stays out of scope, §4), each with a real description wrapped to as many
+   * lines as it needs. `slots` is how many equal slots the row has (`TableSetupLayout.difficultySlots`): the cards and,
+   * when the scenario offers Standard or Expert set choices, the card that holds their chips in the spare slot
+   * (`#drawSetsCard`) — the owner's 2026-10-08 decision, so those choices cost no row of their own.
    */
-  #drawDifficultyRow(rect: Rect, cards: readonly DifficultyCard[], wide: boolean): void {
-    const slots = wide ? Math.max(3, cards.length) : cards.length;
-    const gap = 12;
-    const slotWidth = (rect.width - gap * (slots - 1)) / slots;
+  #drawDifficultyRow(rect: Rect, cards: readonly DifficultyCard[], slots: number): void {
     cards.forEach((card, index) => {
-      const cardRect: Rect = {
-        x: rect.x + index * (slotWidth + gap),
-        y: rect.y,
-        width: slotWidth,
-        height: rect.height,
-      };
+      const cardRect = difficultySlotRect(rect, slots, index);
       const selected = this.#draft.difficulty === card.id;
       const onClick = (): void => {
         this.#draft = setDifficulty(this.#draft, card.id);
@@ -1522,52 +1545,8 @@ export class TableSetupScene extends Phaser.Scene {
       this.#draft = applySetupOption(this.#draft, action);
       this.#rebuild();
     };
-    // A chip is a quiet button (hover, focus, click) under a drawn segment: ink fill and paper text when chosen, paper
-    // and ink otherwise, the way the phone's difficulty segments read; never color alone.
-    const chipButton = (chip: OptionChip, chipRect: Rect): void => {
-      const onClick = act(chip.action);
-      // A chip that cannot be pressed (a stepper at its end) is drawn but is not a button or a focus stop.
-      if (chip.enabled) {
-        this.#buttons.push(
-          new McButton(this, {
-            kind: "quiet",
-            label: "",
-            type: typeRole.label,
-            rect: chipRect,
-            onClick,
-            ...buttonOptions,
-          }),
-        );
-        stopFor(`option:${chip.action}`, chipRect, onClick);
-      }
-      const g = this.add.graphics();
-      g.fillStyle(chip.selected ? surface.ink.hex : surface.card.hex, chip.enabled ? 1 : 0.5).fillRect(
-        chipRect.x,
-        chipRect.y,
-        chipRect.width,
-        chipRect.height,
-      );
-      g.lineStyle(2, surface.ink.hex, chip.enabled ? 1 : ink.disabled).strokeRect(
-        chipRect.x + 1,
-        chipRect.y + 1,
-        chipRect.width - 2,
-        chipRect.height - 2,
-      );
-      const size = Math.max(14, Math.min(22, chipRect.height - 8));
-      const text = this.add
-        .text(
-          chipRect.x + chipRect.width / 2,
-          chipRect.y + chipRect.height / 2,
-          chip.label,
-          textStyle(
-            { ...typeRole.sectionHeader, size },
-            chip.selected ? surface.paper.hex : surface.ink.hex,
-            chip.enabled ? 1 : ink.disabled,
-          ),
-        )
-        .setOrigin(0.5);
-      fitText(text, chipRect.width - 8, size);
-    };
+    const chipButton = (chip: OptionChip, chipRect: Rect): void =>
+      this.#chipButton(chip, chipRect, buttonOptions, stopFor);
 
     const dim = row.active ? 1 : ink.secondary;
     const control = row.control;
@@ -1596,7 +1575,7 @@ export class TableSetupScene extends Phaser.Scene {
     const nameWidth = stacked
       ? rect.width - 20
       : control.kind === "groups" && control.groups.length > 1
-        ? 130
+        ? OPTION_GROUPS_NAME_ZONE
         : Math.min(170, rect.width * 0.4);
     const name = this.#cardName(rect.x + 10, rect.y + (stacked ? 6 : 8), nameWidth - (stacked ? 0 : 6), row.name, dim);
     if (row.meta.length > 0 && !stacked)
@@ -1652,29 +1631,177 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
 
-    // Several groups (the Horsemen): a label over each A/B pair, in a single row (wide) or two by two (phone).
+    // Several groups (the Horsemen): each Horseman's A/B pair as two full 44px chips. The label sits beside the pair when
+    // the card is wide enough (one row of four), else over it (the phone's two by two, or a narrower card).
+    const overChips = stacked || optionGroupsStacked(rect.width, groups.length);
     const perRow = stacked ? 2 : groups.length;
     const cellGap = 12;
     const cellWidth = (zone.width - cellGap * (perRow - 1)) / perRow;
-    const cellHeight = stacked ? 60 : zone.height;
+    const cellHeight = stacked ? COMPACT_GROUP_CELL_HEIGHT : zone.height;
     groups.forEach((group, index) => {
       const column = index % perRow;
       const line = Math.floor(index / perRow);
       const cellX = zone.x + column * (cellWidth + cellGap);
       const cellY = zone.y + line * cellHeight;
-      const labelText = this.add.text(
-        cellX,
-        cellY - (stacked ? 0 : 2),
-        group.label ?? "",
-        textStyle(typeRole.label, surface.ink.hex, ink.label),
-      );
-      fitText(labelText, cellWidth, typeRole.label.size);
-      const chipTop = cellY + 14;
-      const chipHeight = (stacked ? cellHeight - 18 : zone.height - 16) - (stacked ? 4 : 0);
+      const chipSize = hit.target;
+      const chipGap = 4;
+      const pairWidth = overChips ? cellWidth : chipSize * 2 + chipGap;
+      const chipWidth = (pairWidth - chipGap * (group.chips.length - 1)) / group.chips.length;
+      const labelRect: Rect = overChips
+        ? { x: cellX, y: cellY, width: cellWidth, height: 14 }
+        : { x: cellX, y: cellY, width: HORSEMAN_LABEL_WIDTH, height: chipSize };
+      const labelText = this.add
+        .text(
+          overChips ? labelRect.x : labelRect.x + labelRect.width,
+          overChips ? labelRect.y : labelRect.y + (labelRect.height - typeRole.label.size) / 2 - 2,
+          group.label ?? "",
+          textStyle(typeRole.label, surface.ink.hex, ink.label),
+        )
+        .setOrigin(overChips ? 0 : 1, 0);
+      fitText(labelText, labelRect.width, typeRole.label.size);
+      const chipTop = overChips ? cellY + 16 : cellY;
+      const chipsLeft = overChips ? cellX : cellX + HORSEMAN_LABEL_WIDTH + 4;
       group.chips.forEach((chip, chipIndex) => {
-        const chipWidth = (cellWidth - 4) / group.chips.length;
-        chipButton(chip, { x: cellX + chipIndex * (chipWidth + 4), y: chipTop, width: chipWidth, height: chipHeight });
+        chipButton(chip, {
+          x: chipsLeft + chipIndex * (chipWidth + chipGap),
+          y: chipTop,
+          width: chipWidth,
+          height: chipSize,
+        });
       });
+    });
+  }
+
+  /**
+   * The Standard and Expert set choices, folded into the difficulty row's spare slot (or a strip under the cards when
+   * the row has none): one line per set, its name beside (a wide slot) or over its chips, every chip a full 44px target.
+   * The chips are the same action strings `applySetupOption` takes, so the choices behave as the option cards did.
+   */
+  #drawSetsCard(card: Rect, rows: readonly SetupOptionRow[], inline: boolean): void {
+    this.#cardFrame(
+      card,
+      rows.some((row) => row.active),
+    );
+    setChoiceRowRects(card, rows.length, inline).forEach((rects, index) => {
+      const row = rows[index];
+      if (!row || row.control.kind !== "groups") return;
+      const size = inline ? 16 : 14;
+      const name = this.add.text(
+        rects.name.x + 2,
+        rects.name.y + (inline ? (rects.name.height - size) / 2 - 2 : -2),
+        row.name,
+        textStyle({ ...typeRole.sectionHeader, size }, surface.ink.hex, row.active ? 1 : ink.secondary),
+      );
+      fitText(name, rects.name.width - 4, size);
+      const chips = row.control.groups[0]!.chips;
+      const gap = 6;
+      const chipWidth = Math.min(80, (rects.chips.width - gap * (chips.length - 1)) / chips.length);
+      const total = chipWidth * chips.length + gap * (chips.length - 1);
+      const startX = rects.chips.x + rects.chips.width - total;
+      chips.forEach((chip, chipIndex) => {
+        this.#chipButton(
+          chip,
+          { x: startX + chipIndex * (chipWidth + gap), y: rects.chips.y, width: chipWidth, height: rects.chips.height },
+          {},
+          (key, chipRect, activate) => this.#stops.set(key, { rect: chipRect, activate }),
+        );
+      });
+    });
+  }
+
+  /**
+   * A chip is a quiet button (hover, focus, click) under a drawn segment: ink fill and paper text when chosen, paper and
+   * ink otherwise, the way the phone's difficulty segments read; never color alone. A chip that cannot be pressed (a
+   * stepper at its end) is drawn but is not a button or a focus stop.
+   */
+  #chipButton(
+    chip: OptionChip,
+    chipRect: Rect,
+    buttonOptions: { clip?: () => Rect | null; suppressClick?: () => boolean },
+    stopFor: (key: string, controlRect: Rect, activate: () => void) => void,
+  ): void {
+    const onClick = (): void => {
+      this.#draft = applySetupOption(this.#draft, chip.action);
+      this.#rebuild();
+    };
+    if (chip.enabled) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: chipRect,
+          onClick,
+          ...buttonOptions,
+        }),
+      );
+      stopFor(`option:${chip.action}`, chipRect, onClick);
+    }
+    const g = this.add.graphics();
+    g.fillStyle(chip.selected ? surface.ink.hex : surface.card.hex, chip.enabled ? 1 : 0.5).fillRect(
+      chipRect.x,
+      chipRect.y,
+      chipRect.width,
+      chipRect.height,
+    );
+    g.lineStyle(2, surface.ink.hex, chip.enabled ? 1 : ink.disabled).strokeRect(
+      chipRect.x + 1,
+      chipRect.y + 1,
+      chipRect.width - 2,
+      chipRect.height - 2,
+    );
+    const size = Math.max(14, Math.min(22, chipRect.height - 8));
+    const text = this.add
+      .text(
+        chipRect.x + chipRect.width / 2,
+        chipRect.y + chipRect.height / 2,
+        chip.label,
+        textStyle(
+          { ...typeRole.sectionHeader, size },
+          chip.selected ? surface.paper.hex : surface.ink.hex,
+          chip.enabled ? 1 : ink.disabled,
+        ),
+      )
+      .setOrigin(0.5);
+    fitText(text, chipRect.width - 8, size);
+  }
+
+  /** A Standard / Expert set row on the phone: a framed card with the name at the left and a full 44px chip row at the right. */
+  #drawCompactSetRow(card: Rect, row: SetupOptionRow, scrollId: string): void {
+    if (row.control.kind !== "groups") return;
+    this.#cardFrame(card, row.active);
+    const nameWidth = SETS_INLINE_NAME_WIDTH;
+    const name = this.#cardName(
+      card.x + 10,
+      card.y + (card.height - 22) / 2,
+      nameWidth - 10,
+      row.name,
+      row.active ? 1 : ink.secondary,
+    );
+    name.setFontSize(16);
+    fitText(name, nameWidth - 10, 16);
+    const chips = row.control.groups[0]!.chips;
+    const zone: Rect = {
+      x: card.x + nameWidth,
+      y: card.y + (card.height - hit.target) / 2,
+      width: card.width - nameWidth - 8,
+      height: hit.target,
+    };
+    const gap = 6;
+    const chipWidth = Math.min(80, (zone.width - gap * (chips.length - 1)) / chips.length);
+    const total = chipWidth * chips.length + gap * (chips.length - 1);
+    chips.forEach((chip, index) => {
+      this.#chipButton(
+        chip,
+        {
+          x: zone.x + zone.width - total + index * (chipWidth + gap),
+          y: zone.y,
+          width: chipWidth,
+          height: zone.height,
+        },
+        { clip: this.#compactClip, suppressClick: this.#compactSuppressClick },
+        (key, chipRect, activate) => this.#stops.set(key, this.#compactStop(chipRect, activate, scrollId)),
+      );
     });
   }
 
