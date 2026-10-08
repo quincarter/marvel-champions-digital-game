@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { createGame, scale } from "@mc/engine";
+import { encounterDeckPreviewOf } from "./encounter-preview.js";
 import {
   compositionRowsOf,
   difficultyCardsFor,
@@ -104,14 +105,72 @@ describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
     expect(standby!.totalCards).toBeGreaterThan(0);
   });
 
-  test("Breakout uses no identity sets, so there's nothing held back", () => {
+  test("Breakout uses no obligations; its nemesis sets are only set aside", () => {
     const breakoutConfig = buildScenario("breakout", {
       difficulty: "standard",
       players: [{ starterDeckId: "core-spider-man-justice" }],
       seed: 1,
     });
     const breakoutPreview = tableSetupPreviewOf(breakoutConfig, breakout, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    expect(nemesisStandbyOf(breakoutPreview.encounterDeck)).toBeNull();
+    expect(breakoutPreview.encounterDeck.obligationsShuffledIn).toHaveLength(0);
+    const standby = nemesisStandbyOf(breakoutPreview.encounterDeck);
+    expect(standby === null || standby.sentence.includes("set aside")).toBe(true);
+  });
+});
+
+describe("no obligations, nemesis held back (The Wrecking Crew)", () => {
+  const base = tableSetupPreviewOf(
+    buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    }),
+    rhino,
+    "standard",
+    CARDS_BY_ID,
+    POOL_ENCOUNTER_SETS,
+  );
+  const wrecking = { ...base, obligationsCount: 0, nemesisHeldBackCount: 1 };
+
+  test("Obligations reads none and the nemesis row is shown", () => {
+    const rows = gameSummaryRowsOf(wrecking);
+    expect(rows.find((r) => r.label === "Obligations")?.value).toBe("none");
+    expect(rows.find((r) => r.label === "Nemesis sets")?.value).toBe("1 held back");
+    expect(gameSummaryRowsOf(base).some((r) => r.label === "Nemesis sets")).toBe(false);
+  });
+
+  test("the standby sentence does not promise an obligation", () => {
+    const standby = nemesisStandbyOf({ ...base.encounterDeck, obligationsShuffledIn: [] });
+    expect(standby?.sentence).toContain("set aside");
+    expect(standby?.sentence).not.toContain("obligation");
+  });
+});
+
+describe("encounterDeckPreviewOf honors includeNemesisSets", () => {
+  const config = buildScenario("rhino", {
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 1,
+  });
+  test("identity sets off, nemesis sets on: held back, no obligations", () => {
+    const preview = encounterDeckPreviewOf(
+      { ...config, includeIdentitySets: false, includeNemesisSets: true },
+      [...CARDS_BY_ID.values()],
+      POOL_ENCOUNTER_SETS,
+    );
+    expect(preview.obligationsShuffledIn).toHaveLength(0);
+    expect(preview.nemesisSetsHeldBack.length).toBeGreaterThan(0);
+  });
+  test("both off: neither; default: both", () => {
+    const off = encounterDeckPreviewOf(
+      { ...config, includeIdentitySets: false },
+      [...CARDS_BY_ID.values()],
+      POOL_ENCOUNTER_SETS,
+    );
+    expect(off.nemesisSetsHeldBack).toHaveLength(0);
+    const on = encounterDeckPreviewOf(config, [...CARDS_BY_ID.values()], POOL_ENCOUNTER_SETS);
+    expect(on.obligationsShuffledIn.length).toBeGreaterThan(0);
+    expect(on.nemesisSetsHeldBack.length).toBeGreaterThan(0);
   });
 });
 

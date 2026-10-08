@@ -26,7 +26,7 @@ import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { divideSheetOf } from "../view/divide-sheet.js";
-import { paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
+import { chosenResourcesNoteOf, paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
@@ -512,7 +512,8 @@ export class ChoiceOverlay extends Phaser.Scene {
         ? lookAtAdvisoryOf(state.game, choice)
         : isBreakChoice(choice)
           ? ""
-          : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
+          : (chosenResourcesNoteOf(choice.prompt) ??
+            `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`),
       typeRole.label,
       surface.ink.hex,
       ink.label,

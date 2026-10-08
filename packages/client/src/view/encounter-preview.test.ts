@@ -116,8 +116,8 @@ describe("encounterDeckPreviewOf: Breakout (multiple villains, no obligations/ne
     }
   });
 
-  test("no obligations or nemesis sets — The Wrecking Crew insert turns both off", () => {
+  test("no obligations; nemesis sets are set aside (`includeNemesisSets`, Wrecking Crew)", () => {
     expect(preview.obligationsShuffledIn).toEqual([]);
-    expect(preview.nemesisSetsHeldBack).toEqual([]);
+    expect(preview.nemesisSetsHeldBack.length).toBe(config.includeNemesisSets === false ? 0 : 1);
   });
 });

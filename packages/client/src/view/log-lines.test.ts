@@ -424,3 +424,36 @@ describe("game log: abilityResolved", () => {
     expect(texts).toContain("Master of the Mystic Arts — pay a card's printed cost.");
   });
 });
+
+describe("wave 8 rows 79 and 82 log lines", () => {
+  const state = { instances: {}, players: [], stack: [] } as unknown as GameState;
+  const line = (event: unknown): string | undefined => logLine(event as GameEvent, state, null, POOL_DEPS)?.text;
+
+  test("which resources paid", () => {
+    const text = line({
+      type: "paidResourcesChosen",
+      playerId: "p1",
+      instanceId: "i1",
+      paidAs: { physical: 1, mental: 1, energy: 0, wild: 0 },
+      overpaidAs: { physical: 0, mental: 0, energy: 1, wild: 0 },
+    });
+    expect(text).toContain("1 physical, 1 mental");
+    expect(text).toContain("1 energy overpaid");
+  });
+
+  test("a divided basic power names each share", () => {
+    const text = line({
+      type: "basicPowerInstructed",
+      playerId: "p1",
+      characterInstanceId: "c1",
+      power: "attack",
+      targetInstanceId: "e1",
+      sourceInstanceId: null,
+      divide: [
+        { targetInstanceId: "e1", amount: 2 },
+        { targetInstanceId: "e2", amount: 1 },
+      ],
+    });
+    expect(text).toMatch(/attacks .* 2, .* 1\./);
+  });
+});

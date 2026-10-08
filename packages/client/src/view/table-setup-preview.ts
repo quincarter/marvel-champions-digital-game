@@ -92,6 +92,8 @@ export interface TableSetupPreview {
   /** "19 cards", or for Mojo "19 cards + 1 set" (1B shuffles a set-aside set in). */
   readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
+  /** Heroes whose nemesis sets are set aside (shown when no obligations are in the deck, so "none" does not read as "no nemesis"). */
+  readonly nemesisHeldBackCount: number;
   /**
    * The modular sets this scenario sets aside, by name, in the order they came out (MojoMania's Mojo: 1 + 1 per hero genre
    * sets, picked or drawn at random from the seed). Empty for every scenario without a modular set pool.
@@ -219,7 +221,11 @@ export function nemesisStandbyOf(encounterDeck: EncounterDeckPreview): NemesisSt
   const names = encounterDeck.nemesisSetsHeldBack.map((n) => n.heroName);
   const totalCards = encounterDeck.nemesisSetsHeldBack.reduce((sum, n) => sum + n.cardCount, 0);
   return {
-    sentence: `${joinWithAnd(names)}'s nemesis cards stay out of the deck until an obligation pulls them in.`,
+    // With no obligation in the deck (The Wrecking Crew) nothing pulls them in: they are only set aside.
+    sentence:
+      encounterDeck.obligationsShuffledIn.length === 0
+        ? `${joinWithAnd(names)}'s nemesis cards are set aside, not in the deck.`
+        : `${joinWithAnd(names)}'s nemesis cards stay out of the deck until an obligation pulls them in.`,
     totalCards,
   };
 }
@@ -255,7 +261,13 @@ export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: Table
     { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
     { label: "Encounter deck", value: preview.encounterDeckSizeText },
-    { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
+    {
+      label: "Obligations",
+      value: preview.obligationsCount === 0 ? "none" : `${preview.obligationsCount} shuffled in`,
+    },
+    ...(preview.obligationsCount === 0 && preview.nemesisHeldBackCount > 0
+      ? [{ label: "Nemesis sets", value: `${preview.nemesisHeldBackCount} held back` }]
+      : []),
     ...preview.addedSets.map((set) => ({
       label: "Added set",
       value: `${set.name} · ${set.why}${set.setAside > 0 ? ` · ${set.setAside} set aside` : ""}`,
@@ -379,6 +391,7 @@ export function tableSetupPreviewOf(
       encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
     ),
     obligationsCount: encounterDeck.obligationsShuffledIn.length,
+    nemesisHeldBackCount: encounterDeck.nemesisSetsHeldBack.length,
     setAsideSetNames: scenario.modularSetPool
       ? (config.setAsideModularSets ?? []).map(
           (set) =>

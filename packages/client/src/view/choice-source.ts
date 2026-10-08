@@ -106,6 +106,10 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
   if (prompt.kind === "declareDefender") {
     return { instanceId: prompt.attack.enemyInstanceId, abilityId: null };
   }
+  // Which resources paid (wave 8 row 79): the prompt names the card (or its ability) the payment was for.
+  if (prompt.kind === "choosePaidResources") {
+    return { instanceId: prompt.instanceId, abilityId: prompt.abilityId ?? null };
+  }
 
   const frame = frameOf(state, choice);
   if (!frame) return null;
@@ -324,8 +328,13 @@ export function basicPowerTitleOf(powers: readonly ("attack" | "thwart")[]): str
 }
 
 /** The target half of a card-instructed basic power (`chooseBasicPowerTarget`). */
-export const basicPowerTargetTitleOf = (power: "attack" | "thwart"): string =>
-  power === "thwart" ? "Choose a scheme to thwart" : "Choose an enemy to attack";
+export const basicPowerTargetTitleOf = (power: "attack" | "thwart", mayDivide?: boolean): string => {
+  const base = power === "thwart" ? "Choose a scheme to thwart" : "Choose an enemy to attack";
+  return mayDivide ? `${base}, or several to divide` : base;
+};
+
+/** "Which resources paid?" (`choosePaidResources`, wave 8 row 79): the sets differ to a card reading the payment. */
+export const CHOOSE_PAID_RESOURCES_TITLE = "Which resources paid?";
 
 /** "Choose what your wild counts as" (`declareWildTypes`, wave 8 §3.62): one declaration for each wild paid. */
 export const declareWildTypesTitleOf = (wilds: number): string =>
@@ -394,7 +403,11 @@ export function promptTitleOf(
     const amount = prompt.mode === "damage" ? deps.abilities[prompt.abilityId]?.cost?.damageCards?.amount : undefined;
     return costCardsPromptTitleOf(prompt.mode, amount);
   }
-  if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+  if (kind === "divide") {
+    const base = dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+    return prompt.eachAtLeast === undefined ? base : `${base}, at least ${prompt.eachAtLeast} each`;
+  }
+  if (kind === "choosePaidResources") return CHOOSE_PAID_RESOURCES_TITLE;
   if (kind === "pairCards") return PAIR_CARDS_TITLE;
   if (kind === "chooseTarget" && prompt.slot === DAMAGE_POOL_SLOT) {
     return damagePoolTitleOf("target", counts ? damagePoolLeft(state, counts) : null);
@@ -422,7 +435,7 @@ export function promptTitleOf(
     if (destination) return destination;
   }
   if (kind === "chooseBasicPower") return basicPowerTitleOf(prompt.powers);
-  if (kind === "chooseBasicPowerTarget") return basicPowerTargetTitleOf(prompt.power);
+  if (kind === "chooseBasicPowerTarget") return basicPowerTargetTitleOf(prompt.power, prompt.mayDivide === true);
   if (kind === "declareWildTypes") return declareWildTypesTitleOf(prompt.wilds);
   if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
   // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.

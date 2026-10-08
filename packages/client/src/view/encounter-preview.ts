@@ -149,13 +149,17 @@ export function encounterDeckPreviewOf(
   const obligationsShuffledIn: ObligationShuffledIn[] = [];
   // RRG 1.8 Appendix II, steps 4–5 — off entirely for a scenario that says so (The Wrecking Crew insert: "Nemesis
   // cards and obligations are not used when playing this scenario"). Default true, matching `Scenario.usesIdentityEncounterSets`'s own doc comment.
-  if (config.includeIdentitySets !== false) {
+  // `includeNemesisSets` is the nemesis half on its own (default: as `includeIdentitySets`); The Wrecking Crew sets
+  // nemesis sets aside while using no obligations.
+  const withObligations = config.includeIdentitySets !== false;
+  const withNemesis = config.includeNemesisSets ?? withObligations;
+  if (withObligations || withNemesis) {
     for (const player of config.players) {
       const identity = byId.get(player.identityCardId as string);
       if (!identity || identity.type !== "hero_identity") continue;
       const heroIdentity: HeroIdentityCard = identity;
 
-      const obligation = byId.get(heroIdentity.obligationCardId as string);
+      const obligation = withObligations ? byId.get(heroIdentity.obligationCardId as string) : undefined;
       if (obligation) {
         obligationsShuffledIn.push({
           identityCardId: heroIdentity.id,
@@ -170,7 +174,7 @@ export function encounterDeckPreviewOf(
         (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(nemesisSetId),
       );
       const cardCount = nemesisCards.reduce((sum, card) => sum + card.quantityInSet, 0);
-      if (cardCount > 0) {
+      if (withNemesis && cardCount > 0) {
         nemesisSetsHeldBack.push({
           identityCardId: heroIdentity.id,
           heroName: qualifiedHeroName(heroIdentity),

@@ -760,11 +760,19 @@ function describe(
         voice: "player",
       };
     // docs/phase7-wave8.md §3.64: a card has a player make a basic attack or thwart.
-    case "basicPowerInstructed":
+    case "basicPowerInstructed": {
+      const from = `${event.sourceInstanceId ? `${card(event.sourceInstanceId)}: ` : ""}${card(event.characterInstanceId)}`;
+      const verbWord = event.power === "attack" ? "attacks" : "thwarts";
+      // Owner row 82: a divided basic power names each share ("Spider-Man attacks Rhino 2, Vulture 1").
+      if (event.divide && event.divide.length > 1) {
+        const shares = event.divide.map((share) => `${card(share.targetInstanceId)} ${share.amount}`).join(", ");
+        return { text: `${from} ${verbWord} ${shares}.`, voice: "player" };
+      }
       return {
-        text: `${event.sourceInstanceId ? `${card(event.sourceInstanceId)}: ` : ""}${card(event.characterInstanceId)} ${event.power === "attack" ? "attacks" : "thwarts"} ${card(event.targetInstanceId)}${event.useAtk ? " with ATK" : ""}.`,
+        text: `${from} ${verbWord} ${card(event.targetInstanceId)}${event.useAtk ? " with ATK" : ""}.`,
         voice: "player",
       };
+    }
     case "basicPowerNotMade":
       return {
         text: `${event.sourceInstanceId ? `${card(event.sourceInstanceId)}: ` : ""}${
@@ -833,6 +841,15 @@ function describe(
         text: `${who(event.playerId)} ${verb(event.playerId, "count", "counts")} the wild${event.declared.length === 1 ? "" : "s"} as ${event.declared.join(", ")}.`,
         voice: "player",
       };
+    // Owner row 79: the player said which resources of a payment were the paid ones; the rest is overpaid.
+    case "paidResourcesChosen": {
+      const paid = poolWords(event.paidAs);
+      const over = poolWords(event.overpaidAs);
+      return {
+        text: `${who(event.playerId)} paid ${card(event.instanceId)} with ${paid}${over ? `; ${over} overpaid` : ""}.`,
+        voice: "player",
+      };
+    }
     // docs/phase7-wave8.md §3.11: "resolve its 'Forced Response' / 'Special' →" as the cost.
     case "resolveAbilityCostSettled": {
       const what = event.trigger === "special" ? "Special" : "Forced Response";
@@ -1057,3 +1074,11 @@ const outcomeText = (
       return "Every hero is defeated. You lose.";
   }
 };
+
+/** "1 physical, 1 mental" for a resource pool (zero entries left out); empty for an empty pool. */
+function poolWords(pool: Readonly<Record<"physical" | "mental" | "energy" | "wild", number>>): string {
+  return (["physical", "mental", "energy", "wild"] as const)
+    .filter((type) => pool[type] > 0)
+    .map((type) => `${pool[type]} ${type}`)
+    .join(", ");
+}

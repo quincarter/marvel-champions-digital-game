@@ -296,11 +296,19 @@ export function stackRowLabel(state: GameState, entry: StackEntry): string {
 }
 
 function stackRowsOf(state: GameState): readonly DefendStackRowView[] {
-  return stackEntries(state).map((entry) => ({
-    frameId: entry.frameId,
-    label: stackRowLabel(state, entry),
-    openWindow: entry.openWindow,
-  }));
+  // A `framePushed` may name a frame id already known (an attack opened early, then taken over): one row per frame.
+  const seen = new Set<unknown>();
+  return stackEntries(state)
+    .filter((entry) => {
+      if (seen.has(entry.frameId)) return false;
+      seen.add(entry.frameId);
+      return true;
+    })
+    .map((entry) => ({
+      frameId: entry.frameId,
+      label: stackRowLabel(state, entry),
+      openWindow: entry.openWindow,
+    }));
 }
 
 /**

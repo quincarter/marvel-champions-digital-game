@@ -29,6 +29,19 @@ export interface PaymentSheetView {
   readonly confirmLabel: string;
   /** The separate way out: not paying means not using it. */
   readonly declineLabel: string;
+  /** Set for a chosen-size cost: "Pay 1 to 3. Up to 3 are spent; extra is overpaid." (selecting more than max is fine). */
+  readonly note: string | null;
+}
+
+/**
+ * The line under a chosen-size cost's title (`chosenResources`, wave 8 row 78): the selection is not capped at `max`;
+ * `max` are spent and anything beyond is overpaid. Null for a fixed-size payment.
+ */
+export function chosenResourcesNoteOf(prompt: PendingChoice["prompt"]): string | null {
+  if (prompt.kind !== "payForAbility" || !prompt.chosenResources) return null;
+  const { min, max } = prompt.chosenResources;
+  const spent = min === max ? `${max}` : `${min} to ${max}`;
+  return `Pay ${spent}. Up to ${max} are spent; extra is overpaid.`;
 }
 
 export const isPaymentSheet = (choice: Pick<PendingChoice, "prompt">): boolean =>
@@ -52,12 +65,24 @@ export function paymentSheetView(
         : 1;
   }
   const canConfirm = selected.length > 0 && pays(state, choice, selected, deps);
-  const missing = Math.max(1, prompt.cost - paid);
+  const chosen = prompt.kind === "payForAbility" ? prompt.chosenResources : undefined;
+  // A chosen-size cost has `cost` 0 and a floor of `min`; more than `max` is overpaid, never blocked.
+  const needed = chosen ? chosen.min : prompt.cost;
+  const missing = Math.max(1, needed - paid);
   return {
+    note: chosenResourcesNoteOf(prompt),
     cost: prompt.cost,
     paid,
     canConfirm,
-    confirmLabel: canConfirm ? (prompt.cost > 0 ? `Pay ${prompt.cost}` : "Pay") : `Pay ${missing} more`,
+    confirmLabel: canConfirm
+      ? chosen
+        ? paid > chosen.max
+          ? `Pay ${chosen.max}, overpay ${paid - chosen.max}`
+          : `Pay ${Math.max(paid, 1)}`
+        : prompt.cost > 0
+          ? `Pay ${prompt.cost}`
+          : "Pay"
+      : `Pay ${missing} more`,
     declineLabel: prompt.kind === "payForCard" ? "Don't play it" : "Don't use it",
   };
 }

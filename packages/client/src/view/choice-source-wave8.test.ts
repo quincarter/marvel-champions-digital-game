@@ -20,6 +20,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import {
+  choiceSourceOf,
   costCardsPromptTitleOf,
   playDestinationTitleOf,
   promptTitleOf,
@@ -50,6 +51,36 @@ describe("card-instructed basic power", () => {
     expect(title({ kind: "chooseBasicPowerTarget", power: "thwart", characterInstanceId: "x" })).toBe(
       "Choose a scheme to thwart",
     );
+  });
+});
+
+describe("wave 8 rows 78 to 82 prompts", () => {
+  test("a divisible basic power target says several may be picked", () => {
+    expect(title({ kind: "chooseBasicPowerTarget", power: "attack", characterInstanceId: "x", mayDivide: true })).toBe(
+      "Choose an enemy to attack, or several to divide",
+    );
+    expect(title({ kind: "chooseBasicPowerTarget", power: "thwart", characterInstanceId: "x", mayDivide: true })).toBe(
+      "Choose a scheme to thwart, or several to divide",
+    );
+  });
+
+  test("a divide with a floor names it", () => {
+    expect(title({ kind: "divide", what: "damage", amount: 3, eachAtLeast: 1 })).toBe(
+      "Divide 3 damage, at least 1 each",
+    );
+    expect(title({ kind: "divide", what: "damage", amount: 3 })).toBe("Divide 3 damage");
+  });
+
+  test("which resources paid", () => {
+    const pool = { physical: 1, mental: 1, energy: 0, wild: 0 };
+    const prompt = { kind: "choosePaidResources", instanceId: "i1", pool, paidCount: 2, sets: [pool] };
+    expect(title(prompt)).toBe("Which resources paid?");
+    const state = { stack: [] } as unknown as GameState;
+    expect(choiceSourceOf(state, { prompt, frameId: null } as never)).toEqual({ instanceId: "i1", abilityId: null });
+    expect(choiceSourceOf(state, { prompt: { ...prompt, abilityId: "a1" }, frameId: null } as never)).toEqual({
+      instanceId: "i1",
+      abilityId: "a1",
+    });
   });
 });
 
