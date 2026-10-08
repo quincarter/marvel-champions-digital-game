@@ -438,6 +438,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/apocalypse/battle.mp3": "Survival of the Fittest",
   "scenarios/apocalypse/villain-wins.mp3": "Age of Apocalypse",
   "scenarios/apocalypse/villain-loses.mp3": "Evolution Denied",
+  "scenarios/dark-beast/battle.mp3": "Twisted Evolution",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
