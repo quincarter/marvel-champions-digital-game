@@ -27,6 +27,7 @@ import {
   refsLiveUnderLastingBlank,
   resolveValue,
   type EffectContext,
+  reachOf,
 } from "./select.js";
 import type { AttackKeyword, StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -163,6 +164,7 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
         event: null,
         bindings: {},
         deps,
+        ...reachOf(definition),
       };
       for (const grant of definition.trigger.keywordGrants) {
         if (grant.while && !evaluate(state, grant.while, context)) continue;

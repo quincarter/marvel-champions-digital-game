@@ -107,6 +107,11 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
     }
     case "scenarioArea":
       return { ...state, scenarioAreas: { ...state.scenarioAreas, [zone.name]: ids } };
+    case "scenarioPlayArea": {
+      const area = state.scenarioPlayAreas?.[zone.name];
+      if (!area) throw new EngineInvariantError(`unknown scenario play area ${zone.name}`);
+      return { ...state, scenarioPlayAreas: { ...state.scenarioPlayAreas, [zone.name]: { ...area, cards: ids } } };
+    }
     case "villainArea":
       return { ...state, villainArea: ids };
     case "victoryDisplay":

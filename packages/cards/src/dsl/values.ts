@@ -217,6 +217,15 @@ export const query = (
 };
 
 /**
+ * "… at the mission", "… in the mission area" (MC45 p. 5; docs/phase7-wave8.md §3.33): `query("ally",
+ * inScenarioPlayArea("mission"))` is "an ally at the mission". Only cards in that in-play scenario area match, and this
+ * is how a query refers to a closed area: no other query matches a card there. Put it on the query itself, not inside
+ * `anyOf` or `not`.
+ */
+export const inScenarioPlayArea = (name: string): Pick<TargetQuery, "inScenarioPlayArea"> => ({
+  inScenarioPlayArea: name,
+});
+/**
  * "… with a printed cost of N or more": `query("event", printedCostAtLeast(3))` is "each event with a printed cost of
  * 3 or more" (Practiced Maneuvers, `next_evol` 40194b, as a `costModifier`'s `appliesTo`). The upper bound has no
  * builder: write `maxPrintedCost` in the same query, and the two select a band. The printed cost is compared, after

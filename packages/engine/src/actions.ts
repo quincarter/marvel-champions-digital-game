@@ -55,6 +55,8 @@ import {
   mayThwartWithAtk,
   patrolledBy,
   playerTraitLimitFault,
+  attachmentReachOf,
+  playDestinationsOf,
 } from "./rules.js";
 import {
   inPlayPicksOf,
@@ -130,6 +132,7 @@ import {
   showingResources,
   turnInProgress,
   villainOf,
+  inClosedScenarioPlayArea,
 } from "./query.js";
 import {
   announceStatusDiscarded,
@@ -3689,6 +3692,22 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     }
   }
 
+  // "Either play that ally into their game area …, or play it into the mission area" (`RuleSpec playDestination`,
+  // docs/phase7-wave8.md §3.34). Read after every check a play to the player's own area makes, so a card that cannot
+  // be played is refused for the same reason whichever destination was named.
+  if (command.into !== undefined) {
+    const area = command.into.scenarioPlayArea;
+    if (controllerId !== command.playerId) {
+      return engineError("no_valid_target", "a card played into that area is under no player's control", command);
+    }
+    if (
+      (card.type !== "ally" && card.type !== "support") ||
+      !playDestinationsOf(ctx.state, ctx.deps, command.cardInstanceId).includes(area)
+    ) {
+      return engineError("no_valid_target", "that card cannot be played into that area right now", command);
+    }
+  }
+
   let attachTo: InstanceId | null = null;
   if (card.type === "upgrade") {
     const ownIdentity = controller.identity.instanceId;
@@ -3707,6 +3726,8 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
         event: null,
         bindings: {},
         deps: ctx.deps,
+        // "Players may attach upgrades to allies in the mission area" (`RuleSpec playDestination.attachments`).
+        ...attachmentReachOf(ctx.state, ctx.deps, command.cardInstanceId),
       };
       if (!attachmentHostCandidates(ctx.state, card.attachesTo, context).includes(attachTo)) {
         return engineError("no_valid_target", `upgrade must attach to ${card.attachesTo.kind}`, command);
@@ -3774,6 +3795,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     triggeredAction(chosen),
     playFrameCost(priced),
     controllerId,
+    command.into?.scenarioPlayArea,
   );
   payCost(ctx, command.cardInstanceId, command.playerId, ability?.cost, priced.plan);
   const unpayable = thwartCostUnpayableAfterPaying(ctx, card.type === "event" ? ability : undefined, command);
@@ -4652,6 +4674,11 @@ function basicAttackPaying(
       (targetCard?.type === "villain" && villainOf(ctx.state, targetInstanceId)?.defeated === false) ||
       isMinion(ctx.state, targetInstanceId);
     if (!targetIsEnemy) return engineError("no_valid_target", "basic attacks target enemies", command);
+    // An enemy in a closed in-play scenario area (the mission area, docs/phase7-wave8.md §3.33) is out of reach of a
+    // basic attack: MC45 pp. 5–6 deal damage there only from a mission attempt's pool. See `inClosedScenarioPlayArea`.
+    if (inClosedScenarioPlayArea(ctx.state, targetInstanceId)) {
+      return engineError("no_valid_target", "that enemy is in an area basic attacks cannot reach", command);
+    }
     // The Once and Future Kang insert: "Players cannot attack or defend enemies in other game areas" (§3.1).
     if (!sameGameArea(areaOfPlayer(ctx.state, command.playerId), areaOfCard(ctx.state, targetInstanceId))) {
       return engineError("no_valid_target", "that enemy is in another game area", command);

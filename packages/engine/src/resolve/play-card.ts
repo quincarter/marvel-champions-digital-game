@@ -3,7 +3,7 @@
 import type { AbilityId } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer } from "../query.js";
+import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer, scenarioPlayAreaOf } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
 import { paymentVarsIn, type Bindings, type StackFrame, type UndeclaredWilds, type Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -18,6 +18,7 @@ import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
 import { declareWildTypes } from "./declare-wilds.js";
 import { enterPlay, playerSideSchemeEntersPlay } from "./enter-play.js";
+import { placeInScenarioPlayArea } from "./game-areas.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -38,6 +39,8 @@ export function pushPlayCardFrame(
     readonly undeclaredWilds?: UndeclaredWilds;
   },
   controllerId: PlayerId = playerId,
+  /** `playCard.into`: the in-play scenario area the card is played into (docs/phase7-wave8.md §3.34). */
+  intoScenarioPlayArea?: string,
 ): void {
   pushFrames(ctx, [
     {
@@ -46,6 +49,7 @@ export function pushPlayCardFrame(
       instanceId: id,
       playerId,
       controllerId,
+      ...(intoScenarioPlayArea !== undefined ? { intoScenarioPlayArea } : {}),
       attachToInstanceId,
       stage: "enterPlay",
       triggeredAbilityId: triggered?.triggeredAbilityId ?? null,
@@ -78,7 +82,13 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       switch (card.type) {
         case "ally":
         case "support":
-          moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
+          // Played into an in-play scenario area (the mission area, MC45 p. 5; docs/phase7-wave8.md §3.34): in play
+          // under no player's control. Still this player's play, so its entering play is announced for them.
+          if (
+            frame.intoScenarioPlayArea === undefined ||
+            placeInScenarioPlayArea(ctx, frame.instanceId, frame.intoScenarioPlayArea) !== "entered"
+          )
+            moveCard(ctx, frame.instanceId, { kind: "playArea", playerId: frame.controllerId });
           entersExhausted(ctx, frame);
           enterPlay(ctx, frame.instanceId, frame.controllerId);
           break;
@@ -88,6 +98,10 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
           // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached,
           // so the enter-play checks (restricted) count it for them.
           settleUpgradeControl(ctx, frame.instanceId, frame.controllerId);
+          // On a card in an in-play scenario area it is in the area with its host, "under no player's control" (MC45
+          // p. 5; docs/phase7-wave8.md §3.34). Its owner is unchanged, so it leaves play to their discard pile.
+          if (scenarioPlayAreaOf(ctx.state, host) !== null)
+            updateInstance(ctx, frame.instanceId, (i) => ({ ...i, controllerId: null }));
           entersExhausted(ctx, frame);
           enterPlay(ctx, frame.instanceId, controllerOf(ctx.state, frame.instanceId) ?? frame.controllerId);
           break;

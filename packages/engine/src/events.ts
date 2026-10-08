@@ -284,6 +284,23 @@ export type GameEvent =
       readonly playerIds: readonly PlayerId[];
       readonly schemeInstanceId: InstanceId;
     }
+  /** An in-play scenario area no player controls was created, empty (docs/phase7-wave8.md §3.33). */
+  | { readonly type: "scenarioPlayAreaCreated"; readonly name: string; readonly closed: boolean }
+  /**
+   * A card was placed in an in-play scenario area: it is in play with no controller and no engaged player, and so is
+   * every card attached to it. `from` says whether it entered play there or was already in play and moved (which is
+   * not leaving play: it keeps its damage, tokens, status cards and attachments). `controllerBefore` and
+   * `engagedBefore` say what it gave up. The `cardMoved` beside it names the area.
+   */
+  | {
+      readonly type: "scenarioPlayAreaEntered";
+      readonly name: string;
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly from: "outOfPlay" | "inPlay";
+      readonly controllerBefore: PlayerId | null;
+      readonly engagedBefore: PlayerId | null;
+    }
   | {
       readonly type: "gameAreaJoined";
       readonly fromAreaId: GameAreaId;
@@ -806,6 +823,19 @@ export type GameEvent =
    */
   | { readonly type: "defeatProtectionEnded"; readonly instanceId: InstanceId; readonly cardId: CardId }
   /**
+   * A damaged character's hit points fell to or below the damage on it with no damage dealt: a "gets +X hit points"
+   * stopped applying (its card left play, its condition ended, the value it counts dropped). RRG 1.8 "Hit Points"
+   * (p. 22) defeats it, so the defeat sweep follows, with no defeating player and no defeating card.
+   */
+  | {
+      readonly type: "hitPointsFell";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly from: number;
+      readonly to: number;
+      readonly damage: number;
+    }
+  /**
    * The card now showing faceup on top of `playerId`'s deck under a `topOfDeckFaceup` rule (docs/phase7-wave8.md
    * §3.48): logged when the rule turns on over a deck with a card in it, and each time the top card changes while it
    * holds (a draw, a discard, a swap, a shuffle, a deck reset, a card put on top), one card at a time. The card is
@@ -1253,7 +1283,8 @@ export type GameEvent =
       readonly type: "putIntoPlayRefused";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
-      readonly reason: "noLegalHost";
+      /** `noSuchArea`: `into` names an in-play scenario area the game does not have. `cardType`: no place for it there. */
+      readonly reason: "noLegalHost" | "noSuchArea" | "cardType";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   /**

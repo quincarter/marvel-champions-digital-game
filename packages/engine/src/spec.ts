@@ -91,6 +91,14 @@ export type TargetCategory =
 /** A data filter over card instances. `chooseTarget` and constant modifiers both use it. */
 export interface TargetQuery {
   readonly categories?: readonly TargetCategory[];
+  /**
+   * "At the mission", "in the mission area", "the [MISSION] side scheme" (MC45 p. 5; docs/phase7-wave8.md §3.33): only
+   * a card in the in-play scenario area of this name (`ZoneId scenarioPlayArea`), or attached to one. This is how an
+   * ability "refers to the mission area": a card in a closed area is matched by a query that names the area and by no
+   * other (`closedScenarioPlayArea`), unless the whole ability declares `AbilityDefinition.reaches`. Read on the query
+   * itself, not inside its `anyOf` or `not`: the area is checked before the alternatives are.
+   */
+  readonly inScenarioPlayArea?: string;
   /** "you" = the ability's controller, "other" = any other player, "encounter" = no controller. */
   readonly controller?: "you" | "other" | "any" | "encounter";
   readonly engagedWith?: "you" | "any";
@@ -3108,6 +3116,14 @@ export type EffectSpec =
    */
   | { readonly kind: "createScenarioArea"; readonly name: string }
   /**
+   * "[MISSION] side schemes begin the game in a separate game area called the 'mission area.'" (MC45 p. 5;
+   * docs/phase7-wave8.md §3.33): an empty scenario area that is in play and under no player's control, named `name`
+   * (`GameState.scenarioPlayAreas`, `ZoneId scenarioPlayArea`), logged `scenarioPlayAreaCreated`. `closed`: "Cards in
+   * the mission area … cannot be affected by card abilities unless the ability refers to the mission area"
+   * (`ScenarioPlayAreaState.closed`). Nothing happens if the area exists. Cards are put there by `putIntoPlay.into`.
+   */
+  | { readonly kind: "createScenarioPlayArea"; readonly name: string; readonly closed: boolean }
+  /**
    * "Defeat a non-[Elite] minion." (Nova Prime, `stld` 17002): each target character is defeated outright, whatever its
    * remaining hit points (RRG 1.8 "Defeat", p. 15). It is a `characterDefeated` event marked `byEffect`, so "when X would
    * be defeated" interrupts, When Defeated, Victory X and responses all see it; `cannotBeDefeated` and the permanent
@@ -3215,6 +3231,23 @@ export type EffectSpec =
       readonly controller: PlayerRef;
       readonly bind?: string;
       readonly facedown?: true;
+      /**
+       * The card goes to an in-play scenario area instead (the mission area, MC45 p. 5; docs/phase7-wave8.md §3.33):
+       * "in play but under no player's control". It is faceup there with no controller and no engaged player, and it
+       * keeps its owner. `controller` is then only the player the entry is attributed to (the `cardEntersPlay` event's
+       * player, the unique rule's): nobody controls the card.
+       *
+       * - A card out of play enters play there: a side scheme with the threat it enters play with (starting threat and
+       *   hinder), a minion engaged with nobody (so no quickstrike attack and no "after you engage"), an ally, support
+       *   or environment loose. The unique rule applies as to any entry. A card type with no place there (an upgrade or
+       *   attachment needs a host; a treachery never enters play) is refused, logged `putIntoPlayRefused`.
+       * - A card already in play is moved there ("add [this minion] to the mission area"). That is not leaving play
+       *   (RRG 1.8 "Leaves Play", p. 27, lists none of it): it keeps its damage, tokens, status cards and attachments,
+       *   and nothing enters play. Its attachments are in the area with it and under no player's control.
+       *
+       * An area the game does not have takes nothing (`putIntoPlayRefused { reason: "noSuchArea" }`).
+       */
+      readonly into?: { readonly scenarioPlayArea: string };
     }
   /**
    * "Deal an encounter card to each player" / "Deal 2 encounter cards to each player" (Green Goblin II). Cards come

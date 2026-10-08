@@ -153,6 +153,8 @@ import {
 import {
   addVillains,
   createGameArea,
+  createScenarioPlayArea,
+  placeInScenarioPlayArea,
   flipMainSchemeStage,
   putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
@@ -183,6 +185,7 @@ import {
 } from "./enemy-activation.js";
 import {
   checkRestrictedAfterFlip,
+  enterPlay,
   engagementFrame,
   engagementHeardAfter,
   engagementOf,
@@ -1451,6 +1454,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!ctx.state.scenarioAreas?.[effect.name])
         ctx.state = { ...ctx.state, scenarioAreas: { ...ctx.state.scenarioAreas, [effect.name]: [] } };
       return;
+    case "createScenarioPlayArea":
+      createScenarioPlayArea(ctx, effect.name, effect.closed);
+      return;
     case "discardFromPlay": {
       const source = leaveSourceOf(ctx, frame);
       for (const id of targets(effect.target)) {
@@ -1465,6 +1471,45 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);
       if (!controller) return;
+      // An in-play scenario area nobody controls (the mission area, docs/phase7-wave8.md §3.33).
+      if (effect.into) {
+        const area = effect.into.scenarioPlayArea;
+        const named = targets(effect.card);
+        const alreadyInPlay = named.filter((id) => cardsInPlay(ctx.state).includes(id));
+        // The unique rule is about entering play (RRG 1.8 "Unique Icon", pp. 45–46): a card moved there was in play.
+        const admitted = admitUniqueEntry(
+          ctx,
+          named.filter((id) => !alreadyInPlay.includes(id)),
+          controller,
+        );
+        const entered: InstanceId[] = [];
+        const there: InstanceId[] = [];
+        for (const id of named) {
+          if (!alreadyInPlay.includes(id) && !admitted.includes(id)) continue;
+          const outcome = placeInScenarioPlayArea(ctx, id, area);
+          if (outcome === "noSuchArea" || outcome === "cardType") {
+            emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: controller, reason: outcome });
+            continue;
+          }
+          there.push(id);
+          if (outcome === "entered") entered.push(id);
+        }
+        if (effect.bind) {
+          const slot = effect.bind;
+          updateFrame(ctx, frame.frameId, (f) =>
+            f.kind === "effects"
+              ? {
+                  ...f,
+                  bindings: { ...f.bindings, [slot]: there },
+                  vars: { ...f.vars, [`${slot}.count`]: there.length },
+                }
+              : f,
+          );
+        }
+        // Announced like any entry (`enterPlayOnReveal`): the enter-play keywords are that event's apply step.
+        for (const id of entered) enterPlay(ctx, id, controller);
+        return;
+      }
       const admitted = admitUniqueEntry(ctx, targets(effect.card), controller);
       const placed: InstanceId[] = [];
       for (const id of admitted) {

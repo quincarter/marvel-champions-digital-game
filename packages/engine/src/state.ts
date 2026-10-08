@@ -75,11 +75,33 @@ export type ZoneId =
    * standard rules for out-of-play cards" (MC16 p. 10). Created by the scenario's setup (`createScenarioArea`).
    */
   | { readonly kind: "scenarioArea"; readonly name: string }
+  /**
+   * A scenario's own game area that is in play and under no player's control (docs/phase7-wave8.md §3.33): the mission
+   * area of MC45 p. 5, "Cards in the mission area are in play but under no player's control." The in-play sibling of
+   * `scenarioArea`; encounter cards and player cards share it. Created by `createScenarioPlayArea`
+   * (`GameState.scenarioPlayAreas`).
+   */
+  | { readonly kind: "scenarioPlayArea"; readonly name: string }
   | { readonly kind: "villainArea" }
   | { readonly kind: "attachment"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "boost"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "victoryDisplay" }
   | { readonly kind: "removedFromGame" };
+
+/**
+ * One in-play scenario area (`ZoneId scenarioPlayArea`, docs/phase7-wave8.md §3.33). A card in it is in play, keeps its
+ * owner, and has no controller and no engaged player; a card attached to one of them is in the area with its host.
+ */
+export interface ScenarioPlayAreaState {
+  /** The unattached cards in the area, in the order they entered it. */
+  readonly cards: readonly InstanceId[];
+  /**
+   * MC45 p. 5: "They cannot be affected by card abilities unless the ability refers to the mission area." A closed
+   * area's cards are skipped by every query and selector of an ability that does not name the area
+   * (`TargetQuery.inScenarioPlayArea`, `AbilityDefinition.reaches`).
+   */
+  readonly closed: boolean;
+}
 
 /**
  * What a facedown card in play is treated as ("put the top card of your deck
@@ -919,6 +941,15 @@ export interface GameState {
    */
   readonly heldAtZero?: readonly InstanceId[];
   /**
+   * The hit points each damaged character in play was last seen to have, keyed by instance id, so a fall is noticed
+   * the moment it happens: RRG 1.8 "Hit Points" (p. 22), an ally or minion whose "+X hit points" "ceases to be in
+   * effect" with damage on it equal to or greater than its hit points is defeated, and an identity's or villain's dial
+   * is reduced by X (`resolve/state-checks.ts` `checkHitPointsFell`). Memory of an edge and nothing else: a
+   * character's hit points are always derived (`maxHitPoints`), never read from here. Only characters with damage on
+   * them have an entry, and the field is absent while there is none.
+   */
+  readonly hitPointsSeen?: Readonly<Record<string, number>>;
+  /**
    * The card last logged as showing on top of each player's deck under a `topOfDeckFaceup` rule (docs/phase7-wave8.md
    * §3.48), so the log says `deckTopShown` / `deckTopHidden` once per change (`announceDeckTops`, `deck-top.ts`). This
    * is the log's memory and nothing else: which card is visible is never read from here, it is derived from the deck's
@@ -1011,6 +1042,11 @@ export interface GameState {
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
    */
   readonly scenarioAreas?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
+   * The scenario's in-play areas that no player controls, by name (`ZoneId scenarioPlayArea`; the mission area,
+   * docs/phase7-wave8.md §3.33). Absent until a scenario creates one, so other games serialize as before.
+   */
+  readonly scenarioPlayAreas?: Readonly<Record<string, ScenarioPlayAreaState>>;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

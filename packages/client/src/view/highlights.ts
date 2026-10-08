@@ -256,6 +256,8 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongEncounterSet: "not from that encounter set",
   notInCampaignLog: "not recorded in the campaign log",
   otherGameArea: "in another game area",
+  notInScenarioPlayArea: "not at the mission",
+  closedScenarioPlayArea: "in the mission area, which this ability does not reach",
   notInPlay: "not in play",
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",

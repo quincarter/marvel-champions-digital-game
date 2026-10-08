@@ -31,6 +31,7 @@ import {
   playerOf,
   resourceAbility,
   settle,
+  stackEncounterDeck,
   type Picker,
 } from "../../testing/harness.js";
 import { driveEventsPicking, withDamage, withForm } from "../../testing/staging.js";
@@ -520,6 +521,26 @@ describe("Sidekick (45015): an identity-specific ally you control; +2 hit points
     const { state, id } = sidekicked(4);
     expect(inPlay(state, id)).toBe(true);
     expect(damageOf(state, id)).toBe(4);
+  });
+  // RRG "Hit Points" (p. 22): "+X hit points" that ceases to be in effect with damage on the ally equal to or greater
+  // than its hit points defeats it (the engine's `checkHitPointsFell`). Caught Off Guard (Core 01188, "discard an
+  // upgrade or support you control") is the discard; Advance (01186) is the villain's boost card.
+  it("section 3.53 test 2: Sidekick discarded with 4 damage on him: Malcolm has 3 hit points again and is defeated", () => {
+    const { state, id } = sidekicked(4);
+    const run = driveEventsPicking(DEPS, stackEncounterDeck(state, "01186", "01188"), picker(), endTurn(P1));
+    expect(attachedTo(run.state, SIDEKICK, id)).toBeUndefined();
+    expect(run.events.filter((e) => e.type === "hitPointsFell")).toMatchObject([
+      { instanceId: id, from: 5, to: 3, damage: 4 },
+    ]);
+    expect(inPlay(run.state, id)).toBe(false);
+    expect(playerOf(run.state, P1).discard).toContain(id);
+  });
+  it("section 3.53 test 2, the control: with 2 damage on him the same discard leaves him in play on 3 hit points", () => {
+    const { state, id } = sidekicked(2);
+    const run = driveEventsPicking(DEPS, stackEncounterDeck(state, "01186", "01188"), picker(), endTurn(P1));
+    expect(attachedTo(run.state, SIDEKICK, id)).toBeUndefined();
+    expect(inPlay(run.state, id)).toBe(true);
+    expect(maxHitPoints(run.state, id, DEPS)).toBe(3);
   });
   it("a basic recovery (REC 4 on Lucas Bishop) heals 4 from him, then 2 from the sidekick", () => {
     const { state: s, id } = sidekicked(3);

@@ -914,6 +914,8 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
       return state.villainArea;
     case "scenarioArea":
       return state.scenarioAreas?.[zone.name] ?? [];
+    case "scenarioPlayArea":
+      return state.scenarioPlayAreas?.[zone.name]?.cards ?? [];
     case "victoryDisplay":
       return state.victoryDisplay;
     case "removedFromGame":
@@ -970,6 +972,9 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
   for (const [name, ids] of Object.entries(state.scenarioAreas ?? {})) {
     if (ids.includes(id)) return { kind: "scenarioArea", name };
   }
+  for (const [name, area] of Object.entries(state.scenarioPlayAreas ?? {})) {
+    if (area.cards.includes(id)) return { kind: "scenarioPlayArea", name };
+  }
   if (state.victoryDisplay.includes(id)) return { kind: "victoryDisplay" };
   if (state.removedFromGame.includes(id)) return { kind: "removedFromGame" };
   const instance = getInstance(state, id);
@@ -979,6 +984,29 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
     if (host.tucked.includes(id)) return { kind: "tucked", hostInstanceId: host.instanceId };
   }
   return null;
+}
+
+/** The in-play scenario area a card is in: its own, or the one the card it is attached to is in. Null outside one. */
+export function scenarioPlayAreaOf(state: GameState, id: InstanceId): string | null {
+  const areas = state.scenarioPlayAreas;
+  if (!areas) return null;
+  let root = id;
+  for (let host = getInstance(state, root)?.attachedTo; host; host = getInstance(state, root)?.attachedTo) root = host;
+  for (const [name, area] of Object.entries(areas)) if (area.cards.includes(root)) return name;
+  return null;
+}
+
+/**
+ * Whether a card is in a closed in-play scenario area (or attached to a card in one). A basic attack or basic thwart
+ * does not reach it: its enemies are never offered to a basic attack, and its schemes are in no list a basic thwart
+ * reads. MC45 p. 5 closes the area to "card abilities", and a basic power is a game function, not a card ability (RRG
+ * 1.8 "Basic Power", p. 10), so this is a reading and not the printed sentence: MC45 pp. 5–6 give the mission's
+ * enemies one source of damage, "Deal damage from this pool to enemies at the mission", and the Mission Rules card
+ * says outright that the scheme cannot be thwarted. Open question for the owner (docs/phase7-wave8.md §3.33).
+ */
+export function inClosedScenarioPlayArea(state: GameState, id: InstanceId): boolean {
+  const name = scenarioPlayAreaOf(state, id);
+  return name !== null && state.scenarioPlayAreas?.[name]?.closed === true;
 }
 
 export const isTerminal = (state: GameState): boolean => state.outcome !== null;

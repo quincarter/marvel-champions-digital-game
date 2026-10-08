@@ -1528,6 +1528,32 @@ export type RuleSpec =
    */
   | { readonly kind: "notDefeatedWithoutThreat"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "While a [MISSION] side scheme is in play, when a player plays an ally, they must choose: either play that ally
+   * into their game area per the normal rules of the game, or play it into the mission area." (MC45 p. 5;
+   * docs/phase7-wave8.md §3.34.) While the rule is in effect and the in-play scenario area `area` exists, a player who
+   * plays a card matching `cards` may name the area as the play's destination (`playCard.into`; `legalActions` lists
+   * it as `LegalAction.destinations`). A choice between two legal plays, not a forced move: without `into` the card is
+   * played as always. Its cost, play restrictions, "max per", the unique rule and `cannotPlay` are checked as for any
+   * play (RRG 1.8 "Play, Put into Play", p. 32), before the destination matters, and it is a play: "after you play an
+   * ally" answers it. Only a play has the choice: a card an effect plays or puts into play goes to its player's area.
+   *
+   * There the card is in play under no player's control (`placeInScenarioPlayArea`): the ally limit counts allies a
+   * player controls (RRG 1.8 "Ally Limit", p. 7), and no player can exhaust it or attack, thwart or defend with it.
+   *
+   * `attachments`: "Players may attach upgrades to allies in the mission area." A player upgrade matching it may take a
+   * card in the area as its host when its own "attach to" text allows that card: the host choice reaches into the
+   * area (`attachmentReachOf`), however the upgrade enters play. The upgrade is then in the area with its host, under
+   * no player's control. Whether its abilities do anything there is the closed area's question, not this rule's
+   * (`AbilityDefinition.reaches`, §4.1 Q19 = B).
+   */
+  | {
+      readonly kind: "playDestination";
+      readonly cards: TargetQuery;
+      readonly area: string;
+      readonly attachments?: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
    * "The unique rule does not apply to Avengers Tower." (Avengers Tower, Stronghold side, `mts` 21100a): while this is in
    * play, a card titled `title` entering play is never refused by the unique rule (RRG 1.8 "Unique Icon", pp. 45–46).
    * MC21 p. 11: "This constant ability allows each player to play the Avengers Tower support card and use its ability
@@ -2527,6 +2553,16 @@ export type ResourceGeneration =
 
 export interface AbilityDefinition {
   readonly trigger: AbilityTriggerSpec;
+  /**
+   * The ability "refers to the mission area" though its printed words do not name it card by card (MC45 p. 5: cards
+   * there "cannot be affected by card abilities unless the ability refers to the mission area";
+   * docs/phase7-wave8.md §3.33, §4.1 Q19 = B): every query, host reference and target ref of this ability may match
+   * cards in the closed in-play scenario area of this name as well as cards outside it. Without it an ability reaches
+   * such a card only through a query that names the area (`TargetQuery.inScenarioPlayArea`), and its own card. An
+   * upgrade attached to an ally at the mission is an ordinary ability with no reach, so its "attached ally gets …"
+   * finds no host there.
+   */
+  readonly reaches?: { readonly scenarioPlayArea: string };
   readonly cost?: AbilityCost;
   readonly limit?: AbilityLimit;
   readonly label?: readonly AbilityLabel[];

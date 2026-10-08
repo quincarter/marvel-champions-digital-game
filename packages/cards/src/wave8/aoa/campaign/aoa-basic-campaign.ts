@@ -20,8 +20,8 @@ import {
  * `inHand(response(on.thisEntersYourHand(), ...))`, optional, each time it enters a hand (the b face's hand-out, a
  * draw, a search, the starting hand). Played to the mission they are blank like any ally.
  *
- * Skipped, see `AOA_BASIC_CAMPAIGN_SKIPPED`: Mission Team (the mission area and the mission attempt) and Desperate
- * Measures (a considered resource icon, and reaching into the mission area).
+ * Skipped, see `AOA_BASIC_CAMPAIGN_SKIPPED`: Mission Team (cannot be discarded, the cost reduction by destination and
+ * the mission attempt: tasks 34, 35, 37 and 38) and Desperate Measures (a considered resource icon, task 36).
  *
  * Cards (6):
  * - 45171a Mission Team (support)
@@ -47,12 +47,12 @@ export const AOA_BASIC_CAMPAIGN: AbilityRegistry = defineAbilities({
 /** Unregistered refs and why, with the engine queue task (spec section 8.2) each waits on. */
 export const AOA_BASIC_CAMPAIGN_SKIPPED: Readonly<Record<string, string>> = {
   "45171a.mission-team-constant":
-    "'cannot be discarded' needs `cannotLeavePlay.by: \"discard\"` (task 34, section 3.35), and 'the first player gains control' needs the mission area and campaign setup (task 31)",
+    "'cannot be discarded' needs `cannotLeavePlay.by: \"discard\"` (task 34, section 3.35); 'the first player gains control' is `controlledByFirstPlayer`, registered with it",
   "45171a.mission-team-action":
-    "'Make a mission attempt' needs the mission area (tasks 31 to 33), the pairing (task 37) and sequential damage (task 38); the first option needs the area-bound cost reduction (task 35)",
+    "'Make a mission attempt' needs the pairing (task 37) and sequential damage (task 38); the first option needs the area-bound cost reduction (task 35)",
   "45171b.mission-team-constant": "same as 45171a: task 34 (cannot be discarded)",
   "45171b.mission-team-action":
-    "'choose a player to draw 1 card' is composable, but this face only exists after Mission Team is flipped by a mission (tasks 31 to 38), so it waits with 45171a",
+    "'choose a player to draw 1 card' is composable, but this face only exists after a mission flips Mission Team (tasks 34, 37 and 38), so it waits with 45171a",
   "45176.desperate-measures-constant":
-    "'considered to have a wild resource icon' needs `consideredResourceIcon` (task 36, section 3.42) and the ability must reach into the mission area (task 32); registering only the stats would be a wrong card",
+    "'considered to have a wild resource icon' needs `consideredResourceIcon` (task 36, section 3.42); the stats and the reach into the mission area (`reaching`) are expressible now, but registering only those would be a wrong card",
 };

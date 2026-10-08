@@ -22,7 +22,7 @@ import {
   setActiveVillain,
   type StatusDiscarded,
 } from "../effects.js";
-import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
+import { currentName, mainSchemeStageOf, mainSchemeStateOf, maxHitPoints, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateFrame, updateInstance } from "../ctx.js";
 import { announceDeckTops } from "../deck-top.js";
 import { statusCapacity } from "../keywords.js";
@@ -122,6 +122,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   applyFocusedActiveVillain(ctx);
   // …and a character at zero hit points that "cannot be defeated" no longer is defeated (wave 7 §4.1 Q21).
   if (checkDefeatProtectionEnded(ctx)) return true;
+  // …and a damaged character whose hit point bonus ended at or below its damage is defeated (RRG 1.8 p. 22).
+  if (checkHitPointsFell(ctx)) return true;
   // …and the top card of a deck kept faceup is logged when the rule itself turns on or off with nothing moved (a form
   // change, a blank text box; docs/phase7-wave8.md §3.48). Card moves log theirs as they happen.
   announceDeckTops(ctx);
@@ -398,6 +400,53 @@ function checkDefeatProtectionEnded(ctx: Ctx): boolean {
   const depth = ctx.state.stack.length;
   checkDefeats(ctx);
   return ctx.state.stack.length > depth || ctx.state.outcome !== null;
+}
+
+/**
+ * RRG 1.8 "Hit Points" (p. 22): "If an ability that says an ally or minion 'gets +X hit points' ceases to be in effect
+ * and causes that ally or minion to have damage on it equal to or greater than its hit points, that ally or minion is
+ * defeated", and for an identity or villain, "If that ability later ceases to be in effect, reduce that character's hit
+ * point dial by X", a dial at zero being a defeat. Damage dealt is swept where it is dealt; nothing else swept a
+ * character whose hit points came down to its damage, so it stood until the next damage anywhere.
+ *
+ * An edge, not a level: the hit points of each damaged character are remembered (`GameState.hitPointsSeen`) and the
+ * sweep runs only when one that was above the damage on it is seen at or below it. So a character deliberately left
+ * at zero is not defeated again by standing there: one a "cannot be defeated" rule or a hit point floor holds
+ * (`heldAtZero`, released by `checkDefeatProtectionEnded` alone), one whose defeat was replaced, and one whose damage
+ * was just dealt and whose own sweep, carrying who dealt it, is a frame away. The first sight of a character only
+ * records. The sweep carries no damage, so the defeat has no defeating player and no defeating card, as a protection
+ * ending has none (docs/phase7-wave7.md §4.1 Q21). Returns true when it put a defeat on the stack or ended the game.
+ */
+function checkHitPointsFell(ctx: Ctx): boolean {
+  const before = ctx.state.hitPointsSeen;
+  let seen: Record<string, number> | undefined;
+  const fell: { readonly id: InstanceId; readonly from: number; readonly to: number; readonly damage: number }[] = [];
+  for (const id of cardsInPlay(ctx.state)) {
+    const damage = ctx.state.instances[id]?.damage ?? 0;
+    if (damage <= 0) continue;
+    const hp = maxHitPoints(ctx.state, id, ctx.deps);
+    if (hp === undefined) continue;
+    (seen ??= {})[id] = hp;
+    const was = before?.[id];
+    // Crossed: above its damage when last seen, at or below it now. One already at zero that falls further has not.
+    if (was !== undefined && hp < was && damage < was && damage >= hp) fell.push({ id, from: was, to: hp, damage });
+  }
+  if (seen ? !before || !sameNumbers(seen, before) : before !== undefined) {
+    const { hitPointsSeen: _dropped, ...rest } = ctx.state;
+    ctx.state = seen ? { ...ctx.state, hitPointsSeen: seen } : rest;
+  }
+  if (fell.length === 0) return false;
+  for (const { id, from, to, damage } of fell) {
+    emit(ctx, { type: "hitPointsFell", instanceId: id, cardId: ctx.state.instances[id]!.cardId, from, to, damage });
+  }
+  const depth = ctx.state.stack.length;
+  checkDefeats(ctx);
+  return ctx.state.stack.length > depth || ctx.state.outcome !== null;
+}
+
+function sameNumbers(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => b[key] === a[key]);
 }
 
 function sameValues(a: Readonly<Record<string, boolean>>, b: Readonly<Record<string, boolean>>): boolean {

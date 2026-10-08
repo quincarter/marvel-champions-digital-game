@@ -1189,6 +1189,17 @@ export const scenarioArea = (name: string, filter?: TargetQuery): CardSelector =
 });
 /** "Create '[name]' game area" (The Grand Collection 1A, docs/phase7-wave3.md §3.14). Empty; a no-op if it exists. */
 export const createScenarioArea = (name: string): EffectSpec => ({ kind: "createScenarioArea", name });
+/**
+ * An empty scenario area that is in play and under no player's control (the mission area, MC45 p. 5;
+ * docs/phase7-wave8.md §3.33). `closed` (the default): its cards "cannot be affected by card abilities unless the
+ * ability refers to" the area, which a script does with `inScenarioPlayArea` on a query or `reaches` on the ability.
+ * Cards go there with `putIntoPlay(card, player, { into: { scenarioPlayArea: name } })`.
+ */
+export const createScenarioPlayArea = (name: string, opts: { readonly closed?: boolean } = {}): EffectSpec => ({
+  kind: "createScenarioPlayArea",
+  name,
+  closed: opts.closed ?? true,
+});
 export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked", under });
 /**
  * "Search the encounter deck, discard pile, **and set-aside area** for X" (Kang's Wrath 4B, 11013b; docs/phase7-
@@ -1471,13 +1482,23 @@ export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectS
 export const putIntoPlay = (
   card: TargetRef,
   controller: PlayerRef = you,
-  opts: { readonly bind?: string; readonly facedown?: boolean } = {},
+  opts: {
+    readonly bind?: string;
+    readonly facedown?: boolean;
+    /**
+     * An in-play scenario area nobody controls instead ("add Agent of Apocalypse to the mission area", MC45 p. 5;
+     * docs/phase7-wave8.md §3.33): a card out of play enters play there, a card in play is moved there without leaving
+     * play. `controller` is then only who the entry is attributed to.
+     */
+    readonly into?: { readonly scenarioPlayArea: string };
+  } = {},
 ): EffectSpec => ({
   kind: "putIntoPlay",
   card,
   controller,
   ...withBind(opts.bind),
   ...(opts.facedown ? { facedown: true as const } : {}),
+  ...(opts.into ? { into: opts.into } : {}),
 });
 /**
  * "Setup: Put [your permanent card] into play" (RRG 1.8 "Permanent", p. 32: permanent cards are set aside before setup

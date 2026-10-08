@@ -263,18 +263,11 @@ describe("§3.25 an attachment with no 'attach to' finds its host from its own W
 
   // RRG 1.8 "Hit Points" (p. 22): "If an ability that says an ally or minion 'gets +X hit points' ceases to be in
   // effect and causes that ally or minion to have damage on it equal to or greater than its hit points, that ally or
-  // minion is defeated." The engine has no sweep for a hit point bonus ending (the gap docs/phase7-wave8.md §3.3
-  // test 4 pins from the card side), so this stays red until it does; the companion pins what happens today.
-  it.fails("attached minion with 4 damage: the attachment is discarded, so it has 3 hit points and is defeated", () => {
+  // minion is defeated." (`checkHitPointsFell`, `hit-points-fell.test.ts`.)
+  it("attached minion with 4 damage: the attachment is discarded, so it has 3 hit points and is defeated", () => {
     const { run, raptor } = attachmentDiscardedAtFourDamage();
     expect(cardsInPlay(run.state)).not.toContain(raptor);
     expect(of(run.events, "characterDefeated").map((e) => e.instanceId)).toEqual([raptor]);
-  });
-
-  it("today: the minion stays in play with 4 damage on 3 hit points", () => {
-    const { run, raptor } = attachmentDiscardedAtFourDamage();
-    expect(cardsInPlay(run.state)).toContain(raptor);
-    expect(mustInstance(run.state, raptor).damage).toBe(4);
-    expect(of(run.events, "characterDefeated")).toHaveLength(0);
+    expect(of(run.events, "hitPointsFell")).toMatchObject([{ instanceId: raptor, from: 5, to: 3, damage: 4 }]);
   });
 });

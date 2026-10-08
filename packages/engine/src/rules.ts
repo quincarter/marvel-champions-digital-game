@@ -1647,3 +1647,38 @@ export const iconsInPlay = (
   countSchemeIcons(state, deps, icon, area) +
   nonSchemeIcons(state, deps, icon, area) +
   grantedIcons(state, deps, icon, area);
+
+/**
+ * The in-play scenario areas a play of this card may name as its destination right now (`RuleSpec playDestination`,
+ * docs/phase7-wave8.md §3.34): each rule in effect whose area exists and whose `cards` the card matches, in rule order.
+ * Empty in a game with no such rule, which is every game outside the campaign that declares one.
+ */
+export function playDestinationsOf(state: GameState, deps: EngineDeps, cardInstanceId: InstanceId): readonly string[] {
+  if (state.scenarioPlayAreas === undefined) return [];
+  const areas: string[] = [];
+  for (const { rule, context } of activeRules(state, deps, "playDestination")) {
+    if (state.scenarioPlayAreas[rule.area] === undefined || areas.includes(rule.area)) continue;
+    if (matchesQuery(state, cardInstanceId, rule.cards, context)) areas.push(rule.area);
+  }
+  return areas;
+}
+
+/**
+ * The reach an upgrade's host choice has while a `playDestination` rule lets upgrades be attached in its area (MC45
+ * p. 5: "Players may attach upgrades to allies in the mission area"): spread into the context its "attach to" text is
+ * read in, so a card in the closed area is a candidate host when that text allows it (`closedScenarioPlayArea`).
+ * Nothing without such a rule.
+ */
+export function attachmentReachOf(
+  state: GameState,
+  deps: EngineDeps,
+  upgradeInstanceId: InstanceId,
+): { readonly reaches?: { readonly scenarioPlayArea: string } } {
+  if (state.scenarioPlayAreas === undefined) return {};
+  for (const { rule, context } of activeRules(state, deps, "playDestination")) {
+    if (rule.attachments === undefined || state.scenarioPlayAreas[rule.area] === undefined) continue;
+    if (matchesQuery(state, upgradeInstanceId, rule.attachments, context))
+      return { reaches: { scenarioPlayArea: rule.area } };
+  }
+  return {};
+}

@@ -298,21 +298,20 @@ describe("Infinite Soldier (45069)", () => {
     }).state;
 
   // RRG "Hit Points" (p. 22): a minion whose "+X hit points" ceases to be in effect and who then has damage equal to or
-  // greater than its hit points is defeated. The engine has no sweep for a hit point bonus ending (it only releases a
-  // "cannot be defeated" hold, `checkDefeatProtectionEnded`), so this stays red until it does.
-  it.fails("with 9 threat and 4 damage it is defeated when a thwart takes Gene Pool to 8 (3 hit points, 4 damage)", () => {
+  // greater than its hit points is defeated (the engine's `checkHitPointsFell`).
+  it("with 9 threat and 4 damage it is defeated when a thwart takes Gene Pool to 8 (3 hit points, 4 damage)", () => {
     const r = reveal(9);
     const run = thwartPool(patchInstance(r.state, r.soldier, { damage: 4 }));
     expect(poolThreat(run)).toBe(8);
     expect(inEncounterDiscard(run, SOLDIER)).toHaveLength(1);
   });
 
-  it("today: the same thwart takes Gene Pool to 8 and the bonus ends, but the Soldier stays in play with 4 damage on 3 hit points", () => {
+  it("with 9 threat and 2 damage the same thwart ends the bonus and the Soldier stays: 2 damage on 3 hit points", () => {
     const r = reveal(9);
-    const run = thwartPool(patchInstance(r.state, r.soldier, { damage: 4 }));
+    const run = thwartPool(patchInstance(r.state, r.soldier, { damage: 2 }));
     expect(poolThreat(run)).toBe(8);
     expect(hpBonus(run, r.soldier)).toBe(0);
     expect(inEncounterDiscard(run, SOLDIER)).toHaveLength(0);
-    expect(inst(run, r.soldier).damage).toBe(4);
+    expect(inst(run, r.soldier).damage).toBe(2);
   });
 });

@@ -83,6 +83,13 @@ export type Command =
       /** "Play under any player's control": who will control the card (defaults to the player). */
       readonly controllerId?: PlayerId;
       /**
+       * The play's destination when it is not the player's own play area: an in-play scenario area a `playDestination`
+       * rule in effect lets this card be played into ("either play that ally into their game area …, or play it into
+       * the mission area", MC45 p. 5; docs/phase7-wave8.md §3.34). Part of the play, chosen with it: everything else
+       * about the play is checked and paid as without it. Absent: the player's own area, as always.
+       */
+      readonly into?: { readonly scenarioPlayArea: string };
+      /**
        * The value chosen for a cost printed "X" (`specialCost: "X"`; Speed Cyclone, docs/phase7-wave2.md §3.8). RRG 1.8
        * "Non-Numerical Variable" (p. 30): "the value of X is defined by card ability or player choice, after which the
        * amount paid may be modified by effects without changing the value of X". Bound as the play's var `x`. Absent is 0.

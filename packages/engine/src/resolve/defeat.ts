@@ -630,7 +630,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`). A minion attached to a card is
   // in neither list: it "cannot be defeated again" (FAQ "Malice (#199)", p. 64; `isAttachedMinion`, `beginDefeat`).
   const captives = cardsInPlay(ctx.state).filter((id) => isCaptiveAlly(ctx.state, id));
-  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives]) {
+  // …then each in-play scenario area's cards: allies and minions no player controls or is engaged with, defeated at
+  // zero hit points like any character in play (MC45 p. 5: "in play"; docs/phase7-wave8.md §3.33).
+  const inScenarioAreas = Object.values(ctx.state.scenarioPlayAreas ?? {}).map((area) => area.cards);
+  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives, ...inScenarioAreas]) {
     for (const id of [...ids]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
       const instance = getInstance(ctx.state, id);

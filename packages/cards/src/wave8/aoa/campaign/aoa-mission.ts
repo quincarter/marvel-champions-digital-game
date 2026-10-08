@@ -8,12 +8,15 @@ import { defineAbilities } from "../../../dsl/index.js";
  * **Nothing here is registered.** The a faces are the same two lines (an attempt counter and 1 damage to each ally at
  * the mission after "a mission attempt" resolves; shuffle each player card at the mission into its owner's deck and
  * flip Mission Team when defeated). The b faces remove each card in the mission area from the game and branch on
- * whether the mission was defeated. All of it is the mission area (tasks 31 to 33), the mission attempt moment
- * (`raiseMoment`, task 1 is landed, but the attempt itself is Mission Team's, tasks 37 and 38), the flip of Mission
- * Team (task 34) and the campaign's own "mission was defeated" record. The b faces' branches are partly plain
- * (threat on the main scheme, a facedown encounter card each, a discard each) but sit behind the area removal and the
- * defeated record, so a script written today would be a wrong card. The DSL has no query or area for "at the mission"
- * to type a draft with. See `AOA_MISSION_SKIPPED`.
+ * whether the mission was defeated.
+ *
+ * The mission area, its closed filter and the ally's play into it have landed (tasks 31 to 33, `mission-rules.ts`):
+ * a mission is put into the area by campaign setup, is no target for a thwart, and stays undefeated while a minion is
+ * there. What its own text still waits on: the mission attempt (Mission Team's, tasks 37 and 38), Mission Team itself
+ * (task 34 on), and the flip. A side scheme that flips to its other face is placed in the villain's area today, so
+ * the [FINISHED] face would leave the mission area it is about to clear; section 3.40 has to keep it there. A When
+ * Defeated registered alone would shuffle the allies away and then flip into that gap, so the faces land together.
+ * See `AOA_MISSION_SKIPPED`.
  *
  * Cards (10):
  * - 45166a Liberate the Seattle Core (side_scheme)
@@ -29,12 +32,11 @@ import { defineAbilities } from "../../../dsl/index.js";
  */
 export const AOA_MISSION: AbilityRegistry = defineAbilities({});
 
-const ATTEMPT =
-  "'After you resolve a mission attempt' (the moment Mission Team raises, tasks 37 and 38) with an attempt counter and 1 damage to each ally at the mission (tasks 31 and 32, section 3.33); the fourth counter removes Mission Team and flips (task 34)";
-const DEFEATED =
-  "'Shuffle each player card at the mission into its owner's deck' and 'flip Mission Team and this card over' need the mission area (tasks 31 and 32, section 3.33) and Mission Team (tasks 34 to 38)";
-const FLIPPED =
-  "'Remove each card in the mission area from the game' needs the mission area (task 31, section 3.33) and the branch needs the campaign's mission-defeated record (section 3.40, Q20)";
+const FLIP =
+  "a flip to the other face inside the mission area (section 3.40: `flipToOtherFace` puts a side scheme's new face in the villain's area today)";
+const ATTEMPT = `'After you resolve a mission attempt' is the moment Mission Team's attempt raises (tasks 37 and 38); the fourth counter removes Mission Team (task 34) and needs ${FLIP}`;
+const DEFEATED = `'flip Mission Team and this card over' needs Mission Team's faces (tasks 34 to 38) and ${FLIP}; the shuffle of each player card at the mission is expressible now`;
+const FLIPPED = `this face is only reached by ${FLIP}, from a mission that was attempted (tasks 37 and 38); the branch reads the mission-defeated marker its a face sets (section 3.40, Q20)`;
 
 /** Unregistered refs and why, with the engine queue task (spec section 8.2) each waits on. */
 export const AOA_MISSION_SKIPPED: Readonly<Record<string, string>> = {

@@ -22,7 +22,7 @@ import {
   undefeatedVillains,
   villainOf,
 } from "./query.js";
-import { attachLimitFault, canHaveAttached } from "./rules.js";
+import { attachLimitFault, attachmentReachOf, canHaveAttached } from "./rules.js";
 import {
   cardsInPlay,
   classificationsOf,
@@ -207,6 +207,8 @@ export function upgradeHostCandidates(
     event: null,
     bindings: {},
     deps,
+    // "Players may attach upgrades to allies in the mission area" (`RuleSpec playDestination.attachments`).
+    ...attachmentReachOf(state, deps, id),
   });
 }
 

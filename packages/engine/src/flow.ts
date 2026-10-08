@@ -25,7 +25,15 @@ import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
+import {
+  getPlayer,
+  handSize,
+  mustCardOf,
+  mustPlayer,
+  playerOrder,
+  scenarioPlayAreaOf,
+  undefeatedVillains,
+} from "./query.js";
 import {
   announce,
   announceStatusPlaced,
@@ -488,6 +496,10 @@ function readyEveryCard(ctx: Ctx): boolean {
     }
   }
   for (const id of ctx.state.villainArea) ready(id);
+  // A card in an in-play scenario area is a card in play (MC45 p. 5), so the step readies it though nobody controls it,
+  // and each card attached to one (docs/phase7-wave8.md §3.33: game steps are not card abilities).
+  if (ctx.state.scenarioPlayAreas)
+    for (const id of cardsInPlay(ctx.state)) if (scenarioPlayAreaOf(ctx.state, id) !== null) ready(id);
   for (const villain of undefeatedVillains(ctx.state)) ready(villain.instanceId);
   const pushed = ctx.state.stack.length - depth;
   if (pushed === 0) return false;

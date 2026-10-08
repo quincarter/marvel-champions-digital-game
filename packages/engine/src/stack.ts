@@ -563,6 +563,11 @@ export type StackFrame =
       /** "It enters play exhausted" (`EffectSpec playFromHand.entersExhausted`; docs/phase7-wave6.md §3.57). */
       readonly entersExhausted?: true;
       /**
+       * The in-play scenario area the card is played into instead of its controller's play area (`playCard.into`,
+       * `RuleSpec playDestination`; docs/phase7-wave8.md §3.34). Absent on every other play.
+       */
+      readonly intoScenarioPlayArea?: string;
+      /**
        * Where a played event goes once its effects have resolved, when not its owner's discard pile (`EffectSpec
        * afterResolving`; docs/phase7-wave7.md §3.68): "return that event to your hand after resolving its effects".
        * Read once, by the `discardEvent` stage, and only for an event still being resolved whose effects were not

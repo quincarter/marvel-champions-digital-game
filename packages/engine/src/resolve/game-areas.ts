@@ -41,7 +41,8 @@ import {
   type VillainState,
 } from "../state.js";
 import { cardsMatch } from "../unique.js";
-import { base, eventFrame, gameAbilityFrames } from "./frames.js";
+import { schemeEntryThreat } from "./enter-play.js";
+import { base, eventFrame, gameAbilityFrames, pushEvent } from "./frames.js";
 import { waitingSetupCardsEnterPlay } from "./setup-cards.js";
 
 const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
@@ -245,6 +246,67 @@ export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = 
   };
   moveCard(ctx, schemeId, { kind: "removedFromGame" });
   emit(ctx, { type: "mainSchemeStageRemoved", schemeInstanceId: schemeId, stageIndex: scheme.stageIndex });
+}
+
+// ---- In-play scenario areas no player controls (docs/phase7-wave8.md §3.33) -------------------------------------
+
+/** `EffectSpec createScenarioPlayArea`: an empty in-play scenario area. Nothing happens if it exists. */
+export function createScenarioPlayArea(ctx: Ctx, name: string, closed: boolean): void {
+  if (ctx.state.scenarioPlayAreas?.[name]) return;
+  ctx.state = { ...ctx.state, scenarioPlayAreas: { ...ctx.state.scenarioPlayAreas, [name]: { cards: [], closed } } };
+  emit(ctx, { type: "scenarioPlayAreaCreated", name, closed });
+}
+
+/** The card types that sit loose in an in-play scenario area. An upgrade or attachment is there only on a host. */
+const LOOSE_IN_SCENARIO_PLAY_AREA: ReadonlySet<string> = new Set([
+  "side_scheme",
+  "minion",
+  "ally",
+  "support",
+  "environment",
+]);
+
+/**
+ * Places a card in an in-play scenario area (`putIntoPlay.into`; a play to the area): faceup, with no controller and
+ * no engaged player, its owner unchanged (MC45 p. 5: "in play but under no player's control"; RRG 1.8 "Ownership and
+ * Control", p. 31). Every card attached to it is in the area with it and under no player's control either.
+ *
+ * Returns `"entered"` for a card that was out of play (the caller raises its entering play), `"moved"` for one that
+ * was in play already, and a refusal otherwise. A side scheme that enters play gets the threat it enters play with.
+ */
+export function placeInScenarioPlayArea(
+  ctx: Ctx,
+  id: InstanceId,
+  name: string,
+): "entered" | "moved" | "noSuchArea" | "cardType" {
+  if (!ctx.state.scenarioPlayAreas?.[name]) return "noSuchArea";
+  const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
+  if (!LOOSE_IN_SCENARIO_PLAY_AREA.has(card.type)) return "cardType";
+  const wasInPlay = cardsInPlay(ctx.state).includes(id);
+  const before = mustInstance(ctx.state, id);
+  moveCard(ctx, id, { kind: "scenarioPlayArea", name });
+  const release = (cardId: InstanceId): void => {
+    updateInstance(ctx, cardId, (i) => ({ ...i, controllerId: null, engagedWith: null }));
+    for (const attached of getInstance(ctx.state, cardId)?.attachments ?? []) release(attached);
+  };
+  release(id);
+  updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+  emit(ctx, {
+    type: "scenarioPlayAreaEntered",
+    name,
+    instanceId: id,
+    cardId: card.id,
+    from: wasInPlay ? "inPlay" : "outOfPlay",
+    controllerBefore: wasInPlay ? before.controllerId : null,
+    engagedBefore: wasInPlay ? before.engagedWith : null,
+  });
+  if (wasInPlay) return "moved";
+  // RRG 1.8 "Hinder X" (p. 22): one placement, starting threat and hinder together, as for any entry (`reveal.ts`).
+  if (card.type === "side_scheme") {
+    const amount = schemeEntryThreat(ctx, id);
+    pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null });
+  }
+  return "entered";
 }
 
 // ---- Creating and joining areas --------------------------------------------------------------------------------

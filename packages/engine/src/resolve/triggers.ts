@@ -241,6 +241,8 @@ function matchesRest(
     bindings: carried.bindings,
     vars: carried.vars,
     deps,
+    // Watching is a read: a pattern sees a card in a closed scenario area (docs/phase7-wave8.md §4.1 Q18 = A).
+    reaches: "all",
   };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;

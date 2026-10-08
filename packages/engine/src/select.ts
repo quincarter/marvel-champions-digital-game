@@ -1,5 +1,12 @@
 import type { AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
-import { type AbilityTriggerSpec, type CardIcon, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
+import {
+  type AbilityDefinition,
+  type AbilityTriggerSpec,
+  type CardIcon,
+  DEFAULT_DEPS,
+  type EngineDeps,
+  type RuleSpec,
+} from "./abilities.js";
 import { isRulesCardType, type RulesCardType } from "./card-types.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -54,6 +61,7 @@ import {
   villainOf,
   villainStageOf,
   isPlayerCardType,
+  scenarioPlayAreaOf,
 } from "./query.js";
 import type { LogValue } from "./campaign.js";
 import {
@@ -163,6 +171,39 @@ export interface EffectContext {
    * `contextOf` and by `abilityLacksValidTarget`.
    */
   readonly attackLabeled?: boolean;
+  /**
+   * What this context may match inside a closed in-play scenario area (`closedScenarioPlayArea`,
+   * docs/phase7-wave8.md §3.33): the area its ability declares (`AbilityDefinition.reaches`, `reachOf`), or `"all"`
+   * for a read. A condition, a count and an event pattern are reads (§4.1 Q18 = A: "counting or watching them does
+   * not affect them"), and `evaluate`, `resolveValue` and the trigger matcher mark their own context so. Absent: the
+   * context is that of an ability that picks or changes cards and does not refer to the area.
+   */
+  readonly reaches?: "all" | { readonly scenarioPlayArea: string };
+}
+
+/** `AbilityDefinition.reaches` as a context field: spread into the context an ability's queries are read in. */
+export const reachOf = (
+  definition: AbilityDefinition | undefined,
+): { readonly reaches?: { readonly scenarioPlayArea: string } } =>
+  definition?.reaches ? { reaches: definition.reaches } : {};
+
+/**
+ * MC45 p. 5: "Cards in the mission area are in play but under no player's control. They cannot be affected by card
+ * abilities unless the ability refers to the mission area." Whether `id` is such a card for this context: in a closed
+ * in-play scenario area (or attached to a card in one) that the context does not reach. A card is never closed to its
+ * own abilities ("this card", `self`): the sentence is about what reaches into the area, and a card there that could
+ * not name itself could not resolve its own text. Reads are not closed (`EffectContext.reaches`).
+ *
+ * The one test behind every query (`explainQuery`) and every ref that names a card without a query (`resolveRef`).
+ * Free in a game with no such area.
+ */
+export function closedScenarioPlayArea(state: GameState, id: InstanceId, context: EffectContext): string | null {
+  const areas = state.scenarioPlayAreas;
+  if (areas === undefined) return null;
+  if (context.reaches === "all" || id === context.selfInstanceId) return null;
+  const name = scenarioPlayAreaOf(state, id);
+  if (name === null || areas[name]?.closed !== true) return null;
+  return context.reaches?.scenarioPlayArea === name ? null : name;
 }
 
 /** The context a lasting effect evaluates in: the ability that created it. */
@@ -533,6 +574,7 @@ function traitsOfGuarded(
           event: null,
           bindings: {},
           deps: DEFAULT_DEPS,
+          ...reachOf(definition),
         };
         for (const grant of definition.trigger.traitGrants) {
           if (grant.while && !evaluate(state, grant.while, context)) continue;
@@ -753,6 +795,9 @@ function cardsOnTable(state: GameState, withFacedownAttachments: boolean): reado
     for (const id of player.playArea) withAttachments(id);
   }
   for (const id of state.villainArea) withAttachments(id);
+  // The scenario's in-play areas no player controls (the mission area, docs/phase7-wave8.md §3.33).
+  if (state.scenarioPlayAreas)
+    for (const area of Object.values(state.scenarioPlayAreas)) for (const id of area.cards) withAttachments(id);
   return ids;
 }
 
@@ -906,6 +951,10 @@ export function decksSearchedByFind(
  */
 export type QueryExclusion =
   | "unknownCard"
+  /** Not in the in-play scenario area the query names (`TargetQuery.inScenarioPlayArea`). */
+  | "notInScenarioPlayArea"
+  /** In a closed in-play scenario area the ability does not refer to (MC45 p. 5; `closedScenarioPlayArea`). */
+  | "closedScenarioPlayArea"
   | "wrongSelf"
   | "wrongCategory"
   /** A query for a friendly character (`["identity", "ally"]`) and an ally no player controls (`isCaptiveAlly`). */
@@ -1004,6 +1053,11 @@ export function explainQuery(
   if (!inContextArea(state, id, context)) return "otherGameArea";
   const instance = getInstance(state, id);
   if (!instance) return "unknownCard";
+  // The mission area (docs/phase7-wave8.md §3.33): a query that names an in-play scenario area matches only cards in
+  // it, and a closed area's cards are matched by no query that does not, unless the ability reaches the area.
+  if (query.inScenarioPlayArea !== undefined) {
+    if (scenarioPlayAreaOf(state, id) !== query.inScenarioPlayArea) return "notInScenarioPlayArea";
+  } else if (closedScenarioPlayArea(state, id, context) !== null) return "closedScenarioPlayArea";
   if (query.self !== undefined) {
     const isSelf = context.selfInstanceId === id;
     if (query.self !== isSelf) return "wrongSelf";
@@ -1509,6 +1563,7 @@ export function activeRules<K extends RuleSpec["kind"]>(
           event: null,
           bindings: {},
           deps,
+          ...reachOf(definition),
         };
         if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
         record(rule, context);
@@ -1992,7 +2047,20 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
   }
 }
 
+/**
+ * The cards a ref names. A card in a closed in-play scenario area is left out unless the ability refers to the area
+ * (`closedScenarioPlayArea`, docs/phase7-wave8.md §3.33): "attached ally" (`host`), a card named by title, the card an
+ * event is about. Not filtered here: `each` and `find`, whose query was matched card by card and may itself name the
+ * area; a `superlative`, whose pool was; and a `slot`, which holds what the ability already chose or bound.
+ */
 export function resolveRef(state: GameState, ref: TargetRef, context: EffectContext): readonly InstanceId[] {
+  const found = resolveRefAnywhere(state, ref, context);
+  if (state.scenarioPlayAreas === undefined || found.length === 0) return found;
+  if (ref.kind === "each" || ref.kind === "find" || ref.kind === "slot" || ref.kind === "superlative") return found;
+  return found.filter((id) => closedScenarioPlayArea(state, id, context) === null);
+}
+
+function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectContext): readonly InstanceId[] {
   switch (ref.kind) {
     case "self":
       return context.selfInstanceId ? [context.selfInstanceId] : [];
@@ -2154,6 +2222,8 @@ export function resolveValue(
   context: EffectContext,
   deps: EngineDeps = context.deps ?? DEFAULT_DEPS,
 ): number {
+  // A value is a read: it sees a card in a closed scenario area as what it is (docs/phase7-wave8.md §4.1 Q18 = A).
+  if (state.scenarioPlayAreas !== undefined && context.reaches !== "all") context = { ...context, reaches: "all" };
   switch (value.kind) {
     case "const":
       return value.value;
@@ -2434,6 +2504,8 @@ function paidVarsOf(state: GameState, of: TargetRef | undefined, context: Effect
 }
 
 export function evaluate(state: GameState, predicate: Predicate, context: EffectContext): boolean {
+  // A condition is a read: it sees a card in a closed scenario area as what it is (docs/phase7-wave8.md §4.1 Q18 = A).
+  if (state.scenarioPlayAreas !== undefined && context.reaches !== "all") context = { ...context, reaches: "all" };
   switch (predicate.kind) {
     case "form": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
@@ -2782,7 +2854,12 @@ export function blankedByConstantRules(state: GameState, deps: EngineDeps): Read
 
 function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
   const ruleIds = blankRuleIds(deps);
-  if (ruleIds.size === 0) return NO_BLANKED_SETS;
+  // A rule the scenario imposes without a card (`ScenarioRules.rules`) blanks too: "Treat the printed text box of
+  // each ally at the mission as if it were blank, except for [TRAITS]" (docs/phase7-wave8.md §3.34).
+  const scenarioBlanks = (state.scenarioRules.rules ?? []).filter(
+    (rule): rule is Extract<RuleSpec, { kind: "blankTextBox" }> => rule.kind === "blankTextBox",
+  );
+  if (ruleIds.size === 0 && scenarioBlanks.length === 0) return NO_BLANKED_SETS;
   const perDeps = BLANKED_BY_RULES.get(state) ?? new WeakMap<EngineDeps, BlankedSets>();
   const cached = perDeps.get(deps);
   if (cached) return cached;
@@ -2818,6 +2895,24 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
           if (!rule.exceptKeywords) keywordsBlanked.add(id);
         }
       }
+    }
+  }
+  // The scenario's own rules: no source card, nobody as "you", printed characteristics only, as above.
+  for (const rule of scenarioBlanks) {
+    const context: EffectContext = {
+      selfInstanceId: null,
+      controllerId: null,
+      event: null,
+      bindings: {},
+      deps: DEFAULT_DEPS,
+    };
+    if (rule.while && !evaluate(state, rule.while, context)) continue;
+    for (const id of inPlay) {
+      if (!matchesQuery(state, id, rule.target, context)) continue;
+      // Permanent's protection is read against the blanking card's set, and a scenario rule has no card: it blanks.
+      if (textBoxCannotBeBlanked(state, id, deps)) continue;
+      blanked.add(id);
+      if (!rule.exceptKeywords) keywordsBlanked.add(id);
     }
   }
   const sets: BlankedSets = { text: blanked, keywords: keywordsBlanked };

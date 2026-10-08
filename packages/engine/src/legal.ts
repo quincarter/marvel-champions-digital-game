@@ -63,10 +63,11 @@ import {
   showingResources,
   undefeatedVillains,
   mainSchemeStates,
+  inClosedScenarioPlayArea,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { combineRequirements, requirementTotal, type ResolvedRequirement } from "./resources.js";
-import { formChangeCostsFor, type FormChangeCost } from "./rules.js";
+import { attachmentReachOf, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "./rules.js";
 import { formChangeCostSources } from "./form-change-cost.js";
 import {
   activeAbilityRefs,
@@ -149,6 +150,13 @@ export interface LegalAction {
    * first. Absent for any other card.
    */
   readonly abilities?: readonly AbilityId[];
+  /**
+   * The in-play scenario areas this card may be played into instead of the player's own play area (MC45 p. 5: "they
+   * must choose: either play that ally into their game area …, or play it into the mission area"; `RuleSpec
+   * playDestination`, docs/phase7-wave8.md §3.34). `example` is the play to the player's own area; the client asks
+   * which and sends the area as the `playCard` command's `into`. Absent when there is no choice to make.
+   */
+  readonly destinations?: readonly string[];
   /**
    * A change of form with an additional cost (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the cards the
    * cost is printed on. The action is listed legal only when the cost can be paid; `example` carries a payment that
@@ -700,7 +708,15 @@ function evaluatePlayOf(
   const cost = costAsDetermined(state, deps, id, playerId, ability?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
-  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
+  const context: EffectContext = {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+    // "Players may attach upgrades to allies in the mission area" (`RuleSpec playDestination.attachments`).
+    ...attachmentReachOf(state, deps, id),
+  };
   // A host at the card's own maximum stays a candidate, so the play command's refusal reaches `blockedTargets`.
   const candidateHosts =
     card.type === "upgrade" && card.attachesTo
@@ -759,7 +775,20 @@ function evaluatePlayOf(
     variants,
     withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost)),
   );
-  return withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
+  return withDestinations(state, deps, id, withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost)));
+}
+
+/**
+ * Adds `destinations` to a legal play that may also go to an in-play scenario area (`RuleSpec playDestination`,
+ * docs/phase7-wave8.md §3.34): each area the same command is accepted for with `into` naming it.
+ */
+function withDestinations(state: GameState, deps: EngineDeps, id: InstanceId, evaluated: Evaluated): Evaluated {
+  if (!("legal" in evaluated) || evaluated.legal.example.type !== "playCard") return evaluated;
+  const example = evaluated.legal.example;
+  const destinations = playDestinationsOf(state, deps, id).filter(
+    (area) => probe(state, deps, { ...example, into: { scenarioPlayArea: area } }).ok,
+  );
+  return destinations.length > 0 ? { legal: { ...evaluated.legal, destinations } } : evaluated;
 }
 
 /** Adds `costCounters` to a legal action whose cost removes "up to N" counters (docs/phase7-wave3.md §3.32). */
@@ -966,7 +995,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   const enemies = [
     // Any undefeated villain, not only the active one (The Wrecking Crew insert: "Players may attack any villain").
     ...undefeatedVillains(state).map((villain) => villain.instanceId),
-    ...cardsInPlay(state).filter((id) => isMinion(state, id)),
+    // Not a minion in a closed in-play scenario area (the mission area): `inClosedScenarioPlayArea`.
+    ...cardsInPlay(state).filter((id) => isMinion(state, id) && !inClosedScenarioPlayArea(state, id)),
   ];
   const schemes = [
     ...mainSchemeStates(state).map((scheme) => scheme.instanceId),

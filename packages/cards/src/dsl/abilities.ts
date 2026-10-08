@@ -1160,6 +1160,17 @@ export const preventConsequentialDamage = (target: TargetQuery, opts: Consequent
  */
 export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
 /**
+ * The ability "refers to the mission area" as a whole (MC45 p. 5; docs/phase7-wave8.md §3.33, §4.1 Q19 = B;
+ * `AbilityDefinition.reaches`): every query, "attached …" and target ref of it may match cards in that closed in-play
+ * scenario area as well as outside it. `reaching("mission", constant(gets("atk", 1, ATTACHED_ALLY)))` is Desperate
+ * Measures' kind of text, written for an ally at the mission. For an ability that names the area in words ("an ally
+ * at the mission") use `inScenarioPlayArea` on that query instead, so the rest of it stays closed.
+ */
+export const reaching = (scenarioPlayArea: string, definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  reaches: { scenarioPlayArea },
+});
+/**
  * "While Technovirus Purge is in the victory display, Nathan Summers and Cable gain the PSIONIC trait and Cable gets +1
  * THW, +1 ATK, and +1 DEF." (`next_evol` 40006): the constant applies while its card is in the victory display and at no
  * other time, with "you" the card's owner (`AbilityDefinition.activeIn`, docs/phase7-wave7.md §3.50; RRG 1.8 "Victory

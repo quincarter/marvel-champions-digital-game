@@ -54,6 +54,7 @@ import {
   resolveRef,
   resolveValue,
   selectTargets,
+  reachOf,
 } from "../select.js";
 import type { CardSelector, EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
@@ -552,6 +553,7 @@ export function abilityTargetFault(
     bindings: carriedByEvent(event).bindings,
     vars: carriedByEvent(event).vars,
     deps,
+    ...reachOf(definition),
     ...(definition.label?.includes("thwart") && playerId !== null ? { thwartLabeled: true } : {}),
     ...(definition.label?.includes("attack") && playerId !== null ? { attackLabeled: true } : {}),
   };

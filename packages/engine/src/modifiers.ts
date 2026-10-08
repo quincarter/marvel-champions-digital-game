@@ -14,6 +14,7 @@ import {
   matchesQuery,
   resolveValue,
   type EffectContext,
+  reachOf,
 } from "./select.js";
 import type { SchemeValueName, StatName } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -80,6 +81,7 @@ export function modifiersFor(
         event: null,
         bindings: {},
         deps,
+        ...reachOf(definition),
       };
       for (const modifier of definition.trigger.modifiers ?? []) {
         if (!wanted(modifier.stat)) continue;
