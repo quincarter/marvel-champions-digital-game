@@ -23,11 +23,12 @@
  * The game is built with `wave8Scenario` and the game's card pool widened to `PLAYABLE_CARDS` (the wave 8 pool is Core
  * plus the five wave 8 packs only; a public decklist draws on every earlier pack), as `rulings.qa.test.ts` does.
  *
- * Finding (pinned below): MarvelCDB decklists never list Iceman's six set-aside Frostbite (46002; the card sits in the
+ * Finding (fixed in the importer, pinned below): MarvelCDB decklists never list Iceman's six set-aside Frostbite (46002; the card sits in the
  * separate `iceman_frostbite` card set, `hero_special`, quantity 6), so a real Iceman decklist imports and then fails
  * `validateDeck` with `identity_set_mismatch` (RRG 1.8 Appendix I "Deck Customization", p. 50: "the exact quantity of
  * each card included in that identity set must be included"). Compare Psylocke's Psi-Knife (41002a), which MarvelCDB does
- * list. The game test for Iceman adds the six lines itself.
+ * list. The importer therefore adds any identity-set card entirely absent from the slots, at its set quantity, with an
+ * `identity_set_filled` note.
  */
 import { describe, expect, it, test } from "vitest";
 import { createGame, replay, validateDeck } from "@mc/engine";
@@ -109,7 +110,7 @@ const HEROES = [
 
 const ids = new Set(PLAYABLE_CARDS.map((card) => card.id as string));
 
-/** Iceman's six set-aside Frostbite lines, which MarvelCDB decklists omit (see the file header). */
+/** Iceman's six set-aside Frostbite line, which MarvelCDB decklists omit and the importer adds (see the file header). */
 const FROSTBITE = { cardId: cardId("46002"), quantity: 6 } as const;
 
 describe.each(HEROES)("$name: MarvelCDB decklist $decklist", (entry) => {
@@ -118,11 +119,8 @@ describe.each(HEROES)("$name: MarvelCDB decklist $decklist", (entry) => {
     if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
     return result;
   };
-  /** The imported deck; Iceman's gets his six Frostbite, which a real MarvelCDB list never carries. */
-  const playable = (): DeckContents => {
-    const { contents } = parse();
-    return entry.hero === "iceman" ? { ...contents, cards: [...contents.cards, FROSTBITE] } : contents;
-  };
+  /** The imported deck (Iceman's six Frostbite, which a real MarvelCDB list never carries, are added by the importer). */
+  const playable = (): DeckContents => parse().contents;
 
   test("the fixture is the served decklist, with the description emptied", () => {
     const raw = JSON.parse(fixtureText(entry.hero)) as { id: number; description_md: string; hero_code: string };
@@ -141,7 +139,12 @@ describe.each(HEROES)("$name: MarvelCDB decklist $decklist", (entry) => {
     // original's id, so the imported lines never outnumber the served slots.
     const served = JSON.parse(fixtureText(entry.hero)) as { slots: Record<string, number> };
     const servedTotal = Object.values(served.slots).reduce((n, q) => n + q, 0);
-    expect(result.contents.cards.reduce((n, l) => n + l.quantity, 0)).toBe(servedTotal);
+    // Plus the identity-set cards the importer fills in (Iceman's six Frostbite), which the served list never carries.
+    const addedByImporter = (result.notes ?? [])
+      .filter((n) => n.code === "identity_set_filled")
+      .reduce((n, note) => n + (result.contents.cards.find((l) => l.cardId === note.cardIds?.[0])?.quantity ?? 0), 0);
+    expect(addedByImporter).toBe(entry.hero === "iceman" ? 6 : 0);
+    expect(result.contents.cards.reduce((n, l) => n + l.quantity, 0)).toBe(servedTotal + addedByImporter);
   });
 
   test("the deck keeps the hero's own signature cards and is legal under validateDeck", () => {
@@ -183,27 +186,29 @@ describe("Iceman: a real MarvelCDB decklist omits the six set-aside Frostbite (R
     return result.contents;
   };
 
-  it("today: the served decklist carries no Frostbite, so validateDeck refuses it for the missing identity-set card", () => {
+  it("the importer adds the six Frostbite the served decklist lacks, and says so", () => {
     const served = JSON.parse(fixtureText("iceman")) as { slots: Record<string, number> };
     expect(served.slots["46002"]).toBeUndefined();
-    const verdict = validateDeck(imported(), PLAYABLE_CARDS);
-    expect(verdict.ok).toBe(false);
-    if (!verdict.ok) {
-      expect(verdict.problems.map((p) => p.code)).toEqual(["identity_set_mismatch"]);
-      expect(verdict.problems[0]!.cardIds).toEqual(["46002"]);
-    }
+    const result = parseMarvelCdbDeckJsonText(fixtureText("iceman"), PLAYABLE_CARDS);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.contents.cards.find((l) => l.cardId === FROSTBITE.cardId)).toEqual(FROSTBITE);
+    expect(result.notes?.filter((n) => n.code === "identity_set_filled").map((n) => n.cardIds)).toEqual([["46002"]]);
   });
 
-  // Expected: a public Iceman decklist, as MarvelCDB serves it, is a legal deck once imported (the six Frostbite are
-  // Permanent and come with the identity, docs/phase7-wave8.md section 3.61 and section 7.2 "Deckbuilding": "the builder
-  // starts a new deck with the six already in it"); the importer or the builder's import step should add them.
-  // Owner: card-data-pipeline (importer) with game-rules-architect (validateDeck).
-  it.fails("expected: the imported decklist is legal as served", () => {
+  // A public Iceman decklist, as MarvelCDB serves it, is a legal deck once imported (the six Frostbite are Permanent and
+  // come with the identity, docs/phase7-wave8.md section 3.61 and section 7.2 "Deckbuilding").
+  it("the imported decklist is legal as served", () => {
     expect(validateDeck(imported(), PLAYABLE_CARDS)).toEqual({ ok: true });
   });
 
-  it("with the six Frostbite added by hand the same deck is legal", () => {
-    const deck = { ...imported(), cards: [...imported().cards, FROSTBITE] };
-    expect(validateDeck(deck, PLAYABLE_CARDS)).toEqual({ ok: true });
+  it("a decklist that states a wrong Frostbite quantity is not corrected, so it still fails", () => {
+    const served = JSON.parse(fixtureText("iceman")) as { slots: Record<string, number> };
+    const text = JSON.stringify({ ...served, slots: { ...served.slots, "46002": 4 } });
+    const result = parseMarvelCdbDeckJsonText(text, PLAYABLE_CARDS);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.notes?.some((n) => n.code === "identity_set_filled") ?? false).toBe(false);
+    const verdict = validateDeck(result.contents, PLAYABLE_CARDS);
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(verdict.problems.map((p) => p.code)).toEqual(["identity_set_mismatch"]);
   });
 });

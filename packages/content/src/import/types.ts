@@ -54,7 +54,13 @@ export type ImportNoteCode =
    */
   | "reprint_resolved"
   /** A line of pasted text that is not a card, a header or a summary line; skipped, and said so by line number. */
-  | "unreadable_line";
+  | "unreadable_line"
+  /**
+   * A MarvelCDB decklist omitted identity-set cards the hero's deck must hold (MarvelCDB files some of them in a
+   * separate set, e.g. Iceman's Frostbite, so no public decklist's `slots` carries them); the importer added each
+   * at its set quantity. Only cards absent from the decklist are added; a quantity the decklist states is never changed.
+   */
+  | "identity_set_filled";
 
 export interface ImportNote {
   readonly code: ImportNoteCode;
