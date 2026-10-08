@@ -1,0 +1,3 @@
+kind: Fixed
+body: Title and cover art is fetched once per picture even when its screen closes mid-load (no more 'Texture key already in use'); the campaign smoke spec confirms the chosen volume before opening it
+time: 2026-10-08T15:39:06.365516-04:00

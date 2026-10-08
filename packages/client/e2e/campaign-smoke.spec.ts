@@ -30,7 +30,12 @@ import {
 
 const OPEN_VOLUMES = campaignSagaRows([])
   .filter((row) => row.hasDefinition)
-  .map((row) => ({ number: row.volume.number, id: row.volume.campaignId, name: row.volume.name }));
+  .map((row) => ({
+    number: row.volume.number,
+    id: row.volume.campaignId,
+    name: row.volume.name,
+    boxCode: row.volume.boxCode,
+  }));
 
 /** Box name as drawn: uppercase, lines joined ("THE RISE\nOF RED SKULL"), curly apostrophes folded to straight. */
 const flat = (text: string): string =>
@@ -130,19 +135,31 @@ for (const volume of OPEN_VOLUMES) {
     await openSaga(page);
 
     // The Saga shelf: this volume's tile is open, and tapping it features it.
-    await clickStop(page, `vol-${volume.number}`, "CampaignSaga");
-    await settle(page);
+    // The shelf redraws itself as art arrives, and a press that lands mid-redraw is lost (the Call to Action then opens
+    // the default featured volume). So confirm the tile took, by the featured card's status line ("OPEN · MC11": the
+    // tiles show the box code alone), and press again if not.
+    const featured = async (): Promise<boolean> =>
+      (await visibleTexts(page)).some(
+        (t) => t.scene === "CampaignSaga" && t.text.trim().toUpperCase().endsWith(` · ${volume.boxCode}`),
+      );
+    for (let attempt = 0; attempt < 4 && !(await featured()); attempt++) {
+      await clickStop(page, `vol-${volume.number}`, "CampaignSaga");
+      await settle(page);
+    }
+    expect(await featured(), `${volume.name} is the featured volume`).toBe(true);
     await assertNoRawText(page, `${volume.name} saga`);
     await clickStop(page, "cta", "CampaignSaga");
 
     // Cover: the title, a blurb, and a way forward.
     await waitForScene(page, "CampaignCover");
-    await settle(page);
-    const cover = await visibleTexts(page);
+    // The scene is active before it draws: it reads the campaign record and saved runs from storage first, so the
+    // title appears a moment after the scene starts (longer on a busy machine). Wait for it rather than reading once.
     // The title may be drawn as two balanced lines ("THE RISE" / "OF RED SKULL"), so read the cover's text in order.
-    expect(flat(cover.map((t) => t.text).join(" ")), `cover shows the title ${volume.name}`).toContain(
-      flat(volume.name),
-    );
+    const cover = await waitFor(async () => {
+      const texts = (await visibleTexts(page)).filter((t) => t.scene === "CampaignCover");
+      return flat(texts.map((t) => t.text).join(" ")).includes(flat(volume.name)) ? texts : null;
+    }, `cover shows the title ${volume.name}`);
+    await settle(page);
     expect(
       cover.some((t) => t.text.trim().length >= 40),
       "cover has a blurb of real text",

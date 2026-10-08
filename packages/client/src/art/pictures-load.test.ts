@@ -1,124 +1,115 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type Phaser from "phaser";
 import { ensurePictureLoaded, type Picture } from "./pictures.js";
 
-/** Just enough of a scene for the loader guard: one shared texture manager, a loader and events of its own. */
-class FakeScene {
-  readonly loads: string[] = [];
-  active = true;
-  readonly #handlers = new Map<string, ((...args: unknown[]) => void)[]>();
-  readonly #eventHandlers = new Map<string, (() => void)[]>();
-  loading = false;
-  readonly textures: { exists(key: string): boolean; shared: Set<string> };
-  readonly load = {
-    image: (key: string) => {
-      this.loads.push(key);
-    },
-    on: (event: string, fn: (...args: unknown[]) => void) => {
-      this.#handlers.set(event, [...(this.#handlers.get(event) ?? []), fn]);
-    },
-    off: (event: string, fn: (...args: unknown[]) => void) => {
-      this.#handlers.set(
-        event,
-        (this.#handlers.get(event) ?? []).filter((h) => h !== fn),
-      );
-    },
-    isLoading: () => this.loading,
-    start: () => {
-      this.loading = true;
-    },
-  };
-  readonly events = {
-    once: (event: string, fn: () => void) => {
-      this.#eventHandlers.set(event, [...(this.#eventHandlers.get(event) ?? []), fn]);
-    },
-    off: (event: string, fn: () => void) => {
-      this.#eventHandlers.set(
-        event,
-        (this.#eventHandlers.get(event) ?? []).filter((h) => h !== fn),
-      );
-    },
-  };
-  readonly sys = { isActive: () => this.active };
+/** A stand-in for the DOM `Image`: the test settles each one by hand. */
+class FakeImage {
+  static all: FakeImage[] = [];
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  src = "";
+  constructor() {
+    FakeImage.all.push(this);
+  }
+}
+vi.stubGlobal("Image", FakeImage);
+afterEach(() => {
+  FakeImage.all = [];
+});
 
-  constructor(textures: { exists(key: string): boolean; shared: Set<string> }) {
+/** Just enough of a scene: one shared texture manager and an active flag. */
+class FakeScene {
+  active = true;
+  readonly textures: FakeTextures;
+  readonly sys = { isActive: () => this.active };
+  constructor(textures: FakeTextures) {
     this.textures = textures;
-  }
-  emit(event: string, ...args: unknown[]): void {
-    for (const fn of [...(this.#handlers.get(event) ?? [])]) fn(...args);
-  }
-  shutdown(): void {
-    this.active = false;
-    for (const fn of [...(this.#eventHandlers.get("shutdown") ?? [])]) fn();
   }
   get asScene(): Phaser.Scene {
     return this as unknown as Phaser.Scene;
   }
 }
 
-const manager = () => {
-  const shared = new Set<string>();
-  return { exists: (key: string) => shared.has(key), shared };
-};
+class FakeTextures {
+  readonly shared = new Set<string>();
+  readonly added: string[] = [];
+  exists(key: string): boolean {
+    return this.shared.has(key);
+  }
+  addImage(key: string): void {
+    this.added.push(key);
+    this.shared.add(key);
+  }
+}
+
 const PIC: Picture = { key: "wallpaper", url: "/wallpaper.png" };
 
 describe("ensurePictureLoaded across scenes", () => {
   test("two scenes asking at once load the picture once, and both are told when it arrives", () => {
-    const textures = manager();
+    const textures = new FakeTextures();
     const a = new FakeScene(textures);
     const b = new FakeScene(textures);
     let readyA = 0;
     let readyB = 0;
     expect(ensurePictureLoaded(a.asScene, PIC, () => readyA++)).toBeNull();
     expect(ensurePictureLoaded(b.asScene, PIC, () => readyB++)).toBeNull();
-    expect(a.loads).toEqual(["wallpaper"]);
-    expect(b.loads, "the second scene does not call load.image").toEqual([]);
-    textures.shared.add("wallpaper");
-    a.emit("filecomplete-image-wallpaper");
+    expect(FakeImage.all.map((i) => i.src)).toEqual(["/wallpaper.png"]);
+    FakeImage.all[0]!.onload?.();
     expect([readyA, readyB]).toEqual([1, 1]);
+    expect(textures.added).toEqual(["wallpaper"]);
     expect(ensurePictureLoaded(b.asScene, PIC, () => readyB++)).toBe("wallpaper");
   });
 
   test("a waiting scene that has closed is not told", () => {
-    const textures = manager();
+    const textures = new FakeTextures();
     const a = new FakeScene(textures);
     const b = new FakeScene(textures);
     let readyB = 0;
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
     ensurePictureLoaded(b.asScene, PIC, () => readyB++);
     b.active = false;
-    a.emit("filecomplete-image-wallpaper");
+    FakeImage.all[0]!.onload?.();
     expect(readyB).toBe(0);
   });
 
-  test("when the loading scene shuts down mid-load, the next waiting scene takes the load over", () => {
-    const textures = manager();
+  test("the loading scene closing mid-load neither drops the load nor lets a later request start a second one", () => {
+    const textures = new FakeTextures();
     const a = new FakeScene(textures);
     const b = new FakeScene(textures);
     let readyB = 0;
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
+    a.active = false;
+    // The next screen asks while the first scene's file is still in flight.
     ensurePictureLoaded(b.asScene, PIC, () => readyB++);
-    a.shutdown();
-    expect(b.loads).toEqual(["wallpaper"]);
-    textures.shared.add("wallpaper");
-    b.emit("filecomplete-image-wallpaper");
+    expect(FakeImage.all).toHaveLength(1);
+    FakeImage.all[0]!.onload?.();
+    expect(textures.added).toEqual(["wallpaper"]);
     expect(readyB).toBe(1);
   });
 
-  test("a load that fails is forgotten, so a later request tries again", () => {
-    const textures = manager();
+  test("the texture is added at most once even if it appeared meanwhile", () => {
+    const textures = new FakeTextures();
     const a = new FakeScene(textures);
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
-    a.emit("loaderror", { key: "wallpaper" });
+    textures.shared.add("wallpaper");
+    FakeImage.all[0]!.onload?.();
+    expect(textures.added).toEqual([]);
+  });
+
+  test("a load that fails is forgotten, so a later request tries again", () => {
+    const textures = new FakeTextures();
+    const a = new FakeScene(textures);
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
-    expect(a.loads).toEqual(["wallpaper", "wallpaper"]);
+    FakeImage.all[0]!.onerror?.();
+    ensurePictureLoaded(a.asScene, PIC, () => undefined);
+    expect(FakeImage.all).toHaveLength(2);
   });
 
   test("different texture managers are independent", () => {
-    const a = new FakeScene(manager());
-    const b = new FakeScene(manager());
+    const a = new FakeScene(new FakeTextures());
+    const b = new FakeScene(new FakeTextures());
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
     ensurePictureLoaded(b.asScene, PIC, () => undefined);
-    expect([a.loads.length, b.loads.length]).toEqual([1, 1]);
+    expect(FakeImage.all).toHaveLength(2);
   });
 });
