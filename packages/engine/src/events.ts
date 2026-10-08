@@ -409,6 +409,29 @@ export type GameEvent =
       readonly reason?: string;
     }
   /**
+   * A change of form by a player card's effect asks the changing player for its additional cost (`RuleSpec
+   * formChangeCost`; docs/phase7-wave8.md §3.63). `sourceInstanceIds`: the cards the cost is printed on.
+   */
+  | {
+      readonly type: "formChangeCostAsked";
+      readonly playerId: PlayerId;
+      readonly to: Form;
+      readonly sourceInstanceIds: readonly InstanceId[];
+    }
+  /**
+   * How an additional cost to change form ended (§3.63; RRG 1.8 "Cost", p. 14): `paid` (the change follows), or, for a
+   * change by a card effect, `declined` (asked, and no payment that pays was made) or `unpayable` (not asked: nothing
+   * the player holds pays it). Anything but `paid` means nothing was spent and the form did not change. The
+   * `changeForm` command logs only `paid`: unpaid, it is refused and logs nothing.
+   */
+  | {
+      readonly type: "formChangeCostSettled";
+      readonly playerId: PlayerId;
+      readonly to: Form;
+      readonly sourceInstanceIds: readonly InstanceId[];
+      readonly outcome: "paid" | "declined" | "unpayable";
+    }
+  /**
    * A "take N indirect damage →" cost has been paid or failed (`AbilityCost.indirectDamage`): `taken` is the damage the
    * payer's characters took of `amount`. Short of it, the cost was not paid (RRG 1.8 "Cost", p. 14) and the effects of
    * `instanceId`'s ability do not resolve; the damage taken stays taken.

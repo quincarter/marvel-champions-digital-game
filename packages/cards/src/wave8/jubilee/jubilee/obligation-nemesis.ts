@@ -14,6 +14,7 @@ import {
   engage,
   exists,
   forcedResponse,
+  formChangeCost,
   gainsTrait,
   gets,
   host,
@@ -31,6 +32,7 @@ import {
   selectCards,
   self,
   setAside,
+  spendSameType,
   shuffleEncounterDeck,
   surge,
   thatPlayer,
@@ -70,9 +72,11 @@ const JUBILEE_PLAYER = playersWhere(
  * **Grounded (47023)**: "Give to the Jubilation Lee player" is engine data (`obligationCardId`). When Revealed: a forced
  * change to alter-ego form (nothing in alter-ego form already; it does not use the once-per-round change). Response:
  * after you play a Jubilee event (an event of her identity-specific set), remove this card from the game (an optional
- * Response, "you" being the player whose play area holds it). The constant line (2 resources of the same type as an
- * additional cost to change to hero form on your turn, section 3.63 `RuleSpec formChangeCost`) is NOT registered: the
- * engine has no form-change cost yet (see `JUBILEE_OBLIGATION_NEMESIS_SKIPPED`).
+ * Response, "you" being the player whose play area holds it). The constant line is `RuleSpec formChangeCost` (section
+ * 3.63): 2 resources of the same type, a wild standing for any, to change to hero form on her own turn. The change-form
+ * option carries the payment and is refused unpaid; a change to alter-ego form, a change outside her turn and a change an
+ * encounter card forces are free (Q37 = A). It is hers alone to pay, from her hand: X-Gene generates only for an
+ * identity-specific event, and "Like, totally!" is on her hero face.
  *
  * **Nanny (47024)**: Toughness is data. Forced Response: after she attacks you, if you control an ally, search the
  * encounter deck, discard pile and set-aside areas for 1 copy of "Lost" Child, shuffle the encounter deck (the search is
@@ -90,6 +94,7 @@ const JUBILEE_PLAYER = playersWhere(
  * consequential damage. When Revealed: the attached ally engages its controller; otherwise the card gains surge.
  */
 export const JUBILEE_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
+  "47023.obligation": constant(formChangeCost(you, spendSameType(2), { to: "hero", during: "ownTurn" })),
   "47023.when-revealed": whenRevealed(changeForm(you, "alterEgo")),
   "47023.grounded-response": response(
     after.youPlayedCard(query("event", ofIdentitySetTitled("Jubilee"))),
@@ -130,14 +135,8 @@ export const JUBILEE_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "47027.when-revealed": whenRevealed(ifThen(isAttached(self), engage(host, controllerOf(host)), surge())),
 });
 
-/**
- * Grounded's constant line, NOT registered. `RuleSpec formChangeCost` (section 3.63, engine task 10) does not exist yet,
- * and no existing rule prices a form change, so the draft is a constant that changes nothing (hand size plus 0: the behavior
- * of today's engine, and a definition that validates). When the rule lands, put `rule({ kind: "formChangeCost", player: you, to: "hero",
- * during: "ownTurn", cost: spendSameType(2) })` here, move the entry into the registry and empty `skipped`.
- */
+/** Drafts of refs the card data does not name yet, NOT registered. */
 export const JUBILEE_OBLIGATION_NEMESIS_DRAFTS: AbilityRegistry = defineAbilities({
-  "47023.obligation": constant(gets("handSize", 0, query("identity", { controller: "you" }))),
   // Battle Suit's "Otherwise, this card gains surge". The card data names no ability for it (only the two constants), so
   // the engine never looks this id up: it takes effect once the card data lists `47026.when-revealed` (Lost Child's
   // own When Revealed is the same shape).
@@ -145,7 +144,4 @@ export const JUBILEE_OBLIGATION_NEMESIS_DRAFTS: AbilityRegistry = defineAbilitie
 });
 
 /** Refs left unregistered, each with its reason (the coverage test reads this through its own `skipped` list). */
-export const JUBILEE_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {
-  "47023.obligation":
-    "section 3.63 (extend, engine task 10) is not built: there is no RuleSpec formChangeCost, so 'as an additional cost to change to hero form during your turn, spend 2 resources of the same type' cannot be expressed; the change is free today",
-};
+export const JUBILEE_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {};

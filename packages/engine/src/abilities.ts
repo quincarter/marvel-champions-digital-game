@@ -825,6 +825,34 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "As an additional cost to change to hero form during your turn, you must spend 2 resources of the same type"
+   * (docs/phase7-wave8.md §3.63): a change between hero and alter-ego form by each player `player` names costs `cost`
+   * as well. `to`: only a change that ends in that form (absent, either way); `during: "ownTurn"`: only during that
+   * player's own turn. An additional form's change (`changeAdditionalForm`) is never covered.
+   *
+   * RRG 1.8 "Cost" (p. 14): an additional cost is paid "simultaneously with the cost that is being added to", and "if
+   * they cannot pay for all of the costs at once, then they do not pay any of the costs and the effect associated
+   * with the costs does not occur". So:
+   *
+   * - the turn's own option (the `changeForm` command; RRG 1.8 "Form, Change Form", p. 21) carries the payment and is
+   *   refused without one that pays, which leaves the once-per-round change unused;
+   * - a change the player makes by an ability of a player card they resolve asks them for the payment as the change
+   *   resolves, and does not happen when they cannot or do not pay (§4.2 Q37 = A);
+   * - a change an encounter card makes (an obligation's or a treachery's "change to alter-ego form") is not the
+   *   player's to pay for: it costs nothing and happens (Q37 = A).
+   *
+   * The cost is the player's alone, paid for no card: a resource generated "for" a kind of card (`generatesFor`) and
+   * another player's hand cannot pay it. Several rules that cover one change are all paid at once.
+   */
+  | {
+      readonly kind: "formChangeCost";
+      readonly player: PlayerRef;
+      readonly to?: Form;
+      readonly during?: "ownTurn";
+      readonly cost: AbilityCost;
+      readonly while?: Predicate;
+    }
+  /**
    * "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching `target` are
    * illegal. `player` scopes the restriction to one player — "You cannot attack Kang" (Fear of Kang, `toafk` 11049).
    * Absent, it binds the whole table, which is what Distracting Taunts' plural printed wording means; every caller

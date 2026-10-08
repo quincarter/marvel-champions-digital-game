@@ -4,6 +4,7 @@ import {
   applyCommand,
   characterProfile,
   createGame,
+  legalActions,
   traitsOf,
   type Command,
   type GameEvent,
@@ -51,8 +52,8 @@ vi.setConfig({ testTimeout: 120_000 });
  * relabeling cards (test-only surgery on cards whose own text is not under test): Cell Phone 47019 [energy], Disguise
  * 47013 [mental], Waylay 47014 [physical], X-Gene 47020 [wild]. Allies: Synch 47018 (cost 3), Husk 47012 (cost 4).
  *
- * The form-change cost (section 3.63) is not built in the engine: its tests are `it.fails` proofs of the rule beside
- * companions pinning today's behavior (the change is free).
+ * The form-change cost (section 3.63) is paid with the change-form command itself (`payment`), as a play is paid for:
+ * `legalActions` lists the change only when her hand can pay it, with a payment that does.
  */
 const GROUNDED = "47023";
 const NANNY = "47024";
@@ -62,6 +63,7 @@ const LOST_CHILD = "47027";
 const COST_REF = "47023.obligation";
 
 const REFS = [
+  COST_REF,
   "47023.when-revealed",
   "47023.grounded-response",
   "47024.nanny-forced-response",
@@ -71,7 +73,7 @@ const REFS = [
   "47027.lost-child-constant",
   "47027.when-revealed",
 ];
-const ALL_REFS = [COST_REF, ...REFS];
+const ALL_REFS = REFS;
 
 const E = "47019";
 const M = "47013";
@@ -82,6 +84,16 @@ const HUSK = "47012";
 const FIRECRACKER = "47007a";
 const THREE_STEPS = "47015";
 const ADVANCE = "01186";
+const POWER_OF_JUSTICE = "01062";
+
+const byCard = (a: object, b: object): number => JSON.stringify(a).localeCompare(JSON.stringify(b));
+
+/** The change-form option paid with these hand cards (Grounded's additional cost, section 3.63). */
+const toHeroPaying = (cards: readonly InstanceId[]): Command => ({
+  type: "changeForm",
+  playerId: P1,
+  payment: cards.map((fromHand) => ({ fromHand })),
+});
 
 const JUBILEE = WAVE8_STARTER_DECKS.find((d) => d.id === "jubilee-justice")!;
 const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
@@ -256,10 +268,10 @@ function withMinion(s: GameState, to: PlayerId, code: string): { state: GameStat
 }
 
 describe("registry", () => {
-  it("registers every ref but the form-change cost, which is skipped with its reason", () => {
+  it("registers every ref, the form-change cost included, and skips none", () => {
     expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS_SKIPPED)).toEqual([COST_REF]);
-    expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS_DRAFTS).sort()).toEqual([COST_REF, "47026.when-revealed"]);
+    expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS_SKIPPED)).toEqual([]);
+    expect(Object.keys(JUBILEE_OBLIGATION_NEMESIS_DRAFTS).sort()).toEqual(["47026.when-revealed"]);
     const named = WAVE8_CARDS.filter((c) => [GROUNDED, NANNY, NAUGHTY, SUIT, LOST_CHILD].includes(c.id as string))
       .flatMap((c) => abilityRefIds(c))
       .sort();
@@ -345,10 +357,13 @@ describe("Grounded (47023)", () => {
       expect(formOf(state, P2)).toBe("alterEgo");
     });
 
-    it("a forced change does not use her one change of the round (she can change back at once)", () => {
+    it("a forced change does not use her one change of the round (she can change back at once, at Grounded's cost)", () => {
       const { state } = revealed(heroGame(), [GROUNDED]);
-      const back = applyCommand(state, toHero(P1), WAVE8_DEPS);
+      expect(playerOf(state, P1).identity.changedFormThisRound).toBe(false);
+      const staged = handOf(state, P1, [E, E]);
+      const back = applyCommand(staged.state, toHeroPaying(staged.ids), WAVE8_DEPS);
       expect(back.ok).toBe(true);
+      if (back.ok) expect(formOf(back.state)).toBe("hero");
     });
   });
 
@@ -360,7 +375,13 @@ describe("Grounded (47023)", () => {
     }
     function playEvent(code: string, cost: number, pick: Picker) {
       const { state, grounded } = groundedInPlay();
-      const given = moveToHand(state, P1, code);
+      // Paid with [energy] cards only: no wild is spent, so an event that reads its payment's types asks nothing.
+      const typed = handOf(
+        state,
+        P1,
+        Array.from({ length: cost }, () => E),
+      ).state;
+      const given = moveToHand(typed, P1, code);
       const [id] = given.ids as [InstanceId];
       const pay = payWith(given.state, P1, cost, [id]);
       const result = run(given.state, pick, play(P1, id, pay));
@@ -402,30 +423,94 @@ describe("Grounded (47023)", () => {
     });
   });
 
-  describe("As an additional cost to change to hero form during your turn, spend 2 resources of the same type (section 3.63, Q37 = A): not built", () => {
+  describe("As an additional cost to change to hero form during your turn, spend 2 resources of the same type (section 3.63, Q37 = A)", () => {
     /** Grounded in her play area, her turn, alter-ego form, the hand staged as `codes`. */
     function grounded(codes: readonly string[]) {
-      const { state } = revealed(alterEgoGame(), [GROUNDED]);
-      return handOf(state, P1, codes).state;
+      const { state, ids: revealedIds } = revealed(alterEgoGame(), [GROUNDED]);
+      const staged = handOf(state, P1, codes);
+      return { s: staged.state, hand: staged.ids, groundedId: revealedIds[0]! };
+    }
+    /** The change-form action as `legalActions` lists it for her: legal with its example, or illegal with its reason. */
+    function changeOf(s: GameState) {
+      const actions = legalActions(s, P1, WAVE8_DEPS);
+      if (actions.kind !== "turn") throw new Error(`expected her turn, got ${actions.kind}`);
+      return {
+        legal: actions.legal.find((a) => a.action.kind === "changeForm"),
+        illegal: actions.illegal.find((a) => a.action.kind === "changeForm"),
+      };
     }
 
-    it("today the change to hero form is free: a hand of [energy] and [mental] changes and keeps both cards", () => {
-      const s = grounded([E, M]);
-      const r = applyCommand(s, toHero(P1), WAVE8_DEPS);
-      expect(r.ok).toBe(true);
-      if (r.ok) expect(inHand(r.state)).toHaveLength(2);
-    });
-
-    it.fails("a hand of [energy] and [mental] cannot pay: the change to hero form is refused", () => {
-      const s = grounded([E, M]);
+    it("a hand of [energy] and [mental] cannot pay: the change to hero form is refused", () => {
+      const { s } = grounded([E, M]);
       expect(applyCommand(s, toHero(P1), WAVE8_DEPS).ok).toBe(false);
     });
 
-    it.fails("a hand of two [energy] cards: the change is offered at 2 resources of one type and discards both", () => {
-      const s = grounded([E, E, PH]);
-      const r = run(s, picker(), toHero(P1));
+    it("a hand of [energy] and [mental]: not offered, with or without the two cards, and the reason names Grounded", () => {
+      const { s, hand } = grounded([E, M]);
+      const { legal, illegal } = changeOf(s);
+      expect(legal).toBeUndefined();
+      expect(illegal?.reason).toBe("insufficient_resources");
+      expect(illegal?.message).toContain("Grounded (2 resources of the same type)");
+      const mixed = applyCommand(s, toHeroPaying(hand), WAVE8_DEPS);
+      expect(mixed.ok).toBe(false);
+      expect(inHand(s)).toHaveLength(2);
+    });
+
+    it("a hand of two [energy] cards: the change is offered at 2 resources of one type and discards both", () => {
+      const { s, hand, groundedId } = grounded([E, E, PH]);
+      const { legal } = changeOf(s);
+      expect(legal?.formChangeCost).toEqual({ sourceInstanceIds: [groundedId] });
+      expect(legal?.example).toEqual(toHeroPaying(hand.slice(0, 2)));
+      const r = run(s, picker(), legal!.example);
       expect(inHand(r.state)).toHaveLength(1);
       expect(formOf(r.state)).toBe("hero");
+      expect(playerOf(r.state, P1).discard).toEqual(expect.arrayContaining(hand.slice(0, 2)));
+    });
+
+    it("a wild stands for any type: [mental] and The Power of Justice's [wild] pays", () => {
+      const { s, hand } = grounded([M, POWER_OF_JUSTICE]);
+      const example = changeOf(s).legal?.example;
+      expect(example?.type === "changeForm" ? [...(example.payment ?? [])].sort(byCard) : null).toEqual(
+        hand.map((fromHand) => ({ fromHand })).sort(byCard),
+      );
+      const r = run(s, picker(), toHeroPaying(hand));
+      expect(formOf(r.state)).toBe("hero");
+      expect(inHand(r.state)).toHaveLength(0);
+    });
+
+    it("X-Gene in play cannot pay it: its [wild] is for an identity-specific event only", () => {
+      const { s } = grounded([E, M]);
+      const xGene = playerOf(s, P1).deck[0]!;
+      const inPlay: GameState = {
+        ...patchInstance(relabel(s, xGene, W), xGene, { controllerId: P1, faceup: true }),
+        players: s.players.map((p) =>
+          p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== xGene), playArea: [...p.playArea, xGene] } : p,
+        ),
+      };
+      expect(changeOf(inPlay).legal).toBeUndefined();
+    });
+
+    it("she changes to alter-ego form with Grounded in play: no cost", () => {
+      const { s } = grounded([E, M]);
+      const hero = withForm(s, { heroForm: 0 }, P1);
+      const { legal } = changeOf(hero);
+      expect(legal?.needsPayment).toBe(false);
+      expect(legal?.formChangeCost).toBeUndefined();
+      const r = run(hero, picker(), toHero(P1));
+      expect(formOf(r.state)).toBe("alterEgo");
+      expect(inHand(r.state)).toHaveLength(2);
+    });
+
+    it("another player's change to hero form is free: the cost speaks only to the player whose play area holds it", () => {
+      const game = setupGame([SPIDER_MAN, "jubilee"]);
+      const { state, ids } = revealed(game, [GROUNDED]);
+      expect(whereIs(state, ids[0]!)).toBe("playArea:p2");
+      // The first player token has passed: it is Jubilee's turn, and her own change is the one that costs.
+      expect(applyCommand(state, toHero(P2), WAVE8_DEPS).ok).toBe(false);
+      const next = run(state, picker(), endTurn(P2)).state;
+      const r = applyCommand(next, toHero(P1), WAVE8_DEPS);
+      if (!r.ok) throw new Error(r.error.message);
+      expect(formOf(r.state, P1)).toBe("hero");
     });
   });
 });

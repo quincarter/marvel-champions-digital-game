@@ -4,6 +4,7 @@ import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type { StatusName } from "./spec.js";
+import type { Form } from "./state.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -140,7 +141,22 @@ export type ChoicePrompt =
    * `distinctTypes` (docs/phase7-wave6.md §3.69, "spend 2 different resources"): present only when the effect asks for
    * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
    */
-  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement; readonly distinctTypes?: number }
+  | {
+      readonly kind: "spendResources";
+      readonly requirement: ResourceRequirement;
+      readonly distinctTypes?: number;
+      /**
+       * The payment is an additional cost to change form, asked as a player card's effect changes the player's form
+       * (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the form being changed to and the cards the cost is
+       * printed on. `sameType`: that many of the resources must be of one type, a wild being any type ("2 resources
+       * of the same type"); present only when the cost asks for it. Declining leaves the form as it is.
+       */
+      readonly formChangeCost?: {
+        readonly to: Form;
+        readonly sourceInstanceIds: readonly InstanceId[];
+        readonly sameType?: number;
+      };
+    }
   /**
    * The wilds of a payment just made for the card `instanceId` are declared (docs/phase7-wave8.md §3.62, §4.1 Q33 = B;
    * RRG 1.8 "Wild Resource", p. 48: the player "may specify which resource type (energy, mental, physical, or wild) it

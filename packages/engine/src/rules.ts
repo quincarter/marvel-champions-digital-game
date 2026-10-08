@@ -1,4 +1,5 @@
 import type {
+  AbilityCost,
   AbilityRegistry,
   AbilityTriggerSpec,
   CardIcon,
@@ -652,6 +653,38 @@ export const cannotChangeForm = (
       ) &&
       rulePlayers(state, active.rule, active).includes(playerId),
   );
+
+/** One additional cost to change form in force for a change (`RuleSpec formChangeCost`), and the card it is on. */
+export interface FormChangeCost {
+  readonly sourceInstanceId: InstanceId;
+  readonly cost: AbilityCost;
+}
+
+/**
+ * The additional costs `playerId` must pay to change to form `to` right now (`RuleSpec formChangeCost`,
+ * docs/phase7-wave8.md §3.63), one per rule that covers the change, in the order the rules are found; empty when the
+ * change is free. `during: "ownTurn"` is read off the step: the player phase, that player's turn.
+ *
+ * This says what a change the player makes would cost. Whether a given change is one the player makes (the turn's
+ * option, an ability of a player card they resolve) or one an encounter card forces, which is free (§4.2 Q37 = A), is
+ * the caller's to say (`changeForm`, `executeChangeForm`).
+ */
+export function formChangeCostsFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  to: Form,
+): readonly FormChangeCost[] {
+  const step = state.step;
+  const ownTurn = step.phase === "player" && step.kind === "turn" && step.activePlayerId === playerId;
+  return activeRules(state, deps, "formChangeCost").flatMap((active) => {
+    const { rule, context } = active;
+    if (rule.to !== undefined && rule.to !== to) return [];
+    if (rule.during === "ownTurn" && !ownTurn) return [];
+    if (context.selfInstanceId === null || !rulePlayers(state, rule, active).includes(playerId)) return [];
+    return [{ sourceInstanceId: context.selfInstanceId, cost: rule.cost }];
+  });
+}
 
 /** "… cannot ready." */
 /**

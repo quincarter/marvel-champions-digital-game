@@ -17,9 +17,18 @@ import {
   playWithPayment,
   playWithPaymentFault,
   priceOrNull,
+  isPriceFault as isFault,
+  planCost,
   type ActionTiming,
   type PlayFromZone,
 } from "../actions.js";
+import {
+  canPayFormChangeCosts,
+  formChangeCostSources,
+  payFormChangeCosts,
+  planFormChangeCosts,
+  settleFormChangeCosts,
+} from "../form-change-cost.js";
 import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
 import type { ChoiceList, ChoiceOption, ChoicePrompt } from "../choices.js";
 import {
@@ -44,7 +53,7 @@ import {
   shuffleZone,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import { cannotChangeForm } from "../rules.js";
+import { cannotChangeForm, formChangeCostsFor, type FormChangeCost } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
@@ -58,6 +67,7 @@ import {
   activeEncounterDeckId,
   cardOf,
   characterProfile,
+  isPlayerCardType,
   getInstance,
   getPlayer,
   heroFacesOf,
@@ -68,7 +78,7 @@ import {
   undefeatedVillains,
 } from "../query.js";
 import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
-import { combineRequirements } from "../resources.js";
+import { combineRequirements, requirementTotal, type ResolvedRequirement } from "../resources.js";
 import { spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
@@ -829,6 +839,10 @@ const HERO_FORM = "_heroForm.";
 /** The alter-ego face among a form choice's options: its option id, and its answer in the frame's vars. */
 const ALTER_EGO_OPTION = "alterEgo";
 const ALTER_EGO_ANSWER = -1;
+/** Whether a player's additional cost to change form was paid (`RuleSpec formChangeCost`), in the frame's vars. */
+const FORM_COST = "_formCost.";
+const FORM_COST_PAID = 1;
+const FORM_COST_UNPAID = 0;
 
 /**
  * Where a `changeForm` effect takes one player: a form and hero face, `null` for no change (already there, can't change,
@@ -911,6 +925,7 @@ function executeChangeForm(
   const pending = targets.filter(
     ({ playerId, target }) => target === "choose" && vars[`${HERO_FORM}${playerId}`] === undefined,
   );
+  const answeredForm = frame.answer !== null && pending[0] !== undefined;
   if (frame.answer !== null && pending[0]) {
     const [answer] = frame.answer;
     vars[`${HERO_FORM}${pending[0].playerId}`] = answer === ALTER_EGO_OPTION ? ALTER_EGO_ANSWER : Number(answer);
@@ -929,11 +944,8 @@ function executeChangeForm(
     });
     return;
   }
-  const cleaned = Object.fromEntries(Object.entries(vars).filter(([key]) => !key.startsWith(HERO_FORM)));
-  setFrame(ctx, { ...frame, answer: null, vars: cleaned, cursor: frame.cursor + 1 });
-  const changed: TriggerEvent[] = [];
-  for (const { playerId, target } of targets) {
-    if (target === null) continue;
+  const changes = targets.flatMap(({ playerId, target }) => {
+    if (target === null) return [];
     const chosen = vars[`${HERO_FORM}${playerId}`] ?? 0;
     const resolved =
       target !== "choose"
@@ -941,10 +953,100 @@ function executeChangeForm(
         : chosen === ALTER_EGO_ANSWER
           ? { to: "alterEgo" as const, heroForm: 0 }
           : { to: "hero" as const, heroForm: chosen };
-    const event = setForm(ctx, playerId, resolved.to, false, resolved.heroForm);
+    return [{ playerId, ...resolved }];
+  });
+  // An additional cost to change form (`RuleSpec formChangeCost`, docs/phase7-wave8.md §3.63), one player at a time.
+  // §4.2 Q37 = A: a change the player makes by an ability of a player card they resolve is theirs to pay for; a
+  // change an encounter card makes costs nothing and happens. Paid, the payment's own announcements resolve above
+  // this frame, which then comes back here for the next player or the changes themselves.
+  //
+  // The prompt is a payment, so a cost that picks cards ("discard 1 card from your hand") cannot be asked for here
+  // yet and reads as unpayable: it needs a pick step before the payment when a card prints one.
+  const source = frame.selfInstanceId === null ? undefined : cardOf(ctx.state, frame.selfInstanceId);
+  const byPlayerCard = source !== undefined && isPlayerCardType(source);
+  // The answer on the frame is a payment only if no form choice took it above.
+  let answer = frame.answer !== null && !answeredForm ? frame.answer : null;
+  for (const { playerId, to } of changes) {
+    const key = `${FORM_COST}${playerId}`;
+    if (vars[key] !== undefined || !byPlayerCard || context.controllerId !== playerId) continue;
+    const costs = formChangeCostsFor(ctx.state, ctx.deps, playerId, to);
+    if (costs.length === 0) continue;
+    const sourceInstanceIds = formChangeCostSources(costs);
+    const unpaid = (outcome: "declined" | "unpayable"): void => {
+      vars[key] = FORM_COST_UNPAID;
+      emit(ctx, { type: "formChangeCostSettled", playerId, to, sourceInstanceIds, outcome });
+    };
+    // A cost of no resources leaves nothing to select: it is paid if it can be.
+    const needsPayment = isFault(planFormChangeCosts(ctx, playerId, costs, [], {}));
+    if (answer === null && needsPayment) {
+      if (!canPayFormChangeCosts(ctx.state, ctx.deps, playerId, costs)) {
+        unpaid("unpayable");
+        continue;
+      }
+      const asked = formChangeCostAsked(ctx, playerId, costs);
+      setFrame(ctx, { ...frame, answer: null, vars });
+      emit(ctx, { type: "formChangeCostAsked", playerId, to, sourceInstanceIds });
+      const options = paymentOptions(ctx, playerId, null);
+      requestChoice(ctx, {
+        playerId,
+        prompt: {
+          kind: "spendResources",
+          requirement: asked.requirement,
+          formChangeCost: {
+            to,
+            sourceInstanceIds,
+            ...(asked.sameType === undefined ? {} : { sameType: asked.sameType }),
+          },
+        },
+        options,
+        minSelections: 0,
+        maxSelections: options.length,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    const payment = answer === null ? [] : paymentsFromOptionIds(answer);
+    answer = null;
+    const planned = planFormChangeCosts(ctx, playerId, costs, payment, {});
+    if (isFault(planned)) {
+      unpaid("declined");
+      continue;
+    }
+    vars[key] = FORM_COST_PAID;
+    setFrame(ctx, { ...frame, answer: null, vars });
+    settleFormChangeCosts(ctx, playerId, planned, payFormChangeCosts(ctx, playerId, planned, to, payment));
+    return;
+  }
+  const cleaned = Object.fromEntries(
+    Object.entries(vars).filter(([key]) => !key.startsWith(HERO_FORM) && !key.startsWith(FORM_COST)),
+  );
+  setFrame(ctx, { ...frame, answer: null, vars: cleaned, cursor: frame.cursor + 1 });
+  const changed: TriggerEvent[] = [];
+  for (const { playerId, to, heroForm } of changes) {
+    // RRG 1.8 "Cost" (p. 14): unpaid, "the effect associated with the costs does not occur".
+    if (vars[`${FORM_COST}${playerId}`] === FORM_COST_UNPAID) continue;
+    const event = setForm(ctx, playerId, to, false, heroForm);
     if (event) changed.push(event);
   }
   pushEvents(ctx, changed);
+}
+
+/** What a `changeForm` effect's cost prompt shows: the resources asked for, and how many must be of one type. */
+function formChangeCostAsked(
+  ctx: Ctx,
+  playerId: PlayerId,
+  costs: readonly FormChangeCost[],
+): { readonly requirement: ResolvedRequirement; readonly sameType?: number } {
+  let requirement = combineRequirements(0, 0);
+  const sameTypes: number[] = [];
+  for (const { sourceInstanceId, cost } of costs) {
+    const planned = planCost(ctx.state, ctx.deps, sourceInstanceId, playerId, cost, {}, new Set());
+    if (isFault(planned)) continue;
+    requirement = combineRequirements(requirement, planned.requirement);
+    if ((planned.cost ?? cost).sameResourceType) sameTypes.push(requirementTotal(planned.requirement));
+  }
+  const sameType = sameTypes.length === 1 ? sameTypes[0] : undefined;
+  return { requirement, ...(sameType === undefined ? {} : { sameType }) };
 }
 
 /**

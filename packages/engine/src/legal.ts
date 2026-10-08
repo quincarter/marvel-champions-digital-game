@@ -64,7 +64,9 @@ import {
   mainSchemeStates,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { combineRequirements, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { formChangeCostsFor, type FormChangeCost } from "./rules.js";
+import { formChangeCostSources } from "./form-change-cost.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -74,7 +76,7 @@ import {
   triggeringPlayers,
   type EffectContext,
 } from "./select.js";
-import type { GameState } from "./state.js";
+import type { Form, GameState } from "./state.js";
 import { anyThwartCost } from "./thwart-cost.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
@@ -146,6 +148,12 @@ export interface LegalAction {
    * first. Absent for any other card.
    */
   readonly abilities?: readonly AbilityId[];
+  /**
+   * A change of form with an additional cost (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the cards the
+   * cost is printed on. The action is listed legal only when the cost can be paid; `example` carries a payment that
+   * pays it, and `paymentFor` / `tryPayment` take the action as they take a play. Absent for a free change.
+   */
+  readonly formChangeCost?: { readonly sourceInstanceIds: readonly InstanceId[] };
 }
 
 export interface IllegalAction {
@@ -294,15 +302,97 @@ function chosenSizeWallets(
   playerId: PlayerId,
   spend: readonly Payment[],
   range: { readonly min: number; readonly max: number } | null,
-  payingFor: InstanceId,
+  payingFor: InstanceId | null,
+  limit = CHOSEN_SIZE_WALLETS,
 ): readonly (readonly Payment[])[] {
   if (!range) return [];
   const found: (readonly Payment[])[] = [];
   for (const payment of chosenSizePayments(state, deps, playerId, spend, range, payingFor)) {
     found.push(payment);
-    if (found.length >= CHOSEN_SIZE_WALLETS) break;
+    if (found.length >= limit) break;
   }
   return found;
+}
+
+/** How many exact-size payments of a form change's additional cost are probed before the usual wallets. */
+const FORM_CHANGE_WALLETS = 32;
+
+/** The form a `changeForm` action ends in: the one it names, or the other form of a two-faced identity. */
+const formChangeDestination = (state: GameState, playerId: PlayerId, to: ChangeFormTo | undefined): Form =>
+  to === undefined ? (getPlayer(state, playerId)?.identity.form === "hero" ? "alterEgo" : "hero") : formOfTo(to);
+
+type ChangeFormTo = "alterEgo" | { readonly heroForm: number };
+const formOfTo = (to: ChangeFormTo): Form => (to === "alterEgo" ? "alterEgo" : "hero");
+
+/**
+ * A change of form with an additional cost (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63), as a command that
+ * carries a payment: the costs in force, the cards a "discard N cards" cost picks, what may be spent and the wallets
+ * to try. The payments that generate exactly the total come first, so `example` spends no more than the cost asks
+ * ("2 resources of the same type" from a hand of three cards), then everything the player holds (overpaying is
+ * legal). Null for a free change.
+ */
+function formChangeWithCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  to: ChangeFormTo | undefined,
+  given?: CostChoices,
+): {
+  readonly costs: readonly FormChangeCost[];
+  readonly costChoices: CostChoices | undefined;
+  readonly reserved: ReadonlySet<InstanceId>;
+  readonly spend: readonly Payment[];
+  readonly requirement: ResolvedRequirement | null;
+  readonly tryWallets: readonly (readonly Payment[])[];
+  readonly build: (payment: readonly Payment[]) => Command;
+} | null {
+  const costs = formChangeCostsFor(state, deps, playerId, formChangeDestination(state, playerId, to));
+  if (costs.length === 0) return null;
+  const picks =
+    given?.discard ??
+    costs.flatMap(({ sourceInstanceId, cost }) => discardPicks(state, deps, playerId, sourceInstanceId, cost));
+  const costChoices = mergeChoices(picks.length > 0 ? { discard: picks } : undefined, given);
+  const reserved = new Set(picks);
+  const spend = spendOrder(state, deps, playerId, reserved, null);
+  let requirement: ResolvedRequirement | null = combineRequirements(0, 0);
+  for (const { sourceInstanceId, cost } of costs) {
+    const plan = planCost(state, deps, sourceInstanceId, playerId, cost, costChoices ?? {}, NO_RESERVED);
+    requirement = requirement && "requirement" in plan ? combineRequirements(requirement, plan.requirement) : null;
+  }
+  const total = requirement ? requirementTotal(requirement) : 0;
+  const exact =
+    total > 0
+      ? chosenSizeWallets(state, deps, playerId, spend, { min: total, max: total }, null, FORM_CHANGE_WALLETS)
+      : [];
+  return {
+    costs,
+    costChoices,
+    reserved,
+    spend,
+    requirement,
+    tryWallets: [...exact, ...wallets(spend)],
+    build: (payment) => ({
+      type: "changeForm",
+      playerId,
+      ...(to === undefined ? {} : { to }),
+      payment,
+      ...(costChoices ? { costChoices } : {}),
+    }),
+  };
+}
+
+/** A `changeForm` action: free, or with its additional cost paid (`formChangeWithCost`). */
+function evaluateChangeForm(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: Extract<ActionRef, { kind: "changeForm" }>,
+): Evaluated {
+  const costed = formChangeWithCost(state, deps, playerId, action.to);
+  if (!costed) return simple(state, deps, playerId, action);
+  const evaluated = evaluate(state, deps, action, [{ target: null, build: costed.build }], costed.tryWallets);
+  if (!("legal" in evaluated)) return evaluated;
+  return { legal: { ...evaluated.legal, formChangeCost: { sourceInstanceIds: formChangeCostSources(costed.costs) } } };
 }
 
 /**
@@ -882,13 +972,13 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   if (faces > 1) {
     // A three-sided identity: each form it is not in right now is its own action.
     if (player.identity.form === "hero")
-      results.push(simple(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
+      results.push(evaluateChangeForm(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
     for (let heroForm = 0; heroForm < faces; heroForm++) {
       if (player.identity.form === "hero" && player.identity.heroFormIndex === heroForm) continue;
-      results.push(simple(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
+      results.push(evaluateChangeForm(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
     }
   } else {
-    results.push(simple(state, deps, playerId, { kind: "changeForm" }));
+    results.push(evaluateChangeForm(state, deps, playerId, { kind: "changeForm" }));
   }
   results.push(simple(state, deps, playerId, { kind: "endTurn" }));
 
@@ -985,6 +1075,8 @@ interface Payable {
   readonly spendable: boolean;
   /** The range of a chosen-size resource cost (`ResourcesChoice`), for an ability that has one. */
   readonly chosenResources?: { readonly min: number; readonly max: number };
+  /** The wallets to try for `suggested`, in place of the usual ones (a form change's exact-size payments first). */
+  readonly preferred?: readonly (readonly Payment[])[];
 }
 
 const NO_RESERVED: ReadonlySet<InstanceId> = new Set();
@@ -1110,6 +1202,20 @@ function payableFor(
       ...(chosenResources ? { chosenResources } : {}),
     };
   }
+  if (action.kind === "changeForm") {
+    // Only a change with an additional cost carries a payment (docs/phase7-wave8.md §3.63); a free one is a basic action.
+    const costed = formChangeWithCost(state, deps, playerId, action.to, options.costChoices);
+    if (!costed) return null;
+    return {
+      build: costed.build,
+      excludeInstanceId: null,
+      reserved: costed.reserved,
+      payingFor: null,
+      requirement: costed.requirement,
+      spendable: costed.requirement !== null && requirementTotal(costed.requirement) > 0,
+      preferred: costed.tryWallets,
+    };
+  }
   return null;
 }
 
@@ -1187,7 +1293,7 @@ export function paymentFor(
   const sized = payable.payingFor
     ? chosenSizeWallets(state, deps, playerId, spend, payable.chosenResources ?? null, payable.payingFor)
     : [];
-  for (const wallet of [...sized, ...wallets(spend)]) {
+  for (const wallet of payable.preferred ?? [...sized, ...wallets(spend)]) {
     if (!probe(state, deps, payable.build(wallet)).ok) continue;
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;

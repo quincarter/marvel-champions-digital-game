@@ -60,11 +60,17 @@ export type Command =
   /**
    * RRG "Form, Change Form". `to` names the form, needed only for a three-sided identity (docs/phase7-wave2.md §3.2):
    * `{ heroForm: n }` is the hero face `IdentityState.heroFormIndex` n. Absent: the other form of a two-faced identity.
+   *
+   * `payment` and `costChoices` pay an additional cost to change form (`RuleSpec formChangeCost`,
+   * docs/phase7-wave8.md §3.63), as a play's or an ability's pay its cost. With no such cost in force a payment is
+   * refused: a free change spends nothing.
    */
   | {
       readonly type: "changeForm";
       readonly playerId: PlayerId;
       readonly to?: "alterEgo" | { readonly heroForm: number };
+      readonly payment?: readonly Payment[];
+      readonly costChoices?: CostChoices;
     }
   | {
       readonly type: "playCard";

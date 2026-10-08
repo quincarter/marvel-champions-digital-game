@@ -804,6 +804,30 @@ export const additionalThwartCost = (
     ...(cost.indirectDamage ? { indirectDamage: cost.indirectDamage } : {}),
   });
 /**
+ * "As an additional cost to change to hero form during your turn, you must spend 2 resources of the same type"
+ * (Grounded 47023; docs/phase7-wave8.md §3.63) →
+ * `constant(formChangeCost(you, spendSameType(2), { to: "hero", during: "ownTurn" }))`. `to` absent: a change either
+ * way ("As an additional cost to change forms, …"); `during` absent: at any time. On an obligation "you" is the player
+ * whose play area holds it.
+ *
+ * The turn's own change-form option carries the payment and is refused unpaid. A change by an ability of a player card
+ * the player resolves asks for it and does not happen unpaid. A change an encounter card makes costs nothing (§4.2
+ * Q37 = A). The cost is the player's alone: no other player's hand and no resource generated "for" a kind of card.
+ */
+export const formChangeCost = (
+  player: PlayerRef,
+  cost: AbilityCost,
+  opts: { readonly to?: Form; readonly during?: "ownTurn"; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "formChangeCost",
+    player,
+    cost,
+    ...(opts.to ? { to: opts.to } : {}),
+    ...(opts.during ? { during: opts.during } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
  * docs/phase7-wave5.md §3.20): `constant(printedResourcesInHandAs(you, "energy"))` on the attachment ("you" is the
  * identity it is attached to). Read by payment and by every printed-resource query and count.

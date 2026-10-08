@@ -183,6 +183,7 @@ export {
   maxSustainedDamageOf,
   sustainedDamageAllowance,
   excessDamageBonus,
+  formChangeCostsFor,
   grantedIcons,
   iconsBlankedOn,
   iconsInPlay,
@@ -197,7 +198,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export type { ConsequentialDamage, DamageSourceInfo } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";

@@ -40,6 +40,7 @@ import {
   attachLimitFault,
   cannotBeHealed,
   cannotChangeForm,
+  formChangeCostsFor,
   cannotChooseToDiscard,
   cannotFlip,
   cannotLeavePlay,
@@ -197,6 +198,12 @@ import {
 } from "./stack.js";
 import type { GameState } from "./state.js";
 import { anyThwartCost, askBasicThwartCost, thwartCostsPayable, thwartCostTotal } from "./thwart-cost.js";
+import {
+  formChangeCostMessage,
+  payFormChangeCosts,
+  planFormChangeCosts,
+  settleFormChangeCosts,
+} from "./form-change-cost.js";
 import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
@@ -276,8 +283,26 @@ export function changeForm(ctx: Ctx, command: Command & { type: "changeForm" }):
   // RRG "Form, Change Form": damage, status cards, tokens, and ready/exhausted state all persist. A change from one hero
   // form to the other is a voluntary change of form too, so it uses the once-per-round change (the Ant-Man insert: "follows
   // the standard rules for changing form"; docs/phase7-wave2.md §4.6's proposed reading).
+  // An additional cost to change form (`RuleSpec formChangeCost`, docs/phase7-wave8.md §3.63) is paid with the change or
+  // the change is refused, nothing paid and the round's change unused (RRG 1.8 "Cost", p. 14).
+  const costs = formChangeCostsFor(ctx.state, ctx.deps, command.playerId, to);
+  const payment = command.payment ?? [];
+  if (costs.length === 0) {
+    if (payment.length > 0) return engineError("invalid_choice", "this change of form costs nothing", command);
+    const changed = setForm(ctx, command.playerId, to, true, heroForm);
+    if (changed) pushEvent(ctx, changed);
+    return null;
+  }
+  const planned = planFormChangeCosts(ctx, command.playerId, costs, payment, command.costChoices ?? {});
+  if (isFault(planned)) {
+    return engineError(planned.code, formChangeCostMessage(ctx.state, costs, to, planned.message), command);
+  }
+  const spent = payFormChangeCosts(ctx, command.playerId, planned, to, payment);
   const changed = setForm(ctx, command.playerId, to, true, heroForm);
   if (changed) pushEvent(ctx, changed);
+  // Above the change on the stack, so the rest of the cost and "after you spend this card" resolve before "after you
+  // change form" (RRG 1.8 "Initiating Abilities", p. 24, steps 5–6).
+  settleFormChangeCosts(ctx, command.playerId, planned, spent);
   return null;
 }
 
@@ -1210,7 +1235,7 @@ function repeatUsesFault(
 /** Most uses the payment options offer for one `repeatable` resource ability (a safety cap, not a rule). */
 const MAX_REPEAT_OPTIONS = 20;
 
-function priceOf(
+export function priceOf(
   ctx: Ctx,
   playerId: PlayerId,
   payment: readonly Payment[],
