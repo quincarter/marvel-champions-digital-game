@@ -8,7 +8,7 @@ import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
 import type { LastingDuration, LastingEffect } from "./lasting.js";
-import type { ResourcePool } from "./resources.js";
+import type { ResourcePool, ResourceType } from "./resources.js";
 import type { ReportedFact } from "./outside-facts.js";
 
 /**
@@ -129,6 +129,30 @@ export type GameEvent =
        */
       readonly from?: "deckTop";
       readonly countsAsFrom?: "hand";
+      /**
+       * Present only on a play whose payment is read for resource types (docs/phase7-wave8.md §3.62): `paidCount` is the
+       * number of resources the cost took, so `resourcesPaid` less `paidCount` were overpaid and are not read (§4.1
+       * Q34 = A). `paidAs` is the paid resources by the type each was used as, when that is settled as the card is
+       * paid for (no wild, a declaration on the command, or one the engine skipped as equivalent); when the player is
+       * asked instead, the `wildTypesDeclared` that follows carries it. Every other play logs exactly as before.
+       */
+      readonly paidCount?: number;
+      readonly paidAs?: ResourcePool;
+    }
+  /**
+   * The wilds of the payment for `instanceId` were declared (docs/phase7-wave8.md §3.62, §4.1 Q33 = B): `declared` is
+   * the type each wild is used as, in the order generated (`"wild"`: left a wild). `skipped`: the player was not asked,
+   * because every legal declaration gave every reader of the payment the same reading; the wilds are then left wild
+   * where that is legal. Not skipped, the declaration is the player's own, from the play command's `wildAs` or the
+   * `declareWildTypes` choice. `paidAs`: the paid resources by the type each was used as, the overpaid ones left out.
+   */
+  | {
+      readonly type: "wildTypesDeclared";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly declared: readonly ResourceType[];
+      readonly skipped: boolean;
+      readonly paidAs: ResourcePool;
     }
   | { readonly type: "cardExhausted"; readonly instanceId: InstanceId }
   | { readonly type: "cardReadied"; readonly instanceId: InstanceId }

@@ -28,6 +28,7 @@ import type {
   TargetRef,
   ValueSpec,
   InPlayCostPick,
+  PaidTypesRead,
   PlayerRef,
   TraitGrantSpec,
   TriggerEventKind,
@@ -94,6 +95,16 @@ export interface AbilityOptions {
    * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
    */
   readonly playCostReduction?: { readonly amount: number; readonly cards?: TargetQuery; readonly fromHand?: boolean };
+  /**
+   * The ability reads the resource types that paid for its card (docs/phase7-wave8.md §3.62), so the player declares
+   * what each wild of that payment is used as (§4.1 Q33 = B): `{ count: true }` for "the number of different resource
+   * types used to pay for this event" / "for each different resource type" (with `paidTypeCount()` in the effects),
+   * `{ atLeast: 2 }` for "if you paid for this card using 2 different resource types" (`atLeast(paidTypeCount(), 2)`),
+   * `{ types: ["physical", "mental", "energy"] }` for "if you paid for this event using at least 1: [physical] …"
+   * (`paidType("physical")` and so on). Say exactly what the effects read: the engine skips the question only when no
+   * declaration could change it. Without this the payment records no types and both readers read nothing.
+   */
+  readonly readsPaidTypes?: PaidTypesRead;
 }
 type Args = readonly (AbilityOptions | EffectArg)[];
 
@@ -146,6 +157,7 @@ function build(
     effects: flatten(effects),
     ...(generates !== undefined ? { generates } : {}),
     ...(options.playCostReduction ? { playCostReduction: options.playCostReduction } : {}),
+    ...(options.readsPaidTypes ? { readsPaidTypes: options.readsPaidTypes } : {}),
   };
 }
 
@@ -1399,6 +1411,24 @@ export const cannotLeavePlay = (
  */
 export const cannotFlip = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotFlip", target, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "After you play a THWART event, … for each different resource type used to pay for that event" (Jubilee's Coat
+ * 47004, Jubilee's Sunglasses 47005; docs/phase7-wave8.md §3.62) → on the upgrade, beside its response,
+ * `constant(readsPaymentTypesOf(query("event", { trait: THWART })))`. While the constant is active, your payment for
+ * a matching card is one whose wilds you declare (§4.1 Q33 = B), exactly as if that card read its own payment; the
+ * response then reads it with `paidTypeCount(eventTarget)` / `paidType(type, eventTarget)`. `reads`: what the response
+ * reads, the count by default (see `AbilityOptions.readsPaidTypes`).
+ */
+export const readsPaymentTypesOf = (
+  cards: TargetQuery,
+  opts: { readonly reads?: PaidTypesRead; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "readsPaymentTypesOf",
+    cards,
+    ...(opts.reads ? { reads: opts.reads } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
 /**
  * "Play with the top card of your deck faceup." (Magik, `aoa` 45030a; docs/phase7-wave8.md §3.48) →
  * `constant(playWithTopOfDeckFaceup())` on the hero face. While the constant is active the top card of the player's

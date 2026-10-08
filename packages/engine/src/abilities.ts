@@ -1,6 +1,6 @@
 import type { AbilityId, KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
-import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
+import type { PaidTypesRead, ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
 import type {
   AbilityTimingWord,
   AttackKeyword,
@@ -1653,7 +1653,25 @@ export type RuleSpec =
    * (RRG 1.8 "Text Box", p. 44). Off, the card is facedown again and satisfies no condition that reads it
    * (`Predicate topOfDeckFaceup`; owner decision §4.1 Q26 = B).
    */
-  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly while?: Predicate };
+  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
+   * A card in play reads the resource types that paid for another card: "After you play a THWART event, … remove 1
+   * threat from that scheme for each different resource type used to pay for that event" (Jubilee's Coat 47004, and
+   * her Sunglasses 47005 for an ATTACK event; docs/phase7-wave8.md §3.62). While the rule is in force, a payment its
+   * speaker ("you") makes for a card `cards` matches is one whose wilds the player declares (`declareWildTypes`,
+   * §4.1 Q33 = B), exactly as when the played card itself is marked `AbilityDefinition.readsPaidTypes`. The rule changes
+   * nothing else: the reading is done by the card's own ability (`ValueSpec paidTypeCount` / `Predicate paidType` with
+   * `of`).
+   *
+   * `reads`: what the card reads, for the one shortcut that skips the prompt (`PaidTypesRead`). Default: the count.
+   * A constant like any other: off while its `while` is false, on the face that is not up, and under a blank text box.
+   */
+  | {
+      readonly kind: "readsPaymentTypesOf";
+      readonly cards: TargetQuery;
+      readonly reads?: PaidTypesRead;
+      readonly while?: Predicate;
+    };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
@@ -2367,6 +2385,20 @@ export interface AbilityDefinition {
    * one, and no `attachesTo`. docs/phase7-wave7.md §3.35.
    */
   readonly attachInstruction?: true;
+  /**
+   * This ability reads the resource types that paid for its card (docs/phase7-wave8.md §3.62): "X is the number of
+   * different resource types … used to pay for this event" (`{ count: true }`), "If you paid for this card using 2
+   * different resource types" (`{ atLeast: 2 }`), "If you paid for this event using at least 1: [physical] … [mental] …
+   * [energy] …" (`{ types: ["physical", "mental", "energy"] }`).
+   *
+   * It marks the payment as one whose wilds the player declares (RRG 1.8 "Wild Resource", p. 48; ruling January 17, 2026
+   * - Ruling 4 (1); §4.1 Q33 = B): the play command's `wildAs`, or the `declareWildTypes` choice. The engine never
+   * chooses a declaration for the player. It skips the question only when every legal declaration gives every reader
+   * of the payment the same reading, which is what this value is compared for. The reading itself is `ValueSpec
+   * paidTypeCount` / `Predicate paidType` in the effects. A payment for a card that is not marked, and that no
+   * `RuleSpec readsPaymentTypesOf` in force names, asks nothing and records no types.
+   */
+  readonly readsPaidTypes?: PaidTypesRead;
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */

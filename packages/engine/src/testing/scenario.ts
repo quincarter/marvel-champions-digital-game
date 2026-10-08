@@ -15,6 +15,7 @@ import type { Command, Payment } from "../commands.js";
 import type { GameState } from "../state.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { activeEncounterDeck, activeEncounterDeckId, mustPlayer } from "../query.js";
+import { requirementOf, wildDeclarationFault, wildDeclarations, wildTypeOptionId } from "../resources.js";
 
 /** Test surgery on the active villain's encounter deck and discard pile ("the encounter deck"). */
 export function withEncounterPiles(
@@ -232,6 +233,14 @@ export function defaultPick(state: GameState): readonly string[] {
   if (choice.prompt.kind === "declareDefender") return ["decline"];
   // A whole-number report has no option list (docs/phase7-wave7.md §3.83): the default report is 0.
   if (choice.prompt.kind === "reportFact" && choice.prompt.answer === "wholeNumber") return ["0"];
+  // docs/phase7-wave8.md §3.62: one type for each wild. The default leaves every wild a wild where the cost allows.
+  if (choice.prompt.kind === "declareWildTypes") {
+    const { pool, requirement, only } = choice.prompt;
+    const legal = wildDeclarations(choice.prompt.wilds).find(
+      (types) => wildDeclarationFault(pool, types, requirementOf(requirement), only) === null,
+    );
+    return (legal ?? []).map((type, index) => wildTypeOptionId(index, type));
+  }
   return choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
 }
 

@@ -320,7 +320,19 @@ export type TriggerEventBody =
       readonly ranged?: boolean;
     }
   | { readonly kind: "cardEntersPlay"; readonly instanceId: InstanceId; readonly playerId: PlayerId | null }
-  | { readonly kind: "cardPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * `payment`: what was paid to play the card, stamped as the play is announced (the play frame's `paid.*` and
+   * `overpaid.*` vars and a chosen `x`: `playPaymentVars`), so an "after you play" ability reads the payment of "that
+   * event" from the event it answers, whatever has left the stack since ("remove 1 threat … for each different
+   * resource type used to pay for that event", Jubilee's Coat 47004; docs/phase7-wave8.md §3.62). Absent for a play
+   * that recorded no payment.
+   */
+  | {
+      readonly kind: "cardPlayed";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly payment?: Vars;
+    }
   /**
    * A card has been paid for and is about to resolve: "When you play an [Attack] event" (Embiggen!, Shrink). An
    * interrupt here happens before the card's own abilities resolve, which is what lets a modifier apply to every

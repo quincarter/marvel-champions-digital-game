@@ -2,7 +2,7 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
-import type { ResourceRequirement } from "./resources.js";
+import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type { StatusName } from "./spec.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -133,6 +133,27 @@ export type ChoicePrompt =
    * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
    */
   | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement; readonly distinctTypes?: number }
+  /**
+   * The wilds of a payment just made for the card `instanceId` are declared (docs/phase7-wave8.md §3.62, §4.1 Q33 = B;
+   * RRG 1.8 "Wild Resource", p. 48: the player "may specify which resource type (energy, mental, physical, or wild) it
+   * is being used as"). Asked only when a card reads the types that paid and the declaration can change what it reads;
+   * the engine never picks for the player and preselects nothing.
+   *
+   * Four options per wild, `<n>:<type>` with n from 0 in the order the payment generated them and type one of
+   * `energy`, `mental`, `physical`, `wild` (left as a wild). Exactly `wilds` are selected, one for each wild, and the
+   * payment must still pay `requirement` with the wilds used as declared (`resolveChoice` checks both through
+   * `wildDeclarationFault`). `pool` is everything the payment generated, wilds included, and `requirement` what the
+   * cost took: the resources beyond it are overpaid and are not read (§4.1 Q34 = A). `only`: the card may be paid for
+   * with those types alone.
+   */
+  | {
+      readonly kind: "declareWildTypes";
+      readonly instanceId: InstanceId;
+      readonly wilds: number;
+      readonly pool: ResourcePool;
+      readonly requirement: ResourceRequirement;
+      readonly only?: readonly TypedResource[];
+    }
   /**
    * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". One option per whole number from `min`
    * to `max`, its `optionId` and label the number itself; exactly one is selected.

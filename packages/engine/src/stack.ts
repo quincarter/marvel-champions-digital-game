@@ -2,6 +2,7 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import { RESOURCE_TYPES, type ResolvedRequirement, type ResourcePool, type TypedResource } from "./resources.js";
 import type { EffectSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { ZoneId } from "./state.js";
@@ -139,6 +140,17 @@ export interface LingeringDamageRule {
   readonly sourceInstanceId: InstanceId;
   readonly kind: "reduceDamageTaken" | "increaseDamageTaken" | "preventAllDamage";
   readonly amount: number;
+}
+
+/**
+ * A payment whose wilds its player has still to declare (docs/phase7-wave8.md §3.62, §4.1 Q33 = B), kept on the play
+ * frame of the card paid for until the `declareWildTypes` choice is answered: everything the payment generated, what
+ * the cost took (the rest is overpaid), and the types the card may be paid with when it limits them (`paymentOnly`).
+ */
+export interface UndeclaredWilds {
+  readonly pool: ResourcePool;
+  readonly requirement: ResolvedRequirement;
+  readonly only?: readonly TypedResource[];
 }
 
 interface FrameBase {
@@ -524,6 +536,12 @@ export type StackFrame =
        * canceled.
        */
       readonly afterResolving?: "hand";
+      /**
+       * The play's payment is read for resource types and its wilds are not declared yet (`UndeclaredWilds`): the
+       * frame asks its player (`declareWildTypes`) before the card does anything, records the answer in `vars`
+       * (`paid.as.<type>`) and drops this. Absent on every other play.
+       */
+      readonly undeclaredWilds?: UndeclaredWilds;
     });
 
 export type StackFrameKind = StackFrame["kind"];
@@ -542,11 +560,31 @@ export type StackFrameKind = StackFrame["kind"];
 export function playPaymentVars(stack: readonly StackFrame[], instanceId: InstanceId): Vars {
   const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
   if (play?.kind !== "playCard") return {};
-  // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
-  // §3.8).
+  return paymentVarsIn(play.vars);
+}
+
+/**
+ * The payment among a play frame's vars: `paid.*`, and `overpaid.*` and a chosen `x`, which travel the same way ("for
+ * each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md §3.8). What `playPaymentVars` hands a reader while
+ * the play resolves and what the play's `cardPlayed` event carries afterward (`TriggerEvent cardPlayed.payment`).
+ */
+export function paymentVarsIn(vars: Vars): Vars {
   return Object.fromEntries(
-    Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
+    Object.entries(vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
   );
+}
+
+/** The var prefix of the paid resources by the type each was used as (`paid.as.<type>`; docs/phase7-wave8.md §3.62). */
+export const PAID_AS_PREFIX = "paid.as.";
+
+/**
+ * Paid resources by the type each was used as (`paidAsDeclared`), as the vars a reader reads: `paid.as.<type>` for each
+ * type with at least one. A type with none has no var, as `paid.cards.<cardType>` has it.
+ */
+export function paidAsVars(paid: ResourcePool): Record<string, number> {
+  const vars: Record<string, number> = {};
+  for (const type of RESOURCE_TYPES) if (paid[type] > 0) vars[`${PAID_AS_PREFIX}${type}`] = paid[type];
+  return vars;
 }
 
 /**

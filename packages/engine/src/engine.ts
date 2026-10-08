@@ -12,6 +12,7 @@ import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
 import { getPlayer, handSize } from "./query.js";
+import { requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
 import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
 import { choiceExclusions } from "./why-not.js";
@@ -131,6 +132,16 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
         return engineError("invalid_choice", notOfferedMessage(ctx, optionId), command);
       }
     }
+  }
+  // docs/phase7-wave8.md §3.62: one type for each wild, and the payment must still pay its cost as declared.
+  if (choice.prompt.kind === "declareWildTypes") {
+    const { wilds, pool, requirement, only } = choice.prompt;
+    const declared = wildTypesFromOptionIds(selected, wilds);
+    const fault =
+      declared === null
+        ? "choose one type for each wild resource"
+        : wildDeclarationFault(pool, declared, requirementOf(requirement), only);
+    if (fault) return engineError("invalid_choice", fault, command);
   }
   if (choice.prompt.kind === "divide") {
     const fault = divideSelectionFault(choice.prompt, selected);

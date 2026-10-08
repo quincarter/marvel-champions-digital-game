@@ -3,6 +3,7 @@
 import {
   announceResourcesSpent,
   commitPlay,
+  playFrameCost,
   inPlayCostCandidates,
   isPriceFault,
   payCost,
@@ -767,6 +768,9 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     deckTop?.costReduction ?? 0,
     selection,
     answered(frame, candidate).event,
+    // The window's payment choice carries no declaration of its wilds: the play's own frame asks for one when a card
+    // reads the types that paid and the declaration can matter (docs/phase7-wave8.md §3.62).
+    { abilityId: candidate.abilityId },
   );
   if (isPriceFault(priced)) return;
   const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced, deckTop);
@@ -776,7 +780,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     controller,
     null,
     { triggeredAbilityId: candidate.abilityId, ...answered(frame, candidate) },
-    { bindings: priced.plan.bindings, vars: priced.vars },
+    playFrameCost(priced),
   );
   payCost(ctx, candidate.instanceId, controller, abilityCost, priced.plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "playCard");

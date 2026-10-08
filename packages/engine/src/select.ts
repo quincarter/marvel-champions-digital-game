@@ -71,6 +71,7 @@ import { threatRemovalBlocked } from "./resolve/event.js";
 import { canHaveAttached, cannotFlip, canTakePlayerAttack, iconsInPlay, playerAttackInProgress } from "./rules.js";
 import {
   currentActivationFrameId,
+  PAID_AS_PREFIX,
   PLAY_NOTE_PREFIX,
   playFrameOf,
   playPaymentVars,
@@ -2210,6 +2211,10 @@ export function resolveValue(
       if (!playerId) return 0;
       return value.printed ? printedHandSize(state, playerId) : handSize(state, playerId, deps);
     }
+    case "paidTypeCount": {
+      const vars = paidVarsOf(state, value.of, context);
+      return RESOURCE_TYPES.filter((type) => (vars[`${PAID_AS_PREFIX}${type}`] ?? 0) > 0).length;
+    }
     case "resourceTypes": {
       const seen = new Set<string>();
       for (const id of resolveRef(state, value.cards, context)) {
@@ -2349,7 +2354,13 @@ export function resolveValue(
 function paidVarsOf(state: GameState, of: TargetRef | undefined, context: EffectContext): Vars {
   if (of === undefined) return context.vars ?? {};
   const [id] = resolveRef(state, of, context);
-  return id === undefined ? {} : playPaymentVars(state.stack, id);
+  if (id === undefined) return {};
+  // "After you play …, for each … used to pay for that event": the play's own announcement carries its payment
+  // (`TriggerEvent cardPlayed.payment`, docs/phase7-wave8.md §3.62), so it is read from the event being answered and
+  // does not depend on what is still on the stack.
+  const event = context.event;
+  if (event?.kind === "cardPlayed" && event.instanceId === id && event.payment) return event.payment;
+  return playPaymentVars(state.stack, id);
 }
 
 export function evaluate(state: GameState, predicate: Predicate, context: EffectContext): boolean {
@@ -2532,6 +2543,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "paidWithCard":
       return (paidVarsOf(state, predicate.of, context)[`paid.cards.${predicate.cardType}`] ?? 0) > 0;
+    case "paidType":
+      return (paidVarsOf(state, predicate.of, context)[`${PAID_AS_PREFIX}${predicate.resource}`] ?? 0) > 0;
     case "paidWithOnly": {
       const vars = paidVarsOf(state, predicate.of, context);
       if ((vars["paid.total"] ?? 0) <= 0) return false;

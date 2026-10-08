@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
 import type { ChoiceId, InstanceId, PlayerId } from "./ids.js";
+import type { ResourceType } from "./resources.js";
 
 /**
  * One source of resources toward a cost: a card discarded from hand, or a
@@ -94,6 +95,16 @@ export type Command =
        * and the command carries the payment.
        */
       readonly abilityId?: AbilityId;
+      /**
+       * The type each wild resource of this payment is used as, one entry per wild in the order the payment generates
+       * them; `"wild"` leaves it a wild (RRG 1.8 "Wild Resource", p. 48: "When a player generates a wild resource, they
+       * may specify which resource type (energy, mental, physical, or wild) it is being used as"; ruling January 17,
+       * 2026 - Ruling 4 (1); docs/phase7-wave8.md §3.62, §4.1 Q33 = B). Read only by a card that reads the types that
+       * paid for it. Absent, the engine asks (`ChoicePrompt declareWildTypes`) when the declaration can change what
+       * such a card reads, and never otherwise. Present, it must be legal (`wildDeclarationFault`) whatever reads it:
+       * the wrong number of entries, or a declaration under which the payment no longer pays the cost, is refused.
+       */
+      readonly wildAs?: readonly ResourceType[];
     }
   | {
       readonly type: "useAbility";

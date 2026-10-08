@@ -139,6 +139,8 @@ import {
   EMPTY_POOL,
   payableWithOneType,
   canBePaidFor,
+  declaredPool,
+  paidAsDeclared,
   poolOf,
   poolTotal,
   printedResources,
@@ -149,11 +151,18 @@ import {
   satisfies,
   scalePool,
   TYPED_RESOURCES,
+  readOfPaidTypes,
+  wildDeclarationFault,
+  wildDeclarations,
+  type PaidTypesRead,
   type ResolvedRequirement,
   type ResourcePool,
+  type ResourceType,
+  type TypedResource,
 } from "./resources.js";
 import {
   activeAbilityRefs,
+  activeRules,
   basicThwartTargetAllowed,
   canAttack,
   cardsInPlay,
@@ -176,7 +185,14 @@ import {
   isProtectedMainScheme,
   withSelfHost,
 } from "./select.js";
-import { describeFrame, type Bindings, type ReportTarget, type Vars } from "./stack.js";
+import {
+  describeFrame,
+  paidAsVars,
+  type Bindings,
+  type ReportTarget,
+  type UndeclaredWilds,
+  type Vars,
+} from "./stack.js";
 import type { GameState } from "./state.js";
 import { anyThwartCost, askBasicThwartCost, thwartCostsPayable, thwartCostTotal } from "./thwart-cost.js";
 import { characterTitledAs } from "./titles.js";
@@ -1091,6 +1107,25 @@ function paymentSourceVars(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
 }
 
 /**
+ * What a cost took of the pool generated for it: its resolved requirement, with the X resources of a "spend X
+ * resources" cost (`resourcesX`) added to the slot they are spent in, since they are paid too. Everything in the pool
+ * beyond it is overpaid (RRG 1.8 "Cost", p. 13). The view `paid.cards.<cardType>` (§3.51), `paid.count` and the
+ * declared types (§3.62) all take of one payment.
+ */
+function paidRequirementOf(
+  pool: ResourcePool,
+  requirement: ResolvedRequirement,
+  cost: AbilityCost | undefined,
+  resourceVarsRead: Vars,
+): ResolvedRequirement {
+  const x = cost?.resourcesX;
+  const xPaid = x ? (resourceVarsRead[x.bind] ?? 0) : 0;
+  const xSlot = x && x.resource !== "any" ? x.resource : "generic";
+  const withX: ResolvedRequirement = xPaid > 0 ? { ...requirement, [xSlot]: requirement[xSlot] + xPaid } : requirement;
+  return satisfies(pool, withX) ? withX : requirement;
+}
+
+/**
  * Which hand cards paid, by card type, as `paid.cards.<cardType>` vars (docs/phase7-wave8.md §3.51): "If you paid for
  * this event with a resource card" (Concussive Blast `aoa` 45007, Command Authority 45008) reads
  * `paid.cards.resource`. Each is the number of cards of that type (`cardTypeOf`, read in hand) discarded from a hand in
@@ -1121,11 +1156,7 @@ function paidCardVars(
   resourceVarsRead: Vars,
 ): Record<string, number> {
   const vars: Record<string, number> = {};
-  const x = cost?.resourcesX;
-  const xPaid = x ? (resourceVarsRead[x.bind] ?? 0) : 0;
-  const xSlot = x && x.resource !== "any" ? x.resource : "generic";
-  const withX: ResolvedRequirement = xPaid > 0 ? { ...requirement, [xSlot]: requirement[xSlot] + xPaid } : requirement;
-  const paidFor = satisfies(pool, withX) ? withX : requirement;
+  const paidFor = paidRequirementOf(pool, requirement, cost, resourceVarsRead);
   for (const entry of payment) {
     if (!("fromHand" in entry)) continue;
     const type = cardTypeOf(ctx.state, entry.fromHand);
@@ -2497,6 +2528,10 @@ export function resourceVars(
       };
     }
   }
+  // The number of resources the cost took (docs/phase7-wave8.md §3.62): the requirement after every reduction, with a
+  // "spend X resources" cost's X. `paid.total` less this is `overpaid.total`: those "were not paid for that cost" (RRG
+  // 1.8 "Cost", p. 13), so a cost of 3 reads at most three types (§4.1 Q34 = A) and a cost of 0 none.
+  vars["paid.count"] = requirementTotal(paidRequirementOf(pool, requirement, cost, vars));
   return vars;
 }
 
@@ -2969,7 +3004,125 @@ export interface PricedPlay {
   readonly pool: ResourcePool;
   readonly plan: CostPlan;
   readonly vars: Vars;
+  /** Present only when the payment is read for resource types (`settlePaidTypes`; docs/phase7-wave8.md §3.62). */
+  readonly types?: PaidTypesSettled;
 }
+
+/**
+ * How a payment that is read for resource types stands once priced (docs/phase7-wave8.md §3.62). `paidCount`: the
+ * resources the cost took. Then either the wilds are declared (`declared`, with the paid resources by type in
+ * `paidAs`, already in the play's vars as `paid.as.<type>`), or they are the player's to declare (`undeclared`), which
+ * the play frame asks before the card does anything.
+ */
+export interface PaidTypesSettled {
+  readonly paidCount: number;
+  readonly declared?: {
+    readonly types: readonly ResourceType[];
+    /** The player was not asked: every legal declaration read the same (`wildTypesDeclared.skipped`). */
+    readonly skipped: boolean;
+    readonly paidAs: ResourcePool;
+  };
+  readonly undeclared?: UndeclaredWilds;
+}
+
+/** What a play command or a play inside a window or an effect says about the types of its payment (`pricePlay`). */
+export interface PaidTypesInput {
+  /** The ability of the card the play triggers, whose `readsPaidTypes` is read; absent, every ability printed on it. */
+  readonly abilityId?: AbilityId | null;
+  /** The player's declaration of the payment's wilds, when the command carries it (`playCard.wildAs`). */
+  readonly wildAs?: readonly ResourceType[] | undefined;
+}
+
+/**
+ * Everything that reads the resource types of `playerId`'s payment for `cardInstanceId` (docs/phase7-wave8.md §3.62):
+ * the ability the play triggers when it is marked `readsPaidTypes` (every printed ability of a card that names none),
+ * and each `readsPaymentTypesOf` rule in force whose speaker is the paying player and whose `cards` match the card
+ * ("After you play a THWART event …", Jubilee's Coat). Empty for every other payment, which then asks nothing and
+ * records no types.
+ */
+export function paidTypeReads(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  abilityId: AbilityId | null | undefined = null,
+): readonly PaidTypesRead[] {
+  const card = cardOf(state, cardInstanceId);
+  const own = abilityId ? [abilityId] : card ? printedAbilityRefs(card).map((ref) => ref.id) : [];
+  const reads: PaidTypesRead[] = own.flatMap((id) => deps.abilities[id]?.readsPaidTypes ?? []);
+  for (const active of activeRules(state, deps, "readsPaymentTypesOf")) {
+    if (active.speakerId !== playerId) continue;
+    if (!matchesQuery(state, cardInstanceId, active.rule.cards, active.context)) continue;
+    reads.push(active.rule.reads ?? { count: true });
+  }
+  return reads;
+}
+
+/**
+ * Settles the declared types of a priced payment (docs/phase7-wave8.md §3.62; §4.1 Q33 = B, Q34 = A and its
+ * follow-up). RRG 1.8 "Wild Resource" (p. 48): "When a player generates a wild resource, they may specify which
+ * resource type (energy, mental, physical, or wild) it is being used as"; ruling January 17, 2026 - Ruling 4 (1): "you
+ * specify which resource type it represents, even when overpaying a cost".
+ *
+ * - **A declaration given** (`wildAs`) must be legal whatever reads it (`wildDeclarationFault`): one type per wild
+ *   generated, and the payment still pays the cost with each wild used as declared.
+ * - **Nothing reads the types** (`reads` empty): nothing more is recorded and nobody is asked. This is every payment
+ *   that existed before this section.
+ * - **Read, and declared on the command:** the paid resources are the `paidRequirement` resources that give the most
+ *   declared types (`paidAsDeclared`), recorded as `paid.as.<type>`.
+ * - **Read, not declared:** the player is asked, except in the one case the owner allowed: every legal declaration
+ *   gives every reader the same reading (`readOfPaidTypes`). That is so with no wild, at a cost of 0, when one wild
+ *   pays alone for a card that only counts, and when the typed resources already fill everything a reader can read. It
+ *   is not so merely because one declaration is plainly best: the engine never declares for the player. A skipped wild
+ *   stays a wild where that is legal (a wild a typed slot needs is the type of that slot).
+ */
+function settlePaidTypes(
+  pool: ResourcePool,
+  vars: Vars,
+  paidRequirement: ResolvedRequirement,
+  only: readonly TypedResource[],
+  reads: readonly PaidTypesRead[],
+  wildAs: readonly ResourceType[] | undefined,
+): { readonly vars: Vars; readonly types?: PaidTypesSettled } | PriceFault {
+  if (wildAs !== undefined) {
+    const fault = wildDeclarationFault(pool, wildAs, paidRequirement, only);
+    if (fault) return { code: "invalid_choice", message: fault };
+  }
+  if (reads.length === 0) return { vars };
+  const paidCount = requirementTotal(paidRequirement);
+  const paidAsOf = (types: readonly ResourceType[]): ResourcePool | null =>
+    wildDeclarationFault(pool, types, paidRequirement, only) === null
+      ? paidAsDeclared(declaredPool(pool, types), paidRequirement)
+      : null;
+  const settled = (types: readonly ResourceType[], paidAs: ResourcePool, skipped: boolean) => ({
+    vars: { ...vars, ...paidAsVars(paidAs) },
+    types: { paidCount, declared: { types, skipped, paidAs } },
+  });
+  if (wildAs !== undefined) {
+    const paidAs = paidAsOf(wildAs);
+    if (paidAs) return settled(wildAs, paidAs, false);
+  }
+  const legal = wildDeclarations(pool.wild).flatMap((types) => {
+    const paidAs = paidAsOf(types);
+    return paidAs ? [{ types, paidAs }] : [];
+  });
+  const reading = (paidAs: ResourcePool): string => reads.map((read) => readOfPaidTypes(paidAs, read)).join("|");
+  const [first] = legal;
+  if (first && legal.every((entry) => reading(entry.paidAs) === reading(first.paidAs))) {
+    return settled(first.types, first.paidAs, true);
+  }
+  return {
+    vars,
+    types: { paidCount, undeclared: { pool, requirement: paidRequirement, ...(only.length > 0 ? { only } : {}) } },
+  };
+}
+
+/** What a play frame is pushed with for a priced play: its cost's bindings and vars, and any wilds still to declare. */
+export const playFrameCost = (priced: PricedPlay, bindings: Bindings = priced.plan.bindings) => ({
+  bindings,
+  vars: priced.vars,
+  ...(priced.types?.undeclared ? { undeclaredWilds: priced.types.undeclared } : {}),
+});
 
 /**
  * Prices playing a card: its printed cost (less any "reduce the cost of the
@@ -2990,6 +3143,8 @@ export function pricePlay(
   selection: CostSelection = {},
   /** The event an interrupt or response played inside a timing window answers (`planCost`). */
   event: TriggerEvent | null = null,
+  /** The ability the play triggers and the declared types of its wilds (`settlePaidTypes`; docs/phase7-wave8.md §3.62). */
+  paidTypes: PaidTypesInput = {},
 ): PricedPlay | PriceFault {
   const plan = planCost(
     ctx.state,
@@ -3037,26 +3192,23 @@ export function pricePlay(
   }
   const vars = resourceVars(pool, plan.cost ?? cost, requirement);
   if (isFault(vars)) return vars;
-  return {
+  const payingFor = plan.payingFor ?? cardInstanceId;
+  const settled = settlePaidTypes(
     pool,
-    plan,
-    vars: {
+    {
       ...plan.vars,
       ...vars,
       ...paymentSourceVars(ctx, playerId, payment),
-      ...paidCardVars(
-        ctx,
-        playerId,
-        payment,
-        plan.payingFor ?? cardInstanceId,
-        pool,
-        requirement,
-        plan.cost ?? cost,
-        vars,
-      ),
+      ...paidCardVars(ctx, playerId, payment, payingFor, pool, requirement, plan.cost ?? cost, vars),
       ...(printedX ? { x: xValue } : {}),
     },
-  };
+    paidRequirementOf(pool, requirement, plan.cost ?? cost, vars),
+    printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? []),
+    paidTypeReads(ctx.state, ctx.deps, playerId, cardInstanceId, paidTypes.abilityId),
+    paidTypes.wildAs,
+  );
+  if (isFault(settled)) return settled;
+  return { pool, plan, ...settled };
 }
 
 /**
@@ -3128,7 +3280,23 @@ export function commitPlay(
     // The log keeps where the card really was; every reader of a play treats it as played from the hand (FAQ "Magik
     // (#30A)", p. 64: "that card is considered to have been played from her hand").
     ...(deckTop ? { from: "deckTop" as const, countsAsFrom: "hand" as const } : {}),
+    ...(priced.types ? { paidCount: priced.types.paidCount } : {}),
+    ...(priced.types?.declared ? { paidAs: priced.types.declared.paidAs } : {}),
   });
+  // The wilds as declared on the command, or left as they are because no declaration could change a reading
+  // (docs/phase7-wave8.md §3.62). A payment with no wild declares nothing; one the player is asked about is logged
+  // when they answer (`resolve/play-card.ts`).
+  const declared = priced.types?.declared;
+  if (declared && declared.types.length > 0) {
+    emit(ctx, {
+      type: "wildTypesDeclared",
+      playerId,
+      instanceId: cardInstanceId,
+      declared: declared.types,
+      skipped: declared.skipped,
+      paidAs: declared.paidAs,
+    });
+  }
   // RRG "Event": a played event is out of play while it resolves, then it is discarded.
   if (!deckTop && cardOf(ctx.state, cardInstanceId)?.type === "event")
     moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
@@ -3351,6 +3519,8 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     command.x,
     extraReduction,
     command.costSelection,
+    null,
+    { abilityId: chosen?.abilityId ?? null, wildAs: command.wildAs },
   );
   if (isFault(priced)) return engineError(priced.code, priced.message, command);
 
@@ -3375,7 +3545,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     command.playerId,
     attachTo,
     triggeredAction(chosen),
-    { bindings: priced.plan.bindings, vars: priced.vars },
+    playFrameCost(priced),
     controllerId,
   );
   payCost(ctx, command.cardInstanceId, command.playerId, ability?.cost, priced.plan);
@@ -3761,17 +3931,25 @@ export function playWithPayment(
   abilityId?: AbilityId,
   /** Where the effect plays from (`deckTopPlayFrom`): the hand reaches the top of the deck under its permission. */
   from: PlayFromZone = "hand",
+  /**
+   * The declared types of the payment's wilds, when the caller has them (`playCard.wildAs`; docs/phase7-wave8.md
+   * §3.62). Absent, the play's own frame asks its player when a card reads them and the declaration can matter.
+   */
+  wildAs?: readonly ResourceType[],
 ): FrameId | null {
   const chosen = eventActionToPlay(ctx, mustCardOf(ctx.state, id), id, playerId, abilityId);
   if (chosen && isFault(chosen)) return null;
   const ability = chosen?.definition;
   const deckTop = deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from);
   const reduction = extraReduction + (deckTop?.costReduction ?? 0);
-  const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, reduction);
+  const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, reduction, {}, null, {
+    abilityId: chosen?.abilityId ?? null,
+    wildAs,
+  });
   if (isFault(priced)) return null;
   const spent = commitPlay(ctx, playerId, id, payment, priced, deckTop);
   const bindings = { ...priced.plan.bindings, ...extraBindings };
-  pushPlayCardFrame(ctx, id, playerId, attachTo, triggeredAction(chosen), { bindings, vars: priced.vars });
+  pushPlayCardFrame(ctx, id, playerId, attachTo, triggeredAction(chosen), playFrameCost(priced, bindings));
   const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, ability?.cost, priced.plan);
   announceResourcesSpent(ctx, playerId, spent, id, "playCard");

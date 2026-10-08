@@ -133,18 +133,30 @@ export type {
   TraitGrantSpec,
 } from "./abilities.js";
 
-export type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
+export type {
+  PaidTypesRead,
+  ResolvedRequirement,
+  ResourcePool,
+  ResourceRequirement,
+  ResourceType,
+  TypedResource,
+} from "./resources.js";
 export {
   addPools,
   combineRequirements,
   countUsableAs,
+  declaredPool,
   EMPTY_POOL,
+  paidAsDeclared,
+  paidTypeCountOf,
   paidWith,
   poolOf,
   poolTotal,
   RESOURCE_TYPES,
   satisfies,
   TYPED_RESOURCES,
+  wildDeclarationFault,
+  wildDeclarations,
 } from "./resources.js";
 
 export type {

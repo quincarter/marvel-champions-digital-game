@@ -993,6 +993,21 @@ export type ValueSpec =
   | { readonly kind: "deckCount"; readonly player: PlayerRef }
   /** Distinct printed resource types among cards ("for each different resource type discarded this way"). Wild counts as its own type. */
   | { readonly kind: "resourceTypes"; readonly cards: TargetRef }
+  /**
+   * "The number of different resource types ([energy], [mental], [physical], and [wild]) used to pay for this event"
+   * (Blinding Flash 47006, Grand Finale 47009, Three Steps Ahead 47015; docs/phase7-wave8.md §3.62): how many of the
+   * four types are among the resources **paid** for the card, each wild as its player declared it (`paid.as.<type>`;
+   * RRG 1.8 "Wild Resource", p. 48; §4.1 Q33 = B), a wild left a wild being a type of its own. Never more than the
+   * number of resources the cost took (`paid.count`): overpaid resources "were not paid for that cost" (RRG 1.8 "Cost",
+   * p. 13; §4.1 Q34 = A), and when more was generated the paid ones are those that give the most types
+   * (`paidAsDeclared`). 0 at a cost of 0 (FAQ "Unstoppable Force (#6)", p. 60).
+   *
+   * Read from the ability's own vars, so its ability is marked `readsPaidTypes`; a payment nothing marks records no
+   * types and this is 0. `of`: another card's play, while it resolves or from the `cardPlayed` event an "after you
+   * play" ability answers ("for each different resource type used to pay for that event", Jubilee's Coat 47004,
+   * whose constant carries `RuleSpec readsPaymentTypesOf`).
+   */
+  | { readonly kind: "paidTypeCount"; readonly of?: TargetRef }
   /** Distinct card types among cards ("for each different card type discarded this way": Trickster, Leading the Charge). */
   | { readonly kind: "distinctCardTypes"; readonly cards: TargetRef }
   /**
@@ -1227,6 +1242,18 @@ export type Predicate =
    * at a cost of 0 it fails. `of` as for `paidWith`.
    */
   | { readonly kind: "paidWithCard"; readonly cardType: RulesCardType; readonly of?: TargetRef }
+  /**
+   * "If you paid for this event using at least 1 [physical] resource" where a card reads several named types of one
+   * payment together (Multitalented 47021; docs/phase7-wave8.md §3.62): one of the resources **paid** was `resource`,
+   * or a paid wild its player declared as it (`paid.as.<type>`). A wild left a wild is none of the three; an overpaid
+   * resource was not paid (RRG 1.8 "Cost", p. 13; §4.1 Q34 = A); at a cost of 0 nothing was. The declaration is the
+   * player's (§4.1 Q33 = B), so the ability carrying this is marked `readsPaidTypes: { types: [...] }`; a payment
+   * nothing marks records no types and this is false.
+   *
+   * Not `paidWith`, under which a wild counts as any type for a card that reads one type alone. `of` as for `paidWith`,
+   * and also read from the `cardPlayed` event an "after you play" ability answers (`TriggerEvent cardPlayed.payment`).
+   */
+  | { readonly kind: "paidType"; readonly resource: TypedResource; readonly of?: TargetRef }
   /**
    * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast` (default 1)
    * of the cards `player` played this turn (`GameState.playedThisTurn`) match `cards`, read wherever those cards are now.

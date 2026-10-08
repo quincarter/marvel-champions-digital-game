@@ -807,6 +807,33 @@ export const paidWithCard = (cardType: RulesCardType, of?: TargetRef): Predicate
 /** "If you paid for this event with a resource card": `paidWithCard("resource")`. */
 export const paidWithResourceCard = (of?: TargetRef): Predicate => paidWithCard("resource", of);
 /**
+ * "The number of different resource types ([energy], [mental], [physical], and [wild]) used to pay for this event" /
+ * "for each different resource type … you used to pay for this card" (Blinding Flash 47006, Grand Finale 47009, Three
+ * Steps Ahead 47015; docs/phase7-wave8.md §3.62): the types among the resources paid, each wild as its player declared
+ * it and a wild left a wild a type of its own. Overpaid resources are not counted, so it is never more than the cost
+ * (§4.1 Q34 = A), and 0 at a cost of 0. The ability carries `readsPaidTypes: { count: true }` (or `{ atLeast: n }` when
+ * it only compares: "using 2 different resource types" is `atLeast(paidTypeCount(), 2)`).
+ *
+ * `of`: another card's play, for "used to pay for that event" in an "after you play" response
+ * (`paidTypeCount(eventTarget)`), whose card carries `constant(readsPaymentTypesOf(…))`.
+ */
+export const paidTypeCount = (of?: TargetRef): ValueSpec => ({
+  kind: "paidTypeCount",
+  ...(of !== undefined ? { of } : {}),
+});
+/**
+ * "If you paid for this event using at least 1 [physical] resource" on a card that reads several named types of one
+ * payment (Multitalented 47021; docs/phase7-wave8.md §3.62): a paid resource was that type, or a paid wild was
+ * declared as it. A wild left a wild is none of the three, and an overpaid resource was not paid. The ability carries
+ * `readsPaidTypes: { types: [...] }` naming every type it reads. For a card that reads one type alone, `paidWith`
+ * (under which a wild counts as any type) is unchanged. `of` as for `paidTypeCount`.
+ */
+export const paidType = (resource: TypedResource, of?: TargetRef): Predicate => ({
+  kind: "paidType",
+  resource,
+  ...(of !== undefined ? { of } : {}),
+});
+/**
  * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and
  * resource abilities that spend would offer them, priced as the spend prices it (engine `canPayResources`). Gates an
  * option on the payment: `option("Spend …", { when: canPayResources({ energy: 1 }) }, spendResources({ energy: 1 },
