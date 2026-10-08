@@ -32,3 +32,5 @@ export const WAVE8_DEPS: EngineDeps = { abilities: WAVE8_ABILITIES };
 
 export { WAVE8_CARDS } from "./cards.js";
 export { CARD_GROUPS } from "./card-groups.js";
+export { wave8Scenario, wave8StarterDeckSetup } from "./setup.js";
+export type { HorsemanSide, Wave8Difficulty, Wave8ScenarioOptions } from "./setup.js";
