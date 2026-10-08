@@ -82,9 +82,10 @@ export const MODULAR_CARD_HEIGHT = 58;
 const MODULAR_CARD_MIN_WIDTH = 170;
 /** A seat card: a radio dot, the hero's name, and a small "FIRST PLAYER"/"SEAT N" label. Wide only — narrow uses `NARROW_SEATING_CARD_HEIGHT`. */
 export const SEAT_CARD_HEIGHT = 60;
-/** The Standard II/Expert II toggle row (wide, docs/phase7-wave4.md §4 Q5): a single full-width card, name plus a one-line state description — right under the Difficulty row, only for a scenario whose pack has an alternate. */
-export const ALT_DIFFICULTY_ROW_HEIGHT = 56;
-/** Tower Defense's own setup-damage toggle row (wide, docs/phase7-wave4.md §4 Q4): same shape as `ALT_DIFFICULTY_ROW_HEIGHT`, stacked under it — a single full-width card, only for Tower Defense itself. */
+/** One setup-option card (wide and tablet portrait; `view/setup-options.ts`): a name at the left, its controls at the right. */
+export const OPTION_CARD_HEIGHT = 56;
+const OPTION_CARD_GAP = 12;
+/** Tower Defense's own setup-damage toggle row (wide, docs/phase7-wave4.md §4 Q4): same shape as an option card, stacked under them — a single full-width card, only for Tower Defense itself. */
 export const TOWER_DEFENSE_DAMAGE_ROW_HEIGHT = 56;
 /** One row inside a description-only panel (Composition / What's in there / Nemesis / the sidebar's own summary rows). */
 export const PANEL_ROW_HEIGHT = 18;
@@ -115,8 +116,8 @@ export interface TableSetupLayoutInput {
   readonly whatsInThereRows: number;
   /** The nemesis panel's own body: 0 when there's nothing held back (the panel still gets its header), else the wrapped sentence's line count plus one for the "N CARDS ON STANDBY" foot line. */
   readonly nemesisLines: number;
-  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. Wide only — defaults to `false`. */
-  readonly hasAlternateDifficultySets?: boolean;
+  /** How many columns (1 or 2) each setup-option card takes (`setupOptionRowsOf`), in draw order; absent is none. Wide and tablet portrait. */
+  readonly optionSpans?: readonly (1 | 2)[];
   /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): true only for Tower Defense. Wide only — defaults to `false`. */
   readonly hasTowerDefenseSetupDamage?: boolean;
   /** The Hood's own "choose which modular sets are in" candidate count (`view/hood-modular-sets.ts`) — 0 for every other scenario. Wide only — defaults to `0`. */
@@ -147,9 +148,9 @@ export interface TableSetupLayout {
   readonly sidebar: Rect | null;
   readonly difficultyHeader: Rect;
   readonly difficultyRow: Rect;
-  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle row right under `difficultyRow`, wide only — zero-area unless `TableSetupLayoutInput.hasAlternateDifficultySets`. */
-  readonly difficultyAltRow: Rect;
-  /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under `difficultyAltRow`, wide only — zero-area unless `TableSetupLayoutInput.hasTowerDefenseSetupDamage`. */
+  /** The setup-option cards (Standard/Expert set, Gene Pool, Horsemen, easier start) in a two-column grid right under `difficultyRow`, one rect per `TableSetupLayoutInput.optionSpans` entry. */
+  readonly optionCards: readonly Rect[];
+  /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under the option cards, wide only — zero-area unless `TableSetupLayoutInput.hasTowerDefenseSetupDamage`. */
   readonly towerDefenseDamageRow: Rect;
   readonly modularHeader: Rect;
   /** The Hood's own "choose which modular sets are in" section header (`view/hood-modular-sets.ts`), wide only — zero-area unless `TableSetupLayoutInput.hoodSetCount` is above 0. */
@@ -203,10 +204,10 @@ export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[]
     layout.modularHeader,
     layout.modularGrid,
     layout.seatingHeader,
-    // Zero-area unless offered (`hasAlternateDifficultySets`/`hoodSetCount`) — a zero-height/width rect can still
+    // Zero-area unless offered (`hoodSetCount`) — a zero-height/width rect can still
     // register as "overlapping" a sibling whose y/x-range it sits strictly inside (`rectsOverlap`'s own strict
     // inequalities), so these are only added to the overlap check when they're real, drawn rects.
-    ...(layout.difficultyAltRow.height > 0 ? [layout.difficultyAltRow] : []),
+    ...layout.optionCards,
     ...(layout.towerDefenseDamageRow.height > 0 ? [layout.towerDefenseDamageRow] : []),
     ...(layout.hoodHeader.height > 0 ? [layout.hoodHeader, layout.hoodGrid] : []),
     layout.randomControl,
@@ -287,6 +288,43 @@ function trimRowBudgets(
   }
 }
 
+/**
+ * Lays the option cards in a two-column grid starting at `y`: a one-column card sits beside the next one-column card,
+ * a two-column card takes a row of its own. Returns the rects and where the grid ends.
+ */
+function planOptionCards(
+  spans: readonly (1 | 2)[],
+  x: number,
+  y: number,
+  width: number,
+): { readonly rects: readonly Rect[]; readonly bottom: number } {
+  const half = (width - OPTION_CARD_GAP) / 2;
+  const rects: Rect[] = [];
+  let row = 0;
+  let column = 0;
+  for (const span of spans) {
+    if (span === 2 && column === 1) {
+      row += 1;
+      column = 0;
+    }
+    const top = y + row * (OPTION_CARD_HEIGHT + ROW_GAP);
+    if (span === 2) {
+      rects.push({ x, y: top, width, height: OPTION_CARD_HEIGHT });
+      row += 1;
+      column = 0;
+    } else {
+      rects.push({ x: x + column * (half + OPTION_CARD_GAP), y: top, width: half, height: OPTION_CARD_HEIGHT });
+      column += 1;
+      if (column === 2) {
+        row += 1;
+        column = 0;
+      }
+    }
+  }
+  const rowsUsed = row + (column === 1 ? 1 : 0);
+  return { rects, bottom: rowsUsed === 0 ? y : y + rowsUsed * (OPTION_CARD_HEIGHT + ROW_GAP) - ROW_GAP };
+}
+
 function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): TableSetupLayout {
   const { width, height } = input;
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
@@ -312,7 +350,6 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const bodyLeft = GUTTER;
   const bodyWidth = sidebar.x - GUTTER - bodyLeft;
 
-  const hasAlternateDifficultySets = input.hasAlternateDifficultySets ?? false;
   const hasTowerDefenseSetupDamage = input.hasTowerDefenseSetupDamage ?? false;
   const hoodSetCount = input.hoodSetCount ?? 0;
 
@@ -322,22 +359,13 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const difficultyRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: DIFFICULTY_CARD_HEIGHT };
   y += DIFFICULTY_CARD_HEIGHT;
 
-  // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): the difficulty row already reserves a third, otherwise-
-  // empty slot whenever there are fewer than three difficulty cards (Heroic stays out of scope, so that's every
-  // scenario except Breakout's own three-way, and no scenario offers both today) — `#drawDifficultyRow` fills that
-  // slot with the toggle instead of leaving it blank, so no extra row (and no extra vertical room) is needed at
-  // all. Only a scenario with *three* difficulty cards **and** an alternate (no such scenario exists yet, kept for
-  // correctness rather than assumed away) falls back to a full-width row of its own below the difficulty cards.
-  const altFitsInDifficultyRow = hasAlternateDifficultySets && input.difficultyCount < 3;
-  const needsDifficultyAltRow = hasAlternateDifficultySets && !altFitsInDifficultyRow;
-  const difficultyAltRow: Rect = needsDifficultyAltRow
-    ? { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: ALT_DIFFICULTY_ROW_HEIGHT }
-    : { x: bodyLeft, y, width: 0, height: 0 };
-  if (needsDifficultyAltRow) y += ROW_GAP + ALT_DIFFICULTY_ROW_HEIGHT;
+  // The setup-option cards (`view/setup-options.ts`): a two-column grid right under the difficulty cards, one card per
+  // choice the scenario offers (zero cards for a scenario with none).
+  const options = planOptionCards(input.optionSpans ?? [], bodyLeft, y + ROW_GAP, bodyWidth);
+  if (options.rects.length > 0) y = options.bottom;
 
   // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under the
-  // Standard II/Expert II row when both are offered (never happens today — The Hood and Tower Defense are
-  // different scenarios — but stacked correctly either way), or right under the difficulty cards otherwise.
+  // option cards, or right under the difficulty cards when there are none.
   const towerDefenseDamageRow: Rect = hasTowerDefenseSetupDamage
     ? { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: TOWER_DEFENSE_DAMAGE_ROW_HEIGHT }
     : { x: bodyLeft, y, width: 0, height: 0 };
@@ -456,7 +484,7 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     sidebar,
     difficultyHeader,
     difficultyRow,
-    difficultyAltRow,
+    optionCards: options.rects,
     towerDefenseDamageRow,
     modularHeader,
     hoodHeader,
@@ -513,6 +541,10 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   y += SECTION_HEADER_HEIGHT + 6;
   const difficultyRow: Rect = { x: left, y, width: column, height: NARROW_DIFFICULTY_CARD_HEIGHT };
   y += difficultyRow.height + gap;
+
+  // The setup-option cards, in the same two-column grid as the wide page.
+  const narrowOptions = planOptionCards(input.optionSpans ?? [], left, y, column);
+  if (narrowOptions.rects.length > 0) y = narrowOptions.bottom + gap;
 
   const modularHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 6;
@@ -648,10 +680,10 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     sidebar: null,
     difficultyHeader,
     difficultyRow,
-    // Standard II/Expert II and The Hood's own modular-set choice are wide-layout only today (`wideLayout`'s own
-    // doc comment) — narrow (tablet portrait) keeps its existing composition unchanged, so these are always
-    // zero-area here regardless of `hasAlternateDifficultySets`/`hoodSetCount`.
-    difficultyAltRow: { x: left, y: difficultyRow.y, width: 0, height: 0 },
+    // The Hood's own modular-set choice and Tower Defense's toggle are wide-layout only today (`wideLayout`'s own
+    // doc comment) — narrow (tablet portrait) keeps its existing composition otherwise, so these are always
+    // zero-area here regardless of `hoodSetCount`.
+    optionCards: narrowOptions.rects,
     towerDefenseDamageRow: { x: left, y: difficultyRow.y, width: 0, height: 0 },
     modularHeader,
     hoodHeader: { x: left, y: modularHeader.y, width: 0, height: 0 },
@@ -740,6 +772,14 @@ export const COMPACT_GROUP_ROW_PREFIX = "modulargroup:";
 export type CompactModularEntry =
   | { readonly kind: "group"; readonly id: string }
   | { readonly kind: "set"; readonly id: string };
+/**
+ * A setup-option row on the phone: the name on a line of its own over the controls. A set choice is one row of chips,
+ * a stepper or toggle is a name and one control, and the Horsemen are two rows of two (a label over its A/B pair).
+ */
+export function compactOptionHeight(kind: "groups" | "toggle" | "stepper", groupCount: number): number {
+  if (kind !== "groups") return 64;
+  return groupCount > 1 ? 28 + Math.ceil(groupCount / 2) * 60 : 28 + 48;
+}
 export const COMPACT_FIRST_PLAYER_ROW_HEIGHT = 58;
 export const COMPACT_SEED_ROW_HEIGHT = 100;
 export const COMPACT_ROW_GAP = 10;
@@ -791,8 +831,8 @@ export interface TableSetupCompactLayoutInput {
    */
   readonly candidateModularEntries?: readonly CompactModularEntry[];
   readonly modularHeaderRightLabel: string;
-  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. */
-  readonly hasStandardII: boolean;
+  /** The setup-option rows (`setupOptionRowsOf`) in draw order, each with the height `compactOptionHeight` gives it. */
+  readonly optionRows: readonly { readonly id: string; readonly height: number }[];
   /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): true only for Tower Defense. */
   readonly hasTowerDefenseSetupDamage: boolean;
   /** The Hood's own nine modular set candidates (`view/hood-modular-sets.ts`), empty for every other scenario. */
@@ -874,9 +914,9 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   rows.push({ id: "spacer:top", height: COMPACT_CONTENT_PAD_TOP });
   rows.push({ id: "header:difficulty", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "difficulty", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
-  // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a single toggle row, only for a scenario whose pack has
-  // an alternate (The Hood today) — every other scenario's layout is unchanged.
-  if (input.hasStandardII) rows.push({ id: "standardII", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
+  // The setup-option rows, one full-width row each (a scenario that offers none gets none).
+  for (const option of input.optionRows)
+    rows.push({ id: `option:${option.id}`, height: option.height + COMPACT_ROW_GAP });
   // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a single toggle row, only for Tower
   // Defense itself — every other scenario's layout is unchanged.
   if (input.hasTowerDefenseSetupDamage)

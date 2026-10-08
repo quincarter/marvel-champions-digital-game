@@ -75,6 +75,16 @@ import { breakAnswerAt, breakReadout, breakStartedAt, clearBreakStart, isBreakCh
 import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
+import {
+  assign,
+  beginPairing,
+  checkAssign,
+  pairingView,
+  selectionOf,
+  unassign,
+  withRefusal,
+  type PairingState,
+} from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
@@ -96,6 +106,9 @@ export class ChoiceOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   #choiceId: string | null = null;
   #maxSelections = 1;
+  /** The pairing under way for a `pairCards` choice (`view/pair-cards-model.ts`), and the card picked up to place. */
+  #pairing: PairingState | null = null;
+  #pairCard: InstanceId | null = null;
   /** Keyboard/pad focus: what is focused, not where — the rect is re-read each rebuild. */
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
@@ -285,6 +298,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#selected = report ? [...reportAnswerOf(report, report.start)] : [...initialChoiceSelection(choice)];
       this.#focus = isBreakChoice(choice) ? { kind: "confirm" } : null;
       this.#breakManual = false;
+      this.#pairing = beginPairing(choice);
+      this.#pairCard = null;
+      if (this.#pairing) this.#selected = [...selectionOf(this.#pairing)];
     }
     this.#maxSelections = choice.maxSelections;
 
@@ -541,6 +557,24 @@ export class ChoiceOverlay extends Phaser.Scene {
       return;
     }
 
+    if (this.#pairing) {
+      const pairing = this.#pairing;
+      this.#drawPairSheet(
+        { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: listHeight },
+        state.game,
+        pairing,
+        canDeclineChoice(choice),
+      );
+      this.#drawCommit(sheet, commitTop, choice);
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
+
     if (asCards && listHeight >= 120) {
       this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), canDeclineChoice(choice));
       this.#drawCardChoice(
@@ -660,6 +694,127 @@ export class ChoiceOverlay extends Phaser.Scene {
       : null;
     this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /**
+   * The `pairCards` sheet (a mission attempt's "assign each discarded card to a different ally", MC45 p. 6): the
+   * discarded cards in one column, the characters in the other. Tap a card to pick it up and a character to place it
+   * there; tap a placed card to take it back. Each row says its icons and, once paired, "match" or "no match" in
+   * words, so no state rests on color. Which pairs are allowed, which match and how many the restriction lets
+   * through are the engine's (`view/pair-cards-model.ts`); Confirm may go with cards left over.
+   */
+  #drawPairSheet(area: Rect, game: GameState, pairing: PairingState, canDecline: boolean): void {
+    const view = pairingView(game, pairing);
+    const gap = 8;
+    const colWidth = (area.width - gap) / 2;
+    const rows = Math.max(view.cards.length, view.characters.length, 1);
+    const footer = 14 * (2 + (view.restriction ? 1 : 0) + (view.fault || view.refusal ? 1 : 0)) + 6;
+    const headerHeight = 16;
+    const rowHeight = Math.max(34, Math.min(50, (area.height - headerHeight - footer - 4) / rows - 4));
+    const holding = this.#pairCard;
+    const moves = new Set(view.cards.find((row) => row.instanceId === holding)?.canGoTo ?? []);
+
+    label(this, area.x, area.y, "discarded cards", typeRole.label, surface.ink.hex, ink.label);
+    label(this, area.x + colWidth + gap, area.y, "characters", typeRole.label, surface.ink.hex, ink.label);
+
+    const keys: string[] = [];
+    view.cards.forEach((row, index) => {
+      const rect: Rect = {
+        x: area.x,
+        y: area.y + headerHeight + index * (rowHeight + 4),
+        width: colWidth,
+        height: rowHeight,
+      };
+      const status =
+        row.assignedToName !== null
+          ? `${row.assignedToName}: ${view.pairs.find((pair) => pair.card === row.instanceId)?.matches ? "match" : "no match"} (tap to undo)`
+          : holding === row.instanceId
+            ? "picked up: tap a character"
+            : "unassigned";
+      const key = `${PAIR_CARD}${row.instanceId}`;
+      keys.push(key);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${row.name} · ${row.iconWords}\n${status}`,
+          type: typeRole.rowTitle,
+          rect,
+          selected: holding === row.instanceId || row.assignedTo !== null,
+          onClick: () => this.#pairTapCard(row.instanceId),
+        }),
+      );
+      this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
+    });
+    view.characters.forEach((row, index) => {
+      const rect: Rect = {
+        x: area.x + colWidth + gap,
+        y: area.y + headerHeight + index * (rowHeight + 4),
+        width: colWidth,
+        height: rowHeight,
+      };
+      const status =
+        row.takenByName !== null
+          ? `${row.takenByName}: ${row.participates ? "match, takes part" : "no match"}`
+          : holding !== null && moves.has(row.instanceId)
+            ? "tap to place here"
+            : "no card";
+      const key = `${PAIR_CHARACTER}${row.instanceId}`;
+      keys.push(key);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${row.name} · ${row.iconWords}\n${status}`,
+          type: typeRole.rowTitle,
+          rect,
+          selected: row.takenBy !== null,
+          enabled: holding === null || moves.has(row.instanceId) || row.takenBy !== null,
+          reason: "That card can't go to this character",
+          onClick: () => this.#pairTapCharacter(row.instanceId),
+        }),
+      );
+      this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
+    });
+    this.#route = choiceFocusOrder(keys, canDecline);
+
+    let y = area.y + headerHeight + rows * (rowHeight + 4) + 2;
+    const line = (text: string, tone: number = surface.ink.hex): void => {
+      const t = this.add
+        .text(area.x, y, text, textStyle(typeRole.body, tone, ink.secondary))
+        .setWordWrapWidth(area.width);
+      y += Math.max(14, t.height);
+    };
+    line(view.summary);
+    if (view.restriction) line(view.restriction);
+    line(`${view.pairs.length} of ${view.maxPairs} pairs made. Cards left over are fine.`);
+    if (view.refusal) line(view.refusal, signal.caution.hex);
+    else if (view.fault) line(view.fault, signal.caution.hex);
+  }
+
+  /** A tap on a discarded card: take it back if placed, else pick it up (or put it down) to place next. */
+  #pairTapCard(card: InstanceId): void {
+    if (this.#motion.leaving || !this.#pairing) return;
+    if (this.#pairing.pairs.some((pair) => pair.card === card)) {
+      this.#pairing = unassign(this.#pairing, card);
+      this.#pairCard = null;
+    } else this.#pairCard = this.#pairCard === card ? null : card;
+    this.#selected = [...selectionOf(this.#pairing)];
+    this.#rebuild();
+  }
+
+  /** A tap on a character: place the picked-up card there, or take back the card it holds. */
+  #pairTapCharacter(character: InstanceId): void {
+    if (this.#motion.leaving || !this.#pairing) return;
+    const held = this.#pairCard;
+    if (held === null) {
+      const taken = this.#pairing.pairs.find((pair) => pair.character === character);
+      if (taken) this.#pairing = unassign(this.#pairing, taken.card);
+    } else {
+      const check = checkAssign(this.#pairing, held, character);
+      this.#pairing = check.ok ? assign(this.#pairing, held, character) : withRefusal(this.#pairing, check.reason);
+      if (check.ok) this.#pairCard = null;
+    }
+    this.#selected = [...selectionOf(this.#pairing)];
+    this.#rebuild();
   }
 
   /**
@@ -1276,7 +1431,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
-          label: payment ? payment.declineLabel : "Decline",
+          label: payment ? payment.declineLabel : this.#pairing ? "Assign none" : "Decline",
           type: typeRole.label,
           rect: {
             x: sheet.x + 20 + commitWidth,
@@ -1531,6 +1686,11 @@ export class ChoiceOverlay extends Phaser.Scene {
       if (entry) this.#pressReport(entry, focus.control as ReportControl);
       return;
     }
+    if (focus.kind === "option" && this.#pairing) {
+      if (focus.optionId.startsWith(PAIR_CARD)) this.#pairTapCard(focus.optionId.slice(PAIR_CARD.length) as InstanceId);
+      else this.#pairTapCharacter(focus.optionId.slice(PAIR_CHARACTER.length) as InstanceId);
+      return;
+    }
     if (focus.kind === "option") {
       this.#toggle(focus.optionId, choice.maxSelections);
       return;
@@ -1659,6 +1819,10 @@ export class ChoiceOverlay extends Phaser.Scene {
       // reach — a fresh `OverlayMotion` plays the entrance again instead of
       // trying to run `exit` backwards.
       this.#motion = new OverlayMotion();
+      // A pairing the engine refused stays on the sheet with its own words, where the player is looking.
+      if (this.#pairing) {
+        this.#pairing = withRefusal(this.#pairing, appSession().store.state.error ?? "That pairing was refused");
+      }
       this.#rebuild();
     }
   }
@@ -1678,6 +1842,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 }
+
+/** Focus keys for the pair sheet's rows: a card and a character can share an instance id space, never a key. */
+const PAIR_CARD = "pair-card:";
+const PAIR_CHARACTER = "pair-character:";
 
 /**
  * The card a `ChoiceRef` names, when it names one at all. `"card"` and

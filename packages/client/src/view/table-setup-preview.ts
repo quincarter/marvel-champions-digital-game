@@ -100,8 +100,22 @@ export interface TableSetupPreview {
   readonly encounterDeck: EncounterDeckPreview;
 }
 
-/** The villain stage-number range this difficulty covers — `Scenario.villainStages[difficulty]`, or the union of standard and expert for Breakout's own "extreme". */
-export function stageRangeFor(scenario: Scenario, difficulty: SetupDifficulty): readonly [number, number] {
+/**
+ * The villain stage-number range this difficulty covers — `Scenario.villainStages[difficulty]`, or the union of
+ * standard and expert for Breakout's own "extreme". `startStageIndex` is the game's own start (`GameSetupConfig.
+ * villainStartStageIndex`): an earlier start than the difficulty's printed one (Apocalypse's easier start, which begins
+ * a stage sooner) widens the range down to it; a later or equal one changes nothing.
+ */
+export function stageRangeFor(
+  scenario: Scenario,
+  difficulty: SetupDifficulty,
+  startStageIndex?: number,
+): readonly [number, number] {
+  const [lo, hi] = stageRangeOfDifficulty(scenario, difficulty);
+  return startStageIndex !== undefined && startStageIndex + 1 < lo ? [startStageIndex + 1, hi] : [lo, hi];
+}
+
+function stageRangeOfDifficulty(scenario: Scenario, difficulty: SetupDifficulty): readonly [number, number] {
   if (difficulty !== "extreme") return scenario.villainStages[difficulty];
   const [standardLo, standardHi] = scenario.villainStages.standard;
   const [expertLo, expertHi] = scenario.villainStages.expert;
@@ -113,8 +127,9 @@ function villainTotalHp(
   difficulty: SetupDifficulty,
   cardsById: ReadonlyMap<string, AnyCard>,
   playerCount: number,
+  startStageIndex?: number,
 ): number {
-  const [lo, hi] = stageRangeFor(scenario, difficulty);
+  const [lo, hi] = stageRangeFor(scenario, difficulty, startStageIndex);
   const villainCardIds: readonly CardId[] = scenario.multipleVillains
     ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
     : [scenario.villainCardId];
@@ -289,6 +304,7 @@ export function tableSetupPreviewOf(
   encounterSets: readonly EncounterSet[],
 ): TableSetupPreview {
   const playerCount = config.players.length;
+  const stageRange = stageRangeFor(scenario, difficulty, config.villainStartStageIndex);
   const mainScheme = cardsById.get(scenario.mainSchemeCardId as string);
   if (!mainScheme || mainScheme.type !== "main_scheme")
     throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
@@ -328,9 +344,9 @@ export function tableSetupPreviewOf(
     villainIsRandom,
     addedSets,
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
-    villainStageLabel: roman(stageRangeFor(scenario, difficulty)[0]),
-    villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount),
-    villainStageSpan: stageRangeFor(scenario, difficulty)[1] - stageRangeFor(scenario, difficulty)[0] + 1,
+    villainStageLabel: roman(stageRange[0]),
+    villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount, config.villainStartStageIndex),
+    villainStageSpan: stageRange[1] - stageRange[0] + 1,
     mainSchemeThreat: scale(firstStage.targetThreat, playerCount),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),

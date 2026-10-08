@@ -32,6 +32,9 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
+import { drawScheme } from "./schemes.js";
+import { missionSlots } from "../../view/mission-area-layout.js";
+import { counterNote, type ScenarioPlayAreaPanel } from "../../view/board-model.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import {
   ENVIRONMENT_MIN_WIDTH,
@@ -791,6 +794,81 @@ function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): 
   // A width the estimate got wrong: drop one size step before the text leaves the panel.
   if (text.height > box.height - 6) text.setFontSize(typeRole.label.size - 1);
   text.y = box.y + Math.max(3, (box.height - text.height) / 2);
+}
+
+/** The room under a scheme's panel for its counters and attachments, which the scheme panel has no line for. */
+const AREA_NOTE_HEIGHT = 22;
+
+/**
+ * The scenario play areas in play (the mission area, MC45 p. 5): cards that are in play but that no player controls,
+ * drawn as the table draws their kind elsewhere (a scheme as a scheme with its threat meter, an ally or enemy as a
+ * character with its hit points, exhausted state, keywords and attachments). The header says whose they are: nobody's.
+ * Every card is tappable for Inspect, which words what the area means for it (`view/inspect-notes.ts`).
+ */
+export function drawScenarioPlayAreas(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  areas: readonly ScenarioPlayAreaPanel[],
+): void {
+  const { scene } = ctx;
+  const g = scene.add.graphics();
+  paintPanel(g, rect, "rail", "rest");
+  const share = rect.width / Math.max(1, areas.length);
+  areas.forEach((area, index) => {
+    const box: Rect = { x: rect.x + index * share, y: rect.y, width: share, height: rect.height };
+    label(
+      scene,
+      box.x + 8,
+      box.y + 6,
+      `${area.name} area · no player controls it`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
+    const inner: Rect = { x: box.x + 8, y: box.y + 22, width: box.width - 16, height: box.height - 30 };
+    if (area.cards.length === 0) {
+      const empty = scene.add.graphics();
+      paintPanel(empty, inner, "quiet", "unavailable");
+      scene.add
+        .text(
+          inner.x + inner.width / 2,
+          inner.y + inner.height / 2,
+          "Nothing here",
+          textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        )
+        .setOrigin(0.5);
+      return;
+    }
+    const slots = missionSlots(
+      inner,
+      area.cards.map((card) => (card.scheme ? "scheme" : "card")),
+    );
+    area.cards.forEach((card, at) => {
+      const slot = slots[at]!;
+      if (!card.scheme) {
+        drawCharacter(ctx, slot, card.panel, { shape: "card" });
+        return;
+      }
+      const room = slot.height > 90 ? AREA_NOTE_HEIGHT : 0;
+      drawScheme(ctx, { ...slot, height: slot.height - room }, card.scheme);
+      const attached = card.panel.attachments.map((chip) => chip.name);
+      const words = [counterNote(card.panel.counters), attached.length > 0 ? `with ${attached.join(", ")}` : null]
+        .filter((part): part is string => part !== null)
+        .join(" · ");
+      if (room > 0 && words) {
+        const note = label(
+          scene,
+          slot.x + 2,
+          slot.y + slot.height - room + 5,
+          words,
+          typeRole.label,
+          surface.ink.hex,
+          ink.label,
+        );
+        fitText(note, slot.width - 4, typeRole.label.size);
+      }
+    });
+  });
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {

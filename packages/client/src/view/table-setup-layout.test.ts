@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { rectsOverlap } from "./layout.js";
+import { rectsOverlap, type Rect } from "./layout.js";
 import {
   compactRowIndex,
   compactRowRects,
@@ -97,13 +97,13 @@ describe("tableSetupLayout: no overlap", () => {
     });
   });
 
-  test("wide: Standard II/Expert II and The Hood's own modular sets still don't overlap anything", () => {
+  test("wide: the option cards and The Hood's own modular sets still don't overlap anything", () => {
     for (const size of [
       { width: 1440, height: 900 },
       { width: 1024, height: 768 },
       { width: 1870, height: 1050 },
     ]) {
-      noOverlap({ ...REALISTIC, ...size, hasAlternateDifficultySets: true, hoodSetCount: 9 });
+      noOverlap({ ...REALISTIC, ...size, optionSpans: [1, 1, 2, 2], hoodSetCount: 9 });
     }
   });
 
@@ -189,52 +189,60 @@ describe("tableSetupLayout: composition", () => {
     expect(narrow.randomControl.width).toBe(0);
   });
 
-  test("wide: Standard II/Expert II and The Hood's own modular sets are zero-area unless offered", () => {
+  test("wide: the option cards and The Hood's own modular sets are absent unless offered", () => {
     const plain = tableSetupLayout({ ...REALISTIC, width: 1440, height: 900 });
-    expect(plain.difficultyAltRow.height).toBe(0);
+    expect(plain.optionCards).toEqual([]);
     expect(plain.hoodHeader.height).toBe(0);
     expect(plain.hoodGrid.height).toBe(0);
 
-    // REALISTIC's own two difficulty cards leave the difficulty row's own third slot spare, so Standard
-    // II/Expert II fits inline there (`altFitsInDifficultyRow`) rather than spending a whole extra row — the
-    // scene draws it inside `difficultyRow` itself, so `difficultyAltRow` stays zero-area even though the toggle
-    // is offered (see the dedicated fallback test below for the one case that *does* need the extra row).
     const withBoth = tableSetupLayout({
       ...REALISTIC,
       width: 1440,
       height: 900,
-      hasAlternateDifficultySets: true,
+      optionSpans: [1, 1],
       hoodSetCount: 9,
     });
-    expect(withBoth.difficultyAltRow.height).toBe(0);
+    expect(withBoth.optionCards).toHaveLength(2);
     expect(withBoth.hoodHeader.height).toBeGreaterThan(0);
     expect(withBoth.hoodGrid.height).toBeGreaterThan(0);
     expect(withBoth.hoodHeader.y).toBeGreaterThan(withBoth.modularGrid.y);
     expect(withBoth.hoodColumns).toBeLessThanOrEqual(4);
     expect(withBoth.hoodColumns * withBoth.hoodRows).toBeGreaterThanOrEqual(9);
-    // Narrow (tablet portrait) doesn't offer either yet — always zero-area regardless of the input.
+    // Narrow (tablet portrait) draws the option cards too, but not The Hood's own set picker.
     const narrowWithBoth = tableSetupLayout({
       ...REALISTIC,
       width: 768,
       height: 1024,
-      hasAlternateDifficultySets: true,
+      optionSpans: [1, 1],
       hoodSetCount: 9,
     });
-    expect(narrowWithBoth.difficultyAltRow.height).toBe(0);
+    expect(narrowWithBoth.optionCards).toHaveLength(2);
     expect(narrowWithBoth.hoodHeader.height).toBe(0);
   });
 
-  test("wide: a scenario with all three difficulty cards and an alternate (none exists yet) falls back to its own full-width row, since there's no spare slot to fill inline", () => {
-    const layout = tableSetupLayout({
-      ...REALISTIC,
-      width: 1440,
-      height: 900,
-      difficultyCount: 3,
-      hasAlternateDifficultySets: true,
-    });
-    expect(layout.difficultyAltRow.height).toBeGreaterThan(0);
-    expect(layout.difficultyAltRow.y).toBeGreaterThan(layout.difficultyRow.y);
-    expect(layout.difficultyAltRow.width).toBe(layout.difficultyRow.width);
+  test("option cards: two one-column cards share a row, a two-column card takes a row of its own, all under the difficulty row", () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 768, height: 1024 },
+    ]) {
+      const layout = tableSetupLayout({ ...REALISTIC, ...size, optionSpans: [1, 1, 1, 2] });
+      const [a, b, c, d] = layout.optionCards as [Rect, Rect, Rect, Rect];
+      expect(a.y).toBe(b.y);
+      expect(a.x + a.width).toBeLessThan(b.x);
+      expect(c.y).toBeGreaterThan(a.y);
+      expect(c.width).toBe(a.width);
+      expect(d.y).toBeGreaterThan(c.y);
+      expect(d.width).toBe(layout.difficultyRow.width);
+      expect(a.y).toBeGreaterThanOrEqual(layout.difficultyRow.y + layout.difficultyRow.height);
+      noOverlap({ ...REALISTIC, ...size, optionSpans: [1, 1, 1, 2] });
+    }
+  });
+
+  test("option cards: a lone one-column card is half-width and a two-column card right after it starts a new row", () => {
+    const layout = tableSetupLayout({ ...REALISTIC, width: 1440, height: 900, optionSpans: [1, 2] });
+    const [a, b] = layout.optionCards as [Rect, Rect];
+    expect(a.width).toBeLessThan(b.width);
+    expect(b.y).toBeGreaterThan(a.y);
   });
 
   test("panel row budgets never exceed what was asked for, and are never negative", () => {
@@ -267,7 +275,7 @@ function compactInputFor(width: number, height: number, seatCount: 1 | 4): Table
     requiredModularIds: ["rhino"],
     candidateModularIds: ["bomb_scare", "masters_of_evil", "under_attack", "legions_of_hydra", "the_doomsday_chair"],
     modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN",
-    hasStandardII: false,
+    optionRows: [],
     hasTowerDefenseSetupDamage: false,
     hoodSetIds: [],
     seatCount,

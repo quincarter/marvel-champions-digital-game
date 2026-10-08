@@ -15,7 +15,8 @@
  * "which crew are we playing", pushed Start game off-screen, and had
  * unclickable chips at some sizes. `SessionConfig.villainVersions` stays on
  * the engine side for a future "advanced" option; `toSessionConfig` below
- * simply never sends it.
+ * simply never sends it. The Four Horsemen's A/B sides are a different field (`horsemanSides`): wave 8's builder takes
+ * its own four-sided tuple, not `villainVersions`, and strips the latter.
  *
  * **What's deliberately *not* in `SetupDraft`:**
  * - **The seed field's raw text.** `draft.seed` is the last value that parsed
@@ -35,14 +36,15 @@
  * test), because `SessionConfig` is also the save shape and Phase 5's future
  * network shape.
  */
-import { setAsideModularSetCountFor, type DifficultySetChoice, type EncounterSet, type Scenario } from "@mc/content";
-import type { CorePlayer } from "@mc/cards";
+import { setAsideModularSetCountFor, type DifficultySetChoice, type Scenario } from "@mc/content";
+import { horsemanSidesOffer, type CorePlayer, type HorsemanSide } from "@mc/cards";
 import type { TableRules } from "@mc/engine";
-import type { SessionConfig } from "../engine/host.js";
+import type { HorsemanSides, SessionConfig } from "../engine/host.js";
 import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSwap, KeptConflict } from "./name-conflicts.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
+import { offerOf, reconcileWithOffer } from "./setup-options.js";
 
 export type SetupDifficulty = "standard" | "expert" | "extreme";
 
@@ -72,12 +74,17 @@ export interface SetupDraft {
    */
   readonly activeSeatIndex: number;
   /**
-   * Standard II / Expert II (docs/phase7-wave4.md §4 Q5): `null` means the printed default —
-   * `SessionConfig.difficultySets`' own doc comment. Only ever set for a scenario whose pack actually has an
-   * alternate Standard/Expert set (`alternateDifficultySetsFor`); switching to a scenario that doesn't resets it,
-   * the same way `setScenario` already resets `difficulty` when the new scenario drops "extreme".
+   * The Standard and Expert encounter sets in use (Standard II or III, Expert II; docs/phase7-wave8.md section 4.1
+   * Q10): `null` means the printed sets, and each of `standard` and `expert` is chosen on its own. Only ever holds
+   * what `playableScenarioOffer` lists for the scenario and difficulty (`reconcileWithOffer`).
    */
   readonly difficultySets: DifficultySetChoice | null;
+  /** Threat per player placed on Gene Pool (the Infinites set's "Modular Difficulty"), 0 to 3; 0 is off. Q1. */
+  readonly genePoolThreatPerPlayer: number;
+  /** The Four Horsemen's side per villain; `null` follows the difficulty (A standard, B expert) until one is touched. Q9. */
+  readonly horsemanSides: readonly HorsemanSide[] | null;
+  /** Apocalypse begins at stage I (standard only). Q12. */
+  readonly easierStart: boolean;
   /**
    * The Hood's own seven-of-nine modular set choice (docs/phase7-wave4.md §2.3, §3.18). `null` means the scenario
    * builder's own default (the pack's first seven in declaration order) — never a random draw the client makes
@@ -130,6 +137,9 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     heroSortMode: "wave",
     activeSeatIndex: 0,
     difficultySets: null,
+    genePoolThreatPerPlayer: 0,
+    horsemanSides: null,
+    easierStart: false,
     setAsideModularSetIds: null,
     extraModularSetIds: [],
     towerDefenseSetupDamage: false,
@@ -166,36 +176,22 @@ export function answerConflict(
       : { ...draft, keptConflicts: [...draft.keptConflicts, answer.kept] };
 }
 
-/** Standard/expert everywhere; Breakout's own multi-villain challenge (docs/phase7-wave1.md §4.6) adds "extreme". */
-export function difficultyOptionsFor(scenario: Scenario | undefined): readonly SetupDifficulty[] {
-  return scenario?.multipleVillains ? ["standard", "expert", "extreme"] : ["standard", "expert"];
-}
-
 /**
- * Standard II / Expert II (docs/phase7-wave4.md §4 Q5): the scenario's own pack's alternate Standard/Expert sets,
- * if it has any — `RRG 1.8` "Standard Set"/"Expert Set" (pp. 40, 19) name the printed ones every scenario already
- * uses by default, so this is only ever non-empty for a pack that prints a second pair (The Hood, `hood`
- * `standard_ii`/`expert_ii`). Read from `encounterSets` rather than cached, so a wider pool (a later wave's own
- * alternates) needs no change here.
+ * Standard/expert everywhere; Breakout's own multi-villain challenge (docs/phase7-wave1.md §4.6) adds "extreme" (A in
+ * play with B underneath). The Four Horsemen are multi-villain too but have no "Extreme": each Horseman's side is its
+ * own choice (docs/phase7-wave8.md section 4.1 Q9 = B), so a scenario that offers per-villain sides gets none.
  */
-export function alternateDifficultySetsFor(
-  scenario: Scenario | undefined,
-  encounterSets: readonly EncounterSet[],
-): DifficultySetChoice | null {
-  if (!scenario) return null;
-  const standard = encounterSets.find(
-    (set) => set.classification === "standard" && set.packCodes.includes(scenario.packCode),
-  )?.id;
-  const expert = encounterSets.find(
-    (set) => set.classification === "expert" && set.packCodes.includes(scenario.packCode),
-  )?.id;
-  return standard || expert ? { ...(standard ? { standard } : {}), ...(expert ? { expert } : {}) } : null;
+export function difficultyOptionsFor(scenario: Scenario | undefined): readonly SetupDifficulty[] {
+  return scenario?.multipleVillains && horsemanSidesOffer(scenario) === null
+    ? ["standard", "expert", "extreme"]
+    : ["standard", "expert"];
 }
 
 /**
  * Picking a new scenario. Resets the difficulty when the new scenario doesn't offer the current one (e.g. leaving
- * Breakout drops "extreme"), and resets the Standard II/Expert II choice and The Hood's own modular set choice —
- * both are scenario-specific, so carrying either into an unrelated scenario would silently misapply it.
+ * Breakout drops "extreme"), and resets every scenario-specific setup choice (the Standard/Expert sets, Gene Pool
+ * threat, the Horsemen's sides, the easier start, The Hood's own modular set choice): carrying one into an unrelated
+ * scenario would silently misapply it.
  */
 export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, scenarioId: string): SetupDraft {
   const difficulty = difficultyOptionsFor(scenario).includes(draft.difficulty) ? draft.difficulty : "standard";
@@ -206,34 +202,29 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
     modularSetIds: scenarioId === draft.scenarioId ? draft.modularSetIds : null,
     difficultySets: null,
+    genePoolThreatPerPlayer: 0,
+    horsemanSides: null,
+    easierStart: false,
     setAsideModularSetIds: null,
     towerDefenseSetupDamage: false,
   };
 }
 
-/** Picking a difficulty for the current scenario. */
+/** Picking a difficulty for the current scenario; a choice the new difficulty does not offer (an Expert set, the easier start) is dropped. */
 export function setDifficulty(draft: SetupDraft, difficulty: SetupDifficulty): SetupDraft {
-  return { ...draft, difficulty };
+  const next = { ...draft, difficulty };
+  return reconcileWithOffer(next, offerOf(next));
 }
 
+/** Picking modular sets; a Gene Pool amount stops applying when Infinites leaves the game. */
 export function setModularSetIds(draft: SetupDraft, modularSetIds: readonly string[] | null): SetupDraft {
-  return { ...draft, modularSetIds };
+  const next = { ...draft, modularSetIds };
+  return reconcileWithOffer(next, offerOf(next));
 }
 
-/** `null` to go back to the printed default (`alternateDifficultySetsFor`'s own doc comment). */
+/** `null` to go back to the printed sets. */
 export function setDifficultySets(draft: SetupDraft, difficultySets: DifficultySetChoice | null): SetupDraft {
   return { ...draft, difficultySets };
-}
-
-/**
- * The Standard II/Expert II toggle's own on/off: off (`null`) uses `alternateDifficultySetsFor`'s printed
- * default when toggled on, on (a `DifficultySetChoice`) clears back to `null` when toggled off. A single switch
- * rather than choosing "Standard" and "Expert" independently, since a pack with either alternate has printed
- * both together so far (The Hood's own `standard_ii`/`expert_ii`) — a future pack with only one would need its
- * own widget, not this one.
- */
-export function toggleDifficultySets(draft: SetupDraft, alternate: DifficultySetChoice | null): SetupDraft {
-  return setDifficultySets(draft, draft.difficultySets ? null : alternate);
 }
 
 /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a plain on/off, off by default. */
@@ -535,6 +526,8 @@ export function toSessionConfig(
     draft.setAsideModularSetIds.length !== setAsideModularSetCountFor(scenario, players.length)
       ? null
       : draft.setAsideModularSetIds;
+  // Only what the scenario offers goes out (`reconcileWithOffer`): a stale choice never reaches a builder that refuses it.
+  const options = reconcileWithOffer(draft);
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
@@ -542,7 +535,12 @@ export function toSessionConfig(
     seed: draft.seed,
     ...(modularSetIds ? { modularSetIds } : {}),
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
-    ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
+    ...(options.difficultySets ? { difficultySets: options.difficultySets } : {}),
+    ...(options.genePoolThreatPerPlayer > 0 ? { genePoolThreatPerPlayer: options.genePoolThreatPerPlayer } : {}),
+    ...(options.horsemanSides && options.horsemanSides.length === 4
+      ? { horsemanSides: options.horsemanSides as HorsemanSides }
+      : {}),
+    ...(options.easierStart ? { easierStart: true } : {}),
     ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
     ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),

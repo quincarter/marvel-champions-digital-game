@@ -95,7 +95,8 @@ import {
   type TeamUpPair,
   type TeamUpWatch,
 } from "../view/team-up-model.js";
-import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
+import { drawEncounter, drawEnemies, drawPlayArea, drawScenarioPlayAreas, drawTeam } from "./board/zones.js";
+import { splitMissionArea } from "../view/mission-area-layout.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { campaignBeatFor } from "../view/campaign-beat-model.js";
 import type { CampaignBeatData } from "./campaign/routes.js";
@@ -350,6 +351,13 @@ export class BoardScene extends Phaser.Scene {
       this.input.keyboard?.on(`keydown-${key}`, () => {
         const option = this.#controller.abilityChoice()?.options[index];
         if (option && !binding.blocked()) void this.#controller.chooseEventAbility(option.abilityId);
+      });
+    });
+    // 1 and 2 answer "Where does it go?" (an ally that may enter the mission area as well as the player's own).
+    ["ONE", "TWO"].forEach((key, index) => {
+      this.input.keyboard?.on(`keydown-${key}`, () => {
+        const option = this.#controller.destinationChoice()?.options[index];
+        if (option && !binding.blocked()) void this.#controller.chooseDestination(option);
       });
     });
     bindGamepad(this, binding);
@@ -978,7 +986,12 @@ export class BoardScene extends Phaser.Scene {
     });
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
-    if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
+    // A scenario play area (the mission area) takes the foot of the enemies zone; with none, the zone is whole.
+    const missionSplit = zones.enemies
+      ? splitMissionArea(zones.enemies, model.scenarioPlayAreas.length > 0)
+      : { enemies: null, area: null };
+    if (missionSplit.enemies) drawEnemies(ctx, missionSplit.enemies, model);
+    if (missionSplit.area) drawScenarioPlayAreas(ctx, missionSplit.area, model.scenarioPlayAreas);
     // The set-aside footer's line comes out of the log's space, never the deck and discard's.
     const setAside =
       model.setAside && zones.encounter

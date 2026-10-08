@@ -25,6 +25,7 @@ import {
   SOURCE_BAR_NOTE,
   drawAllianceHelpBar,
   drawAbilityBar,
+  drawDestinationBar,
   drawFormBar,
   drawPlayConfirmBar,
   drawSourceBar,
@@ -72,6 +73,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const sourceChoice = ctx.controller.sourceChoice();
   const formChoice = ctx.controller.formChoice();
   const abilityChoice = ctx.controller.abilityChoice();
+  const destinationChoice = ctx.controller.destinationChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
   if (sourceChoice) {
     const height = hit.target + SOURCE_BAR_NOTE;
@@ -82,6 +84,9 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     top = rect.y + hit.target + 4;
   } else if (abilityChoice) {
     drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, abilityChoice);
+    top = rect.y + hit.target + 4;
+  } else if (destinationChoice) {
+    drawDestinationBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, destinationChoice);
     top = rect.y + hit.target + 4;
   } else if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);

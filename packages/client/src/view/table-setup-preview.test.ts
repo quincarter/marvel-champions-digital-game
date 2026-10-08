@@ -335,3 +335,25 @@ describe("the encounter deck counts a set the deal adds", () => {
     for (const { type, count } of preview.encounterDeck.decks[0]!.byType) expect(started.get(type) ?? 0).toBe(count);
   });
 });
+
+describe("Apocalypse's easier start in the preview", () => {
+  const apocalypse = POOL_SCENARIOS.find((s) => (s.id as string) === "apocalypse")!;
+  const players = [{ starterDeckId: "core-spider-man-justice" }];
+
+  test("starting a stage sooner shows stage I and one more stage of hit points", () => {
+    const printed = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1 });
+    const easier = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart: true });
+    const before = tableSetupPreviewOf(printed, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const after = tableSetupPreviewOf(easier, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(before.villainStageLabel).toBe("II");
+    expect(after.villainStageLabel).toBe("I");
+    expect(after.villainStageSpan).toBe(before.villainStageSpan + 1);
+    expect(after.villainTotalHp).toBeGreaterThan(before.villainTotalHp);
+  });
+
+  test("a start at or after the difficulty's own changes nothing", () => {
+    expect(stageRangeFor(apocalypse, "standard", 1)).toEqual(stageRangeFor(apocalypse, "standard"));
+    expect(stageRangeFor(apocalypse, "standard", 3)).toEqual(stageRangeFor(apocalypse, "standard"));
+    expect(stageRangeFor(apocalypse, "standard", 0)[0]).toBe(1);
+  });
+});

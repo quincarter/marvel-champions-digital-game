@@ -179,7 +179,7 @@ export function schemeMeterRect(rect: Rect): Rect {
  * sits in a column on the left with a 3px rule beside it, which is how the
  * Long Table canvas frames a scheme. Returns the bottom edge it drew to.
  */
-function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): number {
+export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): number {
   const { scene } = ctx;
   const selection = ctx.controller.selection;
   ctx.frame.hitRects.set(scheme.instanceId, rect);

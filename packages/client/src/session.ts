@@ -113,6 +113,16 @@ export function appSession(): AppSession {
 }
 
 /**
+ * Dev jumps only (`scenes/boot.ts`, `?screen=board&fixture=mission`): swaps the engine host and its store for ones that
+ * play a state the app's own `SessionConfig` route cannot build. Never called outside `import.meta.env.DEV`.
+ */
+export function useDevHost(host: EngineHost): void {
+  const current = appSession();
+  (current as { host: EngineHost }).host = host;
+  (current as { store: SessionStore }).store = new SessionStore(host);
+}
+
+/**
  * Where imported and user-built decks live (PLAN.md Phase 9). A separate
  * concern from `appSession`'s engine host on purpose: decks aren't game
  * state, are read and written from the main thread (Title, Decks, the
