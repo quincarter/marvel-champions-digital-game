@@ -2208,6 +2208,12 @@ export const atEndOfPhase = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfPhase",
   effects: flatten(effects),
 });
+/**
+ * "Flip this card and reveal [the villain's next stage]" / "Remove this card from the game and reveal [it]": the stage
+ * change of a defeat with no defeat, at the new stage's full printed hit points, everything on the villain kept
+ * (docs/phase7-wave8.md §3.18).
+ */
+export const revealNextVillainStage = (villain: TargetRef): EffectSpec => ({ kind: "revealNextVillainStage", villain });
 /** "Change Apocalypse to [Giant] form" — a three-sided villain's face change, resolved as a flip. */
 export const changeVillainForm = (villain: TargetRef, toFaceWithTrait: Trait): EffectSpec => ({
   kind: "changeVillainForm",

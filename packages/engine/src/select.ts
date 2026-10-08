@@ -47,6 +47,7 @@ import {
   nextClockwisePlayer,
   playerOrder,
   printedHandSize,
+  printedHpNumeral,
   printedProfile,
   textBoxBlank,
   undefeatedVillains,
@@ -2360,7 +2361,8 @@ export function resolveValue(
     }
     case "printedHp": {
       const [id] = resolveRef(state, value.of, context);
-      return id ? (printedProfile(state, id)?.maxHp ?? 0) : 0;
+      if (!id) return 0;
+      return value.numeral ? printedHpNumeral(state, id) : (printedProfile(state, id)?.maxHp ?? 0);
     }
     case "totalPrintedCost":
       // Read wherever the cards are (tucked cards are out of play); a card with no printed cost adds 0.
@@ -3050,14 +3052,96 @@ export function activeAbilityRefs(
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly AbilityReference[] {
-  const refs = unblankedAbilityRefs(state, id);
-  if (refs.length === 0) return refs;
+  const printed = unblankedAbilityRefs(state, id);
+  if (printed.length === 0) return printed;
   if (textBoxBlankFor(state, id, deps)) return [];
+  // "Ignore the Forced Interrupt on the main scheme" (`RuleSpec ignoreAbilities`, docs/phase7-wave8.md §3.21).
+  const ignored = ignoredAbilities(state, deps).get(id);
+  const refs = ignored ? printed.filter((ref) => !ignored.has(ref.id)) : printed;
   // An ability that works only from the victory display is off everywhere else (docs/phase7-wave7.md §3.50).
   const marked = victoryDisplayAbilityIds(deps);
   if (marked.size === 0 || state.victoryDisplay.includes(id) || !refs.some((ref) => marked.has(ref.id))) return refs;
   return refs.filter((ref) => !marked.has(ref.id));
 }
+
+const NO_IGNORED_ABILITIES: ReadonlyMap<InstanceId, ReadonlySet<string>> = new Map();
+const IGNORE_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+const IGNORED_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, ReadonlyMap<InstanceId, ReadonlySet<string>>>>();
+
+/**
+ * The abilities `ignoreAbilities` rules in effect make absent, by the card in play that prints them (`RuleSpec
+ * ignoreAbilities`; docs/phase7-wave8.md §3.21; RRG 1.8 "Ignore", p. 23). Rules come from constant abilities of cards
+ * in play whose text box is not blank, from lasting rule grants and from the scenario. Each rule's `while` and `on` are
+ * read with `DEFAULT_DEPS` (printed characteristics) and each source's abilities before any ignore is applied, so
+ * matching cannot re-enter this function and two rules naming each other both apply. Cached per state like
+ * `blankedSets`; a game whose registry has no such rule and that holds no such lasting or scenario rule pays one lookup.
+ */
+export function ignoredAbilities(state: GameState, deps: EngineDeps): ReadonlyMap<InstanceId, ReadonlySet<string>> {
+  let ruleIds = IGNORE_RULE_IDS.get(deps);
+  if (!ruleIds) {
+    const ids = new Set<string>();
+    for (const [id, definition] of Object.entries(deps.abilities)) {
+      if (definition.trigger.kind !== "constant") continue;
+      if ((definition.trigger.rules ?? []).some((rule) => rule.kind === "ignoreAbilities")) ids.add(id);
+    }
+    IGNORE_RULE_IDS.set(deps, ids);
+    ruleIds = ids;
+  }
+  const isIgnore = (rule: RuleSpec): rule is Extract<RuleSpec, { kind: "ignoreAbilities" }> =>
+    rule.kind === "ignoreAbilities";
+  const lasting = state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && isIgnore(effect.rule));
+  const scenario = (state.scenarioRules.rules ?? []).some(isIgnore);
+  if (ruleIds.size === 0 && !lasting && !scenario) return NO_IGNORED_ABILITIES;
+  const perDeps =
+    IGNORED_BY_RULES.get(state) ?? new WeakMap<EngineDeps, ReadonlyMap<InstanceId, ReadonlySet<string>>>();
+  const cached = perDeps.get(deps);
+  if (cached) return cached;
+  const found = new Map<InstanceId, Set<string>>();
+  const inPlay = cardsInPlay(state);
+  const apply = (rule: Extract<RuleSpec, { kind: "ignoreAbilities" }>, context: EffectContext) => {
+    if (rule.while && !evaluate(state, rule.while, context)) return;
+    for (const id of inPlay) {
+      if (!matchesQuery(state, id, rule.on, context)) continue;
+      const ids = found.get(id) ?? new Set<string>();
+      for (const abilityId of rule.abilities) ids.add(abilityId);
+      found.set(id, ids);
+    }
+  };
+  if (ruleIds.size > 0) {
+    for (const sourceId of inPlay) {
+      const carried = unblankedAbilityRefs(state, sourceId).filter((ref) => ruleIds.has(ref.id));
+      // A blank text box has no rule to give (read only for a card that prints one).
+      if (carried.length === 0 || textBoxBlankFor(state, sourceId, deps)) continue;
+      for (const ref of carried) {
+        const trigger = deps.abilities[ref.id]?.trigger;
+        if (trigger?.kind !== "constant") continue;
+        const context: EffectContext = {
+          selfInstanceId: sourceId,
+          controllerId: speakerOf(state, sourceId),
+          event: null,
+          bindings: {},
+          deps: DEFAULT_DEPS,
+        };
+        for (const rule of trigger.rules ?? []) if (isIgnore(rule)) apply(rule, context);
+      }
+    }
+  }
+  for (const effect of state.lastingEffects) {
+    if (effect.kind === "ruleGrant" && isIgnore(effect.rule))
+      apply(effect.rule, lastingContext(effect.scope, DEFAULT_DEPS));
+  }
+  for (const rule of state.scenarioRules.rules ?? []) {
+    if (isIgnore(rule))
+      apply(rule, { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps: DEFAULT_DEPS });
+  }
+  perDeps.set(deps, found);
+  IGNORED_BY_RULES.set(state, perDeps);
+  return found;
+}
+
+/** Whether `abilityId` on the card in play `id` is ignored right now (`ignoredAbilities`). */
+export const abilityIgnored = (state: GameState, deps: EngineDeps, id: InstanceId, abilityId: string): boolean =>
+  ignoredAbilities(state, deps).get(id)?.has(abilityId) === true;
 
 /** Ability ids in this registry marked `activeIn: "victoryDisplay"`. Memoized per registry object. */
 const VICTORY_DISPLAY_ABILITY_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();

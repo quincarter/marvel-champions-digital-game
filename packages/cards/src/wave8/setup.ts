@@ -52,7 +52,25 @@ export interface Wave8ScenarioOptions extends Omit<CoreScenarioOptions, "cardPoo
    * `infinitesGenePoolThreatRecommendation` is only where a setup control starts.
    */
   readonly genePoolThreatPerPlayer?: number;
+  /**
+   * Apocalypse only (MC45 p. 14: "For an easier game, begin with Apocalypse (I)."; docs/phase7-wave8.md section 4.1
+   * Q12 = A): an optional setup change on standard mode, off unless chosen. The villain deck is then stages I to IV in
+   * place of II to IV, so he starts at 8 hit points per player and the main scheme's target is 8 per player. It is not
+   * what skirmish mode means, and expert mode ("start with Apocalypse (III)") refuses it, as does any other scenario.
+   * `offersEasierStart` says whether a setup screen shows it.
+   */
+  readonly easierStart?: boolean;
 }
+
+/**
+ * The stage a scenario's villain starts on with `Wave8ScenarioOptions.easierStart`, by scenario id. A setup choice the
+ * rules insert offers, not scenario data (docs/phase7-wave8.md section 1.12).
+ */
+const EASIER_START_STAGE: Readonly<Record<string, number>> = { apocalypse: 1 };
+
+/** Whether a game of `scenarioId` in `difficulty` offers `Wave8ScenarioOptions.easierStart` (Q12 = A: standard only). */
+export const offersEasierStart = (scenarioId: string, difficulty: Wave8Difficulty = "standard"): boolean =>
+  difficulty === "standard" && EASIER_START_STAGE[scenarioId] !== undefined;
 
 /** Whether a game built from these encounter sets offers `Wave8ScenarioOptions.genePoolThreatPerPlayer`. */
 export const offersGenePoolThreat = (encounterSetIds: readonly string[]): boolean =>
@@ -160,7 +178,8 @@ const villainCard = (id: CardId): Extract<AnyCard, { type: "villain" }> => {
  *   scheme of the set. Each Horseman's version is picked per villain (`options.horsemanSides`, default from the
  *   difficulty).
  * - **Apocalypse**: the five Prelates (45179b to 45183b) and The Tyrant's Throne (45105a) are set aside
- *   (`Scenario.setAsideCardIds`); Heart of the Empire (45104a) is in the deck.
+ *   (`Scenario.setAsideCardIds`); Heart of the Empire (45104a) is in the deck. He starts on stage II (III in expert),
+ *   or on stage I with `options.easierStart`; every later stage is reached by the main scheme, up to IV.
  * - **Dark Beast**: the Setting sets are set aside whole (`SETTING_SETS`).
  * - **En Sabah Nur**: one villain card with sides A, B and C over three stages, started on side A.
  */
@@ -171,6 +190,12 @@ function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameS
     throw new Error(`${scenario.name}: horsemanSides belongs to the Four Horsemen scenario`);
   const modes = resolveModes(options.difficulty, options.modes);
   const difficulty = modes.expert ? "expert" : "standard";
+  if (options.easierStart && !offersEasierStart(scenario.id, difficulty))
+    throw new Error(
+      EASIER_START_STAGE[scenario.id] === undefined
+        ? `${scenario.name}: easierStart belongs to the Apocalypse scenario`
+        : `${scenario.name}: easierStart is a standard mode option`,
+    );
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const modular = chooseModularSets(scenario, ENCOUNTER_SETS, { ...options, playerCount: options.players.length });
   const settingSets = SETTING_SETS[scenario.id] ?? [];
@@ -271,7 +296,8 @@ function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameS
 
   const villain = villainCard(scenario.villainCardId);
   const startSide = (villain.startingSide ?? "A") as string;
-  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const [modeFirstStage, lastStage] = scenario.villainStages[difficulty];
+  const firstStage = options.easierStart ? (EASIER_START_STAGE[scenario.id] ?? modeFirstStage) : modeFirstStage;
   return {
     ...common,
     villainCardId: scenario.villainCardId,

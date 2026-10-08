@@ -25,7 +25,7 @@ import { P1, P2, endTurn, firstLegal, inst, settle } from "../testing/harness.js
 import { driveEventsPicking } from "../testing/staging.js";
 import { WAVE8_DEPS } from "./index.js";
 import { infinitesGenePoolThreatRecommendation } from "./aoa/infinites.js";
-import { offersGenePoolThreat, standardSetReplaceable, wave8Scenario } from "./setup.js";
+import { offersEasierStart, offersGenePoolThreat, standardSetReplaceable, wave8Scenario } from "./setup.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -395,6 +395,42 @@ describe("wave8Scenario", () => {
       expect(
         s.instances && Object.keys(s.instances).filter((id) => PRELATES.includes(codeOf(s, id as InstanceId))),
       ).toHaveLength(5);
+    });
+  });
+
+  describe("Apocalypse's easier start (MC45 p. 14; docs/phase7-wave8.md section 4.1 Q12 = A)", () => {
+    const easier = (id: string, mode: Mode, players: 1 | 2 = 1): GameSetupConfig =>
+      wave8Scenario(id, { players: SEATS.slice(0, players), seed: 1, difficulty: mode, easierStart: true });
+
+    it("is off unless chosen: standard starts on stage II, expert on stage III, the deck ending at IV", () => {
+      const standard = configOf("apocalypse", "standard", 1);
+      const expert = configOf("apocalypse", "expert", 1);
+      expect([standard.villainStartStageIndex, standard.villainLastStageIndex]).toEqual([1, 3]);
+      expect([expert.villainStartStageIndex, expert.villainLastStageIndex]).toEqual([2, 3]);
+      const off = wave8Scenario("apocalypse", { players: SEATS.slice(0, 1), seed: 1, easierStart: false });
+      expect(off).toEqual(wave8Scenario("apocalypse", { players: SEATS.slice(0, 1), seed: 1 }));
+    });
+
+    it.each(PLAYERS)("chosen on standard: Apocalypse (I), 8 hit points per player, stages I to IV (%i)", (n) => {
+      const config = easier("apocalypse", "standard", n);
+      expect([config.villainStartStageIndex, config.villainLastStageIndex]).toEqual([0, 3]);
+      const s = build(config);
+      expect(villainsOf(s)).toEqual([{ card: "45101a", stage: 1, hp: 8 * n }]);
+      // Nothing else of the setup changes.
+      const { villainStartStageIndex: _a, ...rest } = config;
+      const { villainStartStageIndex: _b, ...plain } = configOf("apocalypse", "standard", n);
+      expect(rest).toEqual(plain);
+    });
+
+    it("is offered on standard Apocalypse only: expert and every other scenario refuse it", () => {
+      expect(offersEasierStart("apocalypse")).toBe(true);
+      expect(offersEasierStart("apocalypse", "standard")).toBe(true);
+      expect(offersEasierStart("apocalypse", "expert")).toBe(false);
+      expect(() => easier("apocalypse", "expert")).toThrow(/standard mode option/);
+      for (const id of SCENARIOS.filter((scenario) => scenario !== "apocalypse")) {
+        expect(offersEasierStart(id), id).toBe(false);
+        expect(() => easier(id, "standard"), id).toThrow(/belongs to the Apocalypse scenario/);
+      }
     });
   });
 

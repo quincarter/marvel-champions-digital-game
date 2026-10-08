@@ -4,13 +4,17 @@ import {
   attachCard,
   boost,
   constant,
+  damageOn,
   dealEncounterCard,
   defineAbilities,
+  discard,
+  discardEncounterCards,
   each,
   encounterCards,
   encounterSetAside,
   endGame,
   enemyActivates,
+  eventTarget,
   exists,
   firstPlayer,
   flipCard,
@@ -21,6 +25,8 @@ import {
   giveTough,
   heal,
   ifThen,
+  ignoreAbilities,
+  instead,
   isAttached,
   moveCards,
   named,
@@ -31,8 +37,10 @@ import {
   perHero,
   placeThreat,
   removeThreat,
+  revealNextVillainStage,
   theMainScheme,
   threatOn,
+  printedHpNumeralOf,
   printedHpOf,
   query,
   revealCard,
@@ -50,6 +58,7 @@ import {
 } from "../../dsl/index.js";
 
 const APOCALYPSE_NAME = named("Apocalypse");
+const APOCALYPSE_VILLAIN = query("villain", { name: "Apocalypse" });
 const PRELATE_MINION = query("minion", { trait: trait("PRELATE") });
 const HOST_ENEMY = query("enemy", { hostOfSelf: true });
 const HOST_MINION = query("minion", { hostOfSelf: true });
@@ -60,8 +69,8 @@ const HOST_MINION = query("minion", { hostOfSelf: true });
  *
  * The Age of Apocalypse 1B: "X is the numeral in Apocalypse's printed hit point value" makes the target threat X
  * per player, which is exactly his printed hit points scaled per player (`printedHpOf`, never modified), so the
- * target is written with that and needs no numeral value. The bare numeral (Remove X threat; discard X cards) does:
- * those lines wait on engine task 25.
+ * target is written with that. "Remove X threat" and The Apocalypse Solution's "discard the top X cards" are the bare
+ * numeral (`printedHpNumeralOf`, section 3.19).
  *
  * The chain (Heart of the Empire, The Towering Citadel, The Tyrant's Throne): each locks its threat while a
  * [PRELATE] minion is in play, and its When Defeated has the first player reveal a random set-aside Prelate and deals
@@ -69,8 +78,7 @@ const HOST_MINION = query("minion", { hostOfSelf: true });
  * here, after the flip attaches it: the printed "heal" sits in No Longer Worthy's constant ref, which cannot hold a
  * one-time effect.
  *
- * Skipped, see `APOCALYPSE_SKIPPED`: Apocalypse I to III's "reveal the next stage" interrupt (task 24), 1B's
- * "instead" interrupt (task 25) and No Longer Worthy's "ignore" (task 26), and The Apocalypse Solution (task 25).
+ * Nothing is skipped (`APOCALYPSE_SKIPPED` is empty).
  *
  * Cards (12):
  * - 45101a Apocalypse (villain)
@@ -98,7 +106,24 @@ const lockedWhilePrelate = () =>
 /** Dreadpool's form: "[Name] engages the first player" is on each Prelate (`prelates.ts`). */
 const attachToApocalypseBoost = () => boost(attachCard(self, APOCALYPSE_NAME));
 
+/**
+ * Apocalypse I, II and III: "Forced Interrupt: When the main scheme is completed, remove all threat from it (ignoring
+ * any crisis icons). Flip this card and reveal Apocalypse (II)." (II: "Remove this card from the game and reveal
+ * Apocalypse (III)."; III: "Flip this card and reveal Apocalypse (IV).") Section 3.18: with the threat gone the stage
+ * is not completed, so nobody loses; the next stage enters at its full printed hit points with everything on him kept
+ * (Q11), and 1B's target follows it at once.
+ */
+const stageInterrupt = () =>
+  forcedInterrupt(
+    on.mainSchemeCompleting(query("mainScheme")),
+    removeThreat(threatOn(theMainScheme), theMainScheme, { ignoreCrisis: true }),
+    revealNextVillainStage(theVillain),
+  );
+
 export const APOCALYPSE: AbilityRegistry = defineAbilities({
+  "45101a.apocalypse-forced-interrupt": stageInterrupt(),
+  "45101b.apocalypse-forced-interrupt": stageInterrupt(),
+  "45102a.apocalypse-forced-interrupt": stageInterrupt(),
   // Apocalypse IV: [star] his attacks gain overkill.
   "45102b.apocalypse-constant": constant(gainsKeyword({ name: "overkill" }, { self: true })),
   // Apocalypse IV: when the main scheme is completed, the players lose the game. (The one-stage scheme deck's final
@@ -111,6 +136,16 @@ export const APOCALYPSE: AbilityRegistry = defineAbilities({
   // The Age of Apocalypse 1B: X is the numeral of his printed hit points; the target is X per player.
   "45103b.the-age-of-apocalypse-constant": constant(
     gets("targetThreat", printedHpOf(theVillain), { self: true }, { setBase: true }),
+  ),
+  // 1B Forced Interrupt: "When Apocalypse would be defeated, discard each attachment from him and heal all damage from
+  // him instead. Remove X threat from this scheme (ignoring any crisis icons)." Section 3.20: "each attachment" is
+  // each card of the attachment type on him, so a player's upgrade stays, as do status cards and counters; he is not
+  // defeated, so no stage changes and nothing answers a defeat. X is the bare numeral (section 3.19), not scaled.
+  "45103b.the-age-of-apocalypse-forced-interrupt": forcedInterrupt(
+    on.defeated(APOCALYPSE_VILLAIN),
+    { would: true },
+    instead(discard(each(query("attachment", { host: eventTarget }))), heal(damageOn(eventTarget), eventTarget)),
+    removeThreat(printedHpNumeralOf(eventTarget), self, { ignoreCrisis: true }),
   ),
   // 1A Setup: unused villain cards, the Prelates and The Tyrant's Throne are set aside (data). Reveal Heart of the
   // Empire; the first player reveals a random set-aside Prelate.
@@ -147,7 +182,14 @@ export const APOCALYPSE: AbilityRegistry = defineAbilities({
 
   // No Longer Worthy: he cannot take damage while a Prelate minion is in play.
   "45105b.no-longer-worthy-constant": constant(
-    rule({ kind: "cannotTakeDamage", target: query("villain", { name: "Apocalypse" }), while: exists(PRELATE_MINION) }),
+    rule({ kind: "cannotTakeDamage", target: APOCALYPSE_VILLAIN, while: exists(PRELATE_MINION) }),
+  ),
+  // "Ignore the Forced Interrupt on the main scheme." Only 1B's "would be defeated … instead" is ignored: its "X is the
+  // numeral" target stays, and Apocalypse's own stage interrupt is not on the main scheme (section 3.21; MC45 p. 14:
+  // "if No Longer Worthy is not attached to him, the players must resolve the Forced Interrupt on The Age of
+  // Apocalypse 1B").
+  "45105b.no-longer-worthy-constant-2": constant(
+    ignoreAbilities(query("mainScheme"), ["45103b.the-age-of-apocalypse-forced-interrupt"]),
   ),
   // Forced Interrupt: when Apocalypse is defeated, the players win the game.
   "45105b.no-longer-worthy-forced-interrupt": forcedInterrupt(on.defeated("host"), endGame("win", "cardAbility")),
@@ -185,36 +227,12 @@ export const APOCALYPSE: AbilityRegistry = defineAbilities({
     ),
   ),
   "45110.boost": boost(ifThen(exists(PRELATE_MINION), giveTough(each(PRELATE_MINION)), giveTough(theVillain))),
+
+  // The Apocalypse Solution: "When Defeated: Discard the top X cards of the encounter deck, where X is the numeral in
+  // Apocalypse's printed hit point value." The bare numeral of his current stage (section 3.19). A deck that runs out
+  // resets once, with its acceleration token, and no more are discarded (RRG 1.8 "Encounter Deck", p. 17).
+  "45111.when-defeated": whenDefeated(discardEncounterCards(printedHpNumeralOf(APOCALYPSE_NAME))),
 });
 
-/**
- * The three stage interrupts, written but not registered (task 24): "remove all threat from the main scheme (ignoring
- * any crisis icons), flip this card and reveal the next stage". `revealNextVillainStage` is the effect that task adds
- * (spec section 3.18), so it is typed here by hand until the DSL has the builder.
- */
-const revealNextStage = { kind: "revealNextVillainStage", villain: theVillain } as unknown as EffectSpec;
-const stageInterrupt = () =>
-  forcedInterrupt(
-    on.mainSchemeCompleting(query("mainScheme")),
-    removeThreat(threatOn(theMainScheme), theMainScheme, { ignoreCrisis: true }),
-    revealNextStage,
-  );
-export const APOCALYPSE_UNREGISTERED: AbilityRegistry = defineAbilities({
-  "45101a.apocalypse-forced-interrupt": stageInterrupt(),
-  "45101b.apocalypse-forced-interrupt": stageInterrupt(),
-  "45102a.apocalypse-forced-interrupt": stageInterrupt(),
-});
-
-/** Unregistered refs and why, with the engine queue task (spec section 8.2) each waits on. */
-export const APOCALYPSE_SKIPPED: Readonly<Record<string, string>> = {
-  "45101a.apocalypse-forced-interrupt":
-    "needs an effect that reveals the villain's next stage without a defeat (task 24, section 3.18)",
-  "45101b.apocalypse-forced-interrupt": "same: task 24",
-  "45102a.apocalypse-forced-interrupt": "same: task 24",
-  "45103b.the-age-of-apocalypse-forced-interrupt":
-    "its heal-and-discard 'instead' is composable, but 'Remove X threat' is the bare numeral of his printed hit points, which needs `printedHp { numeral }` (task 25, section 3.19)",
-  "45111.when-defeated":
-    "'Discard the top X cards of the encounter deck' is the bare numeral of his printed hit points again: task 25 (section 3.19)",
-  "45105b.no-longer-worthy-constant-2":
-    "'Ignore the Forced Interrupt on the main scheme' needs `RuleSpec ignoreAbilities` (task 26, section 3.21)",
-};
+/** Unregistered refs and why: none. Every ref the set's card data names is registered. */
+export const APOCALYPSE_SKIPPED: Readonly<Record<string, string>> = {};

@@ -372,6 +372,7 @@ export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
 export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./select.js";
 export {
+  abilityIgnored,
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
@@ -386,6 +387,7 @@ export {
   controllerOf,
   deckTopFaceupPlayers,
   hitPointFloor,
+  ignoredAbilities,
   explainQuery,
   matchesQuery,
   resolveValue,
@@ -456,6 +458,7 @@ export {
   isMinion,
   isTerminal,
   maxHitPoints,
+  printedHpNumeral,
   printedHandSize,
   locateCard,
   mainSchemeStage,

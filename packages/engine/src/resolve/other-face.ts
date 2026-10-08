@@ -24,12 +24,22 @@ import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js"
 import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
-import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
+import {
+  cardBackOf,
+  cardOf,
+  discardZoneFor,
+  getInstance,
+  isPlayerCardType,
+  locateCard,
+  mustInstance,
+  startingThreatOf,
+} from "../query.js";
 import { cardsInPlay, controllerOf } from "../select.js";
 import { cardFlippedEvent, type HostStep, type TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
 import { announceNewFaceEntersPlay, eventFrame, pushEvents } from "./frames.js";
 import { NO_STATUSES } from "../state.js";
+import { matchingCardInPlay } from "../unique.js";
 import { attachmentHostCandidates, revealNewFaceFrame } from "./reveal.js";
 
 export function flipToOtherFace(
@@ -45,6 +55,7 @@ export function flipToOtherFace(
   const otherId: CardId | undefined = from?.otherFaceId;
   const to = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
   if (!from || !to) return false;
+  if (blockedByUniqueRule(ctx, id, to, playerId, deps)) return false;
   const typeChanged = from.type !== to.type;
   const hostStep: HostStep = {
     kind: "flipToOtherFace",
@@ -107,6 +118,34 @@ export function flipToOtherFace(
     id,
     controllerOf(ctx.state, id) ?? getInstance(ctx.state, id)?.engagedWith ?? playerId,
   );
+  return true;
+}
+
+/**
+ * RRG 1.8 "Unique Icon" (pp. 45-46): "A non-villain card in an out-of-play state that matches a card in play cannot
+ * enter play. If the out-of-play card is: a player card, it cannot be played or put into play. Any effect that attempts
+ * to do so has no effect. A non-villain encounter card, it is discarded and any effects of it entering play are
+ * ignored." The new face of a flip is treated as entering play (above), so it is held to the same rule as a card put
+ * into play (`admitUniqueEntry`) or revealed (`reveal.ts`), read before anything of the flip happens: nothing attached
+ * to the card is discarded and no `cardFlipped` follows. A player-type face with a player back: the flip has no effect
+ * and the card stays as it is (a defeated side scheme then leaves play by its defeat, and a double-sided card leaving
+ * play is removed from the game, RRG 1.8 "Double-Sided Card", p. 17). An encounter face: the card is discarded.
+ * Owner answers Q39 and Q45 (docs/phase7-wave8.md §4.1): a scenario's "flip this card and put [the ally] into play" is
+ * no exception.
+ */
+function blockedByUniqueRule(ctx: Ctx, id: InstanceId, to: AnyCard, playerId: PlayerId, deps: EngineDeps): boolean {
+  if (to.type === "villain") return false;
+  const match = matchingCardInPlay(ctx.state, to, new Set([id]), playerId, deps);
+  if (match === null) return false;
+  const isPlayerCard = isPlayerCardType(to) && cardBackOf(to) === "player";
+  emit(ctx, {
+    type: "uniqueEntryBlocked",
+    instanceId: id,
+    cardId: to.id,
+    matchedInstanceId: match,
+    disposition: isPlayerCard ? "noEffect" : "discarded",
+  });
+  if (!isPlayerCard) leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true);
   return true;
 }
 

@@ -740,6 +740,27 @@ export type RuleSpec =
    */
   | { readonly kind: "ignoreBoost"; readonly enemy?: TargetQuery; readonly while?: Predicate }
   /**
+   * "Ignore the Forced Interrupt on the main scheme." (No Longer Worthy, `aoa` 45105b; docs/phase7-wave8.md §3.21.)
+   * While the rule is in effect, the abilities named in `abilities` on each card in play matching `on` are not there:
+   * they do not trigger, an instance of one that had already triggered does not resolve (logged `abilityIgnored`), and
+   * a constant one applies nothing. RRG 1.8 "Ignore" (p. 23): "An ability that ignores some ability, icon, or cost
+   * treats that ability, icon, or cost as not being in effect or present while that ability is resolving"; a constant
+   * ability applies for as long as its card is in play, so the named ability is absent for that long. Every other
+   * ability, keyword and value of the card stays. Nothing is canceled or blanked (RRG 1.8 "Cancel", p. 11; "Blank",
+   * p. 10), so an ability that cannot be canceled is ignored all the same, and text that counts blank cards does not
+   * count this one.
+   *
+   * The rule's `while` and `on` are read from printed characteristics, and from the cards' abilities before any ignore
+   * is applied: the answer does not depend on the order cards are visited, and an ignore rule is never itself ignored
+   * by another.
+   */
+  | {
+      readonly kind: "ignoreAbilities";
+      readonly on: TargetQuery;
+      readonly abilities: readonly AbilityId[];
+      readonly while?: Predicate;
+    }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the

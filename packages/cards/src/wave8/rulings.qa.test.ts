@@ -310,20 +310,21 @@ describe("Q39 = A (RRG 1.8 'Unique Icon' p. 45; erratum Mutants at the Mall #88A
     expect(inst(run.state, mall).cardId).toBe("32088b");
     expect(cardsInPlay(run.state)).toContain(mall);
   });
-  // FINDING: the Mall's When Defeated flips the card into the ally in place, and that flip does not run the unique
-  // check that a played or revealed card goes through (`uniqueEntryBlocked`), so the ally Jubilee (32088b) enters play
-  // beside the hero Jubilee. Q39 = A and the plan's test 6 (docs/phase7-wave8.md section 3.68) expect no ally.
-  it.fails("EXPECTED (Q39): with Jubilee (47001a) as the hero, the Mall is defeated and the Sentinel is revealed, but no Jubilee ally enters play", () => {
+  // The Mall's When Defeated flips the card into the ally in place; the flip is held to the unique rule a played or
+  // revealed card goes through (docs/phase7-wave8.md section 3.68 test 6).
+  it("Q39: with Jubilee (47001a) as the hero, the Mall is defeated and the Sentinel is revealed, but no Jubilee ally enters play", () => {
     const { mall, run } = thwartMall(mallGame("jubilee-justice"));
     expect(run.state.outcome).toBeNull();
     expect(inPlayCodes(run.state)).not.toContain("32088b");
     expect(cardsInPlay(run.state)).not.toContain(mall);
-  });
-  it("TODAY (companion to the finding): with Jubilee as the hero the ally Jubilee 32088b still enters play, beside her", () => {
-    const { mall, run } = thwartMall(mallGame("jubilee-justice"));
-    expect(inst(run.state, mall).cardId).toBe("32088b");
-    expect(inPlayCodes(run.state)).toEqual(expect.arrayContaining(["32088b", "47001a"]));
-    expect(run.events.some((e) => e.type === "uniqueEntryBlocked")).toBe(false);
+    expect(inPlayCodes(run.state)).toContain("47001a");
+    // The flip had no effect: the card never showed its ally face, and left play as the defeated scheme it was.
+    expect(inst(run.state, mall).cardId).toBe("32088a");
+    expect(run.events.filter((e) => e.type === "uniqueEntryBlocked")).toMatchObject([
+      { instanceId: mall, cardId: "32088b", matchedInstanceId: identityOf(run.state, P1), disposition: "noEffect" },
+    ]);
+    expect(run.events.some((e) => e.type === "schemeDefeated")).toBe(true);
+    expect(run.events.some((e) => e.type === "encounterCardRevealed")).toBe(true);
   });
 });
 
@@ -354,16 +355,16 @@ describe("Q45 = A (RRG 1.8 'Unique Icon' p. 45): the campaign ally Magneto (3217
       schemeInstanceId: placed.id,
     });
   };
-  // FINDING: Setup's put-into-play is stopped by the unique rule, but the When Defeated "flip this card and put Magneto
-  // into play" of Enemy of My Enemy (32172a, a fixture placed by surgery: the card is campaign-only) is not.
-  // Q45 = A and the plan's test 8 (docs/phase7-wave8.md section 3.71) expect no ally Magneto.
-  it.fails("EXPECTED (Q45): Enemy of My Enemy (32172a) defeated beside the Magneto hero: the ally does not enter play", () => {
-    expect(inPlayCodes(defeatEnemyOfMyEnemy().state)).not.toContain("32172b");
-  });
-  it("TODAY (companion to the finding): the ally Magneto 32172b enters play beside the Magneto hero, with no uniqueEntryBlocked event", () => {
+  // Enemy of My Enemy (32172a) is a fixture placed by surgery: the card is campaign-only. Its When Defeated "flip this
+  // card and put Magneto into play" is held to the unique rule (docs/phase7-wave8.md section 3.71 test 8).
+  it("Q45: Enemy of My Enemy (32172a) defeated beside the Magneto hero: the ally does not enter play", () => {
     const run = defeatEnemyOfMyEnemy();
-    expect(inPlayCodes(run.state)).toEqual(expect.arrayContaining(["32172b", "49001a"]));
-    expect(run.events.some((e) => e.type === "uniqueEntryBlocked")).toBe(false);
+    expect(inPlayCodes(run.state)).not.toContain("32172b");
+    expect(inPlayCodes(run.state)).toContain("49001a");
+    expect(run.events.filter((e) => e.type === "uniqueEntryBlocked")).toMatchObject([
+      { cardId: "32172b", matchedInstanceId: identityOf(run.state, P1), disposition: "noEffect" },
+    ]);
+    expect(run.events.some((e) => e.type === "schemeDefeated")).toBe(true);
   });
 });
 

@@ -4,7 +4,14 @@ import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, villainOf, villainStageOf } from "../query.js";
-import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor, withSelfHost } from "../select.js";
+import {
+  activeAbilityRefs,
+  controllerOf,
+  ignoredAbilities,
+  printedAbilityRefs,
+  textBoxBlankFor,
+  withSelfHost,
+} from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import {
   type Bindings,
@@ -349,7 +356,10 @@ export function gameAbilityFrames(
       ? activeAbilityRefs(ctx.state, instanceId, ctx.deps)
       : printedAbilityRefs(card));
   const frames: StackFrame[] = [];
+  // An ability an `ignoreAbilities` rule names is not there (docs/phase7-wave8.md §3.21), whichever slots are scanned.
+  const ignored = ignoredAbilities(ctx.state, ctx.deps).get(instanceId);
   for (const ref of refs) {
+    if (ignored?.has(ref.id)) continue;
     const definition = ctx.deps.abilities[ref.id];
     if (!definition) continue;
     const kind = definition.attachInstruction ? "attachInstruction" : definition.trigger.kind;

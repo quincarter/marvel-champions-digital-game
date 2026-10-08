@@ -2,6 +2,7 @@ import { AOA_CARDS, CORE_CARDS, encounterSetId } from "@mc/content";
 import {
   createGame,
   hasKeyword,
+  ignoredAbilities,
   keywordTotal,
   mainSchemeValue,
   maxHitPoints,
@@ -56,9 +57,14 @@ const FITTEST = "45109";
 const WOLF = "45110";
 
 const REGISTERED = [
+  "45101a.apocalypse-forced-interrupt",
+  "45101b.apocalypse-forced-interrupt",
+  "45102a.apocalypse-forced-interrupt",
   "45102b.apocalypse-constant",
   "45102b.apocalypse-forced-interrupt",
   "45103b.the-age-of-apocalypse-constant",
+  "45103b.the-age-of-apocalypse-forced-interrupt",
+  "45111.when-defeated",
   "45103a.setup",
   "45104a.heart-of-the-empire-constant",
   "45104a.when-defeated",
@@ -67,6 +73,7 @@ const REGISTERED = [
   "45105a.the-tyrants-throne-constant",
   "45105a.when-defeated",
   "45105b.no-longer-worthy-constant",
+  "45105b.no-longer-worthy-constant-2",
   "45105b.no-longer-worthy-forced-interrupt",
   "45106.cyberpathy-forced-response",
   "45106.boost",
@@ -211,14 +218,7 @@ describe("registry", () => {
     });
     for (const id of refs) expect(id in APOCALYPSE || id in APOCALYPSE_SKIPPED, id).toBe(true);
     for (const id of Object.keys(APOCALYPSE_SKIPPED)) expect(refs, id).toContain(id);
-    expect(Object.keys(APOCALYPSE_SKIPPED).sort()).toEqual([
-      "45101a.apocalypse-forced-interrupt",
-      "45101b.apocalypse-forced-interrupt",
-      "45102a.apocalypse-forced-interrupt",
-      "45103b.the-age-of-apocalypse-forced-interrupt",
-      "45105b.no-longer-worthy-constant-2",
-      "45111.when-defeated",
-    ]);
+    expect(APOCALYPSE_SKIPPED).toEqual({});
   });
 });
 
@@ -431,7 +431,7 @@ describe("No Longer Worthy (45105b) and Apocalypse IV", () => {
     expect(() => drive(s, attack(s, villain(s)))).toThrow(/cannot take damage/);
   });
 
-  it("FORCED INTERRUPT: when he is defeated the players win", () => {
+  it("FORCED INTERRUPT: when he is defeated the players win; the main scheme's interrupt is ignored, so he is not healed", () => {
     const s = asHero(withNlw(false));
     expect(prelatesInPlay(s)).toHaveLength(0);
     const done = defeatWithAttack(
@@ -440,6 +440,74 @@ describe("No Longer Worthy (45105b) and Apocalypse IV", () => {
       villain(s),
     );
     expect(done.outcome).toMatchObject({ result: "win" });
+    expect(inst(done, villain(done)).attachments.map((id) => codeOf(done, id))).toContain(NLW);
+  });
+
+  it("only the main scheme's Forced Interrupt is ignored: its target stays, and nothing else of it is ignored", () => {
+    const s = withNlw(false);
+    expect(mainSchemeValue(s, "targetThreat", DEPS)).toBe(9);
+    expect([...ignoredAbilities(s, DEPS)]).toEqual([
+      [s.mainScheme.instanceId, new Set(["45103b.the-age-of-apocalypse-forced-interrupt"])],
+    ]);
+  });
+
+  it("without No Longer Worthy the same blow heals him instead (control)", () => {
+    const s = asHero(defeatAll(setupGame()));
+    const done = defeatWithAttack(
+      DEPS,
+      patchInstance(s, villain(s), { statuses: { stunned: 0, confused: 0, tough: 0 } }),
+      villain(s),
+    );
+    expect(done.outcome).toBeNull();
+    expect(inst(done, villain(done)).damage).toBe(0);
+  });
+
+  it("the main scheme reaching its target with No Longer Worthy attached: the next stage is revealed and it stays attached", () => {
+    const s = withNlw(false);
+    const full = patchInstance(s, s.mainScheme.instanceId, { threat: 8 });
+    const run = drive(withForm(stackBlank(full), "alterEgo"), { type: "endTurn", playerId: P1 });
+    expect(run.state.outcome).toBeNull();
+    expect(events(run.events, "villainStageRevealed")).toMatchObject([{ fromStageNumber: 2, toStageNumber: 3 }]);
+    expect(inst(run.state, villain(run.state)).attachments.map((id) => codeOf(run.state, id))).toContain(NLW);
+  });
+
+  it("section 3.21, 2 players, stage III (20 hit points) with 14 damage: the Throne defeated, then the Prelate, then 16 damage wins with no heal", () => {
+    const s0 = setupGame({ players: 2, stage: 2 });
+    expect(maxHitPoints(s0, villain(s0), DEPS)).toBe(20);
+    // The Throne in play by surgery (the chain's own tests reach it by play), no Prelate in play.
+    const cleared = defeatAll(s0);
+    const throne = byCode(cleared, THRONE)[0]!;
+    const placed: GameState = {
+      ...cleared,
+      encounterSetAside: cleared.encounterSetAside.filter((id) => id !== throne),
+      villainArea: [...cleared.villainArea, throne],
+    };
+    const hurt = patchInstance(patchInstance(placed, throne, { threat: 1, faceup: true }), villain(placed), {
+      damage: 14,
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+    });
+    const hero = readied(asHero(hurt));
+    const run = drive(hero, thwart(hero, throne));
+    // A Prelate engages the first player, player 2 is dealt 1 facedown encounter card, No Longer Worthy is attached
+    // and 5 per player is healed: 14 less 10.
+    expect(prelatesInPlay(run.state)).toHaveLength(1);
+    expect(inst(run.state, prelatesInPlay(run.state)[0]!).engagedWith).toBe(P1);
+    expect(playerOf(run.state, P2).dealtEncounter).toHaveLength(1);
+    expect(inst(run.state, villain(run.state)).attachments.map((id) => codeOf(run.state, id))).toContain(NLW);
+    expect(inst(run.state, villain(run.state)).damage).toBe(4);
+    // With the Prelate in play he cannot take damage: the attack is not offered.
+    const blocked = readied(asHero(run.state));
+    expect(() => drive(blocked, attack(blocked, villain(blocked)))).toThrow(/cannot take damage/);
+    // Prelate defeated, then 16 damage: no heal, the game is won.
+    const open = defeatAll(run.state);
+    const near = patchInstance(readied(asHero(open)), villain(open), {
+      damage: 18,
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+    });
+    const won = drive(near, attack(near, villain(near)));
+    expect(won.state.outcome).toMatchObject({ result: "win" });
+    expect(events(won.events, "damageHealed")).toHaveLength(0);
+    expect(events(won.events, "villainStageAdvanced")).toHaveLength(0);
   });
 
   it("Apocalypse IV: when the main scheme is completed the players lose", () => {
@@ -450,30 +518,234 @@ describe("No Longer Worthy (45105b) and Apocalypse IV", () => {
   });
 });
 
-describe("skipped refs: proofs of the gaps (engine queue tasks 24 to 26)", () => {
-  it.fails("task 24: stage II at its target threat reveals Apocalypse III instead of ending the game", () => {
-    const s = setupGame();
-    const full = patchInstance(s, s.mainScheme.instanceId, { threat: 9 });
-    const run = drive(withForm(stackBlank(full), "alterEgo"), { type: "endTurn", playerId: P1 });
-    expect(run.state.outcome).toBeUndefined();
-    expect(events(run.events, "villainStageRevealed" as never)).toHaveLength(1);
-  });
-
-  it("today (companion): without the interrupt, completing the main scheme at stage II loses the game", () => {
-    const s = setupGame();
-    const full = patchInstance(s, s.mainScheme.instanceId, { threat: 9 });
-    const run = drive(withForm(stackBlank(full), "alterEgo"), { type: "endTurn", playerId: P1 });
-    expect(run.state.outcome).toMatchObject({ result: "loss" });
-  });
-
-  it("tasks 25 and 26 (companion): today damage that would defeat Apocalypse II defeats him, revealing stage III, with no heal instead", () => {
-    const s = asHero(defeatAll(setupGame()));
-    const done = defeatWithAttack(
-      DEPS,
-      patchInstance(s, villain(s), { statuses: { stunned: 0, confused: 0, tough: 0 } }),
-      villain(s),
+describe("Apocalypse I to III: the next stage is revealed when the main scheme is completed (section 3.18, Q11 = A)", () => {
+  const STAGE_I = 0;
+  const STAGE_III = 2;
+  const stageOf = (s: GameState) => s.villains[0]!.stageIndex;
+  const withThreat = (s: GameState, threat: number) => patchInstance(s, s.mainScheme.instanceId, { threat });
+  /** Every player ends their turn. Step one places 1 per player plus 1 for Heart of the Empire's acceleration icon. */
+  const endVillainPhase = (s: GameState) =>
+    drive(
+      withForm(stackBlank(s), "alterEgo"),
+      ...s.players.map((p): Command => ({ type: "endTurn", playerId: p.playerId })),
     );
-    expect(maxHitPoints(s, villain(s), DEPS)).toBe(9);
-    expect(maxHitPoints(done, villain(done), DEPS)).toBe(10);
+  /** The events up to the first enemy activation: what step one of the villain phase did. */
+  const stepOne = (run: readonly GameEvent[]) => {
+    const at = run.findIndex((e) => e.type === "enemyActivated");
+    return at < 0 ? run : run.slice(0, at);
+  };
+
+  it("test 1: stage II with 4 damage, a stunned card and Cyberpathy, main scheme at 7: stage III at 10 hit points, everything kept, one tough card, target 10", () => {
+    const s0 = setupGame();
+    const attached = attachToHost(s0, CYBERPATHY, villain(s0)).state;
+    const s = withThreat(
+      patchInstance(attached, villain(attached), { damage: 4, statuses: { stunned: 1, confused: 0, tough: 0 } }),
+      7,
+    );
+    expect(mainSchemeValue(s, "targetThreat", DEPS)).toBe(9);
+    const run = endVillainPhase(s);
+    expect(run.state.outcome).toBeNull();
+    expect(stageOf(run.state)).toBe(STAGE_III);
+    expect(events(run.events, "villainStageRevealed")).toMatchObject([
+      { instanceId: villain(s), fromStageNumber: 2, toStageNumber: 3, cause: "effect" },
+    ]);
+    // Step one placed 2 (9 of 9), the interrupt removed all 9, and nothing was completed or defeated.
+    const first = stepOne(run.events);
+    expect(events(first, "threatPlaced")).toMatchObject([{ schemeInstanceId: s.mainScheme.instanceId, amount: 2 }]);
+    expect(events(first, "threatRemoved")).toMatchObject([{ schemeInstanceId: s.mainScheme.instanceId, amount: 9 }]);
+    expect(events(first, "villainStageRevealed")).toHaveLength(1);
+    expect(events(run.events, "mainSchemeCompleted")).toHaveLength(0);
+    expect(events(run.events, "characterDefeated")).toHaveLength(0);
+    expect(events(run.events, "villainStageAdvanced")).toHaveLength(0);
+    const him = inst(run.state, villain(run.state));
+    expect(maxHitPoints(run.state, villain(run.state), DEPS)).toBe(10);
+    expect(him.damage).toBe(0);
+    // Stage III is steady: the stunned card stays. Toughness gives one tough card.
+    expect(him.statuses).toMatchObject({ stunned: 1, tough: 1 });
+    expect(him.attachments.map((id) => codeOf(run.state, id))).toContain(CYBERPATHY);
+    expect(mainSchemeValue(run.state, "targetThreat", DEPS)).toBe(10);
+    // He then activates, as stage III.
+    const revealedAt = run.events.findIndex((e) => e.type === "villainStageRevealed");
+    const activatedAt = run.events.findIndex(
+      (e) => e.type === "enemyActivated" && e.enemyInstanceId === villain(run.state),
+    );
+    expect(activatedAt).toBeGreaterThan(revealedAt);
+  });
+
+  it("test 2: The Apocalypse Solution's crisis icon does not keep the threat on the main scheme", () => {
+    const s0 = setupGame();
+    const solution = byCode(s0, "45111")[0]!;
+    const piles = Object.entries(s0.encounterDecks)[0]!;
+    const inPlay: GameState = {
+      ...s0,
+      encounterDecks: {
+        ...s0.encounterDecks,
+        [piles[0]]: {
+          ...piles[1],
+          deck: piles[1].deck.filter((id) => id !== solution),
+          discard: piles[1].discard.filter((id) => id !== solution),
+        },
+      },
+      villainArea: [...s0.villainArea, solution],
+    };
+    const s = withThreat(patchInstance(inPlay, solution, { threat: 3, faceup: true }), 7);
+    const run = endVillainPhase(s);
+    expect(run.state.outcome).toBeNull();
+    expect(stageOf(run.state)).toBe(STAGE_III);
+    expect(events(stepOne(run.events), "threatRemoved")).toMatchObject([
+      { schemeInstanceId: s.mainScheme.instanceId, amount: 9 },
+    ]);
+  });
+
+  it("test 3: 3 players, stage II: nothing at 26; at 27 stage III is revealed and the target is 30", () => {
+    const s = setupGame({ players: 3 });
+    expect(mainSchemeValue(s, "targetThreat", DEPS)).toBe(27);
+    // Step one places 4 (1 per player and the Heart's icon): 22 becomes 26, 23 becomes 27.
+    const below = endVillainPhase(withThreat(s, 22));
+    expect(events(stepOne(below.events), "villainStageRevealed")).toHaveLength(0);
+    expect(events(stepOne(below.events), "threatPlaced")).toMatchObject([{ amount: 4 }]);
+    const at = endVillainPhase(withThreat(s, 23));
+    expect(events(stepOne(at.events), "villainStageRevealed")).toMatchObject([{ toStageNumber: 3 }]);
+    expect(at.state.outcome).toBeNull();
+    expect(mainSchemeValue(at.state, "targetThreat", DEPS)).toBe(30);
+  });
+
+  it("test 4: stage III at 10 reveals IV (11 hit points, overkill, stalwart: a stunned card on him is discarded)", () => {
+    const s0 = setupGame({ stage: STAGE_III });
+    expect(mainSchemeValue(s0, "targetThreat", DEPS)).toBe(10);
+    const s = withThreat(patchInstance(s0, villain(s0), { statuses: { stunned: 1, confused: 0, tough: 0 } }), 8);
+    const run = endVillainPhase(s);
+    expect(run.state.outcome).toBeNull();
+    expect(stageOf(run.state)).toBe(STAGE_IV);
+    expect(maxHitPoints(run.state, villain(run.state), DEPS)).toBe(11);
+    expect(hasKeyword(run.state, villain(run.state), "overkill", DEPS)).toBe(true);
+    expect(hasKeyword(run.state, villain(run.state), "stalwart", DEPS)).toBe(true);
+    expect(inst(run.state, villain(run.state)).statuses).toMatchObject({ stunned: 0, tough: 1 });
+    expect(mainSchemeValue(run.state, "targetThreat", DEPS)).toBe(11);
+  });
+
+  it("test 5: the easier start (Q12): stage I at 8 reveals II (9 hit points)", () => {
+    const s0 = setupGame({ stage: STAGE_I });
+    expect(maxHitPoints(s0, villain(s0), DEPS)).toBe(8);
+    expect(mainSchemeValue(s0, "targetThreat", DEPS)).toBe(8);
+    const run = endVillainPhase(withThreat(patchInstance(s0, villain(s0), { damage: 5 }), 6));
+    expect(run.state.outcome).toBeNull();
+    expect(stageOf(run.state)).toBe(STAGE_II);
+    expect(maxHitPoints(run.state, villain(run.state), DEPS)).toBe(9);
+    expect(inst(run.state, villain(run.state)).damage).toBe(0);
+  });
+});
+
+describe("The Age of Apocalypse 1B: when Apocalypse would be defeated (sections 3.19, 3.20)", () => {
+  const attach = (s: GameState, code: string) => attachToHost(s, code, villain(s)).state;
+  const attachedCodes = (s: GameState) => inst(s, villain(s)).attachments.map((id) => codeOf(s, id));
+  const withThreat = (s: GameState, threat: number) => patchInstance(s, s.mainScheme.instanceId, { threat });
+  /** Spider-Man's basic attack (ATK 2) against a villain 1 short of defeat: 1 damage past his hit points. */
+  const lethalAttack = (s0: GameState) => {
+    const s = readied(asHero(s0));
+    const max = maxHitPoints(s, villain(s), DEPS)!;
+    const near = patchInstance(s, villain(s), { damage: max - 1 });
+    return drive(near, attack(near, villain(near)));
+  };
+
+  it("1 player, stage II with Cyberpathy and Molecular Control, main scheme at 7: both discarded, all damage healed, 7 of 9 removed, stage II stays with no tough card", () => {
+    const s = withThreat(attach(attach(defeatAll(setupGame()), CYBERPATHY), MOLECULAR), 7);
+    expect(hasKeyword(s, villain(s), "stalwart", DEPS)).toBe(true);
+    const run = lethalAttack(patchInstance(s, villain(s), { statuses: { stunned: 0, confused: 0, tough: 0 } }));
+    expect(run.state.outcome).toBeNull();
+    expect(attachedCodes(run.state)).toEqual([]);
+    expect(keywordTotal(run.state, villain(run.state), "retaliate", DEPS)).toBe(0);
+    expect(hasKeyword(run.state, villain(run.state), "stalwart", DEPS)).toBe(false);
+    expect(inst(run.state, villain(run.state)).damage).toBe(0);
+    expect(maxHitPoints(run.state, villain(run.state), DEPS)).toBe(9);
+    expect(run.state.villains[0]!.stageIndex).toBe(STAGE_II);
+    expect(inst(run.state, villain(run.state)).statuses.tough).toBe(0);
+    expect(inst(run.state, run.state.mainScheme.instanceId).threat).toBe(0);
+    expect(events(run.events, "characterDefeated")).toHaveLength(0);
+    expect(events(run.events, "villainStageAdvanced")).toHaveLength(0);
+    expect(events(run.events, "villainStageRevealed")).toHaveLength(0);
+  });
+
+  it("a confused card stays on him, and so does a player's upgrade attached to him", () => {
+    const s = withThreat(attach(attach(defeatAll(setupGame()), CYBERPATHY), BIOMORPHING), 7);
+    const run = lethalAttack(patchInstance(s, villain(s), { statuses: { stunned: 0, confused: 1, tough: 0 } }));
+    expect(attachedCodes(run.state)).toEqual([]);
+    expect(inst(run.state, villain(run.state)).statuses).toMatchObject({ confused: 1, tough: 0 });
+    expect(inst(run.state, villain(run.state)).damage).toBe(0);
+  });
+
+  it("3 players, main scheme at 20: X is the bare numeral 9, so 11 threat is left", () => {
+    const s = withThreat(defeatAll(setupGame({ players: 3 })), 20);
+    expect(maxHitPoints(s, villain(s), DEPS)).toBe(27);
+    const run = lethalAttack(patchInstance(s, villain(s), { statuses: { stunned: 0, confused: 0, tough: 0 } }));
+    expect(inst(run.state, villain(run.state)).damage).toBe(0);
+    expect(inst(run.state, run.state.mainScheme.instanceId).threat).toBe(11);
+    expect(events(run.events, "threatRemoved")).toMatchObject([
+      { schemeInstanceId: s.mainScheme.instanceId, amount: 9 },
+    ]);
+  });
+
+  it("stage III, 3 players: the target is 30 and X is 10; The Fittest's +5 on a minion and a hit point modifier on him change neither", () => {
+    const s0 = setupGame({ players: 3, stage: 2 });
+    const prelate = prelatesInPlay(s0)[0]!;
+    const fit = attachToHost(s0, FITTEST, prelate).state;
+    // The Fittest on Apocalypse himself (by surgery): +5 hit points, and X is still the printed 10.
+    const big = attachToHost(fit, FITTEST, villain(fit)).state;
+    expect(maxHitPoints(big, villain(big), DEPS)).toBe(35);
+    expect(mainSchemeValue(big, "targetThreat", DEPS)).toBe(30);
+    const s = withThreat(defeatAll(big), 25);
+    const run = lethalAttack(patchInstance(s, villain(s), { statuses: { stunned: 0, confused: 0, tough: 0 } }));
+    expect(inst(run.state, run.state.mainScheme.instanceId).threat).toBe(15);
+    expect(maxHitPoints(run.state, villain(run.state), DEPS)).toBe(30);
+  });
+});
+
+describe("The Apocalypse Solution (45111): discard the top X cards of the encounter deck", () => {
+  const SOLUTION = "45111";
+  /** The Solution in play with 1 threat and exactly `deckSize` cards in the encounter deck (the rest in its discard pile). */
+  const staged = (stage: number, deckSize: number) => {
+    const s0 = defeatAll(setupGame({ stage }));
+    const solution = byCode(s0, SOLUTION).find((id) => !s0.villainArea.includes(id))!;
+    const [deckId, piles] = Object.entries(s0.encounterDecks)[0]!;
+    const rest = [...piles.deck, ...piles.discard].filter((id) => id !== solution);
+    const state: GameState = {
+      ...s0,
+      encounterDecks: {
+        ...s0.encounterDecks,
+        [deckId]: { ...piles, deck: rest.slice(0, deckSize), discard: rest.slice(deckSize) },
+      },
+      villainArea: [...s0.villainArea, solution],
+    };
+    return { state: patchInstance(state, solution, { threat: 1, faceup: true }), solution, total: rest.length };
+  };
+  const piles = (s: GameState) => Object.values(s.encounterDecks)[0]!;
+  const defeatIt = (s: GameState, solution: InstanceId) => {
+    const hero = readied(asHero(s));
+    return drive(hero, thwart(hero, solution));
+  };
+
+  it("stage IV, 20 cards in the encounter deck: 11 are discarded", () => {
+    const { state, solution } = staged(STAGE_IV, 20);
+    const before = piles(state).discard.length;
+    const run = defeatIt(state, solution);
+    expect(piles(run.state).deck).toHaveLength(9);
+    // The 11 and the defeated Solution itself.
+    expect(piles(run.state).discard).toHaveLength(before + 11 + 1);
+    expect(run.state.mainScheme.accelerationTokens).toBe(0);
+  });
+
+  it("stage II: 9 are discarded", () => {
+    const { state, solution } = staged(STAGE_II, 20);
+    const run = defeatIt(state, solution);
+    expect(piles(run.state).deck).toHaveLength(11);
+  });
+
+  it("stage IV with 6 cards: all 6 are discarded, the discard pile becomes the deck with one acceleration token, and no more are discarded", () => {
+    const { state, solution, total } = staged(STAGE_IV, 6);
+    const run = defeatIt(state, solution);
+    expect(run.state.mainScheme.accelerationTokens).toBe(1);
+    // Every card but the Solution is back in the deck; none of the 5 not yet discarded were taken from the new deck.
+    expect(piles(run.state).deck).toHaveLength(total);
+    expect(piles(run.state).discard.map((id) => codeOf(run.state, id))).toEqual([SOLUTION]);
   });
 });

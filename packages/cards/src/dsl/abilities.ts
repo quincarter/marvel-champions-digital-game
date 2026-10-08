@@ -748,6 +748,23 @@ export const cannotActivate = (target: TargetQuery, opts: { readonly while?: Pre
 export const ignoreBoost = (enemy?: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "ignoreBoost", ...(enemy ? { enemy } : {}), ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Ignore the Forced Interrupt on the main scheme." (No Longer Worthy, `aoa` 45105b; docs/phase7-wave8.md §3.21) →
+ * `constant(ignoreAbilities(query("mainScheme"), ["45103b.the-age-of-apocalypse-forced-interrupt"]))`: while the rule
+ * is in effect the named abilities of each matching card in play do not trigger, do not resolve and apply nothing.
+ * The card's other abilities and its values stay. Named by ref id, since "the Forced Interrupt" is one printed ability.
+ */
+export const ignoreAbilities = (
+  on: TargetQuery,
+  abilities: readonly string[],
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "ignoreAbilities",
+    on,
+    abilities: abilities.map((id) => abilityId(id)),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "When Dark Phoenix schemes, place that threat on Consume the World, if able" (34029; docs/phase7-wave6.md §3.37) →
  * `constant(schemeThreatOn({ self: true }, named("Consume the World")))`. A scheme activation by a matching enemy
  * places its threat (boost included) on that scheme while it is in play, else on the main scheme.

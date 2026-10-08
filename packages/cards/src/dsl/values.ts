@@ -586,6 +586,12 @@ export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost
  * points" is `playOnlyIf(valueAtLeast(printedHpOf(yourIdentity), 14))` (Limitless Stamina, `spdr` 31023).
  */
 export const printedHpOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", of });
+/**
+ * "X is the numeral in [the villain]'s printed hit point value" (The Age of Apocalypse 1B, The Apocalypse Solution;
+ * docs/phase7-wave8.md §3.19): the number printed before the per player icon, from the villain's current stage, not
+ * scaled by the number of players and never modified. 9 for a printed 9[per_hero].
+ */
+export const printedHpNumeralOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", of, numeral: true });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });

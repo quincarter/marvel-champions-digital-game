@@ -812,6 +812,22 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   return undefined;
 }
 
+/**
+ * The numeral of a character's printed hit point value (`ValueSpec printedHp.numeral`; docs/phase7-wave8.md §3.19): the
+ * number printed before the per player icon, unscaled (RRG 1.8 "Per Player Icon", p. 32), or the whole value when no
+ * icon is printed. A villain's is its current stage's. Never modified (RRG 1.8 "Printed", p. 35). 0 for a printed
+ * infinity and for a card that is not a character.
+ */
+export function printedHpNumeral(state: GameState, id: InstanceId): number {
+  const card = cardOf(state, id);
+  if (card?.type === "villain" && isVillain(state, id)) {
+    const stage = villainStageOf(state, id);
+    if (stage.infiniteHp) return 0;
+    return stage.hp.perPlayer > 0 ? stage.hp.perPlayer : stage.hp.base;
+  }
+  return printedProfile(state, id)?.maxHp ?? 0;
+}
+
 /** Max hit points only (printed + HP modifiers) — reading it never evaluates ATK/THW/SCH modifiers. */
 export function maxHitPoints(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): number | undefined {
   const printed = printedProfile(state, id);

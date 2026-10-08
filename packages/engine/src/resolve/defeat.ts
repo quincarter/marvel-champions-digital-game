@@ -796,6 +796,34 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
   return null;
 }
 
+/**
+ * `EffectSpec revealNextVillainStage` (docs/phase7-wave8.md §3.18): the stage change of `defeatVillainStage` with no
+ * defeat. RRG 1.8 "Villain Defeat" (p. 47): "The next sequential stage of the villain deck is revealed. Set the villain's
+ * hit point dial as indicated by that stage". The dial is set to the new stage's printed hit points, so the damage is
+ * gone (owner, §4.1 Q11); everything else on the villain stays. Returns whether a stage was revealed: not for a villain
+ * out of play or on the last stage of the game's range.
+ */
+export function revealNextVillainStage(ctx: Ctx, villainId: InstanceId): boolean {
+  const villain = villainOf(ctx.state, villainId);
+  if (!villain || villain.defeated || !cardsInPlay(ctx.state).includes(villainId)) return false;
+  const nextIndex = villain.stageIndex + 1;
+  if (nextIndex > villain.lastStageIndex || nextIndex >= villainStageCount(ctx.state, villainId)) return false;
+  const fromStageNumber = villainStageOf(ctx.state, villainId).stageNumber;
+  updateVillain(ctx, villainId, (v) => ({ ...v, stageIndex: nextIndex }));
+  updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
+  emit(ctx, {
+    type: "villainStageRevealed",
+    instanceId: villainId,
+    stageIndex: nextIndex,
+    fromStageNumber,
+    toStageNumber: villainStageOf(ctx.state, villainId).stageNumber,
+    cause: "effect",
+  });
+  applyToughness(ctx, villainId);
+  pushFrames(ctx, [revealNewFaceFrame(ctx, villainId)]);
+  return true;
+}
+
 /** Slots used by the frame that picks the next active villain from a tie. */
 const ACTIVE_CANDIDATES_SLOT = "_activeVillainCandidates";
 const NEXT_ACTIVE_SLOT = "_nextActiveVillain";

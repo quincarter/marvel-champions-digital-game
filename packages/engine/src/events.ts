@@ -824,6 +824,24 @@ export type GameEvent =
    */
   | { readonly type: "deckTopHidden"; readonly playerId: PlayerId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
+  /**
+   * An ability that had triggered did not resolve because a rule in effect ignores it (`RuleSpec ignoreAbilities`;
+   * docs/phase7-wave8.md §3.21). An ignored ability that never triggered logs nothing: it is not there to trigger.
+   */
+  | { readonly type: "abilityIgnored"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
+  /**
+   * A villain's next stage was revealed with no defeat (`EffectSpec revealNextVillainStage`; docs/phase7-wave8.md
+   * §3.18): it is now at `stageIndex`, the printed stage `toStageNumber`, at full hit points with everything on it
+   * kept. A stage reached by defeating the one before it is `villainStageAdvanced` and never this.
+   */
+  | {
+      readonly type: "villainStageRevealed";
+      readonly instanceId: InstanceId;
+      readonly stageIndex: number;
+      readonly fromStageNumber: number;
+      readonly toStageNumber: number;
+      readonly cause: "effect";
+    }
   /** A villain turned to its other face on the same stage (Green Goblin insert, "When the Villain Changes Form"). */
   | {
       readonly type: "villainFlipped";

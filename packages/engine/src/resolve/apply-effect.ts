@@ -147,6 +147,7 @@ import {
   checkDefeats,
   completeMainScheme,
   removeMainSchemeStages,
+  revealNextVillainStage,
   shuffleMainSchemeStages,
 } from "./defeat.js";
 import {
@@ -1814,6 +1815,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         frames.push(eventFrame(ctx, cardFlippedEvent(id, context.controllerId)));
       }
       pushFrames(ctx, frames);
+      return;
+    }
+    case "revealNextVillainStage": {
+      for (const id of targets(effect.villain)) revealNextVillainStage(ctx, id);
       return;
     }
     case "setActiveVillain": {

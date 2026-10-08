@@ -1071,8 +1071,14 @@ export type ValueSpec =
    * `printedProfile`'s `maxHp`: an identity's is its identity card's one printed value (both faces share it in the
    * card data), a villain's its stage's printed value scaled per player, a facedown minion's 0. Read wherever the card
    * is and never modified by HP modifiers (`maxHitPoints` is the modified value). A card that is not a character is 0.
+   *
+   * `numeral`: "X is the numeral in Apocalypse's printed hit point value" (The Age of Apocalypse 1B, `aoa` 45103b; The
+   * Apocalypse Solution 45111; docs/phase7-wave8.md §3.19). The number printed before the per player icon, not scaled
+   * (RRG 1.8 "Per Player Icon", p. 32: the icon "next to a value multiplies that value"; the numeral is that value before
+   * it is multiplied): 9 for a printed 9[per_hero] with any number of players. A value printed without the icon is that value. Read from the villain's current stage, and
+   * never modified, as above. A printed infinity has no numeral and is 0.
    */
-  | { readonly kind: "printedHp"; readonly of: TargetRef }
+  | { readonly kind: "printedHp"; readonly of: TargetRef; readonly numeral?: true }
   /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
   | { readonly kind: "totalPrintedCost"; readonly cards: TargetRef }
   /**
@@ -3628,6 +3634,24 @@ export type EffectSpec =
    * (RRG 1.8 "Flip", p. 20). Works on a two-faced villain too, when card text names the face by a trait.
    */
   | { readonly kind: "changeVillainForm"; readonly villain: TargetRef; readonly toFaceWithTrait: Trait }
+  /**
+   * "Flip this card and reveal Apocalypse (II)" / "Remove this card from the game and reveal Apocalypse (III)"
+   * (Apocalypse I to III, `aoa` 45101a, 45101b, 45102a; docs/phase7-wave8.md §3.18): the stage change of a villain's
+   * defeat with no defeat. RRG 1.8 "Villain Defeat" (p. 47) is the only RRG text on revealing a stage, and its second
+   * half is what applies: "The next sequential stage of the villain deck is revealed. Set the villain's hit point dial as
+   * indicated by that stage"; for a stage with the same title, "attachments, upgrades, status cards, counters, and
+   * non-damage tokens on a villain carry over".
+   *
+   * The villain keeps its instance and its next sequential stage (within the game's first-to-last stage range) becomes
+   * its stage. It enters at its full printed hit points: all damage is removed (owner, docs/phase7-wave8.md §4.1 Q11).
+   * Attachments, upgrades, status cards and counters stay; toughness gives a tough status card ("Toughness", p. 45) and
+   * the new stage is revealed as a defeat's is (its When Revealed, and a status card its keywords no longer allow is
+   * discarded). It is not a defeat: no `characterDefeated`, no When Defeated, nothing that answers a defeat or a stage
+   * advanced by one. Logged as `villainStageRevealed` with `cause: "effect"`. With no next stage it does nothing. "Flip
+   * this card" and "remove this card from the game" both say which piece of cardboard carries the next stage, which
+   * this model does not track.
+   */
+  | { readonly kind: "revealNextVillainStage"; readonly villain: TargetRef }
   /**
    * Parks a `chooseTarget` choice for `chooser` and binds the answer to `slot`.
    *
