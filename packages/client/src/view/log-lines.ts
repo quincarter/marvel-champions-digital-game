@@ -527,7 +527,13 @@ function describe(
     // no damage, threat or status marks it — so without a line here the board's other three panels lit up ACTIVE
     // for no reason the log ever gave.
     case "activeVillainChanged":
-      return { text: `The active villain is now ${card(event.to)}.`, voice: "villain" };
+      return {
+        text:
+          event.reason === "nextInRow"
+            ? `The active counter moves along the row to ${card(event.to)}.`
+            : `The active villain is now ${card(event.to)}.`,
+        voice: "villain",
+      };
     // The Collector flipping between its finite front and ∞ back (docs/phase7-wave3.md §3.1) — `hitPointsReset`
     // is present on that flip and on Risky Business's Green Goblin (whose own two faces both reset the dial), so
     // it names what actually happens to the hit point dial rather than leaving the player to infer it from the
@@ -670,6 +676,100 @@ function describe(
     case "swapRefused":
       return { text: `The swap can't happen: ${swapRefusedReason(event.reason)}.`, voice: "player" };
 
+    // docs/phase7-wave8.md §3.63: an additional cost to change form (Spectrum-style "2 resources of the same type").
+    // The cards that print it are not named: they are in the form-change prompt's header and in Inspect.
+    case "formChangeCostAsked":
+      return {
+        text: `Changing to ${formWords(event.to)} costs extra.`,
+        voice: "player",
+      };
+    case "formChangeCostSettled":
+      return {
+        text:
+          event.outcome === "paid"
+            ? `${who(event.playerId)} paid the extra cost to change to ${formWords(event.to)}.`
+            : event.outcome === "declined"
+              ? `${who(event.playerId)} declined the extra cost; the form stays.`
+              : `${who(event.playerId)} can't pay the extra cost; the form stays.`,
+        voice: "player",
+      };
+    // docs/phase7-wave8.md §3.64: a card has a player make a basic attack or thwart.
+    case "basicPowerInstructed":
+      return {
+        text: `${event.sourceInstanceId ? `${card(event.sourceInstanceId)}: ` : ""}${card(event.characterInstanceId)} ${event.power === "attack" ? "attacks" : "thwarts"} ${card(event.targetInstanceId)}${event.useAtk ? " with ATK" : ""}.`,
+        voice: "player",
+      };
+    case "basicPowerNotMade":
+      return {
+        text: `${event.sourceInstanceId ? `${card(event.sourceInstanceId)}: ` : ""}${
+          event.reason === "noLegalUse"
+            ? "no basic attack or thwart is possible."
+            : event.reason === "costNotPaid"
+              ? "the extra cost wasn't paid, so no basic power."
+              : "the basic power couldn't be declared."
+        }`,
+        voice: "player",
+      };
+    // docs/phase7-wave8.md §3.54: "ready [a card] →".
+    case "readyCardsCostSettled": {
+      const names = event.instanceIds.map((id) => card(id)).join(", ");
+      return {
+        text: event.paid
+          ? `${names || "No card"} readied as a cost.`
+          : `${names || "No card"} didn't ready, so the cost wasn't paid.`,
+        voice: "player",
+      };
+    }
+    // docs/phase7-wave8.md §3.55: "discard up to N cards from the top of your deck →".
+    case "deckDiscardCostSettled": {
+      const count = (n: number): string => `${n} card${n === 1 ? "" : "s"}`;
+      const subject = event.playerId ? who(event.playerId) : "A player";
+      const own = event.playerId ? (event.playerId === viewer ? "your" : "their") : "the";
+      return {
+        text: event.paid
+          ? `${subject} discarded ${count(event.discarded.length)} from the top of ${own} deck as a cost.`
+          : `${subject} could discard only ${event.discarded.length} of ${count(event.chosen)}, so the cost wasn't paid.`,
+        voice: "player",
+      };
+    }
+    // docs/phase7-wave8.md §3.5: an optional setup rule, with the amount the players stated.
+    case "setupOptionApplied":
+      return { text: `Setup option: ${plainRuleText(event.text)}`, voice: "scenario" };
+    // docs/phase7-wave8.md §3.7: villains laid out in a row, left to right.
+    case "villainRowSet":
+      return {
+        text: `Villains in a row, left to right: ${event.order.map((id) => card(id)).join(", ")}.`,
+        voice: "scenario",
+      };
+    // docs/phase7-wave8.md §3.39 / §3.71: a raised moment is bookkeeping, except one that carries a count of cards
+    // pulled (a "discard N cards" cost that something answers), which is worth a line.
+    case "momentRaised": {
+      const pulled = event.carriedVars?.["pulled.count"];
+      if (pulled === undefined) return null;
+      return {
+        text: `${who(event.playerId)} discarded ${pulled} card${pulled === 1 ? "" : "s"}.`,
+        voice: "player",
+      };
+    }
+    // docs/phase7-wave8.md §3.48: the top card of a deck is public while a rule says so.
+    case "deckTopShown":
+      return {
+        text: `${possessive(event.playerId)} top card is faceup: ${getCard(state, event.cardId)?.name ?? "a card"}.`,
+        voice: "player",
+      };
+    case "deckTopHidden":
+      return { text: `${possessive(event.playerId)} top card is facedown again.`, voice: "player" };
+    // docs/phase7-wave8.md §3.62: the declared types of a payment's wilds. A declaration the engine skipped as
+    // equivalent was not the player's decision, so it says nothing.
+    case "wildTypesDeclared":
+      if (event.skipped) return null;
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "count", "counts")} the wild${event.declared.length === 1 ? "" : "s"} as ${event.declared.join(", ")}.`,
+        voice: "player",
+      };
+    case "deckDiscardNotCounted":
+      return { text: `${card(event.instanceId)} doesn't count as discarded.`, voice: "player" };
+
     case "keywordResolved":
       return event.keyword === "temporary"
         ? { text: `${card(event.instanceId)} — Temporary: discarded at the end of the round.`, voice: "player" }
@@ -681,6 +781,18 @@ function describe(
     default:
       return null;
   }
+}
+
+/** `Form` as the words a log line uses. */
+const formWords = (form: string): string => (form === "hero" ? "hero form" : "alter-ego form");
+
+/** A printed rule's text with its icon markup spoken: "Place 2[per_hero] threat" reads "Place 2 per hero threat". */
+function plainRuleText(text: string): string {
+  return text
+    .replace(/\[per_hero\]/g, " per hero")
+    .replace(/\[([a-z_]+)\]/g, (_, name: string) => name.replace(/_/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** A card's type as a word for a log sentence: "minion", "villain", "side scheme". */

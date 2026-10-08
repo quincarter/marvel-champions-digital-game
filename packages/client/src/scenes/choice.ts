@@ -442,7 +442,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, POOL_DEPS, choice);
+        : promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game);
     const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))

@@ -236,6 +236,61 @@ export function spendResourcesTitleOf(requirement: ResourceRequirement, distinct
   return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
 }
 
+/** `Form` as the words a prompt uses: "hero form", "alter-ego form". */
+const formWords = (form: string): string => (form === "hero" ? "hero form" : "alter-ego form");
+
+/**
+ * "Spend 2 resources of the same type to change to hero form?" (`RuleSpec formChangeCost`, docs/phase7-wave8.md
+ * §3.63): the additional cost to change form, asked as a card's effect changes the player's form. Selecting nothing
+ * declines, so the title is a yes/no question like the other payment prompts. `sameType` below the total reads
+ * "Spend 3 resources, 2 of one type, to change to hero form?".
+ */
+export function formChangeCostTitleOf(
+  requirement: ResourceRequirement,
+  formChangeCost: { readonly to: string; readonly sameType?: number },
+): string {
+  const total =
+    (requirement.generic ?? 0) +
+    (requirement.physical ?? 0) +
+    (requirement.mental ?? 0) +
+    (requirement.energy ?? 0) +
+    (requirement.wild ?? 0);
+  const destination = `to change to ${formWords(formChangeCost.to)}?`;
+  if (total <= 0) return `Pay ${destination}`;
+  const noun = total === 1 ? "resource" : "resources";
+  const { sameType } = formChangeCost;
+  if (sameType === undefined || sameType <= 1) return `Spend ${total} ${noun} ${destination}`;
+  if (sameType >= total) return `Spend ${total} ${noun} of the same type ${destination}`;
+  return `Spend ${total} ${noun}, ${sameType} of one type, ${destination}`;
+}
+
+/** "Choose who attacks", "Choose who thwarts", "Choose who attacks or thwarts" (`chooseBasicPower`, wave 8 §3.64). */
+export function basicPowerTitleOf(powers: readonly ("attack" | "thwart")[]): string {
+  const hasAttack = powers.includes("attack");
+  const hasThwart = powers.includes("thwart");
+  if (hasAttack && hasThwart) return "Choose who attacks or thwarts";
+  return hasThwart ? "Choose who thwarts" : "Choose who attacks";
+}
+
+/** The target half of a card-instructed basic power (`chooseBasicPowerTarget`). */
+export const basicPowerTargetTitleOf = (power: "attack" | "thwart"): string =>
+  power === "thwart" ? "Choose a scheme to thwart" : "Choose an enemy to attack";
+
+/** "Choose what your wild counts as" (`declareWildTypes`, wave 8 §3.62): one declaration for each wild paid. */
+export const declareWildTypesTitleOf = (wilds: number): string =>
+  wilds === 1 ? "Choose what your wild counts as" : `Choose what your ${numberWord(wilds)} wilds count as`;
+
+/**
+ * The size of a "discard up to N cards from the top of your deck" cost (`AbilityCost.discardFromDeck` with `choose`,
+ * wave 8 §3.55). The engine raises it as a plain `chooseNumber` whose very next step is `payDeckDiscardChoice`, so the
+ * title is read off the choice's own frame ("Discard up to 3 cards from your deck"); false for any other number.
+ */
+export function isDeckDiscardSize(state: GameState | undefined, choice: Pick<PendingChoice, "frameId">): boolean {
+  if (!state || choice.frameId === null || choice.frameId === undefined) return false;
+  const frame = state.stack.find((candidate) => candidate.frameId === choice.frameId);
+  return frame?.kind === "effects" && frame.effects[frame.cursor + 1]?.kind === "payDeckDiscardChoice";
+}
+
 /** What a `chooseFromList` prompt asks for, by its list (docs/phase7-wave7.md §3.33). */
 const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a card type" };
 
@@ -249,7 +304,9 @@ const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a car
 export function promptTitleOf(
   prompt: ChoicePrompt,
   deps: EngineDeps,
-  counts?: Pick<PendingChoice, "minSelections">,
+  counts?: Pick<PendingChoice, "minSelections"> & Partial<Pick<PendingChoice, "frameId">>,
+  /** With the choice's frame, lets a `chooseNumber` raised by a deck-discard cost say what the number is for. */
+  state?: GameState,
 ): string {
   const kind = prompt.kind;
   // RRG 1.8 "End of Player Phase" (p. 17): a player may discard any number, then must discard down to hand size.
@@ -268,11 +325,24 @@ export function promptTitleOf(
   }
   if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
   if (kind === "chooseNumber") {
+    if (counts && isDeckDiscardSize(state, { frameId: counts.frameId ?? null })) {
+      const noun = prompt.max === 1 ? "card" : "cards";
+      return prompt.min <= 1
+        ? `Discard up to ${prompt.max} ${noun} from your deck`
+        : `Discard ${prompt.min} to ${prompt.max} cards from your deck`;
+    }
     return prompt.min === prompt.max
       ? `Choose a number: ${prompt.min}`
       : `Choose a number from ${prompt.min} to ${prompt.max}`;
   }
-  if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  if (kind === "spendResources") {
+    return prompt.formChangeCost
+      ? formChangeCostTitleOf(prompt.requirement, prompt.formChangeCost)
+      : spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  }
+  if (kind === "chooseBasicPower") return basicPowerTitleOf(prompt.powers);
+  if (kind === "chooseBasicPowerTarget") return basicPowerTargetTitleOf(prompt.power);
+  if (kind === "declareWildTypes") return declareWildTypesTitleOf(prompt.wilds);
   if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
   // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.
   if (kind === "reportFact") {

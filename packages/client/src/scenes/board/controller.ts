@@ -25,7 +25,13 @@ import {
   needsEventAbilityChoice,
   type EventAbilityOption,
 } from "../../view/event-ability-choice.js";
-import { formEntries, formSources, needsFormChoice, type FormSource } from "../../view/change-form-choice.js";
+import {
+  formEntries,
+  formSources,
+  needsFormChoice,
+  paymentSubjectWords,
+  type FormSource,
+} from "../../view/change-form-choice.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
 import { costChoicePromptFor, type CostChoicePrompt } from "../../view/cost-choice-model.js";
@@ -583,6 +589,9 @@ export class BoardController {
    */
   #aim(entry: LegalAction, action: BasicAction | null): void {
     if (entry.targets.length <= 1) {
+      // A change of form with an additional cost (`RuleSpec formChangeCost`, wave 8 §3.63) owes the player the payment
+      // decision like any costed action; `entry.example` is only the engine's proof that some payment works.
+      if (action === "changeForm" && entry.needsPayment && this.#openPayment(entry, null)) return;
       // No target, or one legal target: not a decision; aim and go.
       void this.#dispatch(entry.example);
       return;
@@ -1126,7 +1135,7 @@ export class BoardController {
     const subject =
       payment.action.kind === "playCard" || payment.action.kind === "useAbility" ? payment.action.instanceId : null;
     const headline = [
-      subject ? cardName(game, subject) : "This action",
+      subject ? cardName(game, subject) : paymentSubjectWords(payment.action),
       payment.target ? `→ ${cardName(game, payment.target)}` : null,
     ]
       .filter(Boolean)

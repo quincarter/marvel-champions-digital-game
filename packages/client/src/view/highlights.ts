@@ -174,7 +174,7 @@ export function highlights(actions: LegalActions): Highlights {
     return {
       action,
       enabled: false,
-      reason: illegal?.message ?? "not available right now",
+      reason: basicReasonWording(action, illegal?.reason ?? null, illegal?.message ?? null),
       code: illegal?.reason ?? null,
       targets: [],
     };
@@ -283,6 +283,17 @@ export const EXCLUSION_TEST_ONLY = {
   codes: Object.keys(EXCLUSION_WORDING) as readonly ExclusionCode[],
   wording: exclusionWording,
 };
+
+/**
+ * The "Why illegal?" line for a basic button. The engine's message is kept as it is, except for a change of form it
+ * refuses for want of its additional cost (`RuleSpec formChangeCost`, wave 8 §3.63): that message names every card
+ * that adds the cost and the engine's own shortfall, which is a paragraph, so the button says it in a few words and
+ * Inspect on the cost's card has the rest.
+ */
+export function basicReasonWording(action: BasicAction, code: string | null, message: string | null): string {
+  if (action === "changeForm" && code === "insufficient_resources") return "can't pay the extra cost to change form";
+  return message ?? "not available right now";
+}
 
 const EMPTY: Highlights = {
   yourTurn: false,
