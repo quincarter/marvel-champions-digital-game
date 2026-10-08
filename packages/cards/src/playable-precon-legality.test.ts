@@ -53,11 +53,9 @@ const UNSCRIPTED_WAVE6_PACKS: ReadonlySet<string> = new Set();
 const UNSCRIPTED_WAVE7_PACKS: ReadonlySet<string> = new Set();
 
 /**
- * Wave 8 packs in the pool whose kits are not scripted yet (docs/phase7-wave8.md): their precons are legal but cannot
- * be seated, which the client reports through `unscriptedCards` (it blocks such a deck at the seat). Remove a pack
- * from this set when its kit is scripted.
+ * Wave 8 packs in the pool whose kits are not scripted yet (docs/phase7-wave8.md): none.
  */
-const UNSCRIPTED_WAVE8_PACKS: ReadonlySet<string> = new Set(["aoa", "iceman", "jubilee", "ncrawler", "magneto"]);
+const UNSCRIPTED_WAVE8_PACKS: ReadonlySet<string> = new Set();
 
 /** Every pack whose precons are legal but cannot be seated yet. */
 const UNSCRIPTED_PACKS: ReadonlySet<string> = new Set([

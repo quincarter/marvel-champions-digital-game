@@ -6,6 +6,7 @@ import {
   WAVE3_STARTER_DECKS,
   WAVE4_STARTER_DECKS,
   WAVE5_STARTER_DECKS,
+  WAVE8_STARTER_DECKS,
   type AnyCard,
   type CardId,
   type CoreAspect,
@@ -65,6 +66,7 @@ export const PLAYABLE_IDENTITY_IDS: readonly string[] = [
       ...WAVE3_STARTER_DECKS,
       ...WAVE4_STARTER_DECKS,
       ...WAVE5_STARTER_DECKS,
+      ...WAVE8_STARTER_DECKS,
     ].map((deck) => deck.identityCardId as string),
   ),
 ];

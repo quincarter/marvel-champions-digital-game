@@ -36,12 +36,35 @@ export {
   wave3StarterDeckSetup,
 } from "./wave3/index.js";
 export type { Wave3ScenarioOptions } from "./wave3/index.js";
-// Wave 7 scaffold: reachable here only. Not joined to `playable/` (nothing is scripted; `playableScenario` does not
-// offer its scenarios), so exporting it changes nothing a player can do.
+// Wave 7 (cycle 7, NeXt Evolution): joined to `playable/`; its own builder stays exported for its tests.
 export { WAVE7_ABILITIES, WAVE7_CARDS, WAVE7_DEPS, wave7Scenario, wave7StarterDeckSetup } from "./wave7/index.js";
 export type { Wave7ScenarioOptions } from "./wave7/index.js";
-// Wave 8 scaffold: reachable here only, not joined to `playable/` (nothing is scripted or selectable).
-export { WAVE8_ABILITIES, WAVE8_CARDS, WAVE8_DEPS } from "./wave8/index.js";
+// Wave 8 (cycle 8, Age of Apocalypse): joined to `playable/`. Its campaign definition is not registered in `CAMPAIGNS`.
+export { WAVE8_ABILITIES, WAVE8_CARDS, WAVE8_DEPS, wave8Scenario, wave8StarterDeckSetup } from "./wave8/index.js";
+export type { HorsemanSide, Wave8ScenarioOptions } from "./wave8/index.js";
+// Which optional setup choices a playable scenario offers (Standard III, the Horsemen's versions, the easier
+// Apocalypse start, threat on Gene Pool): what a setup screen asks before it draws a control.
+export {
+  INFINITES_GENE_POOL_THREAT_MAX,
+  checkPlayableDifficultySets,
+  difficultySetAlternativesFor,
+  expertSetReplaceable,
+  genePoolThreatOffer,
+  horsemanSidesOffer,
+  infinitesGenePoolThreatRecommendation,
+  offersEasierStart,
+  offersGenePoolThreat,
+  playableScenarioOffer,
+  scenarioGameSetIds,
+  standardSetReplaceable,
+} from "./playable/scenario-options.js";
+export type {
+  DifficultySetAlternatives,
+  GenePoolThreatOffer,
+  HorsemanSidesOffer,
+  PlayableScenarioChoices,
+  PlayableScenarioOffer,
+} from "./playable/scenario-options.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
 export {

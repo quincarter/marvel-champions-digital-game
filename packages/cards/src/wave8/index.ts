@@ -2,11 +2,11 @@
  * Wave 8 (PLAN.md Phase 7 / docs/phase7-wave8.md): cycle 8, Age of Apocalypse (`aoa`, Bishop and Magik with the
  * campaign box) and the four hero packs `iceman`, `jubilee`, `ncrawler` and `magneto`.
  *
- * **Scaffold only: no wave 8 card is scripted.** Each pack's registry is merged from empty per-group modules
+ * Each pack's registry is merged from per-group modules
  * (`<pack>/<hero>/{identity,events,support-upgrades-allies,obligation-nemesis}.ts`, `<pack>/aspect-basic.ts`, and one
- * module per scenario, modular and campaign-only encounter set), so parallel scripting agents never share a file.
- * Scripting a group is filling its module; nothing here changes. `card-groups.ts` maps every module to its card ids.
- * The wave is not joined to `playable/`, the modular pool or the client: nothing of it is playable or selectable.
+ * module per scenario, modular and campaign-only encounter set). `card-groups.ts` maps every module to its card ids.
+ * The wave is joined to the playable pool (`../playable/index.ts`, `../modular-pool.ts`): its heroes, scenarios and
+ * modular sets are chosen through `playableScenario`. The campaign definition (`../campaigns/aoa.ts`) is not registered.
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";

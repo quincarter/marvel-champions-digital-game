@@ -77,8 +77,8 @@ export const offersGenePoolThreat = (encounterSetIds: readonly string[]): boolea
   encounterSetIds.includes(INFINITES_SET_ID);
 
 /**
- * Every encounter set a game can name (`chooseModularSets` checks picks against these): the playable pool's sets plus
- * wave 8's (the wave is not joined to the playable pool yet).
+ * Every encounter set a game can name (`chooseModularSets` checks picks against these): the playable pool's sets,
+ * which already list wave 8's (the union keeps this builder usable on its own).
  */
 const ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...new Map([...PLAYABLE_ENCOUNTER_SETS, ...WAVE8_ENCOUNTER_SETS].map((set) => [set.id as string, set])).values(),

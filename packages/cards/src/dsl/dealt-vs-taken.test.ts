@@ -62,7 +62,9 @@ describe("on.damage: damage dealt or damage taken", () => {
       "16149.power-stone-forced-response",
       "19028.challenge-accepted-forced-response",
     ]);
-    expect(byReading.taken).toHaveLength(19);
+    // 20 with wave 8 in the playable pool: Bishop's Energy Absorption (45001a, "After Bishop takes any amount of damage").
+    expect(byReading.taken).toHaveLength(20);
+    expect(byReading.taken).toContain("45001a.energy-absorption");
     // Schadenfreude's lasting "each time you deal any amount of damage" is the third dealt reader.
     expect(JSON.stringify(PLAYABLE_ABILITIES["16032.schadenfreude-action"]?.effects)).toContain(
       '"eventAtLeast":{"dealt":1}',

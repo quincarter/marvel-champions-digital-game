@@ -123,6 +123,19 @@ describe("the lists, derived from content data", () => {
         "nasty_boys",
         "super_strength",
         "telepathy",
+        "blue_moon",
+        "celestial_tech",
+        "clan_akkaba",
+        "dark_riders",
+        "dystopian_nightmare",
+        "genosha",
+        "hounds",
+        "infinites",
+        "savage_land",
+        "sauron",
+        "arcade",
+        "crazy_gang",
+        "hellfire",
       ]
     `);
   });
@@ -145,6 +158,7 @@ describe("the lists, derived from content data", () => {
       {
         "brought in by the scenarios that require it": [
           "hope_summers",
+          "prelates",
         ],
         "campaign-specific": [
           "expcamp",
@@ -162,6 +176,11 @@ describe("the lists, derived from content data", () => {
           "mut_gen_campaign",
           "peacekeeper",
           "next_evol_campaign",
+          "age_of_apocalypse",
+          "aoa_basic_campaign",
+          "aoa_campaign",
+          "aoa_mission",
+          "overseer",
         ],
         "expert set": [
           "expert",
@@ -220,6 +239,12 @@ describe("the lists, derived from content data", () => {
           "angel_nemesis",
           "x23_nemesis",
           "deadpool_nemesis",
+          "bishop_nemesis",
+          "magik_nemesis",
+          "iceman_nemesis",
+          "jubilee_nemesis",
+          "nightcrawler_nemesis",
+          "magneto_nemesis",
         ],
         "scenario-specific": [
           "klaw",
@@ -269,10 +294,16 @@ describe("the lists, derived from content data", () => {
           "morlock_siege",
           "on_the_run",
           "stryfe",
+          "apocalypse",
+          "dark_beast",
+          "en_sabah_nur",
+          "four_horsemen",
+          "unus",
         ],
         "standard set": [
           "standard",
           "standard_ii",
+          "standard_iii",
         ],
       }
     `);
@@ -322,6 +353,11 @@ describe("the lists, derived from content data", () => {
         "juggernaut",
         "mister-sinister",
         "stryfe",
+        "unus",
+        "four-horsemen",
+        "apocalypse",
+        "dark-beast",
+        "en-sabah-nur",
       ]
     `);
   });
@@ -372,13 +408,27 @@ function deckProblems(state: GameState, setId: string): string[] {
 }
 
 /**
+ * Scenarios whose own text keeps one environment in play. Absorbing Man's None Shall Pass 1B (04079): "Forced Interrupt:
+ * When an environment enters play, discard each other environment card in play", and its 1A Setup puts a random
+ * environment into play at Appendix II step 12, after step 11 has put a modular set's setup-keyword environment into
+ * play (the Setting sets' Blue Area of the Moon 45139, Genosha 45133 and The Savage Land 45127). The Setting
+ * environment is discarded and shuffled back with 1A's discards, so it is in the game and not in play; the test
+ * "Absorbing Man keeps one environment" below pins exactly that.
+ */
+const ONE_ENVIRONMENT_SCENARIOS: ReadonlySet<string> = new Set(["absorbing-man"]);
+
+/**
  * RRG 1.8 "Setup (Keyword)" (p. 40) and step 11 of setup (p. 51): a card with the setup keyword begins the game in play,
  * wherever its set is used, and a scenario-specific card of the set (the Milano) is in the game at all. Read only for
  * a pairing the builder built itself.
  */
-function setCardProblems(state: GameState, setId: string): string[] {
+function setCardProblems(state: GameState, setId: string, scenarioId: string): string[] {
   const problems: string[] = [];
   const inPlay = new Set<string>(cardsInPlay(state).map((id) => state.instances[id]!.cardId));
+  if (ONE_ENVIRONMENT_SCENARIOS.has(scenarioId)) {
+    // The set's environment began in play at step 11 and the scenario's own environment then replaced it.
+    for (const card of setupKeywordCardsOfSet(setId).filter((c) => c.type === "environment")) inPlay.add(card.id);
+  }
   for (const card of scenarioCardsOfSet(setId))
     if (!Object.values(state.instances).some((instance) => instance.cardId === card.id))
       problems.push(`${card.id} ${card.name} (scenario card of ${setId}) is not in the game`);
@@ -422,7 +472,7 @@ function runPairing(setId: string, scenarioIndex: number, setIndex: number, expe
       problems.push(
         ...deckProblems(created.state, setId),
         ...setupProblems(created.state),
-        ...(built.config ? setCardProblems(settleSetup(created.state), setId) : []),
+        ...(built.config ? setCardProblems(settleSetup(created.state), setId, scenario.id) : []),
       );
   } catch (error) {
     problems.push(`createGame threw: ${(error as Error).message}`);
@@ -473,20 +523,21 @@ describe("modular set x scenario: every pairing builds", () => {
     }
     expect({ sets: MODULAR_SETS.length, scenarios: PLAYABLE_SCENARIOS.length, ...kinds }).toMatchInlineSnapshot(`
       {
-        "build": 2832,
-        "required": 24,
-        "restricted": 383,
-        "scenarios": 41,
-        "sets": 79,
+        "build": 3755,
+        "required": 28,
+        "restricted": 449,
+        "scenarios": 46,
+        "sets": 92,
       }
     `);
     expect(restrictedBy).toMatchInlineSnapshot(`
       {
-        "breakout": 79,
-        "mojo": 73,
-        "sinister-six": 78,
-        "spiral": 73,
-        "the-hood": 79,
+        "breakout": 92,
+        "four-horsemen": 1,
+        "mojo": 86,
+        "sinister-six": 91,
+        "spiral": 86,
+        "the-hood": 92,
         "tower-defense": 1,
       }
     `);
@@ -511,4 +562,29 @@ describe("modular set x scenario: every pairing builds", () => {
   });
 
   // F2 (fixed): MaGog accepts any modular set (39002a: the players may name any set); covered by the test above.
+
+  it.each([
+    ["blue_moon", "45139"],
+    ["genosha", "45133"],
+    ["savage_land", "45127"],
+  ])(
+    "Absorbing Man keeps one environment: the %s set's setup environment is replaced by the scenario's own (None Shall Pass 04079)",
+    (setId, environmentId) => {
+      const scenario = PLAYABLE_SCENARIOS.find((s) => s.id === "absorbing-man")!;
+      const built = buildPairing(setId, scenario, {
+        seed: 1,
+        players: [{ starterDeckId: MATRIX_HEROES[0]! }],
+        expert: false,
+      });
+      const created = createGame(built.config!, PLAYABLE_DEPS);
+      if (!created.ok) throw new Error(created.error.message);
+      const state = settleSetup(created.state);
+      const environments = cardsInPlay(state)
+        .map((id) => PLAYABLE_CARDS.find((card) => card.id === state.instances[id]!.cardId)!)
+        .filter((card) => card.type === "environment");
+      // One environment in play, Absorbing Man's own; the Setting environment is still in the game, out of play.
+      expect(environments.map((card) => card.setCode as string)).toEqual(["trors"]);
+      expect(Object.values(state.instances).filter((instance) => instance.cardId === environmentId)).toHaveLength(1);
+    },
+  );
 });

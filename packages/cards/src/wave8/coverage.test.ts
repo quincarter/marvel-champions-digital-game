@@ -95,11 +95,11 @@ describe("wave 8 ability registry", () => {
 });
 
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
-  aoa: "not started",
-  iceman: "not started",
-  jubilee: "not started",
-  ncrawler: "not started",
-  magneto: "not started",
+  aoa: "scripted",
+  iceman: "scripted",
+  jubilee: "scripted",
+  ncrawler: "scripted",
+  magneto: "scripted",
 };
 
 /** Refs a started pack deliberately leaves unscripted, each with its written reason. Pinned exactly. */
