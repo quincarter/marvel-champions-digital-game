@@ -1,5 +1,6 @@
 import {
   inPlayPicksOf,
+  isResourcesChoice,
   UNRESOLVED_VAR,
   type AbilityCost,
   type AbilityDefinition,
@@ -210,6 +211,18 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
       look.slot === "")
   )
     problems.push("cost encounterLookDiscard: needs a slot and whole numbers with 1 <= discard <= look");
+  // docs/phase7-wave8.md §3.62: "spend up to N resources →" is a size the payer chooses, with nothing overpaid.
+  if (isResourcesChoice(cost.resources)) {
+    const { min, max } = cost.resources.choose;
+    // RRG 1.8 "Cost" (p. 14): "up to" some number "requires a minimum of one".
+    if (!Number.isInteger(min) || min < 1)
+      problems.push('cost resources choose: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)');
+    if (!Number.isInteger(max) || max < min)
+      problems.push("cost resources choose: max must be a whole number no smaller than min");
+    if (cost.resourcesX) problems.push("cost resources choose: not with resourcesX (two sizes of one payment)");
+    if (cost.resourcesEqualTo !== undefined)
+      problems.push("cost resources choose: not with resourcesEqualTo (two sizes of one payment)");
+  }
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
@@ -740,6 +753,8 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     if (cost.resourcesEqualTo !== undefined) scope.vars.add("cost.resources");
+    // "Spend up to 3 resources →" records the size chosen (docs/phase7-wave8.md §3.62).
+    if (isResourcesChoice(cost.resources)) scope.vars.add("cost.resources");
     // A computed or chosen "take N damage →" records its amount (`AbilityCost.damageSelf`, docs/phase7-wave7.md §3.79).
     if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;

@@ -1716,6 +1716,42 @@ export interface DamageSelfChoice {
   readonly choose: { readonly min: ValueSpec; readonly max: ValueSpec };
 }
 
+/**
+ * "Spend up to 3 resources →" (docs/phase7-wave8.md §3.62): a resource cost whose size the payer chooses, from `min` to
+ * `max` resources of any type.
+ *
+ * - **The payment is the choice.** The size is the number of resources the payment generates beyond anything else the
+ *   same payment owes (a played card's own cost), so it is part of the command (`payment`) or of the logged answer to
+ *   the pay prompt, and a replay makes the same one. `CostSelection.resources` may name it as well; it must then agree.
+ * - **No overpayment.** The player sizes this cost, so every resource generated was spent on it: a payment that
+ *   generates fewer than `min` or more than `max` is refused rather than capped, `overpaid.*` are 0 and `paid.count` is
+ *   the whole payment. A card that generates two resources is two of the chosen size. This is the difference from
+ *   `resourcesX` with `resource: "any"`, which caps X and lets the rest be overpaid (RRG 1.8 "Cost", p. 13).
+ * - **At least one.** RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements
+ *   requires a minimum of one such game element", so `min` is at least 1 and spending nothing is not triggering the
+ *   ability.
+ * - The size is recorded as var `cost.resources`. The types spent are read as any payment's are (`Predicate paidType`,
+ *   `ValueSpec paidTypeCount`, on an ability marked `readsPaidTypes`), over the whole spent pool, each wild as its
+ *   player declared it (§4.1 Q33 = B).
+ *
+ * Not with `resourcesX`, `resourcesEqualTo` or `sameResourceType`.
+ */
+export interface ResourcesChoice {
+  readonly choose: { readonly min: number; readonly max: number };
+}
+
+/** Whether a cost's `resources` is a size the payer chooses (`ResourcesChoice`) rather than a fixed requirement. */
+export const isResourcesChoice = (resources: AbilityCost["resources"]): resources is ResourcesChoice =>
+  typeof resources === "object" && "choose" in resources;
+
+/** The chosen-size range of a cost's `resources` (`ResourcesChoice`), or null when the cost has a fixed one or none. */
+export const resourcesChoiceOf = (cost: AbilityCost | undefined): ResourcesChoice["choose"] | null =>
+  isResourcesChoice(cost?.resources) ? cost.resources.choose : null;
+
+/** The fixed part of a cost's `resources`: nothing when the payer chooses the size (`ResourcesChoice`). */
+export const fixedResourcesOf = (cost: AbilityCost | undefined): number | ResourceRequirement | undefined =>
+  isResourcesChoice(cost?.resources) ? undefined : cost?.resources;
+
 export interface AbilityCost {
   /** "Exhaust [this card] →". */
   readonly exhaustSelf?: boolean;
@@ -1727,8 +1763,11 @@ export interface AbilityCost {
    * cost is paid in the middle of another payment.
    */
   readonly flipSelf?: boolean;
-  /** "Spend a [energy] resource" → `{ energy: 1 }`; "Spend [E][M][P]" → one of each. A number is a generic amount. */
-  readonly resources?: number | ResourceRequirement;
+  /**
+   * "Spend a [energy] resource" → `{ energy: 1 }`; "Spend [E][M][P]" → one of each. A number is a generic amount.
+   * `{ choose }` is a number of resources of any type the payer chooses (`ResourcesChoice`).
+   */
+  readonly resources?: number | ResourceRequirement | ResourcesChoice;
   /**
    * "Spend X resources of any type, where X is the number of villains under Routed →": a number of resources of any
    * type the board gives, not the payer. Read when the cost is determined (RRG 1.8 "Initiating Abilities", p. 24, step

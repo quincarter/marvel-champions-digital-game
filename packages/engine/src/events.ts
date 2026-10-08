@@ -145,11 +145,14 @@ export type GameEvent =
    * because every legal declaration gave every reader of the payment the same reading; the wilds are then left wild
    * where that is legal. Not skipped, the declaration is the player's own, from the play command's `wildAs` or the
    * `declareWildTypes` choice. `paidAs`: the paid resources by the type each was used as, the overpaid ones left out.
+   * `abilityId`: the payment was for that ability of the card (a `useAbility` command, or an interrupt or response
+   * paid for inside a window), not for playing the card; its declaration came from `useAbility.wildAs` or the choice.
    */
   | {
       readonly type: "wildTypesDeclared";
       readonly playerId: PlayerId;
       readonly instanceId: InstanceId;
+      readonly abilityId?: AbilityId;
       readonly declared: readonly ResourceType[];
       readonly skipped: boolean;
       readonly paidAs: ResourcePool;

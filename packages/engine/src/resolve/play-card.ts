@@ -1,26 +1,11 @@
 /** Playing a player card: entering play, resolving an event's abilities, discarding it. */
 
 import type { AbilityId } from "@mc/content";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
-import {
-  declaredPool,
-  paidAsDeclared,
-  wildDeclarationFault,
-  wildTypeOptionId,
-  wildTypesFromOptionIds,
-  type ResourceType,
-} from "../resources.js";
-import {
-  paidAsVars,
-  paymentVarsIn,
-  type Bindings,
-  type StackFrame,
-  type UndeclaredWilds,
-  type Vars,
-} from "../stack.js";
+import { paymentVarsIn, type Bindings, type StackFrame, type UndeclaredWilds, type Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
   endUntilCardPlayedEffects,
@@ -31,6 +16,7 @@ import {
 import { recordAbilityUse } from "./ability.js";
 import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
+import { declareWildTypes } from "./declare-wilds.js";
 import { enterPlay, playerSideSchemeEntersPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
@@ -74,62 +60,6 @@ export function pushPlayCardFrame(
 }
 
 /**
- * The player declares the wilds of the payment just made for this card (docs/phase7-wave8.md §3.62, §4.1 Q33 = B; RRG
- * 1.8 "Wild Resource", p. 48). Asked by the play's own frame, so the command, a timing window's payment and an
- * effect's payment all reach it, and before the card enters play or resolves anything, so every reader of the payment
- * reads the declaration. The frame is below the payment's own announcements (`announceResourcesSpent`), which do not
- * read a wild's type: a wild is only a wild outside the cost it pays (p. 48).
- *
- * Answered, the paid resources are the ones that give the most declared types (`paidAsDeclared`; §4.1 Q34 = A and its
- * follow-up), recorded as `paid.as.<type>` and logged. `resolveChoice` has already refused an illegal declaration; one
- * that is illegal here all the same is asked again.
- */
-function declareWildTypes(ctx: Ctx, frame: Frame<"playCard">, undeclared: UndeclaredWilds): void {
-  const { pool, requirement, only } = undeclared;
-  const declared = frame.answer === null ? null : wildTypesFromOptionIds(frame.answer, pool.wild);
-  const paidAs =
-    declared && wildDeclarationFault(pool, declared, requirement, only) === null
-      ? paidAsDeclared(declaredPool(pool, declared), requirement)
-      : null;
-  if (!declared || !paidAs) {
-    setFrame(ctx, { ...frame, answer: null });
-    const order: readonly ResourceType[] = ["energy", "mental", "physical", "wild"];
-    requestChoice(ctx, {
-      playerId: frame.playerId,
-      prompt: {
-        kind: "declareWildTypes",
-        instanceId: frame.instanceId,
-        wilds: pool.wild,
-        pool,
-        requirement,
-        ...(only ? { only } : {}),
-      },
-      options: Array.from({ length: pool.wild }, (_, index) =>
-        order.map((type) => ({
-          optionId: wildTypeOptionId(index, type),
-          label: `Wild ${index + 1}: ${type}`,
-          ref: { kind: "none" as const },
-        })),
-      ).flat(),
-      minSelections: pool.wild,
-      maxSelections: pool.wild,
-      frameId: frame.frameId,
-    });
-    return;
-  }
-  const { undeclaredWilds: _asked, ...rest } = frame;
-  setFrame(ctx, { ...rest, answer: null, vars: { ...frame.vars, ...paidAsVars(paidAs) } });
-  emit(ctx, {
-    type: "wildTypesDeclared",
-    playerId: frame.playerId,
-    instanceId: frame.instanceId,
-    declared,
-    skipped: false,
-    paidAs,
-  });
-}
-
-/**
  * "It enters play exhausted" (Med Lab 38028; docs/phase7-wave6.md §3.57): placed exhausted as it enters play, before
  * its "enters play" windows, so an "after this enters play" ability already sees it exhausted. Logged as a
  * `cardExhausted`, but announced as nothing: the card was not exhausted by an effect or a cost.
@@ -140,7 +70,7 @@ function entersExhausted(ctx: Ctx, frame: Frame<"playCard">): void {
 
 export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
-  if (frame.undeclaredWilds) return declareWildTypes(ctx, frame, frame.undeclaredWilds);
+  if (frame.undeclaredWilds) return declareWildTypes(ctx, frame, frame.playerId, frame.undeclaredWilds);
   switch (frame.stage) {
     case "enterPlay": {
       setFrame(ctx, { ...frame, stage: "effects" });

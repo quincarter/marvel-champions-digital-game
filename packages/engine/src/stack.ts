@@ -144,7 +144,7 @@ export interface LingeringDamageRule {
 
 /**
  * A payment whose wilds its player has still to declare (docs/phase7-wave8.md §3.62, §4.1 Q33 = B), kept on the play
- * frame of the card paid for until the `declareWildTypes` choice is answered: everything the payment generated, what
+ * frame of the card paid for (or the frame of the ability paid for) until the `declareWildTypes` choice is answered: everything the payment generated, what
  * the cost took (the rest is overpaid), and the types the card may be paid with when it limits them (`paymentOnly`).
  */
 export interface UndeclaredWilds {
@@ -321,6 +321,12 @@ export type StackFrame =
       /** What paying the ability's cost bound (chosen cards, X, paid resources). */
       readonly bindings: Bindings;
       readonly vars: Vars;
+      /**
+       * The ability's own payment is read for resource types and its wilds are not declared yet (`UndeclaredWilds`;
+       * docs/phase7-wave8.md §3.62): the frame asks its controller (`declareWildTypes`) before the ability resolves
+       * anything, records the answer in `vars` (`paid.as.<type>`) and drops this. Absent on every other ability.
+       */
+      readonly undeclaredWilds?: UndeclaredWilds;
       /**
        * A Special resolved by a `resolveSpecials` with `bind` (docs/phase7-wave5.md §3.7): when its effects finish, what
        * they bound goes back to that frame under `<prefix>.` ("If at least 1 Sandman card was discarded this way").

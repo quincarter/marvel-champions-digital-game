@@ -1567,6 +1567,17 @@ export const spendX = (resourceType: TypedResource, bind = "x", min = 1): Abilit
  * overpaying is legal, so X is capped rather than the payment refused. `bind` is 0 if nothing is spent this way.
  */
 export const spendUpTo = (max: number, bind = "x"): AbilityCost => ({ resourcesX: { resource: "any", bind, max } });
+/**
+ * "Spend up to 3 resources → if you spent at least 1: [energy] … [mental] … [physical] …" (Husk, `jubilee` 47012;
+ * docs/phase7-wave8.md §3.62): `spendChosen(3)` is a resource cost whose size the payer chooses, 1 to `max` resources
+ * of any type (RRG 1.8 "Cost", p. 14: "up to" needs at least one), and `spendChosen(3, 2)` asks for at least 2.
+ *
+ * Unlike `spendUpTo`, nothing is overpaid: the player sizes the cost, so everything generated was spent, a payment
+ * that generates more than `max` is refused, and a card with two icons is two of the size. The size is
+ * `varOf("cost.resources")`. To read the types spent, mark the ability `readsPaidTypes` and read them with `paidType`
+ * / `paidTypeCount`: each wild is what its player declares (§4.1 Q33 = B), asked when it can matter.
+ */
+export const spendChosen = (max: number, min = 1): AbilityCost => ({ resources: { choose: { min, max } } });
 /** Where a counter cost removes from: `from` (a `TargetRef`) wins over `fromIdentity`; neither is the ability's card. */
 const counterCostTarget = (opts: {
   readonly fromIdentity?: boolean;

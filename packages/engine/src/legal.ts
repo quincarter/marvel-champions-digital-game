@@ -13,7 +13,13 @@
  */
 
 import type { AbilityId, AnyCard, ResourceIconType } from "@mc/content";
-import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps } from "./abilities.js";
+import {
+  DEFAULT_DEPS,
+  resourcesChoiceOf,
+  type AbilityCost,
+  type AbilityDefinition,
+  type EngineDeps,
+} from "./abilities.js";
 import {
   basicPowerCost,
   costAsDetermined,
@@ -38,6 +44,7 @@ import {
   playCostReductionFault,
   playRequirement,
 } from "./actions.js";
+import { chosenSizePayments } from "./payable.js";
 import type { PendingChoice } from "./choices.js";
 import type { Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { createCtx } from "./ctx.js";
@@ -125,6 +132,12 @@ export interface LegalAction {
    * right now, sent as `costSelection.counters`. `example` removes the most. Absent for any other cost.
    */
   readonly costCounters?: { readonly min: number; readonly max: number };
+  /**
+   * A resource cost whose size the player chooses ("spend up to 3 resources →"; docs/phase7-wave8.md §3.62): the
+   * payment must generate from `min` to `max` resources in all, a card with two icons counting two, and cannot be
+   * overpaid. The payment itself is the choice; `example` spends the fewest sources that fit. Absent for any other cost.
+   */
+  readonly chosenResources?: { readonly min: number; readonly max: number };
   /**
    * An event that prints more than one Action ability (RRG 1.8 "Event", p. 18: "the player playing it chooses one of
    * those abilities to trigger"): the ones that can be triggered and paid for right now, in printed order. With more
@@ -260,6 +273,36 @@ function spendOrder(
 function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   const handOnly = spend.filter((p) => "fromHand" in p);
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
+}
+
+/** How many payments of a chosen-size cost `legalActions` probes before the usual wallets (`chosenSizeWallets`). */
+const CHOSEN_SIZE_WALLETS = 8;
+
+/**
+ * The wallets tried first for a cost whose size the payer chooses ("spend up to 3 resources →", `ResourcesChoice`;
+ * docs/phase7-wave8.md §3.62). Nothing is overpaid against such a cost, so "everything the player holds" is refused
+ * whenever it is more than the cost's `max`, and the usual wallets would call a payable ability unaffordable. These
+ * are the first few payments that fit its range (`chosenSizePayments`), the fewest sources first, so `example` spends
+ * the least it can. Empty for any other cost.
+ *
+ * Priced for the ability's own card, which is what `useAbility` pays for unless its cost picks one; a cost that both
+ * picks a card to pay for and chooses a size falls back on the usual wallets (no such card).
+ */
+function chosenSizeWallets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  spend: readonly Payment[],
+  range: { readonly min: number; readonly max: number } | null,
+  payingFor: InstanceId,
+): readonly (readonly Payment[])[] {
+  if (!range) return [];
+  const found: (readonly Payment[])[] = [];
+  for (const payment of chosenSizePayments(state, deps, playerId, spend, range, payingFor)) {
+    found.push(payment);
+    if (found.length >= CHOSEN_SIZE_WALLETS) break;
+  }
+  return found;
 }
 
 /**
@@ -632,6 +675,7 @@ function evaluateAbility(
   const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks), null);
+  const chosenSize = resourcesChoiceOf(cost);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
     ({ costChoices, target }) =>
       branchSelections(cost).map((branch) => ({
@@ -654,9 +698,18 @@ function evaluateAbility(
     deps,
     { kind: "useAbility", instanceId, abilityId },
     variants,
-    withThwartCostWallets(state, deps, deps.abilities[abilityId], leavingCardsToDiscard(wallets(spend), cost)),
+    withThwartCostWallets(
+      state,
+      deps,
+      deps.abilities[abilityId],
+      leavingCardsToDiscard(
+        [...chosenSizeWallets(state, deps, playerId, spend, chosenSize, instanceId), ...wallets(spend)],
+        cost,
+      ),
+    ),
   );
-  return withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
+  const ranged = withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
+  return "legal" in ranged && chosenSize ? { legal: { ...ranged.legal, chosenResources: chosenSize } } : ranged;
 }
 
 /**
@@ -892,6 +945,11 @@ export interface PaymentQuery {
    * player cannot afford it) — `tryPayment` then reports the engine's reason.
    */
   readonly suggested: readonly string[];
+  /**
+   * The cost is a number of resources the player chooses (`LegalAction.chosenResources`): the selection must generate
+   * from `min` to `max` resources and cannot be overpaid. `requirement` is then what the rest of the cost asks (0).
+   */
+  readonly chosenResources?: { readonly min: number; readonly max: number };
 }
 
 export type PaymentAttempt =
@@ -925,6 +983,8 @@ interface Payable {
   readonly requirement: ResolvedRequirement | null;
   /** True when there is something to decide: a non-zero cost, or "spend X resources". */
   readonly spendable: boolean;
+  /** The range of a chosen-size resource cost (`ResourcesChoice`), for an ability that has one. */
+  readonly chosenResources?: { readonly min: number; readonly max: number };
 }
 
 const NO_RESERVED: ReadonlySet<InstanceId> = new Set();
@@ -946,9 +1006,10 @@ const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
   });
 };
 
-/** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
+/** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…", a chosen size). */
 const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>
-  requirement !== null && (requirementTotal(requirement) > 0 || cost?.resourcesX !== undefined);
+  requirement !== null &&
+  (requirementTotal(requirement) > 0 || cost?.resourcesX !== undefined || resourcesChoiceOf(cost) !== null);
 
 /**
  * The one command `legalActions` would build for this action with these picks,
@@ -1028,6 +1089,7 @@ function payableFor(
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const selection = options.costSelection;
+    const chosenResources = resourcesChoiceOf(cost);
     const plan = planCost(state, deps, instanceId, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
     return {
@@ -1045,6 +1107,7 @@ function payableFor(
       payingFor: planned?.payingFor ?? instanceId,
       requirement: planned?.requirement ?? null,
       spendable: isSpendable(planned?.requirement ?? null, cost),
+      ...(chosenResources ? { chosenResources } : {}),
     };
   }
   return null;
@@ -1120,12 +1183,21 @@ export function paymentFor(
     },
   );
   let suggested: readonly string[] = [];
-  for (const wallet of wallets(spendOrder(state, deps, playerId, payable.reserved, payable.payingFor))) {
+  const spend = spendOrder(state, deps, playerId, payable.reserved, payable.payingFor);
+  const sized = payable.payingFor
+    ? chosenSizeWallets(state, deps, playerId, spend, payable.chosenResources ?? null, payable.payingFor)
+    : [];
+  for (const wallet of [...sized, ...wallets(spend)]) {
     if (!probe(state, deps, payable.build(wallet)).ok) continue;
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;
   }
-  return { requirement: payable.requirement, sources, suggested };
+  return {
+    requirement: payable.requirement,
+    sources,
+    suggested,
+    ...(payable.chosenResources ? { chosenResources: payable.chosenResources } : {}),
+  };
 }
 
 /**

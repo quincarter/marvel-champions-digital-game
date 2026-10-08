@@ -37,6 +37,13 @@ export interface CostSelection {
   readonly branch?: number;
   /** How many counters an "up to N" counter cost removes (`spendCounters.upTo`). Default: as many as it can. */
   readonly counters?: number;
+  /**
+   * How many resources a chosen-size resource cost spends (`AbilityCost.resources { choose }`; docs/phase7-wave8.md
+   * §3.62). The payment itself is the choice, since nothing is overpaid against a cost the player sizes; this names
+   * the size beside it, and a payment that generates any other number is refused. Absent: the size is whatever the
+   * payment generates, within the cost's range.
+   */
+  readonly resources?: number;
 }
 
 /**
@@ -115,6 +122,13 @@ export type Command =
       readonly costChoices?: CostChoices;
       /** Which branch of an either/or cost, how many counters an "up to N" cost removes (`CostSelection`). */
       readonly costSelection?: CostSelection;
+      /**
+       * The type each wild resource of this payment is used as, exactly as `playCard.wildAs` (docs/phase7-wave8.md
+       * §3.62, §4.1 Q33 = B). Read only by an ability marked `readsPaidTypes` ("spend up to 3 resources → if you spent
+       * at least 1 [energy] …"). Absent, the ability's frame asks (`declareWildTypes`) when the declaration can change
+       * what the ability reads, and never otherwise. Present, it must be legal whatever reads it.
+       */
+      readonly wildAs?: readonly ResourceType[];
     }
   | {
       readonly type: "basicAttack";

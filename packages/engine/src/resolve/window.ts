@@ -19,9 +19,11 @@ import {
   priceOrNull,
   pricePlay,
   resourceVars,
+  settleAbilityPaidTypes,
+  logAbilityWildTypes,
   upToCounterChoice,
 } from "../actions.js";
-import { inPlayPicksOf } from "../abilities.js";
+import { inPlayPicksOf, resourcesChoiceOf } from "../abilities.js";
 import type { ChoiceOption } from "../choices.js";
 import type { CostChoices, CostSelection } from "../commands.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
@@ -606,12 +608,22 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   const needed = requirementTotal(plan.requirement);
   // An "X" cost ("spend up to 3 resources", Machine Man) totals 0 fixed resources but is still the player's decision
   // (the same guard `requestWindowPayment` has; docs/phase7-wave4.md §3.36).
-  if (needed > 0 || definition.cost.resourcesX !== undefined) {
-    const options = paymentOptions(ctx, controller, null, plan.payingFor ?? candidate.instanceId);
+  // So is a size the player chooses ("spend up to 3 resources →", `ResourcesChoice`; docs/phase7-wave8.md §3.62): the
+  // prompt carries its range, and `resolveChoice` refuses a selection outside it (nothing is overpaid).
+  const chosenSize = resourcesChoiceOf(plan.cost ?? definition.cost);
+  if (needed > 0 || definition.cost.resourcesX !== undefined || chosenSize) {
+    const payingFor = plan.payingFor ?? candidate.instanceId;
+    const options = paymentOptions(ctx, controller, null, payingFor);
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
     requestChoice(ctx, {
       playerId: controller,
-      prompt: { kind: "payForAbility", instanceId: candidate.instanceId, abilityId: candidate.abilityId, cost: needed },
+      prompt: {
+        kind: "payForAbility",
+        instanceId: candidate.instanceId,
+        abilityId: candidate.abilityId,
+        cost: needed,
+        ...(chosenSize ? { chosenResources: { min: chosenSize.min, max: chosenSize.max, payingFor } } : {}),
+      },
       options,
       minSelections: 0,
       maxSelections: options.length,
@@ -654,10 +666,23 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
   const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
   if (isPriceFault(paidVars)) return;
+  // The types the ability reads of this payment (docs/phase7-wave8.md §3.62): a wild whose declaration can change the
+  // reading is asked about by the ability's own frame, before it resolves anything.
+  const settled = settleAbilityPaidTypes(
+    ctx,
+    definition,
+    payingFor,
+    pool,
+    { ...plan.vars, ...paidVars },
+    plan.requirement,
+    plan.cost ?? definition.cost,
+  );
+  if (isPriceFault(settled)) return;
   const spent = payPayment(ctx, controller, payment, payingFor);
   pushFrames(ctx, [
-    abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
+    abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, settled.vars, settled.types?.undeclared),
   ]);
+  logAbilityWildTypes(ctx, controller, candidate.instanceId, candidate.abilityId, settled.types);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "ability");
 }
@@ -708,7 +733,8 @@ function requestWindowPayment(
   // as 0 while the player still has a real decision to make about how much to
   // spend (docs/phase2-core-set.md §3: X counts every resource in the payment
   // beyond the fixed cost). Never skip the sheet for one of those.
-  const hasXCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resourcesX !== undefined;
+  const eventCost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  const hasXCost = eventCost?.resourcesX !== undefined || resourcesChoiceOf(eventCost) !== null;
   if (cost === 0 && !hasXCost) {
     const playing = { ...frame, queue: rest, paying: candidate };
     setFrame(ctx, playing);

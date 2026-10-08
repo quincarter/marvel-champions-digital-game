@@ -61,6 +61,8 @@ import {
   type DiscardCombined,
   type InPlayCostMode,
   type InPlayCostPick,
+  fixedResourcesOf,
+  resourcesChoiceOf,
 } from "./abilities.js";
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -1118,6 +1120,11 @@ function paidRequirementOf(
   cost: AbilityCost | undefined,
   resourceVarsRead: Vars,
 ): ResolvedRequirement {
+  // A cost the player sizes took every resource generated for it: nothing is overpaid (`ResourcesChoice`, §3.62).
+  if (resourcesChoiceOf(cost)) {
+    const chosen = Math.max(0, poolTotal(pool) - requirementTotal(requirement));
+    return { ...requirement, generic: requirement.generic + chosen };
+  }
   const x = cost?.resourcesX;
   const xPaid = x ? (resourceVarsRead[x.bind] ?? 0) : 0;
   const xSlot = x && x.resource !== "any" ? x.resource : "generic";
@@ -1908,7 +1915,8 @@ export function costResourceRequirement(
   cost: AbilityCost | undefined,
   event: TriggerEvent | null = null,
 ): { readonly requirement: ResolvedRequirement; readonly computed?: number } {
-  const fixed = combineRequirements(cost?.resources, 0);
+  // A size the payer chooses (`ResourcesChoice`) is no fixed requirement: `resourceVars` reads it off the payment.
+  const fixed = combineRequirements(fixedResourcesOf(cost), 0);
   if (cost?.resourcesEqualTo === undefined) return { requirement: fixed };
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
   const computed = Math.max(0, Math.floor(resolveValue(state, cost.resourcesEqualTo, context, deps)));
@@ -2490,20 +2498,67 @@ function overpaidVars(pool: ResourcePool, requirement: ResolvedRequirement): Rec
   return vars;
 }
 
-/** "Spend X [type] resources": binds X from the pool beyond the cost's fixed requirement. */
+/**
+ * The size of a chosen-size resource cost as this payment makes it (`ResourcesChoice`; docs/phase7-wave8.md §3.62):
+ * every resource generated beyond the rest of the requirement, which must be within the cost's range, since nothing is
+ * overpaid against a cost the player sizes. `named` is the size the command gave beside the payment
+ * (`CostSelection.resources`), which must agree. Null for any other cost.
+ */
+function chosenResourceCount(
+  pool: ResourcePool,
+  cost: AbilityCost | undefined,
+  requirement: ResolvedRequirement,
+  named: number | undefined,
+): number | PriceFault | null {
+  const choice = resourcesChoiceOf(cost);
+  if (!choice) return null;
+  const size = poolTotal(pool) - requirementTotal(requirement);
+  const plural = (n: number): string => `${n} resource${n === 1 ? "" : "s"}`;
+  if (named !== undefined && (!Number.isInteger(named) || named < choice.min || named > choice.max)) {
+    return { code: "invalid_choice", message: `choose to spend from ${choice.min} to ${plural(choice.max)}` };
+  }
+  // RRG 1.8 "Cost" (p. 14): "up to" needs at least one, so too little is a cost not paid (p. 13).
+  if (size < choice.min) {
+    return { code: "insufficient_resources", message: `spend at least ${plural(choice.min)}; the payment is ${size}` };
+  }
+  if (size > choice.max) {
+    return {
+      code: "invalid_choice",
+      message: `spend at most ${plural(choice.max)}; the payment is ${size}, and this cost cannot be overpaid`,
+    };
+  }
+  if (named !== undefined && named !== size) {
+    return {
+      code: "invalid_choice",
+      message: `chose to spend ${plural(named)}; the payment is ${size}, and this cost cannot be overpaid`,
+    };
+  }
+  return size;
+}
+
+/**
+ * The `paid.*` and `overpaid.*` vars of a payment. "Spend X [type] resources": binds X from the pool beyond the cost's
+ * fixed requirement. A chosen-size cost (`ResourcesChoice`) is checked and recorded here (`chosenResourceCount`), with
+ * `chosenResources` the size the command named, if it named one.
+ */
 export function resourceVars(
   pool: ResourcePool,
   cost: AbilityCost | undefined,
   requirement: ResolvedRequirement,
+  chosenResources?: number,
 ): Vars | PriceFault {
+  const chosen = chosenResourceCount(pool, cost, requirement, chosenResources);
+  if (chosen !== null && typeof chosen !== "number") return chosen;
   const vars: Record<string, number> = {
     "paid.physical": pool.physical,
     "paid.mental": pool.mental,
     "paid.energy": pool.energy,
     "paid.wild": pool.wild,
     "paid.total": poolTotal(pool),
-    ...overpaidVars(pool, requirement),
+    // Against a cost the player sizes the whole pool was spent, so nothing reads as overpaid.
+    ...overpaidVars(pool, chosen === null ? requirement : { ...requirement, generic: requirement.generic + chosen }),
   };
+  if (chosen !== null) vars["cost.resources"] = chosen;
   if (cost?.resourcesX) {
     const { resource, max } = cost.resourcesX;
     const usable = resource === "any" ? poolTotal(pool) : countUsableAs(pool, resource);
@@ -2515,7 +2570,7 @@ export function resourceVars(
   }
   if (cost?.sameResourceType) {
     // "Spend 3 resources of the same type" (docs/phase7-wave3.md §3.43).
-    const count = requirementTotal(requirementOf(cost.resources));
+    const count = requirementTotal(requirementOf(fixedResourcesOf(cost)));
     if (!payableWithOneType(pool, count, requirement)) {
       return { code: "insufficient_resources", message: `spend ${count} resources of the same type` };
     }
@@ -3117,6 +3172,58 @@ function settlePaidTypes(
   };
 }
 
+/**
+ * Settles the declared types of an ability's own payment (docs/phase7-wave8.md §3.62): a `useAbility` command, or an
+ * interrupt or response paid for inside a window. The reader is the ability itself when it is marked `readsPaidTypes`
+ * ("spend up to 3 resources → if you spent at least 1 [energy] …"). A `readsPaymentTypesOf` rule is about a card
+ * being played, so it reads no ability's payment. An unmarked ability records nothing and asks nothing, which is every
+ * ability payment that existed before this section; `wildAs` must still be legal when given (`settlePaidTypes`).
+ */
+export function settleAbilityPaidTypes(
+  ctx: Ctx,
+  definition: AbilityDefinition,
+  payingFor: InstanceId,
+  pool: ResourcePool,
+  vars: Vars,
+  requirement: ResolvedRequirement,
+  cost: AbilityCost | undefined,
+  wildAs?: readonly ResourceType[],
+): { readonly vars: Vars; readonly types?: PaidTypesSettled } | PriceFault {
+  return settlePaidTypes(
+    pool,
+    vars,
+    paidRequirementOf(pool, requirement, cost, vars),
+    printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? []),
+    definition.readsPaidTypes ? [definition.readsPaidTypes] : [],
+    wildAs,
+  );
+}
+
+/**
+ * Logs the wilds of an ability's payment as declared on the command, or left as they are because no declaration could
+ * change a reading (`commitPlay` does the same for a play). A payment with no wild declares nothing; one the player is
+ * asked about is logged when they answer (`resolve/declare-wilds.ts`).
+ */
+export function logAbilityWildTypes(
+  ctx: Ctx,
+  playerId: PlayerId,
+  instanceId: InstanceId,
+  abilityId: AbilityId,
+  types: PaidTypesSettled | undefined,
+): void {
+  const declared = types?.declared;
+  if (!declared || declared.types.length === 0) return;
+  emit(ctx, {
+    type: "wildTypesDeclared",
+    playerId,
+    instanceId,
+    abilityId,
+    declared: declared.types,
+    skipped: declared.skipped,
+    paidAs: declared.paidAs,
+  });
+}
+
 /** What a play frame is pushed with for a priced play: its cost's bindings and vars, and any wilds still to declare. */
 export const playFrameCost = (priced: PricedPlay, bindings: Bindings = priced.plan.bindings) => ({
   bindings,
@@ -3190,7 +3297,7 @@ export function pricePlay(
       message: `Needs ${describeRequirement(requirement)}; the payment covers ${poolTotal(pool)}.`,
     };
   }
-  const vars = resourceVars(pool, plan.cost ?? cost, requirement);
+  const vars = resourceVars(pool, plan.cost ?? cost, requirement, selection.resources);
   if (isFault(vars)) return vars;
   const payingFor = plan.payingFor ?? cardInstanceId;
   const settled = settlePaidTypes(
@@ -4112,7 +4219,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
       command,
     );
   }
-  const vars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
+  const vars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement, command.costSelection?.resources);
   if (isFault(vars)) return engineError(vars.code, vars.message, command);
 
   // Read before paying: paying may exhaust or discard the source.
@@ -4129,13 +4236,30 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
       vars,
     ),
   };
+  // The types the ability reads of its own payment, each wild as its player declares it (docs/phase7-wave8.md §3.62).
+  const settled = settleAbilityPaidTypes(
+    ctx,
+    definition,
+    payingFor,
+    pool,
+    { ...plan.vars, ...vars, ...sources },
+    plan.requirement,
+    plan.cost ?? definition.cost,
+    command.wildAs,
+  );
+  if (isFault(settled)) return engineError(settled.code, settled.message, command);
   const bindings = withSelfHost(ctx.state, command.cardInstanceId, plan.bindings);
   const spent = payPayment(ctx, command.playerId, command.payment, payingFor);
-  pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, bindings, {
-    ...plan.vars,
-    ...vars,
-    ...sources,
-  });
+  pushActionAbility(
+    ctx,
+    command.cardInstanceId,
+    command.abilityId,
+    command.playerId,
+    bindings,
+    settled.vars,
+    settled.types?.undeclared,
+  );
+  logAbilityWildTypes(ctx, command.playerId, command.cardInstanceId, command.abilityId, settled.types);
   payCost(ctx, command.cardInstanceId, command.playerId, definition.cost, plan);
   const unpayable = thwartCostUnpayableAfterPaying(ctx, definition, command);
   if (unpayable) return unpayable;

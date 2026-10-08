@@ -44,7 +44,8 @@ import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
-import type { AbilityDefinition } from "../abilities.js";
+import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
+import { chosenSizePayments } from "../payable.js";
 import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
@@ -118,13 +119,17 @@ function costPayable(
         deckTopCostReduction(state, deps, playerId, id),
       )
     : plan.requirement;
-  if (requirementTotal(requirement) === 0) return true;
+  const chosenSize = fromHand ? null : resourcesChoiceOf(plan.cost ?? cost);
+  if (requirementTotal(requirement) === 0 && !chosenSize) return true;
   const ctx = createCtx(state, deps);
   const exclude = fromHand ? id : null;
   const payingFor = plan.payingFor ?? id;
   const sources = paymentsFromOptionIds(
     paymentOptions(ctx, playerId, exclude, payingFor).map((option) => option.optionId),
   );
+  // "Spend up to 3 resources →" (`ResourcesChoice`; docs/phase7-wave8.md §3.62): at least one resource (RRG 1.8 "Cost",
+  // p. 14) and nothing overpaid, so the ability is offered only when some payment fits the range. Exact, not a bound.
+  if (chosenSize) return !chosenSizePayments(state, deps, playerId, sources, chosenSize, payingFor).next().done;
   let most = EMPTY_POOL;
   for (const source of sources) {
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);

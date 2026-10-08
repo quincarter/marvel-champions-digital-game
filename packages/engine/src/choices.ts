@@ -125,6 +125,14 @@ export type ChoicePrompt =
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly cost: number;
+      /**
+       * The cost is a number of resources the player chooses (`AbilityCost.resources { choose }`; docs/phase7-wave8.md
+       * §3.62): the selection must generate from `min` to `max` resources in all, a card with two icons counting two,
+       * because nothing is overpaid against a cost the player sizes. `cost` is then 0. Selecting nothing declines; a
+       * selection outside the range is refused by `resolveChoice` and the choice stays pending. `payingFor`: the card
+       * the resources are generated for, which is what the selection is priced against.
+       */
+      readonly chosenResources?: { readonly min: number; readonly max: number; readonly payingFor: InstanceId };
     }
   /**
    * An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines.
@@ -149,6 +157,8 @@ export type ChoicePrompt =
   | {
       readonly kind: "declareWildTypes";
       readonly instanceId: InstanceId;
+      /** The payment was for this ability of the card (`useAbility`, a window's `payForAbility`), not for playing it. */
+      readonly abilityId?: AbilityId;
       readonly wilds: number;
       readonly pool: ResourcePool;
       readonly requirement: ResourceRequirement;

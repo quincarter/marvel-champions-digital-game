@@ -1,4 +1,14 @@
-import { basicAttack, basicRecover, basicThwart, changeForm, endTurn, playCard, useAbility } from "./actions.js";
+import {
+  basicAttack,
+  basicRecover,
+  basicThwart,
+  changeForm,
+  endTurn,
+  paymentsFromOptionIds,
+  playCard,
+  priceOrNull,
+  useAbility,
+} from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
@@ -12,7 +22,7 @@ import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
 import { getPlayer, handSize } from "./query.js";
-import { requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
+import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
 import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
 import { choiceExclusions } from "./why-not.js";
@@ -142,6 +152,21 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
         ? "choose one type for each wild resource"
         : wildDeclarationFault(pool, declared, requirementOf(requirement), only);
     if (fault) return engineError("invalid_choice", fault, command);
+  }
+  // docs/phase7-wave8.md §3.62: a cost the player sizes ("spend up to 3 resources →") cannot be overpaid, so a
+  // selection that generates a number of resources outside its range is refused here and the choice stays open.
+  // Selecting nothing still declines.
+  if (choice.prompt.kind === "payForAbility" && choice.prompt.chosenResources && selected.length > 0) {
+    const { min, max, payingFor } = choice.prompt.chosenResources;
+    const pool = priceOrNull(ctx, choice.playerId, paymentsFromOptionIds(selected), null, payingFor);
+    const size = pool ? poolTotal(pool) : null;
+    if (size !== null && (size < min || size > max)) {
+      return engineError(
+        "invalid_choice",
+        `spend from ${min} to ${max} resources; the selection is ${size}, and this cost cannot be overpaid`,
+        command,
+      );
+    }
   }
   if (choice.prompt.kind === "divide") {
     const fault = divideSelectionFault(choice.prompt, selected);

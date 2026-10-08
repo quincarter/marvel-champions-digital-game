@@ -9,6 +9,7 @@ import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { declareWildTypes } from "./declare-wilds.js";
 import { declareLabeledDefense, declaresDefender, recordDefenseLabel } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
@@ -77,6 +78,11 @@ export function limitReached(
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
+  // The ability's payment is read for types and holds a wild its player has not declared (docs/phase7-wave8.md §3.62):
+  // asked before anything of the ability resolves. An ability nobody controls pays no such cost.
+  if (frame.undeclaredWilds && frame.controllerId) {
+    return declareWildTypes(ctx, frame, frame.controllerId, frame.undeclaredWilds);
+  }
   popFrame(ctx);
   const below = ctx.state.stack[0]?.frameId ?? null;
   resolveAbility(ctx, frame);

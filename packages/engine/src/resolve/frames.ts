@@ -14,6 +14,7 @@ import {
   type StackFrame,
   type TriggerCandidate,
   type Vars,
+  type UndeclaredWilds,
 } from "../stack.js";
 import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
 import { placeExhausted } from "../effects.js";
@@ -258,9 +259,12 @@ export function abilityFrame(
   eventFrameId: FrameId | null,
   bindings: Bindings = {},
   vars: Vars = {},
+  /** The ability's payment holds wilds its controller has still to declare (`Frame<"ability">.undeclaredWilds`). */
+  undeclaredWilds?: UndeclaredWilds,
 ): StackFrame {
   return {
     ...base(ctx),
+    ...(undeclaredWilds ? { undeclaredWilds } : {}),
     kind: "ability",
     instanceId: candidate.instanceId,
     abilityId: candidate.abilityId,
@@ -282,6 +286,7 @@ export function pushActionAbility(
   controllerId: PlayerId | null,
   bindings: Bindings = {},
   vars: Vars = {},
+  undeclaredWilds?: UndeclaredWilds,
 ): void {
   pushFrames(ctx, [
     abilityFrame(
@@ -291,6 +296,7 @@ export function pushActionAbility(
       null,
       bindings,
       vars,
+      undeclaredWilds,
     ),
   ]);
 }
