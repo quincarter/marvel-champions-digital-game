@@ -246,3 +246,12 @@ player picks the Mercenary); Scientist Supreme 4 refs with `50127.when-revealed`
 re-emit `aos`. It also added helpers to `wave9/testing.ts`. Noted, not acted on: `ranged` is stamped on
 `characterAttacked` but not on an indirect `dealDamage`; a hero interrupt's `playerIn: you` never matches encounter
 cards.
+
+**Update, the Silk identity agent finished (still uncommitted in the working tree):** `wave9/silk/silk/identity.ts`
+registers `52001a.silk-constant`, `52001b.cindy-moon-constant` (the four-card cap as a `stateCheck` on each face) and
+`52001a.silk-sense`; 23 tests pass; helpers in `wave9/silk/testing.ts` (precon id `silk-protection`).
+`52001b.cindy-moon-action` is skipped: no `AbilityCost` discards a card tucked under the identity (build it, then
+register). Spec §3.40 still needs a `byPlayerCard` hook in the engine. Possible data error to check against the
+scans: Rescued Captive, Scientist Supreme and Monica Rappaccini carry `victory` with `value: -1` in `aos/cards.ts`.
+Note for Silk's other modules: a `stateCheck` is edge-triggered, so a cap that removes several cards must do it in one
+firing.
