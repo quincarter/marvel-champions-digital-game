@@ -84,7 +84,7 @@ One row per defect: piece, card or file, what is wrong, source, severity, the pi
 
 - **1. "After [enemy] attacks you" when another player's hero defends.** A (recommended): the defending player is "you" (RRG 1.8 p. 15). B: the originally attacked player (as built). **Answered 2026-10-09: A** (spec row 91). Built: "after" responses read the defending player (101 shipped responses); the pinned test now passes.
 - **2. A divided basic attack with a bonus that depends on which enemy is attacked** is read against the first target only (thwart reads any target). No ruling found. Not yet asked; no shipped card depends on it.
-- **3. Constant and boost abilities that say "you" during a defended attack.** RRG 1.8 p. 16: "Any constant or boost abilities that refer to 'you' refer to the defending player." The engine's `PlayerRef attackedPlayer` (pinned by `attacked-player-ref.test.ts`) reads the originally attacked player. A (recommended): follow the RRG. B: keep as built. Asked: 2026-10-09.
+- **3. Constant and boost abilities that say "you" during a defended attack.** RRG 1.8 p. 16: "Any constant or boost abilities that refer to 'you' refer to the defending player." The engine's `PlayerRef attackedPlayer` (pinned by `attacked-player-ref.test.ts`) reads the originally attacked player. A (recommended): follow the RRG. B: keep as built. **Answered 2026-10-09: A** (spec row 93). Fix in progress.
 
 ## Code review brief (pieces 10 to 12)
 
