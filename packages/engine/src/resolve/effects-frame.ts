@@ -796,6 +796,12 @@ function executeDivide(
   // one thwart the controller's identity makes (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44: a single thwart,
   // whose instances of threat removal an "additional threat" modifier each increases, docs/phase7-wave6.md §4.1 Q78). A share put on a scheme that player cannot thwart (an engaged patrol minion and the main scheme, a
   // `cannotThwart` rule) is not removed (RRG 1.8 "Patrol", p. 32).
+  //
+  // A resolving card's threat bonus (`modifyCardEffect`, "increase the amount of threat that event removes by 2") is
+  // added once to each scheme that takes a share, not once per point or once overall: each share is an instance of
+  // threat removed (RRG 1.8 "Event", p. 19; FAQ "Shrink (#11)", p. 59: "increases each instance of threat removed by
+  // a thwart event"), the same reading as the divided damage above and as `removeThreat` / `thwart`.
+  const threatBonus = cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "threatRemoved");
   const thwartingPlayer = context.thwartLabeled ? frame.controllerId : null;
   const thwarter = thwartingPlayer ? getPlayer(ctx.state, thwartingPlayer)?.identity.instanceId : undefined;
   if (thwartingPlayer && thwarter) {
@@ -817,7 +823,7 @@ function executeDivide(
         thwarterInstanceId: thwarter,
         schemeInstanceId,
         playerId: thwartingPlayer,
-        amount: points,
+        amount: points + threatBonus,
         basic: false,
         sourceInstanceId: frame.selfInstanceId,
         // One thwart, however many schemes take a share (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
@@ -832,7 +838,7 @@ function executeDivide(
     [...shares].map(([schemeInstanceId, points]) => ({
       kind: "removeThreat" as const,
       schemeInstanceId,
-      amount: points,
+      amount: points + threatBonus,
       sourceInstanceId: frame.selfInstanceId,
       playerId: threatRemoverOf(ctx, frame),
     })),
