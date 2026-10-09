@@ -10,6 +10,7 @@ import {
   chosen,
   constant,
   controllerOf,
+  countBoostIcons,
   damagedAtLeast,
   dealDamage,
   dealEncounterCard,
@@ -88,6 +89,7 @@ const sabretoothForcedResponse = () =>
   forcedResponse(
     on.enemyActivates("self", { againstYou: true }),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     heal(varOf("d.boostIcons"), theVillain),
   );
 

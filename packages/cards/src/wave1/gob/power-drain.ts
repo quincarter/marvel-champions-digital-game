@@ -2,9 +2,9 @@ import {
   ANY_RESOURCE,
   after,
   boost,
-  boostIconsOn,
   cards,
   chosen,
+  countBoostIcons,
   defineAbilities,
   discardFromHand,
   eachPlayer,
@@ -39,6 +39,7 @@ export const POWER_DRAIN = defineAbilities({
   // printed in its bottom-left corner", the same reading Tombstone (02047) uses.
   "02041.when-defeated": whenDefeated(
     discardEncounterCards(2, { bind: "pd" }),
+    countBoostIcons(chosen("pd"), "pd"),
     discardFromHand(varOf("pd.boostIcons"), eachPlayer, { filter: ANY_RESOURCE }),
   ),
 
@@ -47,7 +48,8 @@ export const POWER_DRAIN = defineAbilities({
   "02042.electro-forced-response": forcedResponse(
     after.enemyAttacks("self", { againstYou: true }),
     discardEncounterCards(1, { bind: "el" }),
-    dealIndirectDamage(boostIconsOn(chosen("el")), you),
+    countBoostIcons(chosen("el"), "el"),
+    dealIndirectDamage(varOf("el.boostIcons"), you),
   ),
   // [star] Boost: Discard 3 cards from the encounter deck.
   "02042.boost": boost(discardEncounterCards(3)),
@@ -67,6 +69,7 @@ export const POWER_DRAIN = defineAbilities({
   // ever reads the first.
   "02044.when-revealed": whenRevealed(
     discardEncounterCards(2, { bind: "lb" }),
+    countBoostIcons(chosen("lb"), "lb"),
     dealIndirectDamage(varOf("lb.boostIcons"), you),
   ),
   // [star] Boost: Discard 3 cards from the encounter deck (no icon-sum needed; scriptable on its own).
@@ -76,6 +79,7 @@ export const POWER_DRAIN = defineAbilities({
   // for each boost icon discarded this way.
   "02045.when-revealed": whenRevealed(
     discardEncounterCards(perHero(1), { bind: "st" }),
+    countBoostIcons(chosen("st"), "st"),
     heal(varOf("st.boostIcons"), theVillain),
   ),
   // [star] Boost: Discard 3 cards from the encounter deck (same shape, scriptable on its own).

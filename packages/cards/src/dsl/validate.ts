@@ -682,6 +682,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "spendResources":
     // `<bind>.amount` / `<bind>.made` (docs/phase7-wave6.md §3.69).
     case "chooseNumber":
+    // `<bind>.boostIcons` (docs/phase7-wave2.md §3.6).
+    case "countBoostIcons":
     // `<bind>.chosen.<type>` / `<bind>.made` (docs/phase7-wave7.md §3.33).
     case "chooseCardType":
     // `<bind>.amount` / `<bind>.made` (docs/phase7-wave7.md §3.83).

@@ -2,9 +2,9 @@ import { trait } from "@mc/content";
 import {
   action,
   addCounters,
+  countBoostIcons,
   encounterLookDiscardCost,
   exhaustThis,
-  boostIconsOn,
   chosen,
   defineAbilities,
   eventTarget,
@@ -53,6 +53,7 @@ export const GAMBIT_IDENTITY = defineAbilities({
 
   "37001b.thief-extraordinaire": action(
     { label: "thwart", cost: [exhaustThis, encounterLookDiscardCost(2, 1, "stolen")] },
-    thwartAScheme(boostIconsOn(chosen("stolen"))),
+    countBoostIcons(chosen("stolen"), "stolen"),
+    thwartAScheme(varOf("stolen.boostIcons")),
   ),
 });

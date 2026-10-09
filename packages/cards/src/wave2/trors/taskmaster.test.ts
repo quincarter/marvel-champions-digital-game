@@ -74,6 +74,41 @@ describe("Taskmaster scenario", () => {
     expect(inst(hero, identity).damage).toBe(before + boostIcons);
   });
 
+  // docs/phase7-wave2.md §4 Q8: Taskmaster's count of "the number of boost icons on that card" is a count of boost
+  // icons on an encounter card, so Chaos Control (15001a) may replace it. Advance (01186) has 0 icons, Shadow of the
+  // Past (01190) has 2; both are Standard set cards.
+  const taskmasterVsScarletWitch = () =>
+    stackEncounterDeck(
+      startWave2Game(wave2Scenario("taskmaster", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 })),
+      ADVANCE,
+      "01190",
+    );
+  const chaosControl = (accept: boolean) => (state: GameState) => {
+    const option = state.pendingChoice?.options.find((o) => o.optionId.endsWith(":15001a.chaos-control"));
+    return accept && option ? [option.optionId] : firstLegal(state);
+  };
+
+  it("Taskmaster's count of the discarded card's boost icons can be replaced by Chaos Control", () => {
+    const start = taskmasterVsScarletWitch();
+    const identity = identityOf(start);
+    const before = inst(start, identity).damage;
+    const discardBefore = activeEncounterDeck(start).discard.length;
+    const hero = settle(runWave2(start, toHero()), chaosControl(true), undefined, WAVE2_DEPS);
+    // Advance's 0 icons are not counted: Chaos Control discards Shadow of the Past and its 2 icons are counted instead.
+    expect(inst(hero, identity).damage).toBe(before + 2);
+    expect(activeEncounterDeck(hero).discard.length).toBe(discardBefore + 2);
+  });
+
+  it("Taskmaster's count is the discarded card's own icons when Chaos Control is not used", () => {
+    const start = taskmasterVsScarletWitch();
+    const identity = identityOf(start);
+    const before = inst(start, identity).damage;
+    const discardBefore = activeEncounterDeck(start).discard.length;
+    const hero = settle(runWave2(start, toHero()), chaosControl(false), undefined, WAVE2_DEPS);
+    expect(inst(hero, identity).damage).toBe(before);
+    expect(activeEncounterDeck(hero).discard.length).toBe(discardBefore + 1);
+  });
+
   it("Taskmaster (II/III): When Revealed deals each player an encounter card", () => {
     expect(WAVE2_DEPS.abilities["04094.when-revealed"]).toBeDefined();
     expect(WAVE2_DEPS.abilities["04095.when-revealed"]).toBeDefined();

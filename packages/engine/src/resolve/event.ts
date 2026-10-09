@@ -18,6 +18,7 @@ import {
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import { titlesNaming } from "../titles.js";
+import { boostIconsFor } from "../modifiers.js";
 import {
   cardBackOf,
   cardOf,
@@ -692,6 +693,19 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.
       const changed = setForm(ctx, event.playerId, event.to, event.voluntary, event.heroFormIndex);
       if (changed) pushFrames(ctx, [eventFrame(ctx, changed)]);
+      return;
+    }
+    case "boostIconsCounting": {
+      // An activation's count is made by its boost step (`stepBoostCard`); a card effect's (`countBoostIcons`) here,
+      // after its interrupts: the replacing card's icons if one was named, plus this count's adjustments, floored
+      // at 0 as the activation's count is. Reported to the counting effect as `<bind>.boostIcons`.
+      if (event.enemyInstanceId !== null) return;
+      const counted = Math.max(
+        0,
+        boostIconsFor(ctx.state, ctx.deps, event.countFrom ?? event.cardInstanceId) + (event.countAdjust ?? 0),
+      );
+      updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: { ...event, counted } } : f));
+      addFrameVars(ctx, frame.frameId, { boostIcons: counted });
       return;
     }
     case "basicRecovery":

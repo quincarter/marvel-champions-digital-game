@@ -4,7 +4,6 @@ import {
   action,
   anEnemy,
   attachCard,
-  boostIconsOn,
   cards,
   choosePlayer,
   chooseCards,
@@ -13,6 +12,7 @@ import {
   confuse,
   constant,
   costModifier,
+  countBoostIcons,
   countOf,
   dealDamage,
   defineAbilities,
@@ -47,6 +47,7 @@ import {
   theVillain,
   valueAtLeast,
   valueAtMost,
+  varOf,
   you,
   youHaveTrait,
   zone,
@@ -111,7 +112,7 @@ const ANOTHER_WEB_WARRIOR_CARD: TargetQuery = { ...A_WEB_WARRIOR_CARD, self: fal
  * attack's own event frame.
  *
  * **Spider-Man / Hobie Brown (27017)** is §3.13's own worked example verbatim, with the printed damage-to-villain
- * sentence added: `boostIconsOn(chosen("discarded"))` sums boost icons across every card `discardEncounterCards`
+ * sentence added: `countBoostIcons(chosen("discarded"), …)` sums boost icons across every card `discardEncounterCards`
  * bound (`qsv/kit.ts`'s "Ghost Kick" precedent for the same shape). "Play only if you control a Web-Warrior card"
  * is a `playOnlyIf` constant (data does not carry a schema-level `playRestrictions` entry for this card, unlike
  * Plan B's `anyPlayerControl`, so it needs its own ability ref — matching this card's own `abilities` array).
@@ -175,7 +176,8 @@ export const GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "27017.spider-man-interrupt": interrupt(
     on.leavesPlay("self"),
     discardEncounterCards(3, { bind: "discarded" }),
-    dealDamage(boostIconsOn(chosen("discarded")), theVillain),
+    countBoostIcons(chosen("discarded"), "discarded"),
+    dealDamage(varOf("discarded.boostIcons"), theVillain),
   ),
 
   "27023.web-of-life-and-destiny-constant": constant(

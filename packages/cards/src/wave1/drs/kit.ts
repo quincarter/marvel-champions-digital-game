@@ -8,13 +8,13 @@ import {
   anyOf,
   aScheme,
   attackAnEnemy,
-  boostIconsOn,
   cards,
   cancelRevealedCard,
   chooseCards,
   chooseOne,
   chooseTarget,
   chosen,
+  countBoostIcons,
   coveredByEngineRule,
   confuse,
   constant,
@@ -54,6 +54,7 @@ import {
   topOfDeck,
   TRAIT,
   varAtLeast,
+  varOf,
   when,
   you,
   yourIdentity,
@@ -124,13 +125,14 @@ export const DRS_KIT = defineAbilities({
   // Astral Projection — Hero Action (thwart): Choose a scheme → remove 3 threat from that scheme and look at the
   // top card of the encounter deck. For each boost icon on that card, remove 1 additional threat from the chosen
   // scheme. One `thwart` for the combined total (RRG "(Thwart)" is the whole ability, not two separate thwarts):
-  // `boostIconsOn` reads the looked-at card's printed boost icons wherever it is (`packages/engine/src/select.ts`
-  // `case "boostIcons"`), so it doesn't need `moveCards`/`countAmong` the way Falcon's "for each treachery" did.
+  // `countBoostIcons` counts the looked-at card's boost icons wherever it is, so it doesn't need
+  // `moveCards`/`countAmong` the way Falcon's "for each treachery" did.
   "09003.astral-projection-action": heroAction(
     { label: "thwart" },
     aScheme("scheme"),
     lookAt(encounterCards(["deck"], undefined, 1), { bind: "looked" }),
-    thwart(scaled(boostIconsOn(chosen("looked")), { plus: 3 }), chosen("scheme")),
+    countBoostIcons(chosen("looked"), "looked"),
+    thwart(scaled(varOf("looked.boostIcons"), { plus: 3 }), chosen("scheme")),
   ),
 
   // Magic Blast — Hero Action (attack): Deal 5 damage to an enemy and discard the top card of your deck. If that

@@ -11,6 +11,7 @@ import {
   chosen,
   chosenPlayer,
   constant,
+  countBoostIcons,
   dealDamage,
   defineAbilities,
   discard,
@@ -40,8 +41,8 @@ import {
   theVillain,
   thwartAScheme,
   TRAIT,
-  boostIconsOn,
   after,
+  varOf,
   whenRevealed,
   you,
   yourIdentity,
@@ -114,7 +115,7 @@ export const BLACK_PANTHER_OBLIGATION = defineAbilities({
   }),
 });
 
-const RITUAL_X = scaled(boostIconsOn(chosen("ritual")), { plus: 1 });
+const RITUAL_X = scaled(varOf("ritual.boostIcons"), { plus: 1 });
 
 /** Black Panther's nemesis set: Usurp the Throne (no text), Killmonger, Heart-Shaped Herb, Ritual Combat. */
 export const BLACK_PANTHER_NEMESIS = defineAbilities({
@@ -133,6 +134,7 @@ export const BLACK_PANTHER_NEMESIS = defineAbilities({
   // observable behavior today; it's still the faithful reading (RRG 1.8 "'Then'", p. 44).
   "01159.when-revealed": whenRevealed(
     moveCards(encounterCards(["deck"], undefined, 1), "discard", "ritual"),
+    countBoostIcons(chosen("ritual"), "ritual"),
     andThen(
       chooseOne(
         option("Deal X damage to your hero", takeDamage(RITUAL_X)),

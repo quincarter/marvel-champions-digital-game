@@ -10,6 +10,7 @@ import {
   chosen,
   constant,
   costModifier,
+  countBoostIcons,
   defineAbilities,
   discardEncounterCards,
   eventTarget,
@@ -115,6 +116,7 @@ export const STORM_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "36014.havok-forced-interrupt": forcedInterrupt(
     on.attacks("self"),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     modifyAttack({ atkBonus: varOf("d.boostIcons") }),
     modifyConsequentialDamage(varOf("d.boostIcons")),
   ),

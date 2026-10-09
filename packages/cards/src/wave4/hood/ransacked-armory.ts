@@ -4,6 +4,7 @@ import {
   chooseCards,
   chosen,
   constant,
+  countBoostIcons,
   defineAbilities,
   discardEncounterCards,
   encounterCards,
@@ -85,6 +86,7 @@ export const RANSACKED_ARMORY = defineAbilities({
   "24039.jetpack-forced-interrupt": forcedInterrupt(
     on.damage({ hostOfSelf: true }, { fromAttack: true }),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     preventDamage(varOf("d.boostIcons")),
   ),
 

@@ -3,6 +3,7 @@ import {
   chosen,
   costModifier,
   constant,
+  countBoostIcons,
   dealEncounterCard,
   defineAbilities,
   discard,
@@ -96,6 +97,7 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
   "15025.luminous-forced-response": forcedResponse(
     on.enemyActivates("self", { againstYou: true }),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     ifThen(valueAtLeast(varOf("d.boostIcons"), 2), dealEncounterCard(you)),
   ),
 
@@ -115,6 +117,7 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
     }),
     putIntoPlay(chosen("luminous"), you),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     ifThen(valueAtLeast(varOf("d.boostIcons"), 2), enemyActivates(chosen("luminous"), { against: you })),
     // The searched encounter deck is shuffled "after the … card ability completes its resolution" (RRG 1.8 "Shuffle",
     // p. 39), so after the discard from its top, and whether or not Luminous was found (docs/phase7-wave6.md §4.1 Q77).

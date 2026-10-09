@@ -5,6 +5,7 @@ import {
   cancelWhenRevealed,
   chooseCards,
   chosen,
+  countBoostIcons,
   coveredByEngineRule,
   dealDamage,
   defineAbilities,
@@ -16,7 +17,6 @@ import {
   maxOnePerTriggeringInstance,
   moveCards,
   named,
-  boostIconsOn,
   on,
   oneCopyOf,
   query,
@@ -25,6 +25,7 @@ import {
   shuffleDeck,
   theVillain,
   thwartAScheme,
+  varOf,
   you,
   YOUR_IDENTITY,
   zone,
@@ -50,7 +51,7 @@ import {
  * the villain equal to 1 more than the boost icons on that card. Cancel that card's 'When Revealed' effects." —
  * the same `on.encounterCardRevealed()` + `cancelWhenRevealed()` shape as Core's Enhanced Spider-Sense (`01004`),
  * with the damage amount read live off the revealed card (`eventTarget`, the card whose reveal is interrupted;
- * `boostIconsOn` + `scaled(…, { plus: 1 })`) instead of a fixed number, aimed at the villain (`theVillain`, RRG
+ * `countBoostIcons` + `scaled(…, { plus: 1 })`) instead of a fixed number, aimed at the villain (`theVillain`, RRG
  * 1.8 "Villain", p. 51: "the active villain") rather than a chosen enemy.
  *
  * **Web Binding (27006)**: "Requirement ([mental])." needs no ability script — the engine reads the printed
@@ -111,7 +112,8 @@ export const GHOST_SPIDER_EVENTS_A = defineAbilities({
 
   "27005.pirouette-and-punch-interrupt": heroInterrupt(
     on.encounterCardRevealed(),
-    dealDamage(scaled(boostIconsOn(eventTarget), { plus: 1 }), theVillain),
+    countBoostIcons(eventTarget, "revealed"),
+    dealDamage(scaled(varOf("revealed.boostIcons"), { plus: 1 }), theVillain),
     cancelWhenRevealed(),
   ),
 

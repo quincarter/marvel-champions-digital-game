@@ -16,6 +16,7 @@ import {
   chosenPlayer,
   choosePlayer,
   constant,
+  countBoostIcons,
   countOf,
   dealDamage,
   dealEncounterCardsCost,
@@ -377,6 +378,7 @@ export const STAR_LORD_KIT = defineAbilities({
     { label: "attack", cost: discardThis },
     chooseTarget("enemy", query("enemy")),
     moveCards(encounterCards(["deck"], undefined, 2), "discard", "milled"),
+    countBoostIcons(chosen("milled"), "milled"),
     attack(varOf("milled.boostIcons"), chosen("enemy")),
   ),
 });

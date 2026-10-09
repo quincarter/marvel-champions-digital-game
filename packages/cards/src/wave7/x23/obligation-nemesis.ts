@@ -6,6 +6,7 @@ import {
   cards,
   chosen,
   constant,
+  countBoostIcons,
   dealEncounterCard,
   dealIndirectDamage,
   defeatingPlayer,
@@ -34,12 +35,12 @@ import {
   tuckCards,
   tuckedUnderRef,
   valueAtLeast,
+  varOf,
   whenDefeated,
   whenRevealed,
   you,
   YOUR_IDENTITY,
   zone,
-  boostIconsOn,
 } from "../../dsl/index.js";
 
 /** "When your turn ends" (Enraged, `wave1/hlk/kit.ts`): no `on.*` wrapper. */
@@ -90,7 +91,8 @@ export const X23_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 
   "43029.when-defeated": whenDefeated(
     discardEncounterCards(1, { bind: "top" }),
-    dealIndirectDamage(defeatingPlayer, boostIconsOn(chosen("top"))),
+    countBoostIcons(chosen("top"), "top"),
+    dealIndirectDamage(defeatingPlayer, varOf("top.boostIcons")),
   ),
 
   "43030.in-the-name-of-vengeance-constant": constant(gainsKeyword({ name: "retaliate", value: 1 }, query("enemy"))),

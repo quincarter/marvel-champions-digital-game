@@ -1,13 +1,13 @@
 import {
   action,
   alterEgoAction,
-  boostIconsOn,
   cards,
   chooseCards,
   chooseOptions,
   chooseTarget,
   chosen,
   constant,
+  countBoostIcons,
   coveredByEngineRule,
   dealDamage,
   defineAbilities,
@@ -50,12 +50,12 @@ import { cardName } from "../names.js";
  * **§17.4's `on.basicPowerUsing`/`modifyBasicPower` (landed, docs/phase7-wave2.md) covers Scarlet Witch's own
  * interrupt (14002)**: "discard the top card of the encounter deck. For each boost icon discarded this way, [she]
  * gets +1 to that power for this use" reads exactly like Rapid Growth's own shape, except the bonus is a live
- * `ValueSpec` (`boostIconsOn`) rather than a fixed `+2`, which `modifyBasicPower(Amount)` already accepts.
+ * count (`countBoostIcons`) rather than a fixed `+2`, which `modifyBasicPower(Amount)` already accepts.
  *
  * **"Discard the top card of the encounter deck" is `selectCards` + `moveCards`, not a search**: `encounterCards(
  * ["deck"], undefined, 1)` names exactly the top card (`top: 1`), so nothing needs to "stop on a match" the way
  * `discardEncounterUntil` does — the card is simply moved to discard and its boost icons read off the bound slot
- * (`boostIconsOn(chosen(...))`, already used this way for Black Panther's Ritual Combat, `core/heroes/black-
+ * (`countBoostIcons(chosen(...), …)`, already used this way for Black Panther's Ritual Combat, `core/heroes/black-
  * panther.ts`) wherever the card ends up.
  *
  * **Speed Cyclone's "X" cost (14006) is `playCard.x`** (docs/phase7-wave2.md §3.8, built for this exact card,
@@ -105,7 +105,8 @@ export const QSV_KIT = defineAbilities({
     on.basicPowerUsing("self"),
     selectCards("discarded", encounterCards(["deck"], undefined, 1)),
     moveCards(cards(chosen("discarded")), "discard"),
-    modifyBasicPower(boostIconsOn(chosen("discarded"))),
+    countBoostIcons(chosen("discarded"), "discarded"),
+    modifyBasicPower(varOf("discarded.boostIcons")),
   ),
 
   // Always Be Running — Hero Action: Ready Quicksilver.

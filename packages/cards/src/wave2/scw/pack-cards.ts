@@ -7,6 +7,7 @@ import {
   cancelWhenRevealed,
   chooseTarget,
   chosen,
+  countBoostIcons,
   dealDamage,
   defineAbilities,
   discard,
@@ -84,6 +85,7 @@ export const SCW_PACK_CARDS = defineAbilities({
   "15011.wiccan-response": response(
     on.thwarts("self"),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     chooseTarget("enemy", query("enemy")),
     dealDamage(varOf("d.boostIcons"), chosen("enemy")),
   ),

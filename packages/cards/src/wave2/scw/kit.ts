@@ -4,7 +4,6 @@ import {
   alterEgoAction,
   anAttackableEnemy,
   attack,
-  boostIconsOn,
   cancelRevealedCard,
   cards,
   chooseCards,
@@ -12,6 +11,7 @@ import {
   chooseTarget,
   chosen,
   confuse,
+  countBoostIcons,
   coveredByEngineRule,
   dealDamage,
   defineAbilities,
@@ -60,20 +60,10 @@ const A_CHARACTER = query("character");
  * Scarlet Witch / Wanda Maximoff (15001a/b) and her hero kit (15002–15009).
  *
  * **Chaos Control (15001a) — Interrupt: "When boost icons on an encounter card would be counted, discard the top
- * card of the encounter deck and count the number of boost icons on that card instead."** Scripted against the
- * `boostIconsCounting` window the engine actually has: an activation's own boost step
- * (`packages/engine/src/resolve/enemy-activation.ts`, docs/phase7-wave2.md §3.6). `on.boostIconsCounted()`
- * (`dsl/abilities.ts`) is the exact primitive this pass names Chaos Control and Scarlet Witch's own Crest for.
- * **What this does NOT cover, by design (task brief; docs/phase7-wave2.md §3.6/§4.8):** several cards elsewhere in
- * this pack (Hex Bolt 15004, Molecular Decay 15005, Wiccan 15011, Luminous 15025, Chaos Manipulation 15027, and the
- * `qsv`-pack Scarlet Witch ally 14002) count boost icons on a card through their *own* `discardEncounterCards`/
- * `<bind>.boostIcons` reads, not through an activation's boost step — whether Chaos Control's "would be counted"
- * reaches *those* reads too is an open rules question with no FFG ruling on record
- * (docs/phase7-wave2.md §3.13.11/§4.8), deliberately surfaced to the user rather than guessed at here. Chaos
- * Control is scripted **only** against the window that exists today. If the broader reading is later confirmed,
- * widening the engine's `boostIconsCounting` window to also fire around a card effect's own boost-icon read is an
- * engine-side change; this script would not need to change at all, since it always discards-and-replaces whatever
- * the interrupted count would otherwise have used.
+ * card of the encounter deck and count the number of boost icons on that card instead."** `on.boostIconsCounted()`
+ * hears both counts the engine announces: an activation's boost step, and a card effect's own count
+ * (`countBoostIcons`, docs/phase7-wave2.md §3.6, §4 Q8), which Hex Bolt, Molecular Decay and Warp Reality below make.
+ * `replaceBoostCount` changes whichever count the interrupt answered.
  *
  * **Agatha Harkness (15007) — "look at the top 3 cards of your deck. Add 1 of those to your hand and place the rest
  * on the bottom of your deck in any order"** is three sequential player choices (keep one, then place each of the
@@ -125,8 +115,7 @@ const A_CHARACTER = query("character");
  */
 export const SCW_KIT = defineAbilities({
   // Chaos Control — Interrupt: When boost icons on an encounter card would be counted, discard the top card of the
-  // encounter deck and count the number of boost icons on that card instead. (Limit once per phase.) Module
-  // docblock: scripted against the activation-boost-count window only.
+  // encounter deck and count the number of boost icons on that card instead. (Limit once per phase.)
   "15001a.chaos-control": interrupt(
     on.boostIconsCounted(),
     { limit: oncePerPhase },
@@ -162,16 +151,17 @@ export const SCW_KIT = defineAbilities({
       forEachDiscarded: {
         slot: "card",
         effects: [
-          ifThen(valueEquals(boostIconsOn(chosen("card")), 0), [
+          countBoostIcons(chosen("card"), "card"),
+          ifThen(valueEquals(varOf("card.boostIcons"), 0), [
             chooseTarget("enemy", query("enemy")),
             dealDamage(2, chosen("enemy")),
           ]),
-          ifThen(valueEquals(boostIconsOn(chosen("card")), 1), [
+          ifThen(valueEquals(varOf("card.boostIcons"), 1), [
             chooseTarget("scheme", query("scheme")),
             removeThreat(2, chosen("scheme")),
           ]),
-          ifThen(valueEquals(boostIconsOn(chosen("card")), 2), draw(1)),
-          ifThen(valueAtLeast(boostIconsOn(chosen("card")), 3), [
+          ifThen(valueEquals(varOf("card.boostIcons"), 2), draw(1)),
+          ifThen(valueAtLeast(varOf("card.boostIcons"), 3), [
             chooseTarget("target", A_CHARACTER),
             chooseOne(
               option("Stun", stun(chosen("target"))),
@@ -194,6 +184,7 @@ export const SCW_KIT = defineAbilities({
     { label: "attack" },
     anAttackableEnemy(),
     discardEncounterCards(2, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     attack(scaled(varOf("d.boostIcons"), { plus: 5 }), chosen("enemy")),
   ),
 
@@ -203,7 +194,8 @@ export const SCW_KIT = defineAbilities({
   "15006.warp-reality-interrupt": heroInterrupt(
     on.encounterCardRevealed(),
     cancelRevealedCard(),
-    discardEncounterCards(boostIconsOn(eventTarget)),
+    countBoostIcons(eventTarget, "revealed"),
+    discardEncounterCards(varOf("revealed.boostIcons")),
   ),
 
   // Agatha Harkness — Alter-Ego Action: Exhaust Agatha Harkness → look at the top 3 cards of your deck. Add 1 of
