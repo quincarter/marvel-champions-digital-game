@@ -44,6 +44,7 @@ import { MSM_CURATION } from "./marvelcdb/curation/msm.ts";
 import { MUT_GEN_CURATION } from "./marvelcdb/curation/mut_gen.ts";
 import { NEXT_EVOL_CURATION } from "./marvelcdb/curation/next_evol.ts";
 import { AOA_CURATION } from "./marvelcdb/curation/aoa.ts";
+import { AOS_CURATION } from "./marvelcdb/curation/aos.ts";
 import { THOR_CURATION } from "./marvelcdb/curation/thor.ts";
 import { BKW_CURATION } from "./marvelcdb/curation/bkw.ts";
 import { DRS_CURATION } from "./marvelcdb/curation/drs.ts";
@@ -137,6 +138,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   mut_gen: MUT_GEN_CURATION,
   next_evol: NEXT_EVOL_CURATION,
   aoa: AOA_CURATION,
+  aos: AOS_CURATION,
   rogue: ROGUE_CURATION,
   wolv: WOLV_CURATION,
   hood: HOOD_CURATION,
