@@ -4,8 +4,11 @@
 # an already-built `dist` with the Netlify CLI is not a Netlify build, so it costs no build minutes; Actions minutes
 # are free for this public repo. Netlify dedupes uploads by file hash, so the card art only uploads when it changes.
 #
-#   push to main   -> typecheck, unit tests, build, production deploy (the live site)
-#   pull request   -> typecheck, unit tests, build, preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment
+#   push to main   -> production deploy (the live site)
+#   pull request   -> preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment
+#
+# Either way the typecheck job and the unit-test jobs run side by side on their own runners, and the deploy job starts
+# only once all of them pass. The deploy job itself only installs, builds the client and uploads it.
 #
 # Needs two repository secrets: NETLIFY_AUTH_TOKEN (a Netlify personal access token) and NETLIFY_SITE_ID (the site's
 # Project ID, under Project configuration -> General). Netlify's own builds stay off ("Stop builds" in the site's
@@ -27,8 +30,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Decides which unit-test jobs run (scripts/ci-test-plan.mjs): one per wave of the cards package and three for
-  # everything else. A pull request that only changes wave folders skips the waves before the earliest one it touches.
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  # Decides which unit-test jobs run (scripts/ci-test-plan.mjs): one per wave of the cards package and up to three
+  # for everything else, leaving out the jobs the changed files can't affect (scripts/lib/test-plan.mjs has the rule).
   plan:
     name: Plan the unit tests
     runs-on: ubuntu-latest
@@ -80,10 +97,10 @@ jobs:
       - run: pnpm test ${{ matrix.args }}
 
   deploy:
-    name: Build, test and deploy to Netlify
+    name: Build and deploy to Netlify
     runs-on: ubuntu-latest
-    # Waits for every unit-test job: a failure deploys nothing.
-    needs: test
+    # Runs no checks of its own: it waits for the typecheck and every unit-test job, and a failure deploys nothing.
+    needs: [typecheck, test]
     # Fork PRs get no secrets, so they can't deploy.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     env:
@@ -99,9 +116,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The pull request's build check lives here, so the client is built once: typecheck gates the build, and the
-      # `test` job above gates this one.
-      - run: pnpm typecheck
+      # Each job is a fresh runner, so the install repeats; the pnpm store comes from the cache, so it takes seconds.
       - run: pnpm --filter @mc/client build
 
       - name: Deploy
