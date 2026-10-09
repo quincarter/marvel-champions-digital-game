@@ -1,0 +1,3 @@
+kind: Changed
+body: The pull request and main unit tests run as parallel jobs beside a typecheck job, one per wave of the cards package plus up to three for everything else; jobs the changed files cannot affect are skipped, and the Netlify job only builds and deploys once they all pass.
+time: 2026-10-09T11:11:01.272526-04:00
