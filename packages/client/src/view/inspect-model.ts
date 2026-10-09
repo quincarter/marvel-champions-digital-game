@@ -27,6 +27,7 @@ import {
   keywordsOf,
   locateCard,
   maxHitPoints,
+  offeredByOpenChoice,
   playCostOf,
   printedCostOf,
   printedResources,
@@ -292,7 +293,11 @@ export function inspectModel(
   const card = cardOf(state, instanceId);
   // Seen through this seat's eyes: a card only this player may look at (the encounter deck's top card under a "you may
   // look at the top card of the encounter deck" rule, docs/phase7-wave5.md §3.28) shows its face here and nowhere else.
-  const view = { viewer: perspectiveId, deps };
+  // A card the open decision offers is read by the player it belongs to (the engine's rule), whoever's seat is up.
+  const view = {
+    viewer: offeredByOpenChoice(state, instanceId) ? (state.pendingChoice?.playerId ?? perspectiveId) : perspectiveId,
+    deps,
+  };
   const hidden = !faceVisible(state, instanceId, view);
 
   if (!instance || !card || hidden) {

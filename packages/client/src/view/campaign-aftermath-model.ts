@@ -151,6 +151,11 @@ export function isNoExclusivitySlot(slot: string): boolean {
  * collection when it offers this many cards or more, and a short column cannot show that: it takes the search-and-grid
  * picker `aspectAdvantage` has, and, like it, is never exclusive (two heroes may take the same title). The same slot
  * offering a handful (Find Lost Mutants' four campaign allies, one copy each, taken for the table) stays a column.
+ *
+ * NEEDS ENGINE FIELD: this is the client deciding exclusivity by option count. `CampaignPendingChoice`
+ * (`engine/src/campaign/ops.ts`) carries only `count` and `optional`, no exclusivity or whole-collection flag, so there
+ * is nothing to read yet. When the engine adds one (for example `exclusive: boolean` on the pending choice), delete the
+ * floor and read it in `startAftermathGroup` and the two `isCollectionPick` call sites in `scenes/campaign/aftermath.ts`.
  */
 export const COLLECTION_PICK_FLOOR = 13;
 

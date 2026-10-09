@@ -58,7 +58,6 @@ describe("scenarioPlayAreas on the board model", () => {
     expect(card.panel.keywords).toBeInstanceOf(Array);
     expect(card.panel.attachments.map((chip) => chip.instanceId)).toEqual([upgrade]);
     expect(card.subtitle).toBe("Ally");
-    expect(card.controlledBy).toBeNull();
   });
 
   test("an attachment is not a card of the area of its own", () => {

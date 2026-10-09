@@ -5,7 +5,9 @@
  */
 
 import { beforeAll, describe, expect, test } from "vitest";
-import { cardOf, locateCard, type GameState, type InstanceId, type PendingChoice } from "@mc/engine";
+import { cardOf, locateCard, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
+import { inspectModel } from "./inspect-model.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
@@ -88,6 +90,27 @@ describe("a set-aside card an open choice offers", () => {
   test("is face-visible to the chooser, not otherwise", () => {
     expect(faceVisible(aside(true), pick())).toBe(true);
     expect(faceVisible(aside(false), pick())).toBe(false);
+  });
+
+  test("through the engine's rule: the chooser's sheet sees it, another named viewer does not", () => {
+    const offered = aside(true);
+    const chooser = offered.pendingChoice!.playerId;
+    const other = "not-the-chooser" as PlayerId;
+    expect(faceVisible(offered, pick(), { viewer: chooser, deps: POOL_DEPS })).toBe(true);
+    expect(faceVisible(offered, pick(), { viewer: other, deps: POOL_DEPS })).toBe(false);
+    expect(faceVisible(offered, pick(), { deps: POOL_DEPS })).toBe(true);
+  });
+
+  test("Inspect reads it as the chooser, whichever seat is looking", () => {
+    const offered = aside(true);
+    const id = pick();
+    const chooser = offered.pendingChoice!.playerId;
+    expect(chooser).toBeDefined();
+    const seen = inspectModel(offered, id, null, "not-the-chooser" as PlayerId, POOL_DEPS);
+    expect(seen.typeLine).not.toMatch(/^Facedown/);
+    expect(inspectModel(aside(false), id, null, "not-the-chooser" as PlayerId, POOL_DEPS).typeLine).toMatch(
+      /^Facedown/,
+    );
   });
 });
 

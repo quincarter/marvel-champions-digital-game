@@ -20,7 +20,7 @@
 import type { EngineDeps, GameState, InstanceId, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { DevStateHost } from "../engine/dev-state-host.js";
-import { useDevHost } from "../session.js";
+import { appSession, useDevHost } from "../session.js";
 
 export interface MissionFixtureOptions {
   readonly mission: string;
@@ -82,7 +82,6 @@ export async function startDevMissionGame(options: MissionFixtureOptions): Promi
   Object.assign(POOL_DEPS.abilities, testing.CAMPAIGN_DEPS.abilities);
   const host = new DevStateHost(state, testing.CAMPAIGN_DEPS);
   useDevHost(host);
-  const { appSession } = await import("../session.js");
   // Headless click-through hook only: a driver reads instance ids and the live state from here (`e2e`-style QA).
   (window as unknown as { __mcMission?: unknown }).__mcMission = { store: appSession().store };
   await appSession().store.start({
@@ -99,7 +98,6 @@ export async function startDevMissionGame(options: MissionFixtureOptions): Promi
  * card is moved from the encounter deck to its host by state surgery and the game goes on in a `DevStateHost`.
  */
 export async function startDevHorsemenGame(): Promise<void> {
-  const { appSession, useDevHost: swap } = await import("../session.js");
   const store = appSession().store;
   await store.start({
     scenarioId: "four-horsemen",
@@ -131,7 +129,7 @@ export async function startDevHorsemenGame(): Promise<void> {
   );
   const state = { ...game, instances, encounterDecks } as GameState;
   const config = store.state.config;
-  swap(new DevStateHost(state, POOL_DEPS));
+  useDevHost(new DevStateHost(state, POOL_DEPS));
   (window as unknown as { __mcMission?: unknown }).__mcMission = { store: appSession().store, host };
   if (config) await appSession().store.start(config);
 }
@@ -142,7 +140,6 @@ export async function startDevHorsemenGame(): Promise<void> {
  * real game through the app's own host: Grounded is stacked as round 1's reveal and the first turn is ended.
  */
 export async function startDevGroundedGame(): Promise<void> {
-  const { appSession } = await import("../session.js");
   const { cardId } = await import("@mc/content");
   const { nextTurn } = await import("./dev-game-steps.js");
   const store = appSession().store;

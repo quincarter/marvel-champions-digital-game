@@ -67,7 +67,7 @@ import type {
 import { activeAbilityRefs, playDestinationOfOption } from "@mc/engine";
 import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { cardName, numberWord } from "./names.js";
+import { cardName, formWords, numberWord } from "./names.js";
 
 /** The card (and, when unambiguous, the ability) a pending choice traces back to. */
 export interface ChoiceSource {
@@ -261,9 +261,6 @@ export function spendResourcesTitleOf(requirement: ResourceRequirement, distinct
   if (distinctTypes >= total) return `Spend ${total} different ${noun}?`;
   return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
 }
-
-/** `Form` as the words a prompt uses: "hero form", "alter-ego form". */
-const formWords = (form: string): string => (form === "hero" ? "hero form" : "alter-ego form");
 
 /**
  * "Spend 2 resources of the same type to change to hero form?" (`RuleSpec formChangeCost`, docs/phase7-wave8.md

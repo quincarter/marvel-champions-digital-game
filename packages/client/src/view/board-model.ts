@@ -431,8 +431,6 @@ export interface ScenarioPlayAreaCard {
   readonly scheme: SchemePanel | null;
   /** Threat on the card: a scheme's meter, or threat a character holds. 0 draws nothing. */
   readonly threat: number;
-  /** Always null: a card here has no controller, and the board says so rather than naming a seat. */
-  readonly controlledBy: null;
 }
 
 /** An in-play scenario area: its name and its unattached cards in the order they entered it. */
@@ -1318,7 +1316,6 @@ export function scenarioPlayAreaPanels(state: GameState, deps: EngineDeps): read
         panel,
         scheme,
         threat: scheme?.threat ?? panel.threat,
-        controlledBy: null,
       };
     });
     return { name, closed: area.closed, cards, count: cards.length };
@@ -1449,7 +1446,7 @@ function myDeckTopView(
 ): DeckTopView | null {
   const top = shownTopOf(state, playerId, deps);
   if (top === null) return null;
-  return { card: handCardView(state, top, playerId, deps), ...deckTopStatus(state, playerId, deps, top, actions) };
+  return { card: handCardView(state, top, playerId, deps), ...deckTopStatus(actions, top) };
 }
 
 function playableOutsideHandOf(

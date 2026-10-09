@@ -45,7 +45,13 @@ export function resourceIconNote(state: GameState, deps: EngineDeps, id: Instanc
   return `Resource icons: ${iconsOf(icons).join(", ")} (not printed: ${extra.join(", ")})`;
 }
 
-/** Whether a scenario-level `blankTextBox` rule covers this card ("each ally at the mission", MC45 p. 6 rule 4). */
+/**
+ * Whether a scenario-level `blankTextBox` rule covers this card ("each ally at the mission", MC45 p. 6 rule 4).
+ *
+ * NEEDS ENGINE EXPORT: this matches `scenarioRules.rules` itself, which restates the engine's blank rule. Replace the
+ * body with `textBoxBlankFor(state, id, deps)` once `packages/engine/src/index.ts` exports it from `select.ts`
+ * (`textBoxBlankFor`, line ~3257); it already folds the scenario's rules in via `blankedSets`.
+ */
 function blankedByScenario(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
   const context = { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps };
   return (state.scenarioRules.rules ?? []).some(

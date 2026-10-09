@@ -24,7 +24,6 @@ import {
   seatIsSelectable,
   setActiveSeat,
   setDifficulty,
-  setDifficultySets,
   setFirstPlayerIndex,
   setHeroFilter,
   setModularSetIds,
@@ -107,15 +106,18 @@ describe("setScenario", () => {
   });
 });
 
-describe("setDifficultySets / setSetAsideModularSetIds", () => {
+describe("difficultySets / setSetAsideModularSetIds", () => {
   test("null goes back to the printed default / the scenario builder's own default", () => {
     let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
-    draft = setDifficultySets(draft, { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") });
+    draft = {
+      ...draft,
+      difficultySets: { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") },
+    };
     draft = setSetAsideModularSetIds(draft, ["beasty_boys"]);
     expect(draft.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
     expect(draft.setAsideModularSetIds).toEqual(["beasty_boys"]);
 
-    draft = setDifficultySets(draft, null);
+    draft = { ...draft, difficultySets: null };
     draft = setSetAsideModularSetIds(draft, null);
     expect(draft.difficultySets).toBeNull();
     expect(draft.setAsideModularSetIds).toBeNull();
@@ -464,7 +466,10 @@ describe("toSessionConfig", () => {
     expect(config.setAsideModularSetIds).toBeUndefined();
 
     draft = setDifficulty(draft, "expert");
-    draft = setDifficultySets(draft, { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") });
+    draft = {
+      ...draft,
+      difficultySets: { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") },
+    };
     draft = setSetAsideModularSetIds(draft, ["beasty_boys"]);
     config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
     expect(config.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
@@ -560,7 +565,7 @@ describe("the full W2 setup flow (view-model level: scenes aren't unit-tested in
     const seed = 55;
 
     let printed = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId, seed });
-    let toggled = setDifficultySets(printed, { standard: encounterSetId("standard_ii") });
+    let toggled: SetupDraft = { ...printed, difficultySets: { standard: encounterSetId("standard_ii") } };
     toggled = setSetAsideModularSetIds(toggled, [
       "beasty_boys",
       "brothers_grimm",

@@ -27,7 +27,7 @@ import {
 } from "@mc/engine";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
-import { cardName, seatName } from "./names.js";
+import { cardName, formWords, seatName } from "./names.js";
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -947,9 +947,6 @@ function describe(
       return null;
   }
 }
-
-/** `Form` as the words a log line uses. */
-const formWords = (form: string): string => (form === "hero" ? "hero form" : "alter-ego form");
 
 /** A printed rule's text with its icon markup spoken: "Place 2[per_hero] threat" reads "Place 2 per hero threat". */
 function plainRuleText(text: string): string {

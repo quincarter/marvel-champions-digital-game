@@ -43,7 +43,16 @@
  * added here restates a rule or invents a count `@mc/content` doesn't carry.
  */
 import type { AnyCard, CardId, CardType, EncounterSet, MainSchemeStage, Scenario } from "@mc/content";
-import { autoIncludedSetsInGame, scale, type GameSetupConfig, type TableRules } from "@mc/engine";
+import {
+  autoIncludedSetsInGame,
+  createGame,
+  mainSchemeValue,
+  scale,
+  type EngineDeps,
+  type GameSetupConfig,
+  type TableRules,
+} from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
@@ -327,23 +336,19 @@ export function difficultyCardsFor(scenario: Scenario, standardStartStageIndex?:
 }
 
 /**
- * The main scheme's target threat at the deal. A stage whose target is "X" (`printedX`: Apocalypse's scheme, X = the
- * numeral in his printed hit points) prints 0; the real target is the villain's starting stage's hit points, scaled
- * per player, so it follows the stage the game begins on (the easier start).
+ * The main scheme's target threat at the deal. A printed "X" (Apocalypse's scheme) is a number only the rules in play
+ * can give, so that one is read from the engine: the deal is run on a preview state and `mainSchemeValue` answers.
+ * Every other stage is its printed value, scaled per player.
  */
 function mainSchemeThreatOf(
   stage: MainSchemeStage,
-  scenario: Scenario,
-  cardsById: ReadonlyMap<string, AnyCard>,
+  config: GameSetupConfig,
   playerCount: number,
-  startStageNumber: number,
+  deps: EngineDeps,
 ): number {
   if (!stage.printedX?.includes("targetThreat")) return scale(stage.targetThreat, playerCount);
-  const villain = cardsById.get(scenario.villainCardId as string);
-  if (villain?.type !== "villain") return 0;
-  const side = villain.sides.find((s) => s.side === (villain.startingSide ?? "A")) ?? villain.sides[0];
-  const hp = side?.stages.find((s) => s.stageNumber === startStageNumber)?.hp;
-  return hp ? scale(hp, playerCount) : 0;
+  const dealt = createGame(config, deps);
+  return dealt.ok ? mainSchemeValue(dealt.state, "targetThreat", deps) : 0;
 }
 
 export function tableSetupPreviewOf(
@@ -352,6 +357,7 @@ export function tableSetupPreviewOf(
   difficulty: SetupDifficulty,
   cardsById: ReadonlyMap<string, AnyCard>,
   encounterSets: readonly EncounterSet[],
+  deps: EngineDeps = POOL_DEPS,
 ): TableSetupPreview {
   const playerCount = config.players.length;
   const stageRange = stageRangeFor(scenario, difficulty, config.villainStartStageIndex);
@@ -404,7 +410,7 @@ export function tableSetupPreviewOf(
       config.villains,
     ),
     villainStageSpan: stageRange[1] - stageRange[0] + 1,
-    mainSchemeThreat: mainSchemeThreatOf(firstStage, scenario, cardsById, playerCount, stageRange[0]),
+    mainSchemeThreat: mainSchemeThreatOf(firstStage, config, playerCount, deps),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),
     startingThreatPerPlayer: firstStage.startingThreat.perPlayer,

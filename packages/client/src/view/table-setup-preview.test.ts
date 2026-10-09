@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createGame, scale } from "@mc/engine";
+import { createGame, mainSchemeValue, scale } from "@mc/engine";
 import { encounterDeckPreviewOf } from "./encounter-preview.js";
 import {
   compositionRowsOf,
@@ -474,6 +474,16 @@ describe("Apocalypse's easier start in the preview", () => {
       POOL_ENCOUNTER_SETS,
     );
     expect(expert.mainSchemeThreat).toBe(10);
+  });
+
+  test("the X is the engine's own: the preview equals mainSchemeValue on the dealt game, whatever the stage", () => {
+    for (const easierStart of [false, true]) {
+      const config = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart });
+      const dealt = createGame(config, POOL_DEPS);
+      if (!dealt.ok) throw new Error(dealt.error.message);
+      const preview = tableSetupPreviewOf(config, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+      expect(preview.mainSchemeThreat).toBe(mainSchemeValue(dealt.state, "targetThreat", POOL_DEPS));
+    }
   });
 
   test("a scenario whose target is printed is not touched", () => {

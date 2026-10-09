@@ -231,11 +231,6 @@ export function setModularSetIds(draft: SetupDraft, modularSetIds: readonly stri
   return reconcileKeepingEasierStart({ ...draft, modularSetIds });
 }
 
-/** `null` to go back to the printed sets. */
-export function setDifficultySets(draft: SetupDraft, difficultySets: DifficultySetChoice | null): SetupDraft {
-  return { ...draft, difficultySets };
-}
-
 /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a plain on/off, off by default. */
 export function toggleTowerDefenseSetupDamage(draft: SetupDraft): SetupDraft {
   return { ...draft, towerDefenseSetupDamage: !draft.towerDefenseSetupDamage };

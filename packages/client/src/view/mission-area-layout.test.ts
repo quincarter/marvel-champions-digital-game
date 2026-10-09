@@ -25,6 +25,17 @@ describe("splitMissionArea", () => {
   });
 });
 
+describe("splitMissionArea on a very short zone", () => {
+  test.each([0, 10, 60, 87, 88, 100])("a %ipx zone gives no negative height and the area stays inside it", (height) => {
+    const short = { ...zone, height };
+    const { enemies, area } = splitMissionArea(short, true);
+    expect(enemies.height).toBeGreaterThanOrEqual(0);
+    expect(area!.height).toBeGreaterThanOrEqual(0);
+    expect(area!.y).toBeGreaterThanOrEqual(short.y);
+    expect(area!.y + area!.height).toBeLessThanOrEqual(short.y + short.height);
+  });
+});
+
 describe("missionSlots", () => {
   const inner = { x: 0, y: 0, width: 600, height: 140 };
 

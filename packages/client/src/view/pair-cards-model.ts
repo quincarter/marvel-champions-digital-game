@@ -15,7 +15,6 @@
  */
 
 import {
-  pairOfOptionId,
   pairOptionId,
   pairSelectionFault,
   type ChoicePrompt,
@@ -99,9 +98,6 @@ export function unassign(pairing: PairingState, card: InstanceId): PairingState 
   return { ...pairing, pairs: pairing.pairs.filter((pair) => pair.card !== card), refusal: null };
 }
 
-/** Everything unassigned again. */
-export const clearPairing = (pairing: PairingState): PairingState => ({ ...pairing, pairs: [], refusal: null });
-
 /** Keeps the engine's message for a selection it refused (`resolveChoice` rejected it and the choice stayed open). */
 export const withRefusal = (pairing: PairingState, message: string): PairingState => ({ ...pairing, refusal: message });
 
@@ -167,8 +163,6 @@ export interface PairingView {
   readonly fault: string | null;
   /** The engine's message for a selection it refused when sent, else null. */
   readonly refusal: string | null;
-  /** Confirm may be sent: leaving cards or characters unassigned is allowed, a faulty assignment is not. */
-  readonly canConfirm: boolean;
 }
 
 const iconWords = (icons: readonly ResourceType[]): string => (icons.length === 0 ? "no icon" : icons.join(", "));
@@ -232,9 +226,5 @@ export function pairingView(state: GameState, pairing: PairingState): PairingVie
     unassignedCards: prompt.cards.filter((card) => !byCard.has(card)),
     fault,
     refusal: pairing.refusal,
-    canConfirm: fault === null,
   };
 }
-
-/** The pair a selection's option id names, re-exported for a scene that reads a refused selection back. */
-export const pairOf = pairOfOptionId;

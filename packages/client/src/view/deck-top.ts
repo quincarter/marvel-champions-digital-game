@@ -1,15 +1,12 @@
 /**
  * The faceup top card of a player's deck (Magik, 45030a) and whether it can be played right now.
  *
- * Every fact here is the engine's: which card shows (`shownDeckTop`), the standing permission and its limit
- * (`deckTopPermission`), and whether the play is legal and why not (`legalActions`, which lists the top card as a
- * `playCard` entry, legal or illegal). The price comes from `playCostOf` through the hand's own card view, which
+ * Every fact here is the engine's: which card shows (`shownDeckTop`) and whether the play is legal and why not
+ * (`legalActions`, which lists the top card as a `playCard` entry, legal or illegal, with the engine's own message). The price comes from `playCostOf` through the hand's own card view, which
  * already includes the permission's reduction. Nothing is recomputed on the client.
  */
 
 import {
-  cardOf,
-  deckTopPermission,
   shownDeckTop,
   type EngineDeps,
   type GameState,
@@ -31,22 +28,12 @@ export const shownTopOf = (state: GameState, playerId: PlayerId, deps: EngineDep
   shownDeckTop(state, deps, playerId);
 
 /**
- * The play status of `topId`, the card `shownTopOf` returned. With the viewer's `actions` the answer is the engine's
- * own legal-action list; without them (a model built outside a session) it is the permission alone.
+ * The play status of `topId`, the card `shownTopOf` returned, from the viewer's `actions`: the engine's own legal-action
+ * list, which carries the refusal and its wording. Without them (no legal list for this seat yet) nothing is playable,
+ * because a play is only ever offered from that list.
  */
-export function deckTopStatus(
-  state: GameState,
-  playerId: PlayerId,
-  deps: EngineDeps,
-  topId: InstanceId,
-  actions: LegalActions | null,
-): DeckTopStatus {
-  const permission = deckTopPermission(state, deps, playerId);
-  if (!permission) return { playable: false, reason: "Only in hero form", tag: "hero form" };
-  if (permission.limitUsed) return { playable: false, reason: "Already played from the top this phase", tag: "used" };
-  const card = cardOf(state, topId);
-  if (card?.type === "resource") return { playable: false, reason: "A resource card can't be played", tag: "resource" };
-  if (!actions) return { playable: true, reason: null, tag: null };
+export function deckTopStatus(actions: LegalActions | null, topId: InstanceId): DeckTopStatus {
+  if (!actions) return { playable: false, reason: null, tag: null };
   if (actions.kind === "choice")
     return { playable: false, reason: "Answer the open decision first", tag: "decide first" };
   if (actions.kind !== "turn" && actions.kind !== "notYourTurn") return { playable: false, reason: null, tag: null };
@@ -56,10 +43,15 @@ export function deckTopStatus(
   if (actions.legal.some(isTop)) return { playable: true, reason: null, tag: null };
   const illegal = actions.illegal.find(isTop);
   if (illegal) {
-    const afford = illegal.reason === "insufficient_resources";
-    return { playable: false, reason: illegal.message, tag: afford ? "can't afford" : "can't play" };
+    const tag =
+      illegal.reason === "insufficient_resources"
+        ? "can't afford"
+        : illegal.reason === "limit_reached"
+          ? "used"
+          : "can't play";
+    return { playable: false, reason: illegal.message, tag };
   }
   return actions.kind === "notYourTurn"
     ? { playable: false, reason: "Not your turn", tag: "not your turn" }
-    : { playable: false, reason: "Can't be played now", tag: "can't play" };
+    : { playable: false, reason: null, tag: "can't play" };
 }

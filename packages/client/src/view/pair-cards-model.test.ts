@@ -11,7 +11,6 @@ import {
   assign,
   beginPairing,
   checkAssign,
-  clearPairing,
   maxPairs,
   movesFor,
   pairingView,
@@ -87,12 +86,11 @@ describe("assigning one to one", () => {
 
   test("cards and characters may stay unassigned, and unassign puts a card back", () => {
     let pairing = assign(begin(), at(0), at(3));
-    expect(pairingView(state, pairing).canConfirm).toBe(true);
+    expect(pairingView(state, pairing).fault).toBeNull();
     pairing = unassign(pairing, at(0));
     expect(selectionOf(pairing)).toEqual([]);
-    expect(pairingView(state, pairing).canConfirm).toBe(true);
+    expect(pairingView(state, pairing).fault).toBeNull();
     expect(unassign(pairing, at(2))).toBe(pairing);
-    expect(selectionOf(clearPairing(assign(begin(), at(0), at(3))))).toEqual([]);
   });
 
   test("a pair the engine did not offer is not a move", () => {
@@ -199,6 +197,5 @@ describe("a state the engine would refuse", () => {
     };
     const view = pairingView(state, broken);
     expect(view.fault).toBe("a card is assigned to one character only");
-    expect(view.canConfirm).toBe(false);
   });
 });

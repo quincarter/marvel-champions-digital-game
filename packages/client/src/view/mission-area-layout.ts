@@ -32,9 +32,10 @@ export function splitMissionArea(enemies: Rect, hasArea: boolean): MissionSplit 
   if (!hasArea) return { enemies, area: null };
   const height = Math.round(Math.min(AREA_MAX_HEIGHT, Math.max(AREA_MIN_HEIGHT, enemies.height * AREA_SHARE)));
   // Never the whole zone: the enemies keep at least a card's worth, and the area gives way past that.
-  const taken = Math.min(height, Math.max(80, enemies.height - 120));
+  // A zone too short for both gives the area what is left past the gap, and the enemies zero, never a negative height.
+  const taken = Math.min(height, Math.max(80, enemies.height - 120), Math.max(0, enemies.height - AREA_GAP));
   return {
-    enemies: { ...enemies, height: enemies.height - taken - AREA_GAP },
+    enemies: { ...enemies, height: Math.max(0, enemies.height - taken - AREA_GAP) },
     area: { x: enemies.x, y: enemies.y + enemies.height - taken, width: enemies.width, height: taken },
   };
 }

@@ -74,8 +74,15 @@ describe("the deck panel's faceup top card", () => {
     expect(next.card.instanceId).toBe(t.me().deck[0]);
     expect(next.card.instanceId).not.toBe(colossus);
     expect(next.playable).toBe(false);
-    expect(next.reason).toBe("Already played from the top this phase");
+    expect(next.reason).toBe("you have already played the top card of your deck this phase");
     expect(next.tag).toBe("used");
+  });
+
+  test("without legal actions the top card is not playable (no green strip that does nothing)", async () => {
+    const t = await magik();
+    await t.dispatch({ type: "changeForm", playerId: P });
+    const top = boardModel(t.state(), P, POOL_DEPS, null).myDeckTop!;
+    expect(top.playable).toBe(false);
   });
 
   test("flipping back to alter-ego returns the card back", async () => {

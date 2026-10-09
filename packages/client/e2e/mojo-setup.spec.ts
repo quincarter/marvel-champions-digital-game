@@ -214,8 +214,18 @@ async function scrollModularTileIntoPanel(page: Page, key: string): Promise<void
       return [hook.stops().find((s) => s.key === k) ?? null, hook.modularViewport()] as const;
     }, key);
     if (!stop) throw new Error(`no "${key}" control on Table setup`);
-    // The grid is drawn whole (not scrolling) on a page with room, so the tile is on screen already.
-    if (!panel) return;
+    // The grid is drawn whole (not scrolling) on a page with room: then the tile must be on screen already, not assumed.
+    if (!panel) {
+      const view = page.viewportSize();
+      const onScreen =
+        view !== null &&
+        stop.x >= 0 &&
+        stop.y >= 0 &&
+        stop.x + stop.width <= view.width &&
+        stop.y + stop.height <= view.height;
+      if (!onScreen) throw new Error(`"${key}" is off screen and the modular grid is not scrolling`);
+      return;
+    }
     if (stop.y >= panel.y && stop.y + stop.height <= panel.y + panel.height) return;
     await page.mouse.move(panel.x + panel.width / 2, panel.y + panel.height / 2);
     await page.mouse.wheel(0, stop.y < panel.y ? -200 : 200);

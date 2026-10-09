@@ -177,11 +177,16 @@ export class CampaignBriefingScene extends Phaser.Scene {
    */
   #briefingRegion: McScrollRegion | null = null;
   #briefingScroll = new VariableListScroll();
+  /** The wide layout's right column, scrolled alone when its stack is taller than the screen (four seats, issue #3). */
+  #columnRegion: McScrollRegion | null = null;
+  #columnScroll = new VariableListScroll();
   #briefingScrollFor: CampaignPendingChoice | null = null;
   /** The role-building view drawn last, which a card chosen in Inspect is looked up in. */
   #roleBuildView: RoleBuildView | null = null;
   #composing = false;
   #starting = false;
+  /** The easier-start toggle is being saved: Open waits, so the issue never opens on the pre-toggle record. */
+  #toggling = false;
   #startError: string | null = null;
   /** The "which deck?" chooser EDIT DECKS opens when several seats could be meant and none is the problem. */
   #seatPicker = false;
@@ -380,7 +385,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
 
   async #openIssue(): Promise<void> {
     const record = this.#record;
-    if (!record?.attempt || this.#starting) return;
+    if (!record?.attempt || this.#starting || this.#toggling) return;
     this.#starting = true;
     this.#startError = null;
     this.#draw();
@@ -410,6 +415,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#roleBuildList = null;
     this.#briefingRegion?.destroy();
     this.#briefingRegion = null;
+    this.#columnRegion?.destroy();
+    this.#columnRegion = null;
     destroyChildren(this);
     if (!record) return;
 
@@ -595,6 +602,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
       };
       if (hasPool) this.#drawHandled(rightRect, view, stops);
       else {
+        const columnStart = this.children.list.length;
+        const columnStopsBefore = new Set(stops.keys());
         const decksBottom = this.#drawDecks(rightRect, view, stops);
         let rightBottom = decksBottom;
         if (missionBrief) {
@@ -617,6 +626,29 @@ export class CampaignBriefingScene extends Phaser.Scene {
             rightBottom + 24,
             easierStart,
             () => void this.#toggleEasierStart(),
+          );
+        }
+        // Taller than the screen: the column scrolls on its own rather than running under the action bar.
+        const columnEnd = this.children.list.length;
+        const columnBottom = this.#bottomOf(columnStart, columnEnd);
+        if (columnBottom > contentBottom) {
+          const columnHeights = [1_000_000];
+          this.#columnRegion = new McScrollRegion(this, {
+            rect: { x: rightRect.x, y: rightRect.y, width: rightRect.width, height: rightRect.height },
+            heights: columnHeights,
+            scroll: this.#columnScroll,
+            clipInteractive: true,
+          });
+          this.#captureIntoRegion(
+            this.#columnRegion,
+            columnHeights,
+            columnStart,
+            stops,
+            columnStopsBefore,
+            rightRect.y,
+            contentBottom,
+            this.#columnScroll,
+            columnEnd,
           );
         }
       }
@@ -665,7 +697,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const deckProblems = this.#deckProblems(record);
     const blockedSeat = [...deckProblems.keys()][0];
     const blocked = !!record.attempt && blockedSeat !== undefined;
-    const canOpen = !!record.attempt && !this.#pending && !this.#composing && !this.#starting && !blocked;
+    const canOpen =
+      !!record.attempt && !this.#pending && !this.#composing && !this.#starting && !this.#toggling && !blocked;
     const openRect: Rect = phone
       ? { x: 12 + editRect.width + 12, y: editRect.y, width: editRect.width, height: 48 }
       : { x: width - 16 - 425, y: editRect.y, width: 425, height: 62 };
@@ -730,15 +763,24 @@ export class CampaignBriefingScene extends Phaser.Scene {
   /** Flips the toggle (stored on the run, off by default) and redraws; nothing is composed again. */
   async #toggleEasierStart(): Promise<void> {
     const record = this.#record;
-    if (!record?.attempt || this.#starting) return;
-    this.#record = await campaignService().setEasierStart(record, !easierStartIsOn(record));
+    if (!record?.attempt || this.#starting || this.#toggling) return;
+    this.#toggling = true;
+    this.#startError = null;
+    this.#draw();
+    try {
+      this.#record = await campaignService().setEasierStart(record, !easierStartIsOn(record));
+    } catch (error) {
+      this.#startError = error instanceof Error ? error.message : "Couldn't save the easier start";
+    } finally {
+      this.#toggling = false;
+    }
     if (this.sys.isActive()) this.#draw();
   }
 
   /** The lowest edge of everything drawn at the top level since `fromIndex`, graphics aside (they only frame text). */
-  #bottomOf(fromIndex: number): number {
+  #bottomOf(fromIndex: number, toIndex?: number): number {
     let bottom = 0;
-    for (const object of this.children.list.slice(fromIndex)) {
+    for (const object of this.children.list.slice(fromIndex, toIndex)) {
       if (object.type === "Graphics") continue;
       const bounds = (object as Phaser.GameObjects.Text).getBounds();
       bottom = Math.max(bottom, bounds.bottom);
@@ -758,9 +800,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
     stopsBefore: ReadonlySet<string>,
     viewportTop: number,
     viewportBottom: number,
+    scroll: VariableListScroll = this.#briefingScroll,
+    toIndex?: number,
   ): void {
-    const bottom = this.#bottomOf(fromIndex);
-    const added = this.children.list.slice(fromIndex);
+    const bottom = this.#bottomOf(fromIndex, toIndex);
+    const added = this.children.list.slice(fromIndex, toIndex);
     if (added.length > 0) region.content.add(added);
     // The scroll math reads this one entry as the content's height, measured from the viewport's top.
     heights[0] = Math.max(0, bottom + 16 - viewportTop);
@@ -769,9 +813,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const rect = stop.rect;
       stops.set(key, {
         ...stop,
-        rect: () => ({ ...rect, y: rect.y - this.#briefingScroll.offsetPx }),
+        rect: () => ({ ...rect, y: rect.y - scroll.offsetPx }),
         ensureVisible: () => {
-          const offset = this.#briefingScroll.offsetPx;
+          const offset = scroll.offsetPx;
           const delta = revealDelta(
             { top: viewportTop, bottom: viewportBottom },
             { top: rect.y - offset, bottom: rect.y + rect.height - offset },

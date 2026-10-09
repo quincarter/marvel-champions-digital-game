@@ -18,6 +18,8 @@ import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingCh
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { McButton, McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
@@ -110,6 +112,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** The pairing under way for a `pairCards` choice (`view/pair-cards-model.ts`), and the card picked up to place. */
   #pairing: PairingState | null = null;
   #pairCard: InstanceId | null = null;
+  /** The pair sheet's rows scroll when the characters outrun the sheet (a phone); the offset survives each redraw. */
+  readonly #pairScroll = new VariableListScroll();
   /** Keyboard/pad focus: what is focused, not where — the rect is re-read each rebuild. */
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
@@ -712,7 +716,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     const rows = Math.max(view.cards.length, view.characters.length, 1);
     const footer = 14 * (2 + (view.restriction ? 1 : 0) + (view.fault || view.refusal ? 1 : 0)) + 6;
     const headerHeight = 16;
-    const rowHeight = Math.max(34, Math.min(50, (area.height - headerHeight - footer - 4) / rows - 4));
+    // Three lines at least: a long name wraps to a second line over the status line.
+    const rowHeight = Math.max(54, Math.min(60, (area.height - headerHeight - footer - 4) / rows - 4));
+    const rowsHeight = rows * (rowHeight + 4);
+    const viewportHeight = Math.max(rowHeight, area.height - headerHeight - footer - 4);
+    const scrolls = rowsHeight > viewportHeight;
+    const viewport: Rect = { x: area.x, y: area.y + headerHeight, width: area.width, height: viewportHeight };
+    const rowButtons: McButton[] = [];
     const holding = this.#pairCard;
     const moves = new Set(view.cards.find((row) => row.instanceId === holding)?.canGoTo ?? []);
 
@@ -742,9 +752,12 @@ export class ChoiceOverlay extends Phaser.Scene {
           type: typeRole.rowTitle,
           rect,
           selected: holding === row.instanceId || row.assignedTo !== null,
+          wrap: true,
+          ...(scrolls ? { clip: () => viewport } : {}),
           onClick: () => this.#pairTapCard(row.instanceId),
         }),
       );
+      rowButtons.push(this.#buttons[this.#buttons.length - 1]!);
       this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
     });
     view.characters.forEach((row, index) => {
@@ -771,14 +784,27 @@ export class ChoiceOverlay extends Phaser.Scene {
           selected: row.takenBy !== null,
           enabled: holding === null || moves.has(row.instanceId) || row.takenBy !== null,
           reason: "That card can't go to this character",
+          wrap: true,
+          ...(scrolls ? { clip: () => viewport } : {}),
           onClick: () => this.#pairTapCharacter(row.instanceId),
         }),
       );
+      rowButtons.push(this.#buttons[this.#buttons.length - 1]!);
       this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
     });
     this.#route = choiceFocusOrder(keys, canDecline);
+    if (scrolls) {
+      const region = new McScrollRegion(this, {
+        rect: viewport,
+        heights: [rowsHeight],
+        scroll: this.#pairScroll,
+        clipInteractive: true,
+      });
+      region.content.add(rowButtons.map((button) => button.container));
+      region.refresh();
+    }
 
-    let y = area.y + headerHeight + rows * (rowHeight + 4) + 2;
+    let y = area.y + headerHeight + Math.min(rowsHeight, viewportHeight) + 2;
     const line = (text: string, tone: number = surface.ink.hex): void => {
       const t = this.add
         .text(area.x, y, text, textStyle(typeRole.body, tone, ink.secondary))

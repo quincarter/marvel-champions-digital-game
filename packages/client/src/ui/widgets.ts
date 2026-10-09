@@ -192,6 +192,8 @@ export interface McButtonOptions {
   readonly suppressClick?: () => boolean;
   /** Room kept clear at the button's left edge, the label centering in what's left: a thumbnail drawn there (the deck builder's identity rows). */
   readonly labelInset?: number;
+  /** Wrap a long label onto more lines, centered, instead of shrinking it: a name is never cut off on a narrow screen. */
+  readonly wrap?: boolean;
 }
 
 /**
@@ -375,7 +377,9 @@ export class McButton {
       .setPosition(rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
-    fitText(this.#label, rect.width - inset - (hasValue ? 40 : rect.width <= 44 ? 4 : 16), type.size);
+    const room = rect.width - inset - (hasValue ? 40 : rect.width <= 44 ? 4 : 16);
+    if (this.#options.wrap) this.#label.setWordWrapWidth(room).setAlign("center");
+    else fitText(this.#label, room, type.size);
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
   }
 
