@@ -811,7 +811,12 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     }
     case "flipBoosts": {
       // RRG "Attack (Enemy Activation)" step 3: one boost card at a time, in the order dealt.
-      const icons = stepBoostCard(ctx, frame, frame.attackedPlayerId, "attack");
+      // A boost card's "you" is the defending player (RRG 1.8 "Defend, Defense", p. 16: "Any constant or boost abilities
+      // that refer to 'you' refer to the defending player"; owner ruling 2026-10-09, docs/phase7-wave8.md §4.1 row
+      // 93). Step 2 declares the defender before step 3 turns the cards up (p. 9), so that is the attack's target
+      // player, read afresh for each card: the attacked player until another player's character defends, and still
+      // the attacked player when nobody does.
+      const icons = stepBoostCard(ctx, frame, frame.targetPlayerId, "attack");
       if (icons === "busy") return;
       if (icons === null) {
         setFrame(ctx, { ...frame, stage: "dealDamage" });

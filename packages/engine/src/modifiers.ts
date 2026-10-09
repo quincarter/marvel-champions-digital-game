@@ -129,10 +129,11 @@ export function statBonus(state: GameState, deps: EngineDeps, targetId: Instance
  * constant modifiers on the card itself (read although it is not in play: it is resolving as a boost card), plus
  * `boostIcons` modifiers from cards in play (docs/phase7-wave1.md §3.9).
  *
- * `youId`: who "you" is in the card's own text, which no card state says for a card out of play: the player the
- * activation it was turned up in resolves against, the same player its "Boost" ability resolves as ("…if at least one
- * Goblin minion is engaged with you"). Null outside an activation (icons counted on a discarded card), where its own
- * "you" names no one.
+ * `youId`: who "you" is in the card's own text, which no card state says for a card out of play: the same player its
+ * "Boost" ability resolves as ("…if at least one Goblin minion is engaged with you"), the defending player of the
+ * attack it was turned up in (RRG 1.8 "Defend, Defense", p. 16), who is the attacked player when nobody else's
+ * character defends, or the player the scheme it was turned up in is against. Null outside an activation (icons
+ * counted on a discarded card), where its own "you" names no one.
  */
 export function boostIconsFor(
   state: GameState,

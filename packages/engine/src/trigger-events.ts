@@ -300,14 +300,15 @@ export type TriggerEventBody =
       readonly kind: "enemyAttack";
       readonly enemyInstanceId: InstanceId;
       /**
-       * The player the attack was initiated against: the "you" of "**When** [enemy] attacks you", and of the attack
-       * while it resolves (`PlayerRef attackedPlayer`). A declared defender never changes it.
+       * The player the attack was initiated against: the "you" of "**When** [enemy] attacks you" (`PlayerRef
+       * attackedPlayer` with `initiated`). A declared defender never changes it.
        */
       readonly attackedPlayerId: PlayerId;
       /**
        * The attack's target player now: the attacked player until another player's hero or ally defends, or another
        * player's "(defense)" ability makes their identity the defender, and that player from then on. The "you" of
-       * "**After** [enemy] attacks you" (RRG 1.8 "Defend, Defense", pp. 15-16; `EventPattern.usesAttackedPlayer`).
+       * "**After** [enemy] attacks you" (RRG 1.8 "Defend, Defense", pp. 15-16; `EventPattern.usesAttackedPlayer`), and
+       * of a constant or boost ability while the attack resolves (p. 16; `PlayerRef attackedPlayer`).
        */
       readonly targetPlayerId: PlayerId;
       readonly targetInstanceId: InstanceId;

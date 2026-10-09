@@ -1,15 +1,18 @@
 /**
- * `PlayerRef attackedPlayer { attacker? }`: "the attacked player", the "you" of an enemy's constant "While [this enemy]
- * is attacking you, he gets +X ATK, where X is the number of cards in your hand." A constant has no event and an
- * enemy no controller, so the ref reads the attack in progress on the stack. Synthetic cards only.
+ * `PlayerRef attackedPlayer { attacker?, initiated? }`: the "you" of an enemy's constant "While [this enemy] is
+ * attacking you, he gets +X ATK, where X is the number of cards in your hand." A constant has no event and an enemy
+ * no controller, so the ref reads the attack in progress on the stack. Synthetic cards only.
  *
  * Sources and the readings pinned here:
- * - RRG 1.8 "Attack (Enemy Activation)" (p. 8): "When an enemy initiates an attack, it targets a specific player";
- *   "If a player other than the attacked player defends the attack with a character they control, that player becomes
- *   the new target of that attack". The target changes; the attacked player does not, so the bonus reads the hand of
- *   the player the attack was initiated against, whoever defends.
- * - RRG 1.8 "Attacks Against Allies" (p. 10): "The player who controls the ally is considered the attacked player";
- *   "Abilities that resolve while/when/after the attacking enemy 'attacks you' resolve against the attacked player."
+ * - RRG 1.8 "Defend, Defense" (p. 16): "If a player defends against an enemy attack that targets a different player
+ *   …, the defending player becomes the new target of that attack"; "Any constant or boost abilities that refer to
+ *   'you' refer to the defending player." Owner ruling 2026-10-09 (docs/phase7-wave8.md §4.1 row 93): follow the RRG.
+ *   So the bonus reads the hand of the player the attack was initiated against until a defender is declared (step 2,
+ *   p. 9), and the defending player's from then on, which is the hand the damage step (step 4) reads. An undefended
+ *   attack, or one the attacked player's own character defends, reads the attacked player's.
+ * - `initiated: true` names the player the attack was initiated against, whoever defends (p. 8; the "you" of "When
+ *   [enemy] attacks you", p. 16).
+ * - RRG 1.8 "Attacks Against Allies" (p. 10): "The player who controls the ally is considered the attacked player".
  * - Owner decisions docs/phase7-wave7.md §4.1 Q5 = A and Q16 = A: once an effect moves the attack onto another
  *   player's ally (`retargetAttack`), that ally's controller is the attacked player.
  */
@@ -54,6 +57,8 @@ const named = (name: string): TargetRef => ({ kind: "named", name });
 /** The attacked player of the innermost attack, and of the attack a given character is making. */
 const attacked: PlayerRef = { kind: "attackedPlayer" };
 const attackedBy = (attacker: TargetRef): PlayerRef => ({ kind: "attackedPlayer", attacker });
+/** The player the villain's attack was initiated against, whoever defends it. */
+const initiatedByVillain: PlayerRef = { kind: "attackedPlayer", attacker: { kind: "villain" }, initiated: true };
 const cardsInHand = (player: PlayerRef): ValueSpec => ({ kind: "handCount", player });
 
 /** "While [this enemy] is attacking you, he gets +X ATK, where X is the number of cards in your hand." */
@@ -106,6 +111,15 @@ const HOUND_PROBE = stubAbility("hound.probe", {
     record("bySelf", cardsInHand(attackedBy(self))),
   ],
 } satisfies AbilityDefinition);
+/** "Boost:" records both readings once the defender is declared (step 3 follows step 2, RRG 1.8 p. 9). */
+const TELL_BOOST = stubAbility("tell.boost", {
+  trigger: { kind: "boost" },
+  effects: [
+    record("told", n(1)),
+    record("defending", cardsInHand(attackedBy(villain))),
+    record("initiated", cardsInHand(initiatedByVillain)),
+  ],
+} satisfies AbilityDefinition);
 /** Records what "the attacked player" gives while a player's own attack is in progress. */
 const WATCH_PROBE = stubAbility("watch.probe", {
   trigger: { kind: "interrupt", forced: true, on: { on: "attack", sourceIs: { categories: ["identity"] } } },
@@ -138,6 +152,7 @@ const HOUND = stubMinion({
 const BULLY = stubMinion({ id: "bully", atk: 1, sch: 0, hp: 9, boostIcons: 0, abilities: [BULLY_RULE.ref] });
 const SNARE = stubSideScheme({ id: "snare", startingThreat: 5, abilities: [SNARE_RULE.ref] });
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
+const TELL = stubTreachery({ id: "tell", boostIcons: 0, abilities: [TELL_BOOST.ref] });
 /** Allies with enough hit points to take a whole attack, so the damage dealt is the attacker's ATK. */
 const WALL = stubAlly({ id: "wall", cost: 0, atk: 1, thw: 1, hp: 30 });
 const POST = stubAlly({ id: "post", cost: 0, atk: 1, thw: 1, hp: 30 });
@@ -172,6 +187,7 @@ const deps: EngineDeps = depsOf(
   HOUND_PROBE,
   WATCH_PROBE,
   SNARE_RULE,
+  TELL_BOOST,
   ...ACTIONS,
 );
 
@@ -182,15 +198,15 @@ const HAND = { p1: 2, p2: 5 } as const;
  * Two players in hero form on P1's turn, P1 holding 2 cards and P2 holding 5, each with a 30-hit-point ally in play
  * (P1's Post, P2's Wall). Test surgery, done before the session starts.
  */
-function table(): GameState {
+function table(boostCard: CardId = BLANK.id): GameState {
   const base = gameAtFirstTurn({
-    cards: [BOSS, SCHEME, GRUNT, HOUND, BULLY, SNARE, BLANK, WALL, POST, WATCH, ...BUTTONS],
+    cards: [BOSS, SCHEME, GRUNT, HOUND, BULLY, SNARE, BLANK, TELL, WALL, POST, WATCH, ...BUTTONS],
     deps,
     players: 2,
     villain: BOSS,
     mainScheme: SCHEME,
     deck: [WALL.id, POST.id, WATCH.id, ...BUTTONS.map((b) => b.id)],
-    encounter: [GRUNT.id, GRUNT.id, HOUND.id, BULLY.id, SNARE.id, ...copiesOf(BLANK.id, 30)],
+    encounter: [GRUNT.id, GRUNT.id, HOUND.id, BULLY.id, SNARE.id, ...copiesOf(boostCard, 30)],
   });
   const emptied: GameState = {
     ...base,
@@ -282,7 +298,7 @@ describe("PlayerRef attackedPlayer: the villain's '+X ATK while attacking you, X
     expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([1]);
   });
 
-  it("ANOTHER player's hero defends: still the attacked player's 2 cards, not the defender's 5", () => {
+  it("ANOTHER player's hero defends: the defending player's 5 cards, not the attacked player's 2", () => {
     const askedOf: PlayerId[] = [];
     const result = use(
       table(),
@@ -291,18 +307,18 @@ describe("PlayerRef attackedPlayer: the villain's '+X ATK while attacking you, X
     );
     expect(askedOf).toEqual([P1]);
     expect(mustInstance(result.state, heroOf(result.state, P2)).exhausted).toBe(true);
-    // 1 + 2 - DEF 2. Read from the defender's hand it would be 1 + 5 - 2 = 4.
-    expect(damageTo(result.events, heroOf(result.state, P2))).toEqual([1]);
+    // 1 + 5 - DEF 2. Read from the attacked player's hand it would be 1 + 2 - 2 = 1.
+    expect(damageTo(result.events, heroOf(result.state, P2))).toEqual([1 + HAND.p2 - 2]);
     expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([]);
   });
 
-  it("an ally of another player defends: the ally takes 1 + 2, not 1 + 5", () => {
+  it("an ally of another player defends: its controller is the target player, so the ally takes 1 + 5", () => {
     const result = use(
       table(),
       ATTACK_ME,
       defending((s) => cardOf(s, WALL.id)),
     );
-    expect(damageTo(result.events, cardOf(result.state, WALL.id))).toEqual([1 + HAND.p1]);
+    expect(damageTo(result.events, cardOf(result.state, WALL.id))).toEqual([1 + HAND.p2]);
     expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([]);
   });
 
@@ -315,7 +331,7 @@ describe("PlayerRef attackedPlayer: the villain's '+X ATK while attacking you, X
     expect(damageTo(result.events, cardOf(result.state, POST.id))).toEqual([1 + HAND.p1]);
   });
 
-  it("an attack on the other player reads that player's 5 cards, and their own when the first player's hero defends", () => {
+  it("an attack on the other player reads that player's 5 cards, and the first player's 2 when their hero defends", () => {
     const undefended = use(table(), ATTACK_OTHER);
     expect(damageTo(undefended.events, heroOf(undefended.state, P2))).toEqual([1 + HAND.p2]);
     const askedOf: PlayerId[] = [];
@@ -325,7 +341,20 @@ describe("PlayerRef attackedPlayer: the villain's '+X ATK while attacking you, X
       defending((s) => heroOf(s, P1), askedOf),
     );
     expect(askedOf).toEqual([P2]);
-    expect(damageTo(defended.events, heroOf(defended.state, P1))).toEqual([1 + HAND.p2 - 2]);
+    expect(damageTo(defended.events, heroOf(defended.state, P1))).toEqual([1 + HAND.p1 - 2]);
+  });
+
+  it("at the boost step the ref names the defending player, and `initiated` the player first attacked", () => {
+    const told = (pick?: (state: GameState) => string) => {
+      const result = use(table(TELL.id), ATTACK_ME, pick ? defending(pick) : defaultPick);
+      expect(recorded(result.state, "told")).toBe(1);
+      return [recorded(result.state, "defending"), recorded(result.state, "initiated")];
+    };
+    expect(told()).toEqual([HAND.p1, HAND.p1]);
+    expect(told((s) => heroOf(s, P1))).toEqual([HAND.p1, HAND.p1]);
+    expect(told((s) => cardOf(s, POST.id))).toEqual([HAND.p1, HAND.p1]);
+    expect(told((s) => heroOf(s, P2))).toEqual([HAND.p2, HAND.p1]);
+    expect(told((s) => cardOf(s, WALL.id))).toEqual([HAND.p2, HAND.p1]);
   });
 
   it("the bonus is gone outside the attack: ATK 1 before and after", () => {
@@ -348,13 +377,13 @@ describe("PlayerRef attackedPlayer: an attack against an ally is against its con
     expect(damageTo(result.events, cardOf(result.state, WALL.id))).toEqual([1 + HAND.p2]);
   });
 
-  it("P1's hero defends that attack: still P2's 5 cards (1 + 5 - DEF 2)", () => {
+  it("P1's hero defends that attack: P1 is the defending player (1 + 2 - DEF 2)", () => {
     const result = use(
       table(),
       ATTACK_WALL,
       defending((s) => heroOf(s, P1)),
     );
-    expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([1 + HAND.p2 - 2]);
+    expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([1 + HAND.p1 - 2]);
     expect(damageTo(result.events, cardOf(result.state, WALL.id))).toEqual([]);
   });
 
@@ -379,19 +408,19 @@ describe("PlayerRef attackedPlayer: an attack against an ally is against its con
     expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([]);
   });
 
-  it("retargetAttack, then the first player's hero defends: P2's 5 cards (1 + 5 - DEF 2)", () => {
+  it("retargetAttack, then the first player's hero defends: P1's 2 cards (1 + 2 - DEF 2)", () => {
     const snared = encounterCardInVillainArea(table(), SNARE.id, 5).state;
     const result = use(
       snared,
       ATTACK_ME,
       defending((s) => heroOf(s, P1)),
     );
-    expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([1 + HAND.p2 - 2]);
+    expect(damageTo(result.events, heroOf(result.state, P1))).toEqual([1 + HAND.p1 - 2]);
   });
 });
 
 describe("PlayerRef attackedPlayer: each attacker reads its own attack", () => {
-  it("a minion's attack works the same: its engaged player's hand, whoever defends", () => {
+  it("a minion's attack works the same: its engaged player's hand, or the defending player's", () => {
     const engaged = minionEngagedWith(table(), GRUNT.id, P1);
     const undefended = use(engaged.state, MINIONS_ATTACK);
     expect(damageTo(undefended.events, heroOf(undefended.state, P1))).toEqual([1 + HAND.p1]);
@@ -400,7 +429,7 @@ describe("PlayerRef attackedPlayer: each attacker reads its own attack", () => {
       MINIONS_ATTACK,
       defending((s) => heroOf(s, P2)),
     );
-    expect(damageTo(defended.events, heroOf(defended.state, P2))).toEqual([1]);
+    expect(damageTo(defended.events, heroOf(defended.state, P2))).toEqual([1 + HAND.p2 - 2]);
     expect(atkOf(defended.state, engaged.id)).toBe(1);
   });
 
@@ -441,15 +470,15 @@ describe("PlayerRef attackedPlayer: each attacker reads its own attack", () => {
   it("in a `while` condition: '+2 ATK while attacking a player with at least 4 cards in hand'", () => {
     const onP1 = minionEngagedWith(table(), BULLY.id, P1);
     expect(atkOf(onP1.state, onP1.id)).toBe(1);
-    // P1 holds 2: no bonus, even when P2 (5 cards) defends with an ally.
+    // P1 holds 2: no bonus, until P2 (5 cards) defends with an ally and is the player attacked.
     expect(damageTo(use(onP1.state, MINIONS_ATTACK).events, heroOf(onP1.state, P1))).toEqual([1]);
     const p2Defends = use(
       onP1.state,
       MINIONS_ATTACK,
       defending((s) => cardOf(s, WALL.id)),
     );
-    expect(damageTo(p2Defends.events, cardOf(p2Defends.state, WALL.id))).toEqual([1]);
-    // P2 holds 5: the bonus applies, and still does when P1 (2 cards) defends.
+    expect(damageTo(p2Defends.events, cardOf(p2Defends.state, WALL.id))).toEqual([3]);
+    // P2 holds 5: the bonus applies, and is lost when P1 (2 cards) defends.
     const onP2 = minionEngagedWith(table(), BULLY.id, P2);
     expect(damageTo(use(onP2.state, MINIONS_ATTACK).events, heroOf(onP2.state, P2))).toEqual([3]);
     const p1Defends = use(
@@ -457,7 +486,7 @@ describe("PlayerRef attackedPlayer: each attacker reads its own attack", () => {
       MINIONS_ATTACK,
       defending((s) => cardOf(s, POST.id)),
     );
-    expect(damageTo(p1Defends.events, cardOf(p1Defends.state, POST.id))).toEqual([3]);
+    expect(damageTo(p1Defends.events, cardOf(p1Defends.state, POST.id))).toEqual([1]);
   });
 });
 
@@ -468,6 +497,7 @@ describe("PlayerRef attackedPlayer: nobody when no enemy attack is in progress",
     expect(state.stack).toEqual([]);
     expect(resolvePlayers(state, attacked, context)).toEqual([]);
     expect(resolvePlayers(state, attackedBy(self), context)).toEqual([]);
+    expect(resolvePlayers(state, initiatedByVillain, context)).toEqual([]);
     expect(resolveValue(state, cardsInHand(attacked), context, deps)).toBe(0);
     expect(resolveValue(state, cardsInHand(attackedBy(self)), context, deps)).toBe(0);
     expect(evaluate(state, { kind: "compare", left: cardsInHand(attacked), op: "atLeast", right: n(1) }, context)).toBe(

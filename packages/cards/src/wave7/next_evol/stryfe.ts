@@ -78,8 +78,9 @@ import {
  * Stryfe's Grasp / Living Bomb and the encounter cards). Hope Summers and Captive Hope are `hope-summers.ts`.
  *
  * "X is the number of cards of the most common type in [a] hand" is `mostCommonHandTypeCount` (MC40 p. 18; owner
- * answer Q18). Stryfe's ATK reads the attacked player's hand while he attacks, so it follows the hand up to the point
- * his damage is dealt (MC40 p. 21).
+ * answer Q18). Stryfe's ATK reads the hand of his attack's "you" while he attacks, so it follows the hand up to the
+ * point his damage is dealt (MC40 p. 21), and reads the defending player's once another player's character defends
+ * (RRG 1.8 "Defend, Defense", p. 16; docs/phase7-wave8.md §4.1 row 93).
  */
 const PSIONIC = trait("PSIONIC");
 const THE_VILLAIN = query("villain");

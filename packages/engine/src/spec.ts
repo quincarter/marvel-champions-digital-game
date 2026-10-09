@@ -833,15 +833,21 @@ export type PlayerRef =
    */
   | { readonly kind: "defeatingPlayer" }
   /**
-   * "The attacked player": "While [this villain] is attacking you, he gets +X ATK, where X is … in your hand" on an
-   * enemy's constant ability, which has no controller and no event to name "you" from. The player the innermost enemy
-   * attack on the stack was initiated against (the `enemyAttack` event's `attackedPlayerId`), who is not always the
-   * player whose character ends up the target: RRG 1.8 "Attack (Enemy Activation)" (p. 8), "If a player other than
-   * the attacked player defends the attack with a character they control, that player becomes the new target of that
-   * attack", and the attacked player stays who they were. "Attacks Against Allies" (p. 10): "The player who controls
-   * the ally is considered the attacked player", and abilities that resolve while the enemy "attacks you" resolve
-   * against that player; an attack an effect moved onto another character (`retargetAttack`) is against that
-   * character's controller (docs/phase7-wave7.md §4.1 Q16 = A).
+   * The "you" of an enemy attack in progress: "While [this villain] is attacking you, he gets +X ATK, where X is … in
+   * your hand" on an enemy's constant ability, which has no controller and no event to name "you" from. The target
+   * player of the innermost enemy attack on the stack (the `enemyAttack` event's `targetPlayerId`): RRG 1.8 "Defend,
+   * Defense" (p. 16), "If a player defends against an enemy attack that targets a different player …, the defending
+   * player becomes the new target of that attack" and "Any constant or boost abilities that refer to 'you' refer to
+   * the defending player" (owner ruling 2026-10-09, docs/phase7-wave8.md §4.1 row 93). So it is the player the attack
+   * was initiated against until a defender is declared (step 2, p. 9), then the player whose hero or ally defends or
+   * whose "(defense)" ability made their identity the defender, and the attacked player still when nobody defends.
+   * "Attacks Against Allies" (p. 10): "The player who controls the ally is considered the attacked player"; an attack
+   * an effect moved onto another character (`retargetAttack`) is against that character's controller
+   * (docs/phase7-wave7.md §4.1 Q16 = A).
+   *
+   * `initiated`: the player the attack was initiated against instead (the event's `attackedPlayerId`), whoever defends
+   * it: the "you" of "When [enemy] attacks you" (p. 16), for an effect that must name that player after a defender
+   * is declared.
    *
    * `attacker`: only an attack one of these characters is making counts, so "while this enemy is attacking you"
    * (`{ kind: "self" }`) skips an attack another enemy makes inside this one's (a boost's, an interrupt's) and reads
@@ -849,7 +855,7 @@ export type PlayerRef =
    * such attack on the stack, and for a player's attack or an enemy attacking an enemy, which attack no player; a
    * value read from nobody is 0.
    */
-  | { readonly kind: "attackedPlayer"; readonly attacker?: TargetRef }
+  | { readonly kind: "attackedPlayer"; readonly attacker?: TargetRef; readonly initiated?: boolean }
   /**
    * "The player who is engaged with the fewest minions" (Drang III, `gmw` 16060), "the player with the most threat
    * on their side schemes", "the hero with the fewest remaining hit points" read as a player: the `TargetRef

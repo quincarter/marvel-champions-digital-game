@@ -2090,8 +2090,10 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       return player !== null && getPlayer(state, player) ? [player] : [];
     }
     case "attackedPlayer": {
-      // The stack is innermost-first, as `Predicate attackInProgress` reads it. The event frame carries the attacked
-      // player, which `retargetAttack` rewrites and a declared defender does not (RRG 1.8 p. 8).
+      // The stack is innermost-first, as `Predicate attackInProgress` reads it. The event frame carries the attack's
+      // target player, the defending player once a defender is declared (RRG 1.8 "Defend, Defense", p. 16: "Any
+      // constant or boost abilities that refer to 'you' refer to the defending player"), and the player it was
+      // initiated against, which `retargetAttack` rewrites and a declared defender does not (p. 8).
       const attackers = ref.attacker ? resolveRef(state, ref.attacker, context) : null;
       const frame = state.stack.find((f) => {
         if (f.kind !== "event") return false;
@@ -2105,7 +2107,7 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
         return attacker !== null && (attackers === null || attackers.includes(attacker));
       });
       if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return [];
-      const player = frame.event.attackedPlayerId;
+      const player = ref.initiated ? frame.event.attackedPlayerId : frame.event.targetPlayerId;
       return getPlayer(state, player) ? [player] : [];
     }
     case "where":

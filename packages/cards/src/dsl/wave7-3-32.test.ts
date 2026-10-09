@@ -11,6 +11,7 @@ import { forEachPlayer, ifThen, placeThreat } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
   attackedPlayer,
+  attackInitiatedAgainst,
   defeatingPlayer,
   eachPlayer,
   theMainScheme,
@@ -40,6 +41,12 @@ describe("§3.32 the most common card type in a hand", () => {
   it("'While [this villain] is attacking you, he gets +X ATK … in your hand': the attacked player's hand", () => {
     expect(attackedPlayer()).toEqual({ kind: "attackedPlayer" });
     expect(attackedPlayer(self)).toEqual({ kind: "attackedPlayer", attacker: { kind: "self" } });
+    expect(attackInitiatedAgainst()).toEqual({ kind: "attackedPlayer", initiated: true });
+    expect(attackInitiatedAgainst(self)).toEqual({
+      kind: "attackedPlayer",
+      attacker: { kind: "self" },
+      initiated: true,
+    });
     const definition = constant(gets("atk", mostCommonHandTypeCount(attackedPlayer(self)), { self: true }));
     expect(validateDefinition(definition)).toEqual([]);
     expect(definition.trigger).toMatchObject({

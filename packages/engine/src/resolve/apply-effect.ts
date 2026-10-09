@@ -1207,8 +1207,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         setFrame(ctx, { ...procedure, boost: { ...boost, abilityCancelled: true } });
         return report(1);
       }
-      // The card's own "you" is the player the activation resolves against, as at its count (`stepBoostCard`).
-      const activatedAgainst = procedure.kind === "enemyAttack" ? procedure.attackedPlayerId : procedure.playerId;
+      // The card's own "you", as at its count (`stepBoostCard`): an attack's defending player, a scheme's player.
+      const activatedAgainst = procedure.kind === "enemyAttack" ? procedure.targetPlayerId : procedure.playerId;
       const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId, activatedAgainst);
       if (icons <= 0) return report(0);
       setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true } });

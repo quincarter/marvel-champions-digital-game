@@ -83,15 +83,28 @@ export const playerOrElse = (first: PlayerRef, otherwise: PlayerRef): PlayerRef 
  */
 export const defeatingPlayer: PlayerRef = { kind: "defeatingPlayer" };
 /**
- * "The attacked player" (RRG 1.8 "Attack (Enemy Activation)", p. 8; "Attacks Against Allies", p. 10): the player the
- * enemy attack in progress was initiated against, whoever defends it; the controller of an attacked ally. Nobody
- * outside an enemy attack. `attackedPlayer(self)` on an enemy's own constant is the "you" of "While [this enemy] is
- * attacking you, he gets +X ATK, where X is … in your hand": only that enemy's attack counts, so the bonus is 0 while
- * it is not attacking. With no attacker: the innermost attack on the stack.
+ * The "you" of the enemy attack in progress, for a constant ability (RRG 1.8 "Defend, Defense", p. 16: "Any constant
+ * or boost abilities that refer to 'you' refer to the defending player"; owner ruling 2026-10-09,
+ * docs/phase7-wave8.md §4.1 row 93): the player the attack was initiated against (the controller of an attacked ally,
+ * p. 10) until a defender is declared, then the player whose hero or ally defends; the attacked player still when
+ * nobody defends. Nobody outside an enemy attack. `attackedPlayer(self)` on an enemy's own constant is the "you" of
+ * "While [this enemy] is attacking you, he gets +X ATK, where X is … in your hand": only that enemy's attack counts,
+ * so the bonus is 0 while it is not attacking. With no attacker: the innermost attack on the stack. A "Boost"
+ * ability needs no ref: its `you` is already this player.
  */
 export const attackedPlayer = (attacker?: TargetRef): PlayerRef => ({
   kind: "attackedPlayer",
   ...(attacker ? { attacker } : {}),
+});
+/**
+ * The player the enemy attack in progress was initiated against, whoever defends it (RRG 1.8 "Attack (Enemy
+ * Activation)", p. 8): the "you" of "When [enemy] attacks you" (p. 16), for an effect that must still name that player
+ * once another player's character is defending. Nobody outside an enemy attack.
+ */
+export const attackInitiatedAgainst = (attacker?: TargetRef): PlayerRef => ({
+  kind: "attackedPlayer",
+  ...(attacker ? { attacker } : {}),
+  initiated: true,
 });
 export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", target });
 /**

@@ -117,8 +117,8 @@ export const WHISPERS_OF_PARANOIA = defineAbilities({
   // identity itself" (which would already have ended the game) — `{ anywhere: true }` because by the time this
   // deferred effect runs, a defeated ally has already left play (`27084.mysterio-constant`'s own `anywhere: true`
   // note on the same "reads by default from `cardsInPlay`" trap). `you` inside a Boost ability's own effects is the
-  // attacked player (`resolve/enemy-activation.ts stepBoostCard`'s `frame.attackedPlayerId`), matching this card's
-  // unstated-subject "take indirect damage" (confirmed against the card's own scan, `27170.png`).
+  // defending player (`resolve/enemy-activation.ts stepBoostCard`'s `frame.targetPlayerId`; RRG 1.8 "Defend,
+  // Defense", p. 16), matching this card's unstated-subject "take indirect damage" (the card's scan, `27170.png`).
   "27170.boost": boost({
     kind: "atEndOfAttack",
     effects: [

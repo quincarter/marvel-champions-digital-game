@@ -348,7 +348,7 @@ export function gameAbilityFrames(
   refsOverride?: readonly AbilityReference[],
   /**
    * Who "you" is for a card nobody controls (encounter and scenario cards): the
-   * revealing player, the attacked/scheming player for a boost, the engaged
+   * revealing player, the defending (else attacked) or schemed-against player for a boost, the engaged
    * player for a minion's When Defeated, the first player for scheme and villain
    * abilities.
    */

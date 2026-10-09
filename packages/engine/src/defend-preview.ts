@@ -230,11 +230,11 @@ function boundOf(
   count: number,
   scope: BoostScope,
   perCard: number,
-  /** The attacked player: a boost card's own "you" when it is turned up (`boostIconsFor`). */
-  attackedPlayerId: PlayerId,
+  /** The defending player: a boost card's own "you" when it is turned up (`boostIconsFor`; RRG 1.8 p. 16). */
+  youId: PlayerId,
 ): BoostBound {
   const pool = unseenPool(state, enemyId, count, scope);
-  const icons = pool.map((id) => boostIconsFor(state, deps, id, attackedPlayerId) + perCard).sort((a, b) => a - b);
+  const icons = pool.map((id) => boostIconsFor(state, deps, id, youId) + perCard).sort((a, b) => a - b);
   const take = Math.min(count, icons.length);
   const min = icons.slice(0, take).reduce((total, value) => total + value, 0);
   const max = icons.slice(icons.length - take).reduce((total, value) => total + value, 0);
@@ -342,6 +342,31 @@ function outcomeAt(
 }
 
 /**
+ * The table as it will read once a character of `playerId` is declared the defender of this attack: that player is
+ * the attack's target player (RRG 1.8 "Attack (Enemy Activation)" step 2, p. 9), the "you" a constant ability reads
+ * while the attack resolves ("Defend, Defense", p. 16; `PlayerRef attackedPlayer`). Only the attack's own record of
+ * its target player differs, so the enemy's ATK is previewed as the damage step will read it. The same table when
+ * that player is the target already.
+ */
+function withTargetPlayer(
+  state: GameState,
+  frame: Extract<StackFrame, { kind: "enemyAttack" }>,
+  playerId: PlayerId,
+): GameState {
+  if (frame.targetPlayerId === playerId) return state;
+  return {
+    ...state,
+    stack: state.stack.map((f) =>
+      f.frameId === frame.frameId && f.kind === "enemyAttack"
+        ? { ...f, targetPlayerId: playerId }
+        : f.frameId === frame.eventFrameId && f.kind === "event" && f.event.kind === "enemyAttack"
+          ? { ...f, event: { ...f.event, targetPlayerId: playerId } }
+          : f,
+    ),
+  };
+}
+
+/**
  * The open defend prompt's options, each with what it would cost. Null unless a `declareDefender` choice is open.
  *
  * The attack itself is read off the frame `PendingChoice.frameId` names — the procedure requests the choice with its
@@ -365,7 +390,16 @@ export function defendPreview(
   // "Each boost card turned faceup during that activation gets +N boost icons" (§4.1 Q66) is known now, so it is
   // folded into every card of the pool.
   const perCard = activationVarsOf(state, frame.eventFrameId).boostIconsEach ?? 0;
-  const boost = boundOf(state, deps, frame.enemyInstanceId, facedownCount, scope, perCard, frame.attackedPlayerId);
+  // A boost card's "you", and a constant's while the attack resolves, is the defending player (RRG 1.8 "Defend,
+  // Defense", p. 16), so both are read per option, as they will be once that option's defender is declared.
+  const boostBounds = new Map<PlayerId, BoostBound>();
+  const boundFor = (youId: PlayerId): BoostBound => {
+    const known = boostBounds.get(youId);
+    if (known) return known;
+    const bound = boundOf(state, deps, frame.enemyInstanceId, facedownCount, scope, perCard, youId);
+    boostBounds.set(youId, bound);
+    return bound;
+  };
   const overkill = attackHasOverkill(state, deps, frame);
   const ranged = hasKeyword(state, frame.enemyInstanceId, "ranged", deps);
 
@@ -379,11 +413,13 @@ export function defendPreview(
     const targetPlayerId =
       (defenderInstanceId ? controllerOf(state, defenderInstanceId) : null) ?? frame.targetPlayerId;
     const shape = { targetInstanceId, defenderInstanceId, basicDefense };
-    const planned = plannedAttackDamage(state, deps, frame, { boostIcons: 0, defenderInstanceId, basicDefense });
+    const boost = boundFor(targetPlayerId);
+    const defended = withTargetPlayer(state, frame, targetPlayerId);
+    const planned = plannedAttackDamage(defended, deps, frame, { boostIcons: 0, defenderInstanceId, basicDefense });
 
     const bands: DefendBand[] = [];
     for (let icons = boost.min; icons <= boost.max; icons++) {
-      const outcome = outcomeAt(state, deps, frame, shape, icons, overkill, ranged);
+      const outcome = outcomeAt(defended, deps, frame, shape, icons, overkill, ranged);
       const last = bands[bands.length - 1];
       if (last && sameOutcome(last, outcome)) bands[bands.length - 1] = { ...last, boostTo: icons };
       else bands.push({ boostFrom: icons, boostTo: icons, ...outcome });

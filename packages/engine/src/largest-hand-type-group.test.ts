@@ -298,9 +298,9 @@ describe("'+X ATK while attacking you': read for the attacked player", () => {
     expect(heroDamage(run.session.state, P1)).toBe(before.p1);
   });
 
-  // "Attacking you" is the player the attack was initiated against (RRG 1.8 "Attack (Enemy Activation)", p. 8), who
-  // stays the attacked player when another player's character defends. `attackInProgress.target` follows the defender.
-  it("another player defends: X is still read from the attacked player's hand, not the defender's", () => {
+  // A constant's "you" is the defending player (RRG 1.8 "Defend, Defense", p. 16: "Any constant or boost abilities
+  // that refer to 'you' refer to the defending player"; owner ruling 2026-10-09, docs/phase7-wave8.md §4.1 row 93).
+  it("another player defends: X is read from the defending player's hand, not the attacked player's", () => {
     const hands = give(give(game(2), P1, EVENT.id, EVENT.id, EVENT.id, EVENT.id), P2, ALLY.id, ALLY.id, UPGRADE.id);
     // Test surgery: both heroes in hero form, so the other player's hero can defend.
     const heroes: GameState = {
@@ -313,8 +313,8 @@ describe("'+X ATK while attacking you': read for the attacked player", () => {
       current.pendingChoice?.prompt.kind === "declareDefender" ? [p2Hero] : defaultPick(current);
     const before = { p1: heroDamage(state, P1), p2: heroDamage(state, P2) };
     const run = driveSession(startSession(state), deps, [command], pick);
-    // ATK 1 + P1's four events - DEF 2. Read from the defender's hand (2 allies) it would be 1 + 2 - 2 = 1.
-    expect(heroDamage(run.session.state, P2)).toBe(before.p2 + 3);
+    // ATK 1 + P2's two allies - DEF 2. Read from the attacked player's hand (4 events) it would be 1 + 4 - 2 = 3.
+    expect(heroDamage(run.session.state, P2)).toBe(before.p2 + 1);
     expect(heroDamage(run.session.state, P1)).toBe(before.p1);
   });
 });
