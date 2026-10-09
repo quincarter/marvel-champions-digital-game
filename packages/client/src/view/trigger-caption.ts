@@ -13,3 +13,19 @@ export function triggerCaption(state: GameState, instanceId: InstanceId, short: 
   const on = `on ${cardName(state, host)}`;
   return short ? `${short} ${on}` : on;
 }
+
+/**
+ * " 2 of 3" for an option whose card and ability appear more than once in the same prompt (three copies of one forced
+ * response answering one event), so identical-looking slots read apart; empty when it is the only one.
+ */
+export function triggerOrdinal(
+  options: readonly { readonly optionId: string; readonly ref: unknown }[],
+  optionId: string,
+  sameAs: (a: unknown, b: unknown) => boolean,
+): string {
+  const at = options.findIndex((option) => option.optionId === optionId);
+  if (at < 0) return "";
+  const twins = options.filter((option) => sameAs(option.ref, options[at]!.ref));
+  if (twins.length < 2) return "";
+  return ` ${twins.findIndex((option) => option.optionId === optionId) + 1} of ${twins.length}`;
+}

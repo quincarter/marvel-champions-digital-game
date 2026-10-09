@@ -51,7 +51,7 @@ import type { ArtSource } from "../art/art-source.js";
 import { characterPanel, deckAspect, handCardView, schemePanel, type HandCardView } from "./board-model.js";
 import { hpNumber } from "./hp-format.js";
 import { inspectModel } from "./inspect-model.js";
-import { appendEvents, emptyLog, type LogLine, type LogState } from "./log-lines.js";
+import { appendEvents, emptyLog, plainLogLine, type LogLine, type LogState } from "./log-lines.js";
 import { playerName } from "./names.js";
 
 export type SetupStepState = "done" | "current" | "pending";
@@ -349,7 +349,10 @@ export function setupWalkthroughViewOf(
     decidingPlayerId,
     seats,
     revealedCard: revealedCardOf(state, accumulator, deps),
-    setupLog: [...staticSetupLines(state, deps, cardsById, accumulator.seed), ...accumulator.log.lines],
+    setupLog: [
+      ...staticSetupLines(state, deps, cardsById, accumulator.seed),
+      ...accumulator.log.lines.map(plainLogLine),
+    ],
     complete: state.step.phase !== "setup",
   };
 }

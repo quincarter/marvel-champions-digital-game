@@ -312,6 +312,11 @@ export function drawAbilityBar(ctx: BoardDrawContext, rect: Rect, choice: Abilit
  * ally goes to the player's area or to the mission area). Each button carries the price there, which the engine
  * worked out per destination, so a price that differs is read before it is paid, never found out after.
  */
+/** The extra height a narrow destination bar needs for its own question line (none when the bar is wide). */
+export function destinationQuestionRow(barWidth: number): number {
+  return barWidth < 640 ? 20 : 0;
+}
+
 export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: DestinationChoiceView): void {
   const { scene, controller } = ctx;
   const g = scene.add.graphics();
@@ -320,12 +325,21 @@ export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: De
 
   const narrow = rect.width < 640;
   const titleWidth = narrow ? 10 : Math.min(240, rect.width * 0.28);
+  // Wide: the question sits left of the buttons. Narrow: on its own line above them, wrapped, never dropped.
+  const questionRow = destinationQuestionRow(rect.width);
   if (!narrow) {
     const title = scene.add
       .text(rect.x + 12, rect.y + rect.height / 2, choice.prompt, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5);
     fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  } else {
+    const title = scene.add
+      .text(rect.x + 12, rect.y + 8, choice.prompt, textStyle({ ...typeRole.barTitle, size: 16 }, surface.paper.hex))
+      .setOrigin(0, 0);
+    fitText(title, rect.width - 24, 16);
   }
+  const buttonsY = rect.y + 4 + questionRow;
+  const buttonsHeight = rect.height - 8 - questionRow;
   const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
   const gap = 6;
   const left = rect.x + titleWidth;
@@ -333,7 +347,7 @@ export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: De
   const count = Math.max(1, choice.options.length);
   const width = Math.max(48, (right - left - gap * (count - 1)) / count);
   choice.options.forEach((option, index) => {
-    const rectOf: Rect = { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 };
+    const rectOf: Rect = { x: left + index * (width + gap), y: buttonsY, width, height: buttonsHeight };
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "secondary",
@@ -350,7 +364,7 @@ export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: De
       kind: "quiet",
       label: "Cancel",
       type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+      rect: { x: rect.x + rect.width - cancelWidth - 10, y: buttonsY, width: cancelWidth, height: buttonsHeight },
       onClick: () => controller.cancel(),
     }),
   );

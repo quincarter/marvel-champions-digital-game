@@ -12,7 +12,7 @@
  * an encounter-side decision legible as one (docs/phase3-encounter-ai.md).
  */
 
-import { triggerCaption } from "../view/trigger-caption.js";
+import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
 import Phaser from "phaser";
 import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
@@ -98,6 +98,18 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { McGuideTag } from "../ui/guide-tag.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent, type GuideStripRects } from "../ui/guide-strip.js";
+
+/** The sheet's title: one line down to a readable 16px, then two lines at up to 17px, never a shrunken single line. */
+function fitBarTitle(title: Phaser.GameObjects.Text, maxWidth: number): void {
+  const readable = 16;
+  title.setFontSize(readable);
+  if (title.width <= maxWidth) {
+    fitText(title, maxWidth, typeRole.barTitle.size);
+    return;
+  }
+  title.setLetterSpacing(1);
+  fitWrapped(title, maxWidth, 2, 17);
+}
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -374,6 +386,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     const areaHeight = height - stripHeight;
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(areaX, 0, areaWidth, areaHeight);
+    // Modal: a tap or right-click on no control of this sheet's own must not reach the board card underneath.
+    this.add.zone(areaX, 0, areaWidth, areaHeight).setOrigin(0, 0).setInteractive();
     const panelsFrom = this.children.list.length;
 
     const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
@@ -469,7 +483,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
-    fitText(title, Math.max(60, titleRight - titleLeft), typeRole.barTitle.size);
+    fitBarTitle(title, Math.max(60, titleRight - titleLeft));
 
     if (backOutRect) {
       this.#buttons.push(
@@ -892,6 +906,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // citation) — it was VillainPhaseOverlay's text winning that gap by accident, not the felt.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 1).fillRect(guideRailWidth, 0, width - guideRailWidth, height - stripHeight);
+    // Modal: a tap or right-click on no control of this sheet's own must not reach the board card underneath.
+    this.add
+      .zone(guideRailWidth, 0, width - guideRailWidth, height - stripHeight)
+      .setOrigin(0, 0)
+      .setInteractive();
     const panelsFrom = this.children.list.length;
 
     const layout = defendChoiceLayout(
@@ -1490,6 +1509,19 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#drawFocusRing();
   }
 
+  /** " 2 of 3" when this option is one of several identical ones (same card, same ability) in the open prompt. */
+  #twinOrdinal(state: GameState, option: PendingChoice["options"][number]): string {
+    const choice = state.pendingChoice;
+    if (!choice) return "";
+    return triggerOrdinal(choice.options, option.optionId, (a, b) => {
+      const x = a as PendingChoice["options"][number]["ref"];
+      const y = b as PendingChoice["options"][number]["ref"];
+      return (
+        x.kind === "ability" && y.kind === "ability" && x.instanceId === y.instanceId && x.abilityId === y.abilityId
+      );
+    });
+  }
+
   /**
    * One option drawn as the card it names. A selected card wears the red ring
    * and, when the order matters, the number it will resolve in.
@@ -1553,7 +1585,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (state && instanceId && option.ref.kind === "ability") {
       const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
       const caption = this.add
-        .text(0, 0, triggerCaption(state, instanceId, short), {
+        .text(0, 0, `${triggerCaption(state, instanceId, short)}${this.#twinOrdinal(state, option)}`, {
           ...textStyle(typeRole.label, surface.paper.hex),
           fontSize: "11px",
         })

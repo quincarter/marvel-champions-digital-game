@@ -15,6 +15,7 @@ import { appSession } from "../../session.js";
 import { McButton, fitText, fitWrapped, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type {
   BoardModel,
+  CharacterPanel,
   EnvironmentPanel,
   ScenarioDeckPanel,
   SetAsidePanel,
@@ -89,14 +90,40 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     const belowSlots =
       minionArea.height > 40 ? cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height }) : [];
     if (belowSlots.length === 0 || sideSlots[0]!.height > belowSlots[0]!.height) {
-      model.minions.forEach((minion, index) => drawCharacter(ctx, sideSlots[index]!, minion));
+      model.minions.forEach((minion, index) => {
+        drawCharacter(ctx, sideSlots[index]!, minion);
+        drawEngagedChip(ctx, sideSlots[index]!, minion);
+      });
       return;
     }
   }
   if (model.minions.length > 0 && minionArea.height > 40) {
     const slots = cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height });
-    model.minions.forEach((minion, index) => drawCharacter(ctx, slots[index]!, minion));
+    model.minions.forEach((minion, index) => {
+      drawCharacter(ctx, slots[index]!, minion);
+      drawEngagedChip(ctx, slots[index]!, minion);
+    });
   }
+}
+
+/**
+ * "VS SPIDER-MAN": who a minion is engaged with, hung over its top edge, drawn only when more than one seat plays
+ * (`CharacterPanel.engagedName` is null otherwise). Words on ink, never a seat color alone.
+ */
+function drawEngagedChip(ctx: BoardDrawContext, rect: Rect, minion: CharacterPanel): void {
+  if (!minion.engagedName) return;
+  const { scene } = ctx;
+  const text = label(scene, 0, 0, `vs ${minion.engagedName}`, typeRole.label, surface.paper.hex, 1);
+  // A small tile gets a chip wider than itself (centered over it) rather than a clipped name.
+  fitText(text, Math.max(88, rect.width - 14), typeRole.label.size);
+  const width = Math.ceil(text.width) + 10;
+  const chip: Rect = { x: rect.x + Math.min(2, (rect.width - width) / 2), y: rect.y - 9, width, height: 15 };
+  const g = scene.add.graphics();
+  g.fillStyle(surface.ink.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
+  g.lineStyle(1, surface.paper.hex, 0.6).strokeRect(chip.x, chip.y, chip.width, chip.height);
+  // The chip's own fill goes under its text: the text was created first, so it is raised above the fill.
+  scene.children.bringToTop(text);
+  text.setPosition(chip.x + 5, chip.y + (chip.height - text.height) / 2);
 }
 
 /** The room a minion row needs under the villain band before the band is allowed to grow into it. */
@@ -324,11 +351,10 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     .map((tile) => `${tile.label} ${tile.value}`)
     .join("  ");
   if (statLine && rect.height - (top - rect.y) >= 24) {
-    fitText(
-      label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim),
-      textWidth,
-      typeRole.label.size,
-    );
+    const statText = label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim);
+    fitText(statText, textWidth, typeRole.label.size);
+    // The note below starts under this line, not on top of it.
+    top += Math.max(12, Math.ceil(statText.height) + 2);
   }
 
   // Statuses and attachments (War stunned, with a Golden Horse): the compact tile's one-line form of what the

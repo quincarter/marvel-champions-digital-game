@@ -50,13 +50,16 @@ export function drawSourceCardPanel(
         ink.meta,
       ).setOrigin(0.5);
     }
-    if (onInspect) {
-      const zone = scene.add
-        .zone(art.x, art.y, art.width, art.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-      bindHoldTarget(scene, zone, { key: `source:${panel.instanceId}`, onTap: onInspect, onInspect });
-    }
+  }
+
+  // The whole panel opens the card, not just the thumbnail: its text and "Tap the card to read it all" are the
+  // obvious things to tap.
+  if (onInspect) {
+    const zone = scene.add
+      .zone(outer.x, outer.y, outer.width, outer.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    bindHoldTarget(scene, zone, { key: `source:${panel.instanceId}`, onTap: onInspect, onInspect });
   }
 
   const { x: textX, y: textY, width: textWidth, height: textHeight } = placement.text;

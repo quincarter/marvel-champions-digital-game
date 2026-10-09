@@ -27,7 +27,7 @@ import {
 } from "@mc/engine";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
-import { cardName, formWords, seatName } from "./names.js";
+import { cardName, formWords, playerName, seatName } from "./names.js";
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -143,6 +143,26 @@ export function logLine(
   return describe(event, state, perspectiveId, deps, redirected, faceNames, burst);
 }
 
+/**
+ * A line as plain text, for a surface with no status chips (the setup log): the Board's log ends "Unus is" and draws a
+ * STUNNED chip after it, so a surface without chips must say the word itself.
+ */
+export function plainLogLine(line: LogLine): LogLine {
+  if (line.tags.length === 0 || /[.!]$/.test(line.text)) return { ...line, tags: [] };
+  const words = line.tags.map((tag) => tag.status).join(" and ");
+  return { ...line, text: `${line.text} ${words}.`, tags: [] };
+}
+
+/** The card is revealed next, before any step change or other move: it was parked, not dealt. */
+function revealedAtOnce(burst: Burst, instanceId: InstanceId): boolean {
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const next = burst.events[i]!;
+    if (next.type === "framePushed" || next.type === "framePopped" || next.type === "triggerEvent") continue;
+    return next.type === "encounterCardRevealed" && next.instanceId === instanceId;
+  }
+  return false;
+}
+
 /** The command's whole event list and where `event` sits in it: a few lines read the events around them. */
 export interface Burst {
   readonly events: readonly GameEvent[];
@@ -189,6 +209,9 @@ function describe(
         // A card parked there from anywhere but an encounter deck (`revealCard`: MojoMania 1B's SHOW environment from
         // a set-aside set, a search, a discard pile) is not dealt to anyone: the reveal's own line follows.
         if (event.from.kind !== "encounterDeck" && event.from.kind !== "dealtEncounter") return null;
+        // A reveal outside the villain phase (a setup reveal) parks the card there for a moment too, but is revealed at
+        // once, with no step between: that is a reveal, not a deal, and the reveal's own line follows.
+        if (burst && revealedAtOnce(burst, event.instanceId)) return null;
         return {
           text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
           voice: "villain",
@@ -508,7 +531,12 @@ function describe(
         voice: "player",
       };
     case "defenseDeclined":
-      return { text: `${who(event.playerId)} did not defend.`, voice: "player" };
+      // By name once there is more than one seat: a line baked in under one seat's perspective would otherwise read
+      // "You did not defend" to the seat that was not even attacked.
+      return {
+        text: `${state.players.length > 1 ? playerName(state, event.playerId) : who(event.playerId)} did not defend.`,
+        voice: "player",
+      };
     // Psychic Misdirection (`modifyAttack.damageTo`, docs/phase7-wave6.md §3.36): the whole amount lands on another
     // enemy, and the attacked character takes none.
     case "attackResolved":
@@ -559,6 +587,15 @@ function describe(
     // Bookkeeping: the attack's own damage line and its "after the attack" lines say everything a player reads.
     case "attackAwaitsAbility":
       return null;
+    // An "(attack)" ability's damage instruction took over the attack its ability began (the attack takes its target
+    // and amount now); the damage itself has its own line right after.
+    case "attackResumed":
+      return {
+        text: `${card(event.attackerInstanceId)} attacks ${card(event.targetInstanceId)} for ${event.amount}${
+          event.keywords.length > 0 ? ` (${event.keywords.join(", ")})` : ""
+        }.`,
+        voice: "player",
+      };
     // The scheme half of the same breakdown, worded the same way. The third term only appears when something actually
     // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
     // has no equivalent that is always present.

@@ -154,6 +154,11 @@ export interface CharacterPanel {
   /** The seat this enemy is engaged with, if any. */
   readonly engagedWith: PlayerId | null;
   /**
+   * Who the enemy is engaged with, in words ("Spider-Man", or "Spider-Man 2" when two seats play the same hero), only
+   * when more than one seat is playing: a solo table has no one else it could be. Null for an unengaged enemy.
+   */
+  readonly engagedName: string | null;
+  /**
    * The basic actions this character's statuses take away. The design's rule
    * (Components.dc.html section 06): every status owns one concrete control,
    * and the UI grays exactly that one, hatched in the status hue.
@@ -837,6 +842,15 @@ function minionsOf(state: GameState): readonly InstanceId[] {
   return [...fromVillainArea, ...engaged];
 }
 
+/** The seat an enemy is engaged with, named for a chip on the minion; null in a solo game or when unengaged. */
+export function engagedNameOf(state: GameState, seat: PlayerId | null): string | null {
+  if (seat === null || state.players.length < 2) return null;
+  const name = playerName(state, seat);
+  const same = state.players.filter((player) => playerName(state, player.playerId) === name);
+  if (same.length < 2) return name;
+  return `${name} ${state.players.findIndex((player) => player.playerId === seat) + 1}`;
+}
+
 const SET_NAMES: ReadonlyMap<string, string> = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
 
 export function characterPanel(state: GameState, id: InstanceId, deps: EngineDeps): CharacterPanel {
@@ -865,6 +879,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     exhausted: instance.exhausted,
     boostCount: instance.boostCards.length,
     engagedWith: instance.engagedWith,
+    engagedName: engagedNameOf(state, instance.engagedWith),
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
@@ -972,6 +987,13 @@ export function abilityFaceOf(
 ): CardFace {
   const live = faceOf(state, instanceId, view);
   const card = cardOf(state, instanceId);
+  // A main scheme's Setup is printed on its A side, but by the time the choice is asked the scheme shows its B side:
+  // the panel about that Setup shows the A side's text, not the side's Forced Response.
+  if (abilityId && card?.type === "main_scheme" && live.kind === "mainSchemeStage") {
+    const stage = card.stages[live.stageIndex];
+    if (stage?.aSide.abilities.some((ability) => ability.id === abilityId))
+      return { kind: "mainSchemeStage", stageIndex: live.stageIndex, side: "A" };
+  }
   if (!abilityId || card?.type !== "hero_identity" || live.kind === "back") return live;
   const prints = (abilities: readonly { readonly id: AbilityId }[]): boolean =>
     abilities.some((ability) => ability.id === abilityId);
