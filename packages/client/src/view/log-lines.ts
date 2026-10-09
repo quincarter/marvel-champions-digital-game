@@ -419,12 +419,6 @@ function describe(
         text: `${who(event.ownerId)} ${verb(event.ownerId, "add", "adds")} a card from ${verb(event.ownerId, "your", "their")} collection.`,
         voice: "player",
       };
-    // §3.66: a deck with no discard pile (the show deck) sends a would-be discard to its own bottom, facedown.
-    case "returnedToScenarioDeck":
-      return {
-        text: `${card(event.instanceId)} goes to the bottom of ${event.name} instead of a discard pile.`,
-        voice: "scenario",
-      };
     // §3.66: the board shows no change, so say why the card's ability did nothing.
     case "scenarioDeckClosed":
       return {
