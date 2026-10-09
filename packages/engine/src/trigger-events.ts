@@ -157,8 +157,9 @@ export type TriggerEventBody =
        * removes it (an effects frame's `byPlayer`), whatever card it is on, so a scheme's own "Hero Action: … remove 3
        * threat from here" names the player who used it although no player controls the scheme (RRG 1.8 "Ability",
        * p. 4: "Any player can use such an ability on an encounter card"; "You, Your", p. 49: that player performs it);
-       * else the controller of the removing card. Absent or null for a removal no player makes: an encounter card's
-       * forced ability, an enemy's scheme that removes threat.
+       * else the player the removing card acts for (`sourcePlayerOf`: its controller, or the player an obligation or
+       * an attachment on a player card speaks to). Absent or null for a removal no player makes: any other encounter
+       * card's forced ability, an enemy's scheme that removes threat.
        */
       readonly playerId?: PlayerId | null;
       readonly parentFrameId?: FrameId | null;

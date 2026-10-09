@@ -96,6 +96,7 @@ import {
   isPlayerCard as isAPlayersCard,
   resolveRef,
   resolveValue,
+  sourcePlayerOf,
 } from "../select.js";
 import type { EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
@@ -349,12 +350,13 @@ const countersPlaced = (
 /**
  * Who removes the threat these effects remove (`TriggerEvent removeThreat.playerId`): the player using the ability when
  * a player uses it (`byPlayer`: every ability on a player card, and an action or an optional interrupt or response on
- * an encounter card), else the controller of the card whose effects these are; nobody for an encounter card's forced
+ * an encounter card), else the player the card whose effects these are acts for (`sourcePlayerOf`: its controller, or
+ * the player an obligation or an attachment on a player card speaks to); nobody for any other encounter card's forced
  * ability.
  */
 export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | null {
   if (frame.byPlayer) return frame.controllerId;
-  return frame.selfInstanceId ? controllerOf(ctx.state, frame.selfInstanceId) : null;
+  return sourcePlayerOf(ctx.state, { sourceInstanceId: frame.selfInstanceId });
 }
 
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {

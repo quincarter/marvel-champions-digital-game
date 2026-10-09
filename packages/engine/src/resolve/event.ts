@@ -1601,6 +1601,8 @@ export function threatRemovalBlocked(
   // A player card nobody controls is still a player card: a campaign's player side scheme the scenario put into play
   // (docs/phase7-wave7.md §4.1 Q24; MC40 rulebook p. 3: "All rules that apply to player cards apply to player side
   // schemes"). Its other face, an environment, is an encounter card.
+  // Control is read here, not the card's "you" (`uncontrolledYouOf`): an obligation speaks to the player holding it,
+  // but it is an encounter card, so its abilities are not affected by the crisis icon whoever uses them.
   const source = sourceInstanceId === null ? undefined : cardOf(state, sourceInstanceId);
   const byPlayer =
     sourceInstanceId === null ||
