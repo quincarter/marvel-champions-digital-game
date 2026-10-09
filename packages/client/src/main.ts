@@ -289,6 +289,8 @@ if (import.meta.env.DEV) {
         stop?: Parameters<typeof fixtures.seedAoaRun>[1],
         options?: Parameters<typeof fixtures.seedAoaRun>[2],
       ) => fixtures.seedAoaRun(session.campaignService(), stop, options),
+      seedNextEvolWon: (stop?: Parameters<typeof fixtures.seedNextEvolWonGame>[1]) =>
+        seedWon(() => fixtures.seedNextEvolWonGame(session.campaignService(), stop)),
       seedAoaWon: (stop?: Parameters<typeof fixtures.seedAoaWonGame>[1]) =>
         seedWon(() => fixtures.seedAoaWonGame(session.campaignService(), stop)),
     };

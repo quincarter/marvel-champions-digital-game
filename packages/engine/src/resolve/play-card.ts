@@ -17,7 +17,7 @@ import { recordAbilityUse } from "./ability.js";
 import { settleUpgradeControl } from "./attach.js";
 import { checkDefeats } from "./defeat.js";
 import { declareWildTypes } from "./declare-wilds.js";
-import { enterPlay, playerSideSchemeEntersPlay } from "./enter-play.js";
+import { enterPlay, playerSideSchemeEntersPlay, schemeEntryThreat } from "./enter-play.js";
 import { placeInScenarioPlayArea } from "./game-areas.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
@@ -93,6 +93,17 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
           enterPlay(ctx, frame.instanceId, frame.controllerId);
           break;
         case "upgrade": {
+          // An upgrade with no "attach to" text played into an in-play scenario area (`playCard.into`) is in the area
+          // attached to nothing and under no player's control: the play names no host for it (`playCard` in `actions.ts`).
+          if (
+            frame.intoScenarioPlayArea !== undefined &&
+            frame.attachToInstanceId === null &&
+            placeInScenarioPlayArea(ctx, frame.instanceId, frame.intoScenarioPlayArea, true) === "entered"
+          ) {
+            entersExhausted(ctx, frame);
+            enterPlay(ctx, frame.instanceId, frame.controllerId);
+            break;
+          }
           const host = frame.attachToInstanceId ?? mustPlayer(ctx.state, frame.controllerId).identity.instanceId;
           moveCard(ctx, frame.instanceId, { kind: "attachment", hostInstanceId: host });
           // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached,
@@ -107,6 +118,22 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
           break;
         }
         case "player_side_scheme":
+          // Played into an in-play scenario area (`playCard.into`): there in place of the villain's play area, under
+          // no player's control, entering play as it does anywhere (`playerSideSchemeEntersPlay`): its "enters play"
+          // windows open with its starting threat and hinder already on it (RRG 1.8 "Player Side Scheme", p. 34).
+          if (
+            frame.intoScenarioPlayArea !== undefined &&
+            placeInScenarioPlayArea(ctx, frame.instanceId, frame.intoScenarioPlayArea, true) === "entered"
+          ) {
+            enterPlay(ctx, frame.instanceId, frame.playerId);
+            pushEvent(ctx, {
+              kind: "placeThreat",
+              schemeInstanceId: frame.instanceId,
+              amount: schemeEntryThreat(ctx, frame.instanceId),
+              sourceInstanceId: null,
+            });
+            break;
+          }
           playerSideSchemeEntersPlay(ctx, frame.instanceId, frame.controllerId, frame.playerId);
           break;
         default:

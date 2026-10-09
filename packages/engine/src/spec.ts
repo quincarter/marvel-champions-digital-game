@@ -2131,7 +2131,8 @@ export type EffectSpec =
   | { readonly kind: "cancelBoostIcons"; readonly bind?: string }
   /**
    * "Increase or decrease the number of boost icons on that card by 1 for this count" (Scarlet Witch's Crest): changes
-   * the count of the boost card the current activation is about to count (`boostIconsCounting`), for this count only;
+   * the count in progress (`boostIconsCounting`: the boost card the current activation is about to count, or the card
+   * a `countBoostIcons` effect is counting, whichever is innermost), for this count only;
    * the total is floored at 0. docs/phase7-wave2.md §3.6.
    */
   | { readonly kind: "adjustBoostCount"; readonly delta: ValueSpec }
@@ -2141,6 +2142,22 @@ export type EffectSpec =
    * card `card` names (bind the discarded card first). docs/phase7-wave2.md §3.6.
    */
   | { readonly kind: "replaceBoostCount"; readonly card: TargetRef }
+  /**
+   * A card effect counting boost icons: "take damage equal to the number of boost icons on that card" (Taskmaster),
+   * "for each boost icon discarded this way" (Molecular Decay, Machine Gun), "for each card discarded this way that
+   * has boost icons equal to …" (Hex Bolt). Counts every card `cards` names, wherever it is now, and writes the total
+   * to `<bind>.boostIcons`, replacing any total a discard bound there. The effects after it read that var.
+   *
+   * Each encounter card's count is a `boostIconsCounting` event (`enemyInstanceId: null`), in the order `cards` lists
+   * them, announced only when an ability could react, so `replaceBoostCount` / `adjustBoostCount` in its interrupt
+   * window change that card's count (docs/phase7-wave2.md §3.6, §4 Q8). A player card's icons are counted without an
+   * event: the abilities that hear this say "on an encounter card". With nothing listening the total is what
+   * `ValueSpec boostIcons` reads of the same cards. An announced count reports like any event (`<bind>.made` too).
+   *
+   * A constant ability's read ("gets +1 THW for each boost icon …") is not a count made at a moment and stays a
+   * `ValueSpec boostIcons`.
+   */
+  | { readonly kind: "countBoostIcons"; readonly cards: TargetRef; readonly bind: string }
   /** "Cancel that card's boost ability" (Target Acquired): only before that ability resolves. `bind`: `<bind>.made`. */
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
   /**

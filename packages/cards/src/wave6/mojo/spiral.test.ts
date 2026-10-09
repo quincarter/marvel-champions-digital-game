@@ -1027,7 +1027,6 @@ describe("a show-deck card discarded with no replacement applying goes to the en
     expect(inst(state, staged.id).faceup).toBe(true);
     expect(showDeckCodes(state)).not.toContain(code);
     expect(state.scenarioDecks["show"]!.discard).toEqual([]);
-    expect(of(events, "returnedToScenarioDeck")).toEqual([]);
     expect(
       of(events, "cardMoved")
         .filter((e) => e.instanceId === staged.id)

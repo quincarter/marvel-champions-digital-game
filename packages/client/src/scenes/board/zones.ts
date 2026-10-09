@@ -690,7 +690,13 @@ export function drawEncounter(
 ): void {
   const { scene } = ctx;
   type Pile = {
-    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
+    readonly kind:
+      | "encounterDeck"
+      | "encounterDiscard"
+      | "dealtFacedown"
+      | "scenarioArea"
+      | "scenarioDeck"
+      | "scenarioDiscard";
     readonly name: string;
     readonly count: number;
     readonly art: ArtSource | null;
@@ -744,6 +750,19 @@ export function drawEncounter(
       instanceId: model.encounterDiscardTopInstanceId,
       siblings: [],
     },
+    // Cards dealt to the players facedown (Expert setup): a pile with a count and no tap target, since nobody reads them.
+    ...(model.dealtFacedown > 0
+      ? [
+          {
+            kind: "dealtFacedown" as const,
+            name: "FACEDOWN",
+            count: model.dealtFacedown,
+            art: CARD_BACKS.encounter,
+            instanceId: null,
+            siblings: [],
+          },
+        ]
+      : []),
     ...model.scenarioDecks.flatMap(scenarioDeckPiles),
     ...model.scenarioAreas.map((area): Pile => ({
       kind: "scenarioArea",

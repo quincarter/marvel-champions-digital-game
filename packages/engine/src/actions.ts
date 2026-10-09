@@ -137,6 +137,7 @@ import {
   turnInProgress,
   villainOf,
   inClosedScenarioPlayArea,
+  scenarioPlayAreaOf,
 } from "./query.js";
 import {
   announceStatusDiscarded,
@@ -777,10 +778,25 @@ export function playCostModifier(
 }
 
 /**
- * The card types a play can put loose into an in-play scenario area (`playCard.into`): the ones that enter play
- * unattached in a play area, which is where `executePlayCardFrame` reads the destination.
+ * Why a card of this type cannot be played into an in-play scenario area (`playCard.into`), or null when it can: a
+ * play has a place to put a card only when the card stays in play. RRG 1.8 "Player Turn" (p. 34) lists what a player
+ * plays from hand to have in play, "an ally, upgrade, support, or player side scheme card"; "Event" (p. 18) has the
+ * player place an event "faceup on the table in front of them (the event is not in play)" and then in its owner's
+ * discard pile, so it is never in any area. A resource card is refused before this, as for any play.
  */
-const PLAYED_INTO_A_PLAY_AREA: ReadonlySet<AnyCard["type"]> = new Set<AnyCard["type"]>(["ally", "support"]);
+function playedIntoAreaFault(card: AnyCard): string | null {
+  switch (card.type) {
+    case "ally":
+    case "support":
+    case "upgrade":
+    case "player_side_scheme":
+      return null;
+    case "event":
+      return "an event is not in play while it resolves, so it is not played into an area";
+    default:
+      return `a ${card.type} card is not played into an area`;
+  }
+}
 
 /** The additional cost on this character's own basic power, if it has one (`basicPowerCosts`). */
 export function basicPowerCost(
@@ -3810,20 +3826,36 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (!playDestinationsOf(ctx.state, ctx.deps, command.cardInstanceId).includes(area)) {
       return engineError("no_valid_target", "that card cannot be played into that area right now", command);
     }
-    // What is left is not the rule's to say: a play puts a card loose into an area only when the card enters play
-    // unattached in a play area (`executePlayCardFrame`). An upgrade a rule names is in the area on its host
-    // (`playDestination.attachments`), and an event never enters play; neither is quietly played somewhere else.
-    if (!PLAYED_INTO_A_PLAY_AREA.has(card.type)) {
-      return engineError("no_valid_target", "a card of that type is not played into an area of its own", command);
-    }
+    // What is left is not the rule's to say: only a card that stays in play has an area to be played into. One that
+    // does not is refused, never quietly played somewhere else.
+    const cannotStay = playedIntoAreaFault(card);
+    if (cannotStay) return engineError("no_valid_target", cannotStay, command);
   }
 
   let attachTo: InstanceId | null = null;
-  if (card.type === "upgrade") {
-    const ownIdentity = controller.identity.instanceId;
+  const ownIdentity = controller.identity.instanceId;
+  if (card.type === "upgrade" && command.into !== undefined && !card.attachesTo) {
+    // An upgrade with no "attach to" text, played into an area: it is in the area attached to nothing. RRG 1.8 "Attach
+    // To" (p. 8) binds only a card that "uses the phrase 'attach to'", and "Upgrade" (p. 46) puts the others "near a
+    // player's identity card" as "an extension of the controlling player's identity", which a card in an area no
+    // player controls has none of. The command's host is not read, as on any play of such an upgrade; one that names
+    // some other card is asking for a different play.
+    if (command.attachToInstanceId && command.attachToInstanceId !== ownIdentity) {
+      return engineError(
+        "no_valid_target",
+        "this upgrade has no 'attach to' text: played into that area it is attached to nothing",
+        command,
+      );
+    }
+  } else if (card.type === "upgrade") {
     attachTo = command.attachToInstanceId ?? (card.attachesTo ? null : ownIdentity);
     if (!attachTo || !getInstance(ctx.state, attachTo)) {
       return engineError("no_valid_target", "upgrade has no valid host", command);
+    }
+    // Played into an area, an upgrade with "attach to" text is still attached "as it enters play" (RRG 1.8 "Attach
+    // To", p. 8), so its host is a card in that area; on a host anywhere else it would not be played into the area.
+    if (command.into !== undefined && scenarioPlayAreaOf(ctx.state, attachTo) !== command.into.scenarioPlayArea) {
+      return engineError("no_valid_target", "an upgrade played into that area attaches to a card in it", command);
     }
     // "Max N per enemy/ally" (copies by title) and "Max 1 TRAINING upgrade per ally" (by trait, docs/phase7-wave6.md
     // §3.28): read before the host query so the refusal names the maximum, not the "attach to" text.
@@ -3836,8 +3868,11 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
         event: null,
         bindings: {},
         deps: ctx.deps,
-        // "Players may attach upgrades to allies in the mission area" (`RuleSpec playDestination.attachments`).
-        ...attachmentReachOf(ctx.state, ctx.deps, command.cardInstanceId),
+        // "Players may attach upgrades to allies in the mission area" (`RuleSpec playDestination.attachments`). The
+        // rule that lets the upgrade itself be played into the area reaches its hosts there the same way.
+        ...(command.into !== undefined
+          ? { reaches: command.into }
+          : attachmentReachOf(ctx.state, ctx.deps, command.cardInstanceId)),
       };
       if (!attachmentHostCandidates(ctx.state, card.attachesTo, context).includes(attachTo)) {
         return engineError("no_valid_target", `upgrade must attach to ${card.attachesTo.kind}`, command);

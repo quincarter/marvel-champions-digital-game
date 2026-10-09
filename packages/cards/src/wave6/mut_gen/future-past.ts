@@ -6,6 +6,7 @@ import {
   boost,
   chosen,
   constant,
+  countBoostIcons,
   dealAsEncounterCard,
   dealIndirectDamage,
   defineAbilities,
@@ -65,6 +66,7 @@ export const FUTURE_PAST_ABILITIES = defineAbilities({
     forEachPlayer(
       eachPlayer,
       discardEncounterCards(2, { bind: "d" }),
+      countBoostIcons(chosen("d"), "d"),
       dealIndirectDamage(thatPlayer, varOf("d.boostIcons")),
     ),
   ),

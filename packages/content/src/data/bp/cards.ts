@@ -725,7 +725,7 @@ export const BP_CARDS: readonly AnyCard[] = [
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "uses", count: 4, counterType: "doubt" }, { name: "victory", value: 0 }],
     text: {
       printed: "Give to the Shuri player.\nUses (4 doubt counters). Victory 0.\nIncrease the resource cost of each card you play by 1.\nForced Response: After you thwart, attack, or defend, remove 1 doubt counter from here.",
       current: "Give to the Shuri player.\nUses (4 doubt counters). Victory 0.\nIncrease the resource cost of each card you play by 1.\nForced Response: After you thwart, attack, or defend, remove 1 doubt counter from here.",

@@ -20,7 +20,16 @@ import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { McButton, McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
+import {
+  McButton,
+  McHpPlate,
+  McSelectionRing,
+  fitText,
+  fitWrapped,
+  label,
+  paintPanel,
+  paintThreatMeter,
+} from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { abilityFaceOf, characterPanel, faceOf } from "../view/board-model.js";
@@ -28,7 +37,8 @@ import type { Rect } from "../view/layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { divideSheetOf } from "../view/divide-sheet.js";
+import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
+import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
 import { chosenResourcesNoteOf, paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
@@ -113,6 +123,8 @@ function fitBarTitle(title: Phaser.GameObjects.Text, maxWidth: number): void {
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
+  /** The target tiles' bars for the sheet being drawn (`view/choice-tile-bars.ts`), rebuilt with every draw. */
+  #tileBars: ReadonlyMap<string, TileBar> = new Map();
   /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
   #breakManual = false;
   /** Redraws the break clock's digits once a second (the digits are the only thing that moves). */
@@ -290,7 +302,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #rebuild(): void {
     const { store } = appSession();
     const state = store.state;
-    const choice = state.game?.pendingChoice;
+    const choice = state.game?.pendingChoice ? shownDivideChoice(state.game.pendingChoice) : undefined;
     const action = choiceSheetAction({
       leaving: this.#motion.leaving,
       shownChoiceId: this.#choiceId,
@@ -1221,6 +1233,8 @@ export class ChoiceOverlay extends Phaser.Scene {
    * one fully visible, so the card you just chose is always the readable one.
    */
   #drawCardChoice(area: Rect, choice: PendingChoice): void {
+    const barState = appSession().store.state.game;
+    this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, POOL_DEPS) : new Map();
     const byId = new Map(choice.options.map((option) => [option.optionId, option] as const));
     // Pick order, not list order: the last thing you touched is the last drawn,
     // and the last drawn is the one on top.
@@ -1522,6 +1536,30 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
   }
 
+  /** One tile's bar: the board's own threat meter or hit point plate (`paintThreatMeter`, `McHpPlate`), with the engine's preview as the hatched part. */
+  #drawTileBar(bar: TileBar, rect: Rect): void {
+    if (bar.kind === "hp") {
+      new McHpPlate(this, { rect, current: bar.current, max: bar.max ?? bar.current, after: bar.after });
+      return;
+    }
+    const g = this.add.graphics();
+    const text = this.add
+      .text(rect.x + rect.width / 2, rect.y + rect.height / 2 - 1, "", textStyle(typeRole.statSmall, surface.ink.hex))
+      .setOrigin(0.5)
+      .setFontSize(13);
+    const meter = { ...rect, height: Math.min(rect.height, 18) };
+    paintThreatMeter(
+      g,
+      text,
+      meter,
+      { meterMax: bar.max, target: bar.target, targetDashed: bar.targetDashed },
+      bar.current,
+      1,
+      bar.after,
+    );
+    text.setY(rect.y + Math.min(rect.height, 18) / 2 - 1);
+  }
+
   /**
    * One option drawn as the card it names. A selected card wears the red ring
    * and, when the order matters, the number it will resolve in.
@@ -1537,11 +1575,15 @@ export class ChoiceOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, slot, "card", picked ? "selected" : "rest");
 
+    // A scheme's threat or a character's hit points sit in a strip under the scan, so the bar never covers the
+    // card's own text; the scan is drawn in what is left.
+    const bar = this.#tileBars.get(option.optionId);
+    const barHeight = bar ? (bar.kind === "threat" ? 24 : 34) : 0;
     const inner: Rect = {
       x: slot.x + 3,
       y: slot.y + 3,
       width: slot.width - 6,
-      height: slot.height - 6,
+      height: slot.height - 6 - (bar ? barHeight + 6 : 0),
     };
     const source =
       state && instanceId
@@ -1573,6 +1615,14 @@ export class ChoiceOverlay extends Phaser.Scene {
         .setWordWrapWidth(inner.width - 8)
         .setMaxLines(3);
     }
+
+    if (bar)
+      this.#drawTileBar(bar, {
+        x: inner.x + 4,
+        y: inner.y + inner.height + 6,
+        width: inner.width - 8,
+        height: barHeight,
+      });
 
     // "TRIGGER AN ABILITY?" and "pay for this ability?" name a card, but the
     // question is about one *ability* on it, not the card as a whole — and a

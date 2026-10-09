@@ -797,6 +797,15 @@ export async function seedNextEvolRun(
   return record;
 }
 
+/** `stop`'s own next issue, composed and won but not folded: the live Aftermath's fixture. "afterIssue4" is the last. */
+export async function seedNextEvolWonGame(
+  service: CampaignService,
+  stop: NextEvolRunStop = "afterIssue4",
+): Promise<WonGame> {
+  const record = await seedNextEvolRun(service, stop);
+  return composeAndFabricateWin(service, record, autoAnswer);
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Age of Apocalypse (MC45), Bishop and Magik
 // ---------------------------------------------------------------------------------------------------------------

@@ -157,8 +157,9 @@ export type TriggerEventBody =
        * removes it (an effects frame's `byPlayer`), whatever card it is on, so a scheme's own "Hero Action: … remove 3
        * threat from here" names the player who used it although no player controls the scheme (RRG 1.8 "Ability",
        * p. 4: "Any player can use such an ability on an encounter card"; "You, Your", p. 49: that player performs it);
-       * else the controller of the removing card. Absent or null for a removal no player makes: an encounter card's
-       * forced ability, an enemy's scheme that removes threat.
+       * else the player the removing card acts for (`sourcePlayerOf`: its controller, or the player an obligation or
+       * an attachment on a player card speaks to). Absent or null for a removal no player makes: any other encounter
+       * card's forced ability, an enemy's scheme that removes threat.
        */
       readonly playerId?: PlayerId | null;
       readonly parentFrameId?: FrameId | null;
@@ -929,13 +930,26 @@ export type TriggerEventBody =
    * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
    * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
    * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
-   * when an ability could react. Counts made by card effects (Hex Bolt) are not announced yet (§4.8).
+   * when an ability could react.
+   *
+   * A count made by a card effect (`EffectSpec countBoostIcons`: "take damage equal to the number of boost icons on
+   * that card", "for each boost icon discarded this way") is the same event with `enemyInstanceId: null`, one per
+   * encounter card counted (docs/phase7-wave2.md §4 Q8: both cards say "on an encounter card", not "on a boost
+   * card"). `playerId` is then the player resolving the counting effect, null when it has none. An interrupt's
+   * `replaceBoostCount` / `adjustBoostCount` is recorded on the event itself (`countFrom`, `countAdjust`), and the
+   * number counted is stamped on it as it applies (`counted`), so the log carries why the count is what it is.
    */
   | {
       readonly kind: "boostIconsCounting";
-      readonly enemyInstanceId: InstanceId;
+      readonly enemyInstanceId: InstanceId | null;
       readonly cardInstanceId: InstanceId;
-      readonly playerId: PlayerId;
+      readonly playerId: PlayerId | null;
+      /** Effect counts only: "count the number of boost icons on that card instead" (`replaceBoostCount`). */
+      readonly countFrom?: InstanceId;
+      /** Effect counts only: "increase or decrease … by 1 for this count" (`adjustBoostCount`), summed. */
+      readonly countAdjust?: number;
+      /** Effect counts only: the icons counted, floored at 0. Set as the event applies. */
+      readonly counted?: number;
     }
   /**
    * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super

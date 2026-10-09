@@ -5,9 +5,9 @@
  */
 import {
   anEnemy,
-  boostIconsOn,
   chosen,
   constant,
+  countBoostIcons,
   damageThisCardCost,
   dealDamage,
   defineAbilities,
@@ -16,6 +16,7 @@ import {
   on,
   response,
   sum,
+  varOf,
   YOUR_IDENTITY,
 } from "../../dsl/index.js";
 
@@ -27,7 +28,8 @@ export const SM_BASIC_CARDS = defineAbilities({
     on.youRevealEncounterCard(),
     { cost: damageThisCardCost(1) },
     anEnemy(),
-    dealDamage(sum(boostIconsOn(eventTarget), { kind: "starIcons", cards: eventTarget }), chosen("enemy")),
+    countBoostIcons(eventTarget, "revealed"),
+    dealDamage(sum(varOf("revealed.boostIcons"), { kind: "starIcons", cards: eventTarget }), chosen("enemy")),
   ),
 
   // Symbiote Suit (upgrade 27191) — Max 1 per deck (data). Your identity gets +1 to each of its basic powers, +1 hand

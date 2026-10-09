@@ -2,6 +2,7 @@ import {
   chooseCards,
   chosen,
   constant,
+  countBoostIcons,
   eachPlayer,
   each,
   encounterCards,
@@ -37,6 +38,7 @@ export const CAP_NEMESIS = defineAbilities({
     forEachPlayer(
       eachPlayer,
       moveCards(encounterCards(["deck"], undefined, 1), "discard", "milled"),
+      countBoostIcons(chosen("milled"), "milled"),
       takeDamage(varOf("milled.boostIcons"), thatPlayer),
     ),
   ),

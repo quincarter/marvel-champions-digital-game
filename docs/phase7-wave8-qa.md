@@ -150,7 +150,7 @@ wild sheet's wrapped title were not replayed in a browser after their fixes. Pri
 MarvelCDB data, not with card scans, except where the provenance file records a scan. The reward picker on a phone
 was not reached.
 
-**Left open on purpose.** `playCard.into` places only allies and supports; about 25 unused engine exports; a few
+**Left open on purpose.** (`playCard.into` placed only allies and supports until 2026-10-09; PR #106 added upgrades and player side schemes, and fixed the game-over timeline order, the indirect-damage tiles and the facedown setup marker listed below.) Also left open: about 25 unused engine exports; a few
 cosmetic board items (game-over timeline order, indirect-damage tiles, a marker for facedown setup cards, a badge
 over a villain tile's hit points). A saved campaign whose reward flag and deck list disagree would now be refused by
 the engine's new check; the old client always wrote the two together, and no real saved campaign was loaded to prove

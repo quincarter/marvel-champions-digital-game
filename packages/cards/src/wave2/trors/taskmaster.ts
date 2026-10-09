@@ -7,6 +7,7 @@ import {
   chosen,
   constant,
   countAmong,
+  countBoostIcons,
   dealDamage,
   dealEncounterCard,
   defeatingPlayer,
@@ -93,16 +94,19 @@ export const TASKMASTER_SET = defineAbilities({
   "04093.taskmaster-forced-response": forcedResponse(
     on.playerChangesForm("hero"),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     dealDamage(varOf("d.boostIcons"), identityOf(eventPlayer)),
   ),
   "04094.taskmaster-forced-response": forcedResponse(
     on.playerChangesForm("hero"),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     dealDamage(varOf("d.boostIcons"), identityOf(eventPlayer)),
   ),
   "04095.taskmaster-forced-response": forcedResponse(
     on.playerChangesForm("hero"),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     dealDamage(varOf("d.boostIcons"), identityOf(eventPlayer)),
   ),
 

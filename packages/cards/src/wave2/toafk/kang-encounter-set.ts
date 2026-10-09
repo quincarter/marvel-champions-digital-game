@@ -13,6 +13,7 @@ import {
   chooseTarget,
   chosen,
   constant,
+  countBoostIcons,
   coveredByEngineRule,
   countOf,
   defineAbilities,
@@ -327,6 +328,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   "11031.chitauri-soldier-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("host", { againstYou: true }),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     dealIndirectDamage(you, varOf("d.boostIcons")),
   ),
 

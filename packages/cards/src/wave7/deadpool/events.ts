@@ -12,6 +12,7 @@ import {
   chosen,
   confuse,
   controllerOf,
+  countBoostIcons,
   damageAnEnemy,
   damageOn,
   dealDamage,
@@ -103,7 +104,8 @@ export const DEADPOOL_EVENTS: AbilityRegistry = defineAbilities({
 
   "44005.metaknowledge-interrupt": heroInterrupt(
     on.encounterCardRevealed(),
-    setVar("icons", sum({ kind: "boostIcons", of: eventTarget }, { kind: "starIcons", cards: eventTarget })),
+    countBoostIcons(eventTarget, "revealed"),
+    setVar("icons", sum(varOf("revealed.boostIcons"), { kind: "starIcons", cards: eventTarget })),
     cancelRevealedCard(),
     takeDamage(varOf("icons")),
   ),

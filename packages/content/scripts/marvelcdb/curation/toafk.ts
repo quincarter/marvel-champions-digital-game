@@ -41,10 +41,11 @@
  *   "advance", present tense; "advanced" cannot be a deliberate past-tense variant here, since the ability
  *   triggers the advance itself).
  *
- * **Not independently confirmed, left as-is (no evidence either way):** Chronopolis (11009) reads "this stage
- * is complete" where the other three stage 3 alternatives (11010, 11011, 11012) read "this stage is completed".
- * Both are grammatical; nothing here can tell whether one is a printed variant or a transcription slip without a
- * scan of 11009 specifically (no image exists for any stage-3 B side). Not changed.
+ * **Normalized to the common wording, not confirmed from a scan (2026-10-09):** Chronopolis (11009) read "this
+ * stage is complete" (twice) where the other three stage 3 alternatives (11010, 11011, 11012) and every other
+ * main scheme in the pool read "completed"; Inexorable Fate (11010) read "at the stage" where the other three read
+ * "at this stage". No image exists for any stage-3 B side, so both are set to the majority wording. Revisit if a
+ * scan of either card turns up.
  *
  * **Scenario setup** (docs/phase7-wave2.md §2.3, §1.8): one `ScenarioCuration` entry, `villainCardCode: "11001"`
  * (Kang (I)) — `villainIdBySet` has no entry for the "kang" set (`normalize/villains.ts` deliberately leaves it
@@ -82,6 +83,30 @@ export const TOAFK_CURATION: PackCuration = {
       evidence:
         "raw (11008b); docs/phase7-wave2.md §5.2 (image not independently available for this face — see file header)",
       textReplace: { find: "advanced to stage 4A", replace: "advance to stage 4A" },
+    },
+    {
+      code: "11009b",
+      reason:
+        "The Chronopolis reads 'complete' where Kang's other three stage 3 alternatives and every other main scheme read 'completed'. Set to the common wording.",
+      evidence:
+        "raw (11009b); the other stage 3 alternatives' text (11010 to 11012); no scan exists for any stage-3 B side, so this is a normalization, not a confirmed print reading",
+      textReplace: { find: "After this stage is complete,", replace: "After this stage is completed," },
+    },
+    {
+      code: "11009b",
+      reason:
+        "The Chronopolis reads 'complete' where Kang's other three stage 3 alternatives and every other main scheme read 'completed'. Set to the common wording.",
+      evidence:
+        "raw (11009b); the other stage 3 alternatives' text (11010 to 11012); no scan exists for any stage-3 B side, so this is a normalization, not a confirmed print reading",
+      textReplace: { find: "this stage is complete.", replace: "this stage is completed." },
+    },
+    {
+      code: "11010b",
+      reason:
+        "Inexorable Fate reads 'at the stage' where Kang's other three stage 3 alternatives read 'at this stage'. Set to the common wording.",
+      evidence:
+        "raw (11010b); the other stage 3 alternatives' text (11010 to 11012); no scan exists for any stage-3 B side, so this is a normalization, not a confirmed print reading",
+      textReplace: { find: "at the stage are defeated", replace: "at this stage are defeated" },
     },
   ],
   errata: [],

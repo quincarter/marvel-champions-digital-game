@@ -76,6 +76,7 @@ import {
   decideForSeat,
   nextIssueRaisesMarket,
   offersAnswer,
+  leaveSummaryDestination,
   postFoldDestination,
   readyToCommit,
   startAftermathGroup,
@@ -262,7 +263,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
   #onFolded(record: CampaignRecord): void {
     this.#record = record;
-    const destination = postFoldDestination(record.status);
+    const nodeId = this.#nodeId;
+    const pages = storyFor(record.campaignId as string)?.pages;
+    const story = nodeId ? issueStoryFor(record.campaignId as string, nodeId) : null;
+    const comicSteps = story?.aftermathBeats && pages ? resolveComicBeats(pages, story.aftermathBeats) : [];
+    const destination = postFoldDestination(record.status, comicSteps.length > 0);
     if (destination === "finale") {
       goToScreen(this, SCENES.campaignFinale, { runId: record.id });
       return;
@@ -277,10 +282,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // — the tile keeps each hero's pick on screen (YOURS / WITH …), it doesn't clear the columns. A win with no
     // pending choice at all (MC10 has none, but a future box might) leaves `#group` null, which the summary phase
     // reads as "nothing to hand out this issue".
-    const nodeId = this.#nodeId;
-    const pages = storyFor(record.campaignId as string)?.pages;
-    const story = nodeId ? issueStoryFor(record.campaignId as string, nodeId) : null;
-    this.#comicSteps = story?.aftermathBeats && pages ? resolveComicBeats(pages, story.aftermathBeats) : [];
+    this.#comicSteps = comicSteps;
     this.#comicCurrent = 0;
     this.#cinematic.reset();
     this.#phase = "summary";
@@ -737,12 +739,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
           .graph.nodes.map((n) => n.id)
       : [];
     const currentIndex = record && this.#nodeId ? nodeIds.indexOf(this.#nodeId) : -1;
+    if (record && leaveSummaryDestination(record.status) === "finale") return "TO THE FINALE ▸";
     return `On to issue #${currentIndex + 2} ▸`;
   }
 
   #leaveToNext(): void {
     const record = this.#record;
     if (!record) return;
+    if (leaveSummaryDestination(record.status) === "finale") {
+      goToScreen(this, SCENES.campaignFinale, { runId: record.id });
+      return;
+    }
     goToScreen(this, SCENES.campaignOpener, { runId: record.id });
   }
 

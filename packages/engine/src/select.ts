@@ -1959,16 +1959,19 @@ export function controllerOf(state: GameState, id: InstanceId): PlayerId | null 
 }
 
 /**
- * The player an event's source card acts for: its controller, unless the event is one no player makes (`noPlayer` on a
- * `dealDamage` or `removeThreat` event; owner decision, docs/phase7-wave7.md §4.1 Q2), which names nobody whoever
- * controls the card.
+ * The player an event's source card acts for: its controller, else the player the rules name for an uncontrolled card
+ * (`uncontrolledYouOf`: the holder of an obligation, RRG 1.8 "Obligation", p. 30; the controller of the player card an
+ * attachment is on, "Attachment", p. 8), so damage or a threat removal from such a card is that player's and a defeat
+ * it causes names them (`characterDefeated.defeatedByPlayerId`). Null for every other encounter card. An event no
+ * player makes (`noPlayer` on a `dealDamage` or `removeThreat` event; owner decision, docs/phase7-wave7.md §4.1 Q2)
+ * names nobody whoever the card speaks to.
  */
 export function sourcePlayerOf(
   state: GameState,
   event: { readonly sourceInstanceId: InstanceId | null; readonly noPlayer?: true },
 ): PlayerId | null {
   if (event.noPlayer || event.sourceInstanceId === null) return null;
-  return controllerOf(state, event.sourceInstanceId);
+  return controllerOf(state, event.sourceInstanceId) ?? uncontrolledYouOf(state, event.sourceInstanceId);
 }
 
 /**
@@ -1996,7 +1999,8 @@ export const selectTargets = (state: GameState, query: TargetQuery, context: Eff
 
 /**
  * The players who may trigger an action, interrupt or response that names them (`triggerableBy`, docs/phase7-wave6.md
- * §3.11), read with "this card" as the ability's card and "you" as its controller; null when the ability names nobody
+ * §3.11), read with "this card" as the ability's card and "you" as its controller, or the player the rules name for an
+ * uncontrolled card (`uncontrolledYouOf`: an obligation's holder); null when the ability names nobody
  * and today's rule (its controller, or the acting player on an uncontrolled card) applies. A forced ability is never
  * read this way: nobody chooses to trigger it.
  */
@@ -2012,7 +2016,7 @@ export function triggeringPlayers(
   if (!trigger.triggerableBy) return null;
   const context: EffectContext = {
     selfInstanceId: instanceId,
-    controllerId: controllerOf(state, instanceId),
+    controllerId: controllerOf(state, instanceId) ?? uncontrolledYouOf(state, instanceId),
     event,
     bindings: {},
     deps,

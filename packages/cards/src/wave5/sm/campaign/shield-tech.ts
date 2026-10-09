@@ -10,6 +10,7 @@ import {
   chooseTarget,
   chosen,
   constant,
+  countBoostIcons,
   damageAnEnemy,
   dealDamage,
   defineAbilities,
@@ -162,6 +163,7 @@ export const SHIELD_TECH_CAMPAIGN_CARDS = defineAbilities({
   "27187a.shock-knuckles-response": heroResponse(
     after.attacks(YOUR_HERO, { basic: true, target: query("enemy") }),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     ifThen(valueEquals(varOf("d.boostIcons"), 0), stun(eventTarget)),
   ),
   // Enhanced back — "Your hero gets +1 ATK.\nHero Response: … If 1 or fewer boost icons ([boost]) were discarded
@@ -170,6 +172,7 @@ export const SHIELD_TECH_CAMPAIGN_CARDS = defineAbilities({
   "27187b.shock-knuckles-response": heroResponse(
     after.attacks(YOUR_HERO, { basic: true, target: query("enemy") }),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     ifThen(not(valueAtLeast(varOf("d.boostIcons"), 2)), stun(eventTarget)),
   ),
 

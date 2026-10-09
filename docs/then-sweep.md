@@ -1,6 +1,6 @@
 # "Then" sweep: cards still to move to `andThen`
 
-**Status (2026-09-26): not started.** This is the follow-up [PR #61](https://github.com/quincarter/marvel-champions-digital-game/pull/61) left open. Do it as its own PR, one pack at a time, with `ability-scripting-engineer`.
+**Status: done (2026-09-26, [PR #65](https://github.com/quincarter/marvel-champions-digital-game/pull/65)).** Every row of the checklist below is ticked. This was the follow-up [PR #61](https://github.com/quincarter/marvel-champions-digital-game/pull/61) left open; the rules questions it raised are at the end of this file.
 
 ## The rule and what the engine already does
 

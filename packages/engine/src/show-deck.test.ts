@@ -354,8 +354,7 @@ describe("§3.66 the show deck has no discard pile", () => {
     expect(mustInstance(after, moved).faceup).toBe(false);
     expect(after.scenarioDecks[SHOW]!.discard).toEqual([]);
     expect(everywhereElse(after)).not.toContain(first);
-    // The replacement did it: the deck's own rule had nothing left to redirect, and the card never reached a discard pile.
-    expect(ofType(events, "returnedToScenarioDeck")).toEqual([]);
+    // The replacement did it: the card never reached a discard pile.
     expect(
       ofType(events, "cardMoved")
         .filter((e) => e.instanceId === moved)
@@ -392,8 +391,7 @@ describe("§3.66 the show deck has no discard pile", () => {
     expect(after.scenarioDecks[SHOW]!.discard).toEqual([]);
     expect(activeEncounterDeck(after).discard).toContain(discarded);
     expect(mustInstance(after, discarded).faceup).toBe(true);
-    // An ordinary discard: one move, to the encounter discard pile, and no redirect logged.
-    expect(ofType(events, "returnedToScenarioDeck")).toEqual([]);
+    // An ordinary discard: one move, to the encounter discard pile.
     expect(
       ofType(events, "cardMoved")
         .filter((e) => e.instanceId === discarded)
@@ -428,7 +426,6 @@ describe("§3.66 Cornered! and the cards revealed from the show deck", () => {
     expect(named(after, activeEncounterDeck(after).discard)).not.toContain(CORNERED.id);
     expect(after.scenarioDecks[SHOW]!.discard).toEqual([]);
     // Its own text put it back, not the deck's no-discard-pile rule; and the deck was shuffled once it was in.
-    expect(ofType(events, "returnedToScenarioDeck")).toEqual([]);
     const moves = ofType(events, "cardMoved").filter((e) => e.instanceId === cornered);
     expect(moves.at(-1)!.to).toEqual({ kind: "scenarioDeck", name: SHOW });
     expect(moves.map((e) => e.to.kind)).not.toContain("encounterDiscard");

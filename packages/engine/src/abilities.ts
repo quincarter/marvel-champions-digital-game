@@ -1594,6 +1594,16 @@ export type RuleSpec =
    * There the card is in play under no player's control (`placeInScenarioPlayArea`): the ally limit counts allies a
    * player controls (RRG 1.8 "Ally Limit", p. 7), and no player can exhaust it or attack, thwart or defend with it.
    *
+   * `cards` may name any player card type that stays in play when played (RRG 1.8 "Player Turn", p. 34: "an ally,
+   * upgrade, support, or player side scheme card"). The `playCard` command places each as its type enters play: an
+   * ally or a support loose in the area; a player side scheme there in place of "next to the main scheme" (p. 34),
+   * with its starting threat and counted by the player side scheme limit; an upgrade with "attach to" text on a host
+   * in the area that its text allows, which the command must name (RRG 1.8 "Attach To", p. 8: "as it enters play";
+   * `LegalAction.destinationHosts`); an upgrade without that text loose in the area, attached to nothing ("Upgrade",
+   * p. 46). An event is refused: it "is not in play" while it is played and then goes to its owner's discard pile
+   * ("Event", p. 18), so it has no area to be in. An effect's play (`EffectSpec playFromHand`) offers the area for
+   * allies and supports only.
+   *
    * `attachments`: "Players may attach upgrades to allies in the mission area." A player upgrade matching it may take a
    * card in the area as its host when its own "attach to" text allows that card: the host choice reaches into the
    * area (`attachmentReachOf`), however the upgrade enters play. The upgrade is then in the area with its host, under

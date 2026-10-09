@@ -10,7 +10,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
-import { abilityFaceOf, engagedNameOf } from "./board-model.js";
+import { abilityFaceOf, boardModel, engagedNameOf } from "./board-model.js";
 import { appendEvents, emptyLog, logLine, plainLogLine, type LogLine } from "./log-lines.js";
 import { triggerOrdinal } from "./trigger-caption.js";
 
@@ -154,3 +154,19 @@ describe("abilityFaceOf for a main scheme's Setup", () => {
 });
 
 void (null as unknown as PlayerId);
+
+describe("facedown encounter cards dealt to the players", () => {
+  test("the board counts them, as a number and never a card, and counts none when none are out", async () => {
+    const { store } = await started(HORSEMEN);
+    const game = store.state.game!;
+    const me = store.state.perspectiveId!;
+    expect(boardModel(game, me, POOL_DEPS).dealtFacedown).toBe(0);
+    const dealt = {
+      ...game,
+      players: game.players.map((player, index) =>
+        index === 0 ? { ...player, dealtEncounter: [game.mainScheme.instanceId] } : player,
+      ),
+    };
+    expect(boardModel(dealt, me, POOL_DEPS).dealtFacedown).toBe(1);
+  });
+});

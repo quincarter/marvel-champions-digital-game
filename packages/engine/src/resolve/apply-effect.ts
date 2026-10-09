@@ -93,8 +93,10 @@ import {
   isAttachedMinion,
   matchesQuery,
   resolvePlayers,
+  isPlayerCard as isAPlayersCard,
   resolveRef,
   resolveValue,
+  sourcePlayerOf,
 } from "../select.js";
 import type { EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
@@ -348,12 +350,13 @@ const countersPlaced = (
 /**
  * Who removes the threat these effects remove (`TriggerEvent removeThreat.playerId`): the player using the ability when
  * a player uses it (`byPlayer`: every ability on a player card, and an action or an optional interrupt or response on
- * an encounter card), else the controller of the card whose effects these are; nobody for an encounter card's forced
+ * an encounter card), else the player the card whose effects these are acts for (`sourcePlayerOf`: its controller, or
+ * the player an obligation or an attachment on a player card speaks to); nobody for any other encounter card's forced
  * ability.
  */
 export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | null {
   if (frame.byPlayer) return frame.controllerId;
-  return frame.selfInstanceId ? controllerOf(ctx.state, frame.selfInstanceId) : null;
+  return sourcePlayerOf(ctx.state, { sourceInstanceId: frame.selfInstanceId });
 }
 
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
@@ -1264,11 +1267,31 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // effects are still on the stack, which is before the frame's `boost.step` becomes `"count"`. `countAdjust`
       // is carried on the same procedure/boost object either way, so setting it early is equivalent to setting it
       // at the count step itself.
-      const procedure = ctx.state.stack.find(
-        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
-          (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
-          (f.boost?.step === "count" || f.boost?.step === "ability"),
+      //
+      // The innermost count in progress, which is the first one found from the top of the stack: a card effect's
+      // count (`countBoostIcons`, an event frame with no enemy) records the change on its own event, so a count made
+      // while an activation's boost card is resolving never changes that boost card's count, nor the reverse. Such an
+      // event is at `apply` while its interrupt window is open (`executeEventFrame` moves it on before the window);
+      // the counts of the same effect still waiting beneath it are at `interrupts`.
+      const counting = ctx.state.stack.find((f): f is Frame<"event"> | Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+        f.kind === "event"
+          ? f.event.kind === "boostIconsCounting" && f.event.enemyInstanceId === null && f.stage === "apply"
+          : (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
+            (f.boost?.step === "count" || f.boost?.step === "ability"),
       );
+      if (counting?.kind === "event") {
+        const event = counting.event;
+        if (event.kind !== "boostIconsCounting") return;
+        if (effect.kind === "adjustBoostCount") {
+          const countAdjust = (event.countAdjust ?? 0) + value(effect.delta);
+          setFrame(ctx, { ...counting, event: { ...event, countAdjust } });
+        } else {
+          const [card] = resolveRef(ctx.state, effect.card, context);
+          if (card) setFrame(ctx, { ...counting, event: { ...event, countFrom: card } });
+        }
+        return;
+      }
+      const procedure = counting;
       const boost = procedure?.boost;
       if (!procedure || !boost) return;
       if (effect.kind === "adjustBoostCount") {
@@ -1280,6 +1303,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const [card] = resolveRef(ctx.state, effect.card, context);
         if (card) setFrame(ctx, { ...procedure, boost: { ...boost, countFrom: card } });
       }
+      return;
+    }
+    case "countBoostIcons": {
+      const bind = effect.bind;
+      const events: TriggerEvent[] = [];
+      let uncontested = 0;
+      for (const id of resolveRef(ctx.state, effect.cards, context)) {
+        const event: TriggerEvent = {
+          kind: "boostIconsCounting",
+          enemyInstanceId: null,
+          cardInstanceId: id,
+          playerId: context.controllerId,
+        };
+        if (!isAPlayersCard(ctx.state, id) && heard(ctx.state, ctx.deps, event)) events.push(event);
+        else uncontested += boostIconsFor(ctx.state, ctx.deps, id);
+      }
+      // Set, not added: this count replaces a total the discard bound under the same name. Each announced card then
+      // adds its own count as its event resolves (`reportResults`).
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "effects" ? { ...f, vars: { ...f.vars, [`${bind}.boostIcons`]: uncontested } } : f,
+      );
+      if (events.length > 0) pushEvents(ctx, events, { frameId: frame.frameId, prefix: bind });
       return;
     }
     case "atEndOfAttack":

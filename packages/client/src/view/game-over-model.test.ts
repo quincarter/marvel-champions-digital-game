@@ -146,6 +146,24 @@ describe("game over model", () => {
     ]);
   });
 
+  test("a lost game lists its rounds in order and closes with the reason it ended", () => {
+    const { game } = store.state;
+    const round = (n: number, crisisBlocks: number) => ({
+      round: n,
+      threatPlaced: 0,
+      threatRemoved: 0,
+      damageToVillain: 0,
+      crisisBlocks,
+      heroesDefeated: [],
+      villainStageAdvanced: false,
+    });
+    const record = { ...emptyRecord(), rounds: [round(1, 1), round(2, 2), round(3, 1)] };
+    const late = { ...game!, round: 3 };
+    const beats = turningPoints(late, record, "loss", "Rhino", "cardAbility", "A card ended it.");
+    expect(beats.map((beat) => beat.round)).toEqual([1, 2, 3, 3]);
+    expect(beats.at(-1)?.text).toBe("A card ended it.");
+  });
+
   test("the meta line and stats describe this game, not a template", () => {
     const { game, record, config } = store.state;
     const model = gameOverModel(game!, record, config, CORE_DEPS);

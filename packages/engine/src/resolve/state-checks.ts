@@ -42,6 +42,7 @@ import {
   attachmentHolds,
   cardsInPlay,
   controllerOf,
+  uncontrolledYouOf,
   evaluate,
   focusedMainSchemeId,
   matchesQuery,
@@ -151,7 +152,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
       const entry = fromEntering ? pendingEntry(ctx, instanceId) : undefined;
       const now = evaluate(entry ? withUsesCounters(ctx, instanceId) : ctx.state, definition.trigger.when, {
         selfInstanceId: instanceId,
-        controllerId: controllerOf(ctx.state, instanceId),
+        // "You" in the condition, as in the ability it fires: the card's controller, else the player the rules name
+        // for an uncontrolled card (`uncontrolledYouOf`: an obligation's holder, RRG 1.8 "Obligation", p. 30).
+        controllerId: controllerOf(ctx.state, instanceId) ?? uncontrolledYouOf(ctx.state, instanceId),
         event: null,
         bindings: {},
         deps: ctx.deps,
@@ -180,8 +183,10 @@ export function checkStateTriggers(ctx: Ctx): boolean {
       {
         instanceId,
         abilityId,
-        // A card nobody controls acts for the first player, as scheme and villain abilities do.
-        controllerId: controllerOf(ctx.state, instanceId) ?? ctx.state.firstPlayerId,
+        // A card nobody controls acts for the player its "you" names (`uncontrolledYouOf`), else for the first player,
+        // as scheme and villain abilities do.
+        controllerId:
+          controllerOf(ctx.state, instanceId) ?? uncontrolledYouOf(ctx.state, instanceId) ?? ctx.state.firstPlayerId,
         forced: true,
         fromHand: false,
       },

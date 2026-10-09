@@ -28,6 +28,7 @@ import {
   statHue,
   status,
   surface,
+  threatMeter,
   typeRole,
   type TypeSpec,
 } from "../tokens.js";
@@ -99,6 +100,75 @@ export function hatchRect(
     if (endX <= startX) continue;
     g.lineBetween(x + startX, y + (k - startX), x + endX, y + (k - endX));
   }
+}
+
+/** What `paintThreatMeter` needs of a scheme: the same three fields the board's panel and a target tile both hold. */
+export interface ThreatMeterScheme {
+  readonly meterMax: number | null;
+  readonly target: number | null;
+  readonly targetDashed?: boolean;
+}
+
+/**
+ * The threat meter, painted into `meter`: the board's scheme panel and the "choose a target" tiles both draw it
+ * here, so they cannot drift apart. Drawn against `meterMax`, not `target`: a side scheme has no threshold but still
+ * has somewhere it started from, and a bar that empties as it is thwarted says more than a bare number beside a main
+ * scheme that has one. `projected` (below `threat`) hatches the part an effect would remove, the same texture guided
+ * mode's thwart preview uses, and the count reads "threat → projected".
+ */
+export function paintThreatMeter(
+  mg: Phaser.GameObjects.Graphics,
+  meterText: Phaser.GameObjects.Text,
+  meter: Rect,
+  scheme: ThreatMeterScheme,
+  threat: number,
+  alpha = 1,
+  projected: number | null = null,
+): void {
+  const dim = alpha;
+  mg.clear();
+  mg.fillStyle(surface.parchment.hex, dim).fillRect(meter.x, meter.y, meter.width, meter.height);
+  const previewed = projected !== null && projected < threat;
+  if (scheme.meterMax && scheme.meterMax > 0) {
+    const ratio = (value: number) => Math.min(1, Math.max(0, value) / scheme.meterMax!);
+    const solidWidth = meter.width * ratio(previewed ? projected : threat);
+    mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, solidWidth, meter.height);
+    if (previewed) {
+      hatchRect(
+        mg,
+        { x: meter.x + solidWidth, y: meter.y, width: meter.width * ratio(threat) - solidWidth, height: meter.height },
+        threatMeter.fill.hex,
+        dim,
+        6,
+        3,
+      );
+    }
+  }
+  mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
+  const shown = Math.round(threat);
+  const reading = previewed ? `${shown} → ${Math.round(projected)}` : `${shown}`;
+  meterText.setText(
+    scheme.target === null
+      ? scheme.targetDashed
+        ? `${reading} / — THREAT`
+        : `${reading} THREAT`
+      : `${reading} / ${scheme.target} THREAT`,
+  );
+  // Ink on the red fill is hard to read, so the count sits on a parchment chip across the bar (the HP plate's
+  // own parchment ground): legible over both the filled and the empty part, with the fill still showing either side.
+  const chipWidth = Math.min(meter.width - 4, meterText.width + 10);
+  mg.fillStyle(surface.parchment.hex, dim).fillRect(
+    meter.x + (meter.width - chipWidth) / 2,
+    meter.y + 2,
+    chipWidth,
+    meter.height - 4,
+  );
+  mg.lineStyle(1, surface.ink.hex, dim).strokeRect(
+    meter.x + (meter.width - chipWidth) / 2,
+    meter.y + 2,
+    chipWidth,
+    meter.height - 4,
+  );
 }
 
 /**
@@ -1499,6 +1569,12 @@ export interface McHpPlateOptions {
    * section 05).
    */
   readonly tough?: boolean;
+  /**
+   * Hit points left once an effect resolves, below `current` (the "choose a target" tiles: the engine's preview of
+   * the pick). The part it would remove is hatched on the meter, like guided mode's threat preview, and the number
+   * reads "current → after". Absent or not below `current`: the plain plate.
+   */
+  readonly after?: number | null;
 }
 
 /**
@@ -1546,7 +1622,8 @@ export class McHpPlate {
   }
 
   redraw(): void {
-    const { rect, current, max, bonus = 0, alpha = 1, tough = false } = this.#options;
+    const { rect, current, max, bonus = 0, alpha = 1, tough = false, after = null } = this.#options;
+    const previewed = after !== null && after < current;
     const { width, height } = rect;
     this.container.setPosition(rect.x, rect.y);
 
@@ -1560,7 +1637,18 @@ export class McHpPlate {
     this.#graphics.fillStyle(surface.paper.hex, alpha).fillRect(0, 0, width, height);
     if (tough) hatchRect(this.#graphics, { x: 0, y: 0, width, height }, status.tough.hex, alpha * 0.28, 9, 3);
     this.#graphics.fillStyle(surface.parchment.hex, alpha).fillRect(2, height - meter - 2, width - 4, meter);
-    this.#graphics.fillStyle(signal.heal.hex, alpha).fillRect(2, height - meter - 2, (width - 4) * ratio, meter);
+    const solid = previewed && !infinite && max > 0 ? Math.max(0, Math.min(1, after / max)) : ratio;
+    this.#graphics.fillStyle(signal.heal.hex, alpha).fillRect(2, height - meter - 2, (width - 4) * solid, meter);
+    if (previewed && !infinite) {
+      const lost: Rect = {
+        x: 2 + (width - 4) * solid,
+        y: height - meter - 2,
+        width: (width - 4) * (ratio - solid),
+        height: meter,
+      };
+      this.#graphics.fillStyle(surface.paper.hex, alpha).fillRect(lost.x, lost.y, lost.width, lost.height);
+      hatchRect(this.#graphics, lost, accent.heroRed.hex, alpha, 6, 3);
+    }
     if (tough) {
       const track: Rect = { x: 2, y: height - meter - 2, width: width - 4, height: meter };
       this.#graphics.fillStyle(surface.ink.hex, alpha * 0.9).fillRect(track.x, track.y, track.width, track.height);
@@ -1588,7 +1676,9 @@ export class McHpPlate {
     // whole reading ("HP 9/11 +2") fits. An ∞ face reads as the bare symbol, with no "/max" beside it — there is
     // no printed maximum to repeat (docs/phase7-wave3.md §3.1).
     const left = 6 + Math.ceil(this.#caption.width) + 6;
-    this.#current.setText(infinite ? "∞" : String(current)).setColor(cssOf(surface.ink.hex, alpha));
+    this.#current
+      .setText(infinite ? "∞" : previewed ? `${current}\u2192${after}` : String(current))
+      .setColor(cssOf(surface.ink.hex, alpha));
     this.#max.setText(infinite ? "" : `/${max}`).setColor(cssOf(surface.ink.hex, ink.meta * alpha));
     let big = Math.max(CAPTION_FLOOR + 2, Math.round(body * 0.86));
     for (;;) {

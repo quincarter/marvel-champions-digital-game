@@ -141,18 +141,6 @@ describe("wave 6 log lines, number choice, show deck, threat on characters", () 
     expect(text({ type: "numberChosen", playerId: me, bind: "n", amount: 3 })).toBe("You choose 3.");
   });
 
-  test("returnedToScenarioDeck names the card and its deck, not a discard pile", () => {
-    const id = state.mainScheme.instanceId;
-    const line = text({
-      type: "returnedToScenarioDeck",
-      instanceId: id,
-      cardId: state.instances[id]!.cardId,
-      name: "the show deck",
-      instead: "discard",
-    });
-    expect(line).toBe(`${cardName(state, id)} goes to the bottom of the show deck instead of a discard pile.`);
-  });
-
   test("scenarioDeckClosed names the deck and the card that had no effect", () => {
     const cardId = state.instances[state.mainScheme.instanceId]!.cardId;
     const line = text({ type: "scenarioDeckClosed", name: "the show deck", sourceCardId: cardId, instanceIds: [] });
@@ -168,19 +156,6 @@ describe("wave 6 log lines, number choice, show deck, threat on characters", () 
     expect(removed).toBe(`1 threat removed from ${cardName(state, target)}.`);
     expect(`${placed}${removed}`).not.toMatch(/scheme/i);
   });
-});
-
-test("returnedToScenarioDeck belongs to the returned card's history", () => {
-  const id = state.mainScheme.instanceId;
-  expect(
-    eventRefs({
-      type: "returnedToScenarioDeck",
-      instanceId: id,
-      cardId: state.instances[id]!.cardId,
-      name: "the show deck",
-      instead: "discard",
-    }),
-  ).toEqual([id]);
 });
 
 describe("wave 6 log lines, attacks that remove threat and set-aside content", () => {

@@ -2468,6 +2468,19 @@ export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFac
 export const adjustBoostCount = (delta: Amount): EffectSpec => ({ kind: "adjustBoostCount", delta: amount(delta) });
 /** "…discard the top card of the encounter deck and count the number of boost icons on that card instead" (Chaos Control). */
 export const replaceBoostCount = (card: TargetRef): EffectSpec => ({ kind: "replaceBoostCount", card });
+/**
+ * A card effect counting boost icons ("the number of boost icons on that card", "for each boost icon discarded this
+ * way"): counts `cards` and writes the total to `<bind>.boostIcons`, which the effects after it read with
+ * `varOf("<bind>.boostIcons")`. Each encounter card's count opens the "when boost icons on an encounter card would be
+ * counted" window (Chaos Control, Scarlet Witch's Crest), so use this instead of reading `boostIconsOn(...)` or a
+ * discard's own `<bind>.boostIcons` wherever an effect counts icons at a moment. `bind` may be the discard's own bind.
+ * A constant ability's read stays `boostIconsOn`.
+ */
+export const countBoostIcons = (cards: TargetRef, bind: string): EffectSpec => ({
+  kind: "countBoostIcons",
+  cards,
+  bind,
+});
 
 /** "Attach 1 card from your hand facedown here" (`facedown` for a facedown attach). */
 export const attachCard = (card: TargetRef, to: TargetRef, opts: { readonly facedown?: boolean } = {}): EffectSpec => ({

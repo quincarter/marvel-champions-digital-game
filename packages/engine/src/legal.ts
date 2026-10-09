@@ -65,6 +65,7 @@ import {
   undefeatedVillains,
   mainSchemeStates,
   inClosedScenarioPlayArea,
+  scenarioPlayAreaOf,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { combineRequirements, requirementTotal, type ResolvedRequirement } from "./resources.js";
@@ -159,6 +160,13 @@ export interface LegalAction {
    * which and sends the area as the `playCard` command's `into`. Absent when there is no choice to make.
    */
   readonly destinations?: readonly string[];
+  /**
+   * For an upgrade with "attach to" text that may be played into one of `destinations`: the cards in each such area
+   * it may be attached to, by area. Played into an area it is attached to a card there (RRG 1.8 "Attach To", p. 8),
+   * so the client sends one of these as the command's `attachToInstanceId` beside `into`; `targets` are the hosts of
+   * the play `example` names. Absent for every other card.
+   */
+  readonly destinationHosts?: Readonly<Record<string, readonly InstanceId[]>>;
   /**
    * The play is legal only into one of `destinations`: the player cannot pay for it in their own play area, and can
    * where a reduction that reads the destination applies ("Reduce the cost of the next ally played to the mission
@@ -770,7 +778,6 @@ function evaluatePlayOf(
   const controllers: readonly (PlayerId | undefined)[] = restrictions?.anyPlayerControl
     ? playerOrder(state).map((p) => p.playerId)
     : [undefined];
-  const variants: Variant[] = [];
   // Each usable "reduce the cost to play that card" ability is its own variant, after the unreduced ones, so a card
   // that is affordable anyway is offered without it and one that is only affordable with it is still offered
   // (docs/phase7-wave3.md §3.20). The client decides whether to use it; this only makes the play reachable.
@@ -779,33 +786,42 @@ function evaluatePlayOf(
     [],
     ...reducers.map((reducer) => [reducer]),
   ];
-  for (const reductions of reductionSets) {
-    for (const host of hosts) {
-      for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
-        for (const controllerId of controllers) {
-          for (const branch of branchSelections(cost)) {
-            variants.push({
-              target: host ?? target,
-              ...(controllerId ? { controllerId } : {}),
-              ...(branch === undefined ? {} : { branch }),
-              build: (payment) => ({
-                type: "playCard",
-                playerId,
-                cardInstanceId: id,
-                payment,
-                attachToInstanceId: host,
-                ...(costChoices ? { costChoices } : {}),
-                ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
-                ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
-                ...withBranch(branch),
-                ...(abilityId ? { abilityId } : {}),
-              }),
-            });
-          }
+  const variantsOver = (over: readonly (InstanceId | null)[]): Variant[] => {
+    const variants: Variant[] = [];
+    for (const reductions of reductionSets) for (const host of over) variants.push(...variantsOn(reductions, host));
+    return variants;
+  };
+  const variantsOn = (
+    reductions: readonly { instanceId: InstanceId; abilityId: AbilityId }[],
+    host: InstanceId | null,
+  ): Variant[] => {
+    const variants: Variant[] = [];
+    for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
+      for (const controllerId of controllers) {
+        for (const branch of branchSelections(cost)) {
+          variants.push({
+            target: host ?? target,
+            ...(controllerId ? { controllerId } : {}),
+            ...(branch === undefined ? {} : { branch }),
+            build: (payment) => ({
+              type: "playCard",
+              playerId,
+              cardInstanceId: id,
+              payment,
+              attachToInstanceId: host,
+              ...(costChoices ? { costChoices } : {}),
+              ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
+              ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
+              ...withBranch(branch),
+              ...(abilityId ? { abilityId } : {}),
+            }),
+          });
         }
       }
     }
-  }
+    return variants;
+  };
+  const variants = variantsOver(hosts);
   const action: ActionRef = {
     kind: "playCard",
     instanceId: id,
@@ -817,10 +833,13 @@ function evaluatePlayOf(
     withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
   if ("legal" in own) return withDestinations(state, deps, id, ranged(own));
   // Not playable to the player's own area. A reduction that reads the destination may still pay for it there
-  // (docs/phase7-wave8.md §3.35): the same variants, each naming the area.
+  // (docs/phase7-wave8.md §3.35): the same variants, each naming the area. An upgrade with "attach to" text has other
+  // hosts there (`hostsInArea`), so it may be playable into the area with no legal host anywhere else.
   for (const area of playDestinationsOf(state, deps, id)) {
-    if (areaCostReductionFor(state, deps, playerId, id, area) <= 0) continue;
-    const there = variants.map((variant) => ({
+    const hostsThere = hostsInArea(state, deps, id, playerId, area, { ignoreAttachLimits: true });
+    if (hostsThere === null && areaCostReductionFor(state, deps, playerId, id, area) <= 0) continue;
+    if (hostsThere?.length === 0) continue;
+    const there = (hostsThere === null ? variants : variantsOver(hostsThere)).map((variant) => ({
       ...variant,
       build: (payment: readonly Payment[]): Command => {
         const command = variant.build(payment);
@@ -834,18 +853,61 @@ function evaluatePlayOf(
 }
 
 /**
+ * The cards in an in-play scenario area that an upgrade with "attach to" text may take as its host when it is played
+ * into that area (`playCard.into`), read as the play command reads them: its own text, reaching into the area. Null
+ * for any other card, which is played into an area with no host.
+ */
+function hostsInArea(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  playerId: PlayerId,
+  area: string,
+  opts: { readonly ignoreAttachLimits?: true } = {},
+): readonly InstanceId[] | null {
+  const card = cardOf(state, id);
+  if (card?.type !== "upgrade" || !card.attachesTo) return null;
+  const context: EffectContext = {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+    reaches: { scenarioPlayArea: area },
+  };
+  return attachmentHostCandidates(state, card.attachesTo, context, opts).filter(
+    (host) => scenarioPlayAreaOf(state, host) === area,
+  );
+}
+
+/**
  * Adds `destinations` to a legal play that may also go to an in-play scenario area (`RuleSpec playDestination`,
- * docs/phase7-wave8.md §3.34): each area the same command is accepted for with `into` naming it.
+ * docs/phase7-wave8.md §3.34): each area the same command is accepted for with `into` naming it. An upgrade with
+ * "attach to" text is attached to a card in the area it is played into, so for it the command also names one of the
+ * hosts there, listed in `destinationHosts`.
  */
 function withDestinations(state: GameState, deps: EngineDeps, id: InstanceId, evaluated: Evaluated): Evaluated {
   if (!("legal" in evaluated) || evaluated.legal.example.type !== "playCard") return evaluated;
   const example = evaluated.legal.example;
   // The example pays for the play it names. Another area may price the card lower, never higher, and overpaying is
   // legal (RRG 1.8 "Cost", p. 13), so the same payment is accepted wherever the play itself is.
-  const destinations = playDestinationsOf(state, deps, id).filter(
-    (area) => probe(state, deps, { ...example, into: { scenarioPlayArea: area } }).ok,
-  );
-  return destinations.length > 0 ? { legal: { ...evaluated.legal, destinations } } : evaluated;
+  const destinations: string[] = [];
+  const destinationHosts: Record<string, readonly InstanceId[]> = {};
+  for (const area of playDestinationsOf(state, deps, id)) {
+    const into = { scenarioPlayArea: area };
+    const hostsThere = hostsInArea(state, deps, id, example.playerId, area);
+    if (hostsThere === null) {
+      if (probe(state, deps, { ...example, into }).ok) destinations.push(area);
+      continue;
+    }
+    const legal = hostsThere.filter((host) => probe(state, deps, { ...example, attachToInstanceId: host, into }).ok);
+    if (legal.length === 0) continue;
+    destinations.push(area);
+    destinationHosts[area] = legal;
+  }
+  if (destinations.length === 0) return evaluated;
+  const hosted = Object.keys(destinationHosts).length > 0 ? { destinationHosts } : {};
+  return { legal: { ...evaluated.legal, destinations, ...hosted } };
 }
 
 /** Adds `costCounters` to a legal action whose cost removes "up to N" counters (docs/phase7-wave3.md §3.32). */

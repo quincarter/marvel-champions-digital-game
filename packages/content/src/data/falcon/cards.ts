@@ -707,7 +707,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "uses", count: 3, counterType: "emergency" }, { name: "victory", value: 0 }],
     text: {
       printed: "Give to the Sam Wilson player.\nUses (3 emergency counters). Victory 0.\nAlter-Ego Action: Spend 1 resource of any type → remove 1 emergency counter from here.",
       current: "Give to the Sam Wilson player.\nUses (3 emergency counters). Victory 0.\nAlter-Ego Action: Spend 1 resource of any type → remove 1 emergency counter from here.",

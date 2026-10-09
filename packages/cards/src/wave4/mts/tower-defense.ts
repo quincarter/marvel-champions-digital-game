@@ -23,6 +23,7 @@ import {
   chooseOne,
   chosen,
   constant,
+  countBoostIcons,
   coveredByEngineRule,
   damageOn,
   dealDamage,
@@ -164,6 +165,7 @@ const corvusForcedInterrupt = () =>
     on.enemyAttacks("self"),
     ifThen(undefendedAttack, [
       discardEncounterCards(1, { bind: "d" }),
+      countBoostIcons(chosen("d"), "d"),
       dealDamage(varOf("d.boostIcons"), AVENGERS_TOWER),
     ]),
   );
