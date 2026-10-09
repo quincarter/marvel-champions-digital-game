@@ -97,3 +97,47 @@ Already in the repo:
 
 `pdftoppm` is not installed, so the Read tool cannot open PDF pages. Render a page with PyMuPDF instead and read the
 PNG: `python3 -c "import pymupdf; d=pymupdf.open('<pdf>'); d[<page-1>].get_pixmap(dpi=130).save('<scratchpad>/p.png')"`.
+
+## Evidence combinations (campaign log, read 2026-10-09)
+
+The log sheet is `docs/campaign-modes/log-sheets/mc50_agents_of_shield_campaign_log.pdf` (the owner re-sent the same
+sheet and the same rulebook on 2026-10-09; both were already in the repo). Its "Evidence Combinations" grid, read by
+the main session from a PyMuPDF render, by icon color. Means: orange (folder), blue (phone), pink (card). Motive:
+green (dollar), black (handshake), yellow (flame). Opportunity: purple (ID badge), red (map pin), blue (shield).
+The three lists hold 9 rows each and together cover all 27 combinations exactly once (checked by listing them), so a
+means, motive and opportunity always name exactly one board member. Mapping each color to its evidence card
+(50185 to 50193) is still to do, from the card scans.
+
+| Means  | Motive | Opportunity | Board member               |
+| ------ | ------ | ----------- | -------------------------- |
+| orange | green  | purple      | Chief Medical Officer      |
+| orange | green  | red         | Chief Medical Officer      |
+| orange | black  | purple      | Chief Medical Officer      |
+| orange | black  | blue        | Chief Medical Officer      |
+| orange | yellow | red         | Chief Medical Officer      |
+| blue   | green  | purple      | Chief Medical Officer      |
+| blue   | green  | red         | Chief Medical Officer      |
+| blue   | black  | purple      | Chief Medical Officer      |
+| pink   | green  | purple      | Chief Medical Officer      |
+| orange | black  | red         | Chief Surveillance Officer |
+| blue   | green  | blue        | Chief Surveillance Officer |
+| blue   | black  | red         | Chief Surveillance Officer |
+| blue   | black  | blue        | Chief Surveillance Officer |
+| blue   | yellow | purple      | Chief Surveillance Officer |
+| blue   | yellow | red         | Chief Surveillance Officer |
+| pink   | black  | red         | Chief Surveillance Officer |
+| pink   | black  | blue        | Chief Surveillance Officer |
+| pink   | yellow | red         | Chief Surveillance Officer |
+| orange | green  | blue        | Chief Tactical Officer     |
+| orange | yellow | purple      | Chief Tactical Officer     |
+| orange | yellow | blue        | Chief Tactical Officer     |
+| blue   | yellow | blue        | Chief Tactical Officer     |
+| pink   | green  | red         | Chief Tactical Officer     |
+| pink   | green  | blue        | Chief Tactical Officer     |
+| pink   | black  | purple      | Chief Tactical Officer     |
+| pink   | yellow | purple      | Chief Tactical Officer     |
+| pink   | yellow | blue        | Chief Tactical Officer     |
+
+The sheet also records: each player's identity and remaining hit points; remaining secret counters per board member
+for scenarios 1 to 4; scenario 1 minions and side schemes in play; scenario 2 rescued captives; scenario 3 Adaptoid
+environments (Flying, Psionic, Sarah Garza, Strong upgrades); scenario 4 surviving Thunderbolts.
