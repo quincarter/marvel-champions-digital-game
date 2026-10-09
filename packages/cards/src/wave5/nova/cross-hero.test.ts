@@ -163,11 +163,16 @@ describe("Nova's aggression cards, from She-Hulk (Aggression)'s own deck", () =>
     // 40-card deck, and the opening draw can land a second, untracked copy alongside the one `moveToHand` finds —
     // both are then offered as the same chooseTriggers option (`sm/cross-hero.test.ts`'s own Jump Flip precedent),
     // so this picks exactly one rather than `accepting`'s own "every match" default, which would fire it twice.
+    // The window stays open after a pick (RRG 1.8 "Response", p. 36), so the second copy is offered again: declined.
+    let played = false;
     const oneChaseThemDown: Picker = (s) => {
       const choice = s.pendingChoice;
       if (!choice) return [];
       const hit = choice.options.find((o) => o.optionId.endsWith(":28011.chase-them-down-response"));
-      return hit ? [hit.optionId] : firstLegal(s);
+      if (!hit) return firstLegal(s);
+      if (played) return [];
+      played = true;
+      return [hit.optionId];
     };
     const attacked = settle(
       runWith(WAVE5_DEPS, primed, {

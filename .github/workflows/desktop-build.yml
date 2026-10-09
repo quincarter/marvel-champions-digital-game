@@ -30,9 +30,10 @@ concurrency:
 
 jobs:
   # The same gate release-on-merge.yml runs before its builds, once, instead of
-  # once per OS: a red suite never ships an installer.
+  # once per OS: a red suite never ships an installer. Lint and format here, and
+  # the typecheck and unit tests in parallel in the tests stage (tests.yml).
   checks:
-    name: Checks (lint, format, typecheck, test)
+    name: Checks (lint, format)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,12 +45,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm fmt:check
-      - run: pnpm typecheck
-      - run: pnpm test
+
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
 
   build:
     name: ${{ matrix.name }}
-    needs: checks
+    needs: [checks, tests]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

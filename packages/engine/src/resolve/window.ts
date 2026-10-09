@@ -278,6 +278,26 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
   }
+  // A player picked some of the optional abilities offered and they have resolved: the window is not declined, so the
+  // rest are offered again, to every player with one left (`pickedThisRound`). One that can no longer be initiated
+  // (its card is gone, its cost or target is) is dropped, as it is after the forced tier.
+  if (frame.pickedThisRound) {
+    const { pickedThisRound: _resolved, ...settled } = frame;
+    const remaining = frame.pending.filter(
+      (candidate) =>
+        stillImminent(ctx, frame, candidate) &&
+        stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
+    );
+    if (remaining.length === 0) return setFrame(ctx, { ...settled, pending: [] });
+    emit(ctx, {
+      type: "windowOpened",
+      event: frame.event,
+      timing: frame.timing,
+      ...(frame.wouldTier !== undefined ? { would: true as const } : {}),
+      candidates: remaining.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
+    });
+    return setFrame(ctx, { ...settled, pending: remaining, askingPlayerIds: controllersToAsk(ctx.state, remaining) });
+  }
   // RRG 1.8 "'Would'" (p. 48): the "would" interrupts are a tier of their own, forced then optional, resolved before
   // the window gathers the event's other interrupts. One that replaced or cancelled the event closed the window above.
   const would = frame.wouldTier !== undefined;
@@ -1005,6 +1025,9 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
     answer: null,
     awaiting: null,
     queue: [...frame.queue, ...picked],
+    // Each may be triggered once per occurrence: a picked one is not offered again.
+    pending: frame.pending.filter((candidate) => !picked.includes(candidate)),
+    ...(picked.length > 0 ? { pickedThisRound: true as const } : {}),
     askingPlayerIds: rest,
   });
 }

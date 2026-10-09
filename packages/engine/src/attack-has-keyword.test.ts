@@ -414,7 +414,9 @@ describe("§3.69 '(Max 1 per attack.)' on an event played from hand", () => {
     const pick = (state: GameState): readonly string[] =>
       state.pendingChoice?.prompt.kind === "chooseTriggers" ? (answers[asked++] ?? []) : defaultPick(state);
     const after = runCommandsPicking(given.state, deps, pick, basicAttack(t.hero, t.villain));
-    expect(asked).toBe(3);
+    // Three answers that pick, then the two windows that still hold an unpicked copy are offered again and declined
+    // (RRG 1.8 "Response", p. 36: a window stays open until the players decline the rest).
+    expect(asked).toBe(5);
     expect(resolved(after.events, FORCE)).toBe(2);
     expect(resolved(after.events, ECHO)).toBe(2);
     expect(damageOn(after.state, t.villain)).toBe(HERO_ATK + (1 + 2) + (1 + 2));

@@ -204,7 +204,7 @@ const COSTS: Readonly<Record<string, number>> = { "43016": 2, "43038": 2, "43040
 function accepting(
   ref: string,
   log: { offered: number } = { offered: 0 },
-  answers: { skip?: number; cost?: number } = {},
+  answers: { skip?: number; cost?: number; once?: boolean } = {},
 ): Picker {
   return (s) => {
     const choice = s.pendingChoice;
@@ -216,6 +216,8 @@ function accepting(
       if (hit) {
         log.offered += 1;
         if (answers.skip && log.offered <= answers.skip) return [];
+        // A second copy in hand is offered once the first has resolved (RRG 1.8 "Response", p. 36): declined.
+        if (answers.once && log.offered > 1) return [];
         return [hit.optionId];
       }
       const lw = choice.options.find((o) => o.optionId.includes(LIVING_WEAPON));
@@ -602,8 +604,14 @@ describe("Moment of Triumph (43017): after you attack and defeat an enemy, heal 
   it("costs 0: 2 excess damage heals 2 from X-23 (5 to 3)", () => {
     const s = staged();
     const log = { offered: 0 };
-    const r = driveEventsPicking(DEPS, s.state, accepting(TRIUMPH, log), basicAttack(s.state, s.minion));
-    expect(log.offered).toBe(1);
+    const r = driveEventsPicking(
+      DEPS,
+      s.state,
+      accepting(TRIUMPH, log, { once: true }),
+      basicAttack(s.state, s.minion),
+    );
+    // The opening hand can hold the other copy: it is offered after the first resolves, and declined.
+    expect(log.offered).toBeGreaterThanOrEqual(1);
     expect(damageOn(r.state, identityOf(r.state))).toBe(3);
     expect(playerOf(r.state, P1).discard).toContain(s.id);
   });
