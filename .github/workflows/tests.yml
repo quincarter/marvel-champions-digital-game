@@ -1,0 +1,75 @@
+# The tests stage of every workflow that gates on the suite (netlify-deploy.yml, desktop-build.yml,
+# release-on-merge.yml): each calls this file as its `tests` job and makes its build, deploy or release jobs wait for
+# it. Nothing after it needs to run a test again.
+#
+# The jobs run side by side on their own runners: a typecheck, and the Vitest suites split by
+# scripts/ci-test-plan.mjs into one job per wave of the cards package and up to three for everything else. The suites
+# need about an hour of CPU and a runner has four cores, so one runner took 20 to 50 minutes; split, the slowest job
+# takes about 11 (2026-10-09). On a pull request, jobs the changed files can't affect are left out
+# (scripts/lib/test-plan.mjs has the rule); a push, a tag and a manual run have no list of changed files and run them
+# all.
+name: Tests
+
+on:
+  workflow_call:
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  plan:
+    name: Plan the unit tests
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            packages/cards/src
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          : > changed.txt
+          if [ -n "$PR" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)' > changed.txt
+            # The API lists at most 3000 files; a pull request that large runs everything.
+            if [ "$(wc -l < changed.txt)" -ge 3000 ]; then : > changed.txt; fi
+          fi
+          matrix=$(node scripts/ci-test-plan.mjs changed.txt)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix" | jq -r '"Unit-test jobs: " + ([.include[].name] | join(", "))' >> "$GITHUB_STEP_SUMMARY"
+
+  # Every job runs to the end so one failure doesn't hide another.
+  unit:
+    name: Unit tests (${{ matrix.name }})
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test ${{ matrix.args }}

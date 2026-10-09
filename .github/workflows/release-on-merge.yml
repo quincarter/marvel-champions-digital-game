@@ -32,15 +32,16 @@ concurrency:
   group: release-on-merge-${{ github.ref }}
   cancel-in-progress: false
 
+# Three stages. `decide` works out what this run does; `checks` (lint, format, build) and `tests` (tests.yml: a
+# typecheck and the unit tests, in parallel) gate it; `check-and-cut-release` then opens the release PR or tags the
+# release, and the desktop and Android jobs after it only build. A run with nothing to release stops after `decide`.
 jobs:
-  check-and-cut-release:
-    name: Check Changes & Cut Release
+  decide:
+    name: Check Changes
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.cut.outputs.should_release || steps.check_changes.outputs.should_release }}
-      version: ${{ steps.cut.outputs.version }}
-      tag: ${{ steps.cut.outputs.tag }}
-      publish: ${{ steps.cut.outputs.publish }}
+      mode: ${{ steps.check_changes.outputs.mode }}
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,31 +84,55 @@ jobs:
             printf 'has_changes=false\nshould_release=false\n' >> "$GITHUB_OUTPUT"
           fi
 
+  checks:
+    name: Checks (lint, format, build)
+    needs: decide
+    if: needs.decide.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        if: steps.check_changes.outputs.has_changes == 'true'
-
       - uses: actions/setup-node@v4
-        if: steps.check_changes.outputs.has_changes == 'true'
         with:
           node-version: 24
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm fmt:check
+      - run: pnpm build
 
-      - name: Install workspace dependencies
-        if: steps.check_changes.outputs.has_changes == 'true'
-        run: pnpm install --frozen-lockfile
+  tests:
+    name: Tests
+    needs: decide
+    if: needs.decide.outputs.has_changes == 'true'
+    uses: ./.github/workflows/tests.yml
 
-      - name: Pre-release quality gate (lint, format, typecheck, test, build)
-        if: steps.check_changes.outputs.has_changes == 'true'
-        run: |
-          pnpm lint
-          pnpm fmt:check
-          pnpm typecheck
-          pnpm test
-          pnpm build
+  check-and-cut-release:
+    name: Cut Release
+    needs: [decide, checks, tests]
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.cut.outputs.should_release }}
+      version: ${{ steps.cut.outputs.version }}
+      tag: ${{ steps.cut.outputs.tag }}
+      publish: ${{ steps.cut.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch all git tags
+        run: git fetch --tags --force
+
+      - name: Setup Changie
+        uses: miniscruff/changie-action@v3
+        with:
+          version: latest
 
       - name: Open or update the release PR
         id: prepare
-        if: steps.check_changes.outputs.mode == 'prepare'
+        if: needs.decide.outputs.mode == 'prepare'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -132,9 +157,9 @@ jobs:
           fi
 
           # release/next is owned by this job and rebuilt from main on every run, so it is force-pushed.
-          # `pnpm install` installed the repo's hooks (`core.hooksPath .githooks`), and the pre-push hook runs the
-          # whole Playwright suite. That gate is for contributors' pushes; this commit only batches changelog
-          # fragments onto code main already has, so the hooks are skipped.
+          # The repo's pre-push hook runs the whole Playwright suite. That gate is for contributors' pushes; this
+          # commit only batches changelog fragments onto code main already has. This job doesn't run `pnpm install`,
+          # so the hooks aren't installed here, and `--no-verify` keeps it that way if that ever changes.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B release/next
@@ -160,7 +185,7 @@ jobs:
 
       - name: Tag the release
         id: cut
-        if: steps.check_changes.outputs.mode == 'tag'
+        if: needs.decide.outputs.mode == 'tag'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
