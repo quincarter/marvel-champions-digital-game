@@ -31,8 +31,10 @@ import {
 import { validateDeck, type DeckProblem } from "../deck.js";
 import {
   applyCampaignResult,
+  campaignGrantInclusionProblems,
   createCampaignLog,
   resolveBetweenGames,
+  setCampaignGrantLeftOut,
   type CampaignDeps,
   type CampaignSeatSetup,
 } from "./runner.js";
@@ -167,6 +169,93 @@ describe("CampaignOp grantCard.inclusion", () => {
     const kept = between(definition, won(definition, composed(definition))).seats[0]!;
     expect(kept.grants.map((grant) => grant.cardId)).toEqual(["pinned"]);
     expect(kept.deck.cards.find((line) => line.cardId === "reward")?.quantity).toBe(2);
+  });
+});
+
+describe("CampaignGrant.leftOut agrees with the deck list, or the campaign refuses to go on", () => {
+  const edited = (log: CampaignLog, change: (seat: CampaignLog["seats"][number]) => CampaignLog["seats"][number]) => ({
+    ...log,
+    seats: log.seats.map(change),
+  });
+  const withQuantity = (log: CampaignLog, card: string, quantity: number): CampaignLog =>
+    edited(log, (seat) => ({
+      ...seat,
+      deck: {
+        ...seat.deck,
+        cards: seat.deck.cards.flatMap((line) =>
+          line.cardId !== card ? [line] : quantity > 0 ? [{ ...line, quantity }] : [],
+        ),
+      },
+    }));
+  const flagged = (log: CampaignLog, card: string): CampaignLog =>
+    edited(log, (seat) => ({
+      ...seat,
+      grants: seat.grants.map((grant) => (grant.cardId === card ? { ...grant, leftOut: true as const } : grant)),
+    }));
+  const base = () => won(definitionOf(), composed());
+
+  it("a consistent log has no problems, included or left out", () => {
+    expect(base().seats.flatMap(campaignGrantInclusionProblems)).toEqual([]);
+    expect(leftOut(base()).seats.flatMap(campaignGrantInclusionProblems)).toEqual([]);
+  });
+
+  it("an included reward whose copy is not in the deck list: named, and the next game is refused", () => {
+    // The deck was rewritten without the reward and the flag was not set.
+    const log = withQuantity(base(), "reward", 0);
+    expect(log.seats.flatMap(campaignGrantInclusionProblems)).toEqual([
+      "seat 1 holds 1 granted copy of reward that is not marked as left out, and its deck lists 0",
+    ]);
+    expect(() => between(definitionOf(), log)).toThrow(/optional grants and deck lists disagree: seat 1 holds 1/);
+  });
+
+  it("a grant that is not optional cannot be marked as left out", () => {
+    const log = flagged(base(), "pinned");
+    expect(log.seats.flatMap(campaignGrantInclusionProblems)).toEqual([
+      "seat 1's grant of pinned is marked as left out of the deck, and it is not an optional grant",
+    ]);
+    expect(() => between(definitionOf(), log)).toThrow(/is not an optional grant/);
+  });
+
+  it("the player's own copies of the reward's title are not the reward: left out with two listed is consistent", () => {
+    // Stated limit: the record cannot tell a left-out reward still listed from a third copy the player chose.
+    const log = flagged(base(), "reward");
+    expect(log.seats[0]!.deck.cards[0]).toEqual({ cardId: "reward", quantity: 3 });
+    expect(log.seats.flatMap(campaignGrantInclusionProblems)).toEqual([]);
+  });
+
+  it("setCampaignGrantLeftOut changes the flag and the list together, both ways, and the result is consistent", () => {
+    const start = base();
+    const out = setCampaignGrantLeftOut(start, 1, 0, true);
+    expect(out).toEqual(leftOut(start));
+    expect(out.seats[0]!.deck.cards[0]).toEqual({ cardId: "reward", quantity: 2 });
+    expect(out.seats[0]!.grants[0]!.leftOut).toBe(true);
+    // Asked again: the same log.
+    expect(setCampaignGrantLeftOut(out, 1, 0, true)).toBe(out);
+    // Put back: the log as it was, with no `leftOut` field left behind.
+    const back = setCampaignGrantLeftOut(out, 1, 0, false);
+    expect(back).toEqual(start);
+    expect("leftOut" in back.seats[0]!.grants[0]!).toBe(false);
+    expect(between(definitionOf(), out).attempt?.input.seats[0]!.grantedCardIds).toEqual(["pinned"]);
+  });
+
+  it("setCampaignGrantLeftOut takes the last copy's line away and adds it back", () => {
+    const single = withQuantity(base(), "reward", 1);
+    const out = setCampaignGrantLeftOut(single, 1, 0, true);
+    expect(out.seats[0]!.deck.cards).toEqual([{ cardId: "pinned", quantity: 1 }]);
+    const back = setCampaignGrantLeftOut(out, 1, 0, false);
+    expect(back.seats[0]!.deck.cards).toEqual([
+      { cardId: "pinned", quantity: 1 },
+      { cardId: "reward", quantity: 1 },
+    ]);
+  });
+
+  it("setCampaignGrantLeftOut refuses a grant that is not optional, a missing grant, and a game in progress", () => {
+    const start = base();
+    expect(() => setCampaignGrantLeftOut(start, 1, 1, true)).toThrow(/is not optional/);
+    expect(() => setCampaignGrantLeftOut(start, 1, 7, true)).toThrow(/has no grant 7 for seat 1/);
+    expect(() => setCampaignGrantLeftOut(start, 2, 0, true)).toThrow(/has no grant 0 for seat 2/);
+    expect(() => setCampaignGrantLeftOut(withQuantity(start, "reward", 0), 1, 0, true)).toThrow(/lists no copy/);
+    expect(() => setCampaignGrantLeftOut(between(definitionOf(), start), 1, 0, true)).toThrow(/game in progress/);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   leavePlayAtOnce,
   setActiveVillain,
   updateMainSchemeState,
+  waitsForHostStep,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, isPermanent } from "../keywords.js";
@@ -58,14 +59,22 @@ import { engagementFrame } from "./enter-play.js";
 /** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
 const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
 
-/** A completion's When Completed abilities are resolving and its advance is still queued. */
+/**
+ * A completion's When Completed abilities are resolving and its advance is still queued, or the advance is waiting for
+ * the "when this leaves play" interrupts of the old stage's attachments (`HostStep advanceMainScheme`).
+ */
 const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
   state.stack.some(
     (frame) =>
-      frame.kind === "effects" &&
-      frame.cursor === 0 &&
-      frame.selfInstanceId === schemeId &&
-      frame.effects[0]?.kind === "advanceMainScheme",
+      (frame.kind === "effects" &&
+        frame.cursor === 0 &&
+        frame.selfInstanceId === schemeId &&
+        frame.effects[0]?.kind === "advanceMainScheme") ||
+      (frame.kind === "event" &&
+        frame.event.kind === "cardLeavesPlay" &&
+        frame.event.leaving?.kind === "withHost" &&
+        frame.event.leaving.step?.kind === "advanceMainScheme" &&
+        frame.event.leaving.step.schemeId === schemeId),
   );
 
 /** A "would be completed" event for this scheme is already on the stack (docs/phase7-wave4.md §3.4). */
@@ -436,14 +445,29 @@ export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceI
  * So excess threat does not carry over and neither does a counter of any type (magnet, test, power, knock) or a damage
  * token; acceleration tokens do, wherever the scheme keeps them (`MainSchemeState.accelerationTokens`, or its
  * `acceleration` counter for a scheme beside the central one). Each counter type returned is logged as a
- * `counterRemoved` with `returnedOnAdvance`; it is not a removal a card made, so nothing answers it. Cards attached to
- * the old stage are not discarded here (not built; reported to the owner, 2026-10-08).
+ * `counterRemoved` with `returnedOnAdvance`; it is not a removal a card made, so nothing answers it.
+ *
+ * "Discard each card attached to it": the old stage is removed from the game, so each card attached to it leaves play
+ * as an attachment whose host leaves does (`discardWithLeavingHost`: an encounter card to the encounter discard pile, a
+ * player card to its owner's; a permanent or "cannot leave play" player card is unattached in play, RRG 1.8 "Attach
+ * To", p. 8). This is step 1, before the new stage's A side is revealed. Their "when this leaves play" interrupts
+ * resolve first, with the old stage and its tokens still in place (`waitsForHostStep`; docs/phase7-wave5.md §4.1 Q32),
+ * and the advance then runs from the stack (`runHostStep`).
+ *
  * The new stage's A side is revealed first (its "When Revealed" resolves), then
  * the B side (its own "When Revealed", if any), then the B side's starting
  * threat is placed. `advancedBy` replaces the scheme's last cause before any of that resolves, so the new stage's When
  * Revealed reads this advance's (docs/phase7-wave7.md §3.12), and is copied onto the log event and the trigger event.
  */
-function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, advancedBy: MainSchemeAdvancedBy): void {
+export function advanceMainScheme(
+  ctx: Ctx,
+  schemeId: InstanceId,
+  nextIndex: number,
+  advancedBy: MainSchemeAdvancedBy,
+): void {
+  if (!mainSchemeStateOf(ctx.state, schemeId)) return;
+  if (waitsForHostStep(ctx, [schemeId], { kind: "advanceMainScheme", schemeId, nextIndex, advancedBy })) return;
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardWithLeavingHost(ctx, attachment);
   updateMainSchemeState(ctx, schemeId, (s) => ({
     ...s,
     stageIndex: nextIndex,

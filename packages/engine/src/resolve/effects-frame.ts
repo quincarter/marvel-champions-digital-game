@@ -146,6 +146,7 @@ import {
   openLabelAttack,
   skipForCancelledAttack,
   skipUnattackable,
+  withMovedAttackTarget,
 } from "./attack-ability.js";
 import {
   attackTargetAllowed,
@@ -190,6 +191,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     // A "(thwart)" ability is one thwart: "after you thwart" answers it here, once, after its last effect (RRG 1.8
     // "Thwart", p. 44). The frame waits beneath the resolved thwart's response window and finishes after it.
     if (announceAbilityThwart(ctx, frame)) return;
+    // An optional setup rule is logged as applied once its instruction has resolved (`Frame.setupOption`).
+    if (frame.setupOption) emit(ctx, { type: "setupOptionApplied", ...frame.setupOption });
     popFrame(ctx);
     // A rule waiting on an attack this frame never initiated ends with it (spec.ts `applyRuleUntil`, "initiated").
     settleAwaitingAttackEffects(ctx, frame.frameId, null);
@@ -753,32 +756,37 @@ function executeDivide(
     // share, not once per point or once overall: ruling, June 25, 2026 (2) ("+1 damage to each enemy damaged by the
     // effect"), the same per-instance reading as `dealDamage` (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
     const bonus = cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "damage");
-    // Each enemy's share is an instance of the ability's one attack, and that enemy is attacked.
+    // Each enemy's share is an instance of the ability's one attack, and that enemy is attacked. A share put on the
+    // enemy the attack's window moved it off ("change the target of this attack to a friendly character") is dealt to
+    // the character it was moved onto, which is the one attacked, as `dealDamage` does (`attackRetarget`;
+    // `attack-ability.ts`, "A target changed in the attack's window").
     const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }>[] = [];
-    const events = [...shares].map(([targetInstanceId, points]): Extract<TriggerEvent, { kind: "dealDamage" }> => {
+    const attackedAs: InstanceId[] = [];
+    const aims = withMovedAttackTarget(ctx, attack?.waiting, frame.selfInstanceId, [...shares.keys()]);
+    const events = aims.map(({ named, dealtTo, moved }): Extract<TriggerEvent, { kind: "dealDamage" }> => {
       const ofAttack = attack?.waiting
-        ? abilityAttackDamage(ctx.state, ctx.deps, attack.waiting, targetInstanceId)
+        ? abilityAttackDamage(ctx.state, ctx.deps, attack.waiting, dealtTo, moved)
         : null;
-      if (ofAttack) attacked.push(ofAttack.attacked);
+      if (ofAttack) {
+        attacked.push(ofAttack.attacked);
+        attackedAs.push(named);
+      }
       return {
         kind: "dealDamage",
-        targetInstanceId,
-        amount: points + bonus + (ofAttack?.extra ?? 0),
+        targetInstanceId: dealtTo,
+        amount: (shares.get(named) ?? 0) + bonus + (ofAttack?.extra ?? 0),
         sourceInstanceId: frame.selfInstanceId,
         fromAttack: false,
         ...ofAttack?.damage,
       };
     });
     if (attack?.waiting) {
-      // Guard minions the attacker ignores are recorded as ignored; nothing is skipped (only attackable enemies were offered).
-      skipUnattackable(
-        ctx,
-        attack,
-        frame.selfInstanceId,
-        attacked.map((event) => event.targetInstanceId),
-      );
+      // Guard minions the attacker ignores are recorded as ignored, read for the enemy each share was put on; nothing
+      // is skipped (only attackable enemies were offered).
+      skipUnattackable(ctx, attack, frame.selfInstanceId, attackedAs);
       noteAttackedByAbility(ctx, attack.waiting.frameId, attacked);
     }
+    if (events.length === 0) return;
     pushFrames(ctx, [
       damageGroupFrame(ctx, events, effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null),
     ]);

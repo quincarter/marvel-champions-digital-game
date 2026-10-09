@@ -9,6 +9,7 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
+import { textBoxBlankFor as exportedTextBoxBlankFor } from "./index.js";
 import { hasKeyword } from "./keywords.js";
 import { activeAbilityRefs, blankedByConstantRules, textBoxBlankFor, textBoxCannotBeBlanked } from "./select.js";
 import type { GameState } from "./state.js";
@@ -70,6 +71,19 @@ const blankedUntilEndOfPhase = (state: GameState, targets: readonly InstanceId[]
 });
 
 describe("§3.31 'This card's printed text box cannot be treated as if it were blank'", () => {
+  it("the engine's public `textBoxBlankFor` answers for a client: blank for the plain card, not for the one that cannot be", () => {
+    const suit = playerCardIntoPlay(start(), SUIT.id);
+    const plain = playerCardIntoPlay(suit.state, PLAIN.id);
+    const lasting = blankedUntilEndOfPhase(plain.state, [suit.id, plain.id]);
+    expect(exportedTextBoxBlankFor(plain.state, plain.id, deps)).toBe(false);
+    expect(exportedTextBoxBlankFor(lasting, plain.id, deps)).toBe(true);
+    expect(exportedTextBoxBlankFor(lasting, suit.id, deps)).toBe(false);
+    // The constant kind (a rule on a card in play) needs the registry: pass `deps`.
+    const theft = encounterCardInVillainArea(plain.state, THEFT.id);
+    expect(exportedTextBoxBlankFor(theft.state, plain.id, deps)).toBe(true);
+    expect(exportedTextBoxBlankFor(theft.state, suit.id, deps)).toBe(false);
+  });
+
   it("a lasting blank leaves its abilities and keywords live; the same blank on a card without the line takes them", () => {
     const suit = playerCardIntoPlay(start(), SUIT.id);
     const plain = playerCardIntoPlay(suit.state, PLAIN.id);

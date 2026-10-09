@@ -500,7 +500,7 @@ describe("Domino precon, Mister Sinister (standard), a short game that reaches S
 });
 
 describe("Domino precon + Spider-Man, Morlock Siege (standard), two players", () => {
-  it.each([4, 3])(
+  it.each([4, 3, 1])(
     "seed %i reaches round 4 (three full rounds) and replays deep-equal",
     (seed) => {
       const game = runGame(`morlock-siege#${seed}`, wave7Scenario("morlock-siege", { players: DUO, seed }), {

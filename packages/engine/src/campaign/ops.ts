@@ -77,12 +77,62 @@ export interface CampaignPendingChoice extends CampaignChoiceKey {
   readonly count: number;
   readonly optional: boolean;
   /**
+   * The fewest and the most options an answer may hold, as `runChoose` checks them: `minSelections` is 0 for an
+   * optional choice and otherwise `count`, less when fewer options are offered; `maxSelections` is `count`, less when
+   * fewer options are offered. Optional on the type only so a pending choice a client stored before the fields
+   * existed still reads; the runner always sets them (as it does `perSeat`, `source` and `exclusive`).
+   */
+  readonly minSelections?: number;
+  readonly maxSelections?: number;
+  /** Each seat answers this choice for itself (`chooser: "eachSeat"`); `seatNumber` is the seat asked now. */
+  readonly perSeat?: boolean;
+  /**
+   * Where the options come from in the campaign definition (`CampaignChoiceSource.kind`, read through an
+   * `excludingTitles` wrapper): `collection` is a pick over the seat's whole legal collection, `values` is whatever was
+   * dealt to this seat, `campaignSet` and `cards` are one printed pool every seat is shown.
+   */
+  readonly source?: CampaignChoiceSourceKind;
+  /**
+   * An option one seat takes is not offered to the seats after it: the definition's source leaves out the cards any
+   * seat has already been granted (`campaignSet` with `excludeGranted`, one printed copy for the table). False for
+   * every other source, where two seats may take the same title (a collection pick, a numbered per-seat set, a deal).
+   */
+  readonly exclusive?: boolean;
+  /**
    * The choice is whether to take a **random draw**, not which card to take (`CampaignOp` `random` with
    * `optional`). Its `options` are the single `CAMPAIGN_ACCEPT` token: answering `[]` declines and answering
    * `[CAMPAIGN_ACCEPT]` accepts, after which the cards come from `CampaignLog.rng` rather than from the answer.
    * The trace still records what was drawn (`CampaignChoiceRecord.random`), so the history reads the same way.
    */
   readonly random?: true;
+}
+
+/** `CampaignChoiceSource.kind`, less the `excludingTitles` wrapper (`CampaignPendingChoice.source`). */
+export type CampaignChoiceSourceKind = Exclude<CampaignChoiceSource["kind"], "excludingTitles">;
+
+const rootSource = (source: CampaignChoiceSource): Exclude<CampaignChoiceSource, { kind: "excludingTitles" }> =>
+  source.kind === "excludingTitles" ? rootSource(source.from) : source;
+
+/**
+ * What a client reads off a pending choice instead of guessing it (`CampaignPendingChoice.minSelections` and the
+ * fields after it), derived from the op and its source in the campaign definition.
+ */
+function pendingChoiceShape(
+  from: CampaignChoiceSource,
+  count: number,
+  optional: boolean,
+  offered: number,
+  perSeat: boolean,
+): Required<Pick<CampaignPendingChoice, "minSelections" | "maxSelections" | "perSeat" | "source" | "exclusive">> {
+  const source = rootSource(from);
+  const most = Math.min(count, offered);
+  return {
+    minSelections: optional ? 0 : most,
+    maxSelections: most,
+    perSeat,
+    source: source.kind,
+    exclusive: source.kind === "campaignSet" && source.excludeGranted === true,
+  };
 }
 
 /**
@@ -860,6 +910,7 @@ function runChoose(
         options,
         count,
         optional: op.optional === true,
+        ...pendingChoiceShape(op.from, count, op.optional === true, options.length, op.chooser === "eachSeat"),
       };
       return;
     }
@@ -910,6 +961,9 @@ function runRandom(
         options: [CAMPAIGN_ACCEPT],
         count: 1,
         optional: true,
+        // Whether to take the draw, never which card: one token, and nothing a seat's answer takes from another's.
+        ...pendingChoiceShape(op.from, 1, true, 1, run.seatScope !== null),
+        exclusive: false,
         random: true,
       };
       return;

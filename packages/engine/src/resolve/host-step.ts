@@ -9,6 +9,7 @@
 import { type Ctx, pushFrames } from "../ctx.js";
 import { setForm } from "../effects.js";
 import { cardFlippedEvent, type HostStep } from "../trigger-events.js";
+import { advanceMainScheme } from "./defeat.js";
 import { eventFrame } from "./frames.js";
 import {
   flipMainSchemeStage,
@@ -27,6 +28,8 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       return setVillainsAside(ctx, step.ids);
     case "removeMainSchemeStage":
       return removeMainSchemeStage(ctx, step.schemeId);
+    case "advanceMainScheme":
+      return advanceMainScheme(ctx, step.schemeId, step.nextIndex, step.advancedBy);
     case "setForm": {
       // The caller that waited would have pushed its announcement (`changeForm`, `executeChangeForm`).
       const changed = setForm(ctx, step.playerId, step.to, step.voluntary, step.heroFormIndex);

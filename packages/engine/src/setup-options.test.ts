@@ -113,10 +113,54 @@ describe("setup options (GameSetupConfig.setupOptions)", () => {
     );
     const drawn = events.findIndex((event) => event.type === "cardDrawn");
     expect(entered).toBeGreaterThanOrEqual(0);
-    expect(entered).toBeLessThan(logged);
-    expect(logged).toBeLessThan(placed);
-    expect(placed).toBeLessThan(setupRead);
+    // Logged when applied: after the card entered play and the option's threat was placed, before step 12 reads it.
+    expect(entered).toBeLessThan(placed);
+    expect(placed).toBeLessThan(logged);
+    expect(logged).toBeLessThan(setupRead);
     if (drawn >= 0) expect(setupRead).toBeLessThan(drawn);
+  });
+
+  it("is logged when applied: after step 11's starting threat and its own threat, before step 12 reads the card", () => {
+    // 3 per player: the option's 6 can be told from the card's own starting 4.
+    const { state, events } = play({ options: [poolThreat(3)] });
+    const id = poolId(state);
+    const placedAt = (amount: number) =>
+      events.findIndex((e) => e.type === "threatPlaced" && e.schemeInstanceId === id && e.amount === amount);
+    const logged = events.findIndex((event) => event.type === "setupOptionApplied");
+    const setupRead = events.findIndex(
+      (event) => event.type === "threatPlaced" && event.schemeInstanceId === state.mainScheme.instanceId,
+    );
+    expect(placedAt(4)).toBeGreaterThanOrEqual(0);
+    expect(placedAt(4)).toBeLessThan(placedAt(6));
+    expect(placedAt(6)).toBeLessThan(logged);
+    expect(logged).toBeLessThan(setupRead);
+    expect(state.stack).toEqual([]);
+  });
+
+  it("several options are logged in the order listed, one with no instruction in its place", () => {
+    const bare: SetupOption = {
+      option: "syn-set.note",
+      amount: 1,
+      text: "Nothing to do.",
+      citation: "test",
+      effects: [],
+    };
+    const second: SetupOption = { ...poolThreat(1), option: "syn-set.second" };
+    const { state, events } = play({ options: [poolThreat(3), bare, second] });
+    expect(applied(events).map((event) => event.option)).toEqual([
+      "syn-set.modular-difficulty",
+      "syn-set.note",
+      "syn-set.second",
+    ]);
+    expect(poolThreatOf(state)).toBe(4 + 6 + 2);
+    // Each entry follows its own change: the second option's 2 threat is placed after the first two are logged.
+    const id = poolId(state);
+    const lastPlaced = events.findIndex(
+      (e) => e.type === "threatPlaced" && e.schemeInstanceId === id && e.amount === 2,
+    );
+    const logs = events.flatMap((event, at) => (event.type === "setupOptionApplied" ? [at] : []));
+    expect(logs[1]!).toBeLessThan(lastPlaced);
+    expect(lastPlaced).toBeLessThan(logs[2]!);
   });
 
   it("logs the option and the stated amount, once", () => {

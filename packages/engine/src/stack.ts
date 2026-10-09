@@ -437,6 +437,16 @@ export type StackFrame =
       /** The setup instruction these effects resolve, when they are one (see `SetupInstructionSource`). */
       readonly instruction?: SetupInstructionSource;
       /**
+       * These effects are an optional setup rule the players turned on (`ScenarioRules.setupOptions`): when the frame
+       * finishes, the log says `setupOptionApplied` with what is kept here, so the entry follows the change it explains.
+       */
+      readonly setupOption?: {
+        readonly option: string;
+        readonly amount: number;
+        readonly text: string;
+        readonly citation: string;
+      };
+      /**
        * The ability whose effects these are, carried into its branches (`chooseOne`, `if`, `then`, …): an attack these
        * effects make names it as its `sourceAbilityId` ("When you use your 'Optic Blast' ability", Full Blast 33008;
        * docs/phase7-wave6.md §3.84). Absent for effects no ability resolves (a lasting effect's, a surge).

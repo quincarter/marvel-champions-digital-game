@@ -319,6 +319,7 @@ export {
 export type {
   CampaignChoiceAnswer,
   CampaignChoiceKey,
+  CampaignChoiceSourceKind,
   CampaignDeps,
   CampaignGameStart,
   CampaignLogSetup,
@@ -333,11 +334,13 @@ export {
   CAMPAIGN_NEXT_NODE_INSTRUCTION,
   campaignChoiceKey,
   campaignModularSetIds,
+  campaignGrantInclusionProblems,
   campaignResultOf,
   createCampaignLog,
   grantsOf,
   resolveBetweenGames,
   retryBaselineOf,
+  setCampaignGrantLeftOut,
   startGameFromLog,
 } from "./campaign/runner.js";
 export { removedCardIdsOf, withRemovedCardsOutOfDecks } from "./campaign/log.js";
@@ -421,6 +424,7 @@ export {
   selectTargets,
   shownDeckTop,
   TOGETHER_TARGETS_SLOT,
+  textBoxBlankFor,
   traitsOf,
 } from "./select.js";
 

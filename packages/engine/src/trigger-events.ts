@@ -1263,6 +1263,13 @@ export type HostStep =
   | { readonly kind: "removeVillains"; readonly ids: readonly InstanceId[] }
   | { readonly kind: "setVillainsAside"; readonly ids: readonly InstanceId[] }
   | { readonly kind: "removeMainSchemeStage"; readonly schemeId: InstanceId }
+  /** `advanceMainScheme`: the old stage is removed from the game with its attachments (RRG 1.8 "Main Scheme", p. 27). */
+  | {
+      readonly kind: "advanceMainScheme";
+      readonly schemeId: InstanceId;
+      readonly nextIndex: number;
+      readonly advancedBy: MainSchemeAdvancedBy;
+    }
   /** `joinGameArea`, whose first change removes the joining area's own stage (docs/phase7-wave5.md §4.1 Q50). */
   | { readonly kind: "joinGameArea"; readonly fromId: GameAreaId; readonly intoId: GameAreaId | null }
   /**

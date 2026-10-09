@@ -110,38 +110,29 @@ export function resolveScenarioSetup(ctx: Ctx): void {
 }
 
 /**
- * `ScenarioRules.setupOptions`: one `setupOptionApplied` entry and one effects frame per option, in the order listed,
- * resolved by the first player as scenario text (no "self"). They go ahead of step 12's frames, so the cards step 11
- * put into play are there and no Setup or When Revealed ability has resolved yet (RRG 1.8 Appendix II, p. 51). An
- * option stated at 0 is logged and resolves its instruction for 0.
+ * `ScenarioRules.setupOptions`: one effects frame per option, in the order listed, resolved by the first player as
+ * scenario text (no "self"). They go ahead of step 12's frames, so the cards step 11 put into play are there and no
+ * Setup or When Revealed ability has resolved yet (RRG 1.8 Appendix II, p. 51). Each is logged `setupOptionApplied`
+ * when its frame finishes (`Frame.setupOption`, `executeEffectsFrame`): after step 11's own frames and after the
+ * option's instruction, never when the frame is pushed. An option stated at 0 resolves its instruction for 0 and is
+ * logged; one with no instruction is logged in its place in the order.
  */
 function setupOptionFrames(ctx: Ctx): StackFrame[] {
-  const frames: StackFrame[] = [];
-  for (const option of ctx.state.scenarioRules.setupOptions ?? []) {
-    emit(ctx, {
-      type: "setupOptionApplied",
-      option: option.option,
-      amount: option.amount,
-      text: option.text,
-      citation: option.citation,
-    });
-    if (option.effects.length === 0) continue;
-    frames.push({
-      ...base(ctx),
-      kind: "effects",
-      effects: option.effects,
-      cursor: 0,
-      bindings: {},
-      vars: {},
-      scopedPlayerId: null,
-      selfInstanceId: null,
-      controllerId: ctx.state.firstPlayerId,
-      event: null,
-      eventFrameId: null,
-      instruction: { kind: "scenario", instructionId: option.option, text: option.text, citation: option.citation },
-    });
-  }
-  return frames;
+  return (ctx.state.scenarioRules.setupOptions ?? []).map((option) => ({
+    ...base(ctx),
+    kind: "effects",
+    effects: option.effects,
+    cursor: 0,
+    bindings: {},
+    vars: {},
+    scopedPlayerId: null,
+    selfInstanceId: null,
+    controllerId: ctx.state.firstPlayerId,
+    event: null,
+    eventFrameId: null,
+    instruction: { kind: "scenario", instructionId: option.option, text: option.text, citation: option.citation },
+    setupOption: { option: option.option, amount: option.amount, text: option.text, citation: option.citation },
+  }));
 }
 
 /**

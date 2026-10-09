@@ -109,7 +109,13 @@ const MOVE_VILLAIN = attackEvent(
   [{ kind: "attack", target: { kind: "villain" }, amount: n(2), moveDamageFrom: yourIdentity }],
   false,
 );
-const EVENTS = [PLAIN, BEGUN, LABEL, TWICE, EACH, LATE, MOVE, MOVE_VILLAIN];
+/** "Hero Action (attack): Deal 1 damage to a minion. Deal 2 damage divided among enemies.": a label-only division. */
+const SPLIT = attackEvent("split", [
+  aMinion,
+  { kind: "dealDamage", target: slot("m"), amount: n(1) },
+  { kind: "divide", what: "damage", amount: n(2), among: ENEMY, chooser: { kind: "controller" } },
+]);
+const EVENTS = [PLAIN, BEGUN, LABEL, TWICE, EACH, LATE, MOVE, MOVE_VILLAIN, SPLIT];
 
 const GOON = stubMinion({
   id: "goon",
@@ -197,6 +203,7 @@ function play(
   event: { readonly card: AnyCard },
   newTarget: InstanceId | null = null,
   seen: (state: GameState) => void = () => {},
+  shares: readonly InstanceId[] = [],
 ) {
   const given = giveCard(t.state, P1, event.card.id);
   const command: Command = {
@@ -209,6 +216,14 @@ function play(
   const pick = (state: GameState): readonly string[] => {
     seen(state);
     const options = (state.pendingChoice?.options ?? []).map((o) => o.optionId as InstanceId);
+    // A division: one point on each enemy listed in `shares` (a repeated enemy takes one point per mention).
+    if (state.pendingChoice?.prompt.kind === "divide") {
+      const taken = new Map<InstanceId, number>();
+      return shares.map((id) => {
+        taken.set(id, (taken.get(id) ?? 0) + 1);
+        return `${id}#${taken.get(id)}`;
+      });
+    }
     return newTarget && options.includes(t.hero) ? [newTarget] : defaultPick(state);
   };
   const driven = driveSession(startSession(given.state), deps, [command], pick);
@@ -295,6 +310,44 @@ describe("a target changed in the attack's window is where the attack's damage g
     expect([...attackedCharacters(events)].sort()).toEqual([pal, other].sort());
     // The Goon retaliates only if it is the one still attacked.
     expect(damageOn(state, t.hero)).toBe(other === t.minion ? 1 : 0);
+  });
+
+  it("a label-only division: the share put on the enemy the attack was moved off goes to the new target", () => {
+    const t = table(GOON, VEIL, PAL);
+    const pal = t.ids[1]!;
+    const { state, events } = play(t, SPLIT, pal, undefined, [t.minion, t.minion]);
+    expect(ofType(events, "playerAttackRetargeted")).toHaveLength(1);
+    expect(damageOn(state, pal)).toBe(1 + 2);
+    expect(damageOn(state, t.minion)).toBe(0);
+    // The Goon was not attacked, so it does not retaliate.
+    expect(damageOn(state, t.hero)).toBe(0);
+    expect(attackedCharacters(events)).toEqual([pal]);
+    expect(attackDamage(events)).toMatchObject([
+      { targetInstanceId: pal, amount: 1, sourceInstanceId: t.hero },
+      { targetInstanceId: pal, amount: 2, sourceInstanceId: t.hero },
+    ]);
+  });
+
+  it("a label-only division over two enemies: only the moved enemy's share moves; the other is attacked as written", () => {
+    const t = table(GOON, VEIL, PAL);
+    const pal = t.ids[1]!;
+    const villain = activeVillain(t.state).instanceId;
+    const { state, events } = play(t, SPLIT, pal, undefined, [t.minion, villain]);
+    expect(damageOn(state, pal)).toBe(1 + 1);
+    expect(damageOn(state, t.minion)).toBe(0);
+    expect(damageOn(state, villain)).toBe(1);
+    expect(damageOn(state, t.hero)).toBe(0);
+    expect([...attackedCharacters(events)].sort()).toEqual([pal, villain].sort());
+  });
+
+  it("a label-only division with no retarget is dealt as divided, and the Goon retaliates once", () => {
+    const t = table(GOON, PAL);
+    const villain = activeVillain(t.state).instanceId;
+    const { state } = play(t, SPLIT, null, undefined, [t.minion, villain]);
+    expect(damageOn(state, t.minion)).toBe(1 + 1);
+    expect(damageOn(state, villain)).toBe(1);
+    expect(damageOn(state, t.ids[0]!)).toBe(0);
+    expect(damageOn(state, t.hero)).toBe(1);
   });
 
   it("an attack that began with no target has none to move: the enemy chosen later takes the damage", () => {

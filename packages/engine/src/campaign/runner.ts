@@ -65,7 +65,13 @@ import {
   type CampaignRunPhase,
 } from "./ops.js";
 
-export type { CampaignChoiceAnswer, CampaignChoiceKey, CampaignDeps, CampaignPendingChoice } from "./ops.js";
+export type {
+  CampaignChoiceAnswer,
+  CampaignChoiceKey,
+  CampaignChoiceSourceKind,
+  CampaignDeps,
+  CampaignPendingChoice,
+} from "./ops.js";
 export { CAMPAIGN_ACCEPT, campaignChoiceKey } from "./ops.js";
 export { campaignResultOf } from "./result.js";
 
@@ -296,6 +302,105 @@ function logViewFor(
   };
 }
 
+/**
+ * Where a seat's grants and its deck list disagree about an optional grant (`CampaignGrant.optional`, `leftOut`; MC45
+ * p. 24), as messages; empty when they agree. The flag and the list are written by whoever edits the deck between
+ * games, and the game is built from both, so a mismatch would deal a wrong deck or exempt the wrong copies.
+ *
+ * - `leftOut` is only for an optional grant: any other grant's copy must be in the deck (MC10 p. 3).
+ * - An included copy is in the deck: for a title with an optional grant, the list holds at least as many copies as
+ *   the seat's grants of it that are not left out.
+ *
+ * The other direction cannot be read off a record: a left-out reward whose copy was never taken off the list looks
+ * exactly like a copy of the same title the player chose (`CampaignGrant.leftOut`). `setCampaignGrantLeftOut` is what
+ * keeps that half true, by changing the flag and the list together.
+ */
+export function campaignGrantInclusionProblems(seat: CampaignSeat): readonly string[] {
+  const problems: string[] = [];
+  const listed = (cardId: string): number =>
+    seat.deck.cards.filter((line) => line.cardId === cardId).reduce((sum, line) => sum + line.quantity, 0);
+  for (const grant of seat.grants) {
+    if (grant.leftOut === true && grant.optional !== true) {
+      problems.push(
+        `seat ${seat.seatNumber}'s grant of ${grant.cardId} is marked as left out of the deck, and it is not an optional grant`,
+      );
+    }
+  }
+  const optionalTitles = new Set(seat.grants.filter((grant) => grant.optional === true).map((grant) => grant.cardId));
+  for (const cardId of optionalTitles) {
+    const included = includedGrantsOf(seat.grants).filter((grant) => grant.cardId === cardId).length;
+    const inDeck = listed(cardId);
+    if (included > inDeck) {
+      problems.push(
+        `seat ${seat.seatNumber} holds ${included} granted ${included === 1 ? "copy" : "copies"} of ${cardId} that ${included === 1 ? "is" : "are"} not marked as left out, and its deck lists ${inDeck}`,
+      );
+    }
+  }
+  return problems;
+}
+
+function assertGrantInclusion(logId: string, seats: readonly CampaignSeat[]): void {
+  const problems = seats.flatMap(campaignGrantInclusionProblems);
+  if (problems.length > 0) {
+    throw new EngineInvariantError(
+      `campaign ${logId}: optional grants and deck lists disagree: ${problems.join("; ")}`,
+    );
+  }
+}
+
+/**
+ * Leaves an optional grant's copy out of a seat's deck, or puts it back (MC45 p. 24: "They may include 1 copy of that
+ * card in their deck"): the grant's `leftOut` flag and the deck list change together, so they cannot disagree.
+ * `grantIndex` is the grant's place in `CampaignSeat.grants` (`grantsOf`). A grant already in the asked state returns
+ * the log unchanged. Between games only; a grant that is not optional, or a copy that is not in the list to take out,
+ * is an `EngineInvariantError`.
+ */
+export function setCampaignGrantLeftOut(
+  log: CampaignLog,
+  seatNumber: number,
+  grantIndex: number,
+  leftOut: boolean,
+): CampaignLog {
+  if (log.attempt) throw new EngineInvariantError(`campaign ${log.id} has a game in progress: its decks are fixed`);
+  const seat = log.seats.find((candidate) => candidate.seatNumber === seatNumber);
+  const grant = seat?.grants[grantIndex];
+  if (!seat || !grant) {
+    throw new EngineInvariantError(`campaign ${log.id} has no grant ${grantIndex} for seat ${seatNumber}`);
+  }
+  if (grant.optional !== true) {
+    throw new EngineInvariantError(
+      `seat ${seatNumber}'s grant of ${grant.cardId} is not optional: its copy must be in the deck`,
+    );
+  }
+  if ((grant.leftOut === true) === leftOut) return log;
+  const line = seat.deck.cards.find((entry) => entry.cardId === grant.cardId);
+  if (leftOut && !line) {
+    throw new EngineInvariantError(
+      `seat ${seatNumber}'s deck lists no copy of ${grant.cardId} to leave out, though its grant says the copy is included`,
+    );
+  }
+  const cards = leftOut
+    ? seat.deck.cards.flatMap((entry) =>
+        entry.cardId !== grant.cardId || entry !== line
+          ? [entry]
+          : entry.quantity > 1
+            ? [{ ...entry, quantity: entry.quantity - 1 }]
+            : [],
+      )
+    : line
+      ? seat.deck.cards.map((entry) => (entry === line ? { ...entry, quantity: entry.quantity + 1 } : entry))
+      : [...seat.deck.cards, { cardId: grant.cardId, quantity: 1 }];
+  const { leftOut: _was, ...included } = grant;
+  const changed: CampaignGrant = leftOut ? { ...grant, leftOut: true } : included;
+  const updated: CampaignSeat = {
+    ...seat,
+    deck: { ...seat.deck, cards },
+    grants: seat.grants.map((entry, at) => (at === grantIndex ? changed : entry)),
+  };
+  assertGrantInclusion(log.id, [updated]);
+  return { ...log, seats: log.seats.map((entry) => (entry === seat ? updated : entry)) };
+}
+
 const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
   seatNumber: seat.seatNumber,
   identityCardId: seat.identityCardId,
@@ -334,6 +439,8 @@ export function resolveBetweenGames(
   const working = workingOf(log);
   // A log saved before removals left decks on their own still holds them; the game must never deal one.
   working.seats = withoutRemovedCards(working.seats, working.removedFromCampaign);
+  // The deck lists a client edited between games must agree with the grants it marked (`CampaignGrant.leftOut`).
+  assertGrantInclusion(log.id, working.seats);
   const logBefore = snapshotOf(working, log.definitionVersion);
   const run = newRun(definition, deps, modes, answers, "beforeGame", working, "", log.history);
 
