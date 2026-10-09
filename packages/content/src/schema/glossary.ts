@@ -1531,7 +1531,7 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "(Attack) abilities are one attack",
     definition:
-      "An ability labeled (attack) is one attack, with or without ATK, and every such card begins attacking as the ability starts resolving. All its damage to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability. A stun already on the attacker cancels it; one received after it began does not (owner decision). An attack bonus applies to each damage instance, not to \"additional\" damage.",
+      'An ability labeled (attack) is one attack, with or without ATK, and every such card begins attacking as the ability starts resolving. All its damage to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability. A stun already on the attacker cancels it; one received after it began does not (owner decision). An attack bonus applies to each damage instance, not to "additional" damage.',
     sources: [
       { kind: "rrg", page: 26 },
       { kind: "owner-ruling", date: "Oct 7, 2026" },
