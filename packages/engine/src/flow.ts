@@ -13,12 +13,27 @@ import {
   stepAfterScenarioSetupInstructions,
   stepAfterVillainSetupAbilities,
 } from "./setup-steps.js";
-import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
+import {
+  drawCards,
+  drawUpTo,
+  endLastingEffect,
+  expireLastingEffects,
+  expirePlayerTurnEffects,
+  untilNextVillainPhase,
+} from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
+import {
+  getPlayer,
+  handSize,
+  mustCardOf,
+  mustPlayer,
+  playerOrder,
+  scenarioPlayAreaOf,
+  undefeatedVillains,
+} from "./query.js";
 import {
   announce,
   announceStatusPlaced,
@@ -188,7 +203,19 @@ function executeScenarioSetupStep(ctx: Ctx): void {
 // (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
 function executeDrawStartingHands(ctx: Ctx): void {
   for (const player of ctx.state.players) {
-    drawCards(ctx, player.playerId, handSize(ctx.state, player.playerId, ctx.deps));
+    const size = handSize(ctx.state, player.playerId, ctx.deps);
+    // "(This card counts towards your hand size.)": a card an earlier setup instruction put in the hand is part of the
+    // starting hand, so the draw is that much smaller, and the credit is spent by it (`countTowardStartingHand`,
+    // docs/phase7-wave8.md §3.44). No credit, the draw of every other game: untouched.
+    const credit = player.startingHandCredit ?? 0;
+    if (credit <= 0) {
+      drawCards(ctx, player.playerId, size);
+      continue;
+    }
+    const drawn = Math.max(0, size - credit);
+    updatePlayer(ctx, player.playerId, ({ startingHandCredit: _spent, ...rest }) => rest);
+    emit(ctx, { type: "startingHandCreditApplied", playerId: player.playerId, handSize: size, credit, drawn });
+    drawCards(ctx, player.playerId, drawn);
   }
   setStep(ctx, {
     phase: "setup",
@@ -481,6 +508,10 @@ function readyEveryCard(ctx: Ctx): boolean {
     }
   }
   for (const id of ctx.state.villainArea) ready(id);
+  // A card in an in-play scenario area is a card in play (MC45 p. 5), so the step readies it though nobody controls it,
+  // and each card attached to one (docs/phase7-wave8.md §3.33: game steps are not card abilities).
+  if (ctx.state.scenarioPlayAreas)
+    for (const id of cardsInPlay(ctx.state)) if (scenarioPlayAreaOf(ctx.state, id) !== null) ready(id);
   for (const villain of undefeatedVillains(ctx.state)) ready(villain.instanceId);
   const pushed = ctx.state.stack.length - depth;
   if (pushed === 0) return false;
@@ -509,7 +540,18 @@ function finishPlayerPhase(ctx: Ctx): void {
   const delayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
   expireLastingEffects(ctx, "endOfPhase");
   // Pushed first, so it resolves after everything the player phase's end queues and before step one.
-  pushIfHeard(ctx, { kind: "phaseBeginning", phase: "villain" });
+  const beginning: TriggerEvent = { kind: "phaseBeginning", phase: "villain" };
+  const untilNow = untilNextVillainPhase(ctx.state);
+  if (untilNow.length === 0) pushIfHeard(ctx, beginning);
+  else {
+    // "Until the next villain phase begins" (docs/phase7-wave8.md §3.13) ends between the two: after the player phase's
+    // end has resolved under it, and before the villain phase's beginning is answered (RRG 1.8 "Lasting Effects",
+    // p. 26: it "expires as soon as the timing point specified by its duration is reached"). So who hears the beginning
+    // is read as the game will stand then, with those effects gone (a text box they blanked is back).
+    const then = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((e) => !untilNow.includes(e)) };
+    if (heard(then, ctx.deps, beginning)) pushEvent(ctx, beginning);
+    pushEffects(ctx, { effects: [{ kind: "villainPhaseBegins" }], selfInstanceId: null, controllerId: null });
+  }
   announce(ctx, { kind: "playerPhaseEnded" });
   if (listened) {
     pushEvent(ctx, ending);

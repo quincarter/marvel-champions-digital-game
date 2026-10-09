@@ -441,9 +441,10 @@ leaves (27320e9d), the final stage's When Completed resolves before the loss and
   that cannot be thwarted; "after you thwart" is heard once per scheme on a multi-scheme "(thwart)"; an ownerless find
   with no copy in the game shuffles every deck; seven Setup searches of the encounter deck have no shuffle; Wrecking
   Crew's both-empty loss is per villain deck.
-- **Follow-ups not done:** `divide("threat")` does not add the `modifyCardEffect` threat bonus per instance (Shrink
-  FAQ); "(attack)" labels on Hit and Run 18020 and First Hit 18015 deal damage with `dealDamage`, not as an attack;
-  the `returnedToScenarioDeck` event is no longer emitted but its type and client cases remain; Kang's Wrath 4B's new
+- **Done since (2026-10-09, PR #106):** `divide("threat")` now adds the `modifyCardEffect` threat bonus to each scheme
+  given a share (Shrink FAQ), and the unused `returnedToScenarioDeck` event is removed.
+- **Follow-ups not done:** "(attack)" labels on Hit and Run 18020 and First Hit 18015 deal damage with `dealDamage`, not as an attack;
+  Kang's Wrath 4B's new
   shuffle has no dedicated test; the Team-Up ring has no keyboard focus stop (T opens the panel) and its panel does
   not scroll; the "Other heroes" row truncates its second line beside the ring.
 - **Left for the wave:** Guided mode follow-ups from the owner (entries under both Core and their box, Titanium

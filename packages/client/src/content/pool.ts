@@ -122,6 +122,19 @@ import {
   WAVE7_ENCOUNTER_SETS,
   WAVE7_SCENARIOS,
   WAVE7_STARTER_DECKS,
+  WAVE8_ENCOUNTER_SETS,
+  WAVE8_SCENARIOS,
+  WAVE8_STARTER_DECKS,
+  AOA_CYCLE,
+  AOA_PACK,
+  ICEMAN_CYCLE,
+  ICEMAN_PACK,
+  JUBILEE_CYCLE,
+  JUBILEE_PACK,
+  NCRAWLER_CYCLE,
+  NCRAWLER_PACK,
+  MAGNETO_CYCLE,
+  MAGNETO_PACK,
   MUT_GEN_SCENARIOS,
   MOJO_SCENARIOS,
   WSP_CYCLE,
@@ -154,6 +167,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WAVE5_ENCOUNTER_SETS,
   ...WAVE6_ENCOUNTER_SETS,
   ...WAVE7_ENCOUNTER_SETS,
+  ...WAVE8_ENCOUNTER_SETS,
 ];
 
 /**
@@ -191,6 +205,8 @@ export const POOL_SCENARIOS: readonly Scenario[] = [
   ...MOJO_SCENARIOS,
   // NeXt Evolution's five (Morlock Siege, On the Run, Juggernaut, Mister Sinister, Stryfe): the four hero packs define none.
   ...WAVE7_SCENARIOS,
+  // Age of Apocalypse's five (Unus, Four Horsemen, Apocalypse, Dark Beast, En Sabah Nur): the four hero packs define none.
+  ...WAVE8_SCENARIOS,
 ];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
@@ -203,6 +219,7 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE5_STARTER_DECKS,
   ...WAVE6_STARTER_DECKS,
   ...WAVE7_STARTER_DECKS,
+  ...WAVE8_STARTER_DECKS,
 ];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
@@ -261,6 +278,11 @@ export const POOL_PACKS: readonly Pack[] = [
   ANGEL_PACK,
   X23_PACK,
   DEADPOOL_PACK,
+  AOA_PACK,
+  ICEMAN_PACK,
+  JUBILEE_PACK,
+  NCRAWLER_PACK,
+  MAGNETO_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -319,6 +341,11 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [ANGEL_PACK, ANGEL_CYCLE],
   [X23_PACK, X23_CYCLE],
   [DEADPOOL_PACK, DEADPOOL_CYCLE],
+  [AOA_PACK, AOA_CYCLE],
+  [ICEMAN_PACK, ICEMAN_CYCLE],
+  [JUBILEE_PACK, JUBILEE_CYCLE],
+  [NCRAWLER_PACK, NCRAWLER_CYCLE],
+  [MAGNETO_PACK, MAGNETO_CYCLE],
 ];
 
 /**

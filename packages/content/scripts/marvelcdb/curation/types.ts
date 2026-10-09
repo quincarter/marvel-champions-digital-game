@@ -13,7 +13,7 @@ import type {
   SpecialCost,
   Trait,
 } from "../../../src/schema/index.ts";
-import type { RawTypeCode } from "../raw-types.ts";
+import type { RawCard, RawTypeCode } from "../raw-types.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -30,6 +30,18 @@ export interface Correction {
   readonly evidence: string;
   readonly textReplace?: { readonly find: string; readonly replace: string };
   readonly name?: string;
+  /**
+   * The printed subtitle where MarvelCDB's record has no `subname` (wave 8: the basic Colossus ally, `mut_gen` 32048
+   * and its `wolv` reprint 35021, prints "Piotr Rasputin"). Replaces MarvelCDB's `subname`. Needed for the unique rule
+   * (RRG 1.8 "Unique") to match the ally against the Colossus hero by title and subtitle. Never errata.
+   */
+  readonly subtitle?: string;
+  /**
+   * The card's printed unique marker (the four-pointed star before the title, RRG 1.8 "Unique Icon") where MarvelCDB's
+   * `is_unique` disagrees with the scan (wave 8, `aoa` 45159 Ozymandias and 45160 Scarab print the marker; raw has
+   * `is_unique: false`). Replaces `is_unique` for the emitted `unique`. Never errata.
+   */
+  readonly unique?: boolean;
   /**
    * The card's printed type where MarvelCDB's `type_code` is wrong (wave 7, `next_evol` 40154 High Ground: typed
    * `attachment`, printed TREACHERY on the scan). Applied to the raw record before anything else reads it
@@ -48,6 +60,30 @@ export interface Correction {
    * `scheme`; with this set, the normalizer emits `statModifiers.thw` and no `sch`.
    */
   readonly thwart?: number;
+  /**
+   * A minion's printed SCH where MarvelCDB sends no `scheme` at all (Velociraptor, `aoa` 45129, prints SCH 1; the scan
+   * confirms it). Without it the normalizer needs a `cardNotes` entry, which records a dash or zero, not a number.
+   */
+  readonly scheme?: number;
+  /**
+   * A minion's stats that print a dash (RRG 1.8 "Dash (Value)", p. 15), emitted as `null` rather than 0 (wave 8,
+   * docs/phase7-wave8.md §1.25: the Age of Apocalypse Overseer faces 45179a to 45183a print "–" for both ATK and SCH).
+   * MarvelCDB sends neither field for such a card, which is otherwise indistinguishable from a printed 0.
+   */
+  readonly dashedMinionStats?: readonly ("atk" | "sch")[];
+  /**
+   * A side scheme's printed scheme icons where MarvelCDB's `scheme_crisis` / `scheme_acceleration` / `scheme_hazard`
+   * are missing or wrong (wave 8, `ncrawler` 48028 Brimstone Dimension prints one hazard icon; raw has
+   * `scheme_hazard: null`). Replaces what raw says for every kind (an omitted kind is zero), and is emitted in the
+   * order crisis, acceleration, hazard like `schemeIcons`. Side schemes only; opt-in per card.
+   */
+  readonly schemeIcons?: { readonly crisis?: number; readonly acceleration?: number; readonly hazard?: number };
+  /**
+   * Whether a side scheme's starting threat is per player where MarvelCDB sends `base_threat_fixed: true`
+   * (wave 8, `ncrawler` 48033 The Crazy Gang prints "2" with the per player icon; raw has `base_threat_fixed: true`).
+   * Replaces `!base_threat_fixed`. Side schemes only; opt-in per card.
+   */
+  readonly startingThreatPerPlayer?: boolean;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
@@ -121,6 +157,14 @@ export interface Correction {
    * additional `<card>-constant` ref beside the triggered ability's ref, which keeps its id. Never applied to text.
    */
   readonly extraConstantFrom?: string;
+  /**
+   * Non-obligation, preamble: a sentence that is the card's own When Revealed fallback although it prints no header
+   * (wave 8, `jubilee` 47026 Battle Suit: "Attach to the minion with the fewest remaining hit points. Otherwise, this
+   * card gains surge."; also the clause after an attach sentence, `aoa` 45091 Metal Wings: "Attach to Death and move the
+   * active counter to him." gives "Move the active counter to him."). Split out of the `-constant` ref into the
+   * structural `<code>.when-revealed` ref. Never applied to text.
+   */
+  readonly preambleWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -199,6 +243,12 @@ export interface MultipleVillainsCuration {
    * `villainIdBySet.get(villainSetCodes[i])`, the normal (Wrecking Crew) case.
    */
   readonly villainCardCodes?: readonly string[];
+  /**
+   * Each villain's side B version, parallel to `villainCardCodes` (wave 8, docs/phase7-wave8.md §1.6 and Q9 = B): the
+   * Four Horsemen print an A and a B card of the same title, which the normalizer files as two one-stage cards, and
+   * the players choose A or B per villain. Resolved to `ScenarioVillain.sideBCardId`. Absent = no B versions.
+   */
+  readonly sideBCardCodes?: readonly string[];
   /**
    * `MultipleVillains.encounterDecks` (docs/phase7-wave4.md §1.6) — Tower Defense's one shared deck built from the
    * scenario's own sets, instead of The Wrecking Crew's one deck per villain. Absent = `"perVillain"`.
@@ -301,6 +351,8 @@ export interface ScenarioCuration {
   readonly multipleVillains?: MultipleVillainsCuration;
   /** Absent = true (RRG 1.8 Appendix II steps 4-5 run normally). The Wrecking Crew insert sets this false. */
   readonly usesIdentityEncounterSets?: boolean;
+  /** With `usesIdentityEncounterSets: false`: the nemesis sets are set aside all the same (`Scenario.nemesisSetsSetAside`). */
+  readonly nemesisSetsSetAside?: true;
   /** Absent = 1 (one modular encounter set). The Wrecking Crew insert sets this 0. */
   readonly modularSetCount?: number;
   /**
@@ -416,6 +468,31 @@ export interface SeparatedIdentitySource {
   readonly evidence: string;
 }
 
+/**
+ * A card face MarvelCDB has no record for, transcribed from a scan as a `RawCard`-shaped literal (box card 104's
+ * back, The Towering Citadel `45104b`). Added before anything else reads the pack. A code MarvelCDB already has is
+ * an error (a fix upstream is noticed instead of shadowed). A record some `LinkOverride` targets is nested as that
+ * front's `linked_card`; any other added record is a top-level record.
+ */
+export interface AddedRecord {
+  readonly record: RawCard;
+  readonly reason: string;
+  /** The scan or page the fields were transcribed from. */
+  readonly evidence: string;
+}
+
+/**
+ * Re-points a front record's `linked_card` where MarvelCDB links the wrong back (45104a names 45105b, the back of
+ * 45105a). `front` is a top-level record's code, `back` any code MarvelCDB or `addedRecords` provides. Restating
+ * the link MarvelCDB already has is an error, so a fix upstream is noticed.
+ */
+export interface LinkOverride {
+  readonly front: string;
+  readonly back: string;
+  readonly reason: string;
+  readonly evidence: string;
+}
+
 export interface PackCuration {
   readonly packCode: string;
   readonly cycle: { readonly id: string; readonly name: string; readonly order: number };
@@ -425,6 +502,10 @@ export interface PackCuration {
   /** Prefix for exported constants: "CORE" → CORE_CARDS, CORE_PACK, … */
   readonly exportPrefix: string;
   readonly corrections: readonly Correction[];
+  /** Card faces MarvelCDB lacks (see `AddedRecord`). Absent = none. */
+  readonly addedRecords?: readonly AddedRecord[];
+  /** Wrong MarvelCDB face links (see `LinkOverride`). Absent = none. */
+  readonly linkOverrides?: readonly LinkOverride[];
   readonly errata: readonly Errata[];
   /** AbilityId → plain-language handoff for `ability-scripting-engineer`. Only where the text is non-obvious. */
   readonly scriptingNotes: Readonly<Record<string, string>>;

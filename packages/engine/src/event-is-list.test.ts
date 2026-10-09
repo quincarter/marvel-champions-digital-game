@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { candidatesFor } from "./resolve/triggers.js";
-import type { TriggerEvent } from "./trigger-events.js";
+import { BASIC_POWER_STAT, type TriggerEvent } from "./trigger-events.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubAlly } from "./testing/fixtures.js";
 import { gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
@@ -32,6 +32,7 @@ describe("§3.36 'attacks or thwarts': a list in eventIs", () => {
       kind: "basicPowerUsing",
       characterInstanceId: id,
       power,
+      stat: BASIC_POWER_STAT[power],
       playerId: P1,
     });
     expect(candidatesFor(state, deps, using("attack"), "interrupt", false)).toHaveLength(1);

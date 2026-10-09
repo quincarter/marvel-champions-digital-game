@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { createGame, scale } from "@mc/engine";
+import { createGame, mainSchemeValue, scale } from "@mc/engine";
+import { encounterDeckPreviewOf } from "./encounter-preview.js";
 import {
   compositionRowsOf,
   difficultyCardsFor,
@@ -72,6 +73,36 @@ describe("tableSetupPreviewOf", () => {
   });
 });
 
+describe("Four Horsemen: the HP total follows the mode and each chosen side", () => {
+  const horsemen = POOL_SCENARIOS.find((s) => (s.id as string) === "four-horsemen")!;
+  const totalOf = (difficulty: "standard" | "expert", horsemanSides?: ["A" | "B", "A" | "B", "A" | "B", "A" | "B"]) => {
+    const config = buildScenario("four-horsemen", {
+      difficulty,
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+      ...(horsemanSides ? { horsemanSides } : {}),
+    });
+    const preview = tableSetupPreviewOf(config, horsemen, difficulty, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    return { preview, row: gameSummaryRowsOf(preview).find((r) => r.label === "Villain")!.value };
+  };
+
+  test("expert is not 0 HP", () => {
+    const { preview, row } = totalOf("expert");
+    expect(preview.villainTotalHp).toBe(48);
+    expect(row).toContain("4 villains · 48 HP");
+  });
+
+  test("standard is all side A; side B for every Horseman is 48", () => {
+    expect(totalOf("standard").preview.villainTotalHp).toBe(36);
+    expect(totalOf("standard", ["B", "B", "B", "B"]).preview.villainTotalHp).toBe(48);
+  });
+
+  test("one Horseman on side B adds only that Horseman's difference", () => {
+    expect(totalOf("standard", ["A", "B", "A", "A"]).preview.villainTotalHp).toBe(39);
+    expect(totalOf("expert", ["A", "B", "B", "B"]).preview.villainTotalHp).toBe(45);
+  });
+});
+
 describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
   const config = buildScenario("rhino", {
     difficulty: "standard",
@@ -104,14 +135,72 @@ describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
     expect(standby!.totalCards).toBeGreaterThan(0);
   });
 
-  test("Breakout uses no identity sets, so there's nothing held back", () => {
+  test("Breakout uses no obligations; its nemesis sets are only set aside", () => {
     const breakoutConfig = buildScenario("breakout", {
       difficulty: "standard",
       players: [{ starterDeckId: "core-spider-man-justice" }],
       seed: 1,
     });
     const breakoutPreview = tableSetupPreviewOf(breakoutConfig, breakout, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    expect(nemesisStandbyOf(breakoutPreview.encounterDeck)).toBeNull();
+    expect(breakoutPreview.encounterDeck.obligationsShuffledIn).toHaveLength(0);
+    const standby = nemesisStandbyOf(breakoutPreview.encounterDeck);
+    expect(standby === null || standby.sentence.includes("set aside")).toBe(true);
+  });
+});
+
+describe("no obligations, nemesis held back (The Wrecking Crew)", () => {
+  const base = tableSetupPreviewOf(
+    buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    }),
+    rhino,
+    "standard",
+    CARDS_BY_ID,
+    POOL_ENCOUNTER_SETS,
+  );
+  const wrecking = { ...base, obligationsCount: 0, nemesisHeldBackCount: 1 };
+
+  test("Obligations reads none and the nemesis row is shown", () => {
+    const rows = gameSummaryRowsOf(wrecking);
+    expect(rows.find((r) => r.label === "Obligations")?.value).toBe("none");
+    expect(rows.find((r) => r.label === "Nemesis sets")?.value).toBe("1 held back");
+    expect(gameSummaryRowsOf(base).some((r) => r.label === "Nemesis sets")).toBe(false);
+  });
+
+  test("the standby sentence does not promise an obligation", () => {
+    const standby = nemesisStandbyOf({ ...base.encounterDeck, obligationsShuffledIn: [] });
+    expect(standby?.sentence).toContain("set aside");
+    expect(standby?.sentence).not.toContain("obligation");
+  });
+});
+
+describe("encounterDeckPreviewOf honors includeNemesisSets", () => {
+  const config = buildScenario("rhino", {
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 1,
+  });
+  test("identity sets off, nemesis sets on: held back, no obligations", () => {
+    const preview = encounterDeckPreviewOf(
+      { ...config, includeIdentitySets: false, includeNemesisSets: true },
+      [...CARDS_BY_ID.values()],
+      POOL_ENCOUNTER_SETS,
+    );
+    expect(preview.obligationsShuffledIn).toHaveLength(0);
+    expect(preview.nemesisSetsHeldBack.length).toBeGreaterThan(0);
+  });
+  test("both off: neither; default: both", () => {
+    const off = encounterDeckPreviewOf(
+      { ...config, includeIdentitySets: false },
+      [...CARDS_BY_ID.values()],
+      POOL_ENCOUNTER_SETS,
+    );
+    expect(off.nemesisSetsHeldBack).toHaveLength(0);
+    const on = encounterDeckPreviewOf(config, [...CARDS_BY_ID.values()], POOL_ENCOUNTER_SETS);
+    expect(on.obligationsShuffledIn.length).toBeGreaterThan(0);
+    expect(on.nemesisSetsHeldBack.length).toBeGreaterThan(0);
   });
 });
 
@@ -333,5 +422,75 @@ describe("the encounter deck counts a set the deal adds", () => {
     expect(preview.encounterDeckSize + preview.obligationsCount).toBe(deckSize);
     expect(compositionRowsOf(preview.encounterDeck).some((r) => r.label === "Dreadpool")).toBe(false);
     for (const { type, count } of preview.encounterDeck.decks[0]!.byType) expect(started.get(type) ?? 0).toBe(count);
+  });
+});
+
+describe("Apocalypse's easier start in the preview", () => {
+  const apocalypse = POOL_SCENARIOS.find((s) => (s.id as string) === "apocalypse")!;
+  const players = [{ starterDeckId: "core-spider-man-justice" }];
+
+  test("starting a stage sooner shows stage I and one more stage of hit points", () => {
+    const printed = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1 });
+    const easier = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart: true });
+    const before = tableSetupPreviewOf(printed, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const after = tableSetupPreviewOf(easier, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(before.villainStageLabel).toBe("II");
+    expect(after.villainStageLabel).toBe("I");
+    expect(after.villainStageSpan).toBe(before.villainStageSpan + 1);
+    expect(after.villainTotalHp).toBeGreaterThan(before.villainTotalHp);
+  });
+
+  test("a start at or after the difficulty's own changes nothing", () => {
+    expect(stageRangeFor(apocalypse, "standard", 1)).toEqual(stageRangeFor(apocalypse, "standard"));
+    expect(stageRangeFor(apocalypse, "standard", 3)).toEqual(stageRangeFor(apocalypse, "standard"));
+    expect(stageRangeFor(apocalypse, "standard", 0)[0]).toBe(1);
+  });
+
+  test("the standard card says where the game begins; the expert card keeps its own stage", () => {
+    const easier = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart: true });
+    const printed = difficultyCardsFor(apocalypse);
+    const folded = difficultyCardsFor(apocalypse, easier.villainStartStageIndex);
+    const standard = (cards: ReturnType<typeof difficultyCardsFor>) => cards.find((c) => c.id === "standard")!;
+    const expert = (cards: ReturnType<typeof difficultyCardsFor>) => cards.find((c) => c.id === "expert")!;
+    expect(standard(printed).description).toContain("Starts at stage II.");
+    expect(standard(folded).description).toContain("Starts at stage I.");
+    expect(expert(folded).description).toBe(expert(printed).description);
+  });
+
+  test("the main scheme line is X per player, X the hit points of the stage the game begins on", () => {
+    const printed = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1 });
+    const easier = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart: true });
+    const before = tableSetupPreviewOf(printed, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const after = tableSetupPreviewOf(easier, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    // 9 per hero from stage II (the dial), 8 from stage I (docs/phase7-wave8.md section 2.7); never the printed 0.
+    expect(before.mainSchemeThreat).toBe(9);
+    expect(after.mainSchemeThreat).toBe(8);
+    expect(gameSummaryRowsOf(after).find((r) => r.label === "Main scheme")?.value).toBe("8 threat · accel 1");
+    const expert = tableSetupPreviewOf(
+      buildScenario("apocalypse", { difficulty: "expert", players, seed: 1 }),
+      apocalypse,
+      "expert",
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+    expect(expert.mainSchemeThreat).toBe(10);
+  });
+
+  test("the X is the engine's own: the preview equals mainSchemeValue on the dealt game, whatever the stage", () => {
+    for (const easierStart of [false, true]) {
+      const config = buildScenario("apocalypse", { difficulty: "standard", players, seed: 1, easierStart });
+      const dealt = createGame(config, POOL_DEPS);
+      if (!dealt.ok) throw new Error(dealt.error.message);
+      const preview = tableSetupPreviewOf(config, apocalypse, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+      expect(preview.mainSchemeThreat).toBe(mainSchemeValue(dealt.state, "targetThreat", POOL_DEPS));
+    }
+  });
+
+  test("a scenario whose target is printed is not touched", () => {
+    const config = buildScenario("rhino", { difficulty: "standard", players, seed: 1 });
+    const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const scheme = CARDS_BY_ID.get(rhino.mainSchemeCardId as string);
+    if (scheme?.type !== "main_scheme") throw new Error("not a main scheme");
+    expect(preview.mainSchemeThreat).toBe(scale(scheme.stages[0]!.targetThreat, 1));
   });
 });

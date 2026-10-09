@@ -624,7 +624,7 @@ describe("§3.25 item 5: 'When the villain attacks, he attacks the Ward instead.
     expectReplays(result.session);
   });
 
-  it("another player's hero defends: the damage is theirs (3 - DEF 2), the Ward takes none, the boost is still P1's", () => {
+  it("another player's hero defends: the damage is theirs (3 - DEF 2), the Ward takes none, and so is the boost's 1", () => {
     const { state, ward } = p2Turn();
     const result = play(
       state,
@@ -641,9 +641,10 @@ describe("§3.25 item 5: 'When the villain attacks, he attacks the Ward instead.
         playerId: P1,
       },
     ]);
-    expect(mustInstance(result.state, heroOf(state, P2))).toMatchObject({ damage: 1, exhausted: true });
+    // "Boost: Deal 1 damage to you." is the defending player's (RRG 1.8 "Defend, Defense", p. 16).
+    expect(mustInstance(result.state, heroOf(state, P2))).toMatchObject({ damage: 2, exhausted: true });
     expect(mustInstance(result.state, ward).damage).toBe(0);
-    expect(mustInstance(result.state, heroOf(state, P1)).damage).toBe(1);
+    expect(mustInstance(result.state, heroOf(state, P1)).damage).toBe(0);
     expectReplays(result.session);
   });
 

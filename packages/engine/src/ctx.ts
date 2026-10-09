@@ -25,6 +25,7 @@ import type { EngineDeps } from "./abilities.js";
 import { loseIfEncounterCardsExhausted, resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
 import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
 import { syncTreatedAs } from "./treat-as.js";
+import { announceDeckTops } from "./deck-top.js";
 
 /**
  * Working context for one command. `state` is replaced (never mutated) by each
@@ -34,6 +35,11 @@ export interface Ctx {
   state: GameState;
   readonly events: GameEvent[];
   readonly deps: EngineDeps;
+  /**
+   * Open `holdDeckTops` calls (`deck-top.ts`): while above zero, `announceDeckTops` waits. Working memory of one
+   * command, like `events`; never part of the state.
+   */
+  deckTopsHeld?: number;
 }
 
 export const createCtx = (state: GameState, deps: EngineDeps): Ctx => ({ state, events: [], deps });
@@ -101,6 +107,11 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
     }
     case "scenarioArea":
       return { ...state, scenarioAreas: { ...state.scenarioAreas, [zone.name]: ids } };
+    case "scenarioPlayArea": {
+      const area = state.scenarioPlayAreas?.[zone.name];
+      if (!area) throw new EngineInvariantError(`unknown scenario play area ${zone.name}`);
+      return { ...state, scenarioPlayAreas: { ...state.scenarioPlayAreas, [zone.name]: { ...area, cards: ids } } };
+    }
     case "villainArea":
       return { ...state, villainArea: ids };
     case "victoryDisplay":
@@ -174,6 +185,9 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
  * (`resetSeparateDeckIfEmpty`; docs/phase7-wave1.md §4 Q9).
  */
 export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?: InstanceId): void {
+  // The card is where it was going: what shows on top of a deck kept faceup is logged now, before any reset the move
+  // causes (docs/phase7-wave8.md §3.48). The reset logs its own new top card (`resetPlayerDeck`).
+  announceDeckTops(ctx);
   // An encounter card leaving a player's deck into a hand or a discard pile (docs/phase7-wave5.md §3.5): the flow
   // announces it once the move's whole draw or discard is done.
   if (
@@ -312,6 +326,7 @@ export function placeAt(ctx: Ctx, id: InstanceId, index: number): void {
   const at = Math.max(0, Math.min(index, rest.length));
   ctx.state = setZone(ctx.state, zone, [...rest.slice(0, at), id, ...rest.slice(at)]);
   if (zone.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
+  if (zone.kind === "deck") announceDeckTops(ctx);
 }
 
 /**

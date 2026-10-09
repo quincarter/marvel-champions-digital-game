@@ -9,22 +9,14 @@ import {
   DATA_ONLY_ENCOUNTER_SETS,
   BP_CARDS,
   BP_PACK,
-  NCRAWLER_CARDS,
-  NCRAWLER_PACK,
-  MAGNETO_CARDS,
-  MAGNETO_PACK,
   WINTER_CARDS,
   WINTER_PACK,
   FALCON_CARDS,
   FALCON_PACK,
   SILK_CARDS,
   SILK_PACK,
-  ICEMAN_CARDS,
-  ICEMAN_PACK,
   WONDER_MAN_CARDS,
   WONDER_MAN_PACK,
-  JUBILEE_CARDS,
-  JUBILEE_PACK,
   PHOENIX_CARDS,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
@@ -35,6 +27,7 @@ import { WAVE4_CARDS } from "./index.js";
 import { WAVE5_CARDS } from "./index.js";
 import { WAVE6_CARDS } from "./index.js";
 import { WAVE7_CARDS } from "./index.js";
+import { WAVE8_CARDS } from "./index.js";
 
 const PACKS: readonly {
   readonly code: string;
@@ -42,14 +35,10 @@ const PACKS: readonly {
   readonly pack: { readonly cycleId: string; readonly releaseDate?: string };
 }[] = [
   { code: "bp", cards: BP_CARDS, pack: BP_PACK },
-  { code: "ncrawler", cards: NCRAWLER_CARDS, pack: NCRAWLER_PACK },
-  { code: "magneto", cards: MAGNETO_CARDS, pack: MAGNETO_PACK },
   { code: "winter", cards: WINTER_CARDS, pack: WINTER_PACK },
   { code: "falcon", cards: FALCON_CARDS, pack: FALCON_PACK },
   { code: "silk", cards: SILK_CARDS, pack: SILK_PACK },
-  { code: "iceman", cards: ICEMAN_CARDS, pack: ICEMAN_PACK },
   { code: "wonder_man", cards: WONDER_MAN_CARDS, pack: WONDER_MAN_PACK },
-  { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -60,14 +49,14 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("nine packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(9);
+  it("five packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(5);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3), wave 5 (cycle 4), wave 6 (cycle 6) or wave 7 (cycle 7)", () => {
+  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3), wave 5 (cycle 4), wave 6 (cycle 6), wave 7 (cycle 7) or wave 8 (cycle 8)", () => {
     const known = new Set(
       [
         ...CORE_CARDS,
@@ -78,6 +67,7 @@ describe("data-only pool — integrity", () => {
         ...WAVE5_CARDS,
         ...WAVE6_CARDS,
         ...WAVE7_CARDS,
+        ...WAVE8_CARDS,
       ].map((c) => c.id as string),
     );
     for (const c of DATA_ONLY_CARDS) expect(known.has(c.id as string), c.id as string).toBe(false);
@@ -105,8 +95,8 @@ describe("data-only pool — integrity", () => {
     // MojoMania, Gambit and Rogue are now `WAVE6_CARDS` (wave6.test.ts, docs/phase7-wave6.md).
     // Cycle 7 (NeXt Evolution, X-23, Deadpool, Angel, Psylocke) has moved entirely out of this pool: they are now
     // `WAVE7_CARDS` (wave7.test.ts, docs/phase7-wave7.md).
-    // Cycle 8: Nightcrawler, Magneto, Iceman, Jubilee.
-    for (const code of ["ncrawler", "magneto", "iceman", "jubilee"]) expect(cycleOf(code), code).toBe("cycle8");
+    // Cycle 8 (Age of Apocalypse, Nightcrawler, Magneto, Iceman, Jubilee) has moved entirely out of this pool: they are
+    // now `WAVE8_CARDS` (wave8.test.ts, docs/phase7-wave8.md).
     // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).
     for (const code of ["bp", "silk", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
     // Cycle 10: Wonder Man (Hercules/Fear No Evil are not in this pool yet).
@@ -138,4 +128,20 @@ describe("data-only pool — integrity", () => {
     expect(card.text.printed).toMatch(/this card gains surge\. Discard this card\.$/);
     expect(card.text.current).toBe(card.text.printed);
   });
+
+  it.each([
+    ["bp", BP_CARDS, "51031", 4, "doubt"],
+    ["falcon", FALCON_CARDS, "53029", 3, "emergency"],
+  ] as const)(
+    "%s: obligation %s carries real Uses and Victory 0 keywords (no scripts exist yet to double-place counters)",
+    (_pack, cards, id, count, counterType) => {
+      const card = cards.find((c) => c.id === id);
+      expect(card?.type).toBe("obligation");
+      if (card?.type !== "obligation") return;
+      expect(card.keywords).toEqual([
+        { name: "uses", count, counterType },
+        { name: "victory", value: 0 },
+      ]);
+    },
+  );
 });

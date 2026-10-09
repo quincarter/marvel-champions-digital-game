@@ -34,7 +34,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEvents } from "../../testing/staging.js";
+import { driveEvents, driveEventsPicking } from "../../testing/staging.js";
 import { traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario } from "../setup.js";
 import { encounterCardInVillainArea, playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
@@ -497,8 +497,8 @@ describe("Star-Lord kit", () => {
 
   it("Dive Bomb: deals 7 damage to the chosen enemy and 1 to each other enemy (17028.dive-bomb-action)", () => {
     const { state: withJetBoots } = playFromHand(runWave3(starLordWithOffAspectEvents(), toHero()), "17008", 2);
-    // Hydra Mercenary has guard, so the 7-damage attack goes to it (3 hit points: defeated). The villain still takes
-    // the 1 damage "to each other enemy", which is not an attack, so guard doesn't stop it.
+    // Hydra Mercenary has guard, so the 7 damage is aimed at it (3 hit points: defeated). The villain still takes the 1
+    // damage "to each other enemy": guard limits which enemy the attack's target may be, not this instruction.
     const withMinion = engagedMinion(withJetBoots, HYDRA_MERCENARY, "dive-bomb-minion");
     const minion = "dive-bomb-minion" as InstanceId;
     const villain = activeVillain(withMinion).instanceId;
@@ -510,6 +510,50 @@ describe("Star-Lord kit", () => {
     const { state } = playFromHand(withMinion, "17028", 4, pickMinion);
     expect(cardsInPlay(state)).not.toContain(minion);
     expect(inst(state, villain).damage).toBe(before + 1);
+  });
+
+  // Owner ruling, docs/phase7-wave8.md §4.1 Q47 (RRG 1.8 "Attack (Player Ability Type)", p. 10): the ability is one
+  // attack, so the 1 damage to each other enemy is damage from that attack, like the 7.
+  it("Dive Bomb, Q47: under '+1 damage from each attack' on the villain, the villain (an 'other enemy') takes 1 + 1 = 2 and the minion 7 (17028.dive-bomb-action)", () => {
+    const { state: withJetBoots } = playFromHand(runWave3(starLordWithOffAspectEvents(), toHero()), "17008", 2);
+    const withMinion = engagedMinion(withJetBoots, HYDRA_MERCENARY, "dive-bomb-minion");
+    const minion = "dive-bomb-minion" as InstanceId;
+    const villain = activeVillain(withMinion).instanceId;
+    const marked: GameState = {
+      ...withMinion,
+      scenarioRules: {
+        ...withMinion.scenarioRules,
+        rules: [
+          ...(withMinion.scenarioRules.rules ?? []),
+          { kind: "increaseDamageTaken", target: { categories: ["villain"] }, amount: 1, fromAttack: true },
+        ],
+      },
+    };
+    const given = moveToHand(marked, P1, "17028");
+    const [card] = given.ids as [InstanceId];
+    const pickMinion: Picker = (state) => {
+      const match = state.pendingChoice?.options.find((o) => o.ref?.kind === "card" && o.ref.instanceId === minion);
+      return match ? [match.optionId] : firstLegal(state);
+    };
+    const { state, events } = driveEventsPicking(
+      WAVE3_DEPS,
+      given.state,
+      pickMinion,
+      play(P1, card, payWith(given.state, P1, 4, [card])),
+    );
+    const taken = events.flatMap((e) => (e.type === "damageDealt" ? [[e.targetInstanceId, e.amount]] : []));
+    expect(taken).toEqual([
+      [minion, 7],
+      [villain, 2],
+    ]);
+    expect(inst(state, villain).damage).toBe(inst(marked, villain).damage + 2);
+    // Both instances are the one attack's: dealt by Star-Lord, and reported to the same attack.
+    const dealt = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "dealDamage" ? [e.event] : [],
+    );
+    expect(dealt.map((d) => d.fromAttack)).toEqual([true, true]);
+    expect(dealt.map((d) => d.sourceInstanceId)).toEqual([identityOf(state), identityOf(state)]);
+    expect(dealt[1]!.parentFrameId).toBe(dealt[0]!.parentFrameId);
   });
 
   it("Ever Vigilant: readies your hero and removes 2 threat from the main scheme (17030.ever-vigilant-action)", () => {

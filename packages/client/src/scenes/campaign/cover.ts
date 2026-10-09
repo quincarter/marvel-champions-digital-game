@@ -434,6 +434,14 @@ export class CampaignCoverScene extends Phaser.Scene {
         onClick: () => goToScreen(this, SCENES.campaignFinale, { runId: this.#runId }),
       };
     }
+    if (model.finished === "lost") {
+      return {
+        title: "Campaign lost",
+        ...(model.lostLine ? { subtitle: model.lostLine } : {}),
+        enabled: true,
+        onClick: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),
+      };
+    }
     return { title: "Campaign over", enabled: false, onClick: () => {} };
   }
 }

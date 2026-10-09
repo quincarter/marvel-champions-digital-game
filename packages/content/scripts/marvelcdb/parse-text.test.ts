@@ -487,3 +487,99 @@ describe("icon-led list lines belong to the triggered ability that introduces th
     expect(parsed.abilities.map((a) => a.kind)).toEqual(["action", "constant"]);
   });
 });
+
+/**
+ * Wave 8 `aoa` (docs/phase7-wave8-data-survey.md): No Longer Worthy 45105b's host ends at " and heal ...", where the
+ * named-host parse used to take the whole sentence as a card name.
+ */
+describe("parseCardText: an attach host ends where its behavioral clause starts", () => {
+  const text45105b =
+    'Attach to Apocalypse and heal 5[per_hero] damage from him. He cannot take damage while a [[Prelate]] minion is in play.\nIgnore the "<b>Forced Interrupt</b>" on the main scheme.\n<b>Forced Interrupt</b>: When Apocalypse is defeated, the players win the game.';
+
+  it("45105b: the host is Apocalypse and the heal clause stays as its own sentence", () => {
+    const parsed = parseCardText(text45105b, { villainNames: new Set() });
+    expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Apocalypse" });
+    expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
+    expect(JSON.stringify(parsed)).toContain("Heal 5[per_hero] damage from him.");
+  });
+
+  it("45105b: a named villain in the pack is the villain host", () => {
+    const parsed = parseCardText(text45105b, { villainNames: new Set(["Apocalypse"]) });
+    expect(parsed.attachesTo).toEqual({ kind: "villain" });
+    expect(parsed.attachesToVillainNamed).toBe("Apocalypse");
+  });
+
+  it('"Attach to Iron Man and give him a tough status card." names Iron Man alone', () => {
+    const parsed = parseCardText("Attach to Iron Man and give him a tough status card.", { villainNames: new Set() });
+    expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Iron Man" });
+  });
+
+  it('a real name containing "and" stays whole (Hammer and Anvil)', () => {
+    const parsed = parseCardText("Attach to Hammer and Anvil.\nAttached card gets +1 ATK.", {
+      villainNames: new Set(),
+    });
+    expect(parsed.attachesTo).toEqual({ kind: "namedCard", name: "Hammer and Anvil" });
+  });
+});
+
+/**
+ * docs/phase7-wave8.md §1.25 (MC45 p. 5): "Mission Response" is "a new type of Forced Response", so it parses as a
+ * `forced-response`, header kept in the text. Before this it fell through as a silent constant ability. The raw text is
+ * the real `aoa` 45180a, cleaned by `toPlainText`.
+ */
+describe("Mission Response (Age of Apocalypse Overseer minions)", () => {
+  const shadowKing = toPlainText(
+    "Victory 5.\nCannot take damage while another minion is at the mission.\n<b>Mission Response</b>: After you discard cards, place 2 threat on the [[Mission]] side scheme for each mental resource ([mental]) discarded.",
+  );
+
+  it("is a forced-response, with the printed header in the ability text", () => {
+    const parsed = parseCardText(shadowKing, { villainNames: new Set() });
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toEqual([
+      { kind: "constant", text: "Cannot take damage while another minion is at the mission." },
+      {
+        kind: "forced-response",
+        text: "Mission Response: After you discard cards, place 2 threat on the Mission side scheme for each mental resource ([mental]) discarded.",
+      },
+    ]);
+  });
+
+  it("leaves Mister Sinister's plain line a constant ability", () => {
+    const text = toPlainText(
+      "Victory 5.\nCannot take damage while another minion is at the mission.\nPlayers cannot assign cards with the same resource icon ([energy], [mental], [physical], or [wild]) to more than one ally each mission attempt.",
+    );
+    const parsed = parseCardText(text, { villainNames: new Set() });
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant", "constant"]);
+  });
+});
+
+/** docs/phase7-wave8.md section 1.32: a classification word before the category (Sidekick `aoa` 45015). */
+describe("parseCardText: attach host by classification", () => {
+  it('"Attach to an identity-specific ally you control." is a qualified host with classification and controlledBy', () => {
+    const parsed = parseCardText(
+      "Attach to an identity-specific ally you control. Max 1 per deck.\nAttached ally gets +2 hit points.",
+      {
+        villainNames: new Set(),
+      },
+    );
+
+    expect(parsed.attachesTo).toEqual({
+      kind: "qualified",
+      category: "ally",
+      classification: "identitySpecific",
+      controlledBy: "you",
+    });
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("a trait-qualified host still parses as before", () => {
+    const parsed = parseCardText(
+      "Attach to an X-MEN ally. Max 1 Training upgrade per ally.\nAttached ally gets +3 hit points.",
+      {
+        villainNames: new Set(),
+      },
+    );
+
+    expect(parsed.attachesTo).toEqual({ kind: "qualified", category: "ally", trait: "X-MEN" });
+  });
+});

@@ -3,6 +3,7 @@
  * card's face — a scan, or the generated fallback.
  */
 
+import { noTargetTag } from "../../view/hand-reason.js";
 import { teamUpTagFor, type TeamUpRole } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
@@ -25,6 +26,8 @@ import {
   SOURCE_BAR_NOTE,
   drawAllianceHelpBar,
   drawAbilityBar,
+  destinationQuestionRow,
+  drawDestinationBar,
   drawFormBar,
   drawPlayConfirmBar,
   drawSourceBar,
@@ -55,6 +58,9 @@ const HAND_CAPTION_HEIGHT = 20;
  * under the pile column and the payment strip rather than across them, and the
  * board is not rebuilt once per pointer move.
  */
+/** A mode bar: 44px controls with 4px above and below (`hit.target` is the floor for anything tapped). */
+const BAR_HEIGHT = hit.target + 8;
+
 export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene, hand, tabbed } = ctx;
   const g = scene.add.graphics();
@@ -72,32 +78,38 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const sourceChoice = ctx.controller.sourceChoice();
   const formChoice = ctx.controller.formChoice();
   const abilityChoice = ctx.controller.abilityChoice();
+  const destinationChoice = ctx.controller.destinationChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
   if (sourceChoice) {
     const height = hit.target + SOURCE_BAR_NOTE;
     drawSourceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, sourceChoice);
     top = rect.y + height + 4;
   } else if (formChoice) {
-    drawFormBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, formChoice);
-    top = rect.y + hit.target + 4;
+    drawFormBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, formChoice);
+    top = rect.y + BAR_HEIGHT + 4;
   } else if (abilityChoice) {
-    drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, abilityChoice);
-    top = rect.y + hit.target + 4;
+    drawAbilityBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, abilityChoice);
+    top = rect.y + BAR_HEIGHT + 4;
+  } else if (destinationChoice) {
+    // On a narrow bar the question gets its own line above the buttons, so the bar is that much taller.
+    const height = BAR_HEIGHT + destinationQuestionRow(rect.width);
+    drawDestinationBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, destinationChoice);
+    top = rect.y + height + 4;
   } else if (playConfirmation) {
-    drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);
-    top = rect.y + hit.target + 4;
+    drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, playConfirmation);
+    top = rect.y + BAR_HEIGHT + 4;
   } else if (allianceHelp) {
-    drawAllianceHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, allianceHelp);
-    top = rect.y + hit.target + 4;
+    drawAllianceHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, allianceHelp);
+    top = rect.y + BAR_HEIGHT + 4;
   } else if (costChoice) {
-    drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, costChoice);
-    top = rect.y + hit.target + 4;
+    drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, costChoice);
+    top = rect.y + BAR_HEIGHT + 4;
   } else if (payment) {
-    drawPaymentBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, payment);
-    top = rect.y + hit.target + 4;
+    drawPaymentBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, payment);
+    top = rect.y + BAR_HEIGHT + 4;
   } else if (discard) {
-    drawDiscardBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, discard);
-    top = rect.y + hit.target + 4;
+    drawDiscardBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, discard);
+    top = rect.y + BAR_HEIGHT + 4;
   } else {
     label(
       scene,
@@ -156,7 +168,14 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     setMask(strip, mask, "world");
     // A fade and a chevron on whichever edge has more cards past it, so a crowded hand (or a payment strip with the
     // card you need off screen) is seen to scroll (QA A-10).
-    const hint = drawHandScrollHint(scene, row.cardArea, rect, hand, drawnAt);
+    // The fade starts under the mode bar, so it never dims the bar's own buttons.
+    const hint = drawHandScrollHint(
+      scene,
+      row.cardArea,
+      { ...rect, y: top, height: rect.y + rect.height - top },
+      hand,
+      drawnAt,
+    );
     hand.attach((scrollX) => {
       strip.setX(drawnAt - scrollX);
       drawCards(scrollX);
@@ -432,7 +451,8 @@ function drawHandCard(
     // sits directly above the hand, and a tag hung over the top edge disappears behind it.
     // Wrapped to the card's own width ("NOT AN / ACTION"), never wider than the card it names: on a crowded hand a
     // one-line tag ran under its neighbor's. A wrapped tag grows upward from the card's top edge.
-    const inside = payment || discard;
+    // Any open mode's bar (attacker picker, destination, targeting) hangs over the hand the same way.
+    const inside = payment || discard || ctx.controller.selection.kind !== "idle";
     const tagText = scene.add
       .text(
         slot.x + slot.width - 3,
@@ -602,7 +622,7 @@ function shortReason(reason: IllegalReason, role: TeamUpRole | null): string | n
       return "limit";
     case "no_valid_target":
       // A Team-Up card whose partner is not in play comes back as this code; "no target" would misname it.
-      if (!/^team-up needs/i.test(reason.message)) return "no target";
+      if (!/^team-up needs/i.test(reason.message)) return noTargetTag(reason.message);
       // Present but on the wrong side (an alter-ego showing): no reason tag, the TEAM-UP tag and the hero's blurb say it.
       return role?.kind === "teamUpCard" && role.present ? null : "needs partner";
     case "card_type_not_playable":

@@ -13,7 +13,7 @@
  * client changing.
  */
 
-import type { CorePlayer } from "@mc/cards";
+import type { CorePlayer, HorsemanSide } from "@mc/cards";
 import type { AnyCard, DifficultySetChoice, PlayModes, ScenarioSetupOptions } from "@mc/content";
 import type {
   CampaignGameInput,
@@ -44,6 +44,9 @@ import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
  * it existed carries only `difficulty`, which still resolves to exactly the same
  * mode set.
  */
+/** The Four Horsemen's version per villain in printed order (War, Famine, Pestilence, Death): wave 8's own option. */
+export type HorsemanSides = readonly [HorsemanSide, HorsemanSide, HorsemanSide, HorsemanSide];
+
 export interface SessionConfig {
   readonly scenarioId: string;
   readonly difficulty: "standard" | "expert" | "extreme";
@@ -72,6 +75,19 @@ export interface SessionConfig {
    * documents, and `@mc/cards`' own `checkWave4DifficultySets` refuses a set outside its pack's classification.
    */
   readonly difficultySets?: DifficultySetChoice;
+  /**
+   * Threat per player placed on Gene Pool, 1 to 3, in any game that uses the Infinites set. The three wave 8 setup
+   * choices (docs/phase7-wave8.md section 4.1: this, `horsemanSides`, `easierStart`) go straight through `scenarioFor` to
+   * the playable builder, which refuses one the scenario does not offer (`playableScenarioOffer` says which). Additive,
+   * like `modes`: absent on every save written before they existed, and absent is the default (no Gene Pool threat,
+   * the sides the difficulty gives, Apocalypse at stage II). Not `villainVersions`: wave 8's builder takes its own
+   * four-sided tuple and ignores that field.
+   */
+  readonly genePoolThreatPerPlayer?: number;
+  /** The Four Horsemen's side per villain, in printed order. */
+  readonly horsemanSides?: HorsemanSides;
+  /** Apocalypse begins at stage I (standard mode only). */
+  readonly easierStart?: boolean;
   /**
    * The Hood's own seven-of-nine modular encounter set choice (docs/phase7-wave4.md §2.3, §3.18: "Choose 7 modular
    * encounter sets and set them aside — you may choose randomly"). Absent for every other scenario — the scenario

@@ -2,6 +2,7 @@
 
 import { type Ctx, emit, moveCard, nextInstanceId, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
 import {
+  ACCELERATION_COUNTER,
   attachmentsWaitForHost,
   discardWithLeavingHost,
   endGame,
@@ -10,6 +11,7 @@ import {
   leavePlayAtOnce,
   setActiveVillain,
   updateMainSchemeState,
+  waitsForHostStep,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, isPermanent } from "../keywords.js";
@@ -32,7 +34,7 @@ import {
   villainStageCount,
   villainStageOf,
 } from "../query.js";
-import { cannotBeDefeated, leavingPlayLoses } from "../rules.js";
+import { defeatHeldOff, leavingPlayLoses } from "../rules.js";
 import { nextInt, shuffle } from "../rng.js";
 import { cardsInPlay, isCaptiveAlly } from "../select.js";
 import type { StackFrame } from "../stack.js";
@@ -47,7 +49,8 @@ import {
 import type { TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
-import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
+import { mainSchemeStageFrames } from "./main-scheme-side.js";
+import { flipMainSchemeStage, leaveAreaOnDefeat, leaveVillainRow, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./reveal.js";
 import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
@@ -56,14 +59,22 @@ import { engagementFrame } from "./enter-play.js";
 /** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
 const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
 
-/** A completion's When Completed abilities are resolving and its advance is still queued. */
+/**
+ * A completion's When Completed abilities are resolving and its advance is still queued, or the advance is waiting for
+ * the "when this leaves play" interrupts of the old stage's attachments (`HostStep advanceMainScheme`).
+ */
 const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
   state.stack.some(
     (frame) =>
-      frame.kind === "effects" &&
-      frame.cursor === 0 &&
-      frame.selfInstanceId === schemeId &&
-      frame.effects[0]?.kind === "advanceMainScheme",
+      (frame.kind === "effects" &&
+        frame.cursor === 0 &&
+        frame.selfInstanceId === schemeId &&
+        frame.effects[0]?.kind === "advanceMainScheme") ||
+      (frame.kind === "event" &&
+        frame.event.kind === "cardLeavesPlay" &&
+        frame.event.leaving?.kind === "withHost" &&
+        frame.event.leaving.step?.kind === "advanceMainScheme" &&
+        frame.event.leaving.step.schemeId === schemeId),
   );
 
 /** A "would be completed" event for this scheme is already on the stack (docs/phase7-wave4.md §3.4). */
@@ -428,25 +439,62 @@ export function addMainSchemeStageToVictoryDisplay(ctx: Ctx, schemeId: InstanceI
 }
 
 /**
- * RRG "Main Scheme": excess threat does not carry over; acceleration tokens do.
+ * RRG 1.8 "Main Scheme" (p. 27), when the main scheme deck advances: "1. Remove the top main scheme card from the
+ * game. Return all tokens (except acceleration tokens) that were on that card to the token pool and discard each card
+ * attached to it." "All-purpose counters are considered tokens for all game purposes" ("All-Purpose Counter", p. 6).
+ * So excess threat does not carry over and neither does a counter of any type (magnet, test, power, knock) or a damage
+ * token; acceleration tokens do, wherever the scheme keeps them (`MainSchemeState.accelerationTokens`, or its
+ * `acceleration` counter for a scheme beside the central one). Each counter type returned is logged as a
+ * `counterRemoved` with `returnedOnAdvance`; it is not a removal a card made, so nothing answers it.
+ *
+ * "Discard each card attached to it": the old stage is removed from the game, so each card attached to it leaves play
+ * as an attachment whose host leaves does (`discardWithLeavingHost`: an encounter card to the encounter discard pile, a
+ * player card to its owner's; a permanent or "cannot leave play" player card is unattached in play, RRG 1.8 "Attach
+ * To", p. 8). This is step 1, before the new stage's A side is revealed. Their "when this leaves play" interrupts
+ * resolve first, with the old stage and its tokens still in place (`waitsForHostStep`; docs/phase7-wave5.md §4.1 Q32),
+ * and the advance then runs from the stack (`runHostStep`).
+ *
  * The new stage's A side is revealed first (its "When Revealed" resolves), then
  * the B side (its own "When Revealed", if any), then the B side's starting
  * threat is placed. `advancedBy` replaces the scheme's last cause before any of that resolves, so the new stage's When
  * Revealed reads this advance's (docs/phase7-wave7.md §3.12), and is copied onto the log event and the trigger event.
  */
-function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number, advancedBy: MainSchemeAdvancedBy): void {
-  updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, stageIndex: nextIndex, completed: false, advancedBy }));
+export function advanceMainScheme(
+  ctx: Ctx,
+  schemeId: InstanceId,
+  nextIndex: number,
+  advancedBy: MainSchemeAdvancedBy,
+): void {
+  if (!mainSchemeStateOf(ctx.state, schemeId)) return;
+  if (waitsForHostStep(ctx, [schemeId], { kind: "advanceMainScheme", schemeId, nextIndex, advancedBy })) return;
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardWithLeavingHost(ctx, attachment);
+  updateMainSchemeState(ctx, schemeId, (s) => ({
+    ...s,
+    stageIndex: nextIndex,
+    completed: false,
+    advancedBy,
+    faceupSide: "A",
+  }));
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme) return;
-  const stage = mainSchemeStageOf(ctx.state, scheme);
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const which = central ? {} : { schemeInstanceId: schemeId };
-  updateInstance(ctx, schemeId, (i) => ({ ...i, threat: 0 }));
+  const returned = Object.entries(mustInstance(ctx.state, schemeId).counters).filter(
+    ([type, amount]) => type !== ACCELERATION_COUNTER && amount > 0,
+  );
+  updateInstance(ctx, schemeId, (i) => ({
+    ...i,
+    threat: 0,
+    damage: 0,
+    counters: ACCELERATION_COUNTER in i.counters ? { [ACCELERATION_COUNTER]: i.counters[ACCELERATION_COUNTER]! } : {},
+  }));
+  for (const [counterType, amount] of returned) {
+    emit(ctx, { type: "counterRemoved", instanceId: schemeId, counterType, amount, returnedOnAdvance: true });
+  }
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
-    ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, stage.aSide.abilities, ctx.state.firstPlayerId),
-    ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], ctx.state.firstPlayerId),
     // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
     // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
     // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).
@@ -537,7 +585,8 @@ export const anyAlreadyDefeated = (state: GameState): boolean =>
 
 /**
  * A defeat at zero or fewer remaining hit points did not happen because a "cannot be defeated" rule covers the
- * character: RRG 1.8 "Hit Points" and "Defeat" (p. 15) defeat a character with "zero or fewer remaining hit points",
+ * character, or because it "is considered to have at least 1 hit point" (`consideredRemainingHp`,
+ * docs/phase7-wave8.md §3.10): RRG 1.8 "Hit Points" and "Defeat" (p. 15) defeat a character with "zero or fewer remaining hit points",
  * and "'Cannot'" (p. 11) is absolute while the rule lasts, so the character stays in play, still takes damage and can
  * still be healed. It is recorded (`GameState.heldAtZero`) so the rule ending defeats it at once
  * (`checkDefeatProtectionEnded`, docs/phase7-wave7.md §4.1 Q21).
@@ -578,7 +627,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
     if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) return false;
-    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId)) {
+    if (defeatHeldOff(ctx.state, ctx.deps, instanceId)) {
       holdAtZero(ctx, instanceId);
       return false;
     }
@@ -629,7 +678,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // other (RRG 1.8 "Ally", p. 7). Leaving play detaches it from its host (`leavePlay`). A minion attached to a card is
   // in neither list: it "cannot be defeated again" (FAQ "Malice (#199)", p. 64; `isAttachedMinion`, `beginDefeat`).
   const captives = cardsInPlay(ctx.state).filter((id) => isCaptiveAlly(ctx.state, id));
-  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives]) {
+  // …then each in-play scenario area's cards: allies and minions no player controls or is engaged with, defeated at
+  // zero hit points like any character in play (MC45 p. 5: "in play"; docs/phase7-wave8.md §3.33).
+  const inScenarioAreas = Object.values(ctx.state.scenarioPlayAreas ?? {}).map((area) => area.cards);
+  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives, ...inScenarioAreas]) {
     for (const id of [...ids]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
       const instance = getInstance(ctx.state, id);
@@ -637,7 +689,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
       if (isPermanent(ctx.state, id, ctx.deps)) continue;
-      if (cannotBeDefeated(ctx.state, ctx.deps, id)) {
+      if (defeatHeldOff(ctx.state, ctx.deps, id)) {
         holdAtZero(ctx, id);
         continue;
       }
@@ -707,10 +759,13 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
 /** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */
 function identityAtZero(ctx: Ctx, identityId: InstanceId): boolean {
-  return atZero(ctx, identityId) && !cannotBeDefeated(ctx.state, ctx.deps, identityId);
+  return atZero(ctx, identityId) && !defeatHeldOff(ctx.state, ctx.deps, identityId);
 }
 
-/** A character in play with zero or fewer remaining hit points. */
+/**
+ * A character in play whose dial reads zero or fewer remaining hit points. The true dial: whether a
+ * `consideredRemainingHp` floor then keeps it from being defeated is `defeatHeldOff`'s question.
+ */
 export function atZero(ctx: Ctx, id: InstanceId): boolean {
   const profile = characterProfile(ctx.state, id, ctx.deps);
   const instance = getInstance(ctx.state, id);
@@ -761,6 +816,7 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
     // docs/phase7-wave4.md §3.7). A defeated villain is out of play either way.
     const toVictoryDisplay = hasKeyword(ctx.state, villainId, "victory", ctx.deps);
     updateVillain(ctx, villainId, (v) => ({ ...v, defeated: true }));
+    leaveVillainRow(ctx, villainId);
     if (toVictoryDisplay) ctx.state = { ...ctx.state, victoryDisplay: [...ctx.state.victoryDisplay, villainId] };
     emit(ctx, { type: "characterDefeated", instanceId: villainId, cardId: villain.cardId });
     pushFrames(ctx, whenDefeated);
@@ -789,6 +845,34 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
     eventFrame(ctx, { kind: "villainStageAdvanced", stageIndex: nextIndex, instanceId: villainId }),
   ]);
   return null;
+}
+
+/**
+ * `EffectSpec revealNextVillainStage` (docs/phase7-wave8.md §3.18): the stage change of `defeatVillainStage` with no
+ * defeat. RRG 1.8 "Villain Defeat" (p. 47): "The next sequential stage of the villain deck is revealed. Set the villain's
+ * hit point dial as indicated by that stage". The dial is set to the new stage's printed hit points, so the damage is
+ * gone (owner, §4.1 Q11); everything else on the villain stays. Returns whether a stage was revealed: not for a villain
+ * out of play or on the last stage of the game's range.
+ */
+export function revealNextVillainStage(ctx: Ctx, villainId: InstanceId): boolean {
+  const villain = villainOf(ctx.state, villainId);
+  if (!villain || villain.defeated || !cardsInPlay(ctx.state).includes(villainId)) return false;
+  const nextIndex = villain.stageIndex + 1;
+  if (nextIndex > villain.lastStageIndex || nextIndex >= villainStageCount(ctx.state, villainId)) return false;
+  const fromStageNumber = villainStageOf(ctx.state, villainId).stageNumber;
+  updateVillain(ctx, villainId, (v) => ({ ...v, stageIndex: nextIndex }));
+  updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
+  emit(ctx, {
+    type: "villainStageRevealed",
+    instanceId: villainId,
+    stageIndex: nextIndex,
+    fromStageNumber,
+    toStageNumber: villainStageOf(ctx.state, villainId).stageNumber,
+    cause: "effect",
+  });
+  applyToughness(ctx, villainId);
+  pushFrames(ctx, [revealNewFaceFrame(ctx, villainId)]);
+  return true;
 }
 
 /** Slots used by the frame that picks the next active villain from a tie. */
@@ -829,6 +913,57 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   if (ctx.state.activeVillainId !== villainId) return null;
   // The Sinister Six's rule, MC27 p. 15 (docs/phase7-wave5.md §3.1).
   if (passActiveCounter(ctx, villainId)) return null;
+  // Villains that fall in one sweep are defeated together (ruling, Jun 2, 2026 (2) answer 1: the damage that brought
+  // them down was simultaneous), so the counter moves once, when the last of them has fallen (`settleActiveCounter`),
+  // and only villains still in play then can take it. Until that moment it stays on this defeated villain.
+  if (fallingTogetherPending(ctx.state, villainId)) return null;
+  return nextActiveVillainFrame(ctx, villainId);
+}
+
+/**
+ * Another villain's defeat from a sweep that defeats several together is still to apply: its event is on the stack
+ * (`TriggerEvent characterDefeated.protectionChecked`, set by `checkDefeats` on each of them and on nothing else).
+ */
+const fallingTogetherPending = (state: GameState, exceptId: InstanceId): boolean =>
+  state.stack.some(
+    (f) =>
+      f.kind === "event" &&
+      f.event.kind === "characterDefeated" &&
+      f.event.protectionChecked === true &&
+      f.event.instanceId !== exceptId &&
+      (f.stage === "interrupts" || f.stage === "apply") &&
+      villainOf(state, f.event.instanceId)?.defeated === false,
+  );
+
+/** The frame `nextActiveVillainFrame` returns, its question not answered yet. */
+const asksNextActive = (frame: Extract<StackFrame, { kind: "effects" }>): boolean =>
+  frame.effects.some((effect) => effect.kind === "chooseTarget" && effect.slot === NEXT_ACTIVE_SLOT);
+
+/**
+ * One of several villains defeated together has resolved, defeated or not (an interrupt replaced it). When it was the
+ * last of them and the active counter was left on a defeated villain (`removeDefeatedVillain`), the counter moves now,
+ * among the villains that are still in play. With none left it stays where it is, as it does for a single villain.
+ */
+export function settleActiveCounter(ctx: Ctx, resolvedId: InstanceId): void {
+  if (ctx.state.outcome) return;
+  if (ctx.state.scenarioRules.activeCounter === "nextInActivationOrder") return;
+  if (fallingTogetherPending(ctx.state, resolvedId)) return;
+  const holderId = ctx.state.activeVillainId;
+  const holder = holderId ? villainOf(ctx.state, holderId) : undefined;
+  if (!holderId || !holder?.defeated) return;
+  if (ctx.state.gameAreas.some((area) => area.villainIds.includes(holderId))) return;
+  // The last of them was the holder itself and its own defeat has just asked: one question, not two.
+  if (ctx.state.stack.some((f) => f.kind === "effects" && asksNextActive(f))) return;
+  const choice = nextActiveVillainFrame(ctx, holderId);
+  if (choice) pushFrames(ctx, [choice]);
+}
+
+/**
+ * "When the active villain is defeated, move the active counter to the villain whose side scheme has the most threat.
+ * (In case of a tie, the first player decides.)" (The Wrecking Crew insert.) A sole candidate takes the counter with no
+ * question; with no villain left nothing moves. Returns the frame that asks the first player, for a tie.
+ */
+function nextActiveVillainFrame(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const inPlay = cardsInPlay(ctx.state);
   const schemeThreat = (candidate: VillainState): number => {
     const id = candidate.signatureSideSchemeId;

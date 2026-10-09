@@ -948,7 +948,7 @@ describe("MOJO_CAMPAIGN_DEFINITION: the expert campaign (insert p. 5)", () => {
     };
     const log = finish(composed, result).log;
     expect(log.seats[0]?.fields.remainingHp).toEqual({ kind: "number", value: 5 });
-    expect(log.seats[1]?.fields.remainingHp).toBeUndefined();
+    expect(log.seats[1]?.fields.remainingHp).toEqual({ kind: "number", value: 0 });
     const state = build(compose(log).log).state;
     const seen: string[][] = [];
     const settled = settle(

@@ -267,9 +267,9 @@ export const KANG_SET = defineAbilities({
     addVillain(chosen("kang")),
     dealEncounterCard(you),
   ),
-  // The Chronopolis 3B — If all the players at this stage are defeated, this stage is complete.
+  // The Chronopolis 3B — If all the players at this stage are defeated, this stage is completed.
   "11009b.the-chronopolis-constant": stateCheck(areaPlayersDefeated, completeMainScheme(self)),
-  // The Chronopolis 3B — Forced Response: after this stage is complete, place 1 set-aside Kang's Dominion facedown
+  // The Chronopolis 3B — Forced Response: after this stage is completed, place 1 set-aside Kang's Dominion facedown
   // under stage 4A. At the end of the phase, remove Kang (Immortus) and this stage from the game and combine your
   // game area with another game area. (The tuck target is the *central* stage 4A, not this area's own scheme —
   // stage 4 stays central until every area has joined, docs/phase7-wave2.md §3.1.)

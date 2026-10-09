@@ -20,7 +20,13 @@ export type MechanicTryItId =
   | "psylocke"
   | "angel"
   | "cable"
-  | "x23";
+  | "x23"
+  | "iceman"
+  | "magik"
+  | "magneto"
+  | "jubilee"
+  | "bishop"
+  | "nightcrawler";
 
 export interface MechanicTryIt {
   readonly id: MechanicTryItId;
@@ -93,6 +99,42 @@ export const MECHANIC_TRYITS: readonly MechanicTryIt[] = [
     box: "cycle7",
     title: "X-23: Specialists",
     tagline: "Defeat Specialized Training and take a Specialist.",
+  },
+  {
+    id: "bishop",
+    box: "cycle8",
+    title: "Bishop: Energy Absorption",
+    tagline: "Take a hit, and your deck feeds your hand.",
+  },
+  {
+    id: "magik",
+    box: "cycle8",
+    title: "Magik: the faceup top card",
+    tagline: "Play Limbo, then choose which card shows on top.",
+  },
+  {
+    id: "iceman",
+    box: "cycle8",
+    title: "Iceman: Frostbite",
+    tagline: 'Attack, accept "Freeze!", and watch Frostbite attach.',
+  },
+  {
+    id: "jubilee",
+    box: "cycle8",
+    title: "Jubilee: different resource types",
+    tagline: "Pay for Firecracker with two types and stun Rhino.",
+  },
+  {
+    id: "nightcrawler",
+    box: "cycle8",
+    title: "Nightcrawler: Bamf!",
+    tagline: "Attach Bamf! to Rhino, then teleport in to defend.",
+  },
+  {
+    id: "magneto",
+    box: "cycle8",
+    title: "Magneto: Magnetic Pull",
+    tagline: "Discard until a MAGNETIC card and add it to your hand.",
   },
 ];
 

@@ -57,7 +57,9 @@ const perBlade = (count: typeof KNIVES, slot: string, effectsFor: (slot: string)
  * docs/phase7-wave7.md §7.2, §3.69.
  *
  * - **Flurry of Blades (41004), Hero Action (attack)**: the attack is the printed 2 damage; each Knife then confuses a
- *   chosen enemy and each Katana deals a chosen enemy 2 damage (not an attack: only the first sentence is).
+ *   chosen enemy and each Katana deals a chosen enemy 2 damage. The ability is one attack, so each Katana's 2 is
+ *   damage from that attack and its enemy is attacked (docs/phase7-wave8.md §4.1 Q47): the engine makes a
+ *   `dealDamage` to an enemy that follows an "(attack)" ability's `attack` that attack's, so the script is unchanged.
  * - **Mental Detection (41005), Hero Action (thwart)**: one thwart of 1 plus 2 per Knife ("additional" is part of the
  *   same thwart, RRG "Additional", p. 2); each Katana draws 1 card.
  * - **Psionic Redirect (41006), Hero Interrupt (defense)**: prevent 2, plus 2 per Katana; with a Knife, confuse the

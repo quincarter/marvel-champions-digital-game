@@ -121,12 +121,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
       printed: "Response: After you resolve your \"Magnetic Pull\" ability, if you discarded at least 1 of the following resource icons:\n[mental] — Magneto gets +1 THW this round.\n[physical] — Magneto gets +1 ATK this round.\n[energy] — Magneto gets +1 DEF this round.",
       current: "Response: After you resolve your \"Magnetic Pull\" ability, if you discarded at least 1 of the following resource icons:\n[mental] — Magneto gets +1 THW this round.\n[physical] — Magneto gets +1 ATK this round.\n[energy] — Magneto gets +1 DEF this round.",
     },
-    abilities: [
-      { id: abilityId("49004.magnetos-armor-response") },
-      { id: abilityId("49004.magnetos-armor-constant") },
-      { id: abilityId("49004.magnetos-armor-constant-2") },
-      { id: abilityId("49004.magnetos-armor-constant-3") },
-    ],
+    abilities: [{ id: abilityId("49004.magnetos-armor-response") }],
   },
   {
     id: cardId("49005"),
@@ -258,6 +253,16 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/49010.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Magnetic Missile: the cost arrow after the discard becomes \"Then,\". MarvelCDB (and the scan) carry the arrow.",
+        },
+      ],
+    },
     cost: 1,
     resourceIcons: { physical: 1 },
     aspect: "hero:49001a",
@@ -266,7 +271,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     deckLimit: 2,
     text: {
       printed: "Hero Action: Discard a minion with Wrapped in Metal attached → deal 5 damage to an enemy and stun it.",
-      current: "Hero Action: Discard a minion with Wrapped in Metal attached → deal 5 damage to an enemy and stun it.",
+      current: "Hero Action: Discard a minion with Wrapped in Metal attached. Then, deal 5 damage to an enemy and stun it.",
     },
     flavor: "\"I have heard your threats, and here is my reply.\"—Magneto",
     abilities: [{ id: abilityId("49010.magnetic-missile-action") }],
@@ -580,6 +585,16 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     quantityInSet: 3,
     unique: false,
     images: { front: imageRef("/bundles/cards/49023.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["aspect"],
+          note: "Deft Focus: classification is Basic, not Protection. The scan prints PROTECTION; MarvelCDB and the emitted data already say basic. Text is unchanged.",
+        },
+      ],
+    },
     cost: 1,
     resourceIcons: { energy: 1 },
     aspect: "basic",
@@ -681,6 +696,16 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/49028.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Exodus: \"equal to his total ATK\" gains \"for that attack\". MarvelCDB (and the scan) carry the printed wording.",
+        },
+      ],
+    },
     atk: 2,
     sch: 2,
     hp: 6,
@@ -690,7 +715,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "steady" }, { name: "toughness" }, { name: "villainous" }],
     text: {
       printed: "Steady. Toughness. Villainous.\n[star] Forced Response: After Exodus attacks you, discard cards from the top of your deck equal to his total ATK.\n(Magneto's nemesis minion.)",
-      current: "Steady. Toughness. Villainous.\n[star] Forced Response: After Exodus attacks you, discard cards from the top of your deck equal to his total ATK.\n(Magneto's nemesis minion.)",
+      current: "Steady. Toughness. Villainous.\n[star] Forced Response: After Exodus attacks you, discard cards from the top of your deck equal to his total ATK for that attack.\n(Magneto's nemesis minion.)",
     },
     abilities: [{ id: abilityId("49028.exodus-forced-response") }],
     nemesisMinion: true,
@@ -965,8 +990,8 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     traits: [trait("HELLFIRE")],
     keywords: [{ name: "quickstrike" }, { name: "villainous" }],
     text: {
-      printed: "Quickstrike. Villainous.\nAllies cannot attack Selene\n[star] Boost: Discard an ally you control.",
-      current: "Quickstrike. Villainous.\nAllies cannot attack Selene\n[star] Boost: Discard an ally you control.",
+      printed: "Quickstrike. Villainous.\nAllies cannot attack Selene.\n[star] Boost: Discard an ally you control.",
+      current: "Quickstrike. Villainous.\nAllies cannot attack Selene.\n[star] Boost: Discard an ally you control.",
     },
     flavor: "\"Foolish child! Countless thousands have gone to the fire in my name.\"",
     abilities: [{ id: abilityId("49039.selene-constant") }, { id: abilityId("49039.boost") }],

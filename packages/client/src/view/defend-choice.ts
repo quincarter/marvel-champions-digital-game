@@ -296,6 +296,8 @@ export function stackRowLabel(state: GameState, entry: StackEntry): string {
 }
 
 function stackRowsOf(state: GameState): readonly DefendStackRowView[] {
+  // One row per frame: the engine no longer logs a second `framePushed` for an attack taken over by its ability
+  // (`attackResumed`), so `stackEntries` names each frame once.
   return stackEntries(state).map((entry) => ({
     frameId: entry.frameId,
     label: stackRowLabel(state, entry),

@@ -12,6 +12,10 @@ import type { NormalizeContext } from "./context.ts";
 export interface Prepared {
   readonly raw: RawCard;
   readonly name: string;
+  /** MarvelCDB's `subname`, or a curated `Correction.subtitle`. */
+  readonly subtitle?: string;
+  /** MarvelCDB's `is_unique`, or a curated `Correction.unique` where the scan disagrees. */
+  readonly unique: boolean;
   readonly traits: Trait[];
   readonly boost: number;
   readonly attack: number | null | undefined;
@@ -19,6 +23,14 @@ export interface Prepared {
   readonly attackIsCurated: boolean;
   /** `Correction.thwart`: the attachment's stat box prints THW (it attaches to a character that thwarts). */
   readonly thwart?: number;
+  /** `Correction.scheme`: a minion's printed SCH where MarvelCDB omits it. */
+  readonly scheme?: number;
+  /** `Correction.dashedMinionStats`: the minion stats that print a dash and emit `null`. */
+  readonly dashedMinionStats?: readonly ("atk" | "sch")[];
+  /** `Correction.schemeIcons`: a side scheme's printed icon counts, replacing raw's (absent for every ordinary card). */
+  readonly schemeIcons?: { readonly crisis?: number; readonly acceleration?: number; readonly hazard?: number };
+  /** `Correction.startingThreatPerPlayer`: replaces `!base_threat_fixed` for a side scheme (absent: raw decides). */
+  readonly startingThreatPerPlayer?: boolean;
   readonly text: CardText;
   readonly flavor?: string;
   readonly errata?: Errata;
@@ -39,6 +51,8 @@ export interface Prepared {
   readonly unheadedWhenRevealed?: string;
   /** A curated `Correction.extraConstantFrom` — absent for every ordinary card. */
   readonly extraConstantFrom?: string;
+  /** A curated `Correction.preambleWhenRevealed` — absent for every ordinary card. */
+  readonly preambleWhenRevealed?: string;
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -49,11 +63,17 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   if (cached) return cached;
   let text = toPlainText(r.real_text ?? r.text);
   let name = r.name;
+  let subtitle: string | undefined = r.subname || undefined;
+  let unique = Boolean(r.is_unique);
   let traits = parseTraits(r.real_traits ?? r.traits);
   let boost = r.boost ?? 0;
   let attack = r.attack;
   let attackIsCurated = false;
   let thwart: number | undefined;
+  let scheme: number | undefined;
+  let dashedMinionStats: readonly ("atk" | "sch")[] | undefined;
+  let schemeIcons: Prepared["schemeIcons"];
+  let startingThreatPerPlayer: boolean | undefined;
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
@@ -63,6 +83,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
   let unheadedWhenRevealed: string | undefined;
   let extraConstantFrom: string | undefined;
+  let preambleWhenRevealed: string | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
@@ -71,6 +92,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
     if (c.unheadedWhenRevealed !== undefined) unheadedWhenRevealed = c.unheadedWhenRevealed;
     if (c.extraConstantFrom !== undefined) extraConstantFrom = c.extraConstantFrom;
+    if (c.preambleWhenRevealed !== undefined) preambleWhenRevealed = c.preambleWhenRevealed;
     if (c.textReplace) {
       // Wave 5 (docs/phase7-wave5.md §1.9 — Nova's "Bring the War!", 28022): MarvelCDB's own `text`/`real_text`
       // is null for this card (an empty source, not a typo to find-and-replace inside), transcribed from the
@@ -88,6 +110,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
       }
     }
     if (c.name !== undefined) name = c.name;
+    if (c.subtitle !== undefined) subtitle = c.subtitle;
+    if (c.unique !== undefined) unique = c.unique;
     if (c.traits !== undefined) traits = c.traits.map((t) => t.toUpperCase());
     if (c.boost !== undefined) boost = c.boost;
     if (c.attack !== undefined) {
@@ -95,6 +119,10 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
       attackIsCurated = true;
     }
     if (c.thwart !== undefined) thwart = c.thwart;
+    if (c.scheme !== undefined) scheme = c.scheme;
+    if (c.dashedMinionStats !== undefined) dashedMinionStats = c.dashedMinionStats;
+    if (c.schemeIcons !== undefined) schemeIcons = c.schemeIcons;
+    if (c.startingThreatPerPlayer !== undefined) startingThreatPerPlayer = c.startingThreatPerPlayer;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
@@ -127,11 +155,17 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   const p: Prepared = {
     raw: r,
     name,
+    ...(subtitle ? { subtitle } : {}),
+    unique,
     traits: traits.map(traitOf),
     boost,
     attack,
     attackIsCurated,
     ...(thwart !== undefined ? { thwart } : {}),
+    ...(scheme !== undefined ? { scheme } : {}),
+    ...(dashedMinionStats ? { dashedMinionStats } : {}),
+    ...(schemeIcons ? { schemeIcons } : {}),
+    ...(startingThreatPerPlayer !== undefined ? { startingThreatPerPlayer } : {}),
     text: { printed, current },
     ...(flavor ? { flavor } : {}),
     ...(errata ? { errata } : {}),
@@ -143,6 +177,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
     ...(unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed } : {}),
     ...(extraConstantFrom !== undefined ? { extraConstantFrom } : {}),
+    ...(preambleWhenRevealed !== undefined ? { preambleWhenRevealed } : {}),
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
   };
   ctx.prepared.set(r.code, p);

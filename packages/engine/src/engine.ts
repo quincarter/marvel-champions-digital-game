@@ -1,4 +1,14 @@
-import { basicAttack, basicRecover, basicThwart, changeForm, endTurn, playCard, useAbility } from "./actions.js";
+import {
+  basicAttack,
+  basicRecover,
+  basicThwart,
+  changeForm,
+  endTurn,
+  paymentsFromOptionIds,
+  playCard,
+  priceOrNull,
+  useAbility,
+} from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
@@ -12,6 +22,8 @@ import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
 import { getPlayer, handSize } from "./query.js";
+import { pairSelectionFault } from "./resolve/pair-cards.js";
+import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
 import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
 import { choiceExclusions } from "./why-not.js";
@@ -132,8 +144,40 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       }
     }
   }
+  // docs/phase7-wave8.md §3.62: one type for each wild, and the payment must still pay its cost as declared.
+  if (choice.prompt.kind === "declareWildTypes") {
+    const { wilds, pool, requirement, only } = choice.prompt;
+    const declared = wildTypesFromOptionIds(selected, wilds);
+    const fault =
+      declared === null
+        ? "choose one type for each wild resource"
+        : wildDeclarationFault(pool, declared, requirementOf(requirement), only);
+    if (fault) return engineError("invalid_choice", fault, command);
+  }
+  // docs/phase7-wave8.md §3.62: a cost the player sizes ("spend up to 3 resources →") needs at least its minimum, so
+  // a selection that generates fewer is refused here and the choice stays open. More than its maximum is overpaid,
+  // as for any cost (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13). Selecting nothing still declines.
+  if (choice.prompt.kind === "payForAbility" && choice.prompt.chosenResources && selected.length > 0) {
+    const { min, max, payingFor } = choice.prompt.chosenResources;
+    const pool = priceOrNull(ctx, choice.playerId, paymentsFromOptionIds(selected), null, payingFor);
+    const size = pool ? poolTotal(pool) : null;
+    if (size !== null && size < min) {
+      return engineError("invalid_choice", `spend from ${min} to ${max} resources; the selection is ${size}`, command);
+    }
+  }
   if (choice.prompt.kind === "divide") {
     const fault = divideSelectionFault(choice.prompt, selected);
+    if (fault) return engineError("invalid_choice", fault, command);
+    const least = choice.prompt.eachAtLeast ?? 0;
+    const cardOfOption = (optionId: string): string => optionId.slice(0, optionId.lastIndexOf("#"));
+    const short = [...new Set(choice.options.map((option) => cardOfOption(option.optionId)))].some(
+      (card) => selected.filter((optionId) => cardOfOption(optionId) === card).length < least,
+    );
+    if (short) return engineError("invalid_choice", `give each of the cards at least ${least}`, command);
+  }
+  // docs/phase7-wave8.md §3.36: one card to one character, and any limit in force on the assignment.
+  if (choice.prompt.kind === "pairCards") {
+    const fault = pairSelectionFault(choice.prompt, selected);
     if (fault) return engineError("invalid_choice", fault, command);
   }
 

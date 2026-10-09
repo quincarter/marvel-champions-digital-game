@@ -146,7 +146,11 @@ const missileDamage = () => [
  *
  * **The three damage caps** (Boarding Party 6, Sabotage Master Mold 12, Orbital Decay 18 `[per_hero]`) are
  * `maxSustainedDamage` (§3.3): damage beyond a cap is neither taken nor prevented and gives no excess (Q9 amended).
- * **Magnet counters** are placed one event per placement (Q8, §3.2).
+ * **Magnet counters** are placed one event per placement (Q8, §3.2). They do not carry from one stage to the next:
+ * the engine returns a main scheme's counters as it advances (RRG 1.8 "Main Scheme", p. 27, step 1: "Return all tokens
+ * (except acceleration tokens) that were on that card to the token pool"), then 2A / 3A place their 1 / 2 on the new
+ * card before it turns to its B side (steps 2 and 3), whose Forced Response is not yet in play to answer them. So
+ * Factory Online starts with 1 and The Rule of Magnus with 2 (`magneto.test.ts`, "played through both advances").
  *
  * **Wrapped in Metal**'s thwart, attack and defend bans are scoped to the attached identity (`cannotThwart.thwarter`,
  * `cannotAttack.attacker`, `cannotDefend.target`; docs/phase7-wave6.md §3.77): every thwart, attack and defense by it

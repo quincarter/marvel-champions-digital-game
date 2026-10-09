@@ -29,8 +29,10 @@ import {
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { missionBriefingOf, type MissionBriefing } from "./campaign-mission-model.js";
 import { sideSchemeBriefingOf, type SideSchemeBriefing } from "./campaign-side-scheme-model.js";
 import { aspectName } from "./aspect-stamp.js";
+import { seatDeckSizeSplit } from "./campaign-deck-edit-model.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -72,8 +74,33 @@ export interface DeckRow {
   readonly problem?: string;
 }
 
+/**
+ * The line under the Decks panel: a card the campaign pins into a deck is exempt from deck size (MC10 p. 3) unless the
+ * box says it counts. Age of Apocalypse's rewards are not one of the 40 and are one of the 50 (owner decision,
+ * 2026-10-08; MC45 p. 24 prints "That card does not count against your minimum deck size").
+ */
+export const DECK_NOTE_EXEMPT =
+  "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.";
+export const DECK_NOTE_REWARD =
+  "Tap a deck to edit it. Decks can change now; hero can't. A reward isn't one of your 40 cards, but it is one of your 50.";
+
+/** Whether the definition ever grants a card that counts toward deck size (`grantCard` with a `deckSize` rule, MC45 p. 24). */
+export function grantsCountTowardDeckSize(definition: CampaignDefinition | undefined): boolean {
+  if (!definition) return false;
+  const walk = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(walk);
+    if (value === null || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    if (record.kind === "grantCard" && record.deckSize !== undefined && record.deckSize !== "exempt") return true;
+    return Object.values(record).some(walk);
+  };
+  return walk([definition.everyNodeSetup ?? [], definition.graph]);
+}
+
 export interface BriefingView {
   readonly issueNumber: number;
+  /** The line under the Decks panel (`DECK_NOTE_EXEMPT`, or `DECK_NOTE_REWARD` for a box whose rewards count). */
+  readonly deckNote: string;
   readonly handled: readonly HandledRow[];
   readonly decks: readonly DeckRow[];
   /** Null for a box with no campaign pool, or an issue whose own setup reads none of it back (issue #1). */
@@ -82,6 +109,8 @@ export interface BriefingView {
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
   /** The per-scenario player-side-scheme choice and what carries in (`campaign-side-scheme-model.ts`). Null for a box without one. */
   readonly sideScheme: SideSchemeBriefing | null;
+  /** This scenario's drawn mission and Overseer, the absent Prelate and a retry's earlier draws (MC45). Null for a box without missions. */
+  readonly missions: MissionBriefing | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -271,28 +300,55 @@ function fieldLogRowsOf(
   return [...nowRows, ...laterRows];
 }
 
-/** One row for the seats' current campaign grants — MC10 p. 3's "start in play" TECH/Basic Condition upgrades. */
 /**
  * A pooled card's own grant (Shawarma's `poolDeckGrant`, MC21 p. 17/21/25) is never named here: "From the pool"
- * already shows it, correctly, as "shuffled into their deck" rather than the MC10-only "start in play" wording this
- * row prints — listing it here too would say the same card lands in two different places.
+ * already shows it, correctly, as "shuffled into their deck" rather than the MC10-only "start in play" wording the
+ * first row prints — listing it here too would say the same card lands in two different places.
  */
-function grantsRowOf(record: CampaignRecord, cardName: CardNameOf, definition?: CampaignDefinition): HandledRow | null {
+/**
+ * The seats' campaign grants as up to two rows, each saying what really happens to its cards:
+ *  - the ones the campaign puts in play at setup (MC10 p. 3's TECH/Basic Condition upgrades): "start in play";
+ *  - rewards (`deckSize: "maximumOnly"`, MC45 p. 24's "They may include 1 copy of that card in their deck"): they are
+ *    in the shuffled deck, not in play, and one the player left out of the deck in Edit deck is not.
+ * Only a grant the campaign keeps counts: a "this game" grant is a card added to the deck for that game (MC32 p. 5's
+ * role-building) and its own per-seat row says so.
+ */
+export function grantRowsOf(
+  record: CampaignRecord,
+  cardName: CardNameOf,
+  definition?: CampaignDefinition,
+): readonly HandledRow[] {
   const poolNames = definition ? new Set(poolFieldsOf(definition).map((field) => field.name)) : new Set<string>();
-  // Only a grant the campaign keeps (MC10 p. 3's TECH/Basic Condition upgrades) starts in play. A "this game" grant is
-  // a card added to the deck for that game (MC32 p. 5's role-building): its own per-seat row says so, and listing it
-  // here too said it started in play.
-  const lines = record.seats
-    .map((seat) => {
-      const names = seat.grants
-        .filter((grant) => grant.permanence !== "thisGame")
-        .map((grant) => cardName(grant.cardId))
-        .filter((name) => !poolNames.has(name));
-      return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
-    })
-    .filter((line): line is string => line !== null);
-  if (lines.length === 0) return null;
-  return { key: "grants", status: "done", title: "Setup cards start in play", detail: lines.join(" ") };
+  const linesOf = (pick: (grant: CampaignRecord["seats"][number]["grants"][number]) => boolean): string[] =>
+    record.seats
+      .map((seat) => {
+        const names = seat.grants
+          .filter((grant) => grant.permanence !== "thisGame" && pick(grant))
+          .map((grant) => cardName(grant.cardId))
+          .filter((name) => !poolNames.has(name));
+        return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
+      })
+      .filter((line): line is string => line !== null);
+  const isReward = (grant: { readonly deckSize?: string }): boolean => grant.deckSize === "maximumOnly";
+  const rows: HandledRow[] = [];
+  const inPlay = linesOf((grant) => !isReward(grant));
+  if (inPlay.length > 0) {
+    rows.push({ key: "grants", status: "done", title: "Setup cards start in play", detail: inPlay.join(" ") });
+  }
+  const inDeck = linesOf((grant) => isReward(grant) && grant.leftOut !== true);
+  if (inDeck.length > 0) {
+    rows.push({
+      key: "rewards",
+      status: "done",
+      title: "Rewards are in the deck",
+      detail: `${inDeck.join(" ")} Shuffled in, not in play. Leave one out in Edit deck.`,
+    });
+  }
+  const leftOut = linesOf((grant) => isReward(grant) && grant.leftOut === true);
+  if (leftOut.length > 0) {
+    rows.push({ key: "rewards-left-out", status: "done", title: "Rewards left out", detail: leftOut.join(" ") });
+  }
+  return rows;
 }
 
 function joinNames(names: readonly string[]): string {
@@ -432,7 +488,7 @@ function genericHandledRowsOf(
   definition?: CampaignDefinition,
   nodeIds: readonly string[] = [],
 ): readonly HandledRow[] {
-  const grants = grantsRowOf(record, cardName, definition);
+  const grants = grantRowsOf(record, cardName, definition);
   const statusById = new Map(attempt.steps.map((step) => [step.instructionId, statusOf(step)] as const));
   const rows = campaignStepRows(attempt.steps, cardName);
   const stepRows = rows
@@ -457,7 +513,7 @@ function genericHandledRowsOf(
       return plain ? [plain] : [];
     });
   const fieldRows = definition ? fieldLogRowsOf(attempt, record, definition, nodeIds) : [];
-  return [...(grants ? [grants] : []), ...stepRows, ...fieldRows];
+  return [...grants, ...stepRows, ...fieldRows];
 }
 
 /**
@@ -577,13 +633,7 @@ export function deckRowsOf(
   problems: ReadonlyMap<number, string> = new Map(),
 ): readonly DeckRow[] {
   return record.seats.map((seat) => {
-    const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
-    let deckSize = 0;
-    let pinnedCount = 0;
-    for (const line of seat.deck.cards) {
-      if (grantedIds.has(line.cardId)) pinnedCount += line.quantity;
-      else deckSize += line.quantity;
-    }
+    const { counted: deckSize, pinned: pinnedCount } = seatDeckSizeSplit(seat);
     return {
       seatNumber: seat.seatNumber,
       heroName: cardName(seat.identityCardId),
@@ -617,6 +667,7 @@ export function briefingViewOf(
   const isFinale = definition ? nodeIds[nodeIds.length - 1] === record.attempt.nodeId : false;
   return {
     issueNumber,
+    deckNote: grantsCountTowardDeckSize(definition) ? DECK_NOTE_REWARD : DECK_NOTE_EXEMPT,
     handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds, briefingNotes),
     pool:
       definition && node
@@ -625,5 +676,6 @@ export function briefingViewOf(
     decks: deckRowsOf(record, cardName, deckProblems),
     hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
     sideScheme: definition ? sideSchemeBriefingOf({ definition, record, cardName }) : null,
+    missions: definition ? missionBriefingOf(record, definition) : null,
   };
 }

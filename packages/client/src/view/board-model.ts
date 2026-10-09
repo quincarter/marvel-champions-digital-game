@@ -36,6 +36,7 @@ import {
   handCardResources,
   remainingHitPoints,
   scale,
+  scenarioPlayAreaOf,
   schemesInPlay,
   selfDamageThreshold,
   type CardInstance,
@@ -43,15 +44,19 @@ import {
   type Form,
   type GameState,
   type InstanceId,
+  type LegalActions,
   type PlayCost,
   type PlayerId,
   type PlayerState,
   type ViewerContext,
+  mainSchemeValue,
+  villainStageOf,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { keywordLabel } from "./keyword-label.js";
 import { faceVisible } from "./visibility.js";
+import { deckTopStatus, shownTopOf } from "./deck-top.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
@@ -149,6 +154,11 @@ export interface CharacterPanel {
   /** The seat this enemy is engaged with, if any. */
   readonly engagedWith: PlayerId | null;
   /**
+   * Who the enemy is engaged with, in words ("Spider-Man", or "Spider-Man 2" when two seats play the same hero), only
+   * when more than one seat is playing: a solo table has no one else it could be. Null for an unengaged enemy.
+   */
+  readonly engagedName: string | null;
+  /**
    * The basic actions this character's statuses take away. The design's rule
    * (Components.dc.html section 06): every status owns one concrete control,
    * and the UI grays exactly that one, hatched in the status hue.
@@ -225,6 +235,21 @@ export function damageNote(damage: number, threshold: number | null): string | n
   return damage > 0 ? `${damage} damage` : null;
 }
 
+/**
+ * What a compact villain tile (the multi-villain row) says beyond its stats: statuses in words, then each attachment
+ * and the card's own counters, "Stunned · Golden Horse · 1 power counter". Empty when the villain has none, so the
+ * tile draws nothing. The single-villain panel draws the same facts as chips; this is their one-line form.
+ */
+export function compactVillainNote(panel: CharacterPanel): string {
+  const statuses = panel.statuses.map((pip) => {
+    const word = pip.status.charAt(0).toUpperCase() + pip.status.slice(1);
+    return pip.count > 1 ? `${word} ×${pip.count}` : word;
+  });
+  return [...statuses, ...panel.attachments.map(attachmentChipText), counterNote(panel.counters)]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** The chip's label without its damage: the part that may be clipped when the chip is narrow. */
 export function attachmentChipText(chip: AttachmentChip): string {
   return [
@@ -287,6 +312,8 @@ export interface SchemePanel {
    * Defense, §3.2). Empty for every scheme nothing is attached to, which is every scheme before wave 4.
    */
   readonly attachments: readonly AttachmentChip[];
+  /** Counters on the scheme card itself (En Sabah Nur's Pyramid collects power counters). Empty draws nothing. */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
 }
 
 /**
@@ -392,6 +419,34 @@ export interface ScenarioAreaPanel {
   readonly count: number;
 }
 
+/**
+ * One card in an in-play scenario area such as the mission area (`ZoneId scenarioPlayArea`, docs/phase7-wave8.md
+ * §3.33): in play, owned but controlled by nobody. It carries what the ally and villain-area panels carry: `panel` is
+ * the character panel (name, type line, hit points or damage, counters, exhausted, keywords, statuses, art) for every
+ * card, and `scheme` adds the threat meter when the card is a side scheme (the mission itself). Upgrades and other
+ * attachments hang under their host on `panel.attachments` (and `scheme.attachments`), not as cards of their own.
+ */
+export interface ScenarioPlayAreaCard {
+  readonly instanceId: InstanceId;
+  readonly name: string;
+  /** "Ally", "Side scheme · Crisis": the type line. */
+  readonly subtitle: string;
+  readonly panel: CharacterPanel;
+  /** The scheme meter for a side scheme, else null. */
+  readonly scheme: SchemePanel | null;
+  /** Threat on the card: a scheme's meter, or threat a character holds. 0 draws nothing. */
+  readonly threat: number;
+}
+
+/** An in-play scenario area: its name and its unattached cards in the order they entered it. */
+export interface ScenarioPlayAreaPanel {
+  readonly name: string;
+  /** A closed area is not reached by an ability that does not name it (MC45 p. 5). */
+  readonly closed: boolean;
+  readonly cards: readonly ScenarioPlayAreaCard[];
+  readonly count: number;
+}
+
 export interface HandCardView {
   readonly instanceId: InstanceId;
   readonly name: string;
@@ -436,6 +491,8 @@ export interface SeatRow {
   readonly minionCount: number;
   readonly statuses: readonly StatusPip[];
   readonly isFirstPlayer: boolean;
+  /** The faceup top card of this seat's deck, which every player may read; null when the deck is facedown. */
+  readonly shownTop: { readonly instanceId: InstanceId; readonly name: string } | null;
   readonly eliminated: boolean;
   /** True once this seat's turn is done this round. Never true for an eliminated seat. */
   readonly done: boolean;
@@ -445,6 +502,17 @@ export interface SeatRow {
   readonly effects: readonly string[];
   /** Cards this seat controls that another player owns: "Heroic Intuition · from Black Panther". */
   readonly borrowed: readonly string[];
+}
+
+/** The faceup top card of a player's deck (Magik): the card itself, its price from the top, and whether it can be played. */
+export interface DeckTopView {
+  /** The shown card; `currentCost` is what the engine charges to play it from the deck (1 less for Magik). */
+  readonly card: HandCardView;
+  readonly playable: boolean;
+  /** In a few words, when the card is shown but cannot be played now. */
+  readonly reason: string | null;
+  /** The reason in two words, for a tag on the pile. */
+  readonly tag: string | null;
 }
 
 export interface PileCounts {
@@ -488,6 +556,8 @@ export interface BoardModel {
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /** The scenario's in-play areas no player controls (the mission area, docs/phase7-wave8.md §3.33). Empty for every scenario that has none. */
+  readonly scenarioPlayAreas: readonly ScenarioPlayAreaPanel[];
   /**
    * The modular sets still set aside, for a scenario that set some aside (MojoMania's genre sets; Wheel of Genres
    * loses the game when the deck resets with none remaining). Null when the game never set any aside, which is
@@ -502,11 +572,19 @@ export interface BoardModel {
   readonly hand: readonly HandCardView[];
   readonly handLimit: number;
   readonly myPiles: PileCounts;
+  /** My deck's faceup top card, when the engine shows one; null while the deck is facedown. */
+  readonly myDeckTop: DeckTopView | null;
   /** Your discard pile, top card first. Discard piles are open information (`view/visibility.ts`). */
   readonly myDiscard: readonly InstanceId[];
   /** The top of your discard, which the pile box shows faceup. */
   readonly myDiscardTop: ArtSource | null;
   readonly encounterPiles: PileCounts;
+  /**
+   * Encounter cards dealt facedown to the players and not yet revealed (Expert setup deals one per player in the Age
+   * of Apocalypse; they flip in step four of the first villain phase). Public as a count, never as a card: nobody
+   * looks at them (MC45 p. 3). Zero when none are out.
+   */
+  readonly dealtFacedown: number;
   /** The top of the encounter discard, which is faceup at the table. */
   readonly encounterDiscardTop: ArtSource | null;
   /** The encounter deck's own top card, for Inspect — facedown at the table (D08's own subtitle: "any card, anywhere, including facedown counts"), so the sheet shows a card back rather than its face. Null with an empty deck. */
@@ -598,7 +676,14 @@ function separateDeckPiles(state: GameState, me: PlayerState): readonly Separate
 function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPanel[] {
   // A villain tucked under a card (Routed) is out of play: not on the table, not a target, not "defeated" in the row.
   const tucked = new Set(Object.values(state.instances).flatMap((instance) => instance.tucked));
-  return state.villains
+  // A villain row (Four Horsemen) sets the left-to-right order; villains it omits follow in printed order.
+  const row = state.villainRow;
+  const rank = (id: InstanceId): number => {
+    const at = row ? row.indexOf(id) : -1;
+    return at < 0 ? (row?.length ?? 0) : at;
+  };
+  const ordered = row ? [...state.villains].sort((a, b) => rank(a.instanceId) - rank(b.instanceId)) : state.villains;
+  return ordered
     .filter((villain) => !tucked.has(villain.instanceId))
     .map((villain) => ({
       panel: characterPanel(state, villain.instanceId, deps),
@@ -621,7 +706,13 @@ function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPane
     }));
 }
 
-export function boardModel(state: GameState, perspectiveId: PlayerId, deps: EngineDeps): BoardModel {
+export function boardModel(
+  state: GameState,
+  perspectiveId: PlayerId,
+  deps: EngineDeps,
+  /** The viewer's legal actions, which say whether the shown top card can be played and why not. */
+  actions: LegalActions | null = null,
+): BoardModel {
   const me = getPlayer(state, perspectiveId);
   if (!me) throw new Error(`no seat ${perspectiveId}`);
 
@@ -649,6 +740,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id, deps)),
     scenarioAreas: scenarioAreaPanels(state),
+    scenarioPlayAreas: scenarioPlayAreaPanels(state, deps),
     setAside: setAsidePanel(state),
     scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
@@ -680,10 +772,12 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     ],
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
+    myDeckTop: myDeckTopView(state, perspectiveId, deps, actions),
     encounterPiles: {
       deck: activeEncounterDeck(state).deck.length,
       discard: activeEncounterDeck(state).discard.length,
     },
+    dealtFacedown: state.players.reduce((total, player) => total + player.dealtEncounter.length, 0),
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
     encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
@@ -755,6 +849,15 @@ function minionsOf(state: GameState): readonly InstanceId[] {
   return [...fromVillainArea, ...engaged];
 }
 
+/** The seat an enemy is engaged with, named for a chip on the minion; null in a solo game or when unengaged. */
+export function engagedNameOf(state: GameState, seat: PlayerId | null): string | null {
+  if (seat === null || state.players.length < 2) return null;
+  const name = playerName(state, seat);
+  const same = state.players.filter((player) => playerName(state, player.playerId) === name);
+  if (same.length < 2) return name;
+  return `${name} ${state.players.findIndex((player) => player.playerId === seat) + 1}`;
+}
+
 const SET_NAMES: ReadonlyMap<string, string> = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
 
 export function characterPanel(state: GameState, id: InstanceId, deps: EngineDeps): CharacterPanel {
@@ -783,6 +886,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     exhausted: instance.exhausted,
     boostCount: instance.boostCards.length,
     engagedWith: instance.engagedWith,
+    engagedName: engagedNameOf(state, instance.engagedWith),
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
@@ -890,6 +994,13 @@ export function abilityFaceOf(
 ): CardFace {
   const live = faceOf(state, instanceId, view);
   const card = cardOf(state, instanceId);
+  // A main scheme's Setup is printed on its A side, but by the time the choice is asked the scheme shows its B side:
+  // the panel about that Setup shows the A side's text, not the side's Forced Response.
+  if (abilityId && card?.type === "main_scheme" && live.kind === "mainSchemeStage") {
+    const stage = card.stages[live.stageIndex];
+    if (stage?.aSide.abilities.some((ability) => ability.id === abilityId))
+      return { kind: "mainSchemeStage", stageIndex: live.stageIndex, side: "A" };
+  }
   if (!abilityId || card?.type !== "hero_identity" || live.kind === "back") return live;
   const prints = (abilities: readonly { readonly id: AbilityId }[]): boolean =>
     abilities.some((ability) => ability.id === abilityId);
@@ -948,6 +1059,10 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
         state.scenarioRules.victoryCondition !== undefined
           ? ` · Victory ${state.victoryDisplay.length}/${state.scenarioRules.victoryCondition}`
           : "";
+      // The Four Horsemen print a version letter (A/B) on each card instead of a stage (`stageLabel`): a roman
+      // numeral would call War's B card "Stage I".
+      const letter = villainStageOf(state, instance.instanceId).stageLabel;
+      if (letter) return `Villain · Side ${letter}${victory}`;
       return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}${victory}`;
     }
     case "hero_identity": {
@@ -1080,15 +1195,15 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       name: stage.name ?? card?.name ?? "Main scheme",
       subtitle: `Main scheme ${printedStageOf(stage)}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
-      // The stage's target threat, scaled the way the engine scales it: the
-      // player count is fixed at setup, so eliminations don't change it.
+      // The engine's own target (`mainSchemeValue`): scaled per player, and for a printed "X" (Apocalypse's scheme)
+      // the ability-defined value, not the 0 the card data prints.
       // A dashed target ("—", RRG p. 15) is never reached: no target, so no threshold state and no meter.
       target: stage.dashedValues?.includes("targetThreat")
         ? null
-        : scale(stage.targetThreat, state.startingPlayerCount),
+        : mainSchemeValue(state, "targetThreat", deps, scheme),
       meterMax: stage.dashedValues?.includes("targetThreat")
         ? null
-        : scale(stage.targetThreat, state.startingPlayerCount),
+        : mainSchemeValue(state, "targetThreat", deps, scheme),
       ...(stage.dashedValues?.includes("targetThreat") ? { targetDashed: true } : {}),
       isMain: true,
       // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
@@ -1098,6 +1213,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
       attachments,
+      counters: countersOf(state, id),
     };
   }
 
@@ -1130,6 +1246,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
     attachments: attachmentChipsOf(state, instance, deps),
+    counters: countersOf(state, id),
   };
 }
 
@@ -1211,6 +1328,29 @@ export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel
   }));
 }
 
+/**
+ * Every in-play scenario area, in the order they were created, each with its cards in the order they entered it.
+ * Built from `state.scenarioPlayAreas` alone; empty when the game has none.
+ */
+export function scenarioPlayAreaPanels(state: GameState, deps: EngineDeps): readonly ScenarioPlayAreaPanel[] {
+  return Object.entries(state.scenarioPlayAreas ?? {}).map(([name, area]) => {
+    const cards = area.cards.map((id): ScenarioPlayAreaCard => {
+      const panel = characterPanel(state, id, deps);
+      const isScheme = cardOf(state, id)?.type === "side_scheme" || cardOf(state, id)?.type === "player_side_scheme";
+      const scheme = isScheme ? schemePanel(state, id, deps, false) : null;
+      return {
+        instanceId: id,
+        name: panel.name,
+        subtitle: scheme?.subtitle ?? panel.subtitle,
+        panel,
+        scheme,
+        threat: scheme?.threat ?? panel.threat,
+      };
+    });
+    return { name, closed: area.closed, cards, count: cards.length };
+  });
+}
+
 export function environmentPanel(state: GameState, id: InstanceId, deps: EngineDeps): EnvironmentPanel {
   const card = cardOf(state, id);
   const damage = getInstance(state, id)?.damage ?? 0;
@@ -1267,13 +1407,19 @@ export function counterNote(counters: readonly { readonly name: string; readonly
     .join(", ");
 }
 
+/** The mission's internal mark of its own defeat, read by its back face; never shown. */
+const INTERNAL_AREA_COUNTER = "defeated";
+
 /** Every counter kind on a card, in a stable order, skipping kinds that have run to zero. */
 export function countersOf(
   state: GameState,
   id: InstanceId,
 ): readonly { readonly name: string; readonly count: number }[] {
+  // A mission carries an internal "defeated" mark its back face reads ("if the mission was defeated"); it is bookkeeping,
+  // not a counter a player places or removes, so it is hidden on a card in a scenario play area. "attempt" is shown.
+  const inArea = scenarioPlayAreaOf(state, id) !== null;
   return Object.entries(getInstance(state, id)?.counters ?? {})
-    .filter(([, count]) => count > 0)
+    .filter(([name, count]) => count > 0 && !(inArea && name === INTERNAL_AREA_COUNTER))
     .map(([name, count]) => ({ name, count }));
 }
 
@@ -1321,6 +1467,17 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
  * where each one is: attached to a card in play (Hawkeye's Quiver) or in their discard pile. Attached cards first, in
  * play order, then the discard from the top.
  */
+function myDeckTopView(
+  state: GameState,
+  playerId: PlayerId,
+  deps: EngineDeps,
+  actions: LegalActions | null,
+): DeckTopView | null {
+  const top = shownTopOf(state, playerId, deps);
+  if (top === null) return null;
+  return { card: handCardView(state, top, playerId, deps), ...deckTopStatus(actions, top) };
+}
+
 function playableOutsideHandOf(
   state: GameState,
   playerId: PlayerId,
@@ -1358,6 +1515,11 @@ export function resourceIconList(pool: Readonly<Record<ResourceIconType, number>
   return icons;
 }
 
+function shownSeatTop(state: GameState, playerId: PlayerId, deps: EngineDeps): SeatRow["shownTop"] {
+  const id = shownTopOf(state, playerId, deps);
+  return id === null ? null : { instanceId: id, name: cardOf(state, id)?.name ?? "A card" };
+}
+
 export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps): SeatRow {
   const player = getPlayer(state, playerId);
   if (!player) throw new Error(`no seat ${playerId}`);
@@ -1376,6 +1538,7 @@ export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps):
     minionCount: player.playArea.filter((id) => isMinion(state, id)).length,
     statuses: instance ? statusPips(instance) : [],
     isFirstPlayer: state.firstPlayerId === playerId,
+    shownTop: shownSeatTop(state, playerId, deps),
     eliminated: player.eliminated,
     // Turns run off `remainingPlayerIds`: a seat not in that list has had its
     // turn. An eliminated seat is dropped from that list too, which read as

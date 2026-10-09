@@ -10,7 +10,7 @@
  * "distinct decisions must not collapse into one interaction" gap `attacker-choice.ts`'s own doc comment names for
  * "who attacks?". This is that fix, mirrored for form change.
  */
-import type { EngineDeps, GameState, LegalAction, LegalActions } from "@mc/engine";
+import type { ActionRef, EngineDeps, GameState, LegalAction, LegalActions } from "@mc/engine";
 import { cardOf, heroFacesOf } from "@mc/engine";
 
 export interface FormSource {
@@ -65,4 +65,15 @@ export function formSources(
 /** True once there is a real choice to make — a single entry dispatches immediately, no picker needed. */
 export function needsFormChoice(entries: readonly LegalAction[]): boolean {
   return entries.length > 1;
+}
+
+/**
+ * The payment bar's headline for an action with no card of its own to name. A change of form with an additional cost
+ * (`RuleSpec formChangeCost`, wave 8 §3.63) reads "Change form" ("Change to alter-ego" when the action names it; a
+ * two-faced identity's flip leaves `to` out, and the engine, not this view, knows which form that ends in); anything
+ * else keeps the generic "This action".
+ */
+export function paymentSubjectWords(action: ActionRef): string {
+  if (action.kind !== "changeForm") return "This action";
+  return action.to === "alterEgo" ? "Change to alter-ego" : "Change form";
 }

@@ -30,7 +30,14 @@ export const ICEMAN_PROVENANCE: readonly CardProvenance[] = [
     ],
   },
   { cardId: cardId("46004"), cardSetCode: "iceman", marvelcdbCodes: ["46004"], corrections: [] },
-  { cardId: cardId("46005"), cardSetCode: "iceman", marvelcdbCodes: ["46005"], corrections: [] },
+  {
+    cardId: cardId("46005"),
+    cardSetCode: "iceman",
+    marvelcdbCodes: ["46005"],
+    corrections: [
+      "46005: MarvelCDB reads \"If that card has an Ice trait\"; the card prints \"If that card has the ICE trait\". [evidence: Card scan assets/card-art/bundles/cards/46005.png: \"If that card has the ICE trait, ready Iceman.\"]",
+    ],
+  },
   { cardId: cardId("46006"), cardSetCode: "iceman", marvelcdbCodes: ["46006"], corrections: [] },
   { cardId: cardId("46007"), cardSetCode: "iceman", marvelcdbCodes: ["46007"], corrections: [] },
   { cardId: cardId("46008"), cardSetCode: "iceman", marvelcdbCodes: ["46008"], corrections: [] },

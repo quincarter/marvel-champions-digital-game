@@ -141,6 +141,31 @@ describe("advance: blocked", () => {
   });
 });
 
+describe("advance: tips that fire under the overlay", () => {
+  test("a candidate seen while blocked is held and shown on the first open call, even with no candidate then", () => {
+    const opening = advance(initialTipScheduleState, observationOf(base), POOL_DEPS, defaultGuidePrefs, OPEN);
+    const blocked = advance(opening.state, observationOf(base, ACTION_EVENTS), POOL_DEPS, defaultGuidePrefs, BLOCKED);
+    expect(blocked.tip).toBeNull();
+    expect(blocked.state.pending).toHaveLength(1);
+    const heldId = blocked.state.pending[0]!.id;
+    // The event batch is gone and every other candidate is marked seen: only the held tip can surface.
+    const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: [] };
+    const open = advance(blocked.state, observationOf(base), POOL_DEPS, prefs, OPEN);
+    expect(open.tip?.id).toBe(heldId);
+    expect(open.state.pending).toHaveLength(0);
+  });
+
+  test("a held tip the player has since seen is dropped", () => {
+    const opening = advance(initialTipScheduleState, observationOf(base), POOL_DEPS, defaultGuidePrefs, OPEN);
+    const blocked = advance(opening.state, observationOf(base, ACTION_EVENTS), POOL_DEPS, defaultGuidePrefs, BLOCKED);
+    const heldId = blocked.state.pending[0]!.id;
+    const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: [heldId] };
+    const open = advance(blocked.state, observationOf(base), POOL_DEPS, prefs, OPEN);
+    expect(open.tip?.id).not.toBe(heldId);
+    expect(open.state.pending.map((tip) => tip.id)).not.toContain(heldId);
+  });
+});
+
 describe("advance: suppress", () => {
   test("suppressing the winning candidate's own id keeps it from firing", () => {
     const baseline = intoActingTurn();

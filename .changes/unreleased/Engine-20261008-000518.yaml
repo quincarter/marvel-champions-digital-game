@@ -1,0 +1,3 @@
+kind: Engine
+body: Every ability labeled (attack) is one attack even when it only deals damage (Q48); guard is checked for each enemy an attack ability targets as it would be attacked (Q49); attacked targets are tracked apart from damage recipients, so overkill victims are not attacked and each targeted enemy is (Q50)
+time: 2026-10-08T00:05:18.931994-04:00

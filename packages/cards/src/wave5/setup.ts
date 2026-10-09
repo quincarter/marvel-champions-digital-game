@@ -71,7 +71,12 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
   const modular = chosenModularSetIds(scenario, options.modularSetIds);
-  const sets = [...scenario.encounterSetIds, ...modular, ...difficultyEncounterSetIds(scenario, difficulty)];
+  // The Standard (and Expert) set, or the alternative chosen in its place (Standard III, docs/phase7-wave8.md Q10 = A).
+  const sets = [
+    ...scenario.encounterSetIds,
+    ...modular,
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
+  ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
     seed: options.seed,
@@ -153,7 +158,12 @@ function buildSmMultipleVillains(
     );
   }
   const modular = chosenModularSetIds(scenario, options.modularSetIds);
-  const sets = [...scenario.encounterSetIds, ...modular, ...difficultyEncounterSetIds(scenario, difficulty)];
+  // The Standard (and Expert) set, or the alternative chosen in its place (Standard III, docs/phase7-wave8.md Q10 = A).
+  const sets = [
+    ...scenario.encounterSetIds,
+    ...modular,
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
+  ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const setAsideSet = new Set<string>(SINISTER_SIX_SET_ASIDE);
   const villains: readonly VillainSetup[] = multi.villains.map((entry) => ({

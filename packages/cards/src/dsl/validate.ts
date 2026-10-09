@@ -1,5 +1,8 @@
 import {
   inPlayPicksOf,
+  isResourcesChoice,
+  MOMENT_PREFIX,
+  TOGETHER_TARGETS_SLOT,
   UNRESOLVED_VAR,
   type AbilityCost,
   type AbilityDefinition,
@@ -56,6 +59,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkTrigger(definition, problems);
   checkLabels(definition, problems);
   checkBoostCards(definition, problems);
+  checkMoments(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -86,6 +90,34 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
   }
 }
 
+/**
+ * A named moment (docs/phase7-wave8.md §3.39): the name is all that ties `raiseMoment` to the abilities answering it,
+ * so a raise with no name, or a pattern hearing `momentRaised` without naming one (it would answer every moment any
+ * card raises), is an authoring slip. So is an interrupt on one: the engine gives a moment a response window only.
+ */
+function checkMoments(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind === "raiseMoment" && effect.name.trim() === "") problems.push("raiseMoment: a moment needs a name");
+  }
+  const trigger = definition.trigger;
+  if ((trigger.kind !== "interrupt" && trigger.kind !== "response") || !trigger.on) return;
+  if (!namesItsMoment(trigger.on)) problems.push("a pattern on momentRaised must name its moment: use on.moment(name)");
+  // The moment is announced once what it names is done: it has a response window and nothing left to interrupt.
+  if (trigger.kind === "interrupt" && kindsOfPattern(trigger.on).includes("momentRaised"))
+    problems.push("an interrupt cannot answer momentRaised: a raised moment has already happened; use a response");
+}
+
+const kindsOfPattern = (pattern: EventPattern): readonly string[] =>
+  typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+
+/** Whether a pattern that hears `momentRaised` names the moment, itself or in each alternative that hears it. */
+function namesItsMoment(pattern: EventPattern): boolean {
+  if (!kindsOfPattern(pattern).includes("momentRaised")) return true;
+  const name = pattern.eventIs?.name;
+  if (typeof name === "string" ? name !== "" : name !== undefined && name.length > 0) return true;
+  return pattern.anyOf !== undefined && pattern.anyOf.length > 0 && pattern.anyOf.every(namesItsMoment);
+}
+
 /** Cost shapes TypeScript can't see. */
 function checkCost(definition: AbilityDefinition, problems: string[]): void {
   const cost = definition.cost;
@@ -104,6 +136,13 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   // docs/phase7-wave7.md §3.19 (b): the attack is such a step too.
   if (definition.trigger.kind === "resource" && looks.some((part) => part.enemyAttack))
     problems.push("cost enemyAttack: not on a resource ability");
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.resolveAbility))
+    problems.push("cost resolveAbility: not on a resource ability");
+  for (const part of looks) {
+    const floor = part.resolveAbility?.asIf?.remainingHpAtLeast;
+    if (floor !== undefined && (!Number.isInteger(floor) || floor < 1))
+      problems.push("cost resolveAbility: asIf.remainingHpAtLeast must be a whole number of at least 1");
+  }
   if (!cost.conditional) return;
   const { conditional, ...common } = cost;
   for (const branch of [conditional.then, conditional.else]) {
@@ -125,7 +164,13 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
   for (const { mode, pick } of inPlayPicksOf(cost)) {
-    const names = { exhaust: "exhaustCards", discard: "discardCards", return: "returnToHand", damage: "damageCards" };
+    const names = {
+      exhaust: "exhaustCards",
+      ready: "readyCards",
+      discard: "discardCards",
+      return: "returnToHand",
+      damage: "damageCards",
+    };
     const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (pick.each) {
@@ -181,11 +226,31 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
       look.slot === "")
   )
     problems.push("cost encounterLookDiscard: needs a slot and whole numbers with 1 <= discard <= look");
+  // docs/phase7-wave8.md §3.62: "spend up to N resources →" is a size the payer chooses, with nothing overpaid.
+  if (isResourcesChoice(cost.resources)) {
+    const { min, max } = cost.resources.choose;
+    // RRG 1.8 "Cost" (p. 14): "up to" some number "requires a minimum of one".
+    if (!Number.isInteger(min) || min < 1)
+      problems.push('cost resources choose: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)');
+    if (!Number.isInteger(max) || max < min)
+      problems.push("cost resources choose: max must be a whole number no smaller than min");
+    if (cost.resourcesX) problems.push("cost resources choose: not with resourcesX (two sizes of one payment)");
+    if (cost.resourcesEqualTo !== undefined)
+      problems.push("cost resources choose: not with resourcesEqualTo (two sizes of one payment)");
+  }
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
   if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
+  // "Discard up to N cards from the top of your deck →" (docs/phase7-wave8.md §3.55): at least one, at most `max`.
+  if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck) {
+    const { min, max } = cost.discardFromDeck.choose;
+    if (!Number.isInteger(min) || min < 1)
+      problems.push('cost discardFromDeck: a chosen size has a min of at least 1 (RRG 1.8 "Cost", p. 14)');
+    if (!Number.isInteger(max) || max < min)
+      problems.push("cost discardFromDeck: a chosen size's max must be a whole number no smaller than min");
+  }
   if (cost.discardFromDeckSlot !== undefined && cost.discardFromDeck === undefined)
     problems.push("cost discardFromDeckSlot: only binds the cards a discardFromDeck cost discarded");
   if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
@@ -217,7 +282,8 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...(cost.encounterLookDiscard ? [cost.encounterLookDiscard.slot] : []),
     ...(cost.attach ? [cost.attach.to.slot, ...(cost.attach.bind ? [cost.attach.bind] : [])] : []),
-    ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
+    ...(cost.dealDamage?.choose ? [cost.dealDamage.choose.slot] : []),
+    ...inPlayPicksOf(cost).flatMap(({ pick }) => [pick.slot, ...(pick.bindHosts ? [pick.bindHosts] : [])]),
   ];
   if (new Set(slots).size !== slots.length)
     problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
@@ -247,6 +313,9 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
     problems.push(`${path}: anyPrintedResource needs at least one resource type`);
   if (Array.isArray(record.anyOf) && record.anyOf.length === 0)
     problems.push(`${path}: anyOf needs at least one query`);
+  const printsAbility = record.printsAbility as { kinds?: unknown } | undefined;
+  if (printsAbility !== undefined && (!Array.isArray(printsAbility.kinds) || printsAbility.kinds.length === 0))
+    problems.push(`${path}: printsAbility needs at least one ability kind`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
@@ -328,8 +397,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   if (trigger.kind === "constant" && definition.effects.length > 0) problems.push("a constant ability has no effects");
   if (definition.generates !== undefined && trigger.kind !== "resource")
     problems.push("only resource abilities generate resources");
-  if (trigger.kind === "constant" && (definition.cost || definition.limit || definition.label))
+  // The one limit a constant carries is its `playableTopOfDeck` permission's "once per phase" (docs/phase7-wave8.md
+  // §3.49), counted when a card is played under it.
+  const permissionLimit = trigger.kind === "constant" && trigger.playableTopOfDeck !== undefined;
+  if (trigger.kind === "constant" && (definition.cost || (definition.limit && !permissionLimit) || definition.label))
     problems.push("a constant ability has no cost, limit or label");
+  if (permissionLimit && definition.limit?.per === "triggeringEvent")
+    problems.push("a playableTopOfDeck limit is per turn, phase or round, not per triggering event");
   // docs/phase7-wave5.md §3.25: a use per counter, so the cost is one fixed counter cost and nothing else.
   if (trigger.kind === "resource" && trigger.repeatable) {
     const cost = definition.cost ?? {};
@@ -532,10 +606,24 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
       return;
+    // A sequential pool's `<bind>.amount` / `.dealt` / `.lost` (docs/phase7-wave8.md §3.37).
+    case "assignDamage":
+      if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
+      return;
+    // The characters whose assigned card matches, every character given one, and the two counts
+    // (docs/phase7-wave8.md §3.36).
+    case "pairCards":
+      scope.slots.add(`${effect.bind}.matched`);
+      scope.slots.add(`${effect.bind}.paired`);
+      scope.vars.add(`${effect.bind}.pairs`);
+      scope.vars.add(`${effect.bind}.count`);
+      return;
     // The one card a "find" found (docs/phase7-wave6.md §3.48).
     case "findCard":
       if (effect.bind) scope.slots.add(effect.bind);
       return;
+    // `draw` with a bind: the cards drawn and `<bind>.count` (docs/phase7-wave8.md §3.70).
+    case "draw":
     case "lookAt":
       if (effect.bind) {
         scope.slots.add(effect.bind);
@@ -567,6 +655,11 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "searchCollection":
       scope.slots.add(effect.bind);
       scope.vars.add(`${effect.bind}.count`);
+      // Every card a player-deck "discard until" discarded, with a bound set's totals (docs/phase7-wave8.md §3.71).
+      if (effect.kind === "discardDeckUntil" && effect.bindAll !== undefined) {
+        scope.slots.add(effect.bindAll);
+        scope.prefixes.add(`${effect.bindAll}.`);
+      }
       return;
     case "moveCards":
     case "enemyAttack":
@@ -589,6 +682,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "spendResources":
     // `<bind>.amount` / `<bind>.made` (docs/phase7-wave6.md §3.69).
     case "chooseNumber":
+    // `<bind>.boostIcons` (docs/phase7-wave2.md §3.6).
+    case "countBoostIcons":
     // `<bind>.chosen.<type>` / `<bind>.made` (docs/phase7-wave7.md §3.33).
     case "chooseCardType":
     // `<bind>.amount` / `<bind>.made` (docs/phase7-wave7.md §3.83).
@@ -658,6 +753,12 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
     // One trait, or the traits of a character (docs/phase7-wave6.md §3.50), never both or neither.
     if (effect.kind === "grantTraitUntil" && (effect.trait === undefined) === (effect.traitsOf === undefined))
       problems.push(`${where}: needs exactly one of trait and traitsOf`);
+    // A moment carries what the ability has bound by then (docs/phase7-wave8.md §3.71): a slot bound later, or never,
+    // would reach the answers empty.
+    if (effect.kind === "raiseMoment") {
+      for (const slot of effect.carry ?? [])
+        if (!scope.slots.has(slot)) problems.push(`${where}: carried slot "${slot}" is not bound before the moment`);
+    }
     checkRefs(effect, scope, where, problems);
     nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems));
     bindsOf(effect, scope);
@@ -673,6 +774,15 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     vars: new Set(["x"]),
     prefixes: new Set(["paid.", "overpaid.", "sequence.", "self.counters."]),
   };
+  // What an answered moment carries (`raiseMoment.carry`, docs/phase7-wave8.md §3.71) is the answering ability's to
+  // read as `moment.<slot>`, slot and vars: bound by the engine from the event, never by the ability.
+  const trigger = definition.trigger;
+  if (trigger.kind === "response" && trigger.on && kindsOfPattern(trigger.on).includes("momentRaised"))
+    scope.prefixes.add(MOMENT_PREFIX);
+  // An ability that answers an occurrence once (`EventPattern.together`) reads every condition's target from a slot
+  // the engine binds as it is initiated.
+  if ((trigger.kind === "response" || trigger.kind === "interrupt") && trigger.on?.together === true)
+    scope.slots.add(TOGETHER_TARGETS_SLOT);
   // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
   if (definition.cost?.conditional) scope.vars.add("cost.condition");
   // A resource ability's effects resolve with the payment, the card paid for bound to `paidFor` (engine
@@ -706,21 +816,41 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     if (cost.resourcesEqualTo !== undefined) scope.vars.add("cost.resources");
+    // "Spend up to 3 resources →" records the size chosen (docs/phase7-wave8.md §3.62).
+    if (isResourcesChoice(cost.resources)) scope.vars.add("cost.resources");
     // A computed or chosen "take N damage →" records its amount (`AbilityCost.damageSelf`, docs/phase7-wave7.md §3.79).
     if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
+    // A chosen "discard up to N cards from the top of your deck →" records how many it discarded (wave 8 §3.55).
+    if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck)
+      scope.vars.add("cost.discardFromDeck");
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).
     for (const component of [cost, ...(cost.either ?? [])]) {
       if (component.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
     }
     if (cost.either) scope.vars.add("cost.branch");
+    if (cost.dealDamage?.choose) scope.slots.add(cost.dealDamage.choose.slot);
     for (const { pick } of inPlayPicksOf(cost)) {
       scope.slots.add(pick.slot);
+      if (pick.bindHosts) scope.slots.add(pick.bindHosts);
+      if (pick.snapshotStats) for (const stat of ["thw", "atk", "def"]) scope.vars.add(`${pick.slot}.${stat}`);
       if (pick.bind) scope.vars.add(pick.bind);
     }
   }
   if (definition.trigger.kind === "constant") {
-    checkRefs(definition.trigger, scope, "constant", problems);
+    // A constant modifier's `while` and amount are read with the card whose stat it is bound to "affected" (engine
+    // `AFFECTED_SLOT`): "each X-MEN character gets +1 THW while making a basic thwart against this scheme".
+    const { modifiers, ...rest } = definition.trigger;
+    checkRefs(rest, scope, "constant", problems);
+    if (modifiers !== undefined) {
+      const reading = { ...scope, slots: new Set([...scope.slots, "affected"]) };
+      modifiers.forEach((modifier, index) => {
+        const { while: condition, amount, ...other } = modifier;
+        checkRefs(other, scope, "constant", problems);
+        if (condition !== undefined) checkRefs(condition, reading, `constant modifiers[${index}] while`, problems);
+        if (typeof amount !== "number") checkRefs(amount, reading, `constant modifiers[${index}] amount`, problems);
+      });
+    }
     return;
   }
   walk(definition.effects, scope, "effects", problems);

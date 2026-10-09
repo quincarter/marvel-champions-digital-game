@@ -278,6 +278,8 @@ describe("The Wrecking Crew — curated corrections and structure", () => {
     expect(s?.multipleVillains?.activation).toBe("activeVillainOnly");
     expect(s?.multipleVillains?.winCondition).toBe("allVillainsDefeated");
     expect(s?.usesIdentityEncounterSets).toBe(false);
+    // Per FFG ruling Jan 17, 2026 (Ruling 5); the insert says otherwise and the owner follows the ruling (row 86).
+    expect(s?.nemesisSetsSetAside).toBe(true);
     expect(s?.modularSetCount).toBe(0);
     expect(s?.villainStages).toEqual({ standard: [1, 1], expert: [2, 2] });
   });

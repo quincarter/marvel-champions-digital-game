@@ -182,7 +182,10 @@ function restrictedMayBeGranted(state: GameState, deps: EngineDeps): boolean {
 
 /** The player side schemes in play that count toward the limit, in the order they entered the villain's play area. */
 function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
-  return ctx.state.villainArea.filter(
+  // One played into an in-play scenario area (`playCard.into`) is in play too, and the limit is on "the number of
+  // player side schemes in play" (RRG 1.8 "Player Side Scheme Limit", p. 34).
+  const inAreas = Object.values(ctx.state.scenarioPlayAreas ?? {}).flatMap((area) => area.cards);
+  return [...ctx.state.villainArea, ...inAreas].filter(
     (id) =>
       cardOf(ctx.state, id)?.type === "player_side_scheme" &&
       // One already defeated and waiting to leave play after its When Defeated is not seen by a rule counting cards in
@@ -242,7 +245,9 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
   if (entering === null && counted.some((id) => stillEntering(ctx, id))) return false;
   const played = entering === null ? undefined : playFrameOf(ctx.state.stack, entering);
   const options = counted.filter(
-    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+    (id) =>
+      !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) &&
+      !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true),
   );
   const over = Math.min(counted.length - limit, options.length);
   if (over === 0) return false;
@@ -292,7 +297,9 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
   const { load, limit, held } = restrictedStanding(ctx.state, ctx.deps, playerId);
   if (load <= limit) return false;
   const options = held.filter(
-    (id) => !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) && !cannotLeavePlay(ctx.state, ctx.deps, id),
+    (id) =>
+      !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) &&
+      !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true),
   );
   const over = Math.min(load - limit, options.length);
   if (over === 0) return false;
@@ -448,6 +455,19 @@ export function engagementOf(state: GameState, id: InstanceId): MinionEngaged | 
   const playerId = getInstance(state, id)?.engagedWith;
   if (!playerId || !isMinion(state, id)) return null;
   return { kind: "minionEngaged", minionInstanceId: id, playerId };
+}
+
+/**
+ * A minion already in play engages `playerId` (RRG 1.8 "Engage", p. 18: "an ability telling a player to engage a minion
+ * counts as that minion engaging them", and a minion already engaged with that player cannot engage them again): it
+ * moves to their play area with everything on it. Returns whether it engaged; the caller opens the engagement's windows.
+ */
+export function engageInPlayMinion(ctx: Ctx, id: InstanceId, playerId: PlayerId): boolean {
+  const instance = getInstance(ctx.state, id);
+  if (!instance || !isMinion(ctx.state, id) || instance.engagedWith === playerId) return false;
+  moveCard(ctx, id, { kind: "playArea", playerId });
+  updateInstance(ctx, id, (i) => ({ ...i, engagedWith: playerId, controllerId: null }));
+  return true;
 }
 
 /*

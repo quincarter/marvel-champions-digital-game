@@ -160,6 +160,7 @@ export function costChoicesOf(choice: InPlayCostChoiceState): CostChoices {
 
 const VERB: Readonly<Record<InPlayCostMode, string>> = {
   exhaust: "exhaust",
+  ready: "ready",
   discard: "discard",
   return: "return to hand",
   damage: "damage",

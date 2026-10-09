@@ -6,7 +6,7 @@
  * reading a card can never answer the question.
  */
 import Phaser from "phaser";
-import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../../tokens.js";
 import { bangers, ruleHeading } from "../../ui/campaign-chrome.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton, fitText, label } from "../../ui/widgets.js";
@@ -28,7 +28,8 @@ export interface SideSchemeDrawContext {
   readonly inspect: (card: SchemeCardRef) => void;
 }
 
-const CHIP_HEIGHT = 34;
+/** Inspect chips and Pick are full touch targets. */
+const CHIP_HEIGHT = hit.target;
 const ROW_GAP = 8;
 const WIDE = 600;
 
@@ -118,7 +119,7 @@ export function drawSideSchemeCall(
     const pick = (): void => onPick(row.name);
     const chips = cardChipsOf(row);
     const chipsWidth = wide ? chips.length * 112 + Math.max(0, chips.length - 1) * 6 : rect.width - 24;
-    const height = wide ? 52 : 8 + 40 + 6 + CHIP_HEIGHT + 8;
+    const height = wide ? 56 : 8 + CHIP_HEIGHT + 6 + CHIP_HEIGHT + 8;
     const g = scene.add.graphics();
     g.fillStyle(0xfffaf0, 1).fillRect(rect.x, y, rect.width, height);
     g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, height);
@@ -126,7 +127,7 @@ export function drawSideSchemeCall(
     const title = scene.add
       .text(
         rect.x + 12,
-        y + (wide ? height / 2 : 8 + 20),
+        y + (wide ? height / 2 : 8 + CHIP_HEIGHT / 2),
         text,
         textStyle({ ...typeRole.rowTitle, size: 14 }, surface.ink.hex),
       )
@@ -135,9 +136,9 @@ export function drawSideSchemeCall(
     void title;
     const pickRect: Rect = {
       x: rect.x + rect.width - 12 - pickWidth,
-      y: wide ? y + (height - 36) / 2 : y + 8 + 2,
+      y: wide ? y + (height - CHIP_HEIGHT) / 2 : y + 8,
       width: pickWidth,
-      height: 36,
+      height: CHIP_HEIGHT,
     };
     ctx.buttons.push(
       new McButton(scene, { kind: "primary", label: "Pick", type: typeRole.label, rect: pickRect, onClick: pick }),
@@ -146,7 +147,7 @@ export function drawSideSchemeCall(
     if (wide) {
       chipRow(ctx, row, pickRect.x - 12 - chipsWidth, y + (height - CHIP_HEIGHT) / 2, chipsWidth, keyBase);
     } else {
-      chipRow(ctx, row, rect.x + 12, y + 8 + 40 + 6, chipsWidth, keyBase);
+      chipRow(ctx, row, rect.x + 12, y + 8 + CHIP_HEIGHT + 6, chipsWidth, keyBase);
     }
     y += height + ROW_GAP;
   }
@@ -175,7 +176,7 @@ export function drawSideSchemeSettled(
     const marker = briefing.repeated
       ? label(scene, 0, 0, "Same as last time", typeRole.label, signal.cost.hex, 1)
       : null;
-    const height = wide ? 52 : 8 + title.height + (marker ? 6 + marker.height : 0) + 12 + CHIP_HEIGHT + 8;
+    const height = wide ? 56 : 8 + title.height + (marker ? 6 + marker.height : 0) + 12 + CHIP_HEIGHT + 8;
     const g = scene.add.graphics();
     g.fillStyle(0xfffaf0, 1).fillRect(rect.x, y, rect.width, height);
     g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, height);

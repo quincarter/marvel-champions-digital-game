@@ -37,6 +37,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             notesForScripting: "After villain-phase step one: place 1 threat on each of the four side schemes (not the main scheme), then move the active counter to the villain whose signature side scheme now has the most threat (tie: first player chooses).",
           },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/07001.png"),
         aSide: {
           text: {

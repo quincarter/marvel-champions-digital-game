@@ -5,7 +5,7 @@
  * safe to show for any card a player can see.
  *
  * Keyed by the printed id without its face letter ("34002" covers both Phoenix Force sides). Wave 6 (Mutant Genesis and
- * MojoMania) is the first wave to fill it; wave 7 (NeXt Evolution) adds its own rows after them.
+ * MojoMania) is the first wave to fill it; wave 7 (NeXt Evolution) and wave 8 (Age of Apocalypse) add their own rows after them.
  */
 import type { AnyCard } from "@mc/content";
 
@@ -101,7 +101,7 @@ note(
 );
 note(
   ["32141"],
-  "Magnet counters collect on the main scheme. At 3, it removes 3 and reveals the next Magnetic card from the encounter deck.",
+  "Magnet counters collect on the main scheme. At 3, it removes 3 and reveals the next Magnetic card from the encounter deck. They return to the pool when the scheme advances.",
 );
 note(
   ["32087"],
@@ -194,6 +194,126 @@ note(
 note(
   ["44046"],
   "Alter-ego only. Costs 3 per player. A timer counts your break; End break heals every identity 1 per whole minute.",
+);
+
+// Age of Apocalypse (wave 8). Notes on a reading the owner has not confirmed describe what the game does today.
+note(
+  ["45001"],
+  "Damage from an attack discards that many cards from your deck. Resource cards among them go to your hand; the rest stay in the discard pile.",
+);
+note(
+  ["45007"],
+  "Bishop readies only if a resource card paid for it. Extra resources beyond the cost did not pay, and a cost of 0 never counts.",
+);
+note(
+  ["45008"],
+  "You draw only if a resource card paid for it. Extra resources beyond the cost did not pay, and a cost of 0 never counts.",
+);
+note(
+  ["45030"],
+  "In hero form your top card is faceup, and once per phase you may play it for 1 less. Her upgrades read its resource icon, and a wild icon counts as every type.",
+);
+note(
+  ["45032"],
+  "Swap a card in your hand with the top card of your deck, as an action or when the villain phase begins.",
+);
+note(
+  ["45038", "45039", "45040"],
+  "Reads the top card of your deck when it resolves, so it can change what the card does. A wild icon counts as every type.",
+);
+note(
+  ["46001"],
+  '"Freeze!" attaches a set-aside Frostbite when you make a basic attack or defense against an enemy. Frostbite returns when its host activates or leaves play.',
+);
+note(["46015", "46016"], "Needs an enemy with any upgrade attached. A Frostbite counts.");
+note(["46009"], "Choose one: 4 damage and a Frostbite, or 6 damage to an enemy that already has a Frostbite attached.");
+note(
+  ["47004", "47005", "47006", "47007", "47008", "47009", "47015"],
+  "Counts the different resource types that paid, not the cards. Extra resources beyond the cost did not pay. A wild counts as the type you declare.",
+);
+note(
+  ["47023"],
+  "Changing to hero form on your turn costs 2 resources of the same type. Playing any Jubilee event removes this card from the game.",
+);
+note(
+  ["47019"],
+  "The chosen player makes a basic attack or thwart with a character they control, at +1 THW and +1 ATK. It costs one charge counter.",
+);
+note(
+  ["48006"],
+  "When the attached enemy attacks, discard it to make Nightcrawler the defender without exhausting him. That is a basic defense.",
+);
+note(
+  ["48007"],
+  "One attack made of two parts: 3 damage to an enemy, then 3 to each enemy with Bamf! attached. Guard is checked for each enemy.",
+);
+note(
+  ["48033"],
+  "A minion that schemes is dealt to that player as a facedown encounter card, then passed to the next player if there is one.",
+);
+note(
+  ["49001"],
+  "Magnetic Pull discards until a MAGNETIC card, once per round, and adds it to your hand. Armor reads the icons discarded, and Old Grievances counts the cards.",
+);
+note(
+  ["49004"],
+  "Reads the icons of the cards Magnetic Pull discarded, the MAGNETIC one too: mental +1 THW, physical +1 ATK, energy +1 DEF, each until the end of the round.",
+);
+note(["49006"], "Damage you would take goes onto this card instead of you. At 6 or more it is discarded.");
+note(
+  ["49007"],
+  "Hero form only, and not for ELITE minions. The attached minion cannot activate and its text box is blank.",
+);
+note(
+  ["49015"],
+  "Every instance of attack damage to the chosen enemy this phase gets +1, so a multi-hit attack adds it each time.",
+);
+note(
+  ["49019"],
+  "Adds the ally's matching power: the stat that actually powered your attack or thwart, not the other one.",
+);
+note(["45059"], "Threat on Gene Pool sets what he has: 3 retaliate 1, 6 also stalwart, 9 also an amplify icon.");
+note(
+  ["45081", "45082", "45083", "45084"],
+  "Cannot be defeated while another villain has at least 1 hit point. The active counter moves right after a villain activates.",
+);
+note(
+  ["45090", "45091"],
+  "Counts the villain as having at least 1 hit point. After you attack it, you resolve its Forced Response as if it just attacked you, then this is discarded.",
+);
+note(
+  ["45103"],
+  "When Apocalypse would be defeated, he heals instead and this scheme loses threat equal to the numeral in his printed hit points.",
+);
+note(["45104"], "Threat cannot be removed from this scheme while a Prelate minion is in play.");
+note(
+  ["45105"],
+  "The Tyrant's Throne: threat cannot be removed while a Prelate is in play. Its other side, No Longer Worthy: Apocalypse takes no damage while a Prelate is in play, and defeating him wins.",
+);
+note(
+  ["45118"],
+  "His attack resolves the Special on a Setting environment in play. With several in play, the resolving player chooses one.",
+);
+note(
+  ["45127", "45133", "45139"],
+  "Several Settings can be in play at once. A Special resolves when Dark Beast attacks you or a card asks for it.",
+);
+note(
+  ["45075"],
+  "Permanent. At 3 more counters than players they clear: your nemesis minion activates, or the nemesis set comes in.",
+);
+note(["45147"], "Adds a power counter each villain phase. At 4, remove them and reveal the next Superpower card.");
+note(
+  ["45171"],
+  "Cannot be discarded. Exhaust it to make a mission attempt, or to reduce the next ally played to the mission by 2.",
+);
+note(
+  ["45176"],
+  "A campaign reward. The attached ally gets +1 THW, +1 ATK and +1 hit point, and counts as having a wild resource icon too.",
+);
+note(
+  ["45166", "45167", "45168", "45169", "45170"],
+  "A mission: players cannot thwart it. Allies at the mission make attempts, and it cannot be defeated while any minion is there.",
 );
 
 /** The printed id without its face letter: "34002a" and "34002b" are one card. */

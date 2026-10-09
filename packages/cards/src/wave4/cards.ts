@@ -10,25 +10,20 @@
  * duplicate, duplicate ability ids at reprint-generation time, etc.) the moment `PLAYABLE_CARDS` grew cycle 3.
  * `reprints.ts`, `setup.ts` and `names.ts` all import this rather than assembling their own copy.
  */
-import {
-  difficultySetChoiceErrors,
-  HOOD_ENCOUNTER_SETS,
-  MTS_ENCOUNTER_SETS,
-  PLAYABLE_CARDS,
-  type AnyCard,
-  type DifficultySetChoice,
-} from "@mc/content";
+import { difficultySetChoiceErrors, PLAYABLE_CARDS, type AnyCard, type DifficultySetChoice } from "@mc/content";
+import { PLAYABLE_ENCOUNTER_SETS } from "../modular-pool.js";
 
 /** Every playable card: Core, wave 1, cycle 1, cycle 2, and cycle 3, in release order. */
 export const WAVE4_CARDS: readonly AnyCard[] = PLAYABLE_CARDS;
 
 /**
- * Refuses a Standard II / Expert II choice (docs/phase7-wave4.md §4 Q5) that names no set of the matching
- * classification among the wave 4 pool's encounter sets. Every wave 4 builder calls it before building, so a typo or a
- * modular set passed as "Standard" fails loudly instead of building a deck without its Standard set.
+ * Refuses a Standard or Expert set choice (docs/phase7-wave4.md §4 Q5: Standard II / Expert II; docs/phase7-wave8.md
+ * section 4.1 Q10 = A: Standard III at any scenario that uses the Standard set) that names no set of the matching
+ * classification among the playable pool's encounter sets. Every wave 4 builder calls it before building, so a typo or
+ * a modular set passed as "Standard" fails loudly instead of building a deck without its Standard set.
  */
 export function checkWave4DifficultySets(choice: DifficultySetChoice | undefined): void {
   if (!choice) return;
-  const errors = difficultySetChoiceErrors(choice, [...HOOD_ENCOUNTER_SETS, ...MTS_ENCOUNTER_SETS]);
+  const errors = difficultySetChoiceErrors(choice, PLAYABLE_ENCOUNTER_SETS);
   if (errors.length > 0) throw new Error(`difficultySets: ${errors.join("; ")}`);
 }

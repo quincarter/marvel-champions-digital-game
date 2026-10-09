@@ -204,7 +204,7 @@ const COSTS: Readonly<Record<string, number>> = { "43016": 2, "43038": 2, "43040
 function accepting(
   ref: string,
   log: { offered: number } = { offered: 0 },
-  answers: { skip?: number; cost?: number } = {},
+  answers: { skip?: number; cost?: number; once?: boolean } = {},
 ): Picker {
   return (s) => {
     const choice = s.pendingChoice;
@@ -216,6 +216,8 @@ function accepting(
       if (hit) {
         log.offered += 1;
         if (answers.skip && log.offered <= answers.skip) return [];
+        // A second copy in hand is offered once the first has resolved (RRG 1.8 "Response", p. 36): declined.
+        if (answers.once && log.offered > 1) return [];
         return [hit.optionId];
       }
       const lw = choice.options.find((o) => o.optionId.includes(LIVING_WEAPON));
@@ -602,8 +604,14 @@ describe("Moment of Triumph (43017): after you attack and defeat an enemy, heal 
   it("costs 0: 2 excess damage heals 2 from X-23 (5 to 3)", () => {
     const s = staged();
     const log = { offered: 0 };
-    const r = driveEventsPicking(DEPS, s.state, accepting(TRIUMPH, log), basicAttack(s.state, s.minion));
-    expect(log.offered).toBe(1);
+    const r = driveEventsPicking(
+      DEPS,
+      s.state,
+      accepting(TRIUMPH, log, { once: true }),
+      basicAttack(s.state, s.minion),
+    );
+    // The opening hand can hold the other copy: it is offered after the first resolves, and declined.
+    expect(log.offered).toBeGreaterThanOrEqual(1);
     expect(damageOn(r.state, identityOf(r.state))).toBe(3);
     expect(playerOf(r.state, P1).discard).toContain(s.id);
   });
@@ -861,6 +869,35 @@ describe("Sisterly Bond (43007): Hero Interrupt, Honey Badger's basic thwart or 
   it("the amount is live: with Claw Mastery's +2 ATK (3) her attack deals 1 + 3 = 4, her thwart still 1 + 2 = 3", () => {
     expect(attackWith(staged({ claws: true }), accepting(SISTERLY_BOND)).dealt).toBe(4);
     expect(thwartWith(staged({ claws: true }), accepting(SISTERLY_BOND)).removed).toBe(3);
+  });
+  // docs/phase7-wave8.md §4.1 Q54 = B; RRG 1.8 "Assault" (p. 8): the thwart uses ATK, so the matching power is ATK.
+  describe("a basic thwart made with ATK (Keep Them Busy 43018, a player side scheme with Assault)", () => {
+    /** Claw Mastery played (X-23 THW 2, ATK 3), Keep Them Busy in play with 10 threat. */
+    const stagedAssault = () => {
+      const st = staged({ claws: true });
+      const g = given(st.state, "43018");
+      const state: GameState = {
+        ...g.state,
+        players: g.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== g.id) } : p,
+        ),
+        villainArea: [...g.state.villainArea, g.id],
+      };
+      return { ...st, state: patchInstance(state, g.id, { threat: 10, faceup: true }), scheme: g.id };
+    };
+    const thwartScheme = (st: ReturnType<typeof stagedAssault>, pick: Picker) => {
+      const r = driveEventsPicking(DEPS, st.state, pick, basicThwart(st.state, st.scheme, st.hb));
+      return 10 - inst(r.state, st.scheme).threat;
+    };
+    it("without it Honey Badger removes her ATK 1 from it", () => {
+      expect(thwartScheme(stagedAssault(), firstLegal)).toBe(1);
+    });
+    it("she gains X-23's ATK 3, not her THW 2: 1 + 3 = 4 removed", () => {
+      expect(thwartScheme(stagedAssault(), accepting(SISTERLY_BOND))).toBe(4);
+    });
+    it("the same table's ordinary thwart of the main scheme still gains X-23's THW 2: 1 + 2 = 3", () => {
+      expect(thwartWith(stagedAssault(), accepting(SISTERLY_BOND)).removed).toBe(3);
+    });
   });
   it("is optional: declined, she deals 1 and the card stays in hand", () => {
     const st = staged();

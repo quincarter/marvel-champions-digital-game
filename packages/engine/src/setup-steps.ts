@@ -19,17 +19,11 @@ import { isPermanentCard } from "./deck.js";
 import { applyToughness, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import {
-  encounterDeckOf,
-  mainSchemeStage,
-  mainSchemeValue,
-  mustCardOf,
-  undefeatedVillains,
-  villainOf,
-} from "./query.js";
+import { encounterDeckOf, mainSchemeValue, mustCardOf, undefeatedVillains, villainOf } from "./query.js";
 import { announce, applyEnterPlayKeywords, gameAbilityFrames, shuffleSeparateDeck } from "./resolve/index.js";
 import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
+import { mainSchemeStageFrames } from "./resolve/main-scheme-side.js";
 import { encounterSetupCardEntersPlay, waitingSetupCardsEnterPlay } from "./resolve/setup-cards.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
@@ -90,21 +84,21 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   for (const villain of undefeatedVillains(ctx.state)) {
     applyToughness(ctx, villain.instanceId);
   }
+  // Step 11's own frames (each setup card's starting threat and its entering play) resolve before anything of step
+  // 12: they are lifted off here and put back on top once step 12's frames are pushed, so the stack reads step 11,
+  // the setup options, step 12 (RRG 1.8 Appendix II, p. 51; docs/phase7-wave8.md §3.5).
+  const heldBeforeStep11 = ctx.state.stack.length;
   putSetupCardsIntoPlay(ctx, firstPlayerId);
-  // RRG Appendix II step 12: main scheme 1A setup text, then each villain's, in printed order.
-  // "Advance to stage 1B" is implicit (the engine already sits on 1B), so 1B's
-  // own "When Revealed" resolves right after the 1A setup text.
+  const step11Frames = ctx.state.stack.slice(0, ctx.state.stack.length - heldBeforeStep11);
+  ctx.state = { ...ctx.state, stack: ctx.state.stack.slice(step11Frames.length) };
+  // RRG Appendix II step 12: main scheme 1A setup text, the flip to 1B and its "When Revealed", then each villain's,
+  // in printed order. Side 1A is the faceup one through step 11 and step 12a (`MainSchemeState.faceupSide`).
   pushFrames(ctx, [
-    ...gameAbilityFrames(
-      ctx,
-      mainSchemeInstanceId,
-      ["setup"],
-      null,
-      mainSchemeStage(ctx.state).aSide.abilities,
-      firstPlayerId,
-    ),
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["setup"], null, undefined, firstPlayerId),
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["whenRevealed"], null, undefined, firstPlayerId),
+    // Between step 11 and step 12: the optional setup rules the players turned on (docs/phase7-wave8.md §3.5).
+    ...setupOptionFrames(ctx),
+    // Steps 12a and 12b: 1A's Setup, then the flip to 1B, whose own Setup and When Revealed resolve once it is the
+    // faceup side (docs/phase7-wave8.md §4.1 Q56).
+    ...mainSchemeStageFrames(ctx, mainSchemeInstanceId, "setup", ["setup", "whenRevealed"], firstPlayerId),
     ...undefeatedVillains(ctx.state).flatMap((villain) => [
       ...gameAbilityFrames(ctx, villain.instanceId, ["setup"], null, undefined, firstPlayerId),
       // RRG Appendix II "Resolve Scenario Setup and When Revealed Abilities": the starting villain
@@ -112,6 +106,33 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       ...gameAbilityFrames(ctx, villain.instanceId, ["whenRevealed"], null, undefined, firstPlayerId),
     ]),
   ]);
+  ctx.state = { ...ctx.state, stack: [...step11Frames, ...ctx.state.stack] };
+}
+
+/**
+ * `ScenarioRules.setupOptions`: one effects frame per option, in the order listed, resolved by the first player as
+ * scenario text (no "self"). They go ahead of step 12's frames, so the cards step 11 put into play are there and no
+ * Setup or When Revealed ability has resolved yet (RRG 1.8 Appendix II, p. 51). Each is logged `setupOptionApplied`
+ * when its frame finishes (`Frame.setupOption`, `executeEffectsFrame`): after step 11's own frames and after the
+ * option's instruction, never when the frame is pushed. An option stated at 0 resolves its instruction for 0 and is
+ * logged; one with no instruction is logged in its place in the order.
+ */
+function setupOptionFrames(ctx: Ctx): StackFrame[] {
+  return (ctx.state.scenarioRules.setupOptions ?? []).map((option) => ({
+    ...base(ctx),
+    kind: "effects",
+    effects: option.effects,
+    cursor: 0,
+    bindings: {},
+    vars: {},
+    scopedPlayerId: null,
+    selfInstanceId: null,
+    controllerId: ctx.state.firstPlayerId,
+    event: null,
+    eventFrameId: null,
+    instruction: { kind: "scenario", instructionId: option.option, text: option.text, citation: option.citation },
+    setupOption: { option: option.option, amount: option.amount, text: option.text, citation: option.citation },
+  }));
 }
 
 /**

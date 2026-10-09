@@ -4,9 +4,10 @@
  * resource (a card that can't be played can still be spent to pay).
  *
  * The match is never decided here: it is the engine's own `cardsMatch`, with the table rule when the game will run
- * with it (`TableRules.sameNameHeroAllyConflict`). That covers both the option's pairs (the Colossus ally against the
- * Colossus hero) and the pairs that clash under FFG's rule alone (the ally subtitled "Kitty Pryde" against the
- * Shadowcat hero, a T'Challa-subtitled Black Panther ally against Black Panther (T'Challa)). A deck's clash with its
+ * with it (`TableRules.sameNameHeroAllyConflict`). That covers both the option's pairs (the Valkyrie ally against the
+ * Valkyrie hero, the Ironheart ally against Ironheart) and the pairs that clash under FFG's rule alone (the ally
+ * subtitled "Kitty Pryde" against the Shadowcat hero, the Colossus ally subtitled "Piotr Rasputin" against the Colossus
+ * hero, a T'Challa-subtitled Black Panther ally against Black Panther (T'Challa)). A deck's clash with its
  * OWN identity is a deckbuilding matter (`validateDeck` reports it) and is not listed here.
  *
  * A swap (`DeckSwap`) replaces every copy of one card with the same number of copies of another. It is applied to the

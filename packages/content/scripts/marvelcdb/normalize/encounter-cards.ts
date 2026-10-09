@@ -84,16 +84,21 @@ export function normalizeEncounterCard(
       }
       if (rawAtk === null || (rawAtk !== undefined && rawAtk < -1))
         errors.push(`${r.code}: minion ATK ${String(rawAtk)} invalid`);
-      if ((r.scheme === null || r.scheme === undefined) && !curation.cardNotes[r.code]) {
+      if ((p.scheme ?? r.scheme) == null && !curation.cardNotes[r.code]) {
         errors.push(`${r.code}: minion has no scheme value (printed "0", or "—"?) — needs a cardNotes entry`);
       }
+      // "Per group" hit points have no schema field yet; never emit such a minion with a flat value.
+      if (r.health_per_group) errors.push(`${r.code}: minion health_per_group is not supported`);
       const minion: MinionCard = {
         ...common,
         type: "minion",
         // MarvelCDB -1 = printed "X" (defined by the card's own ability: Titania).
-        atk: rawAtk === -1 ? "X" : (rawAtk ?? 0),
-        sch: r.scheme ?? 0,
+        atk: p.dashedMinionStats?.includes("atk") ? null : rawAtk === -1 ? "X" : (rawAtk ?? 0),
+        sch: p.dashedMinionStats?.includes("sch") ? null : (p.scheme ?? r.scheme ?? 0),
         hp: r.health ?? 0,
+        // A per player icon beside the hit points (raw `health_per_hero`): `hp` keeps the printed numeral and the
+        // engine multiplies it by the players who started the scenario (RRG 1.8 "Per Player Icon", p. 32).
+        ...(r.health_per_hero ? { hpPerPlayer: true as const } : {}),
         ...encounterCommon,
         ...(parsed.nemesisMinion ? { nemesisMinion: true } : {}),
       };
@@ -182,15 +187,26 @@ export function normalizeEncounterCard(
       return;
     case "side_scheme": {
       expectNoAttach(ctx, p, parsed);
-      if (r.base_threat === null || r.base_threat === undefined)
+      // A printed dash threat (docs/phase7-wave8.md §1.24: the mission b faces, "Finished.") is emitted as a fixed 0
+      // and recorded in a `cardNotes` entry, the way a minion's absent ATK is.
+      if ((r.base_threat === null || r.base_threat === undefined) && !curation.cardNotes[r.code])
         errors.push(`${r.code}: side scheme without starting threat`);
       const { encounterSetIds, boostIcons, starIcon, traits, keywords, text, abilities: abs } = encounterCommon;
       const scheme: SideSchemeCard = {
         ...common,
         type: "side_scheme",
         encounterSetIds,
-        startingThreat: scalingOf(r.base_threat ?? 0, !r.base_threat_fixed),
-        icons: schemeIcons(r),
+        startingThreat: scalingOf(r.base_threat ?? 0, p.startingThreatPerPlayer ?? !r.base_threat_fixed),
+        icons: schemeIcons(
+          p.schemeIcons
+            ? {
+                ...r,
+                scheme_crisis: p.schemeIcons.crisis ?? 0,
+                scheme_acceleration: p.schemeIcons.acceleration ?? 0,
+                scheme_hazard: p.schemeIcons.hazard ?? 0,
+              }
+            : r,
+        ),
         boostIcons,
         ...(starIcon ? { starIcon } : {}),
         traits,

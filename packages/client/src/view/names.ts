@@ -128,4 +128,7 @@ export function seatName(state: GameState, id: PlayerId, perspectiveId: PlayerId
 
 const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six"];
 /** A small count in words ("two"), the number itself past six. */
+/** A form as the words a log line or prompt uses. */
+export const formWords = (form: string): string => (form === "hero" ? "hero form" : "alter-ego form");
+
 export const numberWord = (n: number): string => NUMBER_WORDS[n] ?? String(n);

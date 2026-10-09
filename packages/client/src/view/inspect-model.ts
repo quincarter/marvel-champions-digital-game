@@ -27,6 +27,7 @@ import {
   keywordsOf,
   locateCard,
   maxHitPoints,
+  offeredByOpenChoice,
   playCostOf,
   printedCostOf,
   printedResources,
@@ -54,6 +55,7 @@ import { howThisWorksFor } from "./how-this-works.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import { poolTeamUpPairs, teamUpNoticeFor, teamUpWhyNot, type TeamUpNotice } from "./team-up-model.js";
+import { hitPointFloorNote, resourceIconNote, scenarioAreaNotes } from "./inspect-notes.js";
 import {
   damageNote,
   counterNote,
@@ -249,6 +251,12 @@ export interface InspectModel {
   readonly threatNote: string | null;
   /** "3 ratings counters, 1 infamy counter" on the card itself (MaGog's crowds, Quinjet's time), null with none. */
   readonly counterNote: string | null;
+  /** "Considered to have at least 1 hit point" while a rule sets a floor (`hitPointFloor`, wave 8 §3.10); else null. */
+  readonly hitPointFloorNote: string | null;
+  /** "Resource icons: energy, wild (not printed: wild)" for a card in play a rule gives an icon (§3.42); else null. */
+  readonly resourceIconNote: string | null;
+  /** For a card in a scenario play area (the mission area, §3.33): no controller, closed area, blank ally text. */
+  readonly areaNotes: readonly string[];
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
   /**
@@ -285,7 +293,11 @@ export function inspectModel(
   const card = cardOf(state, instanceId);
   // Seen through this seat's eyes: a card only this player may look at (the encounter deck's top card under a "you may
   // look at the top card of the encounter deck" rule, docs/phase7-wave5.md §3.28) shows its face here and nowhere else.
-  const view = { viewer: perspectiveId, deps };
+  // A card the open decision offers is read by the player it belongs to (the engine's rule), whoever's seat is up.
+  const view = {
+    viewer: offeredByOpenChoice(state, instanceId) ? (state.pendingChoice?.playerId ?? perspectiveId) : perspectiveId,
+    deps,
+  };
   const hidden = !faceVisible(state, instanceId, view);
 
   if (!instance || !card || hidden) {
@@ -329,6 +341,9 @@ export function inspectModel(
       damageNote: null,
       threatNote: null,
       counterNote: null,
+      hitPointFloorNote: null,
+      resourceIconNote: null,
+      areaNotes: [],
       canPayAsResource: false,
       howItWorks: null,
       campaignNotice: null,
@@ -410,6 +425,9 @@ export function inspectModel(
       current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
     threatNote: threatNote(threatOnCard(state, instanceId)),
     counterNote: counterNote(countersOf(state, instanceId)),
+    hitPointFloorNote: hitPointFloorNote(state, instanceId, deps),
+    resourceIconNote: resourceIconNote(state, deps, instanceId),
+    areaNotes: scenarioAreaNotes(state, deps, instanceId),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
     howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
@@ -689,6 +707,9 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       damageNote: null,
       threatNote: null,
       counterNote: null,
+      hitPointFloorNote: null,
+      resourceIconNote: null,
+      areaNotes: [],
       canPayAsResource: false,
       howItWorks: null,
       campaignNotice: null,
@@ -736,6 +757,9 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     damageNote: null,
     threatNote: null,
     counterNote: null,
+    hitPointFloorNote: null,
+    resourceIconNote: null,
+    areaNotes: [],
     canPayAsResource: false,
     howItWorks: howThisWorksFor(card),
     campaignNotice: campaignNoticeFor(text.current),

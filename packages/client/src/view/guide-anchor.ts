@@ -154,14 +154,15 @@ function resolveZoneAnchor(id: string, viewport: Rect, layoutOptions: LayoutOpti
 }
 
 /**
- * The usual `AnchorFrame.instanceOfCode`: the perspective player's own hand or play area, first match. The
+ * The usual `AnchorFrame.instanceOfCode`: the perspective player's own hand or play area (then the top of the deck), first match. The
  * tutorial (and every aspect try-it game, G10d) never has two copies of the same signature card live in the same
  * lesson step, so "first match" never has to pick between two.
  */
 export function instanceOfCode(state: GameState, playerId: PlayerId, code: CardId): InstanceId | null {
   const player = state.players.find((p) => p.playerId === playerId);
   if (!player) return null;
-  for (const id of [...player.hand, ...player.playArea]) {
+  // The top card of the deck last: it has a rect on the board only while the engine shows it (Magik's faceup top).
+  for (const id of [...player.hand, ...player.playArea, ...player.deck.slice(0, 1)]) {
     if (state.instances[id]?.cardId === code) return id;
   }
   return null;

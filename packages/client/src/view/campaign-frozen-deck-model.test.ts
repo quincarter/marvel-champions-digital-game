@@ -23,6 +23,8 @@ function editModelWith(grantedCardId: string | null): CampaignDeckEditModel {
     quantity: line.quantity,
     locked: false,
     lockedReason: null,
+    rewardCopies: 0,
+    rewardNote: null,
     refused: false,
     refusedReason: null,
     face: null,
@@ -33,12 +35,14 @@ function editModelWith(grantedCardId: string | null): CampaignDeckEditModel {
       quantity: 1,
       locked: true,
       lockedReason: "Added by the campaign — does not count toward deck size",
+      rewardCopies: 0,
+      rewardNote: null,
       refused: false,
       refusedReason: null,
       face: null,
     });
   }
-  return { validation: { ok: true }, rows, editingDisabled: true, editingDisabledReason: "frozen" };
+  return { validation: { ok: true }, rows, rewards: [], editingDisabled: true, editingDisabledReason: "frozen" };
 }
 
 function baseInput(overrides: Partial<FrozenDeckModelInput> = {}): FrozenDeckModelInput {

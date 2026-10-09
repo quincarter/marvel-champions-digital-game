@@ -139,6 +139,8 @@ export interface DeckBuilderFocusInput {
    */
   readonly showName?: boolean;
   readonly showPreconClear?: boolean;
+  /** Campaign deck-edit mode's rewards strip: one stop per reward's in/out toggle, by the id the scene registers it under. */
+  readonly rewardIds?: readonly string[];
 }
 
 /**
@@ -164,6 +166,7 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "pack:sort",
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
+    ...(input.rewardIds ?? []).map((id) => `reward:${id}`),
     "save",
     "filter-text",
     ...input.poolCardIds.map((id) => `card:${id}`),
@@ -434,8 +437,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
 
 export interface TableSetupFocusInput {
   readonly difficulties: readonly string[];
-  /** Standard II/Expert II's own toggle stop (docs/phase7-wave4.md §4 Q5) — true only for a scenario whose pack has an alternate (The Hood today). */
-  readonly hasStandardII?: boolean;
+  /** Every setup-option control's action (`optionActionsOf`, `view/setup-options.ts`) in draw order; each is a stop `option:<action>`. */
+  readonly optionActions?: readonly string[];
   /** Tower Defense's own setup-damage toggle stop (docs/phase7-wave4.md §4 Q4) — true only for Tower Defense itself. */
   readonly hasTowerDefenseSetupDamage?: boolean;
   /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
@@ -448,12 +451,12 @@ export interface TableSetupFocusInput {
   readonly firstPlayerOptionIds: readonly string[];
 }
 
-/** Table setup (D05): Back, difficulty, (Standard II/Expert II when offered,) the modular set picker, (The Hood's own set-aside picker, when offered,) seating/first player, the seed field, Reroll, then "Deal it out". */
+/** Table setup (D05): Back, difficulty, (the setup options when offered,) the modular set picker, (The Hood's own set-aside picker, when offered,) seating/first player, the seed field, Reroll, then "Deal it out". */
 export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly string[] {
   return [
     "back",
     ...input.difficulties.map((id) => `difficulty:${id}`),
-    ...(input.hasStandardII ? ["standardII"] : []),
+    ...(input.optionActions ?? []).map((action) => `option:${action}`),
     ...(input.hasTowerDefenseSetupDamage ? ["towerDefenseSetupDamage"] : []),
     ...(input.modularStopIds ?? input.modularSetIds.map((id) => `modular:${id}`)),
     ...(input.hoodSetIds ?? []).map((id) => `hoodSet:${id}`),

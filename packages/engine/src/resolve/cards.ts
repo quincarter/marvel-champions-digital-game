@@ -1,5 +1,6 @@
 /** Card selectors and bulk card moves used by effects. */
 
+import { announceDeckTops } from "../deck-top.js";
 import type { CardId } from "@mc/content";
 import {
   type Ctx,
@@ -15,6 +16,7 @@ import {
   type DeckDiscarder,
   defeatFromPlay,
   drawCards,
+  isDiscardDestination,
   isWaitingLeave,
   leavePlay,
   leavingWithHost,
@@ -35,6 +37,7 @@ import {
   getInstance,
   getPlayer,
   locateCard,
+  mustInstance,
   mustPlayer,
   separateDeckOf,
   villainOf,
@@ -56,7 +59,7 @@ import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
 import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
-import { defeatedAwaitingLeave, villainDefeatRemoves } from "./defeat.js";
+import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
 import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
@@ -159,7 +162,17 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         // first match, as for the deck (docs/phase7-wave6-handoff.md §3.76).
         ids.push(...(selector.topmostOnly ? pool.slice(0, 1) : pool));
       }
-      return ids;
+      if (!selector.random) return ids;
+      // Random picks draw on the game's seeded RNG, so a replay picks the same cards.
+      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
+      const picked: InstanceId[] = [];
+      for (let i = 0; i < count && ids.length > 0; i++) {
+        const [index, rng] = nextInt(ctx.state.rng, ids.length);
+        ctx.state = { ...ctx.state, rng };
+        picked.push(ids[index] as InstanceId);
+        ids.splice(index, 1);
+      }
+      return picked;
     }
     case "encounterSetAside": {
       const matching = [...filtered(state.encounterSetAside, selector.filter)];
@@ -304,7 +317,7 @@ export function moveCardsTo(
     }
     // Likewise a card that "cannot leave play" (one limited to card abilities: when a card's ability moves it,
     // docs/phase7-wave7.md §3.10): refused here, so the face and home a moved card is given below are not set on it.
-    if (inPlay.has(id) && cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
+    if (inPlay.has(id) && cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, isDiscardDestination(destination))) {
       emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
       continue;
     }
@@ -460,6 +473,7 @@ export function moveCardsTo(
   for (const owner of shuffleOwners) {
     const order = shuffleZone(ctx, { kind: "deck", playerId: owner }, mustPlayer(ctx.state, owner).deck);
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
+    announceDeckTops(ctx);
   }
   if (shuffleEncounter) shuffleEncounterDeck(ctx);
   for (const name of scenarioDecksToShuffle) {
@@ -707,25 +721,34 @@ const DEALABLE_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `dealAsEncounterCard`: each card out of play and of a dealable type goes facedown in front of `playerId`, to be
- * revealed with that player's dealt encounter cards. Returns the cards dealt.
+ * `dealAsEncounterCard`: each card of a dealable type goes facedown in front of `playerId`, at the back of the queue
+ * that player reveals (RRG 1.8 "Deal, Deal an Encounter Card", p. 15), to be revealed with their dealt encounter cards.
+ * Returns the cards dealt.
  *
- * A card in play is not dealt, with one exception: a card already defeated and waiting to leave play after its When
- * Defeated abilities (`defeatedAwaitingLeave`; RRG 1.8 "When Defeated Abilities", p. 48), as in "When Defeated: Deal
- * this card to the player who defeated it as a facedown encounter card." Being dealt is how it leaves play
- * (`leavePlay`: attachments discarded, damage and engagement cleared, any "when this leaves play" window first), so it
- * never enters a discard pile and no discard is logged or heard (RRG 1.8 "Leaves Play", p. 27).
+ * A card in play is dealt from play (docs/phase7-wave8.md §3.75): being dealt is how it leaves play (`leavePlay`:
+ * attachments, tucked cards and boost cards discarded, a permanent player attachment unattached, damage, counters,
+ * status cards and engagement cleared, any "when this leaves play" window first; RRG 1.8 "Leaves Play", p. 27). It is
+ * not defeated and not discarded: no When Defeated ability, no victory display, no discard logged or heard. A card that
+ * cannot leave play (permanent, "cannot leave play"; `sourceCardId` is the dealing ability's card, for the Permanent
+ * keyword's same-set exception) is not dealt and stays as it is. The same path deals a card already defeated and
+ * waiting to leave play after its When Defeated abilities ("When Defeated: Deal this card to the player who defeated
+ * it as a facedown encounter card"; RRG 1.8 "When Defeated Abilities", p. 48). Revealed later, the card enters play as
+ * a new card (RRG 1.8 "In Play and Out of Play", p. 23: facedown dealt encounter cards are out of play).
  */
-export function dealAsEncounterCards(ctx: Ctx, ids: readonly InstanceId[], playerId: PlayerId): readonly InstanceId[] {
+export function dealAsEncounterCards(
+  ctx: Ctx,
+  ids: readonly InstanceId[],
+  playerId: PlayerId,
+  sourceCardId?: CardId,
+): readonly InstanceId[] {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const dealt: InstanceId[] = [];
   for (const id of ids) {
     const type = cardOf(ctx.state, id)?.type;
     if (!type || !DEALABLE_TYPES.has(type)) continue;
     if (inPlay.has(id)) {
-      if (!defeatedAwaitingLeave(ctx.state, id)) continue;
       const to: ZoneId = { kind: "dealtEncounter", playerId };
-      if (leavePlay(ctx, id, to, "bottom", false, { faceup: false }) !== "stayed") dealt.push(id);
+      if (leavePlay(ctx, id, to, "bottom", false, { faceup: false }, sourceCardId) !== "stayed") dealt.push(id);
       continue;
     }
     updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
@@ -733,6 +756,32 @@ export function dealAsEncounterCards(ctx: Ctx, ids: readonly InstanceId[], playe
     dealt.push(id);
   }
   return dealt;
+}
+
+/**
+ * `passEncounterCard` (docs/phase7-wave8.md §3.75): each card facedown among `from`'s dealt encounter cards goes to the
+ * back of `to`'s, still facedown (RRG 1.8 "Deal, Deal an Encounter Card", p. 15: the queue a player reveals in the
+ * order the cards came to them). A card whose reveal has begun is no longer a facedown card to pass (it is parked in
+ * that zone while it resolves, `revealFrame`). Out of play before and after, so nothing leaves or enters play.
+ * Returns the cards passed.
+ */
+export function passEncounterCards(
+  ctx: Ctx,
+  ids: readonly InstanceId[],
+  from: PlayerId,
+  to: PlayerId,
+): readonly InstanceId[] {
+  if (from === to) return [];
+  const passed: InstanceId[] = [];
+  for (const id of ids) {
+    if (!mustPlayer(ctx.state, from).dealtEncounter.includes(id)) continue;
+    if (mustInstance(ctx.state, id).faceup) continue;
+    if (ctx.state.stack.some((f) => f.kind === "reveal" && f.instanceId === id)) continue;
+    moveCard(ctx, id, { kind: "dealtEncounter", playerId: to });
+    emit(ctx, { type: "encounterCardPassed", instanceId: id, fromPlayerId: from, toPlayerId: to });
+    passed.push(id);
+  }
+  return passed;
 }
 
 /**

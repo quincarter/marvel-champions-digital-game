@@ -15,8 +15,11 @@ import { findVisibleText, gameFacts, handRectFor, hook, inspectAt, openApp } fro
 
 /**
  * Same-name conflicts (owner, 2026-10-03). Colossus (seat 1) and Shadowcat (seat 2): Colossus's own cards include the
- * Shadowcat ally, and Shadowcat's deck holds the basic Colossus ally. Take your seats names the clash, Play opens the
- * sheet, and each card is replaced or kept as a resource before the table is dealt.
+ * Shadowcat ally, and Shadowcat's deck holds the basic Colossus ally, which prints the subtitle "Piotr Rasputin". Both
+ * clash by FFG's own unique rule (RRG 1.8 pp. 45-46), so the pair clashes with the table option on or off. Take your
+ * seats names the clash, Play opens the sheet, and each card is replaced or kept as a resource before the table is
+ * dealt. The option itself adds a clash only for a bare-named ally: Thor / Aggression seated with Valkyrie /
+ * Aggression, where the Valkyrie ally (06012, no subtitle) in Thor's deck clashes only with the option on.
  *
  * Seed 4 deals Colossus the Shadowcat ally (32002) in his opening hand with the Colossus ally replaced out of
  * Shadowcat's deck (the recommended replacement is the first card of the picker). Found by searching seeds against the
@@ -51,17 +54,14 @@ async function startNewGame(page: Page): Promise<void> {
   await waitFor(async () => (await hasStop(page, "next", "ScenarioSelect")) || null, "scenario list", 15000);
 }
 
-/** Scenario select (Rhino) to Take your seats with Colossus in seat 1 and Shadowcat in seat 2. */
-async function seatColossusAndShadowcat(page: Page): Promise<void> {
+/** Scenario select (Rhino) to Take your seats with the named heroes (search text, precon deck id) in seats 1 and 2. */
+async function seatHeroes(page: Page, heroes: readonly (readonly [string, string])[]): Promise<void> {
   await clickStop(page, "scenario:rhino", "ScenarioSelect");
   await settle(page);
   await clickStop(page, "next", "ScenarioSelect");
   await waitForScene(page, "Seats");
   await waitFor(async () => (await hasStop(page, "hero-search", "Seats")) || null, "hero search", 10000);
-  for (const [name, deck] of [
-    ["Colossus", "colossus-protection"],
-    ["Shadowcat", "shadowcat-aggression"],
-  ] as const) {
+  for (const [name, deck] of heroes) {
     await clickStop(page, "hero-search", "Seats");
     await settle(page);
     await page.keyboard.press("ControlOrMeta+A");
@@ -72,6 +72,12 @@ async function seatColossusAndShadowcat(page: Page): Promise<void> {
     await settle(page);
   }
 }
+
+const seatColossusAndShadowcat = (page: Page): Promise<void> =>
+  seatHeroes(page, [
+    ["Colossus", "colossus-protection"],
+    ["Shadowcat", "shadowcat-aggression"],
+  ]);
 
 const noticeText = (page: Page): Promise<unknown[]> =>
   findVisibleText(page, "can't be played with these heroes", "Seats");
@@ -142,7 +148,7 @@ test.describe("Same-name hero and ally conflicts", () => {
     const entries = await sheet.entries(page);
     expect(entries.map((e) => e.line)).toEqual([
       "Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated",
-      "Shadowcat's deck: Colossus ally · Colossus is seated",
+      "Shadowcat's deck: Colossus (Piotr Rasputin) ally · Colossus is seated",
     ]);
     expect(entries.map((e) => e.status)).toEqual(["pending", "pending"]);
     expect(await findVisibleText(page, "Keep as a resource", SHEET)).not.toHaveLength(0);
@@ -171,8 +177,9 @@ test.describe("Same-name hero and ally conflicts", () => {
     expect(candidates[0]!.tier, "an ally leads the list").toBe(0);
     const recommended = await sheet.selected(page);
     expect(recommended, "the recommended card is preselected").toBe(candidates[0]!.id);
+    // The picker names a card by its printed name without the subtitle, so the same card is told apart by id.
     expect(
-      candidates.some((c) => c.name === "Colossus"),
+      candidates.some((c) => c.id === "32048" || c.id === "35021"),
       "the same card is not offered back",
     ).toBe(false);
     await clickStop(page, "confirm", SHEET);
@@ -286,7 +293,9 @@ test.describe("Same-name hero and ally conflicts", () => {
     expect(errors, `no page or console errors (${JSON.stringify(errors)})`).toEqual([]);
   });
 
-  test("with the setting off there is no prompt, and the table rule is not in the summary", async ({ page }) => {
+  test("with the setting off both Colossus and Shadowcat clashes remain (FFG's own rule), each decided on the sheet", async ({
+    page,
+  }) => {
     test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     await installWave6Helpers(page);
@@ -295,16 +304,26 @@ test.describe("Same-name hero and ally conflicts", () => {
     await startNewGame(page);
     await seatColossusAndShadowcat(page);
 
-    // FFG's own rule still clashes the Shadowcat ally in Colossus's deck; the option's pair (the Colossus ally) is gone.
+    // The Colossus ally prints "Piotr Rasputin", so the unique rule alone clashes it beside the Colossus hero.
     await waitFor(async () => ((await noticeText(page)).length > 0 ? true : null), "the conflict notice", 8000);
-    expect(await findVisibleText(page, "1 card can't be played with these heroes", "Seats")).toHaveLength(1);
+    expect(await findVisibleText(page, "2 cards can't be played with these heroes", "Seats")).toHaveLength(1);
     await clickStop(page, "play", "Seats");
     await waitForScene(page, SHEET);
     await settle(page);
     expect((await sheet.entries(page)).map((e) => e.line)).toEqual([
       "Colossus's deck: Shadowcat (Kitty Pryde) ally · Shadowcat is seated",
+      "Shadowcat's deck: Colossus (Piotr Rasputin) ally · Colossus is seated",
     ]);
     await clickStop(page, "keep:0", SHEET);
+    await waitFor(
+      async () => ((await sheet.entries(page))[0]?.status === "kept" ? true : null),
+      "the first card is kept",
+    );
+    await clickStop(page, "keep:1", SHEET);
+    await waitFor(
+      async () => ((await sheet.entries(page))[1]?.status === "kept" ? true : null),
+      "the second card is kept",
+    );
     await clickStop(page, "continue", SHEET);
     await waitForScene(page, "Setup");
     await settle(page);
@@ -312,6 +331,48 @@ test.describe("Same-name hero and ally conflicts", () => {
       await findVisibleText(page, "Hero and ally of one name", "Setup"),
       "no table rule in the summary",
     ).toHaveLength(0);
+    expect(errors, `no page or console errors (${JSON.stringify(errors)})`).toEqual([]);
+  });
+
+  test("the option adds a clash: Thor and Valkyrie list the Valkyrie ally with it on", async ({ page }) => {
+    test.setTimeout(240_000);
+    const errors = trackPageErrors(page);
+    await installWave6Helpers(page);
+    await openApp(page, "unlock=all", { landing: "Title" });
+    await setSameNameSetting(page, true);
+    await startNewGame(page);
+    await seatHeroes(page, [
+      ["Thor", "thor-aggression"],
+      ["Valkyrie", "valkyrie-aggression"],
+    ]);
+    await waitFor(async () => ((await noticeText(page)).length > 0 ? true : null), "the conflict notice", 8000);
+    expect(await findVisibleText(page, "2 cards can't be played with these heroes", "Seats")).toHaveLength(1);
+    await clickStop(page, "play", "Seats");
+    await waitForScene(page, SHEET);
+    await settle(page);
+    const entries = await sheet.entries(page);
+    expect(entries.map((e) => e.cardId)).toEqual(["06012", "25013"]);
+    expect(entries[0]!.line).toBe("Thor's deck: Valkyrie ally · Valkyrie is seated");
+    expect(errors, `no page or console errors (${JSON.stringify(errors)})`).toEqual([]);
+  });
+
+  test("the same Thor and Valkyrie table with the option off lists only FFG's own clash", async ({ page }) => {
+    test.setTimeout(240_000);
+    const errors = trackPageErrors(page);
+    await installWave6Helpers(page);
+    await openApp(page, "unlock=all", { landing: "Title" });
+    await setSameNameSetting(page, false);
+    await startNewGame(page);
+    await seatHeroes(page, [
+      ["Thor", "thor-aggression"],
+      ["Valkyrie", "valkyrie-aggression"],
+    ]);
+    await waitFor(async () => ((await noticeText(page)).length > 0 ? true : null), "the conflict notice", 8000);
+    expect(await findVisibleText(page, "1 card can't be played with these heroes", "Seats")).toHaveLength(1);
+    await clickStop(page, "play", "Seats");
+    await waitForScene(page, SHEET);
+    await settle(page);
+    expect((await sheet.entries(page)).map((e) => e.cardId)).toEqual(["25013"]);
     expect(errors, `no page or console errors (${JSON.stringify(errors)})`).toEqual([]);
   });
 

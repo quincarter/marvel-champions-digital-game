@@ -1,0 +1,3 @@
+kind: Engine
+body: A card played into a scenario area (playCard.into) may now be an upgrade or a player side scheme, as well as an ally or a support; an event is still refused, with its reason.
+time: 2026-10-09T14:55:08.268726-04:00

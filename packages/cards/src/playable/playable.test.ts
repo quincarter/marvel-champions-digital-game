@@ -10,6 +10,9 @@ import {
   WAVE4_CARDS,
   WAVE4_SCENARIOS,
   WAVE4_STARTER_DECKS,
+  WAVE8_CARDS,
+  WAVE8_SCENARIOS,
+  WAVE8_STARTER_DECKS,
 } from "@mc/content";
 import { createGame, replay } from "@mc/engine";
 import { playToOutcome } from "../testing/driver.js";
@@ -17,6 +20,7 @@ import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "../wave4/index.js";
+import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario } from "./index.js";
 
 describe("the playable pool is every wave, once", () => {
@@ -24,12 +28,12 @@ describe("the playable pool is every wave, once", () => {
     const ids = PLAYABLE_CARDS.map((card) => card.id as string);
     expect(new Set(ids).size).toBe(ids.length);
     const known = new Set(ids);
-    for (const card of [...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...WAVE4_CARDS])
+    for (const card of [...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...WAVE4_CARDS, ...WAVE8_CARDS])
       expect(known.has(card.id)).toBe(true);
   });
 
   test("every ability any wave scripts is registered, unchanged", () => {
-    for (const registry of [WAVE1_ABILITIES, WAVE2_ABILITIES, WAVE3_ABILITIES, WAVE4_ABILITIES])
+    for (const registry of [WAVE1_ABILITIES, WAVE2_ABILITIES, WAVE3_ABILITIES, WAVE4_ABILITIES, WAVE8_ABILITIES])
       for (const [id, ability] of Object.entries(registry)) expect(PLAYABLE_ABILITIES[id]).toBe(ability);
   });
 });
@@ -178,6 +182,28 @@ describe("every wave 4 (mts/The Hood) scenario, every wave 4 precon", () => {
     },
     30_000,
   );
+});
+
+describe("every wave 8 (Age of Apocalypse) scenario, every wave 8 precon", () => {
+  const cases: readonly [scenario: string, deck: string][] = WAVE8_SCENARIOS.flatMap((scenario) =>
+    WAVE8_STARTER_DECKS.map((deck): [string, string] => [scenario.id as string, deck.id as string]),
+  );
+
+  test.each(cases)(
+    "%s builds with %s",
+    (scenarioId, starterDeckId) => {
+      const config = playableScenario(scenarioId, { players: [{ starterDeckId }], seed: 2026 });
+      expect(createGame(config, PLAYABLE_DEPS).ok).toBe(true);
+    },
+    30_000,
+  );
+
+  test("Spider-Man (Core) vs. Unus (aoa, wave 8) sets up, and Bishop (aoa) vs. Rhino (Core)", () => {
+    const unus = playableScenario("unus", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 15 });
+    expect(createGame(unus, PLAYABLE_DEPS).ok).toBe(true);
+    const rhino = playableScenario("rhino", { players: [{ starterDeckId: WAVE8_STARTER_DECKS[0]!.id }], seed: 16 });
+    expect(createGame(rhino, PLAYABLE_DEPS).ok).toBe(true);
+  });
 });
 
 describe("a wave 6 scenario keeps its set-aside modular picks (MojoMania's campaign layer owns them)", () => {

@@ -473,12 +473,13 @@ describe("Known issue 1: an ally is offered as a defender (RRG 1.8 'Defend, Defe
  * triggering condition cannot be used." So the window stays open, and Perseverance stays playable, until the player
  * declines the rest. Colossus can hold 2 tough cards (his identity text), so Perseverance is legal after Steel Skin.
  *
- * Engine: `chooseTriggers` is one multi-select prompt (`resolve/window.ts` `askNextController`: min 0, max N); the
- * answer queues the picked abilities and the tier closes (`absorbWindowAnswer`), so an unpicked response is forfeited
- * with no further offer. The client's inline interrupt window (`scenes/villain-phase.ts`, `#resolve([option.optionId])`)
- * submits exactly one option per button, so a player who clicks "USE COLOSSUS" has answered "just that one".
+ * Engine: `chooseTriggers` is one multi-select prompt (`resolve/window.ts` `askNextController`: min 0, max N), and the
+ * client's inline interrupt window (`scenes/villain-phase.ts`, `#resolve([option.optionId])`) submits exactly one
+ * option per button. The answer used to close the tier, forfeiting the unpicked response. Fixed 2026-10-09: once the
+ * picked abilities have resolved, the ones left are offered again (`Frame<"window">.pickedThisRound`), until a round in
+ * which nobody picks.
  */
-describe("Known issue 2: two responses in one window (Steel Skin and Perseverance after Armor Up's form change)", () => {
+describe("Fixed known issue 2: two responses in one window (Steel Skin and Perseverance after Armor Up's form change)", () => {
   const STEEL_SKIN = "32001a.colossus-constant-2";
   const PERSEVERANCE = "32016.perseverance-response";
 
@@ -528,7 +529,7 @@ describe("Known issue 2: two responses in one window (Steel Skin and Perseveranc
 
   // The player's answer "just Steel Skin" is what the inline window sends for a click on "USE COLOSSUS". The window has
   // not been declined, so Perseverance must still be offered (and still legal: 1 tough card of a possible 2).
-  it.fails("picking only Steel Skin keeps the window open: Perseverance is offered again, and playing it gives the second tough card", () => {
+  it("picking only Steel Skin keeps the window open: Perseverance is offered again, and playing it gives the second tough card", () => {
     const { windows, tough } = run((offered) => (offered.length > 1 ? [STEEL_SKIN] : [PERSEVERANCE]));
     expect(windows.length).toBeGreaterThanOrEqual(2);
     expect(windows[1]).toContain(PERSEVERANCE);

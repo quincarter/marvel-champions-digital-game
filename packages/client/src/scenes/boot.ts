@@ -233,6 +233,39 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&fixture=mission[&mission=code][&overseer=code][&team=0][&deck=..][&hand=..][&atmission=..][&top=..]`: a one-seat
+  // Rhino game with the Age of Apocalypse mission area in play (the mission, its Overseer and Mission Team), for the
+  // board's mission-area zone, the ally destination question and the mission attempt's pair sheet. The campaign is not
+  // registered in the client, so this is the only way to a mission (`store/dev-mission-game.ts`).
+  // `&fixture=horsemen`: the Four Horsemen with Golden Horse on the first Horseman (Inspect's hit point floor note).
+  if (screen === "board" && params.get("fixture") === "horsemen") {
+    const { startDevHorsemenGame } = await import("../store/dev-mission-game.js");
+    await startDevHorsemenGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
+  if (screen === "board" && params.get("fixture") === "grounded") {
+    const { startDevGroundedGame } = await import("../store/dev-mission-game.js");
+    await startDevGroundedGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  if (screen === "board" && params.get("fixture") === "mission") {
+    const { startDevMissionGame } = await import("../store/dev-mission-game.js");
+    const codes = (name: string): string[] => (params.get(name) ?? "").split(",").filter(Boolean);
+    await startDevMissionGame({
+      mission: params.get("mission") ?? "45167a",
+      overseer: params.get("overseer") ?? "45182a",
+      team: params.get("team") !== "0",
+      deck: codes("deck"),
+      hand: codes("hand"),
+      atMission: codes("atmission"),
+      top: codes("top"),
+    });
+    return { key: SCENES.board, data: {} };
+  }
+
   if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
     await startDevGame();
     if (screen === "settings") return { key: SCENES.settings, data: {} };

@@ -31,16 +31,19 @@ import {
 } from "./campaign-pool-model.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
+import { missionTableOf, type MissionTable } from "./campaign-mission-model.js";
 import { sideSchemeTableOf, type SideSchemeTable } from "./campaign-side-scheme-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
 import {
   campaignRunModel,
   FIELD_SHORT_LABEL,
+  lostAtNodeIdOf,
   PLURALIZED_FIELDS,
   pluralizeFieldWord,
   signedCount,
   fieldIdWords,
 } from "./campaign-run-model.js";
+import { seatDeckSizeSplit } from "./campaign-deck-edit-model.js";
 import { resolvedWritesOf, unlistedFieldIds } from "./campaign-log-deltas.js";
 import { idWords } from "./campaign-option-labels.js";
 import { plainWriteRows } from "./campaign-write-words.js";
@@ -191,6 +194,8 @@ export interface DossierOverview {
   readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
   /** The player-side-scheme table and the log's other tallies (MC40 p. 24). Null for a box without the choice. */
   readonly sideSchemes: SideSchemeTable | null;
+  /** The four mission rows and five Overseers of the log sheet (MC45 p. 24). Null for a box without missions. */
+  readonly missions: MissionTable | null;
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
@@ -317,6 +322,14 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   morlocksSaved: { hidden: true },
   hopeDamage3: { hidden: true },
   hopeDamage4: { hidden: true },
+  // Age of Apocalypse (MC45 p. 24): the four mission rows and five Overseers are their own panel (`missions`), so the
+  // strike lists and the four result fields are not repeated as world rows.
+  missions: { hidden: true },
+  overseers: { hidden: true },
+  resultLiberate: { hidden: true },
+  resultEvacuate: { hidden: true },
+  resultSabotage: { hidden: true },
+  resultFind: { hidden: true },
 };
 
 /**
@@ -397,6 +410,7 @@ export function campaignDossierOverview(
     pool: campaignDossierPool(record, definition, cardTypeOf, poolCopy, firstPlayerName),
     hiddenEvidence: hiddenEvidenceEnvelope(record, definition, cardName),
     sideSchemes: sideSchemeTableOf(record, definition, cardName),
+    missions: missionTableOf(record, definition),
   };
 }
 
@@ -1086,16 +1100,19 @@ export function campaignDossierHero(
   const heroName = isHero ? heroFaceDisplayName(identity) : (seat.identityCardId as string);
 
   const nodeIds = definition.graph.nodes.map((node) => node.id);
+  const lostAt = lostAtNodeIdOf(record, nodeIds);
   const issues: DossierHeroIssueBox[] = definition.graph.nodes.map((node) => {
     const resolved = record.position.resolved[node.id];
     const isCurrent = node.id === record.position.nextNodeId;
     const state: DossierHeroIssueBox["state"] = isCurrent
       ? "next"
-      : resolved === "completed"
-        ? "won"
-        : resolved === "failed"
-          ? "lost"
-          : "sealed";
+      : node.id === lostAt
+        ? "lost"
+        : resolved === "completed"
+          ? "won"
+          : resolved === "failed"
+            ? "lost"
+            : "sealed";
     return {
       number: issueNumberOf(nodeIds, node.id),
       label: state === "won" ? "WON" : state === "lost" ? "LOST" : state === "next" ? "NEXT" : "—",
@@ -1145,13 +1162,7 @@ export function campaignDossierHero(
 
   // `seat.deck.cards` already includes the granted lines (design Q5's "campaign's own copy"), so a grant would be
   // double-counted if just summed — split the same way the Briefing's own `deckRowsOf` does (`campaign-briefing-model.ts`).
-  const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
-  let deckSize = 0;
-  let pinnedCount = 0;
-  for (const line of seat.deck.cards) {
-    if (grantedIds.has(line.cardId)) pinnedCount += line.quantity;
-    else deckSize += line.quantity;
-  }
+  const { counted: deckSize, pinned: pinnedCount } = seatDeckSizeSplit(seat);
   const role = seat.fields["role"];
   const stats: DossierHeroStatRow[] = [
     ...(role?.kind === "choice" ? [{ label: "Role", value: idWords(role.option), note: "chosen in #1" }] : []),

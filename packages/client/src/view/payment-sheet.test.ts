@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { choiceId, type GameState, type PendingChoice } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
-import { isPaymentSheet, paymentSheetView } from "./payment-sheet.js";
+import { chosenResourcesNoteOf, isPaymentSheet, paymentSheetView } from "./payment-sheet.js";
 
 const STATE = { players: [], instances: {}, stack: [] } as unknown as GameState;
 const BASE = {
@@ -32,6 +32,23 @@ describe("paymentSheetView", () => {
 
   test("a selection the engine rejects never enables Confirm", () => {
     expect(paymentSheetView(STATE, pay("payForAbility", 1), ["hand:x"], POOL_DEPS)?.canConfirm).toBe(false);
+  });
+
+  test("a chosen-size cost says up to max is spent and never caps the selection", () => {
+    const chosen: PendingChoice = {
+      ...BASE,
+      prompt: {
+        kind: "payForAbility",
+        instanceId: "i1" as never,
+        abilityId: "a1" as never,
+        cost: 0,
+        chosenResources: { min: 1, max: 3, payingFor: "i1" as never },
+      },
+    };
+    const view = paymentSheetView(STATE, chosen, [], POOL_DEPS);
+    expect(view?.note).toBe("Pay 1 to 3. Up to 3 are spent; extra is overpaid.");
+    expect(view?.confirmLabel).toBe("Pay 1 more");
+    expect(chosenResourcesNoteOf(pay("payForAbility", 2).prompt)).toBeNull();
   });
 
   test("only payment prompts have a payment sheet", () => {

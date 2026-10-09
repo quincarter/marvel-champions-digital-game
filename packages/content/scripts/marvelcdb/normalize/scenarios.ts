@@ -111,11 +111,19 @@ export function normalizeScenarios(
       if (mv.villainCardCodes && mv.villainCardCodes.length !== mv.villainSetCodes.length) {
         errors.push(`scenario ${s.id}: multipleVillains villainSetCodes/villainCardCodes length mismatch`);
       }
+      if (mv.sideBCardCodes && mv.sideBCardCodes.length !== mv.villainSetCodes.length) {
+        errors.push(`scenario ${s.id}: multipleVillains villainSetCodes/sideBCardCodes length mismatch`);
+      }
       const villains: ScenarioVillain[] = mv.villainSetCodes.map((set, i) => {
         const vid = mv.villainCardCodes
           ? resolveCardCode(mv.villainCardCodes[i] ?? "", `scenario ${s.id} multipleVillains.villainCardCodes[${i}]`)
           : villainIdBySet.get(set);
         if (!vid) errors.push(`scenario ${s.id}: no villain in set ${set}`);
+        const sideB = mv.sideBCardCodes?.[i];
+        const sideBId =
+          sideB !== undefined
+            ? resolveCardCode(sideB, `scenario ${s.id} multipleVillains.sideBCardCodes[${i}]`)
+            : undefined;
         const sig = mv.signatureSideSchemeCodes?.[i];
         if (sig !== undefined && !emittedCardIds.has(sig))
           errors.push(`scenario ${s.id}: unknown signature side scheme ${sig}`);
@@ -125,6 +133,7 @@ export function normalizeScenarios(
           // villain's own encounterSetIds stays empty (docs/phase7-wave4.md §1.6).
           encounterSetIds: shared ? [] : [brand("encounterSet", set)],
           ...(sig !== undefined ? { signatureSideSchemeCardId: brand("card", sig) } : {}),
+          ...(sideBId !== undefined ? { sideBCardId: brand("card", sideBId) } : {}),
         };
       });
       const [firstV, secondV, ...restV] = villains;
@@ -163,6 +172,7 @@ export function normalizeScenarios(
       villainStages: { standard: s.villainStages.standard, expert: s.villainStages.expert },
       ...(multipleVillains ? { multipleVillains } : {}),
       ...(s.usesIdentityEncounterSets === false ? { usesIdentityEncounterSets: false as const } : {}),
+      ...(s.nemesisSetsSetAside ? { nemesisSetsSetAside: true as const } : {}),
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
       ...(s.setAsideModularSetCount !== undefined ? { setAsideModularSetCount: s.setAsideModularSetCount } : {}),
       ...(s.modularSetPool

@@ -199,6 +199,8 @@ class PhaseTracker {
   private readonly boostCards: { enemyInstanceId: InstanceId; instanceId: InstanceId; boostIcons: number | null }[] =
     [];
   private readonly dealt: { playerId: PlayerId; instanceId: InstanceId }[] = [];
+  /** Cards passed to another player since they were dealt (`encounterCardPassed`). */
+  private readonly passed = new Set<InstanceId>();
   private readonly revealed: { playerId: PlayerId; instanceId: InstanceId }[] = [];
   private readonly decisions: VillainDecisionRecord[] = [];
   private nextFirstPlayerId: PlayerId | null = null;
@@ -366,12 +368,19 @@ class PhaseTracker {
           this.dealt.push({ playerId: event.to.playerId, instanceId: event.instanceId });
         }
         return;
+      case "encounterCardPassed":
+        // A card passed to another player (docs/phase7-wave8.md §3.75) is no longer step three's deal to the player
+        // it was dealt to: its new holder reveals it in this step four, which goes around the table again for a
+        // player left holding one (`executeRevealEncounterCards`; RRG 1.8 "Villain Phase", p. 47, step 4).
+        this.passed.add(event.instanceId);
+        return;
       case "encounterCardRevealed": {
         this.revealed.push({ playerId: event.playerId, instanceId: event.instanceId });
         // Only step three's cards follow player order: a surge card, or one an
         // effect reveals, belongs to whoever is resolving the card that caused it
         // (an obligation's owner, for one).
         if (this.step !== "revealEncounterCards") return;
+        if (this.passed.has(event.instanceId)) return;
         if (!this.dealt.some((d) => d.instanceId === event.instanceId && d.playerId === event.playerId)) return;
         const index = this.order.indexOf(event.playerId);
         if (index < this.lastRevealIndex) {
@@ -524,7 +533,7 @@ class PhaseTracker {
   private checkRevealed(shadow: Shadow): void {
     for (const card of this.dealt) {
       // An eliminated player's dealt cards go with them (RRG "Player Elimination").
-      if (shadow.eliminated.has(card.playerId)) continue;
+      if (shadow.eliminated.has(card.playerId) || this.passed.has(card.instanceId)) continue;
       if (!this.revealed.some((r) => r.instanceId === card.instanceId && r.playerId === card.playerId)) {
         this.violate("step4.reveal", `${card.instanceId}, dealt to ${card.playerId}, was never revealed by them`);
       }

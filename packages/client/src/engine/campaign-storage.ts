@@ -59,6 +59,12 @@ export interface CampaignRecord extends CampaignLog {
    * existed has none, and its games are created exactly as they always were.
    */
   readonly tableRules?: TableRules;
+  /**
+   * The node whose composed issue has Apocalypse's easier start switched on (`view/campaign-easier-start-model.ts`;
+   * the Briefing's toggle, off by default). Per attempt: kept while that issue is composed or being re-composed, dropped
+   * when its game is folded (so a retry starts with it off). Optional: absent is off, and so is every older record.
+   */
+  readonly easierStartNodeId?: string;
 }
 
 /** The lightweight row `list()` returns — everything `campaign-list-model.ts` renders, nothing a deck or a seat's full field set. */

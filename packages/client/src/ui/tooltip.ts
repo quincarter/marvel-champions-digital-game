@@ -116,6 +116,8 @@ export class McTooltip {
    * `onClose`, if given, runs once whenever this tooltip next closes for *any* reason (hover-out,
    * outside click/tap, Escape, or opening a different term) — a host coordinating several `McTermText`
    * blocks that shared this tooltip uses it to undo whatever it disabled while this one was open.
+   * `avoid`, when given, is the whole text block the term sits in: the panel goes above or below that block so it
+   * never covers the sentence it explains (the side with room wins; above when both fit).
    */
   show(
     anchor: Rect,
@@ -123,6 +125,7 @@ export class McTooltip {
     viewport: Rect,
     onOpenGlossary: () => void,
     onClose?: () => void,
+    avoid?: Rect,
   ): void {
     if (this.#open) this.#fireClose();
     this.#anchor = anchor;
@@ -137,11 +140,16 @@ export class McTooltip {
     let panelX = anchorCenterX - PANEL_WIDTH / 2;
     panelX = Math.max(viewport.x + 4, Math.min(panelX, viewport.x + viewport.width - PANEL_WIDTH - 4));
 
-    const spaceAbove = anchor.y - viewport.y;
-    const flipBelow = spaceAbove < contentHeight + GAP_FROM_ANCHOR + ARROW_SIZE;
+    const need = contentHeight + GAP_FROM_ANCHOR + ARROW_SIZE;
+    const clear = avoid ?? anchor;
+    const spaceAbove = clear.y - viewport.y;
+    const spaceBelow = viewport.y + viewport.height - (clear.y + clear.height);
+    // Without a block to avoid, flip below whenever above is too tight (the term alone); with one, prefer the side
+    // that fits, and when neither does take the roomier one.
+    const flipBelow = avoid ? spaceAbove < need && (spaceBelow >= need || spaceBelow > spaceAbove) : spaceAbove < need;
     const panelY = flipBelow
-      ? anchor.y + anchor.height + GAP_FROM_ANCHOR + ARROW_SIZE
-      : anchor.y - GAP_FROM_ANCHOR - ARROW_SIZE - contentHeight;
+      ? clear.y + clear.height + GAP_FROM_ANCHOR + ARROW_SIZE
+      : clear.y - GAP_FROM_ANCHOR - ARROW_SIZE - contentHeight;
 
     this.#rect = { x: panelX, y: panelY, width: PANEL_WIDTH, height: contentHeight };
     this.#draw(this.#rect, anchorCenterX, flipBelow);

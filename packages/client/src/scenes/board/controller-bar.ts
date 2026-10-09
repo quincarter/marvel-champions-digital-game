@@ -13,6 +13,7 @@ import type { BoardDrawContext } from "./context.js";
 import type {
   AbilityChoiceView,
   AllianceHelpView,
+  DestinationChoiceView,
   FormChoiceView,
   PlayConfirmationView,
   SourceChoiceView,
@@ -301,6 +302,69 @@ export function drawAbilityBar(ctx: BoardDrawContext, rect: Rect, choice: Abilit
       label: "Cancel",
       type: typeRole.label,
       rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+      onClick: () => controller.cancel(),
+    }),
+  );
+}
+
+/**
+ * "Where does Colossus go? — Your area · Costs 2 / The mission · Costs 0 / Cancel", over the hand (MC45 p. 5: the
+ * ally goes to the player's area or to the mission area). Each button carries the price there, which the engine
+ * worked out per destination, so a price that differs is read before it is paid, never found out after.
+ */
+/** The extra height a narrow destination bar needs for its own question line (none when the bar is wide). */
+export function destinationQuestionRow(barWidth: number): number {
+  return barWidth < 640 ? 20 : 0;
+}
+
+export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: DestinationChoiceView): void {
+  const { scene, controller } = ctx;
+  const g = scene.add.graphics();
+  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+
+  const narrow = rect.width < 640;
+  const titleWidth = narrow ? 10 : Math.min(240, rect.width * 0.28);
+  // Wide: the question sits left of the buttons. Narrow: on its own line above them, wrapped, never dropped.
+  const questionRow = destinationQuestionRow(rect.width);
+  if (!narrow) {
+    const title = scene.add
+      .text(rect.x + 12, rect.y + rect.height / 2, choice.prompt, textStyle(typeRole.barTitle, surface.paper.hex))
+      .setOrigin(0, 0.5);
+    fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  } else {
+    const title = scene.add
+      .text(rect.x + 12, rect.y + 8, choice.prompt, textStyle({ ...typeRole.barTitle, size: 16 }, surface.paper.hex))
+      .setOrigin(0, 0);
+    fitText(title, rect.width - 24, 16);
+  }
+  const buttonsY = rect.y + 4 + questionRow;
+  const buttonsHeight = rect.height - 8 - questionRow;
+  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
+  const gap = 6;
+  const left = rect.x + titleWidth;
+  const right = rect.x + rect.width - cancelWidth - 10 - gap;
+  const count = Math.max(1, choice.options.length);
+  const width = Math.max(48, (right - left - gap * (count - 1)) / count);
+  choice.options.forEach((option, index) => {
+    const rectOf: Rect = { x: left + index * (width + gap), y: buttonsY, width, height: buttonsHeight };
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "secondary",
+        label: `${index + 1} ${option.label}${option.costLabel ? ` · ${option.costLabel}` : ""}`,
+        type: typeRole.label,
+        rect: rectOf,
+        onClick: () => void controller.chooseDestination(option),
+      }),
+    );
+    ctx.frame.focusRects.set(`destination:${index}`, rectOf);
+  });
+  ctx.frame.buttons.push(
+    new McButton(scene, {
+      kind: "quiet",
+      label: "Cancel",
+      type: typeRole.label,
+      rect: { x: rect.x + rect.width - cancelWidth - 10, y: buttonsY, width: cancelWidth, height: buttonsHeight },
       onClick: () => controller.cancel(),
     }),
   );

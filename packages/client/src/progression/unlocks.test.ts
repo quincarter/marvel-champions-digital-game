@@ -70,6 +70,7 @@ describe("the unlock path", () => {
       "mut_gen",
       "mojo",
       "next_evol",
+      "aoa",
     ]);
   });
 

@@ -24,6 +24,7 @@ import type { CampaignDefinition } from "@mc/engine";
 import type { CampaignSummary } from "../engine/campaign-storage.js";
 import { campaignListRows, type CampaignListRow } from "./campaign-list-model.js";
 import { SAGA_VOLUMES, storyFor, type SagaVolume } from "../campaign/story.js";
+import { lostAtNodeIdOf } from "./campaign-run-model.js";
 import type { PipState } from "../ui/campaign-chrome.js";
 
 export type SagaVolumeStatus = "live" | "done" | "fresh" | "sealed";
@@ -50,6 +51,11 @@ export interface SagaVolumeRow {
    * sealed volume — a still-locked one says so through `unlocked`, not through a stored reason string.
    */
   readonly lockReason: string | null;
+  /**
+   * The most recent lost run of an open volume that has no live or won run (a lost campaign, MC45 p. 20): the shelf says
+   * so and opens it, while the volume stays "fresh" for a new roster. Null otherwise.
+   */
+  readonly lost: { readonly runId: string; readonly issueNumber: number } | null;
 }
 
 export interface SagaModelOptions {
@@ -140,6 +146,17 @@ export function campaignSagaRows(
       ? summary.seats.map((seat) => identityNameOf(seat.identityCardId as CardId))
       : (story?.castIdentityIds.map((id) => identityNameOf(id as CardId)) ?? []);
 
+    let lost: SagaVolumeRow["lost"] = null;
+    if (status === "fresh") {
+      const lostRow = ownRows.find((r) => r.status === "lost");
+      const lostSummary = lostRow ? summaries.find((s) => s.id === lostRow.id) : undefined;
+      if (lostRow && lostSummary && definition) {
+        const nodeIds = definition.graph.nodes.map((n) => n.id);
+        const nodeId = lostAtNodeIdOf(lostSummary, nodeIds);
+        if (nodeId) lost = { runId: lostRow.id, issueNumber: nodeIds.indexOf(nodeId) + 1 };
+      }
+    }
+
     out.push({
       volume,
       status,
@@ -155,6 +172,7 @@ export function campaignSagaRows(
       pips,
       rosterNames,
       lockReason,
+      lost,
     });
 
     previousWonStandard = wonStandard;

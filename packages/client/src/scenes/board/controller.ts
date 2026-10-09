@@ -25,7 +25,13 @@ import {
   needsEventAbilityChoice,
   type EventAbilityOption,
 } from "../../view/event-ability-choice.js";
-import { formEntries, formSources, needsFormChoice, type FormSource } from "../../view/change-form-choice.js";
+import {
+  formEntries,
+  formSources,
+  needsFormChoice,
+  paymentSubjectWords,
+  type FormSource,
+} from "../../view/change-form-choice.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
 import { costChoicePromptFor, type CostChoicePrompt } from "../../view/cost-choice-model.js";
@@ -71,7 +77,19 @@ import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js
 import { guidePrefs } from "../../guide/guide-store.js";
 import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
-import { needsPlayAim, playAimPrompt } from "../../view/play-aim.js";
+import { costPickSlot, needsPlayAim, playAimPrompt } from "../../view/play-aim.js";
+import { actionAbilityCost } from "../../view/cost-choice-model.js";
+import {
+  paymentIntoOf,
+  playDestinationChoice,
+  playInto,
+  type PlayDestinationChoice,
+  type PlayDestinationOption,
+} from "../../view/play-destination.js";
+
+/** The scenario play area a hand play is aimed at (`playCard.into`), or undefined for the player's own area. */
+const intoOf = (entry: LegalAction): string | undefined =>
+  entry.example.type === "playCard" ? entry.example.into?.scenarioPlayArea : undefined;
 
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
@@ -115,6 +133,9 @@ export interface AbilityChoiceView {
   readonly subject: string;
   readonly options: readonly EventAbilityOption[];
 }
+
+/** What the "Where?" bar shows: each place the ally may be played, with what it costs there. */
+export type DestinationChoiceView = PlayDestinationChoice;
 
 /** What the "Play it / Decline" bar shows: the free card waiting on a yes. */
 export interface PlayConfirmationView {
@@ -173,8 +194,12 @@ function sourceOf(state: GameState, action: LegalAction): TargetingSource {
     };
   }
   if (ref.kind === "useAbility") {
+    // An ability whose cost picks a card (Rogue's friend, the Setting for a Special cost) asks that pick by name.
+    const picksForCost = costPickSlot(actionAbilityCost(state, POOL_DEPS, action.example.playerId, ref)) !== null;
     return {
-      label: abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS),
+      label: picksForCost
+        ? playAimPrompt(state, POOL_DEPS, action)
+        : abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS),
       name: cardName(state, ref.instanceId),
       instanceId: ref.instanceId,
     };
@@ -308,7 +333,7 @@ export class BoardController {
     if (this.#selection.kind === "choosingController") {
       return focusOrder({ kind: "targeting", targets: this.#seatTiles(this.#selection.controllers) }, marks);
     }
-    if (this.#selection.kind === "choosingAbility") {
+    if (this.#selection.kind === "choosingAbility" || this.#selection.kind === "choosingDestination") {
       const { action } = this.#selection.entry;
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
@@ -445,7 +470,7 @@ export class BoardController {
       this.chooseSource(id);
       return true;
     }
-    if (this.#selection.kind === "choosingAbility") {
+    if (this.#selection.kind === "choosingAbility" || this.#selection.kind === "choosingDestination") {
       // The card being asked about goes back on a second tap; the bar's buttons are the only way to answer.
       const { action } = this.#selection.entry;
       if (action.kind === "playCard" && action.instanceId === id) this.cancel();
@@ -583,6 +608,9 @@ export class BoardController {
    */
   #aim(entry: LegalAction, action: BasicAction | null): void {
     if (entry.targets.length <= 1) {
+      // A change of form with an additional cost (`RuleSpec formChangeCost`, wave 8 §3.63) owes the player the payment
+      // decision like any costed action; `entry.example` is only the engine's proof that some payment works.
+      if (action === "changeForm" && entry.needsPayment && this.#openPayment(entry, null)) return;
       // No target, or one legal target: not a decision; aim and go.
       void this.#dispatch(entry.example);
       return;
@@ -690,6 +718,26 @@ export class BoardController {
     return { subject: cardName(game, action.instanceId), options: this.#selection.options };
   }
 
+  /** The "Where?" bar: the ally being played and each place it may go, with its price there, or null when not open. */
+  destinationChoice(): DestinationChoiceView | null {
+    return this.#selection.kind === "choosingDestination" ? this.#selection.choice : null;
+  }
+
+  /** The "Where?" bar's answer: the play goes on aimed at that area, and priced there. */
+  async chooseDestination(option: PlayDestinationOption): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingDestination") return;
+    const { entry, choice, target, controllerId, confirmFree } = this.#selection;
+    if (!choice.options.some((candidate) => candidate.into === option.into)) return;
+    this.#selection = { kind: "idle" };
+    await this.#playAs(
+      { ...entry, example: playInto(entry.example, option.into) },
+      controllerId,
+      confirmFree,
+      target,
+      true,
+    );
+  }
+
   async #playEntry(entry: LegalAction, confirmFree: boolean): Promise<void> {
     // "Discard X cards from your hand" (Shield Toss, `03006`) is a real
     // decision the engine's `example` only guessed the minimum answer to —
@@ -755,6 +803,7 @@ export class BoardController {
     controllerId: PlayerId | null,
     confirmFree = false,
     target: InstanceId | null = null,
+    destinationAsked = false,
   ): Promise<void> {
     const { game } = appSession().store.state;
     if (target === null && needsPlayAim(entry) && game) {
@@ -767,9 +816,24 @@ export class BoardController {
       this.#host.redraw();
       return;
     }
+    // An ally that may go to the mission area as well as the player's own is asked where, before it is priced: a
+    // reduction can read the destination (`view/play-destination.ts`). The engine lists the areas; nothing is guessed.
+    let destinationNote: string | null = null;
+    if (!destinationAsked && game) {
+      const choice = playDestinationChoice(game, POOL_DEPS, entry);
+      if (choice?.needsChoice) {
+        this.#selection = { kind: "choosingDestination", entry, choice, target, controllerId, confirmFree };
+        this.#host.redraw();
+        return;
+      }
+      // Payable only at the mission: no question, the entry already names that area, and the price says why.
+      destinationNote = choice?.note ?? null;
+    }
     if (this.#tryOpenCostChoice(entry, target, controllerId)) return;
     if (this.#tryOpenInPlayCost(entry, target, controllerId)) return;
-    if (entry.needsPayment && this.#openPayment(entry, target, controllerId)) return;
+    if (entry.needsPayment && this.#openPayment(entry, target, controllerId, undefined, undefined, destinationNote)) {
+      return;
+    }
     if (confirmFree) {
       this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
       this.#host.redraw();
@@ -818,7 +882,14 @@ export class BoardController {
       const name = game
         ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, POOL_DEPS)
         : "this ability";
-      this.#selection = { kind: "targeting", action: entry, prompt: `Choose a target for ${name}` };
+      const picksForCost =
+        game !== null &&
+        costPickSlot(actionAbilityCost(game, POOL_DEPS, entry.example.playerId, entry.action)) !== null;
+      this.#selection = {
+        kind: "targeting",
+        action: entry,
+        prompt: game && picksForCost ? playAimPrompt(game, POOL_DEPS, entry) : `Choose a target for ${name}`,
+      };
       this.#host.redraw();
       return;
     }
@@ -917,6 +988,7 @@ export class BoardController {
     controllerId: PlayerId | null = null,
     costSelection?: CostSelection,
     costChoices?: CostChoices,
+    destinationNote: string | null = null,
   ): boolean {
     const { store } = appSession();
     const { game, perspectiveId } = store.state;
@@ -931,9 +1003,10 @@ export class BoardController {
       costSelection,
       costChoices,
       entry.example.type === "playCard" ? entry.example.abilityId : undefined,
+      intoOf(entry),
     );
     if (!payment) return false;
-    this.#selection = { kind: "paying", payment };
+    this.#selection = { kind: "paying", payment: destinationNote ? { ...payment, destinationNote } : payment };
     this.#host.redraw();
     return true;
   }
@@ -1028,6 +1101,7 @@ export class BoardController {
         ...(controllerId ? { controllerId } : {}),
         ...(costSelection ? { costSelection } : {}),
         costChoices,
+        ...paymentIntoOf({ into: intoOf(action) ?? null }),
       },
       POOL_DEPS,
     );
@@ -1063,7 +1137,12 @@ export class BoardController {
       perspectiveId,
       action.action,
       [],
-      { target, ...(controllerId ? { controllerId } : {}), costSelection },
+      {
+        target,
+        ...(controllerId ? { controllerId } : {}),
+        costSelection,
+        ...paymentIntoOf({ into: intoOf(action) ?? null }),
+      },
       POOL_DEPS,
     );
     if (attempt.ok) await this.#dispatch(attempt.command);
@@ -1126,7 +1205,7 @@ export class BoardController {
     const subject =
       payment.action.kind === "playCard" || payment.action.kind === "useAbility" ? payment.action.instanceId : null;
     const headline = [
-      subject ? cardName(game, subject) : "This action",
+      subject ? cardName(game, subject) : paymentSubjectWords(payment.action),
       payment.target ? `→ ${cardName(game, payment.target)}` : null,
     ]
       .filter(Boolean)

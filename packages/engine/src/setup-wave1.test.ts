@@ -261,6 +261,32 @@ describe("§3.15 steps 4–5 and 10: identity sets and encounter decks", () => {
     expect(mustPlayer(with_, p1).setAside.map((id) => mustInstance(with_, id).cardId)).toEqual([NEMESIS_MINION.id]);
   });
 
+  // Per FFG ruling Jan 17, 2026 (Ruling 5: in The Wrecking Crew "You can play Face the Past to find your set-aside
+  // nemesis minion"); the insert says otherwise. Owner decisions, wave 8 §4.1 rows 81 and 86.
+  it("`includeNemesisSets` with the identity sets off: the nemesis set is set aside, the obligation stays out", () => {
+    const state = mustBuild({
+      villainCardId: WRECKER.id,
+      mainSchemeCardId: PLAIN_SCHEME.id,
+      includeIdentitySets: false,
+      includeNemesisSets: true,
+      players: [{ identityCardId: SET_HERO_WITH_SET.id, deck: DEFAULT_DECK }],
+    });
+    const deck = encounterDeckOf(state, state.encounterDeckOrder[0]!).deck;
+    expect(deck.every((id) => mustInstance(state, id).cardId === BLANK.id)).toBe(true);
+    expect(Object.values(state.instances).some((instance) => instance.cardId === OBLIGATION.id)).toBe(false);
+    expect(mustPlayer(state, p1).setAside.map((id) => mustInstance(state, id).cardId)).toEqual([NEMESIS_MINION.id]);
+    // The other way round is the default's opposite half: obligations in, no nemesis set.
+    const noNemesis = mustBuild({
+      villainCardId: WRECKER.id,
+      mainSchemeCardId: PLAIN_SCHEME.id,
+      includeIdentitySets: true,
+      includeNemesisSets: false,
+      players: [{ identityCardId: SET_HERO_WITH_SET.id, deck: DEFAULT_DECK }],
+    });
+    expect(mustPlayer(noNemesis, p1).setAside).toEqual([]);
+    expect(Object.values(noNemesis.instances).some((instance) => instance.cardId === OBLIGATION.id)).toBe(true);
+  });
+
   it("each villain gets its own encounter deck, and every card in it knows that deck is its home", () => {
     const state = mustBuild({
       villainCardId: WRECKER.id,

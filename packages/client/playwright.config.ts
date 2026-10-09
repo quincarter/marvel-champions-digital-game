@@ -77,6 +77,7 @@ export default defineConfig({
         "angel-form.spec.ts",
         "off-turn-action.spec.ts",
         "which-ability.spec.ts",
+        "threat-popup.spec.ts",
         "routed-tucked.spec.ts",
         "assault-thwart-preview.spec.ts",
       ],

@@ -33,6 +33,7 @@ describe("boxPages", () => {
       "cycle6",
       "mojo",
       "cycle7",
+      "cycle8",
     ]);
   });
 
@@ -88,6 +89,59 @@ describe("boxPages", () => {
       "robertKelly",
       "wideawake",
     ]);
+  });
+
+  it("lists Age of Apocalypse's new entries by group, and the general rules also on the Core page", () => {
+    const p = page("cycle8");
+    expect(p.keywords).toEqual([]);
+    expect(p.lessons.map((l) => l.id)).toEqual(["bishop", "magik", "iceman", "jubilee", "nightcrawler", "magneto"]);
+    expect(ids(p.heroMechanics)).toEqual([
+      "attackAbilityOne",
+      "attackTargets",
+      "bamf",
+      "basicPowerStat",
+      "cellPhone",
+      "effectDefender",
+      "energyAbsorption",
+      "faceupTopCard",
+      "frostbite",
+      "grounded",
+      "hitPointBonusEnds",
+      "jubileeVersions",
+      "limbo",
+      "magneticBubble",
+      "magneticPull",
+      "paidWith",
+      "wrappedInMetal",
+    ]);
+    expect(ids(p.scenarioMechanics)).toEqual([
+      "allySearch",
+      "apocalypseDefeat",
+      "arcadeTraps",
+      "campaignRewards",
+      "celestialTech",
+      "crazyGang",
+      "enSabahNur",
+      "fourHorsemen",
+      "genePool",
+      "horsemenSetup",
+      "mainSchemeBSide",
+      "missionArea",
+      "missionAttempt",
+      "missionOutcomes",
+      "modularDifficulty",
+      "overseers",
+      "prelates",
+      "pursuedByThePast",
+      "settingEnvironments",
+      "villainsFallTogether",
+    ]);
+    const core = page("core");
+    for (const id of ["attackAbilityOne", "attackTargets", "basicPowerStat", "effectDefender", "hitPointBonusEnds"]) {
+      expect(core.heroMechanics.find((r) => r.id === id)?.link?.label, id).toBe("Added with Age of Apocalypse");
+      expect(p.heroMechanics.find((r) => r.id === id)?.link?.boxId, id).toBe("core");
+    }
+    expect(core.scenarioMechanics.find((r) => r.id === "mainSchemeBSide")?.link?.boxId).toBe("cycle8");
   });
 
   it("lists MojoMania's new entries, all scenario mechanics", () => {
@@ -153,7 +207,7 @@ describe("entries that apply to Core cards too", () => {
     expect(home.link).toEqual({ label: "Also a Core rule", boxId: "core" });
     const onCore = page("core").heroMechanics.find((r) => r.id === "counters")!;
     expect(onCore.link).toEqual({ label: "Added with Mutant Genesis", boxId: "cycle6" });
-    expect(page("core").scenarioMechanics.map((r) => r.id)).toEqual(["encounterDeckEmpty"]);
+    expect(ids(page("core").scenarioMechanics)).toEqual(["encounterDeckEmpty", "mainSchemeBSide"]);
     expect(page("cycle1").keywords.find((r) => r.id === "setup")!.link?.boxId).toBe("core");
     expect(page("core").keywords.find((r) => r.id === "setup")!.link?.label).toBe("Added with The Rise of Red Skull");
   });

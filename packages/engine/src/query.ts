@@ -7,6 +7,7 @@ import type {
   HeroIdentityCard,
   Trait,
   MainSchemeStage,
+  MinionCard,
   PrintedStat,
   ScalingValue,
   VillainStage,
@@ -61,6 +62,18 @@ export const cardOf = (state: GameState, id: InstanceId): AnyCard | undefined =>
 export function printedCostOf(state: GameState, card: AnyCard | undefined): number {
   if (!card || !("cost" in card) || typeof card.cost !== "number") return 0;
   return card.costPerPlayer ? card.cost * state.startingPlayerCount : card.cost;
+}
+
+/**
+ * A minion card's printed hit points in this game. A value printed with the per player icon (`MinionCard.hpPerPlayer`)
+ * is its numeral times the number of players who started the scenario, and "if a player is eliminated, this value
+ * does not change" (RRG 1.8 "Per Player Icon", p. 32). The icon "is not considered a modifier and is applied before any
+ * modifiers are applied" (RRG 1.8 "Modifiers", p. 29), so the product is the base that "gets +N hit points" adds to,
+ * the same as a villain stage's. Recomputed on each read from `startingPlayerCount`, which never changes; only damage
+ * is stored. Every reader of a minion's `hp` goes through here.
+ */
+export function printedMinionHp(state: GameState, card: MinionCard): number {
+  return card.hpPerPlayer ? card.hp * state.startingPlayerCount : card.hp;
 }
 
 export function mustCardOf(state: GameState, id: InstanceId): AnyCard {
@@ -187,6 +200,22 @@ export function nextVillainInActivationOrder(state: GameState, fromId: InstanceI
   if (candidates.length === 0) return null;
   const current = fromId ? activationOrderOf(state, fromId) : 0;
   return (candidates.find((c) => c.order > current) ?? candidates[0]!).id;
+}
+
+/**
+ * The villain one place to the right of `fromId` in `GameState.villainRow`, wrapping from the rightmost to the leftmost
+ * (MC45 p. 11; docs/phase7-wave8.md §3.7). Only villains in play sit in the row. Null when there is no row, the row is
+ * empty, or `fromId` is the only villain in it ("with one villain in the row it stays"). When `fromId` is not in the row
+ * (the counter's holder left play, or nobody holds it), the leftmost.
+ */
+export function nextVillainInRow(state: GameState, fromId: InstanceId | null): InstanceId | null {
+  const row = (state.villainRow ?? []).filter((id) => villainOf(state, id)?.defeated === false);
+  const [leftmost] = row;
+  if (leftmost === undefined) return null;
+  const at = fromId === null ? -1 : row.indexOf(fromId);
+  if (at < 0) return leftmost;
+  if (row.length === 1) return null;
+  return row[(at + 1) % row.length] ?? null;
 }
 
 /** "A villain": every villain still in play, in printed order. */
@@ -731,7 +760,7 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: 0,
-      maxHp: card.hp,
+      maxHp: printedMinionHp(state, card),
     };
   }
 
@@ -773,7 +802,7 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: statValue(card.sch),
-      maxHp: card.hp,
+      maxHp: printedMinionHp(state, card),
     };
   }
   if (card.type === "villain" && isVillain(state, id)) {
@@ -794,6 +823,24 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
     };
   }
   return undefined;
+}
+
+/**
+ * The numeral of a character's printed hit point value (`ValueSpec printedHp.numeral`; docs/phase7-wave8.md §3.19): the
+ * number printed before the per player icon, unscaled (RRG 1.8 "Per Player Icon", p. 32), or the whole value when no
+ * icon is printed. A villain's is its current stage's. Never modified (RRG 1.8 "Printed", p. 35). 0 for a printed
+ * infinity and for a card that is not a character.
+ */
+export function printedHpNumeral(state: GameState, id: InstanceId): number {
+  const card = cardOf(state, id);
+  if (card?.type === "villain" && isVillain(state, id)) {
+    const stage = villainStageOf(state, id);
+    if (stage.infiniteHp) return 0;
+    return stage.hp.perPlayer > 0 ? stage.hp.perPlayer : stage.hp.base;
+  }
+  // A minion's `hp` is already the numeral, whether or not the icon follows it (and whatever it is treated as).
+  if (card?.type === "minion" && getInstance(state, id)?.facedownAs?.kind !== "minion") return card.hp;
+  return printedProfile(state, id)?.maxHp ?? 0;
 }
 
 /** Max hit points only (printed + HP modifiers) — reading it never evaluates ATK/THW/SCH modifiers. */
@@ -882,6 +929,8 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
       return state.villainArea;
     case "scenarioArea":
       return state.scenarioAreas?.[zone.name] ?? [];
+    case "scenarioPlayArea":
+      return state.scenarioPlayAreas?.[zone.name]?.cards ?? [];
     case "victoryDisplay":
       return state.victoryDisplay;
     case "removedFromGame":
@@ -938,6 +987,9 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
   for (const [name, ids] of Object.entries(state.scenarioAreas ?? {})) {
     if (ids.includes(id)) return { kind: "scenarioArea", name };
   }
+  for (const [name, area] of Object.entries(state.scenarioPlayAreas ?? {})) {
+    if (area.cards.includes(id)) return { kind: "scenarioPlayArea", name };
+  }
   if (state.victoryDisplay.includes(id)) return { kind: "victoryDisplay" };
   if (state.removedFromGame.includes(id)) return { kind: "removedFromGame" };
   const instance = getInstance(state, id);
@@ -947,6 +999,29 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
     if (host.tucked.includes(id)) return { kind: "tucked", hostInstanceId: host.instanceId };
   }
   return null;
+}
+
+/** The in-play scenario area a card is in: its own, or the one the card it is attached to is in. Null outside one. */
+export function scenarioPlayAreaOf(state: GameState, id: InstanceId): string | null {
+  const areas = state.scenarioPlayAreas;
+  if (!areas) return null;
+  let root = id;
+  for (let host = getInstance(state, root)?.attachedTo; host; host = getInstance(state, root)?.attachedTo) root = host;
+  for (const [name, area] of Object.entries(areas)) if (area.cards.includes(root)) return name;
+  return null;
+}
+
+/**
+ * Whether a card is in a closed in-play scenario area (or attached to a card in one). A basic attack or basic thwart
+ * does not reach it: its enemies are never offered to a basic attack, and its schemes are in no list a basic thwart
+ * reads. MC45 p. 5 closes the area to "card abilities", and a basic power is a game function, not a card ability (RRG
+ * 1.8 "Basic Power", p. 10), so this is a reading and not the printed sentence: MC45 pp. 5–6 give the mission's
+ * enemies one source of damage, "Deal damage from this pool to enemies at the mission", and the Mission Rules card
+ * says outright that the scheme cannot be thwarted. Open question for the owner (docs/phase7-wave8.md §3.33).
+ */
+export function inClosedScenarioPlayArea(state: GameState, id: InstanceId): boolean {
+  const name = scenarioPlayAreaOf(state, id);
+  return name !== null && state.scenarioPlayAreas?.[name]?.closed === true;
 }
 
 export const isTerminal = (state: GameState): boolean => state.outcome !== null;
@@ -982,4 +1057,28 @@ export function modeOnlyFlipped(card: AnyCard, difficulty: "standard" | "expert"
   if (!("flipSide" in card) || !card.flipSide) return false;
   const back = "modeOnly" in card.flipSide ? card.flipSide.modeOnly : undefined;
   return back === undefined || back === difficulty;
+}
+
+/**
+ * Whether the starting hands are still to be drawn (RRG 1.8 Appendix II step 14, p. 51): the question
+ * `EffectSpec countTowardStartingHand` asks (docs/phase7-wave8.md §3.44). A campaign window's step advances as its
+ * instructions are pushed (`executeCampaignWindow`), so the instructions of the last window before the draw resolve
+ * with the step already at `drawStartingHands`: that step has not executed while anything is still resolving.
+ * Exhaustive over the setup steps on purpose.
+ */
+export function beforeStartingHandsDrawn(state: GameState): boolean {
+  const step = state.step;
+  if (step.phase !== "setup") return false;
+  switch (step.kind) {
+    case "campaignWindow":
+      return step.window !== "afterMulligans";
+    case "scenarioSetup":
+    case "villainSetupAbilities":
+    case "scenarioSetupInstructions":
+    case "drawStartingHands":
+      return true;
+    case "mulligan":
+    case "playerSetupAbilities":
+      return false;
+  }
 }

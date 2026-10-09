@@ -494,6 +494,15 @@ describe("schema fixtures: malformed cards are rejected", () => {
   });
 });
 
+describe('a minion\'s hit points printed with the per player icon (RRG 1.8 "Per Player Icon", p. 32)', () => {
+  it("accepts hpPerPlayer: true and rejects any other value", () => {
+    expect(validateMinionCard({ ...hydraMercenary, hpPerPlayer: true }).errors).toEqual([]);
+    expect(validateMinionCard({ ...hydraMercenary, hpPerPlayer: false } as unknown as MinionCard).errors).toEqual([
+      "minion hpPerPlayer must be true when present",
+    ]);
+  });
+});
+
 describe("Phase 2 schema follow-ups", () => {
   it("scaling(base, perPlayer) builds a ScalingValue", () => {
     expect(scaling(2, 1)).toEqual({ base: 2, perPlayer: 1 });
@@ -588,6 +597,30 @@ describe("Phase 2 schema follow-ups", () => {
     expect(validateScenario(rhinoScenario).errors).toEqual([]);
     const inverted = { ...rhinoScenario, villainStages: { standard: [2, 1], expert: [2, 3] } } as unknown as Scenario;
     expect(validateScenario(inverted).valid).toBe(false);
+  });
+
+  it("a multiple-villain scenario may name each villain's side B card, which must differ from its side A card", () => {
+    const villain = (a: string, b?: string) => ({
+      villainCardId: cardId(a),
+      encounterSetIds: [],
+      ...(b === undefined ? {} : { sideBCardId: cardId(b) }),
+    });
+    const horsemen: Scenario = {
+      ...rhinoScenario,
+      villainCardId: cardId("45081a"),
+      multipleVillains: {
+        villains: [villain("45081a", "45081b"), villain("45082a", "45082b")],
+        encounterDecks: "shared",
+        activation: "activeVillainOnly",
+        winCondition: "allVillainsDefeated",
+      },
+    };
+    expect(validateScenario(horsemen).errors).toEqual([]);
+    const same = {
+      ...horsemen,
+      multipleVillains: { ...horsemen.multipleVillains, villains: [villain("45081a", "45081a"), villain("45082a")] },
+    } as unknown as Scenario;
+    expect(validateScenario(same).errors.join("\n")).toContain("sideBCardId must differ");
   });
 
   const spiderManPrecon: StarterDeck = {

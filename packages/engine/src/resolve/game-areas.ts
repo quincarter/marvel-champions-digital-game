@@ -27,10 +27,11 @@ import {
   playerOrder,
   villainOf,
 } from "../query.js";
-import { nextInt } from "../rng.js";
+import { nextInt, shuffle } from "../rng.js";
 import { cardsInPlay } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { StackFrame } from "../stack.js";
+import type { HostStep } from "../trigger-events.js";
 import {
   NO_STATUSES,
   type CardInstance,
@@ -40,7 +41,9 @@ import {
   type VillainState,
 } from "../state.js";
 import { cardsMatch } from "../unique.js";
-import { base, eventFrame, gameAbilityFrames } from "./frames.js";
+import { schemeEntryThreat } from "./enter-play.js";
+import { base, eventFrame, gameAbilityFrames, pushEvent } from "./frames.js";
+import { mainSchemeStageFrames } from "./main-scheme-side.js";
 import { waitingSetupCardsEnterPlay } from "./setup-cards.js";
 
 const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
@@ -193,6 +196,7 @@ export function putMainSchemeStageIntoPlay(
     stageIndex,
     completed: false,
     accelerationTokens: 0,
+    faceupSide: "A",
   };
   ctx.state = {
     ...ctx.state,
@@ -201,10 +205,8 @@ export function putMainSchemeStageIntoPlay(
     extraMainSchemes: [...(ctx.state.extraMainSchemes ?? []), scheme],
   };
   emit(ctx, { type: "mainSchemeStageRevealed", schemeInstanceId: id, stageIndex, playerId });
-  const stage = mainSchemeStageOf(ctx.state, scheme);
   return [
-    ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.aSide.abilities, playerId),
-    ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.abilities, playerId),
+    ...mainSchemeStageFrames(ctx, id, "whenRevealed", ["whenRevealed"], playerId),
     eventFrame(ctx, {
       kind: "placeThreat",
       schemeInstanceId: id,
@@ -244,6 +246,79 @@ export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = 
   };
   moveCard(ctx, schemeId, { kind: "removedFromGame" });
   emit(ctx, { type: "mainSchemeStageRemoved", schemeInstanceId: schemeId, stageIndex: scheme.stageIndex });
+}
+
+// ---- In-play scenario areas no player controls (docs/phase7-wave8.md §3.33) -------------------------------------
+
+/** `EffectSpec createScenarioPlayArea`: an empty in-play scenario area. Nothing happens if it exists. */
+export function createScenarioPlayArea(ctx: Ctx, name: string, closed: boolean): void {
+  if (ctx.state.scenarioPlayAreas?.[name]) return;
+  ctx.state = { ...ctx.state, scenarioPlayAreas: { ...ctx.state.scenarioPlayAreas, [name]: { cards: [], closed } } };
+  emit(ctx, { type: "scenarioPlayAreaCreated", name, closed });
+}
+
+/** The card types that sit loose in an in-play scenario area. An upgrade or attachment is there only on a host. */
+const LOOSE_IN_SCENARIO_PLAY_AREA: ReadonlySet<string> = new Set([
+  "side_scheme",
+  "minion",
+  "ally",
+  "support",
+  "environment",
+]);
+
+/**
+ * What a play may also put loose in one (`playCard.into`, when a `playDestination` rule names the card): an upgrade
+ * with no "attach to" text, which has no host to be on there (RRG 1.8 "Attach To", p. 8; "Upgrade", p. 46), and a
+ * player side scheme, which the rule sends there in place of "next to the main scheme" (RRG 1.8 "Player Side Scheme",
+ * p. 34).
+ */
+const PLAYED_LOOSE_IN_SCENARIO_PLAY_AREA: ReadonlySet<string> = new Set(["upgrade", "player_side_scheme"]);
+
+/**
+ * Places a card in an in-play scenario area (`putIntoPlay.into`; a play to the area): faceup, with no controller and
+ * no engaged player, its owner unchanged (MC45 p. 5: "in play but under no player's control"; RRG 1.8 "Ownership and
+ * Control", p. 31). Every card attached to it is in the area with it and under no player's control either.
+ *
+ * Returns `"entered"` for a card that was out of play (the caller raises its entering play), `"moved"` for one that
+ * was in play already, and a refusal otherwise. A side scheme that enters play gets the threat it enters play with; a
+ * played player side scheme gets its own from the play, after its entering play is raised (`executePlayCardFrame`).
+ */
+export function placeInScenarioPlayArea(
+  ctx: Ctx,
+  id: InstanceId,
+  name: string,
+  /** The card is being played there, which admits the types only a play puts loose in an area. */
+  played = false,
+): "entered" | "moved" | "noSuchArea" | "cardType" {
+  if (!ctx.state.scenarioPlayAreas?.[name]) return "noSuchArea";
+  const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
+  if (!LOOSE_IN_SCENARIO_PLAY_AREA.has(card.type) && !(played && PLAYED_LOOSE_IN_SCENARIO_PLAY_AREA.has(card.type)))
+    return "cardType";
+  const wasInPlay = cardsInPlay(ctx.state).includes(id);
+  const before = mustInstance(ctx.state, id);
+  moveCard(ctx, id, { kind: "scenarioPlayArea", name });
+  const release = (cardId: InstanceId): void => {
+    updateInstance(ctx, cardId, (i) => ({ ...i, controllerId: null, engagedWith: null }));
+    for (const attached of getInstance(ctx.state, cardId)?.attachments ?? []) release(attached);
+  };
+  release(id);
+  updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+  emit(ctx, {
+    type: "scenarioPlayAreaEntered",
+    name,
+    instanceId: id,
+    cardId: card.id,
+    from: wasInPlay ? "inPlay" : "outOfPlay",
+    controllerBefore: wasInPlay ? before.controllerId : null,
+    engagedBefore: wasInPlay ? before.engagedWith : null,
+  });
+  if (wasInPlay) return "moved";
+  // RRG 1.8 "Hinder X" (p. 22): one placement, starting threat and hinder together, as for any entry (`reveal.ts`).
+  if (card.type === "side_scheme") {
+    const amount = schemeEntryThreat(ctx, id);
+    pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null });
+  }
+  return "entered";
 }
 
 // ---- Creating and joining areas --------------------------------------------------------------------------------
@@ -412,10 +487,23 @@ export function addVillains(
   area: GameAreaState | null,
   reveal: boolean,
   actingPlayerId: PlayerId,
+  /** `addVillain.row`: the villains enter in a shuffled order and form `GameState.villainRow` (wave 8 §3.7). */
+  row?: "shuffled",
 ): { readonly frames: readonly StackFrame[]; readonly entered: readonly InstanceId[] } {
   const frames: StackFrame[] = [];
   const entered: InstanceId[] = [];
-  for (const id of ids) {
+  const entering = ids.filter((id) => {
+    const existing = villainOf(ctx.state, id);
+    return ctx.state.encounterSetAside.includes(id) && !(existing && !existing.defeated);
+  });
+  // "Shuffle the … villains, then reveal them in a row from left to right": the seeded RNG decides the order.
+  let order: readonly InstanceId[] = entering;
+  if (row === "shuffled" && entering.length > 0) {
+    const [shuffled, rng] = shuffle(entering, ctx.state.rng);
+    ctx.state = { ...ctx.state, rng, villainRow: ctx.state.villainRow ?? [] };
+    order = shuffled;
+  }
+  for (const id of order) {
     const existing = villainOf(ctx.state, id);
     if (!ctx.state.encounterSetAside.includes(id) || (existing && !existing.defeated)) continue;
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
@@ -443,6 +531,10 @@ export function addVillains(
         ? ctx.state.villains.map((v) => (v.instanceId === id ? villain : v))
         : [...ctx.state.villains, villain],
       encounterSetAside: ctx.state.encounterSetAside.filter((other) => other !== id),
+      // Where villains sit in a row, one entering play joins at the right end (docs/phase7-wave8.md §3.7).
+      ...(ctx.state.villainRow && !ctx.state.villainRow.includes(id)
+        ? { villainRow: [...ctx.state.villainRow, id] }
+        : {}),
     };
     entered.push(id);
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
@@ -464,9 +556,21 @@ export function addVillains(
     else if (ctx.state.villainsEnteringAtSetup)
       ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };
   }
+  if (row === "shuffled" && ctx.state.villainRow && entered.length > 0) {
+    emit(ctx, { type: "villainRowSet", order: ctx.state.villainRow });
+    // "Place the active counter on the leftmost villain" (MC45 p. 11).
+    const [leftmost] = ctx.state.villainRow;
+    if (leftmost && !area) setActiveVillain(ctx, leftmost, "effect");
+  }
   // RRG 1.8 Appendix II step 11 (p. 51): a setup-keyword attachment that found no villain in play now has one.
   if (entered.length > 0) waitingSetupCardsEnterPlay(ctx);
   return { frames, entered };
+}
+
+/** A villain that leaves play leaves the row (`GameState.villainRow`; docs/phase7-wave8.md §3.7). */
+export function leaveVillainRow(ctx: Ctx, id: InstanceId): void {
+  if (ctx.state.villainRow?.includes(id))
+    ctx.state = { ...ctx.state, villainRow: ctx.state.villainRow.filter((other) => other !== id) };
 }
 
 /**
@@ -492,6 +596,7 @@ export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
       victoryDisplay: ctx.state.victoryDisplay.filter((other) => other !== id),
       encounterSetAside: [...ctx.state.encounterSetAside, id],
     };
+    leaveVillainRow(ctx, id);
     updateInstance(ctx, id, (i) => ({
       ...i,
       damage: 0,
@@ -537,6 +642,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
       ...ctx.state,
       villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, defeated: true } : v)),
     };
+    leaveVillainRow(ctx, id);
     for (const area of ctx.state.gameAreas.filter((a) => a.villainIds.includes(id))) {
       // It stays listed in its area (out of play, like a defeated villain), so text resolving for it still knows where.
       updateArea(ctx, area.areaId, (a) => ({
@@ -595,6 +701,8 @@ export function flipMainSchemeStage(
   schemeId: InstanceId,
   reveal: boolean,
   playerId: PlayerId,
+  /** The player whose effect flipped it (`cardFlipped.playerId`), carried on the waiting step. */
+  flippedBy: PlayerId | null = null,
 ): readonly StackFrame[] | false | "waiting" {
   const scheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === schemeId);
   if (!scheme || ctx.state.gameAreas.some((a) => a.mainScheme?.instanceId === schemeId)) return false;
@@ -606,7 +714,14 @@ export function flipMainSchemeStage(
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const [promoted, ...rest] = extras;
   if (central && !promoted) return false;
-  if (waitsForHostStep(ctx, [schemeId], { kind: "flipMainSchemeStage", schemeId, reveal, playerId })) return "waiting";
+  const hostStep: HostStep = {
+    kind: "flipMainSchemeStage",
+    schemeId,
+    reveal,
+    playerId,
+    ...(flippedBy ? { flippedBy } : {}),
+  };
+  if (waitsForHostStep(ctx, [schemeId], hostStep)) return "waiting";
   ctx.state = central
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };

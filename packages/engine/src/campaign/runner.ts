@@ -39,7 +39,7 @@ import type {
   LogWrite,
   ResolvedInstruction,
 } from "../campaign.js";
-import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER } from "../campaign.js";
+import { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, grantDeckSizesOf, includedGrantsOf } from "../campaign.js";
 import { EngineInvariantError } from "../errors.js";
 import { createRng, nextUint32 } from "../rng.js";
 import {
@@ -56,6 +56,7 @@ import {
   campaignAnswerMap,
   campaignChoiceKey,
   evaluateCampaignPredicate,
+  mixWithAttempt,
   runCampaignInstructions,
   type CampaignChoiceAnswer,
   type CampaignDeps,
@@ -64,7 +65,13 @@ import {
   type CampaignRunPhase,
 } from "./ops.js";
 
-export type { CampaignChoiceAnswer, CampaignChoiceKey, CampaignDeps, CampaignPendingChoice } from "./ops.js";
+export type {
+  CampaignChoiceAnswer,
+  CampaignChoiceKey,
+  CampaignChoiceSourceKind,
+  CampaignDeps,
+  CampaignPendingChoice,
+} from "./ops.js";
 export { CAMPAIGN_ACCEPT, campaignChoiceKey } from "./ops.js";
 export { campaignResultOf } from "./result.js";
 
@@ -295,12 +302,113 @@ function logViewFor(
   };
 }
 
+/**
+ * Where a seat's grants and its deck list disagree about an optional grant (`CampaignGrant.optional`, `leftOut`; MC45
+ * p. 24), as messages; empty when they agree. The flag and the list are written by whoever edits the deck between
+ * games, and the game is built from both, so a mismatch would deal a wrong deck or exempt the wrong copies.
+ *
+ * - `leftOut` is only for an optional grant: any other grant's copy must be in the deck (MC10 p. 3).
+ * - An included copy is in the deck: for a title with an optional grant, the list holds at least as many copies as
+ *   the seat's grants of it that are not left out.
+ *
+ * The other direction cannot be read off a record: a left-out reward whose copy was never taken off the list looks
+ * exactly like a copy of the same title the player chose (`CampaignGrant.leftOut`). `setCampaignGrantLeftOut` is what
+ * keeps that half true, by changing the flag and the list together.
+ */
+export function campaignGrantInclusionProblems(seat: CampaignSeat): readonly string[] {
+  const problems: string[] = [];
+  const listed = (cardId: string): number =>
+    seat.deck.cards.filter((line) => line.cardId === cardId).reduce((sum, line) => sum + line.quantity, 0);
+  for (const grant of seat.grants) {
+    if (grant.leftOut === true && grant.optional !== true) {
+      problems.push(
+        `seat ${seat.seatNumber}'s grant of ${grant.cardId} is marked as left out of the deck, and it is not an optional grant`,
+      );
+    }
+  }
+  const optionalTitles = new Set(seat.grants.filter((grant) => grant.optional === true).map((grant) => grant.cardId));
+  for (const cardId of optionalTitles) {
+    const included = includedGrantsOf(seat.grants).filter((grant) => grant.cardId === cardId).length;
+    const inDeck = listed(cardId);
+    if (included > inDeck) {
+      problems.push(
+        `seat ${seat.seatNumber} holds ${included} granted ${included === 1 ? "copy" : "copies"} of ${cardId} that ${included === 1 ? "is" : "are"} not marked as left out, and its deck lists ${inDeck}`,
+      );
+    }
+  }
+  return problems;
+}
+
+function assertGrantInclusion(logId: string, seats: readonly CampaignSeat[]): void {
+  const problems = seats.flatMap(campaignGrantInclusionProblems);
+  if (problems.length > 0) {
+    throw new EngineInvariantError(
+      `campaign ${logId}: optional grants and deck lists disagree: ${problems.join("; ")}`,
+    );
+  }
+}
+
+/**
+ * Leaves an optional grant's copy out of a seat's deck, or puts it back (MC45 p. 24: "They may include 1 copy of that
+ * card in their deck"): the grant's `leftOut` flag and the deck list change together, so they cannot disagree.
+ * `grantIndex` is the grant's place in `CampaignSeat.grants` (`grantsOf`). A grant already in the asked state returns
+ * the log unchanged. Between games only; a grant that is not optional, or a copy that is not in the list to take out,
+ * is an `EngineInvariantError`.
+ */
+export function setCampaignGrantLeftOut(
+  log: CampaignLog,
+  seatNumber: number,
+  grantIndex: number,
+  leftOut: boolean,
+): CampaignLog {
+  if (log.attempt) throw new EngineInvariantError(`campaign ${log.id} has a game in progress: its decks are fixed`);
+  const seat = log.seats.find((candidate) => candidate.seatNumber === seatNumber);
+  const grant = seat?.grants[grantIndex];
+  if (!seat || !grant) {
+    throw new EngineInvariantError(`campaign ${log.id} has no grant ${grantIndex} for seat ${seatNumber}`);
+  }
+  if (grant.optional !== true) {
+    throw new EngineInvariantError(
+      `seat ${seatNumber}'s grant of ${grant.cardId} is not optional: its copy must be in the deck`,
+    );
+  }
+  if ((grant.leftOut === true) === leftOut) return log;
+  const line = seat.deck.cards.find((entry) => entry.cardId === grant.cardId);
+  if (leftOut && !line) {
+    throw new EngineInvariantError(
+      `seat ${seatNumber}'s deck lists no copy of ${grant.cardId} to leave out, though its grant says the copy is included`,
+    );
+  }
+  const cards = leftOut
+    ? seat.deck.cards.flatMap((entry) =>
+        entry.cardId !== grant.cardId || entry !== line
+          ? [entry]
+          : entry.quantity > 1
+            ? [{ ...entry, quantity: entry.quantity - 1 }]
+            : [],
+      )
+    : line
+      ? seat.deck.cards.map((entry) => (entry === line ? { ...entry, quantity: entry.quantity + 1 } : entry))
+      : [...seat.deck.cards, { cardId: grant.cardId, quantity: 1 }];
+  const { leftOut: _was, ...included } = grant;
+  const changed: CampaignGrant = leftOut ? { ...grant, leftOut: true } : included;
+  const updated: CampaignSeat = {
+    ...seat,
+    deck: { ...seat.deck, cards },
+    grants: seat.grants.map((entry, at) => (at === grantIndex ? changed : entry)),
+  };
+  assertGrantInclusion(log.id, [updated]);
+  return { ...log, seats: log.seats.map((entry) => (entry === seat ? updated : entry)) };
+}
+
 const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
   seatNumber: seat.seatNumber,
   identityCardId: seat.identityCardId,
   deck: seat.deck.cards.flatMap((line) => Array.from({ length: line.quantity }, () => line.cardId)),
   aspects: seat.deck.aspects,
-  grantedCardIds: seat.grants.map((grant) => grant.cardId),
+  // An optional grant the player left out is not in `deck`, so it is not named as a granted copy either.
+  grantedCardIds: includedGrantsOf(seat.grants).map((grant) => grant.cardId),
+  ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
 });
 
 const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDOW_ORDER.indexOf(instruction.window);
@@ -331,6 +439,8 @@ export function resolveBetweenGames(
   const working = workingOf(log);
   // A log saved before removals left decks on their own still holds them; the game must never deal one.
   working.seats = withoutRemovedCards(working.seats, working.removedFromCampaign);
+  // The deck lists a client edited between games must agree with the grants it marked (`CampaignGrant.leftOut`).
+  assertGrantInclusion(log.id, working.seats);
   const logBefore = snapshotOf(working, log.definitionVersion);
   const run = newRun(definition, deps, modes, answers, "beforeGame", working, "", log.history);
 
@@ -361,7 +471,10 @@ export function resolveBetweenGames(
   // The in-game seed comes out of the campaign's own RNG, so a game is not a second, unrecorded source of randomness.
   const [drawn, rng] = nextUint32(run.working.rng);
   run.working.rng = rng;
-  const seed = gameSeedFor(drawn, log.history.filter((entry) => entry.nodeId === node.id).length);
+  // A loss restores the campaign RNG to the node's start, so the draw above is the same on every retry; left alone,
+  // every rewound attempt would be the identical game. MC10 p. 3's "reset the scenario and try again" is a fresh game,
+  // so a retry's seed is the draw mixed with how many times the node was already played (`mixWithAttempt`).
+  const seed = mixWithAttempt(drawn, log.history.filter((entry) => entry.nodeId === node.id).length);
 
   const input: CampaignGameInput = {
     campaignId: definition.campaignId,
@@ -375,6 +488,9 @@ export function resolveBetweenGames(
     seed,
     ...(run.setAsideCards.length > 0 ? { setAsideCards: run.setAsideCards } : {}),
     ...(requiredModularSetIdsOf(node).length > 0 ? { requiredModularSetIds: requiredModularSetIdsOf(node) } : {}),
+    ...(node.scenarioRuleSpecs && node.scenarioRuleSpecs.length > 0
+      ? { scenarioRuleSpecs: node.scenarioRuleSpecs }
+      : {}),
   };
   const attempt: CampaignAttempt = {
     nodeId: node.id,
@@ -386,18 +502,6 @@ export function resolveBetweenGames(
     composedEncounterSets: run.composedEncounterSets,
   };
   return { kind: "done", value: { ...withWorking(log, run.working), attempt } };
-}
-
-/**
- * The in-game seed for a node's `playedBefore`-th attempt. A loss restores the campaign RNG to the node's start
- * (`retryBaseline: "nodeStart"`), so the draw above is the same on every retry; left alone, that would deal every
- * rewound attempt the identical game — same hands, same encounter deck. MC10 p. 3's "reset the scenario and try
- * again" is a fresh game, so a retry's seed is the draw mixed with how many times the node was already played:
- * still a pure function of the log (the campaign replays), and a node's first attempt keeps the draw unchanged.
- */
-function gameSeedFor(drawn: number, playedBefore: number): number {
-  if (playedBefore === 0) return drawn;
-  return nextUint32(createRng((drawn + Math.imul(playedBefore, 0x9e3779b9)) >>> 0))[0];
 }
 
 type NodeChoice =

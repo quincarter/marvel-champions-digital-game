@@ -106,7 +106,7 @@ import {
   zone,
   atMost,
 } from "../dsl/index.js";
-import { healToFull, healWithFacedownCard, hpRecord, hpSet } from "./expert-helpers.js";
+import { defeatedSeatRecordsZero, healToFull, healWithFacedownCard, hpRecord, hpSet } from "./expert-helpers.js";
 
 const NEXT_EVOL_ID = campaignId("next_evol");
 const CAMPAIGN_SET = encounterSetId("next_evol_campaign");
@@ -774,6 +774,8 @@ export const NEXT_EVOL_CAMPAIGN_DEFINITION: CampaignDefinition = {
   ],
   // MC40 p. 7 "Elimination and Victory": a player defeated in a scenario their teammates win skips its Victory steps
   // and rejoins by paying the next setup's heal (`healToFull` / `healWithFacedownCard`), so no `rejoinAtPrintedHitPoints`.
+  // A seat that sat out the Victory steps gets no hp record, so its earlier one is zeroed: it must pay to rejoin.
+  everyNodeVictory: [defeatedSeatRecordsZero("mc40.victory.defeatedHp", "MC40 p. 7")],
   elimination: {
     id: "mc40.elimination",
     text: "Expert Campaign Only: If a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario.",

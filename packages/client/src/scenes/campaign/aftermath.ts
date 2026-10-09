@@ -76,6 +76,8 @@ import {
   decideForSeat,
   nextIssueRaisesMarket,
   offersAnswer,
+  leaveSummaryDestination,
+  postFoldDestination,
   readyToCommit,
   startAftermathGroup,
   type AftermathChoiceGroup,
@@ -261,8 +263,18 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
   #onFolded(record: CampaignRecord): void {
     this.#record = record;
-    if (record.status === "won") {
+    const nodeId = this.#nodeId;
+    const pages = storyFor(record.campaignId as string)?.pages;
+    const story = nodeId ? issueStoryFor(record.campaignId as string, nodeId) : null;
+    const comicSteps = story?.aftermathBeats && pages ? resolveComicBeats(pages, story.aftermathBeats) : [];
+    const destination = postFoldDestination(record.status, comicSteps.length > 0);
+    if (destination === "finale") {
       goToScreen(this, SCENES.campaignFinale, { runId: record.id });
+      return;
+    }
+    if (destination === "campaignLost" && this.#nodeId) {
+      // A win that still loses the campaign (MC45 p. 20): the Rewind screen's campaign-lost variant, no retry offered.
+      goToScreen(this, SCENES.campaignRewind, { runId: record.id, nodeId: this.#nodeId });
       return;
     }
     // `this.#group` is left as-is on purpose: by the time a commit loop reaches "done", every seat in it is
@@ -270,10 +282,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // — the tile keeps each hero's pick on screen (YOURS / WITH …), it doesn't clear the columns. A win with no
     // pending choice at all (MC10 has none, but a future box might) leaves `#group` null, which the summary phase
     // reads as "nothing to hand out this issue".
-    const nodeId = this.#nodeId;
-    const pages = storyFor(record.campaignId as string)?.pages;
-    const story = nodeId ? issueStoryFor(record.campaignId as string, nodeId) : null;
-    this.#comicSteps = story?.aftermathBeats && pages ? resolveComicBeats(pages, story.aftermathBeats) : [];
+    this.#comicSteps = comicSteps;
     this.#comicCurrent = 0;
     this.#cinematic.reset();
     this.#phase = "summary";
@@ -730,12 +739,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
           .graph.nodes.map((n) => n.id)
       : [];
     const currentIndex = record && this.#nodeId ? nodeIds.indexOf(this.#nodeId) : -1;
+    if (record && leaveSummaryDestination(record.status) === "finale") return "TO THE FINALE ▸";
     return `On to issue #${currentIndex + 2} ▸`;
   }
 
   #leaveToNext(): void {
     const record = this.#record;
     if (!record) return;
+    if (leaveSummaryDestination(record.status) === "finale") {
+      goToScreen(this, SCENES.campaignFinale, { runId: record.id });
+      return;
+    }
     goToScreen(this, SCENES.campaignOpener, { runId: record.id });
   }
 
@@ -743,7 +757,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const group = this.#group;
     const record = this.#record;
     if (!group || !record) return;
-    if (group.slot === "aspectAdvantage") {
+    if (group.collectionPick) {
       this.#drawCollectionPicker(group, rect, order, stops, phone);
       return;
     }
@@ -1249,7 +1263,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // both use the same one-seat-at-a-time confirm CTA rather than the batch "decide everyone, then commit" flow
     // below (which would deadlock here: a seat can only decide once it's current, and it only becomes current
     // through a real `fold` call the batch flow refuses to make until every seat has already decided).
-    const oneSeatAtATime = group?.dealtPerSeat || group?.slot === "aspectAdvantage";
+    const oneSeatAtATime = group?.dealtPerSeat || (group ? group.collectionPick : false);
     if (oneSeatAtATime && group) {
       const decision = group.decisions[group.currentSeatNumber];
       const decided = decision !== undefined && decision.kind !== "undecided";
@@ -1293,7 +1307,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
         .setWordWrapWidth(noteWidth);
     }
     const ctaRect = this.#ctaRect(rect, phone);
-    const label_ = group?.optional && !ready ? "Each hero decides" : "Each hero takes one";
+    const label_ = ready ? "Confirm picks" : group?.optional ? "Each hero decides" : "Each hero takes one";
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",

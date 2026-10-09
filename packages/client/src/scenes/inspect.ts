@@ -157,6 +157,23 @@ const RULES_PAD = 22;
 const RULES_SECTION_GAP = 16;
 /** "Damage on this card" and its one 16px line ("3/5 damage"). */
 const DAMAGE_SECTION_HEIGHT = 38;
+/** The wave 8 note sections (hit point floor, resource icons, area): one wrapped paragraph per note. */
+const NOTE_FONT = 13;
+const NOTE_LINE_HEIGHT = 18;
+/** The title row plus as many wrapped lines as `inner` pixels hold of 13px bold text (about 7.2px a character). */
+const noteSectionHeight = (inner: number, lines: readonly string[]): number =>
+  16 +
+  lines.reduce((sum, line) => sum + Math.max(1, Math.ceil((line.length * 7.2) / Math.max(60, inner))), 0) *
+    NOTE_LINE_HEIGHT +
+  4;
+/** The notes beside damage and threat that wave 8 adds, each with the title its section carries. */
+function extraNotesOf(model: InspectModel): readonly { readonly title: string; readonly lines: readonly string[] }[] {
+  return [
+    ...(model.hitPointFloorNote ? [{ title: "hit points", lines: [model.hitPointFloorNote] }] : []),
+    ...(model.resourceIconNote ? [{ title: "resource icons", lines: [model.resourceIconNote] }] : []),
+    ...(model.areaNotes.length > 0 ? [{ title: "where it is", lines: model.areaNotes }] : []),
+  ];
+}
 /** The "cost" section for a per player icon: its label row, then a 52px badge beside the two lines of words. */
 const COST_SECTION_HEIGHT = 16 + 52;
 
@@ -855,6 +872,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.threatNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.counterNote) heights.push(DAMAGE_SECTION_HEIGHT);
+    for (const note of extraNotesOf(model)) heights.push(noteSectionHeight(inner, note.lines));
     if (model.keywordChips.length > 0)
       heights.push(
         16 +
@@ -1118,6 +1136,21 @@ export class InspectOverlay extends Phaser.Scene {
         fontStyle: "700",
       });
       y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
+    }
+
+    // Wave 8: a hit point floor ("considered to have at least 1"), icons a rule gives the card, and what the mission
+    // area means for it. Wrapped, since a sentence is longer than a count.
+    for (const note of extraNotesOf(model)) {
+      label(this, rect.x + pad, y, note.title, typeRole.label, surface.paper.hex, ink.meta);
+      this.add
+        .text(rect.x + pad, y + 16, note.lines.join("\n"), {
+          ...textStyle(typeRole.body, surface.paper.hex),
+          fontSize: `${NOTE_FONT}px`,
+          fontStyle: "700",
+        })
+        .setWordWrapWidth(inner)
+        .setLineSpacing(3);
+      y += noteSectionHeight(inner, note.lines) + RULES_SECTION_GAP;
     }
 
     // "Keywords on this card" / "Traits" — chips a tap opens the Rules overlay at.
@@ -1618,6 +1651,12 @@ export class InspectOverlay extends Phaser.Scene {
 
     if (model.counterNote) {
       const note = label(this, textLeft, ty, model.counterNote, typeRole.label, accent.heroRed.hex, ink.body);
+      note.setWordWrapWidth(textWidth);
+      ty += note.height + 7;
+    }
+
+    for (const extra of extraNotesOf(model)) {
+      const note = label(this, textLeft, ty, extra.lines.join("\n"), typeRole.label, accent.heroRed.hex, ink.body);
       note.setWordWrapWidth(textWidth);
       ty += note.height + 7;
     }

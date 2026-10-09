@@ -61,6 +61,8 @@ export interface ScenarioDetail {
   readonly otherVillainNames: readonly string[];
   readonly mainSchemeName: string;
   readonly startingThreat: ScalingValue;
+  /** The starting main scheme stage's printed acceleration icons (what Set the Table shows as "accel"), unscaled. */
+  readonly startingAcceleration: ScalingValue;
   readonly stages: readonly StageDetail[];
   /** Sets always in this scenario's encounter deck (villain set(s), plus Standard/Expert), by display name. */
   readonly fixedEncounterSetNames: readonly string[];
@@ -141,6 +143,7 @@ export function scenarioDetailOf(
     otherVillainNames,
     mainSchemeName: mainScheme.name,
     startingThreat: firstStage.startingThreat,
+    startingAcceleration: firstStage.acceleration,
     stages,
     fixedEncounterSetNames: scenario.encounterSetIds.map((id) => setName(id as string, sets)),
     recommendedModularSetNames: scenario.recommendedModularSetIds.map((id) => setName(id as string, sets)),

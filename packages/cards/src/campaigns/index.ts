@@ -6,6 +6,7 @@
 
 import type { CampaignId } from "@mc/content";
 import type { CampaignDefinition } from "@mc/engine";
+import { AOA_CAMPAIGN_DEFINITION } from "./aoa.js";
 import { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 import { MOJO_CAMPAIGN_DEFINITION } from "./mojo.js";
 import { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
@@ -14,6 +15,14 @@ import { NEXT_EVOL_CAMPAIGN_DEFINITION } from "./next_evol.js";
 import { SM_CAMPAIGN_DEFINITION } from "./sm.js";
 import { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
+export {
+  AOA_CAMPAIGN_DEFINITION,
+  AOA_DEFEATED,
+  AOA_MISSIONS,
+  AOA_NOT_DEFEATED,
+  AOA_OVERSEERS,
+  AOA_PROTECT_THE_PROFESSOR,
+} from "./aoa.js";
 export { cardsOfComposedSets } from "./composed-sets.js";
 export { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 export { MOJO_CAMPAIGN_DEFINITION, mojoCheckedOffSets, mojoModularSetPicks } from "./mojo.js";
@@ -32,6 +41,7 @@ export const CAMPAIGNS: Readonly<Record<string, CampaignDefinition>> = {
   mut_gen: MUT_GEN_CAMPAIGN_DEFINITION,
   mojo: MOJO_CAMPAIGN_DEFINITION,
   next_evol: NEXT_EVOL_CAMPAIGN_DEFINITION,
+  aoa: AOA_CAMPAIGN_DEFINITION,
 };
 
 /** A campaign's definition by id, or `undefined` if this build has not shipped one yet (design §9.1's file list). */

@@ -161,9 +161,15 @@ export interface ParseOptions {
    * ability's ref (its text and id are unchanged). The card text is unchanged.
    */
   readonly extraConstantFrom?: string;
+  /**
+   * Non-obligation: a preamble sentence that is the card's When Revealed fallback with no header (Battle Suit
+   * `jubilee` 47026, "Otherwise, this card gains surge."). Split out of the `-constant` ref into a `when-revealed` ref
+   * with the structural id `<code>.when-revealed`; the card text is unchanged.
+   */
+  readonly preambleWhenRevealed?: string;
 }
 
-const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -246,6 +252,11 @@ function kindOf(rawTrigger: string): KindResult {
       return withForm("forced-action");
     case "Forced Response":
       return withForm("forced-response");
+    // docs/phase7-wave8.md §1.25 (MC45 p. 5): "a new type of Forced Response that only resolves after a player discards
+    // cards from the top of their deck during a mission attempt". No ability kind of its own; the printed header stays
+    // in the card's text.
+    case "Mission Response":
+      return { kind: "forced-response" };
     case "Forced Interrupt":
       return withForm("forced-interrupt");
     case "Special":
@@ -451,6 +462,14 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
  * time it should. `parseCardText` reports both sentences of a detected fallback pair explicitly (see below) so
  * this doesn't read as ordinary unclassified text.
  */
+/**
+ * A behavioral clause that follows an attach host on the same sentence ("Attach to Apocalypse and heal 5[per_hero]
+ * damage from him.", "Attach to Iron Man and give him a tough status card."): " and " plus a lowercase verb. A host
+ * name is capitalized ("Hammer and Anvil" has no lowercase verb after "and"), so only a clause matches.
+ */
+const ATTACH_CLAUSE_VERB =
+  /\band (?:heal|give|move|change|exhaust|stun|confuse|ready|deal|discard|place|remove|add|draw|flip|take|put|set)\b/;
+
 function parseAttach(
   sentence: string,
   villainNames: ReadonlySet<string>,
@@ -460,6 +479,9 @@ function parseAttach(
   const m = /^Attach to (.+)$/.exec(s);
   if (!m) return undefined;
   const target = m[1] as string;
+  // The host ends at the clause: leave the whole sentence unparsed here so the caller splits the clause off (below)
+  // and parses the host alone, rather than reading "Apocalypse and heal 5 damage from him" as a card name.
+  if (ATTACH_CLAUSE_VERB.test(target)) return undefined;
   const simple: Readonly<Record<string, AttachmentHost>> = {
     "a minion": { kind: "minion" },
     "an enemy": { kind: "enemy" },
@@ -501,6 +523,25 @@ function parseAttach(
   // "Attach to an ally you control." — allies are always player-controlled (no such thing as an enemy ally), so
   // "you control" is a redundant qualifier here, unlike on a minion/enemy/character where it would matter.
   if (/^an? ally you control$/i.test(target)) return { host: { kind: "ally" } };
+  // A classification word before the category: "an identity-specific ally you control" (Sidekick `aoa` 45015),
+  // "an aspect ally", "a basic ally" (`HostQualifiers.classification`; docs/phase7-wave8.md §1.32). "you control" is
+  // the `controlledBy` qualifier, and is optional.
+  const classified =
+    /^(?:an?|the) (identity-specific|aspect|basic) (ally|character|friendly character)( you control)?$/i.exec(target);
+  if (classified) {
+    const word = (classified[1] as string).toLowerCase();
+    const categoryWord = (classified[2] as string).toLowerCase();
+    return {
+      host: {
+        kind: "qualified",
+        category: (categoryWord === "friendly character"
+          ? "friendlyCharacter"
+          : categoryWord) as AttachmentHostCategory,
+        classification: word === "identity-specific" ? "identitySpecific" : (word as "aspect" | "basic"),
+        ...(classified[3] ? { controlledBy: "you" as const } : {}),
+      },
+    };
+  }
   // "Attach to the Avatar of Loki villain." — the villain's own printed name, with a redundant trailing "villain"
   // category word (unlike the bare "Attach to <Name>." form already handled by the `villainNames` check below).
   const namedVillainSuffix = /^the (.+) villain$/i.exec(target);
@@ -1001,11 +1042,17 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     let j = i;
     while (j > 0 && isListLine(lines[j - 1] as string)) j--;
     const owner = lines[j - 1] as string;
-    if (j === 0 || !owner.endsWith(":") || findHeaders(owner).length === 0) continue;
+    // A two-label action header ("Hero Action (attack/thwart):", Multitalented `jubilee` 47021) is not a header to
+    // `findHeaders` (one label only; such cards keep a `-constant` ref), but it owns its bullets all the same.
+    const twoLabelAction = /^(?:Hero |Alter-Ego )?Action \((?:attack|thwart|defense)\/(?:attack|thwart|defense)\)/.test(
+      owner,
+    );
+    if (j === 0 || !owner.endsWith(":") || (findHeaders(owner).length === 0 && !twoLabelAction)) continue;
     lines.splice(j - 1, i - j + 2, [owner, ...lines.slice(j, i + 1)].join(" "));
     i = j - 1;
   }
 
+  let preambleWhenRevealedFound = 0;
   for (const line of lines) {
     const headers = findHeaders(line);
     const preamble = line.slice(0, headers[0]?.index ?? line.length).trim();
@@ -1073,6 +1120,12 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         keywords.push(keyword);
         continue;
       }
+      if (options.preambleWhenRevealed !== undefined && sentence === options.preambleWhenRevealed) {
+        flushConstant();
+        abilities.push({ kind: "when-revealed", text: sentence });
+        preambleWhenRevealedFound++;
+        continue;
+      }
       // docs/phase7-wave4.md §1.8: "Standard Mode Only." / "Expert Mode Only." (Formidable Foe, `hood` 24049a/b) —
       // which face a double-sided card is put into play with (RRG 1.8 "Double-Sided Card", p. 17). The sentence
       // needs no ability ref, the same as `nemesisMinion` below.
@@ -1124,7 +1177,10 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // — which flows into the constant buffer below like any other printed sentence, so
       // `ability-scripting-engineer` still sees it verbatim; only the host itself is pulled out of the sentence.
       if (sentence.startsWith("Attach to ")) {
-        const clauseSplit = /^(Attach to .+?) and (exhaust it|give it a tough status card)\.?$/i.exec(sentence);
+        const clauseSplit =
+          /^(Attach to .+?) and ((?:exhaust it|give it a tough status card)|(?:heal|give|move|change|exhaust|stun|confuse|ready|deal|discard|place|remove|add|draw|flip|take|put|set) .+?)\.?$/i.exec(
+            sentence,
+          );
         if (clauseSplit) {
           const hostOnly = parseAttach(
             `${clauseSplit[1] as string}.`,
@@ -1136,9 +1192,13 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
             attachesTo = hostOnly.host;
             if (hostOnly.villainName) attachesToVillainNamed = hostOnly.villainName;
-            constantBuffer.push(
-              `${(clauseSplit[2] as string)[0]?.toUpperCase()}${(clauseSplit[2] as string).slice(1)}.`,
-            );
+            const clause = `${(clauseSplit[2] as string)[0]?.toUpperCase()}${(clauseSplit[2] as string).slice(1)}.`;
+            if (options.preambleWhenRevealed !== undefined && clause === options.preambleWhenRevealed) {
+              abilities.push({ kind: "when-revealed", text: clause });
+              preambleWhenRevealedFound++;
+            } else {
+              constantBuffer.push(clause);
+            }
             continue;
           }
         }
@@ -1269,6 +1329,11 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         }
       }
     });
+  }
+  if (options.preambleWhenRevealed !== undefined && preambleWhenRevealedFound !== 1) {
+    unclassified.push(
+      `preamble When Revealed sentence "${options.preambleWhenRevealed}" found ${preambleWhenRevealedFound} times (expected 1)`,
+    );
   }
   if (options.extraConstantFrom !== undefined && extraConstantFound !== 1) {
     unclassified.push(

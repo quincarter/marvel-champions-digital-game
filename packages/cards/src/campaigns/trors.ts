@@ -233,7 +233,9 @@ function repeatedSetup(prefix: string, citation: string): readonly CampaignInstr
       whenModes: { expertCampaign: true },
       step: {
         kind: "inGame",
-        window: DEFAULT_CAMPAIGN_WINDOW,
+        // Ruling June 2, 2026 (3) #2 (gmw.ts `hpSetSetup`): a hard set must run before the scenario's own setup
+        // damage or it erases it. Identities exist by `beforeScenarioSetup`.
+        window: "beforeScenarioSetup",
         effects: [
           forEachPlayer(
             eachPlayer,
@@ -747,7 +749,9 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
             whenModes: { expertCampaign: true },
             step: {
               kind: "inGame",
-              window: DEFAULT_CAMPAIGN_WINDOW,
+              // Ruling June 2, 2026 (3) #2 (gmw.ts `hpSetSetup`): a hard set must run before the scenario's own setup
+              // damage or it erases it. Identities exist by `beforeScenarioSetup`.
+              window: "beforeScenarioSetup",
               effects: [
                 forEachPlayer(
                   eachPlayer,

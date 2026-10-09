@@ -40,7 +40,7 @@ import {
   remainingHitPoints,
   mainSchemeStateOf,
 } from "./query.js";
-import { cardsInPlay, categoriesOf } from "./select.js";
+import { cardsInPlay, categoriesOf, hitPointFloor } from "./select.js";
 import type { GameOutcome, GameState, StatusCounts } from "./state.js";
 import { faceHidden, zoneHidden } from "./visibility.js";
 
@@ -71,6 +71,11 @@ export interface CounterSnapshot {
   /** Null for anything without hit points (a scheme, an upgrade, an event being played). */
   readonly remainingHitPoints: number | null;
   readonly maxHitPoints: number | null;
+  /**
+   * Present only while a `consideredRemainingHp` rule covers the character (docs/phase7-wave8.md §3.10): the hit points
+   * it is considered to have at least, whatever the dial (`remainingHitPoints`) reads. Why nobody fell at zero.
+   */
+  readonly consideredHp?: number;
   /**
    * Null for a card that is not a scheme and holds no threat on either side of the command. A character or obligation
    * can hold threat (Hinder X, card text; docs/phase7-wave6.md §3.59), and then shows it like a scheme.
@@ -117,11 +122,13 @@ function snapshot(state: GameState, id: InstanceId, deps: EngineDeps, showThreat
   const mainScheme = mainSchemeStateOf(state, id);
   // A character's hit points only: `characterProfile` is what decides whether this card has any at all.
   const hasHitPoints = characterProfile(state, id, deps) !== undefined;
+  const floor = hasHitPoints ? hitPointFloor(state, id, deps) : undefined;
   return {
     inPlay: cardsInPlay(state).includes(id),
     damage: instance.damage,
     remainingHitPoints: hasHitPoints ? (remainingHitPoints(state, id, deps) ?? null) : null,
     maxHitPoints: hasHitPoints ? (maxHitPoints(state, id, deps) ?? null) : null,
+    ...(floor !== undefined ? { consideredHp: floor } : {}),
     threat: showThreat ? instance.threat : null,
     threatLimit: mainScheme ? mainSchemeValue(state, "targetThreat", deps, mainScheme) : null,
     exhausted: instance.exhausted,
@@ -166,12 +173,14 @@ function namedInstances(event: GameEvent, state: GameState, into: Set<string>): 
  * facedown afterwards. That distinction is why (b) asks about the post-state's `faceup` rather than treating every
  * mention of a facedown card as a reveal.
  */
-function certainPrefix(before: GameState, after: GameState, events: readonly GameEvent[]): number {
+function certainPrefix(before: GameState, after: GameState, events: readonly GameEvent[], deps: EngineDeps): number {
   const hidden = new Set<string>();
   const revealable = new Set<string>();
   for (const id of Object.keys(before.instances)) {
     const instanceId = id as InstanceId;
-    if (zoneHidden(before, instanceId)) hidden.add(id);
+    // The top card of a deck kept faceup is one every player can read (docs/phase7-wave8.md §3.48), so the table's
+    // context is passed; the card under it is as closed as ever.
+    if (zoneHidden(before, instanceId, { deps })) hidden.add(id);
     else if (faceHidden(before, instanceId)) revealable.add(id);
   }
   if (hidden.size === 0 && revealable.size === 0) return events.length;
@@ -235,7 +244,10 @@ export function preview(state: GameState, command: Command, deps: EngineDeps = D
   }
 
   const all = result.events;
-  const cut = Math.min(certainPrefix(state, result.state, all), randomPrefix(state, result.state, all, command, deps));
+  const cut = Math.min(
+    certainPrefix(state, result.state, all, deps),
+    randomPrefix(state, result.state, all, command, deps),
+  );
   const events = cut < all.length ? all.slice(0, cut) : all;
   const truncated = cut < all.length;
 

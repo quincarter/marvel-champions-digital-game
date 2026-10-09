@@ -1025,8 +1025,8 @@ describe("expert campaign: a seat eliminated in a won scenario rejoins by paying
       log = won.log;
       previous = { composed: game.setup.composed, result: won.result };
       if (n < 5) {
-        // The eliminated seat recorded nothing; seat 1 recorded its remaining hit points, capped at base.
-        expect(log.seats[1]!.fields.remainingHp, `scenario ${n}`).toBeUndefined();
+        // The eliminated seat recorded 0 (defeatedSeatRecordsZero); seat 1 recorded its remaining hit points, capped at base.
+        expect(log.seats[1]!.fields.remainingHp, `scenario ${n}`).toEqual({ kind: "number", value: 0 });
         expect(log.seats[0]!.fields.remainingHp).toMatchObject({ kind: "number" });
       }
     }

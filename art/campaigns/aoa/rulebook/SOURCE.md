@@ -5,5 +5,7 @@ Rendered from `docs/campaign-modes/mc45_age_of_apocalypse_rulebook.pdf` by the `
 `page_NNN.jpg` is the rulebook's own page number, so file order is story order.
 
 These are the box's official comic pages, lettered (captions and speech balloons are part of the art).
-Fantasy Flight Games / Marvel artwork. The client does not load this folder yet; unlettered pages the comic
-reader uses live in `../pages/`, single pictures in `../artboards/`.
+Fantasy Flight Games / Marvel artwork. The client reads these pages for the five scenarios' one-off intros
+(`scenario-intros.ts`); the same eight pages are copied into `../pages/` as the campaign's lettered comic pages
+(`campaign/stories/aoa.ts`). `../artboards/` stays empty: this box is told through its lettered pages, as Mutant
+Genesis is.

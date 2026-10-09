@@ -25,6 +25,7 @@ import {
   WAVE5_SCENARIOS,
   WAVE6_SCENARIOS,
   WAVE7_SCENARIOS,
+  WAVE8_SCENARIOS,
   setAsideModularSetCountFor,
   type AnyCard,
   type EncounterSet,
@@ -59,6 +60,7 @@ export const PLAYABLE_SCENARIOS: readonly Scenario[] = [
       ...WAVE5_SCENARIOS,
       ...WAVE6_SCENARIOS,
       ...WAVE7_SCENARIOS,
+      ...WAVE8_SCENARIOS,
     ].map((scenario) => [scenario.id as string, scenario] as const),
   ).values(),
 ];

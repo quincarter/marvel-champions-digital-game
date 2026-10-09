@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Engine pieces for five held cards: a target chosen by the ability label it prints (printsAbility), attach hosts by classification, a cost that readies a card, upgrades that can attach to an ally, and a deck-discard cost of a chosen size'
+time: 2026-10-08T01:46:41.601522-04:00

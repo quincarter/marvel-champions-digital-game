@@ -130,7 +130,7 @@ export function campaignRulebookPageFor(catalog: CampaignArtCatalog, campaignId:
  * change here needs updating there too; `campaign-art.test.ts` checks every id on this list actually got at least
  * one rulebook page.
  */
-export const RULEBOOK_CAMPAIGN_IDS = ["trors", "gmw", "mts", "sm", "mut_gen", "next_evol"] as const;
+export const RULEBOOK_CAMPAIGN_IDS = ["trors", "gmw", "mts", "sm", "mut_gen", "next_evol", "aoa"] as const;
 
 // Only the folders a screen reads, and only `rulebook/` for the boxes actually wired to it: globbing every box's
 // `rulebook/` would ship ~43 MB of pages no screen shows yet in every build (`RULEBOOK_CAMPAIGN_IDS` above).
@@ -139,7 +139,7 @@ const files = import.meta.glob(
     "../../../../art/campaigns/*/cover.{png,jpg,jpeg,webp,avif}",
     "../../../../art/campaigns/*/artboards/*.{png,jpg,jpeg,webp,avif}",
     "../../../../art/campaigns/*/pages/*.{png,jpg,jpeg,webp,avif}",
-    "../../../../art/campaigns/{trors,gmw,mts,sm,mut_gen,next_evol}/rulebook/*.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/campaigns/{trors,gmw,mts,sm,mut_gen,next_evol,aoa}/rulebook/*.{png,jpg,jpeg,webp,avif}",
   ],
   {
     eager: true,

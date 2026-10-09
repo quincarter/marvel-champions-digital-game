@@ -82,6 +82,15 @@ describe("compositionTilesOf", () => {
     // No zero-count tiles, and no tile for a type this deck has none of.
     expect(tiles.every((tile) => tile.count > 0)).toBe(true);
   });
+
+  test("every tile label fits a three-across tile in the stats pane (the player side scheme tile is 'Schemes')", () => {
+    const stats = { countsByType: { player_side_scheme: 1, resource: 1 } } as unknown as Parameters<
+      typeof compositionTilesOf
+    >[0];
+    const tiles = compositionTilesOf(stats);
+    expect(tiles.find((t) => t.id === "player_side_scheme")!.label).toBe("Schemes");
+    for (const tile of tiles) expect(tile.label.length).toBeLessThanOrEqual(9);
+  });
 });
 
 describe("deckStatsOf: cards with no cost and cards not in the pool", () => {

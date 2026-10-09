@@ -17,6 +17,7 @@ import type { BasicAction } from "../../view/highlights.js";
 import type { EventAbilityOption } from "../../view/event-ability-choice.js";
 import type { PaymentState } from "../../view/payment-model.js";
 import { aimedAt } from "../../view/play-aim.js";
+import type { PlayDestinationChoice } from "../../view/play-destination.js";
 
 /** What the player has picked so far, when an action needs a target or a payment. */
 export type Selection =
@@ -85,6 +86,19 @@ export type Selection =
    */
   | { readonly kind: "choosingAbility"; readonly entry: LegalAction; readonly options: readonly EventAbilityOption[] }
   /**
+   * An ally that may go to the player's own area or to a scenario area (the mission area, MC45 p. 5) was chosen: where
+   * it goes is the player's call, asked before its cost is priced since a reduction can read the destination
+   * (`view/play-destination.ts`). The play carries on with the pick already made (host, seat), as `#playAs` left it.
+   */
+  | {
+      readonly kind: "choosingDestination";
+      readonly entry: LegalAction;
+      readonly choice: PlayDestinationChoice;
+      readonly target: InstanceId | null;
+      readonly controllerId: PlayerId | null;
+      readonly confirmFree: boolean;
+    }
+  /**
    * An either/or cost branch, or how many counters an "up to N" cost removes, needs choosing before payment can
    * even be priced — a branch changes what the cost *is* (docs/phase7-wave3.md §3.32, §3.36), so this happens
    * before, not during, the payment mode (`view/cost-choice-model.ts`).
@@ -139,6 +153,10 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
     return "rest";
   }
   if (selection.kind === "choosingAbility") {
+    const { action } = selection.entry;
+    return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
+  }
+  if (selection.kind === "choosingDestination") {
     const { action } = selection.entry;
     return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
   }

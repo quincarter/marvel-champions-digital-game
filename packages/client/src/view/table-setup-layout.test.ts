@@ -1,9 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { rectsOverlap } from "./layout.js";
+import { rectsOverlap, type Rect } from "./layout.js";
+import { hit } from "../tokens.js";
 import {
+  COMPACT_MAX_COLUMN,
+  COMPACT_PAD,
+  COMPACT_SET_CHOICE_HEIGHT,
+  OPTION_CARD_HEIGHT,
+  OPTION_GROUPS_STACKED_HEIGHT,
+  compactOptionHeight,
   compactRowIndex,
   compactRowRects,
+  difficultySlotRect,
+  optionGroupsStacked,
   sectionHeaderInlineFits,
+  setChoiceRowRects,
+  setsCardHeight,
+  setsCardInline,
   stackedHeaderLabelLines,
   tableSetupCompactLayout,
   tableSetupLayout,
@@ -97,13 +109,13 @@ describe("tableSetupLayout: no overlap", () => {
     });
   });
 
-  test("wide: Standard II/Expert II and The Hood's own modular sets still don't overlap anything", () => {
+  test("wide: the option cards and The Hood's own modular sets still don't overlap anything", () => {
     for (const size of [
       { width: 1440, height: 900 },
       { width: 1024, height: 768 },
       { width: 1870, height: 1050 },
     ]) {
-      noOverlap({ ...REALISTIC, ...size, hasAlternateDifficultySets: true, hoodSetCount: 9 });
+      noOverlap({ ...REALISTIC, ...size, optionSpans: [1, 1, 2, 2], hoodSetCount: 9 });
     }
   });
 
@@ -189,52 +201,60 @@ describe("tableSetupLayout: composition", () => {
     expect(narrow.randomControl.width).toBe(0);
   });
 
-  test("wide: Standard II/Expert II and The Hood's own modular sets are zero-area unless offered", () => {
+  test("wide: the option cards and The Hood's own modular sets are absent unless offered", () => {
     const plain = tableSetupLayout({ ...REALISTIC, width: 1440, height: 900 });
-    expect(plain.difficultyAltRow.height).toBe(0);
+    expect(plain.optionCards).toEqual([]);
     expect(plain.hoodHeader.height).toBe(0);
     expect(plain.hoodGrid.height).toBe(0);
 
-    // REALISTIC's own two difficulty cards leave the difficulty row's own third slot spare, so Standard
-    // II/Expert II fits inline there (`altFitsInDifficultyRow`) rather than spending a whole extra row — the
-    // scene draws it inside `difficultyRow` itself, so `difficultyAltRow` stays zero-area even though the toggle
-    // is offered (see the dedicated fallback test below for the one case that *does* need the extra row).
     const withBoth = tableSetupLayout({
       ...REALISTIC,
       width: 1440,
       height: 900,
-      hasAlternateDifficultySets: true,
+      optionSpans: [1, 1],
       hoodSetCount: 9,
     });
-    expect(withBoth.difficultyAltRow.height).toBe(0);
+    expect(withBoth.optionCards).toHaveLength(2);
     expect(withBoth.hoodHeader.height).toBeGreaterThan(0);
     expect(withBoth.hoodGrid.height).toBeGreaterThan(0);
     expect(withBoth.hoodHeader.y).toBeGreaterThan(withBoth.modularGrid.y);
     expect(withBoth.hoodColumns).toBeLessThanOrEqual(4);
     expect(withBoth.hoodColumns * withBoth.hoodRows).toBeGreaterThanOrEqual(9);
-    // Narrow (tablet portrait) doesn't offer either yet — always zero-area regardless of the input.
+    // Narrow (tablet portrait) draws the option cards too, but not The Hood's own set picker.
     const narrowWithBoth = tableSetupLayout({
       ...REALISTIC,
       width: 768,
       height: 1024,
-      hasAlternateDifficultySets: true,
+      optionSpans: [1, 1],
       hoodSetCount: 9,
     });
-    expect(narrowWithBoth.difficultyAltRow.height).toBe(0);
+    expect(narrowWithBoth.optionCards).toHaveLength(2);
     expect(narrowWithBoth.hoodHeader.height).toBe(0);
   });
 
-  test("wide: a scenario with all three difficulty cards and an alternate (none exists yet) falls back to its own full-width row, since there's no spare slot to fill inline", () => {
-    const layout = tableSetupLayout({
-      ...REALISTIC,
-      width: 1440,
-      height: 900,
-      difficultyCount: 3,
-      hasAlternateDifficultySets: true,
-    });
-    expect(layout.difficultyAltRow.height).toBeGreaterThan(0);
-    expect(layout.difficultyAltRow.y).toBeGreaterThan(layout.difficultyRow.y);
-    expect(layout.difficultyAltRow.width).toBe(layout.difficultyRow.width);
+  test("option cards: two one-column cards share a row, a two-column card takes a row of its own, all under the difficulty row", () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 768, height: 1024 },
+    ]) {
+      const layout = tableSetupLayout({ ...REALISTIC, ...size, optionSpans: [1, 1, 1, 2] });
+      const [a, b, c, d] = layout.optionCards as [Rect, Rect, Rect, Rect];
+      expect(a.y).toBe(b.y);
+      expect(a.x + a.width).toBeLessThan(b.x);
+      expect(c.y).toBeGreaterThan(a.y);
+      expect(c.width).toBe(a.width);
+      expect(d.y).toBeGreaterThan(c.y);
+      expect(d.width).toBe(layout.difficultyRow.width);
+      expect(a.y).toBeGreaterThanOrEqual(layout.difficultyRow.y + layout.difficultyRow.height);
+      noOverlap({ ...REALISTIC, ...size, optionSpans: [1, 1, 1, 2] });
+    }
+  });
+
+  test("option cards: a lone one-column card is half-width and a two-column card right after it starts a new row", () => {
+    const layout = tableSetupLayout({ ...REALISTIC, width: 1440, height: 900, optionSpans: [1, 2] });
+    const [a, b] = layout.optionCards as [Rect, Rect];
+    expect(a.width).toBeLessThan(b.width);
+    expect(b.y).toBeGreaterThan(a.y);
   });
 
   test("panel row budgets never exceed what was asked for, and are never negative", () => {
@@ -267,7 +287,7 @@ function compactInputFor(width: number, height: number, seatCount: 1 | 4): Table
     requiredModularIds: ["rhino"],
     candidateModularIds: ["bomb_scare", "masters_of_evil", "under_attack", "legions_of_hydra", "the_doomsday_chair"],
     modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN",
-    hasStandardII: false,
+    optionRows: [],
     hasTowerDefenseSetupDamage: false,
     hoodSetIds: [],
     seatCount,
@@ -443,5 +463,202 @@ describe("tableSetupCompactLayout: folded modular groups", () => {
     expect(ids).toEqual(expect.arrayContaining(["modulargroup:recommended", "modular:a", "modulargroup:wave1"]));
     expect(ids).not.toContain("modular:b");
     expect(compactRowIndex(layout, "modulargroup:recommended")).toBeLessThan(compactRowIndex(layout, "modular:a"));
+  });
+});
+
+/**
+ * The Standard / Expert set chips folded into the difficulty row (owner decision 2026-10-08): the page the set row cost
+ * a 56px row on, at the sizes the owner named. The Four Horsemen page is the worst case: a Horsemen's-sides card under
+ * the difficulty row, and a modular grid of a required set, two recommended and Longshot.
+ */
+describe("tableSetupLayout: the set choices live in the difficulty row", () => {
+  const HORSEMEN: Omit<TableSetupLayoutInput, "width" | "height"> = {
+    difficultyCount: 2,
+    modularCardCount: 4,
+    seatCount: 1,
+    compositionRows: 6,
+    whatsInThereRows: 5,
+    nemesisLines: 3,
+    modularSections: [
+      { id: "required", label: null, itemCount: 1 },
+      { id: "recommended", label: "Recommended · 2", itemCount: 2 },
+      { id: "extras", label: "Extras · 1", itemCount: 1 },
+    ],
+    optionSpans: [2],
+    optionGroupCounts: [4],
+    setChoiceRows: 1,
+  };
+  /** The same page with the set row as an option card of its own, which is what the page used to cost. */
+  const SEPARATE: Omit<TableSetupLayoutInput, "width" | "height"> = {
+    ...HORSEMEN,
+    optionSpans: [1, 2],
+    optionGroupCounts: [0, 4],
+    setChoiceRows: 0,
+  };
+  const bottomOf = (r: Rect): number => r.y + r.height;
+  const WIDE_AND_NARROW = [
+    { width: 1440, height: 900 },
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+    { width: 768, height: 1024 },
+  ];
+
+  for (const size of WIDE_AND_NARROW) {
+    test(`${size.width}x${size.height}: the set card sits inside the difficulty row beside the cards, and nothing overlaps`, () => {
+      noOverlap({ ...HORSEMEN, ...size });
+      const layout = tableSetupLayout({ ...HORSEMEN, ...size });
+      expect(layout.difficultySlots).toBe(3);
+      expect(layout.setsCard.y).toBe(layout.difficultyRow.y);
+      expect(bottomOf(layout.setsCard)).toBeLessThanOrEqual(bottomOf(layout.difficultyRow));
+      expect(layout.setsCard).toEqual(difficultySlotRect(layout.difficultyRow, 3, 2));
+      // The option cards start right under the difficulty row: no row of its own for the set choice.
+      expect(layout.optionCards[0]!.y).toBeLessThanOrEqual(bottomOf(layout.difficultyRow) + 12);
+      expect(layout.optionCards).toHaveLength(1);
+    });
+  }
+
+  // Piece 14, D1 (2026-10-08): a page that cannot give the grid two full tile rows (group labels included) and the
+  // panels two body rows no longer squeezes them below that; it scrolls (`scrollsPage`) as the phone does.
+  test("1440x900, the Four Horsemen page: two full tile rows and two panel body rows, so the page does not scroll", () => {
+    const layout = tableSetupLayout({ ...HORSEMEN, width: 1440, height: 900 });
+    expect(layout.scrollsPage).toBe(false);
+    expect(bottomOf(layout.encounterPanels.composition)).toBeLessThanOrEqual(900 - 24);
+    // The second tile row, below its group label, ends inside the panel.
+    const rowTops = [...new Set(layout.modularPlan.cells.map((c) => c.y))].sort((a, b) => a - b);
+    expect(rowTops.length).toBeGreaterThanOrEqual(2);
+    expect(layout.modularGrid.height).toBeGreaterThanOrEqual(rowTops[1]! + 58);
+    expect(Math.min(...layout.encounterPanels.rowBudgets)).toBeGreaterThanOrEqual(2);
+    // The same page with a row of its own for the set choice is no taller on panels.
+    const separate = tableSetupLayout({ ...SEPARATE, width: 1440, height: 900 });
+    expect(layout.encounterPanels.composition.height).toBeGreaterThanOrEqual(
+      separate.encounterPanels.composition.height,
+    );
+  });
+
+  test("1280x720 and tablet portrait, the Four Horsemen page: too short for the fixed page, so it scrolls", () => {
+    expect(tableSetupLayout({ ...HORSEMEN, width: 1280, height: 720 }).scrollsPage).toBe(true);
+    expect(tableSetupLayout({ ...HORSEMEN, width: 768, height: 1024 }).scrollsPage).toBe(true);
+    expect(tableSetupLayout({ ...HORSEMEN, width: 390, height: 844 }).scrollsPage).toBe(true);
+  });
+
+  test("a roomy desktop keeps the fixed page; the grid is never squeezed under two tile rows", () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 1870, height: 1050 },
+    ]) {
+      const layout = tableSetupLayout({ ...HORSEMEN, ...size });
+      expect(layout.scrollsPage).toBe(false);
+      expect(layout.modularGrid.height).toBeGreaterThanOrEqual(2 * 58);
+    }
+  });
+
+  test("the scrolling page's column is capped and centered on a wide window, and its back button is a touch target", () => {
+    const base = {
+      difficultyIds: ["standard", "expert"],
+      requiredModularIds: ["req"],
+      candidateModularIds: ["a", "b"],
+      modularHeaderRightLabel: "1 REQUIRED · 0 CHOSEN",
+      optionRows: [],
+      hasTowerDefenseSetupDamage: false,
+      hoodSetIds: [],
+      seatCount: 1,
+      compositionRows: 3,
+      whatsInThereRows: 3,
+      hasNemesisStandby: false,
+    };
+    const wide = tableSetupCompactLayout({ ...base, width: 1280, height: 720 });
+    expect(wide.column).toBe(COMPACT_MAX_COLUMN);
+    expect(wide.pad * 2 + wide.column).toBe(1280);
+    const phone = tableSetupCompactLayout({ ...base, width: 390, height: 844 });
+    expect(phone.column).toBe(390 - 2 * COMPACT_PAD);
+    expect(phone.back.height).toBeGreaterThanOrEqual(hit.target);
+    expect(phone.back.width).toBeGreaterThanOrEqual(hit.target);
+  });
+
+  test("a set card is a full touch target: every chip row is hit.target tall, wide (beside) and narrow (over)", () => {
+    for (const rows of [1, 2]) {
+      for (const inline of [true, false]) {
+        const card = { x: 0, y: 0, width: inline ? 294 : 215, height: setsCardHeight(rows, inline) };
+        const rects = setChoiceRowRects(card, rows, inline);
+        expect(rects).toHaveLength(rows);
+        for (const row of rects) {
+          expect(row.chips.height).toBe(hit.target);
+          expect(row.chips.y).toBeGreaterThanOrEqual(card.y);
+          expect(bottomOf(row.chips)).toBeLessThanOrEqual(bottomOf(card));
+        }
+        if (rows === 2) expect(rects[1]!.chips.y).toBeGreaterThanOrEqual(bottomOf(rects[0]!.chips));
+      }
+    }
+    expect(setsCardHeight(0, true)).toBe(0);
+  });
+
+  test("a one-row set card fits the difficulty card height on every width; two rows grow the row to fit", () => {
+    expect(setsCardHeight(1, true)).toBeLessThanOrEqual(76);
+    expect(setsCardHeight(1, false)).toBeLessThanOrEqual(76);
+    const two = tableSetupLayout({ ...HORSEMEN, width: 1440, height: 900, setChoiceRows: 2 });
+    expect(two.setsInline).toBe(true);
+    expect(two.difficultyRow.height).toBe(setsCardHeight(2, true));
+    expect(two.setsCard.height).toBe(two.difficultyRow.height);
+    expect(setsCardInline(294)).toBe(true);
+    expect(setsCardInline(209)).toBe(false);
+  });
+
+  test("three difficulties have no spare slot: the set choices get a strip under the cards", () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 768, height: 1024 },
+    ]) {
+      const input = { ...HORSEMEN, ...size, difficultyCount: 3, optionSpans: [] as (1 | 2)[], optionGroupCounts: [] };
+      const layout = tableSetupLayout(input);
+      expect(layout.difficultySlots).toBe(3);
+      expect(layout.setsCard.y).toBeGreaterThanOrEqual(bottomOf(layout.difficultyRow));
+      expect(layout.setsCard.width).toBe(layout.difficultyRow.width);
+      noOverlap(input);
+    }
+  });
+
+  test("no set choices: the layout is the difficulty row alone, as before", () => {
+    const layout = tableSetupLayout({ ...REALISTIC, width: 1440, height: 900 });
+    expect(layout.setsCard.height).toBe(0);
+    expect(layout.difficultyRow.height).toBe(76);
+  });
+
+  test("the Horsemen's A/B chips are 44px: the card holds a hit.target of chip inside its padding", () => {
+    // Beside the label (a wide card) or over it (a narrow one), the card is tall enough for a 44px chip row.
+    expect(OPTION_CARD_HEIGHT - 16).toBeGreaterThanOrEqual(hit.target);
+    expect(OPTION_GROUPS_STACKED_HEIGHT - 8 - 14 - 2 - 8).toBeGreaterThanOrEqual(hit.target);
+    expect(optionGroupsStacked(908, 4)).toBe(false);
+    expect(optionGroupsStacked(720, 4)).toBe(true);
+    const wide = tableSetupLayout({ ...HORSEMEN, width: 1440, height: 900 });
+    expect(wide.optionCards[0]!.height).toBe(OPTION_CARD_HEIGHT);
+    const narrow = tableSetupLayout({ ...HORSEMEN, width: 768, height: 1024 });
+    expect(narrow.optionCards[0]!.height).toBe(OPTION_GROUPS_STACKED_HEIGHT);
+  });
+
+  test("the option cards' own rows: a stepper and a toggle share a row at the card height", () => {
+    const layout = tableSetupLayout({
+      ...REALISTIC,
+      width: 1440,
+      height: 900,
+      optionSpans: [1, 1],
+      optionGroupCounts: [0, 0],
+    });
+    const [a, b] = layout.optionCards as [Rect, Rect];
+    expect(a.height).toBe(OPTION_CARD_HEIGHT);
+    expect(b.y).toBe(a.y);
+  });
+
+  test("phone: a set row is one 44px chip row (not the 76px name-over-chips row), and the Horsemen's chips are 44px", () => {
+    expect(COMPACT_SET_CHOICE_HEIGHT).toBeGreaterThanOrEqual(hit.target);
+    expect(COMPACT_SET_CHOICE_HEIGHT).toBeLessThan(compactOptionHeight("groups", 1));
+    const input = (optionRows: TableSetupCompactLayoutInput["optionRows"]) => ({
+      ...compactInputFor(390, 844, 1),
+      optionRows,
+    });
+    const without = tableSetupCompactLayout(input([]));
+    const withSet = tableSetupCompactLayout(input([{ id: "standardSet", height: COMPACT_SET_CHOICE_HEIGHT }]));
+    expect(withSet.contentHeight - without.contentHeight).toBe(COMPACT_SET_CHOICE_HEIGHT + 10);
+    // Two rows of two Horsemen, each cell a label and a full chip row.
+    expect(compactOptionHeight("groups", 4)).toBeGreaterThanOrEqual(28 + 2 * (14 + hit.target));
   });
 });

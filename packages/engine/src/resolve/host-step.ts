@@ -8,7 +8,8 @@
 
 import { type Ctx, pushFrames } from "../ctx.js";
 import { setForm } from "../effects.js";
-import type { HostStep } from "../trigger-events.js";
+import { cardFlippedEvent, type HostStep } from "../trigger-events.js";
+import { advanceMainScheme } from "./defeat.js";
 import { eventFrame } from "./frames.js";
 import {
   flipMainSchemeStage,
@@ -27,6 +28,8 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       return setVillainsAside(ctx, step.ids);
     case "removeMainSchemeStage":
       return removeMainSchemeStage(ctx, step.schemeId);
+    case "advanceMainScheme":
+      return advanceMainScheme(ctx, step.schemeId, step.nextIndex, step.advancedBy);
     case "setForm": {
       // The caller that waited would have pushed its announcement (`changeForm`, `executeChangeForm`).
       const changed = setForm(ctx, step.playerId, step.to, step.voluntary, step.heroFormIndex);
@@ -38,16 +41,19 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       pushFrames(ctx, joinGameArea(ctx, step.fromId, step.intoId));
       return;
     case "flipMainSchemeStage": {
-      const frames = flipMainSchemeStage(ctx, step.schemeId, step.reveal, step.playerId);
+      const frames = flipMainSchemeStage(ctx, step.schemeId, step.reveal, step.playerId, step.flippedBy);
       if (frames === false || frames === "waiting") return;
       // On completion its frames resolve (`completeMainScheme`); a "flip this card" announces the flip (`flipCard`).
-      pushFrames(ctx, step.reveal ? frames : [eventFrame(ctx, { kind: "cardFlipped", instanceId: step.schemeId })]);
+      pushFrames(ctx, step.reveal ? frames : [eventFrame(ctx, cardFlippedEvent(step.schemeId, step.flippedBy))]);
       return;
     }
     case "flipToOtherFace":
       // A revealing flip pushed its reveal and its `cardFlipped` itself.
-      if (flipToOtherFace(ctx, step.id, step.playerId, ctx.deps, step.reveal === true) === true && !step.reveal)
-        pushFrames(ctx, [eventFrame(ctx, { kind: "cardFlipped", instanceId: step.id })]);
+      if (
+        flipToOtherFace(ctx, step.id, step.playerId, ctx.deps, step.reveal === true, step.flippedBy) === true &&
+        !step.reveal
+      )
+        pushFrames(ctx, [eventFrame(ctx, cardFlippedEvent(step.id, step.flippedBy))]);
       return;
   }
 }

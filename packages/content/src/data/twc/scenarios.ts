@@ -47,6 +47,7 @@ export const TWC_SCENARIOS: readonly Scenario[] = [
       winCondition: "allVillainsDefeated",
     },
     usesIdentityEncounterSets: false,
+    nemesisSetsSetAside: true,
     modularSetCount: 0,
   },
 ];

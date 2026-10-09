@@ -14,6 +14,7 @@ import {
   matchesQuery,
   resolveValue,
   type EffectContext,
+  reachOf,
 } from "./select.js";
 import type { SchemeValueName, StatName } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -80,13 +81,20 @@ export function modifiersFor(
         event: null,
         bindings: {},
         deps,
+        ...reachOf(definition),
       };
       for (const modifier of definition.trigger.modifiers ?? []) {
         if (!wanted(modifier.stat)) continue;
-        if (modifier.while && !evaluate(state, modifier.while, context)) continue;
         if (!matchesQuery(state, targetId, modifier.target, context)) continue;
+        // The card being read is bound (`AFFECTED_SLOT`), as a lasting modifier binds it below: "each [X-Men]
+        // character gets +1 THW while making a basic thwart against this scheme" holds for the one making it.
+        const reading =
+          modifier.while || typeof modifier.amount !== "number"
+            ? { ...context, bindings: { ...context.bindings, [AFFECTED_SLOT]: [targetId] } }
+            : context;
+        if (modifier.while && !evaluate(state, modifier.while, reading)) continue;
         const amount =
-          typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
+          typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, reading, deps);
         found.push({
           sourceInstanceId: sourceId,
           stat: modifier.stat,
@@ -121,10 +129,11 @@ export function statBonus(state: GameState, deps: EngineDeps, targetId: Instance
  * constant modifiers on the card itself (read although it is not in play: it is resolving as a boost card), plus
  * `boostIcons` modifiers from cards in play (docs/phase7-wave1.md §3.9).
  *
- * `youId`: who "you" is in the card's own text, which no card state says for a card out of play: the player the
- * activation it was turned up in resolves against, the same player its "Boost" ability resolves as ("…if at least one
- * Goblin minion is engaged with you"). Null outside an activation (icons counted on a discarded card), where its own
- * "you" names no one.
+ * `youId`: who "you" is in the card's own text, which no card state says for a card out of play: the same player its
+ * "Boost" ability resolves as ("…if at least one Goblin minion is engaged with you"), the defending player of the
+ * attack it was turned up in (RRG 1.8 "Defend, Defense", p. 16), who is the attacked player when nobody else's
+ * character defends, or the player the scheme it was turned up in is against. Null outside an activation (icons
+ * counted on a discarded card), where its own "you" names no one.
  */
 export function boostIconsFor(
   state: GameState,
@@ -171,18 +180,31 @@ export function amplifyIconsInPlay(state: GameState, deps: EngineDeps): number {
 /**
  * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): the
  * bonus one resolving card carries, added to every instance that card's own effects produce (RRG 1.8 "Event", p. 19).
+ * A lasting bonus over every card of a kind ("each ATTACK event deals 1 additional damage", `cardEffectBonusFor`) is
+ * part of it while the resolving card matches.
+ *
+ * Per instance means per instance (owner ruling Q53, docs/phase7-wave8.md §4.1; RRG 1.8 "Attack (Player Ability
+ * Type)", p. 10; "For Each", p. 20): the caller adds this to each damage instruction of the card, and leaves it off
+ * an instruction that is itself additional damage of an earlier instance (`EffectSpec dealDamage.additional`; RRG 1.8
+ * "Alteration Effect", p. 7: "Additional").
  */
 export function cardEffectBonus(
   state: GameState,
+  deps: EngineDeps,
   sourceId: InstanceId | null,
   field: "damage" | "threatRemoved",
 ): number {
   if (!sourceId) return 0;
-  return state.lastingEffects.reduce(
-    (sum, effect) =>
-      effect.kind === "cardEffectBonus" && effect.sourceInstanceId === sourceId ? sum + effect[field] : sum,
-    0,
-  );
+  let total = 0;
+  for (const effect of state.lastingEffects) {
+    if (effect.kind === "cardEffectBonus") {
+      if (effect.sourceInstanceId === sourceId) total += effect[field];
+    } else if (effect.kind === "cardEffectBonusFor" && effect[field] !== 0) {
+      const context: EffectContext = { ...effect.scope, event: null, deps, reaches: "all" };
+      if (matchesQuery(state, sourceId, effect.cards, context)) total += effect[field];
+    }
+  }
+  return total;
 }
 
 /** The base value set by a "has a base X of N" ability, if any (the last one in play order wins). */

@@ -203,11 +203,14 @@ function boostCardFlippedTip({ lastEvents }: LessonObservation): Tip | null {
 }
 
 function villainStageAdvancedTip({ lastEvents }: LessonObservation): Tip | null {
-  if (!lastEvents.some((event) => event.type === "villainStageAdvanced")) return null;
+  const revealed = lastEvents.some((event) => event.type === "villainStageRevealed");
+  if (!revealed && !lastEvents.some((event) => event.type === "villainStageAdvanced")) return null;
   return {
     id: "situation:villainStageAdvanced",
     title: "The villain advanced a stage",
-    body: "Villains fight in stages. Defeating one flips the villain to its next stage — often stronger — instead of ending the game.",
+    body: revealed
+      ? "Villains fight in stages. A card effect, such as a scheme, can reveal the next stage with no defeat, at full hit points."
+      : "Villains fight in stages. Defeating one flips the villain to its next stage — often stronger — instead of ending the game.",
   };
 }
 
@@ -641,6 +644,270 @@ const setupAttachmentsTip = onTableTip(
   ["40151", "40155", "40159"],
 );
 
+// ---------------------------------------------------------------------------
+// Wave 8: Age of Apocalypse (guided mode section 3.14)
+// ---------------------------------------------------------------------------
+
+/** True when `id` is an instance whose printed card (face letter stripped) is `printedId`. */
+const isPrinted = (game: LessonObservation["game"], id: InstanceId | null | undefined, printedId: string): boolean =>
+  id !== null && id !== undefined && baseCardId(getInstance(game, id)?.cardId) === printedId;
+
+/** The perspective player's identity card is `printedId` (a hero's own mechanic only teaches its owner). */
+const identityIs = (game: LessonObservation["game"], perspectiveId: PlayerId | null | undefined, printedId: string) => {
+  const player = perspectiveId ? getPlayer(game, perspectiveId) : undefined;
+  return player !== undefined && isPrinted(game, player.identity.instanceId, printedId);
+};
+
+/** A card the perspective player's identity (`printedId`) discarded from their deck: Energy Absorption, Magnetic Pull. */
+function deckDiscardBy(printedId: string, tip: Tip): SituationTrigger {
+  return ({ game, lastEvents, perspectiveId }) => {
+    if (!perspectiveId) return null;
+    const discarded = lastEvents.some(
+      (event) =>
+        event.type === "cardDiscardedFromDeck" &&
+        event.playerId === perspectiveId &&
+        isPrinted(game, event.by, printedId),
+    );
+    return discarded ? tip : null;
+  };
+}
+
+const energyAbsorptionTip = deckDiscardBy("45001", {
+  id: "situation:energyAbsorption",
+  title: "Energy Absorption",
+  body:
+    "Bishop's [[energyAbsorption|Energy Absorption]] discarded cards from your deck for the damage he took. Any " +
+    "resource cards among them went to your hand.",
+});
+
+const magneticPullTip = deckDiscardBy("49001", {
+  id: "situation:magneticPull",
+  title: "Magnetic Pull",
+  body:
+    "[[magneticPull|Magnetic Pull]] discards until a MAGNETIC card turns up and adds it to your hand. Other cards " +
+    "then read the resource icons or the number of cards it discarded.",
+});
+
+/** Magik's top card showing: `deckTopShown` for her own deck. */
+function faceupTopCardTip({ game, lastEvents, perspectiveId }: LessonObservation): Tip | null {
+  if (!perspectiveId || !identityIs(game, perspectiveId, "45030")) return null;
+  const shown = lastEvents.some((event) => event.type === "deckTopShown" && event.playerId === perspectiveId);
+  if (!shown) return null;
+  return {
+    id: "situation:faceupTopCard",
+    title: "Your top card is faceup",
+    body:
+      "Magik plays with her [[faceupTopCard|top card faceup]]. Tap it on your deck to play it, once per phase, " +
+      "for 1 less. Her upgrades read its resource icon.",
+  };
+}
+
+/** The player declared what a wild counts as (owner Q33): the event is only logged when the question was asked. */
+function wildDeclaredTip({ lastEvents, perspectiveId }: LessonObservation): Tip | null {
+  const asked = lastEvents.some(
+    (event) => event.type === "wildTypesDeclared" && event.playerId === perspectiveId && !event.skipped,
+  );
+  if (!asked) return null;
+  return {
+    id: "situation:wildDeclared",
+    title: "Declare the wild",
+    body:
+      "This card [[paidWith|reads how you paid]], so you say what each wild resource counts as. The game asks " +
+      "only when your answer changes the result.",
+  };
+}
+
+/** An ability (Bamf!, Shieldmaiden) declared a defender for the perspective player: Q55, a basic defense. */
+function effectDefenderTip({ lastEvents, perspectiveId }: LessonObservation): Tip | null {
+  const declared = lastEvents.some(
+    (event) => event.type === "defenderDeclared" && event.byEffect === true && event.playerId === perspectiveId,
+  );
+  if (!declared) return null;
+  return {
+    id: "situation:effectDefender",
+    title: "A defender was declared for you",
+    body:
+      "A card declared your defender. That character makes a basic [[effectDefender|defense]], so responses to a " +
+      "basic defense can trigger.",
+  };
+}
+
+/** Cards in the mission area (MC45 p. 5), which `tableInstances` does not reach: it is not a player or villain zone. */
+function missionAreaCards(game: LessonObservation["game"]): readonly InstanceId[] {
+  return game.scenarioPlayAreas?.["mission"]?.cards ?? [];
+}
+
+/**
+ * `tableInstances` plus what wave 8 needs from it: the villains (they sit in `GameState.villains`, not the villain
+ * area, so Frostbite or Bamf! attached to one is only found through them) and the mission area, with their attachments.
+ */
+function tableInstancesWithVillains(game: LessonObservation["game"]): readonly CardInstance[] {
+  const extra: InstanceId[] = [...game.villains.map((villain) => villain.instanceId), ...missionAreaCards(game)];
+  const out = new Map<InstanceId, CardInstance>(
+    tableInstances(game).map((instance) => [instance.instanceId, instance]),
+  );
+  for (const id of extra) {
+    for (const reached of [id, ...(getInstance(game, id)?.attachments ?? [])]) {
+      const instance = getInstance(game, reached);
+      if (instance) out.set(reached, instance);
+    }
+  }
+  return [...out.values()];
+}
+
+/** `onTableTip` that also looks at the villains and the mission area. */
+function onTableWithVillainsTip(tip: Tip, printedIds: readonly string[]): SituationTrigger {
+  const ids = new Set(printedIds);
+  return ({ game }) => (tableInstancesWithVillains(game).some((i) => ids.has(baseCardId(i.cardId))) ? tip : null);
+}
+
+function missionAreaTip({ game }: LessonObservation): Tip | null {
+  if (missionAreaCards(game).length === 0) return null;
+  return {
+    id: "situation:missionArea",
+    title: "The mission area",
+    body:
+      "The [[missionArea|mission area]] is in play but nobody controls it. Allies you play can go there, with a " +
+      "blank text box. You can't thwart or attack it directly.",
+  };
+}
+
+function missionAttemptTip({ lastEvents }: LessonObservation): Tip | null {
+  if (!lastEvents.some((event) => event.type === "damagePoolResolved" || event.type === "cardsPaired")) return null;
+  return {
+    id: "situation:missionAttempt",
+    title: "A mission attempt",
+    body:
+      "A [[missionAttempt|mission attempt]] discards cards and pairs them with allies by resource icon. Matched " +
+      "allies add their ATK to a damage pool and their THW to the mission.",
+  };
+}
+
+/** Two or more villains in a row (`GameState.villainRow`): the Four Horsemen. */
+function fourHorsemenTip({ game }: LessonObservation): Tip | null {
+  if ((game.villainRow?.length ?? 0) < 2) return null;
+  return {
+    id: "situation:fourHorsemen",
+    title: "Four villains in a row",
+    body:
+      "The active counter marks the [[fourHorsemen|Horseman]] who acts, and moves right after each activation. " +
+      "None can be defeated while another has hit points.",
+  };
+}
+
+const WAVE_8_ON_TABLE_TIPS: readonly SituationTrigger[] = [
+  onTableWithVillainsTip(
+    {
+      id: "situation:frostbite",
+      title: "Frostbite",
+      body:
+        "[[frostbite|Frostbite]] weakens its host and returns to Iceman's set-aside pile when the host activates or " +
+        'leaves play. "Freeze!" attaches it on a basic attack or defense.',
+    },
+    ["46002"],
+  ),
+  onTableTip(
+    {
+      id: "situation:grounded",
+      title: "Grounded",
+      body:
+        "[[grounded|Grounded]] makes changing to hero form during your turn cost 2 resources of the same type. " +
+        "Playing a Jubilee event removes it.",
+    },
+    ["47023"],
+  ),
+  onTableWithVillainsTip(
+    {
+      id: "situation:bamf",
+      title: "Bamf! on an enemy",
+      body:
+        "[[bamf|Bamf!]] is attached to an enemy. When that enemy attacks, Nightcrawler can discard it to teleport in " +
+        "as the defender without exhausting.",
+    },
+    ["48006"],
+  ),
+  onTableTip(
+    {
+      id: "situation:wrappedInMetal",
+      title: "Wrapped in Metal",
+      body:
+        "A minion [[wrappedInMetal|wrapped in metal]] cannot activate and its text box is blank. Magnetic Missile " +
+        "can discard it for 5 damage and a stun.",
+    },
+    ["49007"],
+  ),
+  onTableTip(
+    {
+      id: "situation:genePool",
+      title: "Gene Pool",
+      body:
+        "Threat on [[genePool|Gene Pool]] makes Unus stronger at 3, 6 and 9. Watch it grow each villain phase and " +
+        "when allies fall.",
+    },
+    ["45071"],
+  ),
+  onTableTip(
+    {
+      id: "situation:prelates",
+      title: "A Prelate guards the scheme",
+      body:
+        "Threat can't be removed from this scheme while a [[prelates|Prelate]] is in play. Defeat the Prelate first, " +
+        "then the scheme.",
+    },
+    ["45104", "45105"],
+  ),
+  onTableTip(
+    {
+      id: "situation:apocalypseDefeat",
+      title: "Apocalypse comes back",
+      body:
+        "Apocalypse isn't defeated the usual way: he [[apocalypseDefeat|heals and the scheme loses threat]]. " +
+        "No Longer Worthy ends that.",
+    },
+    ["45103"],
+  ),
+  onTableTip(
+    {
+      id: "situation:settingEnvironment",
+      title: "A Setting environment",
+      body:
+        "A [[settingEnvironments|Setting]] changes the villain or minions and has a Special. More than one can be " +
+        "in play at once.",
+    },
+    ["45127", "45133", "45139"],
+  ),
+  onTableTip(
+    {
+      id: "situation:enSabahNur",
+      title: "Apocalypse's pyramid",
+      body:
+        "Power counters collect on the pyramid. At 4, a Superpower card is revealed. See " +
+        "[[enSabahNur|En Sabah Nur's forms]].",
+    },
+    ["45147"],
+  ),
+  onTableTip(
+    {
+      id: "situation:pursuedByThePast",
+      title: "Pursued by the Past",
+      body:
+        "Pursuit counters build on [[pursuedByThePast|this environment]]. At three more than the players, your " +
+        "nemesis activates or arrives.",
+    },
+    ["45075"],
+  ),
+  onTableTip(
+    {
+      id: "situation:crazyGang",
+      title: "The Crazy Gang",
+      body:
+        "A minion that schemes becomes a facedown card dealt to you, then [[crazyGang|passed on]] if there is " +
+        "another player.",
+    },
+    ["48033"],
+  ),
+];
+
 /** Every situation trigger takes `deps` even when it doesn't read one, so `tipsFor` can map over them uniformly. */
 type SituationTrigger = (observation: LessonObservation, deps: EngineDeps) => Tip | null;
 
@@ -675,6 +942,15 @@ const SITUATION_TIPS: readonly SituationTrigger[] = [
   hopeSummersTip,
   routedTip,
   setupAttachmentsTip,
+  energyAbsorptionTip,
+  faceupTopCardTip,
+  wildDeclaredTip,
+  effectDefenderTip,
+  magneticPullTip,
+  ...WAVE_8_ON_TABLE_TIPS,
+  missionAreaTip,
+  missionAttemptTip,
+  fourHorsemenTip,
 ];
 
 // ---------------------------------------------------------------------------

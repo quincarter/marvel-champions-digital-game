@@ -382,7 +382,7 @@ export function gameOverModel(
 }
 
 /**
- * What ended a lost game, as the first line under "Where it went wrong": the card's own cause for a card-caused loss,
+ * What ended a lost game, as the last line under "Where it went wrong": the card's own cause for a card-caused loss,
  * the last hero to fall, the empty encounter deck. Null for a win, a concession and a scheme loss (the final blow and
  * the heaviest round already say it) and for a game saved before the engine recorded a cause.
  */
@@ -432,6 +432,9 @@ export function turningPoints(
     }
     if (tone === "win" && entry.villainStageAdvanced) {
       beats.push({ round: entry.round, text: `${villain} was pushed to the next stage.` });
+    } else if (tone === "win" && entry.villainStageRevealed) {
+      // Revealed by the villain's own scheme, not pushed by the players (Apocalypse).
+      beats.push({ round: entry.round, text: `${villain} moved to the next stage.` });
     }
   }
   // The heaviest threat round explains a scheme loss only; under any other loss it reads as the cause and is not.
@@ -444,8 +447,9 @@ export function turningPoints(
     });
   }
   const rest = beats.sort((a, b) => a.round - b.round);
-  // The reason the game ended leads, in the last round, ahead of the rounds that led up to it.
-  if (tone === "loss" && lead) return [{ round: state.round, text: lead }, ...rest.slice(0, 3)];
+  // The reason the game ended closes the list, in the last round, after the rounds that led up to it: the rounds
+  // read in order, never R3, R2, R3.
+  if (tone === "loss" && lead) return [...rest.slice(0, 3), { round: state.round, text: lead }];
   return rest.slice(0, 4);
 }
 

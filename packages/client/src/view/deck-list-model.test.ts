@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck, deckId, type Deck } from "@mc/content";
 import { CORE_DEPS } from "@mc/cards";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
-import { deckOptionOf, deckOptionsOf, preconDecks, shortWarningOf } from "./deck-list-model.js";
+import { deckOptionOf, deckOptionsOf, deckRowIndexOf, preconDecks, shortWarningOf } from "./deck-list-model.js";
 
 describe("preconDecks", () => {
   test("every precon in the app's pool is present, one per starter deck (Core's six plus wave 1's six)", () => {
@@ -77,5 +77,17 @@ describe("deckOptionsOf", () => {
     // this slice — that's exercised against the real app pool in `pool.test.ts`, not here.
     expect(options.slice(0, CORE_STARTER_DECKS.length).every((o) => o.seatable)).toBe(true);
     expect(options.at(-1)!.seatable).toBe(true);
+  });
+});
+
+describe("deckRowIndexOf", () => {
+  const row = (id: string) => ({ kind: "deck", option: { deck: { id } } });
+  test("finds a deck below the precons, skipping rows that are not decks", () => {
+    const rows = [{ kind: "message" }, ...Array.from({ length: 56 }, (_, i) => row(`p${i}`)), row("imported")];
+    expect(deckRowIndexOf(rows, "imported")).toBe(57);
+    expect(deckRowIndexOf(rows, "p0")).toBe(1);
+  });
+  test("is -1 for a deck the filter hides", () => {
+    expect(deckRowIndexOf([row("a"), { kind: "newDeck" }], "b")).toBe(-1);
   });
 });

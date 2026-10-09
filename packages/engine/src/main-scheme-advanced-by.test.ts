@@ -234,14 +234,16 @@ describe("§3.12 what advanced the main scheme", () => {
     const second = play(first.state, PLOT);
     expect(second.state.mainScheme.stageIndex).toBe(2);
     expect(second.state.mainScheme.advancedBy).toEqual(COMPLETED);
-    // One counter per stage revealed: stage 2 read the card, stage 3 the completion.
-    expect(counters(second.state)).toEqual({ byItself: 0, byCard: 1, byCompletion: 1 });
+    // Stage 2 read the card; its counter went back to the pool as the scheme advanced (RRG 1.8 "Main Scheme", p. 27,
+    // step 1: "Return all tokens (except acceleration tokens) that were on that card"). Stage 3 read the completion.
+    expect(counters(first.state)).toEqual({ byItself: 0, byCard: 1, byCompletion: 0 });
+    expect(counters(second.state)).toEqual({ byItself: 0, byCard: 0, byCompletion: 1 });
   });
 
   it("a When Completed that advances, then the completion's own advance: each stage reads its own, the last one stays", () => {
     const atThree = play(play(game().state, ADVANCE).state, ADVANCE).state;
     expect(atThree.mainScheme.stageIndex).toBe(2);
-    expect(counters(atThree)).toEqual({ byItself: 0, byCard: 2, byCompletion: 0 });
+    expect(counters(atThree)).toEqual({ byItself: 0, byCard: 1, byCompletion: 0 });
     const { state, events } = play(atThree, PLOT);
     const schemeId = state.mainScheme.instanceId;
     expect(advances(events)).toEqual([
@@ -251,8 +253,11 @@ describe("§3.12 what advanced the main scheme", () => {
     ]);
     expect(state.mainScheme.stageIndex).toBe(4);
     expect(state.mainScheme.advancedBy).toEqual(COMPLETED);
-    // Stage 4 was revealed by the scheme's own When Completed (+1 byItself, +1 byCard); stage 5 by the completion.
-    expect(counters(state)).toEqual({ byItself: 1, byCard: 3, byCompletion: 1 });
+    // Stage 4 was revealed by the scheme's own When Completed (1 byItself, 1 byCard), and those counters were returned
+    // as it advanced (RRG 1.8 p. 27); stage 5 was revealed by the completion.
+    const marks = events.flatMap((e) => (e.type === "counterAdded" ? [e.counterType] : []));
+    expect(marks).toEqual(["byItself", "byCard", "byCompletion"]);
+    expect(counters(state)).toEqual({ byItself: 0, byCard: 0, byCompletion: 1 });
   });
 
   it("two main schemes in play each keep their own cause", () => {

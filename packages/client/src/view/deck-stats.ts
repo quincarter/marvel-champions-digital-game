@@ -192,7 +192,7 @@ const TYPE_TILE_LABELS: Readonly<Record<PlayerCardType, string>> = {
   event: "Events",
   upgrade: "Upgrades",
   support: "Supports",
-  player_side_scheme: "Side schemes",
+  player_side_scheme: "Schemes",
 };
 
 /** One composition-by-type tile ("Events 21", D14's own wording). */

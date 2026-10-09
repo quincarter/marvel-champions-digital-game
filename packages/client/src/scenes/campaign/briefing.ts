@@ -10,7 +10,14 @@
 import Phaser from "phaser";
 import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice, PlayerSetup } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
-import { issueNumberOf, issueStoryFor, lineForRoster, storyFor, type IssueStory } from "../../campaign/story.js";
+import {
+  issueNumberOf,
+  issueStoryFor,
+  lineForRoster,
+  setupCallCopyFor,
+  storyFor,
+  type IssueStory,
+} from "../../campaign/story.js";
 import {
   bangers,
   drawActionBar,
@@ -54,6 +61,7 @@ import {
 import { pointInRect } from "../../view/drag-gesture.js";
 import { aspectStampOf, type AspectStamp } from "../../view/aspect-stamp.js";
 import { drawAspectChips } from "../../ui/aspect-chips.js";
+import { deckRowLayout, deckRowTitleWidth } from "../../view/campaign-deck-row-layout.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -65,6 +73,7 @@ import { briefingSpeakerOf } from "../../view/campaign-briefing-speaker.js";
 import {
   answersOfAttempt,
   briefingViewOf,
+  DECK_NOTE_EXEMPT,
   deckProblemsOf,
   type BriefingView,
   type HandledRow,
@@ -72,6 +81,11 @@ import {
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
+import {
+  easierStartBriefingOf,
+  easierStartIsOn,
+  type EasierStartBriefing,
+} from "../../view/campaign-easier-start-model.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
@@ -85,6 +99,8 @@ import {
   type WaitingPanel,
 } from "../../view/campaign-modular-call-model.js";
 import { drawModularCall } from "./briefing-modular-call.js";
+import { drawEasierStart } from "./briefing-easier-start.js";
+import { drawMissionBriefing } from "./briefing-mission.js";
 import { drawSideSchemeCall, drawSideSchemeSettled, type SideSchemeDrawContext } from "./briefing-side-scheme.js";
 import {
   sideSchemeBriefingOf,
@@ -162,11 +178,16 @@ export class CampaignBriefingScene extends Phaser.Scene {
    */
   #briefingRegion: McScrollRegion | null = null;
   #briefingScroll = new VariableListScroll();
+  /** The wide layout's right column, scrolled alone when its stack is taller than the screen (four seats, issue #3). */
+  #columnRegion: McScrollRegion | null = null;
+  #columnScroll = new VariableListScroll();
   #briefingScrollFor: CampaignPendingChoice | null = null;
   /** The role-building view drawn last, which a card chosen in Inspect is looked up in. */
   #roleBuildView: RoleBuildView | null = null;
   #composing = false;
   #starting = false;
+  /** The easier-start toggle is being saved: Open waits, so the issue never opens on the pre-toggle record. */
+  #toggling = false;
   #startError: string | null = null;
   /** The "which deck?" chooser EDIT DECKS opens when several seats could be meant and none is the problem. */
   #seatPicker = false;
@@ -365,7 +386,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
 
   async #openIssue(): Promise<void> {
     const record = this.#record;
-    if (!record?.attempt || this.#starting) return;
+    if (!record?.attempt || this.#starting || this.#toggling) return;
     this.#starting = true;
     this.#startError = null;
     this.#draw();
@@ -395,6 +416,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#roleBuildList = null;
     this.#briefingRegion?.destroy();
     this.#briefingRegion = null;
+    this.#columnRegion?.destroy();
+    this.#columnRegion = null;
     destroyChildren(this);
     if (!record) return;
 
@@ -414,7 +437,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ ISSUES",
       onBack: back,
-      title: `Briefing · Issue #${this.#issueNumber}`,
+      title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}`,
       ...(hiddenEvidence
         ? {
             right: hiddenEvidence.revealedCards
@@ -535,6 +558,26 @@ export class CampaignBriefingScene extends Phaser.Scene {
         (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
       );
     }
+    const easierStart = !seatCall && record.attempt ? this.#easierStartFor(record) : null;
+    const missionBrief = !seatCall ? (view?.missions ?? null) : null;
+    if (missionBrief && !schemeBeside) {
+      const missionRect: Rect = {
+        x: leftRect.x,
+        y: leftBottom + 20,
+        width: leftRect.width,
+        height: Math.max(0, contentBottom - leftBottom - 20),
+      };
+      leftBottom = drawMissionBriefing(this.#schemeContext(missionRect, phone, stops), missionRect.y, missionBrief);
+    }
+    // Apocalypse's easier start (issue #3, standard mode): beside the decks on a wide screen, else under the section above.
+    if (easierStart && !schemeBeside) {
+      leftBottom = drawEasierStart(
+        this.#schemeContext({ ...leftRect, y: leftBottom + 20 }, phone, stops),
+        leftBottom + 20,
+        easierStart,
+        () => void this.#toggleEasierStart(),
+      );
+    }
     if (this.#pending) {
       this.#drawYourCall(
         {
@@ -560,13 +603,53 @@ export class CampaignBriefingScene extends Phaser.Scene {
       };
       if (hasPool) this.#drawHandled(rightRect, view, stops);
       else {
+        const columnStart = this.children.list.length;
+        const columnStopsBefore = new Set(stops.keys());
         const decksBottom = this.#drawDecks(rightRect, view, stops);
-        if (scheme) {
-          drawSideSchemeSettled(
+        let rightBottom = decksBottom;
+        if (missionBrief) {
+          rightBottom = drawMissionBriefing(
+            this.#schemeContext(rightRect, phone, stops),
+            decksBottom + 24,
+            missionBrief,
+          );
+        } else if (scheme) {
+          rightBottom = drawSideSchemeSettled(
             this.#schemeContext(rightRect, phone, stops),
             decksBottom + 24,
             scheme,
             (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
+          );
+        }
+        if (easierStart) {
+          drawEasierStart(
+            this.#schemeContext(rightRect, phone, stops),
+            rightBottom + 24,
+            easierStart,
+            () => void this.#toggleEasierStart(),
+          );
+        }
+        // Taller than the screen: the column scrolls on its own rather than running under the action bar.
+        const columnEnd = this.children.list.length;
+        const columnBottom = this.#bottomOf(columnStart, columnEnd);
+        if (columnBottom > contentBottom) {
+          const columnHeights = [1_000_000];
+          this.#columnRegion = new McScrollRegion(this, {
+            rect: { x: rightRect.x, y: rightRect.y, width: rightRect.width, height: rightRect.height },
+            heights: columnHeights,
+            scroll: this.#columnScroll,
+            clipInteractive: true,
+          });
+          this.#captureIntoRegion(
+            this.#columnRegion,
+            columnHeights,
+            columnStart,
+            stops,
+            columnStopsBefore,
+            rightRect.y,
+            contentBottom,
+            this.#columnScroll,
+            columnEnd,
           );
         }
       }
@@ -615,7 +698,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const deckProblems = this.#deckProblems(record);
     const blockedSeat = [...deckProblems.keys()][0];
     const blocked = !!record.attempt && blockedSeat !== undefined;
-    const canOpen = !!record.attempt && !this.#pending && !this.#composing && !this.#starting && !blocked;
+    const canOpen =
+      !!record.attempt && !this.#pending && !this.#composing && !this.#starting && !this.#toggling && !blocked;
     const openRect: Rect = phone
       ? { x: 12 + editRect.width + 12, y: editRect.y, width: editRect.width, height: 48 }
       : { x: width - 16 - 425, y: editRect.y, width: 425, height: 62 };
@@ -668,10 +752,36 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#route.set([...stops.keys()], stops);
   }
 
+  /** The easier-start toggle for the composed issue (`view/campaign-easier-start-model.ts`): null when the issue does not offer it. */
+  #easierStartFor(record: CampaignRecord): EasierStartBriefing | null {
+    try {
+      return easierStartBriefingOf(record, campaignService().launchConfig(record));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Flips the toggle (stored on the run, off by default) and redraws; nothing is composed again. */
+  async #toggleEasierStart(): Promise<void> {
+    const record = this.#record;
+    if (!record?.attempt || this.#starting || this.#toggling) return;
+    this.#toggling = true;
+    this.#startError = null;
+    this.#draw();
+    try {
+      this.#record = await campaignService().setEasierStart(record, !easierStartIsOn(record));
+    } catch (error) {
+      this.#startError = error instanceof Error ? error.message : "Couldn't save the easier start";
+    } finally {
+      this.#toggling = false;
+    }
+    if (this.sys.isActive()) this.#draw();
+  }
+
   /** The lowest edge of everything drawn at the top level since `fromIndex`, graphics aside (they only frame text). */
-  #bottomOf(fromIndex: number): number {
+  #bottomOf(fromIndex: number, toIndex?: number): number {
     let bottom = 0;
-    for (const object of this.children.list.slice(fromIndex)) {
+    for (const object of this.children.list.slice(fromIndex, toIndex)) {
       if (object.type === "Graphics") continue;
       const bounds = (object as Phaser.GameObjects.Text).getBounds();
       bottom = Math.max(bottom, bounds.bottom);
@@ -691,9 +801,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
     stopsBefore: ReadonlySet<string>,
     viewportTop: number,
     viewportBottom: number,
+    scroll: VariableListScroll = this.#briefingScroll,
+    toIndex?: number,
   ): void {
-    const bottom = this.#bottomOf(fromIndex);
-    const added = this.children.list.slice(fromIndex);
+    const bottom = this.#bottomOf(fromIndex, toIndex);
+    const added = this.children.list.slice(fromIndex, toIndex);
     if (added.length > 0) region.content.add(added);
     // The scroll math reads this one entry as the content's height, measured from the viewport's top.
     heights[0] = Math.max(0, bottom + 16 - viewportTop);
@@ -702,9 +814,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const rect = stop.rect;
       stops.set(key, {
         ...stop,
-        rect: () => ({ ...rect, y: rect.y - this.#briefingScroll.offsetPx }),
+        rect: () => ({ ...rect, y: rect.y - scroll.offsetPx }),
         ensureVisible: () => {
-          const offset = this.#briefingScroll.offsetPx;
+          const offset = scroll.offsetPx;
           const delta = revealDelta(
             { top: viewportTop, bottom: viewportBottom },
             { top: rect.y - offset, bottom: rect.y + rect.height - offset },
@@ -1068,6 +1180,16 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!header) {
       const who = pending.seatNumber !== null ? `Seat ${pending.seatNumber}` : "Everyone decides together";
       y += label(this, rect.x, y, who, typeRole.label, accent.heroRed.hex, 1).height + 4;
+    }
+    // A box's own plain-words line about the question (`campaign/story.ts`'s `setupCalls`), above the printed rule.
+    const words = setupCallCopyFor(pending.instructionId);
+    if (words) {
+      const explain = this.add
+        .text(rect.x, y, words.explain, textStyle(typeRole.emphasis, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width);
+      y += explain.height + 8;
+      y += label(this, rect.x, y, "THE RULE", typeRole.label, surface.ink.hex, ink.label).height + 4;
     }
     const prompt = this.add
       .text(rect.x, y, pending.text, textStyle(typeRole.body, surface.ink.hex))
@@ -1952,9 +2074,14 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!view) {
       return y + this.#drawWaiting(rect.x, y, rect.width, "decks");
     }
-    const baseHeight = 44;
-    // A row naming a problem wraps it under the hero, so the row grows by a line instead of cutting the reason.
-    const heights = view.decks.map((row) => (row.problem ? baseHeight + 22 : baseHeight));
+    const countOf = (row: (typeof view.decks)[number]): string =>
+      row.pinnedCount > 0 ? `${row.deckSize} + ${row.pinnedCount} pinned` : `${row.deckSize}`;
+    // A row naming a problem wraps it under the hero, and a narrow panel drops the count to its own line, so the row
+    // grows by a line instead of cutting the reason or printing the count over the name.
+    const rowLayouts = view.decks.map((row) =>
+      deckRowLayout(rect.width, `${row.heroName.toUpperCase()} · ${row.aspectLabel}`, countOf(row), !!row.problem),
+    );
+    const heights = rowLayouts.map((row) => row.height);
     const total = heights.reduce((sum, h) => sum + h, 0);
     const listTop = y;
     const g = this.add.graphics();
@@ -1967,7 +2094,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (index > 0) g.lineStyle(1, surface.ink.hex, 0.2).lineBetween(rect.x, top, rect.x + rect.width, top);
       if (row.problem)
         g.fillStyle(accent.heroRed.hex, 0.1).fillRect(rect.x + 1, top + 1, rect.width - 2, rowHeight - 2);
-      const nameY = row.problem ? top + 22 : top + rowHeight / 2;
+      const rowLayout = rowLayouts[index] as ReturnType<typeof deckRowLayout>;
+      const countText = countOf(row);
+      const nameY = top + rowLayout.titleY;
       const title = this.add
         .text(
           rect.x + 12,
@@ -1976,12 +2105,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
           textStyle(bangers(16), surface.ink.hex),
         )
         .setOrigin(0, 0.5);
-      fitText(title, rect.width * 0.55, 16);
-      const countText = row.pinnedCount > 0 ? `${row.deckSize} + ${row.pinnedCount} pinned` : `${row.deckSize}`;
+      fitText(title, deckRowTitleWidth(rect.width, countText, rowLayout.stacked), 16);
       this.add
         .text(
           rect.x + rect.width - 36,
-          nameY,
+          top + rowLayout.countY,
           countText,
           textStyle({ ...typeRole.rowTitle, size: 14 }, surface.ink.hex),
         )
@@ -1995,7 +2123,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         this.add
           .text(
             rect.x + 12,
-            top + 36,
+            top + (rowLayout.problemY ?? 36),
             `! ${row.problem}`,
             textStyle({ ...typeRole.label, size: 14 }, accent.heroRed.hex, 1),
           )
@@ -2018,7 +2146,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       .text(
         rect.x,
         y,
-        "Tap a deck to edit it. Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.",
+        view?.deckNote ?? DECK_NOTE_EXEMPT,
         // No letter spacing: Phaser measures a wrap line without it, so spaced text ran past the panel's edge.
         textStyle({ ...typeRole.label, letterSpacing: 0 }, surface.ink.hex, ink.label),
       )

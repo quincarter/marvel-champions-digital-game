@@ -5,10 +5,10 @@ import {
   after,
   allOf,
   attachCard,
-  boostIconsOn,
   chooseTarget,
   chosen,
   constant,
+  countBoostIcons,
   countOf,
   countersOn,
   dealDamage,
@@ -111,9 +111,9 @@ const ANOTHER_WEB_WARRIOR_CARD: TargetQuery = { ...A_WEB_WARRIOR_CARD, self: fal
  * **Spider-Ham (ally, 31021)** — "Play only if you control a Web-Warrior card.\n[star] Forced Response: After
  * Spider-Ham attacks or thwarts, discard the top card of the encounter deck. For each boost icon ([boost])
  * discarded this way, deal 1 damage to Spider-Ham." `playOnlyIf(exists(A_WEB_WARRIOR_CARD))` and
- * `discardEncounterCards(1, { bind: "discarded" })` + `dealDamage(boostIconsOn(chosen("discarded")), self)` are the
+ * `discardEncounterCards(1, { bind: "discarded" })` + `dealDamage(varOf("discarded.boostIcons"), self)` are the
  * `spiderham/allies.ts` Scarlet Spider / `sm/ghost-spider` Spider-Man (Hobie Brown) precedents verbatim
- * (`boostIconsOn(chosen(...))` sums every discarded card's boost icons as the damage total, one per icon).
+ * (`countBoostIcons(chosen(...), …)` sums every discarded card's boost icons as the damage total, one per icon).
  *
  * **Spider-Man / Otto Octavius (ally, 31022)** — "Play only if you control a Web-Warrior card.\nResponse: After you
  * play Spider-Man from your hand, ready an upgrade you control. If that upgrade has the Tech trait, draw 1 card."
@@ -155,7 +155,8 @@ export const SPDR_ALLIES = defineAbilities({
   "31021.spider-ham-forced-response": forcedResponse(
     on.attacksOrThwarts("self"),
     discardEncounterCards(1, { bind: "discarded" }),
-    dealDamage(boostIconsOn(chosen("discarded")), self),
+    countBoostIcons(chosen("discarded"), "discarded"),
+    dealDamage(varOf("discarded.boostIcons"), self),
   ),
 
   "31022.spider-man-constant": constant(playOnlyIf(exists(A_WEB_WARRIOR_CARD))),

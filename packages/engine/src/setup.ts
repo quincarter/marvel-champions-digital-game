@@ -35,6 +35,7 @@ import {
   type PlayerState,
   type ScenarioDeckState,
   type ScenarioSetupInstruction,
+  type SetupOption,
   type SeparateDeckState,
   type VillainState,
   type SetAsideModularSet,
@@ -108,6 +109,7 @@ function campaignDeckContextOf(
       campaignSetIds: [...campaignSetIds],
       identityCardId: seat?.identityCardId ?? "",
       grantedCardIds: granted,
+      ...(seat?.grantDeckSizes ? { grantDeckSizes: seat.grantDeckSizes } : {}),
       removedFromCampaign: campaign.removedFromCampaign,
     },
   };
@@ -210,6 +212,14 @@ export interface GameSetupConfig {
    * aside. Cards missing from `cards` are skipped unless `requireIdentitySets` is set. Default true.
    */
   readonly includeIdentitySets?: boolean;
+  /**
+   * The nemesis half of `includeIdentitySets` on its own: whether each identity's nemesis set is set aside. Default:
+   * as `includeIdentitySets`. True with `includeIdentitySets: false` is a scenario that leaves the obligations out
+   * and still sets the nemesis sets aside, where a card can find them (`Scenario.nemesisSetsSetAside`: per FFG ruling
+   * Jan 17, 2026, Ruling 5, "You can play Face the Past to find your set-aside nemesis minion"; that scenario's
+   * insert says nemesis cards are not used, and the owner follows the later ruling).
+   */
+  readonly includeNemesisSets?: boolean;
   readonly requireIdentitySets?: boolean;
   /**
    * Refuse any seat whose deck is not legal under the RRG deckbuilding rules (`validateDeck`),
@@ -256,6 +266,15 @@ export interface GameSetupConfig {
    * empty: the game is exactly the game it was before this field existed.
    */
   readonly scenarioSetupInstructions?: readonly ScenarioSetupInstruction[];
+  /**
+   * Optional setup rules the players turned on, each with the amount they stated (`SetupOption`): MC45 p. 8's "Modular
+   * Difficulty" for the Infinites set ("they may place threat on Gene Pool during setup … The amount of threat placed
+   * is up to the players as a group"; docs/phase7-wave8.md §3.5, §4.1 Q1 = A). Each resolves once, in order, after
+   * Appendix II step 11 and before step 12 (p. 51), and is logged `setupOptionApplied`. Nothing is applied that is not
+   * listed here: neither the builder nor the engine derives an amount from the mode. Absent or empty: the game is
+   * exactly the game it was before this field existed.
+   */
+  readonly setupOptions?: readonly SetupOption[];
   /**
    * The mode being played, standard (default) or expert (RRG 1.8 "Modes of Play", p. 29). Villain stages and the
    * expert set are the scenario builder's; the engine reads this only for "Standard Mode Only" / "Expert Mode Only"
@@ -840,9 +859,10 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       };
       setAside.push(separatedCardInstanceId);
     }
-    if (config.includeIdentitySets !== false) {
-      // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
-      // villain's (ruling, Jan 17, 2026 (5)).
+    // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
+    // villain's (ruling, Jan 17, 2026 (5)).
+    const withObligations = config.includeIdentitySets !== false;
+    if (withObligations) {
       const obligation = pool[identityCard.obligationCardId];
       if (obligation) {
         // RRG 1.8 "Obligation" (p. 30): "Each identity is associated with one or more obligation cards. If an identity
@@ -856,6 +876,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       } else if (config.requireIdentitySets) {
         return invalid(`obligation ${identityCard.obligationCardId} is not in the card pool`);
       }
+    }
+    if (config.includeNemesisSets ?? withObligations) {
       const nemesis = config.cards.filter(
         (card) => "encounterSetIds" in card && card.encounterSetIds.includes(identityCard.nemesisEncounterSetId),
       );
@@ -1150,6 +1172,17 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   for (const cardId of config.setAsideUntilCalled?.cardIds ?? [])
     if (!pool[cardId]) return invalid(`setAsideUntilCalled names unknown card ${cardId}`);
   const untilCalled = setAsideUntilCalledOf(config.setAsideUntilCalled);
+  const setupOptionIds = new Set<string>();
+  for (const option of config.setupOptions ?? []) {
+    if (option.option === "") return invalid("a setup option needs an id");
+    if (setupOptionIds.has(option.option)) return invalid(`setup option ${option.option} is listed twice`);
+    if (!Number.isInteger(option.amount) || option.amount < 0)
+      return invalid(`setup option ${option.option} states ${option.amount}, which is not a whole number of 0 or more`);
+    setupOptionIds.add(option.option);
+  }
+  // The scenario's own rules, then the rules its campaign puts in force for this game (`CampaignNode.scenarioRuleSpecs`:
+  // MC45 p. 5's Mission Rules card, p. 20's "Professor X cannot enter play during this game").
+  const scenarioRuleSpecs = [...(config.scenarioRuleSpecs ?? []), ...(config.campaign?.scenarioRuleSpecs ?? [])];
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -1165,6 +1198,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       stageIndex: 0,
       completed: false,
       accelerationTokens: 0,
+      // Side 1A is faceup until Appendix II step 12b (RRG 1.8 p. 51).
+      faceupSide: "A",
     },
     gameAreas: [],
     nextGameAreaSeq: 1,
@@ -1175,10 +1210,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.activeCounter ? { activeCounter: config.activeCounter } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
-      ...(config.scenarioRuleSpecs && config.scenarioRuleSpecs.length > 0 ? { rules: config.scenarioRuleSpecs } : {}),
+      ...(scenarioRuleSpecs.length > 0 ? { rules: scenarioRuleSpecs } : {}),
       ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
         ? { setupInstructions: config.scenarioSetupInstructions }
         : {}),
+      ...(config.setupOptions && config.setupOptions.length > 0 ? { setupOptions: config.setupOptions } : {}),
       ...(untilCalled ? { setAsideUntilCalled: untilCalled } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },

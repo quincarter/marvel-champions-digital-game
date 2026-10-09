@@ -1,5 +1,6 @@
 /** Event frames (interrupts → apply → responses) and the state change each event kind makes. */
 
+import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
@@ -12,10 +13,12 @@ import {
   type StatusDiscarded,
   readyCard,
   removeCounters,
+  setForm,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import { titlesNaming } from "../titles.js";
+import { boostIconsFor } from "../modifiers.js";
 import {
   cardBackOf,
   cardOf,
@@ -35,6 +38,7 @@ import type { EngineDeps } from "../abilities.js";
 import {
   cannotBeDefeated,
   cannotTakeDamage,
+  consideredAboveZero,
   cannotThwart,
   damageTakenAfterConstants,
   damageTakenAllowance,
@@ -77,7 +81,7 @@ import {
   runCarriedHostStep,
 } from "./cards.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
-import type { GameState } from "../state.js";
+import { STATUS_NAMES, type GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 import {
@@ -97,6 +101,7 @@ import {
   defeatVillainStage,
   eliminatePlayer,
   holdAtZero,
+  settleActiveCounter,
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
@@ -118,6 +123,13 @@ import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
+import {
+  attackAwaitsAbility,
+  cancelAbilityAttack,
+  cancelledWithAbilityAttack,
+  pushAttackedByAbility,
+  waitBeneathAbility,
+} from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
@@ -159,6 +171,13 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
           return;
         }
         openThwartSession(ctx, frame.event);
+      }
+      // An "(attack)" ability is a single attack (RRG 1.8 "Attack (Player Ability Type)", p. 10): once one of its
+      // attack events was cancelled, the ones that follow are cancelled with it, with no window of their own (owner
+      // decision, 2026-10-08, row 65; `attack-ability.ts`).
+      if (cancelledWithAbilityAttack(ctx.state, frame)) {
+        setFrame(ctx, { ...frame, stage: "apply", cancelled: true });
+        return;
       }
       // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33), and so do
       // characters defeated by one effect (§4.1 Q49).
@@ -247,6 +266,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       if (frame.cancelled && frame.event.kind === "thwart" && !frame.thwartCostAsked) {
         cancelThwartSession(ctx, frame.event);
       }
+      // A cancelled attack of an "(attack)" ability: the rest of that attack does not resolve (`attack-ability.ts`).
+      if (frame.cancelled) cancelAbilityAttack(ctx, frame);
       if (frame.cancelled) {
         // A cancelled last placement of step one still checks the main schemes the batch's earlier placements
         // reached, once, before their shared responses (docs/phase7-wave5.md §4.1 Q71).
@@ -291,6 +312,21 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "responses": {
+      // An "(attack)" ability's attack waits for the rest of its ability before it finishes (RRG 1.8 "Attack (Player
+      // Ability Type)", p. 10: the ability is a single attack; owner ruling Q47, `attack-ability.ts`). Its results go
+      // to the instruction that made it now, as the ability's next instructions read them.
+      if (attackAwaitsAbility(ctx.state, frame)) {
+        reportResults(ctx, frame, true);
+        waitBeneathAbility(ctx, frame);
+        return;
+      }
+      // The ability has finished: each enemy its attack attacked is named (retaliate), before "after … attacks".
+      if (pushAttackedByAbility(ctx, frame)) return;
+      // An attack that attacked nobody pushed nothing but had its event stamped so (`attack.attacked` empty): finish
+      // from the stamped frame, so its "resolved" line and response window read that it attacked no enemy.
+      // It also stopped waiting there (`attackWaiting` cleared): resolve on from the frame as it is now.
+      const stamped = findFrame(ctx.state, frame.frameId);
+      if (stamped?.kind === "event" && stamped !== frame) return executeEventFrame(ctx, stamped);
       // An instance of a "(thwart)" ability's one thwart: its results join the ability's, whose resolved `thwart` and
       // response window follow the ability's last effect (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
       if (foldThwartInstance(ctx, frame)) {
@@ -630,6 +666,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applySchemeDefeated(ctx, event);
     case "mainSchemeCompleting":
       return applyMainSchemeCompleting(ctx, event);
+    case "mainSchemeTurnsToB":
+      applyMainSchemeTurnsToB(ctx, event);
+      return;
     case "enemyActivating":
       continueActivation(ctx, event);
       return;
@@ -650,6 +689,25 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId, event.sourceInstanceId ?? null);
       return;
+    case "formChanging": {
+      // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.
+      const changed = setForm(ctx, event.playerId, event.to, event.voluntary, event.heroFormIndex);
+      if (changed) pushFrames(ctx, [eventFrame(ctx, changed)]);
+      return;
+    }
+    case "boostIconsCounting": {
+      // An activation's count is made by its boost step (`stepBoostCard`); a card effect's (`countBoostIcons`) here,
+      // after its interrupts: the replacing card's icons if one was named, plus this count's adjustments, floored
+      // at 0 as the activation's count is. Reported to the counting effect as `<bind>.boostIcons`.
+      if (event.enemyInstanceId !== null) return;
+      const counted = Math.max(
+        0,
+        boostIconsFor(ctx.state, ctx.deps, event.countFrom ?? event.cardInstanceId) + (event.countAdjust ?? 0),
+      );
+      updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: { ...event, counted } } : f));
+      addFrameVars(ctx, frame.frameId, { boostIcons: counted });
+      return;
+    }
     case "basicRecovery":
       // REC as it is now, so an interrupt that changed it first counts (docs/phase7-wave6.md §3.40).
       healRecovery(ctx, event.characterInstanceId);
@@ -692,6 +750,19 @@ export function beginDefeat(
   ctx: Ctx,
   event: Extract<TriggerEvent, { kind: "characterDefeated" }>,
 ): boolean | DefeatFollowUp {
+  const begun = beginOneDefeat(ctx, event);
+  // One of several villains that fall together (`protectionChecked`), defeated or replaced: after the last of them
+  // the active counter moves off a defeated holder, once, among the villains still in play.
+  if (event.protectionChecked === true && villainOf(ctx.state, event.instanceId)) {
+    settleActiveCounter(ctx, event.instanceId);
+  }
+  return begun;
+}
+
+function beginOneDefeat(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "characterDefeated" }>,
+): boolean | DefeatFollowUp {
   const id = event.instanceId;
   const instance = getInstance(ctx.state, id);
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
@@ -703,6 +774,12 @@ export function beginDefeat(
   const profile = characterProfile(ctx.state, id, ctx.deps);
   // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
   if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;
+  // "Considered to have at least 1 hit point" (docs/phase7-wave8.md §3.10): not at zero for a defeat by hit points,
+  // even one already on the stack. A defeat by effect does not read the dial.
+  if (event.byEffect !== true && consideredAboveZero(ctx.state, ctx.deps, id)) {
+    holdAtZero(ctx, id);
+    return false;
+  }
   // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
   // `protectionChecked`: villains that fell together in one sweep had their "cannot be defeated while …" read then, before
   // either applied (docs/phase7-wave4.md §3.3).
@@ -1524,6 +1601,8 @@ export function threatRemovalBlocked(
   // A player card nobody controls is still a player card: a campaign's player side scheme the scenario put into play
   // (docs/phase7-wave7.md §4.1 Q24; MC40 rulebook p. 3: "All rules that apply to player cards apply to player side
   // schemes"). Its other face, an environment, is an encounter card.
+  // Control is read here, not the card's "you" (`uncontrolledYouOf`): an obligation speaks to the player holding it,
+  // but it is an encounter card, so its abilities are not affected by the crisis icon whoever uses them.
   const source = sourceInstanceId === null ? undefined : cardOf(state, sourceInstanceId);
   const byPlayer =
     sourceInstanceId === null ||
@@ -1712,6 +1791,16 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       sourceInstanceId: event.sourceInstanceId,
     };
     pushFrames(ctx, [eventFrame(ctx, defeated)]);
+  } else if (
+    isSideScheme &&
+    after.threat === 0 &&
+    !permanentStopsLeaving(ctx.state, ctx.deps, event.schemeInstanceId, undefined)
+  ) {
+    // Left in play at no threat by a rule that may end (docs/phase7-wave8.md §3.40): watched, so that it is defeated
+    // the moment the rule stops covering it (`checkSchemeProtectionEnded`).
+    const held = ctx.state.heldAtNoThreat ?? [];
+    if (!held.includes(event.schemeInstanceId))
+      ctx.state = { ...ctx.state, heldAtNoThreat: [...held, event.schemeInstanceId] };
   }
 }
 
@@ -1747,16 +1836,32 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
  * pointer: BoardGameGeek ruling thread, Mar 23 2023 — not an FFG ruling). A villain whose stage is defeated and
  * advances mid-attack is the same character still in play, so its attack is unaffected (`enemy-activation.ts`).
  */
-function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {
-  if (!cardsInPlay(ctx.state).includes(event.attackerInstanceId)) {
-    emit(ctx, {
-      type: "playerAttackEnded",
-      attackerInstanceId: event.attackerInstanceId,
-      targetInstanceId: event.targetInstanceId,
-      reason: "attackerLeftPlay",
-    });
+function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {
+  const target = attack.targetInstanceId;
+  if (!cardsInPlay(ctx.state).includes(attack.attackerInstanceId)) {
+    // A label-only attack that began before any enemy was named (`beginLabelAttack`) has no target to log an end
+    // against; its attacker is an identity, whose leaving play is the player's elimination and is logged as that.
+    if (target !== null) {
+      emit(ctx, {
+        type: "playerAttackEnded",
+        attackerInstanceId: attack.attackerInstanceId,
+        targetInstanceId: target,
+        reason: "attackerLeftPlay",
+      });
+    }
     return;
   }
+  // The attack of an "(attack)" ability with no attack effect (owner ruling Q48, `attack-ability.ts`): it deals no
+  // damage of its own and does not use the attacker's ATK. It waits for its ability, whose damage instructions are
+  // its damage and name the enemies it attacks.
+  if (attack.labeled || target === null) return;
+  // An attack that began with its ability, before the `attack` instruction that deals its damage (RRG 1.8 "Labeled
+  // Ability", p. 26; owner decision, 2026-10-08, row 73): it deals nothing as it begins. That instruction puts this
+  // frame back at its apply step with its target and amount (`resumeBegunAttack`), and the damage is dealt then.
+  const begunFrame = findFrame(ctx.state, frameId);
+  if (begunFrame?.kind === "event" && begunFrame.attackBegun) return;
+  // Only an attack that began before an enemy could be named has no target, so from here the attack has one.
+  const event = { ...attack, targetInstanceId: target };
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;
@@ -1765,6 +1870,21 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   // attached minion", Coordinated Attack 33016; docs/phase7-wave6.md §3.31). `attack.damaged` names only a character
   // that took damage.
   addFrameSlots(ctx, frameId, { target: [event.targetInstanceId] });
+  // The attacked character as the attack is made (owner ruling Q38 = A, docs/phase7-wave8.md §4.1; FFG ruling
+  // February 8, 2026 (1), designer intent): what was attached to it (`targetAttachments`) and the status cards it held
+  // (`targetStatus.<status>`), reported beside `target`. An ally's consequential damage reads them as last known
+  // information when the attack defeated the character and its status cards and attachments left with it ("takes 1
+  // less consequential damage after attacking a confused enemy / an enemy with Frostbite attached";
+  // `lastKnownFromAttack`, `rules.ts`). Recorded only when there is something to record.
+  const attackedAs = mustInstance(ctx.state, event.targetInstanceId);
+  if (attackedAs.attachments.length > 0) addFrameSlots(ctx, frameId, { targetAttachments: attackedAs.attachments });
+  const heldStatuses = Object.fromEntries(
+    STATUS_NAMES.filter((status) => attackedAs.statuses[status] > 0).map((status) => [
+      `targetStatus.${status}`,
+      attackedAs.statuses[status],
+    ]),
+  );
+  if (Object.keys(heldStatuses).length > 0) addFrameVars(ctx, frameId, heldStatuses);
   // "That attack gains overkill" (Hulk Smash) / "this attack gains piercing" (Piercing Strike): every way of granting
   // an attack keyword is folded in here, once, and stamped on the events the attack pushes. An interrupt's
   // `modifyAttack` records its grant as a var on this attack's own event frame, the same var an enemy attack reads
@@ -1803,28 +1923,35 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
     frameId,
     guardsIgnored(ctx.state, ctx.deps, event.attackerInstanceId, event.targetInstanceId, event.playerId),
   );
-  pushEvents(ctx, [
-    {
-      kind: "dealDamage",
-      targetInstanceId: event.targetInstanceId,
-      amount,
-      sourceInstanceId: event.attackerInstanceId,
-      fromAttack: true,
-      parentFrameId: frameId,
-      overkill: event.overkill === true || keywords.includes("overkill"),
-      viaInstanceId: event.sourceInstanceId ?? null,
-      // Only set when true, so an attack with no granted keyword logs exactly as it always has.
-      ...(keywords.includes("piercing") ? { piercing: true } : {}),
-      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
-    },
-    {
-      kind: "characterAttacked",
-      attackerInstanceId: event.attackerInstanceId,
-      targetInstanceId: event.targetInstanceId,
-      playerId: event.playerId,
-      ...(keywords.includes("ranged") ? { ranged: true } : {}),
-    },
-  ]);
+  const damage: DamageEvent = {
+    kind: "dealDamage",
+    targetInstanceId: event.targetInstanceId,
+    amount,
+    sourceInstanceId: event.attackerInstanceId,
+    fromAttack: true,
+    parentFrameId: frameId,
+    overkill: event.overkill === true || keywords.includes("overkill"),
+    viaInstanceId: event.sourceInstanceId ?? null,
+    // Only set when true, so an attack with no granted keyword logs exactly as it always has.
+    ...(keywords.includes("piercing") ? { piercing: true } : {}),
+    ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
+  };
+  const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }> = {
+    kind: "characterAttacked",
+    attackerInstanceId: event.attackerInstanceId,
+    targetInstanceId: event.targetInstanceId,
+    playerId: event.playerId,
+    ...(keywords.includes("ranged") ? { ranged: true } : {}),
+  };
+  // An "(attack)" ability's attack is not over with this damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner
+  // ruling Q47, `attack-ability.ts`): its target is named as attacked once the whole ability has resolved, with every
+  // other enemy the ability dealt damage to.
+  if (attackFrame?.kind === "event" && attackAwaitsAbility(ctx.state, attackFrame)) {
+    setFrame(ctx, { ...attackFrame, attacked: [...(attackFrame.attacked ?? []), attacked] });
+    pushEvents(ctx, [damage]);
+    return;
+  }
+  pushEvents(ctx, [damage, attacked]);
 }
 
 /**

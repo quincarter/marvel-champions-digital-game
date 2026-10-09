@@ -4,8 +4,10 @@ import {
   applyCommand,
   NO_STATUSES,
   playCostOf,
+  type GameEvent,
   type GameState,
   type InstanceId,
+  type TargetQuery,
 } from "@mc/engine";
 import {
   endTurn,
@@ -16,6 +18,8 @@ import {
   moveToHand,
   P1,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   putOnTopOfDeck,
   runWith,
@@ -25,7 +29,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { playFromHand as playFromHandTraced } from "../../testing/staging.js";
+import { driveEvents, playFromHand as playFromHandTraced } from "../../testing/staging.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario, wave3StarterDeckSetup } from "../setup.js";
 import { playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
@@ -264,14 +268,68 @@ describe("Close Call (16158)", () => {
 
 describe("Defy Danger (16159)", () => {
   it("(attack): deals 5 damage to an enemy, discards the top encounter card, takes 1 damage per boost icon discarded (16159.defy-danger-constant, 16159.defy-danger-action)", () => {
-    const hero = runWave3(grootVsRhinoWithMarket("16159"), toHero());
+    // Crowd Control (01108, 2 boost icons) on top of the encounter deck; the top card of Groot's own deck must stay.
+    const hero = stackEncounterDeck(runWave3(grootVsRhinoWithMarket("16159"), toHero()), "01108");
     const identity = identityOf(hero);
     const villain = hero.villains[0]!.instanceId;
     const beforeVillainDamage = inst(hero, villain).damage;
+    const beforeOwnDamage = inst(hero, identity).damage;
+    const ownTop = playerOf(hero, P1).deck[0]!;
+    const encounterTop = activeEncounterDeck(hero).deck[0]!;
+    expect(hero.instances[encounterTop]!.cardId).toBe("01108");
     const { state: played } = playFromHand(hero, "16159", 1);
     expect(inst(played, villain).damage).toBe(beforeVillainDamage + 5);
-    // Whatever boost icons the discarded encounter card printed, the identity took exactly that many damage.
-    expect(inst(played, identity).damage).toBeGreaterThanOrEqual(0);
+    // "Discard the top card of the encounter deck": that card is in the encounter discard pile, and the player's deck
+    // was not touched. 1 damage for each of its 2 boost icons.
+    expect(activeEncounterDeck(played).discard).toContain(encounterTop);
+    expect(playerOf(played, P1).discard).not.toContain(ownTop);
+    expect(inst(played, identity).damage).toBe(beforeOwnDamage + 2);
+  });
+});
+
+describe("Defy Danger (16159) under the attack-ability rule (docs/phase7-wave8.md §4.1 Q47)", () => {
+  // Owner ruling Q47, distinction 4: an "(attack)" ability's damage to enemies is damage from its attack, but damage it
+  // deals to the attacking identity is not attack damage dealt to an enemy. Both rules below are in force at once:
+  // "+1 damage from each attack" on the villain (the Cyclops ally's rule) and the same on every identity.
+  const plusOneFromAttacks = (s: GameState, target: TargetQuery): GameState => ({
+    ...s,
+    scenarioRules: {
+      ...s.scenarioRules,
+      rules: [...(s.scenarioRules.rules ?? []), { kind: "increaseDamageTaken", target, amount: 1, fromAttack: true }],
+    },
+  });
+  /** Two boost icons are discarded: Crowd Control (01108, 2 icons) is put on top of the encounter deck. */
+  function staged(): GameState {
+    const hero = stackEncounterDeck(runWave3(grootVsRhinoWithMarket("16159"), toHero()), "01108");
+    return plusOneFromAttacks(plusOneFromAttacks(hero, { categories: ["villain"] }), { categories: ["identity"] });
+  }
+  const damageEvents = (events: readonly GameEvent[]) =>
+    events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "dealDamage" ? [e.event] : [],
+    );
+
+  it("its 5 damage to the enemy is attack damage (6 under '+1 from each attack'); its damage to your identity is not (2, not 3)", () => {
+    const state = staged();
+    const identity = identityOf(state);
+    const villain = state.villains[0]!.instanceId;
+    const given = moveToHand(state, P1, "16159");
+    const [id] = given.ids as [InstanceId];
+    const { events } = driveEvents(WAVE3_DEPS, given.state, play(P1, id, payWith(given.state, P1, 1, [id])));
+    const [toVillain, ...restToVillain] = damageEvents(events).filter((d) => d.targetInstanceId === villain);
+    expect(restToVillain).toEqual([]);
+    expect(toVillain).toMatchObject({ amount: 5, fromAttack: true, sourceInstanceId: identity, taken: 6 });
+    const [toSelf, ...restToSelf] = damageEvents(events).filter((d) => d.targetInstanceId === identity);
+    expect(restToSelf).toEqual([]);
+    // Dealt by the event card itself, not by the attack: no attack frame, no "+1 from each attack", 2 taken.
+    expect(toSelf).toMatchObject({ amount: 2, fromAttack: false, sourceInstanceId: id, dealt: 2, taken: 2 });
+    expect(toSelf?.parentFrameId).toBeUndefined();
+    // Groot is not attacked by his own event: the only character attacked is the villain.
+    const attacked = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "characterAttacked"
+        ? [e.event.targetInstanceId]
+        : [],
+    );
+    expect(attacked).toEqual([villain]);
   });
 });
 

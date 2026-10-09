@@ -22,3 +22,26 @@ describe("HostQualifiers.controlledBy", () => {
     expect(validateAttachmentHost({ ...host, controlledBy: "them" }, "attachment")).not.toEqual([]);
   });
 });
+
+describe("HostQualifiers.classification", () => {
+  // Sidekick (aoa 45015): "Attach to an identity-specific ally you control."
+  const sidekick: AttachmentHost = {
+    kind: "qualified",
+    category: "ally",
+    classification: "identitySpecific",
+    controlledBy: "you",
+  };
+
+  it("accepts each classification, alone or with controlledBy", () => {
+    expect(validateAttachmentHost(sidekick, "attachment")).toEqual([]);
+    for (const classification of ["identitySpecific", "aspect", "basic"] as const) {
+      expect(validateAttachmentHost({ kind: "qualified", category: "ally", classification }, "attachment")).toEqual([]);
+    }
+  });
+
+  it("refuses an unknown classification", () => {
+    expect(
+      validateAttachmentHost({ ...sidekick, classification: "campaign" } as unknown as AttachmentHost, "attachment"),
+    ).not.toEqual([]);
+  });
+});

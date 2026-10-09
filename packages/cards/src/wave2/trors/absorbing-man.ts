@@ -139,7 +139,10 @@ export const ABSORBING_MAN_SET = defineAbilities({
   // placement on the main scheme from any source, not once per villain phase (docs/phase7-wave3-qa.md Finding 1).
   "04079b.none-shall-pass-forced-response": forcedResponse(on.villainStepResolved(), addCounters(DELAY, 1, self)),
   // None Shall Pass — Forced Interrupt: when an environment enters play, discard each other environment card in
-  // play. `cardEntersPlay` is now interruptible (its own enter-play keywords resolve as that event's *apply* step,
+  // play. It is printed on side 1B, which is not active while 1A is the faceup side (RRG 1.8 Appendix II steps 11 and
+  // 12, p. 51): a setup-keyword environment of the modular set and the one 1A's Setup puts into play both stay, and
+  // the interrupt does not trigger for them once 1B is active (docs/phase7-wave8.md §4.1 Q56). The engine keeps the
+  // side (`MainSchemeState.faceupSide`); nothing here needs to. `cardEntersPlay` is now interruptible (its own enter-play keywords resolve as that event's *apply* step,
   // not before it's announced), and `TargetQuery.excluding` names "every environment except the one that just
   // entered" (docs/phase7-wave2.md §3.13.10) — this was pinned in `KNOWN_SKIPPED` pending both.
   "04079b.none-shall-pass-forced-interrupt": forcedInterrupt(

@@ -99,6 +99,7 @@ function syntheticPrepared(ctx: NormalizeContext, code: string, name: string, no
   return {
     raw,
     name,
+    unique: false,
     traits: [],
     boost: 0,
     attack: undefined,

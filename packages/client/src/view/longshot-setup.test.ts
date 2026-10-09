@@ -8,7 +8,7 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { modularHeaderRightLabel } from "./modular-summary.js";
 import { modularCardLabel, modularSetOptionsFor, pickedSetCount, toggleModularSet } from "./modular-sets.js";
-import { initialSetupDraft, setScenario, toSessionConfig, type SetupDraft } from "./setup-draft.js";
+import { initialSetupDraft, setDifficulty, setScenario, toSessionConfig, type SetupDraft } from "./setup-draft.js";
 
 const scenarioOf = (id: string) => POOL_SCENARIOS.find((s) => (s.id as string) === id)!;
 const draftFor = (id: string): SetupDraft =>
@@ -43,6 +43,19 @@ describe("the Longshot toggle", () => {
     draft = toggleModularSet(draft, spiral, "longshot");
     expect(draft.extraModularSetIds).toEqual([]);
     expect(draft.modularSetIds).toEqual(["crime"]);
+  });
+
+  test("Mojo: Longshot stays on through the set-aside picks and a difficulty change, in any order", () => {
+    const mojo = scenarioOf("mojo");
+    let draft = toggleModularSet(draftFor("mojo"), mojo, "crime");
+    draft = toggleModularSet(draft, mojo, "longshot");
+    draft = toggleModularSet(draft, mojo, "horror");
+    draft = setDifficulty(draft, "expert");
+    draft = setDifficulty(draft, "standard");
+    expect(draft.extraModularSetIds).toEqual(["longshot"]);
+    expect(draft.setAsideModularSetIds).toEqual(["crime", "horror"]);
+    expect(longshot(draft, "mojo").selected).toBe(true);
+    expect(pickedSetCount(options(draft, "mojo"))).toBe(2);
   });
 
   test("it survives a change of scenario and is sent only when on", () => {

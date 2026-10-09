@@ -50,6 +50,7 @@ import type {
   CampaignWindow,
   ResolvedInstruction,
 } from "../campaign.js";
+import { includedGrantsOf } from "../campaign.js";
 import type { EffectSpec } from "../spec.js";
 
 const CITE = "MC00 p. 1";
@@ -489,7 +490,7 @@ export const SYNTHETIC_SEAT_INPUTS: readonly CampaignSeatInput[] = SYNTHETIC_CAM
   identityCardId: seat.identityCardId,
   deck: seat.deck.cards.flatMap((line) => Array.from({ length: line.quantity }, () => line.cardId)),
   aspects: seat.deck.aspects,
-  grantedCardIds: seat.grants.map((grant) => grant.cardId),
+  grantedCardIds: includedGrantsOf(seat.grants).map((grant) => grant.cardId),
 }));
 
 /** One instruction the runner has already gated and ordered, ready for the engine to resolve at its window. */

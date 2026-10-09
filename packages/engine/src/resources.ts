@@ -200,6 +200,33 @@ export function distinctTypeCount(pool: ResourcePool): number {
 }
 
 /**
+ * Whether one of the resources `source` generated can be among the resources **paid** for `requirement` out of `pool`
+ * (`source` is part of `pool`). RRG 1.8 "Cost" (p. 13): "Resources generated beyond the specified cost are considered
+ * to have been overpaid for that cost and were not paid for that cost", so the paid resources are a part of the pool
+ * exactly as large as the requirement that meets it, and the rules do not say which part when more was generated. A
+ * source counts when some such part holds one of its resources (docs/phase7-wave8.md §3.51, §4.1 Q28 = A):
+ *
+ * - never at a requirement of 0 (FAQ "Unstoppable Force (#6)", p. 60: at a cost of 0 nothing was paid);
+ * - a source that generated nothing paid nothing;
+ * - one of the source's resources is put in a slot it can fill (its own type's, a generic one, or for a wild any slot),
+ *   and the rest of the pool must still pay the rest of the requirement. A source of only [energy] toward a cost of
+ *   1 [physical] that another card pays is overpaid whichever way the payment is read.
+ */
+export function canBePaidFor(pool: ResourcePool, source: ResourcePool, requirement: ResolvedRequirement): boolean {
+  if (requirementTotal(requirement) <= 0) return false;
+  return RESOURCE_TYPES.some((type) => {
+    if (source[type] <= 0 || pool[type] <= 0) return false;
+    const rest: ResourcePool = { ...pool, [type]: pool[type] - 1 };
+    const slots: (keyof ResolvedRequirement)[] =
+      type === "wild" ? ["wild", ...TYPED_RESOURCES, "generic"] : [type, "generic"];
+    return slots.some((slot) => {
+      const needed = requirement[slot] ?? 0;
+      return needed > 0 && satisfies(rest, { ...requirement, [slot]: needed - 1 });
+    });
+  });
+}
+
+/**
  * "If you paid for this card using a [X] resource": true when the payment
  * contained an X, or a wild the payer can declare as X.
  */
@@ -211,3 +238,202 @@ export const countUsableAs = (pool: ResourcePool, type: TypedResource): number =
 /** Distinct printed resource types on a card (The Vulture's Plans counts these). Wild counts as its own type. */
 export const distinctTypes = (pool: ResourcePool): readonly ResourceType[] =>
   RESOURCE_TYPES.filter((type) => pool[type] > 0);
+
+/**
+ * What a card reads of the resource types that paid for it (docs/phase7-wave8.md §3.62; `AbilityDefinition
+ * readsPaidTypes`, `RuleSpec readsPaymentTypesOf`): how many different types (`count`: "for each different resource
+ * type used to pay"), whether at least that many ("using 2 different resource types"), or which of the named types
+ * ("using at least 1 [physical] … [mental] … [energy]"). It says nothing about what the card then does: it is what the
+ * engine compares to decide whether the player's declaration of a wild can matter (`readOfPaidTypes`).
+ */
+export type PaidTypesRead =
+  | { readonly count: true }
+  | { readonly atLeast: number }
+  | { readonly types: readonly TypedResource[] };
+
+/**
+ * A payment's pool with each wild counted as the type its player declared (RRG 1.8 "Wild Resource", p. 48: "When a
+ * player generates a wild resource, they may specify which resource type (energy, mental, physical, or wild) it is
+ * being used as"). `wildAs` has one entry per wild generated; `"wild"` leaves it a wild. Wilds are interchangeable, so
+ * only how many were declared each type matters.
+ */
+export function declaredPool(pool: ResourcePool, wildAs: readonly ResourceType[]): ResourcePool {
+  const declared = { ...pool, wild: 0 };
+  for (const type of wildAs) declared[type] += 1;
+  return declared;
+}
+
+/**
+ * Why `wildAs` is not a legal declaration of the wilds in `pool` toward `requirement`, or null (docs/phase7-wave8.md
+ * §3.62, §4.1 Q33 = B):
+ *
+ * - one entry per wild generated, each one of the four types;
+ * - the payment must still pay the cost with every wild used as declared: a typed slot ("spend a [mental] resource", a
+ *   Requirement icon) takes a resource of that type or a wild declared as it, and a `wild` slot a wild left wild. A wild
+ *   declared [energy] is being used as [energy] and cannot also be the [physical] the cost asked for;
+ * - `only` ("you can only spend [physical] resources to pay for this card"): a wild is declared one of those types or
+ *   left wild.
+ */
+export function wildDeclarationFault(
+  pool: ResourcePool,
+  wildAs: readonly ResourceType[],
+  requirement: ResolvedRequirement,
+  only: readonly TypedResource[] = [],
+): string | null {
+  if (wildAs.length !== pool.wild) {
+    return `declare a type for each wild resource: ${pool.wild} generated, ${wildAs.length} declared`;
+  }
+  const unknown = wildAs.find((type) => !RESOURCE_TYPES.includes(type));
+  if (unknown !== undefined) return `${String(unknown)} is not a resource type`;
+  const barred = wildAs.find((type) => type !== "wild" && only.length > 0 && !only.includes(type));
+  if (barred !== undefined) return `only ${only.join(" / ")} resources can pay for this card`;
+  const declared = declaredPool(pool, wildAs);
+  const short = RESOURCE_TYPES.find((type) => declared[type] < (requirement[type] ?? 0));
+  if (short !== undefined)
+    return `the cost needs ${requirement[short] ?? 0} ${short}, and the wilds were declared otherwise`;
+  return null;
+}
+
+/**
+ * Every way to declare `wilds` interchangeable wild resources, as how many are declared each type, the declaration
+ * that leaves every wild a wild first. There are (wilds + 3 choose 3) of them, not four to the power of the wilds,
+ * because two wilds declared [energy] and [mental] read the same in either order.
+ */
+export function wildDeclarations(wilds: number): readonly (readonly ResourceType[])[] {
+  const order: readonly ResourceType[] = ["wild", ...TYPED_RESOURCES];
+  const fill = (from: number, left: number): ResourceType[][] => {
+    const type = order[from]!;
+    if (from === order.length - 1) return [Array<ResourceType>(left).fill(type)];
+    const found: ResourceType[][] = [];
+    for (let n = left; n >= 0; n--) {
+      for (const rest of fill(from + 1, left - n)) found.push([...Array<ResourceType>(n).fill(type), ...rest]);
+    }
+    return found;
+  };
+  return fill(0, Math.max(0, wilds));
+}
+
+/**
+ * The resources **paid** for `requirement` out of a declared pool (`declaredPool`), by type. RRG 1.8 "Cost" (p. 13):
+ * "Resources generated beyond the specified cost are considered to have been overpaid for that cost and were not paid
+ * for that cost", so the paid resources are exactly as many as the requirement, and the rules do not say which when
+ * more was generated. docs/phase7-wave8.md §4.1 Q34 = A with its follow-up: they are the set that gives the most
+ * declared types, with no further prompt.
+ *
+ * - The cost's typed and wild slots take their own type. Each generic slot then takes a type not yet among the paid
+ *   resources while there is one, and after that anything left.
+ * - **Where several sets give as many types** (three paid out of [physical], [mental], [energy] and a wild left wild)
+ *   this is the first of them (`paidSetsAsDeclared`): the generic slots filled in the fixed order physical, mental,
+ *   energy, wild, so it is the same on every machine and in every replay. It is taken without asking only when no
+ *   reader of the payment can tell the sets apart; when one can (a reader of named types, `Predicate paidType`), the
+ *   player says which resources were paid (`ChoicePrompt choosePaidResources`; owner decision, 2026-10-08,
+ *   docs/phase7-wave8.md §4.1 row 79). A count cannot tell them apart.
+ *
+ * This is independent of `canBePaidFor` (§3.51, Q28 = A), which asks whether any reading of the payment has one card's
+ * resource paid; the two can name different paid sets, and no card reads both.
+ *
+ * Null when the declared pool does not pay the requirement (`wildDeclarationFault`).
+ */
+export function paidAsDeclared(declared: ResourcePool, requirement: ResolvedRequirement): ResourcePool | null {
+  const paid = { ...EMPTY_POOL };
+  const left = { ...declared };
+  for (const type of RESOURCE_TYPES) {
+    const needed = requirement[type] ?? 0;
+    if (left[type] < needed) return null;
+    paid[type] = needed;
+    left[type] -= needed;
+  }
+  let generic = requirement.generic;
+  if (poolTotal(left) < generic) return null;
+  for (const type of RESOURCE_TYPES) {
+    if (generic > 0 && paid[type] === 0 && left[type] > 0) {
+      paid[type] += 1;
+      left[type] -= 1;
+      generic -= 1;
+    }
+  }
+  for (const type of RESOURCE_TYPES) {
+    const taken = Math.min(generic, left[type]);
+    paid[type] += taken;
+    generic -= taken;
+  }
+  return paid;
+}
+
+/**
+ * Every set of resources that can be the **paid** ones out of a declared pool: as many as `requirement`, the cost's
+ * typed and wild slots filled with their own type, and the most declared types any such set gives (§4.1 Q34 = A and
+ * its follow-up). Each set once, by how many of each type it holds; `paidAsDeclared`'s set first, then the others in
+ * the order physical, mental, energy, wild. Empty when the declared pool does not pay the requirement.
+ *
+ * More than one set is a tie the rules leave open (RRG 1.8 "Cost", p. 13: overpaid resources "were not paid for that
+ * cost", without saying which). Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 79): the player says which
+ * set was paid when the sets read differently to a reader of the payment (`readOfPaidTypes`), and is not asked when
+ * they all read the same.
+ */
+export function paidSetsAsDeclared(declared: ResourcePool, requirement: ResolvedRequirement): readonly ResourcePool[] {
+  const first = paidAsDeclared(declared, requirement);
+  if (!first) return [];
+  const slots = { ...EMPTY_POOL };
+  const left = { ...declared };
+  for (const type of RESOURCE_TYPES) {
+    slots[type] = requirement[type] ?? 0;
+    left[type] -= slots[type];
+  }
+  const found: ResourcePool[] = [];
+  const fill = (index: number, generic: number, paid: ResourcePool): void => {
+    const type = RESOURCE_TYPES[index];
+    if (type === undefined) {
+      if (generic === 0) found.push(paid);
+      return;
+    }
+    for (let taken = Math.min(generic, left[type]); taken >= 0; taken--) {
+      fill(index + 1, generic - taken, { ...paid, [type]: paid[type] + taken });
+    }
+  };
+  fill(0, requirement.generic, slots);
+  const most = paidTypeCountOf(first);
+  const firstId = paidSetOptionId(first);
+  const others = found.filter((paid) => paidTypeCountOf(paid) === most && paidSetOptionId(paid) !== firstId);
+  return [first, ...others];
+}
+
+/** The option id of one paid set in a `choosePaidResources` choice: how many of each type, e.g. `physical:1,mental:2,energy:0,wild:0`. */
+export const paidSetOptionId = (paid: ResourcePool): string =>
+  RESOURCE_TYPES.map((type) => `${type}:${paid[type]}`).join(",");
+
+/** The number of different resource types among paid resources (`paidAsDeclared`), a wild left wild being its own. */
+export const paidTypeCountOf = (paid: ResourcePool): number => RESOURCE_TYPES.filter((type) => paid[type] > 0).length;
+
+/**
+ * What one reader (`PaidTypesRead`) reads of the paid resources, as a comparable string: two declarations are
+ * equivalent for that reader exactly when these are equal.
+ */
+export function readOfPaidTypes(paid: ResourcePool, read: PaidTypesRead): string {
+  if ("count" in read) return String(paidTypeCountOf(paid));
+  if ("atLeast" in read) return String(paidTypeCountOf(paid) >= read.atLeast);
+  return read.types.map((type) => (paid[type] > 0 ? "1" : "0")).join("");
+}
+
+/** What every reader of a payment reads of one set of paid resources, as one comparable string (`readOfPaidTypes`). */
+export const paidTypesReading = (paid: ResourcePool, reads: readonly PaidTypesRead[]): string =>
+  reads.map((read) => readOfPaidTypes(paid, read)).join("|");
+
+/** The option id of "wild number `index` (from 0) is used as `type`" in a `declareWildTypes` choice. */
+export const wildTypeOptionId = (index: number, type: ResourceType): string => `${index}:${type}`;
+
+/**
+ * The declaration a `declareWildTypes` answer makes: the type chosen for each of `wilds` wilds, in their order. Null
+ * unless the selection names every wild exactly once with one of the four types.
+ */
+export function wildTypesFromOptionIds(optionIds: readonly string[], wilds: number): readonly ResourceType[] | null {
+  const declared: (ResourceType | undefined)[] = Array<ResourceType | undefined>(wilds).fill(undefined);
+  for (const optionId of optionIds) {
+    const [index, type] = optionId.split(":");
+    const n = Number(index);
+    const known = RESOURCE_TYPES.find((candidate) => candidate === type);
+    if (!Number.isInteger(n) || n < 0 || n >= wilds || known === undefined || declared[n] !== undefined) return null;
+    declared[n] = known;
+  }
+  return declared.every((type): type is ResourceType => type !== undefined) ? declared : null;
+}

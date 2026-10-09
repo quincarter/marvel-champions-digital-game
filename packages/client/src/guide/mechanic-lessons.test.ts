@@ -708,6 +708,299 @@ describe("Psylocke: Psi-Knife and Psi-Katana", () => {
   });
 });
 
+describe("Iceman: Frostbite", () => {
+  const frostbites = (t: Awaited<ReturnType<typeof run>>) =>
+    Object.values(t.state().instances).filter((i) => i.cardId.startsWith("46002"));
+
+  test("opens as Bobby Drake with six Frostbites set aside, and no Frostbite attached", async () => {
+    const t = await run("iceman");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(frostbites(t)).toHaveLength(6);
+    expect(frostbites(t).every((i) => i.attachedTo === null)).toBe(true);
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip and a basic attack that accepts Freeze! to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("iceman", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+
+    const attack = t.controller.view();
+    expect(attack.step?.id).toBe("attack");
+    expect(attack.anchor).toEqual({ kind: "action", id: "attack" });
+    // Nothing in the hand reacts to a basic attack but Freeze! itself (Surprise Move would open a second offer).
+    const hand = t.me().hand.map((id) => t.state().instances[id]!.cardId as string);
+    expect(hand).not.toContain("46015");
+    const villain = activeVillain(t.state() as never).instanceId;
+    t.dispatch({
+      type: "basicAttack",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      attackerInstanceId: t.me().identity.instanceId,
+      targetInstanceId: villain,
+    });
+    const offer = t.state().pendingChoice!;
+    expect(offer.prompt.kind).toBe("chooseTriggers");
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: offer.playerId,
+      choiceId: offer.choiceId,
+      selectedOptionIds: offer.options.filter((o) => o.optionId.includes("46001a.")).map((o) => o.optionId),
+    });
+    t.settle(/./);
+    const attached = frostbites(t).filter((i) => i.attachedTo === villain);
+    expect(attached).toHaveLength(1);
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Magik: the faceup top card", () => {
+  test("opens as Illyana with Limbo and a resource card in hand and Colossus on top of the deck", async () => {
+    const t = await run("magik");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.handId("45032")).toBeDefined();
+    expect(t.handId("45047")).toBeDefined();
+    expect(t.state().instances[t.me().deck[0]!]!.cardId).toBe("45031");
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip, the play from the top, Limbo and its swap (a hand card goes on top) to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("magik", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/./);
+    expect(t.me().identity.form).toBe("hero");
+
+    // Colossus (cost 3) is the faceup top card: played from the deck he costs 1 less, so two hand cards pay.
+    expect(t.controller.view().step?.id).toBe("play-top");
+    expect(t.state().instances[t.me().deck[0]!]!.cardId).toBe("45031");
+    const colossus = t.me().deck[0]!;
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: colossus,
+      payment: [{ fromHand: t.handId("45043") }, { fromHand: t.handId("45044") }],
+      attachToInstanceId: null,
+    });
+    t.settle(/./);
+    expect(t.inPlay()).toContain("45031");
+    expect(t.state().instances[t.me().deck[0]!]!.cardId).not.toBe("45031"); // the next card shows
+
+    expect(t.controller.view().step?.id).toBe("next-card");
+    t.controller.primary();
+
+    expect(t.controller.view().step?.id).toBe("play-limbo");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("45032"),
+      payment: [{ fromHand: t.handId("45047") }],
+      attachToInstanceId: null,
+    });
+    t.settle(/./);
+    expect(t.inPlay()).toContain("45032");
+
+    expect(t.controller.view().step?.id).toBe("swap");
+    const limbo = t.me().playArea.find((id) => t.state().instances[id]!.cardId === "45032")!;
+    t.dispatch({
+      type: "useAbility",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: limbo,
+      abilityId: "45032.limbo-action" as never,
+      payment: [],
+    });
+    expect(t.controller.view().step?.id).toBe("swap"); // the player still picks the card
+    t.choose(/Clobber/);
+    t.settle(/./);
+    expect(t.state().instances[t.me().deck[0]!]!.cardId).toBe("45046"); // Clobber is now the faceup top card
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Magneto: Magnetic Pull", () => {
+  test("opens as Erik Lehnsherr with the Helmet third from the top of the deck", async () => {
+    const t = await run("magneto");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(
+      t
+        .me()
+        .deck.slice(0, 3)
+        .map((id) => t.state().instances[id]!.cardId),
+    ).toEqual(["49018", "49019", "49003"]);
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip and Magnetic Pull (the Helmet counts as the third discarded and is in hand) to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("magneto", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/./);
+
+    expect(t.controller.view().step?.id).toBe("pull");
+    t.dispatch({
+      type: "useAbility",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.me().identity.instanceId,
+      abilityId: "49001a.magnetic-pull" as never,
+      payment: [],
+    });
+    t.settle(/./);
+    const hand = t.me().hand.map((id) => t.state().instances[id]!.cardId as string);
+    expect(hand).toContain("49003");
+    const discard = t.state().players[0]!.discard.map((id) => t.state().instances[id]!.cardId as string);
+    expect(discard).toEqual(expect.arrayContaining(["49018", "49019"]));
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Jubilee: different resource types", () => {
+  test("opens as Jubilation Lee with Firecracker and Plasmoid Energy in hand", async () => {
+    const t = await run("jubilee");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.handId("47007a")).toBeDefined();
+    expect(t.handId("47010a")).toBeDefined();
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip and Firecracker paid with Plasmoid Energy (two types) to a stunned Rhino", async () => {
+    const onComplete = vi.fn();
+    const t = await run("jubilee", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/./);
+
+    expect(t.controller.view().step?.id).toBe("firecracker");
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("47007a"),
+      payment: [{ fromHand: t.handId("47010a") }],
+      attachToInstanceId: null,
+    });
+    t.settle(/./);
+    const villain = activeVillain(t.state() as never).instanceId;
+    expect(t.state().instances[villain]!.statuses.stunned).toBeGreaterThan(0);
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Bishop: Energy Absorption", () => {
+  test("opens as Lucas Bishop with Stored Energy on top of the deck", async () => {
+    const t = await run("bishop");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(
+      t
+        .me()
+        .deck.slice(0, 2)
+        .map((id) => t.state().instances[id]!.cardId),
+    ).toEqual(["45010", "45010"]);
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks the flip, the hit and Energy Absorption (resource cards to hand) to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("bishop", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("flip");
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    expect(t.controller.view().step?.id).toBe("take-a-hit");
+
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    // The hand-size discard, then the defender question (no defense), then Energy Absorption's offer: accept it.
+    while (t.state().pendingChoice) {
+      const kind = t.state().pendingChoice!.prompt.kind;
+      if (kind === "chooseTriggers") break;
+      t.choose(/No defense/);
+    }
+    expect(t.controller.view().step?.id).toBe("take-a-hit");
+    const offer = t.state().pendingChoice!;
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: offer.playerId,
+      choiceId: offer.choiceId,
+      selectedOptionIds: offer.options
+        .filter((o) => o.optionId.includes("45001a.energy-absorption"))
+        .map((o) => o.optionId),
+    });
+    t.settle(/./);
+    const hand = t.me().hand.map((id) => t.state().instances[id]!.cardId as string);
+    expect(hand.filter((id) => id === "45010").length).toBeGreaterThanOrEqual(2); // both Stored Energy came to hand
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Nightcrawler: Bamf!", () => {
+  test("opens as Kurt Wagner with Bamf! in hand and none attached", async () => {
+    const t = await run("nightcrawler");
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.handId("48006")).toBeDefined();
+    expect(t.controller.view().step?.id).toBe("intro");
+  });
+
+  test("walks Bamf! on Rhino as Kurt, the flip, and the teleport defense to completion", async () => {
+    const onComplete = vi.fn();
+    const t = await run("nightcrawler", onComplete);
+    t.controller.primary();
+    expect(t.controller.view().step?.id).toBe("attach");
+    const villain = activeVillain(t.state() as never).instanceId;
+    t.dispatch({
+      type: "playCard",
+      playerId: MECHANIC_TRYIT_PLAYER_ID,
+      cardInstanceId: t.handId("48006"),
+      payment: [],
+      attachToInstanceId: villain,
+    });
+    t.settle(/./);
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.controller.view().step?.id).toBe("flip");
+
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    t.settle(/./);
+    expect(t.controller.view().step?.id).toBe("defend");
+
+    t.dispatch({ type: "endTurn", playerId: MECHANIC_TRYIT_PLAYER_ID });
+    // The hand-size discard, if asked; then Bamf!'s offer when Rhino attacks: accept it.
+    while (t.state().pendingChoice && t.state().pendingChoice!.prompt.kind !== "chooseTriggers") t.choose(/./);
+    expect(t.controller.view().step?.id).toBe("defend");
+    const offer = t.state().pendingChoice!;
+    t.dispatch({
+      type: "resolveChoice",
+      playerId: offer.playerId,
+      choiceId: offer.choiceId,
+      selectedOptionIds: offer.options
+        .filter((o) => o.optionId.includes("48006.bamf-interrupt"))
+        .map((o) => o.optionId),
+    });
+    t.settle(/./);
+    expect(Object.values(t.state().instances).some((i) => i.cardId === "48006" && i.attachedTo !== null)).toBe(false); // discarded
+
+    expect(t.controller.view().step?.id).toBe("result");
+    t.controller.primary();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Angel: three faces", () => {
   test("opens as Warren Worthington III on the intro step", async () => {
     const t = await run("angel");

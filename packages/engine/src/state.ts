@@ -75,11 +75,33 @@ export type ZoneId =
    * standard rules for out-of-play cards" (MC16 p. 10). Created by the scenario's setup (`createScenarioArea`).
    */
   | { readonly kind: "scenarioArea"; readonly name: string }
+  /**
+   * A scenario's own game area that is in play and under no player's control (docs/phase7-wave8.md §3.33): the mission
+   * area of MC45 p. 5, "Cards in the mission area are in play but under no player's control." The in-play sibling of
+   * `scenarioArea`; encounter cards and player cards share it. Created by `createScenarioPlayArea`
+   * (`GameState.scenarioPlayAreas`).
+   */
+  | { readonly kind: "scenarioPlayArea"; readonly name: string }
   | { readonly kind: "villainArea" }
   | { readonly kind: "attachment"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "boost"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "victoryDisplay" }
   | { readonly kind: "removedFromGame" };
+
+/**
+ * One in-play scenario area (`ZoneId scenarioPlayArea`, docs/phase7-wave8.md §3.33). A card in it is in play, keeps its
+ * owner, and has no controller and no engaged player; a card attached to one of them is in the area with its host.
+ */
+export interface ScenarioPlayAreaState {
+  /** The unattached cards in the area, in the order they entered it. */
+  readonly cards: readonly InstanceId[];
+  /**
+   * MC45 p. 5: "They cannot be affected by card abilities unless the ability refers to the mission area." A closed
+   * area's cards are skipped by every query and selector of an ability that does not name the area
+   * (`TargetQuery.inScenarioPlayArea`, `AbilityDefinition.reaches`).
+   */
+  readonly closed: boolean;
+}
 
 /**
  * What a facedown card in play is treated as ("put the top card of your deck
@@ -267,6 +289,12 @@ export interface PlayerState {
    */
   readonly extraMulligans?: number;
   /**
+   * Cards this player already holds that count toward their starting hand (`EffectSpec countTowardStartingHand`;
+   * docs/phase7-wave8.md §3.44): the draw of RRG 1.8 Appendix II step 14 is that much smaller, and clears it. Absent
+   * when 0, which is every game no earlier setup instruction credited.
+   */
+  readonly startingHandCredit?: number;
+  /**
    * Facts from outside the game this seat supplied at setup (`PlayerSetup.outsideFacts`; docs/phase7-wave7.md §3.83),
    * read by `Predicate outsideFact`. A setup input that never changes; absent when the seat supplied none that is
    * true.
@@ -366,14 +394,15 @@ export interface EncounterFromDeck {
  * fields these are. `boundOn`: the discarding ability's set of the cards "discarded this way", as the slot `slot` of
  * frame `frameId` (the effects frame of a `moveCards` or `discardDeckUntil` with a `bind`, the frame a
  * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
- * `settleDeckDiscards`).
+ * `settleDeckDiscards`). `also`: further slots of that frame holding the card (`discardDeckUntil.bindAll`,
+ * docs/phase7-wave8.md §3.71), which drop it the same way.
  */
 export interface DeckDiscard {
   readonly playerId: PlayerId;
   readonly instanceId: InstanceId;
   readonly sourceInstanceId: InstanceId | null;
   readonly at: "discard" | "deck";
-  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string };
+  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string; readonly also?: readonly string[] };
 }
 
 /**
@@ -409,6 +438,8 @@ export interface LeftPlay {
   readonly speakerId?: PlayerId;
   readonly to: ZoneId["kind"];
   readonly traits: readonly Trait[];
+  /** The attachments its leaving left in play, unattached (`TriggerEvent cardLeavesPlay.strandedAttachments`). */
+  readonly strandedAttachments?: readonly InstanceId[];
   /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
   readonly interruptsResolved?: true;
 }
@@ -462,6 +493,13 @@ export interface MainSchemeState {
    * the predicate is false for every cause.
    */
   readonly advancedBy?: MainSchemeAdvancedBy;
+  /**
+   * Present while this stage's A side is the faceup one (docs/phase7-wave8.md §4.1 Q56): from setup until Appendix II
+   * step 12b flips 1A to 1B, and from an advance until its step 3 flips the new stage (RRG 1.8 pp. 51, 27). The B
+   * side's abilities are not live until then (`activeAbilityRefs`); the A side's Setup and When Revealed abilities are
+   * resolved by the frames pushed for them. Removed by the `mainSchemeTurnsToB` event. Absent: the B side is faceup.
+   */
+  readonly faceupSide?: "A";
 }
 
 /**
@@ -527,6 +565,12 @@ export interface ScenarioRules {
    */
   readonly setupInstructions?: readonly ScenarioSetupInstruction[];
   /**
+   * `GameSetupConfig.setupOptions`: the optional setup rules the players turned on, each with the amount they stated
+   * (`SetupOption`; docs/phase7-wave8.md §3.5). Absent in every game that states none, so an older save reads
+   * unchanged.
+   */
+  readonly setupOptions?: readonly SetupOption[];
+  /**
    * `GameSetupConfig.setAsideUntilCalled`: cards RRG 1.8 Appendix II step 11 (p. 51) leaves in the set-aside area
    * although they have the setup keyword. Absent in every game without such a scenario rule.
    */
@@ -556,6 +600,27 @@ export interface SetAsideUntilCalled {
  */
 export interface ScenarioSetupInstruction {
   readonly id: string;
+  readonly text: string;
+  readonly citation: string;
+  readonly effects: readonly EffectSpec[];
+}
+
+/**
+ * One optional setup rule the players turned on, with the amount they stated: a rule an encounter set's or a scenario's
+ * rulebook offers "up to the players as a group" (MC45 p. 8, "Modular Difficulty": "they may place threat on Gene Pool
+ * during setup … The amount of threat placed is up to the players as a group"; docs/phase7-wave8.md §3.5, §4.1 Q1).
+ *
+ * Resolved once, after RRG 1.8 Appendix II step 11 (the setup-keyword cards are in play) and before step 12's Setup
+ * and When Revealed abilities (p. 51), as scenario text resolved by the first player. `amount` is what the players
+ * stated and is what the `setupOptionApplied` log entry records; `effects` is the plain-data instruction the scenario
+ * builder wrote for that amount. The engine never fills an amount in from the mode: an option the setup config does
+ * not list is not applied. Part of the setup config, so of the replay baseline.
+ */
+export interface SetupOption {
+  /** The option's stable id, chosen by the scenario builder ("<encounter set>.<rule>"). */
+  readonly option: string;
+  /** The amount the players stated: a whole number, 0 or more. */
+  readonly amount: number;
   readonly text: string;
   readonly citation: string;
   readonly effects: readonly EffectSpec[];
@@ -745,8 +810,9 @@ export interface TableRules {
   /**
    * "A hero and an ally with the same name can't both be in play" (owner decision, 2026-10-03). FFG's rule is the
    * default: a hero and a same-titled ally with no subtitle do not match (RRG 1.8 "Unique Icon", pp. 45–46; rulings
-   * Jan 26, 2026 (4) #7 and Mar 19, 2026 (4), on Valkyrie), so the Colossus ally may be played beside the Colossus
-   * hero. With this on, a unique ally with no subtitle also matches an identity whose hero title is its title
+   * Jan 26, 2026 (4) #7 and Mar 19, 2026 (4), on Valkyrie), so the Valkyrie ally (or Ironheart's) may be played
+   * beside its hero. (The Colossus ally is refused beside the Colossus hero by the RRG itself: it prints the subtitle
+   * "Piotr Rasputin", the hero's alter-ego title.) With this on, a unique ally with no subtitle also matches an identity whose hero title is its title
    * (`cardsMatch` in `unique.ts`), so it cannot enter play while that identity is in play, in either form. Deck
    * building is not changed: the ally may still be in a deck and spent as a resource.
    */
@@ -768,6 +834,17 @@ export interface GameState {
    * rules rather than an entry in a card's `counters`; changes are logged as `activeVillainChanged`.
    */
   readonly activeVillainId: InstanceId;
+  /**
+   * The villains in play as they sit on the table, left to right, in a scenario that lays them out in a row (the Four
+   * Horsemen, MC45 p. 11: "reveal them in a row from left to right. Place the active counter on the leftmost
+   * villain"; docs/phase7-wave8.md §3.7). Explicit state: `villains` stays in printed order, and the row is where each
+   * one sits. Set by `EffectSpec addVillain` with `row: "shuffled"` (logged `villainRowSet`); once a row exists, a
+   * villain that enters play joins at the right end and one that leaves play (defeated, set aside, removed) leaves the
+   * row. A villain at 0 hit points that is not defeated is still in play and keeps its place. Read by
+   * `moveActiveCounter { to: "nextInRow" }` (`nextVillainInRow`). Absent in every scenario without a row, so an older
+   * save reads unchanged.
+   */
+  readonly villainRow?: readonly InstanceId[];
   /**
    * The main scheme: with separate game areas, the central stage outside every area (docs/phase7-wave2.md §3.1); each
    * area's own stage is its `GameAreaState.mainScheme`.
@@ -879,6 +956,31 @@ export interface GameState {
    */
   readonly heldAtZero?: readonly InstanceId[];
   /**
+   * Side schemes whose last threat was removed while a `notDefeatedWithoutThreat` rule covered them, left in play at no
+   * threat (`resolve/event.ts` `applyRemoveThreat`). Watched between frames like `heldAtZero`: one that has threat
+   * again or has left play is dropped, and one the rule stops covering is defeated at once (RRG 1.8 "Defeat", p. 15;
+   * `resolve/state-checks.ts` `checkSchemeProtectionEnded`; docs/phase7-wave8.md §3.40: "The [MISSION] side scheme
+   * cannot be defeated while there are any minions in the mission area"). Absent in a game that never held one.
+   */
+  readonly heldAtNoThreat?: readonly InstanceId[];
+  /**
+   * The hit points each damaged character in play was last seen to have, keyed by instance id, so a fall is noticed
+   * the moment it happens: RRG 1.8 "Hit Points" (p. 22), an ally or minion whose "+X hit points" "ceases to be in
+   * effect" with damage on it equal to or greater than its hit points is defeated, and an identity's or villain's dial
+   * is reduced by X (`resolve/state-checks.ts` `checkHitPointsFell`). Memory of an edge and nothing else: a
+   * character's hit points are always derived (`maxHitPoints`), never read from here. Only characters with damage on
+   * them have an entry, and the field is absent while there is none.
+   */
+  readonly hitPointsSeen?: Readonly<Record<string, number>>;
+  /**
+   * The card last logged as showing on top of each player's deck under a `topOfDeckFaceup` rule (docs/phase7-wave8.md
+   * §3.48), so the log says `deckTopShown` / `deckTopHidden` once per change (`announceDeckTops`, `deck-top.ts`). This
+   * is the log's memory and nothing else: which card is visible is never read from here, it is derived from the deck's
+   * order and the rule (`shownDeckTop`). A player with nothing showing has no entry, and the field is absent in a game
+   * where no card is.
+   */
+  readonly deckTopsAnnounced?: Readonly<Record<string, InstanceId>>;
+  /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
    * Reset when the round ends.
@@ -963,6 +1065,11 @@ export interface GameState {
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
    */
   readonly scenarioAreas?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
+   * The scenario's in-play areas that no player controls, by name (`ZoneId scenarioPlayArea`; the mission area,
+   * docs/phase7-wave8.md §3.33). Absent until a scenario creates one, so other games serialize as before.
+   */
+  readonly scenarioPlayAreas?: Readonly<Record<string, ScenarioPlayAreaState>>;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

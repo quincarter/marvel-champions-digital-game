@@ -19,6 +19,9 @@ import {
   WAVE3_SCENARIOS,
   WAVE4_SCENARIOS,
   WAVE5_SCENARIOS,
+  WAVE6_SCENARIOS,
+  WAVE7_SCENARIOS,
+  WAVE8_SCENARIOS,
 } from "@mc/content";
 import { createGame, replay } from "@mc/engine";
 import { playToOutcome } from "../testing/driver.js";
@@ -52,6 +55,9 @@ const SCENARIO_IDS: readonly string[] = [
   ...WAVE3_SCENARIOS,
   ...WAVE4_SCENARIOS,
   ...WAVE5_SCENARIOS,
+  ...WAVE6_SCENARIOS,
+  ...WAVE7_SCENARIOS,
+  ...WAVE8_SCENARIOS,
 ].map((scenario) => scenario.id as string);
 
 const nameOf = (id: string): string => (PLAYABLE_CARDS.find((card) => card.id === id) as { name?: string })?.name ?? id;

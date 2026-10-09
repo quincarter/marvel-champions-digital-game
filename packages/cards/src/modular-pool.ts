@@ -25,6 +25,7 @@ import {
   WAVE5_SCENARIOS,
   WAVE6_SCENARIOS,
   WAVE7_SCENARIOS,
+  WAVE8_SCENARIOS,
   WAVE1_ENCOUNTER_SETS,
   WAVE2_ENCOUNTER_SETS,
   WAVE3_ENCOUNTER_SETS,
@@ -32,6 +33,7 @@ import {
   WAVE5_ENCOUNTER_SETS,
   WAVE6_ENCOUNTER_SETS,
   WAVE7_ENCOUNTER_SETS,
+  WAVE8_ENCOUNTER_SETS,
   setAsideModularSetCountFor,
   type AnyCard,
   type CardId,
@@ -52,6 +54,7 @@ export const PLAYABLE_ENCOUNTER_SETS: readonly EncounterSet[] = [
       ...WAVE5_ENCOUNTER_SETS,
       ...WAVE6_ENCOUNTER_SETS,
       ...WAVE7_ENCOUNTER_SETS,
+      ...WAVE8_ENCOUNTER_SETS,
     ].map((set) => [set.id as string, set] as const),
   ).values(),
 ];
@@ -102,8 +105,12 @@ export function isModularChoice(set: EncounterSet, scenario: Scenario): boolean 
  * the setup keyword and "if Hope Summers leaves play, the players lose the game", so shuffling her into any other
  * scenario is not a choice the game offers. The spec calls the set `extraModular`, which the data does not carry and
  * which would offer her at every scenario, so the exclusion lives here until that is settled.
+ *
+ * Prelates (MC45 p. 14; docs/phase7-wave8.md section 1.12): the five Prelate minions are the reverse sides of the
+ * campaign's Overseer minions and are set aside by the Apocalypse scenario, whose own cards are the only ones that put
+ * one into play. The set holds no villain or main scheme card, so the data alone would call it modular.
  */
-export const SCENARIO_BOUND_SET_IDS: ReadonlySet<string> = new Set(["hope_summers"]);
+export const SCENARIO_BOUND_SET_IDS: ReadonlySet<string> = new Set(["hope_summers", "prelates"]);
 
 /** Every scenario of the playable pool, in wave order. */
 export const PLAYABLE_SCENARIO_RECORDS: readonly Scenario[] = [
@@ -115,6 +122,7 @@ export const PLAYABLE_SCENARIO_RECORDS: readonly Scenario[] = [
   ...WAVE5_SCENARIOS,
   ...WAVE6_SCENARIOS,
   ...WAVE7_SCENARIOS,
+  ...WAVE8_SCENARIOS,
 ];
 
 /** Every set some scenario names as its Standard or Expert set: never a modular choice anywhere (RRG 1.8 pp. 40, 19). */

@@ -32,7 +32,9 @@ import {
 } from "@mc/engine";
 import type { SessionConfig, SavedGame } from "../engine/host.js";
 import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
+import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
+import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
 
 /**
@@ -175,16 +177,21 @@ export class CampaignService {
     if (!attempt) return record;
     const { attempt: _dropped, ...rest } = record;
     const before = attempt.logBefore;
-    return this.#put(record, {
-      ...rest,
-      seats: withRemovedCardsOutOfDecks({ seats: before.seats, removedFromCampaign: record.removedFromCampaign }).seats,
-      shared: before.shared,
-      hidden: before.hidden,
-      // RRG 1.8 p. 29: a removal outlives even a retry, so it outlives an attempt that was never played.
-      removedFromCampaign: record.removedFromCampaign,
-      position: before.position,
-      rng: before.rng,
-    });
+    return this.#put(
+      record,
+      {
+        ...rest,
+        seats: withRemovedCardsOutOfDecks({ seats: before.seats, removedFromCampaign: record.removedFromCampaign })
+          .seats,
+        shared: before.shared,
+        hidden: before.hidden,
+        // RRG 1.8 p. 29: a removal outlives even a retry, so it outlives an attempt that was never played.
+        removedFromCampaign: record.removedFromCampaign,
+        position: before.position,
+        rng: before.rng,
+      },
+      { keepEasierStart: true },
+    );
   }
 
   /**
@@ -204,8 +211,29 @@ export class CampaignService {
 
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
   launchConfig(record: CampaignRecord): SessionConfig {
-    const config = campaignLaunchConfig(this.definitionFor(record), record);
+    const config = withEasierStart(campaignLaunchConfig(this.definitionFor(record), record), record);
     return record.tableRules ? { ...config, tableRules: record.tableRules } : config;
+  }
+
+  /**
+   * Switches Apocalypse's easier start on or off for the composed issue (the Briefing's toggle; off by default). Refused
+   * unless the composed issue offers it (Apocalypse, standard mode), so a stale tap changes nothing. Stored on the
+   * record for this node only, kept through a deck edit and dropped when the game is folded.
+   */
+  async setEasierStart(record: CampaignRecord, on: boolean): Promise<CampaignRecord> {
+    const attempt = record.attempt;
+    if (!attempt) throw new Error("compose the issue before choosing its start");
+    const offered = easierStartBriefingOf(record, campaignLaunchConfig(this.definitionFor(record), record));
+    if (!offered) throw new Error(`issue "${attempt.nodeId}" does not offer an easier start`);
+    if (easierStartIsOn(record) === on) return record;
+    const { easierStartNodeId: _off, ...rest } = record;
+    const next: CampaignRecord = {
+      ...rest,
+      ...(on ? { easierStartNodeId: attempt.nodeId } : {}),
+      updatedAt: this.#now(),
+    };
+    await this.storage.put(next);
+    return next;
   }
 
   /**
@@ -265,6 +293,8 @@ export class CampaignService {
    * Between issues a seat may change aspects and deck contents, never the identity (MC10 p. 3). The caller has
    * already validated `deck` with `campaign-deck-edit-model.ts`; this refuses only what would corrupt the log — an
    * identity change, or editing while an issue is composed (discard the attempt first, so its snapshot is not stale).
+   * A reward the edit took out of the list is marked left out (`reconcileRewards`; MC45 p. 24, "They may include"), so
+   * the log never names a granted copy the deck does not hold.
    */
   async setSeatDeck(record: CampaignRecord, seatNumber: number, deck: Deck): Promise<CampaignRecord> {
     if (record.attempt) throw new Error("discard the composed issue before editing a deck");
@@ -275,8 +305,36 @@ export class CampaignService {
       ...record,
       seats: record.seats.map((candidate) =>
         candidate.seatNumber === seatNumber
-          ? { ...candidate, deck: { identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards } }
+          ? {
+              ...candidate,
+              deck: { identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards },
+              grants: reconcileRewards(deck, candidate.grants),
+            }
           : candidate,
+      ),
+    });
+  }
+
+  /**
+   * Puts a reward the seat chose into its deck, or leaves it out, for the games to come (MC45 p. 24: "They may
+   * include 1 copy of that card in their deck for the rest of the campaign"; owner decision, 2026-10-08). The grant
+   * stays in the log either way. Refused while an issue is composed, as `setSeatDeck` is.
+   */
+  async setSeatRewardIncluded(
+    record: CampaignRecord,
+    seatNumber: number,
+    cardId: CardId,
+    included: boolean,
+  ): Promise<CampaignRecord> {
+    if (record.attempt) throw new Error("discard the composed issue before editing a deck");
+    const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
+    if (!seat) throw new Error(`campaign ${record.id} has no seat ${seatNumber}`);
+    const edit = setRewardIncluded(seat.deck, seat.grants, cardId, included);
+    if (edit.grants === seat.grants) return record;
+    return this.#put(record, {
+      ...record,
+      seats: record.seats.map((candidate) =>
+        candidate.seatNumber === seatNumber ? { ...candidate, deck: edit.deck, grants: edit.grants } : candidate,
       ),
     });
   }
@@ -326,9 +384,25 @@ export class CampaignService {
     return next;
   }
 
-  async #put(previous: CampaignRecord, log: CampaignLog): Promise<CampaignRecord> {
+  /**
+   * `keepEasierStart`: the easier start rides along when the new log still holds that node's composed issue, or when no
+   * issue was composed on either side (a deck edit); a fold (an attempt before, none after) drops it, so a retry of the
+   * node starts with it off. A discarded attempt is composed again, so it passes the flag to keep it.
+   */
+  async #put(
+    previous: CampaignRecord,
+    log: CampaignLog,
+    options: { readonly keepEasierStart?: boolean } = {},
+  ): Promise<CampaignRecord> {
+    const keepEasierStart =
+      previous.easierStartNodeId !== undefined &&
+      (options.keepEasierStart === true ||
+        log.attempt?.nodeId === previous.easierStartNodeId ||
+        (!log.attempt && !previous.attempt));
+    // The runner spreads the whole record into the log it returns, so a stale flag must be taken off before it is decided.
+    const { easierStartNodeId: _stale, ...bare } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId">;
     const next: CampaignRecord = {
-      ...log,
+      ...bare,
       recordSchema: previous.recordSchema,
       name: previous.name,
       box: previous.box,
@@ -336,6 +410,7 @@ export class CampaignService {
       updatedAt: this.#now(),
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
+      ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
     };
     await this.storage.put(next);
     return next;

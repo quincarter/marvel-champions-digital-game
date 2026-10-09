@@ -1,4 +1,5 @@
 import type { CardId, VillainSideLetter } from "@mc/content";
+import { announceDeckTops } from "./deck-top.js";
 import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import {
@@ -39,6 +40,7 @@ import {
   discardRedirectArea,
   lingeringConsequentialRules,
   mainSchemeForRedirect,
+  staysInHand,
 } from "./rules.js";
 import { addFrameSlots, eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
@@ -118,6 +120,34 @@ export function setForm(
     ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}),
     fromTraits,
   };
+}
+
+/**
+ * Changes a player's identity form, through a `formChanging` event when an interrupt listens for the change ("Interrupt:
+ * When you change to hero form, …" on the face being left), else at once (`setForm`). Returns the event for the caller
+ * to push: the `formChanging` whose apply step will make the change, or the `formChanged` announcement of a change
+ * already made; null when the player is already in that form. Any additional cost is the caller's to pay first.
+ */
+export function changeIdentityForm(
+  ctx: Ctx,
+  playerId: PlayerId,
+  to: "hero" | "alterEgo",
+  voluntary: boolean,
+  heroFormIndex = 0,
+): TriggerEvent | null {
+  const identity = mustPlayer(ctx.state, playerId).identity;
+  if (identity.form === to && identity.heroFormIndex === (to === "hero" ? heroFormIndex : null)) return null;
+  const would: TriggerEvent = {
+    kind: "formChanging",
+    playerId,
+    to,
+    change: "identity",
+    identityInstanceId: identity.instanceId,
+    voluntary,
+    heroFormIndex,
+  };
+  if (hasCandidates(ctx.state, ctx.deps, would, "interrupt")) return would;
+  return setForm(ctx, playerId, to, voluntary, heroFormIndex);
 }
 
 /**
@@ -531,7 +561,7 @@ export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): vo
 export function setActiveVillain(
   ctx: Ctx,
   to: InstanceId,
-  reason: "effect" | "activeVillainDefeated" | "focusedScheme" | "activationOrder" | "noActiveVillain",
+  reason: "effect" | "activeVillainDefeated" | "focusedScheme" | "activationOrder" | "noActiveVillain" | "nextInRow",
 ): void {
   const from = ctx.state.activeVillainId;
   if (from === to || mustVillain(ctx.state, to).defeated) return;
@@ -634,6 +664,8 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
   const order = shuffleZone(ctx, { kind: "deck", playerId }, player.discard);
   updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order, discard: [] }));
   emit(ctx, { type: "playerDeckReset", playerId });
+  // The new deck's top card shows before the encounter card is dealt (docs/phase7-wave8.md §3.48).
+  announceDeckTops(ctx);
   // Announced between frames by the flow (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11).
   ctx.state = {
     ...ctx.state,
@@ -766,10 +798,14 @@ export function discardFromDeckAsCost(
  * from the new deck (RRG 1.8 "Player Deck", p. 33: "the player continues to draw cards up to the specified number").
  * A drawn obligation goes to the play area (`drawOne`) and still counts as one of the `count` cards drawn.
  */
-export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
+export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
+  const drawn: InstanceId[] = [];
   for (let i = 0; i < count; i++) {
-    if (!drawOne(ctx, playerId)) return;
+    const card = drawOne(ctx, playerId);
+    if (card === null) break;
+    drawn.push(card);
   }
+  return drawn;
 }
 
 /**
@@ -785,22 +821,30 @@ export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
 export function drawUpTo(ctx: Ctx, playerId: PlayerId, target: () => number): void {
   // Cards that do not count toward hand size do not fill it (docs/phase7-wave5.md §3.18).
   while (handCountTowardHandSize(ctx.state, playerId, ctx.deps) < target()) {
-    if (!drawOne(ctx, playerId)) return;
+    if (drawOne(ctx, playerId) === null) return;
   }
 }
 
 /**
- * Draws the top card of `playerId`'s deck; false when there is none. An obligation in a player deck (The Rise of Red
+ * Draws the top card of `playerId`'s deck and returns it; null when there is none. An obligation in a player deck (The Rise of Red
  * Skull's expert campaign sets, MC10 p. 17) is drawn but never reaches the hand: "If a player draws an obligation card
  * from their player deck, they place that obligation into their play area" (RRG 1.8 "Obligation", p. 30). It is still
  * an encounter card (MC10 p. 17), so it enters play as a revealed obligation does (`enterPlayOnReveal`): faceup,
  * controlled by nobody (the play area holding it makes it that player's, `useAbility`'s obligation check), and
  * announced as entering play. It is placed, not revealed, so no "When Revealed" ability resolves.
+ *
+ * The exception is an obligation whose own text is about being in the hand ("Forced Response: After this card enters
+ * your hand, reveal it. Then, draw 1 card."; `staysInHand`, which already reads that text on every other encounter
+ * card): drawing it is it entering the hand, so it is drawn into the hand like any card and its own ability does the
+ * rest. Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 76), read through RRG 1.8 "The Golden Rules"
+ * (p. 4): "If the text of a card … directly contradicts the text of … the Rules Reference …, the text of the card …
+ * takes precedence." No FFG ruling says a draw counts as entering the hand for such an obligation; p. 30 above stays
+ * the rule for every obligation without that text.
  */
-function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
+function drawOne(ctx: Ctx, playerId: PlayerId): InstanceId | null {
   const top = takeTopOfDeck(ctx, playerId);
-  if (!top) return false;
-  const obligation = mustCardOf(ctx.state, top).type === "obligation";
+  if (!top) return null;
+  const obligation = mustCardOf(ctx.state, top).type === "obligation" && !staysInHand(ctx.state, ctx.deps, top);
   const to: ZoneId = obligation ? { kind: "playArea", playerId } : { kind: "hand", playerId };
   const from = relocateCard(ctx, top, to);
   emit(ctx, { type: "cardDrawn", playerId, instanceId: top });
@@ -811,7 +855,7 @@ function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
   // An encounter card drawn into the hand (Mysterio, docs/phase7-wave5.md §3.5) is recorded for the flow to announce.
   settlePlayerDecks(ctx, from, to, top);
   if (obligation) pushEvent(ctx, { kind: "cardEntersPlay", instanceId: top, playerId });
-  return true;
+  return top;
 }
 
 /**
@@ -1007,7 +1051,24 @@ function listensForLeavingPlay(deps: EngineDeps): boolean {
  * p. 8, not a card ability) or under a "cannot leave play" rule. docs/phase7-wave5.md §3.30.
  */
 function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
-  return isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id);
+  return staysWithoutHost(ctx.state, ctx.deps, id);
+}
+
+const staysWithoutHost = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true);
+
+/**
+ * The attachments on `hostId` that its leaving play will leave in play, unattached (`discardWithLeavingHost`: a player's
+ * permanent or "cannot leave play" card; a facedown one is out of play and an unowned permanent encounter one is
+ * discarded). Read while the host is still in play, for `TriggerEvent cardLeavesPlay.strandedAttachments`.
+ */
+function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: InstanceId): readonly InstanceId[] {
+  return mustInstance(state, hostId).attachments.filter((id) => {
+    const attachment = getInstance(state, id);
+    if (!attachment || isFacedownAttachment(state, id) || !staysWithoutHost(state, deps, id)) return false;
+    const unowned = attachment.ownerId === null && attachment.controllerId === null;
+    return !unowned || cannotLeavePlay(state, deps, id, undefined, true);
+  });
 }
 
 /**
@@ -1018,7 +1079,11 @@ function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
  */
 function discardedWithoutHost(ctx: Ctx, id: InstanceId): boolean {
   const instance = mustInstance(ctx.state, id);
-  return instance.ownerId === null && instance.controllerId === null && !cannotLeavePlay(ctx.state, ctx.deps, id);
+  return (
+    instance.ownerId === null &&
+    instance.controllerId === null &&
+    !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true)
+  );
 }
 
 /**
@@ -1046,12 +1111,14 @@ function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
   // An uncontrolled card whose "you" the rules name (an obligation in a play area, an attachment on a player card):
   // that player is who it leaves play for (`speakerId`), read now because nothing says so once it has moved.
   const speakerId = controllerId === null ? uncontrolledYouOf(state, id) : null;
+  const stranded = strandedAttachmentsOf(state, deps, id);
   return {
     instanceId: id,
     cardId: mustInstance(state, id).cardId,
     controllerId,
     ...(speakerId !== null ? { speakerId } : {}),
     traits: traitsOf(state, id, deps),
+    ...(stranded.length > 0 ? { strandedAttachments: stranded } : {}),
   };
 }
 
@@ -1144,6 +1211,22 @@ function leavingFrameFor(state: GameState, id: InstanceId): EventFrame | undefin
  * window and one response window (§4.1 Q33; `openLeavingInterrupts`). A card already leaving (its window open, or its
  * apply step moving it) does not wait again.
  */
+/**
+ * Whether a leaving is a discard, for "cannot be discarded" (`cannotLeavePlay` with `by: "discard"`): a `leavePlay`
+ * that says so, a `moveCards` to a discard pile, an attachment going with its host (RRG 1.8 "Attach To", p. 8). A
+ * defeat and a swap are not read as one.
+ */
+const isDiscardRequest = (request: LeaveRequest): boolean =>
+  request.kind === "zone"
+    ? request.discarded
+    : request.kind === "moveCards"
+      ? isDiscardDestination(request.destination)
+      : request.kind === "withHost";
+
+/** `CardDestination`s that are a discard pile (RRG 1.8 "Discard", p. 16). */
+export const isDiscardDestination = (destination: CardDestination): boolean =>
+  destination === "discard" || destination === "separateDiscard";
+
 export function waitsForLeaveInterrupts(
   ctx: Ctx,
   id: InstanceId,
@@ -1156,7 +1239,7 @@ export function waitsForLeaveInterrupts(
   const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
   if (
     permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) ||
-    cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)
+    cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, isDiscardRequest(request))
   )
     return false;
   const already = leavingFrameFor(ctx.state, id);
@@ -1338,7 +1421,7 @@ export function leavePlay(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
     return "stayed";
   }
-  if (cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, discarded)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return "stayed";
   }
@@ -1393,7 +1476,7 @@ export function leavePlayAtOnce(
   }
   // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
   if (leavingCancelled(ctx.state, id)) return;
-  if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
+  if (cannotLeavePlay(ctx.state, ctx.deps, id, undefined, discarded)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }
@@ -1534,6 +1617,9 @@ function leaveNow(
 // Lasting effects (RRG "Lasting Effects")
 // ---------------------------------------------------------------------------
 
+/** The id of the lasting effect created at `GameState.nextLastingSeq` = `seq`. */
+export const lastingEffectIdOf = (seq: number): string => `l${seq}`;
+
 export function addLastingEffect(
   ctx: Ctx,
   body: LastingEffectBody,
@@ -1542,7 +1628,7 @@ export function addLastingEffect(
 ): LastingEffect {
   const effect = {
     ...body,
-    id: `l${ctx.state.nextLastingSeq}`,
+    id: lastingEffectIdOf(ctx.state.nextLastingSeq),
     duration,
     ...(whileAttached ? { whileAttached } : {}),
   } as LastingEffect;
@@ -1573,6 +1659,21 @@ export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRo
       effect.duration.kind === boundary || (boundary === "endOfPhase" && effect.duration.kind === "nextBasicPower");
     if (ends && effect.kind !== "delayedEffects") endLastingEffect(ctx, effect.id, "expired");
   }
+}
+
+/** The lasting effects that end when the villain phase next begins (`LastingDuration nextVillainPhaseBegins`). */
+export const untilNextVillainPhase = (state: GameState): readonly LastingEffect[] =>
+  state.lastingEffects.filter((effect) => effect.duration.kind === "nextVillainPhaseBegins");
+
+/**
+ * "Until the next villain phase begins" (docs/phase7-wave8.md §3.13): the villain phase is beginning, so every lasting
+ * effect waiting on that ends. Reached twice by design, and the second finds nothing unless something was made in
+ * between: once beneath the player phase's end (`finishPlayerPhase`, the `villainPhaseBegins` step), so the effect is
+ * gone before anything answers the phase beginning; and as step one starts (`executePlaceThreat`), for an effect made
+ * while the player phase's end was still resolving.
+ */
+export function expireNextVillainPhaseEffects(ctx: Ctx): void {
+  for (const effect of untilNextVillainPhase(ctx.state)) endLastingEffect(ctx, effect.id, "expired");
 }
 
 /**
@@ -1700,10 +1801,62 @@ export function costReductionFor(
 ): number {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   return state.lastingEffects.reduce((sum, effect) => {
-    if (effect.kind !== "costReduction" || effect.playerId !== playerId) return sum;
+    // A reduction by destination is priced by the play that names the destination (`areaCostReductionFor`).
+    if (effect.kind !== "costReduction" || effect.into || !reductionIsFor(effect, playerId)) return sum;
     if (effect.cardFilter && !matchesQuery(state, cardInstanceId, effect.cardFilter, context)) return sum;
     return sum + effect.amount;
   }, 0);
+}
+
+type CostReductionEffect = Extract<LastingEffect, { kind: "costReduction" }>;
+
+/** Whose play a "next card" reduction waits for: its player's, or any player's ("the next ally played"). */
+const reductionIsFor = (effect: CostReductionEffect, playerId: PlayerId): boolean =>
+  effect.anyPlayer === true || effect.playerId === playerId;
+
+/** The reductions by destination that a play of this card by `playerId` into `area` uses (docs/phase7-wave8.md §3.35). */
+function areaCostReductions(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  area: string,
+): readonly CostReductionEffect[] {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  return state.lastingEffects.filter(
+    (effect): effect is CostReductionEffect =>
+      effect.kind === "costReduction" &&
+      effect.into?.scenarioPlayArea === area &&
+      reductionIsFor(effect, playerId) &&
+      (!effect.cardFilter || matchesQuery(state, cardInstanceId, effect.cardFilter, context)),
+  );
+}
+
+/**
+ * "Reduce the cost of the next ally played to the mission this phase by 2" (docs/phase7-wave8.md §3.35): the total of
+ * the reductions waiting on a play of this card into the in-play scenario area `area`, on top of `costReductionFor`'s.
+ * 0 for a play to the player's own area (`area` null), which these do not read.
+ */
+export function areaCostReductionFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  area: string | null,
+): number {
+  if (area === null) return 0;
+  return areaCostReductions(state, deps, playerId, cardInstanceId, area).reduce((sum, e) => sum + e.amount, 0);
+}
+
+/** The card was played into `area`: every reduction by that destination it matched is used up. */
+export function consumeAreaCostReductions(
+  ctx: Ctx,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  area: string,
+): void {
+  for (const effect of areaCostReductions(ctx.state, ctx.deps, playerId, cardInstanceId, area))
+    endLastingEffect(ctx, effect.id, "consumed");
 }
 
 /**
@@ -1742,7 +1895,7 @@ export function consumeCostReductions(
 ): void {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.kind !== "costReduction" || effect.playerId !== playerId) continue;
+    if (effect.kind !== "costReduction" || effect.into || !reductionIsFor(effect, playerId)) continue;
     if (effect.cardFilter && !matchesQuery(ctx.state, cardInstanceId, effect.cardFilter, context)) continue;
     endLastingEffect(ctx, effect.id, "consumed");
   }

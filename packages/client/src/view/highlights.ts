@@ -9,14 +9,18 @@
  * board must not reflow while the player's hand is already moving.
  */
 
-import type {
-  ActionRef,
-  EngineErrorCode,
-  ExclusionCode,
-  InstanceId,
-  LegalAction,
-  LegalActions,
-  PlayerId,
+import {
+  cannotEnterPlay,
+  uniqueEntryBlocker,
+  type ActionRef,
+  type EngineDeps,
+  type EngineErrorCode,
+  type ExclusionCode,
+  type GameState,
+  type InstanceId,
+  type LegalAction,
+  type LegalActions,
+  type PlayerId,
 } from "@mc/engine";
 
 /** The five buttons in the design's action bar. */
@@ -174,7 +178,7 @@ export function highlights(actions: LegalActions): Highlights {
     return {
       action,
       enabled: false,
-      reason: illegal?.message ?? "not available right now",
+      reason: basicReasonWording(action, illegal?.reason ?? null, illegal?.message ?? null),
       code: illegal?.reason ?? null,
       targets: [],
     };
@@ -221,7 +225,8 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   missingAttachment: "doesn't have the right attachment",
   cannotHaveAttached: "can't have that card attached",
   cannotAttachTo: "can't be attached there",
-  cannotEnterPlay: "a matching unique card is in play",
+  // One code for two reasons; `exclusionWordingFor` tells them apart when it has the game.
+  cannotEnterPlay: "a matching unique card is in play, or a rule bars it",
   cannotFlip: "can't be flipped",
   wrongOwner: "not owned by you",
   missingPrintedResource: "doesn't print the needed resource",
@@ -252,10 +257,13 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notNemesisSideScheme: "not this player's nemesis side scheme",
   notNemesisSet: "not from this player's nemesis set",
   noSharedTrait: "shares no trait with that card",
+  notOtherFace: "not the other side of that card",
   wrongClassification: "not the same classification (identity-specific, aspect or basic)",
   wrongEncounterSet: "not from that encounter set",
   notInCampaignLog: "not recorded in the campaign log",
   otherGameArea: "in another game area",
+  notInScenarioPlayArea: "not at the mission",
+  closedScenarioPlayArea: "in the mission area, which this ability does not reach",
   notInPlay: "not in play",
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",
@@ -265,11 +273,36 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   cannotDefend: "cannot defend",
   cannotRemoveThreat: "this card can't remove threat from it",
   mustDefendWithAlly: "a ready ally must defend instead",
+  deckTopPlayLimitUsed: "top card already played this phase",
 };
 
 /** `EXCLUSION_WORDING`, defaulting honestly rather than throwing on a code this table hasn't been kept in sync with. */
 export function exclusionWording(code: ExclusionCode): string {
   return EXCLUSION_WORDING[code] ?? "not a legal target";
+}
+
+/** Why a card cannot enter play, in a few words: the unique rule's wording, a scenario rule's, or both. */
+export const UNIQUE_ENTRY_WORDING = "a matching unique card is in play";
+export const RULE_BARS_ENTRY_WORDING = "a rule keeps it out of play";
+
+/**
+ * `exclusionWording`, told apart by the game where one code stands for two reasons: `cannotEnterPlay` is shown for a
+ * card the unique rule keeps out (a matching card is in play) and for one a `RuleSpec cannotEnterPlay` names. Asks the
+ * engine which, rather than restating either rule; with neither it falls back to the code's own wording.
+ */
+export function exclusionWordingFor(
+  state: GameState,
+  deps: EngineDeps,
+  code: ExclusionCode,
+  id: InstanceId,
+  forPlayer: PlayerId | null = null,
+): string {
+  if (code !== "cannotEnterPlay") return exclusionWording(code);
+  const unique = uniqueEntryBlocker(state, deps, id, forPlayer) !== null;
+  const barred = cannotEnterPlay(state, deps, id);
+  if (barred && !unique) return RULE_BARS_ENTRY_WORDING;
+  if (unique && !barred) return UNIQUE_ENTRY_WORDING;
+  return exclusionWording(code);
 }
 
 /**
@@ -282,6 +315,17 @@ export const EXCLUSION_TEST_ONLY = {
   codes: Object.keys(EXCLUSION_WORDING) as readonly ExclusionCode[],
   wording: exclusionWording,
 };
+
+/**
+ * The "Why illegal?" line for a basic button. The engine's message is kept as it is, except for a change of form it
+ * refuses for want of its additional cost (`RuleSpec formChangeCost`, wave 8 §3.63): that message names every card
+ * that adds the cost and the engine's own shortfall, which is a paragraph, so the button says it in a few words and
+ * Inspect on the cost's card has the rest.
+ */
+export function basicReasonWording(action: BasicAction, code: string | null, message: string | null): string {
+  if (action === "changeForm" && code === "insufficient_resources") return "can't pay the extra cost to change form";
+  return message ?? "not available right now";
+}
 
 const EMPTY: Highlights = {
   yourTurn: false,

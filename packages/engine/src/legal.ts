@@ -13,7 +13,13 @@
  */
 
 import type { AbilityId, AnyCard, ResourceIconType } from "@mc/content";
-import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps } from "./abilities.js";
+import {
+  DEFAULT_DEPS,
+  resourcesChoiceOf,
+  type AbilityCost,
+  type AbilityDefinition,
+  type EngineDeps,
+} from "./abilities.js";
 import {
   basicPowerCost,
   costAsDetermined,
@@ -32,15 +38,20 @@ import {
   discardCombinedValue,
   planCost,
   attachmentsPlayableBy,
+  deckTopCostReduction,
+  deckTopPermission,
   playableFromDiscard,
   playCostReductionFault,
   playRequirement,
 } from "./actions.js";
+import { chosenSizePayments } from "./payable.js";
 import type { PendingChoice } from "./choices.js";
 import type { Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { createCtx } from "./ctx.js";
+import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
-import { attachCostCard, attachCostHosts } from "./attach-cost.js";
+import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
+import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -53,9 +64,13 @@ import {
   showingResources,
   undefeatedVillains,
   mainSchemeStates,
+  inClosedScenarioPlayArea,
+  scenarioPlayAreaOf,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { combineRequirements, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { attachmentReachOf, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "./rules.js";
+import { formChangeCostSources } from "./form-change-cost.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -65,12 +80,17 @@ import {
   triggeringPlayers,
   type EffectContext,
 } from "./select.js";
-import type { GameState } from "./state.js";
+import type { Form, GameState } from "./state.js";
 import { anyThwartCost } from "./thwart-cost.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
 export type ActionRef =
-  | { readonly kind: "playCard"; readonly instanceId: InstanceId }
+  /**
+   * `from: "deckTop"`: the card is the top card of the player's deck, playable "as if it was in your hand" under a
+   * `playableTopOfDeck` permission (docs/phase7-wave8.md §3.49). Absent for every other card. The command is the same
+   * `playCard`; `playCostOf` gives its reduced price and names the permission's card among the contributions.
+   */
+  | { readonly kind: "playCard"; readonly instanceId: InstanceId; readonly from?: "deckTop" }
   | { readonly kind: "useAbility"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   /** `instanceId` is the attacker. */
   | { readonly kind: "basicAttack"; readonly instanceId: InstanceId }
@@ -119,6 +139,13 @@ export interface LegalAction {
    */
   readonly costCounters?: { readonly min: number; readonly max: number };
   /**
+   * A resource cost whose size the player chooses ("spend up to 3 resources →"; docs/phase7-wave8.md §3.62): the
+   * payment must generate at least `min` resources in all, a card with two icons counting two; up to `max` of them
+   * are paid and the rest overpaid (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 78). The payment
+   * itself is the choice; `example` spends the fewest sources that fit. Absent for any other cost.
+   */
+  readonly chosenResources?: { readonly min: number; readonly max: number };
+  /**
    * An event that prints more than one Action ability (RRG 1.8 "Event", p. 18: "the player playing it chooses one of
    * those abilities to trigger"): the ones that can be triggered and paid for right now, in printed order. With more
    * than one the client asks which and sends it as the `playCard` command's `abilityId` (and as
@@ -126,6 +153,33 @@ export interface LegalAction {
    * first. Absent for any other card.
    */
   readonly abilities?: readonly AbilityId[];
+  /**
+   * The in-play scenario areas this card may be played into instead of the player's own play area (MC45 p. 5: "they
+   * must choose: either play that ally into their game area …, or play it into the mission area"; `RuleSpec
+   * playDestination`, docs/phase7-wave8.md §3.34). `example` is the play to the player's own area; the client asks
+   * which and sends the area as the `playCard` command's `into`. Absent when there is no choice to make.
+   */
+  readonly destinations?: readonly string[];
+  /**
+   * For an upgrade with "attach to" text that may be played into one of `destinations`: the cards in each such area
+   * it may be attached to, by area. Played into an area it is attached to a card there (RRG 1.8 "Attach To", p. 8),
+   * so the client sends one of these as the command's `attachToInstanceId` beside `into`; `targets` are the hosts of
+   * the play `example` names. Absent for every other card.
+   */
+  readonly destinationHosts?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
+   * The play is legal only into one of `destinations`: the player cannot pay for it in their own play area, and can
+   * where a reduction that reads the destination applies ("Reduce the cost of the next ally played to the mission
+   * this phase by 2", docs/phase7-wave8.md §3.35). `example` then names the first such area as its `into`, and the
+   * client offers no play to the player's own area. Absent whenever the own-area play is legal.
+   */
+  readonly destinationOnly?: true;
+  /**
+   * A change of form with an additional cost (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the cards the
+   * cost is printed on. The action is listed legal only when the cost can be paid; `example` carries a payment that
+   * pays it, and `paymentFor` / `tryPayment` take the action as they take a play. Absent for a free change.
+   */
+  readonly formChangeCost?: { readonly sourceInstanceIds: readonly InstanceId[] };
 }
 
 export interface IllegalAction {
@@ -255,6 +309,122 @@ function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
 }
 
+/** How many payments of a chosen-size cost `legalActions` probes before the usual wallets (`chosenSizeWallets`). */
+const CHOSEN_SIZE_WALLETS = 8;
+
+/**
+ * The wallets tried first for a cost whose size the payer chooses ("spend up to 3 resources →", `ResourcesChoice`;
+ * docs/phase7-wave8.md §3.62). These are the first few payments that fit its range without overpaying it
+ * (`chosenSizePayments`), the fewest sources first, so `example` spends the least it can rather than everything the
+ * player holds. Overpaying is legal (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13), so when no
+ * payment fits exactly (one card of two icons toward a size of exactly 1) the overpaying ones are offered instead.
+ * Empty for any other cost.
+ *
+ * Priced for the ability's own card, which is what `useAbility` pays for unless its cost picks one; a cost that both
+ * picks a card to pay for and chooses a size falls back on the usual wallets (no such card).
+ */
+function chosenSizeWallets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  spend: readonly Payment[],
+  range: { readonly min: number; readonly max: number } | null,
+  payingFor: InstanceId | null,
+  limit = CHOSEN_SIZE_WALLETS,
+): readonly (readonly Payment[])[] {
+  if (!range) return [];
+  const found: (readonly Payment[])[] = [];
+  for (const overpay of [false, true]) {
+    for (const payment of chosenSizePayments(state, deps, playerId, spend, range, payingFor, overpay)) {
+      found.push(payment);
+      if (found.length >= limit) break;
+    }
+    if (found.length > 0) break;
+  }
+  return found;
+}
+
+/** How many exact-size payments of a form change's additional cost are probed before the usual wallets. */
+const FORM_CHANGE_WALLETS = 32;
+
+/** The form a `changeForm` action ends in: the one it names, or the other form of a two-faced identity. */
+const formChangeDestination = (state: GameState, playerId: PlayerId, to: ChangeFormTo | undefined): Form =>
+  to === undefined ? (getPlayer(state, playerId)?.identity.form === "hero" ? "alterEgo" : "hero") : formOfTo(to);
+
+type ChangeFormTo = "alterEgo" | { readonly heroForm: number };
+const formOfTo = (to: ChangeFormTo): Form => (to === "alterEgo" ? "alterEgo" : "hero");
+
+/**
+ * A change of form with an additional cost (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63), as a command that
+ * carries a payment: the costs in force, the cards a "discard N cards" cost picks, what may be spent and the wallets
+ * to try. The payments that generate exactly the total come first, so `example` spends no more than the cost asks
+ * ("2 resources of the same type" from a hand of three cards), then everything the player holds (overpaying is
+ * legal). Null for a free change.
+ */
+function formChangeWithCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  to: ChangeFormTo | undefined,
+  given?: CostChoices,
+): {
+  readonly costs: readonly FormChangeCost[];
+  readonly costChoices: CostChoices | undefined;
+  readonly reserved: ReadonlySet<InstanceId>;
+  readonly spend: readonly Payment[];
+  readonly requirement: ResolvedRequirement | null;
+  readonly tryWallets: readonly (readonly Payment[])[];
+  readonly build: (payment: readonly Payment[]) => Command;
+} | null {
+  const costs = formChangeCostsFor(state, deps, playerId, formChangeDestination(state, playerId, to));
+  if (costs.length === 0) return null;
+  const picks =
+    given?.discard ??
+    costs.flatMap(({ sourceInstanceId, cost }) => discardPicks(state, deps, playerId, sourceInstanceId, cost));
+  const costChoices = mergeChoices(picks.length > 0 ? { discard: picks } : undefined, given);
+  const reserved = new Set(picks);
+  const spend = spendOrder(state, deps, playerId, reserved, null);
+  let requirement: ResolvedRequirement | null = combineRequirements(0, 0);
+  for (const { sourceInstanceId, cost } of costs) {
+    const plan = planCost(state, deps, sourceInstanceId, playerId, cost, costChoices ?? {}, NO_RESERVED);
+    requirement = requirement && "requirement" in plan ? combineRequirements(requirement, plan.requirement) : null;
+  }
+  const total = requirement ? requirementTotal(requirement) : 0;
+  const exact =
+    total > 0
+      ? chosenSizeWallets(state, deps, playerId, spend, { min: total, max: total }, null, FORM_CHANGE_WALLETS)
+      : [];
+  return {
+    costs,
+    costChoices,
+    reserved,
+    spend,
+    requirement,
+    tryWallets: [...exact, ...wallets(spend)],
+    build: (payment) => ({
+      type: "changeForm",
+      playerId,
+      ...(to === undefined ? {} : { to }),
+      payment,
+      ...(costChoices ? { costChoices } : {}),
+    }),
+  };
+}
+
+/** A `changeForm` action: free, or with its additional cost paid (`formChangeWithCost`). */
+function evaluateChangeForm(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: Extract<ActionRef, { kind: "changeForm" }>,
+): Evaluated {
+  const costed = formChangeWithCost(state, deps, playerId, action.to);
+  if (!costed) return simple(state, deps, playerId, action);
+  const evaluated = evaluate(state, deps, action, [{ target: null, build: costed.build }], costed.tryWallets);
+  if (!("legal" in evaluated)) return evaluated;
+  return { legal: { ...evaluated.legal, formChangeCost: { sourceInstanceIds: formChangeCostSources(costed.costs) } } };
+}
+
 /**
  * docs/phase7-wave5.md §4.1 Q28: with an additional thwart cost in play, a "(thwart)" play or ability is judged after
  * it is paid for, so paying with the whole wallet (overpaying is legal) can spend what the scheme's cost needed. Its
@@ -358,14 +528,74 @@ function costChoiceSets(
   cost: AbilityCost | undefined,
   picks: readonly InstanceId[],
 ): readonly CostChoiceSet[] {
-  const sets = pickChoiceSets(state, deps, playerId, source, cost, picks);
+  const sets = resolveChoiceSets(
+    state,
+    deps,
+    playerId,
+    source,
+    cost,
+    pickChoiceSets(state, deps, playerId, source, cost, picks),
+  );
   const attach = cost?.attach;
-  if (!attach) return sets;
+  if (!attach) return damageChoiceSets(state, deps, playerId, source, cost, sets);
   const card = attachCostCard(state, deps, source, playerId, attach);
   const hosts = card === null ? [] : attachCostHosts(state, deps, source, playerId, attach, card);
   if (hosts.length === 0) return sets;
+  return damageChoiceSets(
+    state,
+    deps,
+    playerId,
+    source,
+    cost,
+    sets.flatMap(({ costChoices, target }) =>
+      hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+    ),
+  );
+}
+
+/**
+ * "Deal 1 damage to another friendly character →" (`AbilityCost.dealDamage.choose`, docs/phase7-wave8.md §3.74): each
+ * variant once per card the payer may pick. With no candidate the variants are left as they are and the engine's own
+ * check (`planCost`) refuses them, so the ability is not offered.
+ */
+function damageChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  sets: readonly CostChoiceSet[],
+): readonly CostChoiceSet[] {
+  const choose = cost?.dealDamage?.choose;
+  if (!choose) return sets;
+  const candidates = dealDamageCostChoices(state, deps, source, playerId, choose);
+  if (candidates.length === 0) return sets;
   return sets.flatMap(({ costChoices, target }) =>
-    hosts.map((host) => ({ costChoices: { ...costChoices, [attach.to.slot]: [host] }, target: target ?? host })),
+    candidates.map((card) => ({ costChoices: { ...costChoices, [choose.slot]: [card] }, target: target ?? card })),
+  );
+}
+
+/**
+ * "Resolve the 'Special' ability on the [SETTING] environment →" with several such cards in play
+ * (`AbilityCost.resolveAbility.choose`, docs/phase7-wave8.md §3.24, §4.1 Q15 = A): each variant once per card the cost
+ * could name. `planCost` drops the ones whose abilities would change nothing. With one card or none the variants are
+ * left as they are: the pick is forced, or the engine's own check says why the cost cannot be paid.
+ */
+function resolveChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  sets: readonly CostChoiceSet[],
+): readonly CostChoiceSet[] {
+  const resolve = cost?.resolveAbility;
+  const slot = resolve?.choose;
+  if (!resolve || !slot) return sets;
+  const candidates = resolveAbilityCostCandidates(state, deps, source, playerId, resolve, {});
+  if (candidates.length < 2) return sets;
+  return sets.flatMap(({ costChoices, target }) =>
+    candidates.map((card) => ({ costChoices: { ...costChoices, [slot]: [card] }, target: target ?? card })),
   );
 }
 
@@ -483,6 +713,20 @@ function evaluate(
  * ability at a time, each on its own form, condition, targets and cost: the play is legal when any of them is, and
  * `LegalAction.abilities` lists the ones that are. Every other card is judged once, with a command that names none.
  */
+/**
+ * The top card of the player's deck when a `playableTopOfDeck` permission stands over it (docs/phase7-wave8.md §3.49),
+ * as a list: listed legal while the limit is unused, and illegal with `limit_reached` once it is used ("once per
+ * phase"). A card that is never played (a resource, an encounter card, a "—" cost) is not listed at all, and with no
+ * permission in force (the other form, a blank text box) neither is anything else.
+ */
+function deckTopToList(state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] {
+  const permission = deckTopPermission(state, deps, playerId);
+  const card = permission ? cardOf(state, permission.instanceId) : undefined;
+  if (!permission || !card || card.type === "resource" || !("cost" in card)) return [];
+  if ("specialCost" in card && card.specialCost === "dash") return [];
+  return [permission.instanceId];
+}
+
 function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): Evaluated | null {
   const card = cardOf(state, id);
   if (!card) return null;
@@ -514,7 +758,15 @@ function evaluatePlayOf(
   const cost = costAsDetermined(state, deps, id, playerId, ability?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
-  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
+  const context: EffectContext = {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+    // "Players may attach upgrades to allies in the mission area" (`RuleSpec playDestination.attachments`).
+    ...attachmentReachOf(state, deps, id),
+  };
   // A host at the card's own maximum stays a candidate, so the play command's refusal reaches `blockedTargets`.
   const candidateHosts =
     card.type === "upgrade" && card.attachesTo
@@ -526,7 +778,6 @@ function evaluatePlayOf(
   const controllers: readonly (PlayerId | undefined)[] = restrictions?.anyPlayerControl
     ? playerOrder(state).map((p) => p.playerId)
     : [undefined];
-  const variants: Variant[] = [];
   // Each usable "reduce the cost to play that card" ability is its own variant, after the unreduced ones, so a card
   // that is affordable anyway is offered without it and one that is only affordable with it is still offered
   // (docs/phase7-wave3.md §3.20). The client decides whether to use it; this only makes the play reachable.
@@ -535,41 +786,128 @@ function evaluatePlayOf(
     [],
     ...reducers.map((reducer) => [reducer]),
   ];
-  for (const reductions of reductionSets) {
-    for (const host of hosts) {
-      for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
-        for (const controllerId of controllers) {
-          for (const branch of branchSelections(cost)) {
-            variants.push({
-              target: host ?? target,
-              ...(controllerId ? { controllerId } : {}),
-              ...(branch === undefined ? {} : { branch }),
-              build: (payment) => ({
-                type: "playCard",
-                playerId,
-                cardInstanceId: id,
-                payment,
-                attachToInstanceId: host,
-                ...(costChoices ? { costChoices } : {}),
-                ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
-                ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
-                ...withBranch(branch),
-                ...(abilityId ? { abilityId } : {}),
-              }),
-            });
-          }
+  const variantsOver = (over: readonly (InstanceId | null)[]): Variant[] => {
+    const variants: Variant[] = [];
+    for (const reductions of reductionSets) for (const host of over) variants.push(...variantsOn(reductions, host));
+    return variants;
+  };
+  const variantsOn = (
+    reductions: readonly { instanceId: InstanceId; abilityId: AbilityId }[],
+    host: InstanceId | null,
+  ): Variant[] => {
+    const variants: Variant[] = [];
+    for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
+      for (const controllerId of controllers) {
+        for (const branch of branchSelections(cost)) {
+          variants.push({
+            target: host ?? target,
+            ...(controllerId ? { controllerId } : {}),
+            ...(branch === undefined ? {} : { branch }),
+            build: (payment) => ({
+              type: "playCard",
+              playerId,
+              cardInstanceId: id,
+              payment,
+              attachToInstanceId: host,
+              ...(costChoices ? { costChoices } : {}),
+              ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
+              ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
+              ...withBranch(branch),
+              ...(abilityId ? { abilityId } : {}),
+            }),
+          });
         }
       }
     }
+    return variants;
+  };
+  const variants = variantsOver(hosts);
+  const action: ActionRef = {
+    kind: "playCard",
+    instanceId: id,
+    ...(deckTopPermission(state, deps, playerId)?.instanceId === id ? { from: "deckTop" as const } : {}),
+  };
+  const tryWallets = withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost));
+  const own = evaluate(state, deps, action, variants, tryWallets);
+  const ranged = (evaluated: Evaluated): Evaluated =>
+    withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
+  if ("legal" in own) return withDestinations(state, deps, id, ranged(own));
+  // Not playable to the player's own area. A reduction that reads the destination may still pay for it there
+  // (docs/phase7-wave8.md §3.35): the same variants, each naming the area. An upgrade with "attach to" text has other
+  // hosts there (`hostsInArea`), so it may be playable into the area with no legal host anywhere else.
+  for (const area of playDestinationsOf(state, deps, id)) {
+    const hostsThere = hostsInArea(state, deps, id, playerId, area, { ignoreAttachLimits: true });
+    if (hostsThere === null && areaCostReductionFor(state, deps, playerId, id, area) <= 0) continue;
+    if (hostsThere?.length === 0) continue;
+    const there = (hostsThere === null ? variants : variantsOver(hostsThere)).map((variant) => ({
+      ...variant,
+      build: (payment: readonly Payment[]): Command => {
+        const command = variant.build(payment);
+        return command.type === "playCard" ? { ...command, into: { scenarioPlayArea: area } } : command;
+      },
+    }));
+    const evaluated = withDestinations(state, deps, id, ranged(evaluate(state, deps, action, there, tryWallets)));
+    if ("legal" in evaluated) return { legal: { ...evaluated.legal, destinationOnly: true } };
   }
-  const evaluated = evaluate(
-    state,
+  return own;
+}
+
+/**
+ * The cards in an in-play scenario area that an upgrade with "attach to" text may take as its host when it is played
+ * into that area (`playCard.into`), read as the play command reads them: its own text, reaching into the area. Null
+ * for any other card, which is played into an area with no host.
+ */
+function hostsInArea(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  playerId: PlayerId,
+  area: string,
+  opts: { readonly ignoreAttachLimits?: true } = {},
+): readonly InstanceId[] | null {
+  const card = cardOf(state, id);
+  if (card?.type !== "upgrade" || !card.attachesTo) return null;
+  const context: EffectContext = {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
     deps,
-    { kind: "playCard", instanceId: id },
-    variants,
-    withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost)),
+    reaches: { scenarioPlayArea: area },
+  };
+  return attachmentHostCandidates(state, card.attachesTo, context, opts).filter(
+    (host) => scenarioPlayAreaOf(state, host) === area,
   );
-  return withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
+}
+
+/**
+ * Adds `destinations` to a legal play that may also go to an in-play scenario area (`RuleSpec playDestination`,
+ * docs/phase7-wave8.md §3.34): each area the same command is accepted for with `into` naming it. An upgrade with
+ * "attach to" text is attached to a card in the area it is played into, so for it the command also names one of the
+ * hosts there, listed in `destinationHosts`.
+ */
+function withDestinations(state: GameState, deps: EngineDeps, id: InstanceId, evaluated: Evaluated): Evaluated {
+  if (!("legal" in evaluated) || evaluated.legal.example.type !== "playCard") return evaluated;
+  const example = evaluated.legal.example;
+  // The example pays for the play it names. Another area may price the card lower, never higher, and overpaying is
+  // legal (RRG 1.8 "Cost", p. 13), so the same payment is accepted wherever the play itself is.
+  const destinations: string[] = [];
+  const destinationHosts: Record<string, readonly InstanceId[]> = {};
+  for (const area of playDestinationsOf(state, deps, id)) {
+    const into = { scenarioPlayArea: area };
+    const hostsThere = hostsInArea(state, deps, id, example.playerId, area);
+    if (hostsThere === null) {
+      if (probe(state, deps, { ...example, into }).ok) destinations.push(area);
+      continue;
+    }
+    const legal = hostsThere.filter((host) => probe(state, deps, { ...example, attachToInstanceId: host, into }).ok);
+    if (legal.length === 0) continue;
+    destinations.push(area);
+    destinationHosts[area] = legal;
+  }
+  if (destinations.length === 0) return evaluated;
+  const hosted = Object.keys(destinationHosts).length > 0 ? { destinationHosts } : {};
+  return { legal: { ...evaluated.legal, destinations, ...hosted } };
 }
 
 /** Adds `costCounters` to a legal action whose cost removes "up to N" counters (docs/phase7-wave3.md §3.32). */
@@ -607,6 +945,7 @@ function evaluateAbility(
   const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks), null);
+  const chosenSize = resourcesChoiceOf(cost);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
     ({ costChoices, target }) =>
       branchSelections(cost).map((branch) => ({
@@ -629,9 +968,18 @@ function evaluateAbility(
     deps,
     { kind: "useAbility", instanceId, abilityId },
     variants,
-    withThwartCostWallets(state, deps, deps.abilities[abilityId], leavingCardsToDiscard(wallets(spend), cost)),
+    withThwartCostWallets(
+      state,
+      deps,
+      deps.abilities[abilityId],
+      leavingCardsToDiscard(
+        [...chosenSizeWallets(state, deps, playerId, spend, chosenSize, instanceId), ...wallets(spend)],
+        cost,
+      ),
+    ),
   );
-  return withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
+  const ranged = withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
+  return "legal" in ranged && chosenSize ? { legal: { ...ranged.legal, chosenResources: chosenSize } } : ranged;
 }
 
 /**
@@ -741,6 +1089,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     ...player.hand,
     ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),
     ...attached,
+    ...deckTopToList(state, deps, playerId),
   ]) {
     // During another player's turn only an event whose play is its Action can be played (RRG 1.8 "Action", p. 6).
     const card = cardOf(state, id);
@@ -765,7 +1114,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   const enemies = [
     // Any undefeated villain, not only the active one (The Wrecking Crew insert: "Players may attack any villain").
     ...undefeatedVillains(state).map((villain) => villain.instanceId),
-    ...cardsInPlay(state).filter((id) => isMinion(state, id)),
+    // Not a minion in a closed in-play scenario area (the mission area): `inClosedScenarioPlayArea`.
+    ...cardsInPlay(state).filter((id) => isMinion(state, id) && !inClosedScenarioPlayArea(state, id)),
   ];
   const schemes = [
     ...mainSchemeStates(state).map((scheme) => scheme.instanceId),
@@ -803,13 +1153,13 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   if (faces > 1) {
     // A three-sided identity: each form it is not in right now is its own action.
     if (player.identity.form === "hero")
-      results.push(simple(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
+      results.push(evaluateChangeForm(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
     for (let heroForm = 0; heroForm < faces; heroForm++) {
       if (player.identity.form === "hero" && player.identity.heroFormIndex === heroForm) continue;
-      results.push(simple(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
+      results.push(evaluateChangeForm(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
     }
   } else {
-    results.push(simple(state, deps, playerId, { kind: "changeForm" }));
+    results.push(evaluateChangeForm(state, deps, playerId, { kind: "changeForm" }));
   }
   results.push(simple(state, deps, playerId, { kind: "endTurn" }));
 
@@ -866,6 +1216,12 @@ export interface PaymentQuery {
    * player cannot afford it) — `tryPayment` then reports the engine's reason.
    */
   readonly suggested: readonly string[];
+  /**
+   * The cost is a number of resources the player chooses (`LegalAction.chosenResources`): the selection must generate
+   * at least `min` resources, and what it generates beyond `max` is overpaid (owner decision, 2026-10-08).
+   * `requirement` is then what the rest of the cost asks (0).
+   */
+  readonly chosenResources?: { readonly min: number; readonly max: number };
 }
 
 export type PaymentAttempt =
@@ -884,6 +1240,11 @@ export interface PaymentContext {
   readonly costSelection?: CostSelection;
   /** One of `LegalAction.abilities`: the event's Action ability being triggered. Absent: the first of them. */
   readonly abilityId?: AbilityId;
+  /**
+   * One of `LegalAction.destinations`: the in-play scenario area the card is played into, which the price may read
+   * (docs/phase7-wave8.md §3.35). Absent: the player's own play area.
+   */
+  readonly into?: string;
 }
 
 /** An action that carries a payment, resolved down to a single command shape. */
@@ -899,6 +1260,10 @@ interface Payable {
   readonly requirement: ResolvedRequirement | null;
   /** True when there is something to decide: a non-zero cost, or "spend X resources". */
   readonly spendable: boolean;
+  /** The range of a chosen-size resource cost (`ResourcesChoice`), for an ability that has one. */
+  readonly chosenResources?: { readonly min: number; readonly max: number };
+  /** The wallets to try for `suggested`, in place of the usual ones (a form change's exact-size payments first). */
+  readonly preferred?: readonly (readonly Payment[])[];
 }
 
 const NO_RESERVED: ReadonlySet<InstanceId> = new Set();
@@ -920,9 +1285,10 @@ const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
   });
 };
 
-/** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
+/** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…", a chosen size). */
 const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>
-  requirement !== null && (requirementTotal(requirement) > 0 || cost?.resourcesX !== undefined);
+  requirement !== null &&
+  (requirementTotal(requirement) > 0 || cost?.resourcesX !== undefined || resourcesChoiceOf(cost) !== null);
 
 /**
  * The one command `legalActions` would build for this action with these picks,
@@ -962,7 +1328,20 @@ function payableFor(
     const selection = options.costSelection;
     const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
-    const requirement = card && planned ? playRequirement(state, playerId, id, planned.requirement, deps, host) : null;
+    const requirement =
+      card && planned
+        ? playRequirement(
+            state,
+            playerId,
+            id,
+            planned.requirement,
+            deps,
+            host,
+            0,
+            deckTopCostReduction(state, deps, playerId, id) +
+              Math.max(0, areaCostReductionFor(state, deps, playerId, id, options.into ?? null)),
+          )
+        : null;
     return {
       build: (payment) => ({
         type: "playCard",
@@ -974,6 +1353,7 @@ function payableFor(
         ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
         ...(selection ? { costSelection: selection } : {}),
         ...(abilityId ? { abilityId } : {}),
+        ...(options.into !== undefined ? { into: { scenarioPlayArea: options.into } } : {}),
       }),
       excludeInstanceId: id,
       reserved: new Set([id, ...picks]),
@@ -990,6 +1370,7 @@ function payableFor(
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const selection = options.costSelection;
+    const chosenResources = resourcesChoiceOf(cost);
     const plan = planCost(state, deps, instanceId, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
     return {
@@ -1007,6 +1388,21 @@ function payableFor(
       payingFor: planned?.payingFor ?? instanceId,
       requirement: planned?.requirement ?? null,
       spendable: isSpendable(planned?.requirement ?? null, cost),
+      ...(chosenResources ? { chosenResources } : {}),
+    };
+  }
+  if (action.kind === "changeForm") {
+    // Only a change with an additional cost carries a payment (docs/phase7-wave8.md §3.63); a free one is a basic action.
+    const costed = formChangeWithCost(state, deps, playerId, action.to, options.costChoices);
+    if (!costed) return null;
+    return {
+      build: costed.build,
+      excludeInstanceId: null,
+      reserved: costed.reserved,
+      payingFor: null,
+      requirement: costed.requirement,
+      spendable: costed.requirement !== null && requirementTotal(costed.requirement) > 0,
+      preferred: costed.tryWallets,
     };
   }
   return null;
@@ -1082,12 +1478,21 @@ export function paymentFor(
     },
   );
   let suggested: readonly string[] = [];
-  for (const wallet of wallets(spendOrder(state, deps, playerId, payable.reserved, payable.payingFor))) {
+  const spend = spendOrder(state, deps, playerId, payable.reserved, payable.payingFor);
+  const sized = payable.payingFor
+    ? chosenSizeWallets(state, deps, playerId, spend, payable.chosenResources ?? null, payable.payingFor)
+    : [];
+  for (const wallet of payable.preferred ?? [...sized, ...wallets(spend)]) {
     if (!probe(state, deps, payable.build(wallet)).ok) continue;
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;
   }
-  return { requirement: payable.requirement, sources, suggested };
+  return {
+    requirement: payable.requirement,
+    sources,
+    suggested,
+    ...(payable.chosenResources ? { chosenResources: payable.chosenResources } : {}),
+  };
 }
 
 /**

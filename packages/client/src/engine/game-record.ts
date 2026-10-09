@@ -44,6 +44,11 @@ export interface RoundRecord {
   readonly crisisBlocks: number;
   readonly heroesDefeated: readonly PlayerId[];
   readonly villainStageAdvanced: boolean;
+  /**
+   * The villain's next stage was revealed by an effect, with no defeat (`villainStageRevealed`: Apocalypse's main
+   * scheme). Absent on a record written before the field existed, which reads as false.
+   */
+  readonly villainStageRevealed?: boolean;
 }
 
 /** One placement of threat, kept so "the scheme wins" can say who put the last of it there. */
@@ -247,6 +252,9 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
         break;
       case "villainStageAdvanced":
         onRound((entry) => ({ ...entry, villainStageAdvanced: true }));
+        break;
+      case "villainStageRevealed":
+        onRound((entry) => ({ ...entry, villainStageRevealed: true }));
         break;
       default:
         break;

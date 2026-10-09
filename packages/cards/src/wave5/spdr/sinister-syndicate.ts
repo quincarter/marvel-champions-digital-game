@@ -5,6 +5,7 @@ import {
   chooseCards,
   chosen,
   constant,
+  countBoostIcons,
   countOf,
   dealIndirectDamage,
   defineAbilities,
@@ -101,7 +102,11 @@ export const SPDR_SINISTER_SYNDICATE = defineAbilities({
   "31033.hobgoblin-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("self", { againstYou: true }),
     { would: true },
-    instead(discardEncounterCards(statOf(self, "atk"), { bind: "d" }), dealIndirectDamage(you, varOf("d.boostIcons"))),
+    instead(
+      discardEncounterCards(statOf(self, "atk"), { bind: "d" }),
+      countBoostIcons(chosen("d"), "d"),
+      dealIndirectDamage(you, varOf("d.boostIcons")),
+    ),
   ),
 
   // Iron Spider (31034, minion; ATK 2/SCH 2/HP 6, CRIMINAL/ELITE, unique; Guard/Patrol/Retaliate 1/Toughness are

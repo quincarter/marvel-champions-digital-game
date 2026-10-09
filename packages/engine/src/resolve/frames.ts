@@ -4,7 +4,15 @@ import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, villainOf, villainStageOf } from "../query.js";
-import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor, withSelfHost } from "../select.js";
+import {
+  activeAbilityRefs,
+  controllerOf,
+  ignoredAbilities,
+  printedAbilityRefs,
+  textBoxBlankFor,
+  TOGETHER_TARGETS_SLOT,
+  withSelfHost,
+} from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import {
   type Bindings,
@@ -14,8 +22,9 @@ import {
   type StackFrame,
   type TriggerCandidate,
   type Vars,
+  type UndeclaredWilds,
 } from "../stack.js";
-import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, eventSubjects, isAnnouncement, type TriggerEvent } from "../trigger-events.js";
 import { placeExhausted } from "../effects.js";
 import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
@@ -258,9 +267,12 @@ export function abilityFrame(
   eventFrameId: FrameId | null,
   bindings: Bindings = {},
   vars: Vars = {},
+  /** The ability's payment holds wilds its controller has still to declare (`Frame<"ability">.undeclaredWilds`). */
+  undeclaredWilds?: UndeclaredWilds,
 ): StackFrame {
   return {
     ...base(ctx),
+    ...(undeclaredWilds ? { undeclaredWilds } : {}),
     kind: "ability",
     instanceId: candidate.instanceId,
     abilityId: candidate.abilityId,
@@ -268,9 +280,21 @@ export function abilityFrame(
     event,
     eventFrameId,
     // Read before the cost is paid: "discard this card →" leaves the effect's "attached scheme" readable (`SELF_HOST`).
-    bindings: withSelfHost(ctx.state, candidate.instanceId, bindings),
+    // What the answered moment carries is the ability's to read as `moment.<slot>` (`carriedByEvent`, §3.71).
+    bindings: withSelfHost(ctx.state, candidate.instanceId, {
+      ...carriedByEvent(event).bindings,
+      // One answer for several conditions of the occurrence (`EventPattern.together`): each one's targets, once.
+      ...(candidate.together
+        ? {
+            [TOGETHER_TARGETS_SLOT]: [
+              ...new Set(candidate.together.flatMap((answered) => eventSubjects(answered).targets)),
+            ],
+          }
+        : {}),
+      ...bindings,
+    }),
     // The ability's own vars win: an ability paid for with its own resource cost (`payWindowAbility`) keeps that payment.
-    vars: { ...playPaymentVars(ctx.state.stack, candidate.instanceId), ...vars },
+    vars: { ...playPaymentVars(ctx.state.stack, candidate.instanceId), ...carriedByEvent(event).vars, ...vars },
   };
 }
 
@@ -282,6 +306,7 @@ export function pushActionAbility(
   controllerId: PlayerId | null,
   bindings: Bindings = {},
   vars: Vars = {},
+  undeclaredWilds?: UndeclaredWilds,
 ): void {
   pushFrames(ctx, [
     abilityFrame(
@@ -291,6 +316,7 @@ export function pushActionAbility(
       null,
       bindings,
       vars,
+      undeclaredWilds,
     ),
   ]);
 }
@@ -322,7 +348,7 @@ export function gameAbilityFrames(
   refsOverride?: readonly AbilityReference[],
   /**
    * Who "you" is for a card nobody controls (encounter and scenario cards): the
-   * revealing player, the attacked/scheming player for a boost, the engaged
+   * revealing player, the defending (else attacked) or schemed-against player for a boost, the engaged
    * player for a minion's When Defeated, the first player for scheme and villain
    * abilities.
    */
@@ -342,7 +368,10 @@ export function gameAbilityFrames(
       ? activeAbilityRefs(ctx.state, instanceId, ctx.deps)
       : printedAbilityRefs(card));
   const frames: StackFrame[] = [];
+  // An ability an `ignoreAbilities` rule names is not there (docs/phase7-wave8.md §3.21), whichever slots are scanned.
+  const ignored = ignoredAbilities(ctx.state, ctx.deps).get(instanceId);
   for (const ref of refs) {
+    if (ignored?.has(ref.id)) continue;
     const definition = ctx.deps.abilities[ref.id];
     if (!definition) continue;
     const kind = definition.attachInstruction ? "attachInstruction" : definition.trigger.kind;

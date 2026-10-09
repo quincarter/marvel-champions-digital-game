@@ -42,7 +42,7 @@ import {
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import { TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
 import {
   addFrameSlots,
   addFrameVars,
@@ -118,7 +118,8 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
 /**
  * Out-of-play zones a chosen card can be given from as a boost card (`giveBoostCard.card`, docs/phase7-wave6.md §3.16).
  * Not the removed-from-game area (ruling December 17, 2025 (4): such a card "cannot be returned to the game by any
- * means"), the victory display, a card tucked under another, nor one mid-reveal or mid-resolution.
+ * means"), the victory display, a card tucked under another, nor one mid-resolution. A card mid-reveal is in none of
+ * these zones and is allowed on its own terms (`beingRevealed`).
  */
 export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["kind"]>([
   "hand",
@@ -134,6 +135,17 @@ export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["k
   "scenarioDiscard",
   "scenarioArea",
 ]);
+
+/**
+ * Whether `id` is a card whose reveal is in progress and that is still in front of the player it was dealt to (zone
+ * `dealtEncounter`; RRG 1.8 "Reveal", p. 37): the one card outside `BOOST_SOURCE_ZONES` that `giveBoostCard.card` may
+ * give, for "When Revealed: … Give this card to that villain as a facedown boost card" (docs/phase7-wave8.md §3.79).
+ * A card being resolved for any other reason (a played event, an obligation) is not.
+ */
+export function beingRevealed(state: GameState, id: InstanceId): boolean {
+  if (locateCard(state, id)?.kind !== "dealtEncounter") return false;
+  return state.stack.some((frame) => frame.kind === "reveal" && frame.instanceId === id);
+}
 
 /**
  * "Take the topmost [Magnetic] card in the encounter discard pile and give it to Magneto as a facedown boost card"
@@ -398,6 +410,35 @@ export function setDefender(
 }
 
 /**
+ * A character is making a basic defense: declared at the Declare Defender step, or declared the defender by a card
+ * ability (`declareDefenderByEffect`; docs/phase7-wave8.md §4.1 Q55, RRG 1.8 "Defend, Defense", p. 15: "When a card
+ * ability says to 'declare [a hero] the defender' of an attack, that hero is considered to be making a basic
+ * defense"). Each caller announces it once per defense. Resolving a "(defense)"-labeled ability is not one (p. 16:
+ * "Resolving a defense-labeled ability is not a basic defense"), so the label alone never reaches here.
+ */
+function announceBasicDefense(ctx: Ctx, defenderId: InstanceId, defenderPlayer: PlayerId): void {
+  // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
+  const used: TriggerEvent = {
+    kind: "basicPowerUsed",
+    characterInstanceId: defenderId,
+    power: "defense",
+    stat: "def",
+    playerId: defenderPlayer,
+  };
+  if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
+  // "When you use one of your hero's basic powers … DEF" (§17.4), pushed second so it resolves first — before
+  // the attack's own damage step reads the defender's DEF (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9).
+  const using: TriggerEvent = {
+    kind: "basicPowerUsing",
+    characterInstanceId: defenderId,
+    power: "defense",
+    stat: "def",
+    playerId: defenderPlayer,
+  };
+  if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
+}
+
+/**
  * Records that `playerId` resolved a "(defense)"-labeled ability during the enemy attack in progress, if they are the
  * first to: the record other players' defense abilities are barred by (`defenseBarFor`). Nothing outside an attack.
  */
@@ -489,15 +530,35 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
   const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
   if (exhaust) exhaustCard(ctx, defenderId);
   const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  // The log's `defenderDeclared`, as the Declare Defender step logs its own (RRG 1.8 "Defend, Defense", p. 15: an
+  // ability's declaration makes the character the defender just as the step's does), marked `byEffect`.
+  const logDeclared = (enemyInstanceId: InstanceId): void =>
+    emit(ctx, {
+      type: "defenderDeclared",
+      attackInstanceId: enemyInstanceId,
+      defenderInstanceId: defenderId,
+      playerId: defenderPlayer,
+      byEffect: true,
+    });
   if (procedure) {
+    // The character already making this basic defense (declared at the step, or by an earlier ability) is not making
+    // a second one.
+    const alreadyBasic = procedure.defenderInstanceId === defenderId && procedure.basicDefense;
     if (procedure.defenderInstanceId === defenderId) setFrame(ctx, { ...procedure, basicDefense: basic });
-    else setDefender(ctx, procedure, defenderId, defenderPlayer, basic);
+    else {
+      logDeclared(procedure.enemyInstanceId);
+      setDefender(ctx, procedure, defenderId, defenderPlayer, basic);
+    }
+    if (!alreadyBasic && (basic || procedure.defenderInstanceId !== defenderId)) {
+      announceBasicDefense(ctx, defenderId, defenderPlayer);
+    }
     return;
   }
   const activation = currentActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
   if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return;
   const already = (frame.slots[DEFENDER_SLOT] ?? [])[0] === defenderId;
+  const alreadyBasic = already && (frame.vars.declaredBasicDefense ?? 0) > 0;
   setFrame(ctx, {
     ...frame,
     event: { ...frame.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer },
@@ -505,6 +566,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
     slots: { ...frame.slots, [DEFENDER_SLOT]: [defenderId] },
   });
   if (!already) {
+    logDeclared(frame.event.enemyInstanceId);
     announce(ctx, {
       kind: "defended",
       defenderInstanceId: defenderId,
@@ -513,6 +575,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
       basic,
     });
   }
+  if (!alreadyBasic && (basic || !already)) announceBasicDefense(ctx, defenderId, defenderPlayer);
 }
 
 export function pushEnemyAttackFrame(
@@ -694,23 +757,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         // (owner ruling 2026-10-06; `declareDefenderByEffect` reads an effect's declaration the same way).
         if (frame.defenderInstanceId === defenderId) setFrame(ctx, { ...next, basicDefense: true });
         else setDefender(ctx, next, defenderId, defenderPlayer, true);
-        // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
-        const used: TriggerEvent = {
-          kind: "basicPowerUsed",
-          characterInstanceId: defenderId,
-          power: "defense",
-          playerId: defenderPlayer,
-        };
-        if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
-        // "When you use one of your hero's basic powers … DEF" (§17.4), pushed second so it resolves first — before
-        // the attack's own damage step reads the defender's DEF (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9).
-        const using: TriggerEvent = {
-          kind: "basicPowerUsing",
-          characterInstanceId: defenderId,
-          power: "defense",
-          playerId: defenderPlayer,
-        };
-        if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
+        announceBasicDefense(ctx, defenderId, defenderPlayer);
         return;
       }
       // A defender an effect declared (`declareDefender`, §3.22): an ally, or a hero already making a basic defense,
@@ -764,7 +811,12 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     }
     case "flipBoosts": {
       // RRG "Attack (Enemy Activation)" step 3: one boost card at a time, in the order dealt.
-      const icons = stepBoostCard(ctx, frame, frame.attackedPlayerId, "attack");
+      // A boost card's "you" is the defending player (RRG 1.8 "Defend, Defense", p. 16: "Any constant or boost abilities
+      // that refer to 'you' refer to the defending player"; owner ruling 2026-10-09, docs/phase7-wave8.md §4.1 row
+      // 93). Step 2 declares the defender before step 3 turns the cards up (p. 9), so that is the attack's target
+      // player, read afresh for each card: the attacked player until another player's character defends, and still
+      // the attacked player when nobody does.
+      const icons = stepBoostCard(ctx, frame, frame.targetPlayerId, "attack");
       if (icons === "busy") return;
       if (icons === null) {
         setFrame(ctx, { ...frame, stage: "dealDamage" });
@@ -789,6 +841,10 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         basicDefense: frame.basicDefense,
       });
       if (!planned) return;
+      // "His total ATK for that attack" (docs/phase7-wave8.md §3.81): the enemy's ATK as this attack reads it, "+N ATK
+      // for this attack" and the boost icons counted included, before any defense (RRG 1.8 "Attack (Enemy Activation)"
+      // step 4, p. 9). The attack event's result `totalAtk`; `damage` is what the attack then dealt.
+      addFrameVars(ctx, frame.eventFrameId, { [TOTAL_ATK_RESULT]: planned.baseAtk + frame.boostIcons });
       const vars = activationVars(ctx, frame.eventFrameId);
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
       // "Damage from that attack is dealt to the chosen enemy instead of you" (`modifyAttack.damageTo`, Psychic

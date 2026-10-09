@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
 import type { ChoiceId, InstanceId, PlayerId } from "./ids.js";
+import type { ResourceType } from "./resources.js";
 
 /**
  * One source of resources toward a cost: a card discarded from hand, or a
@@ -36,6 +37,13 @@ export interface CostSelection {
   readonly branch?: number;
   /** How many counters an "up to N" counter cost removes (`spendCounters.upTo`). Default: as many as it can. */
   readonly counters?: number;
+  /**
+   * How many resources a chosen-size resource cost spends (`AbilityCost.resources { choose }`; docs/phase7-wave8.md
+   * §3.62). This names the size beside the payment: the payment must generate at least that many, and anything more
+   * is overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost", p. 13). Absent: the size is whatever the
+   * payment generates, up to the cost's maximum.
+   */
+  readonly resources?: number;
 }
 
 /**
@@ -52,11 +60,17 @@ export type Command =
   /**
    * RRG "Form, Change Form". `to` names the form, needed only for a three-sided identity (docs/phase7-wave2.md §3.2):
    * `{ heroForm: n }` is the hero face `IdentityState.heroFormIndex` n. Absent: the other form of a two-faced identity.
+   *
+   * `payment` and `costChoices` pay an additional cost to change form (`RuleSpec formChangeCost`,
+   * docs/phase7-wave8.md §3.63), as a play's or an ability's pay its cost. With no such cost in force a payment is
+   * refused: a free change spends nothing.
    */
   | {
       readonly type: "changeForm";
       readonly playerId: PlayerId;
       readonly to?: "alterEgo" | { readonly heroForm: number };
+      readonly payment?: readonly Payment[];
+      readonly costChoices?: CostChoices;
     }
   | {
       readonly type: "playCard";
@@ -68,6 +82,13 @@ export type Command =
       readonly costChoices?: CostChoices;
       /** "Play under any player's control": who will control the card (defaults to the player). */
       readonly controllerId?: PlayerId;
+      /**
+       * The play's destination when it is not the player's own play area: an in-play scenario area a `playDestination`
+       * rule in effect lets this card be played into ("either play that ally into their game area …, or play it into
+       * the mission area", MC45 p. 5; docs/phase7-wave8.md §3.34). Part of the play, chosen with it: everything else
+       * about the play is checked and paid as without it. Absent: the player's own area, as always.
+       */
+      readonly into?: { readonly scenarioPlayArea: string };
       /**
        * The value chosen for a cost printed "X" (`specialCost: "X"`; Speed Cyclone, docs/phase7-wave2.md §3.8). RRG 1.8
        * "Non-Numerical Variable" (p. 30): "the value of X is defined by card ability or player choice, after which the
@@ -94,6 +115,16 @@ export type Command =
        * and the command carries the payment.
        */
       readonly abilityId?: AbilityId;
+      /**
+       * The type each wild resource of this payment is used as, one entry per wild in the order the payment generates
+       * them; `"wild"` leaves it a wild (RRG 1.8 "Wild Resource", p. 48: "When a player generates a wild resource, they
+       * may specify which resource type (energy, mental, physical, or wild) it is being used as"; ruling January 17,
+       * 2026 - Ruling 4 (1); docs/phase7-wave8.md §3.62, §4.1 Q33 = B). Read only by a card that reads the types that
+       * paid for it. Absent, the engine asks (`ChoicePrompt declareWildTypes`) when the declaration can change what
+       * such a card reads, and never otherwise. Present, it must be legal (`wildDeclarationFault`) whatever reads it:
+       * the wrong number of entries, or a declaration under which the payment no longer pays the cost, is refused.
+       */
+      readonly wildAs?: readonly ResourceType[];
     }
   | {
       readonly type: "useAbility";
@@ -104,6 +135,13 @@ export type Command =
       readonly costChoices?: CostChoices;
       /** Which branch of an either/or cost, how many counters an "up to N" cost removes (`CostSelection`). */
       readonly costSelection?: CostSelection;
+      /**
+       * The type each wild resource of this payment is used as, exactly as `playCard.wildAs` (docs/phase7-wave8.md
+       * §3.62, §4.1 Q33 = B). Read only by an ability marked `readsPaidTypes` ("spend up to 3 resources → if you spent
+       * at least 1 [energy] …"). Absent, the ability's frame asks (`declareWildTypes`) when the declaration can change
+       * what the ability reads, and never otherwise. Present, it must be legal whatever reads it.
+       */
+      readonly wildAs?: readonly ResourceType[];
     }
   | {
       readonly type: "basicAttack";

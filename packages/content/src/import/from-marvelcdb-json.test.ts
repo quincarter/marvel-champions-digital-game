@@ -366,3 +366,47 @@ describe("the 'Pool aspect (wave 7 QA finding 2)", () => {
     expect(result.problems.some((p) => p.code === "missing_aspect")).toBe(true);
   });
 });
+
+describe("identity-set cards MarvelCDB decklists omit", () => {
+  const notesOf = (result: ReturnType<typeof parseMarvelCdbDeckJson>) => (result.ok ? (result.notes ?? []) : []);
+
+  test("an identity-set card entirely absent from the slots is added at its set quantity, with a note", () => {
+    const result = parseMarvelCdbDeckJson(
+      {
+        id: 1,
+        name: "x",
+        hero_code: "46001a",
+        hero_name: "Iceman",
+        slots: { "46003": 1 },
+        meta: '{"aspect":"leadership"}',
+      },
+      PLAYABLE_CARDS,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.contents.cards).toContainEqual({ cardId: "46002", quantity: 6 });
+    const filled = notesOf(result).filter((n) => n.code === "identity_set_filled");
+    expect(filled.map((n) => n.cardIds?.[0])).toContain("46002");
+    expect(filled.map((n) => n.cardIds?.[0])).not.toContain("46003");
+    expect(filled[0]!.message).toContain("Frostbite");
+  });
+
+  test("a quantity the decklist states is never altered, and no note is added for it", () => {
+    const result = parseMarvelCdbDeckJson(
+      { id: 1, name: "x", hero_code: "46001a", slots: { "46002": 2 }, meta: '{"aspect":"leadership"}' },
+      PLAYABLE_CARDS,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.contents.cards.filter((l) => l.cardId === "46002")).toEqual([{ cardId: "46002", quantity: 2 }]);
+    expect(notesOf(result).some((n) => n.cardIds?.[0] === "46002")).toBe(false);
+  });
+
+  test("a stub decklist with no card of the identity set is not completed into a whole hero deck", () => {
+    const result = parseMarvelCdbDeckJson(
+      { id: 1, name: "x", hero_code: "46001a", slots: {}, meta: '{"aspect":"leadership"}' },
+      PLAYABLE_CARDS,
+    );
+    expect(result.ok && result.contents.cards).toEqual([]);
+  });
+});

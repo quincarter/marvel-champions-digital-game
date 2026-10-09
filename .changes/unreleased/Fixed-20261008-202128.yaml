@@ -1,0 +1,3 @@
+kind: Fixed
+body: Minions that print hit points per player (the Overseers and Prelates, The Sleeper, Garm, Skurge, Nidhogg, Black Swan, Surprise Contender, Dragon, The Kraken, Ronan) now scale with the number of players (RRG 1.8 p. 32)
+time: 2026-10-08T20:21:28.880913-04:00

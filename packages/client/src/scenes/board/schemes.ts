@@ -10,10 +10,10 @@
 import { drawArt } from "../../art/card-art.js";
 import { countTween } from "../../ui/bound-tween.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
-import { ink, surface, threatMeter, typeRole } from "../../tokens.js";
+import { ink, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { label, paintPanel } from "../../ui/widgets.js";
-import type { BoardModel, SchemePanel } from "../../view/board-model.js";
+import { label, paintPanel, paintThreatMeter } from "../../ui/widgets.js";
+import { counterNote, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
@@ -179,7 +179,7 @@ export function schemeMeterRect(rect: Rect): Rect {
  * sits in a column on the left with a 3px rule beside it, which is how the
  * Long Table canvas frames a scheme. Returns the bottom edge it drew to.
  */
-function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): number {
+export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): number {
   const { scene } = ctx;
   const selection = ctx.controller.selection;
   ctx.frame.hitRects.set(scheme.instanceId, rect);
@@ -231,7 +231,14 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
   // the same `▶` affordance a character panel's foot strip gives its own
   // usable ability, drawn only where it fits above the threat meter.
   const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
-  const abilityTop = rect.y + 48;
+  // Counters the scheme itself holds (En Sabah Nur's Pyramid: "place 1 power counter here") get their own line, so
+  // the tally that drives the scenario is on the table and not only in Inspect.
+  let abilityTop = rect.y + 48;
+  const counterText = counterNote(scheme.counters);
+  if (counterText && abilityTop + 14 <= schemeMeterRect(rect).y - 2) {
+    label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
+    abilityTop += 14;
+  }
   // A name that does not fit one row wraps to two lines when the room above the meter allows, and only otherwise is
   // fitted to one row (the full text is the Inspect pop-up's).
   const wrapped = abilityLine ? footStripLayout(abilityLine, textWidth).height : FOOT_STRIP_HEIGHT;
@@ -256,46 +263,10 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
     .setOrigin(0.5)
     .setFontSize(13);
 
-  // Drawn against `meterMax`, not `target`: a side scheme has no threshold but
-  // still has somewhere it started from, and a bar that empties as it is
-  // thwarted says more than a bare number beside a main scheme that has one.
-  //
-  // Redrawn as a whole — clear and repaint all three layers — from `threat`
-  // each time this is called, so a `threatPlaced`/`threatRemoved` tween's
-  // `onUpdate` (below) can slide the fill and count the number together the
-  // same way `McHpPlate.update()` re-runs its own `redraw()`.
-  const paintMeter = (threat: number): void => {
-    mg.clear();
-    mg.fillStyle(surface.parchment.hex, dim).fillRect(meter.x, meter.y, meter.width, meter.height);
-    if (scheme.meterMax && scheme.meterMax > 0) {
-      const ratio = Math.min(1, Math.max(0, threat) / scheme.meterMax);
-      mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, meter.width * ratio, meter.height);
-    }
-    mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
-    const shown = Math.round(threat);
-    meterText.setText(
-      scheme.target === null
-        ? scheme.targetDashed
-          ? `${shown} / — THREAT`
-          : `${shown} THREAT`
-        : `${shown} / ${scheme.target} THREAT`,
-    );
-    // Ink on the red fill is hard to read, so the count sits on a parchment chip across the bar (the HP plate's
-    // own parchment ground): legible over both the filled and the empty part, with the fill still showing either side.
-    const chipWidth = Math.min(meter.width - 4, meterText.width + 10);
-    mg.fillStyle(surface.parchment.hex, dim).fillRect(
-      meter.x + (meter.width - chipWidth) / 2,
-      meter.y + 2,
-      chipWidth,
-      meter.height - 4,
-    );
-    mg.lineStyle(1, surface.ink.hex, dim).strokeRect(
-      meter.x + (meter.width - chipWidth) / 2,
-      meter.y + 2,
-      chipWidth,
-      meter.height - 4,
-    );
-  };
+  // Redrawn as a whole from `threat` each time this is called, so a `threatPlaced`/`threatRemoved` tween's
+  // `onUpdate` (below) can slide the fill and count the number together the same way `McHpPlate.update()` re-runs
+  // its own `redraw()`.
+  const paintMeter = (threat: number): void => paintThreatMeter(mg, meterText, meter, scheme, threat, dim);
 
   const tick = ctx.motion.threatTick(scheme.instanceId);
   if (tick) {

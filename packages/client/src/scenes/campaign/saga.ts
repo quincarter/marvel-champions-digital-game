@@ -211,7 +211,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       case "live":
         return row.issueNumber !== null ? `Issue ${row.issueNumber} of ${row.totalIssues}` : "In progress";
       case "fresh":
-        return "Open";
+        return row.lost ? `Lost · #${row.lost.issueNumber}` : "Open";
       case "sealed":
       default:
         return row.unlocked && !row.hasDefinition ? (row.lockReason ?? "Sealed") : "Sealed";
@@ -336,7 +336,8 @@ export class CampaignSagaScene extends Phaser.Scene {
       .setFontSize(9);
     const chipRect: Rect = {
       x: rowRect.x + rowRect.width - 10 - chipLabel.width - 12,
-      y: rowRect.y + rowRect.height / 2 - 10,
+      // On the row's own bottom line, beside the box code: a long name ("AGENTS OF S.H.I.E.L.D.") has the whole top line.
+      y: rowRect.y + rowRect.height - 8 - 20,
       width: chipLabel.width + 12,
       height: 20,
     };
@@ -552,12 +553,14 @@ export class CampaignSagaScene extends Phaser.Scene {
         };
       case "fresh":
         return {
-          status: "Open",
-          right: "Not started",
-          sub: "Sign a new roster. Any hero can sign, including ones who finished an earlier volume.",
+          status: row.lost ? "Campaign lost" : "Open",
+          right: row.lost ? `Lost at issue #${row.lost.issueNumber}` : "Not started",
+          sub: row.lost
+            ? "The record stays on the shelf. Sign a new roster to try again."
+            : "Sign a new roster. Any hero can sign, including ones who finished an earlier volume.",
           hasPips: false,
-          hasAlt: false,
-          alt: [],
+          hasAlt: row.lost !== null,
+          alt: this.#altActionsFor(row),
           foot: "",
         };
       case "sealed":
@@ -621,6 +624,21 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   #altActionsFor(row: SagaVolumeRow): { label: string; enabled: boolean; onClick: () => void }[] {
+    if (row.status === "fresh" && row.lost) {
+      const runId = row.lost.runId;
+      return [
+        {
+          label: "Dossier",
+          enabled: row.hasDefinition,
+          onClick: () => goToScreen(this, SCENES.campaignDossier, { runId }),
+        },
+        {
+          label: "Reread the run",
+          enabled: row.hasDefinition,
+          onClick: () => goToScreen(this, SCENES.campaignRun, { runId }),
+        },
+      ];
+    }
     if (row.status === "live") {
       return [
         {

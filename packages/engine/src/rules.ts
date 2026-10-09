@@ -1,4 +1,5 @@
 import type {
+  AbilityCost,
   AbilityRegistry,
   AbilityTriggerSpec,
   CardIcon,
@@ -22,6 +23,7 @@ import {
   minionsEngagedWith,
   sameGameArea,
   sharedMainSchemes,
+  showingResources,
   villainOf,
 } from "./query.js";
 import {
@@ -31,6 +33,7 @@ import {
   categoriesOf,
   focusedMainSchemeId,
   gliderMainSchemeId,
+  hitPointFloor,
   contextArea,
   controllerOf,
   evaluate,
@@ -47,12 +50,20 @@ import {
   traitsOf,
   type ActiveRule,
   type EffectContext,
+  type LastKnownCard,
 } from "./select.js";
-import { combineRequirements, type ResolvedRequirement } from "./resources.js";
-import type { AttackKeyword, CardDestination, TargetQuery } from "./spec.js";
+import {
+  addPools,
+  combineRequirements,
+  EMPTY_POOL,
+  poolOf,
+  type ResolvedRequirement,
+  type ResourcePool,
+} from "./resources.js";
+import type { AttackKeyword, CardDestination, PairLimit, TargetQuery } from "./spec.js";
 import type { Bindings, LingeringDamageRule, StackFrame, Vars } from "./stack.js";
 import type { FrameId } from "./ids.js";
-import type { Form, GameAreaState, GameState } from "./state.js";
+import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
 /**
@@ -349,12 +360,36 @@ function consequentialScopeMatches(
   if (!damage) return false;
   if (scope.from !== "any" && scope.from !== damage.from) return false;
   if (!scope.if) return true;
+  const lastKnown = lastKnownFromAttack(damage);
   return evaluate(state, scope.if, {
     ...context,
     event: damage.event,
     vars: { ...context.vars, ...damage.vars },
     bindings: { ...context.bindings, ...damage.slots },
+    ...(lastKnown ? { lastKnown } : {}),
   });
+}
+
+/**
+ * The attacked character as the attack was made, for a consequential-damage condition that reads it after the attack
+ * defeated it (`EffectContext.lastKnown`): the attachments and status cards the attack's frame recorded beside its
+ * `target` slot (`applyPlayerAttack`), found under whatever prefix the attack reported them with (`attack.target`,
+ * `attack.targetAttachments`, `attack.targetStatus.confused`). Owner ruling Q38 = A (docs/phase7-wave8.md §4.1),
+ * following FFG's ruling of February 8, 2026 (1) on RRG 1.8 "Consequential Damage" (p. 13): the designer intent is
+ * that "after attacking [an enemy in some state]" still holds when the attack defeats that enemy. Undefined when no
+ * attack reported a target.
+ */
+function lastKnownFromAttack(damage: ConsequentialDamage): EffectContext["lastKnown"] {
+  let known: Record<InstanceId, LastKnownCard> | undefined;
+  for (const [key, ids] of Object.entries(damage.slots)) {
+    if (key !== "target" && !key.endsWith(".target")) continue;
+    const [id] = ids;
+    if (id === undefined || ids.length !== 1) continue;
+    const statuses = { stunned: 0, confused: 0, tough: 0 };
+    for (const status of STATUS_NAMES) statuses[status] = damage.vars[`${key}Status.${status}`] ?? 0;
+    known = { ...known, [id]: { attachments: damage.slots[`${key}Attachments`] ?? [], statuses } };
+  }
+  return known;
 }
 
 /**
@@ -653,6 +688,38 @@ export const cannotChangeForm = (
       rulePlayers(state, active.rule, active).includes(playerId),
   );
 
+/** One additional cost to change form in force for a change (`RuleSpec formChangeCost`), and the card it is on. */
+export interface FormChangeCost {
+  readonly sourceInstanceId: InstanceId;
+  readonly cost: AbilityCost;
+}
+
+/**
+ * The additional costs `playerId` must pay to change to form `to` right now (`RuleSpec formChangeCost`,
+ * docs/phase7-wave8.md §3.63), one per rule that covers the change, in the order the rules are found; empty when the
+ * change is free. `during: "ownTurn"` is read off the step: the player phase, that player's turn.
+ *
+ * This says what a change the player makes would cost. Whether a given change is one the player makes (the turn's
+ * option, an ability of a player card they resolve, an Action of any card they trigger: §4.1 row 80) or one an
+ * encounter card forces, which is free (§4.2 Q37 = A), is the caller's to say (`changeForm`, `executeChangeForm`).
+ */
+export function formChangeCostsFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  to: Form,
+): readonly FormChangeCost[] {
+  const step = state.step;
+  const ownTurn = step.phase === "player" && step.kind === "turn" && step.activePlayerId === playerId;
+  return activeRules(state, deps, "formChangeCost").flatMap((active) => {
+    const { rule, context } = active;
+    if (rule.to !== undefined && rule.to !== to) return [];
+    if (rule.during === "ownTurn" && !ownTurn) return [];
+    if (context.selfInstanceId === null || !rulePlayers(state, rule, active).includes(playerId)) return [];
+    return [{ sourceInstanceId: context.selfInstanceId, cost: rule.cost }];
+  });
+}
+
 /** "… cannot ready." */
 /**
  * "… cannot ready" rules that stop this ready. `sourceInstanceId` is the card whose ability readies it (null for the
@@ -852,6 +919,14 @@ export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: Pla
       matchesQuery(state, id, active.rule.cards, active.context),
   );
 
+/**
+ * Whether a rule stops this card from entering play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43): the one
+ * answer for a play, for an effect that puts a card into play and for a choice of a card to put into play. About a
+ * card out of play; the callers ask it only for a card that would enter play.
+ */
+export const cannotEnterPlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotEnterPlay").some(({ rule, context }) => matchesQuery(state, id, rule.cards, context));
+
 /** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
 export const cannotTriggerAction = (
   state: GameState,
@@ -930,12 +1005,22 @@ export const canDivideBasicPower = (
 /**
  * "This card cannot leave play while …" (`cannotLeavePlay`). `sourceCardId`: the card whose ability, or whose ability's
  * cost, would move it, as `permanentStopsLeaving` reads it; none for a move the game's rules make. A rule limited to
- * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card.
+ * card abilities (`by: "cardAbilities"`, docs/phase7-wave7.md §3.10) stops only a move with a source card. `discard`:
+ * the move is a discard, a move to a discard pile; a rule limited to discards (`by: "discard"`, "cannot be discarded",
+ * docs/phase7-wave8.md §3.35) stops only that, with or without a source card.
  */
-export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId, sourceCardId?: CardId): boolean =>
+export const cannotLeavePlay = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceCardId?: CardId,
+  discard = false,
+): boolean =>
   activeRules(state, deps, "cannotLeavePlay").some(
     ({ rule, context }) =>
-      (rule.by !== "cardAbilities" || sourceCardId !== undefined) && matchesQuery(state, id, rule.target, context),
+      (rule.by !== "cardAbilities" || sourceCardId !== undefined) &&
+      (rule.by !== "discard" || discard) &&
+      matchesQuery(state, id, rule.target, context),
   );
 
 /**
@@ -1282,6 +1367,49 @@ export const cannotBeDefeated = (state: GameState, deps: EngineDeps, id: Instanc
     matchesQuery(state, id, rule.target, context),
   );
 
+/**
+ * A `consideredRemainingHp` floor of 1 or more covers this character (docs/phase7-wave8.md §3.10, §4.1 Q6 = A): it does
+ * not have "zero or fewer remaining hit points" (RRG 1.8 "Defeat", p. 15) whatever its dial reads, so it is not
+ * defeated for its hit points.
+ */
+export const consideredAboveZero = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  (hitPointFloor(state, id, deps) ?? 0) >= 1;
+
+/**
+ * The limit a `pairLimit` rule in force puts on a pairing of cards with the characters in the in-play scenario area
+ * `area` (docs/phase7-wave8.md §3.36), or null. One kind of limit exists, so the first rule found is the answer.
+ */
+export function pairLimitFor(state: GameState, deps: EngineDeps, area: string | null): PairLimit | null {
+  if (area === null) return null;
+  return activeRules(state, deps, "pairLimit").find(({ rule }) => rule.area === area)?.rule.limit ?? null;
+}
+
+/**
+ * The resource icons a card in play has (docs/phase7-wave8.md §3.42): the ones the face it shows prints
+ * (`showingResources`), plus one for each `consideredResourceIcon` rule in force that matches it ("is considered to
+ * have a wild resource icon in addition to its printed resource icon"). `considered` is that second part alone, for a
+ * log line or an inspect panel that tells the two apart.
+ */
+export function resourceIconsInPlay(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+): { readonly icons: ResourcePool; readonly considered: ResourcePool } {
+  let considered: ResourcePool = EMPTY_POOL;
+  for (const { rule, context } of activeRules(state, deps, "consideredResourceIcon")) {
+    if (matchesQuery(state, id, rule.target, context))
+      considered = addPools(considered, poolOf({ [rule.resource]: 1 }));
+  }
+  return { icons: addPools(showingResources(state, id), considered), considered };
+}
+
+/**
+ * What keeps a character whose dial reads zero in play: "cannot be defeated", or being considered to have hit points.
+ * Either way it is watched (`GameState.heldAtZero`) and falls when nothing holds it any more.
+ */
+export const defeatHeldOff = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  consideredAboveZero(state, deps, id) || cannotBeDefeated(state, deps, id);
+
 /** A side scheme at no threat that is not defeated for it (`notDefeatedWithoutThreat`; signature side schemes). */
 export const notDefeatedWithoutThreat = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "notDefeatedWithoutThreat").some(({ rule, context }) =>
@@ -1598,3 +1726,38 @@ export const iconsInPlay = (
   countSchemeIcons(state, deps, icon, area) +
   nonSchemeIcons(state, deps, icon, area) +
   grantedIcons(state, deps, icon, area);
+
+/**
+ * The in-play scenario areas a play of this card may name as its destination right now (`RuleSpec playDestination`,
+ * docs/phase7-wave8.md §3.34): each rule in effect whose area exists and whose `cards` the card matches, in rule order.
+ * Empty in a game with no such rule, which is every game outside the campaign that declares one.
+ */
+export function playDestinationsOf(state: GameState, deps: EngineDeps, cardInstanceId: InstanceId): readonly string[] {
+  if (state.scenarioPlayAreas === undefined) return [];
+  const areas: string[] = [];
+  for (const { rule, context } of activeRules(state, deps, "playDestination")) {
+    if (state.scenarioPlayAreas[rule.area] === undefined || areas.includes(rule.area)) continue;
+    if (matchesQuery(state, cardInstanceId, rule.cards, context)) areas.push(rule.area);
+  }
+  return areas;
+}
+
+/**
+ * The reach an upgrade's host choice has while a `playDestination` rule lets upgrades be attached in its area (MC45
+ * p. 5: "Players may attach upgrades to allies in the mission area"): spread into the context its "attach to" text is
+ * read in, so a card in the closed area is a candidate host when that text allows it (`closedScenarioPlayArea`).
+ * Nothing without such a rule.
+ */
+export function attachmentReachOf(
+  state: GameState,
+  deps: EngineDeps,
+  upgradeInstanceId: InstanceId,
+): { readonly reaches?: { readonly scenarioPlayArea: string } } {
+  if (state.scenarioPlayAreas === undefined) return {};
+  for (const { rule, context } of activeRules(state, deps, "playDestination")) {
+    if (rule.attachments === undefined || state.scenarioPlayAreas[rule.area] === undefined) continue;
+    if (matchesQuery(state, upgradeInstanceId, rule.attachments, context))
+      return { reaches: { scenarioPlayArea: rule.area } };
+  }
+  return {};
+}

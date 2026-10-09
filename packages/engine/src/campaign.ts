@@ -30,6 +30,7 @@ import type {
   ScenarioId,
   Trait,
 } from "@mc/content";
+import type { RuleSpec } from "./abilities.js";
 import type { RngState } from "./rng.js";
 import type { CardSelector, EffectSpec, Predicate, TargetCategory, TargetQuery, ValueSpec } from "./spec.js";
 
@@ -126,6 +127,18 @@ export interface CampaignNode {
    * empty: the builder's choice is free, as it was before this field existed.
    */
   readonly requiredModularSetIds?: readonly string[];
+  /**
+   * Rules the campaign puts in force for the whole of this node's game, printed in the rulebook rather than on a card:
+   * MC45 p. 5's Mission Rules card (it has no card record), and p. 20's "Professor X cannot enter play during this
+   * game." Plain `RuleSpec`s, exactly what a scenario builder passes as `GameSetupConfig.scenarioRuleSpecs`.
+   *
+   * A rule, not a setup instruction: nothing resolves and nothing is traced. `resolveBetweenGames` freezes the list
+   * into `CampaignGameInput.scenarioRuleSpecs`, and `createGame` adds it to the scenario's own rules, after them. So
+   * the rules are part of the game's replay baseline and no caller has to remember to pass them. Not gated by mode or
+   * by the log: a rule that should hold only sometimes says so in its own `while`. Absent or empty: no rule, and the
+   * game input is what it was before the field existed.
+   */
+  readonly scenarioRuleSpecs?: readonly RuleSpec[];
   readonly setup: readonly CampaignInstruction[];
   readonly victory: readonly CampaignInstruction[];
   /**
@@ -619,6 +632,19 @@ export type CampaignOp =
        * adds none when it is already there (`copiesUpToLimit`). It never produces an illegal deck.
        */
       readonly copies?: "maximum";
+      /**
+       * How each granted copy counts toward deck size (`GrantDeckSize`; docs/phase7-wave8.md §3.45): MC45 p. 24's
+       * "That card does not count against your minimum deck size" is not MC10 p. 3's exemption from both limits.
+       * Absent: `"exempt"`, and the grant is recorded without the field, exactly as before it existed.
+       */
+      readonly deckSize?: GrantDeckSize;
+      /**
+       * `"optional"`: the player decides, each game, whether the granted copy is in the deck (`CampaignGrant.optional`,
+       * `CampaignGrant.leftOut`). MC45 p. 24: "They may include 1 copy of that card in their deck for the rest of the
+       * campaign." The copy starts in the deck. Absent: MC10 p. 3's "Added cards must be included in the player's
+       * deck", and the grant is recorded without the field.
+       */
+      readonly inclusion?: "optional";
     }
   | { readonly kind: "revokeCard"; readonly seat: "self" | "each"; readonly card: CampaignValue }
   /**
@@ -679,6 +705,26 @@ export type CampaignOp =
        * still comes from `CampaignLog.rng`. A declined draw records an empty choice, which `choiceMade` reads.
        */
       readonly optional?: true;
+      /**
+       * A fresh draw on every attempt at the node (MC45 p. 5, owner decision docs/phase7-wave8.md §4.1 Q22 = B: a
+       * lost scenario that is retried "runs setup again", so the mission and the Overseer are drawn again from what
+       * is still available). Without it a retry repeats its draw, because a loss restores the campaign's RNG with the
+       * log (`LossPolicy.retryBaseline: "nodeStart"`).
+       *
+       * - **The RNG advances exactly as without the flag**: one value for each card drawn, none when one option or
+       *   none is left. So every later draw of the block keeps its place, the game's own seed included.
+       * - **Which option** comes from that value mixed with the number of times the node has already been played
+       *   (`CampaignLog.history` entries at this node, won or lost), by `mixWithAttempt`, the mix the game's seed
+       *   uses. A node's first attempt is the plain draw, so the flag changes nothing until a node is replayed.
+       *   Each attempt is a draw over all the options offered: it may land on the last attempt's pick.
+       * - **A pure function of the log**: the history is part of it, so a replay reproduces every attempt's draw.
+       * - **Traced** with the attempt number (`CampaignChoiceRecord.attempt`, 1 for the first).
+       * - Outside a node (a graph's `beforeChoice` block) there is no attempt to count: the draw is the plain one
+       *   and no attempt number is traced.
+       *
+       * The opposite of `choose.repeatOnRetry`, which makes a retry keep a pick (MC40 p. 7).
+       */
+      readonly perAttempt?: true;
     }
   // --- currency ----------------------------------------------------------------------------------------------
   /**
@@ -940,10 +986,69 @@ export type LogValue =
   | { readonly kind: "instructionList"; readonly ids: readonly string[] }
   | { readonly kind: "text"; readonly value: string };
 
+/**
+ * How a card the campaign put in a deck counts toward the deck's size (RRG 1.8 Appendix I: 40 to 50 cards). A grant's
+ * own data, because the boxes print different sentences (docs/phase7-wave8.md §3.45, §4.1 Q25):
+ *
+ * - `"exempt"`, the default: counted toward neither limit. MC10 p. 3: "Cards added to the deck as part of a campaign
+ *   do not count toward a player's minimum or maximum deck size."
+ * - `"maximumOnly"`: counted toward the maximum, not toward the minimum. MC45 p. 24's rewards as printed: "That card
+ *   does not count against your minimum deck size." A deck of 40 other cards becomes 41 and is legal; a deck of 50
+ *   must drop a card to take it; a deck of 39 other cards is still one short.
+ * - `"counted"`: an ordinary card of the deck, counted toward both. A deck of 39 other cards plus the grant is legal;
+ *   a deck of 50 must drop a card.
+ *
+ * Only the size check reads it (`validateDeck`): a grant is legal in the deck and counts toward the copy limit
+ * whatever its value (docs/campaign-mode-design.md Q8). A granted obligation and a permanent card are counted toward
+ * no deck size whatever it says (MC10 p. 17; RRG 1.8 "Permanent", p. 32).
+ */
+export type GrantDeckSize = "exempt" | "maximumOnly" | "counted";
+
+/** One granted copy whose deck-size rule is not the default: what `validateDeck` is told about it. */
+export interface GrantDeckSizeRule {
+  readonly cardId: CardId;
+  readonly deckSize: Exclude<GrantDeckSize, "exempt">;
+}
+
+/**
+ * The grants whose copy is in the seat's deck: every grant but an optional one the player has left out
+ * (`CampaignGrant.leftOut`). These are the copies the deck list holds, so they are what deck validation and the
+ * game's setup are told about (`CampaignDeckContext.grantedCardIds`, `CampaignSeatInput.grantedCardIds`).
+ */
+export const includedGrantsOf = (grants: readonly CampaignGrant[]): readonly CampaignGrant[] =>
+  grants.filter((grant) => grant.leftOut !== true);
+
+/**
+ * The deck-size rules of a seat's grants, one entry for each granted copy that is not `"exempt"`, in grant order
+ * (`DeckContext.campaign.grantDeckSizes`, `CampaignSeatInput.grantDeckSizes`). Empty for every grant made without a
+ * rule, which is every grant of the boxes before MC45. A copy the player has left out of the deck states no rule.
+ */
+export const grantDeckSizesOf = (grants: readonly CampaignGrant[]): readonly GrantDeckSizeRule[] =>
+  includedGrantsOf(grants).flatMap((grant) =>
+    grant.deckSize === undefined || grant.deckSize === "exempt"
+      ? []
+      : [{ cardId: grant.cardId, deckSize: grant.deckSize }],
+  );
+
 /** A card the campaign put in a seat's deck (MC10 p. 3; MC16 p. 5; MC27 p. 22; MC32 p. 5). */
 export interface CampaignGrant {
   readonly cardId: CardId;
   readonly permanence: GrantPermanence;
+  /** How the copy counts toward deck size (`GrantDeckSize`). Absent: `"exempt"`, as every grant was before the field. */
+  readonly deckSize?: GrantDeckSize;
+  /**
+   * The player may leave this copy out of the deck (`grantCard`'s `inclusion: "optional"`; MC45 p. 24, "They may
+   * include 1 copy of that card in their deck for the rest of the campaign"). The grant itself is the record that the
+   * card was chosen and stays for the campaign either way. Absent: the copy must be in the deck (MC10 p. 3).
+   */
+  readonly optional?: true;
+  /**
+   * An optional grant whose copy is not in `CampaignSeat.deck` right now. Written down rather than read off the deck
+   * list, because the list cannot tell a reward from a copy of the same title the player chose (the two count
+   * differently toward deck size). Set and cleared between games by whoever edits the deck; never set on a grant
+   * that is not `optional`.
+   */
+  readonly leftOut?: true;
   /** Which face the grant is on: MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side. */
   readonly face?: string;
   /** The node that granted it, for the sheet and for `LossPolicy.retryBaseline`. */
@@ -1104,6 +1209,11 @@ export interface CampaignChoiceRecord {
    * with `repeatOnRetry`, MC40 p. 7). A client reads it to say "same as before" instead of asking.
    */
   readonly repeated?: true;
+  /**
+   * A `random` op with `perAttempt`: which attempt at the node this draw was made for, 1 for the first
+   * (docs/phase7-wave8.md §3.45, Q22 = B). Absent on every other record.
+   */
+  readonly attempt?: number;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1140,6 +1250,12 @@ export interface CampaignGameInput {
    * so every earlier game input is unchanged.
    */
   readonly requiredModularSetIds?: readonly string[];
+  /**
+   * `CampaignNode.scenarioRuleSpecs`, copied here so the rules are part of the game's own replay baseline: `createGame`
+   * puts them in force with the scenario's own (`GameSetupConfig.scenarioRuleSpecs`), after them. Absent when the node
+   * states none, so every earlier game input is unchanged.
+   */
+  readonly scenarioRuleSpecs?: readonly RuleSpec[];
 }
 
 /**
@@ -1159,11 +1275,16 @@ export interface CampaignLogView {
 export interface CampaignSeatInput {
   readonly seatNumber: number;
   readonly identityCardId: CardId;
-  /** The expanded deck list, grants included. */
+  /** The expanded deck list, grants included (less an optional grant the player left out, `CampaignGrant.leftOut`). */
   readonly deck: readonly CardId[];
   readonly aspects: readonly CoreAspect[];
   /** Which of `deck` are campaign grants: legal here, and exempt from min/max deck size (MC10 p. 3). */
   readonly grantedCardIds: readonly CardId[];
+  /**
+   * The granted copies that are not exempt from deck size (`grantDeckSizesOf`; docs/phase7-wave8.md §3.45). Absent
+   * when every grant is exempt, so an input composed before the field existed is unchanged.
+   */
+  readonly grantDeckSizes?: readonly GrantDeckSizeRule[];
 }
 
 /** An instruction the runner has already gated and ordered, ready for the engine to resolve at its window. */

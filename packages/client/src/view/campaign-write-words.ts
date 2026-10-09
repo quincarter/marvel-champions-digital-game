@@ -6,6 +6,7 @@
 import type { CardId } from "@mc/content";
 import type { LogValue } from "@mc/engine";
 import type { CardNameOf } from "./campaign-log-model.js";
+import { missionResultWordsOf } from "./campaign-mission-model.js";
 
 export interface PlainWriteRow {
   readonly headline: string;
@@ -44,6 +45,9 @@ export function plainWriteRows(
       },
     ];
   }
+  // Age of Apocalypse (MC45 p. 24): a mission row's result, "Evacuate Survivors: defeated", never the stored option id.
+  const mission = value.kind === "choice" ? missionResultWordsOf(field, value.option) : null;
+  if (mission) return [{ headline: `${mission.name}: ${mission.result}`, detail: mission.detail }];
   const named = (id: string): string => cardName(id as CardId);
   if (value.kind === "choice" && /^sideSchemeScenario\d+$/.test(field)) {
     return [{ headline: `Scheme: ${value.option}`, detail: "Its encounter card joins the deck." }];

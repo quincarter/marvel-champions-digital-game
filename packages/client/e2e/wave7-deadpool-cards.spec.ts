@@ -270,7 +270,7 @@ test("Rock, Paper, Scissors (44056): the hand card is picked up front on the boa
   await playCard(page, "44056", 1);
   await useInPlay(page, /^rock.*scissors . exhaust$/i);
   await waitFor(
-    async () => ((await boardHas(page, /choose a target for rock, paper, scissors/i)) ? true : null),
+    async () => ((await boardHas(page, /rock, paper, scissors: choose a card for its cost/i)) ? true : null),
     "the board's target picker for the hand card",
     10000,
   );

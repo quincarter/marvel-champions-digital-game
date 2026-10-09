@@ -12,11 +12,19 @@
  */
 
 import { type Ctx, emit, updateFrame, updatePlayer } from "../ctx.js";
+import { announceDeckTops, holdDeckTops } from "../deck-top.js";
 import { shuffleZone } from "../effects.js";
 import type { InstanceId } from "../ids.js";
 import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "../query.js";
-import { decksSearchedByFind, type EffectContext, findCards, resolvePlayers, resolveRef } from "../select.js";
-import type { EffectSpec } from "../spec.js";
+import {
+  cardsInPlay,
+  decksSearchedByFind,
+  type EffectContext,
+  findCards,
+  resolvePlayers,
+  resolveRef,
+} from "../select.js";
+import type { EffectSpec, TargetRef } from "../spec.js";
 import type { ZoneId } from "../state.js";
 import { shuffleEncounterDeck, shuffleSeparateDeck } from "./cards.js";
 import type { Frame } from "./frames.js";
@@ -64,6 +72,7 @@ function shuffleSearchedDeck(ctx: Ctx, deck: ZoneId): void {
     case "deck": {
       const order = shuffleZone(ctx, deck, mustPlayer(ctx.state, deck.playerId).deck);
       updatePlayer(ctx, deck.playerId, (p) => ({ ...p, deck: order }));
+      announceDeckTops(ctx);
       return;
     }
     case "separateDeck":
@@ -106,12 +115,71 @@ export function announceFound(ctx: Ctx, id: InstanceId, deck: ZoneId | null, alr
 }
 
 /**
+ * The find of "find X and reveal it" (`revealCard` of a `TargetRef find`; docs/phase7-wave8.md §3.1): the first card the
+ * find names, logged `cardFound` where it is, and the decks looked through for it, which the caller shuffles once the
+ * card is out of them. `alreadyThere` on the log line reads "already in play": that card is revealed where it is and
+ * does not enter play (RRG 1.8 "Find", p. 19). Nothing found: no log line, and the decks were still searched.
+ */
+export function findToReveal(
+  ctx: Ctx,
+  ref: Extract<TargetRef, { kind: "find" }>,
+  context: EffectContext,
+): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
+  return findFirst(
+    ctx,
+    ref,
+    context,
+    (id) => cardsInPlay(ctx.state).includes(id) && mustInstance(ctx.state, id).faceup,
+  );
+}
+
+/**
+ * The find of "finds X and deals him to themself as a facedown encounter card" (`dealAsEncounterCard` of a `TargetRef
+ * find`; docs/phase7-wave8.md §3.75): as `findToReveal`, but the card always moves, from play included, so
+ * `alreadyThere` is false (a find never reaches a facedown dealt card, RRG 1.8 "Find", p. 19).
+ */
+export function findToDeal(
+  ctx: Ctx,
+  ref: Extract<TargetRef, { kind: "find" }>,
+  context: EffectContext,
+): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
+  return findFirst(ctx, ref, context, () => false);
+}
+
+/** The first card a find names, logged `cardFound` where it is, and the decks searched for it. */
+function findFirst(
+  ctx: Ctx,
+  ref: Extract<TargetRef, { kind: "find" }>,
+  context: EffectContext,
+  alreadyThere: (id: InstanceId) => boolean,
+): { readonly found: readonly InstanceId[]; readonly searched: readonly ZoneId[] } {
+  const owners = ref.owner ? new Set(resolvePlayers(ctx.state, ref.owner, context)) : null;
+  const [found] = findCards(ctx.state, ref.query, context, owners);
+  const searched = decksSearchedByFind(ctx.state, ref.query, context, owners, found);
+  if (!found) return { found: [], searched };
+  announceFound(ctx, found.id, found.deck, alreadyThere(found.id));
+  return { found: [found.id], searched };
+}
+
+/**
  * Resolves a `findCard`: the first card `findCards` names goes to `to` through the effect that already moves cards
  * there (`moveCards`, or `attach` for `{ attachTo }`, handed in as `apply` so this module does not import its caller),
  * then each deck the find searched is shuffled. A find that found nothing still searched, and shuffles, every deck the
  * card could have been in.
  */
 export function applyFindCard(
+  ctx: Ctx,
+  effect: FindCard,
+  context: EffectContext,
+  frame: Frame<"effects">,
+  apply: (ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">) => void,
+): void {
+  // One change to a deck kept faceup (docs/phase7-wave8.md §3.48): the searched deck's top card shows after its
+  // shuffle, not between the card leaving and the shuffle.
+  holdDeckTops(ctx, () => findCardNow(ctx, effect, context, frame, apply));
+}
+
+function findCardNow(
   ctx: Ctx,
   effect: FindCard,
   context: EffectContext,

@@ -54,6 +54,7 @@
 import type { AbilityId } from "@mc/content";
 import type {
   ChoiceList,
+  ChoiceOption,
   ChoicePrompt,
   EngineDeps,
   GameState,
@@ -63,10 +64,10 @@ import type {
   SetupInstructionSource,
   StackFrame,
 } from "@mc/engine";
-import { activeAbilityRefs } from "@mc/engine";
+import { activeAbilityRefs, playDestinationOfOption } from "@mc/engine";
 import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { cardName, numberWord } from "./names.js";
+import { cardName, formWords, numberWord } from "./names.js";
 
 /** The card (and, when unambiguous, the ability) a pending choice traces back to. */
 export interface ChoiceSource {
@@ -104,6 +105,10 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
   }
   if (prompt.kind === "declareDefender") {
     return { instanceId: prompt.attack.enemyInstanceId, abilityId: null };
+  }
+  // Which resources paid (wave 8 row 79): the prompt names the card (or its ability) the payment was for.
+  if (prompt.kind === "choosePaidResources") {
+    return { instanceId: prompt.instanceId, abilityId: prompt.abilityId ?? null };
   }
 
   const frame = frameOf(state, choice);
@@ -171,6 +176,25 @@ export function setupPlayerQuestionFor(instruction: SetupInstructionSource, prom
 }
 
 /**
+ * The question of an expert campaign's heal instruction (`healForThreat`, `healWithFacedownCard`; MC45 pp. 12 to 20):
+ * the engine's `chooseOption` carries only the two answers, so the sheet would read "Campaign setup: choose one". A
+ * defeated seat is asked to rejoin ("Rejoin at full · +3 threat" / "Sit this scenario out"); a living one, whether to
+ * heal. Read off the first option's label, since the instruction ids differ in each scenario. Null for any other
+ * option choice.
+ */
+export function setupOptionQuestionFor(
+  instruction: SetupInstructionSource,
+  prompt: ChoicePrompt,
+  options: readonly { readonly label: string }[],
+): string | null {
+  if (instruction.kind !== "campaign" || prompt.kind !== "chooseOption") return null;
+  const first = options[0]?.label ?? "";
+  if (first.startsWith("Rejoin at full")) return "Rejoin your team?";
+  if (first.startsWith("Heal to full")) return "Heal your identity to full?";
+  return null;
+}
+
+/**
  * The overlay title for a `chooseCostCards` prompt (docs/phase7-wave4.md §3.17: Stand Together's "exhaust an
  * [Avenger] character and a [Guardian] character" cost, `InPlayCostMode`), one verb per mode. Falls back to a
  * generic phrase for a mode this module doesn't recognize rather than the sheet's own bare "Choose".
@@ -187,8 +211,11 @@ export function costCardsPromptTitleOf(mode: string | undefined, damageAmount?: 
   }
   const verbs: Record<string, string> = {
     exhaust: "Choose a card to exhaust",
+    ready: "Choose a card to ready",
     return: "Choose a card to return to hand",
     discard: "Choose a card to discard",
+    // The cards in hand a "discard N cards from your hand" cost of an interrupt or response is paid with.
+    discardFromHand: "Choose cards to discard from hand",
   };
   return (mode && verbs[mode]) ?? "Choose a card for this cost";
 }
@@ -235,8 +262,114 @@ export function spendResourcesTitleOf(requirement: ResourceRequirement, distinct
   return `Spend ${total} ${noun}, at least ${distinctTypes} different?`;
 }
 
+/**
+ * "Spend 2 resources of the same type to change to hero form?" (`RuleSpec formChangeCost`, docs/phase7-wave8.md
+ * §3.63): the additional cost to change form, asked as a card's effect changes the player's form. Selecting nothing
+ * declines, so the title is a yes/no question like the other payment prompts. `sameType` below the total reads
+ * "Spend 3 resources, 2 of one type, to change to hero form?".
+ */
+export function formChangeCostTitleOf(
+  requirement: ResourceRequirement,
+  formChangeCost: { readonly to: string; readonly sameType?: number },
+): string {
+  const total =
+    (requirement.generic ?? 0) +
+    (requirement.physical ?? 0) +
+    (requirement.mental ?? 0) +
+    (requirement.energy ?? 0) +
+    (requirement.wild ?? 0);
+  const destination = `to change to ${formWords(formChangeCost.to)}?`;
+  if (total <= 0) return `Pay ${destination}`;
+  const noun = total === 1 ? "resource" : "resources";
+  const { sameType } = formChangeCost;
+  if (sameType === undefined || sameType <= 1) return `Spend ${total} ${noun} ${destination}`;
+  if (sameType >= total) return `Spend ${total} ${noun} of the same type ${destination}`;
+  return `Spend ${total} ${noun}, ${sameType} of one type, ${destination}`;
+}
+
+/**
+ * The mission's damage pool (`EffectSpec assignDamage` with `sequential`, wave 8 §3.37): the engine asks first for the
+ * character (a `chooseTarget` in slot `assignDamage`) and then, when the character can take more than 1, how much of
+ * the pool (a `chooseNumber` whose frame is still on the same effect). The pool left is not on the prompt; it is the
+ * frame variable `_pool.left`, read here the way the deck-discard size is.
+ */
+export const DAMAGE_POOL_SLOT = "assignDamage";
+const DAMAGE_POOL_LEFT = "_pool.left";
+
+/** The damage left in the pool the choice's frame is dealing out, or null when that frame is not dealing one. */
+export function damagePoolLeft(
+  state: GameState | undefined,
+  choice: Partial<Pick<PendingChoice, "frameId">>,
+): number | null {
+  if (!state || choice.frameId === null || choice.frameId === undefined) return null;
+  const frame = state.stack.find((candidate) => candidate.frameId === choice.frameId);
+  if (frame?.kind !== "effects" || frame.effects[frame.cursor]?.kind !== "assignDamage") return null;
+  return frame.vars[DAMAGE_POOL_LEFT] ?? null;
+}
+
+/** "Mission damage pool, 3 left: choose a target" / "...: deal how much?"; "N left" is left out when the pool is unreadable. */
+export function damagePoolTitleOf(step: "target" | "amount", left: number | null): string {
+  const pool = left === null ? "Mission damage pool" : `Mission damage pool, ${left} left`;
+  return `${pool}: ${step === "target" ? "choose a target" : "deal how much?"}`;
+}
+
+/** "Pair the cards with characters" (`pairCards`, wave 8 §3.36): the pairing model is `view/pair-cards-model.ts`. */
+export const PAIR_CARDS_TITLE = "Pair the cards with characters";
+
+/** "Choose who attacks", "Choose who thwarts", "Choose who attacks or thwarts" (`chooseBasicPower`, wave 8 §3.64). */
+export function basicPowerTitleOf(powers: readonly ("attack" | "thwart")[]): string {
+  const hasAttack = powers.includes("attack");
+  const hasThwart = powers.includes("thwart");
+  if (hasAttack && hasThwart) return "Choose who attacks or thwarts";
+  return hasThwart ? "Choose who thwarts" : "Choose who attacks";
+}
+
+/** The target half of a card-instructed basic power (`chooseBasicPowerTarget`). */
+export const basicPowerTargetTitleOf = (power: "attack" | "thwart", mayDivide?: boolean): string => {
+  const base = power === "thwart" ? "Choose a scheme to thwart" : "Choose an enemy to attack";
+  return mayDivide ? `${base}, or several to divide` : base;
+};
+
+/** "Which resources paid?" (`choosePaidResources`, wave 8 row 79): the sets differ to a card reading the payment. */
+export const CHOOSE_PAID_RESOURCES_TITLE = "Which resources paid?";
+
+/** "Choose what your wild counts as" (`declareWildTypes`, wave 8 §3.62): one declaration for each wild paid. */
+export const declareWildTypesTitleOf = (wilds: number): string =>
+  wilds === 1 ? "Choose what your wild counts as" : `Choose what your ${numberWord(wilds)} wilds count as`;
+
+/**
+ * The size of a "discard up to N cards from the top of your deck" cost (`AbilityCost.discardFromDeck` with `choose`,
+ * wave 8 §3.55). The engine raises it as a plain `chooseNumber` whose very next step is `payDeckDiscardChoice`, so the
+ * title is read off the choice's own frame ("Discard up to 3 cards from your deck"); false for any other number.
+ */
+export function isDeckDiscardSize(state: GameState | undefined, choice: Pick<PendingChoice, "frameId">): boolean {
+  if (!state || choice.frameId === null || choice.frameId === undefined) return false;
+  const frame = state.stack.find((candidate) => candidate.frameId === choice.frameId);
+  return frame?.kind === "effects" && frame.effects[frame.cursor + 1]?.kind === "payDeckDiscardChoice";
+}
+
 /** What a `chooseFromList` prompt asks for, by its list (docs/phase7-wave7.md §3.33). */
 const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a card type" };
+
+/**
+ * "Where does Colossus go?" for the engine's effect-path destination question (`EffectSpec playFromHand` while a
+ * mission is in play, MC45 p. 5): a `chooseOption` whose every option id names a place (`playDestinationOfOption`)
+ * and whose `ref` is the card being played. The same words as the hand's destination bar
+ * (`play-destination.ts`'s `PlayDestinationChoice.prompt`). Null for any other `chooseOption`.
+ */
+export function playDestinationTitleOf(
+  state: GameState | undefined,
+  options: readonly { readonly optionId: string; readonly label: string; readonly ref: ChoiceOption["ref"] }[],
+): string | null {
+  if (options.length === 0 || options.some((option) => playDestinationOfOption(option.optionId) === undefined)) {
+    return null;
+  }
+  const ref = options[0]!.ref;
+  if (state && ref.kind === "card") return `Where does ${cardName(state, ref.instanceId)} go?`;
+  // Without the state to read the card from, the label says it: "Play <name> to your area".
+  const named = /^Play (.+) to (?:your area|the .+)$/.exec(options[0]!.label);
+  return named ? `Where does ${named[1]} go?` : "Where does it go?";
+}
 
 /**
  * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
@@ -248,7 +381,9 @@ const CHOICE_LIST_TITLES: Record<ChoiceList, string> = { cardType: "Choose a car
 export function promptTitleOf(
   prompt: ChoicePrompt,
   deps: EngineDeps,
-  counts?: Pick<PendingChoice, "minSelections">,
+  counts?: Pick<PendingChoice, "minSelections"> & Partial<Pick<PendingChoice, "frameId" | "options">>,
+  /** With the choice's frame, lets a `chooseNumber` raised by a deck-discard cost say what the number is for. */
+  state?: GameState,
 ): string {
   const kind = prompt.kind;
   // RRG 1.8 "End of Player Phase" (p. 17): a player may discard any number, then must discard down to hand size.
@@ -265,13 +400,40 @@ export function promptTitleOf(
     const amount = prompt.mode === "damage" ? deps.abilities[prompt.abilityId]?.cost?.damageCards?.amount : undefined;
     return costCardsPromptTitleOf(prompt.mode, amount);
   }
-  if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+  if (kind === "divide") {
+    const base = dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+    return prompt.eachAtLeast === undefined ? base : `${base}, at least ${prompt.eachAtLeast} each`;
+  }
+  if (kind === "choosePaidResources") return CHOOSE_PAID_RESOURCES_TITLE;
+  if (kind === "pairCards") return PAIR_CARDS_TITLE;
+  if (kind === "chooseTarget" && prompt.slot === DAMAGE_POOL_SLOT) {
+    return damagePoolTitleOf("target", counts ? damagePoolLeft(state, counts) : null);
+  }
   if (kind === "chooseNumber") {
+    const left = counts ? damagePoolLeft(state, counts) : null;
+    if (left !== null) return damagePoolTitleOf("amount", left);
+    if (counts && isDeckDiscardSize(state, { frameId: counts.frameId ?? null })) {
+      const noun = prompt.max === 1 ? "card" : "cards";
+      return prompt.min <= 1
+        ? `Discard up to ${prompt.max} ${noun} from your deck`
+        : `Discard ${prompt.min} to ${prompt.max} cards from your deck`;
+    }
     return prompt.min === prompt.max
       ? `Choose a number: ${prompt.min}`
       : `Choose a number from ${prompt.min} to ${prompt.max}`;
   }
-  if (kind === "spendResources") return spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  if (kind === "spendResources") {
+    return prompt.formChangeCost
+      ? formChangeCostTitleOf(prompt.requirement, prompt.formChangeCost)
+      : spendResourcesTitleOf(prompt.requirement, prompt.distinctTypes);
+  }
+  if (kind === "chooseOption" && counts?.options) {
+    const destination = playDestinationTitleOf(state, counts.options);
+    if (destination) return destination;
+  }
+  if (kind === "chooseBasicPower") return basicPowerTitleOf(prompt.powers);
+  if (kind === "chooseBasicPowerTarget") return basicPowerTargetTitleOf(prompt.power, prompt.mayDivide === true);
+  if (kind === "declareWildTypes") return declareWildTypesTitleOf(prompt.wilds);
   if (kind === "chooseFromList") return CHOICE_LIST_TITLES[prompt.list];
   // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.
   if (kind === "reportFact") {
@@ -297,7 +459,7 @@ export function promptTitleOf(
     searchCollection: "Search your collection",
     chooseOption: "Choose one",
     choosePlayer: "Choose a player",
-    orderSpecials: "Order the special abilities",
+    orderSpecials: "Order these abilities",
     payForCard: "Pay for this card?",
     payForAbility: "Pay for this ability?",
     spendResources: "Spend resources?",
@@ -337,6 +499,8 @@ export function choiceHeaderText(
   } else if (instruction) {
     const question = setupPlayerQuestionFor(instruction, choice.prompt);
     if (question) return question;
+    const optionQuestion = setupOptionQuestionFor(instruction, choice.prompt, choice.options);
+    if (optionQuestion) return optionQuestion;
     named = instructionHeaderName(instruction);
   } else {
     return genericTitle;

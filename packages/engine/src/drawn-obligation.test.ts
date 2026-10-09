@@ -182,6 +182,79 @@ describe("an obligation drawn from a player deck goes into that player's play ar
   });
 });
 
+/**
+ * Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 76; Panicked Refugees' shape): an obligation printing
+ * "Forced Response: After this card enters your hand, reveal it. Then, draw 1 card." is drawn into the hand, because
+ * its own text is about being there (RRG 1.8 "The Golden Rules", p. 4: card text over the Rules Reference). The p. 30
+ * rule above is unchanged for every obligation without that text. Not an FFG ruling.
+ */
+describe("an obligation whose own text answers entering the hand is drawn into the hand (owner decision)", () => {
+  const ENTERS = stubAbility("hand-obligation.forced-response", {
+    trigger: { kind: "response", forced: true, on: { on: "cardEntersHand", selfIs: "target" } },
+    activeIn: "hand",
+    effects: [
+      { kind: "revealCard", cards: { kind: "self" }, player: you },
+      { kind: "draw", player: you, amount: n(1) },
+    ],
+  } satisfies AbilityDefinition);
+  const HAND_OBLIGATION = stubObligation({ id: "hand-obligation", abilities: [ENTERS.ref] });
+  const handDeps: EngineDeps = depsOf(...EVENTS.map((e) => e.ability), OBLIGATION_ACTION, ENTERS);
+  const begin = (): GameState =>
+    gameAtFirstTurn({
+      cards: [...CARDS, HAND_OBLIGATION],
+      deps: handDeps,
+      deck: [
+        ...EVENTS.flatMap((e) => [e.card.id, e.card.id]),
+        HAND_OBLIGATION.id,
+        ...copiesOf(OBLIGATION.id, 2),
+        ...copiesOf(FILL, 8),
+      ],
+    });
+  const play = (arranged: { state: GameState; hand: readonly InstanceId[] }) =>
+    driveSession(startSession(arranged.state), handDeps, [
+      { type: "playCard", playerId: P1, cardInstanceId: arranged.hand[0]!, payment: [], attachToInstanceId: null },
+    ]);
+  const resolved = (events: readonly GameEvent[]) =>
+    events.filter((e) => e.type === "abilityResolved" && e.abilityId === ENTERS.ref.id);
+
+  it("a draw of 1: it enters the hand, is revealed into the play area, and 1 card replaces it", () => {
+    const set = arrange(begin(), { hand: [DRAW_ONE.card.id, FILL], deck: [HAND_OBLIGATION.id, FILL, FILL] });
+    const [obligation, replacement] = set.deck as [InstanceId, InstanceId];
+    const { session, events } = play(set);
+    const player = mustPlayer(session.state, P1);
+    expect(placed(events)).toEqual([]);
+    expect(resolved(events)).toHaveLength(1);
+    expect(player.playArea).toContain(obligation);
+    expect(mustInstance(session.state, obligation).faceup).toBe(true);
+    expect(player.hand).toEqual([set.hand[1], replacement]);
+    const order = events.flatMap((e) =>
+      e.type === "cardDrawn" ? [`drawn ${e.instanceId}`] : e.type === "encounterCardRevealed" ? ["revealed"] : [],
+    );
+    expect(order).toEqual([`drawn ${obligation}`, "revealed", `drawn ${replacement}`]);
+  });
+
+  it("the end-of-phase refill: the hand ends at hand size with the obligation in the play area", () => {
+    const set = arrange(begin(), {
+      hand: [FILL],
+      deck: [FILL, HAND_OBLIGATION.id, FILL, FILL, FILL, FILL, FILL, FILL],
+    });
+    const { session, events } = driveSession(startSession(set.state), handDeps, [{ type: "endTurn", playerId: P1 }]);
+    const player = mustPlayer(session.state, P1);
+    expect(resolved(events)).toHaveLength(1);
+    expect(player.playArea).toContain(set.deck[1]);
+    expect(player.hand).toHaveLength(handSize(session.state, P1, handDeps));
+    expect(obligationsIn(session.state, player.hand)).toEqual([]);
+  });
+
+  it("an obligation without that text, in the same game, is still placed by the p. 30 rule with no replacement", () => {
+    const set = arrange(begin(), { hand: [DRAW_ONE.card.id, FILL], deck: [OBLIGATION.id, FILL, FILL] });
+    const { session, events } = play(set);
+    expect(placed(events)).toEqual([set.deck[0]]);
+    expect(mustPlayer(session.state, P1).hand).toEqual([set.hand[1]]);
+    expect(resolved(events)).toEqual([]);
+  });
+});
+
 describe("only the player with the obligation in their play area can use its Alter-Ego Action", () => {
   const drawnByP1 = () => {
     const set = arrange(start(2), { hand: [DRAW_ONE.card.id], deck: [OBLIGATION.id, FILL, FILL, FILL] });

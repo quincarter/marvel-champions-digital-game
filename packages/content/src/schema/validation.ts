@@ -18,9 +18,11 @@ import type {
 import {
   ATTACHMENT_HOST_CATEGORIES,
   ATTACHMENT_HOST_KINDS,
+  HOST_CLASSIFICATIONS,
   HOST_MEASURES,
   SUPERLATIVE_HOST_POOLS,
   type AttachmentHostCategory,
+  type HostClassification,
   type HostMeasure,
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
@@ -232,6 +234,9 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     if (h.controlledBy !== undefined && h.controlledBy !== "you") {
       errors.push(`${label} ${kind} host controlledBy must be 'you' when present`);
     }
+    if (h.classification !== undefined && !HOST_CLASSIFICATIONS.includes(h.classification as HostClassification)) {
+      errors.push(`${label} ${kind} host classification '${String(h.classification)}' is not a known classification`);
+    }
   };
   /** Every `HostQualifiers` field, for the "a qualified host needs at least one" check. */
   const anyQualifier = (): boolean =>
@@ -242,7 +247,8 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     h.withoutKeyword !== undefined ||
     h.titleContains !== undefined ||
     h.attackedThisTurnBy !== undefined ||
-    h.controlledBy !== undefined;
+    h.controlledBy !== undefined ||
+    h.classification !== undefined;
   switch (kind) {
     case "namedCard":
     case "namedVillain":
@@ -907,6 +913,8 @@ export function validateMinionCard(card: MinionCard): ValidationResult {
   if (!isPrintedStat(card.atk)) errors.push('minion atk must be a non-negative number, "X", or null (printed —)');
   if (!isPrintedStat(card.sch)) errors.push('minion sch must be a non-negative number, "X", or null (printed —)');
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("minion hp must be a positive number");
+  if (card.hpPerPlayer !== undefined && card.hpPerPlayer !== true)
+    errors.push("minion hpPerPlayer must be true when present");
   if (card.nemesisMinion !== undefined && typeof card.nemesisMinion !== "boolean")
     errors.push("minion nemesisMinion must be a boolean");
   return result(errors);
@@ -1150,6 +1158,12 @@ export function validateScenario(scenario: Scenario): ValidationResult {
             `scenario villain ${villain.villainCardId} has its own encounter deck, so it needs the encounter sets to build it from`,
           );
         }
+        if (villain.sideBCardId !== undefined) {
+          if (!isNonEmptyString(villain.sideBCardId))
+            errors.push(`scenario villain ${villain.villainCardId} sideBCardId must be a card id when present`);
+          else if (villain.sideBCardId === villain.villainCardId)
+            errors.push(`scenario villain ${villain.villainCardId} sideBCardId must differ from its villainCardId`);
+        }
         if (villain.signatureSideSchemeCardId !== undefined && !isNonEmptyString(villain.signatureSideSchemeCardId)) {
           errors.push(
             `scenario villain ${villain.villainCardId} signatureSideSchemeCardId must be a card id when present`,
@@ -1169,6 +1183,12 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   }
   if (scenario.usesIdentityEncounterSets !== undefined && typeof scenario.usesIdentityEncounterSets !== "boolean") {
     errors.push("scenario usesIdentityEncounterSets must be a boolean");
+  }
+  if (scenario.nemesisSetsSetAside !== undefined) {
+    if (scenario.nemesisSetsSetAside !== true) errors.push("scenario nemesisSetsSetAside must be true when present");
+    // It says something only where the identity sets are otherwise left out.
+    if (scenario.usesIdentityEncounterSets !== false)
+      errors.push("scenario nemesisSetsSetAside needs usesIdentityEncounterSets: false");
   }
   if (scenario.modularSetCount !== undefined && !isNonNegativeInteger(scenario.modularSetCount)) {
     errors.push("scenario modularSetCount must be a whole number of at least 0");

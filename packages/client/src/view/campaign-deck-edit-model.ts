@@ -11,6 +11,9 @@
  * optional input here; MC10 never freezes a deck, so its own tests never pass one.
  */
 import {
+  grantDeckSizesOf,
+  includedGrantsOf,
+  setCampaignGrantLeftOut,
   validateDeck,
   type CampaignDefinition,
   type CampaignDeckContext,
@@ -33,12 +36,42 @@ export function campaignDeckContextOf(
     campaignId: log.campaignId as string,
     campaignSetIds: [...campaign.campaignSetIds, ...(campaign.perSeatSetIds ?? [])],
     identityCardId: seat.identityCardId,
-    grantedCardIds: seat.grants.map((grant) => grant.cardId),
+    ...grantFieldsOf(seat.grants),
     removedFromCampaign: log.removedFromCampaign,
     ...(campaign.prohibited?.cardIds ? { prohibitedCardIds: campaign.prohibited.cardIds } : {}),
     ...(campaign.prohibited?.encounterSetIds ? { prohibitedEncounterSetIds: campaign.prohibited.encounterSetIds } : {}),
     ...(options.frozenNonCampaignCards ? { frozenNonCampaignCards: options.frozenNonCampaignCards } : {}),
   };
+}
+
+/**
+ * The context fields that follow from a seat's grants: the copies the deck holds (a reward left out is none of them,
+ * `includedGrantsOf`), the deck-size rules and the rewards the player may leave out. `campaignDeckContextOf` builds
+ * them from the log; a builder screen that flips a reward rebuilds them from its own grants.
+ */
+function grantFieldsOf(
+  grants: readonly CampaignGrant[],
+): Pick<CampaignDeckContext, "grantedCardIds" | "grantDeckSizes" | "optionalGrantCardIds"> {
+  const included = includedGrantsOf(grants);
+  const optional = included.filter((grant) => grant.optional === true).map((grant) => grant.cardId);
+  const sizes = grantDeckSizesOf(grants);
+  return {
+    grantedCardIds: included.map((grant) => grant.cardId),
+    // MC45 p. 24: a reward that counts toward the 50 and not the 40 (owner decision, 2026-10-08) is told to
+    // `validateDeck`; absent for every earlier box.
+    ...(sizes.length > 0 ? { grantDeckSizes: sizes } : {}),
+    // MC45 p. 24, "They may include 1 copy of that card in their deck": the copies the player may leave out.
+    ...(optional.length > 0 ? { optionalGrantCardIds: optional } : {}),
+  };
+}
+
+/** `context` again after the seat's grants changed (a reward put in or left out): only the grant-derived fields move. */
+export function campaignDeckContextWithGrants(
+  context: CampaignDeckContext,
+  grants: readonly CampaignGrant[],
+): CampaignDeckContext {
+  const { grantedCardIds: _g, grantDeckSizes: _s, optionalGrantCardIds: _o, ...rest } = context;
+  return { ...rest, ...grantFieldsOf(grants) };
 }
 
 /**
@@ -91,9 +124,19 @@ export function frozenNonCampaignCardsOf(
 export interface CampaignDeckEditRow {
   readonly cardId: CardId;
   readonly quantity: number;
-  /** True for a line the campaign granted (MC10 p. 3): not editable in the sense the player chose it. */
+  /**
+   * True for a line the campaign granted and the player must keep (MC10 p. 3): not editable in the sense the player
+   * chose it. False for a reward the player may leave out (`rewardCopies`), whose line can be changed.
+   */
   readonly locked: boolean;
   readonly lockedReason: string | null;
+  /**
+   * How many copies of this line are a campaign reward the player may leave out (MC45 p. 24, "They may include 1
+   * copy of that card in their deck"); 0 for every other line. The other copies of the line are the player's own.
+   */
+  readonly rewardCopies: number;
+  /** What a reward line says about itself (`REWARD_ROW_NOTE`), or null. */
+  readonly rewardNote: string | null;
   /** True for a line RRG 1.8 p. 29 removed from the campaign, or one MC27 p. 4's `Campaign.prohibited.cardIds` names — refused, and the deck should say why. */
   readonly refused: boolean;
   /** `validateDeck`'s own `campaign_removed_card`/`campaign_prohibited_card` message for this card, or null when the line isn't refused. */
@@ -106,15 +149,36 @@ export interface CampaignDeckEditRow {
   readonly face: string | null;
 }
 
+/** One reward the seat chose (an optional grant), in or out of the deck: what a "Rewards" strip shows and toggles. */
+export interface CampaignDeckRewardRow {
+  readonly cardId: CardId;
+  /** Whether the copy is in the deck now (`CampaignGrant.leftOut` is not set). */
+  readonly included: boolean;
+  readonly status: string;
+  /** The button that flips `included` through `setRewardIncluded`. */
+  readonly toggleLabel: string;
+}
+
 export interface CampaignDeckEditModel {
   readonly validation: DeckValidation;
   readonly rows: readonly CampaignDeckEditRow[];
+  /**
+   * The seat's rewards, in grant order, whether or not each is in the deck: a reward left out has no row, so this is
+   * the only place it can be put back. Empty for a box with no optional grant, or when `grants` was not passed.
+   */
+  readonly rewards: readonly CampaignDeckRewardRow[];
   /** True once `frozenNonCampaignCards` is set — MC16 p. 5 (mandatory) / MC27 p. 6 (optional). */
   readonly editingDisabled: boolean;
   readonly editingDisabledReason: string | null;
 }
 
 const GRANT_REASON = "Added by the campaign — does not count toward deck size";
+/** MC45 p. 24 and the owner decisions of 2026-10-08: a reward is not one of the 40, is one of the 50, and is optional. */
+export const REWARD_ROW_NOTE = "Campaign reward. Not one of your 40 cards; one of your 50.";
+export const REWARD_STATUS_IN = "In your deck";
+export const REWARD_STATUS_OUT = "Left out of your deck";
+export const REWARD_LEAVE_OUT_LABEL = "Leave out";
+export const REWARD_ADD_LABEL = "Add to deck";
 const FROZEN_REASON = "Your deck is frozen for the rest of the campaign; only campaign-granted cards can change.";
 
 /**
@@ -148,7 +212,14 @@ export function campaignDeckEditModel(
   grants: readonly CampaignGrant[] = [],
 ): CampaignDeckEditModel {
   const validation = validateDeck(deck, pool, { campaign: context });
-  const granted = new Set(context.grantedCardIds);
+  const countOf = (ids: readonly string[] | undefined, cardId: string): number =>
+    (ids ?? []).filter((id) => id === cardId).length;
+  /** The copies of a line that are a reward the player may leave out: never more than the line holds. */
+  const rewardCopiesOf = (cardId: string, quantity: number): number =>
+    Math.min(quantity, countOf(context.optionalGrantCardIds, cardId));
+  /** A line is locked when the campaign granted a copy of it that must stay (MC10 p. 3). */
+  const mustKeep = (cardId: string): boolean =>
+    countOf(context.grantedCardIds, cardId) > countOf(context.optionalGrantCardIds, cardId);
   const faceByCardId = new Map(
     grants.filter((grant) => grant.face !== undefined).map((grant) => [grant.cardId, grant.face!]),
   );
@@ -161,18 +232,91 @@ export function campaignDeckEditModel(
   }
   const rows: readonly CampaignDeckEditRow[] = deck.cards.map((line) => {
     const refusedReason = refusedReasonByCardId.get(line.cardId as string) ?? null;
+    const locked = mustKeep(line.cardId);
+    const rewardCopies = locked ? 0 : rewardCopiesOf(line.cardId, line.quantity);
     return {
       cardId: line.cardId,
       quantity: line.quantity,
-      locked: granted.has(line.cardId),
-      lockedReason: granted.has(line.cardId) ? GRANT_REASON : null,
+      locked,
+      lockedReason: locked ? GRANT_REASON : null,
+      rewardCopies,
+      rewardNote: rewardCopies > 0 ? REWARD_ROW_NOTE : null,
       refused: refusedReason !== null,
       refusedReason,
       face: faceByCardId.get(line.cardId) ?? null,
     };
   });
+  const rewards: readonly CampaignDeckRewardRow[] = grants
+    .filter((grant) => grant.optional === true)
+    .map((grant) => {
+      const included = grant.leftOut !== true;
+      return {
+        cardId: grant.cardId,
+        included,
+        status: included ? REWARD_STATUS_IN : REWARD_STATUS_OUT,
+        toggleLabel: included ? REWARD_LEAVE_OUT_LABEL : REWARD_ADD_LABEL,
+      };
+    });
   const editingDisabled = context.frozenNonCampaignCards !== undefined;
-  return { validation, rows, editingDisabled, editingDisabledReason: editingDisabled ? FROZEN_REASON : null };
+  return { validation, rows, rewards, editingDisabled, editingDisabledReason: editingDisabled ? FROZEN_REASON : null };
+}
+
+/** A seat's deck and grants after a reward was put in or left out: what the campaign log is to store. */
+export interface RewardInclusionEdit {
+  readonly deck: DeckContents;
+  readonly grants: readonly CampaignGrant[];
+}
+
+/**
+ * Puts a reward in the deck or leaves it out (MC45 p. 24: "They may include 1 copy of that card in their deck for the
+ * rest of the campaign"; owner decision, 2026-10-08: choosing the reward is mandatory, including it is not). The
+ * grant stays in the log either way; `CampaignGrant.leftOut` and the deck line change together, so the list never
+ * holds a reward the log says is out. Changes one optional grant of `cardId` at a time, and returns its inputs
+ * unchanged when there is none in the other state.
+ */
+export function setRewardIncluded(
+  deck: DeckContents,
+  grants: readonly CampaignGrant[],
+  cardId: CardId,
+  included: boolean,
+): RewardInclusionEdit {
+  const index = grants.findIndex(
+    (grant) => grant.cardId === cardId && grant.optional === true && (grant.leftOut === true) === included,
+  );
+  if (index < 0) return { deck, grants };
+  // The engine changes the flag and the list together (and checks they agree); it reads a log, so give it a one-seat
+  // log made of the pair. Taking a copy off needs a line to take it from.
+  if (!included && !deck.cards.some((entry) => entry.cardId === cardId)) return { deck, grants };
+  const edit = { id: "reward-edit", seats: [{ seatNumber: 0, deck, grants }] } as unknown as CampaignLog;
+  const seat = setCampaignGrantLeftOut(edit, 0, index, !included).seats[0];
+  return seat ? { deck: seat.deck, grants: seat.grants } : { deck, grants };
+}
+
+/**
+ * The grants after the player edited the deck list by hand: a reward whose copy is no longer in the list is marked
+ * left out, so the log agrees with the deck. A line holds its must-keep granted copies first, then its rewards; the
+ * rewards the line is too short for are the ones left out. Never puts a reward back (`setRewardIncluded` does), and
+ * returns `grants` itself when nothing changed.
+ */
+export function reconcileRewards(deck: DeckContents, grants: readonly CampaignGrant[]): readonly CampaignGrant[] {
+  const room = new Map<string, number>();
+  for (const line of deck.cards) room.set(line.cardId, (room.get(line.cardId) ?? 0) + line.quantity);
+  for (const grant of grants) {
+    if (grant.optional === true || grant.leftOut === true) continue;
+    room.set(grant.cardId, (room.get(grant.cardId) ?? 0) - 1);
+  }
+  let changed = false;
+  const next = grants.map((grant) => {
+    if (grant.optional !== true || grant.leftOut === true) return grant;
+    const left = room.get(grant.cardId) ?? 0;
+    if (left > 0) {
+      room.set(grant.cardId, left - 1);
+      return grant;
+    }
+    changed = true;
+    return { ...grant, leftOut: true as const };
+  });
+  return changed ? next : grants;
 }
 
 /** `model.rows` split into what counts toward deck size and what's pinned — MC10 p. 3: "Cards added to the deck as part of a campaign do not count toward a player's minimum or maximum deck size." */
@@ -181,6 +325,11 @@ export interface CampaignDeckSizeSplit {
   readonly counted: number;
   /** The sum of every granted line's quantity — cards pinned into the deck outside that count. */
   readonly pinned: number;
+  /**
+   * The reward copies in the deck (MC45 p. 24): not among `counted`, because a deck needs 40 cards besides them, and
+   * not `pinned`, because the player may leave them out. They do count toward the 50 (owner decision, 2026-10-08).
+   */
+  readonly rewards: number;
 }
 
 /**
@@ -191,9 +340,44 @@ export interface CampaignDeckSizeSplit {
 export function campaignDeckSizeSplit(model: CampaignDeckEditModel): CampaignDeckSizeSplit {
   let counted = 0;
   let pinned = 0;
+  let rewards = 0;
   for (const row of model.rows) {
     if (row.locked) pinned += row.quantity;
-    else counted += row.quantity;
+    else {
+      counted += row.quantity - row.rewardCopies;
+      rewards += row.rewardCopies;
+    }
+  }
+  return { counted, pinned, rewards };
+}
+
+/**
+ * A seat's stored deck split for the Briefing's and the Dossier's "N + M pinned": the cards that count toward the 40,
+ * and the campaign's copies beside them. A line with a must-keep grant is pinned whole, as it always was; a reward
+ * (an optional grant, MC45 p. 24) is pinned copy by copy, so the player's own copies of its title still count, and a
+ * reward left out of the deck pins nothing.
+ */
+export function seatDeckSizeSplit(seat: {
+  readonly deck: Pick<DeckContents, "cards">;
+  readonly grants: readonly CampaignGrant[];
+}): { readonly counted: number; readonly pinned: number } {
+  const included = includedGrantsOf(seat.grants);
+  const mustKeep = new Set(included.filter((grant) => grant.optional !== true).map((grant) => grant.cardId));
+  let counted = 0;
+  let pinned = 0;
+  for (const line of seat.deck.cards) {
+    const rewards = mustKeep.has(line.cardId)
+      ? line.quantity
+      : Math.min(line.quantity, included.filter((grant) => grant.cardId === line.cardId).length);
+    pinned += rewards;
+    counted += line.quantity - rewards;
   }
   return { counted, pinned };
+}
+
+/** The deck builder's count in words: "40 cards", "40 cards + 2 pinned", "40 cards + 1 reward". */
+export function campaignDeckSizeLabel(split: CampaignDeckSizeSplit): string {
+  const pinned = split.pinned > 0 ? ` + ${split.pinned} pinned` : "";
+  const rewards = split.rewards > 0 ? ` + ${split.rewards} ${split.rewards === 1 ? "reward" : "rewards"}` : "";
+  return `${split.counted} cards${pinned}${rewards}`;
 }

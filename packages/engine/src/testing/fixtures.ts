@@ -337,6 +337,8 @@ export function stubMinion(spec: {
   readonly abilities?: readonly AbilityReference[];
   /** The "(X's nemesis minion.)" parenthetical (RRG 1.8 "Nemesis Encounter Set", p. 30). */
   readonly nemesisMinion?: boolean;
+  /** `hp` is printed with the per player icon (RRG 1.8 "Per Player Icon", p. 32). */
+  readonly hpPerPlayer?: true;
 }): MinionCard {
   return {
     ...base(spec.id, spec.id),
@@ -352,6 +354,7 @@ export function stubMinion(spec: {
     atk: spec.atk,
     sch: spec.sch,
     hp: spec.hp,
+    ...(spec.hpPerPlayer ? { hpPerPlayer: true as const } : {}),
   };
 }
 

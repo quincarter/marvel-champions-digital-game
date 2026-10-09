@@ -19,6 +19,15 @@ describe("scenarioDetailOf", () => {
     expect(detail.villainStagesExpert).toEqual([2, 3]);
   });
 
+  test("starting acceleration is the main scheme's printed value, not the villain stage count", () => {
+    const darkBeast = POOL_SCENARIOS.find((s) => (s.id as string) === "dark-beast")!;
+    const detail = scenarioDetailOf(darkBeast, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const scheme = CARDS_BY_ID.get(darkBeast.mainSchemeCardId as string)!;
+    if (scheme.type !== "main_scheme") throw new Error("not a main scheme");
+    expect(detail.startingAcceleration).toEqual(scheme.stages[0]!.acceleration);
+    expect(detail.startingAcceleration).toEqual({ base: 0, perPlayer: 1 });
+  });
+
   test("stage HP is the printed ScalingValue, unscaled", () => {
     const detail = scenarioDetailOf(rhino, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     for (const stage of detail.stages) {
@@ -113,10 +122,12 @@ describe("shelfSubtitleOf", () => {
       expect(shelfSubtitleOf(detail(id))).toMatch(/^Stages? I/);
   });
 
-  test("in the real pool, the two Museum scenarios and the two Marauders scenarios (Morlock Siege, On the Run) are the only villain names shared", () => {
+  test("in the real pool, the two Museum scenarios, the two Marauders scenarios (Morlock Siege, On the Run) and Apocalypse with En Sabah Nur are the only villain names shared", () => {
     const names = POOL_SCENARIOS.map((s) => detail(s.id as string).villainName);
     const shared = POOL_SCENARIOS.filter((_, i) => names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!));
     expect(shared.map((s) => s.id as string).sort()).toEqual([
+      "apocalypse",
+      "en-sabah-nur",
       "escape-the-museum",
       "infiltrate-the-museum",
       "morlock-siege",

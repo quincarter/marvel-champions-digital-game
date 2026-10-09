@@ -5,6 +5,7 @@ import {
   buildScenarioDeck,
   chosen,
   constant,
+  countBoostIcons,
   damagedAtLeast,
   dealIndirectDamage,
   defeatingPlayer,
@@ -119,6 +120,7 @@ export const CROSSBONES_SET = defineAbilities({
     when.enemyAttacks("host", { againstYou: true }),
     removeCountersFrom(self, "ammo", 1),
     discardEncounterCards(1, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     dealIndirectDamage("group", varOf("d.boostIcons")),
   ),
 
@@ -138,6 +140,7 @@ export const CROSSBONES_SET = defineAbilities({
   "04067.when-revealed-alter-ego": whenRevealedAlterEgo({ kind: "gainSurge" }),
   "04067.when-revealed-hero": whenRevealedHero(
     discardEncounterCards(statOf(theVillain, "atk"), { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     dealIndirectDamage("group", varOf("d.boostIcons")),
   ),
 
@@ -174,6 +177,7 @@ export const CROSSBONES_SET = defineAbilities({
   // additional threat here for each boost icon discarded this way.
   "04071.when-revealed": whenRevealed(
     discardEncounterCards({ kind: "perPlayer", base: 0, perPlayer: 1 }, { bind: "d" }),
+    countBoostIcons(chosen("d"), "d"),
     { kind: "placeThreat", target: self, amount: varOf("d.boostIcons") },
   ),
 

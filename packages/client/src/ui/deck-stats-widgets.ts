@@ -332,9 +332,11 @@ export function drawGroupedCardList(
       } else y += 16;
       const note = noteOf?.(entry) ?? null;
       if (note !== null) {
-        const noteLine = scene.add.text(left, y, note, textStyle(typeRole.label, bodyColor, ink.meta));
-        fitText(noteLine, column);
-        y += 14;
+        // Wrapped, not cut: a campaign note says why a line is pinned or a reward ("... one of your 50."), and the end is the point.
+        const noteLine = scene.add
+          .text(left, y, note, textStyle(typeRole.label, bodyColor, ink.meta))
+          .setWordWrapWidth(column);
+        y += Math.max(14, noteLine.height + 2);
       }
       const onInspect = onInspectOf?.(entry) ?? null;
       if (onInspect) {

@@ -139,7 +139,9 @@ function hpSet(id: string, citation: string): CampaignInstruction {
     whenModes: { expertCampaign: true },
     step: {
       kind: "inGame",
-      window: DEFAULT_CAMPAIGN_WINDOW,
+      // Ruling June 2, 2026 (3) #2 (gmw.ts `hpSetSetup`): a hard set must run before the scenario's own setup
+      // damage or it erases it. Identities exist by `beforeScenarioSetup`.
+      window: "beforeScenarioSetup",
       effects: [
         forEachPlayer(
           eachPlayer,

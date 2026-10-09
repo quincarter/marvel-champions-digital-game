@@ -140,26 +140,30 @@ export function settleDeckDiscards(ctx: Ctx): void {
   ctx.state = open.length > 0 ? { ...rest, deckDiscardWindows: open } : rest;
   for (const discard of closed.flatMap((window) => window.discards)) {
     if (!discard.boundOn || deckDiscardStillThere(ctx.state, discard)) continue;
-    const { frameId, slot } = discard.boundOn;
-    const frame = findFrame(ctx.state, frameId);
-    if (!frame || (frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard")) continue;
-    const bound = frame.bindings[slot];
-    if (!bound?.includes(discard.instanceId)) continue;
-    const left = bound.filter((id) => id !== discard.instanceId);
-    // The card is no longer one the frame discarded from a deck either (`deckDiscardsSlot`).
-    const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings, [slot]: left };
-    for (const [key, ids] of Object.entries(bindings)) {
-      if (key.startsWith(DECK_DISCARDS_PREFIX)) bindings[key] = ids.filter((id) => id !== discard.instanceId);
+    const { frameId } = discard.boundOn;
+    // Each set of the frame that holds the card: its "discarded this way" slot, and a `discardDeckUntil`'s set of
+    // every card it discarded (`DeckDiscard.boundOn.also`, docs/phase7-wave8.md §3.71).
+    for (const slot of [discard.boundOn.slot, ...(discard.boundOn.also ?? [])]) {
+      const frame = findFrame(ctx.state, frameId);
+      if (!frame || (frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard")) break;
+      const bound = frame.bindings[slot];
+      if (!bound?.includes(discard.instanceId)) continue;
+      const left = bound.filter((id) => id !== discard.instanceId);
+      // The card is no longer one the frame discarded from a deck either (`deckDiscardsSlot`).
+      const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings, [slot]: left };
+      for (const [key, ids] of Object.entries(bindings)) {
+        if (key.startsWith(DECK_DISCARDS_PREFIX)) bindings[key] = ids.filter((id) => id !== discard.instanceId);
+      }
+      const totals = boundCardTotals(ctx, slot, left, bindings);
+      updateFrame(ctx, frameId, (f) => {
+        if (f.kind !== "effects" && f.kind !== "ability" && f.kind !== "playCard") return f;
+        // Only the totals this set already reports: a cost's slot reports none (its cards are counted where they are
+        // read, `ValueSpec totalPrintedResources`), a "discard until" only its count.
+        const vars: Record<string, number> = { ...f.vars };
+        for (const [key, amount] of Object.entries(totals)) if (key in vars) vars[key] = amount;
+        return { ...f, bindings, vars };
+      });
+      emit(ctx, { type: "deckDiscardNotCounted", playerId: discard.playerId, instanceId: discard.instanceId, slot });
     }
-    const totals = boundCardTotals(ctx, slot, left, bindings);
-    updateFrame(ctx, frameId, (f) => {
-      if (f.kind !== "effects" && f.kind !== "ability" && f.kind !== "playCard") return f;
-      // Only the totals this set already reports: a cost's slot reports none (its cards are counted where they are
-      // read, `ValueSpec totalPrintedResources`), a "discard until" only its count.
-      const vars: Record<string, number> = { ...f.vars };
-      for (const [key, amount] of Object.entries(totals)) if (key in vars) vars[key] = amount;
-      return { ...f, bindings, vars };
-    });
-    emit(ctx, { type: "deckDiscardNotCounted", playerId: discard.playerId, instanceId: discard.instanceId, slot });
   }
 }

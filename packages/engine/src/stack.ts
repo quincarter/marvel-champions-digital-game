@@ -2,6 +2,14 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import {
+  RESOURCE_TYPES,
+  type PaidTypesRead,
+  type ResolvedRequirement,
+  type ResourcePool,
+  type ResourceType,
+  type TypedResource,
+} from "./resources.js";
 import type { EffectSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { ZoneId } from "./state.js";
@@ -30,6 +38,12 @@ export interface TriggerCandidate {
    * p. 45). Absent for the window's own event.
    */
   readonly sharedEvent?: { readonly index: number; readonly event: TriggerEvent };
+  /**
+   * On a candidate whose pattern answers an occurrence once (`EventPattern.together`): every condition of the window
+   * that matched it, in the order they resolved, the one it answers first. Its ability frame names their targets in
+   * the slot `TOGETHER_TARGETS_SLOT`.
+   */
+  readonly together?: readonly TriggerEvent[];
 }
 
 export const candidateOf = (source: AbilitySource, forced: boolean): TriggerCandidate => ({
@@ -141,6 +155,25 @@ export interface LingeringDamageRule {
   readonly amount: number;
 }
 
+/**
+ * A payment whose wilds its player has still to declare (docs/phase7-wave8.md §3.62, §4.1 Q33 = B), kept on the play
+ * frame of the card paid for (or the frame of the ability paid for) until the `declareWildTypes` choice is answered: everything the payment generated, what
+ * the cost took (the rest is overpaid), and the types the card may be paid with when it limits them (`paymentOnly`).
+ *
+ * The same record holds a payment whose **paid resources** its player has still to name (`choosePaidResources`; owner
+ * decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 79): `reads` is everything that reads the payment's types, which
+ * is what tells whether two sets of paid resources differ, and `declared` the wilds once they are declared (on the
+ * command, by the choice, or left as they are because no declaration could matter: `skipped`), after which only the
+ * paid set is left to ask.
+ */
+export interface UndeclaredWilds {
+  readonly pool: ResourcePool;
+  readonly requirement: ResolvedRequirement;
+  readonly only?: readonly TypedResource[];
+  readonly reads?: readonly PaidTypesRead[];
+  readonly declared?: { readonly types: readonly ResourceType[]; readonly skipped: boolean };
+}
+
 interface FrameBase {
   readonly frameId: FrameId;
   /** Selections fed back by `resolveChoice`; the frame reads and clears it. */
@@ -212,6 +245,46 @@ export type StackFrame =
        */
       readonly thwartInstanceCancelled?: true;
       /**
+       * On a player's `attack` event made by an "(attack)"-labeled ability with its controller's identity: the root
+       * effects frame of that ability's resolution. The ability is one attack (RRG 1.8 "Attack (Player Ability Type)",
+       * p. 10), so this attack does not finish with its own damage: it waits beneath that frame until the ability's
+       * last effect has resolved (`resolve/attack-ability.ts`).
+       */
+      readonly attackOf?: FrameId;
+      /**
+       * With `attackOf`: this attack has dealt its own damage and is waiting beneath its ability's root frame for the
+       * rest of the ability. Damage the ability deals to enemies meanwhile is this attack's. Once the ability's
+       * frame is gone the attack finishes: every enemy attacked (`attacked`), then "after … attacks", then "at the
+       * end of this attack". While it waits it is not "this attack" to `currentActivationFrameId`. Cleared as the
+       * attack starts to finish (`pushAttackedByAbility`), so it is "this attack" again for its retaliate events, its
+       * "after … attacks" window and its "at the end of this attack" effects.
+       */
+      readonly attackWaiting?: true;
+      /**
+       * With `attackOf`: the attack's target was changed in its "when … attacks" window (`EffectSpec retargetAttack`),
+       * off `from` (the enemy it was made against) onto `to`. The event's own target is `to` from then on. Kept on the
+       * frame because the damage of an "(attack)" ability's attack is also dealt by the ability's instructions, which
+       * name `from`: each instance of this attack's damage aimed at `from` is dealt to `to`, and `to` is the
+       * character attacked (`resolve/attack-ability.ts`, "A target changed in the attack's window").
+       */
+      readonly attackRetarget?: { readonly from: InstanceId; readonly to: InstanceId };
+      /**
+       * With `attackOf`: the enemies this attack has attacked so far, one `characterAttacked` each (its own target,
+       * then every enemy a later instruction of the ability targeted), pushed when the attack finishes. An enemy
+       * named twice is attacked once. Only an instruction's own targets are added: an enemy that merely took damage
+       * from the attack (an overkill spill) is not attacked (owner ruling Q50; `resolve/attack-ability.ts`).
+       */
+      readonly attacked?: readonly Extract<TriggerEvent, { kind: "characterAttacked" }>[];
+      /**
+       * With `attackOf`: this attack began as its ability began resolving, before the `attack` instruction that deals
+       * its damage (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 73), and
+       * no `attack` instruction has taken it over yet. Its interrupt window has resolved and it waits beneath the
+       * ability's root frame; the ability's first `attack` instruction by that identity puts it back on top to deal
+       * its damage (`resumeBegunAttack`, `resolve/attack-ability.ts`) and clears this. Still set when the attack
+       * finishes: no instruction made it, so it attacked only the enemies the ability's damage instructions named.
+       */
+      readonly attackBegun?: true;
+      /**
        * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
        * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
        * comes, the event ends there: no interrupt, no enter-play keyword, no response (`resolve/state-checks.ts`).
@@ -276,6 +349,24 @@ export type StackFrame =
        * occurrence. Absent until the window opens; `stillOffered` drops one that can no longer be initiated.
        */
       readonly optionalAtOpen?: readonly TriggerCandidate[];
+      /**
+       * Set when a player picked an optional ability in the round of `chooseTriggers` prompts now resolving. RRG 1.8
+       * "Response" (p. 36) and "Interrupt": several may be triggered from one triggering condition, each once, until
+       * "all players decide they do not wish to resolve any (further)" ones; "In Player Order" (p. 24): the sequence
+       * of opportunities continues until it is complete. So once the picked ones have resolved, the ones left in
+       * `pending` are offered again, and the tier ends with a round in which nobody picks.
+       */
+      readonly pickedThisRound?: true;
+      /**
+       * Interrupt windows only: the optional abilities that were live as the window opened and listen for this kind
+       * of event (`hearersOf`), by key, whether or not their whole condition was met then. One of them whose
+       * condition comes to be met while the window is open, before the event resolves, is offered then ("When you
+       * make a basic attack against an enemy with an upgrade attached", after another interrupt attached one): RRG 1.8
+       * "Interrupt" (p. 25), the triggering condition is still imminent, and "Initiating Abilities" (p. 24), an ability
+       * is checked as it is initiated. An ability that was not live at the open is never in this list, so the rule of
+       * `optionalAtOpen` stands for it. Offered ones join `optionalAtOpen`, so none is offered twice.
+       */
+      readonly heardAtOpen?: readonly string[];
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
@@ -309,6 +400,12 @@ export type StackFrame =
       /** What paying the ability's cost bound (chosen cards, X, paid resources). */
       readonly bindings: Bindings;
       readonly vars: Vars;
+      /**
+       * The ability's own payment is read for resource types and its wilds are not declared yet (`UndeclaredWilds`;
+       * docs/phase7-wave8.md §3.62): the frame asks its controller (`declareWildTypes`) before the ability resolves
+       * anything, records the answer in `vars` (`paid.as.<type>`) and drops this. Absent on every other ability.
+       */
+      readonly undeclaredWilds?: UndeclaredWilds;
       /**
        * A Special resolved by a `resolveSpecials` with `bind` (docs/phase7-wave5.md §3.7): when its effects finish, what
        * they bound goes back to that frame under `<prefix>.` ("If at least 1 Sandman card was discarded this way").
@@ -348,6 +445,16 @@ export type StackFrame =
       /** The setup instruction these effects resolve, when they are one (see `SetupInstructionSource`). */
       readonly instruction?: SetupInstructionSource;
       /**
+       * These effects are an optional setup rule the players turned on (`ScenarioRules.setupOptions`): when the frame
+       * finishes, the log says `setupOptionApplied` with what is kept here, so the entry follows the change it explains.
+       */
+      readonly setupOption?: {
+        readonly option: string;
+        readonly amount: number;
+        readonly text: string;
+        readonly citation: string;
+      };
+      /**
        * The ability whose effects these are, carried into its branches (`chooseOne`, `if`, `then`, …): an attack these
        * effects make names it as its `sourceAbilityId` ("When you use your 'Optic Blast' ability", Full Blast 33008;
        * docs/phase7-wave6.md §3.84). Absent for effects no ability resolves (a lasting effect's, a surge).
@@ -368,6 +475,21 @@ export type StackFrame =
       readonly defeatedLeavingSource?: CardId;
       /** The one thwart this "(thwart)" ability is making, on the root frame of its resolution (`ThwartSession`). */
       readonly thwart?: ThwartSession;
+      /**
+       * On the root frame of an "(attack)"-labeled ability: the attack it begins as it begins resolving has been made
+       * (`beginLabelAttack`, `resolve/attack-ability.ts`: the one attack of an ability with no `attack` effect,
+       * `TriggerEvent attack.labeled`, or the attack an ability with an `attack` effect began before that instruction,
+       * `attack.begun`), so no later instruction begins another that way, whether that attack is waiting beneath this
+       * frame or was cancelled.
+       */
+      readonly labelAttackMade?: true;
+      /**
+       * On the root frame of an "(attack)"-labeled ability: an attack it made by its controller's identity was
+       * cancelled (`cancelAbilityAttack`, `resolve/attack-ability.ts`), so nothing more of that attack resolves: the
+       * ability's remaining damage instructions deal no enemy damage and its remaining `attack` effects are cancelled
+       * with it (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65).
+       */
+      readonly attackCancelled?: true;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -436,6 +558,17 @@ export type StackFrame =
        * play, is never discarded, and a cancelled one stays where it is. Absent on every other reveal.
        */
       readonly newFace?: true;
+      /**
+       * A card found faceup in play and revealed where it is ("find X and reveal it", `revealCard`; RRG 1.8 "Find",
+       * p. 19; docs/phase7-wave8.md §3.1). It does not enter play: no `cardEntersPlay`, no starting threat, no unique
+       * check, no teamwork, and it is never discarded by the reveal. A minion engages the revealing player unless it
+       * already was engaged with them, keeping everything on it; any other card stays where it is (an attachment on
+       * its host, §4.1 Q17). Then its When Revealed abilities and reveal keywords resolve (ruling June 25, 2026 (5)).
+       * Absent on every other reveal.
+       */
+      readonly foundInPlay?: true;
+      /** With `foundInPlay`: the minion engaged the revealing player by this reveal (it was not engaged with them). */
+      readonly engagedByReveal?: true;
       /** With `stage: "uniqueCheck"`: the stage the reveal continues to when the card is let in. */
       readonly afterUnique?: "quickstrike" | "whenRevealed";
       /**
@@ -507,12 +640,23 @@ export type StackFrame =
       /** "It enters play exhausted" (`EffectSpec playFromHand.entersExhausted`; docs/phase7-wave6.md §3.57). */
       readonly entersExhausted?: true;
       /**
+       * The in-play scenario area the card is played into instead of its controller's play area (`playCard.into`,
+       * `RuleSpec playDestination`; docs/phase7-wave8.md §3.34). Absent on every other play.
+       */
+      readonly intoScenarioPlayArea?: string;
+      /**
        * Where a played event goes once its effects have resolved, when not its owner's discard pile (`EffectSpec
        * afterResolving`; docs/phase7-wave7.md §3.68): "return that event to your hand after resolving its effects".
        * Read once, by the `discardEvent` stage, and only for an event still being resolved whose effects were not
        * canceled.
        */
       readonly afterResolving?: "hand";
+      /**
+       * The play's payment is read for resource types and its wilds are not declared yet (`UndeclaredWilds`): the
+       * frame asks its player (`declareWildTypes`) before the card does anything, records the answer in `vars`
+       * (`paid.as.<type>`) and drops this. Absent on every other play.
+       */
+      readonly undeclaredWilds?: UndeclaredWilds;
     });
 
 export type StackFrameKind = StackFrame["kind"];
@@ -531,11 +675,31 @@ export type StackFrameKind = StackFrame["kind"];
 export function playPaymentVars(stack: readonly StackFrame[], instanceId: InstanceId): Vars {
   const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
   if (play?.kind !== "playCard") return {};
-  // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
-  // §3.8).
+  return paymentVarsIn(play.vars);
+}
+
+/**
+ * The payment among a play frame's vars: `paid.*`, and `overpaid.*` and a chosen `x`, which travel the same way ("for
+ * each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md §3.8). What `playPaymentVars` hands a reader while
+ * the play resolves and what the play's `cardPlayed` event carries afterward (`TriggerEvent cardPlayed.payment`).
+ */
+export function paymentVarsIn(vars: Vars): Vars {
   return Object.fromEntries(
-    Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
+    Object.entries(vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
   );
+}
+
+/** The var prefix of the paid resources by the type each was used as (`paid.as.<type>`; docs/phase7-wave8.md §3.62). */
+export const PAID_AS_PREFIX = "paid.as.";
+
+/**
+ * Paid resources by the type each was used as (`paidAsDeclared`), as the vars a reader reads: `paid.as.<type>` for each
+ * type with at least one. A type with none has no var, as `paid.cards.<cardType>` has it.
+ */
+export function paidAsVars(paid: ResourcePool): Record<string, number> {
+  const vars: Record<string, number> = {};
+  for (const type of RESOURCE_TYPES) if (paid[type] > 0) vars[`${PAID_AS_PREFIX}${type}`] = paid[type];
+  return vars;
 }
 
 /**
@@ -574,6 +738,10 @@ export function paidForFrameId(stack: readonly StackFrame[], instanceId: Instanc
 export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId | null {
   for (const frame of stack) {
     if (frame.kind !== "event") continue;
+    // An "(attack)" ability's attack waiting for the rest of its ability (`attackWaiting`) has dealt its damage: the
+    // ability's later instructions name what they named before it waited, the activation around it if there is one.
+    // The flag is cleared as the attack starts to finish, so its retaliate and "after … attacks" abilities name it.
+    if (frame.attackWaiting) continue;
     const kind = frame.event.kind;
     // `enemyAttacksEnemy` is an attack, so "this attack" names it, though not an activation (docs/phase7-wave3.md §3.23).
     if (

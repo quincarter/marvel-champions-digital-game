@@ -61,6 +61,10 @@ export interface PaymentState {
   readonly costChoices?: CostChoices;
   /** The Action ability of a several-ability event the player chose (RRG 1.8 "Event", p. 18); each has its own cost. */
   readonly abilityId?: AbilityId;
+  /** The scenario play area an ally is played into (`view/play-destination.ts`); absent: the player's own area. */
+  readonly into?: string;
+  /** Why the play can only go to `into` ("Only payable at the mission"): the price note's words in place of the usual one. */
+  readonly destinationNote?: string;
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
@@ -196,12 +200,13 @@ export function beginPayment(
   costSelection?: CostSelection,
   costChoices?: CostChoices,
   abilityId?: AbilityId,
+  into?: string,
 ): PaymentState | null {
   const query = paymentFor(
     state,
     playerId,
     action,
-    paymentContext(target, controllerId, costSelection, costChoices, abilityId),
+    paymentContext(target, controllerId, costSelection, costChoices, abilityId, into),
     deps,
   );
   if (!query) return null;
@@ -212,6 +217,7 @@ export function beginPayment(
     ...(costSelection ? { costSelection } : {}),
     ...(costChoices ? { costChoices } : {}),
     ...(abilityId ? { abilityId } : {}),
+    ...(into !== undefined ? { into } : {}),
     query,
     picked: [],
     reductions: [],
@@ -224,12 +230,14 @@ const paymentContext = (
   costSelection?: CostSelection,
   costChoices?: CostChoices,
   abilityId?: AbilityId,
+  into?: string,
 ) => ({
   target,
   ...(controllerId ? { controllerId } : {}),
   ...(costSelection ? { costSelection } : {}),
   ...(costChoices ? { costChoices } : {}),
   ...(abilityId ? { abilityId } : {}),
+  ...(into !== undefined ? { into } : {}),
 });
 
 /** Toggles one source in or out of the payment. */
@@ -309,6 +317,7 @@ export function paymentView(
             payment.costSelection,
             payment.costChoices,
             payment.abilityId,
+            payment.into,
           ),
           deps,
         );
@@ -327,7 +336,9 @@ export function paymentView(
     subject,
     paid,
     required: poolTotal(requirement),
-    priceNote: subject !== null && action.kind === "playCard" ? priceNoteFor(state, playerId, subject, deps) : null,
+    priceNote:
+      payment.destinationNote ??
+      (subject !== null && action.kind === "playCard" ? priceNoteFor(state, playerId, subject, deps) : null),
     outstanding: outstandingTypes({ ...query, requirement }, picked, byOption),
     spendable,
     spent,

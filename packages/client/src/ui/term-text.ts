@@ -67,7 +67,7 @@ export interface McTermTextOptions {
   readonly lookup?: ReadonlyMap<string, RulesEntry>;
   readonly devMode?: boolean;
   /** A term opened (hover-in on desktop, tap on touch, or keyboard activate): draw a tooltip anchored at this rect, in this scene's own coordinates. */
-  readonly onTermOpen: (term: TermTextTerm, anchorRect: Rect) => void;
+  readonly onTermOpen: (term: TermTextTerm, anchorRect: Rect, blockRect: Rect) => void;
   /** The open term should close (pointer-out, tapping the same term again, or losing keyboard focus). */
   readonly onTermClose: () => void;
 }
@@ -180,7 +180,12 @@ export class McTermText {
 
   #open(term: TermTextTerm, rect: Rect): void {
     this.#openTermId = term.id;
-    this.#options.onTermOpen(term, this.#worldRect(rect));
+    // The whole wrapped block rides along so the tooltip can sit above or below the sentence, not on top of it.
+    this.#options.onTermOpen(
+      term,
+      this.#worldRect(rect),
+      this.#worldRect({ x: this.#options.x, y: this.#options.y, width: this.#options.width, height: this.#height }),
+    );
   }
 
   /**

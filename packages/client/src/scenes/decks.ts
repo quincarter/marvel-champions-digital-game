@@ -92,7 +92,7 @@ import {
   type ImportEnv,
   type ImportOutcome,
 } from "../view/deck-import-model.js";
-import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
+import { deckOptionsOf, deckRowIndexOf, type DeckOption } from "../view/deck-list-model.js";
 import { sortByRecency } from "../view/deck-recency.js";
 import {
   compositionTilesOf,
@@ -164,6 +164,8 @@ const IMPORT_EXPORT_DESCRIPTION =
 
 /** A compact chip/button row's own height — smaller than `hit.target`'s 44px touch target, matching D14's small filter/action controls (point 2/3/5 of the 2026-09-18 fidelity pass). Still comfortably tappable. */
 const COMPACT_ROW = 28;
+/** The same row on a touch layout (phone, tablet): a full touch target. */
+const TOUCH_ROW = hit.target;
 
 /** A deck card's own Bangers title, sized for a compact list row (`typeRole.barTitle` at the screen-title 22px doesn't fit two decks' worth of name on one row's own line). */
 const CARD_TITLE_TYPE = { ...typeRole.barTitle, size: 18, letterSpacing: 0.6 };
@@ -244,12 +246,12 @@ function packChipsNatural(
 }
 
 /** How tall the compact Import/Export box needs to be at `column` px wide, in its current accordion state — used both to reserve room above it and to draw it, so the two can't drift apart. */
-function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | null): number {
+function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | null, row: number): number {
   const pad = 12;
   const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, 4.6);
-  let height = pad * 2 + 16 + descLines * 13 + 8 + COMPACT_ROW + 8; // padding + heading + description + button row
-  if (open === "paste") height += 64 + 8 + COMPACT_ROW + 8; // textarea + its own Import button
-  if (open === "marvelcdb") height += COMPACT_ROW + 8 + COMPACT_ROW + 8; // URL field + its own Import button
+  let height = pad * 2 + 16 + descLines * 13 + 8 + row + 8; // padding + heading + description + button row
+  if (open === "paste") height += 64 + 8 + row + 8; // textarea + its own Import button
+  if (open === "marvelcdb") height += row + 8 + row + 8; // URL field + its own Import button
   return height;
 }
 
@@ -286,6 +288,8 @@ export class DecksScene extends Phaser.Scene {
   #poolList: McVirtualList | null = null;
   #poolListScroll = new ListScroll();
   #focusedOnce = false;
+  /** The deck an import just added: the next list draw scrolls to it, once. */
+  #scrollToDeckId: string | null = null;
   /** True while the selected row is only the first one, standing in for a `focusDeckId` deck not loaded yet. */
   #fallbackSelection = false;
 
@@ -378,6 +382,9 @@ export class DecksScene extends Phaser.Scene {
     return card?.type === "hero_identity" ? card : null;
   }
 
+  /** The compact control row's height this draw: 44px on a touch layout, the small desktop row otherwise. */
+  #row: number = COMPACT_ROW;
+
   #rebuild(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -394,6 +401,7 @@ export class DecksScene extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const layout = decksLayout({ width, height });
+    this.#row = layout.formFactor === "desktop" ? COMPACT_ROW : TOUCH_ROW;
 
     // The three list-pane DOM text fields (search, paste, MarvelCDB) belong to whatever draws the "Decks" group on
     // this pass — wide always draws them; narrow only while the "Decks" tab is active. They aren't Phaser
@@ -603,7 +611,7 @@ export class DecksScene extends Phaser.Scene {
 
     // Search plus the "Filters" toggle share one compact row (point 2: "keep search as one compact row").
     const filtersToggleWidth = 78;
-    const searchRect: Rect = { x: left, y, width: column - filtersToggleWidth - CHIP_GAP, height: COMPACT_ROW };
+    const searchRect: Rect = { x: left, y, width: column - filtersToggleWidth - CHIP_GAP, height: this.#row };
     if (this.#searchInput) this.#searchInput.layout(searchRect);
     else {
       this.#searchInput = new McTextInput(this, {
@@ -621,7 +629,7 @@ export class DecksScene extends Phaser.Scene {
       x: left + column - filtersToggleWidth,
       y,
       width: filtersToggleWidth,
-      height: COMPACT_ROW,
+      height: this.#row,
     };
     const toggleFilters = (): void => {
       this.#filtersExpanded = !this.#filtersExpanded;
@@ -638,11 +646,11 @@ export class DecksScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("filters-toggle", { rect: filtersToggleRect, activate: toggleFilters });
-    y += COMPACT_ROW + 8;
+    y += this.#row + 8;
 
     const chipDefs = this.#filtersExpanded ? this.#chipDefs(allOptions) : [];
     if (chipDefs.length > 0) {
-      const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW, "left", (chip) => this.#chipWidth(chip));
+      const packed = packChipsNatural(chipDefs, left, y, column, this.#row, "left", (chip) => this.#chipWidth(chip));
       for (const { chip, rect: cell } of packed.placed) {
         this.#buttons.push(
           new McButton(this, {
@@ -661,7 +669,7 @@ export class DecksScene extends Phaser.Scene {
     }
 
     // Reserve fixed room at the bottom for the Import/Export box, so the list gets exactly whatever's left.
-    const boxHeight = importExportBoxHeight(column, this.#importExportOpen);
+    const boxHeight = importExportBoxHeight(column, this.#importExportOpen, this.#row);
     const listTop = y;
     const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - boxHeight - 12 - listTop);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
@@ -708,6 +716,12 @@ export class DecksScene extends Phaser.Scene {
         list.scrollIntoView(index);
         this.#focusedOnce = true;
       }
+    }
+    // A deck just imported is selected (`#applyImport`) and scrolled to once: it lands below every precon.
+    if (this.#scrollToDeckId) {
+      const index = deckRowIndexOf(rows, this.#scrollToDeckId);
+      if (index >= 0) list.scrollIntoView(index);
+      this.#scrollToDeckId = null;
     }
     rows.forEach((row, index) => {
       if (row.kind === "newDeck") {
@@ -995,9 +1009,9 @@ export class DecksScene extends Phaser.Scene {
     };
     const buttonGap = 6;
     const buttonWidth = (column - buttonGap * 2) / 3;
-    const pasteToggleRect: Rect = { x: left, y, width: buttonWidth, height: COMPACT_ROW };
-    const mcdbToggleRect: Rect = { x: left + buttonWidth + buttonGap, y, width: buttonWidth, height: COMPACT_ROW };
-    const exportRect: Rect = { x: left + (buttonWidth + buttonGap) * 2, y, width: buttonWidth, height: COMPACT_ROW };
+    const pasteToggleRect: Rect = { x: left, y, width: buttonWidth, height: this.#row };
+    const mcdbToggleRect: Rect = { x: left + buttonWidth + buttonGap, y, width: buttonWidth, height: this.#row };
+    const exportRect: Rect = { x: left + (buttonWidth + buttonGap) * 2, y, width: buttonWidth, height: this.#row };
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
@@ -1035,12 +1049,15 @@ export class DecksScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("ie-export", { rect: exportRect, activate: doExport });
-    y += COMPACT_ROW + 8;
+    y += this.#row + 8;
 
     if (this.#importExportOpen === "paste") {
       const pasteRect: Rect = { x: left, y, width: column, height: 64 };
-      if (this.#pasteInput) this.#pasteInput.layout(pasteRect);
-      else {
+      if (this.#pasteInput) {
+        this.#pasteInput.layout(pasteRect);
+        // The sweep re-added the field first, so the import box's panel, painted since, covers it: lift it back on top.
+        for (const node of this.#pasteInput.gameObjects) this.children.bringToTop(node);
+      } else {
         this.#pasteInput = new McMultilineInput(this, {
           rect: pasteRect,
           value: this.#pasteText,
@@ -1052,7 +1069,7 @@ export class DecksScene extends Phaser.Scene {
       }
       this.#stops.set("paste-field", { rect: pasteRect, activate: () => this.#pasteInput?.focus() });
       y += 64 + 8;
-      const pasteImportRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
+      const pasteImportRect: Rect = { x: left, y, width: column, height: this.#row };
       const doPasteImport = (): void => void this.#importPaste();
       this.#buttons.push(
         new McButton(this, {
@@ -1073,7 +1090,7 @@ export class DecksScene extends Phaser.Scene {
     if (this.#importExportOpen === "marvelcdb") {
       // Always offered, not gated on `import.meta.env.DEV`: `vite preview` serves the same production bundle a
       // real deploy would (a genuine production deploy 404s instead — see `vite-marvelcdb-import.ts`).
-      const mcdbFieldRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
+      const mcdbFieldRect: Rect = { x: left, y, width: column, height: this.#row };
       if (this.#marvelcdbInput) this.#marvelcdbInput.layout(mcdbFieldRect);
       else {
         this.#marvelcdbInput = new McTextInput(this, {
@@ -1087,8 +1104,8 @@ export class DecksScene extends Phaser.Scene {
         });
       }
       this.#stops.set("marvelcdb-field", { rect: mcdbFieldRect, activate: () => this.#marvelcdbInput?.focus() });
-      y += COMPACT_ROW + 8;
-      const mcdbImportRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
+      y += this.#row + 8;
+      const mcdbImportRect: Rect = { x: left, y, width: column, height: this.#row };
       const doMcdbImport = (): void => void this.#importMarvelCdb();
       this.#buttons.push(
         new McButton(this, {
@@ -1199,7 +1216,7 @@ export class DecksScene extends Phaser.Scene {
       ...textStyle(typeRole.barTitle, surface.ink.hex),
       fontSize: "19px",
     });
-    const chipHeight = COMPACT_ROW;
+    const chipHeight = this.#row;
     // Sized to the stamp label as drawn: the per-character estimate left "Hero" and "Basic" too narrow for the
     // stamp's Bangers face, and `McButton` shrank them to fit.
     const beside = chipsFitBesideHeading(
@@ -1416,7 +1433,8 @@ export class DecksScene extends Phaser.Scene {
       })
       .setWordWrapWidth(column);
     y += name.height + 6;
-    label(
+    // Wraps inside the pane: an imported deck's line ("... · LEGAL · IMPORTED") is wider than one row.
+    const meta = label(
       this,
       left,
       y,
@@ -1424,8 +1442,8 @@ export class DecksScene extends Phaser.Scene {
       typeRole.label,
       surface.paper.hex,
       ink.label,
-    );
-    y += 20;
+    ).setWordWrapWidth(column);
+    y += Math.max(20, meta.height + 4);
 
     const ruleG = this.add.graphics();
     ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
@@ -1461,7 +1479,7 @@ export class DecksScene extends Phaser.Scene {
     ];
     const actionWidth = (column - CHIP_GAP * (actionDefs.length - 1)) / actionDefs.length;
     actionDefs.forEach((action, index) => {
-      const cell: Rect = { x: left + index * (actionWidth + CHIP_GAP), y, width: actionWidth, height: COMPACT_ROW };
+      const cell: Rect = { x: left + index * (actionWidth + CHIP_GAP), y, width: actionWidth, height: this.#row };
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
@@ -1473,7 +1491,7 @@ export class DecksScene extends Phaser.Scene {
       );
       this.#stops.set(`stats-${action.id}`, { rect: cell, activate: action.onClick });
     });
-    y += COMPACT_ROW + 14;
+    y += this.#row + 14;
 
     // "Recently changed" (W9/S1): the minimal honest version — one timestamp, no revision history — drawn with
     // D14's own left-ruled line, or a single dim line when there's nothing to report.
@@ -1760,6 +1778,7 @@ export class DecksScene extends Phaser.Scene {
     this.#status = { text: `Imported "${outcome.deck.name}".${skipped}`, tone: "success" };
     this.#savedDecks = await deckStorage().list();
     this.#selectedDeckId = outcome.deck.id as string;
+    this.#scrollToDeckId = outcome.deck.id as string;
     this.#busy = false;
     this.#rebuild();
   }

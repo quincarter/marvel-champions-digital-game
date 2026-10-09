@@ -15,6 +15,7 @@ import { appSession } from "../../session.js";
 import { McButton, fitText, fitWrapped, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type {
   BoardModel,
+  CharacterPanel,
   EnvironmentPanel,
   ScenarioDeckPanel,
   SetAsidePanel,
@@ -32,6 +33,9 @@ import {
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
+import { drawScheme } from "./schemes.js";
+import { missionSlots } from "../../view/mission-area-layout.js";
+import { compactVillainNote, counterNote, type ScenarioPlayAreaPanel } from "../../view/board-model.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import {
   ENVIRONMENT_MIN_WIDTH,
@@ -86,14 +90,40 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     const belowSlots =
       minionArea.height > 40 ? cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height }) : [];
     if (belowSlots.length === 0 || sideSlots[0]!.height > belowSlots[0]!.height) {
-      model.minions.forEach((minion, index) => drawCharacter(ctx, sideSlots[index]!, minion));
+      model.minions.forEach((minion, index) => {
+        drawCharacter(ctx, sideSlots[index]!, minion);
+        drawEngagedChip(ctx, sideSlots[index]!, minion);
+      });
       return;
     }
   }
   if (model.minions.length > 0 && minionArea.height > 40) {
     const slots = cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height });
-    model.minions.forEach((minion, index) => drawCharacter(ctx, slots[index]!, minion));
+    model.minions.forEach((minion, index) => {
+      drawCharacter(ctx, slots[index]!, minion);
+      drawEngagedChip(ctx, slots[index]!, minion);
+    });
   }
+}
+
+/**
+ * "VS SPIDER-MAN": who a minion is engaged with, hung over its top edge, drawn only when more than one seat plays
+ * (`CharacterPanel.engagedName` is null otherwise). Words on ink, never a seat color alone.
+ */
+function drawEngagedChip(ctx: BoardDrawContext, rect: Rect, minion: CharacterPanel): void {
+  if (!minion.engagedName) return;
+  const { scene } = ctx;
+  const text = label(scene, 0, 0, `vs ${minion.engagedName}`, typeRole.label, surface.paper.hex, 1);
+  // A small tile gets a chip wider than itself (centered over it) rather than a clipped name.
+  fitText(text, Math.max(88, rect.width - 14), typeRole.label.size);
+  const width = Math.ceil(text.width) + 10;
+  const chip: Rect = { x: rect.x + Math.min(2, (rect.width - width) / 2), y: rect.y - 9, width, height: 15 };
+  const g = scene.add.graphics();
+  g.fillStyle(surface.ink.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
+  g.lineStyle(1, surface.paper.hex, 0.6).strokeRect(chip.x, chip.y, chip.width, chip.height);
+  // The chip's own fill goes under its text: the text was created first, so it is raised above the fill.
+  scene.children.bringToTop(text);
+  text.setPosition(chip.x + 5, chip.y + (chip.height - text.height) / 2);
 }
 
 /** The room a minion row needs under the villain band before the band is allowed to grow into it. */
@@ -321,11 +351,19 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     .map((tile) => `${tile.label} ${tile.value}`)
     .join("  ");
   if (statLine && rect.height - (top - rect.y) >= 24) {
-    fitText(
-      label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim),
-      textWidth,
-      typeRole.label.size,
-    );
+    const statText = label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim);
+    fitText(statText, textWidth, typeRole.label.size);
+    // The note below starts under this line, not on top of it.
+    top += Math.max(12, Math.ceil(statText.height) + 2);
+  }
+
+  // Statuses and attachments (War stunned, with a Golden Horse): the compact tile's one-line form of what the
+  // single-villain panel draws as chips. Wrapped into whatever room is left above the HP bar; Inspect has the rest.
+  const note = compactVillainNote(panel);
+  const noteRoom = rect.y + rect.height - 20 - top;
+  if (note && noteRoom >= 11) {
+    const noteText = label(scene, textLeft, top, note, typeRole.label, surface.ink.hex, ink.body * dim);
+    fitWrapped(noteText, textWidth, Math.max(1, Math.min(3, Math.floor(noteRoom / 11))), typeRole.label.size);
   }
 
   // A thin HP bar pinned to the foot, the compact panel's stand-in for the full panel's `McHpPlate`.
@@ -652,7 +690,13 @@ export function drawEncounter(
 ): void {
   const { scene } = ctx;
   type Pile = {
-    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
+    readonly kind:
+      | "encounterDeck"
+      | "encounterDiscard"
+      | "dealtFacedown"
+      | "scenarioArea"
+      | "scenarioDeck"
+      | "scenarioDiscard";
     readonly name: string;
     readonly count: number;
     readonly art: ArtSource | null;
@@ -706,6 +750,19 @@ export function drawEncounter(
       instanceId: model.encounterDiscardTopInstanceId,
       siblings: [],
     },
+    // Cards dealt to the players facedown (Expert setup): a pile with a count and no tap target, since nobody reads them.
+    ...(model.dealtFacedown > 0
+      ? [
+          {
+            kind: "dealtFacedown" as const,
+            name: "FACEDOWN",
+            count: model.dealtFacedown,
+            art: CARD_BACKS.encounter,
+            instanceId: null,
+            siblings: [],
+          },
+        ]
+      : []),
     ...model.scenarioDecks.flatMap(scenarioDeckPiles),
     ...model.scenarioAreas.map((area): Pile => ({
       kind: "scenarioArea",
@@ -791,6 +848,81 @@ function drawSetAside(scene: Phaser.Scene, box: Rect, setAside: SetAsidePanel): 
   // A width the estimate got wrong: drop one size step before the text leaves the panel.
   if (text.height > box.height - 6) text.setFontSize(typeRole.label.size - 1);
   text.y = box.y + Math.max(3, (box.height - text.height) / 2);
+}
+
+/** The room under a scheme's panel for its counters and attachments, which the scheme panel has no line for. */
+const AREA_NOTE_HEIGHT = 22;
+
+/**
+ * The scenario play areas in play (the mission area, MC45 p. 5): cards that are in play but that no player controls,
+ * drawn as the table draws their kind elsewhere (a scheme as a scheme with its threat meter, an ally or enemy as a
+ * character with its hit points, exhausted state, keywords and attachments). The header says whose they are: nobody's.
+ * Every card is tappable for Inspect, which words what the area means for it (`view/inspect-notes.ts`).
+ */
+export function drawScenarioPlayAreas(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  areas: readonly ScenarioPlayAreaPanel[],
+): void {
+  const { scene } = ctx;
+  const g = scene.add.graphics();
+  paintPanel(g, rect, "rail", "rest");
+  const share = rect.width / Math.max(1, areas.length);
+  areas.forEach((area, index) => {
+    const box: Rect = { x: rect.x + index * share, y: rect.y, width: share, height: rect.height };
+    label(
+      scene,
+      box.x + 8,
+      box.y + 6,
+      `${area.name} area · no player controls it`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
+    const inner: Rect = { x: box.x + 8, y: box.y + 22, width: box.width - 16, height: box.height - 30 };
+    if (area.cards.length === 0) {
+      const empty = scene.add.graphics();
+      paintPanel(empty, inner, "quiet", "unavailable");
+      scene.add
+        .text(
+          inner.x + inner.width / 2,
+          inner.y + inner.height / 2,
+          "Nothing here",
+          textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        )
+        .setOrigin(0.5);
+      return;
+    }
+    const slots = missionSlots(
+      inner,
+      area.cards.map((card) => (card.scheme ? "scheme" : "card")),
+    );
+    area.cards.forEach((card, at) => {
+      const slot = slots[at]!;
+      if (!card.scheme) {
+        drawCharacter(ctx, slot, card.panel, { shape: "card" });
+        return;
+      }
+      const room = slot.height > 90 ? AREA_NOTE_HEIGHT : 0;
+      drawScheme(ctx, { ...slot, height: slot.height - room }, card.scheme);
+      const attached = card.panel.attachments.map((chip) => chip.name);
+      const words = [counterNote(card.panel.counters), attached.length > 0 ? `with ${attached.join(", ")}` : null]
+        .filter((part): part is string => part !== null)
+        .join(" · ");
+      if (room > 0 && words) {
+        const note = label(
+          scene,
+          slot.x + 2,
+          slot.y + slot.height - room + 5,
+          words,
+          typeRole.label,
+          surface.ink.hex,
+          ink.label,
+        );
+        fitText(note, slot.width - 4, typeRole.label.size);
+      }
+    });
+  });
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
@@ -1074,7 +1206,8 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
       .setOrigin(0.5);
     cursor += 20;
   }
-  const notes = [...seat.effects, ...seat.borrowed];
+  // A faceup top card (Magik's) is public: other seats read it to plan around her upgrades and spells.
+  const notes = [...seat.effects, ...seat.borrowed, ...(seat.shownTop ? [`top: ${seat.shownTop.name}`] : [])];
   // The yellow Team-Up blurb, under the name and HP lines (and under any status or note chips): this hero's alter-ego
   // is what keeps a present pair from being playable. Skipped when the row has no room for it.
   const blurbTop = lineY + (seat.statuses.length > 0 || notes.length > 0 ? 20 : 0);

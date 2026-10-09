@@ -190,6 +190,13 @@ export interface ScenarioVillain {
   readonly encounterSetIds: readonly EncounterSetId[];
   /** This villain's signature side scheme (`SideSchemeCard.signatureOf`), put into play at setup. */
   readonly signatureSideSchemeCardId?: CardId;
+  /**
+   * This villain's printed side B version, a card of its own (the Four Horsemen, MC45 p. 11: "To play the scenario in
+   * skirmish or standard mode, use each villain's side A. To play the scenario in expert or heroic mode, use each
+   * villain's side B."). `villainCardId` is the A version. Which one a game uses is a per-villain choice that defaults
+   * from the difficulty (docs/phase7-wave8.md §4.1 Q9 = B), so a scenario with these has no `expertVillains`.
+   */
+  readonly sideBCardId?: CardId;
 }
 
 /**
@@ -358,6 +365,16 @@ export interface Scenario {
    * The Wrecking Crew insert: "Note: Nemesis cards and obligations are not used when playing this scenario."
    */
   readonly usesIdentityEncounterSets?: boolean;
+  /**
+   * With `usesIdentityEncounterSets: false`: each identity's nemesis set is set aside all the same (RRG 1.8 Appendix
+   * II, step 4), and only the obligations are left out. Absent = the nemesis sets follow `usesIdentityEncounterSets`.
+   *
+   * The Wrecking Crew, per FFG ruling Jan 17, 2026 (Ruling 5): "You can play Face the Past to find your set-aside
+   * nemesis minion; once defeated, it is placed in the active villain's encounter discard pile." Built to the ruling
+   * on the owner's decision of 2026-10-08 (docs/phase7-wave8.md §4.1 rows 81 and 86). The Wrecking Crew insert says
+   * nemesis cards are not used; the ruling is FFG's later text and the owner follows it.
+   */
+  readonly nemesisSetsSetAside?: true;
   /**
    * How many modular encounter sets the scenario's stage 1A "Contents" calls for. Absent = 1 ("One modular
    * encounter set", every Core and Green Goblin scenario). The Wrecking Crew insert, "Adjustable Difficulty":

@@ -11,7 +11,6 @@ import {
   anyOf,
   attack,
   attachCard,
-  boostIconsOn,
   canPayResources,
   canRemoveThreatFrom,
   cancelWhenRevealed,
@@ -24,6 +23,7 @@ import {
   chosen,
   confuse,
   constant,
+  countBoostIcons,
   coveredByEngineRule,
   countOf,
   countersOn,
@@ -316,7 +316,10 @@ export const DEADPOOL_PACK_CARDS: AbilityRegistry = defineAbilities({
     discardEncounterCards(1, {
       forEachDiscarded: {
         slot: "card",
-        effects: [takeDamage(sum(boostIconsOn(chosen("card")), { kind: "starIcons", cards: chosen("card") }))],
+        effects: [
+          countBoostIcons(chosen("card"), "card"),
+          takeDamage(sum(varOf("card.boostIcons"), { kind: "starIcons", cards: chosen("card") })),
+        ],
       },
     }),
     moveCards(topOfDeck(1), "discard", "top"),

@@ -20,6 +20,7 @@ import type {
   CampaignChoiceSource,
   CampaignDefinition,
   CampaignGrant,
+  GrantDeckSize,
   CampaignHistoryEntry,
   CampaignInstruction,
   CampaignOp,
@@ -35,7 +36,7 @@ import type {
 } from "../campaign.js";
 import { cardLegalForIdentity, copiesUpToLimit, type CardPool } from "../deck.js";
 import { EngineInvariantError } from "../errors.js";
-import { nextInt } from "../rng.js";
+import { createRng, nextInt, nextUint32 } from "../rng.js";
 import type { TargetCategory } from "../spec.js";
 import { addRemoval, applyLogWrite, clearLogField, fieldDefOf, readField, type CampaignWorkingLog } from "./log.js";
 
@@ -76,12 +77,62 @@ export interface CampaignPendingChoice extends CampaignChoiceKey {
   readonly count: number;
   readonly optional: boolean;
   /**
+   * The fewest and the most options an answer may hold, as `runChoose` checks them: `minSelections` is 0 for an
+   * optional choice and otherwise `count`, less when fewer options are offered; `maxSelections` is `count`, less when
+   * fewer options are offered. Optional on the type only so a pending choice a client stored before the fields
+   * existed still reads; the runner always sets them (as it does `perSeat`, `source` and `exclusive`).
+   */
+  readonly minSelections?: number;
+  readonly maxSelections?: number;
+  /** Each seat answers this choice for itself (`chooser: "eachSeat"`); `seatNumber` is the seat asked now. */
+  readonly perSeat?: boolean;
+  /**
+   * Where the options come from in the campaign definition (`CampaignChoiceSource.kind`, read through an
+   * `excludingTitles` wrapper): `collection` is a pick over the seat's whole legal collection, `values` is whatever was
+   * dealt to this seat, `campaignSet` and `cards` are one printed pool every seat is shown.
+   */
+  readonly source?: CampaignChoiceSourceKind;
+  /**
+   * An option one seat takes is not offered to the seats after it: the definition's source leaves out the cards any
+   * seat has already been granted (`campaignSet` with `excludeGranted`, one printed copy for the table). False for
+   * every other source, where two seats may take the same title (a collection pick, a numbered per-seat set, a deal).
+   */
+  readonly exclusive?: boolean;
+  /**
    * The choice is whether to take a **random draw**, not which card to take (`CampaignOp` `random` with
    * `optional`). Its `options` are the single `CAMPAIGN_ACCEPT` token: answering `[]` declines and answering
    * `[CAMPAIGN_ACCEPT]` accepts, after which the cards come from `CampaignLog.rng` rather than from the answer.
    * The trace still records what was drawn (`CampaignChoiceRecord.random`), so the history reads the same way.
    */
   readonly random?: true;
+}
+
+/** `CampaignChoiceSource.kind`, less the `excludingTitles` wrapper (`CampaignPendingChoice.source`). */
+export type CampaignChoiceSourceKind = Exclude<CampaignChoiceSource["kind"], "excludingTitles">;
+
+const rootSource = (source: CampaignChoiceSource): Exclude<CampaignChoiceSource, { kind: "excludingTitles" }> =>
+  source.kind === "excludingTitles" ? rootSource(source.from) : source;
+
+/**
+ * What a client reads off a pending choice instead of guessing it (`CampaignPendingChoice.minSelections` and the
+ * fields after it), derived from the op and its source in the campaign definition.
+ */
+function pendingChoiceShape(
+  from: CampaignChoiceSource,
+  count: number,
+  optional: boolean,
+  offered: number,
+  perSeat: boolean,
+): Required<Pick<CampaignPendingChoice, "minSelections" | "maxSelections" | "perSeat" | "source" | "exclusive">> {
+  const source = rootSource(from);
+  const most = Math.min(count, offered);
+  return {
+    minSelections: optional ? 0 : most,
+    maxSelections: most,
+    perSeat,
+    source: source.kind,
+    exclusive: source.kind === "campaignSet" && source.excludeGranted === true,
+  };
 }
 
 /**
@@ -670,8 +721,17 @@ function grantCard(
   seatNumber: number,
   cardId: CardId,
   permanence: CampaignGrant["permanence"],
+  deckSize?: GrantDeckSize,
+  inclusion?: "optional",
 ): void {
-  const grant: CampaignGrant = { cardId, permanence, grantedAtNodeId: run.nodeId };
+  // The default is recorded as no field at all, so a grant of a box that states no rule is what it always was.
+  const grant: CampaignGrant = {
+    cardId,
+    permanence,
+    grantedAtNodeId: run.nodeId,
+    ...(deckSize !== undefined && deckSize !== "exempt" ? { deckSize } : {}),
+    ...(inclusion === "optional" ? { optional: true as const } : {}),
+  };
   updateSeat(run, seatNumber, (seat) => {
     const line = seat.deck.cards.find((entry) => entry.cardId === cardId);
     return {
@@ -701,6 +761,9 @@ function revokeCard(run: CampaignRun, seatNumber: number, cardId: CardId): void 
   updateSeat(run, seatNumber, (seat) => {
     const index = seat.grants.findIndex((grant) => grant.cardId === cardId);
     if (index < 0) return seat;
+    const grants = seat.grants.filter((_, at) => at !== index);
+    // A copy the player left out of the deck (`CampaignGrant.leftOut`) is not in the list to take back.
+    if (seat.grants[index]!.leftOut) return { ...seat, grants };
     return {
       ...seat,
       deck: {
@@ -709,7 +772,7 @@ function revokeCard(run: CampaignRun, seatNumber: number, cardId: CardId): void 
           entry.cardId === cardId ? (entry.quantity > 1 ? [{ ...entry, quantity: entry.quantity - 1 }] : []) : [entry],
         ),
       },
-      grants: seat.grants.filter((_, at) => at !== index),
+      grants,
     };
   });
 }
@@ -725,13 +788,45 @@ function progressNode(run: CampaignRun, nodeId: string): void {
   }
 }
 
-/** Draws `count` distinct options from the log's own RNG, so a client cannot reroll by reloading. */
-function drawRandom(run: CampaignRun, options: readonly string[], count: number): readonly string[] {
+/**
+ * A value drawn from the campaign's RNG, made different for each attempt at a node. A loss restores the RNG to the
+ * node's start (`retryBaseline: "nodeStart"`), so the value drawn is the same on every retry; mixed with how many times
+ * the node was already played it is a fresh one each time, still a pure function of the log (the campaign replays),
+ * and a node's first attempt keeps the value unchanged. Used for the game's seed and for a `random` op with
+ * `perAttempt`.
+ */
+export function mixWithAttempt(drawn: number, playedBefore: number): number {
+  if (playedBefore === 0) return drawn;
+  return nextUint32(createRng((drawn + Math.imul(playedBefore, 0x9e3779b9)) >>> 0))[0];
+}
+
+/** How many times the node whose instructions are running has already been played, won or lost. */
+const playedBefore = (run: CampaignRun): number => run.history.filter((entry) => entry.nodeId === run.nodeId).length;
+
+/**
+ * Draws `count` distinct options from the log's own RNG, so a client cannot reroll by reloading. `attemptsBefore`: a `perAttempt` draw, each value mixed with that many
+ * earlier attempts at the node; the RNG is advanced exactly as the plain draw advances it (`nextInt`: one value for
+ * a pick among two or more, none otherwise).
+ */
+function drawRandom(
+  run: CampaignRun,
+  options: readonly string[],
+  count: number,
+  attemptsBefore = 0,
+): readonly string[] {
   const remaining = [...options];
   const picked: string[] = [];
   for (let i = 0; i < count && remaining.length > 0; i++) {
-    const [index, next] = nextInt(run.working.rng, remaining.length);
-    run.working.rng = next;
+    let index = 0;
+    if (attemptsBefore === 0) {
+      const [plain, next] = nextInt(run.working.rng, remaining.length);
+      run.working.rng = next;
+      index = plain;
+    } else if (remaining.length > 1) {
+      const [raw, next] = nextUint32(run.working.rng);
+      run.working.rng = next;
+      index = mixWithAttempt(raw, attemptsBefore) % remaining.length;
+    }
     picked.push(remaining.splice(index, 1)[0] as string);
   }
   return picked;
@@ -743,10 +838,18 @@ function recordChoice(
   seatNumber: number | null,
   picked: readonly string[],
   mark?: "random" | "repeated",
+  /** A `perAttempt` draw: the attempt it was made for (`CampaignChoiceRecord.attempt`). */
+  attempt?: number,
 ): void {
   run.slots.set(slotKey(slot, seatNumber), picked);
   const record: CampaignChoiceRecord = { slot, seatNumber, picked };
-  run.choices.push(mark === "random" ? { ...record, random: true } : mark ? { ...record, repeated: true } : record);
+  run.choices.push(
+    mark === "random"
+      ? { ...record, random: true, ...(attempt !== undefined ? { attempt } : {}) }
+      : mark
+        ? { ...record, repeated: true }
+        : record,
+  );
 }
 
 /**
@@ -807,6 +910,7 @@ function runChoose(
         options,
         count,
         optional: op.optional === true,
+        ...pendingChoiceShape(op.from, count, op.optional === true, options.length, op.chooser === "eachSeat"),
       };
       return;
     }
@@ -857,6 +961,9 @@ function runRandom(
         options: [CAMPAIGN_ACCEPT],
         count: 1,
         optional: true,
+        // Whether to take the draw, never which card: one token, and nothing a seat's answer takes from another's.
+        ...pendingChoiceShape(op.from, 1, true, 1, run.seatScope !== null),
+        exclusive: false,
         random: true,
       };
       return;
@@ -873,6 +980,12 @@ function runRandom(
   }
   // Drawn from `CampaignLog.rng`, which advances as part of the log's state: a client cannot reroll by reloading,
   // and the whole campaign replays from its seed (MC27 p. 22, MC45 p. 5, MC60 p. 9 step 2).
+  if (op.perAttempt && run.nodeId !== "") {
+    // A fresh draw for each attempt at the node (docs/phase7-wave8.md §3.45, Q22 = B), traced with its number.
+    const before = playedBefore(run);
+    recordChoice(run, op.slot, run.seatScope, drawRandom(run, options, count, before), "random", before + 1);
+    return;
+  }
   recordChoice(run, op.slot, run.seatScope, drawRandom(run, options, count), "random");
 }
 
@@ -922,7 +1035,9 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
             // MC27 p. 22: "adds the maximum number of copies of that card, by title" — up to the title's limit,
             // counting what the deck already holds (Q8, decided 2026-09-25).
             const count = op.copies === "maximum" ? maximumGrant(run, seatNumber, cardId) : 1;
-            for (let copy = 0; copy < count; copy++) grantCard(run, seatNumber, cardId as CardId, op.permanence);
+            for (let copy = 0; copy < count; copy++) {
+              grantCard(run, seatNumber, cardId as CardId, op.permanence, op.deckSize, op.inclusion);
+            }
           }
         });
       }

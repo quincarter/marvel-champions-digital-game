@@ -48,6 +48,7 @@
  * role-building's "if the deck does not already include the chosen card" (`CollectionFilter.notInOwnDeck`).
  */
 
+import { defeatedSeatRecordsZero } from "./expert-helpers.js";
 import { campaignId, cardId, encounterSetId, scenarioId, trait, MUT_GEN_CAMPAIGN, type CardId } from "@mc/content";
 import {
   DEFAULT_CAMPAIGN_WINDOW,
@@ -677,6 +678,8 @@ export const MUT_GEN_CAMPAIGN_DEFINITION: CampaignDefinition = {
   // MC32 p. 5 "Elimination and Victory": a player defeated in a scenario their teammates win skips its Victory steps
   // (their role upgrade is not removed). The rejoin is the acceleration-token heal (`healToFull`, Q11), so no
   // `rejoinAtPrintedHitPoints`.
+  // A seat that sat out the Victory steps gets no hp record, so its earlier one is zeroed: it must pay to rejoin.
+  everyNodeVictory: [defeatedSeatRecordsZero("mc32.victory.defeatedHp", "MC32 p. 5")],
   elimination: {
     id: "mc32.elimination",
     text: "Expert Campaign Only: If a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario.",

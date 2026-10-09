@@ -98,6 +98,31 @@ function aspectsFromMeta(meta: string | null | undefined): readonly string[] {
   return entries.map(([, value]) => (value as string).toLowerCase());
 }
 
+const PLAYER_DECK_TYPES: ReadonlySet<string> = new Set([
+  "ally",
+  "event",
+  "support",
+  "upgrade",
+  "resource",
+  "player_side_scheme",
+]);
+
+/** An identity-set card that goes into the player deck at `quantityInSet` copies (mirrors the engine's `requiredIdentitySet`). */
+const isIdentitySetDeckCard = (card: AnyCard, setAspect: string): card is AnyCard & { quantityInSet: number } => {
+  if (!PLAYER_DECK_TYPES.has(card.type) || !("aspect" in card) || card.aspect !== setAspect) return false;
+  const c = card as AnyCard & {
+    quantityInSet?: number;
+    separateDeck?: string;
+    keywords?: readonly { name: string }[];
+  };
+  return (
+    c.separateDeck === undefined &&
+    !(c.keywords ?? []).some((k) => k.name === "linked") &&
+    Number.isInteger(c.quantityInSet) &&
+    (c.quantityInSet as number) >= 1
+  );
+};
+
 /**
  * Parses an already-`JSON.parse`d MarvelCDB deck/decklist response (or a
  * plain object built by a test) into `DeckContents`. Every problem is
@@ -208,6 +233,31 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
       continue;
     }
     quantitiesById.set(card.id, (quantitiesById.get(card.id) ?? 0) + (rawQuantity as number));
+  }
+  // MarvelCDB lists some identity-set cards in a separate card set (Iceman's six Frostbite, `iceman_frostbite`), so a
+  // public decklist's `slots` never carries them, yet a deck must hold the identity set's exact quantities (RRG 1.8
+  // Appendix I, p. 50) and the deck builder starts a new deck with them already in. Add each set card that is
+  // entirely absent, at its set quantity, and say so, but only for a decklist that lists at least one card of the set
+  // (every real decklist does; a stub with none is not completed into a whole hero deck). A card the decklist does list, at any quantity, is left as
+  // stated so a genuinely wrong decklist still fails `validateDeck`. Membership mirrors the engine's
+  // `requiredIdentitySet` (identity-set icon, not linked, not in a separate deck, a valid `quantityInSet`).
+  const filled: ImportNote[] = [];
+  if (identityCardId) {
+    const setAspect = `hero:${identityCardId}`;
+    const listsSetCard = pool.some(
+      (card) => "aspect" in card && card.aspect === setAspect && quantitiesById.has(card.id),
+    );
+    for (const card of listsSetCard ? pool : []) {
+      if (!isIdentitySetDeckCard(card, setAspect) || quantitiesById.has(card.id)) continue;
+      quantitiesById.set(card.id, card.quantityInSet);
+      filled.push({
+        code: "identity_set_filled",
+        message: `${card.name} is part of ${heroName ?? "this hero"}'s identity set but MarvelCDB decklists do not list it; added ${card.quantityInSet} ${card.quantityInSet === 1 ? "copy" : "copies"}.`,
+        cardIds: [card.id],
+      });
+    }
+    filled.sort((a, b) => (a.cardIds?.[0] ?? "").localeCompare(b.cardIds?.[0] ?? ""));
+    notes.push(...filled);
   }
   const cards: DeckCardEntry[] = [...quantitiesById].map(([cardId, quantity]) => ({ cardId, quantity }));
 

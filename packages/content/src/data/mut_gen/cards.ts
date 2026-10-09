@@ -1163,6 +1163,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     id: cardId("32048"),
     type: "ally",
     name: "Colossus",
+    subtitle: "Piotr Rasputin",
     setCode: setCode("mut_gen"),
     cycleId: cycleId("cycle6"),
     collectorNumber: "48",

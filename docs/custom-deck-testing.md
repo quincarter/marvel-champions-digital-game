@@ -46,12 +46,19 @@ Measured 2026-09-27: 29 heroes, 30 precons, 511 aspect and basic player cards, e
 Real MarvelCDB decklists the user picked for a hero's custom-deck work (the "one real MarvelCDB decklist per hero"
 fixture, cross-hero tests). Check the pool against the list again when you pick it up.
 
-| Hero           | Decklist                                                                                                                          | Pool coverage (2026-09-27, per the user)              |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Doctor Strange | [Tough Enough: Heroic Ally Swarm 1.0](https://marvelcdb.com/decklist/view/1771/doctor-strange-tough-enough-heroic-ally-swarm-1.0) | Every card is in the pool; use this one first         |
-| Doctor Strange | [Invoke the Fourth Wall: Break the Game 1.0](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0) | Waiting on Deadpool and Age of Apocalypse (see below) |
+| Hero           | Decklist                                                                                                                          | Pool coverage (2026-09-27, per the user)      |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Doctor Strange | [Tough Enough: Heroic Ally Swarm 1.0](https://marvelcdb.com/decklist/view/1771/doctor-strange-tough-enough-heroic-ally-swarm-1.0) | Every card is in the pool; use this one first |
+| Doctor Strange | [Invoke the Fourth Wall: Break the Game 1.0](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0) | Tested 2026-10-08 (see below)                 |
 
-### Waiting on packs: "Invoke the Fourth Wall: Break the Game"
+### Tested: "Invoke the Fourth Wall: Break the Game"
+
+**Done 2026-10-08** in `packages/cards/src/wave8/doctor-strange-pool-deck.qa.test.ts` (fixture
+`packages/cards/src/wave8/fixtures/decklists/doctor-strange-invoke-the-fourth-wall.json`). The deck imports and is
+legal, each of the author's four lines plays as printed, and it does not loop: Doctor Strange resolves at most three
+Invocations a turn (Spell Mastery, Cloak of Levitation, Stick-To-Itiveness), Wong is used twice (one Get Rage-y),
+and Mulligan is once per phase. One interpretation is pinned and open with the owner: a resource card that generates
+3 counts as 3 resources spent for Machine Man. The original brief follows.
 
 The user wants game-breaking-deck tests around
 [this Doctor Strange deck](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0)

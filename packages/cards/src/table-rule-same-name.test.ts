@@ -9,7 +9,10 @@
  *   match. Valkyrie hero has an alter-ego title that does not match the title of the Valkyrie ally."
  * - Ruling March 19, 2026 (4): the Valkyrie Aggression ally (no subtitle) may be included in a Valkyrie hero deck.
  *
- * So by FFG the Colossus ally (32048, no subtitle) may be played beside the Colossus hero (alter-ego Piotr Rasputin).
+ * So by FFG the Valkyrie ally (06012, no subtitle) may be played beside the Valkyrie hero (alter-ego Brunnhilde), and
+ * so may the Ironheart ally (13018). The basic Colossus ally (32048, reprint 35021) is NOT like them: it prints the
+ * subtitle "Piotr Rasputin" (scan assets/card-art/bundles/cards/32048.png), the Colossus hero's alter-ego, so the RRG's
+ * second bullet already matches the two and the ally is refused beside the Colossus hero with the option off.
  * With the option on, a unique ALLY with NO subtitle also matches an identity whose hero title is its title. Nothing
  * else changes: an ally with a subtitle is left to the RRG's rule, so are two identities, and so is every card that is
  * not an ally. Deck building is not changed.
@@ -17,7 +20,21 @@
  * The matrix runs over every card in `@mc/content`, playable or data-only, against an oracle written here from the
  * rule text, independent of the engine's `cardsMatch`.
  */
-import { type AnyCard, cardId, DATA_ONLY_CARDS, PLAYABLE_CARDS } from "@mc/content";
+import {
+  type AnyCard,
+  cardId,
+  CORE_STARTER_DECKS,
+  DATA_ONLY_CARDS,
+  PLAYABLE_CARDS,
+  type StarterDeck,
+  WAVE1_STARTER_DECKS,
+  WAVE2_STARTER_DECKS,
+  WAVE3_STARTER_DECKS,
+  WAVE4_STARTER_DECKS,
+  WAVE5_STARTER_DECKS,
+  WAVE6_STARTER_DECKS,
+  WAVE7_STARTER_DECKS,
+} from "@mc/content";
 import {
   applyCommand,
   cardsMatch,
@@ -30,6 +47,7 @@ import {
   sessionApply,
   startSession,
   type TableRules,
+  validateDeck,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { PLAYABLE_DEPS, playableScenario } from "./playable/index.js";
@@ -148,8 +166,6 @@ describe("matrix over the whole card pool: every identity against every unique c
     ).sort();
     expect(flipped).toMatchInlineSnapshot(`
       [
-        "Colossus (Piotr Rasputin) [hero 32001a] x Colossus [ally 32048]",
-        "Colossus (Piotr Rasputin) [hero 32001a] x Colossus [ally 35021]",
         "Ironheart (Riri Williams) [hero 29001a] x Ironheart [ally 13018]",
         "Ironheart (Riri Williams) [hero 29002a] x Ironheart [ally 13018]",
         "Ironheart (Riri Williams) [hero 29003a] x Ironheart [ally 13018]",
@@ -256,12 +272,15 @@ describe("named cases, real cards (RRG 1.8 'Unique Icon', pp. 45-46)", () => {
     expect(matches(TCHALLA, "01041")).toEqual(NEVER);
   });
 
-  it("the three allies the option reaches: Valkyrie, Ironheart and Colossus (no subtitle, the hero's title, not the alter-ego's)", () => {
+  it("the two allies the option reaches: Valkyrie and Ironheart (no subtitle, the hero's title, not the alter-ego's)", () => {
     expect(matches("25001a", "06012")).toEqual(ONLY_WITH_THE_OPTION); // rulings Jan 26, 2026 (4) #7; Mar 19, 2026 (4)
     for (const ironheart of ["29001a", "29002a", "29003a"]) {
       expect(matches(ironheart, "13018")).toEqual(ONLY_WITH_THE_OPTION);
     }
-    for (const colossus of ["32048", "35021"]) expect(matches("32001a", colossus)).toEqual(ONLY_WITH_THE_OPTION);
+  });
+
+  it("the Colossus ally (32048, reprint 35021) prints the subtitle 'Piotr Rasputin': it matches the Colossus hero by the RRG alone, on or off", () => {
+    for (const colossus of ["32048", "35021"]) expect(matches("32001a", colossus)).toEqual(ALWAYS);
   });
 
   it("a hero whose alter-ego title is also the ally's title already matches by the RRG: Vision, Groot, Rocket Raccoon, Adam Warlock, Gamora, Drax, Nebula", () => {
@@ -319,16 +338,21 @@ describe("named cases, real cards (RRG 1.8 'Unique Icon', pp. 45-46)", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// A real game: Colossus in seat 1, Shadowcat in seat 2, whose precon holds the Colossus ally (32048).
+// Real games. Seat 2 is always Shadowcat (Aggression), holding the ally under test; seat 1 varies.
 // ---------------------------------------------------------------------------------------------------------------
 const DEPS = PLAYABLE_DEPS;
 const COLOSSUS_ALLY = "32048";
+const VALKYRIE_ALLY = "06012";
 
-/** Rhino, Colossus (Protection) then Shadowcat (Aggression), at Shadowcat's turn with the Colossus ally in her hand. */
-function shadowcatsTurn(tableRules?: TableRules): { readonly state: GameState; readonly ally: InstanceId } {
+/** Rhino, `seatOne`'s deck then Shadowcat (Aggression), at Shadowcat's turn with `allyCode` in her hand. */
+function shadowcatsTurn(
+  seatOne: string,
+  allyCode: string,
+  tableRules?: TableRules,
+): { readonly state: GameState; readonly ally: InstanceId } {
   const config = playableScenario("rhino", {
     seed: 7,
-    players: [{ starterDeckId: "colossus-protection" }, { starterDeckId: "shadowcat-aggression" }],
+    players: [{ starterDeckId: seatOne }, { starterDeckId: "shadowcat-aggression" }],
   });
   const created = createGame(tableRules ? { ...config, tableRules } : config, DEPS);
   if (!created.ok) throw new Error(created.error.message);
@@ -339,15 +363,128 @@ function shadowcatsTurn(tableRules?: TableRules): { readonly state: GameState; r
   if (atP2.step.phase !== "player" || atP2.step.kind !== "turn" || atP2.step.activePlayerId !== P2) {
     throw new Error("not Shadowcat's turn");
   }
-  const given = moveToHand(atP2, P2, COLOSSUS_ALLY);
+  // A card Shadowcat's deck does not hold (the Valkyrie ally) is a relabeled spare, as the tests below do.
+  const owner = playerOf(atP2, P2);
+  const held = [...owner.deck, ...owner.discard].some((id) => atP2.instances[id]!.cardId === cardId(allyCode));
+  const spare = owner.deck[0]!;
+  const stocked: GameState = held
+    ? atP2
+    : { ...atP2, instances: { ...atP2.instances, [spare]: { ...atP2.instances[spare]!, cardId: cardId(allyCode) } } };
+  const given = moveToHand(stocked, P2, allyCode);
   return { state: given.state, ally: given.ids[0]! };
 }
 const playAlly = (state: GameState, ally: InstanceId, cost = 3) =>
   applyCommand(state, play(P2, ally, payWith(state, P2, cost, [ally])), DEPS);
 
-describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (32048)", () => {
-  it("option off (the default): the ally is playable beside the hero, as FFG ruled for Valkyrie (rulings Jan 26, 2026 (4) #7 and Mar 19, 2026 (4); RRG 1.8 'Unique Icon', p. 45)", () => {
-    const { state, ally } = shadowcatsTurn();
+/** Whether the ally's play is offered as legal, and the reason given when it is not. */
+function offered(
+  state: GameState,
+  ally: InstanceId,
+): { readonly legal: boolean; readonly message: string | undefined } {
+  const legal = legalActions(state, P2, DEPS);
+  if (legal.kind !== "turn") throw new Error("expected Shadowcat's turn");
+  const mine = (action: { readonly kind: string; readonly instanceId?: InstanceId }) =>
+    action.kind === "playCard" && action.instanceId === ally;
+  return {
+    legal: legal.legal.some((entry) => mine(entry.action)),
+    message: legal.illegal.find((entry) => mine(entry.action))?.message,
+  };
+}
+
+/** Pay for another card in Shadowcat's hand with the ally as a resource. */
+function payForAnotherCardWith(state: GameState, ally: InstanceId): void {
+  // The cheapest other card in hand that costs at least 1.
+  const hand = playerOf(state, P2).hand.filter((id) => id !== ally);
+  const target = hand.find((id) => {
+    const price = playCostOf(state, P2, id, DEPS);
+    return price !== null && price.current === 1 && applyCommand(state, play(P2, id, [ally]), DEPS).ok;
+  });
+  const fallback = hand.find(
+    (id) => applyCommand(state, play(P2, id, [ally, ...hand.filter((h) => h !== id)]), DEPS).ok,
+  );
+  const paidFor = target ?? fallback;
+  expect(paidFor, "a card in Shadowcat's hand the ally can help pay for").toBeDefined();
+  const payment = target ? [ally] : [ally, ...hand.filter((h) => h !== paidFor)];
+  const paid = applyCommand(state, play(P2, paidFor!, payment), DEPS);
+  expect(paid.ok).toBe(true);
+  if (paid.ok) expect(playerOf(paid.state, P2).discard).toContain(ally);
+}
+
+const withAllyAdded = (deckId: string, allyCode: string) => {
+  const deck = ALL_STARTER_DECKS.find((candidate) => candidate.id === deckId);
+  if (!deck) throw new Error(`no starter deck ${deckId}`);
+  const cards = deck.cards.some((entry) => entry.cardId === cardId(allyCode))
+    ? deck.cards
+    : [...deck.cards, { cardId: cardId(allyCode), quantity: 1 }];
+  return validateDeck({ identityCardId: deck.identityCardId, aspects: deck.aspects, cards }, PLAYABLE_CARDS);
+};
+const ALL_STARTER_DECKS: readonly StarterDeck[] = [
+  ...CORE_STARTER_DECKS,
+  ...WAVE1_STARTER_DECKS,
+  ...WAVE2_STARTER_DECKS,
+  ...WAVE3_STARTER_DECKS,
+  ...WAVE4_STARTER_DECKS,
+  ...WAVE5_STARTER_DECKS,
+  ...WAVE6_STARTER_DECKS,
+  ...WAVE7_STARTER_DECKS,
+];
+
+describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (32048): the RRG's own rule, option off (RRG 1.8 'Unique Icon', pp. 45-46)", () => {
+  // The ally prints the subtitle "Piotr Rasputin", the hero's alter-ego title: "the subtitle or alter-ego title of one
+  // matches the title, subtitle, or alter-ego title of the other".
+  it.each(["hero", "alterEgo"] as const)(
+    "the ally is refused while the Colossus identity is in %s form, with the RRG's unique-match message",
+    (form) => {
+      const base = shadowcatsTurn("colossus-protection", COLOSSUS_ALLY);
+      expect(base.state.tableRules).toBeUndefined();
+      const state = withForm(base.state, form === "hero" ? { heroForm: 0 } : "alterEgo", P1);
+      const played = playAlly(state, base.ally);
+      expect(played.ok).toBe(false);
+      if (played.ok) return;
+      expect(played.error.code).toBe("duplicate_unique_card");
+      expect(played.error.message).toBe(
+        "Colossus (Piotr Rasputin) matches Colossus (Piotr Rasputin), already in play: the players as a group may have only one copy of each unique card in play",
+      );
+      const shown = offered(state, base.ally);
+      expect(shown.legal).toBe(false);
+      expect(shown.message).toBe(played.error.message);
+    },
+  );
+
+  it("the ally is still a resource beside the Colossus hero", () => {
+    const { state, ally } = shadowcatsTurn("colossus-protection", COLOSSUS_ALLY);
+    payForAnotherCardWith(state, ally);
+  });
+
+  it("deck building (RRG 'Unique Icon': a deck cannot include a unique card matching its own identity): a Colossus deck holding 32048 or 35021 is refused, Shadowcat's deck holding 32048 is legal", () => {
+    // Engine today: `validateDeck` refuses the ally in the Colossus hero's own deck, which is the RRG's deckbuilding
+    // sentence ("The identity is included in this evaluation"); no divergence from the RRG to report.
+    for (const ally of ["32048", "35021"]) {
+      const result = withAllyAdded("colossus-protection", ally);
+      expect(result).toEqual({
+        ok: false,
+        problems: [
+          {
+            code: "unique_match",
+            message:
+              "Colossus (Piotr Rasputin) matches the identity Colossus (Piotr Rasputin); a deck cannot include a unique card that matches its own identity.",
+            cardIds: [cardId("32001a"), cardId(ally)],
+          },
+        ],
+      });
+    }
+    // Shadowcat is a different person, and her precon already holds 32048.
+    expect(ALL_STARTER_DECKS.find((deck) => deck.id === "shadowcat-aggression")?.cards).toContainEqual({
+      cardId: cardId(COLOSSUS_ALLY),
+      quantity: expect.any(Number),
+    });
+    expect(withAllyAdded("shadowcat-aggression", COLOSSUS_ALLY)).toEqual({ ok: true });
+  });
+});
+
+describe("Valkyrie hero in seat 1, Shadowcat in seat 2 with the Valkyrie ally (06012)", () => {
+  it("option off (the default): the ally is playable beside the hero, as FFG ruled (rulings Jan 26, 2026 (4) #7 and Mar 19, 2026 (4); RRG 1.8 'Unique Icon', p. 45)", () => {
+    const { state, ally } = shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY);
     expect(state.tableRules).toBeUndefined();
     const played = playAlly(state, ally);
     expect(played.ok).toBe(true);
@@ -355,13 +492,15 @@ describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (3
   });
 
   it("an option that is off is not stored: the state is the same as with no table rules at all", () => {
-    expect(shadowcatsTurn({ sameNameHeroAllyConflict: false }).state).toEqual(shadowcatsTurn().state);
+    expect(shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY, { sameNameHeroAllyConflict: false }).state).toEqual(
+      shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY).state,
+    );
   });
 
   it.each(["hero", "alterEgo"] as const)(
-    "option on: refused while the Colossus identity is in %s form, with the table rule named",
+    "option on: refused while the Valkyrie identity is in %s form, with the table rule named",
     (form) => {
-      const base = shadowcatsTurn(ON);
+      const base = shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY, ON);
       expect(base.state.tableRules).toEqual(ON);
       const state = withForm(base.state, form === "hero" ? { heroForm: 0 } : "alterEgo", P1);
       const played = playAlly(state, base.ally);
@@ -369,42 +508,27 @@ describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (3
       if (played.ok) return;
       expect(played.error.code).toBe("duplicate_unique_card");
       expect(played.error.message).toBe(
-        "Colossus is already in play as Player 1's hero (table rule: a hero and an ally with the same name can't both be in play)",
+        "Valkyrie is already in play as Player 1's hero (table rule: a hero and an ally with the same name can't both be in play)",
       );
-      const legal = legalActions(state, P2, DEPS);
-      if (legal.kind !== "turn") throw new Error("expected Shadowcat's turn");
-      const mine = (action: { readonly kind: string; readonly instanceId?: InstanceId }) =>
-        action.kind === "playCard" && action.instanceId === base.ally;
-      expect(legal.legal.some((entry) => mine(entry.action))).toBe(false);
-      expect(legal.illegal.find((entry) => mine(entry.action))?.message).toBe(played.error.message);
+      const shown = offered(state, base.ally);
+      expect(shown.legal).toBe(false);
+      expect(shown.message).toBe(played.error.message);
     },
   );
 
-  it("option on: the ally is still a resource, and still legal in Shadowcat's deck (deck building is not changed)", () => {
-    const { state, ally } = shadowcatsTurn(ON);
-    // Pay for another card of hers with it: the cheapest other card in hand that costs at least 1.
-    const hand = playerOf(state, P2).hand.filter((id) => id !== ally);
-    const target = hand.find((id) => {
-      const price = playCostOf(state, P2, id, DEPS);
-      return price !== null && price.current === 1 && applyCommand(state, play(P2, id, [ally]), DEPS).ok;
-    });
-    const fallback = hand.find(
-      (id) => applyCommand(state, play(P2, id, [ally, ...hand.filter((h) => h !== id)]), DEPS).ok,
-    );
-    const paidFor = target ?? fallback;
-    expect(paidFor, "a card in Shadowcat's hand the Colossus ally can help pay for").toBeDefined();
-    const payment = target ? [ally] : [ally, ...hand.filter((h) => h !== paidFor)];
-    const paid = applyCommand(state, play(P2, paidFor!, payment), DEPS);
-    expect(paid.ok).toBe(true);
-    if (paid.ok) expect(playerOf(paid.state, P2).discard).toContain(ally);
-    // Deck building compares cards with `cardsMatch` and no table rules (`deck.ts`), so even a Colossus hero's own
-    // deck may hold the ally, as the March 19, 2026 (4) ruling allows for Valkyrie.
-    expect(cardsMatch(card("32001a"), card(COLOSSUS_ALLY))).toBe(false);
+  it("option on: the ally is still a resource, and still legal in Shadowcat's and in Valkyrie's own deck (deck building is not changed)", () => {
+    const { state, ally } = shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY, ON);
+    payForAnotherCardWith(state, ally);
+    // Deck building compares cards with `cardsMatch` and no table rules (`deck.ts`), so even a Valkyrie hero's own
+    // deck may hold the ally, as the March 19, 2026 (4) ruling allows.
+    expect(cardsMatch(card("25001a"), card(VALKYRIE_ALLY))).toBe(false);
+    expect(withAllyAdded("valkyrie-aggression", VALKYRIE_ALLY)).toEqual({ ok: true });
+    expect(withAllyAdded("shadowcat-aggression", VALKYRIE_ALLY)).toEqual({ ok: true });
   });
 
   it("option on: the Shadowcat ally (32002, subtitle Kitty Pryde) is refused beside the Shadowcat hero by the RRG's own rule, with the RRG's message, on or off", () => {
     for (const rules of [undefined, ON]) {
-      const base = shadowcatsTurn(rules);
+      const base = shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY, rules);
       const spare = playerOf(base.state, P2).deck[0]!;
       const relabeled: GameState = {
         ...base.state,
@@ -424,7 +548,7 @@ describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (3
   });
 
   it("option on: a subtitled ally of a different person is unaffected (Nightcrawler 32011 is playable)", () => {
-    const base = shadowcatsTurn(ON);
+    const base = shadowcatsTurn("valkyrie-aggression", VALKYRIE_ALLY, ON);
     const spare = playerOf(base.state, P2).deck[0]!;
     const relabeled: GameState = {
       ...base.state,
@@ -439,7 +563,7 @@ describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (3
   it("option on: the game replays from its log to the same state, the option included", () => {
     const config = playableScenario("rhino", {
       seed: 7,
-      players: [{ starterDeckId: "colossus-protection" }, { starterDeckId: "shadowcat-aggression" }],
+      players: [{ starterDeckId: "valkyrie-aggression" }, { starterDeckId: "shadowcat-aggression" }],
     });
     const created = createGame({ ...config, tableRules: ON }, DEPS);
     if (!created.ok) throw new Error(created.error.message);
@@ -469,11 +593,12 @@ describe("Colossus hero in seat 1, Shadowcat in seat 2 with the Colossus ally (3
   });
 });
 
+// No Colossus hero in the game (it would refuse the ally, above): Wolverine in seat 1, Shadowcat in seat 2.
 describe("the Colossus ally's printed cost reduction (32048: 'Reduce the cost to play Colossus by 1 if your identity has the MUTANT or X-MEN trait')", () => {
   it.each(["hero", "alterEgo"] as const)(
     "Shadowcat in %s form (X-MEN as Shadowcat, MUTANT as Kitty Pryde): the engine prices it at 3, printed 4",
     (form) => {
-      const base = shadowcatsTurn();
+      const base = shadowcatsTurn("wolverine-aggression", COLOSSUS_ALLY);
       const state = withForm(base.state, form === "hero" ? { heroForm: 0 } : "alterEgo", P2);
       const price = playCostOf(state, P2, base.ally, DEPS);
       expect(price?.printed).toBe(4);

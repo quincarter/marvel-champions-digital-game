@@ -42,8 +42,17 @@
  * `EncounterDeckPreview`/`@mc/engine`'s `scale` exactly as before — nothing
  * added here restates a rule or invents a count `@mc/content` doesn't carry.
  */
-import type { AnyCard, CardId, CardType, EncounterSet, Scenario } from "@mc/content";
-import { autoIncludedSetsInGame, scale, type GameSetupConfig, type TableRules } from "@mc/engine";
+import type { AnyCard, CardId, CardType, EncounterSet, MainSchemeStage, Scenario } from "@mc/content";
+import {
+  autoIncludedSetsInGame,
+  createGame,
+  mainSchemeValue,
+  scale,
+  type EngineDeps,
+  type GameSetupConfig,
+  type TableRules,
+} from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
 import { difficultyOptionsFor, type SetupDifficulty } from "./setup-draft.js";
@@ -92,6 +101,8 @@ export interface TableSetupPreview {
   /** "19 cards", or for Mojo "19 cards + 1 set" (1B shuffles a set-aside set in). */
   readonly encounterDeckSizeText: string;
   readonly obligationsCount: number;
+  /** Heroes whose nemesis sets are set aside (shown when no obligations are in the deck, so "none" does not read as "no nemesis"). */
+  readonly nemesisHeldBackCount: number;
   /**
    * The modular sets this scenario sets aside, by name, in the order they came out (MojoMania's Mojo: 1 + 1 per hero genre
    * sets, picked or drawn at random from the seed). Empty for every scenario without a modular set pool.
@@ -100,8 +111,22 @@ export interface TableSetupPreview {
   readonly encounterDeck: EncounterDeckPreview;
 }
 
-/** The villain stage-number range this difficulty covers — `Scenario.villainStages[difficulty]`, or the union of standard and expert for Breakout's own "extreme". */
-export function stageRangeFor(scenario: Scenario, difficulty: SetupDifficulty): readonly [number, number] {
+/**
+ * The villain stage-number range this difficulty covers — `Scenario.villainStages[difficulty]`, or the union of
+ * standard and expert for Breakout's own "extreme". `startStageIndex` is the game's own start (`GameSetupConfig.
+ * villainStartStageIndex`): an earlier start than the difficulty's printed one (Apocalypse's easier start, which begins
+ * a stage sooner) widens the range down to it; a later or equal one changes nothing.
+ */
+export function stageRangeFor(
+  scenario: Scenario,
+  difficulty: SetupDifficulty,
+  startStageIndex?: number,
+): readonly [number, number] {
+  const [lo, hi] = stageRangeOfDifficulty(scenario, difficulty);
+  return startStageIndex !== undefined && startStageIndex + 1 < lo ? [startStageIndex + 1, hi] : [lo, hi];
+}
+
+function stageRangeOfDifficulty(scenario: Scenario, difficulty: SetupDifficulty): readonly [number, number] {
   if (difficulty !== "extreme") return scenario.villainStages[difficulty];
   const [standardLo, standardHi] = scenario.villainStages.standard;
   const [expertLo, expertHi] = scenario.villainStages.expert;
@@ -113,21 +138,38 @@ function villainTotalHp(
   difficulty: SetupDifficulty,
   cardsById: ReadonlyMap<string, AnyCard>,
   playerCount: number,
+  startStageIndex?: number,
+  villains?: GameSetupConfig["villains"],
 ): number {
-  const [lo, hi] = stageRangeFor(scenario, difficulty);
-  const villainCardIds: readonly CardId[] = scenario.multipleVillains
-    ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
-    : [scenario.villainCardId];
+  const [lo, hi] = stageRangeFor(scenario, difficulty, startStageIndex);
+  const configured = scenario.multipleVillains ? villains : undefined;
+  const villainCardIds: readonly CardId[] = configured
+    ? configured.map((v) => v.villainCardId)
+    : scenario.multipleVillains
+      ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
+      : [scenario.villainCardId];
   let total = 0;
-  for (const villainCardId of villainCardIds) {
+  villainCardIds.forEach((villainCardId, index) => {
     const card = cardsById.get(villainCardId as string);
-    if (!card || card.type !== "villain") continue;
-    const side = card.sides.find((s) => s.side === (card.startingSide ?? "A")) ?? card.sides[0];
-    if (!side) continue;
+    if (!card || card.type !== "villain") return;
+    const side =
+      card.sides.find((s) => s.side === (configured?.[index]?.side ?? card.startingSide ?? "A")) ?? card.sides[0];
+    if (!side) return;
+    // A villain the setup pins to explicit stages (each Horseman: the A or B card, one stage) sums those stages, so the
+    // total follows the chosen sides and the mode; the rest sum the difficulty's stage range.
+    const pinned = configured?.[index];
+    if (pinned?.startStageIndex !== undefined) {
+      const first = pinned.startStageIndex;
+      const last = pinned.lastStageIndex ?? side.stages.length - 1;
+      side.stages.forEach((stage, stageIndex) => {
+        if (stageIndex >= first && stageIndex <= last) total += scale(stage.hp, playerCount);
+      });
+      return;
+    }
     for (const stage of side.stages) {
       if (stage.stageNumber >= lo && stage.stageNumber <= hi) total += scale(stage.hp, playerCount);
     }
-  }
+  });
   return total;
 }
 
@@ -204,7 +246,11 @@ export function nemesisStandbyOf(encounterDeck: EncounterDeckPreview): NemesisSt
   const names = encounterDeck.nemesisSetsHeldBack.map((n) => n.heroName);
   const totalCards = encounterDeck.nemesisSetsHeldBack.reduce((sum, n) => sum + n.cardCount, 0);
   return {
-    sentence: `${joinWithAnd(names)}'s nemesis cards stay out of the deck until an obligation pulls them in.`,
+    // With no obligation in the deck (The Wrecking Crew) nothing pulls them in: they are only set aside.
+    sentence:
+      encounterDeck.obligationsShuffledIn.length === 0
+        ? `${joinWithAnd(names)}'s nemesis cards are set aside, not in the deck.`
+        : `${joinWithAnd(names)}'s nemesis cards stay out of the deck until an obligation pulls them in.`,
     totalCards,
   };
 }
@@ -240,7 +286,13 @@ export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: Table
     { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
     { label: "Encounter deck", value: preview.encounterDeckSizeText },
-    { label: "Obligations", value: `${preview.obligationsCount} shuffled in` },
+    {
+      label: "Obligations",
+      value: preview.obligationsCount === 0 ? "none" : `${preview.obligationsCount} shuffled in`,
+    },
+    ...(preview.obligationsCount === 0 && preview.nemesisHeldBackCount > 0
+      ? [{ label: "Nemesis sets", value: `${preview.nemesisHeldBackCount} held back` }]
+      : []),
     ...preview.addedSets.map((set) => ({
       label: "Added set",
       value: `${set.name} · ${set.why}${set.setAside > 0 ? ` · ${set.setAside} set aside` : ""}`,
@@ -265,11 +317,13 @@ export interface DifficultyCard {
  * one-line description — derived from `stageRangeFor`'s own starting stage
  * for this scenario, never invented flavor text. Heroic is out of scope (§4
  * — `difficultyOptionsFor` never offers it), so this never returns more than
- * "Standard"/"Expert"/Breakout's own "Extreme".
+ * "Standard"/"Expert"/Breakout's own "Extreme". `standardStartStageIndex` is the game's own start when the
+ * player began earlier than the printed stage (the easier start), so the card says where the game really begins.
  */
-export function difficultyCardsFor(scenario: Scenario): readonly DifficultyCard[] {
+export function difficultyCardsFor(scenario: Scenario, standardStartStageIndex?: number): readonly DifficultyCard[] {
   return difficultyOptionsFor(scenario).map((difficulty) => {
-    const [lo] = stageRangeFor(scenario, difficulty);
+    // A start before the printed one (Apocalypse's easier start) belongs to the standard card only: expert keeps its own.
+    const [lo] = stageRangeFor(scenario, difficulty, difficulty === "standard" ? standardStartStageIndex : undefined);
     const name = difficulty === "standard" ? "Standard" : difficulty === "expert" ? "Expert" : "Extreme";
     const description =
       difficulty === "standard"
@@ -281,14 +335,32 @@ export function difficultyCardsFor(scenario: Scenario): readonly DifficultyCard[
   });
 }
 
+/**
+ * The main scheme's target threat at the deal. A printed "X" (Apocalypse's scheme) is a number only the rules in play
+ * can give, so that one is read from the engine: the deal is run on a preview state and `mainSchemeValue` answers.
+ * Every other stage is its printed value, scaled per player.
+ */
+function mainSchemeThreatOf(
+  stage: MainSchemeStage,
+  config: GameSetupConfig,
+  playerCount: number,
+  deps: EngineDeps,
+): number {
+  if (!stage.printedX?.includes("targetThreat")) return scale(stage.targetThreat, playerCount);
+  const dealt = createGame(config, deps);
+  return dealt.ok ? mainSchemeValue(dealt.state, "targetThreat", deps) : 0;
+}
+
 export function tableSetupPreviewOf(
   config: GameSetupConfig,
   scenario: Scenario,
   difficulty: SetupDifficulty,
   cardsById: ReadonlyMap<string, AnyCard>,
   encounterSets: readonly EncounterSet[],
+  deps: EngineDeps = POOL_DEPS,
 ): TableSetupPreview {
   const playerCount = config.players.length;
+  const stageRange = stageRangeFor(scenario, difficulty, config.villainStartStageIndex);
   const mainScheme = cardsById.get(scenario.mainSchemeCardId as string);
   if (!mainScheme || mainScheme.type !== "main_scheme")
     throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
@@ -328,10 +400,17 @@ export function tableSetupPreviewOf(
     villainIsRandom,
     addedSets,
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
-    villainStageLabel: roman(stageRangeFor(scenario, difficulty)[0]),
-    villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount),
-    villainStageSpan: stageRangeFor(scenario, difficulty)[1] - stageRangeFor(scenario, difficulty)[0] + 1,
-    mainSchemeThreat: scale(firstStage.targetThreat, playerCount),
+    villainStageLabel: roman(stageRange[0]),
+    villainTotalHp: villainTotalHp(
+      scenario,
+      difficulty,
+      cardsById,
+      playerCount,
+      config.villainStartStageIndex,
+      config.villains,
+    ),
+    villainStageSpan: stageRange[1] - stageRange[0] + 1,
+    mainSchemeThreat: mainSchemeThreatOf(firstStage, config, playerCount, deps),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),
     startingThreat: scale(firstStage.startingThreat, playerCount),
     startingThreatPerPlayer: firstStage.startingThreat.perPlayer,
@@ -341,6 +420,7 @@ export function tableSetupPreviewOf(
       encounterDeck.decks.reduce((sum, deck) => sum + deck.totalCards, 0),
     ),
     obligationsCount: encounterDeck.obligationsShuffledIn.length,
+    nemesisHeldBackCount: encounterDeck.nemesisSetsHeldBack.length,
     setAsideSetNames: scenario.modularSetPool
       ? (config.setAsideModularSets ?? []).map(
           (set) =>

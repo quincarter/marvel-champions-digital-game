@@ -306,8 +306,17 @@ describe("Knock, Knock (40077a stage 1)", () => {
     const two = round(withKnock(quiet(), 1)).state;
     expect(two.mainScheme.stageIndex).toBe(0);
     const three = round(withKnock(quiet(), 2));
-    expect(inst(three.state, mainOf(three.state)).counters.knock).toBe(3);
     expect(three.state.mainScheme.stageIndex).toBe(1);
+    // The third counter was placed, and all three went back to the pool with stage 1 as it advanced (RRG 1.8 "Main
+    // Scheme", p. 27, step 1: "Return all tokens (except acceleration tokens) that were on that card to the token pool").
+    expect(three.events).toContainEqual({
+      type: "counterRemoved",
+      instanceId: mainOf(three.state),
+      counterType: "knock",
+      amount: 3,
+      returnedOnAdvance: true,
+    });
+    expect(inst(three.state, mainOf(three.state)).counters.knock ?? 0).toBe(0);
     const advanced = three.events.find((e) => e.type === "mainSchemeAdvanced");
     expect(advanced).toMatchObject({
       stageIndex: 1,

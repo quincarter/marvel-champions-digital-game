@@ -100,6 +100,10 @@ export const TWC_CURATION: PackCuration = {
       // A=1/B=2 (phase7-wave1.md §1.2, §3.15's `VillainStageRange` doc comment).
       villainStages: { standard: [1, 1], expert: [2, 2] },
       usesIdentityEncounterSets: false,
+      // Per FFG ruling Jan 17, 2026 (Ruling 5): "You can play Face the Past to find your set-aside nemesis minion".
+      // Owner decision, 2026-10-08 (phase7-wave8.md §4.1 row 81): nemesis sets are set aside in this scenario; the
+      // obligations stay out. The insert says nemesis cards are not used; the owner follows the later ruling (row 86).
+      nemesisSetsSetAside: true,
       modularSetCount: 0,
       multipleVillains: {
         villainSetCodes: ["wrecker", "thunderball", "piledriver", "bulldozer"],

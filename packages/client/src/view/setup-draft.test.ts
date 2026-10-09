@@ -2,14 +2,13 @@ import { describe, expect, test } from "vitest";
 import { CORE_SCENARIOS, WAVE1_SCENARIOS, WAVE4_SCENARIOS, deckId, encounterSetId, type Deck } from "@mc/content";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
-import { POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_VERSION } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { corePlayerForSeat, corePlayerFromDeck } from "./deck-seat.js";
 import { deckOptionOf, deckOptionsOf, preconDecks } from "./deck-list-model.js";
 import { rollFirstPlayerIndex } from "./seed.js";
 import {
   addSeat,
   answerConflict,
-  alternateDifficultySetsFor,
   assignToActiveSeat,
   clearHeroFilter,
   clearScenarioFilter,
@@ -25,7 +24,6 @@ import {
   seatIsSelectable,
   setActiveSeat,
   setDifficulty,
-  setDifficultySets,
   setFirstPlayerIndex,
   setHeroFilter,
   setModularSetIds,
@@ -33,7 +31,6 @@ import {
   setScenarioFilter,
   setSeed,
   setSetAsideModularSetIds,
-  toggleDifficultySets,
   toggleTowerDefenseSetupDamage,
   towerDefenseSetupDamagePerHero,
   toSessionConfig,
@@ -70,6 +67,12 @@ describe("difficultyOptionsFor", () => {
   test("Breakout adds extreme", () => {
     expect(difficultyOptionsFor(BREAKOUT)).toEqual(["standard", "expert", "extreme"]);
   });
+
+  test("the Four Horsemen are multi-villain but offer no Extreme: each side is its own choice (Q9 = B)", () => {
+    const horsemen = POOL_SCENARIOS.find((s) => (s.id as string) === "four-horsemen")!;
+    expect(horsemen.multipleVillains).toBeDefined();
+    expect(difficultyOptionsFor(horsemen)).toEqual(["standard", "expert"]);
+  });
 });
 
 describe("setScenario", () => {
@@ -103,47 +106,21 @@ describe("setScenario", () => {
   });
 });
 
-describe("alternateDifficultySetsFor", () => {
-  test("The Hood offers Standard II and Expert II — the only pack with either", () => {
-    expect(alternateDifficultySetsFor(THE_HOOD, POOL_ENCOUNTER_SETS)).toEqual({
-      standard: "standard_ii",
-      expert: "expert_ii",
-    });
-  });
-
-  test("every other scenario offers none", () => {
-    expect(alternateDifficultySetsFor(RHINO, POOL_ENCOUNTER_SETS)).toBeNull();
-    expect(alternateDifficultySetsFor(BREAKOUT, POOL_ENCOUNTER_SETS)).toBeNull();
-  });
-
-  test("an undefined scenario (nothing chosen yet) offers none", () => {
-    expect(alternateDifficultySetsFor(undefined, POOL_ENCOUNTER_SETS)).toBeNull();
-  });
-});
-
-describe("setDifficultySets / setSetAsideModularSetIds", () => {
+describe("difficultySets / setSetAsideModularSetIds", () => {
   test("null goes back to the printed default / the scenario builder's own default", () => {
     let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
-    draft = setDifficultySets(draft, { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") });
+    draft = {
+      ...draft,
+      difficultySets: { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") },
+    };
     draft = setSetAsideModularSetIds(draft, ["beasty_boys"]);
     expect(draft.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
     expect(draft.setAsideModularSetIds).toEqual(["beasty_boys"]);
 
-    draft = setDifficultySets(draft, null);
+    draft = { ...draft, difficultySets: null };
     draft = setSetAsideModularSetIds(draft, null);
     expect(draft.difficultySets).toBeNull();
     expect(draft.setAsideModularSetIds).toBeNull();
-  });
-});
-
-describe("toggleDifficultySets", () => {
-  test("on with the given alternate, off back to the printed default — a single switch", () => {
-    const alternate = { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") };
-    let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
-    draft = toggleDifficultySets(draft, alternate);
-    expect(draft.difficultySets).toEqual(alternate);
-    draft = toggleDifficultySets(draft, alternate);
-    expect(draft.difficultySets).toBeNull();
   });
 });
 
@@ -488,7 +465,11 @@ describe("toSessionConfig", () => {
     expect(config.difficultySets).toBeUndefined();
     expect(config.setAsideModularSetIds).toBeUndefined();
 
-    draft = setDifficultySets(draft, { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") });
+    draft = setDifficulty(draft, "expert");
+    draft = {
+      ...draft,
+      difficultySets: { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") },
+    };
     draft = setSetAsideModularSetIds(draft, ["beasty_boys"]);
     config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
     expect(config.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
@@ -584,7 +565,7 @@ describe("the full W2 setup flow (view-model level: scenes aren't unit-tested in
     const seed = 55;
 
     let printed = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId, seed });
-    let toggled = setDifficultySets(printed, { standard: encounterSetId("standard_ii") });
+    let toggled: SetupDraft = { ...printed, difficultySets: { standard: encounterSetId("standard_ii") } };
     toggled = setSetAsideModularSetIds(toggled, [
       "beasty_boys",
       "brothers_grimm",

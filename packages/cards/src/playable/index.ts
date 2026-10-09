@@ -1,5 +1,5 @@
 /**
- * The playable pool: every scripted wave at once (Core through cycle 7). `WAVE1_*` and `WAVE2_*` are sibling
+ * The playable pool: every scripted wave at once (Core through cycle 8). `WAVE1_*` and `WAVE2_*` are sibling
  * pools that each start from Core and know nothing of each other, which is right for a pack's own tests and wrong
  * for an app where a cycle 1 hero sits down against a wave 1 villain. This module is that union, built from the
  * waves' own exports so a pack is still added in exactly one place (its wave's `index.ts`).
@@ -25,7 +25,11 @@ import {
   WAVE7_ENCOUNTER_SETS,
   WAVE7_SCENARIOS,
   WAVE7_STARTER_DECKS,
+  WAVE8_ENCOUNTER_SETS,
+  WAVE8_SCENARIOS,
+  WAVE8_STARTER_DECKS,
   autoIncludedSetsOf,
+  type AnyCard,
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
@@ -43,6 +47,10 @@ import { wave5Scenario } from "../wave5/setup.js";
 import { WAVE6_ABILITIES } from "../wave6/index.js";
 import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { wave7Scenario } from "../wave7/setup.js";
+import { INFINITES_SET_ID, infinitesGenePoolThreat } from "../wave8/aoa/infinites.js";
+import { WAVE8_ABILITIES } from "../wave8/index.js";
+import { wave8Scenario, type Wave8ScenarioOptions } from "../wave8/setup.js";
+import { checkPlayableDifficultySets } from "./scenario-options.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,
@@ -75,6 +83,7 @@ export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(
   WAVE5_ABILITIES,
   WAVE6_ABILITIES,
   WAVE7_ABILITIES,
+  WAVE8_ABILITIES,
 );
 
 /** Engine dependencies for a game on the playable pool. */
@@ -83,11 +92,14 @@ export const PLAYABLE_DEPS: EngineDeps = { abilities: PLAYABLE_ABILITIES };
 /**
  * Wave 1's options are the widest base (Breakout's `"extreme"` and `villainVersions`); every other builder takes a
  * subset, except wave 4's own `setAsideModularSetIds` (The Hood's seven-of-nine modular choice, docs/phase7-wave4.md
- * §2.3), which is additive here the same way.
+ * §2.3), which is additive here the same way. Wave 8 adds its three setup choices (docs/phase7-wave8.md section 4.1 Q1,
+ * Q9, Q12): `genePoolThreatPerPlayer` for any game whose sets include Infinites, `horsemanSides` for the Four Horsemen
+ * and `easierStart` for Apocalypse on standard. `./scenario-options.ts` says which of them a scenario offers.
  */
 export type PlayableScenarioOptions = Wave1ScenarioOptions &
   Pick<Wave4ScenarioOptions, "setAsideModularSetIds"> &
-  Pick<Wave6ScenarioOptions, "extraModularSetIds">;
+  Pick<Wave6ScenarioOptions, "extraModularSetIds"> &
+  Pick<Wave8ScenarioOptions, "genePoolThreatPerPlayer" | "horsemanSides" | "easierStart">;
 
 const STARTER_DECKS: readonly StarterDeck[] = [
   ...CORE_STARTER_DECKS,
@@ -98,6 +110,7 @@ const STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE5_STARTER_DECKS,
   ...WAVE6_STARTER_DECKS,
   ...WAVE7_STARTER_DECKS,
+  ...WAVE8_STARTER_DECKS,
 ];
 
 /** Any starter deck in the playable pool as a player seat (quantities expanded; the identity isn't part of the deck). */
@@ -121,9 +134,17 @@ export function playableScenario(scenarioId: string, options: PlayableScenarioOp
   // The picks are checked against the scenario's required count here, where the app's table setup builds a game; each
   // builder checks what a pick may be (`chosenModularSetIds`).
   const scenario = PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId);
-  if (scenario) checkModularPickCount(scenario, options.modularSetIds);
+  if (scenario) {
+    checkModularPickCount(scenario, options.modularSetIds);
+    // One rule for every wave's builder: which Standard or Expert set may stand in for the printed one (Q10 = A).
+    checkPlayableDifficultySets(scenario, options.difficultySets);
+  }
   const built = withAutoIncludedSets(
-    withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+    withGenePoolThreat(
+      scenarioId,
+      options,
+      withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+    ),
   );
   // `stack` is a setup-config option, not a scenario rule, so it is attached here for every wave's builder alike
   // rather than trusted to each builder forwarding it (`GameSetupConfig.stack`).
@@ -142,14 +163,14 @@ function withAutoIncludedSets(built: GameSetupConfig): GameSetupConfig {
 }
 
 const EXTRA_MODULAR_SET_IDS: ReadonlySet<string> = new Set(
-  [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS, ...WAVE7_ENCOUNTER_SETS]
+  [...CORE_ENCOUNTER_SETS, ...WAVE6_ENCOUNTER_SETS, ...WAVE7_ENCOUNTER_SETS, ...WAVE8_ENCOUNTER_SETS]
     .filter((set) => set.extraModular)
     .map((set) => set.id as string),
 );
 
 /**
  * An extra modular set (Longshot, MojoMania insert p. 2: "can be included in any scenario") shuffled in on top of any
- * scenario's own encounter deck. A cycle 6 or 7 scenario's own builder already adds it (`wave6Scenario`, `wave7Scenario`); every earlier
+ * scenario's own encounter deck. A cycle 6, 7 or 8 scenario's own builder already adds it (`wave6Scenario`, `wave7Scenario`, `wave8Scenario`); every earlier
  * wave's builder knows nothing of it, so it is added here. Never counted as one of the scenario's modular sets.
  */
 function withExtraModularSets(
@@ -161,13 +182,42 @@ function withExtraModularSets(
   if (
     extra.length === 0 ||
     WAVE6_SCENARIOS.some((scenario) => scenario.id === scenarioId) ||
-    WAVE7_SCENARIOS.some((scenario) => scenario.id === scenarioId)
+    WAVE7_SCENARIOS.some((scenario) => scenario.id === scenarioId) ||
+    WAVE8_SCENARIOS.some((scenario) => scenario.id === scenarioId)
   )
     return built;
   if (new Set(extra).size !== extra.length) throw new Error(`${scenarioId}: an extra modular set is added twice`);
   for (const id of extra)
     if (!EXTRA_MODULAR_SET_IDS.has(id)) throw new Error(`${scenarioId}: ${id} is not an extra modular set`);
   return { ...built, encounterDeck: [...(built.encounterDeck ?? []), ...extraModularCardIds(extra, PLAYABLE_CARDS)] };
+}
+
+/** The Infinites set's cards, by id: a game whose encounter deck holds one uses the set. */
+const INFINITES_CARD_IDS: ReadonlySet<string> = new Set(
+  PLAYABLE_CARDS.filter(
+    (card: AnyCard) =>
+      "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(INFINITES_SET_ID),
+  ).map((card) => card.id as string),
+);
+
+/**
+ * The Infinites set's "Modular Difficulty" (MC45 p. 8; docs/phase7-wave8.md section 4.1 Q1 = A) at a scenario of an
+ * earlier wave that took Infinites as a modular pick: the option belongs to the set, not to a scenario, and those
+ * builders know nothing of it, so the threat on Gene Pool is added here. A wave 8 scenario's own builder already did it
+ * (`wave8Scenario`). A game without the set refuses the option; 0 is off.
+ */
+function withGenePoolThreat(
+  scenarioId: string,
+  options: PlayableScenarioOptions,
+  built: GameSetupConfig,
+): GameSetupConfig {
+  const perPlayer = options.genePoolThreatPerPlayer;
+  if (perPlayer === undefined || WAVE8_SCENARIOS.some((scenario) => scenario.id === scenarioId)) return built;
+  const dealt = [...(built.encounterDeck ?? []), ...(built.villains ?? []).flatMap((v) => v.encounterDeck ?? [])];
+  if (!dealt.some((id) => INFINITES_CARD_IDS.has(id)))
+    throw new Error(`${scenarioId}: genePoolThreatPerPlayer belongs to a game that uses the Infinites set`);
+  if (perPlayer === 0) return built;
+  return { ...built, setupOptions: [...(built.setupOptions ?? []), infinitesGenePoolThreat(perPlayer)] };
 }
 
 function playableScenarioUnstacked(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
@@ -181,7 +231,24 @@ function playableScenarioUnstacked(scenarioId: string, options: PlayableScenario
       ...(setup.aspects ? { aspects: setup.aspects } : {}),
     };
   });
-  const seated = { ...options, players };
+  if (WAVE8_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
+    const seated = { ...options, players };
+    if (seated.difficulty === "extreme")
+      throw new Error(`${scenarioId} is a cycle 8 scenario; "extreme" is Breakout's own multi-villain challenge`);
+    const { villainVersions: _villainVersions, difficulty, ...rest } = seated;
+    return { ...wave8Scenario(scenarioId, { ...rest, ...(difficulty ? { difficulty } : {}) }), cards: PLAYABLE_CARDS };
+  }
+  // The Horsemen's versions and the easier Apocalypse start are those two scenarios' own; every other builder would
+  // drop them silently. (`genePoolThreatPerPlayer` follows the Infinites set: `withGenePoolThreat`.)
+  if (options.horsemanSides) throw new Error(`${scenarioId}: horsemanSides belongs to the Four Horsemen scenario`);
+  if (options.easierStart) throw new Error(`${scenarioId}: easierStart belongs to the Apocalypse scenario`);
+  const {
+    horsemanSides: _horsemanSides,
+    easierStart: _easierStart,
+    genePoolThreatPerPlayer: _genePoolThreatPerPlayer,
+    ...earlier
+  } = options;
+  const seated = { ...earlier, players };
   if (WAVE7_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
     if (seated.difficulty === "extreme")
       throw new Error(`${scenarioId} is a cycle 7 scenario; "extreme" is Breakout's own multi-villain challenge`);

@@ -38,7 +38,7 @@ import type {
   Trait,
 } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
-import type { CampaignCardFace } from "./campaign.js";
+import type { CampaignCardFace, GrantDeckSizeRule } from "./campaign.js";
 import { identityCardTitledAs } from "./titles.js";
 import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
 
@@ -182,6 +182,19 @@ export interface CampaignDeckContext {
    * part of a campaign do not count toward a player's minimum or maximum deck size").
    */
   readonly grantedCardIds: readonly string[];
+  /**
+   * The granted copies that count toward deck size after all (`CampaignGrant.deckSize`, `grantDeckSizesOf`;
+   * docs/phase7-wave8.md §3.45): one entry for each copy of `grantedCardIds` whose rule is not the exemption above.
+   * `"maximumOnly"` (MC45 p. 24, "That card does not count against your minimum deck size") counts toward the maximum
+   * only; `"counted"` toward both. Absent: every grant is exempt, the verdict and messages of every earlier box.
+   */
+  readonly grantDeckSizes?: readonly GrantDeckSizeRule[];
+  /**
+   * The granted copies the player may leave out of the deck (`CampaignGrant.optional`; MC45 p. 24, "They may include
+   * 1 copy of that card in their deck"): one entry for each such copy of `grantedCardIds`. Read only to word a copy
+   * limit problem, which then says the reward can be left out. Absent: every grant must be in the deck (MC10 p. 3).
+   */
+  readonly optionalGrantCardIds?: readonly string[];
   /**
    * RRG 1.8 p. 29 removals, **by face**: ruling April 30, 2026 (4) answer 2 keeps the other face of a
    * double-sided card available. A deck lists a card by its front face, so only a removal with no `face` refuses it.
@@ -507,6 +520,26 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   const grantedCopies = (cardId: string): number =>
     campaign === undefined ? 0 : campaign.grantedCardIds.filter((granted) => granted === cardId).length;
   /**
+   * What a copy-limit problem adds when a campaign reward the player may leave out is among the copies: the reward
+   * counts toward the title's limit like any copy (`CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT`), and the campaign offers
+   * it even when the deck already holds the title (MC45 p. 24; owner decision, 2026-10-08), so the message says how
+   * to fix the deck. Empty for every other deck.
+   */
+  const rewardAdvice = (cardIds: readonly string[], quantityOf: (cardId: string) => number): string => {
+    const rewards = cardIds.reduce(
+      (n, cardId) =>
+        n +
+        Math.min(
+          quantityOf(cardId),
+          grantedCopies(cardId),
+          (campaign?.optionalGrantCardIds ?? []).filter((optional) => optional === cardId).length,
+        ),
+      0,
+    );
+    if (rewards === 0) return "";
+    return ` ${rewards === 1 ? "1 of them is a campaign reward" : `${rewards} of them are campaign rewards`}: remove a copy of your own, or leave the reward out of the deck.`;
+  };
+  /**
    * RRG 1.8 p. 29, by face. A deck lists a card by its front face, so a removal that names the *other* face leaves
    * the card usable — ruling April 30, 2026 (4) answer 2, "Prelate versions of minions remain available … even if
    * their Overseer counterparts were crossed out of the campaign log".
@@ -594,6 +627,26 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   const listed = new Set<string>();
   /** Cards counted toward deck size (see the deck-size check). */
   let counted = 0;
+  /**
+   * Granted copies counted toward the maximum only (`GrantDeckSize "maximumOnly"`): added to `counted` for the upper
+   * limit alone. 0 unless a campaign context states such a grant.
+   */
+  let countedForMaximumOnly = 0;
+  const grantedWithRule = (cardId: string, rule: GrantDeckSizeRule["deckSize"]): number =>
+    (campaign?.grantDeckSizes ?? []).filter((grant) => grant.cardId === cardId && grant.deckSize === rule).length;
+  /**
+   * Counts the granted copies of a line toward deck size where their grant says they count (`CampaignGrant.deckSize`,
+   * docs/phase7-wave8.md §3.45): toward both limits, or toward the maximum alone (MC45 p. 24: "That card does not
+   * count against your minimum deck size"). Never more copies than the line lists or the campaign granted; nothing
+   * for a grant with no rule, which is exempt from both (MC10 p. 3). Returns how many granted copies the line holds.
+   */
+  const countGrantedCopies = (cardId: string, quantity: number): number => {
+    const granted = Math.min(quantity, grantedCopies(cardId));
+    const both = Math.min(granted, grantedWithRule(cardId, "counted"));
+    counted += both;
+    countedForMaximumOnly += Math.min(granted - both, grantedWithRule(cardId, "maximumOnly"));
+    return granted;
+  };
   for (const entry of deck.cards as readonly DeckCardEntry[]) {
     const card = cards.get(entry.cardId);
     const name = card ? uniqueLabel(card) : `Card code ${entry.cardId}`;
@@ -715,6 +768,10 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
             `${name} is a campaign card: it can only be in this deck if the campaign directed the player to add it, and the campaign has added ${copies(grantedCopies(card.id))}.`,
             [card.id],
           );
+        } else if (!hasPlainKeyword(card, "permanent")) {
+          // Legal because every listed copy was granted: counted only where its grant says so (a campaign ally of
+          // MC45 p. 24 "does not count against your minimum deck size", which is not MC10 p. 3's exemption).
+          countGrantedCopies(card.id, entry.quantity);
         }
       } else if (card.specificTo.kind === "competitive") {
         add(
@@ -734,12 +791,18 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
           `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`,
           [card.id],
         );
+      } else if (!hasPlainKeyword(card, "permanent")) {
+        countGrantedCopies(card.id, entry.quantity);
       }
       continue;
     }
     // RRG 1.8 "Permanent" (p. 32): "Permanent cards do not count towards a player's minimum or maximum deck size."
     // MC10 p. 3 exempts campaign grants the same way, so only the copies the player chose are counted.
-    if (!hasPlainKeyword(card, "permanent")) counted += Math.max(0, entry.quantity - grantedCopies(card.id));
+    if (!hasPlainKeyword(card, "permanent")) {
+      // The call adds to `counted` itself, so it is made before the player's own copies are added.
+      const granted = countGrantedCopies(card.id, entry.quantity);
+      counted += entry.quantity - granted;
+    }
     const classification = classify(card);
     if (classification.kind === "unrecognized") {
       add(
@@ -813,11 +876,28 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   // A card the campaign removed changes what the deck holds, never the minimum: MC10 p. 12, "If this causes your deck
   // to fall below the minimum number of cards, then you must add a card to your deck." MC32 p. 12 is silent, so a
   // struck identity-set ally follows the same rule (owner ruling, 2026-10-05).
-  if (counted < DECK_MIN_CARDS || counted > DECK_MAX_CARDS) {
-    add(
-      "deck_size",
-      `The deck has ${counted} cards; a deck must have between ${DECK_MIN_CARDS} and ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`,
-    );
+  if (countedForMaximumOnly === 0) {
+    if (counted < DECK_MIN_CARDS || counted > DECK_MAX_CARDS) {
+      add(
+        "deck_size",
+        `The deck has ${counted} cards; a deck must have between ${DECK_MIN_CARDS} and ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`,
+      );
+    }
+  } else {
+    // The two limits read different counts once a grant counts toward the maximum alone (MC45 p. 24).
+    const rewards = `${countedForMaximumOnly} campaign ${countedForMaximumOnly === 1 ? "card that does" : "cards that do"} not count against the minimum`;
+    if (counted < DECK_MIN_CARDS) {
+      add(
+        "deck_size",
+        `The deck has ${counted} cards besides ${rewards}; a deck must have at least ${DECK_MIN_CARDS} (the identity and permanent cards do not count).`,
+      );
+    }
+    if (counted + countedForMaximumOnly > DECK_MAX_CARDS) {
+      add(
+        "deck_size",
+        `The deck has ${counted + countedForMaximumOnly} cards, counting ${rewards}; a deck must have at most ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`,
+      );
+    }
   }
 
   // ---- Identity-specific cards ----------------------------------------------------------
@@ -1013,13 +1093,15 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         ids,
       );
     } else if (total > limit) {
+      const advice = rewardAdvice(ids, (cardId) => group.find((line) => line.card.id === cardId)?.quantity ?? 0);
       add(
         "copy_limit",
-        limit === DECK_COPY_LIMIT
+        (limit === DECK_COPY_LIMIT
           ? `${title} has ${copies(total)}; a deck may include no more than ${DECK_COPY_LIMIT} copies of a non-unique card (by title).`
           : identityCap !== undefined && limit === identityCap && (printedLimit ?? 0) > identityCap
             ? `${title} has ${copies(total)}; ${identityName}'s deckbuilding allows no more than ${copies(limit)} of any card outside the identity set.`
-            : `${title} has ${copies(total)}, but its deck limit is ${limit}: no more than ${copies(limit)} may be in a deck.`,
+            : `${title} has ${copies(total)}, but its deck limit is ${limit}: no more than ${copies(limit)} may be in a deck.`) +
+          advice,
         ids,
       );
     }
@@ -1039,7 +1121,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
     if (a.quantity > 1) {
       add(
         "unique_match",
-        `${uniqueLabel(a.card)} is unique, and a deck cannot include matching unique cards, so it may be included only once (this deck has ${a.quantity}).`,
+        `${uniqueLabel(a.card)} is unique, and a deck cannot include matching unique cards, so it may be included only once (this deck has ${a.quantity}).${rewardAdvice([a.card.id], () => a.quantity)}`,
         [a.card.id],
       );
     }

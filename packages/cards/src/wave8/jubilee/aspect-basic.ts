@@ -1,0 +1,273 @@
+import { trait } from "@mc/content";
+import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
+import {
+  YOUR_HERO,
+  YOUR_IDENTITY,
+  aScheme,
+  action,
+  anAttackableEnemy,
+  anEnemy,
+  atEndOfActivation,
+  attack,
+  attackTarget,
+  basicPowerBy,
+  canUseBasicPower,
+  chooseCards,
+  choosePlayer,
+  chooseTarget,
+  chosen,
+  chosenPlayer,
+  confuse,
+  constant,
+  dealDamage,
+  defineAbilities,
+  eachPlayer,
+  eventTarget,
+  exhaustEachCost,
+  exhaustThis,
+  exhaustYourHero,
+  forEachPlayer,
+  giveTough,
+  gets,
+  heal,
+  heroAction,
+  heroInterrupt,
+  heroResponse,
+  ifElse,
+  ifThen,
+  interrupt,
+  modifyBasicPower,
+  moveCards,
+  on,
+  ownerOf,
+  paidType,
+  paidTypeCount,
+  playFromHandIgnoringCost,
+  playersWhere,
+  preventThreat,
+  query,
+  ready,
+  refMatches,
+  removeCounter,
+  removeThreat,
+  returnEachToHandCost,
+  rule,
+  self,
+  shuffleDeck,
+  spendChosen,
+  takesConsequentialDamage,
+  thatPlayer,
+  theAffectedCard,
+  thwart,
+  thwartInProgress,
+  threatOn,
+  valueAtLeast,
+  valueEquals,
+  when,
+  whenDefeated,
+  you,
+  yourIdentity,
+  zone,
+  cards,
+} from "../../dsl/index.js";
+import { WAVE7_ABILITIES } from "../../wave7/index.js";
+
+const X_FORCE = trait("X-FORCE");
+const X_MEN = trait("X-MEN");
+
+/** The existing script of a card this one reprints, found by its ability id (docs/phase7-wave8.md §3.70). */
+function reprintOf(id: string): AbilityDefinition {
+  const definition = WAVE7_ABILITIES[id];
+  if (!definition) throw new Error(`reprint source ${id} is not scripted`);
+  return definition;
+}
+
+/** "Exhaust an [X-FORCE] character and an [X-MEN] character →" (Alliance): one card per slot, never one for both (Q40 = A). */
+const XFORCE_AND_XMEN = exhaustEachCost({
+  xforce: query(["identity", "ally"], { trait: X_FORCE }),
+  xmen: query(["identity", "ally"], { trait: X_MEN }),
+});
+
+/** "A basic attack or thwart" (Cell Phone). */
+const ATTACK_OR_THWART = ["attack", "thwart"] as const;
+
+/** Instance k (1 to 4) of Three Steps Ahead's "for each different resource type": it exists while at least k types paid. */
+const stepInstance = (k: number) =>
+  ifThen(valueAtLeast(paidTypeCount(), k), [aScheme(`scheme${k}`), removeThreat(2, chosen(`scheme${k}`))]);
+
+/**
+ * Jubilee pack aspect and basic player cards, docs/phase7-wave8.md §7.3, §3.62, §3.64, §3.67, §3.70; Q33 = B, Q34 = A,
+ * Q38 = A, Q40 = A, Q48.
+ *
+ * Cards (14):
+ * - 47011 Chamber (ally)
+ * - 47012 Husk (ally)
+ * - 47013 Disguise (upgrade)
+ * - 47014 Waylay (event)
+ * - 47015 Three Steps Ahead (event)
+ * - 47016 Generation X (player_side_scheme)
+ * - 47017 The Power of Justice (resource)
+ * - 47018 Synch (ally)
+ * - 47019 Cell Phone (upgrade)
+ * - 47020 X-Gene (upgrade)
+ * - 47021 Multitalented (event)
+ * - 47022 Unlikely Duo (event)
+ * - 47028 Mutant Mayhem (event)
+ * - 47029 Serve and Protect (event)
+ *
+ * **Reprints, one script under two ids**: The Power of Justice 47017 is Core 01062's, X-Gene 47020 is `rogue` 38019's
+ * (raw `duplicate_of_code`).
+ *
+ * **Data ids.** Husk 47012 lists `husk-interrupt` alone, and Multitalented 47021 lists `multitalented-constant` alone
+ * (it holds the whole Hero Action: the header line and its three bullets). Both are registered.
+ *
+ * **Chamber (47011)**: 1 less consequential damage after he attacks a confused enemy. The enemy is read live while it
+ * is in play and as it was when the attack was made once the attack has defeated it (Q38 = A, FFG ruling February 8,
+ * 2026 (1): the engine's last known information for an attack's target), so a defeating attack keeps the reduction.
+ *
+ * **Husk (47012)**: a resource cost of a chosen size, 1 to 3. More may be generated and is overpaid (owner decision,
+ * 2026-10-08, section 4.1 row 78; RRG p. 13), so each named type is read from the resources paid (Q34 = A), a wild as
+ * its player declared it (Q33 = B); when which three were paid changes a line, she says which (row 79). [energy] adds
+ * 1 to the power, [mental] heals 1 from her, [physical] readies her after the use: when the thwart or attack ends,
+ * which is before its consequential damage is dealt (pinned by the test "the order, as built").
+ *
+ * **Waylay (47014)** is an (attack)-labeled ability that only deals damage. Q48 = A makes it an attack: the engine
+ * resolves it as one attack by the identity (attack damage, retaliate, "after you attack"). Written the natural way,
+ * the target chosen among the enemies the identity may attack (guard).
+ * The 7 damage is read from the thwarted scheme: the thwart left it with no threat (a thwart's own event carries no
+ * `lastThreatRemoved`, which only the removal records).
+ *
+ * **Three Steps Ahead (47015)** is one (thwart)-labeled ability: every removal is an instance of the one thwart
+ * (RRG 1.8 "Thwart", p. 44), the same scheme may be chosen again.
+ *
+ * **Multitalented (47021)** is (attack)/(thwart) in one ability and resolves in the printed order: damage, threat,
+ * heal. Like Waylay its damage line is damage only, and is the ability's one attack (Q48); with no [physical] paid
+ * nothing is attacked.
+ *
+ * **Unlikely Duo (47022)**: confuse an enemy, then attack a confused enemy (possibly another) for 4.
+ *
+ * **Serve and Protect (47029)**: any placement on the main scheme is prevented; the two characters that paid are given
+ * a tough status card each.
+ *
+ * **Cell Phone (47019)**, docs/phase7-wave8.md §3.64: choosing the player is part of the cost, so the Action is offered
+ * only while some player has a ready character with a legal basic attack or thwart (RRG 1.8 "Cost", p. 13), and only
+ * such a player can be chosen, the controller included. That player picks the character, the power and its target and
+ * makes the ordinary basic power (`basicPowerBy`) at +1 THW and +1 ATK for that use. The charge counters, and the
+ * discard when the last is spent, are the uses keyword's (card data).
+ *
+ * **Generation X (47016)** constant: each X-MEN character gets +1 THW while it is making a basic thwart against this
+ * scheme (`thwartInProgress`, §3.70): only the character thwarting, only against Generation X, only a basic thwart
+ * (an event's or ability's thwart is not a character's basic power; a basic thwart made with ATK gains nothing from a
+ * THW bonus).
+ *
+ * **Mutant Mayhem (47028)**, Alliance, Hero Action: the cost returns one X-FORCE ally and one X-MEN ally to their
+ * owners' hands (two picks, one card cannot be both; as an alliance card's cost any player's allies can pay, RRG 1.8
+ * "Alliance", p. 6); then each owner plays their ally from hand, ignoring its resource cost. With either ally missing
+ * the cost cannot be paid and the card cannot be played.
+ */
+export const JUBILEE_ASPECT_BASIC: AbilityRegistry = defineAbilities({
+  "47011.chamber-constant": constant(
+    rule(
+      takesConsequentialDamage({ self: true }, -1, {
+        from: "attack",
+        if: refMatches(attackTarget(), query("enemy", { hasStatus: "confused" }), { anywhere: true }),
+      }),
+    ),
+  ),
+
+  "47012.husk-interrupt": interrupt(
+    on.basicPowerUsing("self"),
+    { cost: spendChosen(3), readsPaidTypes: { types: ["energy", "mental", "physical"] } },
+    ifThen(paidType("energy"), modifyBasicPower(1)),
+    ifThen(paidType("mental"), heal(1, self)),
+    ifThen(paidType("physical"), atEndOfActivation(ready(self))),
+  ),
+
+  "47013.disguise-action": action(
+    { label: "thwart", cost: [exhaustThis, exhaustYourHero] },
+    aScheme("scheme"),
+    thwart(2, chosen("scheme")),
+  ),
+
+  "47014.waylay-response": heroResponse(
+    on.thwarts(YOUR_HERO),
+    { label: "attack" },
+    anAttackableEnemy("enemy"),
+    dealDamage(ifElse(valueEquals(threatOn(eventTarget), 0), 7, 4), chosen("enemy")),
+  ),
+
+  "47015.three-steps-ahead-action": heroAction(
+    { label: "thwart", readsPaidTypes: { count: true } },
+    stepInstance(1),
+    stepInstance(2),
+    stepInstance(3),
+    stepInstance(4),
+  ),
+
+  "47016.generation-x-constant": constant(
+    gets("thw", 1, query(["hero", "ally"], { trait: X_MEN }), {
+      while: thwartInProgress({ thwarter: theAffectedCard, scheme: { self: true }, basic: true }),
+    }),
+  ),
+  "47016.when-defeated": whenDefeated(
+    forEachPlayer(
+      eachPlayer,
+      chooseCards(
+        "found",
+        zone(["deck", "discard"], thatPlayer, { filter: query("event", { identitySetOf: thatPlayer }) }),
+        { min: 0, max: 1, chooser: thatPlayer },
+      ),
+      moveCards(cards(chosen("found")), "hand"),
+      shuffleDeck(thatPlayer),
+    ),
+  ),
+
+  "47017.the-power-of-justice-constant": reprintOf("01062.the-power-of-justice-constant"),
+
+  "47018.synch-interrupt": interrupt(on.basicPowerUsing(YOUR_IDENTITY), { cost: exhaustThis }, modifyBasicPower(1)),
+
+  "47019.cell-phone-action": action(
+    { cost: [exhaustThis, removeCounter("charge", 1)], while: canUseBasicPower(ATTACK_OR_THWART, eachPlayer) },
+    choosePlayer("player", you, { among: playersWhere(canUseBasicPower(ATTACK_OR_THWART, thatPlayer)) }),
+    basicPowerBy(chosenPlayer("player"), ATTACK_OR_THWART, { bonus: { thw: 1, atk: 1 } }),
+  ),
+
+  "47020.x-gene-resource": reprintOf("38019.x-gene-resource"),
+
+  "47021.multitalented-constant": heroAction(
+    { label: ["attack", "thwart"], readsPaidTypes: { types: ["physical", "mental", "energy"] } },
+    ifThen(paidType("physical"), [anAttackableEnemy("enemy"), dealDamage(2, chosen("enemy"))]),
+    ifThen(paidType("mental"), [aScheme("scheme"), removeThreat(2, chosen("scheme"))]),
+    ifThen(paidType("energy"), heal(2, yourIdentity)),
+  ),
+
+  "47022.unlikely-duo-action": heroAction(
+    { label: "attack" },
+    anEnemy("confused"),
+    confuse(chosen("confused")),
+    chooseTarget("target", query("enemy", { attackableBy: yourIdentity, hasStatus: "confused" })),
+    attack(4, chosen("target")),
+  ),
+
+  "47029.serve-and-protect-interrupt": heroInterrupt(
+    when.threatPlaced(query("mainScheme")),
+    { cost: XFORCE_AND_XMEN },
+    preventThreat(),
+    giveTough(chosen("xforce")),
+    giveTough(chosen("xmen")),
+  ),
+
+  "47028.mutant-mayhem-action": heroAction(
+    {
+      cost: returnEachToHandCost({
+        xforce: query("ally", { trait: X_FORCE }),
+        xmen: query("ally", { trait: X_MEN }),
+      }),
+    },
+    playFromHandIgnoringCost(ownerOf(chosen("xforce")), { card: chosen("xforce") }),
+    playFromHandIgnoringCost(ownerOf(chosen("xmen")), { card: chosen("xmen") }),
+  ),
+});
+
+/** Refs of this module's cards left unregistered, each with its reason; `coverage.test.ts` pins them. */
+export const JUBILEE_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

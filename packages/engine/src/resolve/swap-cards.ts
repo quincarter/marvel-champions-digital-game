@@ -29,11 +29,12 @@
 
 import type { CardId } from "@mc/content";
 import { type Ctx, emit, moveCard, placeAt, syncSeparateDeckTop, updateInstance } from "../ctx.js";
+import { holdDeckTops } from "../deck-top.js";
 import { leaveDestinationKind, leavePlay, permanentStopsLeaving, waitsForLeaveInterrupts } from "../effects.js";
 import type { GameEvent } from "../events.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getInstance, locateCard, mustInstance, zoneContents } from "../query.js";
-import { cannotLeavePlay } from "../rules.js";
+import { cannotEnterPlay, cannotLeavePlay } from "../rules.js";
 import { cardsInPlay, controllerOf } from "../select.js";
 import type { ZoneId } from "../state.js";
 import { matchingCardInPlay } from "../unique.js";
@@ -75,6 +76,18 @@ export function swapCards(
   sourceCardId?: CardId,
   frameId?: FrameId,
 ): SwapOutcome {
+  // One change to a deck kept faceup (docs/phase7-wave8.md §3.48): a card swapped onto the top of a deck is the next
+  // one showing, and the card under the one it replaced never was (RRG 1.8 "'Swap'", p. 42).
+  return holdDeckTops(ctx, () => swapCardsNow(ctx, a, b, sourceCardId, frameId));
+}
+
+function swapCardsNow(
+  ctx: Ctx,
+  a: InstanceId | undefined,
+  b: InstanceId | undefined,
+  sourceCardId?: CardId,
+  frameId?: FrameId,
+): SwapOutcome {
   const refuse = (reason: Refusal, ids: readonly (InstanceId | undefined)[]): SwapOutcome => {
     emit(ctx, {
       type: "swapRefused",
@@ -110,6 +123,8 @@ export function swapCards(
     controllerOf(ctx.state, outgoing) ?? ("playerId" in out.zone ? out.zone.playerId : null);
   if (matchingCardInPlay(ctx.state, inCard, new Set([outgoing, incoming]), controller, ctx.deps))
     return refuse("unique", [incoming]);
+  // "[A title] cannot enter play during this game" (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43).
+  if (cannotEnterPlay(ctx.state, ctx.deps, incoming)) return refuse("cannotEnterPlay", [incoming]);
 
   // "When X leaves play" interrupts resolve before the swap (docs/phase7-wave5.md §4.1 Q17): the outgoing card waits in
   // play, and the leaving's apply step calls this again (`applyLeavingPlay`, request `swap`), which then goes ahead.

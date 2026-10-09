@@ -12,9 +12,10 @@ import { type Ctx } from "./ctx.js";
 import type { EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { locateCard } from "./query.js";
-import { attachCard, canAttachTo } from "./resolve/attach.js";
+import { attachCardBy, canAttachTo } from "./resolve/attach.js";
 import { announceFound, shuffleSearchedDecks } from "./resolve/find.js";
 import { pushEvents } from "./resolve/frames.js";
+import { heard } from "./resolve/triggers.js";
 import {
   cardsInPlay,
   controllerOf,
@@ -27,7 +28,7 @@ import {
 } from "./select.js";
 import type { Bindings } from "./stack.js";
 import type { GameState, ZoneId } from "./state.js";
-import type { TargetRef } from "./spec.js";
+import type { TargetQuery, TargetRef } from "./spec.js";
 
 interface CostFault {
   readonly code: EngineErrorCode;
@@ -134,6 +135,45 @@ export function planAttachCost(
   return { [attachCardSlot(attach)]: [card], [slot]: [host] };
 }
 
+/** The cards in play a `dealDamage` cost's `choose` lets the payer pick: matching its query, any player's. */
+export function dealDamageCostChoices(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  choose: { readonly slot: string; readonly query: TargetQuery },
+  bindings: Bindings = {},
+): readonly InstanceId[] {
+  const context = costContext(sourceId, playerId, deps, bindings);
+  return cardsInPlay(state).filter((id) => matchesQuery(state, id, choose.query, context));
+}
+
+/**
+ * Checks a `dealDamage` cost's `choose` against the command's pick (`choices[slot]`; forced with one candidate) and
+ * returns the binding for it. Nothing is paid.
+ */
+export function planDealDamageChoice(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  choose: { readonly slot: string; readonly query: TargetQuery },
+  choices: CostChoices,
+  bindings: Bindings,
+): Bindings | CostFault {
+  const candidates = dealDamageCostChoices(state, deps, sourceId, playerId, choose, bindings);
+  const slot = choose.slot;
+  if (candidates.length === 0)
+    return { code: "no_valid_target", message: `nothing in play to deal damage to for ${slot}` };
+  const named = choices[slot] ?? (candidates.length === 1 ? candidates : undefined);
+  if (!named) return { code: "invalid_choice", message: `choose what to deal this cost's damage to for ${slot}` };
+  const [pick, ...extra] = named;
+  if (!pick || extra.length > 0) return { code: "invalid_choice", message: `choose exactly one card for ${slot}` };
+  if (!candidates.includes(pick))
+    return { code: "no_valid_target", message: `${pick} is not a legal choice for ${slot}` };
+  return { [slot]: [pick] };
+}
+
 /** The cards in play a `dealDamage` cost names, read with the cost's picks bound. */
 export function dealDamageCostTargets(
   state: GameState,
@@ -172,8 +212,9 @@ export function payAttachCost(
     searched = decksSearchedByFind(ctx.state, ref.query, context, owners, { id: card, deck });
     announceFound(ctx, card, deck, ctx.state.instances[card]?.attachedTo === host);
   }
-  attachCard(ctx, card, host);
+  const attached = attachCardBy(ctx, card, host, playerId).filter((event) => heard(ctx.state, ctx.deps, event));
   shuffleSearchedDecks(ctx, searched);
+  if (attached.length > 0) pushEvents(ctx, attached);
 }
 
 /**

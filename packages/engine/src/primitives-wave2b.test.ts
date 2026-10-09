@@ -156,9 +156,12 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
     });
     const round2 = settle(runWith(deps, state, toHero, endTurn), undefined, deps);
     const given = giveCards(round2, p1, SNIPE.id);
-    const after = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
-    // The villain is still shielded: the attack found no legal target and dealt nothing.
-    expect(damageOn(after, villainId(after))).toBe(0);
+    // The villain is still shielded: it is no valid target for the attack-labeled event (RRG 1.8 "Target", p. 43), so
+    // the event cannot be played (owner decision, 2026-10-08, row 64; it used to resolve and deal nothing).
+    const refused = applyCommand(given.state, play(given.ids[0] as InstanceId), deps);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+    expect(damageOn(given.state, villainId(given.state))).toBe(0);
   });
 
   it("'keywords: [overkill]' spills excess damage exactly as `overkill: true` does (RRG 1.8 'Overkill', p. 31)", () => {

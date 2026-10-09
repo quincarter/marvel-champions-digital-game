@@ -173,7 +173,16 @@ export function campaignTile(
   objects.push(eyebrow);
 
   const chipColor = TILE_CHIP_COLOR[options.status];
-  const chipY = rect.y + rect.height - 29;
+  // The chip's words wrap inside the tile ("NOT IN THIS BUILD" is wider than a narrow tile) and the chip grows a line.
+  // Added before the label, so the fill is drawn under it.
+  const chipBg = scene.add.graphics();
+  const chipLabel = scene.add
+    .text(0, 0, options.chip.toUpperCase(), textStyle(typeRole.label, chipColor.text, 1))
+    .setLetterSpacing(0.9)
+    .setAlign("left")
+    .setWordWrapWidth(Math.max(40, rect.width - 22 - 14 - 8));
+  const chipHeight = Math.max(19, chipLabel.height + 7);
+  const chipY = rect.y + rect.height - 10 - chipHeight;
   const titleSize = Math.min(46, rect.width * 0.24);
 
   // Laid out bottom-up (chip, then subtitle, then title) so a two-line box name never collides with the chip below
@@ -184,7 +193,7 @@ export function campaignTile(
       ...textStyle(bangers(Math.min(20, rect.width * 0.1), 1), surface.paper.hex),
       wordWrap: { width: rect.width - 22, useAdvancedWrap: true },
     });
-    subtitle.setY(chipY - 9 - subtitle.height);
+    subtitle.setY(chipY - 14 - subtitle.height);
     objects.push(subtitle);
   }
   const title = scene.add.text(rect.x + 11, 0, options.title.toUpperCase(), {
@@ -193,11 +202,7 @@ export function campaignTile(
   title.setY((subtitle ? subtitle.y : chipY - 6) - 2 - title.height);
   objects.push(title);
 
-  const chipBg = scene.add.graphics();
-  const chipLabel = scene.add
-    .text(0, 0, options.chip.toUpperCase(), textStyle(typeRole.label, chipColor.text, 1))
-    .setLetterSpacing(0.9);
-  const chipRect: Rect = { x: rect.x + 11, y: chipY, width: chipLabel.width + 14, height: 19 };
+  const chipRect: Rect = { x: rect.x + 11, y: chipY, width: chipLabel.width + 14, height: chipHeight };
   if (chipColor.fill !== null)
     chipBg.fillStyle(chipColor.fill, 1).fillRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
   else
@@ -205,7 +210,6 @@ export function campaignTile(
       .lineStyle(1.5, surface.paper.hex, 0.45)
       .strokeRect(chipRect.x + 0.75, chipRect.y + 0.75, chipRect.width - 1.5, chipRect.height - 1.5);
   chipLabel.setPosition(chipRect.x + 7, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
-  // `chipBg` was created (and so added) before `chipLabel` — drawn first, so the label sits on top of the fill.
   objects.push(chipBg, chipLabel);
 
   if (options.status === "sealed") {

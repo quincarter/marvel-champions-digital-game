@@ -2,7 +2,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   action,
   applyRuleUntil,
-  basicPowerIs,
+  basicPowerStatIs,
   cancelWhenRevealed,
   constant,
   defineAbilities,
@@ -35,13 +35,16 @@ const SIDE_SCHEME_IN_VICTORY_DISPLAY = playOnlyIf(valueAtLeast(victoryDisplayCou
  * X-23 events (43004-43007) and the pack's other events (43016, 43017, 43038, 43040): docs/phase7-wave7.md §7.3.
  *
  * - **Animal Instinct (43004)**: Hero Interrupt to her basic thwart; +X THW for this thwart, X her ATK (read as the
- *   bonus is added, so it includes ATK modifiers already in play).
+ *   bonus is added, so it includes ATK modifiers already in play). The card prints THW, so the bonus is to THW even
+ *   when the thwart is made with ATK.
  * - **Claw Mastery (43005)**: Max 1 per round is data. +2 ATK until the end of the round, and a lasting rule that her
  *   attacks gain overkill while Honey Badger is in play (the condition is read at each attack, not when the event is
  *   played).
  * - **Regenerative Longevity (43006)**: a plain Action (the data prints "Action:", so alter-ego Laura Kinney can play it): the divided heal over her identity and Honey Badger.
  * - **Sisterly Bond (43007)**: Hero Interrupt to your Honey Badger's basic thwart or basic attack ("thwarts or attacks"
- *   read as her basic powers, an agent call); her power gets X-23's matching one (THW or ATK), read live, for that use.
+ *   read as her basic powers, an agent call); her power gets X-23's matching one, read live, for that use. "Matching"
+ *   is the stat powering Honey Badger's power (docs/phase7-wave8.md §4.1 Q54 = B): a thwart made with ATK (a scheme
+ *   with assault, RRG 1.8 p. 8) adds X-23's ATK.
  * - **Critical Hit (43016), Predictable Ploy (43038), Anticipated Attack (43040)**: the play restriction is the
  *   `*-constant` ref; the Hero Interrupt or Response is the other. Anticipated Attack's text has no "against you":
  *   any enemy's attack lets her give her hero a tough status card.
@@ -50,15 +53,15 @@ const SIDE_SCHEME_IN_VICTORY_DISPLAY = playOnlyIf(valueAtLeast(victoryDisplayCou
 export const X23_EVENTS: AbilityRegistry = defineAbilities({
   "43004.animal-instinct-interrupt": heroInterrupt(
     on.basicPowerUsing(YOUR_IDENTITY, { power: "thwart" }),
-    modifyBasicPower(statOf(yourIdentity, "atk")),
+    modifyBasicPower(statOf(yourIdentity, "atk"), { stat: "thw" }),
   ),
 
   "43007.sisterly-bond-interrupt": heroInterrupt(
     on.basicPowerUsing(query("ally", { name: "Honey Badger", controller: "you" }), { power: ["thwart", "attack"] }),
     ifThen(
-      basicPowerIs("thwart"),
-      modifyBasicPower(statOf(yourIdentity, "thw")),
+      basicPowerStatIs("atk"),
       modifyBasicPower(statOf(yourIdentity, "atk")),
+      modifyBasicPower(statOf(yourIdentity, "thw")),
     ),
   ),
 

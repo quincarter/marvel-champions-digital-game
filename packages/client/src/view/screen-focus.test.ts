@@ -268,6 +268,20 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("Deck builder in campaign mode: each reward's toggle is a stop, between the deck actions and Save", () => {
+    const order = deckBuilderFocusOrder({
+      identityChosen: true,
+      identityIds: [],
+      aspectIds: [],
+      typeFilterIds: [],
+      poolCardIds: ["c1"],
+      showName: false,
+      showPreconClear: false,
+      rewardIds: ["0:45173"],
+    });
+    expect(order.slice(order.indexOf("pack:sort") + 1)).toEqual(["reward:0:45173", "save", "filter-text", "card:c1"]);
+  });
+
   test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
     expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual([
       "back",
@@ -653,10 +667,10 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("The Hood: Standard II/Expert II's own stop, and one per modular-set candidate, both keyboard/gamepad reachable", () => {
+  test("The Hood: its setup options' stops, and one per modular-set candidate, both keyboard/gamepad reachable", () => {
     const order = tableSetupFocusOrder({
       difficulties: ["standard", "expert"],
-      hasStandardII: true,
+      optionActions: ["standardSet:default", "standardSet:standard_ii"],
       modularSetIds: ["the_hood"],
       hoodSetIds: ["beasty_boys", "brothers_grimm"],
       firstPlayerOptionIds: ["0", "random"],
@@ -665,7 +679,8 @@ describe("screen focus routes", () => {
       "back",
       "difficulty:standard",
       "difficulty:expert",
-      "standardII",
+      "option:standardSet:default",
+      "option:standardSet:standard_ii",
       "modular:the_hood",
       "hoodSet:beasty_boys",
       "hoodSet:brothers_grimm",
@@ -677,7 +692,7 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("a scenario with neither Standard II/Expert II nor a set-aside modular choice omits both stretches (every scenario before wave 4)", () => {
+  test("a scenario with no setup options and no a set-aside modular choice omits both stretches (every scenario before wave 4)", () => {
     const order = tableSetupFocusOrder({
       difficulties: ["standard"],
       modularSetIds: ["rhino"],

@@ -1,7 +1,7 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
-import type { CardDestination, StatusName } from "./spec.js";
+import type { CardDestination, StatName, StatusName } from "./spec.js";
 import type { Vars } from "./stack.js";
 import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
@@ -157,8 +157,9 @@ export type TriggerEventBody =
        * removes it (an effects frame's `byPlayer`), whatever card it is on, so a scheme's own "Hero Action: … remove 3
        * threat from here" names the player who used it although no player controls the scheme (RRG 1.8 "Ability",
        * p. 4: "Any player can use such an ability on an encounter card"; "You, Your", p. 49: that player performs it);
-       * else the controller of the removing card. Absent or null for a removal no player makes: an encounter card's
-       * forced ability, an enemy's scheme that removes threat.
+       * else the player the removing card acts for (`sourcePlayerOf`: its controller, or the player an obligation or
+       * an attachment on a player card speaks to). Absent or null for a removal no player makes: any other encounter
+       * card's forced ability, an enemy's scheme that removes threat.
        */
       readonly playerId?: PlayerId | null;
       readonly parentFrameId?: FrameId | null;
@@ -175,7 +176,12 @@ export type TriggerEventBody =
   | {
       readonly kind: "attack";
       readonly attackerInstanceId: InstanceId;
-      readonly targetInstanceId: InstanceId;
+      /**
+       * The attacked character. Null only on a `labeled` or `begun` attack that began before any enemy could be named
+       * (its enemy is chosen after an earlier instruction of the ability, or every enemy named was guarded): it takes
+       * the first enemy an instruction attacks as its target then, and stays null if it attacks nobody.
+       */
+      readonly targetInstanceId: InstanceId | null;
       readonly playerId: PlayerId;
       /** Damage for an "(attack)" ability; absent/null = the attacker's ATK (a basic attack). */
       readonly amount?: number | null;
@@ -205,6 +211,37 @@ export type TriggerEventBody =
        * not against (`notAttacked`) is not read.
        */
       readonly targetAsDamaged?: TargetSnapshot;
+      /**
+       * The attack an "(attack)"-labeled ability makes when it has no `attack` effect of its own (RRG 1.8 "Labeled
+       * Ability", p. 26: resolving the ability "is considered to be an attack made by that player's identity"; owner
+       * ruling Q48, docs/phase7-wave8.md §4.1). It deals no damage itself: it opens as the ability begins resolving,
+       * before its first instruction (p. 26: "when the labeled ability begins resolving (after costs have been
+       * paid)"; owner decision, 2026-10-08, row 61), and the damage of the ability's instructions is this attack's
+       * (`resolve/attack-ability.ts`). `targetInstanceId` is the first enemy its first damage instruction would
+       * attack, read as the attack begins, or null when none can be named yet.
+       */
+      readonly labeled?: true;
+      /**
+       * The attack of an "(attack)"-labeled ability that has an `attack` effect, begun as the ability began resolving
+       * because another instruction resolves before that effect (RRG 1.8 "Labeled Ability", p. 26: "when the labeled
+       * ability begins resolving (after costs have been paid)"; owner decision, 2026-10-08, row 73;
+       * `resolve/attack-ability.ts`). Its interrupt window opens then. Until its `attack` instruction is reached the
+       * event carries what could be read as it began: `targetInstanceId` (the enemy that instruction names if it is
+       * already chosen, else null), the instruction's `keywords` and `overkill`, and `amount` 0 (the damage is not
+       * known yet). The instruction then takes this event over and gives it its target, amount and keywords, so the
+       * resolved event reads as any other attack's. An attack no instruction took over attacked only the enemies the
+       * ability's other damage instructions named (`attacked`, always present on it).
+       */
+      readonly begun?: true;
+      /**
+       * On an "(attack)" ability's attack once it has finished: every enemy it attacked, in order, each once (RRG 1.8
+       * "Attack (Player Ability Type)", p. 10: "When an attack targets multiple enemies, the attacking character is
+       * considered to have attacked each of those enemies"; owner ruling Q50). These are the enemies an instruction of
+       * the ability targeted, never an enemy that only lost hit points to it (an overkill spill). The event's targets
+       * (`eventSubjects`, so `targetIs`, `eventTarget`) are these when present. Absent when it is exactly
+       * `[targetInstanceId]`, so a one-target attack reads as it always has; always present on a `labeled` attack.
+       */
+      readonly attacked?: readonly InstanceId[];
     }
   | {
       readonly kind: "thwart";
@@ -220,6 +257,12 @@ export type TriggerEventBody =
       readonly basic?: boolean;
       /** A basic thwart made with ATK instead of THW (the Assault keyword, or "may use their ATK"; §3.11). */
       readonly useAtk?: boolean;
+      /**
+       * Every scheme of the one divided basic thwart this share belongs to, this share's own included (RRG 1.8
+       * "Assault", p. 8, and docs/phase7-wave7.md §4.1 Q3: a divided basic thwart is one basic thwart). The character
+       * is thwarting each of them for as long as any share is resolving, which is what `thwartInProgress` reads.
+       */
+      readonly dividedAmong?: readonly InstanceId[];
       /** "…, ignoring any crisis icons in play": passed to the threat removal this thwart makes. */
       readonly ignoreCrisis?: boolean;
       /** "…, ignoring the patrol keyword": this thwart is not stopped by patrol (docs/phase7-wave4.md §3.32). */
@@ -257,9 +300,17 @@ export type TriggerEventBody =
   | {
       readonly kind: "enemyAttack";
       readonly enemyInstanceId: InstanceId;
-      /** The player the attack was initiated against (RRG p.9: "attacks you" keys off this). */
+      /**
+       * The player the attack was initiated against: the "you" of "**When** [enemy] attacks you" (`PlayerRef
+       * attackedPlayer` with `initiated`). A declared defender never changes it.
+       */
       readonly attackedPlayerId: PlayerId;
-      /** The player who ends up targeted — changes if another player defends. */
+      /**
+       * The attack's target player now: the attacked player until another player's hero or ally defends, or another
+       * player's "(defense)" ability makes their identity the defender, and that player from then on. The "you" of
+       * "**After** [enemy] attacks you" (RRG 1.8 "Defend, Defense", pp. 15-16; `EventPattern.usesAttackedPlayer`), and
+       * of a constant or boost ability while the attack resolves (p. 16; `PlayerRef attackedPlayer`).
+       */
       readonly targetPlayerId: PlayerId;
       readonly targetInstanceId: InstanceId;
       /** The same attack resolved against another player (Whirlwind): the attacker's "when it attacks" abilities don't re-trigger. */
@@ -320,7 +371,19 @@ export type TriggerEventBody =
       readonly ranged?: boolean;
     }
   | { readonly kind: "cardEntersPlay"; readonly instanceId: InstanceId; readonly playerId: PlayerId | null }
-  | { readonly kind: "cardPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * `payment`: what was paid to play the card, stamped as the play is announced (the play frame's `paid.*` and
+   * `overpaid.*` vars and a chosen `x`: `playPaymentVars`), so an "after you play" ability reads the payment of "that
+   * event" from the event it answers, whatever has left the stack since ("remove 1 threat … for each different
+   * resource type used to pay for that event", Jubilee's Coat 47004; docs/phase7-wave8.md §3.62). Absent for a play
+   * that recorded no payment.
+   */
+  | {
+      readonly kind: "cardPlayed";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly payment?: Vars;
+    }
   /**
    * A card has been paid for and is about to resolve: "When you play an [Attack] event" (Embiggen!, Shrink). An
    * interrupt here happens before the card's own abilities resolve, which is what lets a modifier apply to every
@@ -646,6 +709,22 @@ export type TriggerEventBody =
    */
   | { readonly kind: "hitPointsReset"; readonly instanceId: InstanceId }
   /**
+   * An ability attached a card to a host (docs/phase7-wave8.md §3.61): "Forced Response: After you attach a [named]
+   * upgrade to an enemy, take 1 damage." An announcement (response only), pushed by the one way an ability attaches a
+   * card (`attachCard`: the `attach` effect, `findCard`'s `{ attachTo }`, an attach cost) once per card that landed on
+   * a new host, already attached, and only when an ability listens. A card already on that host did not move and
+   * announces nothing. `playerId`: the player resolving the ability or paying the cost ("you attach"), null for an
+   * encounter card's ability with no player. Not announced for a card played or revealed onto the host its own
+   * "attach to" names: that card enters play (`cardEntersPlay`), and RRG 1.8 "Attach To" (p. 8) keeps the two apart
+   * ("the 'attach to' phrase on a card is not resolved if another ability causes that card to attach").
+   */
+  | {
+      readonly kind: "cardAttached";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly playerId: PlayerId | null;
+    }
+  /**
    * A character ignored a guard or patrol keyword, or a crisis icon, that would otherwise have stopped the attack or
    * thwart it just made (docs/phase7-wave6.md §3.8, §4.1 Q6): "After you ignore the guard or patrol keyword on a minion"
    * (Acute Control, `mut_gen` 32034), "After you ignore the crisis icon on a scheme" (Intangible Interference, 32035).
@@ -685,6 +764,19 @@ export type TriggerEventBody =
    * interrupt cancelled it or the threat has fallen below the target.
    */
   | { readonly kind: "mainSchemeCompleting"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
+   * A main scheme stage turns from its A side to its B side (docs/phase7-wave8.md §4.1 Q56; RRG 1.8 Appendix II step
+   * 12b, p. 51, and "Main Scheme" advance step 3, p. 27). Pushed behind the A side's own Setup / When Revealed frames.
+   * Its apply step makes the B side the faceup one (`MainSchemeState.faceupSide`), so that side's abilities are live
+   * from then on, and puts the B side's `resolve` abilities on the stack in that order, resolved by `playerId`.
+   */
+  | {
+      readonly kind: "mainSchemeTurnsToB";
+      readonly schemeInstanceId: InstanceId;
+      readonly stageIndex: number;
+      readonly resolve: readonly ("setup" | "whenRevealed")[];
+      readonly playerId: PlayerId;
+    }
   /**
    * An enemy **would** activate (docs/phase7-wave5.md §3.2): "Hero Interrupt: When an enemy would activate, cancel that
    * activation" (Web Binding, `sm` 27006); "Forced Interrupt: When a villain would activate, if no villain is in play,
@@ -804,6 +896,14 @@ export type TriggerEventBody =
       readonly speakerId?: PlayerId;
       readonly to: ZoneId["kind"];
       readonly traits: readonly Trait[];
+      /**
+       * The attachments that stay in play, unattached, once this card has left: a player's permanent or "cannot leave
+       * play" card on it (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8). Read while it was still in play. To each of
+       * them this event's card is still "attached [card]" (`hostOfSelf`, `TargetRef host`), so "After attached enemy
+       * leaves play, set this card aside" on a permanent upgrade hears its former host leave (docs/phase7-wave8.md
+       * §3.61). Absent when there is none.
+       */
+      readonly strandedAttachments?: readonly InstanceId[];
       readonly leaving?: LeaveRequest;
       readonly interruptsResolved?: true;
     }
@@ -830,24 +930,45 @@ export type TriggerEventBody =
    * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
    * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
    * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
-   * when an ability could react. Counts made by card effects (Hex Bolt) are not announced yet (§4.8).
+   * when an ability could react.
+   *
+   * A count made by a card effect (`EffectSpec countBoostIcons`: "take damage equal to the number of boost icons on
+   * that card", "for each boost icon discarded this way") is the same event with `enemyInstanceId: null`, one per
+   * encounter card counted (docs/phase7-wave2.md §4 Q8: both cards say "on an encounter card", not "on a boost
+   * card"). `playerId` is then the player resolving the counting effect, null when it has none. An interrupt's
+   * `replaceBoostCount` / `adjustBoostCount` is recorded on the event itself (`countFrom`, `countAdjust`), and the
+   * number counted is stamped on it as it applies (`counted`), so the log carries why the count is what it is.
    */
   | {
       readonly kind: "boostIconsCounting";
-      readonly enemyInstanceId: InstanceId;
+      readonly enemyInstanceId: InstanceId | null;
       readonly cardInstanceId: InstanceId;
-      readonly playerId: PlayerId;
+      readonly playerId: PlayerId | null;
+      /** Effect counts only: "count the number of boost icons on that card instead" (`replaceBoostCount`). */
+      readonly countFrom?: InstanceId;
+      /** Effect counts only: "increase or decrease … by 1 for this count" (`adjustBoostCount`), summed. */
+      readonly countAdjust?: number;
+      /** Effect counts only: the icons counted, floored at 0. Set as the event applies. */
+      readonly counted?: number;
     }
   /**
    * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super
    * Speed; Captain Marvel ally 04032). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
    * confused thwart "is not considered to have used a basic power", so it is announced only once the power resolves.
    * Announced only when an ability could react. The *interrupt* side of the same moment is `basicPowerUsing`.
+   *
+   * `stat`: the stat powering this use, which is not always the power's own (docs/phase7-wave8.md §4.1 Q54). A basic
+   * thwart against a scheme with assault, or one a rule lets the character make with ATK, is `power: "thwart"` with
+   * `stat: "atk"` (RRG 1.8 "Assault", p. 8); "uses their THW instead of their ATK" makes an attack `stat: "thw"`, and
+   * "use its ATK instead of its DEF" a defense `stat: "atk"`. Otherwise THW, ATK, DEF or REC by the power. A
+   * substitution made while the event waits on the stack rewrites it (`setBasicPowerStat`), so a card reads the stat
+   * here and never infers it from the power's name.
    */
   | {
       readonly kind: "basicPowerUsed";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly stat: StatName;
       readonly playerId: PlayerId;
     }
   /**
@@ -865,11 +986,15 @@ export type TriggerEventBody =
    *
    * A basic recovery pushes it too, on top of its `basicRecovery` event (docs/phase7-wave6.md §3.40). Recovery is an
    * alter-ego power (RRG 1.8 "Recover, Recovery", p. 36), so the Hero Interrupts that name no power never see it.
+   *
+   * `stat`: the stat powering this use (see `basicPowerUsed`): what `modifyBasicPower` adds to, and what
+   * `Predicate basicPowerStatIs` and `eventIs: { stat }` read.
    */
   | {
       readonly kind: "basicPowerUsing";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly stat: StatName;
       readonly playerId: PlayerId;
     }
   /**
@@ -932,8 +1057,41 @@ export type TriggerEventBody =
       readonly abilityId: AbilityId;
       readonly controllerId: PlayerId | null;
     }
-  /** A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened. */
-  | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId }
+  /**
+   * A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened.
+   *
+   * `playerId`: the player whose effect flipped the card, the "you" of the effect or cost that turned it ("After you
+   * flip to this side", Pursued by the Past side B, `aoa` 45075b; docs/phase7-wave8.md §2.5, §3.6). It is the event's
+   * player subject, so an uncontrolled card's Forced Response to its own flip resolves as that player. Absent when the
+   * flip had no "you" (an effect resolved with no player).
+   */
+  | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId; readonly playerId?: PlayerId }
+  /**
+   * A player's identity is about to change form (the hero/alter-ego flip, or a change between hero faces): "Interrupt:
+   * When you change to hero form, …" printed on the face being left, which is still the face showing while this
+   * event's interrupt window is open. The "would" twin of `formChanged`, as `cardReadying` is to a ready: its apply
+   * step makes the change (`setForm`) and announces `formChanged`. Pushed only when an interrupt listens for it
+   * (`changeIdentityForm`); otherwise the identity turns at once, as it did before this event existed. Interrupt-only:
+   * "after you change form" answers `formChanged`.
+   *
+   * An additional cost to change form (`RuleSpec formChangeCost`) is paid before this event resolves: RRG 1.8
+   * "Initiating Abilities" (p. 24), costs are paid (step 5) before the change becomes imminent, so the order is cost,
+   * this interrupt window, the change, then `formChanged`.
+   *
+   * `to`, `change` and `identityInstanceId` read as on `formChanged` (the identity is the event's target). An additional
+   * form change ("[type] form") has no such window.
+   */
+  | {
+      readonly kind: "formChanging";
+      readonly playerId: PlayerId;
+      readonly to: "hero" | "alterEgo";
+      readonly change: "identity";
+      readonly identityInstanceId: InstanceId;
+      /** The once-per-round player action, which this change uses up (`setForm`). */
+      readonly voluntary: boolean;
+      /** The hero face changed to, for an identity with more than one. */
+      readonly heroFormIndex: number;
+    }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
   /**
    * `fromHeroForm` / `toHeroForm`: the hero faces before and after, for an identity with more than one (a three-sided
@@ -969,6 +1127,24 @@ export type TriggerEventBody =
        * wave6.md §3.56). Absent for an additional form change (its target is the form card).
        */
       readonly fromTraits?: readonly Trait[];
+    }
+  /**
+   * A named moment a script raised (`EffectSpec raiseMoment`, docs/phase7-wave8.md §3.39): "After you resolve a mission
+   * attempt". An announcement (`isAnnouncement`): what the name stands for has already happened, so it opens a response
+   * window and no interrupt window. `playerId` is "you", `sourceInstanceId` the card whose effect raised it. A pattern
+   * names the moment with `eventIs: { name }`.
+   *
+   * `carried` / `carriedVars`: the slots `raiseMoment.carry` named and their vars, by the raising ability's own names
+   * (docs/phase7-wave8.md §3.71); absent when it named none. An answering ability reads them as `moment.<slot>`
+   * (`carriedByEvent`).
+   */
+  | {
+      readonly kind: "momentRaised";
+      readonly name: string;
+      readonly playerId: PlayerId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly carried?: Readonly<Record<string, readonly InstanceId[]>>;
+      readonly carriedVars?: Readonly<Record<string, number>>;
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
@@ -1033,9 +1209,19 @@ export type TriggerEventBody =
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
  * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
  * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`). A `removeThreat` that took its scheme
- * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34).
+ * from some threat to none records `lastThreatRemoved` (docs/phase7-wave7.md §3.34). An enemy attack that reached its
+ * damage step records `totalAtk` (`TOTAL_ATK_RESULT`).
  */
 export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
+
+/**
+ * The result key an enemy attack records "its total ATK for that attack" under (docs/phase7-wave8.md §3.81): the
+ * enemy's ATK as the attack's damage step read it (constant modifiers and "+N ATK for this attack" included; a printed
+ * dash is an unmodifiable 0) plus the boost icons counted for it, before the defender's DEF (RRG 1.8 "Attack (Enemy
+ * Activation)" step 4, p. 9). Absent (read as 0) for an attack that never reached that step: a stunned enemy, a
+ * cancelled attack. The result `damage` is what the attack then dealt.
+ */
+export const TOTAL_ATK_RESULT = "totalAtk";
 
 /**
  * The result key an attack/activation records one character's damage taken under (docs/phase7-wave5.md §4.1 Q65):
@@ -1099,14 +1285,25 @@ export type HostStep =
   | { readonly kind: "removeVillains"; readonly ids: readonly InstanceId[] }
   | { readonly kind: "setVillainsAside"; readonly ids: readonly InstanceId[] }
   | { readonly kind: "removeMainSchemeStage"; readonly schemeId: InstanceId }
+  /** `advanceMainScheme`: the old stage is removed from the game with its attachments (RRG 1.8 "Main Scheme", p. 27). */
+  | {
+      readonly kind: "advanceMainScheme";
+      readonly schemeId: InstanceId;
+      readonly nextIndex: number;
+      readonly advancedBy: MainSchemeAdvancedBy;
+    }
   /** `joinGameArea`, whose first change removes the joining area's own stage (docs/phase7-wave5.md §4.1 Q50). */
   | { readonly kind: "joinGameArea"; readonly fromId: GameAreaId; readonly intoId: GameAreaId | null }
-  /** `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after). */
+  /**
+   * `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after).
+   * `flippedBy`: the player whose effect flipped it (`cardFlipped.playerId`), when it had one.
+   */
   | {
       readonly kind: "flipMainSchemeStage";
       readonly schemeId: InstanceId;
       readonly reveal: boolean;
       readonly playerId: PlayerId;
+      readonly flippedBy?: PlayerId;
     }
   /**
    * `setForm` for a separated identity whose other card flips with it and discards what the identity cannot take
@@ -1128,7 +1325,16 @@ export type HostStep =
       readonly id: InstanceId;
       readonly playerId: PlayerId;
       readonly reveal?: true;
+      /** The player whose effect flipped it (`cardFlipped.playerId`), when it had one. */
+      readonly flippedBy?: PlayerId;
     };
+
+/** The `cardFlipped` announcement for a card `by` flipped (`null` or absent: the flip had no "you"). */
+export const cardFlippedEvent = (instanceId: InstanceId, by?: PlayerId | null): TriggerEvent => ({
+  kind: "cardFlipped",
+  instanceId,
+  ...(by ? { playerId: by } : {}),
+});
 
 /**
  * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after
@@ -1141,6 +1347,17 @@ export interface LeavePatch {
   readonly attachedTo?: null;
   readonly ownerId?: PlayerId;
 }
+
+/**
+ * The stat a basic power uses when nothing substitutes another (RRG 1.8 "Basic Power", p. 10): the default of the
+ * `stat` on `basicPowerUsing` / `basicPowerUsed`.
+ */
+export const BASIC_POWER_STAT = {
+  attack: "atk",
+  thwart: "thw",
+  defense: "def",
+  recover: "rec",
+} as const satisfies Record<"attack" | "thwart" | "defense" | "recover", StatName>;
 
 /**
  * Announcement events describe a state change that the engine has already made
@@ -1179,6 +1396,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // "When you make a basic recovery … instead of healing damage" (wave 6 §3.40): the healing is still to come.
     case "basicRecovery":
     case "turnEnding":
+    // "Interrupt: When you change to hero form" (`formChanging`): the change is still to come.
+    case "formChanging":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1198,7 +1417,7 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
     case "resourcesSpent":
     /**
-     * "Forced Interrupt: When an environment enters play, …" (None Shall Pass 1A): the card is already in the play
+     * "Forced Interrupt: When an environment enters play, …" (None Shall Pass 1B): the card is already in the play
      * area by the time this is pushed, but nothing it does *on* entering has happened yet — the enter-play keywords
      * (toughness, uses counters, the restricted and ally-limit checks) are this event's own apply step
      * (`resolve/event.ts`), so an interrupt runs before them and a response after, which is also what RRG 1.8
@@ -1207,6 +1426,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardEntersPlay":
     // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
     case "mainSchemeCompleting":
+    // The stage's turn to its B side is this event's apply step (docs/phase7-wave8.md §4.1 Q56).
+    case "mainSchemeTurnsToB":
     // "When an enemy would activate" (docs/phase7-wave5.md §3.2): the activation is still to come.
     case "enemyActivating":
     // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
@@ -1262,7 +1483,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "removeThreat":
       return of([event.sourceInstanceId], [event.schemeInstanceId], [event.playerId ?? null]);
     case "attack":
-      return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
+      // An "(attack)" ability's attack that attacked several enemies attacked each of them (`attack.attacked`).
+      return of([event.attackerInstanceId], event.attacked ?? [event.targetInstanceId], [event.playerId]);
     case "thwart":
       // A "(thwart)" ability that removed threat from several schemes thwarted each of them (`thwart.instances`).
       return of(
@@ -1298,10 +1520,12 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
       return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
+      return of([], [event.instanceId], [event.playerId ?? null]);
     case "discardRedirected":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
     case "mainSchemeCompleting":
+    case "mainSchemeTurnsToB":
       return of([], [event.schemeInstanceId], []);
     case "enemyActivating":
       return of([event.enemyInstanceId], [event.enemyInstanceId], [event.playerId]);
@@ -1347,6 +1571,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // and "you".
     case "statusPlaced":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The attached card is the source ("a Frostbite upgrade"), its host the target ("to an enemy"), the attacher "you".
+    case "cardAttached":
+      return of([event.instanceId], [event.hostInstanceId], [event.playerId]);
     // The character whose hit points were reset is the target ("After MaGog's hit points are reset").
     case "hitPointsReset":
       return of([], [event.instanceId], []);
@@ -1358,6 +1585,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // An additional form's card, or the identity for the hero/alter-ego flip.
     case "formChanged":
       return of([], [event.formCardInstanceId ?? event.identityInstanceId ?? null], [event.playerId]);
+    case "formChanging":
+      return of([], [event.identityInstanceId], [event.playerId]);
     case "turnStarted":
     case "turnEnding":
       return of([], [], [event.playerId]);
@@ -1367,6 +1596,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     case "abilityResolved":
       return of([event.instanceId], [], [event.controllerId]);
+    // The raising card is the source ("Bishop's 'Energy Absorption'"); the player who resolved it is "you".
+    case "momentRaised":
+      return of([event.sourceInstanceId], [], [event.playerId]);
     case "resourcesSpent":
       // `forPlayerId` first, so `eventPlayer` is "that player" (Everyday Hero); the spender is "you" either way.
       return of(
@@ -1384,4 +1616,28 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     default:
       return of([], [], []);
   }
+}
+
+/** The prefix an ability answering a moment reads its carried slots and vars under (`EffectSpec raiseMoment.carry`). */
+export const MOMENT_PREFIX = "moment.";
+
+const NOTHING_CARRIED: {
+  readonly bindings: Readonly<Record<string, readonly InstanceId[]>>;
+  readonly vars: Readonly<Record<string, number>>;
+} = { bindings: {}, vars: {} };
+
+/**
+ * What the event an ability answers hands to that ability's slots and vars (docs/phase7-wave8.md §3.71): the slots and
+ * vars a `momentRaised` carries, each under `MOMENT_PREFIX`, so the raising ability's `pulled` is the answering
+ * ability's `moment.pulled` and `pulled.count` its `moment.pulled.count`. The prefix keeps them apart from the
+ * answering ability's own slots and cost results. Every other event, and a moment that carries nothing, gives nothing.
+ *
+ * Read wherever an ability is judged or resolved against its event: its condition and targets (`resolve/triggers.ts`,
+ * `target-validity.ts`), its cost (`actions.ts`) and its frame (`abilityFrame`).
+ */
+export function carriedByEvent(event: TriggerEvent | null | undefined): typeof NOTHING_CARRIED {
+  if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
+  const prefixed = <T>(record: Readonly<Record<string, T>> | undefined): Record<string, T> =>
+    Object.fromEntries(Object.entries(record ?? {}).map(([key, item]) => [`${MOMENT_PREFIX}${key}`, item]));
+  return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
 }

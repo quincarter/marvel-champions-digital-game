@@ -2,8 +2,9 @@ import type { AbilityId, CardId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
-import type { ResourceRequirement } from "./resources.js";
-import type { StatusName } from "./spec.js";
+import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
+import type { PairLimit, StatusName } from "./spec.js";
+import type { Form } from "./state.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -75,22 +76,59 @@ export type ChoicePrompt =
    * answer is the empty one, an acknowledge.
    */
   | { readonly kind: "lookAt" }
-  /** "Choose one" among labeled options; option ids are the option indexes. */
+  /**
+   * "Choose one" among labeled options; option ids are the option indexes. Also where a card an effect plays goes
+   * when the rules give a choice of place (`EffectSpec playFromHand`): its option ids are `PLAY_TO_OWN_AREA` and
+   * `playToAreaOption(area)`, each option's `ref` is the card being played, and its label says the place in words.
+   */
   | { readonly kind: "chooseOption" }
   | { readonly kind: "choosePlayer"; readonly slot: string }
+  /**
+   * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): a card's effect has `playerId` make a basic attack or
+   * thwart, and this asks with which character and which power. One option per legal pairing, its `optionId`
+   * `attack:<instanceId>` or `thwart:<instanceId>`, its `ref` the character and its label the power; a character
+   * that could do either has two options. Exactly one is selected. `powers` is what the card allows;
+   * `sourceInstanceId` the card instructing it.
+   */
+  | {
+      readonly kind: "chooseBasicPower";
+      readonly powers: readonly ("attack" | "thwart")[];
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
+   * The target of the basic power just chosen (`chooseBasicPower`): the enemies `characterInstanceId` may attack, or
+   * the schemes it may thwart. An option's `optionId` is the target's instance id; a scheme the character may thwart
+   * with ATK instead of THW (`RuleSpec thwartWithAtk`) has a second option, `<instanceId>#atk`. Exactly one is
+   * selected.
+   *
+   * `mayDivide` (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 82): the character may divide this basic
+   * power (`RuleSpec divideBasicPower`), so one target or several may be selected (`maxSelections` says how many).
+   * Several are a division, attacked or thwarted in the order selected, and a `divide` choice with `eachAtLeast: 1`
+   * follows for the shares; an `#atk` option cannot be one of several.
+   */
+  | {
+      readonly kind: "chooseBasicPowerTarget";
+      readonly power: "attack" | "thwart";
+      readonly characterInstanceId: InstanceId;
+      readonly mayDivide?: true;
+    }
   /** Order the Special abilities of a sequence (Wakanda Forever!). */
   | { readonly kind: "orderSpecials" }
   /**
    * A cost paid with cards in play whose cards are the player's choice, asked inside a timing window before the
    * payment (`InPlayCostPick`; docs/phase7-wave4.md §3.17): "exhaust an [Avenger] character and a [Guardian] character"
    * asks once per slot. Options are the candidates; selecting fewer than `min` backs out of the card or ability.
+   *
+   * Mode `discardFromHand` (slot `discard`): the cards in hand a "discard N cards from your hand →" cost
+   * (`AbilityCost.discardFromHand`) of an interrupt or response is paid with, asked the same way; its options are
+   * cards in hand, and a card picked is left out of the payment options that follow.
    */
   | {
       readonly kind: "chooseCostCards";
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly slot: string;
-      readonly mode: InPlayCostMode;
+      readonly mode: InPlayCostMode | "discardFromHand";
     }
   /**
    * An "up to N" counter cost of an interrupt or response the player chose to use inside a timing window ("remove up
@@ -125,6 +163,15 @@ export type ChoicePrompt =
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly cost: number;
+      /**
+       * The cost is a number of resources the player chooses (`AbilityCost.resources { choose }`; docs/phase7-wave8.md
+       * §3.62): the selection must generate at least `min` resources in all, a card with two icons counting two; up
+       * to `max` of them are paid and the rest overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG 1.8 "Cost",
+       * p. 13). `cost` is then 0. Selecting nothing declines; a selection that generates fewer than `min` is refused by
+       * `resolveChoice` and the choice stays pending. `payingFor`: the card
+       * the resources are generated for, which is what the selection is priced against.
+       */
+      readonly chosenResources?: { readonly min: number; readonly max: number; readonly payingFor: InstanceId };
     }
   /**
    * An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines.
@@ -132,7 +179,66 @@ export type ChoicePrompt =
    * `distinctTypes` (docs/phase7-wave6.md §3.69, "spend 2 different resources"): present only when the effect asks for
    * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
    */
-  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement; readonly distinctTypes?: number }
+  | {
+      readonly kind: "spendResources";
+      readonly requirement: ResourceRequirement;
+      readonly distinctTypes?: number;
+      /**
+       * The payment is an additional cost to change form, asked as a player card's effect changes the player's form
+       * (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the form being changed to and the cards the cost is
+       * printed on. `sameType`: that many of the resources must be of one type, a wild being any type ("2 resources
+       * of the same type"); present only when the cost asks for it. Declining leaves the form as it is.
+       */
+      readonly formChangeCost?: {
+        readonly to: Form;
+        readonly sourceInstanceIds: readonly InstanceId[];
+        readonly sameType?: number;
+      };
+    }
+  /**
+   * The wilds of a payment just made for the card `instanceId` are declared (docs/phase7-wave8.md §3.62, §4.1 Q33 = B;
+   * RRG 1.8 "Wild Resource", p. 48: the player "may specify which resource type (energy, mental, physical, or wild) it
+   * is being used as"). Asked only when a card reads the types that paid and the declaration can change what it reads;
+   * the engine never picks for the player and preselects nothing.
+   *
+   * Four options per wild, `<n>:<type>` with n from 0 in the order the payment generated them and type one of
+   * `energy`, `mental`, `physical`, `wild` (left as a wild). Exactly `wilds` are selected, one for each wild, and the
+   * payment must still pay `requirement` with the wilds used as declared (`resolveChoice` checks both through
+   * `wildDeclarationFault`). `pool` is everything the payment generated, wilds included, and `requirement` what the
+   * cost took: the resources beyond it are overpaid and are not read (§4.1 Q34 = A). `only`: the card may be paid for
+   * with those types alone.
+   */
+  | {
+      readonly kind: "declareWildTypes";
+      readonly instanceId: InstanceId;
+      /** The payment was for this ability of the card (`useAbility`, a window's `payForAbility`), not for playing it. */
+      readonly abilityId?: AbilityId;
+      readonly wilds: number;
+      readonly pool: ResourcePool;
+      readonly requirement: ResourceRequirement;
+      readonly only?: readonly TypedResource[];
+    }
+  /**
+   * Which resources of a payment just made for the card `instanceId` count as paid (owner decision, 2026-10-08,
+   * docs/phase7-wave8.md §4.1 row 79). The payment generated more than the cost took, the rules do not say which
+   * resources are the overpaid ones (RRG 1.8 "Cost", p. 13), and a card that reads the types that paid reads the
+   * candidate sets differently: which line of "[physical] … [mental] … [energy] …" fires. Asked after any wilds are
+   * declared, by the same frame, and never when every set reads the same.
+   *
+   * One option per set in `sets`, in the same order, its `optionId` `paidSetOptionId` of the set
+   * (`physical:1,mental:1,energy:0,wild:1`) and its label the set in words; exactly one is selected. Each set holds
+   * `paidCount` resources out of `pool` (everything generated, each wild counted as the type it was declared), fills
+   * the cost's typed slots, and has as many types as any other (§4.1 Q34 = A). The rest of `pool` is overpaid.
+   */
+  | {
+      readonly kind: "choosePaidResources";
+      readonly instanceId: InstanceId;
+      /** The payment was for this ability of the card, not for playing it. */
+      readonly abilityId?: AbilityId;
+      readonly pool: ResourcePool;
+      readonly paidCount: number;
+      readonly sets: readonly ResourcePool[];
+    }
   /**
    * `EffectSpec chooseNumber` (docs/phase7-wave6.md §3.69): "any number of …". One option per whole number from `min`
    * to `max`, its `optionId` and label the number itself; exactly one is selected.
@@ -162,6 +268,27 @@ export type ChoicePrompt =
    * choice open while its clock runs and answers when the break ends.
    */
   | { readonly kind: "reportFact"; readonly fact: ReportedFact; readonly answer: ReportedFactAnswer }
+  /**
+   * `EffectSpec pairCards` (docs/phase7-wave8.md §3.36; MC45 p. 6, step 2 of a mission attempt): assign each of
+   * `cards` to a different one of `with`. One option per card and character, its `optionId` `<card>><character>`
+   * (`pairOptionId`), its `ref` the character and its label "card → character". The selection is the whole
+   * assignment: any number of options from none to the smaller of the two counts, no card and no character twice
+   * (`resolveChoice` checks through `pairSelectionFault`; a refused selection leaves the choice open).
+   *
+   * `icons`: the resource types of each card (printed) and each character (printed plus considered), by instance id.
+   * `matching`: the option ids whose pair matches, so a client can show which characters would take part before the
+   * player commits. `limit`: a restriction in force ("cards with the same resource icon cannot be assigned to more
+   * than one ally"), which the selection must also satisfy. `sourceInstanceId`: the card whose ability asks.
+   */
+  | {
+      readonly kind: "pairCards";
+      readonly cards: readonly InstanceId[];
+      readonly with: readonly InstanceId[];
+      readonly icons: Readonly<Record<string, readonly ResourceType[]>>;
+      readonly matching: readonly string[];
+      readonly limit?: PairLimit;
+      readonly sourceInstanceId: InstanceId | null;
+    }
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG 1.8 "Player Side Scheme Limit" (p. 34): choose the player side scheme(s) in play to discard down to `limit`. */
@@ -189,6 +316,9 @@ export type ChoicePrompt =
    *
    * `what: "heal"`: `amount` is the damage that will be healed (already no more than the options' cards hold), and a
    * card has one option per damage on it, up to `amount`.
+   *
+   * `eachAtLeast`: every card among the options gets at least this many points (a divided basic power's shares, each
+   * "at least 1": `basicPowerBy`); `resolveChoice` refuses a selection that leaves one short.
    */
   | {
       readonly kind: "divide";
@@ -196,6 +326,7 @@ export type ChoicePrompt =
       readonly amount: number;
       readonly maxTargets?: number;
       readonly caps?: Readonly<Record<string, number>>;
+      readonly eachAtLeast?: number;
     };
 
 export type ChoiceRef =
@@ -205,6 +336,22 @@ export type ChoiceRef =
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   | { readonly kind: "none" };
+
+/** The option of an effect play's destination choice that plays the card to its player's own play area. */
+export const PLAY_TO_OWN_AREA = "playTo:ownArea";
+const PLAY_TO_AREA_PREFIX = "playTo:area:";
+/** The option that plays it into the in-play scenario area `area` (the mission area). */
+export const playToAreaOption = (area: string): string => `${PLAY_TO_AREA_PREFIX}${area}`;
+/**
+ * What an option id of that choice names: `null` for the player's own area, the area's name, or `undefined` when the
+ * id is not one of them (any other `chooseOption`).
+ */
+export const playDestinationOfOption = (optionId: string): string | null | undefined =>
+  optionId === PLAY_TO_OWN_AREA
+    ? null
+    : optionId.startsWith(PLAY_TO_AREA_PREFIX)
+      ? optionId.slice(PLAY_TO_AREA_PREFIX.length)
+      : undefined;
 
 export interface ChoiceOption {
   readonly optionId: string;

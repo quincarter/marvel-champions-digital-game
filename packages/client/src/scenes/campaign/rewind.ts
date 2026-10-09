@@ -344,7 +344,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     }
     const headline = (phone ? 40 : 60) * 1.65;
     const body = 40;
-    // A page-based box (`ctx.panel`) shows an extra REDO row under KEPT ("Page N's last panel replays…") — MC10's
+    // A page-based box (`ctx.panel`) shows an extra REDO row under KEPT ("Page N's last panel is shown here…") — MC10's
     // plain KEPT/GONE box keeps its exact prior height.
     const box = 34 + (view.gone.length + (ctx.panel ? 1 : 0)) * 34 + 24;
     const sameHands = view.replaySeed === null ? 0 : 48 + 10;
@@ -429,7 +429,7 @@ export class CampaignRewindScene extends Phaser.Scene {
         .text(
           rect.x + 16 + 52,
           boxY - 1,
-          `Page ${ctx.panel.pageNumber}'s last panel replays before the game starts again.`,
+          `Page ${ctx.panel.pageNumber}'s last panel is shown here. The game starts again from it.`,
           textStyle(typeRole.body, surface.paper.hex, ink.secondary),
         )
         .setFontSize(13)

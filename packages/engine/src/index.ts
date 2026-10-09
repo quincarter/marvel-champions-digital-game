@@ -22,9 +22,11 @@ export type {
   MainSchemeAdvancedBy,
   MainSchemeState,
   PlayerState,
+  ScenarioPlayAreaState,
   ScenarioSetupInstruction,
   SeparateDeckState,
   SetAsideUntilCalled,
+  SetupOption,
   StatusCounts,
   VillainState,
   ZoneId,
@@ -43,6 +45,7 @@ export type {
   DecisionAuthority,
   PendingChoice,
 } from "./choices.js";
+export { PLAY_TO_OWN_AREA, playDestinationOfOption, playToAreaOption } from "./choices.js";
 
 export {
   effectChoiceAuthority,
@@ -75,6 +78,7 @@ export { legalActions, paymentFor, tryPayment } from "./legal.js";
 /** What a card costs right now vs. what is printed on it, and the cards moving the price (Steve Rogers' Living Legend). */
 export type { PlayCost, PlayCostContribution } from "./actions.js";
 export { costAsDetermined, inPlayCostCandidates, playCostOf, playableOutsideHand } from "./actions.js";
+export { deckTopPermission, deckTopPlayOf, type DeckTopPermission } from "./actions.js";
 export type { Command, CommandType, Payment, ResourceAbilityUse } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
@@ -108,6 +112,7 @@ export { EngineInvariantError } from "./errors.js";
 export type {
   AbilityCost,
   DamageSelfChoice,
+  DeckDiscardChoice,
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,
@@ -132,18 +137,33 @@ export type {
   TraitGrantSpec,
 } from "./abilities.js";
 
-export type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
+export type {
+  PaidTypesRead,
+  ResolvedRequirement,
+  ResourcePool,
+  ResourceRequirement,
+  ResourceType,
+  TypedResource,
+} from "./resources.js";
 export {
   addPools,
   combineRequirements,
   countUsableAs,
+  declaredPool,
   EMPTY_POOL,
+  paidAsDeclared,
+  paidSetOptionId,
+  paidSetsAsDeclared,
+  paidTypesReading,
+  paidTypeCountOf,
   paidWith,
   poolOf,
   poolTotal,
   RESOURCE_TYPES,
   satisfies,
   TYPED_RESOURCES,
+  wildDeclarationFault,
+  wildDeclarations,
 } from "./resources.js";
 
 export type {
@@ -156,10 +176,13 @@ export type {
 } from "./lasting.js";
 export {
   allyLimitFor,
+  cannotEnterPlay,
   cannotFlip,
   cannotLeavePlay,
   cardAbilitiesCannotRemove,
+  resourceIconsInPlay,
   cannotTakeDamage,
+  playDestinationsOf,
   countSchemeIcons,
   damageTakenAfterConstants,
   damageTakenAllowance,
@@ -170,6 +193,7 @@ export {
   maxSustainedDamageOf,
   sustainedDamageAllowance,
   excessDamageBonus,
+  formChangeCostsFor,
   grantedIcons,
   iconsBlankedOn,
   iconsInPlay,
@@ -184,15 +208,24 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export type { ConsequentialDamage, DamageSourceInfo } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
+export { pairOfOptionId, pairOptionId, pairSelectionFault, resourceIconsMatch } from "./resolve/pair-cards.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
 export { currentActivationFrameId } from "./stack.js";
-export { abilityUseKey, DEFAULT_DEPS, inPlayPicksOf, NO_ABILITIES } from "./abilities.js";
-export type { InPlayCostMode } from "./abilities.js";
+export {
+  abilityUseKey,
+  DEFAULT_DEPS,
+  fixedResourcesOf,
+  inPlayPicksOf,
+  isResourcesChoice,
+  NO_ABILITIES,
+  resourcesChoiceOf,
+} from "./abilities.js";
+export type { InPlayCostMode, ResourcesChoice } from "./abilities.js";
 
 export type {
   AbilityTimingWord,
@@ -203,6 +236,7 @@ export type {
   LastingUntil,
   LastingGrantUntil,
   NextBasicPowerUntil,
+  PairLimit,
   PlayerRef,
   PlayerZone,
   Predicate,
@@ -257,6 +291,8 @@ export type {
   CampaignWindow,
   CollectionFilter,
   EliminationPolicy,
+  GrantDeckSize,
+  GrantDeckSizeRule,
   GrantPermanence,
   LogFieldDef,
   LogFieldType,
@@ -267,7 +303,14 @@ export type {
   LossPolicy,
   ResolvedInstruction,
 } from "./campaign.js";
-export { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, DEFAULT_CAMPAIGN_WINDOW, NO_CAMPAIGN_WRITES } from "./campaign.js";
+export {
+  CAMPAIGN_LOG_SCHEMA,
+  CAMPAIGN_WINDOW_ORDER,
+  DEFAULT_CAMPAIGN_WINDOW,
+  grantDeckSizesOf,
+  includedGrantsOf,
+  NO_CAMPAIGN_WRITES,
+} from "./campaign.js";
 /**
  * The campaign runner (docs/campaign-mode-design.md §7): the four pure functions that compose the next scenario,
  * hand it to `createGame`, read the finished game back, and fold the result into the log — plus the pending-choice
@@ -276,6 +319,7 @@ export { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, DEFAULT_CAMPAIGN_WINDOW, NO
 export type {
   CampaignChoiceAnswer,
   CampaignChoiceKey,
+  CampaignChoiceSourceKind,
   CampaignDeps,
   CampaignGameStart,
   CampaignLogSetup,
@@ -290,11 +334,13 @@ export {
   CAMPAIGN_NEXT_NODE_INSTRUCTION,
   campaignChoiceKey,
   campaignModularSetIds,
+  campaignGrantInclusionProblems,
   campaignResultOf,
   createCampaignLog,
   grantsOf,
   resolveBetweenGames,
   retryBaselineOf,
+  setCampaignGrantLeftOut,
   startGameFromLog,
 } from "./campaign/runner.js";
 export { removedCardIdsOf, withRemovedCardsOutOfDecks } from "./campaign/log.js";
@@ -312,7 +358,15 @@ export {
 } from "./campaign-state.js";
 
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
-export { damageTakenKey, eventSubjects, isAnnouncement } from "./trigger-events.js";
+export {
+  BASIC_POWER_STAT,
+  carriedByEvent,
+  damageTakenKey,
+  eventSubjects,
+  isAnnouncement,
+  MOMENT_PREFIX,
+  TOTAL_ATK_RESULT,
+} from "./trigger-events.js";
 
 export type {
   Bindings,
@@ -333,7 +387,7 @@ export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
 export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
-export type { ViewerContext } from "./visibility.js";
+export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */
 export type { CounterSnapshot, OutcomePreview, PreviewCounter, PreviewStop } from "./preview.js";
@@ -348,6 +402,7 @@ export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
 export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./select.js";
 export {
+  abilityIgnored,
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
@@ -358,11 +413,18 @@ export {
   chosenFromList,
   chosenVar,
   classificationsOf,
+  consideredRemainingHitPoints,
   controllerOf,
+  deckTopFaceupPlayers,
+  hitPointFloor,
+  ignoredAbilities,
   explainQuery,
   matchesQuery,
   resolveValue,
   selectTargets,
+  shownDeckTop,
+  TOGETHER_TARGETS_SLOT,
+  textBoxBlankFor,
   traitsOf,
 } from "./select.js";
 
@@ -428,8 +490,12 @@ export {
   isMinion,
   isTerminal,
   maxHitPoints,
+  printedHpNumeral,
+  printedMinionHp,
   printedHandSize,
+  inClosedScenarioPlayArea,
   locateCard,
+  scenarioPlayAreaOf,
   mainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,

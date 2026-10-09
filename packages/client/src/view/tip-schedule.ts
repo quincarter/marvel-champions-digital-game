@@ -65,13 +65,20 @@ export interface TipScheduleState {
   /** Whether the opening turn (`firstTurnKey`) has produced a non-bookkeeping event yet. Irrelevant, and never
    * read, once `turnKey !== firstTurnKey`. */
   readonly firstTurnActed: boolean;
+  /** Tips whose trigger fired while a call was blocked (the villain-phase overlay), oldest first. An event-driven tip
+   * (`situation:effectDefender`, `situation:energyAbsorption`) is built from the batch's `lastEvents`, which the next
+   * call no longer carries, so it is held here and shown on the first open call that may show a tip. */
+  readonly pending: readonly Tip[];
 }
+
+const MAX_PENDING = 3;
 
 export const initialTipScheduleState: TipScheduleState = {
   turnKey: null,
   shownThisTurn: false,
   firstTurnKey: null,
   firstTurnActed: false,
+  pending: [],
 };
 
 export interface TipScheduleContext {
@@ -119,6 +126,7 @@ export function advance(
       shownThisTurn: false,
       firstTurnKey: state.firstTurnKey ?? turnKey,
       firstTurnActed: state.firstTurnKey === null ? false : state.firstTurnActed,
+      pending: state.pending,
     };
   }
   if (
@@ -131,11 +139,24 @@ export function advance(
     next = { ...next, firstTurnActed: true };
   }
 
-  if (context.blocked) return { state: next, tip: null };
+  const fresh = tipsFor(observation, deps, prefs, context.suppress)[0] ?? null;
+  const stillWanted = (tip: Tip) => !prefs.seenTips.includes(tip.id) && !context.suppress.includes(tip.id);
+  const pending = next.pending.filter(stillWanted);
+
+  if (context.blocked) {
+    // Remember what fired under the overlay: its events are gone by the time the overlay clears.
+    const held =
+      fresh && !pending.some((tip) => tip.id === fresh.id) ? [...pending, fresh].slice(-MAX_PENDING) : pending;
+    return { state: { ...next, pending: held }, tip: null };
+  }
+  next = { ...next, pending };
   if (next.shownThisTurn) return { state: next, tip: null };
   if (turnKey !== null && turnKey === next.firstTurnKey && !next.firstTurnActed) return { state: next, tip: null };
 
-  const candidate = tipsFor(observation, deps, prefs, context.suppress)[0] ?? null;
+  const candidate = pending[0] ?? fresh;
   if (!candidate) return { state: next, tip: null };
-  return { state: { ...next, shownThisTurn: true }, tip: candidate };
+  return {
+    state: { ...next, shownThisTurn: true, pending: pending.filter((tip) => tip.id !== candidate.id) },
+    tip: candidate,
+  };
 }

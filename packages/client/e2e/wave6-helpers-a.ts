@@ -218,9 +218,7 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
     ).appSession().store.state;
     return state.game?.pendingChoice ?? null;
   })) as PendingChoiceView | null;
-  // The engine has no decision open: the sheet is only still on screen while it leaves (a slow runner), and there is
-  // nothing to answer. Looking for its Confirm button would wait out the whole budget.
-  if (!choice) return;
+  // The sheet's own controls, as it drew them (by key).
   const rects = await page.evaluate(
     () =>
       (window as unknown as { __mcChoiceDebug?: { allRects(): [string, Rect][] } }).__mcChoiceDebug?.allRects() ?? [],
@@ -230,6 +228,24 @@ export async function answerChoiceSheet(page: Page): Promise<void> {
     await pressAt(page, r.x + r.width / 2, r.y + r.height / 2);
     await settle(page);
   };
+  if (!choice) {
+    // The store holds no decision. Normally that means nothing is open: the sheet is only still on screen while it
+    // leaves (a slow runner), and looking for its Confirm button would wait out the whole budget. The one exception is
+    // Setup deal, which asks before the live game store holds the game (a campaign's ally search, Age of Apocalypse):
+    // there the sheet's own controls are the only evidence, so they are answered, and only when they exist.
+    const reveal = rectOf("reveal");
+    const first = rects.find(([k]) => k.startsWith("option:"));
+    const confirm = rectOf("confirm");
+    if (!reveal && !first && !confirm) return;
+    // Behind its privacy cover, tap the cover first; otherwise pick the first card, then Confirm.
+    if (reveal) {
+      await click(reveal);
+      return;
+    }
+    if (first) await click(first[1]);
+    if (confirm) await click(confirm);
+    return;
+  }
   if (choice && choice.options.length > 1 && choice.maxSelections > 0) {
     const need = Math.max(choice.minSelections, 1);
     for (const option of choice.options.slice(0, need)) {

@@ -496,6 +496,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
     id: cardId("35021"),
     type: "ally",
     name: "Colossus",
+    subtitle: "Piotr Rasputin",
     setCode: setCode("wolv"),
     cycleId: cycleId("cycle6"),
     collectorNumber: "21",

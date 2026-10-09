@@ -87,6 +87,9 @@ export class McScrollRegion {
     scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onPointerUp, this);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.#onShutdown, this);
+    // A caller that clears the scene's children (the choice sheet's rebuild) destroys the root without calling
+    // `destroy()`; without this the scene-level listeners outlive the thumb and throw on the next drag or wheel.
+    this.#root.once(Phaser.GameObjects.Events.DESTROY, this.#onRootDestroyed, this);
 
     this.#layoutMask();
     this.#applyOffset();
@@ -131,7 +134,14 @@ export class McScrollRegion {
   readonly #onShutdown = (): void => this.destroy();
   #destroyed = false;
 
+  /** The root went away under us (its container was cleared): drop every listener, but don't destroy it again. */
+  readonly #onRootDestroyed = (): void => this.#teardown(false);
+
   destroy(): void {
+    this.#teardown(true);
+  }
+
+  #teardown(destroyRoot: boolean): void {
     // Idempotent, and leaves no shutdown listener behind: the Board builds one region per draw and destroys it on
     // the next, so a listener per draw would pile up for the life of the scene.
     if (this.#destroyed) return;
@@ -145,7 +155,7 @@ export class McScrollRegion {
     this.#scene.events.off(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
     clearMask(this.content);
     this.#maskShape.destroy();
-    this.#root.destroy(true);
+    if (destroyRoot) this.#root.destroy(true);
   }
 
   #layoutMask(): void {

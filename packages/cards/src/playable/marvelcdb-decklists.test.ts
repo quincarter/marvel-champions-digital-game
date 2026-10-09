@@ -8,6 +8,10 @@
  * `GET https://marvelcdb.com/api/public/decklist/<id>.json` on 2026-10-01 (user approval to fetch recorded in PR 88).
  * Each hero's pick is its most-liked public decklist on MarvelCDB whose cards are all in the playable pool, except
  * Doctor Strange's, which the user chose (`docs/custom-deck-testing.md`, "Decklists to use").
+ *
+ * Wave 8's six heroes are listed too, from the fixtures their own wave keeps
+ * (`../wave8/fixtures/decklists/<hero>.json`, fetched 2026-10-08; `../wave8/custom-decks-marvelcdb.test.ts` documents
+ * them and plays each at a wave 8 scenario). Here each sits at a Core villain through `playableScenario`.
  */
 import { createGame, replay, validateDeck } from "@mc/engine";
 import { PLAYABLE_CARDS, parseMarvelCdbDeckJsonText, type CoreAspect } from "@mc/content";
@@ -25,9 +29,23 @@ const FIXTURES = (import.meta as unknown as ImportMetaEnv).glob("./fixtures/*.js
   import: "default",
   eager: true,
 }) as Record<string, string>;
+const WAVE8_FIXTURES = (import.meta as unknown as ImportMetaEnv).glob("../wave8/fixtures/decklists/*.json", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
 
-/** Hero identity → MarvelCDB decklist id, its name on MarvelCDB, and its chosen aspect(s). */
-const DECKLISTS: readonly (readonly [hero: string, identity: string, id: number, aspects: readonly string[]])[] = [
+/**
+ * Hero identity → MarvelCDB decklist id, its name on MarvelCDB, and its chosen aspect(s). A fifth entry names the
+ * fixture of a wave that keeps its own (`../wave8/fixtures/decklists/<name>.json`).
+ */
+const DECKLISTS: readonly (readonly [
+  hero: string,
+  identity: string,
+  id: number,
+  aspects: readonly string[],
+  wave8Fixture?: string,
+])[] = [
   ["Spider-Man", "01001a", 103, ["leadership"]],
   ["Captain Marvel", "01010a", 577, ["leadership"]],
   ["She-Hulk", "01019a", 543, ["leadership"]],
@@ -58,53 +76,66 @@ const DECKLISTS: readonly (readonly [hero: string, identity: string, id: number,
   ["War Machine", "23001a", 14191, ["leadership"]],
   ["Valkyrie", "25001a", 15163, ["leadership"]],
   ["Vision", "26001a", 16623, ["protection"]],
+  ["Bishop", "45001a", 37204, ["justice"], "bishop"],
+  ["Magik", "45030a", 37117, ["protection"], "magik"],
+  ["Iceman", "46001a", 38626, ["leadership"], "iceman"],
+  ["Jubilee", "47001a", 40621, ["justice"], "jubilee"],
+  ["Nightcrawler", "48001a", 42268, ["protection"], "nightcrawler"],
+  ["Magneto", "49001a", 43978, ["justice"], "magneto"],
 ];
 
 /** The Core villains, rotated so the games don't all run against one. */
 const SCENARIOS = ["rhino", "klaw", "ultron"] as const;
 
+const WAVE8_FIXTURE_OF = new Map(DECKLISTS.filter((row) => row[4]).map((row) => [row[2], row[4]!]));
+
 const parse = (id: number) => {
-  const text = FIXTURES[`./fixtures/marvelcdb-decklist-${id}.json`];
+  const wave8 = WAVE8_FIXTURE_OF.get(id);
+  const text = wave8
+    ? WAVE8_FIXTURES[`../wave8/fixtures/decklists/${wave8}.json`]
+    : FIXTURES[`./fixtures/marvelcdb-decklist-${id}.json`];
   if (text === undefined) throw new Error(`no fixture for decklist ${id}`);
   const result = parseMarvelCdbDeckJsonText(text, PLAYABLE_CARDS);
   if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
   return result;
 };
 
-describe.each(DECKLISTS.map((row, index) => [...row, SCENARIOS[index % SCENARIOS.length]!] as const))(
-  "%s: MarvelCDB decklist %s/%i",
-  (hero, identity, id, aspects, scenario) => {
-    test("imports against the playable pool", () => {
-      const result = parse(id);
-      expect(result.contents.identityCardId).toBe(identity);
-      expect([...result.contents.aspects].sort()).toEqual([...aspects].sort());
-      expect(result.heroName).toBe(hero);
-    });
+describe.each(
+  DECKLISTS.map(
+    ([hero, identity, id, aspects], index) =>
+      [hero, identity, id, aspects, SCENARIOS[index % SCENARIOS.length]!] as const,
+  ),
+)("%s: MarvelCDB decklist %s/%i", (hero, identity, id, aspects, scenario) => {
+  test("imports against the playable pool", () => {
+    const result = parse(id);
+    expect(result.contents.identityCardId).toBe(identity);
+    expect([...result.contents.aspects].sort()).toEqual([...aspects].sort());
+    expect(result.heroName).toBe(hero);
+  });
 
-    test("is legal under validateDeck", () => {
-      expect(validateDeck(parse(id).contents, PLAYABLE_CARDS)).toEqual({ ok: true });
-    });
+  test("is legal under validateDeck", () => {
+    expect(validateDeck(parse(id).contents, PLAYABLE_CARDS)).toEqual({ ok: true });
+  });
 
-    test(`plays a seeded greedy game against ${scenario} that replays deep-equal`, () => {
-      const { contents } = parse(id);
-      const config = playableScenario(scenario, {
-        seed: 2026,
-        players: [
-          {
-            identityCardId: contents.identityCardId,
-            deck: contents.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
-            aspects: contents.aspects as readonly CoreAspect[],
-          },
-        ],
-      });
-      const created = createGame(config, PLAYABLE_DEPS);
-      if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
-      const result = playToOutcome(created.state, PLAYABLE_DEPS);
-      expect(result.outcome).not.toBeNull();
-      expect(result.rounds).toBeGreaterThanOrEqual(1);
-      const replayed = replay(result.session.log, PLAYABLE_DEPS);
-      expect(replayed.ok).toBe(true);
-      if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
-    }, 120_000);
-  },
-);
+  test(`plays a seeded greedy game against ${scenario} that replays deep-equal`, () => {
+    const { contents } = parse(id);
+    const config = playableScenario(scenario, {
+      seed: 2026,
+      players: [
+        {
+          identityCardId: contents.identityCardId,
+          deck: contents.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
+          aspects: contents.aspects as readonly CoreAspect[],
+        },
+      ],
+    });
+    const created = createGame(config, PLAYABLE_DEPS);
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const result = playToOutcome(created.state, PLAYABLE_DEPS);
+    expect(result.outcome).not.toBeNull();
+    expect(result.rounds).toBeGreaterThanOrEqual(1);
+    const replayed = replay(result.session.log, PLAYABLE_DEPS);
+    expect(replayed.ok).toBe(true);
+    if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+  }, 120_000);
+});

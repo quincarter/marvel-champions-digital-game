@@ -44,6 +44,9 @@ const orderOf = (state: Pick<GameState, "players" | "encounterDecks">): string =
     encounter: Object.values(state.encounterDecks).map((deck) => deck.deck),
   });
 
+const playersOf = (state: Pick<GameState, "players">): string =>
+  JSON.stringify(state.players.map((player) => [player.hand, player.deck]));
+
 describe("CampaignService", () => {
   test("signing the roster stores a fresh log on issue #1 with each seat's own deck copy", async () => {
     const campaigns = service();
@@ -121,7 +124,7 @@ describe("CampaignService", () => {
     async (campaignId) => {
       const campaigns = service();
       let record = await campaigns.start({ campaignId, seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
-      const deals: { seed: number; order: string }[] = [];
+      const deals: { seed: number; order: string; players: string }[] = [];
       let nodeId: string | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
         const answers: CampaignChoiceAnswer[] = [];
@@ -135,7 +138,7 @@ describe("CampaignService", () => {
         const config = campaigns.launchConfig(composed.record);
         const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
         const { state } = (await core.start(config)).snapshot;
-        deals.push({ seed: config.seed, order: orderOf(state) });
+        deals.push({ seed: config.seed, order: orderOf(state), players: playersOf(state) });
         core.dispatch({ type: "concede", playerId: state.firstPlayerId });
         let folded = await campaigns.fold(composed.record, core.save());
         const lossAnswers: CampaignChoiceAnswer[] = [];
@@ -146,7 +149,7 @@ describe("CampaignService", () => {
         record = folded.record;
       }
       expect(new Set(deals.map((deal) => deal.seed)).size).toBe(3);
-      expect(new Set(deals.map((deal) => deal.order)).size).toBe(3);
+      expect(new Set(deals.map((deal) => deal.players)).size).toBe(3);
       // Each lost attempt keeps its own seed, which is what Rewind's "Same hands" replays.
       expect(record.history.map((entry) => entry.seed)).toEqual(deals.map((deal) => deal.seed));
       let replay = await campaigns.compose(record);
@@ -157,7 +160,10 @@ describe("CampaignService", () => {
       }
       const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
       const { state } = (await core.start({ ...campaigns.launchConfig(replay.record), seed: deals[0]!.seed })).snapshot;
-      expect(orderOf(state)).toBe(deals[0]!.order);
+      // Age of Apocalypse draws a new mission and Overseer on every attempt (owner Q22), and some missions shuffle a
+      // card into the encounter deck (the Sea Wall), so only the players' decks and hands are the same shuffle there.
+      if (campaignId === "aoa") expect(playersOf(state)).toBe(deals[0]!.players);
+      else expect(orderOf(state)).toBe(deals[0]!.order);
     },
   );
 
@@ -212,6 +218,53 @@ describe("CampaignService", () => {
     const edited = await campaigns.setSeatDeck(discarded, 1, { ...hawkeye, aspects: ["justice"] });
     expect(edited.seats[0]!.deck.aspects).toEqual(["justice"]);
     await expect(campaigns.setSeatDeck(edited, 1, ROSTER[1]!.deck)).rejects.toThrow(/locked/);
+  });
+
+  test("a reward is left out of a deck and put back through the service, and a deck saved without it marks it left out (MC45 p. 24; owner decision, 2026-10-08)", async () => {
+    const campaigns = service();
+    const started = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    // A stand-in reward: an optional grant of a card the seat's deck does not hold, as a won mission leaves it.
+    const reward = POOL_CARDS.find(
+      (card) => card.type === "upgrade" && !started.seats[0]!.deck.cards.some((line) => line.cardId === card.id),
+    )!.id;
+    const record = {
+      ...started,
+      seats: started.seats.map((seat) =>
+        seat.seatNumber === 1
+          ? {
+              ...seat,
+              deck: { ...seat.deck, cards: [...seat.deck.cards, { cardId: reward, quantity: 1 }] },
+              grants: [
+                {
+                  cardId: reward,
+                  permanence: "campaign" as const,
+                  grantedAtNodeId: "crossbones",
+                  deckSize: "maximumOnly" as const,
+                  optional: true as const,
+                },
+              ],
+            }
+          : seat,
+      ),
+    };
+    const holds = (candidate: Pick<typeof started, "seats">): boolean =>
+      candidate.seats[0]!.deck.cards.some((line) => line.cardId === reward);
+
+    const out = await campaigns.setSeatRewardIncluded(record, 1, reward, false);
+    expect(holds(out)).toBe(false);
+    expect(out.seats[0]!.grants).toMatchObject([{ cardId: reward, optional: true, leftOut: true }]);
+    expect(await campaigns.load(out.id)).toEqual(out);
+    const back = await campaigns.setSeatRewardIncluded(out, 1, reward, true);
+    expect(holds(back)).toBe(true);
+    expect(back.seats[0]!.grants[0]).not.toHaveProperty("leftOut");
+    // Already in: nothing is written.
+    expect(await campaigns.setSeatRewardIncluded(back, 1, reward, true)).toBe(back);
+
+    // The deck builder saves a list without the reward's line: the log marks the reward left out to match.
+    const hawkeye = ROSTER[0]!.deck;
+    const saved = await campaigns.setSeatDeck(back, 1, hawkeye);
+    expect(holds(saved)).toBe(false);
+    expect(saved.seats[0]!.grants).toMatchObject([{ cardId: reward, leftOut: true }]);
   });
 
   test("an Expert Campaign run stores the modifier where the runner reads it, so expert-only instructions run", async () => {

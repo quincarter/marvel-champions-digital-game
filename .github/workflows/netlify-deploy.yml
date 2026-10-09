@@ -4,8 +4,12 @@
 # an already-built `dist` with the Netlify CLI is not a Netlify build, so it costs no build minutes; Actions minutes
 # are free for this public repo. Netlify dedupes uploads by file hash, so the card art only uploads when it changes.
 #
-#   push to main   -> typecheck, unit tests, build, production deploy (the live site)
-#   pull request   -> typecheck, unit tests, build, preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment
+#   push to main   -> production deploy (the live site)
+#   pull request   -> preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment
+#
+# Either way the tests stage (tests.yml: a typecheck and the unit tests, in parallel on their own runners) runs first,
+# and the deploy job starts only once all of it passes. The deploy job itself only installs, builds the client and
+# uploads it.
 #
 # Needs two repository secrets: NETLIFY_AUTH_TOKEN (a Netlify personal access token) and NETLIFY_SITE_ID (the site's
 # Project ID, under Project configuration -> General). Netlify's own builds stay off ("Stop builds" in the site's
@@ -27,9 +31,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Typecheck and the unit tests, in parallel (tests.yml).
+  tests:
+    name: Tests
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/tests.yml
+
   deploy:
-    name: Build, test and deploy to Netlify
+    name: Build and deploy to Netlify
     runs-on: ubuntu-latest
+    # Runs no checks of its own: it waits for the tests stage, and a failure there deploys nothing.
+    needs: tests
     # Fork PRs get no secrets, so they can't deploy.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     env:
@@ -45,10 +57,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The pull request's build and unit-test check lives here, so the client is built once: typecheck and the Vitest
-      # suites of every package gate the build, and a failure deploys nothing.
-      - run: pnpm typecheck
-      - run: pnpm test
+      # Each job is a fresh runner, so the install repeats; the pnpm store comes from the cache, so it takes seconds.
       - run: pnpm --filter @mc/client build
 
       - name: Deploy

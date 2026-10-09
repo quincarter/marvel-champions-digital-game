@@ -357,6 +357,76 @@ describe("Shieldmaiden (25011) and Have at Thee! (25012)", () => {
     expect(playerOf(state, P1).hand).not.toContain(shield);
   });
 
+  // docs/phase7-wave8.md §4.1 Q55 = B; RRG 1.8 "Defend, Defense" (p. 15): "When a card ability says to 'declare [a
+  // hero] the defender' of an attack, that hero is considered to be making a basic defense." The Best Defense…
+  // (25020, "When your hero defends against an attack, use its ATK instead of its DEF for this attack") answers a
+  // basic defense, so it answers the one Shieldmaiden declares.
+  it("Q55: The Best Defense… (25020) answers the basic defense Shieldmaiden declares; the Mercenary's attack is reduced by her ATK", () => {
+    const staged = () => {
+      const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(11), toHero());
+      const { state: withEnemy, id: enemy } = engagedMercenary(hero);
+      const perceived = settle(
+        runWith(WAVE4_DEPS, withEnemy, {
+          type: "useAbility",
+          playerId: P1,
+          cardInstanceId: identityOf(withEnemy, P1),
+          abilityId: "25001a.death-perception" as never,
+          payment: [],
+        }),
+        accepting(enemy),
+        undefined,
+        WAVE4_DEPS,
+      );
+      const shield = moveToHand(perceived, P1, "25011");
+      const best = moveToHand(shield.state, P1, "25020");
+      // Rhino's own attack this phase is stunned away, so the Mercenary's is the only attack.
+      const rhino = best.state.activeVillainId!;
+      const state = patchInstance(best.state, rhino, { statuses: { ...inst(best.state, rhino).statuses, stunned: 1 } });
+      return { state, enemy, shield: shield.ids[0]!, best: best.ids[0]! };
+    };
+    const villainPhase = (...wanted: readonly string[]) => {
+      const g = staged();
+      const offered = new Set<string>();
+      const asked: string[] = [];
+      const pick: Picker = (state) => {
+        const choice = state.pendingChoice;
+        if (choice?.prompt.kind === "declareDefender") asked.push("declareDefender");
+        if (choice?.prompt.kind === "chooseTriggers") {
+          for (const option of choice.options) {
+            if (option.optionId.includes("25020.the-best-defense-interrupt")) offered.add("25020");
+          }
+        }
+        return wanted.length > 0 ? accepting(...wanted)(state) : firstLegal(state);
+      };
+      const run = driveEventsPicking(WAVE4_DEPS, g.state, pick, endTurn());
+      const attack = run.events.find(
+        (e): e is Extract<GameEvent, { type: "attackResolved" }> =>
+          e.type === "attackResolved" && e.enemyInstanceId === g.enemy,
+      );
+      return { state: run.state, shield: g.shield, best: g.best, offered, asked, attack };
+    };
+    const identity = (state: GameState) => characterProfile(state, identityOf(state, P1), WAVE4_DEPS)!;
+
+    // Shieldmaiden alone: her DEF 1, with the card's +2, is what is subtracted.
+    const shieldOnly = villainPhase("25011.shieldmaiden-interrupt");
+    expect(playerOf(shieldOnly.state, P1).hand).not.toContain(shieldOnly.shield);
+    expect(shieldOnly.offered.has("25020")).toBe(true);
+    expect(shieldOnly.attack?.defenseReduction).toBe(identity(staged().state).def + 2);
+    expect(shieldOnly.asked).toEqual([]);
+
+    // With The Best Defense… answering that defense: her ATK 2 instead, and both events are spent.
+    const both = villainPhase("25011.shieldmaiden-interrupt", "25020.the-best-defense-interrupt");
+    expect(playerOf(both.state, P1).hand).not.toContain(both.shield);
+    expect(playerOf(both.state, P1).hand).not.toContain(both.best);
+    expect(both.attack?.defenseReduction).toBe(identity(staged().state).atk);
+    expect(identity(staged().state).atk).not.toBe(identity(staged().state).def + 2);
+    expect(inst(both.state, identityOf(both.state, P1)).exhausted).toBe(false);
+
+    // Neither played: no defender, so no basic defense for The Best Defense… to answer.
+    const neither = villainPhase();
+    expect(neither.offered.has("25020")).toBe(false);
+  });
+
   it("Have at Thee! (25012.have-at-thee-constant): deals 7 damage, gaining overkill against the enemy with Death-Glow attached", () => {
     const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(12), toHero());
     const { state: withEnemy, id: enemy } = engagedMercenary(hero);

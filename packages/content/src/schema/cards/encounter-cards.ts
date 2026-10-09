@@ -99,7 +99,14 @@ export interface MinionCard extends EncounterCardCommon {
   /** `"X"` when the card's ability defines it (Titania); `null` for a printed "—". See `PrintedStat`. */
   readonly atk: PrintedStat;
   readonly sch: PrintedStat;
+  /** The printed hit point numeral. With `hpPerPlayer`, the number printed before the per player icon. */
   readonly hp: number;
+  /**
+   * The hit point value is printed with the per player icon (the Overseers' "5 per player", Garm, The Sleeper):
+   * the minion's printed hit points are `hp` times the number of players who started the scenario (RRG 1.8 "Per
+   * Player Icon", p. 32). Absent on a flat value. The same shape as a player card's `costPerPlayer`.
+   */
+  readonly hpPerPlayer?: true;
   /**
    * True on the minion a nemesis set names as the hero's nemesis, printed as reminder text such as "(Captain
    * America's nemesis minion.)". Core's Shadow of the Past reads "Reveal your set-aside nemesis minion", and wave 1

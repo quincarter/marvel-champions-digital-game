@@ -16,6 +16,7 @@ import {
   chosenPlayer,
   choosePlayer,
   constant,
+  countBoostIcons,
   countOf,
   dealDamage,
   dealEncounterCardsCost,
@@ -304,7 +305,9 @@ export const STAR_LORD_KIT = defineAbilities({
   ),
 
   // Dive Bomb — Play only if your identity has the aerial trait (data). Hero Action (attack): Deal 7 damage to an
-  // enemy. Deal 1 damage to each other enemy.
+  // enemy. Deal 1 damage to each other enemy. The ability is one attack, so the 1 to each other enemy is damage from
+  // that attack (docs/phase7-wave8.md §4.1 Q47): the engine makes a `dealDamage` to an enemy that follows an
+  // "(attack)" ability's `attack` that attack's.
   "17028.dive-bomb-action": heroAction(
     { label: "attack" },
     chooseTarget("enemy", query("enemy")),
@@ -375,6 +378,7 @@ export const STAR_LORD_KIT = defineAbilities({
     { label: "attack", cost: discardThis },
     chooseTarget("enemy", query("enemy")),
     moveCards(encounterCards(["deck"], undefined, 2), "discard", "milled"),
+    countBoostIcons(chosen("milled"), "milled"),
     attack(varOf("milled.boostIcons"), chosen("enemy")),
   ),
 });

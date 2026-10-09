@@ -12,7 +12,7 @@
  * interrupt or response to its entering play, and before anything else resolves (`pendingEntry`).
  */
 
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, AnyCard } from "@mc/content";
 import type { AbilityRegistry, RuleSpec } from "../abilities.js";
 import {
   discardStatusCards,
@@ -22,8 +22,18 @@ import {
   setActiveVillain,
   type StatusDiscarded,
 } from "../effects.js";
-import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
+import {
+  cardBackOf,
+  cardOf,
+  currentName,
+  isPlayerCardType,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
+  maxHitPoints,
+  undefeatedVillains,
+} from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateFrame, updateInstance } from "../ctx.js";
+import { announceDeckTops } from "../deck-top.js";
 import { statusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
 import {
@@ -32,13 +42,14 @@ import {
   attachmentHolds,
   cardsInPlay,
   controllerOf,
+  uncontrolledYouOf,
   evaluate,
   focusedMainSchemeId,
   matchesQuery,
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
-import { cannotBeDefeated } from "../rules.js";
+import { defeatHeldOff, notDefeatedWithoutThreat } from "../rules.js";
 import { limitReached } from "./ability.js";
 import { atZero, checkDefeats } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
@@ -48,7 +59,7 @@ import {
   checkRestrictedLimits,
   usesCountersOnEntering,
 } from "./enter-play.js";
-import { abilityFrame } from "./frames.js";
+import { abilityFrame, eventFrame } from "./frames.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
@@ -121,6 +132,13 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   applyFocusedActiveVillain(ctx);
   // …and a character at zero hit points that "cannot be defeated" no longer is defeated (wave 7 §4.1 Q21).
   if (checkDefeatProtectionEnded(ctx)) return true;
+  // …and a side scheme at no threat that "cannot be defeated while …" no longer is defeated (wave 8 §3.40).
+  if (checkSchemeProtectionEnded(ctx)) return true;
+  // …and a damaged character whose hit point bonus ended at or below its damage is defeated (RRG 1.8 p. 22).
+  if (checkHitPointsFell(ctx)) return true;
+  // …and the top card of a deck kept faceup is logged when the rule itself turns on or off with nothing moved (a form
+  // change, a blank text box; docs/phase7-wave8.md §3.48). Card moves log theirs as they happen.
+  announceDeckTops(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
@@ -134,7 +152,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
       const entry = fromEntering ? pendingEntry(ctx, instanceId) : undefined;
       const now = evaluate(entry ? withUsesCounters(ctx, instanceId) : ctx.state, definition.trigger.when, {
         selfInstanceId: instanceId,
-        controllerId: controllerOf(ctx.state, instanceId),
+        // "You" in the condition, as in the ability it fires: the card's controller, else the player the rules name
+        // for an uncontrolled card (`uncontrolledYouOf`: an obligation's holder, RRG 1.8 "Obligation", p. 30).
+        controllerId: controllerOf(ctx.state, instanceId) ?? uncontrolledYouOf(ctx.state, instanceId),
         event: null,
         bindings: {},
         deps: ctx.deps,
@@ -163,8 +183,10 @@ export function checkStateTriggers(ctx: Ctx): boolean {
       {
         instanceId,
         abilityId,
-        // A card nobody controls acts for the first player, as scheme and villain abilities do.
-        controllerId: controllerOf(ctx.state, instanceId) ?? ctx.state.firstPlayerId,
+        // A card nobody controls acts for the player its "you" names (`uncontrolledYouOf`), else for the first player,
+        // as scheme and villain abilities do.
+        controllerId:
+          controllerOf(ctx.state, instanceId) ?? uncontrolledYouOf(ctx.state, instanceId) ?? ctx.state.firstPlayerId,
         forced: true,
         fromHand: false,
       },
@@ -316,9 +338,24 @@ export function applyFirstPlayerControl(ctx: Ctx): void {
       if (attached === null) moveCard(ctx, id, { kind: "playArea", playerId: first });
       updateInstance(ctx, id, (instance) => ({ ...instance, controllerId: first }));
       emit(ctx, { type: "controllerChanged", instanceId: id, from, to: first, reason: "firstPlayer" });
+      // RRG 1.8 "Ownership and Control" (p. 31): "When a player takes control of a campaign-specific or
+      // scenario-specific player card … with a player card back, that player becomes the owner of that card until the
+      // game ends or another player takes control of that card." So such a card a player owns is the new first
+      // player's, and a first player's elimination, which discards the cards they own (p. 34, step 4), leaves it in
+      // play (Mission Team, docs/phase7-wave8.md §3.35 test 5).
+      const card = cardOf(ctx.state, id);
+      const owner = ctx.state.instances[id]?.ownerId ?? null;
+      if (owner !== null && owner !== first && card && isSpecificPlayerCard(card)) {
+        updateInstance(ctx, id, (instance) => ({ ...instance, ownerId: first }));
+        emit(ctx, { type: "ownershipChanged", instanceId: id, playerId: first });
+      }
     }
   }
 }
+
+/** A campaign-specific or scenario-specific player card with a player card back (RRG 1.8 "Ownership and Control", p. 31). */
+const isSpecificPlayerCard = (card: AnyCard): boolean =>
+  "specificTo" in card && card.specificTo !== undefined && isPlayerCardType(card) && cardBackOf(card) === "player";
 
 /**
  * RRG 1.8 "Ownership and Control" (p. 31): "Upgrades on a card that changes control also change control to the same new
@@ -368,6 +405,7 @@ function applyFocusedActiveVillain(ctx: Ctx): void {
 /**
  * "X cannot be defeated" stopped covering a character it kept in play at zero or fewer remaining hit points
  * (`GameState.heldAtZero`): the card granting the rule left play, or its `while` ended (docs/phase7-wave7.md §3.34).
+ * The same watch covers a character "considered to have at least 1 hit point" (docs/phase7-wave8.md §3.10).
  * RRG 1.8 "Defeat" (p. 15), "If a character has zero or fewer remaining hit points … it is defeated", applies again the
  * moment nothing forbids it, so the defeat sweep runs here, between frames, before anything else continues. It carries
  * no damage, so the defeat has no defeating player and no defeating card: "after you defeat" is not offered and
@@ -383,7 +421,7 @@ function checkDefeatProtectionEnded(ctx: Ctx): boolean {
   if (held.length === 0) return false;
   const inPlay = cardsInPlay(ctx.state);
   const stillAtZero = held.filter((id) => inPlay.includes(id) && atZero(ctx, id));
-  const kept = stillAtZero.filter((id) => cannotBeDefeated(ctx.state, ctx.deps, id));
+  const kept = stillAtZero.filter((id) => defeatHeldOff(ctx.state, ctx.deps, id));
   if (kept.length !== held.length) ctx.state = { ...ctx.state, heldAtZero: kept };
   const released = stillAtZero.filter((id) => !kept.includes(id));
   if (released.length === 0) return false;
@@ -393,6 +431,91 @@ function checkDefeatProtectionEnded(ctx: Ctx): boolean {
   const depth = ctx.state.stack.length;
   checkDefeats(ctx);
   return ctx.state.stack.length > depth || ctx.state.outcome !== null;
+}
+
+/**
+ * A `notDefeatedWithoutThreat` rule stopped covering a side scheme it kept in play at no threat
+ * (`GameState.heldAtNoThreat`): the rule's `while` ended or the card granting it left play. "The [MISSION] side scheme
+ * cannot be defeated while there are any minions in the mission area" (MC45 p. 5; docs/phase7-wave8.md §3.40): with
+ * the last minion gone the scheme has "no threat remaining on it" and nothing forbids its defeat, so RRG 1.8 "Defeat"
+ * (p. 15) applies at once, between frames, before anything else continues. No removal of threat caused it, so the
+ * defeat has no defeating player and no defeating card, as a character's has when its protection ends (docs/phase7-
+ * wave7.md §4.1 Q21): "after you defeat a side scheme" is not offered. Its When Defeated resolves as for any defeat.
+ *
+ * A held scheme that has threat again, or is out of play, is dropped and nothing happens when the rule ends. Returns
+ * true when it put a defeat on the stack.
+ */
+function checkSchemeProtectionEnded(ctx: Ctx): boolean {
+  const held = ctx.state.heldAtNoThreat ?? [];
+  if (held.length === 0) return false;
+  const inPlay = cardsInPlay(ctx.state);
+  const atNoThreat = held.filter((id) => inPlay.includes(id) && ctx.state.instances[id]?.threat === 0);
+  const kept = atNoThreat.filter((id) => notDefeatedWithoutThreat(ctx.state, ctx.deps, id));
+  if (kept.length !== held.length) {
+    const { heldAtNoThreat: _dropped, ...rest } = ctx.state;
+    ctx.state = kept.length > 0 ? { ...ctx.state, heldAtNoThreat: kept } : rest;
+  }
+  const released = atNoThreat.filter((id) => !kept.includes(id));
+  if (released.length === 0) return false;
+  const frames: StackFrame[] = [];
+  for (const id of released) {
+    const cardId = ctx.state.instances[id]!.cardId;
+    emit(ctx, { type: "defeatProtectionEnded", instanceId: id, cardId });
+    emit(ctx, { type: "schemeDefeated", instanceId: id, cardId });
+    frames.push(
+      eventFrame(ctx, { kind: "schemeDefeated", instanceId: id, defeatedByPlayerId: null, sourceInstanceId: null }),
+    );
+  }
+  // Pushed last first, so the first released resolves first.
+  pushFrames(ctx, frames.reverse());
+  return true;
+}
+
+/**
+ * RRG 1.8 "Hit Points" (p. 22): "If an ability that says an ally or minion 'gets +X hit points' ceases to be in effect
+ * and causes that ally or minion to have damage on it equal to or greater than its hit points, that ally or minion is
+ * defeated", and for an identity or villain, "If that ability later ceases to be in effect, reduce that character's hit
+ * point dial by X", a dial at zero being a defeat. Damage dealt is swept where it is dealt; nothing else swept a
+ * character whose hit points came down to its damage, so it stood until the next damage anywhere.
+ *
+ * An edge, not a level: the hit points of each damaged character are remembered (`GameState.hitPointsSeen`) and the
+ * sweep runs only when one that was above the damage on it is seen at or below it. So a character deliberately left
+ * at zero is not defeated again by standing there: one a "cannot be defeated" rule or a hit point floor holds
+ * (`heldAtZero`, released by `checkDefeatProtectionEnded` alone), one whose defeat was replaced, and one whose damage
+ * was just dealt and whose own sweep, carrying who dealt it, is a frame away. The first sight of a character only
+ * records. The sweep carries no damage, so the defeat has no defeating player and no defeating card, as a protection
+ * ending has none (docs/phase7-wave7.md §4.1 Q21). Returns true when it put a defeat on the stack or ended the game.
+ */
+function checkHitPointsFell(ctx: Ctx): boolean {
+  const before = ctx.state.hitPointsSeen;
+  let seen: Record<string, number> | undefined;
+  const fell: { readonly id: InstanceId; readonly from: number; readonly to: number; readonly damage: number }[] = [];
+  for (const id of cardsInPlay(ctx.state)) {
+    const damage = ctx.state.instances[id]?.damage ?? 0;
+    if (damage <= 0) continue;
+    const hp = maxHitPoints(ctx.state, id, ctx.deps);
+    if (hp === undefined) continue;
+    (seen ??= {})[id] = hp;
+    const was = before?.[id];
+    // Crossed: above its damage when last seen, at or below it now. One already at zero that falls further has not.
+    if (was !== undefined && hp < was && damage < was && damage >= hp) fell.push({ id, from: was, to: hp, damage });
+  }
+  if (seen ? !before || !sameNumbers(seen, before) : before !== undefined) {
+    const { hitPointsSeen: _dropped, ...rest } = ctx.state;
+    ctx.state = seen ? { ...ctx.state, hitPointsSeen: seen } : rest;
+  }
+  if (fell.length === 0) return false;
+  for (const { id, from, to, damage } of fell) {
+    emit(ctx, { type: "hitPointsFell", instanceId: id, cardId: ctx.state.instances[id]!.cardId, from, to, damage });
+  }
+  const depth = ctx.state.stack.length;
+  checkDefeats(ctx);
+  return ctx.state.stack.length > depth || ctx.state.outcome !== null;
+}
+
+function sameNumbers(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => b[key] === a[key]);
 }
 
 function sameValues(a: Readonly<Record<string, boolean>>, b: Readonly<Record<string, boolean>>): boolean {

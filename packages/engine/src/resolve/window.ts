@@ -3,6 +3,9 @@
 import {
   announceResourcesSpent,
   commitPlay,
+  handCardsIn,
+  handDiscardCandidates,
+  playFrameCost,
   inPlayCostCandidates,
   isPriceFault,
   payCost,
@@ -11,14 +14,18 @@ import {
   payPayment,
   costResourceRequirement,
   planCost,
+  deckTopCostReduction,
+  deckTopPlayOf,
   playableFromAttachment,
   playCostModifier,
   priceOrNull,
   pricePlay,
   resourceVars,
+  settleAbilityPaidTypes,
+  logAbilityWildTypes,
   upToCounterChoice,
 } from "../actions.js";
-import { inPlayPicksOf } from "../abilities.js";
+import { inPlayPicksOf, resourcesChoiceOf } from "../abilities.js";
 import type { ChoiceOption } from "../choices.js";
 import type { CostChoices, CostSelection } from "../commands.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
@@ -38,7 +45,7 @@ import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
-import { candidatesFor, stillOffered } from "./triggers.js";
+import { candidatesFor, hearerKey, hearersOf, stillOffered } from "./triggers.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -92,9 +99,60 @@ function windowCandidates(
       sharedEvent: { index, event },
     })),
   );
-  return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
-    (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
+  return answeredTogether(
+    ctx,
+    frame,
+    [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
+      (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
+    ),
   );
+}
+
+/**
+ * "After you discard cards" (`EventPattern.together`): an ability whose pattern answers the occurrence once is one
+ * candidate however many of the window's conditions match it. The first one's candidate stays, carrying every
+ * condition it answers (`TriggerCandidate.together`); the others are dropped.
+ */
+function answeredTogether(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  candidates: readonly TriggerCandidate[],
+): readonly TriggerCandidate[] {
+  const kept: TriggerCandidate[] = [];
+  const at = new Map<string, number>();
+  for (const candidate of candidates) {
+    const trigger = ctx.deps.abilities[candidate.abilityId]?.trigger;
+    const together = (trigger?.kind === "interrupt" || trigger?.kind === "response") && trigger.on.together === true;
+    if (!together) {
+      kept.push(candidate);
+      continue;
+    }
+    const key = `${candidate.instanceId}:${candidate.abilityId}`;
+    const event = answered(frame, candidate).event;
+    const index = at.get(key);
+    const first = index === undefined ? undefined : kept[index];
+    if (index === undefined || first === undefined) {
+      at.set(key, kept.length);
+      kept.push({ ...candidate, together: [event] });
+    } else kept[index] = { ...first, together: [...(first.together ?? []), event] };
+  }
+  return kept;
+}
+
+/**
+ * The optional candidates of an interrupt window that were listening as it opened (`heardAtOpen`), were not offered
+ * then or since (`optionalAtOpen`), and can be initiated now: their condition was completed while the window was open.
+ * None for a response window, whose occurrence is over, and none until the window has recorded who was listening.
+ */
+function lateCandidates(ctx: Ctx, frame: Frame<"window">, would: boolean): readonly TriggerCandidate[] {
+  if (frame.timing !== "interrupt" || !frame.heardAtOpen || frame.heardAtOpen.length === 0) return [];
+  const keyOf = (candidate: TriggerCandidate): string =>
+    hearerKey(candidate.instanceId, candidate.abilityId, candidate.sharedEvent?.index);
+  const offered = new Set((frame.optionalAtOpen ?? []).map(keyOf));
+  const waiting = frame.heardAtOpen.filter((key) => !offered.has(key));
+  if (waiting.length === 0) return [];
+  const listening = new Set(waiting);
+  return windowCandidates(ctx, frame, false, would).filter((candidate) => listening.has(keyOf(candidate)));
 }
 
 /** Whether the candidate's interrupt reads "would" (`trigger.would`): the window's earlier tier. */
@@ -207,16 +265,38 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
     // A response to a card's discard from a deck, chosen before an earlier response in the queue moved that card: it
     // has nothing left to act on, and is not initiated (docs/phase7-wave7.md §3.55).
-    const answering = answered(frame, next).event;
-    if (answering.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, answering))
+    // One that answers several discards at once (`EventPattern.together`) still has the others to act on.
+    const answering = next.together ?? [answered(frame, next).event];
+    if (answering.every((each) => each.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, each)))
       return setFrame(ctx, { ...frame, queue: rest });
     // Another player defended this attack, or resolved a "(defense)" ability for it, since this one was picked or
     // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).
     if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...frame, queue: rest });
     if (askCostPick(ctx, frame, next, rest)) return;
+    if (askHandDiscard(ctx, frame, next, rest)) return;
     if (askCostCounters(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
+  }
+  // A player picked some of the optional abilities offered and they have resolved: the window is not declined, so the
+  // rest are offered again, to every player with one left (`pickedThisRound`). One that can no longer be initiated
+  // (its card is gone, its cost or target is) is dropped, as it is after the forced tier.
+  if (frame.pickedThisRound) {
+    const { pickedThisRound: _resolved, ...settled } = frame;
+    const remaining = frame.pending.filter(
+      (candidate) =>
+        stillImminent(ctx, frame, candidate) &&
+        stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
+    );
+    if (remaining.length === 0) return setFrame(ctx, { ...settled, pending: [] });
+    emit(ctx, {
+      type: "windowOpened",
+      event: frame.event,
+      timing: frame.timing,
+      ...(frame.wouldTier !== undefined ? { would: true as const } : {}),
+      candidates: remaining.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
+    });
+    return setFrame(ctx, { ...settled, pending: remaining, askingPlayerIds: controllersToAsk(ctx.state, remaining) });
   }
   // RRG 1.8 "'Would'" (p. 48): the "would" interrupts are a tier of their own, forced then optional, resolved before
   // the window gathers the event's other interrupts. One that replaced or cancelled the event closed the window above.
@@ -224,8 +304,28 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   const tierIndex = frame.wouldTier ?? frame.tierIndex;
   const forced = TIERS[tierIndex];
   if (forced === undefined) {
+    // An optional interrupt that resolved may have completed the condition of another that was listening as the
+    // window opened (`heardAtOpen`): those are offered now, in a further optional round, until none is new.
+    // Nothing optional was offered in this window: nothing optional resolved, so no condition was completed since.
+    const late = (frame.optionalAtOpen ?? []).length > 0 ? lateCandidates(ctx, frame, would) : [];
+    if (late.length > 0) {
+      emit(ctx, {
+        type: "windowOpened",
+        event: frame.event,
+        timing: frame.timing,
+        ...(would ? { would: true as const } : {}),
+        candidates: late.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
+      });
+      setFrame(ctx, {
+        ...frame,
+        pending: late,
+        optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late],
+        askingPlayerIds: controllersToAsk(ctx.state, late),
+      });
+      return;
+    }
     if (would) {
-      const { wouldTier: _done, optionalAtOpen: _wouldOptional, ...rest } = frame;
+      const { wouldTier: _done, optionalAtOpen: _wouldOptional, heardAtOpen: _wouldHeard, ...rest } = frame;
       setFrame(ctx, rest);
       return;
     }
@@ -238,18 +338,36 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   // the forced tier switched on is not offered for an occurrence it did not hear. The "would" tiers and the ordinary
   // ones are each read as they open.
   const atOpen = tierIndex === 0 ? windowCandidates(ctx, frame, false, would) : undefined;
+  // Interrupt windows: who was listening as it opened (`heardAtOpen`), so a listener whose condition is completed
+  // while the window is open can still be offered.
+  const heard =
+    tierIndex === 0 && frame.timing === "interrupt"
+      ? [
+          ...(frame.alsoEvents ?? []).flatMap((event, index) =>
+            hearersOf(ctx.state, ctx.deps, event, frame.timing, index),
+          ),
+          ...hearersOf(ctx.state, ctx.deps, frame.event, frame.timing),
+        ]
+      : undefined;
+  // A listener the forced tier completed the condition of joins the optional tier's first round.
+  const late = forced ? [] : lateCandidates(ctx, frame, would);
   const candidates = forced
     ? windowCandidates(ctx, frame, true, would)
-    : (frame.optionalAtOpen ?? windowCandidates(ctx, frame, false, would)).filter(
-        (candidate) =>
-          stillImminent(ctx, frame, candidate) &&
-          stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
-      );
+    : [
+        ...(frame.optionalAtOpen ?? windowCandidates(ctx, frame, false, would)).filter(
+          (candidate) =>
+            stillImminent(ctx, frame, candidate) &&
+            stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
+        ),
+        ...late,
+      ];
   const advanced = {
     ...frame,
     ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
     ...(atOpen ? { optionalAtOpen: atOpen } : {}),
+    ...(late.length > 0 ? { optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late] } : {}),
+    ...(heard ? { heardAtOpen: heard } : {}),
   };
   if (candidates.length === 0) {
     setFrame(ctx, advanced);
@@ -372,9 +490,12 @@ function windowEventCost(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCan
     0,
     printed + playCostModifier(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId, null),
   );
+  // Played from the top of the deck, less its permission's reduction (`playableTopOfDeck`, docs/phase7-wave8.md §3.49).
   const reduced = Math.max(
     0,
-    modified - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
+    modified -
+      costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId) -
+      deckTopCostReduction(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
   );
   // The ability's own resources, a computed X included (`resourcesEqualTo`), as `planCost` will ask for them.
   const abilityCost = costResourceRequirement(
@@ -536,6 +657,75 @@ function askCostPick(
   return false;
 }
 
+/** `CostChoices` key (and binding slot) of a hand-discard cost's picks (`AbilityCost.discardFromHand`). */
+const HAND_DISCARD_SLOT = "discard";
+
+/**
+ * Asks the candidate's controller which cards from hand pay its "discard N cards from your hand →" cost
+ * (`AbilityCost.discardFromHand`), after its picks of cards in play and before its payment: RRG 1.8 "Initiating
+ * Abilities" (p. 24), the cost is determined (step 3) before it is paid (step 5). Asked as a `chooseCostCards` choice
+ * with mode `discardFromHand`; selecting fewer than the cost's `min` backs out, as for a pick of cards in play. Asked
+ * even when the hand holds exactly `min` candidates, since those cards may also be what the player would pay
+ * resources with. Not asked with too few candidates (`planCost` refuses the cost), nor for a cost with no minimum and
+ * no `combined` threshold, which pays with no discard as it did before a window asked.
+ */
+function askHandDiscard(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  candidate: TriggerCandidate,
+  rest: readonly TriggerCandidate[],
+): boolean {
+  const controller = candidate.controllerId;
+  const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  const discard = cost?.discardFromHand;
+  if (!controller || !discard || (discard.min <= 0 && !discard.combined)) return false;
+  const choices = costChoicesFor(frame, candidate);
+  if (choices[HAND_DISCARD_SLOT] !== undefined) return false;
+  const candidates = handDiscardCandidates(ctx.state, ctx.deps, candidate.instanceId, controller, cost);
+  if (candidates.length < Math.max(discard.min, 1)) return false;
+  setFrame(ctx, {
+    ...frame,
+    queue: rest,
+    awaiting: "costPick",
+    paying: candidate,
+    costPicks: {
+      key: candidateKey(candidate),
+      choices,
+      asking: HAND_DISCARD_SLOT,
+      ...costSelectionFor(frame, candidate),
+    },
+  });
+  requestChoice(ctx, {
+    playerId: controller,
+    prompt: {
+      kind: "chooseCostCards",
+      instanceId: candidate.instanceId,
+      abilityId: candidate.abilityId,
+      slot: HAND_DISCARD_SLOT,
+      mode: "discardFromHand",
+    },
+    options: candidates.map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id },
+    })),
+    minSelections: 0,
+    maxSelections: Math.min(candidates.length, discard.max ?? candidates.length),
+    frameId: frame.frameId,
+  });
+  return true;
+}
+
+/** The payment options left once the cards picked for the candidate's hand-discard cost are kept out of them. */
+function withoutHandDiscards(
+  frame: Frame<"window">,
+  candidate: TriggerCandidate,
+  options: readonly ChoiceOption[],
+): readonly ChoiceOption[] {
+  const picked = new Set((costChoicesFor(frame, candidate)[HAND_DISCARD_SLOT] ?? []).map((id) => `hand:${id}`));
+  return picked.size === 0 ? options : options.filter((option) => !picked.has(option.optionId));
+}
+
 /**
  * The answer to a `chooseCostCards` choice: record the pick and put the candidate back at the head of the queue, so the
  * next pick (or its payment) is asked. Fewer than the pick's `min` backs out of the candidate.
@@ -543,9 +733,13 @@ function askCostPick(
 function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly string[], slot: string | null): void {
   const candidate = frame.paying;
   const { costPicks: _dropped, ...cleared } = { ...frame, answer: null, awaiting: null, paying: null };
-  const pick = candidate
-    ? inPlayPicksOf(ctx.deps.abilities[candidate.abilityId]?.cost).find((entry) => entry.pick.slot === slot)?.pick
-    : undefined;
+  const cost = candidate ? ctx.deps.abilities[candidate.abilityId]?.cost : undefined;
+  // A pick of cards in play, or the hand-discard cost's (`askHandDiscard`), which needs at least one card.
+  const pick =
+    inPlayPicksOf(cost).find((entry) => entry.pick.slot === slot)?.pick ??
+    (slot === HAND_DISCARD_SLOT && cost?.discardFromHand
+      ? { slot: HAND_DISCARD_SLOT, min: Math.max(cost.discardFromHand.min, 1) }
+      : undefined);
   if (!candidate || !pick || answer.length < pick.min) return setFrame(ctx, cleared);
   const picked = answer.map((id) => id as InstanceId);
   setFrame(ctx, {
@@ -600,12 +794,22 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   const needed = requirementTotal(plan.requirement);
   // An "X" cost ("spend up to 3 resources", Machine Man) totals 0 fixed resources but is still the player's decision
   // (the same guard `requestWindowPayment` has; docs/phase7-wave4.md §3.36).
-  if (needed > 0 || definition.cost.resourcesX !== undefined) {
-    const options = paymentOptions(ctx, controller, null, plan.payingFor ?? candidate.instanceId);
+  // So is a size the player chooses ("spend up to 3 resources →", `ResourcesChoice`; docs/phase7-wave8.md §3.62): the
+  // prompt carries its range, and `resolveChoice` refuses a selection below it (above it, the rest is overpaid).
+  const chosenSize = resourcesChoiceOf(plan.cost ?? definition.cost);
+  if (needed > 0 || definition.cost.resourcesX !== undefined || chosenSize) {
+    const payingFor = plan.payingFor ?? candidate.instanceId;
+    const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, controller, null, payingFor));
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
     requestChoice(ctx, {
       playerId: controller,
-      prompt: { kind: "payForAbility", instanceId: candidate.instanceId, abilityId: candidate.abilityId, cost: needed },
+      prompt: {
+        kind: "payForAbility",
+        instanceId: candidate.instanceId,
+        abilityId: candidate.abilityId,
+        cost: needed,
+        ...(chosenSize ? { chosenResources: { min: chosenSize.min, max: chosenSize.max, payingFor } } : {}),
+      },
       options,
       minSelections: 0,
       maxSelections: options.length,
@@ -635,7 +839,8 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
     controller,
     definition.cost,
     costChoicesFor(frame, candidate),
-    new Set(),
+    // A hand card spent on the resources cannot also be the card discarded for the cost (RRG 1.8 "Cost", p. 13).
+    handCardsIn(payment),
     selection,
     on.event,
   );
@@ -648,10 +853,23 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
   const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
   if (isPriceFault(paidVars)) return;
+  // The types the ability reads of this payment (docs/phase7-wave8.md §3.62): a wild whose declaration can change the
+  // reading is asked about by the ability's own frame, before it resolves anything.
+  const settled = settleAbilityPaidTypes(
+    ctx,
+    definition,
+    payingFor,
+    pool,
+    { ...plan.vars, ...paidVars },
+    plan.requirement,
+    plan.cost ?? definition.cost,
+  );
+  if (isPriceFault(settled)) return;
   const spent = payPayment(ctx, controller, payment, payingFor);
   pushFrames(ctx, [
-    abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
+    abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, settled.vars, settled.types?.undeclared),
   ]);
+  logAbilityWildTypes(ctx, controller, candidate.instanceId, candidate.abilityId, settled.types);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "ability");
 }
@@ -702,14 +920,15 @@ function requestWindowPayment(
   // as 0 while the player still has a real decision to make about how much to
   // spend (docs/phase2-core-set.md §3: X counts every resource in the payment
   // beyond the fixed cost). Never skip the sheet for one of those.
-  const hasXCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resourcesX !== undefined;
+  const eventCost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  const hasXCost = eventCost?.resourcesX !== undefined || resourcesChoiceOf(eventCost) !== null;
   if (cost === 0 && !hasXCost) {
     const playing = { ...frame, queue: rest, paying: candidate };
     setFrame(ctx, playing);
     playWindowEvent(ctx, playing, []);
     return;
   }
-  const options = paymentOptions(ctx, controller, candidate.instanceId);
+  const options = withoutHandDiscards(frame, candidate, paymentOptions(ctx, controller, candidate.instanceId));
   setFrame(ctx, { ...frame, queue: rest, awaiting: "pay", paying: candidate });
   requestChoice(ctx, {
     playerId: controller,
@@ -739,8 +958,11 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
   spendCostCounters(ctx, frame);
   const controller = candidate?.controllerId;
   if (!candidate || !controller) return;
-  // Still in hand, or still on a host that lets it be played "as if it were in your hand" (`inHandCandidates`).
+  // Still in hand, still on a host that lets it be played "as if it were in your hand", or still the top card of the
+  // deck under a `playableTopOfDeck` permission not used since it was offered (`inHandCandidates`).
+  const deckTop = deckTopPlayOf(ctx.state, ctx.deps, controller, candidate.instanceId);
   if (
+    !deckTop &&
     !mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId) &&
     !playableFromAttachment(ctx.state, ctx.deps, controller, candidate.instanceId)
   )
@@ -756,19 +978,22 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     costChoicesFor(frame, candidate),
     null,
     undefined,
-    0,
+    deckTop?.costReduction ?? 0,
     selection,
     answered(frame, candidate).event,
+    // The window's payment choice carries no declaration of its wilds: the play's own frame asks for one when a card
+    // reads the types that paid and the declaration can matter (docs/phase7-wave8.md §3.62).
+    { abilityId: candidate.abilityId },
   );
   if (isPriceFault(priced)) return;
-  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced);
+  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced, deckTop);
   pushPlayCardFrame(
     ctx,
     candidate.instanceId,
     controller,
     null,
     { triggeredAbilityId: candidate.abilityId, ...answered(frame, candidate) },
-    { bindings: priced.plan.bindings, vars: priced.vars },
+    playFrameCost(priced),
   );
   payCost(ctx, candidate.instanceId, controller, abilityCost, priced.plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "playCard");
@@ -800,6 +1025,9 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
     answer: null,
     awaiting: null,
     queue: [...frame.queue, ...picked],
+    // Each may be triggered once per occurrence: a picked one is not offered again.
+    pending: frame.pending.filter((candidate) => !picked.includes(candidate)),
+    ...(picked.length > 0 ? { pickedThisRound: true as const } : {}),
     askingPlayerIds: rest,
   });
 }

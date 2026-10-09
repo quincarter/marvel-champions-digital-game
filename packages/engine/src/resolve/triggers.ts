@@ -3,6 +3,12 @@
 import type { EngineDeps, EventPattern } from "../abilities.js";
 import {
   attachmentsPlayableBy,
+  deckTopCostReduction,
+  deckTopPlayableBy,
+  deckTopPlayOf,
+  playsOwnCardFromHand,
+  ownCardPlayFault,
+  defaultHandDiscardPicks,
   defaultInPlayPicks,
   isPriceFault,
   paymentOptions,
@@ -38,10 +44,11 @@ import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
-import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
-import type { AbilityDefinition } from "../abilities.js";
-import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
+import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
+import { chosenSizePayments } from "../payable.js";
+import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -69,8 +76,9 @@ function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: Abili
  * `fromHand`: an event played inside the window (`inHandCandidates`), whose cost is its printed cost plus its ability's
  * (`playRequirement`, as `playWindowEvent` prices it); otherwise the ability's own cost, paid from the card it is on.
  *
- * The non-resource parts are checked as `planCost` checks them, with the default picks of cards in play (a pick the
- * player makes later in the window, `costPick`, docs/phase7-wave4.md §3.17). The resources are checked against the most
+ * The non-resource parts are checked as `planCost` checks them, with the default picks of cards in play and of cards in
+ * hand for a hand-discard cost (picks the player makes later in the window, `costPick`, docs/phase7-wave4.md §3.17;
+ * a card picked for the discard still counts as a payment source here, part of the same upper bound). The resources are checked against the most
  * the player could generate: every payment source they could choose (`paymentOptions`, the same list the window's payment
  * prompt offers), each priced on its own and summed. That is an upper bound — two sources whose own costs clash still
  * both count — so an ability is only withheld when no payment could pay it; one that passes may still be declined at
@@ -88,26 +96,47 @@ function costPayable(
 ): boolean {
   const cost = definition.cost;
   if (!cost && !fromHand) return true;
+  // "Discard 1 card from your hand →" (`AbilityCost.discardFromHand`): default picks from the hand, as `legalActions`
+  // supplies them for an action, so the cost is judged on whether the hand holds enough cards it accepts.
+  const handPicks = defaultHandDiscardPicks(state, deps, id, playerId, cost);
   const plan = planCost(
     state,
     deps,
     id,
     playerId,
     cost,
-    defaultInPlayPicks(state, deps, id, playerId, cost),
+    { ...defaultInPlayPicks(state, deps, id, playerId, cost), ...(handPicks ? { discard: handPicks } : {}) },
     new Set(),
     {},
     event,
   );
   if (isPriceFault(plan)) return false;
-  const requirement = fromHand ? playRequirement(state, playerId, id, plan.requirement, deps) : plan.requirement;
-  if (requirementTotal(requirement) === 0) return true;
+  // Played from the top of the deck (`playableTopOfDeck`), the permission's reduction applies, as `playWindowEvent`
+  // prices it.
+  const requirement = fromHand
+    ? playRequirement(
+        state,
+        playerId,
+        id,
+        plan.requirement,
+        deps,
+        null,
+        0,
+        deckTopCostReduction(state, deps, playerId, id),
+      )
+    : plan.requirement;
+  const chosenSize = fromHand ? null : resourcesChoiceOf(plan.cost ?? cost);
+  if (requirementTotal(requirement) === 0 && !chosenSize) return true;
   const ctx = createCtx(state, deps);
   const exclude = fromHand ? id : null;
   const payingFor = plan.payingFor ?? id;
   const sources = paymentsFromOptionIds(
     paymentOptions(ctx, playerId, exclude, payingFor).map((option) => option.optionId),
   );
+  // "Spend up to 3 resources →" (`ResourcesChoice`; docs/phase7-wave8.md §3.62): at least one resource (RRG 1.8 "Cost",
+  // p. 14), and more than its maximum is overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG p. 13), so the ability
+  // is offered when some payment generates its minimum.
+  if (chosenSize) return !chosenSizePayments(state, deps, playerId, sources, chosenSize, payingFor, true).next().done;
   let most = EMPTY_POOL;
   for (const source of sources) {
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);
@@ -120,16 +149,20 @@ function matchesPattern(
   state: GameState,
   pattern: EventPattern,
   event: TriggerEvent,
+  /** The window the pattern is read in: it decides who the "you" of an enemy attack is (`attackYouOf`). */
+  timing: WindowTiming,
   selfId: InstanceId,
   deps: EngineDeps,
   /** Who controls `selfId` when that is not `controllerOf` (a spent card out of play, `spentCardCandidates`). */
   controllerOverride?: PlayerId,
 ): boolean {
-  if (!matchesOwnFields(state, pattern, event, selfId, deps, controllerOverride)) return false;
+  if (!matchesOwnFields(state, pattern, event, timing, selfId, deps, controllerOverride)) return false;
   // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well.
   return (
     pattern.anyOf === undefined ||
-    pattern.anyOf.some((alternative) => matchesPattern(state, alternative, event, selfId, deps, controllerOverride))
+    pattern.anyOf.some((alternative) =>
+      matchesPattern(state, alternative, event, timing, selfId, deps, controllerOverride),
+    )
   );
 }
 
@@ -138,6 +171,7 @@ function matchesOwnFields(
   state: GameState,
   pattern: EventPattern,
   event: TriggerEvent,
+  timing: WindowTiming,
   selfId: InstanceId,
   deps: EngineDeps,
   controllerOverride?: PlayerId,
@@ -158,14 +192,15 @@ function matchesOwnFields(
     // An encounter card has no controller: its "you" is the player the event is about — unless the rules name its
     // "you" (an attachment on a player card, an obligation: `uncontrolledYouOf`), when the event must be about them.
     if (!controller) {
-      const acting = actingPlayerOf(event, pattern);
+      const acting = actingPlayerOf(event, pattern, timing);
       if (acting === null) return false;
       const named = uncontrolledYouOf(state, selfId);
       if (named !== null && acting !== named) return false;
       return matchesRest(state, pattern, event, selfId, null, deps);
     }
-    // RRG p.9: "after [enemy] attacks you" resolves for the attacked player, not the defender.
-    const attackedPlayer = pattern.usesAttackedPlayer && event.kind === "enemyAttack" ? event.attackedPlayerId : null;
+    // "[enemy] attacks you": the attack's "you" at this timing, whichever of the player's characters was attacked.
+    const attackedPlayer =
+      pattern.usesAttackedPlayer && event.kind === "enemyAttack" ? attackYouOf(event, timing) : null;
     if (attackedPlayer !== null) {
       if (controller !== attackedPlayer) return false;
     } else if (!subjects.players.includes(controller)) {
@@ -211,7 +246,17 @@ function matchesRest(
   // rules name is that player, as it is for `playerIs` and for the card's rules (`uncontrolledYouOf`; RRG 1.8
   // "Attachment", p. 8, "Obligation", p. 30). Any other uncontrolled card's queries still read "you" as no one.
   const you = controller ?? uncontrolledYouOf(state, selfId);
-  const context: EffectContext = { selfInstanceId: selfId, controllerId: you, event, bindings: {}, deps };
+  const carried = carriedByEvent(event);
+  const context: EffectContext = {
+    selfInstanceId: selfId,
+    controllerId: you,
+    event,
+    bindings: carried.bindings,
+    vars: carried.vars,
+    deps,
+    // Watching is a read: a pattern sees a card in a closed scenario area (docs/phase7-wave8.md §4.1 Q18 = A).
+    reaches: "all",
+  };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;
     // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5). "After a
@@ -230,38 +275,50 @@ function matchesRest(
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
       if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
-    } else if ((event.kind === "dealDamage" || event.kind === "attack") && event.targetAsDamaged !== undefined) {
+    } else if (
+      (event.kind === "dealDamage" || event.kind === "attack") &&
+      event.targetAsDamaged !== undefined &&
+      event.targetInstanceId !== null
+    ) {
       // "After Deadpool takes damage": who the target was as it took the damage (`TargetSnapshot`), since the damage
       // may have turned an identity to its other side before this is read (RRG 1.8 "Identity", p. 23: a title names
       // only the side showing it). "After Cypher attacks and damages a confused enemy": the status cards it held as
       // the attack damaged it, since its defeat took them out of play (owner ruling 2026-10-06). Only the top-level
       // name and status clauses are read from the snapshot; the rest, and a clause inside `anyOf`/`not`, read the card
       // as it now is.
-      const { name, titled, hasStatus, hasAnyStatus, ...live } = query;
       const was = event.targetAsDamaged;
       const id = event.targetInstanceId;
-      if (name !== undefined && was.name !== name) return false;
-      if (
-        titled !== undefined &&
-        !characterNames(state, titled, context).some((wanted) => snapshotTitledAs(state, id, was.titles, wanted))
-      )
-        return false;
-      const held = was.statuses;
-      if (held !== undefined) {
-        if (hasStatus !== undefined && held[hasStatus] <= 0) return false;
-        if (hasAnyStatus !== undefined && STATUS_NAMES.some((status) => held[status] > 0) !== hasAnyStatus)
+      const asDamaged = (): boolean => {
+        const { name, titled, hasStatus, hasAnyStatus, ...live } = query;
+        if (name !== undefined && was.name !== name) return false;
+        if (
+          titled !== undefined &&
+          !characterNames(state, titled, context).some((wanted) => snapshotTitledAs(state, id, was.titles, wanted))
+        )
           return false;
-      }
-      // A snapshot stamped before it carried statuses: those clauses read the live card with the rest.
-      const rest: TargetQuery =
-        held !== undefined
-          ? live
-          : {
-              ...live,
-              ...(hasStatus !== undefined ? { hasStatus } : {}),
-              ...(hasAnyStatus !== undefined ? { hasAnyStatus } : {}),
-            };
-      if (!matchesQuery(state, id, rest, context)) return false;
+        const held = was.statuses;
+        if (held !== undefined) {
+          if (hasStatus !== undefined && held[hasStatus] <= 0) return false;
+          if (hasAnyStatus !== undefined && STATUS_NAMES.some((status) => held[status] > 0) !== hasAnyStatus)
+            return false;
+        }
+        // A snapshot stamped before it carried statuses: those clauses read the live card with the rest.
+        const rest: TargetQuery =
+          held !== undefined
+            ? live
+            : {
+                ...live,
+                ...(hasStatus !== undefined ? { hasStatus } : {}),
+                ...(hasAnyStatus !== undefined ? { hasAnyStatus } : {}),
+              };
+        return matchesQuery(state, id, rest, context);
+      };
+      // An "(attack)" ability's attack attacked every enemy it targeted (`attack.attacked`, owner ruling Q50): "after
+      // you attack a minion" is satisfied by any of them. Only the first target has a snapshot; the others are read
+      // as they now are.
+      const others = event.kind === "attack" ? subjects.targets.filter((target) => target !== id) : [];
+      const first = subjects.targets.includes(id) && asDamaged();
+      if (!first && !others.some((target) => matchesQuery(state, target, query, context))) return false;
     } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }
   if (pattern.sourceIs) {
@@ -351,9 +408,29 @@ function matchesRest(
   return true;
 }
 
+/**
+ * The "you" of "[enemy] attacks you" (`EventPattern.usesAttackedPlayer`). RRG 1.8 "Defend, Defense" (the entry begins
+ * on p. 15; these sentences are on p. 16): "If a player defends against an enemy attack that targets a different
+ * player (either by defending with a character they control or by resolving a defense ability), the defending player
+ * becomes the new target of that attack. Any triggered ability that refers to 'you' refers to the player who was the
+ * target of the attack when that ability resolved. (For example, the 'you' in an ability that triggers 'when [enemy]
+ * attacks you' refers to the player against whom the attack initiated, while the 'you' in an ability that triggers
+ * 'after [enemy] attacks you' refers to the player whose character defended the attack.)" Owner ruling, 2026-10-09
+ * (docs/phase7-wave8.md §4.1 row 91).
+ *
+ * So an interrupt reads the player the attack was initiated against (`attackedPlayerId`), and a response reads the
+ * attack's target player as it ended (`targetPlayerId`): the controller of the hero or ally that defended (p. 15:
+ * "When an ally defends an attack, ... its controller becomes the target player for that attack"), the player whose
+ * "(defense)" ability made their identity the defender, or the attacked player still when nobody defended. A player
+ * who defends with their own ally stays "you" (RRG 1.8 "Attack (Enemy Activation)", p. 8).
+ */
+function attackYouOf(event: Extract<TriggerEvent, { kind: "enemyAttack" }>, timing: WindowTiming): PlayerId {
+  return timing === "response" ? event.targetPlayerId : event.attackedPlayerId;
+}
+
 /** Who "you" is when an encounter card's ability triggers on an event. */
-function actingPlayerOf(event: TriggerEvent, pattern: EventPattern): PlayerId | null {
-  if (event.kind === "enemyAttack" && usesAttackedPlayer(pattern, event)) return event.attackedPlayerId;
+function actingPlayerOf(event: TriggerEvent, pattern: EventPattern, timing: WindowTiming): PlayerId | null {
+  if (event.kind === "enemyAttack" && usesAttackedPlayer(pattern, event)) return attackYouOf(event, timing);
   return eventSubjects(event).players[0] ?? null;
 }
 
@@ -372,8 +449,13 @@ function usesAttackedPlayer(pattern: EventPattern, event: TriggerEvent): boolean
  * "(you may) place that many chime counters here instead"); with no controlling player, `controllersToAsk` falls back
  * to the first player. Forced abilities keep `actingPlayerOf`: nobody chooses whether to resolve them.
  */
-function offeredPlayerOf(state: GameState, event: TriggerEvent, pattern: EventPattern): PlayerId | null {
-  const acting = actingPlayerOf(event, pattern);
+function offeredPlayerOf(
+  state: GameState,
+  event: TriggerEvent,
+  pattern: EventPattern,
+  timing: WindowTiming,
+): PlayerId | null {
+  const acting = actingPlayerOf(event, pattern, timing);
   if (acting !== null || event.kind !== "dealDamage") return acting;
   return sourcePlayerOf(state, event);
 }
@@ -399,7 +481,16 @@ function conditionHolds(
   event: TriggerEvent,
 ): boolean {
   if ((trigger.kind !== "interrupt" && trigger.kind !== "response") || !trigger.while) return true;
-  return evaluate(state, trigger.while, { selfInstanceId: id, controllerId: playerId, event, bindings: {}, deps });
+  // "…, if you discarded at least 1 [mental]": what the answered moment carries is read here too (§3.71).
+  const carried = carriedByEvent(event);
+  return evaluate(state, trigger.while, {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event,
+    bindings: carried.bindings,
+    vars: carried.vars,
+    deps,
+  });
 }
 
 /**
@@ -485,6 +576,8 @@ function gatherCandidates(
 ): readonly TriggerCandidate[] {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
   if (timing === "response" && event.kind === "villainStepStarting") return [];
+  // A change of form about to happen is interrupt-only: "after you change form" answers `formChanged`.
+  if (timing === "response" && event.kind === "formChanging") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
@@ -532,16 +625,17 @@ function gatherCandidates(
         (trigger.firstPlayerOnly === true
           ? state.firstPlayerId
           : (uncontrolledYouOf(state, id) ??
-            (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
+            (forced ? actingPlayerOf(event, trigger.on, timing) : offeredPlayerOf(state, event, trigger.on, timing))));
       if (acting !== null && triggeredAbilityForbidden(state, deps, id, trigger, acting, noTriggers)) continue;
       // "Hero Response" on an encounter card gates the player who resolves it (docs/phase7-wave6.md §3.11).
       if (!formSatisfied(state, acting, trigger.form)) continue;
       if (!conditionHolds(state, deps, trigger, id, acting, event)) continue;
       if (trigger.notWhileResolving === true && abilityResolving(state, id, ref.id)) continue;
       const limitPlayer =
-        controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
+        controllerId ??
+        (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on, timing));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
-      if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
+      if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
       // RRG 1.8 "Target" (pp. 42–43): an optional ability with no valid target is not offered (docs/phase7-wave3.md §3.5).
       if (!forced && abilityLacksValidTarget(state, deps, definition, id, limitPlayer, event)) continue;
@@ -581,7 +675,7 @@ function keywordCandidates(
     if (!kinds.includes(event.kind)) continue;
     for (const id of cardsInPlay(state)) {
       if (!hasKeyword(state, id, ability.keyword, deps)) continue;
-      if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
+      if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       const controllerId = controllerOf(state, id) ?? uncontrolledYouOf(state, id);
       found.push({ instanceId: id, abilityId: ability.abilityId, controllerId, forced, fromHand: false });
     }
@@ -607,7 +701,7 @@ function offeredTo(
   if (!formSatisfied(state, playerId, trigger.form)) return false;
   if (!conditionHolds(state, deps, trigger, id, playerId, event)) return false;
   if (limitReached(state, id, abilityId, definition, event, playerId)) return false;
-  if (!matchesPattern(state, trigger.on, event, id, deps, playerId)) return false;
+  if (!matchesPattern(state, trigger.on, event, trigger.kind, id, deps, playerId)) return false;
   if (cancelHasNoTarget(state, deps, definition, event)) return false;
   if (abilityLacksValidTarget(state, deps, definition, id, playerId, event)) return false;
   return costPayable(state, deps, id, playerId, definition, false, event);
@@ -640,7 +734,7 @@ function leftCardCandidates(
     if (!formSatisfied(state, controllerId, trigger.form)) continue;
     if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
     if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
-    if (!matchesPattern(state, trigger.on, event, id, deps, controllerId ?? undefined)) continue;
+    if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId ?? undefined)) continue;
     // A cost is paid from play; a card that has left has nothing to pay it with.
     if (definition.cost) continue;
     found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
@@ -681,7 +775,7 @@ function deckDiscardCandidates(
     if (!formSatisfied(state, controllerId, trigger.form)) continue;
     if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
     if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
-    if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
+    if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId)) continue;
     if (!forced && abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) continue;
     if (definition.cost) continue;
     found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
@@ -724,7 +818,7 @@ function spentCardCandidates(
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
       if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
-      if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
+      if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId)) continue;
       if (!costPayable(state, deps, id, controllerId, definition, false, event)) continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
     }
@@ -760,7 +854,11 @@ function inHandCandidates(
   const found: TriggerCandidate[] = [];
   for (const player of playerOrder(state)) {
     const attached = new Set(attachmentsPlayableBy(state, deps, player.playerId));
-    for (const id of [...player.hand, ...attached]) {
+    // "You may play the top card of your deck as if it was in your hand" (`playableTopOfDeck`, docs/phase7-wave8.md
+    // §3.49): offered as an event in hand is, and for an in-hand ability that plays its own card (`playsOwnCardFromHand`).
+    // Nothing else of the card works from there: it is in the deck.
+    const deckTop = new Set(deckTopPlayableBy(state, deps, player.playerId));
+    for (const id of [...player.hand, ...attached, ...deckTop]) {
       const card = cardOf(state, id);
       if (!card) continue;
       // "While Pip the Troll is in your hand, he gains 'Interrupt: …'" (`activeIn: "hand"`, docs/phase7-wave4.md §3.13):
@@ -775,6 +873,7 @@ function inHandCandidates(
         for (const ref of "abilities" in card ? card.abilities : []) {
           const definition = deps.abilities[ref.id];
           if (!definition || definition.activeIn !== "hand") continue;
+          if (deckTop.has(id) && !playsOwnCardFromHand(definition)) continue;
           const trigger = definition.trigger;
           if (trigger.kind !== timing || trigger.forced !== forced) continue;
           // "Other players cannot resolve player card abilities during your turn": one used from a hand included.
@@ -783,9 +882,12 @@ function inHandCandidates(
           if (!conditionHolds(state, deps, trigger, id, player.playerId, event)) continue;
           if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
           // The card's "you" is the player whose hand it is in.
-          if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
+          if (!matchesPattern(state, trigger.on, event, timing, id, deps, player.playerId)) continue;
           if (cancelHasNoTarget(state, deps, definition, event)) continue;
           if (!forced && abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
+          // "Play Colossus from your hand (paying his resource cost)": an optional in-hand ability that plays its own
+          // card is not offered while the card could not be played or paid for (`ownCardPlayFault`).
+          if (!forced && ownCardPlayFault(state, deps, player.playerId, id, definition, event) !== null) continue;
           found.push({ instanceId: id, abilityId: ref.id, controllerId: player.playerId, forced, fromHand: false });
         }
       }
@@ -808,7 +910,7 @@ function inHandCandidates(
         // "(Max 1 per attack.)" on an event (docs/phase7-wave7.md §3.69): a copy that could not be triggered for this
         // instance is not offered, so it is never played for nothing.
         if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
-        if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
+        if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
         if (cancelHasNoTarget(state, deps, definition, event)) continue;
         if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
         // Its printed cost and its ability's cost (Full Blast's "exhaust Cyclops →") must be payable (`costPayable`).
@@ -820,6 +922,55 @@ function inHandCandidates(
           forced: false,
           fromHand: true,
         });
+      }
+    }
+  }
+  return found;
+}
+
+/** A candidate's key in `Frame<"window">.heardAtOpen`: its card, its ability and, in a shared window, its condition. */
+export const hearerKey = (instanceId: InstanceId, abilityId: AbilityId, sharedIndex?: number): string =>
+  `${instanceId}:${abilityId}${sharedIndex === undefined ? "" : `@${sharedIndex}`}`;
+
+/**
+ * The optional abilities of this timing that are live right now and listen for this kind of event, whatever the rest
+ * of their condition says (`Frame<"window">.heardAtOpen`): on a card in play with the ability active, an event in a
+ * hand (or playable from an attachment or the top of a deck) with an ability of this timing, or a card's own
+ * "while in your hand" ability. Liveness only; `candidatesFor` judges everything else when one is offered.
+ */
+export function hearersOf(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  sharedIndex?: number,
+): readonly string[] {
+  const listens = (definition: AbilityDefinition | undefined): boolean => {
+    const trigger = definition?.trigger;
+    if (!trigger || trigger.kind !== timing || trigger.forced) return false;
+    const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes(event.kind);
+  };
+  const found: string[] = [];
+  for (const id of cardsInPlay(state)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.activeIn === "hand" || definition?.activeIn === "discard") continue;
+      if (listens(definition)) found.push(hearerKey(id, ref.id, sharedIndex));
+    }
+  }
+  for (const player of playerOrder(state)) {
+    const elsewhere = [
+      ...attachmentsPlayableBy(state, deps, player.playerId),
+      ...deckTopPlayableBy(state, deps, player.playerId),
+    ];
+    for (const id of [...player.hand, ...elsewhere]) {
+      const card = cardOf(state, id);
+      if (!card || !("abilities" in card)) continue;
+      for (const ref of card.abilities) {
+        const definition = deps.abilities[ref.id];
+        if (card.type !== "event" && definition?.activeIn !== "hand") continue;
+        if (listens(definition)) found.push(hearerKey(id, ref.id, sharedIndex));
       }
     }
   }
@@ -855,6 +1006,7 @@ export function eachTimeEffectsFor(
         state,
         effect.on,
         event,
+        "response",
         effect.scope.selfInstanceId,
         deps,
         effect.scope.controllerId ?? undefined,
@@ -894,16 +1046,26 @@ export function stillOffered(
     const player = getPlayer(state, controllerId);
     const card = cardOf(state, id);
     if (!player || !card) return false;
-    if (!player.hand.includes(id) && !attachmentsPlayableBy(state, deps, controllerId).includes(id)) return false;
+    if (
+      !player.hand.includes(id) &&
+      !attachmentsPlayableBy(state, deps, controllerId).includes(id) &&
+      !deckTopPlayOf(state, deps, controllerId, id)
+    )
+      return false;
     if (playRestrictionFault(state, deps, controllerId, card, id)) return false;
     if (cannotPlayCard(state, deps, controllerId, id)) return false;
+    // A card that plays itself in a window is still entering play (`RuleSpec cannotEnterPlay`; an event is not).
+    if (card.type !== "event" && cannotEnterPlay(state, deps, id)) return false;
   } else if (cardsInPlay(state).includes(id)) {
     if (!activeAbilityRefs(state, id, deps).some((ref) => ref.id === candidate.abilityId)) return false;
     const noTriggers = activeRules(state, deps, "cannotResolveTriggeredAbilities");
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) return false;
   } else if (definition.activeIn === "hand") {
-    if (!controllerId || !getPlayer(state, controllerId)?.hand.includes(id)) return false;
+    if (!controllerId) return false;
+    const fromDeckTop = playsOwnCardFromHand(definition) && deckTopPlayOf(state, deps, controllerId, id) !== null;
+    if (!getPlayer(state, controllerId)?.hand.includes(id) && !fromDeckTop) return false;
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId)) return false;
+    if (ownCardPlayFault(state, deps, controllerId, id, definition, event) !== null) return false;
   } else if (!answersFromOutOfPlay(event, id)) {
     return false; // it left play while the forced tier resolved
   }

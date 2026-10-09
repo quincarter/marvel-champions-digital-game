@@ -7,8 +7,10 @@ import { type Ctx, emit, popFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
+import { abilityIgnored } from "../select.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { declareWildTypes } from "./declare-wilds.js";
 import { declareLabeledDefense, declaresDefender, recordDefenseLabel } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
@@ -77,6 +79,11 @@ export function limitReached(
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
+  // The ability's payment is read for types and holds a wild its player has not declared (docs/phase7-wave8.md §3.62):
+  // asked before anything of the ability resolves. An ability nobody controls pays no such cost.
+  if (frame.undeclaredWilds && frame.controllerId) {
+    return declareWildTypes(ctx, frame, frame.controllerId, frame.undeclaredWilds);
+  }
   popFrame(ctx);
   const below = ctx.state.stack[0]?.frameId ?? null;
   resolveAbility(ctx, frame);
@@ -92,6 +99,12 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   const keyword = keywordAbilityOf(frame.abilityId);
   const definition = keyword?.definition ?? ctx.deps.abilities[frame.abilityId];
   if (!definition) return;
+  // "Ignore the [ability]" (`RuleSpec ignoreAbilities`, docs/phase7-wave8.md §3.21; RRG 1.8 "Ignore", p. 23): an
+  // instance that triggered before the rule began does not resolve. It is not canceled, and its limit is not spent.
+  if (!keyword && abilityIgnored(ctx.state, ctx.deps, frame.instanceId, frame.abilityId)) {
+    emit(ctx, { type: "abilityIgnored", instanceId: frame.instanceId, abilityId: frame.abilityId });
+    return;
+  }
   // A "take damage" cost not all taken was not paid (RRG 1.8 "Cost", p. 14; `cost-damage.ts`), so the ability is not
   // initiated: "abort this process" (RRG 1.8 "Initiating Abilities", p. 24, step 5). Logged as `costDamageSettled`.
   if ((frame.vars[COST_NOT_PAID_VAR] ?? 0) > 0) return;

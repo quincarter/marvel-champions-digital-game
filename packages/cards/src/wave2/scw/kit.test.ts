@@ -184,6 +184,55 @@ describe("Scarlet Witch kit", () => {
     expect(gotStatus).toBe(true);
   });
 
+  // docs/phase7-wave2.md §4 Q8: a card effect's own count of boost icons on an encounter card opens the same "would
+  // be counted" window an activation's boost step does (`countBoostIcons`).
+  const hexBoltSetup = () => {
+    const hero = runWave2(scwVsRhino(), toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const cleared = {
+      ...hero,
+      instances: {
+        ...hero.instances,
+        [villain]: { ...hero.instances[villain]!, damage: 0 },
+        [hero.mainScheme.instanceId]: { ...hero.instances[hero.mainScheme.instanceId]!, threat: 5 },
+      },
+    };
+    // Hex Bolt discards Advance (01186, 0 icons), Caught Off Guard (01188, 1) and Shadow of the Past (01190, 2);
+    // Hydra Mercenary (01101, 1 icon) is the next card down, the one Chaos Control would discard.
+    return { state: stackEncounterDeck(cleared, "01186", "01188", "01190", "01101"), villain };
+  };
+
+  it("Chaos Control: replaces one card's count in Hex Bolt, so that card resolves the bullet of the card counted instead", () => {
+    const { state: start, villain } = hexBoltSetup();
+    const threatBefore = mainThreat(start);
+    const discardBefore = activeEncounterDeck(start).discard.length;
+    const { state } = playFromHand(start, "15004", 2, accepting("15001a.chaos-control"));
+    // Advance's count (0 icons: "deal 2 damage to an enemy") is replaced by Hydra Mercenary's 1 icon: "remove 2
+    // threat from a scheme", as Caught Off Guard's own bullet is. Limit once per phase: the other two count as printed.
+    expect(inst(state, villain).damage).toBe(0);
+    expect(mainThreat(state)).toBe(threatBefore - 4);
+    // Hex Bolt's 3 cards plus the one Chaos Control discarded.
+    expect(activeEncounterDeck(state).discard.length).toBe(discardBefore + 4);
+  });
+
+  it("Chaos Control: declined, Hex Bolt counts each discarded card's own icons and discards nothing more", () => {
+    const { state: start, villain } = hexBoltSetup();
+    const threatBefore = mainThreat(start);
+    const discardBefore = activeEncounterDeck(start).discard.length;
+    const { state } = playFromHand(start, "15004", 2);
+    expect(inst(state, villain).damage).toBe(2);
+    expect(mainThreat(state)).toBe(threatBefore - 2);
+    expect(activeEncounterDeck(state).discard.length).toBe(discardBefore + 3);
+  });
+
+  it("Chaos Control: replaces one of Molecular Decay's two counts", () => {
+    const { state: start, villain } = hexBoltSetup();
+    // Advance (0) and Caught Off Guard (1) are discarded; Chaos Control then discards Shadow of the Past (2 icons)
+    // and counts it instead of Advance: 5 + 2 + 1 = 8, not 5 + 0 + 1.
+    const { state } = playFromHand(start, "15005", 3, accepting("enemy", "15001a.chaos-control"));
+    expect(inst(state, villain).damage).toBe(8);
+  });
+
   it("Molecular Decay: deals 5 damage to an enemy, plus 1 more for each boost icon among 2 discarded cards", () => {
     const hero = runWave2(scwVsRhino(), toHero());
     const villain = hero.villains[0]!.instanceId;

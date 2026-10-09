@@ -12,12 +12,24 @@
  * an encounter-side decision legible as one (docs/phase3-encounter-ai.md).
  */
 
+import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
 import Phaser from "phaser";
 import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
+import {
+  McButton,
+  McHpPlate,
+  McSelectionRing,
+  fitText,
+  fitWrapped,
+  label,
+  paintPanel,
+  paintThreatMeter,
+} from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { abilityFaceOf, characterPanel, faceOf } from "../view/board-model.js";
@@ -25,8 +37,9 @@ import type { Rect } from "../view/layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { divideSheetOf } from "../view/divide-sheet.js";
-import { paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
+import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
+import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
+import { chosenResourcesNoteOf, paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
@@ -75,6 +88,16 @@ import { breakAnswerAt, breakReadout, breakStartedAt, clearBreakStart, isBreakCh
 import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
+import {
+  assign,
+  beginPairing,
+  checkAssign,
+  pairingView,
+  selectionOf,
+  unassign,
+  withRefusal,
+  type PairingState,
+} from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
@@ -86,8 +109,22 @@ import { OverlayMotion } from "../ui/transitions.js";
 import { McGuideTag } from "../ui/guide-tag.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent, type GuideStripRects } from "../ui/guide-strip.js";
 
+/** The sheet's title: one line down to a readable 16px, then two lines at up to 17px, never a shrunken single line. */
+function fitBarTitle(title: Phaser.GameObjects.Text, maxWidth: number): void {
+  const readable = 16;
+  title.setFontSize(readable);
+  if (title.width <= maxWidth) {
+    fitText(title, maxWidth, typeRole.barTitle.size);
+    return;
+  }
+  title.setLetterSpacing(1);
+  fitWrapped(title, maxWidth, 2, 17);
+}
+
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
+  /** The target tiles' bars for the sheet being drawn (`view/choice-tile-bars.ts`), rebuilt with every draw. */
+  #tileBars: ReadonlyMap<string, TileBar> = new Map();
   /** Break Time: the table chose "Enter minutes instead", so the stepper stands in for the timer on this choice. */
   #breakManual = false;
   /** Redraws the break clock's digits once a second (the digits are the only thing that moves). */
@@ -96,6 +133,11 @@ export class ChoiceOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   #choiceId: string | null = null;
   #maxSelections = 1;
+  /** The pairing under way for a `pairCards` choice (`view/pair-cards-model.ts`), and the card picked up to place. */
+  #pairing: PairingState | null = null;
+  #pairCard: InstanceId | null = null;
+  /** The pair sheet's rows scroll when the characters outrun the sheet (a phone); the offset survives each redraw. */
+  readonly #pairScroll = new VariableListScroll();
   /** Keyboard/pad focus: what is focused, not where — the rect is re-read each rebuild. */
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
@@ -260,7 +302,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #rebuild(): void {
     const { store } = appSession();
     const state = store.state;
-    const choice = state.game?.pendingChoice;
+    const choice = state.game?.pendingChoice ? shownDivideChoice(state.game.pendingChoice) : undefined;
     const action = choiceSheetAction({
       leaving: this.#motion.leaving,
       shownChoiceId: this.#choiceId,
@@ -285,6 +327,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#selected = report ? [...reportAnswerOf(report, report.start)] : [...initialChoiceSelection(choice)];
       this.#focus = isBreakChoice(choice) ? { kind: "confirm" } : null;
       this.#breakManual = false;
+      this.#pairing = beginPairing(choice);
+      this.#pairCard = null;
+      if (this.#pairing) this.#selected = [...selectionOf(this.#pairing)];
     }
     this.#maxSelections = choice.maxSelections;
 
@@ -353,6 +398,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     const areaHeight = height - stripHeight;
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(areaX, 0, areaWidth, areaHeight);
+    // Modal: a tap or right-click on no control of this sheet's own must not reach the board card underneath.
+    this.add.zone(areaX, 0, areaWidth, areaHeight).setOrigin(0, 0).setInteractive();
     const panelsFrom = this.children.list.length;
 
     const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
@@ -442,13 +489,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, POOL_DEPS, choice);
+        : promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game);
     const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
-    fitText(title, Math.max(60, titleRight - titleLeft), typeRole.barTitle.size);
+    fitBarTitle(title, Math.max(60, titleRight - titleLeft));
 
     if (backOutRect) {
       this.#buttons.push(
@@ -496,7 +543,8 @@ export class ChoiceOverlay extends Phaser.Scene {
         ? lookAtAdvisoryOf(state.game, choice)
         : isBreakChoice(choice)
           ? ""
-          : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
+          : (chosenResourcesNoteOf(choice.prompt) ??
+            `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`),
       typeRole.label,
       surface.ink.hex,
       ink.label,
@@ -531,6 +579,24 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
       this.#focusRects.set(choiceFocusKey({ kind: "reveal" }), cover);
       this.#route = [{ kind: "reveal" }, ...choiceFocusOrder([], canDeclineChoice(choice))];
+      this.#drawCommit(sheet, commitTop, choice);
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
+
+    if (this.#pairing) {
+      const pairing = this.#pairing;
+      this.#drawPairSheet(
+        { x: sheet.x + 12, y: listTop, width: sheet.width - 24, height: listHeight },
+        state.game,
+        pairing,
+        canDeclineChoice(choice),
+      );
       this.#drawCommit(sheet, commitTop, choice);
       this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
       const guideStripRects = guideStrip
@@ -663,6 +729,149 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /**
+   * The `pairCards` sheet (a mission attempt's "assign each discarded card to a different ally", MC45 p. 6): the
+   * discarded cards in one column, the characters in the other. Tap a card to pick it up and a character to place it
+   * there; tap a placed card to take it back. Each row says its icons and, once paired, "match" or "no match" in
+   * words, so no state rests on color. Which pairs are allowed, which match and how many the restriction lets
+   * through are the engine's (`view/pair-cards-model.ts`); Confirm may go with cards left over.
+   */
+  #drawPairSheet(area: Rect, game: GameState, pairing: PairingState, canDecline: boolean): void {
+    const view = pairingView(game, pairing);
+    const gap = 8;
+    const colWidth = (area.width - gap) / 2;
+    const rows = Math.max(view.cards.length, view.characters.length, 1);
+    const footer = 14 * (2 + (view.restriction ? 1 : 0) + (view.fault || view.refusal ? 1 : 0)) + 6;
+    const headerHeight = 16;
+    // Three lines at least: a long name wraps to a second line over the status line.
+    const rowHeight = Math.max(54, Math.min(60, (area.height - headerHeight - footer - 4) / rows - 4));
+    const rowsHeight = rows * (rowHeight + 4);
+    const viewportHeight = Math.max(rowHeight, area.height - headerHeight - footer - 4);
+    const scrolls = rowsHeight > viewportHeight;
+    const viewport: Rect = { x: area.x, y: area.y + headerHeight, width: area.width, height: viewportHeight };
+    const rowButtons: McButton[] = [];
+    const holding = this.#pairCard;
+    const moves = new Set(view.cards.find((row) => row.instanceId === holding)?.canGoTo ?? []);
+
+    label(this, area.x, area.y, "discarded cards", typeRole.label, surface.ink.hex, ink.label);
+    label(this, area.x + colWidth + gap, area.y, "characters", typeRole.label, surface.ink.hex, ink.label);
+
+    const keys: string[] = [];
+    view.cards.forEach((row, index) => {
+      const rect: Rect = {
+        x: area.x,
+        y: area.y + headerHeight + index * (rowHeight + 4),
+        width: colWidth,
+        height: rowHeight,
+      };
+      const status =
+        row.assignedToName !== null
+          ? `${row.assignedToName}: ${view.pairs.find((pair) => pair.card === row.instanceId)?.matches ? "match" : "no match"} (tap to undo)`
+          : holding === row.instanceId
+            ? "picked up: tap a character"
+            : "unassigned";
+      const key = `${PAIR_CARD}${row.instanceId}`;
+      keys.push(key);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${row.name} · ${row.iconWords}\n${status}`,
+          type: typeRole.rowTitle,
+          rect,
+          selected: holding === row.instanceId || row.assignedTo !== null,
+          wrap: true,
+          ...(scrolls ? { clip: () => viewport } : {}),
+          onClick: () => this.#pairTapCard(row.instanceId),
+        }),
+      );
+      rowButtons.push(this.#buttons[this.#buttons.length - 1]!);
+      this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
+    });
+    view.characters.forEach((row, index) => {
+      const rect: Rect = {
+        x: area.x + colWidth + gap,
+        y: area.y + headerHeight + index * (rowHeight + 4),
+        width: colWidth,
+        height: rowHeight,
+      };
+      const status =
+        row.takenByName !== null
+          ? `${row.takenByName}: ${row.participates ? "match, takes part" : "no match"}`
+          : holding !== null && moves.has(row.instanceId)
+            ? "tap to place here"
+            : "no card";
+      const key = `${PAIR_CHARACTER}${row.instanceId}`;
+      keys.push(key);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${row.name} · ${row.iconWords}\n${status}`,
+          type: typeRole.rowTitle,
+          rect,
+          selected: row.takenBy !== null,
+          enabled: holding === null || moves.has(row.instanceId) || row.takenBy !== null,
+          reason: "That card can't go to this character",
+          wrap: true,
+          ...(scrolls ? { clip: () => viewport } : {}),
+          onClick: () => this.#pairTapCharacter(row.instanceId),
+        }),
+      );
+      rowButtons.push(this.#buttons[this.#buttons.length - 1]!);
+      this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
+    });
+    this.#route = choiceFocusOrder(keys, canDecline);
+    if (scrolls) {
+      const region = new McScrollRegion(this, {
+        rect: viewport,
+        heights: [rowsHeight],
+        scroll: this.#pairScroll,
+        clipInteractive: true,
+      });
+      region.content.add(rowButtons.map((button) => button.container));
+      region.refresh();
+    }
+
+    let y = area.y + headerHeight + Math.min(rowsHeight, viewportHeight) + 2;
+    const line = (text: string, tone: number = surface.ink.hex): void => {
+      const t = this.add
+        .text(area.x, y, text, textStyle(typeRole.body, tone, ink.secondary))
+        .setWordWrapWidth(area.width);
+      y += Math.max(14, t.height);
+    };
+    line(view.summary);
+    if (view.restriction) line(view.restriction);
+    line(`${view.pairs.length} of ${view.maxPairs} pairs made. Cards left over are fine.`);
+    if (view.refusal) line(view.refusal, signal.caution.hex);
+    else if (view.fault) line(view.fault, signal.caution.hex);
+  }
+
+  /** A tap on a discarded card: take it back if placed, else pick it up (or put it down) to place next. */
+  #pairTapCard(card: InstanceId): void {
+    if (this.#motion.leaving || !this.#pairing) return;
+    if (this.#pairing.pairs.some((pair) => pair.card === card)) {
+      this.#pairing = unassign(this.#pairing, card);
+      this.#pairCard = null;
+    } else this.#pairCard = this.#pairCard === card ? null : card;
+    this.#selected = [...selectionOf(this.#pairing)];
+    this.#rebuild();
+  }
+
+  /** A tap on a character: place the picked-up card there, or take back the card it holds. */
+  #pairTapCharacter(character: InstanceId): void {
+    if (this.#motion.leaving || !this.#pairing) return;
+    const held = this.#pairCard;
+    if (held === null) {
+      const taken = this.#pairing.pairs.find((pair) => pair.character === character);
+      if (taken) this.#pairing = unassign(this.#pairing, taken.card);
+    } else {
+      const check = checkAssign(this.#pairing, held, character);
+      this.#pairing = check.ok ? assign(this.#pairing, held, character) : withRefusal(this.#pairing, check.reason);
+      if (check.ok) this.#pairCard = null;
+    }
+    this.#selected = [...selectionOf(this.#pairing)];
+    this.#rebuild();
+  }
+
+  /**
    * The declareDefender choice's own presentation (W6, docs/phase4-screen-gaps.md): an incoming-attack summary, the
    * options with what each one would cost (`view/defend-choice.ts`'s `defendChoiceViewOf`, backed by the engine's
    * `defendPreview`/`stackEntries`/`legalActions` — nothing here computes a rule), the resolution stack with the open
@@ -709,6 +918,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // citation) — it was VillainPhaseOverlay's text winning that gap by accident, not the felt.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 1).fillRect(guideRailWidth, 0, width - guideRailWidth, height - stripHeight);
+    // Modal: a tap or right-click on no control of this sheet's own must not reach the board card underneath.
+    this.add
+      .zone(guideRailWidth, 0, width - guideRailWidth, height - stripHeight)
+      .setOrigin(0, 0)
+      .setInteractive();
     const panelsFrom = this.children.list.length;
 
     const layout = defendChoiceLayout(
@@ -1019,6 +1233,8 @@ export class ChoiceOverlay extends Phaser.Scene {
    * one fully visible, so the card you just chose is always the readable one.
    */
   #drawCardChoice(area: Rect, choice: PendingChoice): void {
+    const barState = appSession().store.state.game;
+    this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, POOL_DEPS) : new Map();
     const byId = new Map(choice.options.map((option) => [option.optionId, option] as const));
     // Pick order, not list order: the last thing you touched is the last drawn,
     // and the last drawn is the one on top.
@@ -1276,7 +1492,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
-          label: payment ? payment.declineLabel : "Decline",
+          label: payment ? payment.declineLabel : this.#pairing ? "Assign none" : "Decline",
           type: typeRole.label,
           rect: {
             x: sheet.x + 20 + commitWidth,
@@ -1307,6 +1523,43 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#drawFocusRing();
   }
 
+  /** " 2 of 3" when this option is one of several identical ones (same card, same ability) in the open prompt. */
+  #twinOrdinal(state: GameState, option: PendingChoice["options"][number]): string {
+    const choice = state.pendingChoice;
+    if (!choice) return "";
+    return triggerOrdinal(choice.options, option.optionId, (a, b) => {
+      const x = a as PendingChoice["options"][number]["ref"];
+      const y = b as PendingChoice["options"][number]["ref"];
+      return (
+        x.kind === "ability" && y.kind === "ability" && x.instanceId === y.instanceId && x.abilityId === y.abilityId
+      );
+    });
+  }
+
+  /** One tile's bar: the board's own threat meter or hit point plate (`paintThreatMeter`, `McHpPlate`), with the engine's preview as the hatched part. */
+  #drawTileBar(bar: TileBar, rect: Rect): void {
+    if (bar.kind === "hp") {
+      new McHpPlate(this, { rect, current: bar.current, max: bar.max ?? bar.current, after: bar.after });
+      return;
+    }
+    const g = this.add.graphics();
+    const text = this.add
+      .text(rect.x + rect.width / 2, rect.y + rect.height / 2 - 1, "", textStyle(typeRole.statSmall, surface.ink.hex))
+      .setOrigin(0.5)
+      .setFontSize(13);
+    const meter = { ...rect, height: Math.min(rect.height, 18) };
+    paintThreatMeter(
+      g,
+      text,
+      meter,
+      { meterMax: bar.max, target: bar.target, targetDashed: bar.targetDashed },
+      bar.current,
+      1,
+      bar.after,
+    );
+    text.setY(rect.y + Math.min(rect.height, 18) / 2 - 1);
+  }
+
   /**
    * One option drawn as the card it names. A selected card wears the red ring
    * and, when the order matters, the number it will resolve in.
@@ -1322,11 +1575,15 @@ export class ChoiceOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, slot, "card", picked ? "selected" : "rest");
 
+    // A scheme's threat or a character's hit points sit in a strip under the scan, so the bar never covers the
+    // card's own text; the scan is drawn in what is left.
+    const bar = this.#tileBars.get(option.optionId);
+    const barHeight = bar ? (bar.kind === "threat" ? 24 : 34) : 0;
     const inner: Rect = {
       x: slot.x + 3,
       y: slot.y + 3,
       width: slot.width - 6,
-      height: slot.height - 6,
+      height: slot.height - 6 - (bar ? barHeight + 6 : 0),
     };
     const source =
       state && instanceId
@@ -1359,6 +1616,14 @@ export class ChoiceOverlay extends Phaser.Scene {
         .setMaxLines(3);
     }
 
+    if (bar)
+      this.#drawTileBar(bar, {
+        x: inner.x + 4,
+        y: inner.y + inner.height + 6,
+        width: inner.width - 8,
+        height: barHeight,
+      });
+
     // "TRIGGER AN ABILITY?" and "pay for this ability?" name a card, but the
     // question is about one *ability* on it, not the card as a whole — and a
     // card can offer more than one at once, which would otherwise be two
@@ -1370,7 +1635,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (state && instanceId && option.ref.kind === "ability") {
       const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
       const caption = this.add
-        .text(0, 0, short ?? "trigger", {
+        .text(0, 0, `${triggerCaption(state, instanceId, short)}${this.#twinOrdinal(state, option)}`, {
           ...textStyle(typeRole.label, surface.paper.hex),
           fontSize: "11px",
         })
@@ -1531,6 +1796,11 @@ export class ChoiceOverlay extends Phaser.Scene {
       if (entry) this.#pressReport(entry, focus.control as ReportControl);
       return;
     }
+    if (focus.kind === "option" && this.#pairing) {
+      if (focus.optionId.startsWith(PAIR_CARD)) this.#pairTapCard(focus.optionId.slice(PAIR_CARD.length) as InstanceId);
+      else this.#pairTapCharacter(focus.optionId.slice(PAIR_CHARACTER.length) as InstanceId);
+      return;
+    }
     if (focus.kind === "option") {
       this.#toggle(focus.optionId, choice.maxSelections);
       return;
@@ -1659,6 +1929,10 @@ export class ChoiceOverlay extends Phaser.Scene {
       // reach — a fresh `OverlayMotion` plays the entrance again instead of
       // trying to run `exit` backwards.
       this.#motion = new OverlayMotion();
+      // A pairing the engine refused stays on the sheet with its own words, where the player is looking.
+      if (this.#pairing) {
+        this.#pairing = withRefusal(this.#pairing, appSession().store.state.error ?? "That pairing was refused");
+      }
       this.#rebuild();
     }
   }
@@ -1678,6 +1952,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 }
+
+/** Focus keys for the pair sheet's rows: a card and a character can share an instance id space, never a key. */
+const PAIR_CARD = "pair-card:";
+const PAIR_CHARACTER = "pair-character:";
 
 /**
  * The card a `ChoiceRef` names, when it names one at all. `"card"` and

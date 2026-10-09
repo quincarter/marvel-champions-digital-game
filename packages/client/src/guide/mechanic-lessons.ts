@@ -991,6 +991,459 @@ const X23_TRYIT: Lesson = {
   ],
 };
 
+/** The Frostbite upgrades attached to an enemy: Iceman's "Freeze!" has resolved once one is. */
+function frostbiteAttached({ game }: LessonObservation): boolean {
+  return Object.values(game.instances).some((i) => i.cardId.startsWith("46002") && i.attachedTo !== null);
+}
+
+/**
+ * Iceman: "Freeze!" on a basic attack. The opening is Bobby Drake with six Frostbite upgrades set aside. "Freeze!" is
+ * an interrupt on a basic attack or defense (`wave8/iceman/iceman/identity.ts`), offered once the attack is made, so
+ * the lesson flips him, attacks Rhino, and the step finishes once a Frostbite is attached to him.
+ */
+const ICEMAN_TRYIT: Lesson = {
+  id: "mechanic-tryit-iceman",
+  title: "Iceman: Frostbite",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Six Frostbites, set aside",
+        body:
+          "Iceman begins with six Frostbite upgrades set aside. [[frostbite|Frostbite]] weakens the enemy it is " +
+          "attached to, and it goes back to the set-aside pile when that enemy activates or leaves play.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Iceman",
+        body: '"Freeze!" is printed on his hero side, so [[flip|flip]] from Bobby Drake to Iceman first.',
+        doThis: "Flip to Iceman",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "attack",
+      anchor: { kind: "action", id: "attack" },
+      copy: {
+        title: "Attack, and Freeze! the villain",
+        body:
+          'Attack Rhino with a basic attack. "Freeze!" is offered as an interrupt: accept it, and a Frostbite ' +
+          "attaches to Rhino before your damage lands. Defending does the same.",
+        tip: 'Accept "Freeze!" when it is offered.',
+        short: 'Attack, then accept "Freeze!".',
+        doThis: 'Attack, then accept "Freeze!"',
+      },
+      mode: "await",
+      completes: (observation) => frostbiteAttached(observation) && observation.game.pendingChoice === null,
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Rhino is weaker",
+        body:
+          "Frostbite gives Rhino -1 SCH and -1 ATK. Cards like Take That! and Surprise Move need an enemy with an " +
+          "upgrade attached, and a Frostbite counts.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+const LIMBO = cardId("45032");
+const COLOSSUS = cardId("45031");
+
+/** Colossus left the top of the deck for the table by the deck-top play (`cardPlayed` carries `from: "deckTop"`). */
+const playedFromDeckTop: LessonPredicate = (observation) =>
+  observation.lastEvents.some((event) => event.type === "cardPlayed" && event.from === "deckTop");
+
+/**
+ * Magik: the faceup top card, playing it, and Limbo. Illyana's hand is stacked with Limbo, a resource card and four
+ * cards that pay for things, and Colossus (cost 3) is the top card (`mechanic-tryit-config.ts`). Her hero side plays
+ * with the top card faceup and lets her play it once per phase as if it were in her hand, for 1 less
+ * (`wave8/aoa/magik/identity.ts`); the engine logs that play as `cardPlayed { from: "deckTop" }`. Limbo's Action then
+ * swaps a card in her hand with the new top card (`wave8/aoa/magik/support-upgrades-allies.ts`), logged as
+ * `cardsSwapped`. Each step is done once its event has happened and no choice is left open.
+ */
+const MAGIK_TRYIT: Lesson = {
+  id: "mechanic-tryit-magik",
+  title: "Magik: the faceup top card",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Magik plays with her deck showing",
+        body:
+          "In hero form the top card of Magik's deck is [[faceupTopCard|faceup]]. Her upgrades read its resource " +
+          "icon, and once per phase she may play it as if it were in her hand, for 1 less.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Magik",
+        body: "Her faceup deck is printed on her hero side, so [[flip|flip]] from Illyana Rasputin to Magik first.",
+        doThis: "Flip to Magik",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "play-top",
+      anchor: { kind: "card", code: COLOSSUS },
+      copy: {
+        title: "Play the top card",
+        body:
+          "Colossus is faceup on your deck. Tap him there: he costs 3, but 1 less from the top, so pay 2 with " +
+          "Blood Rage and Test the Defense.",
+        tip: "Tap the faceup card on your deck.",
+        short: "Play Colossus from the deck.",
+        doThis: "Tap Colossus on your deck",
+      },
+      mode: "await",
+      completes: playedFromDeckTop,
+      gate: FULL_GATE,
+    },
+    {
+      id: "next-card",
+      copy: {
+        title: "The next card shows",
+        body:
+          "The moment Colossus left, the next card turned faceup. That was your one play from the top this phase: " +
+          "tap the deck again and it tells you so.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "play-limbo",
+      anchor: { kind: "zone", id: "hand" },
+      copy: {
+        title: "Play Limbo",
+        body: "Play Limbo from your hand, paying its 1 with The Power of Aggression.",
+        tip: "Pay for Limbo with a resource card.",
+        short: "Play Limbo.",
+        doThis: "Play Limbo, pay with The Power of Aggression",
+      },
+      mode: "await",
+      completes: cardPlayed(LIMBO),
+      gate: FULL_GATE,
+    },
+    {
+      id: "swap",
+      anchor: { kind: "zone", id: "playArea" },
+      copy: {
+        title: "Choose what shows",
+        body:
+          "Tap Limbo, then LIMBO — EXHAUST. Pick the hand card to swap; the game then asks you to confirm the top " +
+          "card, which is its only option. Your pick goes on top, so you decide what Magik's upgrades read.",
+        tip: "Swap any card in your hand with the top card.",
+        short: "Use Limbo, then pick a card.",
+        doThis: "Tap Limbo, then LIMBO — EXHAUST",
+      },
+      mode: "await",
+      completes: seenAndSettled("cardsSwapped"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "A new card shows",
+        body:
+          "The card you swapped in is now faceup on top of your deck, so what her upgrades read has changed. Limbo " +
+          "also swaps at the start of the villain phase, and Stepping Disc and Illyana's pull put Magik spells back on top.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+/**
+ * Magneto: Magnetic Pull. The deck is stacked so the pull discards two cards and stops at Magneto's Helmet
+ * (`mechanic-tryit-config.ts`). The ability is on his hero side (`wave8/magneto/magneto/identity.ts`); the step is
+ * settled once a card has been discarded from the deck and no choice is left open.
+ */
+const MAGNETO_TRYIT: Lesson = {
+  id: "mechanic-tryit-magneto",
+  title: "Magneto: Magnetic Pull",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Pull the metal to you",
+        body:
+          "[[magneticPull|Magnetic Pull]] discards cards from the top of your deck until a MAGNETIC card is " +
+          "discarded, then adds that card to your hand. Other cards read what was discarded.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Magneto",
+        body: "Magnetic Pull is printed on his hero side, so [[flip|flip]] from Erik Lehnsherr to Magneto first.",
+        doThis: "Flip to Magneto",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "pull",
+      anchor: { kind: "zone", id: "identity" },
+      copy: {
+        title: "Use Magnetic Pull",
+        body:
+          "Tap Magneto, then Magnetic Pull. You can use it once each round. The cards it discards before the " +
+          "MAGNETIC one are gone to the discard pile.",
+        tip: "Magnetic Pull is once each round.",
+        short: "Use Magnetic Pull.",
+        doThis: "Tap Magneto, then Magnetic Pull",
+      },
+      mode: "await",
+      completes: seenAndSettled("cardDiscardedFromDeck"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Three discarded, one in hand",
+        body:
+          "Magneto's Helmet is MAGNETIC, so the pull stopped there and added it to your hand. It was still " +
+          "discarded, so it counts: Magneto's Armor reads all three icons and Old Grievances counts three cards.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+/** True once a villain carries a stunned status card. */
+function villainStunned({ game }: LessonObservation): boolean {
+  return game.villains.some((villain) => (game.instances[villain.instanceId]?.statuses.stunned ?? 0) > 0);
+}
+
+/**
+ * Jubilee: events that read the resource types paid. Firecracker (cost 2) stuns "if you paid for this card using 2
+ * different resource types". Plasmoid Energy makes an [energy] and a [mental] at once, so that one card pays for it
+ * with two types (`mechanic-tryit-config.ts`). The step is done once Rhino is stunned.
+ */
+const JUBILEE_TRYIT: Lesson = {
+  id: "mechanic-tryit-jubilee",
+  title: "Jubilee: different resource types",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Jubilee's events read how you paid",
+        body:
+          "Many of Jubilee's events do more when you [[paidWith|pay with different resource types]]. Firecracker " +
+          "stuns if two different types paid for it. Plasmoid Energy makes two types at once.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Jubilee",
+        body: "Her events are hero events, so [[flip|flip]] from Jubilation Lee to Jubilee first.",
+        doThis: "Flip to Jubilee",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "firecracker",
+      anchor: { kind: "zone", id: "hand" },
+      copy: {
+        title: "Play Firecracker with Plasmoid Energy",
+        body:
+          "Play Firecracker (cost 2) and pay with Plasmoid Energy: it makes an energy and a mental resource, two " +
+          "different types. Choose Rhino as the target.",
+        tip: "Pay for Firecracker with Plasmoid Energy.",
+        short: "Play Firecracker, paid by Plasmoid Energy.",
+        doThis: "Play Firecracker, pay with Plasmoid Energy",
+      },
+      mode: "await",
+      completes: (observation) => villainStunned(observation) && observation.game.pendingChoice === null,
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Rhino is stunned",
+        body:
+          "Two different types paid, so Firecracker stunned him. Resources beyond a card's cost did not pay, so they " +
+          "add no types. The game asks what a wild counts as only when your answer changes the result.",
+      },
+      anchor: { kind: "zone", id: "villain" },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+/**
+ * Bishop: Energy Absorption. The deck's top two cards are Stored Energy (`mechanic-tryit-config.ts`). Rhino attacks a
+ * hero in the villain phase, so the lesson flips Bishop, ends his turn, and the player takes the hit (the board asks
+ * about a defender first) and accepts the Response. The step is settled once cards have been discarded from the deck
+ * and no choice is left open.
+ */
+const BISHOP_TRYIT: Lesson = {
+  id: "mechanic-tryit-bishop",
+  title: "Bishop: Energy Absorption",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Bishop turns damage into cards",
+        body:
+          "When an attack damages Bishop, [[energyAbsorption|Energy Absorption]] discards that many cards from the " +
+          "top of your deck. Every resource card among them goes to your hand.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Bishop",
+        body:
+          "Rhino only attacks a hero, and Energy Absorption is printed on the hero side. [[flip|Flip]] from Lucas " +
+          "Bishop to Bishop.",
+        doThis: "Flip to Bishop",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "take-a-hit",
+      anchor: { kind: "action", id: "endTurn" },
+      copy: {
+        title: "End your turn and take the hit",
+        body:
+          "End your turn (discard a card if the game asks). Rhino attacks Bishop: choose no defense, then accept " +
+          "Energy Absorption when it is offered.",
+        tip: "Accept Energy Absorption after the hit.",
+        short: "End turn, take the hit, accept Energy Absorption.",
+        doThis: "End turn, take the hit, accept Energy Absorption",
+      },
+      mode: "await",
+      completes: seenAndSettled("cardDiscardedFromDeck"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Resource cards came to your hand",
+        body:
+          "The cards that were not resources stay in your discard pile. His upgrades read the resource cards you " +
+          "hold: Bishop's Rifle deals damage for each one, so a hit now stocks them.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
+/** True once a Bamf! upgrade is attached to something. */
+function bamfAttached({ game }: LessonObservation): boolean {
+  return Object.values(game.instances).some((i) => i.cardId.startsWith("48006") && i.attachedTo !== null);
+}
+
+/** True once Bamf! was discarded from play in the last command and no choice is left open (the teleport defense). */
+function bamfSpent({ game, lastEvents }: LessonObservation): boolean {
+  return (
+    game.pendingChoice === null &&
+    lastEvents.some((event) => event.type === "cardDiscardedFromPlay" && String(event.cardId).startsWith("48006"))
+  );
+}
+
+/**
+ * Nightcrawler: Bamf!. The hand holds one Bamf! (cost 0, `mechanic-tryit-config.ts`). It attaches to an enemy, and its
+ * Hero Interrupt (defense) fires when that enemy attacks: discard it to declare Nightcrawler the defender without
+ * exhausting him (`wave8/ncrawler/nightcrawler/support-upgrades-allies.ts`). The interrupt fires while the attack is
+ * being initiated, which logs no `defenderDeclared`, so the step is done when Bamf! is discarded from play and no
+ * choice is left open.
+ */
+const NIGHTCRAWLER_TRYIT: Lesson = {
+  id: "mechanic-tryit-nightcrawler",
+  title: "Nightcrawler: Bamf!",
+  steps: [
+    {
+      id: "intro",
+      copy: {
+        title: "Bamf! lands on an enemy",
+        body:
+          "[[bamf|Bamf!]] is an upgrade that attaches to an enemy. When that enemy attacks, you can discard it to " +
+          "teleport Nightcrawler in as the defender, and he doesn't exhaust.",
+      },
+      mode: "acknowledge",
+    },
+    {
+      id: "attach",
+      anchor: { kind: "zone", id: "hand" },
+      copy: {
+        title: "Attach Bamf! to Rhino",
+        body: "Play Bamf! from your hand as Kurt Wagner. It costs nothing and attaches to Rhino, the only enemy.",
+        tip: "Bamf! can be played in either form.",
+        short: "Play Bamf! onto Rhino.",
+        doThis: "Play Bamf!",
+      },
+      mode: "await",
+      completes: bamfAttached,
+      gate: FULL_GATE,
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Nightcrawler",
+        body: "Bamf!'s interrupt is a Hero Interrupt, so [[flip|flip]] from Kurt Wagner to Nightcrawler before Rhino attacks.",
+        doThis: "Flip to Nightcrawler",
+      },
+      mode: "await",
+      completes: formIs("hero"),
+      gate: FULL_GATE,
+    },
+    {
+      id: "defend",
+      anchor: { kind: "action", id: "endTurn" },
+      copy: {
+        title: "End your turn and teleport in",
+        body:
+          "End your turn. When Rhino attacks, Bamf! is offered: accept it, and Nightcrawler defends without " +
+          "exhausting. That is a basic defense, so his DEF applies.",
+        tip: "Accept Bamf! when Rhino attacks.",
+        short: "End turn, then accept Bamf!.",
+        doThis: "End turn, then accept Bamf!",
+      },
+      mode: "await",
+      completes: bamfSpent,
+      gate: FULL_GATE,
+    },
+    {
+      id: "result",
+      copy: {
+        title: "Bamf! is spent",
+        body:
+          "Bamf! was discarded, and Nightcrawler took the hit with his own DEF. Rapid Teleportation can bring a " +
+          "copy back from your discard pile, and Tally Ho! returns it when it makes him the defender.",
+      },
+      mode: "acknowledge",
+    },
+  ],
+};
+
 /** One `Lesson` per mechanic with a "Try it" game, keyed like `guide/mechanic-tryit-config.ts`'s own record. */
 export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> = {
   storm: STORM_TRYIT,
@@ -1003,4 +1456,10 @@ export const MECHANIC_TRYIT_LESSONS: Readonly<Record<MechanicTryItId, Lesson>> =
   angel: ANGEL_TRYIT,
   cable: CABLE_TRYIT,
   x23: X23_TRYIT,
+  iceman: ICEMAN_TRYIT,
+  magik: MAGIK_TRYIT,
+  magneto: MAGNETO_TRYIT,
+  jubilee: JUBILEE_TRYIT,
+  bishop: BISHOP_TRYIT,
+  nightcrawler: NIGHTCRAWLER_TRYIT,
 };

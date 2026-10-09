@@ -7,7 +7,9 @@
  *   your deck" / "add it to your hand" / "put it into play under your control";
  * - `lady`: "Response: After you discard a card from the top of your deck, attach that card facedown here (to a maximum
  *   of 3)";
- * - `tally`: a forced "after you discard a card from the top of your deck" that counts what it hears.
+ * - `tally`: a forced "after you discard a card from the top of your deck" that counts what it hears;
+ * - `batch`: a forced "after you discard cards from the top of your deck, … for each [justice] card discarded", which
+ *   answers the whole discard once (`EventPattern.together`).
  *
  * Sources: RRG 1.8 "In Play and Out of Play" (p. 23), "Ownership and Control" (p. 31: "A player controls the cards in
  * their own out-of-play areas"), "Player Deck" (p. 33), "Triggering Condition" (p. 45); MC40 p. 21 FAQ ("Player decks
@@ -24,6 +26,7 @@ import { replay } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
+import { TOGETHER_TARGETS_SLOT } from "./select.js";
 import type { CardSelector, EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, type StubAbility, stubAbility } from "./testing/abilities.js";
@@ -82,6 +85,22 @@ const TALLY_RESPONSE = stubAbility(
     effects: [{ kind: "addCounters", target: self, counterType: "seen", amount: constant(1) }],
   }),
 );
+// One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
+const BATCH_RESPONSE = stubAbility(
+  "batch.forced-response",
+  def({
+    trigger: { kind: "response", forced: true, on: { ...youDiscard, targetIs: { aspect: "justice" }, together: true } },
+    effects: [
+      { kind: "addCounters", target: self, counterType: "answers", amount: constant(1) },
+      {
+        kind: "addCounters",
+        target: self,
+        counterType: "cards",
+        amount: { kind: "refCount", of: { kind: "slot", slot: TOGETHER_TARGETS_SLOT } },
+      },
+    ],
+  }),
+);
 
 const FILLER = stubEvent({ id: "filler", cost: 0 });
 const MATCH = stubEvent({ id: "match", cost: 0, aspect: "justice" });
@@ -90,6 +109,7 @@ const HAND = stubResource({ id: "hand", icons: 1, abilities: [HAND_RESPONSE.ref]
 const FOX = stubAlly({ id: "fox", cost: 2, atk: 1, thw: 1, hp: 2, abilities: [FOX_RESPONSE.ref] });
 const LADY = stubSupport({ id: "lady", cost: 0, abilities: [LADY_RESPONSE.ref] });
 const TALLY = stubSupport({ id: "tally", cost: 0, abilities: [TALLY_RESPONSE.ref] });
+const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
 
@@ -156,12 +176,20 @@ const DRAIN = stubTreachery({ id: "drain", boostIcons: 0, abilities: [DRAIN_REVE
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 
 const ACTIONS = [...EVENTS.map((e) => e.ability), COSTLY_ACTION, DRAIN_REVEALED];
-const deps: EngineDeps = depsOf(BACK_RESPONSE, HAND_RESPONSE, FOX_RESPONSE, LADY_RESPONSE, TALLY_RESPONSE, ...ACTIONS);
+const deps: EngineDeps = depsOf(
+  BACK_RESPONSE,
+  HAND_RESPONSE,
+  FOX_RESPONSE,
+  LADY_RESPONSE,
+  TALLY_RESPONSE,
+  BATCH_RESPONSE,
+  ...ACTIONS,
+);
 /** The same cards with no ability that hears a deck discard. */
 const silentDeps: EngineDeps = depsOf(...ACTIONS);
 
 type Name = "filler" | "match" | "back" | "hand" | "fox";
-type InPlay = "lady" | "tally" | "costly" | "guard";
+type InPlay = "lady" | "tally" | "batch" | "costly" | "guard";
 interface Table {
   readonly state: GameState;
   /** The deck's top cards, in order. */
@@ -192,6 +220,7 @@ function start(
       FOX,
       LADY,
       TALLY,
+      BATCH,
       METER,
       GUARD,
       COSTLY,
@@ -208,6 +237,7 @@ function start(
       ...copiesOf(FOX.id, 2),
       LADY.id,
       TALLY.id,
+      BATCH.id,
       METER.id,
       GUARD.id,
       COSTLY.id,
@@ -317,6 +347,33 @@ const discarded = (id: InstanceId | undefined, by: InstanceId, at: "discard" | "
   fromTop: true,
   sourceInstanceId: by,
   at,
+});
+
+describe("`EventPattern.together`: 'after you discard cards' answers the whole discard once", () => {
+  it("two matching cards of one discard: one candidate, one resolution, both cards in its slot", () => {
+    const table = start(["match", "filler", "match"], { inPlay: ["batch", "tally"] });
+    const result = play(table, MILL_3);
+    // The per-card ability is a candidate for each of the three; the batch one once, for its two [justice] cards.
+    const [candidates] = windows(result.events);
+    expect(candidates?.filter((id) => id === BATCH_RESPONSE.ref.id)).toHaveLength(1);
+    expect(candidates?.filter((id) => id === TALLY_RESPONSE.ref.id)).toHaveLength(3);
+    expect(resolved(result.events, BATCH_RESPONSE)).toHaveLength(1);
+    expect(counters(result.state, table.inPlay.batch, "answers")).toBe(1);
+    expect(counters(result.state, table.inPlay.batch, "cards")).toBe(2);
+    expect(counters(result.state, table.inPlay.tally, "seen")).toBe(3);
+    expectReplays(result);
+  });
+
+  it("one matching card is a batch of one, and none is no answer", () => {
+    const one = start(["filler", "match", "filler"], { inPlay: ["batch"] });
+    const single = play(one, MILL_3);
+    expect(counters(single.state, one.inPlay.batch, "answers")).toBe(1);
+    expect(counters(single.state, one.inPlay.batch, "cards")).toBe(1);
+    const none = start(["filler", "filler", "filler"], { inPlay: ["batch"] });
+    const silent = play(none, MILL_3);
+    expect(resolved(silent.events, BATCH_RESPONSE)).toEqual([]);
+    expect(counters(silent.state, none.inPlay.batch, "answers")).toBe(0);
+  });
 });
 
 describe("§3.55 every discard from a player's deck is announced once per card (§4.1 Q31)", () => {
