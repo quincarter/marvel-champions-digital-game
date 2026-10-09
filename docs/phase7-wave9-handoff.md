@@ -141,3 +141,23 @@ means, motive and opportunity always name exactly one board member. Mapping each
 The sheet also records: each player's identity and remaining hit points; remaining secret counters per board member
 for scenarios 1 to 4; scenario 1 minions and side schemes in play; scenario 2 rescued captives; scenario 3 Adaptoid
 environments (Flying, Psionic, Sarah Garza, Strong upgrades); scenario 4 surviving Thunderbolts.
+
+## Trickster Takeover reference cards (owner's photos, 2026-10-09)
+
+Two unnumbered rules cards with no MarvelCDB record, in `docs/campaign-modes/mc55-reference-cards/`. Transcribed by
+the main session from the photos (checked).
+
+**Shatter the Illusion** (`shatter-the-illusion.png`): "When a Fading Figment is revealed, follow these steps to
+shatter Loki's illusion: 1. Remove each shatter counter from Fading Figment, then deal damage to Loki, God of Lies
+equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside
+villain, AVATAR OF LOKI side faceup, then set the hit point dial of that AVATAR OF LOKI villain to its printed hit point
+value. 3. Deal each player 1 facedown encounter card."
+
+**Epic Multiplayer Reminder** (`epic-multiplayer-reminder.png`): "Group Pods: A pod is a collection of groups. It is
+recommended that each pod not exceed 12 to 16 players, or roughly 3 to 4 groups within the same pod. Per Group Icon:
+If on a card in a group's game area, the [per group] icon next to a value multiplies that value by the number of
+groups that began the scenario in that pod. Playing in Separate Game Areas: Each player group is in its own game
+area. Unless explicitly stated, players, cards, and components in one game area cannot affect another game area.
+Cross-Group Communication: Cross-group communication is allowed and highly encouraged!"
+
+So in Single Group Mode the per-group multiplier is 1 (one group began the scenario).
