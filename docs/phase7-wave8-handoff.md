@@ -137,6 +137,22 @@ Working notes that cost time to learn:
 - Hazard deals one extra card per icon in player order (RRG p. 21), and heroes ready and draw at the end of the player
   phase. Earlier briefs said otherwise; the engine was right.
 
+## State (2026-10-08, evening)
+
+- **The pre-push hook is back** (`.githooks/pre-push`, commit 08d2c243). Every push since runs the whole Playwright
+  suite; `pnpm e2e:verify` ahead of a push stamps the pass.
+- **Pushed at 9df31358:** the third set of owner rulings (spec §4.1 rows 73 to 85) is built, the 17 music tracks are
+  in, the Doctor Strange 'Pool deck (MarvelCDB 34506) is tested and does not loop, and the offline regen reproduces
+  the committed data for all six emitted packs.
+- **Browser playthroughs done:** the four remaining scenarios, the five remaining precons, two deck imports and the
+  campaign (reward picker, mission defeated, loss and retry, easier start, finale, expert heal sheet). They found 19
+  screen defects and one rules defect (Overseer minions print 5 hit points per hero and were built flat). The fixes
+  are the commits after 9df31358; the PR's "Resume here" names what is still in flight.
+- **Open with the owner** (top of the PR): The Wrecking Crew insert against the January 17, 2026 ruling, Machine Man
+  and a three-resource card, Toe to Toe when stunned mid-card, the older "if you paid with" riders, and the No Longer
+  Worthy warning. Each is built on its option A.
+- **Known and left:** at 1280x720 the Set the Table modular list shows about one row; it needs a layout decision.
+
 ## Lessons carried in
 
 - Match every card title in the packs' raw data against the rulings file by script instead of trusting a hand search.
