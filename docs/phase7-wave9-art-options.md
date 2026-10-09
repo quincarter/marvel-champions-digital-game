@@ -293,3 +293,12 @@ Only these turned up; nothing for Black Widow, Batroc or M.O.D.O.K., and no "vil
 The owner supplied two 700×620 Fantasy Flight promo images for Trickster Takeover, now in `art/packs/_pending/tt/`:
 `cover.png` (the pack cover) and `promo-dance.png` (Enchantress and Loki dancing). Both are landscape and too small
 for slots 8 and 9, which want a portrait of at least about 800 px wide, so they are left as pack art.
+
+## Picks (owner)
+
+- **2026-10-09:** 1B Maria Hill (Secret Avengers (2014) #2 panel, 1183x1649) saved as
+  `art/heroes/_pending/50001a-maria-hill/hero.webp`; 2C Nick Fury (Battle Scars #6 panel, 1047x2044) as
+  `art/heroes/_pending/50034a-nick-fury/hero.webp`; 3D Black Widow (White Widow #1 virgin variant, 1800x2733) as
+  `art/scenarios/_pending/black-widow/villain.webp`. Saved as WebP, the format the wiki serves. Seen full size by the
+  main session: 2C has two blank white caption boxes at the top right and part of a second figure at the right edge;
+  3D carries the artist's signature at the bottom right; 1B is clean.
