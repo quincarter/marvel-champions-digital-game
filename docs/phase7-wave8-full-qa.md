@@ -8,7 +8,7 @@ where another session can pick it up. **This page is that record.** Update the t
 
 Every piece is done and pushed at 7b2fa0b9. What is left: the owner's answer to question 1 (Azazel's Sword; then fix
 the engine's "attacks you" player and turn the `it.fails` in `wave8/ncrawler/full-qa-audit.qa.test.ts` into `it`),
-the owner's word on the Set the Table page-scroll change, and the "Not covered" list in
+(the Set the Table page scroll was approved on 2026-10-09, spec row 92), and the "Not covered" list in
 [phase7-wave8-qa.md](phase7-wave8-qa.md) section 8 if more browser play is wanted.
 
 ## How to resume
@@ -82,7 +82,7 @@ One row per defect: piece, card or file, what is wrong, source, severity, the pi
 
 ## Questions for the owner
 
-- **1. "After [enemy] attacks you" when another player's hero defends.** A (recommended): the defending player is "you" (RRG 1.8 p. 15). B: the originally attacked player (as built). Asked: not yet.
+- **1. "After [enemy] attacks you" when another player's hero defends.** A (recommended): the defending player is "you" (RRG 1.8 p. 15). B: the originally attacked player (as built). **Answered 2026-10-09: A** (spec row 91). Fix in progress.
 - **2. A divided basic attack with a bonus that depends on which enemy is attacked** is read against the first target only (thwart reads any target). No ruling found. Not yet asked; no shipped card depends on it.
 
 ## Code review brief (pieces 10 to 12)
