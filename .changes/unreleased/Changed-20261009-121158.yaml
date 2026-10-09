@@ -1,3 +1,0 @@
-kind: Changed
-body: The release and desktop-build workflows run the same parallel tests stage as pull requests (one shared tests workflow), so their build and release jobs no longer run the suite themselves.
-time: 2026-10-09T12:11:58.954664-04:00

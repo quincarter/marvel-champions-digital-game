@@ -1,3 +1,0 @@
-kind: Fixed
-body: Expert campaign hit-point restore in The Rise of Red Skull and The Mad Titan's Shadow now runs before scenario setup, so damage dealt during setup is no longer overwritten
-time: 2026-10-09T13:25:59.410639-04:00
