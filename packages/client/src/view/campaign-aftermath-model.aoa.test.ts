@@ -112,6 +112,24 @@ describe("Age of Apocalypse rewards on the Aftermath", () => {
     expect(group.noExclusivity).toBe(false);
   });
 
+  it("reads the engine's source and exclusive fields, falling back to the count only for an older record", () => {
+    expect(isCollectionPick("reward", 3, "collection")).toBe(true);
+    expect(isCollectionPick("reward", 200, "campaignSet")).toBe(false);
+    expect(isCollectionPick("reward", 200)).toBe(true);
+    const choice = rewardPrompt("Find Lost Mutants");
+    const seats = [{ seatNumber: 1, heroName: "Bishop" }];
+    const exclusive = startAftermathGroup({ ...choice, source: "campaignSet", exclusive: true }, seats, (id) =>
+      optionOf(cardId(id)),
+    );
+    expect(exclusive.noExclusivity).toBe(false);
+    expect(exclusive.collectionPick).toBe(false);
+    const shared = startAftermathGroup({ ...choice, source: "collection", exclusive: false }, seats, (id) =>
+      optionOf(cardId(id)),
+    );
+    expect(shared.noExclusivity).toBe(true);
+    expect(shared.collectionPick).toBe(true);
+  });
+
   it("no other box's slot becomes the picker (Sinister Motives' own and every other slot keep their column)", () => {
     expect(isCollectionPick("aspectAdvantage", 3)).toBe(true);
     expect(isCollectionPick("tech", 200)).toBe(false);

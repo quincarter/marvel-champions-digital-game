@@ -9,9 +9,9 @@ import {
   cardOf,
   cardsInPlay,
   hitPointFloor,
-  matchesQuery,
   resourceIconsInPlay,
   scenarioPlayAreaOf,
+  textBoxBlankFor,
   type EngineDeps,
   type GameState,
   type InstanceId,
@@ -46,20 +46,6 @@ export function resourceIconNote(state: GameState, deps: EngineDeps, id: Instanc
 }
 
 /**
- * Whether a scenario-level `blankTextBox` rule covers this card ("each ally at the mission", MC45 p. 6 rule 4).
- *
- * NEEDS ENGINE EXPORT: this matches `scenarioRules.rules` itself, which restates the engine's blank rule. Replace the
- * body with `textBoxBlankFor(state, id, deps)` once `packages/engine/src/index.ts` exports it from `select.ts`
- * (`textBoxBlankFor`, line ~3257); it already folds the scenario's rules in via `blankedSets`.
- */
-function blankedByScenario(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
-  const context = { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps };
-  return (state.scenarioRules.rules ?? []).some(
-    (rule) => rule.kind === "blankTextBox" && matchesQuery(state, id, rule.target, context),
-  );
-}
-
-/**
  * What being in a scenario play area means for this card: no player controls it, a closed area is not reached by
  * abilities that do not name it, and an ally there has a blank text box except for its traits. Empty for a card outside
  * every such area.
@@ -69,7 +55,7 @@ export function scenarioAreaNotes(state: GameState, deps: EngineDeps, id: Instan
   if (area === null) return [];
   const notes = [`In the ${area} area: in play, but no player controls it`];
   if (state.scenarioPlayAreas?.[area]?.closed) notes.push("Card abilities don't reach it unless they name the area");
-  if (cardOf(state, id)?.type === "ally" && blankedByScenario(state, deps, id)) {
+  if (cardOf(state, id)?.type === "ally" && textBoxBlankFor(state, id, deps)) {
     notes.push("Its text box is blank, except for traits");
   }
   return notes;

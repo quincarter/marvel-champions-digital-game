@@ -74,7 +74,6 @@ import {
   answerForPending,
   continuesGroup,
   decideForSeat,
-  isCollectionPick,
   nextIssueRaisesMarket,
   offersAnswer,
   postFoldDestination,
@@ -751,7 +750,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const group = this.#group;
     const record = this.#record;
     if (!group || !record) return;
-    if (isCollectionPick(group.slot, group.catalog.length)) {
+    if (group.collectionPick) {
       this.#drawCollectionPicker(group, rect, order, stops, phone);
       return;
     }
@@ -1257,7 +1256,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // both use the same one-seat-at-a-time confirm CTA rather than the batch "decide everyone, then commit" flow
     // below (which would deadlock here: a seat can only decide once it's current, and it only becomes current
     // through a real `fold` call the batch flow refuses to make until every seat has already decided).
-    const oneSeatAtATime = group?.dealtPerSeat || (group ? isCollectionPick(group.slot, group.catalog.length) : false);
+    const oneSeatAtATime = group?.dealtPerSeat || (group ? group.collectionPick : false);
     if (oneSeatAtATime && group) {
       const decision = group.decisions[group.currentSeatNumber];
       const decided = decision !== undefined && decision.kind !== "undecided";

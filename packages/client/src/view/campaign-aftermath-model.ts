@@ -113,6 +113,8 @@ export interface AftermathChoiceGroup {
    * seat). `aftermathColumns`/`decideForSeat` must never mark a card "taken" by another seat's pick here.
    */
   readonly noExclusivity: boolean;
+  /** A pick from the seat's whole collection (the engine's `source: "collection"`): drawn as the picker. */
+  readonly collectionPick: boolean;
   readonly seatOrder: readonly number[];
   /** The seat the engine is actually blocked on right now. */
   readonly currentSeatNumber: number;
@@ -152,19 +154,23 @@ export function isNoExclusivitySlot(slot: string): boolean {
  * picker `aspectAdvantage` has, and, like it, is never exclusive (two heroes may take the same title). The same slot
  * offering a handful (Find Lost Mutants' four campaign allies, one copy each, taken for the table) stays a column.
  *
- * NEEDS ENGINE FIELD: this is the client deciding exclusivity by option count. `CampaignPendingChoice`
- * (`engine/src/campaign/ops.ts`) carries only `count` and `optional`, no exclusivity or whole-collection flag, so there
- * is nothing to read yet. When the engine adds one (for example `exclusive: boolean` on the pending choice), delete the
- * floor and read it in `startAftermathGroup` and the two `isCollectionPick` call sites in `scenes/campaign/aftermath.ts`.
+ * The engine's `source` and `exclusive` fields decide it; the floor is only the fallback for a pending choice stored
+ * before they existed.
  */
 export const COLLECTION_PICK_FLOOR = 13;
 
 const COLLECTION_PICK_SLOTS: ReadonlySet<string> = new Set(["aspectAdvantage", "reward"]);
 
-/** Whether this choice is a whole-collection pick (`COLLECTION_PICK_FLOOR`), drawn as the picker instead of columns. */
-export function isCollectionPick(slot: string, optionCount: number): boolean {
-  return slot === "aspectAdvantage" || (COLLECTION_PICK_SLOTS.has(slot) && optionCount >= COLLECTION_PICK_FLOOR);
+/** Whether this choice is a whole-collection pick, drawn as the picker instead of columns. */
+export function isCollectionPick(slot: string, optionCount: number, source?: string): boolean {
+  if (slot === "aspectAdvantage") return true;
+  if (source !== undefined) return source === "collection";
+  return COLLECTION_PICK_SLOTS.has(slot) && optionCount >= COLLECTION_PICK_FLOOR;
 }
+
+/** `isCollectionPick` for a pending choice, reading the engine's `source`. */
+export const pendingIsCollectionPick = (pending: CampaignPendingChoice): boolean =>
+  isCollectionPick(pending.slot, pending.options.length, pending.source);
 
 /**
  * The decline row's own wording (MC10's TECH: "No mark for me" — the printed log sheet really does call it a
@@ -234,7 +240,10 @@ export function startAftermathGroup(
     catalog,
     dealtPerSeat,
     catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
-    noExclusivity: isNoExclusivitySlot(pending.slot) || isCollectionPick(pending.slot, catalog.length),
+    noExclusivity:
+      isNoExclusivitySlot(pending.slot) ||
+      (pending.exclusive !== undefined ? !pending.exclusive : pendingIsCollectionPick(pending)),
+    collectionPick: pendingIsCollectionPick(pending),
     seatOrder: seats.map((seat) => seat.seatNumber),
     currentSeatNumber,
     confirmedSeatNumbers: [],

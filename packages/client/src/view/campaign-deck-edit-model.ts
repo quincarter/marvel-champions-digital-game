@@ -13,6 +13,7 @@
 import {
   grantDeckSizesOf,
   includedGrantsOf,
+  setCampaignGrantLeftOut,
   validateDeck,
   type CampaignDefinition,
   type CampaignDeckContext,
@@ -283,20 +284,12 @@ export function setRewardIncluded(
     (grant) => grant.cardId === cardId && grant.optional === true && (grant.leftOut === true) === included,
   );
   if (index < 0) return { deck, grants };
-  const nextGrants = grants.map((grant, at) => {
-    if (at !== index) return grant;
-    const { leftOut: _leftOut, ...kept } = grant;
-    return included ? kept : { ...kept, leftOut: true as const };
-  });
-  const line = deck.cards.find((entry) => entry.cardId === cardId);
-  const cards = included
-    ? line
-      ? deck.cards.map((entry) => (entry.cardId === cardId ? { ...entry, quantity: entry.quantity + 1 } : entry))
-      : [...deck.cards, { cardId, quantity: 1 }]
-    : deck.cards.flatMap((entry) =>
-        entry.cardId !== cardId ? [entry] : entry.quantity > 1 ? [{ ...entry, quantity: entry.quantity - 1 }] : [],
-      );
-  return { deck: { ...deck, cards }, grants: nextGrants };
+  // The engine changes the flag and the list together (and checks they agree); it reads a log, so give it a one-seat
+  // log made of the pair. Taking a copy off needs a line to take it from.
+  if (!included && !deck.cards.some((entry) => entry.cardId === cardId)) return { deck, grants };
+  const edit = { id: "reward-edit", seats: [{ seatNumber: 0, deck, grants }] } as unknown as CampaignLog;
+  const seat = setCampaignGrantLeftOut(edit, 0, index, !included).seats[0];
+  return seat ? { deck: seat.deck, grants: seat.grants } : { deck, grants };
 }
 
 /**
