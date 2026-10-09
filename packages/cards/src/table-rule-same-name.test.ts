@@ -185,6 +185,8 @@ describe("matrix over the whole card pool: every identity against every unique c
     ).sort();
     expect(untouched).toMatchInlineSnapshot(`
       [
+        "Black Widow (Natasha Romanoff) [hero 08001a] x Black Widow [minion 50148]: no match",
+        "Black Widow (Natasha Romanoff) [hero 08001a] x Black Widow [villain 50064]: no match",
         "Captain America (Steve Rogers) [hero 03001a] x Captain America [upgrade 53023]: no match",
         "Gamora (Gamora) [hero 18001a] x Gamora [minion 22028]: match (RRG)",
         "Magneto (Erik Lehnsherr) [hero 49001a] x Magneto [villain 32138]: no match",

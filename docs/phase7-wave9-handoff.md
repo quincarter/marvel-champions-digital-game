@@ -174,7 +174,7 @@ it from PLAN.md's multiplayer phase, and the groundwork primitives in spec pass 
 
 ## Trickster Takeover promo art (owner, 2026-10-09)
 
-Two 700x620 FFG promo pictures, each with a "© 2025 MARVEL" line at the bottom left, in `art/packs/tt/`:
+Two 700x620 FFG promo pictures, each with a "© 2025 MARVEL" line at the bottom left, in `art/packs/_pending/tt/` (a holding folder the client never reads; `cover.png` moves to `art/packs/tt/` when the client step adds `tt` to the pool):
 `cover.png` (Loki enthroned, split with Enchantress casting) and `promo-dance.png` (Enchantress dipping Loki). Planned
 use at the client step: `cover.png` as the pack's shelf header on Scenario select (`art/README.md`, `packs/<packCode>/
 cover.<ext>`; it would be the first pack cover), and `promo-dance.png` as a win or intro picture for one of the two
