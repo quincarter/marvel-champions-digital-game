@@ -2406,6 +2406,21 @@ export type EffectSpec =
       readonly max: number;
       /** "different cards": no two with the same name. */
       readonly distinctNames?: boolean;
+      /**
+       * "Any number of S.H.I.E.L.D. supports with a combined printed cost of 6 or less" (docs/phase7-wave9.md §3.11):
+       * the chosen cards' printed costs sum to at most `atMost`. A card that costs more than `atMost` on its own is
+       * not offered; `max` and `min` are lowered to what can fit (the cheapest cards first); and the choice carries
+       * each offered card's value (`ChoicePrompt chooseCards.maxTotal`) so a client can stop offering a card once
+       * the picks made leave no room for it. `resolveChoice` refuses a selection over the limit and the choice stays
+       * open.
+       *
+       * The value is the cost physically printed on the card (RRG 1.8 "Printed", p. 35), never what was paid or a
+       * cost reduced by another card: `printedCostOf`, so a per-player cost is its numeral times the players who
+       * started (RRG 1.8 "Cost", p. 13). A printed "—" counts 0 (RRG 1.8 "Dash (Value)", p. 15: a referenced dash
+       * "is treated as an unmodifiable 0") and so does a printed X on a card that is not being played (RRG 1.8
+       * "Non-Numerical Variable", p. 30: an undefined variable is "equal to 0").
+       */
+      readonly maxTotal?: { readonly of: "printedCost"; readonly atMost: number };
     }
   /**
    * Shuffle a player's deck (RRG "Search": searching any part of a deck shuffles it afterwards). `separateDeck`: that
@@ -2715,6 +2730,28 @@ export type EffectSpec =
       readonly extraBoostCards?: number | ValueSpec;
       /** `enemyAttack.boostIconsEach`, for a scheme activation this effect initiates (§4.1 Q66). */
       readonly boostIconsEach?: ValueSpec;
+      /**
+       * "Place 1 threat from that activation here instead of on the main scheme if there is 5 or less threat on this
+       * card" (docs/phase7-wave9.md §3.9): part of the threat of each scheme activation this effect initiates goes to
+       * the card `to` names, which need not be a scheme (`CardInstance.threat`). `to` and `amount` are fixed as this
+       * effect resolves and carried by the activation's event (`TriggerEvent enemyScheme.divert`); `if` is read at
+       * the activation's place-threat step (RRG 1.8 "Scheme (Enemy Activation)", p. 39, step 3), once SCH and the
+       * boost icons are known, with this ability's card, controller, slots and vars in scope.
+       *
+       * Only threat that would go **on a main scheme** is diverted, and at most as much as the activation places
+       * there: nothing is diverted from threat a `schemeThreatDestination` rule sends to another scheme, from an
+       * activation that places none (SCH 0, a dashed SCH), from one that removes threat instead
+       * (`modifyAttack.removesThreat`), or to a card that is no longer in play. The diverted threat is the
+       * activation's own placement, by the enemy, on the card: a crisis icon and acceleration are untouched, and
+       * what stays on the main scheme is the total less the diverted part (MC50 p. 22: the card "prevents the threat
+       * it places on itself from being placed on the main scheme"). Logged on `schemeResolved` as `diverted`; the
+       * activation's `threatPlaced` result counts both parts and `threatDiverted` the diverted one.
+       */
+      readonly divert?: {
+        readonly amount: number | ValueSpec;
+        readonly to: TargetRef;
+        readonly if?: Predicate;
+      };
     }
   /**
    * "Venom activates against you" (Biting Retort, `sm` 27082): each enemy in `enemies` activates against each player

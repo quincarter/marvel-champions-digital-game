@@ -39,10 +39,10 @@ import {
   schemeActivationDestination,
   cannotDefend,
 } from "../rules.js";
-import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
+import { cardsInPlay, controllerOf, DEFENDER_SLOT, evaluate, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
-import { TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
+import { type SchemeThreatDivert, TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
 import {
   addFrameSlots,
   addFrameVars,
@@ -1093,6 +1093,8 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // player card's (§4.1 Q17), so `threatRemovalBlocked` reads a crisis icon against it and, if one is in play,
       // nothing is removed; the placing is replaced either way.
       const removes = (vars.removesThreat ?? 0) > 0;
+      const divert = removes ? null : schemeDivertOf(ctx, frame.eventFrameId, schemeInstanceId);
+      const diverted = divert ? Math.min(divert.amount, amount) : 0;
       // The mirror of `attackResolved`: every term of the total separately, so nothing downstream has to re-derive it.
       emit(ctx, {
         type: "schemeResolved",
@@ -1101,8 +1103,9 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         baseSch: sch,
         boostIcons: frame.boostIcons,
         threatBonus,
-        threatPlaced: removes ? 0 : amount,
+        threatPlaced: removes ? 0 : amount - diverted,
         ...(removes ? { removesThreat: true as const } : {}),
+        ...(divert && diverted > 0 ? { diverted: { toInstanceId: divert.toInstanceId, amount: diverted } } : {}),
       });
       if (removes) {
         const removerInstanceId = activationSlot(ctx, frame.eventFrameId, "threatRemover")[0] ?? null;
@@ -1132,17 +1135,59 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         });
         return;
       }
-      pushEvent(ctx, {
+      const onScheme: TriggerEvent = {
         kind: "placeThreat",
         schemeInstanceId,
-        amount,
+        amount: amount - diverted,
         sourceInstanceId: frame.enemyInstanceId,
         parentFrameId: frame.eventFrameId,
-      });
+      };
+      if (!divert || diverted <= 0) {
+        pushEvent(ctx, onScheme);
+        return;
+      }
+      // The diverted part first, then the rest on the main scheme: both are this activation's placement by the enemy
+      // and both report to it, so its `threatPlaced` is the whole and `threatDiverted` the part that left the scheme.
+      addFrameVars(ctx, frame.eventFrameId, { threatDiverted: diverted });
+      pushEvents(ctx, [
+        {
+          kind: "placeThreat",
+          schemeInstanceId: divert.toInstanceId,
+          amount: diverted,
+          sourceInstanceId: frame.enemyInstanceId,
+          parentFrameId: frame.eventFrameId,
+        },
+        onScheme,
+      ]);
       return;
     }
     case "done":
       popFrame(ctx);
       return;
   }
+}
+
+/**
+ * `EffectSpec enemyScheme.divert` as this activation's place-threat step reads it (docs/phase7-wave9.md §3.9), or null
+ * when nothing is diverted: the threat is not going on a main scheme (a `schemeThreatDestination` rule sends it to
+ * another scheme), the card left play or is that main scheme, or its condition does not hold now.
+ */
+function schemeDivertOf(ctx: Ctx, eventFrameId: FrameId | null, destination: InstanceId): SchemeThreatDivert | null {
+  const frame = eventFrameId ? ctx.state.stack.find((f) => f.frameId === eventFrameId) : undefined;
+  const event = frame?.kind === "event" && frame.event.kind === "enemyScheme" ? frame.event : null;
+  const divert = event?.divert;
+  if (!event || !divert) return null;
+  if (cardOf(ctx.state, destination)?.type !== "main_scheme") return null;
+  if (divert.toInstanceId === destination || !cardsInPlay(ctx.state).includes(divert.toInstanceId)) return null;
+  const holds =
+    divert.if === undefined ||
+    evaluate(ctx.state, divert.if, {
+      selfInstanceId: divert.selfInstanceId,
+      controllerId: divert.controllerId,
+      event,
+      bindings: divert.bindings,
+      vars: divert.vars,
+      deps: ctx.deps,
+    });
+  return holds ? divert : null;
 }

@@ -511,6 +511,12 @@ const activationBoost = (opts: { readonly extraBoostCards?: Amount; readonly boo
 /**
  * "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation;
  * `extraBoostCards` / `boostIconsEach` as `enemyAttack`'s.
+ *
+ * `divert` (docs/phase7-wave9.md §3.9): "Place 1 threat from that activation here instead of on the main scheme if
+ * there is 5 or less threat on this card" is `divert: { to: self, if: valueAtMost(threatOn(self), 5) }`; `amount` is
+ * 1 unless given. Up to that much of what the activation would place on the main scheme goes on `to` instead, with
+ * `if` read at the place-threat step. "When an enemy would attack you, it schemes instead" is this effect inside
+ * `replaceTriggeringEvent`, on a `would` interrupt to the attack.
  */
 export const enemyScheme = (
   enemies: TargetRef,
@@ -520,6 +526,7 @@ export const enemyScheme = (
     readonly schBonus?: Amount;
     readonly extraBoostCards?: Amount;
     readonly boostIconsEach?: Amount;
+    readonly divert?: { readonly amount?: Amount; readonly to: TargetRef; readonly if?: Predicate };
   } = {},
 ): EffectSpec => ({
   kind: "enemyScheme",
@@ -528,6 +535,15 @@ export const enemyScheme = (
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
   ...activationBoost(opts),
+  ...(opts.divert
+    ? {
+        divert: {
+          amount: opts.divert.amount ?? 1,
+          to: opts.divert.to,
+          ...(opts.divert.if ? { if: opts.divert.if } : {}),
+        },
+      }
+    : {}),
 });
 /**
  * "Venom activates against you" (Biting Retort, `sm` 27082): the enemies activate against the player the way the
@@ -1329,10 +1345,21 @@ export const moveCardsInto = (
   into: player,
   ...withBind(bind),
 });
+/**
+ * `maxTotalPrintedCost` (docs/phase7-wave9.md §3.11): "any number of S.H.I.E.L.D. supports with a combined printed
+ * cost of 6 or less" is `chooseCards(slot, cards(each(…)), { min: 0, max: ANY_NUMBER, maxTotalPrintedCost: 6 })`. The
+ * engine offers only cards that fit on their own and refuses a selection over the limit.
+ */
 export const chooseCards = (
   slot: string,
   from: CardSelector,
-  opts: { readonly min: number; readonly max: number; readonly chooser?: PlayerRef; readonly distinctNames?: boolean },
+  opts: {
+    readonly min: number;
+    readonly max: number;
+    readonly chooser?: PlayerRef;
+    readonly distinctNames?: boolean;
+    readonly maxTotalPrintedCost?: number;
+  },
 ): EffectSpec => ({
   kind: "chooseCards",
   slot,
@@ -1341,7 +1368,12 @@ export const chooseCards = (
   min: opts.min,
   max: opts.max,
   ...(opts.distinctNames ? { distinctNames: true } : {}),
+  ...(opts.maxTotalPrintedCost !== undefined
+    ? { maxTotal: { of: "printedCost" as const, atMost: opts.maxTotalPrintedCost } }
+    : {}),
 });
+/** "Any number of …" as a `chooseCards` `max`: no printed choice comes near it. */
+export const ANY_NUMBER = 99;
 export const shuffleDeck = (player: PlayerRef = you): EffectSpec => ({ kind: "shuffleDeck", player });
 /** Shuffle a player's separate deck after searching it ("Choose a support from the WEATHER deck", wave 6 §3.46). */
 export const shuffleSeparateDeck = (name: string, player: PlayerRef = you): EffectSpec => ({

@@ -60,6 +60,8 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkLabels(definition, problems);
   checkBoostCards(definition, problems);
   checkMoments(definition, problems);
+  checkSchemeDivert(definition, problems);
+  checkCardTotals(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -477,6 +479,31 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       (effect) => effect.kind === "attach" && effect.card.kind === "self",
     );
     if (!attachesSelf) problems.push("an attachInstruction ability must attach its own card (attachCard(self, …))");
+  }
+}
+
+/**
+ * `enemyScheme.divert` (docs/phase7-wave9.md §3.9): a constant amount below 1 diverts nothing, and the bare villain or
+ * main scheme as the card to divert to is a slip (the threat is diverted *from* the main scheme).
+ */
+function checkSchemeDivert(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "enemyScheme" || !effect.divert) continue;
+    const { amount, to } = effect.divert;
+    const constant = typeof amount === "number" ? amount : amount.kind === "const" ? amount.value : null;
+    if (constant !== null && (!Number.isInteger(constant) || constant < 1))
+      problems.push("enemyScheme divert: a constant amount must be a whole number of at least 1");
+    if (to.kind === "mainScheme")
+      problems.push("enemyScheme divert: the threat is diverted from the main scheme, so `to` names another card");
+  }
+}
+
+/** `chooseCards.maxTotal` (docs/phase7-wave9.md §3.11): the limit is a whole number of at least 0. */
+function checkCardTotals(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "chooseCards" || !effect.maxTotal) continue;
+    if (!Number.isInteger(effect.maxTotal.atMost) || effect.maxTotal.atMost < 0)
+      problems.push("chooseCards maxTotal: atMost must be a whole number of at least 0");
   }
 }
 

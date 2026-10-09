@@ -877,6 +877,12 @@ export type GameEvent =
        * docs/phase7-wave6.md §3.35); `threatPlaced` is then 0 and a `removeThreat` event follows.
        */
       readonly removesThreat?: true;
+      /**
+       * Part of the total went on this card instead of on the main scheme (`EffectSpec enemyScheme.divert`,
+       * docs/phase7-wave9.md §3.9): `threatPlaced` is the rest, what the main scheme's own `threatPlaced` event
+       * carries, and this card's `threatPlaced` event comes first. Absent when nothing was diverted.
+       */
+      readonly diverted?: { readonly toInstanceId: InstanceId; readonly amount: number };
     }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }

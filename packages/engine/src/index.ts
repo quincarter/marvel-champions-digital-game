@@ -52,7 +52,14 @@ export type {
   DecisionAuthority,
   PendingChoice,
 } from "./choices.js";
-export { PLAY_TO_OWN_AREA, playDestinationOfOption, playToAreaOption } from "./choices.js";
+export {
+  cardTotalFault,
+  cardTotalOf,
+  mostCardsUnderTotal,
+  PLAY_TO_OWN_AREA,
+  playDestinationOfOption,
+  playToAreaOption,
+} from "./choices.js";
 
 export {
   effectChoiceAuthority,

@@ -112,7 +112,7 @@ import {
   type ReportTarget,
   type StackFrame,
 } from "../stack.js";
-import { cardFlippedEvent, type LeavePatch, type TriggerEvent } from "../trigger-events.js";
+import { cardFlippedEvent, type LeavePatch, type SchemeThreatDivert, type TriggerEvent } from "../trigger-events.js";
 import { uniqueEntryBlocker } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
@@ -2878,6 +2878,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           : [];
       const characterController = character ? controllerOf(ctx.state, character) : null;
       const noBoost = effect.boost === false ? { noBoost: true } : {};
+      // "Place 1 threat from that activation here instead of on the main scheme if …" (docs/phase7-wave9.md §3.9):
+      // the card and the amount are fixed now and travel with each scheme this effect initiates; its place-threat
+      // step reads the condition in this ability's scope.
+      const divertTo = effect.kind === "enemyScheme" && effect.divert ? targets(effect.divert.to)[0] : undefined;
+      const divertAmount =
+        effect.kind === "enemyScheme" && effect.divert
+          ? typeof effect.divert.amount === "number"
+            ? effect.divert.amount
+            : value(effect.divert.amount)
+          : 0;
+      const divert: { readonly divert?: SchemeThreatDivert } =
+        effect.kind === "enemyScheme" && effect.divert && divertTo && divertAmount > 0
+          ? {
+              divert: {
+                amount: divertAmount,
+                toInstanceId: divertTo,
+                ...(effect.divert.if ? { if: effect.divert.if } : {}),
+                selfInstanceId: frame.selfInstanceId,
+                controllerId: frame.controllerId,
+                bindings: frame.bindings,
+                vars: frame.vars,
+              },
+            }
+          : {};
       const events: TriggerEvent[] = [];
       const discarded: StatusDiscarded[] = [];
       let cancelledByStatus = 0;
@@ -2934,7 +2958,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                     : {}),
                   ...noBoost,
                 }
-              : { kind: "enemyScheme", enemyInstanceId: enemy, playerId, ...noBoost },
+              : { kind: "enemyScheme", enemyInstanceId: enemy, playerId, ...noBoost, ...divert },
           );
         }
       }

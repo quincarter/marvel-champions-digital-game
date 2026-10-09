@@ -1,8 +1,8 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
-import type { CardDestination, StatName, StatusName } from "./spec.js";
-import type { Vars } from "./stack.js";
+import type { CardDestination, Predicate, StatName, StatusName } from "./spec.js";
+import type { Bindings, Vars } from "./stack.js";
 import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
@@ -323,6 +323,8 @@ export type TriggerEventBody =
       readonly enemyInstanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly noBoost?: boolean;
+      /** `EffectSpec enemyScheme.divert` (docs/phase7-wave9.md §3.9), read at this activation's place-threat step. */
+      readonly divert?: SchemeThreatDivert;
     }
   /**
    * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
@@ -1203,6 +1205,22 @@ export type TriggerEventBody =
       /** The card dealing the damage. */
       readonly sourceInstanceId: InstanceId | null;
     };
+
+/**
+ * Part of one scheme activation's threat placed on a card instead of on the main scheme (`EffectSpec
+ * enemyScheme.divert`, docs/phase7-wave9.md §3.9). `amount` and `toInstanceId` were fixed when the effect that
+ * initiated the activation resolved; `if` is evaluated at the place-threat step in the scope of that effect's ability
+ * (its card, its controller, its slots and vars), which is why they travel with the event.
+ */
+export interface SchemeThreatDivert {
+  readonly amount: number;
+  readonly toInstanceId: InstanceId;
+  readonly if?: Predicate;
+  readonly selfInstanceId: InstanceId | null;
+  readonly controllerId: PlayerId | null;
+  readonly bindings: Bindings;
+  readonly vars: Vars;
+}
 
 /**
  * `results` is attached when the event's response window opens: what the event

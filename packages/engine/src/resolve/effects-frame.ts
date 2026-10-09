@@ -39,6 +39,7 @@ import {
   anyCounterTake,
 } from "../counter-types.js";
 import {
+  mostCardsUnderTotal,
   PLAY_TO_OWN_AREA,
   playToAreaOption,
   type ChoiceList,
@@ -91,6 +92,7 @@ import {
   mustCardOf,
   mustPlayer,
   playerOrder,
+  printedCostOf,
   undefeatedVillains,
 } from "../query.js";
 import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
@@ -1683,7 +1685,20 @@ function executeChooseCards(
       return true;
     });
   }
-  const max = Math.min(effect.max, candidates.length);
+  // "With a combined printed cost of N or less" (docs/phase7-wave9.md §3.11): a card that does not fit on its own is
+  // no candidate, and no more can be chosen than fit together.
+  const limit = effect.maxTotal;
+  const values: Record<string, number> = {};
+  if (limit) {
+    candidates = candidates.filter((id) => {
+      const value = printedCostOf(ctx.state, cardOf(ctx.state, id));
+      if (value > limit.atMost) return false;
+      values[id] = value;
+      return true;
+    });
+  }
+  const fitting = limit ? mostCardsUnderTotal(Object.values(values), limit.atMost) : candidates.length;
+  const max = Math.min(effect.max, candidates.length, fitting);
   if (!chooser || max === 0) {
     choseNothing(ctx, frame, effect, candidates.length === 0);
     return;
@@ -1691,7 +1706,11 @@ function executeChooseCards(
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
-    prompt: { kind: "chooseCards", slot: effect.slot },
+    prompt: {
+      kind: "chooseCards",
+      slot: effect.slot,
+      ...(limit ? { maxTotal: { of: limit.of, atMost: limit.atMost, values } } : {}),
+    },
     // "Different cards" by name: the offered ids are one per name, so any selection is legal.
     options: cardOptions(ctx, candidates),
     minSelections: Math.min(effect.min, max),

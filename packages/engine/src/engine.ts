@@ -10,7 +10,7 @@ import {
   useAbility,
 } from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
-import type { ChoicePrompt } from "./choices.js";
+import { cardTotalFault, type ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
 import { DEFENSE_BAR_MESSAGE } from "./defense-claim.js";
@@ -174,6 +174,11 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       (card) => selected.filter((optionId) => cardOfOption(optionId) === card).length < least,
     );
     if (short) return engineError("invalid_choice", `give each of the cards at least ${least}`, command);
+  }
+  // docs/phase7-wave9.md §3.11: "with a combined printed cost of 6 or less".
+  if (choice.prompt.kind === "chooseCards" && choice.prompt.maxTotal) {
+    const fault = cardTotalFault(choice.prompt.maxTotal, selected);
+    if (fault) return engineError("invalid_choice", fault, command);
   }
   // docs/phase7-wave8.md §3.36: one card to one character, and any limit in force on the assignment.
   if (choice.prompt.kind === "pairCards") {

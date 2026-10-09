@@ -68,8 +68,22 @@ export type ChoicePrompt =
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }
   | { readonly kind: "chooseAttachmentTarget"; readonly instanceId: InstanceId }
-  /** Cards outside play (a look at the top of a deck, a search, a discard pile). */
-  | { readonly kind: "chooseCards"; readonly slot: string }
+  /**
+   * Cards outside play (a look at the top of a deck, a search, a discard pile), or any cards a ref names.
+   *
+   * `maxTotal` (`EffectSpec chooseCards.maxTotal`, docs/phase7-wave9.md §3.11): the selected cards' `values` (by
+   * option id; `of` says what they are) sum to at most `atMost`. Every offered card fits on its own, and
+   * `maxSelections` is the most that fit together; a selection over the limit is refused (`cardTotalFault`).
+   */
+  | {
+      readonly kind: "chooseCards";
+      readonly slot: string;
+      readonly maxTotal?: {
+        readonly of: "printedCost";
+        readonly atMost: number;
+        readonly values: Readonly<Record<string, number>>;
+      };
+    }
   /**
    * `EffectSpec lookAt`: the options are cards the player is looking at (RRG 1.8 "Look, Looked-At", p. 27), offered
    * only so they are face-visible to them. Nothing can be selected (`minSelections` = `maxSelections` = 0): the only
@@ -351,6 +365,32 @@ export type ChoiceRef =
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   | { readonly kind: "none" };
+
+type CardTotal = NonNullable<Extract<ChoicePrompt, { kind: "chooseCards" }>["maxTotal"]>;
+
+/** What the selected cards of a `chooseCards` choice with `maxTotal` add up to. */
+export const cardTotalOf = (limit: CardTotal, selected: readonly string[]): number =>
+  selected.reduce((sum, optionId) => sum + (limit.values[optionId] ?? 0), 0);
+
+/** Why a selection breaks a `chooseCards` choice's `maxTotal`, or null (docs/phase7-wave9.md §3.11). */
+export function cardTotalFault(limit: CardTotal, selected: readonly string[]): string | null {
+  const total = cardTotalOf(limit, selected);
+  return total > limit.atMost
+    ? `the cards chosen have a combined printed cost of ${total}; the most allowed is ${limit.atMost}`
+    : null;
+}
+
+/** The most cards of `values` that fit under `atMost` together: the cheapest first. */
+export function mostCardsUnderTotal(values: readonly number[], atMost: number): number {
+  let total = 0;
+  let count = 0;
+  for (const value of [...values].sort((a, b) => a - b)) {
+    if (total + value > atMost) break;
+    total += value;
+    count++;
+  }
+  return count;
+}
 
 /** The option of an effect play's destination choice that plays the card to its player's own play area. */
 export const PLAY_TO_OWN_AREA = "playTo:ownArea";
