@@ -14,7 +14,7 @@
     "cap": "pnpm --filter @mc/client cap",
     "android:build": "node scripts/build-android.mjs",
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "vitest run",
     "typecheck": "pnpm -r typecheck",
     "e2e": "pnpm --filter @mc/client e2e",
     "e2e:verify": "sh .githooks/e2e-gate.sh HEAD",
