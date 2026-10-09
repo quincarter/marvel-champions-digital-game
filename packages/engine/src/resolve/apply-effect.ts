@@ -177,6 +177,7 @@ import {
   resumeBegunAttack,
   skipForCancelledAttack,
   skipUnattackable,
+  withMovedAttackTarget,
 } from "./attack-ability.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck } from "./target-validity.js";
@@ -421,11 +422,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const attack = ability?.waiting;
       const named = targets(effect.target);
       const attacked: Extract<TriggerEvent, { kind: "characterAttacked" }>[] = [];
-      const events = (ability ? skipUnattackable(ctx, ability, frame.selfInstanceId, named) : named)
-        .map((id) => ({ id, base: effect.perTarget ? amountFor(id) : shared }))
+      // An attack whose window moved it off an enemy onto another character ("change the target of this attack to a
+      // friendly character") deals the damage this instruction aims at that enemy to that character, which is the
+      // one attacked (`attackRetarget`; `attack-ability.ts`, "A target changed in the attack's window").
+      const aimed = ability ? skipUnattackable(ctx, ability, frame.selfInstanceId, named) : named;
+      const events = withMovedAttackTarget(ctx, attack, frame.selfInstanceId, aimed)
+        .map((to) => ({ ...to, base: effect.perTarget ? amountFor(to.named) : shared }))
         .filter(({ base }) => !effect.perTarget || base > 0)
-        .map(({ id, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => {
-          const ofAttack = attack ? abilityAttackDamage(ctx.state, ctx.deps, attack, id) : null;
+        .map(({ dealtTo: id, moved, base }): Extract<TriggerEvent, { kind: "dealDamage" }> => {
+          const ofAttack = attack ? abilityAttackDamage(ctx.state, ctx.deps, attack, id, moved) : null;
           if (ofAttack) attacked.push(ofAttack.attacked);
           return {
             kind: "dealDamage",
@@ -505,20 +510,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [attacker] = targets(effect.attacker ?? { kind: "identityOf", player: { kind: "controller" } });
       if (!controller || !attacker) return;
       let amount = value(effect.amount);
+      // RRG "Move": moved damage is healed from the source and dealt to the destination; no source, no move. Only read
+      // here: the damage is healed off the source below, once it is known that an attack is made to deal it.
+      const [moveFrom] = effect.moveDamageFrom ? targets(effect.moveDamageFrom) : [];
       if (effect.moveDamageFrom) {
-        // RRG "Move": moved damage is healed from the source and dealt to the destination; no source, no move.
-        const [from] = targets(effect.moveDamageFrom);
-        amount = Math.min(amount, from ? mustInstance(ctx.state, from).damage : 0);
-        if (!from || amount <= 0) return;
-        // RRG 1.8 "Heal" (p. 22): moving damage off a character heals it, so one that cannot be healed is no valid
-        // source and the move is not made (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12).
-        amount = healDamage(ctx, from, amount, frame.selfInstanceId);
-        if (amount <= 0) return;
+        amount = Math.min(amount, moveFrom ? mustInstance(ctx.state, moveFrom).damage : 0);
+        if (!moveFrom || amount <= 0) return;
       }
-      // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
-      // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,
-      // so it raises the damage dealt without healing more from the source.
-      amount += cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "damage");
       // RRG 1.8 "Stun" (p. 41): "If a stunned identity or ally attempts to attack or use an attack ability, discard
       // the stunned card instead. Costs associated with the attack attempt … must still be paid." An ability that
       // creates several attacks spends the stun on the first of them only — FAQ "Dance of Death (#4)" (p. 59):
@@ -545,14 +543,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         skipForCancelledAttack(ctx, { attackerId: attacker, frameId: frame.frameId }, frame.selfInstanceId, attackable);
       }
       const attacked = cancelled ? [] : attackable;
+      if (moveFrom) {
+        // No attack is made (it was cancelled, or every enemy named is guarded), so nothing is moved: the damage stays
+        // on the source. Before 2026-10-09 it was healed first and then dealt to nobody.
+        if (attacked.length === 0) return;
+        // RRG 1.8 "Heal" (p. 22): moving damage off a character heals it, so one that cannot be healed is no valid
+        // source and the move is not made (`RuleSpec cannotBeHealed`, docs/phase7-wave6.md §3.12).
+        amount = healDamage(ctx, moveFrom, amount, frame.selfInstanceId);
+        if (amount <= 0) return;
+      }
+      // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
+      // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,
+      // so it raises the damage dealt without healing more from the source.
+      amount += cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "damage");
       // The attack the ability began with is this instruction's attack on one of its enemies: the same event, put back
       // at its damage step with that target and this amount, with no second interrupt window (`resumeBegunAttack`).
-      // Any other enemy the instruction names gets its own event, as it always has, resolved after it.
+      // Any other enemy the instruction names gets its own event, as it always has, resolved after it. Its damage goes
+      // to the target its window left it with (`begun.target`: a retarget made there is kept).
       const begun = attackOf === undefined ? undefined : begunAttackTarget(ctx.state, attackOf, attacker, attacked);
       const pushed = pushEvents(
         ctx,
         attacked
-          .filter((id) => id !== begun)
+          .filter((id) => id !== begun?.instead)
           .map((id) => ({
             kind: "attack",
             attackerInstanceId: attacker,
@@ -571,7 +583,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         for (const id of pushed) updateFrame(ctx, id, (f) => (f.kind === "event" ? { ...f, attackOf } : f));
         if (begun !== undefined) {
           const made = { amount, overkill: effect.overkill === true, keywords: effect.keywords ?? [] };
-          resumeBegunAttack(ctx, attackOf, attacker, begun, made, reportTo(effect.bind));
+          resumeBegunAttack(ctx, attackOf, attacker, begun.target, made, reportTo(effect.bind));
         }
       }
       return;
@@ -976,7 +988,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // An attack that has named no enemy yet (a label-only attack begun before its first instruction,
         // `beginLabelAttack`) has no target to move: its instructions name the characters it attacks.
         if (!character || from === null || character === from) return;
-        setFrame(ctx, { ...attack, event: { ...attack.event, targetInstanceId: character } });
+        // An "(attack)" ability's attack (`attackOf`) also has damage dealt by the ability's instructions, which name
+        // the enemy it was made against: the frame remembers the move for them (`attackRetarget`, `attack-ability.ts`).
+        // A second move keeps the enemy the attack was first moved off.
+        const moved = { from: attack.attackRetarget?.from ?? from, to: character };
+        setFrame(ctx, {
+          ...attack,
+          event: { ...attack.event, targetInstanceId: character },
+          ...(attack.attackOf !== undefined ? { attackRetarget: moved } : {}),
+        });
         emit(ctx, {
           type: "playerAttackRetargeted",
           attackerInstanceId: attack.event.attackerInstanceId,

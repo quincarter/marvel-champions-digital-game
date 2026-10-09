@@ -255,9 +255,19 @@ export type StackFrame =
        * With `attackOf`: this attack has dealt its own damage and is waiting beneath its ability's root frame for the
        * rest of the ability. Damage the ability deals to enemies meanwhile is this attack's. Once the ability's
        * frame is gone the attack finishes: every enemy attacked (`attacked`), then "after … attacks", then "at the
-       * end of this attack". While it waits it is not "this attack" to `currentActivationFrameId`.
+       * end of this attack". While it waits it is not "this attack" to `currentActivationFrameId`. Cleared as the
+       * attack starts to finish (`pushAttackedByAbility`), so it is "this attack" again for its retaliate events, its
+       * "after … attacks" window and its "at the end of this attack" effects.
        */
       readonly attackWaiting?: true;
+      /**
+       * With `attackOf`: the attack's target was changed in its "when … attacks" window (`EffectSpec retargetAttack`),
+       * off `from` (the enemy it was made against) onto `to`. The event's own target is `to` from then on. Kept on the
+       * frame because the damage of an "(attack)" ability's attack is also dealt by the ability's instructions, which
+       * name `from`: each instance of this attack's damage aimed at `from` is dealt to `to`, and `to` is the
+       * character attacked (`resolve/attack-ability.ts`, "A target changed in the attack's window").
+       */
+      readonly attackRetarget?: { readonly from: InstanceId; readonly to: InstanceId };
       /**
        * With `attackOf`: the enemies this attack has attacked so far, one `characterAttacked` each (its own target,
        * then every enemy a later instruction of the ability targeted), pushed when the attack finishes. An enemy
@@ -712,6 +722,7 @@ export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId 
     if (frame.kind !== "event") continue;
     // An "(attack)" ability's attack waiting for the rest of its ability (`attackWaiting`) has dealt its damage: the
     // ability's later instructions name what they named before it waited, the activation around it if there is one.
+    // The flag is cleared as the attack starts to finish, so its retaliate and "after … attacks" abilities name it.
     if (frame.attackWaiting) continue;
     const kind = frame.event.kind;
     // `enemyAttacksEnemy` is an attack, so "this attack" names it, though not an activation (docs/phase7-wave3.md §3.23).

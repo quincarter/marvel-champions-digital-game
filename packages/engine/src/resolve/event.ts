@@ -323,8 +323,9 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       if (pushAttackedByAbility(ctx, frame)) return;
       // An attack that attacked nobody pushed nothing but had its event stamped so (`attack.attacked` empty): finish
       // from the stamped frame, so its "resolved" line and response window read that it attacked no enemy.
+      // It also stopped waiting there (`attackWaiting` cleared): resolve on from the frame as it is now.
       const stamped = findFrame(ctx.state, frame.frameId);
-      if (stamped?.kind === "event" && stamped.event !== frame.event) return executeEventFrame(ctx, stamped);
+      if (stamped?.kind === "event" && stamped !== frame) return executeEventFrame(ctx, stamped);
       // An instance of a "(thwart)" ability's one thwart: its results join the ability's, whose resolved `thwart` and
       // response window follow the ability's last effect (RRG 1.8 "Thwart", p. 44; `thwart-session.ts`).
       if (foldThwartInstance(ctx, frame)) {

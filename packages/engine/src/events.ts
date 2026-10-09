@@ -681,12 +681,36 @@ export type GameEvent =
    * (Player Ability Type)", p. 10: the ability is a single attack; `resolve/attack-ability.ts`). From here until the
    * ability's last effect, damage it deals to enemies is this attack's, and the attack finishes after it: each enemy
    * attacked (retaliate), "after … attacks", "at the end of this attack".
+   *
+   * `begun`: the attack began with its ability, before the `attack` instruction that deals its damage (owner decision,
+   * 2026-10-08, docs/phase7-wave8.md §4.1 row 73). It has dealt nothing yet and waits for that instruction, which is
+   * logged as `attackResumed`; the attack then waits again (a second `attackAwaitsAbility`, without `begun`).
    */
   | {
       readonly type: "attackAwaitsAbility";
       readonly attackFrameId: FrameId;
       readonly abilityFrameId: FrameId;
       readonly attackerInstanceId: InstanceId;
+      readonly begun?: true;
+    }
+  /**
+   * The `attack` instruction of an "(attack)" ability took over the attack the ability began with (row 73,
+   * `resumeBegunAttack` in `resolve/attack-ability.ts`): the same event frame `attackFrameId`, moved from beneath the
+   * ability's root frame `abilityFrameId` back to the top of the stack at its damage step. No `framePushed` or
+   * `framePopped` is logged for the move: the frame never left the stack. What the instruction gave the attack:
+   * `targetInstanceId` (the character it deals its damage to: the enemy the instruction names, or the character the
+   * attack's window moved it onto), `amount` (the instruction's amount, before what the window added to the attack),
+   * `overkill` and `keywords` (the instruction's own).
+   */
+  | {
+      readonly type: "attackResumed";
+      readonly attackFrameId: FrameId;
+      readonly abilityFrameId: FrameId;
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      readonly overkill: boolean;
+      readonly keywords: readonly ("piercing" | "ranged" | "overkill")[];
     }
   /**
    * A damage instruction of an "(attack)" ability named an enemy its player's identity may not attack right now (a

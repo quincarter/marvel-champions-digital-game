@@ -14,7 +14,8 @@
  * - **It waits for its ability.** Once its own damage has resolved, the frame reports its results to the instruction
  *   that made it (`<bind>.defeated`, `<bind>.excessDealt`, read by the ability's next instructions as before) and
  *   moves beneath the root effects frame of the ability (`attackOf`, `attackWaiting`), logged as
- *   `attackAwaitsAbility`.
+ *   `attackAwaitsAbility`. While it waits it is not "this attack" (`currentActivationFrameId`): the ability's other
+ *   instructions name the activation around it, if any. It is again once it starts to finish (below).
  * - **Damage the ability then deals to an enemy is that attack's** (`abilityAttackDamage`): a `dealDamage` instruction
  *   of the same ability, to a card that is an enemy, is dealt by the attacker with the ability's card as `via`,
  *   `fromAttack`, and reported to the waiting frame (the attack's `damage`, `damaged`, `defeated` and `excessDealt`
@@ -195,6 +196,37 @@
  * - **An attack that began and whose instruction is never reached, or names no enemy it may attack by then**, is the
  *   label-only case above: it attacked the enemies its other damage instructions named, or nobody.
  *
+ * **A target changed in the attack's window** (`EffectSpec retargetAttack` with `attack: "player"`: "when you attack an
+ * enemy, change the target of this attack to a friendly character"; docs/phase7-wave7.md §3.66). Official text: RRG
+ * 1.8 "Attack (Player Ability Type)" (p. 10), "resolving that ability is considered to attack the specified target",
+ * and the card that changes the target. The invariant: once an attack event exists, its target as its window left it
+ * is where that attack's damage goes, whichever instruction deals it. An `attack` instruction that makes its own
+ * event has always done this (the event's apply step reads the event's target). For an attack whose damage is dealt
+ * by instructions that resolve after its window (a label-only attack, a begun attack) the frame remembers the move
+ * (`attackRetarget`: `from` the enemy the window heard, `to` the character it was moved onto), and what follows is
+ * this engine's interpretation of the card, chosen to match the plain path:
+ *
+ * - **The attack on `from` is the attack on `to`.** Each instance of the attack's damage that an instruction aims at
+ *   `from` is dealt to `to` instead, as attack damage by the identity with the attack's keywords and its increase
+ *   (Q53), and `to` is the character attacked: it retaliates, `from` does not, and "after you attack [an enemy]" does
+ *   not answer for it. Guard is read for `from` as the instruction resolves, as before: an instruction that may not
+ *   attack `from` deals nothing, so nothing is moved. (Alternative: only the first instance moves; not built, since
+ *   the card changes "the target of this attack", and the ability is one attack, p. 10.)
+ * - **The `attack` instruction of a begun attack** takes the begun event over as its attack on `from` and deals its
+ *   damage to `to` (`begunAttackTarget`). If it no longer names `from`, it takes it over as its attack on the first
+ *   enemy it names, as it does with no retarget, and that enemy is dealt the damage: the move was off `from`.
+ * - **Several enemies** ("each enemy"): only the attack on `from` moves, which is what a plain `attack` instruction
+ *   does (one event per enemy, each retargeted on its own). The other enemies are attacked and damaged as written.
+ *   Unlike the plain path they have no window of their own in which to be moved (file header above: "No later window
+ *   opens for that enemy").
+ * - **An attack that began with no target** (`null`: its enemy is chosen later) has no target to move, so the
+ *   retarget does nothing and logs nothing (`retargetAttack` requires a target), and the attack resolves as written.
+ * - **`to` has left play** by the time an instruction would deal it damage: that instance is not dealt
+ *   (`attackTargetSkipped` naming `to`), and `from` is not dealt it either.
+ * - **Not built: a division of damage** (`divide`, `effects-frame.ts`). Its shares are assigned by the player after
+ *   the window, among the enemies only, so a share given to `from` still goes to `from`. No shipped card pairs the
+ *   two; reported to the owner.
+ *
  * **"That attack deals N additional damage" increases every instance** (owner ruling Q53, 2026-10-08; RRG 1.8 p. 10:
  * "When an attack ability has its damage increased by another ability, each instance of damage in that attack ability
  * that does not use the word 'additional' is increased by the specified amount"; "'For Each'", p. 20: "that modifier
@@ -238,7 +270,7 @@
  * minion only a later instruction named.
  */
 
-import { type Ctx, emit, findFrame, pushFrames, updateFrame } from "../ctx.js";
+import { type Ctx, emit, findFrame, updateFrame } from "../ctx.js";
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf } from "../keywords.js";
@@ -399,6 +431,48 @@ export function abilityAttackOf(
  * instruction's damage to it is not an attack on it), else `canAttack` (guard, a `cannotAttack` rule). No enemy once
  * the attack was cancelled (row 65).
  */
+/**
+ * Where the waiting attack's damage aimed at `targetId` goes when its window moved it off that enemy (`attackRetarget`,
+ * file header "A target changed in the attack's window"): the character it was moved onto. Undefined otherwise.
+ */
+export const movedAttackTarget = (attack: AttackFrame | undefined, targetId: InstanceId): InstanceId | undefined => {
+  const moved = attack?.attackRetarget;
+  return moved !== undefined && moved.from === targetId && moved.to !== targetId ? moved.to : undefined;
+};
+
+interface DamageAim {
+  readonly named: InstanceId;
+  readonly dealtTo: InstanceId;
+  readonly moved: boolean;
+}
+
+/**
+ * The characters a damage instruction of the waiting attack deals its damage to: each target the instruction names,
+ * with the enemy the attack was moved off replaced by the character it was moved onto (`dealtTo`; `named` is still the
+ * card the instruction names, which its per-target amount is read for). A character moved onto that has left play is
+ * dealt nothing, logged as `attackTargetSkipped`.
+ */
+export function withMovedAttackTarget(
+  ctx: Ctx,
+  attack: AttackFrame | undefined,
+  sourceInstanceId: InstanceId | null,
+  targets: readonly InstanceId[],
+): readonly DamageAim[] {
+  const inPlay = attack?.attackRetarget ? cardsInPlay(ctx.state) : [];
+  return targets.flatMap((named): DamageAim[] => {
+    const to = movedAttackTarget(attack, named);
+    if (to === undefined) return [{ named, dealtTo: named, moved: false }];
+    if (inPlay.includes(to)) return [{ named, dealtTo: to, moved: true }];
+    emit(ctx, {
+      type: "attackTargetSkipped",
+      attackerInstanceId: attack!.event.attackerInstanceId,
+      targetInstanceId: to,
+      sourceInstanceId,
+    });
+    return [];
+  });
+}
+
 export const mayAttackWith = (
   state: GameState,
   deps: EngineDeps,
@@ -700,28 +774,37 @@ export const hasBegunAttack = (state: GameState, rootId: FrameId | undefined, at
   rootId !== undefined && begunAttackWaiting(state, rootId, attackerId) !== undefined;
 
 /**
- * The enemy the attack `rootId`'s ability began with takes when an `attack` instruction that names `targets` reaches
- * it: the enemy its window heard if the instruction still names it, else the first. Undefined when no attack is
- * waiting to be taken over or the instruction names no enemy (the attack then stays as it began).
+ * What the attack `rootId`'s ability began with becomes when an `attack` instruction that names `targets` reaches it.
+ * `instead`: the enemy of the instruction whose attack it is (no second event is made for that enemy), the enemy its
+ * window heard if the instruction still names it, else the first. `target`: the character its damage goes to, which is
+ * that enemy, unless the window moved the attack off it (`attackRetarget`), then the character it was moved onto: the
+ * event's target as its window left it is kept (file header, "A target changed in the attack's window"). Undefined
+ * when no attack is waiting to be taken over or the instruction names no enemy (the attack then stays as it began).
  */
 export function begunAttackTarget(
   state: GameState,
   rootId: FrameId,
   attackerId: InstanceId,
   targets: readonly InstanceId[],
-): InstanceId | undefined {
+): { readonly instead: InstanceId; readonly target: InstanceId } | undefined {
   const waiting = begunAttackWaiting(state, rootId, attackerId);
   if (waiting === undefined) return undefined;
-  const heard = waiting.event.targetInstanceId;
-  return heard !== null && targets.includes(heard) ? heard : targets[0];
+  // The enemy the window heard: the one the attack was made against, before any move.
+  const heard = waiting.attackRetarget?.from ?? waiting.event.targetInstanceId;
+  const instead = heard !== null && targets.includes(heard) ? heard : targets[0];
+  if (instead === undefined) return undefined;
+  return { instead, target: movedAttackTarget(waiting, instead) ?? instead };
 }
 
 /**
  * An `attack` instruction takes over the attack its ability began as it began resolving (row 73): the waiting event is
  * given the instruction's attack on `target` (`begunAttackTarget`), its amount, overkill and keywords, and its frame
- * goes back on top of the stack at its damage step (logged as `framePushed`). Its interrupt window is not opened
- * again, and everything that window put on the frame stays (`modifyAttack`'s vars, what "for this attack" effects are
- * timed to).
+ * goes back on top of the stack at its damage step. Its interrupt window is not opened again, and everything that
+ * window put on the frame stays (`modifyAttack`'s vars, what "for this attack" effects are timed to, a changed target).
+ *
+ * The frame never leaves the stack, so the move is logged as one `attackResumed` carrying what the instruction gave
+ * the attack, not as a `framePushed`: the log reads `framePushed` (the attack begins), `attackAwaitsAbility` with
+ * `begun`, `attackResumed`, then `attackAwaitsAbility` again once its damage is dealt, and one `framePopped`.
  */
 export function resumeBegunAttack(
   ctx: Ctx,
@@ -747,8 +830,20 @@ export function resumeBegunAttack(
       ...(made.keywords.length > 0 ? { keywords: made.keywords } : {}),
     },
   };
-  ctx.state = { ...ctx.state, stack: ctx.state.stack.filter((other) => other.frameId !== waiting.frameId) };
-  pushFrames(ctx, [resumed]);
+  ctx.state = {
+    ...ctx.state,
+    stack: [resumed, ...ctx.state.stack.filter((other) => other.frameId !== waiting.frameId)],
+  };
+  emit(ctx, {
+    type: "attackResumed",
+    attackFrameId: waiting.frameId,
+    abilityFrameId: rootId,
+    attackerInstanceId: attackerId,
+    targetInstanceId: target,
+    amount: made.amount,
+    overkill: made.overkill,
+    keywords: made.keywords,
+  });
 }
 
 /**
@@ -832,6 +927,8 @@ export function waitBeneathAbility(ctx: Ctx, frame: AttackFrame): void {
     attackFrameId: frame.frameId,
     abilityFrameId: root,
     attackerInstanceId: frame.event.attackerInstanceId,
+    // Begun with its ability and not taken over yet: it has dealt nothing and waits for its `attack` instruction.
+    ...(frame.attackBegun ? { begun: true as const } : {}),
   });
 }
 
@@ -839,21 +936,26 @@ export function waitBeneathAbility(ctx: Ctx, frame: AttackFrame): void {
  * The waiting attack is on top again (its ability has finished): every enemy it attacked is named, once each, in the
  * order attacked, and its event carries them from here on (`attack.attacked`, owner ruling Q50) for its "resolved"
  * line and its response window. Returns true when it pushed any (the frame then finishes beneath them).
+ *
+ * The attack stops waiting here (`attackWaiting` is cleared, which is also how a second pass knows this one was
+ * made): from its first retaliate event to its last "at the end of this attack" effect it is the attack in progress
+ * again (`currentActivationFrameId`), so an ability that answers one of them and names "this attack" (`atEndOfAttack`,
+ * `until: "endOfAttack"`, `modifyBasicPower`) names it, as it would a basic attack at the same point. The caller
+ * resolves on from the frame as it is on the stack after this.
  */
 export function pushAttackedByAbility(ctx: Ctx, frame: Frame<"event">): boolean {
   if (!frame.attackWaiting || frame.event.kind !== "attack") return false;
   // An attack no instruction of its own made: a label-only attack, or one begun with its ability that no `attack`
   // instruction took over (`attackBegun`). It attacked the enemies the ability's damage instructions named.
   const labelMade = frame.event.labeled === true || frame.attackBegun === true;
-  // One whose instructions attacked nothing after all attacked no enemy, the target it began with included.
-  if (frame.attacked === undefined && (!labelMade || frame.event.attacked !== undefined)) return false;
   const once = (frame.attacked ?? []).filter(
     (event, index, all) => all.findIndex((other) => other.targetInstanceId === event.targetInstanceId) === index,
   );
   const ids = once.map((event) => event.targetInstanceId);
-  const { attacked: _named, ...rest } = frame;
-  // Always stamped on such an attack, which is how a second pass here knows this one was made.
-  const asMade = !labelMade && ids.length === 1 && ids[0] === frame.event.targetInstanceId;
+  const { attacked: _named, attackWaiting: _waited, ...rest } = frame;
+  // An attack of its own instruction that named nobody (its target gone, no ATK) is left as it was made. One no
+  // instruction made is always stamped: with nothing attacked, it attacked no enemy, the target it began with included.
+  const asMade = !labelMade && (ids.length === 0 || (ids.length === 1 && ids[0] === frame.event.targetInstanceId));
   const event: Attack = asMade ? frame.event : { ...frame.event, attacked: ids };
   const finishing = { ...rest, event };
   ctx.state = {
@@ -888,15 +990,17 @@ export function waitingAbilityAttack(
  * (spread over the event), the `characterAttacked` the attack owes that enemy, and what is added to the instance
  * (`extra`). Null when `targetId` is not an enemy: damage an attack ability deals to its own identity, or to any
  * friendly character, is not attack damage. Called only for an enemy an instruction targets, which is what makes it
- * attacked (owner ruling Q50).
+ * attacked (owner ruling Q50). `moved`: `targetId` is the character the attack's window moved it onto, in place of the
+ * enemy the instruction names (`withMovedAttackTarget`); it is attacked and dealt attack damage whatever it is.
  */
 export function abilityAttackDamage(
   state: GameState,
   deps: EngineDeps,
   attack: AttackFrame,
   targetId: InstanceId,
+  moved = false,
 ): { readonly damage: Partial<Damage>; readonly attacked: Attacked; readonly extra: number } | null {
-  if (!categoriesOf(state, targetId).includes("enemy")) return null;
+  if (!moved && !categoriesOf(state, targetId).includes("enemy")) return null;
   const event = attack.event;
   const keywords = attackKeywordsOf(state, deps, {
     attackerInstanceId: event.attackerInstanceId,
