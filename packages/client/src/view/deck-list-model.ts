@@ -93,3 +93,11 @@ export function deckOptionsOf(
     deckOptionOf(deck, pool, currentPoolVersion, deps),
   );
 }
+
+/** The row a deck sits in, by id, among list rows that are `{ kind: "deck", option }` or something else; -1 when it is not listed (filtered out). */
+export function deckRowIndexOf(
+  rows: readonly { readonly kind: string; readonly option?: { readonly deck: { readonly id: unknown } } }[],
+  deckId: string,
+): number {
+  return rows.findIndex((row) => row.kind === "deck" && (row.option?.deck.id as string) === deckId);
+}

@@ -73,6 +73,36 @@ describe("tableSetupPreviewOf", () => {
   });
 });
 
+describe("Four Horsemen: the HP total follows the mode and each chosen side", () => {
+  const horsemen = POOL_SCENARIOS.find((s) => (s.id as string) === "four-horsemen")!;
+  const totalOf = (difficulty: "standard" | "expert", horsemanSides?: ["A" | "B", "A" | "B", "A" | "B", "A" | "B"]) => {
+    const config = buildScenario("four-horsemen", {
+      difficulty,
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+      ...(horsemanSides ? { horsemanSides } : {}),
+    });
+    const preview = tableSetupPreviewOf(config, horsemen, difficulty, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    return { preview, row: gameSummaryRowsOf(preview).find((r) => r.label === "Villain")!.value };
+  };
+
+  test("expert is not 0 HP", () => {
+    const { preview, row } = totalOf("expert");
+    expect(preview.villainTotalHp).toBe(48);
+    expect(row).toContain("4 villains · 48 HP");
+  });
+
+  test("standard is all side A; side B for every Horseman is 48", () => {
+    expect(totalOf("standard").preview.villainTotalHp).toBe(36);
+    expect(totalOf("standard", ["B", "B", "B", "B"]).preview.villainTotalHp).toBe(48);
+  });
+
+  test("one Horseman on side B adds only that Horseman's difference", () => {
+    expect(totalOf("standard", ["A", "B", "A", "A"]).preview.villainTotalHp).toBe(39);
+    expect(totalOf("expert", ["A", "B", "B", "B"]).preview.villainTotalHp).toBe(45);
+  });
+});
+
 describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
   const config = buildScenario("rhino", {
     difficulty: "standard",

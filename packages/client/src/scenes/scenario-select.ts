@@ -582,7 +582,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
     const firstStage = detail.stages[0];
-    const accel = detail.stages.length > 1 ? ` · ${detail.stages.length - 1} accel` : "";
+    const accelerating = detail.startingAcceleration.base > 0 || detail.startingAcceleration.perPlayer > 0;
+    const accel = accelerating ? ` · accel ${formatScaling(detail.startingAcceleration)}` : "";
     const cells: readonly { readonly label: string; readonly value: string }[] = [
       { label: "Main scheme", value: detail.mainSchemeName },
       { label: "Starting threat", value: `${formatScaling(detail.startingThreat)} start${accel}` },

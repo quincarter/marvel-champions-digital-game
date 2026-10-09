@@ -210,16 +210,25 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
   };
 }
 
-/** Picking a difficulty for the current scenario; a choice the new difficulty does not offer (an Expert set, the easier start) is dropped. */
+/**
+ * Picking a difficulty for the current scenario; a choice the new difficulty does not offer (an Expert set) is dropped.
+ * The easier start is kept while the scenario offers it on standard: it is not sent on expert (`toSessionConfig`
+ * reconciles), and switching back to standard finds the player's choice still on.
+ */
 export function setDifficulty(draft: SetupDraft, difficulty: SetupDifficulty): SetupDraft {
-  const next = { ...draft, difficulty };
-  return reconcileWithOffer(next, offerOf(next));
+  return reconcileKeepingEasierStart({ ...draft, difficulty });
+}
+
+function reconcileKeepingEasierStart(next: SetupDraft): SetupDraft {
+  const reconciled = reconcileWithOffer(next, offerOf(next));
+  return next.easierStart && !reconciled.easierStart && offerOf({ ...next, difficulty: "standard" }).easierStart
+    ? { ...reconciled, easierStart: true }
+    : reconciled;
 }
 
 /** Picking modular sets; a Gene Pool amount stops applying when Infinites leaves the game. */
 export function setModularSetIds(draft: SetupDraft, modularSetIds: readonly string[] | null): SetupDraft {
-  const next = { ...draft, modularSetIds };
-  return reconcileWithOffer(next, offerOf(next));
+  return reconcileKeepingEasierStart({ ...draft, modularSetIds });
 }
 
 /** `null` to go back to the printed sets. */

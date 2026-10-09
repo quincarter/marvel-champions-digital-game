@@ -130,21 +130,37 @@ function villainTotalHp(
   cardsById: ReadonlyMap<string, AnyCard>,
   playerCount: number,
   startStageIndex?: number,
+  villains?: GameSetupConfig["villains"],
 ): number {
   const [lo, hi] = stageRangeFor(scenario, difficulty, startStageIndex);
-  const villainCardIds: readonly CardId[] = scenario.multipleVillains
-    ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
-    : [scenario.villainCardId];
+  const configured = scenario.multipleVillains ? villains : undefined;
+  const villainCardIds: readonly CardId[] = configured
+    ? configured.map((v) => v.villainCardId)
+    : scenario.multipleVillains
+      ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
+      : [scenario.villainCardId];
   let total = 0;
-  for (const villainCardId of villainCardIds) {
+  villainCardIds.forEach((villainCardId, index) => {
     const card = cardsById.get(villainCardId as string);
-    if (!card || card.type !== "villain") continue;
-    const side = card.sides.find((s) => s.side === (card.startingSide ?? "A")) ?? card.sides[0];
-    if (!side) continue;
+    if (!card || card.type !== "villain") return;
+    const side =
+      card.sides.find((s) => s.side === (configured?.[index]?.side ?? card.startingSide ?? "A")) ?? card.sides[0];
+    if (!side) return;
+    // A villain the setup pins to explicit stages (each Horseman: the A or B card, one stage) sums those stages, so the
+    // total follows the chosen sides and the mode; the rest sum the difficulty's stage range.
+    const pinned = configured?.[index];
+    if (pinned?.startStageIndex !== undefined) {
+      const first = pinned.startStageIndex;
+      const last = pinned.lastStageIndex ?? side.stages.length - 1;
+      side.stages.forEach((stage, stageIndex) => {
+        if (stageIndex >= first && stageIndex <= last) total += scale(stage.hp, playerCount);
+      });
+      return;
+    }
     for (const stage of side.stages) {
       if (stage.stageNumber >= lo && stage.stageNumber <= hi) total += scale(stage.hp, playerCount);
     }
-  }
+  });
   return total;
 }
 
@@ -379,7 +395,14 @@ export function tableSetupPreviewOf(
     addedSets,
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
     villainStageLabel: roman(stageRange[0]),
-    villainTotalHp: villainTotalHp(scenario, difficulty, cardsById, playerCount, config.villainStartStageIndex),
+    villainTotalHp: villainTotalHp(
+      scenario,
+      difficulty,
+      cardsById,
+      playerCount,
+      config.villainStartStageIndex,
+      config.villains,
+    ),
     villainStageSpan: stageRange[1] - stageRange[0] + 1,
     mainSchemeThreat: mainSchemeThreatOf(firstStage, scenario, cardsById, playerCount, stageRange[0]),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),

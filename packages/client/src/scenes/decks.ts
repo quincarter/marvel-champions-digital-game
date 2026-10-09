@@ -92,7 +92,7 @@ import {
   type ImportEnv,
   type ImportOutcome,
 } from "../view/deck-import-model.js";
-import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
+import { deckOptionsOf, deckRowIndexOf, type DeckOption } from "../view/deck-list-model.js";
 import { sortByRecency } from "../view/deck-recency.js";
 import {
   compositionTilesOf,
@@ -286,6 +286,8 @@ export class DecksScene extends Phaser.Scene {
   #poolList: McVirtualList | null = null;
   #poolListScroll = new ListScroll();
   #focusedOnce = false;
+  /** The deck an import just added: the next list draw scrolls to it, once. */
+  #scrollToDeckId: string | null = null;
   /** True while the selected row is only the first one, standing in for a `focusDeckId` deck not loaded yet. */
   #fallbackSelection = false;
 
@@ -709,6 +711,12 @@ export class DecksScene extends Phaser.Scene {
         this.#focusedOnce = true;
       }
     }
+    // A deck just imported is selected (`#applyImport`) and scrolled to once: it lands below every precon.
+    if (this.#scrollToDeckId) {
+      const index = deckRowIndexOf(rows, this.#scrollToDeckId);
+      if (index >= 0) list.scrollIntoView(index);
+      this.#scrollToDeckId = null;
+    }
     rows.forEach((row, index) => {
       if (row.kind === "newDeck") {
         this.#stops.set("new-deck", {
@@ -1039,8 +1047,11 @@ export class DecksScene extends Phaser.Scene {
 
     if (this.#importExportOpen === "paste") {
       const pasteRect: Rect = { x: left, y, width: column, height: 64 };
-      if (this.#pasteInput) this.#pasteInput.layout(pasteRect);
-      else {
+      if (this.#pasteInput) {
+        this.#pasteInput.layout(pasteRect);
+        // The sweep re-added the field first, so the import box's panel, painted since, covers it: lift it back on top.
+        for (const node of this.#pasteInput.gameObjects) this.children.bringToTop(node);
+      } else {
         this.#pasteInput = new McMultilineInput(this, {
           rect: pasteRect,
           value: this.#pasteText,
@@ -1416,7 +1427,8 @@ export class DecksScene extends Phaser.Scene {
       })
       .setWordWrapWidth(column);
     y += name.height + 6;
-    label(
+    // Wraps inside the pane: an imported deck's line ("... · LEGAL · IMPORTED") is wider than one row.
+    const meta = label(
       this,
       left,
       y,
@@ -1424,8 +1436,8 @@ export class DecksScene extends Phaser.Scene {
       typeRole.label,
       surface.paper.hex,
       ink.label,
-    );
-    y += 20;
+    ).setWordWrapWidth(column);
+    y += Math.max(20, meta.height + 4);
 
     const ruleG = this.add.graphics();
     ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
@@ -1760,6 +1772,7 @@ export class DecksScene extends Phaser.Scene {
     this.#status = { text: `Imported "${outcome.deck.name}".${skipped}`, tone: "success" };
     this.#savedDecks = await deckStorage().list();
     this.#selectedDeckId = outcome.deck.id as string;
+    this.#scrollToDeckId = outcome.deck.id as string;
     this.#busy = false;
     this.#rebuild();
   }

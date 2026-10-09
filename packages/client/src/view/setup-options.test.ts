@@ -237,12 +237,15 @@ describe("Apocalypse's easier start (Q12 = A)", () => {
     expect(rowIds(setDifficulty(draftFor("apocalypse"), "expert"))).not.toContain("easierStart");
   });
 
-  test("toggles on and off, is sent only when on, and expert drops it", () => {
+  test("toggles on and off, is sent only when on, and expert does not send it, though standard remembers it", () => {
     let draft = apply(draftFor("apocalypse"), "easierStart:toggle");
     expect(draft.easierStart).toBe(true);
     expect(toSessionConfig(draft, PLAYERS).easierStart).toBe(true);
     expect(rowsOf(draft).find((r) => r.id === "easierStart")!.meta).toBe("On · begins at stage I");
-    expect(setDifficulty(draft, "expert").easierStart).toBe(false);
+    const expert = setDifficulty(draft, "expert");
+    expect(toSessionConfig(expert, PLAYERS)).not.toHaveProperty("easierStart");
+    expect(rowIds(expert)).not.toContain("easierStart");
+    expect(setDifficulty(expert, "standard").easierStart).toBe(true);
     draft = apply(draft, "easierStart:toggle");
     expect(toSessionConfig(draft, PLAYERS)).not.toHaveProperty("easierStart");
   });
