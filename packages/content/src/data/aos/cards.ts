@@ -1652,10 +1652,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
     abilities: [
       { id: abilityId("50068.black-widows-gauntlet-constant") },
       { id: abilityId("50068.black-widows-gauntlet-response") },
-      {
-        id: abilityId("50068.black-widows-gauntlet-constant-2"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
+      { id: abilityId("50068.preparation") },
     ],
   },
   {
@@ -1677,13 +1674,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "Attach to Black Widow.\nForced Interrupt: When a player plays an event card, cancel its effects and discard it. Then, discard this card.\nPreparation: Discard 1 event card from your hand.",
       current: "Attach to Black Widow.\nForced Interrupt: When a player plays an event card, cancel its effects and discard it. Then, discard this card.\nPreparation: Discard 1 event card from your hand.",
     },
-    abilities: [
-      { id: abilityId("50069.grappling-hook-forced-interrupt") },
-      {
-        id: abilityId("50069.grappling-hook-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50069.grappling-hook-forced-interrupt") }, { id: abilityId("50069.preparation") }],
   },
   {
     id: cardId("50070"),
@@ -1705,13 +1696,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "Attach to Black Widow.\nEach encounter card without a printed \"Preparation\" ability gains \"Preparation: Prevent all damage from this attack. Then, discard Night Vision Goggles.\"\nPreparation: Attach this card to Black Widow.",
       current: "Attach to Black Widow.\nEach encounter card without a printed \"Preparation\" ability gains \"Preparation: Prevent all damage from this attack. Then, discard Night Vision Goggles.\"\nPreparation: Attach this card to Black Widow.",
     },
-    abilities: [
-      { id: abilityId("50070.night-vision-goggles-constant") },
-      {
-        id: abilityId("50070.night-vision-goggles-constant-2"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50070.night-vision-goggles-constant") }, { id: abilityId("50070.preparation") }],
   },
   {
     id: cardId("50071"),
@@ -1735,10 +1720,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
     abilities: [
       { id: abilityId("50071.stun-net-constant") },
       { id: abilityId("50071.stun-net-action") },
-      {
-        id: abilityId("50071.stun-net-constant-2"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
+      { id: abilityId("50071.preparation") },
     ],
   },
   {
@@ -1762,12 +1744,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "Quickstrike.\nPreparation: After this attack, put this minion into play engaged with you.",
       current: "Quickstrike.\nPreparation: After this attack, put this minion into play engaged with you.",
     },
-    abilities: [
-      {
-        id: abilityId("50072.aim-commando-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50072.preparation") }],
   },
   {
     id: cardId("50073"),
@@ -1790,12 +1767,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "Guard.\nPreparation: Put this minion into play engaged with you. Then, resolve this attack against A.I.M. Grunt instead.",
       current: "Guard.\nPreparation: Put this minion into play engaged with you. Then, resolve this attack against A.I.M. Grunt instead.",
     },
-    abilities: [
-      {
-        id: abilityId("50073.aim-grunt-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50073.preparation") }],
   },
   {
     id: cardId("50074"),
@@ -1860,13 +1832,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: If you are in alter-ego form, change to hero form. Black Widow attacks you. Give her an additional boost card for this attack.\nPreparation: Prevent all damage from this attack. In expert mode, deal that much damage to the attacking character.",
       current: "When Revealed: If you are in alter-ego form, change to hero form. Black Widow attacks you. Give her an additional boost card for this attack.\nPreparation: Prevent all damage from this attack. In expert mode, deal that much damage to the attacking character.",
     },
-    abilities: [
-      { id: abilityId("50076.when-revealed") },
-      {
-        id: abilityId("50076.attacrobatics-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50076.when-revealed") }, { id: abilityId("50076.preparation") }],
   },
   {
     id: cardId("50077"),
@@ -1886,13 +1852,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: You are confused. Black Widow schemes.\nPreparation: Place 1 threat on each scheme.",
       current: "When Revealed: You are confused. Black Widow schemes.\nPreparation: Place 1 threat on each scheme.",
     },
-    abilities: [
-      { id: abilityId("50077.when-revealed") },
-      {
-        id: abilityId("50077.covert-ops-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50077.when-revealed") }, { id: abilityId("50077.preparation") }],
   },
   {
     id: cardId("50078"),
@@ -1912,13 +1872,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Deal 1 damage to a character you control. Deal 2 damage to a second character you control. Deal 3 damage to a third character you control.\nPreparation: Deal 1 damage to each character you control.",
       current: "When Revealed: Deal 1 damage to a character you control. Deal 2 damage to a second character you control. Deal 3 damage to a third character you control.\nPreparation: Deal 1 damage to each character you control.",
     },
-    abilities: [
-      { id: abilityId("50078.when-revealed") },
-      {
-        id: abilityId("50078.dance-of-death-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50078.when-revealed") }, { id: abilityId("50078.preparation") }],
   },
   {
     id: cardId("50079"),
@@ -1938,13 +1892,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: You are stunned. Take 1 damage (2 damage instead if you were already stunned).\nPreparation: After this attack, stun the attacking character.",
       current: "When Revealed: You are stunned. Take 1 damage (2 damage instead if you were already stunned).\nPreparation: After this attack, stun the attacking character.",
     },
-    abilities: [
-      { id: abilityId("50079.when-revealed") },
-      {
-        id: abilityId("50079.widows-bite-constant"),
-        notesForScripting: "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-      },
-    ],
+    abilities: [{ id: abilityId("50079.when-revealed") }, { id: abilityId("50079.preparation") }],
   },
   {
     id: cardId("50080"),

@@ -218,6 +218,17 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       );
     case "tucked":
       return resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
+    case "dealtEncounter":
+      // Facedown and not being revealed, as `passEncounterCards` reads a card that is still a dealt one.
+      return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
+        filtered(
+          mustPlayer(state, playerId).dealtEncounter.filter(
+            (id) =>
+              !mustInstance(state, id).faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id),
+          ),
+          selector.filter,
+        ),
+      );
     case "separateDeck": {
       const zones = selector.zones ?? ["deck"];
       return resolvePlayers(state, selector.player, context).flatMap((playerId) => {

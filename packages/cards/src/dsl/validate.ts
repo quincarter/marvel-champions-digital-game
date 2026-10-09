@@ -7,6 +7,7 @@ import {
   type AbilityCost,
   type AbilityDefinition,
   type AbilityRegistry,
+  type CardSelector,
   type EffectSpec,
   type EventPattern,
 } from "@mc/engine";
@@ -62,6 +63,8 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkMoments(definition, problems);
   checkSchemeDivert(definition, problems);
   checkCardTotals(definition, problems);
+  checkPreparations(definition, problems);
+  checkRearranges(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -504,6 +507,54 @@ function checkCardTotals(definition: AbilityDefinition, problems: string[]): voi
     if (effect.kind !== "chooseCards" || !effect.maxTotal) continue;
     if (!Number.isInteger(effect.maxTotal.atMost) || effect.maxTotal.atMost < 0)
       problems.push("chooseCards maxTotal: atMost must be a whole number of at least 0");
+  }
+}
+
+/**
+ * `resolveSpecials` with `trigger: "preparation"` (docs/phase7-wave9.md §3.2): the card is out of play, in the
+ * encounter discard pile, so it is named with `of` (`cards` reads cards in play only and would find nothing). The "as
+ * if" floor and the When Revealed keywords belong to other kinds.
+ */
+function checkPreparations(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "resolveSpecials" || effect.trigger !== "preparation") continue;
+    if (!effect.of)
+      problems.push("resolveSpecials preparation: name the card with `of` (it is in the encounter discard pile)");
+    if (effect.asIf) problems.push("resolveSpecials preparation: `asIf` is not read for a Preparation ability");
+    if (effect.includeKeywords)
+      problems.push("resolveSpecials preparation: `includeKeywords` is for When Revealed abilities");
+  }
+}
+
+/**
+ * `lookAt` with `rearrange` (docs/phase7-wave9.md §3.12): the cards are assigned back over the positions they hold, so
+ * the selector names positions that hold a facedown card out of play: dealt encounter cards and decks. The engine
+ * leaves any other card out of the look, which would silently drop what the text names.
+ */
+function checkRearranges(definition: AbilityDefinition, problems: string[]): void {
+  const positional = (selector: CardSelector): boolean => {
+    switch (selector.kind) {
+      case "anyOf":
+        return selector.of.every(positional);
+      case "atMost":
+        return positional(selector.of);
+      case "dealtEncounter":
+        return true;
+      case "encounter":
+        return selector.zones.every((zone) => zone === "deck");
+      case "scenarioDeck":
+      case "separateDeck":
+        return (selector.zones ?? ["deck"]).every((zone) => zone === "deck");
+      case "zone":
+        return [selector.zone].flat().every((zone) => zone === "deck");
+      default:
+        return false;
+    }
+  };
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "lookAt" || !effect.rearrange) continue;
+    if (!positional(effect.cards))
+      problems.push("lookAt rearrange: the cards are dealt encounter cards (dealtEncounterCards) and deck cards only");
   }
 }
 

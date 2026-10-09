@@ -4,7 +4,7 @@ import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
 import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
 import type { PairLimit, StatusName } from "./spec.js";
-import type { Form } from "./state.js";
+import type { Form, ZoneId } from "./state.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -16,6 +16,12 @@ export interface AttackInProgress {
   readonly enemyInstanceId: InstanceId;
   readonly targetPlayerId: PlayerId;
   readonly targetCharacterInstanceId: InstanceId;
+}
+
+/** A place a card holds: its zone and its index there (0 is the top of a deck, the front of a dealt queue). */
+export interface CardPosition {
+  readonly zone: ZoneId;
+  readonly index: number;
 }
 
 /** What a `chooseFromList` prompt enumerates. `cardType`: the fifteen card types (RRG 1.8 "Card Types", p. 12). */
@@ -90,6 +96,15 @@ export type ChoicePrompt =
    * answer is the empty one, an acknowledge.
    */
   | { readonly kind: "lookAt" }
+  /**
+   * `EffectSpec lookAt` with `rearrange` (docs/phase7-wave9.md §3.12): "look at each encounter card dealt to each
+   * player and the top card of the encounter deck. You may swap any number of those cards." The options are the cards
+   * the player is looking at, face-visible to them alone (`visibility.ts`), and option `i` is the card now at
+   * `positions[i]`. The answer is every option exactly once, in order (`minSelections` = `maxSelections` = the number
+   * of options): selection `i` is the card that goes to `positions[i]`. The options in the order offered is the
+   * arrangement that swaps nothing, which is always allowed.
+   */
+  | { readonly kind: "rearrange"; readonly positions: readonly CardPosition[] }
   /**
    * "Choose one" among labeled options; option ids are the option indexes. Also where a card an effect plays goes
    * when the rules give a choice of place (`EffectSpec playFromHand`): its option ids are `PLAY_TO_OWN_AREA` and

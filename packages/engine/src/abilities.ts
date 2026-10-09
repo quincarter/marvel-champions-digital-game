@@ -401,6 +401,15 @@ export type AbilityTriggerSpec =
   /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
   | { readonly kind: "special" }
   /**
+   * "Preparation:" (MC50 rulebook p. 9, "Preparation Abilities"): printed "in place of 'Boost' abilities" on the
+   * encounter cards of one villain's set. "These abilities are **not** resolved when the cards are turned faceup as
+   * boost cards. Instead, these abilities are only resolved by the 'Forced Interrupt'" on that villain: like a Special,
+   * it resolves only when another ability instructs it (`EffectSpec resolveSpecials` with `trigger: "preparation"`),
+   * usually on a card in the encounter discard pile. It is not a boost ability, so the boost step never reads it and
+   * the card has no star icon for it. docs/phase7-wave9.md §3.2.
+   */
+  | { readonly kind: "preparation" }
+  /**
    * A forced ability that resolves when a condition becomes true, with no triggering event: "If there are no madness
    * counters here, flip Green Goblin and State of Madness." Checked between every two frames (as the RRG 1.8 "Uses"
    * discard is, p. 46), so it happens immediately, mid-attack included (FAQ "Green Goblin (#1B)", p. 59).
@@ -2480,16 +2489,30 @@ export interface AbilityCost {
   };
 }
 
+/** The kinds of printed ability `EffectSpec resolveSpecials` resolves on another card's instruction (its `trigger`). */
+export type ResolvableAbilityKind =
+  | "special"
+  | "whenRevealed"
+  | "whenDefeated"
+  | "forcedResponse"
+  | "forcedInterrupt"
+  | "preparation";
+
+/**
+ * The result an attack records for the labeled abilities resolved during it (docs/phase7-wave9.md §3.2): how many
+ * "Preparation" abilities a `resolveSpecials` resolved while that attack was the innermost one on the stack. Kept in
+ * the attack's event frame `vars`, so it is in the event's `results` once its response window opens ("if no
+ * 'Preparation' ability was resolved"). Absent when none resolved.
+ */
+export const labeledResolvedVar = (label: "preparation"): string => `labeledResolved.${label}`;
+
 /**
  * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a
  * "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt` trigger that is
  * forced; the others are named by their own trigger kind. A card's attach instruction is not one of its When Revealed
  * abilities (docs/phase7-wave7.md §3.35).
  */
-export function resolvableAs(
-  definition: AbilityDefinition | undefined,
-  trigger: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse" | "forcedInterrupt",
-): boolean {
+export function resolvableAs(definition: AbilityDefinition | undefined, trigger: ResolvableAbilityKind): boolean {
   if (!definition || definition.attachInstruction) return false;
   if (trigger === "forcedResponse") return definition.trigger.kind === "response" && definition.trigger.forced;
   if (trigger === "forcedInterrupt") return definition.trigger.kind === "interrupt" && definition.trigger.forced;

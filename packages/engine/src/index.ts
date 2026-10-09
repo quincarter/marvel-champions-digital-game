@@ -45,6 +45,7 @@ export {
 
 export type {
   AttackInProgress,
+  CardPosition,
   ChoiceList,
   ChoiceOption,
   ChoicePrompt,
@@ -236,6 +237,7 @@ export {
   DEFAULT_DEPS,
   fixedResourcesOf,
   inPlayPicksOf,
+  labeledResolvedVar,
   isResourcesChoice,
   NO_ABILITIES,
   resourcesChoiceOf,
@@ -401,7 +403,7 @@ export { stackEntries } from "./stack-view.js";
 export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
-export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+export { faceHidden, faceVisible, lookedAtBy, offeredByOpenChoice, zoneHidden } from "./visibility.js";
 export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */

@@ -330,6 +330,14 @@ export const whenRevealedAlterEgo = (...effects: readonly EffectArg[]): AbilityD
   whenRevealed(ifThen(isAlterEgo(), effects));
 export const whenDefeated = (...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "whenDefeated" }, {}, effects);
+/**
+ * "Preparation:" (MC50 rulebook p. 9; docs/phase7-wave9.md §3.2): printed in place of a Boost ability on the encounter
+ * cards of Black Widow's set. Never resolved from a boost card; only when another ability instructs it
+ * (`resolvePreparationsOf`), on a card that is usually in the encounter discard pile. `self` is that card, "you" the
+ * resolving player, and the triggering event the instructing ability's own ("this attack").
+ */
+export const preparation = (...effects: readonly EffectArg[]): AbilityDefinition =>
+  build({ kind: "preparation" }, {}, effects);
 /** "[star] Boost:" — "you" is the player the activation is against. */
 export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "boost" }, {}, effects);
 /**

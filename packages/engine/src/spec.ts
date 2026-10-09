@@ -32,7 +32,7 @@ export type LastingGrantUntil = LastingUntil | NextBasicPowerUntil;
 // Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
-import type { CardIcon, EventPattern, RuleSpec } from "./abilities.js";
+import type { CardIcon, EventPattern, ResolvableAbilityKind, RuleSpec } from "./abilities.js";
 import type { RulesCardType } from "./card-types.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
@@ -2596,7 +2596,20 @@ export type EffectSpec =
        * enemy in play, has no "as if" to read and is not resolved or counted. Several resolve in the order the calling
        * ability's player chooses, as Specials do.
        */
-      readonly trigger?: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse" | "forcedInterrupt";
+      /**
+       * `"preparation"`: "discard the top card of the encounter deck and resolve each 'Preparation' ability on that
+       * card" (MC50 rulebook p. 9, "Preparation Abilities"; docs/phase7-wave9.md §3.2). Each card's Preparation
+       * abilities (`AbilityTriggerSpec preparation`) resolve wherever the card is, which is the encounter discard pile
+       * for the villain's Forced Interrupt (name it with `of`; `cards` reads cards in play only). Inside them "this
+       * card" is that card, "you" is the resolving player (`player`, else the calling ability's "you": "the attacking
+       * player discards", p. 9) and the triggering event is the calling ability's own, so "this attack" is the attack
+       * that triggered the caller. The ability may move its own card out of the discard pile ("Attach this card to
+       * [villain]", "put this minion into play engaged with you"); a card it leaves there stays discarded. The card is
+       * not revealed and is not a boost card: no When Revealed, surge or boost ability of it resolves. Several resolve
+       * in the order the calling ability's player chooses, as Specials do. `<bind>.count` is how many resolved, and the
+       * same number is added to the innermost attack on the stack as its `labeledResolvedVar("preparation")` result.
+       */
+      readonly trigger?: ResolvableAbilityKind;
       /**
        * "… as if it has at least 1 hit point" (Rough Riders): while each resolved ability's effects resolve, the card
        * they are printed on is considered to have at least this many remaining hit points, exactly as under
@@ -2903,7 +2916,24 @@ export type EffectSpec =
    * text that goes on to act on what was seen ("look at the top card of your deck; if it is …"). A look that reads a
    * deck and finds nothing (an empty deck) did not resolve, the same as `selectCards` (RRG 1.8 "'Then'", p. 44).
    */
-  | { readonly kind: "lookAt"; readonly cards: CardSelector; readonly viewer: PlayerRef; readonly bind?: string }
+  /**
+   * `rearrange` (docs/phase7-wave9.md §3.12): "look at each encounter card dealt to each player and the top card of the
+   * encounter deck. You may swap any number of those cards." The look is then over positions: each looked-at card that
+   * is facedown among a player's dealt encounter cards or in a deck (any other card `cards` names is left out), and
+   * the prompt is a `ChoicePrompt rearrange` in which `viewer` assigns the same cards back to the same positions in
+   * any arrangement, the one that swaps nothing included. Every position keeps a card, so each player keeps the
+   * number of cards they were dealt and their places in the queue; the cards stay facedown, nothing is revealed,
+   * dealt or shuffled, and a deck whose only card is swapped is not reset. Logged `cardsLookedAt`, then
+   * `cardsRearranged`. With fewer than two such cards there is nothing to swap and the look is the plain one.
+   * `<bind>` keeps naming the same cards afterward, wherever they now are.
+   */
+  | {
+      readonly kind: "lookAt";
+      readonly cards: CardSelector;
+      readonly viewer: PlayerRef;
+      readonly bind?: string;
+      readonly rearrange?: true;
+    }
   /** "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is. */
   | { readonly kind: "revealCard"; readonly cards: TargetRef; readonly player: PlayerRef }
   | { readonly kind: "shuffleEncounterDeck" }
@@ -4378,6 +4408,13 @@ export type CardSelector =
     }
   /** Cards tucked under a card ("each facedown card here"). */
   | { readonly kind: "tucked"; readonly under: TargetRef }
+  /**
+   * "Each encounter card dealt to each player" (docs/phase7-wave9.md §3.12): the facedown encounter cards dealt to the
+   * players `player` names and not yet revealed (`PlayerState.dealtEncounter`; a card whose reveal has begun is no
+   * longer one), in player order and, for each player, in the order they will reveal them (RRG 1.8 "Deal, Deal an
+   * Encounter Card", p. 15). Out of play and facedown: naming them shows nobody their faces.
+   */
+  | { readonly kind: "dealtEncounter"; readonly player: PlayerRef; readonly filter?: TargetQuery }
   /**
    * An identity's separate deck and/or its own discard pile: "the top card of the Invocation deck"
    * (docs/phase7-wave1.md §3.5). `zones` defaults to the deck.

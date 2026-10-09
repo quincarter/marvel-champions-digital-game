@@ -11,7 +11,7 @@
  * Ability id convention (`<cardCode>.<slug>`, stable — never renumber):
  * - Printed ability name → slug of the name: `01001a.spider-sense`.
  * - Structural encounter/scenario timings → bare slug: `setup`, `boost`,
- *   `when-revealed`, `when-revealed-hero`, `when-revealed-alter-ego`,
+ *   `preparation`, `when-revealed`, `when-revealed-hero`, `when-revealed-alter-ego`,
  *   `when-defeated`, `obligation` (the whole obligation text).
  * - Everything else → `<card-name-slug>-<kind>`, kind ∈ action | resource |
  *   response | interrupt | forced-response | forced-interrupt | special |
@@ -52,6 +52,12 @@ export type AbilityKind =
   | "constant"
   | "setup"
   | "boost"
+  /**
+   * MC50 rulebook p. 9, "Preparation Abilities": printed "in place of 'Boost' abilities" on the encounter cards of
+   * Black Widow's set, and resolved only by the Forced Interrupt on her villain cards, never from a boost card. A kind
+   * of its own, so a card printing one gets no `starIcon` and no `.boost` ref.
+   */
+  | "preparation"
   | "when-revealed"
   | "when-revealed-hero"
   | "when-revealed-alter-ego"
@@ -62,6 +68,7 @@ export type AbilityKind =
 const STRUCTURAL_KINDS: ReadonlySet<AbilityKind> = new Set([
   "setup",
   "boost",
+  "preparation",
   "when-revealed",
   "when-revealed-hero",
   "when-revealed-alter-ego",
@@ -169,7 +176,7 @@ export interface ParseOptions {
   readonly preambleWhenRevealed?: string;
 }
 
-const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|Preparation|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -265,6 +272,8 @@ function kindOf(rawTrigger: string): KindResult {
       return { kind: "setup" };
     case "Boost":
       return { kind: "boost" };
+    case "Preparation":
+      return { kind: "preparation" };
     case "When Revealed":
       return { kind: "when-revealed" };
     case "When Revealed (Hero)":

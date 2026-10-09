@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCardText } from "./parse-text.ts";
+import { assignAbilityIds, parseCardText } from "./parse-text.ts";
 import { toPlainText } from "./text.ts";
 
 /**
@@ -594,5 +594,54 @@ describe("parseCardText: attach host by classification", () => {
     );
 
     expect(parsed.attachesTo).toEqual({ kind: "qualified", category: "ally", trait: "X-MEN" });
+  });
+});
+
+/**
+ * MC50 rulebook p. 9, "Preparation Abilities": printed "in place of 'Boost' abilities" on the encounter cards of Black
+ * Widow's set (`aos` 50068-50073, 50076-50079) and resolved only by the Forced Interrupt on her villain cards.
+ */
+describe("parseCardText: the Preparation header", () => {
+  it("is an ability of its own kind, not a constant and not a boost (Covert Ops, aos 50077)", () => {
+    const parsed = parseCardText(
+      "When Revealed: You are confused. Black Widow schemes.\nPreparation: Place 1 threat on each scheme.",
+      { villainNames: new Set(["Black Widow"]) },
+    );
+
+    expect(parsed.abilities).toEqual([
+      { kind: "when-revealed", text: "When Revealed: You are confused. Black Widow schemes." },
+      { kind: "preparation", text: "Preparation: Place 1 threat on each scheme." },
+    ]);
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it("gets the structural id <code>.preparation", () => {
+    const parsed = parseCardText("Guard.\nPreparation: Put this minion into play engaged with you.", {
+      villainNames: new Set(),
+    });
+
+    const ids = assignAbilityIds("50073", "A.I.M. Grunt", parsed.abilities, new Set()).map(({ id }) => id);
+    expect(ids).toEqual(["50073.preparation"]);
+  });
+
+  it("keeps the card's own attach host and leaves a quoted, granted Preparation inside its constant (50070)", () => {
+    const parsed = parseCardText(
+      'Attach to Black Widow.\nEach encounter card without a printed "Preparation" ability gains "Preparation: Prevent all damage from this attack. Then, discard Night Vision Goggles."\nPreparation: Attach this card to Black Widow.',
+      { villainNames: new Set(["Black Widow"]) },
+    );
+
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["constant", "preparation"]);
+    expect(parsed.abilities[1]?.text).toBe("Preparation: Attach this card to Black Widow.");
+    expect(parsed.attachesTo).toEqual({ kind: "villain" });
+    expect(parsed.attachesToVillainNamed).toBe("Black Widow");
+  });
+
+  it('the trait word in running text is not a header ("a Preparation card you control")', () => {
+    const parsed = parseCardText(
+      "Response: After you discard a Preparation card you control, discard Practiced Plan → return that card to your hand from your discard pile.",
+      { villainNames: new Set() },
+    );
+
+    expect(parsed.abilities.map((a) => a.kind)).toEqual(["response"]);
   });
 });

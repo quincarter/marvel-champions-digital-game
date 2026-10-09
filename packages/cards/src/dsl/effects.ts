@@ -26,6 +26,7 @@ import { abilityId, type KeywordInstance, type Trait } from "@mc/content";
 import {
   amount,
   chosen,
+  eachPlayer,
   query,
   self,
   TRAIT,
@@ -1524,6 +1525,24 @@ export const resolveForcedInterruptOf = (
   ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
   ...withBind(opts.bind),
 });
+/**
+ * "Discard the top card of the encounter deck and resolve each 'Preparation' ability on that card" (Black Widow, `aos`
+ * 50064 to 50066; MC50 rulebook p. 9; docs/phase7-wave9.md §3.2): `resolvePreparationsOf(chosen("discarded"))` after a
+ * bound `discardEncounterCards`. The card is named by ref because it is out of play, in the encounter discard pile.
+ * Each of its Preparation abilities (`preparation(...)`) resolves with the resolving player (`player`, else this
+ * ability's "you") as "you" and this ability's own triggering event as theirs. `bind`: `<bind>.count`, how many
+ * resolved, with what they bound under `<bind>.`; the attack in progress records the same number.
+ */
+export const resolvePreparationsOf = (
+  ref: TargetRef,
+  opts: { readonly bind?: string; readonly player?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "resolveSpecials",
+  of: ref,
+  trigger: "preparation",
+  ...(opts.player ? { player: opts.player } : {}),
+  ...withBind(opts.bind),
+});
 /** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */
 export const setVar = (name: string, value: Amount): EffectSpec => ({ kind: "setVar", name, value: amount(value) });
 /**
@@ -1642,6 +1661,34 @@ export const lookAt = (
   cards: from,
   viewer: opts.viewer ?? you,
   ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
+});
+/**
+ * "Each encounter card dealt to each player" (Intelligence, `aos` 50051; docs/phase7-wave9.md §3.12): the facedown
+ * encounter cards dealt to `player` (default every player) and not yet revealed, in player order and, for each player,
+ * in the order they will reveal them.
+ */
+export const dealtEncounterCards = (player: PlayerRef = eachPlayer, filter?: TargetQuery): CardSelector => ({
+  kind: "dealtEncounter",
+  player,
+  ...(filter ? { filter } : {}),
+});
+/**
+ * "Look at each encounter card dealt to each player and the top card of the encounter deck. You may swap any number of
+ * those cards." (Intelligence, `aos` 50051; docs/phase7-wave9.md §3.12):
+ * `lookAtAndRearrange(anyOfCards(dealtEncounterCards(), encounterCards(["deck"], undefined, 1)))`. `viewer` alone sees the cards and assigns
+ * them back to the same positions in any arrangement (a `rearrange` prompt), the one that swaps nothing included.
+ * Every position keeps a card and the cards stay facedown; nothing is revealed, dealt or shuffled. `from` names
+ * facedown dealt cards and deck cards only (validated). `bind`: the cards and `<bind>.count`, as `lookAt`.
+ */
+export const lookAtAndRearrange = (
+  from: CardSelector,
+  opts: { readonly bind?: string; readonly viewer?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "lookAt",
+  cards: from,
+  viewer: opts.viewer ?? you,
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
+  rearrange: true,
 });
 export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({
   kind: "revealCard",

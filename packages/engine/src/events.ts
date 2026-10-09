@@ -2,7 +2,7 @@ import type { AbilityId, CardId, CoreAspect, Trait, VillainSideLetter } from "@m
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
 import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
-import type { PendingChoice } from "./choices.js";
+import type { CardPosition, PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, MainSchemeAdvancedBy, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -1202,6 +1202,20 @@ export type GameEvent =
   | { readonly type: "targetChosen"; readonly slot: string; readonly instanceIds: readonly InstanceId[] }
   /** `EffectSpec lookAt`: `playerId` looked at these cards (RRG 1.8 "Look, Looked-At", p. 27); nothing moved. */
   | { readonly type: "cardsLookedAt"; readonly playerId: PlayerId; readonly instanceIds: readonly InstanceId[] }
+  /**
+   * `EffectSpec lookAt` with `rearrange` (docs/phase7-wave9.md §3.12): `playerId` put the cards they looked at back
+   * over the positions those cards held. `instanceIds[i]` is the card now at `positions[i]`; `moved` is how many are
+   * somewhere new (0: nothing was swapped). Each card that changed zones has its own `cardMoved` before this. No card
+   * id is on this line: the cards are facedown before and after, and which face is where is only for a viewer the
+   * rules let look (`faceVisible`).
+   */
+  | {
+      readonly type: "cardsRearranged";
+      readonly playerId: PlayerId;
+      readonly positions: readonly CardPosition[];
+      readonly instanceIds: readonly InstanceId[];
+      readonly moved: number;
+    }
   /**
    * A required choice found nothing to choose (RRG 1.8 "Choose (Game Element)", p. 12), so the text before a "then"
    * did not fully resolve: `thenSkipped` follows for each "then" it gates.

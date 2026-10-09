@@ -2,7 +2,8 @@
 
 import type { AbilityId } from "@mc/content";
 import { announceDeckTops } from "../deck-top.js";
-import { type EngineDeps, resolvableAs } from "../abilities.js";
+import { positionsOf, rearrangeable, rearrangeCards } from "./rearrange.js";
+import { type EngineDeps, labeledResolvedVar, resolvableAs } from "../abilities.js";
 import {
   cardsInPlayFromZone,
   hostChoicesForEffectPlay,
@@ -1725,6 +1726,9 @@ function executeChooseCards(
  * makes a deck card face-visible (`visibility.ts` `offeredByOpenChoice`); the empty answer resumes past it. With
  * nothing to look at, or nobody to look, there is no choice: the look simply finds nothing.
  */
+/** The cards a `lookAt` with `rearrange` showed, kept on its frame while its prompt is open (not a card's slot). */
+const REARRANGE_SLOT = "$lookAt.rearrange";
+
 function executeLookAt(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -1732,11 +1736,19 @@ function executeLookAt(
   context: EffectContext,
 ): void {
   if (frame.answer !== null) {
-    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+    // The answer to a `rearrange` prompt is the arrangement: selection `i` goes where the `i`th looked-at card is.
+    const looked = frame.bindings[REARRANGE_SLOT];
+    const { [REARRANGE_SLOT]: _looked, ...bindings } = frame.bindings;
+    const arrangement = frame.answer as readonly InstanceId[];
+    setFrame(ctx, { ...frame, bindings, answer: null, cursor: frame.cursor + 1 });
+    const [by] = looked ? resolvePlayers(ctx.state, effect.viewer, context) : [];
+    if (looked && by && arrangement.length === looked.length) rearrangeCards(ctx, by, looked, arrangement);
     return;
   }
   const [viewer] = resolvePlayers(ctx.state, effect.viewer, context);
-  const ids = viewer ? selectCards(ctx, effect.cards, context) : [];
+  const named = viewer ? selectCards(ctx, effect.cards, context) : [];
+  // A look that rearranges is over positions (docs/phase7-wave9.md §3.12): facedown dealt cards and deck cards only.
+  const ids = effect.rearrange ? named.filter((id) => rearrangeable(ctx.state, id)) : named;
   const bound = effect.bind
     ? {
         bindings: { ...frame.bindings, [effect.bind]: ids },
@@ -1749,15 +1761,23 @@ function executeLookAt(
     if (readsDeck(effect.cards)) markPreThenUnresolved(ctx, frame.frameId, "lookFoundNothing");
     return;
   }
-  setFrame(ctx, { ...frame, ...bound });
+  // With two or more cards to swap among, the look asks for their arrangement; the cards looked at are kept on the
+  // frame (`REARRANGE_SLOT`) until the answer, so the positions are the ones the prompt showed.
+  const rearranges = effect.rearrange === true && ids.length > 1;
+  setFrame(ctx, {
+    ...frame,
+    ...bound,
+    ...(rearranges ? { bindings: { ...(bound.bindings ?? frame.bindings), [REARRANGE_SLOT]: ids } } : {}),
+  });
   emit(ctx, { type: "cardsLookedAt", playerId: viewer, instanceIds: ids });
   requestChoice(ctx, {
     playerId: viewer,
-    prompt: { kind: "lookAt" },
+    prompt: rearranges ? { kind: "rearrange", positions: positionsOf(ctx.state, ids) } : { kind: "lookAt" },
     options: cardOptions(ctx, ids),
-    minSelections: 0,
-    maxSelections: 0,
+    minSelections: rearranges ? ids.length : 0,
+    maxSelections: rearranges ? ids.length : 0,
     frameId: frame.frameId,
+    ...(rearranges ? { ordered: true } : {}),
   });
 }
 
@@ -2524,6 +2544,17 @@ function executeResolveSpecials(
   }
   if (effect.bind) {
     addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: ordered.length + incites.length + surges.length });
+  }
+  // The attack in progress records how many Preparation abilities resolved during it (docs/phase7-wave9.md §3.2): the
+  // innermost attack on the stack, as `Predicate attackInProgress` reads it. Its frame's vars become the attack's
+  // `results` when its response window opens ("if no 'Preparation' ability was resolved").
+  if (trigger === "preparation" && ordered.length > 0) {
+    const attack = ctx.state.stack.find(
+      (f) =>
+        f.kind === "event" &&
+        (f.event.kind === "attack" || f.event.kind === "enemyAttack" || f.event.kind === "enemyAttacksEnemy"),
+    );
+    addFrameVars(ctx, attack?.frameId, { [labeledResolvedVar("preparation")]: ordered.length });
   }
   const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
   for (const id of [...surges].reverse()) {

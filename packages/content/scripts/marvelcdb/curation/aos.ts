@@ -152,28 +152,7 @@ export const AOS_CURATION: PackCuration = {
     "50001a": { offAspectPackages: [{ cardType: "support", trait: traitOf("S.H.I.E.L.D."), titles: 3 }] },
   },
 
-  scriptingNotes: {
-    "50068.black-widows-gauntlet-constant-2":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50069.grappling-hook-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50070.night-vision-goggles-constant-2":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50071.stun-net-constant-2":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50072.aim-commando-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50073.aim-grunt-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50076.attacrobatics-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50077.covert-ops-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50078.dance-of-death-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-    "50079.widows-bite-constant":
-      "`Preparation:` is an ability header the parser does not recognize, so this parses as a plain constant (survey S8). It resolves only in the Black Widow set's own timing (rulebook p. 9, Preparation Abilities: used instead of a Boost on encounter cards, resolved when Black Widow's Forced Interrupt discards the top encounter card after she is attacked), never as a boost. Needs a game-rules-architect ruling and a new ability kind before scripting.",
-  },
+  scriptingNotes: {},
   cardNotes: {
     "50119":
       "Reverse Engineering prints +X SCH and +X ATK (scan 50119.png; MarvelCDB's -1 is its X marker, not a negative modifier). Text: X is the printed cost of the card tucked here. The When Revealed tuck and the Forced Response discard are scripting.",

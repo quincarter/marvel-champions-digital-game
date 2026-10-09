@@ -18,9 +18,16 @@
  *  - a set-aside card (the scenario's, or a player's nemesis set) that an open decision is offering is read by the
  *    player deciding ("add one set-aside ally to your hand": they choose among faces), as a card offered out of a
  *    deck is;
- *  - everything else is open exactly when it is faceup, which covers a facedown boost card, a dealt encounter card, a
- *    tucked card and a set-aside nemesis set without naming any of them. Being offered by a decision does not open any
- *    of these: only the deck and set-aside arms read the open decision.
+ *  - a facedown encounter card dealt to a player is closed, except while a look offers it ("look at each encounter
+ *    card dealt to each player", docs/phase7-wave9.md §3.12), and then to the looking player alone;
+ *  - everything else is open exactly when it is faceup, which covers a facedown boost card, a tucked card and a
+ *    set-aside nemesis set without naming any of them. Being offered by a decision does not open any of these: only
+ *    the deck, dealt-card and set-aside arms read the open decision.
+ *
+ * **A look is one player's.** RRG 1.8 "Look, Looked-At" (p. 27): "only the player who is resolving the ability can
+ * look at those cards". So while the open decision is a look (`ChoicePrompt lookAt` or `rearrange`), a named viewer
+ * who is not the looking player sees none of its cards, in a deck or dealt. With no viewer named the deck arms keep
+ * the table's answer (see "Whose eyes"). `lookedAtBy` lists the cards an open look shows a player.
  *
  * This lives in the engine because two things need the same answer and must not fork: the client's card rendering
  * (`view/visibility.ts` delegates here) and `preview()`'s truncation rule, which is the thing that stops an outcome
@@ -91,6 +98,28 @@ export const offeredByOpenChoice = (state: GameState, id: InstanceId): boolean =
 const offeredToViewer = (state: GameState, id: InstanceId, view: ViewerContext | TableContext | undefined): boolean =>
   offeredByOpenChoice(state, id) && (!view || !("viewer" in view) || state.pendingChoice?.playerId === view.viewer);
 
+/** The open decision is a look: its options are shown, not chosen among by what they are (p. 27). */
+const openLook = (state: GameState): boolean =>
+  state.pendingChoice?.prompt.kind === "lookAt" || state.pendingChoice?.prompt.kind === "rearrange";
+
+/**
+ * A deck card the open decision offers, as this viewer sees it: every offered card, unless the decision is a look and
+ * the viewer named is not the player looking (RRG 1.8 "Look, Looked-At", p. 27).
+ */
+const offeredFromDeck = (state: GameState, id: InstanceId, view: ViewerContext | TableContext | undefined): boolean =>
+  openLook(state) ? offeredToViewer(state, id, view) : offeredByOpenChoice(state, id);
+
+/**
+ * The cards an open look is showing `viewer`: the looked-at cards for the player looking, and none for anyone else
+ * (RRG 1.8 "Look, Looked-At", p. 27). Empty when no look is open. A client draws a look's sheet from this, so a seat
+ * that is not the looking player has no card of it to draw.
+ */
+export function lookedAtBy(state: GameState, viewer: PlayerId): readonly InstanceId[] {
+  const choice = state.pendingChoice;
+  if (!choice || !openLook(state) || choice.playerId !== viewer) return [];
+  return choice.options.flatMap((option) => (option.ref.kind === "card" ? [option.ref.instanceId] : []));
+}
+
 /**
  * "You may look at the top card of the encounter deck at any time" (`RuleSpec mayLookAtTopOfEncounterDeck`,
  * docs/phase7-wave5.md §3.28): the card is the active encounter deck's top card and one of the viewer's rules says so.
@@ -143,15 +172,19 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
     case "setAside":
       return instance.faceup || offeredToViewer(state, id, view);
     case "encounterDeck":
-      return instance.faceup || offeredByOpenChoice(state, id) || viewerMayLookAtEncounterTop(state, id, view);
+      return instance.faceup || offeredFromDeck(state, id, view) || viewerMayLookAtEncounterTop(state, id, view);
     case "deck":
-      return instance.faceup || offeredByOpenChoice(state, id) || shownOnTopOfDeck(state, id, zone.playerId, view);
+      return instance.faceup || offeredFromDeck(state, id, view) || shownOnTopOfDeck(state, id, zone.playerId, view);
     case "separateDeck":
     case "scenarioDeck":
       // A separate deck's top card can be faceup by its own rules (the Invocation deck), which `faceup` already says.
       // A scenario deck's card is seen only while a look offers it ("look at the top card of the show deck", Erratic
       // Teleportation, `mojo` 39019; docs/phase7-wave6.md §3.66).
-      return instance.faceup || offeredByOpenChoice(state, id);
+      return instance.faceup || offeredFromDeck(state, id, view);
+    case "dealtEncounter":
+      // Facedown until revealed; a look shows it to the looking player alone (docs/phase7-wave9.md §3.12). No other
+      // decision opens it: being passed or chosen as a facedown card does not turn it over.
+      return instance.faceup || (openLook(state) && offeredToViewer(state, id, view));
     case "attachment":
       // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may
       // look at and play; table-wide today, as every hand is (see "Whose eyes" above).
