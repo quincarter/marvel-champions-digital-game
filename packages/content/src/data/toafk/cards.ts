@@ -292,8 +292,8 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
         acceleration: { base: 1, perPlayer: 0 },
         icons: [],
         text: {
-          printed: "Forced Response: After this stage is complete, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Immortus) and this stage from the game and combine your game area with another game area.\nIf all the players at this stage are defeated, this stage is complete.",
-          current: "Forced Response: After this stage is complete, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Immortus) and this stage from the game and combine your game area with another game area.\nIf all the players at this stage are defeated, this stage is complete.",
+          printed: "Forced Response: After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Immortus) and this stage from the game and combine your game area with another game area.\nIf all the players at this stage are defeated, this stage is completed.",
+          current: "Forced Response: After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Immortus) and this stage from the game and combine your game area with another game area.\nIf all the players at this stage are defeated, this stage is completed.",
         },
         traits: [],
         keywords: [],
@@ -319,8 +319,8 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
         acceleration: { base: 1, perPlayer: 0 },
         icons: [],
         text: {
-          printed: "Forced Response: After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Iron Lad) and this stage from the game and combine your game area with another game area.\nIf all the players at the stage are defeated, this stage is completed.",
-          current: "Forced Response: After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Iron Lad) and this stage from the game and combine your game area with another game area.\nIf all the players at the stage are defeated, this stage is completed.",
+          printed: "Forced Response: After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Iron Lad) and this stage from the game and combine your game area with another game area.\nIf all the players at this stage are defeated, this stage is completed.",
+          current: "Forced Response: After this stage is completed, place 1 set-aside Kang's Dominion facedown under stage 4A. At the end of the phase, remove Kang (Iron Lad) and this stage from the game and combine your game area with another game area.\nIf all the players at this stage are defeated, this stage is completed.",
         },
         traits: [],
         keywords: [],

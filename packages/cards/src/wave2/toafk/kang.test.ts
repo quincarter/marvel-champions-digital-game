@@ -123,11 +123,11 @@ describe("Kang scenario", () => {
     expect(KANG_SET["11009a.when-revealed"]).toBeDefined();
   });
 
-  it("The Chronopolis 3B: if all the players at this stage are defeated, this stage is complete (a stateCheck)", () => {
+  it("The Chronopolis 3B: if all the players at this stage are defeated, this stage is completed (a stateCheck)", () => {
     expect(KANG_SET["11009b.the-chronopolis-constant"]).toBeDefined();
   });
 
-  it("The Chronopolis 3B: Forced Response, after this stage is complete, tucks Kang's Dominion under stage 4A and removes Kang (Immortus)/this stage, joining another area at end of phase", () => {
+  it("The Chronopolis 3B: Forced Response, after this stage is completed, tucks Kang's Dominion under stage 4A and removes Kang (Immortus)/this stage, joining another area at end of phase", () => {
     expect(KANG_SET["11009b.the-chronopolis-forced-response"]).toBeDefined();
   });
 
