@@ -1,3 +1,0 @@
-kind: Engine
-body: discardDeckUntil can bind every card it discarded (bindAll), and a raised moment can carry named slots to the abilities that answer it (raiseMoment carry, read as moment.<slot>)
-time: 2026-10-08T00:21:49.182434-04:00

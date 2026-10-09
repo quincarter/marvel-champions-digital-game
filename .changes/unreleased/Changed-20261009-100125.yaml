@@ -1,3 +1,0 @@
-kind: Changed
-body: '`pnpm test` runs every package''s tests in one Vitest run with a shared worker pool, instead of one package after another (about 16% faster).'
-time: 2026-10-09T10:01:25.447886-04:00

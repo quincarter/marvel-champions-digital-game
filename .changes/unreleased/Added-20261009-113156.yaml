@@ -1,3 +1,0 @@
-kind: Added
-body: '`pnpm test:affected` runs only the unit tests your unpushed changes can affect, by the same rule the pull request jobs use.'
-time: 2026-10-09T11:31:56.434095-04:00
