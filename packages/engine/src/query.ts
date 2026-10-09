@@ -881,6 +881,18 @@ export function schemesInPlay(state: GameState): readonly InstanceId[] {
   return [...mainSchemeStates(state).map((scheme) => scheme.instanceId), ...sideSchemes];
 }
 
+/**
+ * Whether `id` is a scheme: a main scheme in play, or a side scheme or player side scheme card. Threat on any other
+ * card is only tokens (docs/phase7-wave6.md §3.59, docs/phase7-wave9.md §3.7): `CardInstance.threat` holds it there as
+ * it does on a scheme, and every rule about schemes and their threat (thwarting, a crisis icon, patrol, "threat cannot
+ * be removed", defeat at no threat, a main scheme's target) asks this first.
+ */
+export function isScheme(state: GameState, id: InstanceId): boolean {
+  if (mainSchemeStateOf(state, id) !== undefined) return true;
+  const type = cardOf(state, id)?.type;
+  return type === "side_scheme" || type === "player_side_scheme";
+}
+
 /** Two cards (or a player and a card) can interact: same area, or either is in every area (`null`). */
 export const sameGameArea = (a: GameAreaState | null, b: GameAreaState | null): boolean =>
   !a || !b || a.areaId === b.areaId;

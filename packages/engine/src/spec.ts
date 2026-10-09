@@ -4103,6 +4103,22 @@ export type EffectSpec =
       readonly paidFor: FrameId | null;
     }
   /**
+   * **Engine-internal; no DSL builder.** Paying a "remove [up to] N threat from [a card] →" cost
+   * (`AbilityCost.removeThreat`, `remove-threat-cost.ts`, docs/phase7-wave9.md §3.7 (b)), pushed by `payCost` above the
+   * frame `paidFor` it pays for, after the payer's `chooseNumber` pick bound as `chosen`. Stage `remove` raises the
+   * removal of that much threat from `from`, reporting to `bind`; stage `settle` records what was removed on `paidFor`
+   * as var `cost.removeThreat` and, if that is less than chosen, marks the cost not paid. Logged as
+   * `threatCostSettled`.
+   */
+  | {
+      readonly kind: "payRemoveThreatCost";
+      readonly stage: "remove" | "settle";
+      readonly from: InstanceId;
+      readonly chosen: string;
+      readonly bind: string;
+      readonly paidFor: FrameId | null;
+    }
+  /**
    * **Engine-internal; no DSL builder.** The last step of paying a "ready [a card] →" cost (`AbilityCost.readyCards`,
    * `ready-cards-cost.ts`, docs/phase7-wave8.md §3.54): if a card bound in `slot` on this step's frame is not ready,
    * the cost was not paid, so the frame `paidFor` is marked and its effects do not resolve. Logged as

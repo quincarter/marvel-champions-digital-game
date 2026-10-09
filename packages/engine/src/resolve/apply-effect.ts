@@ -79,6 +79,7 @@ import {
   showingResources,
   turnInProgress,
   villainOf,
+  isScheme,
 } from "../query.js";
 import { addPools, EMPTY_POOL } from "../resources.js";
 import {
@@ -384,7 +385,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
   // `modifyThwart` adds to it and "after you thwart" answers it. The ability is one thwart however many instances of
   // threat it removes (RRG 1.8 "Thwart", p. 44; `resolve/thwart-session.ts`). An unlabeled ability's removal stays a
   // plain removal.
-  if (effect.kind === "removeThreat" && context.thwartLabeled) {
+  // Only a scheme is thwarted: threat the same ability removes from a card that is not a scheme is tokens taken off
+  // it, a plain removal below (docs/phase7-wave9.md §3.7 (a)). An instruction aimed at both kinds at once is read by
+  // its schemes; no card is written that way.
+  if (
+    effect.kind === "removeThreat" &&
+    context.thwartLabeled &&
+    !(targets(effect.target).length > 0 && targets(effect.target).every((id) => !isScheme(ctx.state, id)))
+  ) {
     applyEffect(
       ctx,
       {

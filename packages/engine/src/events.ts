@@ -529,6 +529,21 @@ export type GameEvent =
       readonly paid: boolean;
     }
   /**
+   * A "remove [up to] N threat from [a card] →" cost (`AbilityCost.removeThreat`, docs/phase7-wave9.md §3.7 (b)) has
+   * been paid or failed: `chosen` is the amount the payer owed (their pick, or the printed number) and `removed` what
+   * came off `fromInstanceId`, logged before this as `threatRemoved`. Less than chosen means the cost was not paid
+   * (RRG 1.8 "Cost", p. 13) and the effects of `instanceId`'s ability do not resolve.
+   */
+  | {
+      readonly type: "threatCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly fromInstanceId: InstanceId;
+      readonly chosen: number;
+      readonly removed: number;
+      readonly paid: boolean;
+    }
+  /**
    * A "ready [a card] →" cost (`AbilityCost.readyCards`, docs/phase7-wave8.md §3.54) has been paid or failed:
    * `instanceIds` are the cards picked to ready and `readied` how many of them are ready. Fewer than all of them (a
    * replacement took a ready) means the cost was not paid (RRG 1.8 "Cost Arrow Icon", p. 14) and the effects of

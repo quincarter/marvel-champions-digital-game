@@ -126,6 +126,7 @@ import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
 import { executeSettleEnemyAttackCost } from "../enemy-attack-cost.js";
 import { executeSettleResolveAbilityCost } from "../resolve-ability-cost.js";
 import { executePayDeckDiscardChoice } from "../deck-discard-choice-cost.js";
+import { executePayRemoveThreatCost } from "../remove-threat-cost.js";
 import { executeSettleReadyCardsCost } from "../ready-cards-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
 import { executeSearchCollection } from "./collection.js";
@@ -308,6 +309,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "settleResolveAbilityCost") return executeSettleResolveAbilityCost(ctx, frame, effect);
   // docs/phase7-wave8.md §3.55: "discard up to 3 cards from the top of your deck →", after the payer's pick.
   if (effect.kind === "payDeckDiscardChoice") return executePayDeckDiscardChoice(ctx, frame, effect);
+  // docs/phase7-wave9.md §3.7 (b): "remove up to 3 threat from here →", after the payer's pick.
+  if (effect.kind === "payRemoveThreatCost") return executePayRemoveThreatCost(ctx, frame, effect);
   // docs/phase7-wave8.md §3.54: "ready [a card] →", settled once the ready has resolved.
   if (effect.kind === "settleReadyCardsCost") return executeSettleReadyCardsCost(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.

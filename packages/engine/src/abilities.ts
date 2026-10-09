@@ -1926,6 +1926,27 @@ export interface DeckDiscardChoice {
   readonly choose: { readonly min: number; readonly max: number };
 }
 
+/**
+ * "Remove 1 threat from your suit form upgrade →" / "remove up to 3 threat from here →" (docs/phase7-wave9.md §3.7 (b);
+ * `remove-threat-cost.ts`): threat taken off a card in play as a cost.
+ *
+ * - **`from`** names the card, read when the cost is determined with the cost's earlier picks bound; the first card in
+ *   play it names. The card is usually not a scheme, its threat only tokens (§3.7 (a)); a scheme pays under its own
+ *   rules (a crisis icon or a "threat cannot be removed" rule leaves it unable to pay).
+ * - **`amount`**: a number is removed in full or the cost cannot be paid. `{ choose: { min, max } }` is the payer's
+ *   pick, made as the cost is paid in a `chooseNumber` choice from `min` to the smaller of `max` and the threat on
+ *   the card (a range of one number is not asked).
+ * - **A printed "up to N" is `min: 1`** (RRG 1.8 "Cost", p. 14: "A cost requiring 'any number' or 'up to' some number
+ *   of game elements requires a minimum of one such game element"). The engine honors a `min` of 0 as written (the
+ *   cost is then paid by removing none, and no removal is raised); nothing printed asks for it.
+ * - **The amount removed** is var `cost.removeThreat` for the text after the arrow ("for each threat removed this
+ *   way"). Less removed than chosen (the removal was cancelled) means the cost was not paid.
+ */
+export interface RemoveThreatCost {
+  readonly from: TargetRef;
+  readonly amount: number | { readonly choose: { readonly min: number; readonly max: number } };
+}
+
 /** "Take any amount of damage up to … →": the payer's choice of a `damageSelf` cost's amount (`AbilityCost.damageSelf`). */
 export interface DamageSelfChoice {
   readonly choose: { readonly min: ValueSpec; readonly max: ValueSpec };
@@ -2190,6 +2211,8 @@ export interface AbilityCost {
    *   hit points" is the card's `max`, not an engine cap.
    */
   readonly damageSelf?: number | ValueSpec | DamageSelfChoice;
+  /** "Remove [up to] N threat from [a card] →" (`RemoveThreatCost`, docs/phase7-wave9.md §3.7 (b)). */
+  readonly removeThreat?: RemoveThreatCost;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
   readonly damageThisCard?: number;
   /**

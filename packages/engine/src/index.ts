@@ -120,6 +120,7 @@ export type {
   AbilityCost,
   DamageSelfChoice,
   DeckDiscardChoice,
+  RemoveThreatCost,
   DiscardCombined,
   InPlayCostPick,
   DamageCostPick,

@@ -111,6 +111,13 @@ import {
   planAttachCost,
   planDealDamageChoice,
 } from "./attach-cost.js";
+import {
+  REMOVE_THREAT_FROM_SLOT,
+  REMOVE_THREAT_MAX_VAR,
+  REMOVE_THREAT_MIN_VAR,
+  removeThreatCostEffects,
+  removeThreatCostPlan,
+} from "./remove-threat-cost.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
   activeEncounterDeckId,
@@ -2335,6 +2342,15 @@ export function planCost(
       vars["cost.damageSelf"] = Math.max(0, resolveValue(state, cost.damageSelf, context, deps));
     }
   }
+  // "Remove up to 3 threat from here →" (`remove-threat-cost.ts`, docs/phase7-wave9.md §3.7 (b)): the card and the
+  // range the payer will pick from as the cost is paid, read now with the picks above bound.
+  if (cost.removeThreat) {
+    const planned = removeThreatCostPlan(state, deps, sourceId, playerId, cost.removeThreat, bindings, vars);
+    if ("fault" in planned) return { code: "insufficient_resources", message: planned.fault };
+    bindings[REMOVE_THREAT_FROM_SLOT] = [planned.fromId];
+    vars[REMOVE_THREAT_MIN_VAR] = planned.min;
+    vars[REMOVE_THREAT_MAX_VAR] = planned.max;
+  }
   // "Take 1 damage →" can be paid only if all of it can be taken (RRG 1.8 "Cost", p. 14): not by an identity holding a
   // tough status card (FAQ "Focused Rage (#27)", p. 57: "you cannot attempt to pay the cost of Focused Rage's ability
   // just to remove She-Hulk's tough status card"), nor one that cannot take damage or a constant would reduce it. The
@@ -2911,6 +2927,23 @@ export function payCost(
       effects: chosenSelfCostDamageEffects(
         plan.vars[DAMAGE_SELF_MIN_VAR] ?? 0,
         plan.vars[DAMAGE_SELF_MAX_VAR] ?? 0,
+        paidFor,
+      ),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
+  }
+  // "Remove up to 3 threat from here →" (docs/phase7-wave9.md §3.7 (b)): the payer picks from the planned range, the
+  // threat comes off, and the amount removed is recorded on the frame being paid for as `cost.removeThreat`.
+  const threatFrom = cost.removeThreat ? plan.bindings[REMOVE_THREAT_FROM_SLOT]?.[0] : undefined;
+  if (threatFrom) {
+    pushEffects(ctx, {
+      effects: removeThreatCostEffects(
+        {
+          fromId: threatFrom,
+          min: plan.vars[REMOVE_THREAT_MIN_VAR] ?? 0,
+          max: plan.vars[REMOVE_THREAT_MAX_VAR] ?? 0,
+        },
         paidFor,
       ),
       selfInstanceId: sourceId,

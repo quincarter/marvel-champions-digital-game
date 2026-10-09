@@ -41,7 +41,7 @@ import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
-import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
+import { areaOfPlayer, getInstance, getPlayer, isScheme } from "../query.js";
 import {
   cannotFlip,
   cannotLeavePlay,
@@ -288,7 +288,8 @@ function judgedCanAffect(
   if (effect.kind === "defeat") return !alreadyDefeated(state, id);
   if (effect.kind === "removeThreat") {
     // A "(thwart)"-labeled ability's removal is a thwart by its controller's identity (`EffectContext.thwartLabeled`).
-    if (context.thwartLabeled) return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
+    if (context.thwartLabeled && isScheme(state, id))
+      return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
     return canRemoveThreatFrom(state, deps, id, context.selfInstanceId, effect.ignoreCrisis === true);
   }
   return canThwartScheme(state, deps, id, context, effect);

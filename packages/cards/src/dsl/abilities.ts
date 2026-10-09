@@ -1833,6 +1833,21 @@ export const discardUpToTopOfDeckCost = (max: number, slot?: string): AbilityCos
   ...(slot !== undefined ? { discardFromDeckSlot: slot } : {}),
 });
 /**
+ * "Remove 1 threat from your suit form upgrade →" (docs/phase7-wave9.md §3.7 (b)): `n` threat comes off the one card
+ * in play `from` names, all of it or the cost cannot be paid. The text after the arrow reads the amount removed as
+ * `varOf("cost.removeThreat")`.
+ */
+export const removeThreatCost = (from: TargetRef, n = 1): AbilityCost => ({ removeThreat: { from, amount: n } });
+/**
+ * "Remove up to 3 threat from here → … for each threat removed this way" (docs/phase7-wave9.md §3.7 (b)): the payer
+ * chooses how much, from 1 (RRG 1.8 "Cost", p. 14: "up to" still means at least one) to the smaller of `max` and the
+ * threat on the card, as the cost is paid. The text after the arrow reads the amount removed as
+ * `varOf("cost.removeThreat")`.
+ */
+export const removeThreatUpToCost = (from: TargetRef, max: number): AbilityCost => ({
+  removeThreat: { from, amount: { choose: { min: 1, max } } },
+});
+/**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
  * docs/phase7-wave3.md §3.36): exactly one branch is paid, the player's choice (`costSelection.branch`, the branch's
  * index here). Each branch is one cost or a list merged like `cost: [...]`. Other components of the ability's cost

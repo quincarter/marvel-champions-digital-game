@@ -33,6 +33,7 @@ import {
   areaOfCard,
   mainSchemeStateOf,
   turnInProgress,
+  isScheme,
 } from "../query.js";
 import type { EngineDeps } from "../abilities.js";
 import {
@@ -1593,6 +1594,9 @@ export function threatRemovalBlocked(
   /** No player removes it although a player controls its source (`removeThreat.noPlayer`): no player-scoped rule applies. */
   noPlayer = false,
 ): "crisis" | "patrol" | "rule" | null {
+  // Threat on a card that is not a scheme is only tokens (docs/phase7-wave9.md §3.7 (a)): RRG 1.8 "Crisis Icon"
+  // (p. 14) and "Patrol" (p. 32) speak of the main scheme, and a "threat cannot be removed" rule of schemes.
+  if (!isScheme(state, schemeId)) return null;
   const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG 1.8 "Crisis Icon" (p. 14): "While at least one crisis icon is in play, threat cannot be removed from the main
   // scheme by player cards. … Abilities on encounter cards are not affected by the crisis icon." So a player using an

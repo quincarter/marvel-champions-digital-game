@@ -251,6 +251,20 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     if (!Number.isInteger(max) || max < min)
       problems.push("cost discardFromDeck: a chosen size's max must be a whole number no smaller than min");
   }
+  // "Remove [up to] N threat from [a card] →" (docs/phase7-wave9.md §3.7 (b)): at least one, at most `max`.
+  if (cost.removeThreat) {
+    const { amount } = cost.removeThreat;
+    if (typeof amount === "number") {
+      if (!Number.isInteger(amount) || amount < 1)
+        problems.push("cost removeThreat: must be a whole number of at least 1");
+    } else {
+      const { min, max } = amount.choose;
+      if (!Number.isInteger(min) || min < 1)
+        problems.push('cost removeThreat: a chosen amount has a min of at least 1 (RRG 1.8 "Cost", p. 14)');
+      if (!Number.isInteger(max) || max < min)
+        problems.push("cost removeThreat: a chosen amount's max must be a whole number no smaller than min");
+    }
+  }
   if (cost.discardFromDeckSlot !== undefined && cost.discardFromDeck === undefined)
     problems.push("cost discardFromDeckSlot: only binds the cards a discardFromDeck cost discarded");
   if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
@@ -820,6 +834,8 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (isResourcesChoice(cost.resources)) scope.vars.add("cost.resources");
     // A computed or chosen "take N damage →" records its amount (`AbilityCost.damageSelf`, docs/phase7-wave7.md §3.79).
     if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
+    // "Remove [up to] N threat from [a card] →" records how much it removed (docs/phase7-wave9.md §3.7 (b)).
+    if (cost.removeThreat) scope.vars.add("cost.removeThreat");
     // A chosen "discard up to N cards from the top of your deck →" records how many it discarded (wave 8 §3.55).
     if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck)
       scope.vars.add("cost.discardFromDeck");
