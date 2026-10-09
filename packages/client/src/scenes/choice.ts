@@ -12,6 +12,7 @@
  * an encounter-side decision legible as one (docs/phase3-encounter-ai.md).
  */
 
+import { triggerCaption } from "../view/trigger-caption.js";
 import Phaser from "phaser";
 import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
@@ -1526,7 +1527,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (state && instanceId && option.ref.kind === "ability") {
       const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
       const caption = this.add
-        .text(0, 0, short ?? "trigger", {
+        .text(0, 0, triggerCaption(state, instanceId, short), {
           ...textStyle(typeRole.label, surface.paper.hex),
           fontSize: "11px",
         })

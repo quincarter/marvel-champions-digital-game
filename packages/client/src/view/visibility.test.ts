@@ -64,3 +64,48 @@ describe("searching a deck", () => {
     }
   });
 });
+
+describe("a set-aside card an open choice offers", () => {
+  const pick = (): InstanceId =>
+    Object.keys(state.instances).find((id) => locateCard(state, id as InstanceId)?.kind === "hand") as InstanceId;
+  // Stand one hand card in the encounter set-aside, facedown, with a choice offering it.
+  const aside = (offered: boolean): GameState => {
+    const id = pick();
+    const owner = state.players.find((player) => player.hand.includes(id))!;
+    return {
+      ...state,
+      players: state.players.map((player) =>
+        player === owner ? { ...owner, hand: owner.hand.filter((card) => card !== id) } : player,
+      ),
+      encounterSetAside: [...state.encounterSetAside, id],
+      instances: { ...state.instances, [id]: { ...state.instances[id]!, faceup: false } },
+      pendingChoice: offered
+        ? { ...search, options: [{ ...search.options[0]!, ref: { kind: "card", instanceId: id } }] }
+        : null,
+    } as unknown as GameState;
+  };
+
+  test("is face-visible to the chooser, not otherwise", () => {
+    expect(faceVisible(aside(true), pick())).toBe(true);
+    expect(faceVisible(aside(false), pick())).toBe(false);
+  });
+});
+
+describe("an event being played", () => {
+  test("is named, not a facedown card", () => {
+    const id = Object.keys(state.instances).find(
+      (card) => locateCard(state, card as InstanceId)?.kind === "hand",
+    ) as InstanceId;
+    const resolving = {
+      ...state,
+      players: state.players.map((player) =>
+        player.hand.includes(id)
+          ? { ...player, hand: player.hand.filter((card) => card !== id), resolving: [id] }
+          : player,
+      ),
+    } as unknown as GameState;
+    expect(locateCard(resolving, id)?.kind).toBe("resolving");
+    expect(faceVisible(resolving, id)).toBe(true);
+    expect(cardName(resolving, id)).not.toBe("a facedown card");
+  });
+});

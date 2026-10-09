@@ -479,7 +479,7 @@ function describe(
       };
     case "enemyActivated":
       return {
-        text: `${card(event.enemyInstanceId)} ${event.activation === "attack" ? "attacks" : "schemes"} against ${who(event.playerId)}.`,
+        text: `${card(event.enemyInstanceId)} ${event.activation === "attack" ? "attacks" : "schemes against"} ${who(event.playerId)}.`,
         voice: "villain",
       };
     case "boostCardFlipped":

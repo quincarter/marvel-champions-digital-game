@@ -25,6 +25,7 @@
 import {
   activeAbilityRefs,
   applyCommand,
+  cardOf,
   costAsDetermined,
   getPlayer,
   type AbilityCost,
@@ -72,6 +73,9 @@ function actionAbilityCost(
     return costAsDetermined(state, deps, action.instanceId, playerId, written);
   }
   if (action.kind !== "playCard") return undefined;
+  // Only an event resolves its printed Action when played. An ally/support/upgrade in hand is being *put into
+  // play*; its in-play Action ability (Randall's "discard 1 card") is not a cost of playing it.
+  if (cardOf(state, action.instanceId)?.type !== "event") return undefined;
   for (const ref of activeAbilityRefs(state, action.instanceId)) {
     const definition = deps.abilities[ref.id];
     if (definition?.trigger.kind === "action") {

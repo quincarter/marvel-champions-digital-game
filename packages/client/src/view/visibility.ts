@@ -15,6 +15,8 @@
 
 import {
   faceVisible as engineFaceVisible,
+  locateCard,
+  offeredByOpenChoice,
   type GameState,
   type InstanceId,
   type TableContext,
@@ -28,4 +30,22 @@ import { POOL_DEPS } from "../content/pool.js";
  * prompt about that card never says "a facedown card" for a card the whole table is looking at.
  */
 export const faceVisible = (state: GameState, id: InstanceId, view?: ViewerContext | TableContext): boolean =>
-  engineFaceVisible(state, id, view ?? { deps: POOL_DEPS });
+  engineFaceVisible(state, id, view ?? { deps: POOL_DEPS }) || beingPlayed(state, id) || offeredFromSetAside(state, id);
+
+/**
+ * An event being played is in its owner's `resolving` zone (RRG "Event": out of play while it resolves): the card was
+ * just chosen from a hand and is on the table for all to read. The engine leaves its `faceup` flag false, which named
+ * it "a facedown card" in the wild-icon sheet and the log.
+ */
+const beingPlayed = (state: GameState, id: InstanceId): boolean => locateCard(state, id)?.kind === "resolving";
+
+/**
+ * A set-aside card an open choice is offering (Find Lost Mutants' "add one set-aside campaign ally to your hand",
+ * `chooseCards` over `encounterSetAside`): the chooser picks among them, so they read the faces. The engine's
+ * `faceVisible` opens that for deck zones only; it falls to the card's `faceup` flag here. Scoped to the set-aside
+ * zones so a facedown card offered in play (a Drone as an attack target) stays facedown.
+ */
+const offeredFromSetAside = (state: GameState, id: InstanceId): boolean => {
+  const zone = locateCard(state, id);
+  return (zone?.kind === "encounterSetAside" || zone?.kind === "setAside") && offeredByOpenChoice(state, id);
+};

@@ -3,6 +3,7 @@
  * card's face — a scan, or the generated fallback.
  */
 
+import { noTargetTag } from "../../view/hand-reason.js";
 import { teamUpTagFor, type TeamUpRole } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
@@ -437,7 +438,8 @@ function drawHandCard(
     // sits directly above the hand, and a tag hung over the top edge disappears behind it.
     // Wrapped to the card's own width ("NOT AN / ACTION"), never wider than the card it names: on a crowded hand a
     // one-line tag ran under its neighbor's. A wrapped tag grows upward from the card's top edge.
-    const inside = payment || discard;
+    // Any open mode's bar (attacker picker, destination, targeting) hangs over the hand the same way.
+    const inside = payment || discard || ctx.controller.selection.kind !== "idle";
     const tagText = scene.add
       .text(
         slot.x + slot.width - 3,
@@ -607,7 +609,7 @@ function shortReason(reason: IllegalReason, role: TeamUpRole | null): string | n
       return "limit";
     case "no_valid_target":
       // A Team-Up card whose partner is not in play comes back as this code; "no target" would misname it.
-      if (!/^team-up needs/i.test(reason.message)) return "no target";
+      if (!/^team-up needs/i.test(reason.message)) return noTargetTag(reason.message);
       // Present but on the wrong side (an alter-ego showing): no reason tag, the TEAM-UP tag and the hero's blurb say it.
       return role?.kind === "teamUpCard" && role.present ? null : "needs partner";
     case "card_type_not_playable":
