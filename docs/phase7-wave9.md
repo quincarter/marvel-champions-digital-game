@@ -16,14 +16,14 @@ Pack_." Packs: `aos` (MC50, with Maria Hill and Nick Fury), `bp`, `silk`, `falco
 `tt` (Trickster Takeover), which the owner asked to ship with this wave. The spec is written in passes so each stays
 small (the split after 1a is proposed; the main session decides it):
 
-| Pass   | Scope                                                                                                   | State            |
-| ------ | ------------------------------------------------------------------------------------------------------- | ---------------- |
-| **1a** | **The box in standalone play: new rules and keywords, five scenarios, their modular sets, both heroes** | **written**      |
-| 1b     | The MC50 campaign; evidence cards in campaign mode; the Executive Board across scenarios                | not written      |
-| 2a     | Black Panther (`bp`), Silk (`silk`)                                                                     | written (pass 2) |
-| 2b     | Falcon (`falcon`), Winter Soldier (`winter`)                                                            | written (pass 2) |
-| 2c     | Trickster Takeover (`tt`): Forced Action, the per-group icon, Enchantress, Loki                         | not written      |
-| 3      | The owner's answers written in and reconciled; §8 extended to the whole wave                            | not written      |
+| Pass   | Scope                                                                                                   | State             |
+| ------ | ------------------------------------------------------------------------------------------------------- | ----------------- |
+| **1a** | **The box in standalone play: new rules and keywords, five scenarios, their modular sets, both heroes** | **written**       |
+| 1b     | The MC50 campaign; evidence cards in campaign mode; the Executive Board across scenarios                | not written       |
+| 2a     | Black Panther (`bp`), Silk (`silk`)                                                                     | written (pass 2)  |
+| 2b     | Falcon (`falcon`), Winter Soldier (`winter`)                                                            | written (pass 2)  |
+| 2c     | Trickster Takeover (`tt`): Forced Action, the per-group icon, Enchantress, Loki                         | written (pass 2c) |
+| 3      | The owner's answers written in and reconciled; §8 extended to the whole wave                            | not written       |
 
 - **Pass 1a's content.** MC50 pp. 3–4 (featured terms and keywords, all-purpose counters, attacks against allies,
   non-scaling villain hit points), the standalone parts of pp. 6, 9, 11, 13, 15, 18, 19 and the FAQ on p. 22; all 195
@@ -133,6 +133,21 @@ Reference; FFG rulings clarify both):
 No ruling of this pass says a printed wording is unintended, and none disagrees with the RRG. The conflicts found are
 between the RRG and the rulebook (§4.1 Q1, Q2 and Q5).
 
+- **Pass 2c's content (written 2026-10-09).** Trickster Takeover (`tt`, MC55): 66 raw records and their 15 nested b
+  faces (55004b, 55005b, 55007b–55011b, 55027b–55034b), every one read by script and every face read on a scan, plus the
+  two unnumbered rules cards (§0.2). Sections 0.2, 1.15, 2.8, 3.53–3.72, questions 8 to 10, §5.2, §7.13–§7.15, §8.1
+  items 18 to 27, §8.2 tasks 37 to 50, the pass 2c rows of §8.3 and §8.4 lines 64 to 72. **Loki, God of Lies ships in
+  Single Group Mode only** (owner, 2026-10-09). Epic Multiplayer Mode is the multiplayer phase's
+  (`docs/epic-multiplayer-plan.md`); §3.64–§3.69 are the engine and DSL groundwork that plan's §3 marks "build now",
+  each checked against the engine as it is and corrected where the plan's shape did not fit, and every God of Lies
+  script is written against them so Epic changes no card (§8.4).
+- **What the pack adds.** One rule, **Forced Action** (§3.53); the **per group icon** (§3.65); the keywords Hinder,
+  Incite, Linked, Patrol, Permanent, Stalwart, Steady and Victory, all of earlier waves (MC55 pp. 2–3); "Find", of
+  wave 7. Enchantress: charm counters on a hidden double-sided attachment that turns each player from Defiant to
+  Enthralled (§3.54–§3.56). God of Lies: a villain and a main scheme no player can touch, four Avatars of Loki that
+  are never defeated but flip, are counted in shatter counters and swap (§3.59, §3.60), and four Synergy environments
+  that hold synergy counters (§3.61).
+
 ### 0.1 Pass 2 sources (the four hero packs)
 
 - **Card text.** `packages/content/raw/marvelcdb/{bp,silk,falcon,winter}.json`, every record and linked alter-ego
@@ -165,6 +180,47 @@ between the RRG and the rulebook (§4.1 Q1, Q2 and Q5).
 - **No ruling of this pass says a printed wording is unintended**, and none disagrees with the RRG. Two errata change
   printed text (§3.41, §3.51). Ruling January 26, 2026 – Ruling 6 answers a question that named three cards by naming
   one (§4.1 Q6).
+
+### 0.2 Pass 2c sources (Trickster Takeover)
+
+- **The insert**, `docs/campaign-modes/mc55_rulebook-web.pdf` (24 pages) and its text layer
+  `docs/campaign-modes/markdown/mc55_trickster_takeover.md`, read whole. Cited as "MC55 p. N" by the insert's own page
+  numbers. The text layer loses every icon (the per group icon on p. 4, the per player icons in "10 … remaining hit
+  points" on p. 20 and "2 …" on p. 21, the star icons) and scrambles the stat boxes of the cards pictured on pp. 5, 16
+  and 17: those were read from the card scans instead. No page of the PDF was rendered this session; nothing below
+  depends on the insert's layout.
+- **Card text.** `packages/content/raw/marvelcdb/tt.json`, all 66 records and 15 nested faces by script; the emitted
+  `packages/content/src/data/tt/` (`cards.ts`, `scenarios.ts`, `encounterSets.ts`) and its curation file. **Scans read
+  this session** (`assets/card-art/bundles/cards/`, as contact sheets): every face of the pack, 55001–55066 with
+  55004a/b, 55005a/b, 55007a/b–55011a/b and 55027a/b–55034a/b. The double-sided faces are 289 × 419 pixel scans and were
+  read enlarged; Spellbound 55022, Mischief and Mayhem 55033b and Worlds Collide 55028b were read a second time at full
+  size. **Every printed-card claim of this pass is "checked"** against those scans. Differences from the raw cache, all
+  in §1.15: Spellbound's ability is a **When Defeated** (raw: "When Revealed"); Wrapped in Chains prints "identity"
+  (raw: "identiy"); the four Fading Figments print hit points **∞** (raw: 99).
+- **The two rules cards** (no MarvelCDB record, no collector number):
+  `docs/campaign-modes/mc55-reference-cards/shatter-the-illusion.png` and `epic-multiplayer-reminder.png`, both read
+  this session (checked) and matching the transcription in `docs/phase7-wave9-handoff.md` word for word.
+- **RRG 1.8** (page numbers from the PDF's text layer by script): "Ability" (pp. 4, 6: Forced Action), "Ally Limit" (p.
+  7), "Choose (Option)" (p. 12), "Find" (p. 19), "First Player" (p. 19), "Flip" (p. 20), the forced-ability bullets (p.
+  20), "Hinder X" (p. 22), "Hit Points" (p. 22), "Incite X" (p. 24), "Indirect Damage" (p. 24), "Linked (Card Title)"
+  (p. 27), "Max, Maximum" (p. 28), "Modes of Play" (p. 28), "Patrol" (p. 32), "Per Player Icon" (p. 32), "Permanent" (p.
+  32), "Player Elimination" (p. 34), "Resource Ability" (p. 37), "Stalwart" (p. 40), "Steady" (p. 41), "'Swap'" (p. 42),
+  "Target" (p. 43), "Victory X" (p. 46), "When Revealed Abilities" (p. 48), "'Would'" (p. 48). **The RRG has no entry
+  for the per group icon, for pods or for groups** (searched: "per group", "pod"), and no FAQ entry for the pack; its
+  one erratum for the pack is on p. 70 ("Rulebook pg. 19, Swapping Avatars of Loki, paragraph 1", §3.60).
+- **FFG rulings.** Every card title of the pack and the words "Trickster", "God of Lies", "Enchantress", "charm",
+  "shatter", "synergy", "Forced Action" and "per group" were matched against the rulings file and each hit read:
+  February 28, 2026 – Ruling 3 (Shatter the Illusion and permanent attachments), February 28, 2026 – Ruling 5 (Spell
+  Blast, two answers), March 19, 2026 – Ruling 2 (Whirlwind and Enchantress), June 25, 2026 – Ruling 5 (Total Focus and
+  Dark Scepter). December 17, 2025 – Ruling 4 (3) (what "Find" reaches) is cited by §3.63. No other ruling names a card
+  of the pack.
+- **One ruling states an intent**: February 28, 2026 – Ruling 3, "Scenario intent takes precedence", built as ruled
+  (§3.60); the RRG's p. 70 erratum now says the same in rules text. **No ruling of this pass disagrees with the RRG or
+  the insert.** The three questions of this pass (§4.1 Q8 to Q10) are places where a card and the insert, or a card and
+  the RRG, read differently and no ruling speaks.
+- **The Epic plan**, `docs/epic-multiplayer-plan.md` §1.3 to §1.5 and §3, read whole. Its option B (one unmodified
+  engine per group, a pod coordinator outside them) is taken as decided; §3.64–§3.69 say where its proposed shapes were
+  changed and why.
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -336,6 +392,86 @@ confirms the text matches and lists them in the wave's `reprints.ts`; unchecked 
 8. Black Widow I: MC50 p. 2's callout reads "resolve each 'Preparation' ability discarded this way"; the printed card
    (scan 50064) reads "on that card". The card wins; same meaning.
 
+### 1.15 Trickster Takeover (pass 2c)
+
+**The God of Lies scenario record is wrong as emitted.** `scenarios.ts` has Loki, God of Lies 55027a as `villainCardId`,
+the four Avatars as `setAsideVillainCardIds`, Mischief and Mayhem 55033a as the main scheme and Worlds Collide 55028a in
+`setAsideCardIds`. MC55 p. 10 (Single Group Mode): "the Avatar of Loki villain, his hit point dial, and the Mischief and
+Mayhem main scheme should be front and center as these are the villain and main scheme that players can interact with as
+normal", while "the Loki, God of Lies villain and the Worlds Collide main scheme cannot be interacted with by players …
+These cards are not considered in your game area and can only be affected by cards that refer to them by name." MC55 p.
+18: they "cannot be affected by any ability that refers to 'the villain' or 'the main scheme,' and Worlds Collide cannot
+have acceleration tokens placed on it." So in Single Group Mode:
+
+- **The villain is the Avatar of Loki in play**, one of 55029a–55032a chosen at random by Mischief and Mayhem 1A's Setup
+  ("1. Put a random Avatar of Loki villain into play. Set each other Avatar of Loki villain and the Shatter the Illusion
+  card aside.", checked). `villainCardId: 55029a` (the first in printed order, as On the Run names one Marauder),
+  `setAsideVillainCardIds: [55030a, 55031a, 55032a]`, `startingVillain: "bySetup"`: the Setup ability draws among all
+  four with `addVillain` (wave 5's On the Run shape), so the draw sits where the card puts it, after Worlds Collide
+  (A)'s Setup, not as the game's first RNG draw.
+- **The main scheme is Mischief and Mayhem** (`mainSchemeCardId: 55033a`, correct as emitted).
+- **Loki, God of Lies and Worlds Collide are neither** the villain nor a main scheme nor set aside: they are in play in
+  a game area of their own. New field, proposed:
+  `Scenario.neutralCards?: { readonly villainCardId: CardId; readonly mainSchemeCardId: CardId }` =
+  `{ 55027a, 55028a }`, read by the scenario builder into §3.59's neutral area and §3.66's shared record. Worlds Collide
+  leaves `setAsideCardIds`.
+- `victory: "cardAbility"` stays (55027b: "If Loki, God of Lies is defeated, all players in all groups win the game.").
+  `villainStages: { standard: [1, 1], expert: [1, 1] }` stays: each Avatar has one stage per face in both modes, and the
+  Contents line names "Loki, God of Lies (1)" for both (55028a, checked). **The modes differ only by Intense Focus**
+  (55033a step 3) and by the "in expert mode" clauses on five cards (55034b by way of 55027b, 55045, 55049, 55050,
+  55051).
+- **Permanent cards** (Intense Focus 55034a, the four Synergy environments 55052–55055) are set aside by their keyword
+  (RRG p. 32: "set aside before step 1 of setup and are put into play later by abilities on other cards") and need no
+  `setAsideCardIds` entry. Confirm the builder does this for an encounter set's permanent cards (the setup code reads
+  the keyword; the test is the scenario game's opening state, §8.4).
+
+**The Enchantress record is right.** Stages: standard I and II, expert II and III ("Enchantress (I) and Enchantress
+(II). (Enchantress (II) and Enchantress (III) instead for expert mode.)", 55004a, checked). Main scheme 55004a with
+stages 1 and 2; Future of Despair set aside by 1A's Setup (it is not Permanent: `setAsideCardIds: [55006]` unless the
+Setup script moves it out of the deck itself, the builder's choice). The five Hypnotic Gaze cards are Permanent and set
+aside by keyword.
+
+**The Expert set.** Neither Contents line and no page of the insert names an Expert set; both say "Standard encounter
+sets" (plural, the sentence's object) and "One modular encounter set (Trickster Magic)". RRG "Modes of Play" (p. 28):
+expert mode means "using the listed expert mode villain stages, and add the Expert encounter set to encounter deck." So
+`expertEncounterSetIds: [expert]` (Core's) is the RRG's rule, not the pack's, for both scenarios; the `UNVERIFIED` note
+in the curation file can be replaced by this citation. The player may pick Standard II or III and Expert II as for any
+scenario.
+
+**Other shapes and corrections** (the list for the data agent is §8.1 items 18 to 27):
+
+1. **Spellbound 55022** is "**When Defeated**: Each player whose identity has the Defiant trait places 1 charm counter
+   on the Enchantment card in their play area. Each player whose identity has the Enthralled trait discards a card they
+   control." (scan, read twice). The raw cache and the emitted text say "When Revealed"; the ability id becomes
+   `55022.when-defeated`.
+2. **Wrapped in Chains 55035**: "Attach to your identity." (raw: "identiy").
+3. **The Fading Figments** (55029b–55032b) print "HIT POINTS ∞" (checked): `infiniteHp: true` with
+   `hp: { base: 0, perPlayer: 0 }`, as the schema's villain stage documents, not `hp: 99`.
+4. **`definedCounterTypes`** (§1.6): `charm` on both faces of 55007a–55011a, `shatter` on both faces of 55029a–55032a,
+   `synergy` on 55052–55055. None prints `uses`.
+5. **Counter maximum, new field:**
+   `EnvironmentCard.counterLimit?: { readonly counterType: string; readonly max: ScalingValue }` =
+   `{ "synergy", perPlayerOnly(1) }` on 55052–55055 ("Max 1 [per player] synergy counters here.", checked: the icon is
+   the per player icon, not the per group icon). §3.61 reads it.
+6. **Linked, on the four allies** (55063–55066): the keyword's parentheses name a card by title and type, "Linked
+   (Absorbing Man minion)". Emitted today as `cardTitle: "Absorbing Man minion"`, which matches no card. Proposed:
+   `{ name: "linked", cardTitle: "Absorbing Man", cardType: "minion" }` (and Titania, Whirlwind, Zzzax), §3.57. The
+   allies are `aspect: "basic"` (the frame and "BASIC/TRICKSTER MAGIC (8/11)", checked) with
+   `encounterSetIds: [trickster_magic]`; they never enter a deck or the deck builder (RRG p. 27).
+7. **Crown of the Enchantress 55016** prints a SCH box holding only a star (checked): no SCH modifier, and the star
+   points at its Forced Response. Confirm it is emitted as a star with no `statModifiers.sch`.
+8. **Printed values checked on scans** and right as emitted: Prime Real Estate 1B 1 / 6 / +1 per player; Sovereign
+   Sorceress 2B 2 / 9 / +1 per player; Future of Despair 2 per player; Mischief and Mayhem 1B starting threat a flat 0,
+   target 8 per player, +1 per player; Worlds Collide B target 2 per group with a dash for starting threat and for
+   acceleration; The Mangog 10 per group; Door Between Worlds 7 per group with crisis, acceleration and hazard icons;
+   Loki, God of Lies 20 per player on both faces with dashes for SCH and ATK; the Avatars 15 per player; Intense Focus
+   and Total Focus +1 SCH and +1 ATK; Dark Scepter +1 ATK.
+9. **The Shatter the Illusion card** has no record. It is a rules card: "set aside" by 55033a's Setup with no rules
+   effect of its own. Proposed:
+   `Scenario.referenceCards?: readonly { id: string; title: string; text: string; image: ImageRef }[]` with this card
+   and the Epic Multiplayer Reminder, for the client's Inspect; its three steps are scripted inside each Fading
+   Figment's When Revealed (§3.60), from a helper the four share.
+
 ## 2. Per-scenario setup needs
 
 RRG 1.8 Appendix II (p. 51) with the wave 1–8 engine. The Campaign Instructions boxes are pass 1b's; in a standalone
@@ -431,6 +567,54 @@ All ordinary modular sets with no setup step of their own: A.I.M. Abduction (500
 Thunderbolt sets (50139–50164). A Thunderbolt set used in another scenario shuffles its Elite minion into the deck
 with the rest. The Executive Board set as an extra set is §1.10.
 
+### 2.8 The two Trickster Takeover scenarios (pass 2c)
+
+| Scenario    | Villain                                                    | Main scheme                                   | Sets                                                 | Standard / expert                                                     |
+| ----------- | ---------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------- |
+| Enchantress | Enchantress 55001–55003                                    | Prime Real Estate 1, Sovereign Sorceress 2    | Enchantress, Standard, one modular (Trickster Magic) | stages I, II / II, III; the Expert set in expert mode (RRG p. 28)     |
+| God of Lies | an Avatar of Loki 55029a–55032a; Loki, God of Lies neutral | Mischief and Mayhem 1; Worlds Collide neutral | God of Lies, Standard, one modular (Trickster Magic) | the same cards; Intense Focus attached at setup in expert; Expert set |
+
+**Trickster Magic in either scenario** (MC55 pp. 2, 4): its seven encounter cards (55056–55062) are shuffled in; "Each
+linked ally card should be set aside during setup for any scenario using Trickster Magic as a modular set" (55063–55066,
+§3.57). It is a modular set like any other and may be used with any scenario.
+
+**Enchantress** (MC55 pp. 6–7; 55004a, checked).
+
+- Setup: "Set the Future of Despair side scheme aside. Attach a random Hypnotic Gaze to each identity (players cannot
+  look at the reverse sides). Set each remaining Hypnotic Gaze aside." Five cards for at most four players, drawn with
+  the game's RNG after the encounter deck is built; the reverse faces are hidden from every player (§3.54).
+- Stage II's When Revealed is "In standard mode, put the set-aside Future of Despair into play, then place an additional
+  3 [per player] threat on it"; stage III's has no mode clause and 4 per player. So in standard mode Future of Despair
+  arrives when stage I is defeated with 2 + 3 = 5 per player; in expert mode stage II starts the game and its When
+  Revealed does nothing, and Future of Despair arrives at stage III with 2 + 4 = 6 per player (MC55 p. 22 FAQ gives 5
+  and 6, without the icon the scans print).
+- While Future of Despair is in play "Enchantress gains stalwart and cannot take damage": the players must clear it.
+  Sovereign Sorceress 2B: "If this stage is completed, the players lose the game."
+- The win is the ordinary one (the last stage defeated); the loss is 2B's completion or every player defeated.
+
+**God of Lies, Single Group Mode** (MC55 pp. 9–10, 18–21, 23; 55028a, 55033a, checked).
+
+1. Standard setup. The neutral area is created with Loki, God of Lies (side 1) and Worlds Collide in it; Loki's hit
+   points are 20 per player, counting "the total number of players in all game areas" (55028b), which in Single Group
+   Mode is the table. Worlds Collide has no starting threat, no acceleration and a target of 2 per group, counting "the
+   total number of groups in all pods": 2.
+2. "During the 'Resolve Scenario Setup' step, first resolve the 'Setup' ability on the Worlds Collide (A) main scheme,
+   then resolve the 'Setup' ability on the Mischief and Mayhem (1A) main scheme" (MC55 p. 10). Worlds Collide (A):
+   "Create a separate game area for each player group … Each group follows the instructions on Mischief and Mayhem
+   (1A)." With one group this creates nothing more; Worlds Collide turns to its B face.
+3. Mischief and Mayhem 1A: a random Avatar into play, the other three and the rules card set aside; "Put each Synergy
+   environment into play" (four, each with no counters); "In standard mode, set the Intense Focus attachment aside. In
+   expert mode, attach it to the Avatar of Loki villain in play" (attached, not revealed: its When Revealed is worded
+   for standard mode only). Then 1B: starting threat 0.
+4. "GROUP PODS … In Single Group Mode, the only group in your pod is your own group of 1–4 players" (MC55 p. 10): every
+   "group in your pod" is the table, every per group icon multiplies by 1.
+5. **Win:** Loki, God of Lies is defeated (55027b). **Loss:** Worlds Collide is completed (55028b), by the timing of
+   §3.66 and §4.1 Q9. **No player is ever eliminated** while Mischief and Mayhem 1B is in play: its second Forced
+   Interrupt replaces every identity's defeat (§3.62), so "all players defeated" cannot end this game.
+6. Who resolves a Fading Figment: "The first player. If an encounter card requires a card ability to be resolved, a game
+   function to be performed, or a choice to be made but does not specify which player should act, the first player does
+   so." (MC55 p. 23.)
+
 ## 3. Engine primitives (owner: `game-rules-architect`)
 
 **Build the mechanism, not the card.** Engine code never names a card; card names say where each primitive is needed.
@@ -442,60 +626,80 @@ run: the scripting agent proves it in a test before relying on it, and a failure
 (compose)** (several existing pieces, no engine change); **extend** (an existing primitive needs one more case);
 **new**. Each section is one agent, one commit. Searches that found nothing are named, so nobody repeats them.
 
-| §    | Primitive                                                                                         | Needed by                                                                    | Status (all not started) |
-| ---- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------ |
-| 3.1  | Vulnerable                                                                                        | 50083, 50093, 50094, 50098, 50125, 50126, 50172, 50178                       | new                      |
-| 3.2  | Preparation: a labeled ability that is not a boost ability, resolved from the discard pile        | 50064–50066, 50068–50073, 50076–50079                                        | extend                   |
-| 3.3  | An ability a rule gives to every encounter card that does not print one of that label             | 50070, 50074                                                                 | new                      |
-| 3.4  | The attack in progress as a Preparation reads it; the villain's Forced Interrupt                  | 50064–50066, 50068, 50071–50073, 50076, 50079                                | extend                   |
-| 3.5  | "Would be defeated … reset his hit points to N instead": fixed hit points, never defeated         | 50086a/b, 50103a/b, 50165a, 50166a, 50114–50119                              | exists (verify)          |
-| 3.6  | All-purpose counters: any type, retyped by the card they land on, a uses card emptied by a move   | 50001a, 50002, 50005, 50007, 50011, 50024, 50029, 50030, 50031, 50033, 50113 | extend                   |
-| 3.7  | Threat on a card that is not a scheme; threat removed from a card as a cost of a chosen size      | 50034a, 50035a/b, 50036–50046, 50059, 50090a/b                               | extend                   |
-| 3.8  | A suit form: a permanent double-sided upgrade as an additional form; a forced change on attack    | 50034a/b, 50035a/b, 50037, 50038, 50059                                      | exists (verify)          |
-| 3.9  | An attack that becomes a scheme; one threat of that activation placed elsewhere                   | 50035b                                                                       | extend                   |
-| 3.10 | Deck building: an all-or-nothing off-aspect package; Team-Up with "Max 1 per deck"                | 50001b, 50024                                                                | exists (verify)          |
-| 3.11 | A choice of cards capped by their combined printed cost                                           | 50004, 50005                                                                 | extend                   |
-| 3.12 | Looking at every dealt encounter card and the top of the deck, and swapping them                  | 50051                                                                        | extend                   |
-| 3.13 | An enemy attack on an ally: chosen by a superlative, redirected by the main scheme                | 50089b, 50096, 50120                                                         | exists (verify)          |
-| 3.14 | Main scheme stages left by removing the last threat: forced, by choice, and a win at no threat    | 50087b, 50088b, 50089b                                                       | exists (verify)          |
-| 3.15 | Allies the scenario owns: set aside, put into play under any player, not removable by abilities   | 50091, 50105b–50108b                                                         | exists (verify)          |
-| 3.16 | An environment that holds threat, flips at a threshold and loses the game at one                  | 50090a/b, 50093–50097                                                        | exists (compose)         |
-| 3.17 | A scenario deck whose top card is in play, flips to an ally and comes back to the bottom          | 50105a/b–50108a/b                                                            | extend                   |
-| 3.18 | Environments that change every card of a title; a main scheme whose completion is replaced        | 50104b, 50109–50113                                                          | exists (compose)         |
-| 3.19 | An ally held on a side scheme under no player's control                                           | 50121                                                                        | exists (verify)          |
-| 3.20 | An ally that would leave play tucked under a scheme instead; X from a tucked card's printed cost  | 50080–50082, 50100, 50119                                                    | extend                   |
-| 3.21 | A minion attached to an environment: in play, engaged with nobody, swapped as the round ends      | 50130b, 50131a/b                                                             | extend                   |
-| 3.22 | Setup that picks sets by the minion they hold; each player reveals a random set-aside minion      | 50130a, 50131a                                                               | exists (verify)          |
-| 3.23 | A villain that cannot be defeated below a victory display count; an activation given up to heal   | 50129a/b                                                                     | exists (verify)          |
-| 3.24 | Every player engages the next player's minions at once                                            | 50135, 50136, 50164                                                          | extend                   |
-| 3.25 | Damage that goes somewhere else: threat off a scheme, onto the attachment, back at the attacker   | 50092, 50117, 50146, 50149, 50154                                            | exists (compose)         |
-| 3.26 | Board Members: named counters, a flip to an attachment on the villain, a loss at three            | 50181a/b–50183a/b, 50168b, 50169b                                            | extend                   |
-| 3.27 | "Remove N counters from among" several cards; "the [card] with the fewest counters"               | 50165a, 50166a, 50170, 50172–50177                                           | extend                   |
-| 3.28 | "You may spend X [type] resources to prevent X of …"                                              | 50175, 50184a–c                                                              | exists (verify)          |
-| 3.29 | Evidence in a standalone game: two hidden piles, gained cards, the grid, the accusation           | 50167a/b, 50168a/b, 50169b, 50185–50193                                      | new                      |
-| 3.30 | A hero from the collection in play as a minion                                                    | 50171                                                                        | extend                   |
-| 3.31 | An additional cost to attack, thwart or defend with an ally                                       | 50173                                                                        | extend                   |
-| 3.32 | Player-deck cards facedown as minions whose base stats an environment sets                        | 50030–50033                                                                  | exists (verify)          |
-| 3.33 | Keywords and icons a rule gives to other cards, to cards being revealed, and takes away           | 50075, 50085, 50089b, 50093, 50094, 50101, 50144, 50060                      | exists (verify)          |
-| 3.34 | An attachment's stat box on an identity, replaced under a trait; the two errata                   | 50153, 50156, 50159                                                          | exists (compose)         |
-| 3.35 | Reusable as is                                                                                    | the rest (§7)                                                                | checked by name          |
-| 3.36 | Specials resolved by count and by choice; a Special that discards its own card; on allies         | 51001a, 51002–51005, 51010–51013, 51022–51025, 51030                         | exists (verify)          |
-| 3.37 | A card searched for in the deck and played at a reduced cost                                      | 51001b                                                                       | exists (verify)          |
-| 3.38 | Threat a scheme loses placed on a minion; the minion taken as an ally by a linked attachment      | 51017, 51036                                                                 | exists (compose)         |
-| 3.39 | Encounter cards tucked under an identity: a cap, tucks from the discard pile, "the same set"      | 52001a/b, 52002–52006, 52009–52012, 52029, 52030, 51018                      | exists (verify)          |
-| 3.40 | A tuck sent somewhere else; a tucked card that answers its own discard                            | 52028, 52029, 52031                                                          | new                      |
-| 3.41 | A revealed card swapped with a tucked card of its set                                             | 52008                                                                        | exists (verify)          |
-| 3.42 | The top card of the encounter deck faceup; an ability refused when the visible card gives nothing | 53001a, 53002–53004, 53010, 53012                                            | extend                   |
-| 3.43 | Cards discarded from the top of the encounter deck: a chosen cost, a trigger, a card handed on    | 51015, 53001a, 53002–53004, 53010, 53012, 53017, 53030, 53031, 53036         | extend                   |
-| 3.44 | A response to a boost card being given: look at it and the deck top, and swap them                | 53005                                                                        | extend                   |
-| 3.45 | An interrupt to an encounter card being dealt to a player                                         | 53009                                                                        | new                      |
-| 3.46 | Payment: once per card paid for; the cards that paid; a tucked resource card anyone may spend     | 53006, 53018, 53021                                                          | extend                   |
-| 3.47 | A hero that does not exhaust to defend                                                            | 53011                                                                        | extend                   |
-| 3.48 | The number of different traits among a group of cards                                             | 53019                                                                        | extend                   |
-| 3.49 | An attachment bound for the villain attached to another enemy; "the villain" on that card         | 53038–53040, 51040, 54030                                                    | new                      |
-| 3.50 | An attachment that players attack "as if it were a minion"                                        | 54034, 54035                                                                 | new                      |
-| 3.51 | Rulings, FAQ entries and errata on cards the engine already covers                                | 51007, 51038, 52016, 52034, 53008, 53023, 53034, 54004, 54033, the Team-Ups  | exists (verify)          |
-| 3.52 | Reusable as is (pass 2)                                                                           | the rest (§7.9–§7.12)                                                        | checked by name          |
+| §    | Primitive                                                                                           | Needed by                                                                    | Status (all not started) |
+| ---- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------ |
+| 3.1  | Vulnerable                                                                                          | 50083, 50093, 50094, 50098, 50125, 50126, 50172, 50178                       | new                      |
+| 3.2  | Preparation: a labeled ability that is not a boost ability, resolved from the discard pile          | 50064–50066, 50068–50073, 50076–50079                                        | extend                   |
+| 3.3  | An ability a rule gives to every encounter card that does not print one of that label               | 50070, 50074                                                                 | new                      |
+| 3.4  | The attack in progress as a Preparation reads it; the villain's Forced Interrupt                    | 50064–50066, 50068, 50071–50073, 50076, 50079                                | extend                   |
+| 3.5  | "Would be defeated … reset his hit points to N instead": fixed hit points, never defeated           | 50086a/b, 50103a/b, 50165a, 50166a, 50114–50119                              | exists (verify)          |
+| 3.6  | All-purpose counters: any type, retyped by the card they land on, a uses card emptied by a move     | 50001a, 50002, 50005, 50007, 50011, 50024, 50029, 50030, 50031, 50033, 50113 | extend                   |
+| 3.7  | Threat on a card that is not a scheme; threat removed from a card as a cost of a chosen size        | 50034a, 50035a/b, 50036–50046, 50059, 50090a/b                               | extend                   |
+| 3.8  | A suit form: a permanent double-sided upgrade as an additional form; a forced change on attack      | 50034a/b, 50035a/b, 50037, 50038, 50059                                      | exists (verify)          |
+| 3.9  | An attack that becomes a scheme; one threat of that activation placed elsewhere                     | 50035b                                                                       | extend                   |
+| 3.10 | Deck building: an all-or-nothing off-aspect package; Team-Up with "Max 1 per deck"                  | 50001b, 50024                                                                | exists (verify)          |
+| 3.11 | A choice of cards capped by their combined printed cost                                             | 50004, 50005                                                                 | extend                   |
+| 3.12 | Looking at every dealt encounter card and the top of the deck, and swapping them                    | 50051                                                                        | extend                   |
+| 3.13 | An enemy attack on an ally: chosen by a superlative, redirected by the main scheme                  | 50089b, 50096, 50120                                                         | exists (verify)          |
+| 3.14 | Main scheme stages left by removing the last threat: forced, by choice, and a win at no threat      | 50087b, 50088b, 50089b                                                       | exists (verify)          |
+| 3.15 | Allies the scenario owns: set aside, put into play under any player, not removable by abilities     | 50091, 50105b–50108b                                                         | exists (verify)          |
+| 3.16 | An environment that holds threat, flips at a threshold and loses the game at one                    | 50090a/b, 50093–50097                                                        | exists (compose)         |
+| 3.17 | A scenario deck whose top card is in play, flips to an ally and comes back to the bottom            | 50105a/b–50108a/b                                                            | extend                   |
+| 3.18 | Environments that change every card of a title; a main scheme whose completion is replaced          | 50104b, 50109–50113                                                          | exists (compose)         |
+| 3.19 | An ally held on a side scheme under no player's control                                             | 50121                                                                        | exists (verify)          |
+| 3.20 | An ally that would leave play tucked under a scheme instead; X from a tucked card's printed cost    | 50080–50082, 50100, 50119                                                    | extend                   |
+| 3.21 | A minion attached to an environment: in play, engaged with nobody, swapped as the round ends        | 50130b, 50131a/b                                                             | extend                   |
+| 3.22 | Setup that picks sets by the minion they hold; each player reveals a random set-aside minion        | 50130a, 50131a                                                               | exists (verify)          |
+| 3.23 | A villain that cannot be defeated below a victory display count; an activation given up to heal     | 50129a/b                                                                     | exists (verify)          |
+| 3.24 | Every player engages the next player's minions at once                                              | 50135, 50136, 50164                                                          | extend                   |
+| 3.25 | Damage that goes somewhere else: threat off a scheme, onto the attachment, back at the attacker     | 50092, 50117, 50146, 50149, 50154                                            | exists (compose)         |
+| 3.26 | Board Members: named counters, a flip to an attachment on the villain, a loss at three              | 50181a/b–50183a/b, 50168b, 50169b                                            | extend                   |
+| 3.27 | "Remove N counters from among" several cards; "the [card] with the fewest counters"                 | 50165a, 50166a, 50170, 50172–50177                                           | extend                   |
+| 3.28 | "You may spend X [type] resources to prevent X of …"                                                | 50175, 50184a–c                                                              | exists (verify)          |
+| 3.29 | Evidence in a standalone game: two hidden piles, gained cards, the grid, the accusation             | 50167a/b, 50168a/b, 50169b, 50185–50193                                      | new                      |
+| 3.30 | A hero from the collection in play as a minion                                                      | 50171                                                                        | extend                   |
+| 3.31 | An additional cost to attack, thwart or defend with an ally                                         | 50173                                                                        | extend                   |
+| 3.32 | Player-deck cards facedown as minions whose base stats an environment sets                          | 50030–50033                                                                  | exists (verify)          |
+| 3.33 | Keywords and icons a rule gives to other cards, to cards being revealed, and takes away             | 50075, 50085, 50089b, 50093, 50094, 50101, 50144, 50060                      | exists (verify)          |
+| 3.34 | An attachment's stat box on an identity, replaced under a trait; the two errata                     | 50153, 50156, 50159                                                          | exists (compose)         |
+| 3.35 | Reusable as is                                                                                      | the rest (§7)                                                                | checked by name          |
+| 3.36 | Specials resolved by count and by choice; a Special that discards its own card; on allies           | 51001a, 51002–51005, 51010–51013, 51022–51025, 51030                         | exists (verify)          |
+| 3.37 | A card searched for in the deck and played at a reduced cost                                        | 51001b                                                                       | exists (verify)          |
+| 3.38 | Threat a scheme loses placed on a minion; the minion taken as an ally by a linked attachment        | 51017, 51036                                                                 | exists (compose)         |
+| 3.39 | Encounter cards tucked under an identity: a cap, tucks from the discard pile, "the same set"        | 52001a/b, 52002–52006, 52009–52012, 52029, 52030, 51018                      | exists (verify)          |
+| 3.40 | A tuck sent somewhere else; a tucked card that answers its own discard                              | 52028, 52029, 52031                                                          | new                      |
+| 3.41 | A revealed card swapped with a tucked card of its set                                               | 52008                                                                        | exists (verify)          |
+| 3.42 | The top card of the encounter deck faceup; an ability refused when the visible card gives nothing   | 53001a, 53002–53004, 53010, 53012                                            | extend                   |
+| 3.43 | Cards discarded from the top of the encounter deck: a chosen cost, a trigger, a card handed on      | 51015, 53001a, 53002–53004, 53010, 53012, 53017, 53030, 53031, 53036         | extend                   |
+| 3.44 | A response to a boost card being given: look at it and the deck top, and swap them                  | 53005                                                                        | extend                   |
+| 3.45 | An interrupt to an encounter card being dealt to a player                                           | 53009                                                                        | new                      |
+| 3.46 | Payment: once per card paid for; the cards that paid; a tucked resource card anyone may spend       | 53006, 53018, 53021                                                          | extend                   |
+| 3.47 | A hero that does not exhaust to defend                                                              | 53011                                                                        | extend                   |
+| 3.48 | The number of different traits among a group of cards                                               | 53019                                                                        | extend                   |
+| 3.49 | An attachment bound for the villain attached to another enemy; "the villain" on that card           | 53038–53040, 51040, 54030                                                    | new                      |
+| 3.50 | An attachment that players attack "as if it were a minion"                                          | 54034, 54035                                                                 | new                      |
+| 3.51 | Rulings, FAQ entries and errata on cards the engine already covers                                  | 51007, 51038, 52016, 52034, 53008, 53023, 53034, 54004, 54033, the Team-Ups  | exists (verify)          |
+| 3.52 | Reusable as is (pass 2)                                                                             | the rest (§7.9–§7.12)                                                        | checked by name          |
+| 3.53 | Forced Action: an action a player must take before the player phase can end                         | 55007b–55011b, 55012–55014                                                   | new                      |
+| 3.54 | Enchantment attachments: dealt at random, a hidden reverse, flipped at five counters and revealed   | 55004a, 55007a/b–55011a/b                                                    | extend                   |
+| 3.55 | A counter that "would be placed": an interrupt window, the placement replaced                       | 55004b, 55005b                                                               | extend                   |
+| 3.56 | "If Defiant, choose one. If Enthralled, do both in any order"                                       | 55023–55025                                                                  | exists (compose)         |
+| 3.57 | Linked to an encounter card: allies set aside for a modular set, taken by the defeating player      | 55056–55059, 55063–55066                                                     | extend                   |
+| 3.58 | A cost every player pays                                                                            | 55016                                                                        | extend                   |
+| 3.59 | A villain and a main scheme in a neutral area only abilities naming them reach                      | 55027a/b, 55028a/b, 55033a                                                   | exists (compose)         |
+| 3.60 | Avatars of Loki: a defeat replaced by a flip, the Shatter steps, a swap by trait that sets the dial | 55029a/b–55032a/b, 55051                                                     | extend                   |
+| 3.61 | A maximum on the counters a card holds                                                              | 55052–55055                                                                  | new                      |
+| 3.62 | An identity that "would be defeated" stays in the game; a completion replaced                       | 55033b                                                                       | exists (verify)          |
+| 3.63 | "Find and reveal" a card in play; "did not enter play this way"                                     | 55034b, 55036                                                                | exists (verify)          |
+| 3.64 | Epic groundwork: the pod record and `GroupId` on game state                                         | every God of Lies card                                                       | new                      |
+| 3.65 | Epic groundwork: the per group icon read from the group counts                                      | 55028b, 55041, 55046                                                         | extend                   |
+| 3.66 | Epic groundwork: shared villain damage and shared scheme threat as events through one reducer       | 55027a/b, 55028b, 55029b–55032b, 55033b                                      | new                      |
+| 3.67 | Epic groundwork: "this group", "a group in your pod", "each group in your pod"                      | 55027b, 55029b–55032b, 55041–55044, 55046, 55048                             | new                      |
+| 3.68 | Epic groundwork: the `externalEvent` command                                                        | none in Single Group Mode                                                    | new                      |
+| 3.69 | Epic groundwork: a seed per group; inbound events that take no draw                                 | none in Single Group Mode                                                    | extend                   |
+| 3.70 | Rulings and FAQ answers on behavior the engine already covers                                       | 55006, 55025, 55034a, 55036, 55042, 55051, 55065                             | exists (verify)          |
+| 3.71 | Reusable as is (pass 2c)                                                                            | the rest (§7.13–§7.15)                                                       | checked by name          |
+| 3.72 | "You cannot make basic attacks"                                                                     | 55015                                                                        | extend                   |
 
 ### 3.1 Vulnerable
 
@@ -2022,23 +2226,892 @@ As §3.35: the identifier and its doc comment were read; the scripting agent's t
 - **Counters and state checks.** Atlas 52035 (growth counters, +2 hit points each), Grow Invulnerable 52036 (a loss
   while it is in play and Atlas holds 10), Harlem's Protector 53029.
 
+### 3.53 Forced Action: an action a player must take before the player phase can end
+
+> **Status: not started (new).** Searched: `forcedAction`, "Forced Action" in `packages/engine/src` and
+> `packages/cards/src/dsl`: nothing. `AbilityTriggerSpec` `action` has `form`, `while`, `firstPlayerOnly` and
+> `triggerableBy` but no `forced`; `forced: boolean` exists only on interrupts and responses. `endTurn` (`actions.ts`)
+> checks the phase and "when your turn ends" windows, nothing else.
+
+**Cards.** Alluring Call 55012, Kiss of Temptation 55013, Love Concoction 55014 ("Forced Action: Exhaust this card →
+place 1 charm counter on the Enchantment card in your play area. …", each beside "Alter-Ego Action: Exhaust this card →
+discard this card."); the five Trances 55007b–55011b ("Forced Action: Exhaust this card → …"). All checked. Every Forced
+Action in the pack costs "Exhaust this card".
+
+**Rules.** RRG p. 6: "Each 'Forced Action' ability must be resolved before the player phase can end. » A forced action
+ability can be triggered at any time a non-forced action ability could be triggered. » If such an ability has a cost
+that cannot be paid or requires one or more valid targets and has none, the phase can end without that ability being
+resolved." RRG p. 20 repeats it. MC55 p. 7: "the player phase cannot end until all possible forced actions among all
+players have been performed. If a card with a Forced Action ability is discarded, or the cost cannot otherwise be paid
+(such as by the card becoming exhausted …), then the action cannot be performed and the players are free to end the
+player phase as normal." MC55 p. 22 FAQ: "Even if you cannot benefit from a Temptation attachment's effect every round,
+you still must trigger its 'Forced Action' … in some rounds, the only outcome of the effect will be placing 1 charm
+counter".
+
+**Plan.**
+
+- `action` gains `forced?: true`. A forced action is offered by `legalActions` like any action its controller may take,
+  with the same form gate and costs. "Controller" for an encounter attachment on an identity is that identity's player
+  (the "you" of its text).
+- **Outstanding** = in play, cost payable now, and every target its effects require exists (the RRG's two outs; an
+  effect that will do nothing is not an out, per the FAQ). `outstandingForcedActions(state, playerId)` is a pure query,
+  used by `legalActions`, by `why-not.ts` and by the client.
+- `endTurn` is refused (`forced_action_outstanding`, naming the card) while the ending player has one. When the last
+  player's turn ends, the engine looks at every player: one that became outstanding after its controller's turn (the
+  card was readied by an effect) is put to that controller before the phase ends, in player order from the first player,
+  as a prompt that has only "resolve it" (the choices inside the ability are asked as usual). `playerPhaseEnded` is
+  announced only after none is outstanding.
+- The Alter-Ego Action on the same card is an ordinary action: exhausting the card for it leaves the Forced Action
+  unpayable, which the rules allow (MC55 p. 7). Nothing orders the two.
+- Log: the ordinary `abilityUsed`, with `forced: true`; a phase end that waited logs `forcedActionsRequired` with the
+  cards.
+
+**Tests (exact numbers).** Kiss of Temptation on a Defiant hero with 2 charm counters: `endTurn` is refused; the action
+leaves 3 charm counters, 1 card drawn, 1 discarded, the card exhausted; `endTurn` then passes. The same card on an
+alter-ego: the Alter-Ego Action discards it and `endTurn` passes with 2 charm counters. Love Concoction with a ready
+identity: still outstanding (the FAQ), 3 counters after. Alluring Call with an empty hand: outstanding, the counter is
+placed and nothing is played. Two players, player 1's Kiss of Temptation readied by an effect during player 2's turn:
+player 2's `endTurn` opens player 1's prompt; the phase ends after it. A Trance of Pride with no side scheme in play: 1
+threat on the main scheme, nothing removed (the first sentence has no target of its own to lack).
+
+### 3.54 Enchantment attachments: dealt at random with a hidden reverse, flipped at five counters and revealed
+
+> **Status: not started (extend).** Exists: double-sided encounter cards (`flipSide`), `flipCard { reveal: true }` with
+> the new face revealed where it is (`revealNewFaceFrame`, wave 7 §3.14), `stateCheck` constants, `traitGrants` on a
+> constant, `removeCounters`, permanent cards set aside by keyword. Missing: a card picked at random from set aside by a
+> Setup ability and attached; a reverse face no player may read (`visibility.ts` has no notion of the other face of a
+> card in play: searched `flipSide`, "reverse").
+
+**Cards.** Prime Real Estate 1A 55004a ("Attach a random Hypnotic Gaze to each identity (players cannot look at the
+reverse sides). Set each remaining Hypnotic Gaze aside."); Hypnotic Gaze 55007a–55011a ("Permanent. Your identity gains
+the Defiant trait. If there are 5 or more charm counters here, remove each charm counter from here and flip this
+card."); the Trances 55007b–55011b ("Permanent. Your identity gains the Enthralled trait. When Revealed: … Forced
+Action: …"). Checked.
+
+**Rules.** MC55 p. 7: "Players cannot look at the 'Trance' side of any Enchantment attachment until it flips through
+Hypnotic Gaze's ability. … When the 'Trance' side is revealed this way, trigger its 'When Revealed' ability as normal."
+RRG "Flip" (p. 20): a new face of the same card type "retains all attached cards, tucked cards, status cards, and
+tokens". RRG "Permanent" (p. 32).
+
+**Plan.**
+
+- `attach` (and `putIntoPlay`) take `card: { randomSetAside: TargetQuery }`: one matching set-aside card by the game's
+  RNG, logged `randomCardChosen` with the instance only. The Setup ability runs it once per player in player order.
+- `CardInstance.reverseHidden?: true`, set by `attach { hideReverse: true }` and cleared by the card's first flip.
+  `visibility.ts` gains `otherFaceVisible(state, id)`: false while the flag is set, for every viewer. The engine's
+  views, `preview()` and the log never name the hidden face's card id or title while it is set (the instance's `cardId`
+  is the pair's and stays, as for any `flipSide` card; what is withheld is the face). The multiplayer phase redacts the
+  same predicate server side.
+- The flip is a `stateCheck` on `counterAtLeast charm 5`: `removeCounters` (every charm counter), then
+  `flipCard { reveal: true }`. The insert, not the card, asks for the reveal; cite MC55 p. 7 in the script. "You" for
+  the When Revealed is the attached identity's player. The check is immediate, in the middle of whatever placed the
+  fifth counter (§3.56 says what that does to a "choose one").
+- Both faces grant a trait to "your identity" by `traitGrants` with the host as target; it holds in both forms.
+- Counters beyond five placed at once are all removed ("remove each charm counter from here").
+
+**Tests.** Three players, seed fixed: three different Hypnotic Gazes attached, two set aside, replay deep-equal;
+`otherFaceVisible` false for all five. A Gaze at 4 charm counters takes 1: 0 counters, the Trance face up, its When
+Revealed resolved by its player, the identity Enthralled and no longer Defiant, `otherFaceVisible` true. A Gaze at 4
+that is due two counters one after the other (Future of Despair's, then an attack's): it flips at the first, and the
+second is replaced by 1 threat (§3.55). Trance of Greed revealed on an identity already confused: "Otherwise, take 2
+damage."
+
+### 3.55 A counter that "would be placed" on a card: an interrupt window, and the placement replaced
+
+> **Status: not started (extend).** `TriggerEvent countersPlaced` is announced after `addCounters` and `moveCounters`
+> (response window only, one event per placement). No "would be placed" window: searched `countersWouldBePlaced`,
+> `replaceCounterPlacement`, nothing. `replaceTriggeringEvent` and `placeThreat` exist.
+
+**Cards.** Prime Real Estate 1B 55004b and Sovereign Sorceress 2B 55005b: "Forced Interrupt: When a charm counter would
+be placed on the Enchantment card in your play area, if your identity has the Enthralled trait, place 1 threat here
+instead." (Checked.) Every "place 1 charm counter" in the Enchantress set meets it: 55001–55003, 55006, 55012–55014,
+55016–55018, 55021, 55022, 55024, 55026.
+
+**Rules.** RRG "'Would'" (p. 48) and "Replacement Effect" (p. 37). The interrupt is per counter: "a charm counter …
+place 1 threat here instead".
+
+**Plan.** `TriggerEvent countersBeingPlaced { targetInstanceId, counterType, amount, playerId }`, opened before
+`addCounters` places (and before a `moveCounters` arrival), only when an ability listens, as `encounterCardBeingDealt`
+is planned (§3.45). A replacement resolves once per counter of the event: N charm counters become N threat. The replaced
+placement announces no `countersPlaced`. The threat is placed by the scheme's ability, so it is not "threat placed by
+the villain's scheme" and no boost or crisis rule reads it; it does count toward the stage's target and can complete it.
+
+**Tests.** An Enthralled player with Prime Real Estate 1B at 3 threat is attacked by Enchantress: 4 threat, the Trance
+holds 0 counters. A Defiant player in the same game: 1 charm counter, 3 threat. Future of Despair revealed with one
+Defiant and two Enthralled players: 1 counter, 2 threat. Kiss of Temptation's Forced Action for an Enthralled player: 1
+threat, then the draw and discard.
+
+### 3.56 "If Defiant, choose one. If Enthralled, do both in any order": options chosen before they resolve
+
+> **Status: not started (exists (compose)).** `chooseOne` with `count` ("`count` options are chosen and resolve in the
+> order chosen", wave 2 §3.7), `Predicate hasTrait` on an identity with gained traits, `enemyScheme` and `enemyAttack`
+> with a stat bonus, `Predicate inMode`.
+
+**Cards.** "Do My Bidding" 55023, Magical Restraints 55024, Spell Blast 55025: "When Revealed: If your identity has the
+Defiant trait, choose one. If your identity has the Enthralled trait, do both in any order: • … • …". (Checked.) Sindr
+55019 and Spellbound 55022 read the two traits in separate sentences.
+
+**Rules.** Ruling February 28, 2026 – Ruling 5: "(1) You resolve the first sentence by choosing (not yet resolving) an
+option. If not Enthralled, the second sentence has no effect. Then you resolve the chosen option. (2) Yes. You can
+choose for Enchantress to scheme even if confused, which removes her Confused status card." RRG "Choose (Option)" (p.
+12).
+
+**Plan.** Read both traits **before any option resolves**: Defiant → `chooseOne` (count 1); Enthralled →
+`chooseOne { count: 2 }`, the order chosen being the "any order"; neither trait (no Enchantment attached: the set in
+another scenario's deck by a custom game) → nothing. An option that flips the Hypnotic Gaze while resolving (Magical
+Restraints' counter being the fifth) does not add the second option: the second sentence was read before. Options are
+offered whether or not they would change anything (a confused Enchantress may be chosen to scheme; a stalwart identity
+may choose "You are stunned" and still places the counter). The "(with +1 SCH in expert mode)" is `inMode` inside the
+option.
+
+**Tests.** A Defiant player at 4 charm counters picks Magical Restraints' first option: stunned, the counter flips the
+Gaze, the Trance's When Revealed resolves, the second option is not resolved. An Enthralled player resolves Spell Blast
+in expert mode in the order attack, scheme: an attack at ATK + 1, then a scheme at SCH + 1. Spell Blast with Enchantress
+confused, option scheme: no threat, the status card discarded.
+
+### 3.57 Linked to an encounter card: allies set aside for a modular set, taken by the defeating player
+
+> **Status: not started (extend).** Exists: `KeywordInstance linked { cardTitle }`, set aside per **player deck**
+> holding the named title (`setup.ts`, wave 7 §3.75), owner on taking control; `RuleSpec excludedFromAllyLimit`
+> (Stinger); `putIntoPlay` from set aside under a player; `PlayerRef defeatingPlayer`; Victory 0 on player cards
+> (Redemption 51036, §3.38). Missing: a linked card whose named card is in the **encounter deck**, and a name with a
+> card type in it.
+
+**Cards.** Absorbing Man 55063, Titania 55064, Whirlwind 55065, Zzzax 55066: "Linked ([title] minion). Victory 0. Does
+not count against your ally limit." The minions 55056–55059: "When Defeated: The player who defeated this minion puts
+the set-aside [title] ally into play under their control." (Checked.)
+
+**Rules.** MC55 p. 2: a linked card "is set aside at the start of the game if any encounter card or card in a player's
+deck includes the card that brings the linked card into play". RRG p. 27: "if any deck includes the card"; "The number
+of linked cards set aside during setup is equal to the number of those cards included in the product"; "When a player
+takes control of a card with the linked keyword, that player becomes the owner of that card." MC55 p. 4: "The player who
+defeated that minion puts the set-aside ally version of that minion into play under their control." RRG "Victory X" (p.
+46).
+
+**Plan.**
+
+- The linked keyword's `cardType` (§1.15 item 6) narrows the named card. Setup's linked pass also looks at the
+  scenario's encounter cards (every encounter deck and set-aside encounter card of the game): one set of linked cards
+  for the game when any holds the named card, in the shared set-aside area with no owner. A player deck match is
+  unchanged.
+- The minion's When Defeated: `putIntoPlay` the set-aside card of that title and type `ally` under `defeatingPlayer`.
+  With no defeating player (the minion is defeated by an encounter card's damage) the first player decides who takes it,
+  by MC55 p. 23's rule for an unspecified player; flagged in §4.2. The minion goes to the victory display (Victory 1),
+  so it is never defeated twice.
+- The ally is its taker's from then on: ready, in their play area, owner set. Defeated, it goes to the victory display
+  (Victory 0), not to a discard pile, and never returns.
+- `excludedFromAllyLimit` with the card itself as target.
+
+**Tests.** An Enchantress game with Trickster Magic: four allies set aside at setup, none in any deck or hand; a game
+without the set: none. Player 2 with three allies defeats Titania: the Titania ally is in player 2's play area, ready,
+owned by player 2; the ally limit is not exceeded and no ally is discarded; the minion is in the victory display. The
+ally defeated: 2 cards of that title in the victory display, worth 1 and 0.
+
+### 3.58 A cost every player pays
+
+> **Status: not started (extend).** `AbilityCost` has `exhaustIdentity` and `damageSelf` for the paying player, and
+> alliance costs paid from every hand (`paidAsGroup`). Searched for a cost each player pays in kind: `eachPlayer` in
+> `abilities.ts`, nothing.
+
+**Card.** Crown of the Enchantress 55016: "Hero Action: Each player exhausts their identity and takes 1 damage → discard
+this card." (Checked.)
+
+**Rules.** RRG "Cost" (p. 13): a cost that cannot be paid in full cannot be paid. The triggering player must be in hero
+form; the card asks nothing of the other players' forms.
+
+**Plan.** `AbilityCost.eachPlayer?: AbilityCost`: the inner cost is checked and paid for every player not eliminated, in
+player order; one player who cannot (an exhausted identity; an identity that "cannot take damage") makes the whole cost
+unpayable. Damage paid this way is damage from a cost (`settleCostDamage`): tough status cards prevent it and are
+discarded, and the cost is still paid, as for `damageSelf` today. An identity brought to 0 by it is defeated after the
+ability resolves.
+
+**Tests.** Three players, one exhausted: not offered, and `why-not` names that player. All ready: three identities
+exhausted, 1 damage each, the Crown discarded; in expert mode Enchantress loses stalwart with it. One player with a
+tough status card: no damage to them, the card discarded, the cost paid.
+
+### 3.59 God of Lies: a villain and a main scheme in a neutral area that only abilities naming them can reach
+
+> **Status: not started (exists (compose)).** Exists: closed in-play scenario areas (`ScenarioPlayAreaState.closed`,
+> `createScenarioPlayArea`, `TargetQuery.inScenarioPlayArea`, `AbilityDefinition.reaches`; wave 8 §3.33: "skipped by
+> every query and selector of an ability that does not name the area"); `Scenario.startingVillain: "bySetup"` with
+> `addVillain` among set-aside villains (wave 5 §3.1); `ScenarioRules.victory: "cardAbility"`; main scheme A faces with
+> two Setup abilities in a stated order. The numbers on the two neutral cards are §3.66's.
+
+**Cards.** Loki, God of Lies 55027a/b; Worlds Collide 55028a/b ("Cards cannot affect this scheme or Loki, God of Lies,
+unless they refer to those cards by title."); Mischief and Mayhem 55033a/b. (Checked.)
+
+**Rules.** §1.15 and §2.8 quote MC55 pp. 10 and 18.
+
+**Plan.**
+
+- The scenario builder creates a closed scenario play area named `neutral` and puts the two `Scenario.neutralCards` in
+  it as plain instances. **Neither gets a `VillainState` or a `MainSchemeState`**: `state.villains`, `activeVillainId`
+  and `state.mainScheme` are the Avatar and Mischief and Mayhem, so "the villain", "the main scheme", step one's threat,
+  acceleration tokens, crisis and hazard icons, attacks, thwarts and status cards never find the neutral cards, with no
+  special case anywhere. This is the insert's rule and the engine's existing closed-area rule at once.
+- An ability "refers to them by title" by `reaches: { scenarioPlayArea: "neutral" }`. In this pack that is four:
+  Mischief and Mayhem 1B's two interrupts, the Shatter helper's step 1, and the neutral cards' own text.
+- Loki's hit points and Worlds Collide's threat are **not** `damage` and `threat` on those instances: they are the
+  group's copy of the pod's shared record (§3.66), which is the one place they live. Views read them through
+  `sharedVillain(state)` and `sharedScheme(state)`; the instances carry the faces and the text.
+- "If Loki, God of Lies has 10 [per player] or fewer remaining hit points, flip this card" and "If this stage is
+  completed" are not scripted as state checks on the instances: they are results of the shared reducer (§3.66), which is
+  what lets a coordinator own them later. Loki's When Revealed and the two bold outcome lines are abilities of 55027b
+  and 55028b in the registry, run when the reducer's result is applied.
+- Setup order (MC55 p. 10): the builder lists Worlds Collide (A)'s Setup before Mischief and Mayhem (1A)'s. The first
+  creates the area and the shared record; the second is §2.8 step 3.
+
+**Tests.** One player, standard: after setup `state.villains` holds four Avatars, one in play, `state.mainScheme` is
+Mischief and Mayhem 1B at 0 threat of 8, the neutral area holds two cards, the shared record reads 20 hit points,
+target 2. A player card that says "deal 5 damage to the villain" damages the Avatar and offers no neutral card; "remove
+2 threat from a scheme" offers Mischief and Mayhem and side schemes only; a card that stuns "an enemy" does not offer
+Loki, God of Lies. Step one of the villain phase places 1 threat (one player) on Mischief and Mayhem and none on Worlds
+Collide. Three players: 60 hit points, flip at 30, target still 2.
+
+### 3.60 The Avatars of Loki: never defeated, flipped, shattered, and swapped by trait
+
+> **Status: not started (extend).** Exists: `swapVillain` and `advanceToSetAsideVillain` (`resolve/villain-swap.ts`,
+> wave 4 §3.7): the villain stays one instance, takes a random set-aside villain card **of its title**, the old card
+> goes set aside, everything on the instance stays, a swap keeps the dial and announces `villainSwapped`; `flipCard` on
+> a villain (the new face's When Revealed resolves); `infiniteHp` stages; a defeat replaced from a forced interrupt
+> (§3.5); `dealEncounterCard`; counters on a villain instance. Missing: a pool chosen by trait rather than title (the
+> four Avatars have four titles, and the card in play is a Fading Figment when the Shatter swap happens), the starting
+> face, and a swap that sets the dial.
+
+**Cards.** Loki the Rascal 55029a, the Miscreant 55030a, the Knave 55031a, the Wretch 55032a: "Forced Interrupt: When
+this villain would be defeated, place 5 [per player] shatter counters here and flip this card instead." Fading Figment
+55029b–55032b: "When Revealed: Shatter the illusion (see the set-aside Shatter the Illusion card). Choose a group in
+your pod, then place synergy counters on their [Unified Front / Mounting Resistance / Domineering Force / Feigned
+Retreat] environment equal to the number of players in their group." The rules card: "1. Remove each shatter counter
+from Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2.
+Swap the Fading Figment in play with a random set-aside villain, Avatar of Loki side faceup, then set the hit point dial
+of that Avatar of Loki villain to its printed hit point value. 3. Deal each player 1 facedown encounter card." Stories
+and Lies 55051: "Swap the Avatar of Loki villain in play with a random set-aside Avatar of Loki villain. Then: …". All
+checked.
+
+**Rules.**
+
+- MC55 p. 19: the steps are followed "in order, resolving each fully before proceeding to the next step in the sequence,
+  and resolve all such steps before the second sentence of the Fading Figment's 'When Revealed' ability." A swap "does
+  not cause any Avatar of Loki villain to leave play, enter play, or be revealed. Sustained damage (on the villain's hit
+  point dial), attachments, status cards, counters, and tokens on the Avatar of Loki villain should be transferred … The
+  Avatar of Loki villain that was swapped out should be set aside with the other remaining set-aside versions of the
+  villain."
+- **RRG 1.8 erratum, p. 70** ("Rulebook pg. 19, Swapping Avatars of Loki, paragraph 1"): "Should read: 'When a card
+  effect instructs the players to swap an Avatar of Loki villain or Fading Figment with a random set-aside Avatar of
+  Loki villain, they should replace the villain in play with one of the other set-aside versions of the Avatar of Loki
+  villain.' (Rewritten to apply section's rules to swapping a Fading Figment with an Avatar of Loki villain.)"
+- **Ruling February 28, 2026 – Ruling 3**, asked whether Intense Focus and Total Focus are removed from the game by the
+  Shatter swap: "Scenario intent takes precedence: Intense Focus / Total Focus should not leave play. They attach to the
+  swapped-in Avatar of Loki." This is the stated-intent case of the rules policy. The printed rules it overrides are RRG
+  "'Swap'" (p. 42), under which two cards that "do not share a title" make the in-play card leave play with nothing
+  transferred, and RRG "Permanent" (p. 32). **Built as ruled, and as the erratum now reads:** every Avatar swap in this
+  scenario, from an Avatar or from a Fading Figment, transfers everything and nothing leaves or enters play.
+- MC55 p. 18: "Shatter counters remain on an Avatar of Loki villain until that villain would be defeated and flips … if
+  one Avatar of Loki villain swaps with another, any shatter counters on the previous villain transfer to the new
+  villain". MC55 p. 20: the only way to damage Loki, God of Lies.
+
+**Plan.**
+
+- `swapVillain { villain, with?: { setAsideTrait: Trait }, face?: "starting", dial?: "keep" | "printed" }`. `with`
+  absent is today's pool (the villain's own title), so Loki of wave 4 is unchanged. With a trait the pool is every
+  set-aside villain card whose **starting face** has the trait: three of the four, since the one in play is not set
+  aside; the outgoing card joins the pool with its starting face up, so it can come back later but not at once. The pick
+  is one draw of the game's RNG. `dial: "printed"` sets remaining hit points after the exchange (§4.1 Q8 says to what,
+  with Intense Focus attached); `"keep"` is Stories and Lies, which keeps sustained damage as MC55 p. 19 says.
+- The transfer is what `villain-swap.ts` already does (one instance, a new card): attachments (Intense or Total Focus,
+  Dark Scepter), status cards, counters and boost cards stay. No `cardLeavesPlay`, no `cardEntersPlay`, no When Revealed
+  for the incoming Avatar; `villainSwapped` is announced. A stalwart or steady rule the new card is under is applied to
+  the status cards it arrives with, as wave 4 does.
+- **The defeat.** Each Avatar's Forced Interrupt replaces its defeat: `addCounters shatter` of 5 per player (the group's
+  players: the icon is on a card in the group's area), then `flipCard` to the Fading Figment, whose When Revealed
+  resolves. Excess damage is lost; the attack that dealt it finishes against a villain with infinite hit points.
+  Overkill has nothing to spill (it reads a minion's defeat). A "when the villain is defeated" ability on a player card
+  does not resolve: the villain was not defeated.
+- **The Fading Figment's When Revealed**, resolved by the first player (MC55 p. 23), one frame at a time so each step is
+  finished before the next: (1) `removeCounters shatter` (all), then the shared event of §3.66 with the number removed;
+  (2) `swapVillain { with: { setAsideTrait: "AVATAR OF LOKI" }, face: "starting", dial: "printed" }`; (3)
+  `dealEncounterCard` to each player; then the card's second sentence by §3.67's selectors. The three steps are one
+  helper in `@mc/cards` used by all four faces; the engine has no "shatter" effect.
+- A Fading Figment is in play only inside its own When Revealed. It has dashes for SCH and ATK and no Avatar of Loki
+  trait, so Intense Focus's "+2 [per player] hit points" and steady, and Dark Scepter's stalwart, do not apply while it
+  is the face up; they apply again to the Avatar swapped in.
+- Loki, God of Lies flipping or being defeated during step 1 does not interrupt the steps: §3.66 queues its consequences
+  behind the resolution in progress (MC55 p. 20).
+
+**Tests (exact numbers).** One player, Loki the Knave at 15 hit points with 2 shatter counters and Dark Scepter attached
+takes 20 damage: 7 shatter counters, the Fading Figment up, 0 counters, Loki, God of Lies at 13 of 20; a different
+Avatar is in play at its hit points with Dark Scepter attached, the Knave is set aside Avatar side up, the player holds
+1 facedown encounter card, and the environment named on the Knave's reverse (Domineering Force) holds 1 synergy counter;
+replay deep-equal. Two players: 10 shatter counters from the defeat, 2 encounter cards dealt, 2 synergy counters.
+Expert, Intense Focus attached: it is attached to the new Avatar and no `cardLeavesPlay` was announced for it (the
+ruling's test). Stories and Lies on an Avatar with 6 damage, 3 shatter counters and a tough status card: the new Avatar
+has all three, then schemes or attacks by its name. With no set-aside Avatar (a hand-built state): nothing is swapped
+(RRG p. 42: "A swap cannot be completed if there is not a component in both locations").
+
+### 3.61 A maximum on the counters a card holds
+
+> **Status: not started (new).** `addCounters.upTo` is the "(to a maximum of X)" of one ability, local to it by ruling
+> June 2, 2026 (1) as its doc says. Nothing caps a card's counters whoever places them: searched `maxCounters`,
+> `counterCap`, `counterLimit`, nothing.
+
+**Cards.** Domineering Force 55052, Feigned Retreat 55053, Mounting Resistance 55054, Unified Front 55055: "Permanent.
+Max 1 [per player] synergy counters here." (Checked: the per player icon.) Placed by the four Fading Figments ("equal to
+the number of players in their group"), The Mangog and Door Between Worlds (1 on one of the group's choice), Fenris
+Wolf, Hraesvelgr, Laufey and New Jotunheim (1 on the named one).
+
+**Rules.** RRG "Max, Maximum" (p. 28). The sentence is a constant on the card that holds the counters, so it binds every
+placement, unlike a parenthesis on a placing ability.
+
+**Plan.** The card's `counterLimit` (§1.15 item 5) becomes
+`RuleSpec counterLimit { card: self, counterType, max: ValueSpec }`. `addCounters` and a `moveCounters` arrival place
+`min(amount, max − held)`; the rest is not placed, announces nothing, and is logged
+`countersNotPlaced { instanceId, counterType, amount, reason: "limit" }`. `countersPlaced` carries the number really
+placed and is not announced for 0. A choice "on one of their Synergy environments" offers every environment, full or not
+(the card does not say "that can hold one"); choosing a full one places nothing.
+
+**Tests.** One player: a Fading Figment places 1 on Unified Front (max 1); Laufey's defeat then places 0 and logs the 1
+not placed. Three players: max 3; at 2, a Fading Figment's 3 places 1. Four players at 4: nothing. The Mangog defeated
+with all four full: 3 shatter counters placed, no synergy counter.
+
+### 3.62 An identity that "would be defeated" stays in the game; a main scheme's completion replaced
+
+> **Status: not started (exists (verify)).** `TriggerEvent defeat` with a forced interrupt and `replaceTriggeringEvent`;
+> `setRemainingHitPoints` ("Set his hit point dial to 1 instead", Captain America's Helmet);
+> `changeForm { to: "alterEgo" }`; `mainSchemeCompleting` with a replacement (§3.18: "a main scheme whose completion is
+> replaced");
+> `removeThreat` of all. Unproved: the interrupt on an encounter card answering **any identity's** defeat, and
+> `changeForm` for an identity already in alter-ego form or one that changed form this round.
+
+**Card.** Mischief and Mayhem 1B 55033b: "Forced Interrupt: When this scheme would be completed, remove all threat from
+here and place 1 threat on Worlds Collide instead. Forced Interrupt: When an identity would be defeated, change that
+identity's form to alter-ego, set its hit point dial to 1, and place 1 threat on Worlds Collide instead." (Checked,
+twice.)
+
+**Rules.** MC55 p. 21 calls the second "an identity is defeated"; the card replaces the defeat, so RRG "Player
+Elimination" (p. 34) never begins: the player keeps everything, minions stay engaged, the first player token does not
+move. RRG "'Would'" (p. 48).
+
+**Plan.**
+
+- First interrupt: `removeThreat` of all from this scheme, then §3.66's shared event (cause `schemeCompleted`, amount
+  1). The stage stays 1B at 0 threat with its acceleration tokens (the card removes threat, not tokens); it is not
+  advanced, not "completed", and can fill again.
+- Second: `changeForm` to alter-ego as an effect of the scheme (not the player's once-per-round change; `formChanged` is
+  announced when the form does change, and nothing happens for an identity already in alter-ego form),
+  `setRemainingHitPoints` 1, then the shared event (cause `identityDefeated`, amount 1). Damage beyond the defeat is
+  lost. An ability that reads "after your identity is defeated" does not resolve. An identity with a multi-form or suit
+  form goes to its alter-ego face by the existing `changeForm`.
+- Both abilities carry `reaches: { scenarioPlayArea: "neutral" }`.
+
+**Tests.** One player, the scheme at 7 of 8 in step one: 0 threat on it, Worlds Collide at 1 of 2, the game goes on. A
+hero at 2 hit points takes 5: alter-ego, 1 hit point, Worlds Collide +1, not eliminated, engaged minions unchanged, and
+the attack's "after … attacks you" responses still resolve. The same in alter-ego form: no `formChanged`. The second
+threat on Worlds Collide: §3.66's loss.
+
+### 3.63 "Find [card] and reveal it" for a card in play; "did not enter play this way"
+
+> **Status: not started (exists (verify)).** `findCard` and `TargetRef find` reach a card in play first (RRG p. 19;
+> ruling December 17, 2025 – Ruling 4 (3) for what is "in the game"); "find and reveal, already in play" is in §3.35's
+> vocabulary (51042 and its siblings); `flipCard { reveal: true }` from a result of another card; `giveStatus`;
+> `discardEncounterCards` and a player deck discard by count.
+
+**Cards.** Total Focus 55034b: "When Revealed: Discard the top 2 [per player] cards of the encounter deck and the top 5
+cards of each player deck. Find Dark Scepter and reveal it. If Dark Scepter did not enter play this way, give the Avatar
+of Loki villain a tough status card." Dark Scepter 55036: "Attach to the Avatar of Loki villain. The Avatar of Loki
+villain gains stalwart. Treacheries cannot be canceled. Hero Response: After you resolve a treachery, spend 2 resources
+of the same type → discard this card." (Checked.)
+
+**Rules.** Ruling June 25, 2026 – Ruling 5: "Yes. Finding and revealing an attachment already in play triggers its When
+Revealed abilities and keywords." RRG "Find" (p. 19); "When Revealed Abilities" (p. 48). Dark Scepter prints no When
+Revealed and no keyword, so for this card the ruling changes nothing that resolves; what it settles is that the reveal
+**happens** for a card in play.
+
+**Plan.** The find looks in play, then the encounter discard pile (where step one of this very ability may just have put
+it), then the encounter deck (shuffled after). Found out of play, it is revealed and attaches to the Avatar: it entered
+play this way, no tough card. Found in play, it is revealed where it is (incite, surge and When Revealed would resolve;
+it has none): it **did not enter play**, so the Avatar gets a tough status card. Found nowhere (in the victory display
+or removed from the game, which a find does not search): the tough card. The condition reads the find's result
+(`eventResult` of the reveal: entered play or not), not whether the card is in play afterward.
+
+**Tests.** Dark Scepter in the encounter deck: revealed, attached, no tough card, the deck shuffled. In the discard pile
+after the 2 discarded cards: the same, no shuffle. Already attached: one `cardRevealed` for it, it stays, the Avatar has
+a tough status card. One player: 2 encounter cards and 5 player cards discarded; three players: 6 and 5 each.
+
+### 3.64 Epic groundwork: the pod record and `GroupId` on game state
+
+> **Status: not started (new).** Plan item 2 (`docs/epic-multiplayer-plan.md` §3). Searched: `GroupId`, `pod`,
+> `groupsAtStart` in `packages/engine/src`: nothing. `ids.ts` has the branded ids (`GameAreaId` and its maker
+> `gameAreaId`); `GameAreaState` is Kang's split of one table and is **not** a group (its areas share one phase clock,
+> one encounter deck and one RNG). `GameLog` is `{ initialState, commands }`: it has **no header**.
+
+**Why now.** Every other Epic item reads it: the per group count (§3.65), the shared record (§3.66), "a group in your
+pod" (§3.67), the inbound sequence (§3.68), the seed (§3.69).
+
+**Corrections to the plan's shape.**
+
+- The plan puts `GroupId` "in the log header". There is none, and none is needed: `GameLog.initialState` is the replay
+  baseline and already carries everything fixed at setup (seed, card pool, `startingPlayerCount`). The pod record goes
+  on `GameState`, so it is in the baseline and a group's log names its group with no format change.
+- The plan's `pod: { groupId, groupsAtStart }` has one group count. The cards need three numbers that differ in Epic:
+  groups in **this pod** (a per group icon on a card in a group's area, MC55 p. 4), groups in **the whole game** (the
+  icon on Worlds Collide: "the total number of groups in all pods", 55028b), and players in **the whole game** (the per
+  player icons on Loki, God of Lies: "the total number of players in all game areas", 55028b). All three are fixed at
+  setup: the Epic Multiplayer Reminder card says "the number of groups that began the scenario in that pod" (checked),
+  as RRG "Per Player Icon" (p. 32) says "the number of players who started the scenario. If a player is eliminated, this
+  value does not change."
+- The plan leaves out who applies shared events. With one group the engine is its own coordinator; with several it must
+  not be. That is one explicit field, not a guess from the group count.
+
+**Plan.** A new pure module `pod.ts` (no `Ctx`, no card names):
+
+```ts
+export type GroupId = Brand<string, "GroupId">;
+export const groupId = (value: string): GroupId => value as GroupId;
+export const SINGLE_GROUP = groupId("g1");
+
+export interface PodState {
+  readonly groupId: GroupId;
+  /** Who applies shared events: this engine (Single Group Mode) or a pod coordinator outside it (Epic). */
+  readonly coordinator: "local" | "remote";
+  readonly groupsInPodAtStart: number;
+  readonly groupsInGameAtStart: number;
+  readonly playersInGameAtStart: number;
+  /** The shared villain and scheme (§3.66); null in a scenario with no neutral cards. */
+  readonly shared: SharedPodState | null;
+  /** Shared events this group has emitted, and inbound events it has applied (§3.66, §3.68). */
+  readonly outboundSeq: number;
+  readonly inboundSeq: number;
+}
+```
+
+- `GameState.pod?: PodState`, absent in every game without a pod so older saves and every existing snapshot read
+  unchanged. `podOf(state)` returns the record or the single-group default (`g1`, `local`, 1, 1, `startingPlayerCount`,
+  `shared: null`), and is the only reader.
+- `GameSetupConfig.pod?: { groupId; coordinator; groupsInPod; groupsInGame; playersInGame }`. The scenario builder
+  passes it for a scenario with `neutralCards` (§1.15), with the single-group values; nothing else does. Setup rejects
+  `coordinator: "local"` with more than one group in the game (a local coordinator cannot hear the others).
+- **Per-group difficulty (plan item 8, verify only):** checked by reading. `ScenarioRules.difficulty` is on `GameState`,
+  and under the plan's option B a `GameState` is one group, so difficulty is per group already; `Predicate inMode` reads
+  it. Nothing to build. The scenario game of §8.4 pins it: Loki's When Revealed attaches Intense Focus in a standard
+  game and flips it in an expert one.
+- **Deferred with the plan** (items 7 and 9): a group's status in the pod, and cross-area attacks and thwarts. §3.67
+  declares the rule kind the two cards need so they do not change later.
+
+**Tests.** An ordinary Core game has no `pod` key, `podOf` gives the default, and its saved log replays byte for byte as
+before. A God of Lies game for three players:
+`{ groupId: "g1", coordinator: "local", groupsInPodAtStart: 1, groupsInGameAtStart: 1, playersInGameAtStart: 3 }`,
+present in `log.initialState`, and JSON round-trips. Setup with `local` and `groupsInGame: 2` is an error.
+
+### 3.65 Epic groundwork: the per group icon read from the group counts
+
+> **Status: not started (extend).** Plan item 1. The schema has it (`ScalingValue.perGroup`, `perGroupOnly`,
+> `MinionCard.hpPerGroup`, validation) and the data emits it (Worlds Collide `targetThreat.perGroup: 2`, Door Between
+> Worlds `startingThreat.perGroup: 7`, The Mangog `hpPerGroup: true`). The engine ignores it: `scale` is
+> `value.base + value.perPlayer * playerCount` (`query.ts` line 33), so today Door Between Worlds enters with **0**
+> threat, and
+> `minionPrintedHp` (line 76) reads only `hpPerPlayer`, so The Mangog has 10 by accident.
+
+**Cards.** The Mangog 55041 (hit points 10 per group), Door Between Worlds 55046 (starting threat 7 per group), Worlds
+Collide 55028b (target 2 per group). Checked: the three-figure icon, distinct from the per player icon on the Synergy
+environments.
+
+**Rules.** MC55 p. 4: "If the [per group] icon is on a card in a group's game area, that icon multiplies the value it is
+next to by the number of groups in the respective pod. If the icon is on a card that is not in a specific group's game
+area (such as the Worlds Collide main scheme), that icon multiplies the value it is next to by the total number of
+groups in the game." The Reminder card: "groups that began the scenario in that pod". MC55 p. 10: one group in Single
+Group Mode.
+
+**Corrections to the plan's shape.** The plan names the three `scale` callers in `query.ts` (lines 595, 604, 822) and
+misses the fourth place: a minion's hit points do not go through `scale` at all. It also gives `scale` one group count,
+where Worlds Collide needs the game's (§3.64).
+
+**Plan.**
+
+- `scale(value, playerCount, groupCount)` = `base + perPlayer * playerCount + (perGroup ?? 0) * groupCount`, the third
+  argument **required**, so the compiler finds every caller in the engine, the DSL, the client's view models and the
+  tests. `scaleIn(state, value)` is the common call: the group's own `startingPlayerCount` and
+  `podOf(state).groupsInPodAtStart`. The three `query.ts` callers become `scaleIn`.
+- `minionPrintedHp`: `hpPerGroup` multiplies by `groupsInPodAtStart`, beside `hpPerPlayer`.
+- The neutral cards' two values are scaled once, at setup, into the shared record, with the **game's** counts (§3.66):
+  `playersInGameAtStart` for Loki's 20 and 10, `groupsInGameAtStart` for Worlds Collide's 2. No query scales a neutral
+  card afterward.
+- No `ValueSpec` for the icon: no ability text in the pack prints it (Puppet Master's "hinder 1" and the shatter and
+  synergy numbers print the per player icon, which is the group's players).
+
+**Tests (exact numbers; `scale-per-group.test.ts`).** In play, one group: The Mangog has 10 hit points, Door Between
+Worlds enters with 7 threat, the shared record's target is 2. **Proving the multiplier is read, on hand-built states:**
+`groupsInPodAtStart: 2` gives The Mangog 20 and Door Between Worlds 14; `groupsInGameAtStart: 2` at setup gives a target
+of 4; `groupsInPodAtStart: 3` with `groupsInGameAtStart: 6` gives 30, 21 and 12, so the two counts are not confused.
+`scale(perGroupOnly(7), 4, 1)` is 7 (players do not multiply it); `scale(scaling(2, 1), 3, 5)` is 5 (groups do not touch
+a value without the icon). Door Between Worlds in expert mode has no hinder; a side scheme with hinder and a per group
+value adds them.
+
+### 3.66 Epic groundwork: shared villain damage and shared scheme threat as events through one pure reducer
+
+> **Status: not started (new).** Plan items 3 and 4. Nothing like it exists: every change in the engine is a mutation of
+> `ctx.state` logged as a `GameEvent`; `CommandResult.events` is the only thing that leaves `applyCommand`.
+
+**Cards.** The Shatter the Illusion card, step 1 ("deal damage to Loki, God of Lies equal to the number of shatter
+counters removed this way"); Mischief and Mayhem 1B's two interrupts ("place 1 threat on Worlds Collide"); Loki, God of
+Lies 55027a ("If Loki, God of Lies has 10 [per player] or fewer remaining hit points, flip this card.") and 55027b (its
+When Revealed; "If Loki, God of Lies is defeated, all players in all groups win the game."); Worlds Collide 55028b ("If
+this stage is completed, the players lose the game."). Checked.
+
+**Rules.** MC55 p. 20: "There is only one way for players to deal damage to Loki, God of Lies"; at 10 per player
+remaining "the ability on Loki, God of Lies causes it to flip … Each group should pause gameplay activity in their game
+area, first finishing any actions or abilities that are currently resolving. Then, the 'When Revealed' ability on Loki,
+God of Lies triggers, affecting all groups simultaneously." MC55 p. 21: the "two ways to place threat on the Worlds
+Collide main scheme"; at its target "Each group in the middle of a villain phase must finish any abilities currently
+resolving, then stop play immediately; each group in the middle of a player phase may finish that phase as normal. If
+Loki, God of Lies is defeated before all player phases in all groups end, all players in all groups win the game!
+However, if Loki, God of Lies remains undefeated when all player phases in all groups end, all players in all groups
+lose the game." §4.1 Q9 is the card's shorter sentence against this page.
+
+**Corrections to the plan's shape.**
+
+- The plan's `SharedPodState` is `{ lokiHp, worldsCollideThreat }`. Engine code names no card, and two numbers cannot
+  say whether the flip already happened or whether the scheme is complete, which a coordinator must answer the same way
+  every time an event is re-sent. The record below carries the thresholds, fixed at setup, and the two latches.
+- The plan has the reducer return a new state only. It must also return **what happened** (flipped, defeated,
+  completed), because those are exactly the inbound events of §3.68. One function, two outputs.
+- The plan's event names say "villain" and "scheme" already; `source` and `cause` are kept, as a card-neutral enum.
+
+**Plan.** In `pod.ts`:
+
+```ts
+export interface SharedPodState {
+  readonly villainHp: number; // fixed at setup: 20 per player in the game
+  readonly villainDamage: number;
+  readonly villainFlipAtRemaining: number | null; // 10 per player in the game
+  readonly villainFlipped: boolean;
+  readonly schemeThreat: number;
+  readonly schemeTarget: number; // 2 per group in the game
+  readonly status: "playing" | "schemeCompleted" | "won" | "lost";
+}
+
+export type SharedEvent =
+  | { readonly type: "sharedVillainDamaged"; readonly groupId: GroupId; readonly amount: number }
+  | {
+      readonly type: "sharedSchemeThreatPlaced";
+      readonly groupId: GroupId;
+      readonly amount: number;
+      readonly cause: "schemeCompleted" | "identityDefeated";
+    };
+
+export type SharedResult = "sharedVillainFlipped" | "sharedVillainDefeated" | "sharedSchemeCompleted";
+
+export function applySharedEvent(
+  shared: SharedPodState,
+  event: SharedEvent,
+): { readonly shared: SharedPodState; readonly results: readonly SharedResult[] };
+```
+
+- **The reducer is total and pure.** Damage is capped at the hit points left; a flip is reported once (the latch);
+  damage that crosses the flip line and reaches 0 in one event reports only `sharedVillainDefeated`; threat reaching the
+  target sets `status: "schemeCompleted"` and reports it once; damage still applies after that (the race MC55 p. 21
+  describes), and reaching 0 then sets `"won"`; every event is a no-op once the status is `"won"` or `"lost"`. It never
+  reads a `GameState`, so the multiplayer phase moves it into the coordinator unchanged.
+- **`EffectSpec sharedEvent { event: "villainDamaged" | "schemeThreatPlaced"; amount: ValueSpec; cause? }`** is what a
+  script writes, on an ability that `reaches` the neutral area (§3.59). It always appends
+  `GameEvent sharedEventEmitted { seq, event }` to the command's events, `seq` being `pod.outboundSeq + 1`: this is the
+  seam a host reads in Epic.
+- **`coordinator: "local"`** (every game of this wave): in the same command the engine calls `applySharedEvent` on
+  `pod.shared`, stores the result, logs `sharedStateChanged`, and queues each result. **`"remote"`:** it does nothing
+  more; the record changes only by §3.68.
+- **Results are applied when the resolution in progress has finished** (the stack is empty), by one handler,
+  `applyInbound`, shared with §3.68, so the local path and the remote path cannot drift:
+  - `sharedVillainFlipped`: the neutral villain instance flips and its new face is revealed for this group
+    (`TriggerEvent sharedVillainFlipped`; 55027b's When Revealed is an ability of that card, written with `inMode` and
+    §3.67's "this group").
+  - `sharedVillainDefeated`: `TriggerEvent sharedVillainDefeated`, answered by 55027b's bold line with
+    `endGame { result: "win" }`.
+  - `sharedSchemeCompleted`: `TriggerEvent sharedSchemeCompleted`, answered by 55028b's bold line. By default A of Q9:
+    in the villain phase the loss is at once (with one group no player phase is running, so "all player phases … end" is
+    already true); in the player phase the phase is played to its end (`pod.shared.status` stays `"schemeCompleted"`,
+    the client shows it), and at `playerPhaseEnded` the players lose unless the status has become `"won"`. A win and a
+    completion queued together resolve as the reducer left the status: `"won"` wins.
+- The outcome uses the existing `endGame`, so `GameOutcome` gains no reason: the win is recorded as `endGame` records
+  one today and the loss as `cardAbility` with the neutral scheme as its source.
+- Views: `sharedVillain(state)` (hit points, remaining, flipped) and `sharedScheme(state)` (threat, target), for the
+  client's two dials.
+
+**Tests (exact numbers; `shared-villain-event.test.ts`, `shared-scheme-event.test.ts`).**
+
+- Reducer alone, one player (20, flip at 10, target 2): damage 7 → 13 left, no result; 5 more → 8 left,
+  `sharedVillainFlipped`; 1 more → 7, no result (latched); 9 more → 0, `sharedVillainDefeated`, status `"won"`, damage
+  stored as 20; a further event changes nothing. From 12 left, 12 damage: `sharedVillainDefeated` only. Threat 1 → no
+  result; 1 more → `sharedSchemeCompleted`; a third → threat 3, no second result.
+- Reducer alone, **two groups and five players, hand-built** (100, flip at 50, target 4): 49 damage → no result; 1 more
+  → flipped; three threat events from `g1`, `g2`, `g1` → no result; a fourth → completed.
+- In play, one player: the Shatter test of §3.60 emits exactly one
+  `sharedEventEmitted { seq: 1, event: { type: "sharedVillainDamaged", groupId: "g1", amount: 7 } }`. A second defeat
+  with 6 shatter counters: 7 hit points left, and Loki's When Revealed resolves **after** the Fading Figment's whole
+  When Revealed, so Intense Focus attaches to the Avatar that was swapped in (standard). A defeat that brings Loki to 0:
+  the players win once the Shatter steps and the attack have finished.
+- In play: Mischief and Mayhem completed in step one, twice: after the second the game is lost at once (villain phase).
+  An identity "defeated" by retaliate in its own player phase with Worlds Collide at 1: status `"schemeCompleted"`, the
+  player finishes the phase; if they defeat the Avatar and Loki reaches 0 in it they win, otherwise the loss is at
+  `playerPhaseEnded`.
+- **Remote, hand-built** (`coordinator: "remote"`): the same Shatter leaves `pod.shared` untouched, emits the same one
+  event, flips nothing and ends nothing.
+- Replay of every case deep-equal.
+
+### 3.67 Epic groundwork: "this group", "a group in your pod", "each group in your pod"
+
+> **Status: not started (new).** Plan item 5. Searched `group:` in `spec.ts` and the DSL: nothing about player groups.
+
+**Cards.** The Fading Figments ("Choose a group in your pod, then place synergy counters on their [environment] equal to
+the number of players in their group"); Fenris Wolf 55042, Hraesvelgr 55043, Laufey 55044, New Jotunheim 55048 ("Choose
+a group in your pod, then place 1 synergy counter on their [environment]"); The Mangog 55041 and Door Between Worlds
+55046 ("Each group in your pod places 3 shatter counters on their Avatar of Loki villain and 1 synergy counter on one of
+their Synergy environments."; "Any player in your pod can attack The Mangog [thwart Door Between Worlds] as if it were
+in their game area."); Loki, God of Lies 55027b ("Each group in standard mode … Each group in expert mode …"). Checked.
+
+**Rules.** MC55 pp. 10, 13, 16, 17; MC55 p. 12: "Unless explicitly stated otherwise, cards and components in one game
+area cannot affect another game area."
+
+**Correction to the plan's shape.** The plan adds `group: "self" | "inPod"` to the **target** DSL, "resolved as the own
+group … a choice later", with "Synergy placement targets `{ group, environment }`". That cannot work under the plan's
+own option B: another group's environment is not an instance in this engine's state, so no `TargetQuery` in this state
+can match it, now or later. What crosses to another group is not a target but **a block of effects to run there**. So
+the selector goes on a block, and the block is what is local today and sent tomorrow.
+
+**Plan.**
+
+- `type GroupRef = "self" | { readonly var: string }`.
+- `EffectSpec chooseGroup { chooser: PlayerRef; among: "inPod"; bind: string }`: the groups of the pod, this one
+  included. With one group it binds `podOf(state).groupId` with no prompt (the existing one-option rule) and logs
+  `groupChosen`. The multiplayer phase gives it its prompt and its list.
+- `EffectSpec inGroup { group: GroupRef | "eachInPod"; effects: readonly EffectSpec[] }`: the effects are resolved **in
+  that group's game area by that group's players**. For this group they resolve here, in place. For another group the
+  engine resolves nothing and emits `GameEvent podEffectRequested { toGroupId, sourceCardId, abilityId, block }` (the
+  block's index in the ability), which a coordinator turns into §3.68's `podEffect` there; `"eachInPod"` does both.
+  Inside the block every ref means the receiving group: "their Avatar of Loki villain" is `theVillain`, "one of their
+  Synergy environments" is a `chooseTarget` by that group's first player, "you" is that group's first player. A block
+  may hold no ref to a card bound outside it (the DSL validator refuses one), since such a card does not exist there.
+- `ValueSpec groupPlayerCount { group: GroupRef }`: "the number of players in their group". Inside a block, `"self"` is
+  the receiving group, so the count is read where the counters land.
+- `RuleSpec reachableFromPod { card: self; by: "attack" | "thwart" }`, for The Mangog and Door Between Worlds: declared
+  now, **with no effect while the pod is one group** (every player of the pod is already in this game area). The
+  multiplayer phase gives it meaning (plan item 9, deferred). Declared so the two cards' scripts are final.
+- DSL builders `chooseGroup`, `inGroup`, `eachGroupInPod`, `thisGroup`, `groupPlayerCount`; `validate.ts` knows them.
+
+**Tests (exact numbers; `group-selector.test.ts`).** One group, two players: a Fading Figment asks no group question and
+places 2 synergy counters on its environment (max 2); `groupChosen { groupId: "g1" }` is logged; The Mangog's defeat
+places 3 shatter counters and asks the first player for one environment. `legalActions` is identical with and without
+`reachableFromPod` on The Mangog. **Hand-built, two groups, remote:** `inGroup` bound to `g2` places nothing here and
+emits one `podEffectRequested { toGroupId: "g2", sourceCardId: "55044", abilityId, block: 1 }`; `"eachInPod"` places
+here and emits one event per other group. The validator refuses a block that reads an outer slot.
+
+### 3.68 Epic groundwork: the `externalEvent` command
+
+> **Status: not started (new).** Plan item 6. `Command` (`commands.ts`) is a union of eight types, each from a player
+> (`playerId`); `applyCommand` refuses any but `resolveChoice` and `concede` while a choice is pending, and everything
+> once `state.outcome` is set; `legalActions(state, playerId)` lists a player's actions.
+
+**Rules.** MC55 p. 20: a group hears of the flip and applies it after "finishing any actions or abilities that are
+currently resolving". MC55 pp. 14–15: the organizer's announcements. Plan §2, option B: every inbound event is recorded
+in the receiving group's own log, at its position, so the group replays alone.
+
+**Corrections to the plan's shape.**
+
+- "The command is rejected from a player seat." `applyCommand(state, command, deps)` has no notion of a seat or of who
+  sent a command, and adding one would make the engine an authority, which the netcode owns. The engine's part: the
+  command has **no `playerId`**, `legalActions` never offers it, and `commands.ts` exports `isAuthorityCommand(command)`
+  for the host to refuse it from a seat. The seat rule is the multiplayer phase's and is tested there.
+- "Applied at the next command boundary" is already the engine's rule: while `pendingChoice` is set the command is
+  refused with the existing `choice_pending`, and the host re-sends it after the answer. No new queue in state.
+- The plan's kinds (`lokiFlipped | podWon | podLost | synergyGranted`) name a card and a mechanic. The kinds below are
+  card-neutral, and `synergyGranted` becomes the general `podEffect` of §3.67.
+- A single-group game must never accept one, or its log would stop being a record of the players' commands alone.
+
+**Plan.**
+
+```ts
+export type PodInboundEvent =
+  | { readonly kind: "sharedStateChanged"; readonly shared: SharedPodState }
+  | { readonly kind: "sharedVillainFlipped" }
+  | { readonly kind: "sharedSchemeCompleted" }
+  | { readonly kind: "podWon" }
+  | { readonly kind: "podLost" }
+  | {
+      readonly kind: "podEffect";
+      readonly fromGroupId: GroupId;
+      readonly sourceCardId: CardId;
+      readonly abilityId: string;
+      readonly block: number;
+    };
+
+// added to Command
+| { readonly type: "externalEvent"; readonly sequence: number; readonly event: PodInboundEvent }
+```
+
+- Refused with `no_remote_coordinator` unless `state.pod?.coordinator === "remote"`; with `external_event_out_of_order`
+  unless `sequence === pod.inboundSeq + 1` (a re-sent event is refused, not applied twice; a gap is refused, so the host
+  fills it); with `choice_pending` and `game_over` by the existing gates. Accepted, it sets `inboundSeq`, logs
+  `podInboundApplied { sequence, kind }` and runs §3.66's `applyInbound`: `sharedStateChanged` replaces the group's copy
+  of the record; the flip and the completion are the same handlers the local path uses; `podWon` and `podLost` end the
+  game through the neutral cards' own lines; `podEffect` resolves the named block of the named ability from this group's
+  registry, with this group's first player as "you" (an unknown card, ability or block is `unknown_pod_effect`).
+- After `sharedSchemeCompleted` in a villain phase the group has stopped: every command but `externalEvent` and
+  `concede` is refused with `pod_halted` until `podWon` or `podLost` arrives. In a player phase the phase goes on, and
+  its end emits `GameEvent groupFinalPhaseEnded` for the coordinator and then halts the same way.
+- Every exhaustive `switch` on `Command["type"]` (the engine's dispatch, the client's log view, the save migration) gets
+  its arm; the compiler lists them.
+
+**Tests (`external-event-command.test.ts`; every state hand-built with `coordinator: "remote"`, two groups).**
+`legalActions` for each player never holds the command, in any step. In a one-group game the command is
+`no_remote_coordinator`. Sequence 1 `sharedVillainFlipped` in a standard-mode group: Intense Focus is attached to the
+Avatar, whose hit points rise by 2 per player of this group; sequence 1 again and sequence 3 are both
+`external_event_out_of_order`; during a defend prompt it is `choice_pending` and passes after the answer.
+`sharedStateChanged` then `podLost`: the outcome is a loss whose source is the neutral scheme. `podEffect` for a Fading
+Figment's block in a three-player group with an empty environment: 3 synergy counters. **Equivalence:** a local
+one-group game whose Shatter crosses the flip line, and a remote hand-built copy of the state before it given the same
+Shatter, then `sharedStateChanged` and `sharedVillainFlipped`, end in states equal but for `pod.coordinator` and the two
+sequence numbers. The log with the external events replays deep-equal with no coordinator present.
+
+### 3.69 Epic groundwork: a seed per group, and inbound events that take no draw
+
+> **Status: not started (extend).** Plan item 10. `RngState` (mulberry32) is one stream in `GameState.rng`, created from
+> `GameSetupConfig.seed`, threaded by every consumer; the Avatar swap draws from it (`randomSetAsideVillain`,
+> `nextInt`).
+
+**Correction to the plan's shape.** The plan asks for "group-scoped RNG streams" and to "make the Fading Figment swap
+draw only from" the group's. Under option B that is already so: one `GameState` is one group and its `rng` is that
+group's; there is no pod-wide stream for a swap to draw from by mistake, and a second stream inside the state would be
+state nothing reads. What is missing is smaller: how N groups get N different streams from one pod seed, reproducibly,
+and a guarantee that bookkeeping from the coordinator cannot shift a group's later draws.
+
+**Plan.**
+
+- `groupSeed(podSeed: number, groupId: GroupId): number` in `pod.ts`: a pure 32-bit mix of the seed and the id's
+  characters (FNV-1a over the id, xor the seed, one mulberry32 step), exported for the coordinator.
+  `GameSetupConfig.pod.podSeed?` present: setup uses `groupSeed(podSeed, groupId)` in place of `seed` and records both
+  in the pod record. Absent (every game of this wave): `seed` as today, so no existing game's draws change.
+- **Inbound events that resolve no card text take no draw:** `sharedStateChanged`, `sharedSchemeCompleted`, `podWon`,
+  `podLost`. The handler asserts `rng.draws` is unchanged. `sharedVillainFlipped` and `podEffect` resolve abilities,
+  which may shuffle or pick at random (Total Focus's find shuffles the encounter deck); they draw from the group's
+  stream at their place in the group's log, which is what replay reproduces.
+- The coordinator has no RNG: the reducer of §3.66 is arithmetic.
+
+**Tests.** `groupSeed(1, "g1")`, `groupSeed(1, "g2")` and `groupSeed(2, "g1")` are three different numbers, fixed in the
+test as literals. A one-group game set up with and without a `pod` record draws the same Avatar from the same `seed`
+(the record alone moves nothing). Hand-built remote state: the same twenty commands with and without a
+`sharedStateChanged` inserted after the fifth give the same `rng.value` and `rng.draws` at the end and the same Avatar
+on the next swap. Two groups seeded from one pod seed with the same decks draw different opening hands.
+
+### 3.70 Rulings and FAQ answers on behavior the engine already covers
+
+> **Status: not started (exists (verify)).** Each line is a test in the module that scripts the card; a failure comes
+> back as an extend.
+
+- **Ruling March 19, 2026 – Ruling 2** (RRG "Target", p. 43: "A target that 'cannot take damage' is not a valid target
+  for an ability or game function whose only effect on that target is to deal it damage"): "No. Basic powers are game
+  functions, but the rule … applies equally to basic powers. Enchantress cannot be targeted by Whirlwind's basic attack
+  while immune to damage." `resolve/target-validity.ts` and `basicAttack` already cite it. Test: with Future of Despair
+  in play the Whirlwind ally's basic attack does not offer Enchantress, so his interrupt cannot be reached through her;
+  against a minion it removes 1 threat from each scheme in play (the main scheme and Future of Despair: +2 ATK, 0 + 2 =
+  2 damage) and a scheme with no threat adds nothing.
+- **Ruling February 28, 2026 – Ruling 5 (2)**: Spell Blast's scheme option may be chosen while Enchantress is confused
+  (§3.56).
+- **MC55 p. 22 FAQ**: Future of Despair enters with 5 or 6 per player (§2.8); a Temptation's Forced Action is required
+  with no benefit (§3.53); "If Spell Blast initiates an attack against you while your identity is in alter-ego form,
+  resolve the steps of the attack as usual" (`enemyAttack` against an alter-ego: the player may defend with an ally, the
+  identity takes the damage).
+- **MC55 p. 23 FAQ**: the first player resolves a Fading Figment (§3.60); Stories and Lies' attack against an alter-ego
+  resolves as usual.
+- **Ruling June 25, 2026 – Ruling 5**: §3.63. **Ruling February 28, 2026 – Ruling 3**: §3.60.
+- **Steady and stalwart on a villain that changes card.** Intense Focus gives the Avatar steady; Dark Scepter and The
+  Trickster Tango give stalwart. A status card on the instance when the rule arrives or leaves is handled by the
+  existing rules (RRG pp. 40, 41). Test: a steady Avatar with one stunned card attacks normally; with Dark Scepter then
+  attached the card is removed.
+- **Patrol** (Fenris Wolf; RRG p. 32) stops thwarting Mischief and Mayhem, "the main scheme", and nothing about Worlds
+  Collide, which no player can thwart at all (§3.59).
+
+### 3.71 Reusable as is (pass 2c; checked by name against the engine unions)
+
+As §3.35 and §3.52: the identifier and its doc comment were read; the scripting agent's tests prove each.
+
+- **Keywords, all engine-level already:** hinder, incite, patrol, permanent, stalwart, steady, quickstrike, guard,
+  retaliate, toughness, victory, surge, and `AttackKeyword` overkill and piercing. **By mode or by condition:**
+  `keywordGrants` with `while: inMode` and a `value` ("In expert mode, this scheme gains hinder 1 [per player]", Puppet
+  Master 55061; "In expert mode, this card gains incite 1", Dark Arts 55049, as wave 5 §3.11; Ulik's toughness, the
+  Crown's stalwart); `attackKeywords` for Titania (both cards); `grantKeywordUntil` for The Trickster Tango's boost.
+- **"Treacheries cannot be canceled."** `RuleSpec cannotBeCanceled`, whose doc comment already names Dark Scepter 55036.
+- **"After you resolve a treachery"** (Loki the Miscreant, Loki the Knave, Dark Scepter): `encounterCardResolved` with a
+  type filter. **"After you resolve a boost card during [his] activation, if that card is a treachery"** (Loki the
+  Rascal): `boostCardResolved`, then `chooseOne` between `dealAsEncounterCard` and `spendResources`.
+- **Encounter deck discards read by type** (Loki the Wretch, Grendell, Malekith, Hraesvelgr, Laufey, Aura of Stasis,
+  Draugr Buddy; Minotaur counts the discard pile): `discardEncounterCards` with a bind and a count of treacheries;
+  `discardEncounterUntil` (Law of Attraction); `dealAsEncounterCard` for the treachery handed to a player and for Draugr
+  Buddy dealing itself (with `setDefeatDestination`: prove that a defeated minion is dealt rather than discarded).
+- **Enemy activations from card text:** `enemyAttack` and `enemyScheme` with a stat bonus, `enemyActivation` ("activates
+  against you"), `RuleSpec attacksDealIndirectDamage` (Sindr), a minion that attacks a named player (Ulik),
+  `modifyStatUntil` for "+1 SCH and +1 ATK for this activation".
+- **Restrictions:** `cannotTakeDamage` (Future of Despair), `cannotAttack { basicOnly }` and `cannotPlay` with a trait
+  (Seduced), `cannotReady` (Wrapped in Chains), `cannotThwart { thwarter, schemes }` and
+  `cannotDefend { target, attacker }` (Puppet Master, Love Triangle), `excludedFromAllyLimit` (§3.57).
+- **Costs:** `sameResourceType` with `resources: 2` (Wrapped in Chains, Dark Scepter), typed resources (Seduced, Love
+  Triangle), `exhaustCards` on the host (Love Triangle), `exhaustSelf`.
+- **Playing a card inside an ability:** `playFromHand { costReduction }` (Alluring Call) and `playFromHand { card }`
+  after a `draw` with a bind (Trance of Greed: prove the "If you cannot, take 1 damage" branch for a card that cannot be
+  paid for and for a resource card).
+- **The Synergy environments' abilities:** an optional interrupt on a card nobody controls, offered to the player the
+  event is about, with `spendCounters` as its cost: `modifyAttack` (+4 damage), `modifyThwart` (+4 threat),
+  `preventDamage` (4, on an identity); and `resource` with `forAnyPlayer` generating two wild resources (Unified Front;
+  RRG "Resource Ability", p. 37). Prove each on an environment, since their precedents are on player cards.
+- **Values:** the highest printed cost among the cards a player controls (`max` over `printedCost`, Absorbing Man
+  55056); printed energy resources among discarded cards (`totalPrintedResources`, Zzzax 55059); the threat a removal
+  really removed (`eventResult`, Whirlwind 55065); "+X to that power for this use … (to a maximum of +3)"
+  (`modifyBasicPower` with `min`, Absorbing Man 55063, whose exhaust is an effect, not a cost: with nothing to exhaust
+  he gets +0 and still acts).
+- **"Otherwise"** (the Trances' When Revealed, Dark Arts, Love Triangle): the existing or-else forms (RRG
+  "'Otherwise'").
+- **A star boost that reveals its own card** (55012–55014): as the earlier sets that print "Boost: Reveal this card."
+
+### 3.72 "You cannot make basic attacks"
+
+> **Status: not started (extend).** `RuleSpec cannotAttack { target, player?, attacker?, while? }` forbids attacks on a
+> target, by any means; `attackKeywords` has `basicOnly` ("matches only a basic attack"), `cannotAttack` does not.
+> Searched "cannot make basic", "basic attacks" in `abilities.ts`: only that. `cannotPlay { player, cards }` exists.
+
+**Card.** Seduced 55015: "Attach to your identity. You cannot make basic attacks or play Attack events. Alter-Ego
+Action: Spend [energy] [mental] resources → discard this card." (Checked.)
+
+**Rules.** RRG "'Cannot'" (p. 11). "You" is the attached identity's player and the basic attack is the identity's:
+allies still attack (RRG "You, Your", p. 49: an ally's basic attack is not "you" making one), and an attack-labeled
+ability that is not an event (a hero's own action, an upgrade's) is still allowed.
+
+**Plan.** `cannotAttack` gains `basicOnly?: true`, read exactly as `attackKeywords.basicOnly` reads it (`attack.basic`),
+with `attacker` the host identity and `target` every enemy. The second half is `cannotPlay` with the Attack trait on
+events.
+
+**Tests.** A Seduced hero: `basicAttack` is not legal and `why-not` names Seduced; an ally's basic attack is; an Attack
+event in hand is unplayable; a non-event attack ability resolves. In alter-ego form with an energy and a mental
+resource: the action discards it.
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Rules questions for the owner
 
-Seven questions, all open (6 and 7 are pass 2's). **A is the recommended default in every one, and every §8.2 task
-that touches a question builds on A until the owner answers.** None is settled by a ruling: no FFG ruling in the repo
-names these cases, except that one ruling half-answers question 6 (§4.2). The long form of each is in §4.2.
+Ten questions, all open (6 and 7 are pass 2's, 8 to 10 pass 2c's). **A is the recommended default in every one, and
+every §8.2 task that touches a question builds on A until the owner answers.** None is settled by a ruling: no FFG
+ruling in the repo names these cases, except that one ruling half-answers question 6 (§4.2). The long form of each is in
+§4.2.
 
-| Q   | Question                                                                                          | A (default)                                                                                 | B                                                                          | Cites                                                                     | Decision |
-| --- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------- |
-| 1   | A Board Member flips from environment to attachment: what happens to its secret counters?         | They stay on it (the rulebook's setup and stage 3B count them)                              | They are discarded (the flip changes the card's type)                      | RRG "Flip" p. 20 against MC50 pp. 11 and 19, card 50169b                  | open     |
-| 2   | Citizen V is stunned or confused and "would activate" against a player engaged with a Thunderbolt | The status card resolves first: it is discarded, no heal                                    | His Forced Interrupt first: no activation, he heals, the status card stays | MC50 p. 22 FAQ; RRG "'Would'" p. 48, "Stun" p. 41, "Activation" p. 6      | open     |
-| 3   | M.O.D.O.K. has "+5 hit points" attached when his hit points are "reset to 10"                     | As printed: set to 10, then the attachment is discarded and he drops to 5                   | The reset ends at his printed value: 10 after the attachment leaves        | RRG "Hit Points" p. 22; cards 50103a, 50114                               | open     |
-| 4   | "This attack" in a Preparation when the attack has several targets (Spray Fire on Black Widow)    | The whole attack: all its damage is prevented, or all of it resolves against the one minion | Only the part aimed at Black Widow                                         | MC50 p. 9; ruling January 17, 2026 – Ruling 2; cards 50073, 50076         | open     |
-| 5   | A card makes an enemy attack an ally: do "after [enemy] attacks you" abilities answer?            | Yes, against the ally's controller (the later RRG text and the ruling)                      | No (the rulebook's bullet)                                                 | RRG "Attack" p. 8; ruling December 17, 2025 – Ruling 3; MC50 p. 4         | open     |
-| 6   | Bird of Prey and Bird's-Eye View: "You may discard the top card" when it is faceup with no icons  | Not offered (the FAQ's reason for Redwing: the player knows it does nothing)                | Offered: the card is discarded for 0 additional                            | RRG FAQ p. 65; ruling January 26, 2026 – Ruling 6 (1); cards 53003, 53004 | open     |
-| 7   | Hunting the Spider-Bride: is a cost, or the identity's four-card cap, "a player card effect"?     | Yes: any discard a player card causes, cost or effect, the cap included, deals the 2 damage | No: only an effect; a cost (Cindy Moon's action) and the cap are free      | RRG "Cost" p. 13; cards 52001a/b, 52009, 52031                            | open     |
+| Q   | Question                                                                                                    | A (default)                                                                                                       | B                                                                                  | Cites                                                                                              | Decision |
+| --- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------- |
+| 1   | A Board Member flips from environment to attachment: what happens to its secret counters?                   | They stay on it (the rulebook's setup and stage 3B count them)                                                    | They are discarded (the flip changes the card's type)                              | RRG "Flip" p. 20 against MC50 pp. 11 and 19, card 50169b                                           | open     |
+| 2   | Citizen V is stunned or confused and "would activate" against a player engaged with a Thunderbolt           | The status card resolves first: it is discarded, no heal                                                          | His Forced Interrupt first: no activation, he heals, the status card stays         | MC50 p. 22 FAQ; RRG "'Would'" p. 48, "Stun" p. 41, "Activation" p. 6                               | open     |
+| 3   | M.O.D.O.K. has "+5 hit points" attached when his hit points are "reset to 10"                               | As printed: set to 10, then the attachment is discarded and he drops to 5                                         | The reset ends at his printed value: 10 after the attachment leaves                | RRG "Hit Points" p. 22; cards 50103a, 50114                                                        | open     |
+| 4   | "This attack" in a Preparation when the attack has several targets (Spray Fire on Black Widow)              | The whole attack: all its damage is prevented, or all of it resolves against the one minion                       | Only the part aimed at Black Widow                                                 | MC50 p. 9; ruling January 17, 2026 – Ruling 2; cards 50073, 50076                                  | open     |
+| 5   | A card makes an enemy attack an ally: do "after [enemy] attacks you" abilities answer?                      | Yes, against the ally's controller (the later RRG text and the ruling)                                            | No (the rulebook's bullet)                                                         | RRG "Attack" p. 8; ruling December 17, 2025 – Ruling 3; MC50 p. 4                                  | open     |
+| 6   | Bird of Prey and Bird's-Eye View: "You may discard the top card" when it is faceup with no icons            | Not offered (the FAQ's reason for Redwing: the player knows it does nothing)                                      | Offered: the card is discarded for 0 additional                                    | RRG FAQ p. 65; ruling January 26, 2026 – Ruling 6 (1); cards 53003, 53004                          | open     |
+| 7   | Hunting the Spider-Bride: is a cost, or the identity's four-card cap, "a player card effect"?               | Yes: any discard a player card causes, cost or effect, the cap included, deals the 2 damage                       | No: only an effect; a cost (Cindy Moon's action) and the cap are free              | RRG "Cost" p. 13; cards 52001a/b, 52009, 52031                                                     | open     |
+| 8   | A new Avatar's hit points after the Shatter swap, with Intense Focus or Total Focus attached                | Printed value plus the attachment's bonus: the bonus is in effect on the Avatar it is attached to                 | Exactly the printed value: the card says "its printed hit point value"             | Shatter the Illusion step 2; 55034a/b; RRG "Hit Points" p. 22; ruling February 28, 2026 – Ruling 3 | open     |
+| 9   | Worlds Collide reaches its target in Single Group Mode: when is the game lost?                              | By the insert: at once in the villain phase; in a player phase, at that phase's end unless Loki is defeated first | By the card: at once, whenever                                                     | MC55 p. 21 against card 55028b                                                                     | open     |
+| 10  | Loki's flip attaches Intense Focus in standard mode: does its "When Revealed: In standard mode, …" resolve? | Yes: it is the only moment a standard game could ever resolve that text                                           | No: the card is attached, not revealed, and only a reveal resolves a When Revealed | Cards 55027b, 55034a, 55033a; RRG "When Revealed Abilities" p. 48; MC55 p. 7                       | open     |
 
 ### 4.2 The questions as asked
 
@@ -2108,6 +3181,40 @@ Each is implemented the way stated, or not at all, and named here rather than de
      not. Otherwise Cindy Moon's action would clear the nemesis card and draw 2 cards for it.
    - B: "effect" as the RRG uses the word: only what follows a cost or stands without one. Cindy Moon's action,
      Organic Webbing and the cap discard it for free.
+8. **The hit points of the Avatar a Shatter swaps in, with Intense Focus or Total Focus attached.** (§3.60.) Step 2 of
+   the rules card: "Swap the Fading Figment in play with a random set-aside villain, Avatar of Loki side faceup, then
+   set the hit point dial of that Avatar of Loki villain to its printed hit point value." Intense Focus: "The Avatar of
+   Loki villain gets +2 [per player] hit points" (Total Focus: +3). By ruling February 28, 2026 – Ruling 3 the
+   attachment is on the new Avatar the moment it arrives. RRG "Hit Points" (p. 22): "When an ability that says an
+   identity or villain 'gets +X hit points' goes into effect, increase that character's hit point dial by X." The bonus
+   is not in effect on a Fading Figment (no Avatar of Loki trait) and is again on the new Avatar; the card then says
+   "printed". No ruling speaks to the number. One player: 17 or 15; four players in expert after the flip: 72 or 60.
+   - **A (default):** printed plus the bonus (no damage on the new Avatar, its maximum being 15 per player plus the
+     attachment's). Otherwise the attachment's hit points would count once in the whole game, for the Avatar it was
+     first attached to, and expert mode's Intense Focus would stop mattering after the first illusion.
+   - B: exactly the printed value: the dial reads 15 per player, the Avatar arriving as if already damaged by the bonus.
+9. **When the game is lost once Worlds Collide reaches its target, with one group.** (§3.66.) Card 55028b: "If this
+   stage is completed, the players lose the game." MC55 p. 21, under "Rules for both modes": groups in a villain phase
+   "finish any abilities currently resolving, then stop play immediately; each group in the middle of a player phase may
+   finish that phase as normal. If Loki, God of Lies is defeated before all player phases in all groups end, all players
+   in all groups win the game!" Threat reaches Worlds Collide in a player phase only when an identity would be defeated
+   then (retaliate, a cost, an encounter card revealed by a player card).
+   - **A (default):** the insert: at once in the villain phase; in a player phase the players finish it and win if Loki
+     is defeated in it. The page is headed for both modes and is the later, longer text.
+   - B: the card: the loss is immediate in any phase; the insert's last player phase is read as Epic's way of letting
+     groups finish, with nothing to finish at one table.
+10. **Intense Focus's When Revealed in standard mode.** (§3.63, §3.66.) Intense Focus 55034a: "When Revealed: In
+    standard mode, discard the top 2 [per player] cards of the encounter deck and the top 5 cards of each player deck."
+    In standard mode the card is set aside at setup and enters play only by Loki, God of Lies 55027b: "Each group in
+    standard mode attaches their set-aside Intense Focus to the Avatar of Loki villain in their game area." RRG "When
+    Revealed Abilities" (p. 48) resolves them when a card is revealed; attaching is not revealing. The pack's own
+    Enchantments say a flip does resolve one (MC55 p. 7), and ruling June 25, 2026 – Ruling 5 takes Total Focus's as
+    resolving on its flip; neither names this case.
+
+- **A (default):** it resolves when Loki's When Revealed attaches it. The clause "In standard mode" exists for this
+  moment and no other: in expert mode the card is attached at setup, and its other face carries expert mode's version
+  of the same sentence.
+- B: it does not; in standard mode the flip only adds the attachment's stats.
 
 **Conventions used above, flagged rather than asked** (each follows a rule already cited; say so if any should be a
 question):
@@ -2132,6 +3239,23 @@ question):
 - (Pass 2) Encased in Ice is a candidate only where an attack chooses its target, not for an attack on a group of
   enemies (§3.50).
 - (Pass 2) Aerial Recon's interrupt may replace its own action's deal; the cost is then unpaid (§3.45).
+- (Pass 2c) A linked ally whose minion is defeated with no defeating player (an encounter card's damage) goes to a
+  player the first player chooses, by MC55 p. 23's rule for an act no player is named for (§3.57).
+- (Pass 2c) Hypnotic Gaze's flip reveals the Trance, though the card says only "flip this card": MC55 p. 7 says to
+  "trigger its 'When Revealed' ability as normal" (§3.54). Total Focus's flip is revealed the same way, as ruling June
+  25, 2026 – Ruling 5 presupposes.
+- (Pass 2c) Trait conditions of a "choose one / do both" card are read once, before any option resolves, by ruling
+  February 28, 2026 – Ruling 5 (1) (§3.56).
+- (Pass 2c) An Avatar's replaced defeat is not a defeat: excess damage is lost and "after the villain is defeated"
+  abilities do not resolve (§3.60). The same for an identity under Mischief and Mayhem (§3.62).
+- (Pass 2c) The Avatar pool of a swap is the three set-aside cards; the outgoing card cannot be drawn by the swap that
+  removes it (§3.60).
+- (Pass 2c) A choice of "one of their Synergy environments" may name a full one, placing nothing (§3.61).
+- (Pass 2c) The per group and per player counts are those that began the scenario (the Reminder card; RRG p. 32 for the
+  per player icon), though MC55 p. 4 says "the number of groups in the respective pod" without "began". One group either
+  way; the multiplayer phase's question (plan Q-B).
+- (Pass 2c) Loki's flip and a Worlds Collide completion are applied when the resolution in progress has finished, not in
+  the middle of it (MC55 pp. 20, 21), in Single Group Mode too (§3.66).
 
 ## 5. What this asks of the other agents (pass 1a)
 
@@ -2173,9 +3297,38 @@ question):
   icons) and for Cybernetic Arm (`docs/wave-definition-of-done.md` §5).
 - **`content-release-tracker`:** `resolve/swap-cards.ts` cites the Eidetic Memory erratum as p. 69; it is p. 70.
 
+### 5.2 Pass 2c (Trickster Takeover)
+
+- **`card-data-pipeline`:** §8.1 items 18 to 27: the God of Lies scenario record, three text and value corrections read
+  on scans, `definedCounterTypes`, the counter maximum, the linked keyword's card type, `neutralCards` and
+  `referenceCards`.
+- **`ability-scripting-engineer`:** §8.4 lines 64 to 72. **Every God of Lies script uses §3.66's `sharedEvent` and
+  §3.67's `chooseGroup`, `inGroup` and `groupPlayerCount`**, never a direct change to a neutral card and never "the
+  table" where the card says "group". Copy the card's own word where the pack separates two things: "would be defeated …
+  instead" and defeated (§3.60, §3.62), "the Enchantment card in your play area" and "each Enchantment card in play",
+  "place 1 charm counter" and "would be placed" (§3.55), "the Avatar of Loki villain" and "Loki, God of Lies", "the main
+  scheme" and "Worlds Collide".
+- **`encounter-ai-designer`:** nothing new for the villain's activations. The first player's choices this pack adds: who
+  is dealt what in a Shatter, which Synergy environment takes The Mangog's counter, who takes a linked ally with no
+  defeating player. The Avatars' boost flow is the ordinary one; Loki, God of Lies never activates (dashes).
+- **`rules-qa-engineer`:** a ruling test each for February 28, 2026 – Rulings 3 and 5 (both answers), March 19, 2026 –
+  Ruling 2, June 25, 2026 – Ruling 5; the RRG p. 70 erratum; the five FAQ answers of MC55 pp. 22–23; the three questions
+  at their defaults, written so a B answer changes one number each.
+- **`multiplayer-netcode-engineer`:** §3.64–§3.69 replace the shapes in `docs/epic-multiplayer-plan.md` §3 items 1 to 6
+  and 10; the "corrections" paragraphs say what moved and why. The seat rule for `externalEvent`, the coordinator, group
+  status and cross-area attacks stay in that plan.
+- **`game-client-engineer`:** new things a player must see: charm counters and the hidden reverse of a Hypnotic Gaze (no
+  Inspect of the Trance before it flips); Defiant and Enthralled on the identity; an outstanding Forced Action and why
+  End turn is refused; the neutral area with Loki's hit points and Worlds Collide's threat; shatter counters on the
+  Avatar; the four Synergy environments with their counters and maximum; the Shatter the Illusion card in Inspect; a
+  "last player phase" banner under Q9's default. Guided mode: Forced Action, charm counters, shattering an illusion,
+  synergy counters (`docs/wave-definition-of-done.md` §5).
+- **`content-release-tracker`:** the RRG p. 70 erratum rewrites a page of the insert, not a card: file it against the
+  scenario.
+
 ## 6. Later passes (placeholders)
 
-Sections 6.2 to 6.5 are written and point to their sections. The others are placeholders: do not script from them.
+Sections 6.2 to 6.6 are written and point to their sections. The others are placeholders: do not script from them.
 
 ### 6.1 Pass 1b: the MC50 campaign
 
@@ -2202,8 +3355,9 @@ and its DEFEAT block.
 
 ### 6.6 Pass 2c: Trickster Takeover (`tt`)
 
-**Placeholder.** Forced Action, the per-group icon, Enchantment attachments, the Avatars of Loki, single group mode
-and the question of Epic Multiplayer Mode are this pass's.
+**Written.** §0.2, §1.15, §2.8, §3.53–§3.72; questions 8 to 10; cards in §7.13–§7.15; data in §8.1 items 18 to 27;
+engine tasks 37 to 50; modules in §8.4 lines 64 to 72. Loki, God of Lies is specified for Single Group Mode; Epic
+Multiplayer Mode is the multiplayer phase's (`docs/epic-multiplayer-plan.md`), with its groundwork in §3.64–§3.69.
 
 ## 7. Card coverage (pass 1a)
 
@@ -2657,6 +3811,101 @@ Pass 2. Verdicts as above; "DSL" for a pass 2 card means vocabulary named in §3
 | 54036  | Slippery Conditions         | side scheme | DSL                                               |
 | 54037  | Whiteout                    | treachery   | DSL (§3.52, find and reveal)                      |
 
+### 7.13 Trickster Takeover (`tt`): Enchantress
+
+Every row checked on a scan (§0.2).
+
+| Id            | Title                    | Type        | Verdict                                                                                |
+| ------------- | ------------------------ | ----------- | -------------------------------------------------------------------------------------- |
+| 55001         | Enchantress (I)          | villain     | DSL ("after … attacks you"; the counter goes through §3.55)                            |
+| 55002         | Enchantress (II)         | villain     | DSL (`inMode` standard, set-aside scheme into play, 3 per player more); §3.55          |
+| 55003         | Enchantress (III)        | villain     | DSL (4 per player more); §3.55                                                         |
+| 55004a        | Prime Real Estate 1A     | main scheme | §3.54 (random Hypnotic Gaze per identity, hidden reverse)                              |
+| 55004b        | Prime Real Estate 1B     | main scheme | §3.55                                                                                  |
+| 55005a        | Sovereign Sorceress 2A   | main scheme | DSL (stun each identity, or search deck and discard pile and reveal)                   |
+| 55005b        | Sovereign Sorceress 2B   | main scheme | §3.55; completion loses (data)                                                         |
+| 55006         | Future of Despair        | side scheme | DSL (`cannotTakeDamage`, stalwart grant; counter on each Enchantment); §3.70           |
+| 55007a–55011a | Hypnotic Gaze            | attachment  | §3.54                                                                                  |
+| 55007b        | Trance of Envy           | attachment  | §3.53, §3.54; DSL (`giveBoostCard`, ready)                                             |
+| 55008b        | Trance of Greed          | attachment  | §3.53, §3.54; DSL (§3.71, a drawn card played)                                         |
+| 55009b        | Trance of Pride          | attachment  | §3.53, §3.54; DSL                                                                      |
+| 55010b        | Trance of Sloth          | attachment  | §3.53, §3.54; DSL (heal the villain)                                                   |
+| 55011b        | Trance of Wrath          | attachment  | §3.53, §3.54; DSL (search the top 5 encounter cards and reveal one)                    |
+| 55012         | Alluring Call            | attachment  | §3.53; DSL (§3.71, a card played 1 cheaper; boost reveals itself)                      |
+| 55013         | Kiss of Temptation       | attachment  | §3.53; DSL                                                                             |
+| 55014         | Love Concoction          | attachment  | §3.53; DSL                                                                             |
+| 55015         | Seduced                  | attachment  | §3.72; DSL (`cannotPlay` Attack events)                                                |
+| 55016         | Crown of the Enchantress | attachment  | §3.58; DSL (stalwart in expert mode; "schemes against you")                            |
+| 55017         | Enthralled Lackey        | minion      | DSL (boost: `chooseOne`, counter or confuse); §3.55                                    |
+| 55018         | Enthralled Brute         | minion      | DSL (+3 hit points by the engaged player's trait); §3.55                               |
+| 55019         | Sindr                    | minion      | DSL (§3.71, indirect attacks; activates or takes a tough card by trait)                |
+| 55020         | Ulik                     | minion      | DSL (toughness in expert mode; attacks the damaging player; the villain attacks at +1) |
+| 55021         | Law of Attraction        | side scheme | DSL (`discardEncounterUntil` an Enthralled minion, reveal it)                          |
+| 55022         | Spellbound               | side scheme | DSL, as a **When Defeated** (§1.15 item 1); §3.55                                      |
+| 55023         | "Do My Bidding"          | treachery   | §3.56                                                                                  |
+| 55024         | Magical Restraints       | treachery   | §3.56; §3.55                                                                           |
+| 55025         | Spell Blast              | treachery   | §3.56; §3.70                                                                           |
+| 55026         | Spell Shards             | treachery   | DSL (indirect damage; "if your identity took any" by `eventResult`); §3.55             |
+
+### 7.14 Trickster Takeover (`tt`): God of Lies
+
+Every row checked on a scan (§0.2). Every script here is written on §3.64–§3.67 (§8.4).
+
+| Id            | Title                  | Type        | Verdict                                                                         |
+| ------------- | ---------------------- | ----------- | ------------------------------------------------------------------------------- |
+| 55027a        | Loki, God of Lies (1)  | villain     | §3.59, §3.66 (the flip is the reducer's)                                        |
+| 55027b        | Loki, God of Lies (2)  | villain     | §3.66, §3.67; Q10                                                               |
+| 55028a        | Worlds Collide A       | main scheme | §3.59 (Setup first)                                                             |
+| 55028b        | Worlds Collide B       | main scheme | §3.59, §3.65, §3.66; Q9                                                         |
+| 55029a        | Loki the Rascal        | villain     | §3.60; DSL (§3.71, a treachery boost card dealt or 1 resource)                  |
+| 55030a        | Loki the Miscreant     | villain     | §3.60; DSL (§3.71, after a treachery)                                           |
+| 55031a        | Loki the Knave         | villain     | §3.60; DSL (§3.71)                                                              |
+| 55032a        | Loki the Wretch        | villain     | §3.60; DSL (§3.71, "for this activation")                                       |
+| 55029b–55032b | Fading Figment         | villain     | §3.60, §3.61, §3.66, §3.67; Q8                                                  |
+| 55033a        | Mischief and Mayhem 1A | main scheme | §3.59 (`addVillain` at random by trait; environments; Intense Focus by mode)    |
+| 55033b        | Mischief and Mayhem 1B | main scheme | §3.62, §3.66                                                                    |
+| 55034a        | Intense Focus          | attachment  | DSL (hit points per player, steady); Q8, Q10                                    |
+| 55034b        | Total Focus            | attachment  | §3.63; Q8                                                                       |
+| 55035         | Wrapped in Chains      | attachment  | DSL (§3.71, `cannotReady`, two resources of one type; 1 shatter counter)        |
+| 55036         | Dark Scepter           | attachment  | DSL (§3.71, `cannotBeCanceled`); §3.63                                          |
+| 55037         | Draugr Buddy           | minion      | DSL (§3.71, dealt to its defeater: prove)                                       |
+| 55038         | Grendell               | minion      | DSL (§3.71, treacheries among 3 discarded)                                      |
+| 55039         | Malekith               | minion      | DSL (§3.71)                                                                     |
+| 55040         | Minotaur               | minion      | DSL (a count of treacheries in the discard pile)                                |
+| 55041         | The Mangog             | minion      | §3.65, §3.67, §3.61                                                             |
+| 55042         | Fenris Wolf            | minion      | §3.67, §3.61; patrol (§3.70)                                                    |
+| 55043         | Hraesvelgr             | minion      | §3.67, §3.61; DSL                                                               |
+| 55044         | Laufey                 | minion      | §3.67, §3.61; DSL ("stun the attacker")                                         |
+| 55045         | Aura of Stasis         | side scheme | DSL (2 cards, 3 in expert mode)                                                 |
+| 55046         | Door Between Worlds    | side scheme | §3.65, §3.67, §3.61                                                             |
+| 55047         | Lofty Goals            | side scheme | DSL (2 shatter counters; boost by characters controlled)                        |
+| 55048         | New Jotunheim          | side scheme | §3.67, §3.61                                                                    |
+| 55049         | Dark Arts              | treachery   | DSL (§3.71, incite in expert mode; a minion from the discard pile, "otherwise") |
+| 55050         | Dirty Trick            | treachery   | DSL (remove 1 shatter counter; 2 damage, 3 in expert mode)                      |
+| 55051         | Stories and Lies       | treachery   | §3.60 (swap by trait, dial kept); DSL (`faceNamed`, scheme or attack)           |
+| 55052         | Domineering Force      | environment | §3.61; DSL (§3.71, an interrupt nobody controls)                                |
+| 55053         | Feigned Retreat        | environment | §3.61; DSL (§3.71)                                                              |
+| 55054         | Mounting Resistance    | environment | §3.61; DSL (§3.71)                                                              |
+| 55055         | Unified Front          | environment | §3.61; DSL (§3.71, a resource ability for any player)                           |
+
+### 7.15 Trickster Takeover (`tt`): Trickster Magic and its four allies
+
+Every row checked on a scan (§0.2).
+
+| Id    | Title               | Type        | Verdict                                                               |
+| ----- | ------------------- | ----------- | --------------------------------------------------------------------- |
+| 55056 | Absorbing Man       | minion      | §3.57; DSL (§3.71, the highest printed cost you control)              |
+| 55057 | Titania             | minion      | §3.57; DSL (`attackKeywords` overkill; steady)                        |
+| 55058 | Whirlwind           | minion      | §3.57; DSL (1 indirect damage per side scheme)                        |
+| 55059 | Zzzax               | minion      | §3.57; DSL (§3.71, energy resources among 4 discarded)                |
+| 55060 | The Trickster Tango | side scheme | DSL (stalwart grant to the villain; boost: overkill for this attack)  |
+| 55061 | Puppet Master       | side scheme | DSL (§3.71, hinder by mode; allies barred from it and from defending) |
+| 55062 | Love Triangle       | attachment  | DSL (§3.71, surge "otherwise"; the ally barred from the villain)      |
+| 55063 | Absorbing Man       | ally        | §3.57; DSL (§3.71, +X to a maximum of 3)                              |
+| 55064 | Titania             | ally        | §3.57; DSL (`attackKeywords` overkill and piercing)                   |
+| 55065 | Whirlwind           | ally        | §3.57; DSL (§3.71, threat removed as ATK); §3.70                      |
+| 55066 | Zzzax               | ally        | §3.57; DSL (search the top 5 for a printed energy resource)           |
+
 ## 8. Build order (pass 1a)
 
 Written 2026-10-09 from §3's status lines. None of this wave's engine work has landed, and none of the identifiers
@@ -2701,6 +3950,25 @@ Nothing of `aos` is emitted. For `card-data-pipeline`, in order; none blocks an 
     Parker; Captain America and Winter Soldier; Black Widow and Winter Soldier). No art folder exists for any.
 17. (Pass 2) Unique icons checked on scans for 51016, 51017 and 52005; the reprints by `duplicate_of_code` (`bp` 5,
     `silk` 6, `falcon` 7, `winter` 5) into `reprints.ts`'s source list.
+18. (Pass 2c) **The God of Lies scenario record** (§1.15): `villainCardId: 55029a`,
+    `setAsideVillainCardIds: [55030a, 55031a, 55032a]`, `startingVillain: "bySetup"`, the new
+    `neutralCards: { villainCardId: 55027a, mainSchemeCardId: 55028a }`, Worlds Collide out of `setAsideCardIds`; the
+    two Setup abilities listed Worlds Collide (A) first. Blocks the `god-of-lies` module and engine task 46.
+19. (Pass 2c) Spellbound 55022: "When Defeated" (scan), ability id `55022.when-defeated`. Wrapped in Chains 55035:
+    `textReplace` "identiy" → "identity".
+20. (Pass 2c) The four Fading Figments: `infiniteHp: true`, `hp: { base: 0, perPlayer: 0 }` (scan: ∞).
+21. (Pass 2c) `definedCounterTypes`: `charm` (55007a–55011a, both faces), `shatter` (55029a–55032a, both faces),
+    `synergy` (55052–55055). With item 3.
+22. (Pass 2c) `counterLimit` on 55052–55055 (§1.15 item 5). Lands with engine task 43.
+23. (Pass 2c) The linked keyword on 55063–55066 as a title and a card type (§1.15 item 6). Lands with engine task 40.
+24. (Pass 2c) `Scenario.referenceCards` with the two rules cards and their images out of
+    `docs/campaign-modes/mc55-reference-cards/` (§1.15 item 9).
+25. (Pass 2c) The curation file's two `UNVERIFIED` Expert set notes replaced by RRG "Modes of Play" (p. 28), and its
+    notes on 55029b–55032b ("its steps are NOT in the data") by the transcription in the handoff.
+26. (Pass 2c) Crown of the Enchantress 55016's star in its SCH box with no SCH modifier; Future of Despair set aside for
+    the Enchantress record if the builder wants it listed (§1.15).
+27. (Pass 2c) The scenario builders confirmed to set aside an encounter set's permanent cards by keyword (Hypnotic Gaze
+    × 5, Intense Focus, the four Synergy environments), and Trickster Magic's allies when the set is in the game.
 
 ### 8.2 Engine queue, in order
 
@@ -2715,80 +3983,109 @@ primitives; then the scenarios in box order.
 `defendsWithoutExhausting`, `distinctTraits`, `cardBeingAttached`, `replaceAttachHost`, `villainAlias`,
 `attackableAsMinion`) exists in the engine or the DSL (grep, this session). They depend on none of tasks 1 to 22
 except where said, so they may be queued in any order after the pass 1 tasks a hero of pass 1 waits on.
+**Pass 2c adds tasks 37 to 50**: one for each of the 6 **new** rows and the 8 **extend** rows of §3.53–§3.72. Tasks 44
+to 49 are the Epic groundwork, in dependency order; each is one of the plan's "build now" items and lands with its own
+tests in Single Group Mode (multiplier 1) and, where the row says "hand-built", a test on a state built in the test with
+two groups or a remote coordinator. None of their identifiers (`forced` on an action, `outstandingForcedActions`,
+`reverseHidden`, `otherFaceVisible`, `randomSetAside`, `countersBeingPlaced`, `eachPlayer` as a cost, `setAsideTrait`,
+`counterLimit`, `GroupId`, `PodState`, `podOf`, `scaleIn`, `SharedPodState`, `applySharedEvent`, `sharedEvent`,
+`sharedEventEmitted`, `chooseGroup`, `inGroup`, `groupPlayerCount`, `reachableFromPod`, `externalEvent`,
+`PodInboundEvent`, `groupSeed`) exists in the engine or the DSL (grep, this session). They depend on none of tasks 1 to
+36 except task 2 (§3.6's counter types, for 39 and 43).
 
 File paths are under `packages/engine/src/` unless they start with `dsl/` (`packages/cards/src/dsl/`) or `schema/`
 (`packages/content/src/schema/`). Every task adds its own colocated test file with the row's exact-number tests.
 **Decisions:** a §4.1 question the task builds on at default A until answered.
 
-| #   | §                   | Change                                                                                                                                 | Files                                                                                                             | Decisions | Unblocks                                         |
-| --- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------ |
-| 1   | 3.1                 | Vulnerable in `giveStatus`: discard, not defeat; steady; ahead of simultaneous damage; log `vulnerableDiscarded`                       | `effects.ts`, `keywords.ts`, `resolve/effects-frame.ts`, `events.ts`                                              | none      | eight minions in six sets                        |
-| 2   | 3.6 (a)             | `definedCounterType`; `counterType: "allPurpose"` lands as the destination's type; `counterType: "any"` on removal, values and queries | `schema/cards/base.ts`, `spec.ts`, `select.ts`, `effects.ts`, `resolve/apply-effect.ts`, `choices.ts`             | none      | Maria Hill's kit and nemesis set; Adaptoid 50113 |
-| 3   | 3.6 (b) (after 2)   | `moveCounters.amount`; arriving counters retyped; `countersPlaced` on the destination; a uses card emptied by a move is discarded      | `spec.ts`, `effects.ts`, `resolve/apply-effect.ts`, `resolve/state-checks.ts`, `dsl/effects.ts`                   | none      | Maria Hill 50001a                                |
-| 4   | 3.7 (a)             | `placeThreat` / `removeThreat` / `moveThreat` on a card that is not a scheme: tokens only, no scheme checks                            | `resolve/apply-effect.ts`, `resolve/target-validity.ts`, `select.ts`, `dsl/effects.ts`                            | none      | Nick Fury's kit; Alert Level                     |
-| 5   | 3.7 (b) (after 4)   | `AbilityCost removeThreat { from, amount or choose }`, the paid amount bound                                                           | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                     | none      | 50035a, 50040, 50044, 50045                      |
-| 6   | 3.11                | `chooseCards.maxTotal { of: "printedCost", atMost }`                                                                                   | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `dsl/effects.ts`                                             | none      | 50004, 50005                                     |
-| 7   | 3.9 (after 4)       | `enemyScheme.divert { amount, to, if }` read at the place-threat step; the replaced attack deals no boost card                         | `spec.ts`, `resolve/apply-effect.ts`, `resolve/enemy-activation.ts`, `dsl/effects.ts`                             | none      | Stealth 50035b                                   |
-| 8   | 3.12                | `lookAt` over dealt cards and the deck top; the `rearrange` choice; views for the acting player only                                   | `spec.ts`, `choices.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                  | none      | Intelligence 50051                               |
-| 9   | 3.2                 | The `preparation` trigger kind; `resolveSpecials.which: "preparation"` on a card in the discard pile; the count on the attack          | `abilities.ts`, `spec.ts`, `resolve/effects-frame.ts`, `resolve/enemy-activation.ts`, `dsl/abilities.ts`          | none      | the Black Widow set                              |
-| 10  | 3.3 (after 9)       | `RuleSpec grantsLabeledAbility`; granted abilities joined to the printed ones, the granting card as the named card                     | `abilities.ts`, `rules.ts`, `resolve/effects-frame.ts`, `dsl/abilities.ts`                                        | none      | 50070, 50074                                     |
-| 11  | 3.4 (after 9)       | `modifyAttack.preventAll` with `bind` for a player attack; `Predicate attackResolvedLabeled`; `retargetAttack` onto a minion proved    | `spec.ts`, `select.ts`, `resolve/apply-effect.ts`, `resolve/attack-ability.ts`, `dsl/effects.ts`, `dsl/values.ts` | Q4 = A    | 50064–50066, 50068, 50073, 50076                 |
-| 12  | 3.20                | `replaceLeaveDestination { to: { tuckedUnder } }` from an interrupt to `cardLeavesPlay`                                                | `spec.ts`, `resolve/cards.ts`, `resolve/defeat.ts`, `resolve/apply-effect.ts`                                     | none      | A.I.M. Abduction                                 |
-| 13  | 3.17                | `ScenarioSeparateDeck.topCardInPlay`: the top card in play, the next entering play, a card put under an empty deck entering play       | `state.ts`, `resolve/separate-decks.ts`, `resolve/setup-cards.ts`, `resolve/other-face.ts`, `schema/sets.ts`      | none      | the M.O.D.O.K. set                               |
-| 14  | 3.21                | A minion held by an environment (`attach … as: "heldMinion"`): in play, engaged with nobody, attackable by all, detached by `engage`   | `attachment-hosts.ts`, `resolve/attach.ts`, `resolve/apply-effect.ts`, `select.ts`, `legal.ts`                    | none      | the Thunderbolts set                             |
-| 15  | 3.24                | `EffectSpec rotateEngagement`                                                                                                          | `spec.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                               | none      | 50135, 50136, 50164                              |
-| 16  | 3.33                | `TriggerEvent statusBeingGiven` and `on.wouldGainStatus`, opened only when an ability listens                                          | `effects.ts`, `trigger-events.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                      | none      | Solid Sound Constructs 50144                     |
-| 17  | 3.27                | `divide` over counters (remove); `superlative` by counters                                                                             | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `select.ts`                                                  | none      | the Baron Zemo set; the Executive Board set      |
-| 18  | 3.26 (after 17)     | A flip that changes the card type, attaches to the villain and keeps its counters                                                      | `resolve/other-face.ts`, `resolve/attach.ts`, `spec.ts`, `dsl/effects.ts`                                         | Q1 = A    | 50181a/b–50183a/b                                |
-| 19  | 3.29 (a)            | `GameState.hiddenPiles` and `revealedPileCards`; `dealHiddenPiles`; `gainFromHiddenPile`; never in a view                              | `state.ts`, `spec.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                    | none      | 50167a/b                                         |
-| 20  | 3.29 (b) (after 19) | `EffectSpec accuse` over the scenario's grid; `accused`, `mole`, `wrongGuesses`, `accusedWrong`; needs data item 1                     | `spec.ts`, `choices.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                 | none      | 50168a/b, 50169b                                 |
-| 21  | 3.30                | A `CollectionSearchFilter` for identity cards; `treatHostAsMinion` on an identity card with no controller                              | `spec.ts`, `resolve/collection.ts`, `treat-as.ts`, `abilities.ts`                                                 | none      | Reluctant Foe 50171                              |
-| 22  | 3.31                | `RuleSpec additionalPowerCost` over other characters' attack, thwart and defense                                                       | `abilities.ts`, `actions.ts`, `legal.ts`, `defense-claim.ts`, `resolve/basic-power-by.ts`                         | none      | Divided Loyalties 50173                          |
-| 23  | 3.40 (a)            | `TriggerEvent cardBeingTucked` with `byPlayerCard`, opened only when an ability listens; `EffectSpec replaceTuckHost`                  | `trigger-events.ts`, `spec.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`              | none      | Silk Sense Overload 52028                        |
-| 24  | 3.40 (b) (after 23) | `activeIn: "tucked"`; `TriggerEvent tuckedCardDiscarded` with the host and `byPlayerCard`                                              | `abilities.ts`, `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/validate.ts`                       | Q7 = A    | Hunting the Spider-Bride 52031                   |
-| 25  | 3.42                | `RuleSpec topOfDeckFaceup.deck: "encounter"`; `Predicate topOfDeckFaceup` on it; views and the `encounterTopShown` log                 | `abilities.ts`, `select.ts`, `visibility.ts`, `deck-top.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts`     | Q6 = A    | Falcon's kit                                     |
-| 26  | 3.43 (a)            | `AbilityCost.discardFromEncounterDeck { amount or choose, slot }`                                                                      | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `effects.ts`, `dsl/abilities.ts`                          | none      | 51015, 53002, 53010                              |
-| 27  | 3.43 (b), (c)       | `cardDiscardedFromDeck` for the encounter deck; `abilityResolved` carries the resolved ability's slots                                 | `trigger-events.ts`, `resolve/deck-discard.ts`, `resolve/triggers.ts`, `resolve/ability.ts`, `dsl/abilities.ts`   | none      | Serpent Solutions 53031, Talon Line 53012        |
-| 28  | 3.44                | `TriggerEvent boostCardGiven`; `lookAt` and `swapCards` over a facedown boost card and the deck top                                    | `trigger-events.ts`, `resolve/enemy-activation.ts`, `resolve/swap-cards.ts`, `visibility.ts`, `dsl/abilities.ts`  | none      | Up, Up, and Away 53005                           |
-| 29  | 3.45                | `TriggerEvent encounterCardBeingDealt`, opened only when an ability listens; a replaced deal leaves the card on the deck               | `trigger-events.ts`, `effects.ts`, `resolve/reveal.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                 | none      | Aerial Recon 53009                               |
-| 30  | 3.46 (a)            | `AbilityLimit.per: "paidCard"`                                                                                                         | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`                                                            | none      | Falcon's Flock 53006                             |
-| 31  | 3.46 (b)            | Slot `paid.cards` on a play's announcement: the cards that paid for it                                                                 | `stack.ts`, `select.ts`, `resolve/play-card.ts`, `dsl/values.ts`                                                  | none      | Spectrum 53018                                   |
-| 32  | 3.46 (c)            | `RuleSpec spendableFromTucked`: a tucked resource card as a payment source for every player                                            | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `resources.ts`, `dsl/abilities.ts`                        | none      | Resource Reserve 53021                           |
-| 33  | 3.47                | `RuleSpec defendsWithoutExhausting`                                                                                                    | `abilities.ts`, `rules.ts`, `defense-claim.ts`, `defend-preview.ts`, `resolve/enemy-activation.ts`                | none      | Draw Their Fire 53011                            |
-| 34  | 3.48                | `ValueSpec distinctTraits { of }`                                                                                                      | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                           | none      | Strength in Diversity 53019                      |
-| 35  | 3.49                | `TriggerEvent cardBeingAttached`; `EffectSpec replaceAttachHost`; `CardInstance.villainAlias` read by `theVillain`                     | `trigger-events.ts`, `state.ts`, `attachment-hosts.ts`, `resolve/attach.ts`, `select.ts`, `dsl/effects.ts`        | none      | the Techno set                                   |
-| 36  | 3.50                | `RuleSpec attackableAsMinion`: a target of attacks that holds damage, never defeated                                                   | `abilities.ts`, `select.ts`, `legal.ts`, `resolve/attack-ability.ts`, `resolve/target-validity.ts`                | none      | the Whiteout set                                 |
+| #   | §                   | Change                                                                                                                                        | Files                                                                                                                                | Decisions | Unblocks                                         |
+| --- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------ |
+| 1   | 3.1                 | Vulnerable in `giveStatus`: discard, not defeat; steady; ahead of simultaneous damage; log `vulnerableDiscarded`                              | `effects.ts`, `keywords.ts`, `resolve/effects-frame.ts`, `events.ts`                                                                 | none      | eight minions in six sets                        |
+| 2   | 3.6 (a)             | `definedCounterType`; `counterType: "allPurpose"` lands as the destination's type; `counterType: "any"` on removal, values and queries        | `schema/cards/base.ts`, `spec.ts`, `select.ts`, `effects.ts`, `resolve/apply-effect.ts`, `choices.ts`                                | none      | Maria Hill's kit and nemesis set; Adaptoid 50113 |
+| 3   | 3.6 (b) (after 2)   | `moveCounters.amount`; arriving counters retyped; `countersPlaced` on the destination; a uses card emptied by a move is discarded             | `spec.ts`, `effects.ts`, `resolve/apply-effect.ts`, `resolve/state-checks.ts`, `dsl/effects.ts`                                      | none      | Maria Hill 50001a                                |
+| 4   | 3.7 (a)             | `placeThreat` / `removeThreat` / `moveThreat` on a card that is not a scheme: tokens only, no scheme checks                                   | `resolve/apply-effect.ts`, `resolve/target-validity.ts`, `select.ts`, `dsl/effects.ts`                                               | none      | Nick Fury's kit; Alert Level                     |
+| 5   | 3.7 (b) (after 4)   | `AbilityCost removeThreat { from, amount or choose }`, the paid amount bound                                                                  | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                                        | none      | 50035a, 50040, 50044, 50045                      |
+| 6   | 3.11                | `chooseCards.maxTotal { of: "printedCost", atMost }`                                                                                          | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `dsl/effects.ts`                                                                | none      | 50004, 50005                                     |
+| 7   | 3.9 (after 4)       | `enemyScheme.divert { amount, to, if }` read at the place-threat step; the replaced attack deals no boost card                                | `spec.ts`, `resolve/apply-effect.ts`, `resolve/enemy-activation.ts`, `dsl/effects.ts`                                                | none      | Stealth 50035b                                   |
+| 8   | 3.12                | `lookAt` over dealt cards and the deck top; the `rearrange` choice; views for the acting player only                                          | `spec.ts`, `choices.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                                     | none      | Intelligence 50051                               |
+| 9   | 3.2                 | The `preparation` trigger kind; `resolveSpecials.which: "preparation"` on a card in the discard pile; the count on the attack                 | `abilities.ts`, `spec.ts`, `resolve/effects-frame.ts`, `resolve/enemy-activation.ts`, `dsl/abilities.ts`                             | none      | the Black Widow set                              |
+| 10  | 3.3 (after 9)       | `RuleSpec grantsLabeledAbility`; granted abilities joined to the printed ones, the granting card as the named card                            | `abilities.ts`, `rules.ts`, `resolve/effects-frame.ts`, `dsl/abilities.ts`                                                           | none      | 50070, 50074                                     |
+| 11  | 3.4 (after 9)       | `modifyAttack.preventAll` with `bind` for a player attack; `Predicate attackResolvedLabeled`; `retargetAttack` onto a minion proved           | `spec.ts`, `select.ts`, `resolve/apply-effect.ts`, `resolve/attack-ability.ts`, `dsl/effects.ts`, `dsl/values.ts`                    | Q4 = A    | 50064–50066, 50068, 50073, 50076                 |
+| 12  | 3.20                | `replaceLeaveDestination { to: { tuckedUnder } }` from an interrupt to `cardLeavesPlay`                                                       | `spec.ts`, `resolve/cards.ts`, `resolve/defeat.ts`, `resolve/apply-effect.ts`                                                        | none      | A.I.M. Abduction                                 |
+| 13  | 3.17                | `ScenarioSeparateDeck.topCardInPlay`: the top card in play, the next entering play, a card put under an empty deck entering play              | `state.ts`, `resolve/separate-decks.ts`, `resolve/setup-cards.ts`, `resolve/other-face.ts`, `schema/sets.ts`                         | none      | the M.O.D.O.K. set                               |
+| 14  | 3.21                | A minion held by an environment (`attach … as: "heldMinion"`): in play, engaged with nobody, attackable by all, detached by `engage`          | `attachment-hosts.ts`, `resolve/attach.ts`, `resolve/apply-effect.ts`, `select.ts`, `legal.ts`                                       | none      | the Thunderbolts set                             |
+| 15  | 3.24                | `EffectSpec rotateEngagement`                                                                                                                 | `spec.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                                                  | none      | 50135, 50136, 50164                              |
+| 16  | 3.33                | `TriggerEvent statusBeingGiven` and `on.wouldGainStatus`, opened only when an ability listens                                                 | `effects.ts`, `trigger-events.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                                         | none      | Solid Sound Constructs 50144                     |
+| 17  | 3.27                | `divide` over counters (remove); `superlative` by counters                                                                                    | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `select.ts`                                                                     | none      | the Baron Zemo set; the Executive Board set      |
+| 18  | 3.26 (after 17)     | A flip that changes the card type, attaches to the villain and keeps its counters                                                             | `resolve/other-face.ts`, `resolve/attach.ts`, `spec.ts`, `dsl/effects.ts`                                                            | Q1 = A    | 50181a/b–50183a/b                                |
+| 19  | 3.29 (a)            | `GameState.hiddenPiles` and `revealedPileCards`; `dealHiddenPiles`; `gainFromHiddenPile`; never in a view                                     | `state.ts`, `spec.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                                       | none      | 50167a/b                                         |
+| 20  | 3.29 (b) (after 19) | `EffectSpec accuse` over the scenario's grid; `accused`, `mole`, `wrongGuesses`, `accusedWrong`; needs data item 1                            | `spec.ts`, `choices.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                                    | none      | 50168a/b, 50169b                                 |
+| 21  | 3.30                | A `CollectionSearchFilter` for identity cards; `treatHostAsMinion` on an identity card with no controller                                     | `spec.ts`, `resolve/collection.ts`, `treat-as.ts`, `abilities.ts`                                                                    | none      | Reluctant Foe 50171                              |
+| 22  | 3.31                | `RuleSpec additionalPowerCost` over other characters' attack, thwart and defense                                                              | `abilities.ts`, `actions.ts`, `legal.ts`, `defense-claim.ts`, `resolve/basic-power-by.ts`                                            | none      | Divided Loyalties 50173                          |
+| 23  | 3.40 (a)            | `TriggerEvent cardBeingTucked` with `byPlayerCard`, opened only when an ability listens; `EffectSpec replaceTuckHost`                         | `trigger-events.ts`, `spec.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                 | none      | Silk Sense Overload 52028                        |
+| 24  | 3.40 (b) (after 23) | `activeIn: "tucked"`; `TriggerEvent tuckedCardDiscarded` with the host and `byPlayerCard`                                                     | `abilities.ts`, `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/validate.ts`                                          | Q7 = A    | Hunting the Spider-Bride 52031                   |
+| 25  | 3.42                | `RuleSpec topOfDeckFaceup.deck: "encounter"`; `Predicate topOfDeckFaceup` on it; views and the `encounterTopShown` log                        | `abilities.ts`, `select.ts`, `visibility.ts`, `deck-top.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts`                        | Q6 = A    | Falcon's kit                                     |
+| 26  | 3.43 (a)            | `AbilityCost.discardFromEncounterDeck { amount or choose, slot }`                                                                             | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `effects.ts`, `dsl/abilities.ts`                                             | none      | 51015, 53002, 53010                              |
+| 27  | 3.43 (b), (c)       | `cardDiscardedFromDeck` for the encounter deck; `abilityResolved` carries the resolved ability's slots                                        | `trigger-events.ts`, `resolve/deck-discard.ts`, `resolve/triggers.ts`, `resolve/ability.ts`, `dsl/abilities.ts`                      | none      | Serpent Solutions 53031, Talon Line 53012        |
+| 28  | 3.44                | `TriggerEvent boostCardGiven`; `lookAt` and `swapCards` over a facedown boost card and the deck top                                           | `trigger-events.ts`, `resolve/enemy-activation.ts`, `resolve/swap-cards.ts`, `visibility.ts`, `dsl/abilities.ts`                     | none      | Up, Up, and Away 53005                           |
+| 29  | 3.45                | `TriggerEvent encounterCardBeingDealt`, opened only when an ability listens; a replaced deal leaves the card on the deck                      | `trigger-events.ts`, `effects.ts`, `resolve/reveal.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                    | none      | Aerial Recon 53009                               |
+| 30  | 3.46 (a)            | `AbilityLimit.per: "paidCard"`                                                                                                                | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`                                                                               | none      | Falcon's Flock 53006                             |
+| 31  | 3.46 (b)            | Slot `paid.cards` on a play's announcement: the cards that paid for it                                                                        | `stack.ts`, `select.ts`, `resolve/play-card.ts`, `dsl/values.ts`                                                                     | none      | Spectrum 53018                                   |
+| 32  | 3.46 (c)            | `RuleSpec spendableFromTucked`: a tucked resource card as a payment source for every player                                                   | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `resources.ts`, `dsl/abilities.ts`                                           | none      | Resource Reserve 53021                           |
+| 33  | 3.47                | `RuleSpec defendsWithoutExhausting`                                                                                                           | `abilities.ts`, `rules.ts`, `defense-claim.ts`, `defend-preview.ts`, `resolve/enemy-activation.ts`                                   | none      | Draw Their Fire 53011                            |
+| 34  | 3.48                | `ValueSpec distinctTraits { of }`                                                                                                             | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                                              | none      | Strength in Diversity 53019                      |
+| 35  | 3.49                | `TriggerEvent cardBeingAttached`; `EffectSpec replaceAttachHost`; `CardInstance.villainAlias` read by `theVillain`                            | `trigger-events.ts`, `state.ts`, `attachment-hosts.ts`, `resolve/attach.ts`, `select.ts`, `dsl/effects.ts`                           | none      | the Techno set                                   |
+| 36  | 3.50                | `RuleSpec attackableAsMinion`: a target of attacks that holds damage, never defeated                                                          | `abilities.ts`, `select.ts`, `legal.ts`, `resolve/attack-ability.ts`, `resolve/target-validity.ts`                                   | none      | the Whiteout set                                 |
+| 37  | 3.53                | `action.forced`; `outstandingForcedActions`; `endTurn` refused; the phase end puts late ones to their controllers                             | `abilities.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `flow.ts`, `events.ts`, `dsl/abilities.ts`                                   | none      | the Temptations, the five Trances                |
+| 38  | 3.54                | `attach { card: { randomSetAside }, hideReverse }`; `CardInstance.reverseHidden`; `otherFaceVisible`                                          | `spec.ts`, `state.ts`, `visibility.ts`, `resolve/attach.ts`, `preview.ts`, `dsl/effects.ts`                                          | none      | Prime Real Estate 1A, Hypnotic Gaze              |
+| 39  | 3.55 (after 2)      | `TriggerEvent countersBeingPlaced`, opened only when heard; a replacement per counter                                                         | `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                                         | none      | Prime Real Estate 1B, Sovereign Sorceress 2B     |
+| 40  | 3.57                | Linked cards set aside for a named encounter card, by title and card type                                                                     | `schema/keywords.ts`, `setup.ts`, `keywords.ts`                                                                                      | none      | Trickster Magic, `tt/aspect-basic`               |
+| 41  | 3.58                | `AbilityCost.eachPlayer`                                                                                                                      | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `dsl/abilities.ts`                                             | none      | Crown of the Enchantress                         |
+| 42  | 3.60                | `swapVillain { with: { setAsideTrait }, face, dial }`; the pool by starting face                                                              | `spec.ts`, `resolve/villain-swap.ts`, `dsl/effects.ts`                                                                               | Q8 = A    | the Avatars, Stories and Lies                    |
+| 43  | 3.61 (after 2)      | `RuleSpec counterLimit`; `addCounters` and `moveCounters` place up to it; `countersNotPlaced`                                                 | `schema/cards/encounter-cards.ts`, `abilities.ts`, `effects.ts`, `events.ts`, `dsl/abilities.ts`                                     | none      | the Synergy environments                         |
+| 44  | 3.64                | `pod.ts`: `GroupId`, `PodState`, `podOf`; `GameState.pod?`; `GameSetupConfig.pod?`                                                            | `pod.ts`, `ids.ts`, `state.ts`, `setup.ts`, `index.ts`                                                                               | none      | tasks 45 to 49                                   |
+| 45  | 3.65 (after 44)     | `scale` takes a group count; `scaleIn`; `hpPerGroup` in `minionPrintedHp`; hand-built two-group numbers                                       | `query.ts` and every `scale` caller                                                                                                  | none      | The Mangog, Door Between Worlds                  |
+| 46  | 3.66 (after 44)     | `SharedPodState`, `applySharedEvent`; `EffectSpec sharedEvent`; `sharedEventEmitted`; `applyInbound` at the quiet point; three trigger events | `pod.ts`, `spec.ts`, `trigger-events.ts`, `effects.ts`, `flow.ts`, `events.ts`, `query.ts`, `dsl/effects.ts`                         | Q9 = A    | Loki, God of Lies; Worlds Collide; the Shatter   |
+| 47  | 3.67 (after 44)     | `chooseGroup`, `inGroup`, `groupPlayerCount`; `podEffectRequested`; `RuleSpec reachableFromPod` (no effect at one group)                      | `spec.ts`, `abilities.ts`, `resolve/apply-effect.ts`, `select.ts`, `events.ts`, `dsl/effects.ts`, `dsl/values.ts`, `dsl/validate.ts` | none      | every "group in your pod" card                   |
+| 48  | 3.68 (after 46, 47) | `Command externalEvent`; `PodInboundEvent`; sequence, `no_remote_coordinator`, `pod_halted`; `isAuthorityCommand`; hand-built remote tests    | `commands.ts`, `engine.ts`, `errors.ts`, `pod.ts`, `legal.ts`, `events.ts`                                                           | none      | the multiplayer phase only                       |
+| 49  | 3.69 (after 48)     | `groupSeed`; `GameSetupConfig.pod.podSeed`; no draw for bookkeeping inbound events                                                            | `pod.ts`, `setup.ts`, `engine.ts`                                                                                                    | none      | the multiplayer phase only                       |
+| 50  | 3.72                | `cannotAttack.basicOnly`                                                                                                                      | `abilities.ts`, `rules.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`                                                             | none      | Seduced                                          |
 
 ### 8.3 The "exists (verify)" and "exists (compose)" rows
 
 No engine task. The scripting line that first needs each row proves it in a test, and a failure comes back here as
 an extend.
 
-| §    | Proved by (module, §8.4)                                | The test that proves it                                                                        |
-| ---- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 3.5  | `batroc`, `modok`, `baron-zemo`                         | §3.5 tests 1, 3, 4, 6; Q3's numbers under the default                                          |
-| 3.8  | `nick-fury/identity`                                    | Break Cover then Assault's interrupt in one attack                                             |
-| 3.10 | `maria-hill/identity`                                   | the six deck cases of §3.10                                                                    |
-| 3.13 | `batroc`, `modok`                                       | Leaping Kick's overkill past another player's ally; 3B's redirect                              |
-| 3.14 | `batroc`                                                | the two-player walk through all three stages                                                   |
-| 3.15 | `batroc`                                                | a captive cannot be chosen for a discard, and is defeated by damage                            |
-| 3.16 | `batroc`                                                | Low to High at 8, the loss at 8, the consequential "except"                                    |
-| 3.18 | `modok`                                                 | the third completion loses in standard mode                                                    |
-| 3.19 | `modok`                                                 | the defeating player takes the held ally                                                       |
-| 3.22 | `thunderbolts`                                          | one player and four players                                                                    |
-| 3.23 | `thunderbolts`                                          | 0 hit points with one in the victory display; the heal with no boost card; Q2's default        |
-| 3.25 | `batroc`, `modok`, the Thunderbolt sets                 | each card's numbers in §3.25                                                                   |
-| 3.28 | `executive-board`                                       | 2 spent, 2 counters not placed                                                                 |
-| 3.32 | `maria-hill/obligation-nemesis`                         | a 1 / 1 / 1 facedown minion and its defeat                                                     |
-| 3.33 | `black-widow`, `aim-science`                            | incite on a card being revealed; three acceleration icons                                      |
-| 3.34 | `power-of-the-atom`, `supersonic`                       | THW −1 for a Gamma hero; nobody may defend MACH-IV                                             |
-| 3.36 | `bp/shuri/identity`, `bp/shuri/support-upgrades-allies` | "on 1" with two upgrades; a Special that discards its card; a Special on another player's ally |
-| 3.37 | `bp/shuri/identity`                                     | the three plays of §3.37                                                                       |
-| 3.38 | `bp/aspect-basic`                                       | the redeemed minion and Redemption's victory display                                           |
-| 3.39 | `silk/silk/identity`                                    | the cap with a fifth card; a count by set; nothing tucked for a Victory minion                 |
-| 3.41 | `silk/silk/support-upgrades-allies`                     | the tucked card revealed and resolved; not offered on a flip                                   |
-| 3.51 | the module of each card named                           | one test per line of §3.51                                                                     |
-| 3.52 | the module of each card named                           | Invisibility Gear and Ready for a Fight; Bambino on an identity; Flight Squadron's limit       |
+| §    | Proved by (module, §8.4)                                | The test that proves it                                                                                                 |
+| ---- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 3.5  | `batroc`, `modok`, `baron-zemo`                         | §3.5 tests 1, 3, 4, 6; Q3's numbers under the default                                                                   |
+| 3.8  | `nick-fury/identity`                                    | Break Cover then Assault's interrupt in one attack                                                                      |
+| 3.10 | `maria-hill/identity`                                   | the six deck cases of §3.10                                                                                             |
+| 3.13 | `batroc`, `modok`                                       | Leaping Kick's overkill past another player's ally; 3B's redirect                                                       |
+| 3.14 | `batroc`                                                | the two-player walk through all three stages                                                                            |
+| 3.15 | `batroc`                                                | a captive cannot be chosen for a discard, and is defeated by damage                                                     |
+| 3.16 | `batroc`                                                | Low to High at 8, the loss at 8, the consequential "except"                                                             |
+| 3.18 | `modok`                                                 | the third completion loses in standard mode                                                                             |
+| 3.19 | `modok`                                                 | the defeating player takes the held ally                                                                                |
+| 3.22 | `thunderbolts`                                          | one player and four players                                                                                             |
+| 3.23 | `thunderbolts`                                          | 0 hit points with one in the victory display; the heal with no boost card; Q2's default                                 |
+| 3.25 | `batroc`, `modok`, the Thunderbolt sets                 | each card's numbers in §3.25                                                                                            |
+| 3.28 | `executive-board`                                       | 2 spent, 2 counters not placed                                                                                          |
+| 3.32 | `maria-hill/obligation-nemesis`                         | a 1 / 1 / 1 facedown minion and its defeat                                                                              |
+| 3.33 | `black-widow`, `aim-science`                            | incite on a card being revealed; three acceleration icons                                                               |
+| 3.34 | `power-of-the-atom`, `supersonic`                       | THW −1 for a Gamma hero; nobody may defend MACH-IV                                                                      |
+| 3.36 | `bp/shuri/identity`, `bp/shuri/support-upgrades-allies` | "on 1" with two upgrades; a Special that discards its card; a Special on another player's ally                          |
+| 3.37 | `bp/shuri/identity`                                     | the three plays of §3.37                                                                                                |
+| 3.38 | `bp/aspect-basic`                                       | the redeemed minion and Redemption's victory display                                                                    |
+| 3.39 | `silk/silk/identity`                                    | the cap with a fifth card; a count by set; nothing tucked for a Victory minion                                          |
+| 3.41 | `silk/silk/support-upgrades-allies`                     | the tucked card revealed and resolved; not offered on a flip                                                            |
+| 3.51 | the module of each card named                           | one test per line of §3.51                                                                                              |
+| 3.52 | the module of each card named                           | Invisibility Gear and Ready for a Fight; Bambino on an identity; Flight Squadron's limit                                |
+| 3.56 | `tt/enchantress`                                        | the three plays of §3.56                                                                                                |
+| 3.59 | `tt/god-of-lies` (a)                                    | the opening state and the four "cannot reach" cases of §3.59                                                            |
+| 3.62 | `tt/god-of-lies` (a)                                    | a completion at 8 per player; a hero and an alter-ego "defeated"                                                        |
+| 3.63 | `tt/god-of-lies` (a)                                    | Dark Scepter in the deck, in the discard pile, in play                                                                  |
+| 3.70 | the module of each card named                           | one test per line of §3.70                                                                                              |
+| 3.71 | the module of each card named                           | Draugr Buddy dealt to its defeater; Trance of Greed's "If you cannot"; each Synergy environment used by a second player |
 
 ### 8.4 Scripting order
 
@@ -2896,6 +4193,31 @@ Winter Soldier (`winter/winter-soldier/`):
 61. A two-player game, Shuri and Core's T'Challa, that plays Heart of the Panther.
 62. A two-player game, Falcon with the Captain America upgrade and Steve Rogers, for ruling June 25, 2026 – Ruling 1.
 63. The pass 2 ruling tests of §5.1 that no module above owns.
+
+**Pass 2c: Trickster Takeover** (`tt/`). The scaffold's four modules exist and are empty.
+
+64. `tt/trickster-magic` (55056–55062): waits on 40.
+65. `tt/aspect-basic` (the four allies, 55063–55066): waits on 40.
+66. `tt/enchantress` (a): the villain, both main schemes, Future of Despair, the Hypnotic Gazes and Trances
+    (55001–55011b). Waits on 37, 38 and 39.
+67. `tt/enchantress` (b), after 66 in the same file: 55012–55026. Waits on 37, 39, 41 and 50.
+68. `tt/god-of-lies` (a): the scenario's frame (55027a/b, 55028a/b, 55029a/b–55032a/b, 55033a/b, 55034a/b, 55052–55055)
+    and the Shatter helper. Waits on 42 to 47 and on §8.1 item 18. **Written only with `sharedEvent`, `chooseGroup`,
+    `inGroup`, `groupPlayerCount` and `reaches: neutral`**: no script changes a neutral card directly, reads
+    `state.players.length` for "their group", or assumes one table. The module's review checks this by grep: the only
+    places the word "Loki, God of Lies" or "Worlds Collide" reaches engine state are the two `sharedEvent` calls and the
+    neutral cards' own abilities. With that, Epic Multiplayer Mode needs no change to this file.
+69. `tt/god-of-lies` (b), after 68 in the same file: the encounter cards (55035–55051). Waits on 43, 45 and 47; The
+    Mangog and Door Between Worlds carry `reachableFromPod`.
+70. An Enchantress game, standard and expert, with Trickster Magic: a Gaze flipped by the fifth counter, a Forced Action
+    refusing End turn, Future of Despair at 5 and 6 per player, a linked ally taken, a win at the last stage and a loss
+    at 2B.
+71. A God of Lies game in Single Group Mode, one player and three, standard and expert: the opening state of §3.59; an
+    Avatar shattered twice (Loki flipped after the second, Intense Focus attached or flipped by mode); Stories and Lies;
+    a win when Loki reaches 0; a loss by two completions in the villain phase; the last-player-phase win of Q9's
+    default; replay deep-equal throughout. It also asserts the pod record (§3.64) and that the log holds no
+    `externalEvent`.
+72. The pass 2c ruling tests of §5.2 that no module above owns.
 
 ### 8.5 The campaign, the client and Guided mode
 
