@@ -461,7 +461,7 @@ export class McGuidePanel {
       text: content.body,
       typeSpec: BODY_TYPE,
       color: surface.ink.hex,
-      onTermOpen: (term, termRect) => this.#openTooltip(term, termRect),
+      onTermOpen: (term, termRect, block) => this.#openTooltip(term, termRect, block),
       onTermClose: () => this.#tooltip.hide(),
     });
     this.#body = body;
@@ -823,7 +823,7 @@ export class McGuidePanel {
     return { objects, focusable };
   }
 
-  #openTooltip(term: TermTextTerm, anchorRect: Rect): void {
+  #openTooltip(term: TermTextTerm, anchorRect: Rect, block: Rect): void {
     const content = tooltipContentOf(term);
     if (!content || !this.#rect) return;
     this.#body?.setTermsEnabled((id) => id === term.id);
@@ -833,6 +833,7 @@ export class McGuidePanel {
       this.#rect,
       () => this.#options.onOpenGlossary?.(content.title),
       () => this.#body?.setTermsEnabled(() => true),
+      block,
     );
   }
 

@@ -201,8 +201,14 @@ note(
   ["45001"],
   "Damage from an attack discards that many cards from your deck. Resource cards among them go to your hand; the rest stay in the discard pile.",
 );
-note(["45007"], "Bishop readies only if a resource card was among the cards you spent to play it.");
-note(["45008"], "You draw a card only if a resource card was among the cards you spent to play it.");
+note(
+  ["45007"],
+  "Bishop readies only if a resource card paid for it. Extra resources beyond the cost did not pay, and a cost of 0 never counts.",
+);
+note(
+  ["45008"],
+  "You draw only if a resource card paid for it. Extra resources beyond the cost did not pay, and a cost of 0 never counts.",
+);
 note(
   ["45030"],
   "In hero form your top card is faceup, and once per phase you may play it for 1 less. Her upgrades read its resource icon, and a wild icon counts as every type.",
@@ -223,7 +229,7 @@ note(["46015", "46016"], "Needs an enemy with any upgrade attached. A Frostbite 
 note(["46009"], "Choose one: 4 damage and a Frostbite, or 6 damage to an enemy that already has a Frostbite attached.");
 note(
   ["47004", "47005", "47006", "47007", "47008", "47009", "47015"],
-  "Counts the different resource types you paid with, not the cards. You declare what each wild counts as.",
+  "Counts the different resource types that paid, not the cards. Extra resources beyond the cost did not pay. A wild counts as the type you declare.",
 );
 note(
   ["47023"],
@@ -251,7 +257,7 @@ note(
 );
 note(
   ["49004"],
-  "Reads the icons of the cards Magnetic Pull discarded: mental +1 THW, physical +1 ATK, energy +1 DEF, each until the end of the round.",
+  "Reads the icons of the cards Magnetic Pull discarded, the MAGNETIC one too: mental +1 THW, physical +1 ATK, energy +1 DEF, each until the end of the round.",
 );
 note(["49006"], "Damage you would take goes onto this card instead of you. At 6 or more it is discarded.");
 note(
@@ -279,18 +285,18 @@ note(
   ["45103"],
   "When Apocalypse would be defeated, he heals instead and this scheme loses threat equal to the numeral in his printed hit points.",
 );
+note(["45104"], "Threat cannot be removed from this scheme while a Prelate minion is in play.");
 note(
   ["45105"],
-  "The Tyrant's Throne flips to No Longer Worthy. Then Apocalypse cannot take damage while a Prelate is in play, and defeating him wins.",
+  "The Tyrant's Throne: threat cannot be removed while a Prelate is in play. Its other side, No Longer Worthy: Apocalypse takes no damage while a Prelate is in play, and defeating him wins.",
 );
-note(["45104", "45105"], "Threat cannot be removed from this scheme while a Prelate minion is in play.");
 note(
   ["45118"],
-  "His attack resolves the Special on the Setting environment in play. Revealing a new Setting discards the old one.",
+  "His attack resolves the Special on a Setting environment in play. With several in play, the resolving player chooses one.",
 );
 note(
   ["45127", "45133", "45139"],
-  "Only one Setting at a time. Its Special resolves when Dark Beast attacks you or a card asks for it.",
+  "Several Settings can be in play at once. A Special resolves when Dark Beast attacks you or a card asks for it.",
 );
 note(
   ["45075"],

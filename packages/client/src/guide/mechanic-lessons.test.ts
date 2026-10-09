@@ -839,7 +839,7 @@ describe("Magneto: Magnetic Pull", () => {
     expect(t.controller.view().step?.id).toBe("intro");
   });
 
-  test("walks the flip and Magnetic Pull (two discarded, the Helmet in hand) to completion", async () => {
+  test("walks the flip and Magnetic Pull (the Helmet counts as the third discarded and is in hand) to completion", async () => {
     const onComplete = vi.fn();
     const t = await run("magneto", onComplete);
     t.controller.primary();
@@ -958,14 +958,10 @@ describe("Nightcrawler: Bamf!", () => {
     expect(t.controller.view().step?.id).toBe("intro");
   });
 
-  test("walks the flip, Bamf! on Rhino, and the teleport defense to completion", async () => {
+  test("walks Bamf! on Rhino as Kurt, the flip, and the teleport defense to completion", async () => {
     const onComplete = vi.fn();
     const t = await run("nightcrawler", onComplete);
     t.controller.primary();
-    expect(t.controller.view().step?.id).toBe("flip");
-    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
-    t.settle(/./);
-
     expect(t.controller.view().step?.id).toBe("attach");
     const villain = activeVillain(t.state() as never).instanceId;
     t.dispatch({
@@ -975,6 +971,11 @@ describe("Nightcrawler: Bamf!", () => {
       payment: [],
       attachToInstanceId: villain,
     });
+    t.settle(/./);
+    expect(t.me().identity.form).toBe("alterEgo");
+    expect(t.controller.view().step?.id).toBe("flip");
+
+    t.dispatch({ type: "changeForm", playerId: MECHANIC_TRYIT_PLAYER_ID });
     t.settle(/./);
     expect(t.controller.view().step?.id).toBe("defend");
 

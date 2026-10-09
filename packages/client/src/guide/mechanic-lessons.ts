@@ -1143,11 +1143,11 @@ const MAGIK_TRYIT: Lesson = {
       copy: {
         title: "Choose what shows",
         body:
-          "Tap Limbo, then its Action: swap a card in your hand with the top card of your deck. You pick the card " +
-          "that goes on top, so you decide what Magik's upgrades read.",
+          "Tap Limbo, then LIMBO — EXHAUST. Pick the hand card to swap; the game then asks you to confirm the top " +
+          "card, which is its only option. Your pick goes on top, so you decide what Magik's upgrades read.",
         tip: "Swap any card in your hand with the top card.",
         short: "Use Limbo, then pick a card.",
-        doThis: "Tap Limbo, then its Action",
+        doThis: "Tap Limbo, then LIMBO — EXHAUST",
       },
       mode: "await",
       completes: seenAndSettled("cardsSwapped"),
@@ -1216,10 +1216,10 @@ const MAGNETO_TRYIT: Lesson = {
     {
       id: "result",
       copy: {
-        title: "Two discarded, one in hand",
+        title: "Three discarded, one in hand",
         body:
-          "Magneto's Helmet is MAGNETIC, so the pull stopped there and added it to your hand. Magneto's Armor and " +
-          "Old Grievances would have read the icons and the number of cards discarded.",
+          "Magneto's Helmet is MAGNETIC, so the pull stopped there and added it to your hand. It was still " +
+          "discarded, so it counts: Magneto's Armor reads all three icons and Old Grievances counts three cards.",
       },
       mode: "acknowledge",
     },
@@ -1283,9 +1283,10 @@ const JUBILEE_TRYIT: Lesson = {
       copy: {
         title: "Rhino is stunned",
         body:
-          "Two different types paid, so Firecracker stunned him. When a wild resource pays, the game asks what it " +
-          "counts as, and you choose. Overpaying doesn't add types.",
+          "Two different types paid, so Firecracker stunned him. Resources beyond a card's cost did not pay, so they " +
+          "add no types. The game asks what a wild counts as only when your answer changes the result.",
       },
+      anchor: { kind: "zone", id: "villain" },
       mode: "acknowledge",
     },
   ],
@@ -1389,29 +1390,29 @@ const NIGHTCRAWLER_TRYIT: Lesson = {
       mode: "acknowledge",
     },
     {
-      id: "flip",
-      anchor: { kind: "action", id: "flip" },
-      copy: {
-        title: "Flip to Nightcrawler",
-        body: "Bamf! is a hero card, so [[flip|flip]] from Kurt Wagner to Nightcrawler first.",
-        doThis: "Flip to Nightcrawler",
-      },
-      mode: "await",
-      completes: formIs("hero"),
-      gate: FULL_GATE,
-    },
-    {
       id: "attach",
       anchor: { kind: "zone", id: "hand" },
       copy: {
         title: "Attach Bamf! to Rhino",
-        body: "Play Bamf! from your hand. It costs nothing, and you choose Rhino as the enemy it attaches to.",
-        tip: "Play Bamf! and pick Rhino.",
+        body: "Play Bamf! from your hand as Kurt Wagner. It costs nothing and attaches to Rhino, the only enemy.",
+        tip: "Bamf! can be played in either form.",
         short: "Play Bamf! onto Rhino.",
-        doThis: "Play Bamf!, choose Rhino",
+        doThis: "Play Bamf!",
       },
       mode: "await",
       completes: bamfAttached,
+      gate: FULL_GATE,
+    },
+    {
+      id: "flip",
+      anchor: { kind: "action", id: "flip" },
+      copy: {
+        title: "Flip to Nightcrawler",
+        body: "Bamf!'s interrupt is a Hero Interrupt, so [[flip|flip]] from Kurt Wagner to Nightcrawler before Rhino attacks.",
+        doThis: "Flip to Nightcrawler",
+      },
+      mode: "await",
+      completes: formIs("hero"),
       gate: FULL_GATE,
     },
     {

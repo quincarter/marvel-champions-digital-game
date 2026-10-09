@@ -250,7 +250,7 @@ export class McGuideCallout {
       width: innerWidth,
       text: content.body,
       color: surface.ink.hex,
-      onTermOpen: (term, rect) => this.#openTooltip(term, rect, viewport),
+      onTermOpen: (term, rect, block) => this.#openTooltip(term, rect, viewport, block),
       onTermClose: () => this.#tooltip.hide(),
     });
     this.#body = body;
@@ -459,7 +459,7 @@ export class McGuideCallout {
     this.#scene.children.bringToTop(this.container);
   }
 
-  #openTooltip(term: TermTextTerm, anchorRect: Rect, viewport: Rect): void {
+  #openTooltip(term: TermTextTerm, anchorRect: Rect, viewport: Rect, block: Rect): void {
     const content = tooltipContentOf(term);
     if (!content) return;
     this.#body?.setTermsEnabled((id) => id === term.id);
@@ -469,6 +469,7 @@ export class McGuideCallout {
       viewport,
       () => this.#options.onOpenGlossary?.(content.title),
       () => this.#body?.setTermsEnabled(() => true),
+      block,
     );
   }
 

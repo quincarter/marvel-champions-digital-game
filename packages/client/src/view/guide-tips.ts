@@ -712,8 +712,8 @@ function wildDeclaredTip({ lastEvents, perspectiveId }: LessonObservation): Tip 
     id: "situation:wildDeclared",
     title: "Declare the wild",
     body:
-      "This card [[paidWith|reads how you paid]], so each wild resource counts as a type you declare. Different " +
-      "types are worth more, and overpaying adds none.",
+      "This card [[paidWith|reads how you paid]], so you say what each wild resource counts as. The game asks " +
+      "only when your answer changes the result.",
   };
 }
 
@@ -811,8 +811,8 @@ const WAVE_8_ON_TABLE_TIPS: readonly SituationTrigger[] = [
       id: "situation:grounded",
       title: "Grounded",
       body:
-        "[[grounded|Grounded]] makes changing to hero form cost 2 resources of the same type. Playing a Jubilee " +
-        "event removes it.",
+        "[[grounded|Grounded]] makes changing to hero form during your turn cost 2 resources of the same type. " +
+        "Playing a Jubilee event removes it.",
     },
     ["47023"],
   ),
@@ -871,8 +871,8 @@ const WAVE_8_ON_TABLE_TIPS: readonly SituationTrigger[] = [
       id: "situation:settingEnvironment",
       title: "A Setting environment",
       body:
-        "A [[settingEnvironments|Setting]] changes the villain or minions and has a Special. Revealing another " +
-        "Setting discards this one.",
+        "A [[settingEnvironments|Setting]] changes the villain or minions and has a Special. More than one can be " +
+        "in play at once.",
     },
     ["45127", "45133", "45139"],
   ),

@@ -1432,11 +1432,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Cards that read how you paid",
     definition:
-      "Some cards read what paid for them: Bishop's events check for a resource card, Jubilee's count the different resource types spent. Only resources actually spent count, so overpaying adds no types. You declare what each wild counts as, and the game skips the question when every choice reads the same.",
+      "Some cards read what paid for them: Bishop's events check for a resource card, Jubilee's count different resource types. Ruling for this game: resources spent beyond the cost did not pay, so they add no types. The game asks what a wild counts as only when the choice changes the result. Older \"if you paid with\" cards read everything spent.",
     sources: [
       { kind: "rrg", page: 37 },
       { kind: "card", cards: "Concussive Blast 45007; Grand Finale 47009" },
       { kind: "owner-ruling", date: "Oct 7, 2026" },
+      { kind: "owner-ruling", date: "Oct 9, 2026" },
     ],
   },
   faceupTopCard: {
@@ -1476,8 +1477,11 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Grounded (Jubilee)",
     definition:
-      "Grounded makes changing to hero form during your turn cost 2 resources of the same type. When it is revealed you change to alter-ego form. Playing a Jubilee event removes it from the game. It is her obligation, so it starts in her play area.",
-    sources: [{ kind: "card", cards: "Grounded 47023" }],
+      "Grounded makes changing to hero form during your turn cost 2 resources of the same type. When it is revealed you change to alter-ego form. Playing a Jubilee event removes it from the game. It is her obligation, shuffled into the encounter deck. Ruling for this game: an encounter card's Action that changes her to hero form on her turn pays the cost too.",
+    sources: [
+      { kind: "card", cards: "Grounded 47023" },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
+    ],
   },
   cellPhone: {
     id: "cellPhone",
@@ -1527,12 +1531,12 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "(Attack) abilities are one attack",
     definition:
-      "An ability labeled (attack) is one attack, whether or not it uses ATK. All the damage it deals to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability resolves. A card that only deals damage begins its attack as it starts resolving, so a stun can cancel it and no damage is dealt. Today an attack bonus applies to each damage instance, but not to damage worded as additional.",
+      "An ability labeled (attack) is one attack, with or without ATK, and every such card begins attacking as the ability starts resolving. All its damage to enemies is attack damage. Retaliate answers once per enemy attacked, after the whole ability. A stun already on the attacker cancels it; one received after it began does not (owner decision). An attack bonus applies to each damage instance, not to \"additional\" damage.",
     sources: [
-      { kind: "rrg", page: 10 },
-      { kind: "rrg", page: 38 },
+      { kind: "rrg", page: 26 },
       { kind: "owner-ruling", date: "Oct 7, 2026" },
       { kind: "owner-ruling", date: "Oct 8, 2026" },
+      { kind: "owner-ruling", date: "Oct 9, 2026" },
     ],
   },
   attackTargets: {
@@ -1661,9 +1665,10 @@ const CONCEPT_RAW: Record<ConceptId, UntaggedEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Dark Beast: Setting environments",
     definition:
-      "Dark Beast reveals a random set-aside Setting environment. Only one Setting is in play at a time: revealing another discards the rest. Each has a Special, and Dark Beast resolves the Setting's Special when he attacks you. A card can also ask you to resolve the Special as a cost.",
+      "Dark Beast reveals a random set-aside Setting environment. No rule limits the game to one, so several can be in play, and the resolving player chooses which one a card names. Each has a Special, and Dark Beast resolves a Setting's Special when he attacks you. A card can also ask you to resolve the Special as a cost. Ruling for this game: a Setting stays in play when another is revealed.",
     sources: [
       { kind: "card", cards: "Dark Beast 45118; The Savage Land 45127; Genosha 45133; Blue Area of the Moon 45139" },
+      { kind: "owner-ruling", date: "Oct 8, 2026" },
     ],
   },
   enSabahNur: {
