@@ -19,7 +19,7 @@ small (the split after 1a is proposed; the main session decides it):
 | Pass   | Scope                                                                                                   | State             |
 | ------ | ------------------------------------------------------------------------------------------------------- | ----------------- |
 | **1a** | **The box in standalone play: new rules and keywords, five scenarios, their modular sets, both heroes** | **written**       |
-| 1b     | The MC50 campaign; evidence cards in campaign mode; the Executive Board across scenarios                | not written       |
+| 1b     | The MC50 campaign; evidence cards in campaign mode; the Executive Board across scenarios                | written (pass 1b) |
 | 2a     | Black Panther (`bp`), Silk (`silk`)                                                                     | written (pass 2)  |
 | 2b     | Falcon (`falcon`), Winter Soldier (`winter`)                                                            | written (pass 2)  |
 | 2c     | Trickster Takeover (`tt`): Forced Action, the per-group icon, Enchantress, Loki                         | written (pass 2c) |
@@ -43,6 +43,12 @@ small (the split after 1a is proposed; the main session decides it):
   **Forced Action and the per-group icon are Trickster Takeover's** (its insert pp. 4 and 7 per the sources page): no
   `aos` record prints either, and every `*_per_group` field of the raw `aos` cache is empty (checked by script). They
   are pass 2c's.
+- **Pass 1b's content (written 2026-10-09).** The campaign: MC50 pp. 4–6, the Campaign Instructions boxes on pp. 9, 11,
+  13, 15 and 19, the log on p. 24, and the "Setup" abilities of the nine evidence cards. Sections 0.3, 1.16, 2.9,
+  3.73–3.78, questions 11 to 14, §5.3, §7.16, §8.1 items 28–33, §8.2 tasks 51–56, §8.4 lines 73–81 and §8.5. **The box
+  has no campaign-specific card** (RRG "Campaign-Specific Card", p. 11): the Executive Board set is also a modular set
+  (MC50 p. 6) and the evidence is dealt in a standalone Baron Zemo game (p. 18). What is campaign only is text: the
+  lower half of each evidence card, and two clauses of Zemo's Manipulations.
 - **Data state (2026-10-09, HEAD 8d35670b):** `aos` is not emitted (raw cache only); `bp`, `silk`, `falcon` and
   `winter` are data only; no data survey exists yet (`docs/phase7-wave9-data-survey.md`). Nothing of this wave is
   scripted.
@@ -221,6 +227,49 @@ between the RRG and the rulebook (§4.1 Q1, Q2 and Q5).
 - **The Epic plan**, `docs/epic-multiplayer-plan.md` §1.3 to §1.5 and §3, read whole. Its option B (one unmodified
   engine per group, a pod coordinator outside them) is taken as decided; §3.64–§3.69 say where its proposed shapes were
   changed and why.
+
+### 0.3 Pass 1b sources (the campaign)
+
+- **The rulebook, read as pictures.** Pages 4, 5, 6, 9, 11, 13, 15, 19 and 24 were rendered with PyMuPDF at 120 dpi and
+  read this session, and the lower half of p. 24 again at 230 dpi. **Every MC50 quote of pass 1b from those nine pages
+  is checked against its render.** Page 18 was not rendered: its quotes are the markdown conversion's and pass 1a's
+  (§3.29). Pages 20 and 21 (the conclusion) were not read.
+- **Layout the conversion loses** (checked on the renders):
+  - The "Expert Campaign Only" bullets are a shaded box that closes a list. On pp. 11, 13, 15 and 19 the Setup list ends
+    with the same two shaded bullets, printed **after** the "After resolving mulligans" bullet (§4.1 Q13). On pp. 9, 11,
+    13 and 15 the Victory list ends with one. Scenario 1's Setup (p. 9) has no shaded bullet, and scenario 5 (p. 19) has
+    no Victory bullet but the closing line.
+  - p. 19 is the only page with a DEFEAT list: one shaded "Expert Campaign Only" bullet, then one "Standard Campaign
+    Only" bullet with three sub-bullets.
+  - p. 24 is the log. Its "Evidence Combinations" grid is a picture; the conversion holds only its headings.
+- **The log sheet** (p. 24, checked): "Player #1's Identity" to "#4", each with "Remaining hit points"; "Notes";
+  "Remaining Secret Counters by Scenario", a table of the three board members by "#1" to "#4"; "Scenario 1: Minions and
+  side schemes in play"; "Scenario 2: Rescued captives"; "Scenario 3: Adaptoid environments" with four check boxes
+  (Flying Upgrade, Psionic Upgrade, Sarah Garza Upgrade, Strong Upgrade); "Scenario 4: Surviving Thunderbolts";
+  "Evidence Combinations". The separate sheet `docs/campaign-modes/log-sheets/mc50_agents_of_shield_campaign_log.pdf`
+  was not opened this session; the handoff says it is the same sheet.
+- **The nine evidence scans** (`assets/card-art/bundles/cards/50185.png` to `50193.png`), read side by side this
+  session. Each prints its kind as "EVIDENCE – MEANS", "– MOTIVE" or "– OPPORTUNITY", the set line "EXECUTIVE BOARD
+  EVIDENCE (n/9)" with no word "Campaign", and one "Setup" ability. The icon and color of each are §1.16's table
+  (checked), and the emitted text of all nine matches its scan word for word (checked).
+- **The grid, a second reading.** The handoff's 27 rows by color (`docs/phase7-wave9-handoff.md`, "Evidence
+  combinations", read by the main session) were read again from the 230 dpi render: all 27 agree (checked, two readers).
+  By card id they are §1.16's table.
+- **Rulings.** `marvel-champions-rulings-post-rrg-1-7.md` was searched for "S.H.I.E.L.D.", "evidence", "Zemo", "Board
+  Member", "secret counter" and "campaign". **No ruling names this campaign, the evidence, a Board Member or Baron
+  Zemo**, so none says a printed wording here is unintended. Two rulings on other boxes bear on it: August 3, 2026 –
+  Ruling 4 (3), "Linked cards cannot be included in decks" (§3.77), and June 2, 2026 – Ruling 3 (2), "Campaign setup
+  finishes before resolving Collector II's When Revealed damage" (the campaign design's Q7, not reopened).
+- **RRG 1.8**, from the markdown text with page numbers from its index (the PDF pages were not opened this session):
+  "Campaign-Specific Card" (p. 11), "Modes of Play" (p. 28: "During campaign mode or expert campaign mode, players can
+  choose which other mode(s) they wish to play for each individual scenario"), "Player Elimination" (p. 34), "Player
+  Side Scheme" (p. 34: "Any rules or card effects that refer to 'schemes' or 'side schemes' also refer to player side
+  schemes"), Appendix II step 13 (p. 51).
+- **The foundation, read this session:** `packages/engine/src/campaign.ts` (the type surface), `campaign/log.ts`,
+  `campaign/ops.ts`, `campaign/result.ts` and `campaign/runner.ts` by grep and by section,
+  `packages/cards/src/campaigns/aoa.ts` and `expert-helpers.ts`, `packages/content/src/data/aoa/campaign.ts`,
+  `docs/campaign-mode-design.md` (the outline, §1's MC50 rows, Q4), `docs/campaign-client-per-box.md` §3 and
+  `docs/wave-definition-of-done.md` §6. No test was run and no code was changed.
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -472,6 +521,83 @@ scenario.
    and the Epic Multiplayer Reminder, for the client's Inspect; its three steps are scripted inside each Fading
    Figment's When Revealed (§3.60), from a helper the four share.
 
+### 1.16 The campaign record, the evidence icons and the grid (pass 1b)
+
+1. **`AOS_CAMPAIGN`**, hand-authored in `packages/content/src/data/aos/campaign.ts` as `aoa/campaign.ts` is (there is no
+   MarvelCDB record of a campaign), and registered in `CAMPAIGNS`: `id: campaignId("aos")`, `name: "Agents of
+S.H.I.E.L.D."`, `boxCode: "MC50"`, `packCode: setCode("aos")`, `scenarioIds` in the order of MC50 p. 4
+   (`black-widow`, `batroc`, `modok`, `thunderbolts`, `baron-zemo`), `logSheetReference` the sheet of §0.3.
+   **`campaignSetIds` is empty**: a set listed there is barred from standalone play, and neither
+   `s.h.i.e.l.d._executive_board` (a modular set, MC50 p. 6) nor `executive_board_evidence` (dealt in a standalone Baron
+   Zemo game, p. 18) may be. No `perSeatSetIds`, no `roles`, no `prohibited`.
+2. **`evidenceIcon` and the Setup each card prints** (nine scans, checked). The handoff's "pink (card)" is a fingerprint
+   scanner.
+
+   | Id    | Title              | Kind        | Icon                | Color  | Setup searches for |
+   | ----- | ------------------ | ----------- | ------------------- | ------ | ------------------ |
+   | 50185 | Medical Records    | means       | folder (caduceus)   | orange | Protection ally    |
+   | 50186 | Wiretap            | means       | phone               | blue   | Justice ally       |
+   | 50187 | Security Scanner   | means       | fingerprint scanner | pink   | Aggression ally    |
+   | 50188 | Money              | motive      | dollar sign         | green  | Protection upgrade |
+   | 50189 | Blackmail          | motive      | handshake           | black  | Justice upgrade    |
+   | 50190 | Ideology           | motive      | flame               | yellow | Aggression upgrade |
+   | 50191 | Security Clearance | opportunity | ID badge            | purple | Protection support |
+   | 50192 | Travel             | opportunity | map pin             | red    | Justice support    |
+   | 50193 | Authority          | opportunity | shield with a star  | blue   | Aggression support |
+
+   **Proposed:** `evidenceIcon` takes the slugs `folder`, `phone`, `scanner`, `dollar`, `handshake`, `flame`, `badge`,
+   `pin`, `shield`, and a new `evidenceColor` takes the color word. Two cards are blue (50186 and 50193), so the client
+   tells evidence apart by icon and title, never by color alone.
+
+3. **`AOS_EVIDENCE_COMBINATIONS`** (§1.12's shape), the 27 rows of MC50 p. 24 by card id (checked, §0.3). The board
+   members are 50181a Chief Medical Officer, 50182a Chief Surveillance Officer and 50183a Chief Tactical Officer.
+
+   | Means | Motive | Opportunity | Board member |
+   | ----- | ------ | ----------- | ------------ |
+   | 50185 | 50188  | 50191       | 50181a       |
+   | 50185 | 50188  | 50192       | 50181a       |
+   | 50185 | 50188  | 50193       | 50183a       |
+   | 50185 | 50189  | 50191       | 50181a       |
+   | 50185 | 50189  | 50192       | 50182a       |
+   | 50185 | 50189  | 50193       | 50181a       |
+   | 50185 | 50190  | 50191       | 50183a       |
+   | 50185 | 50190  | 50192       | 50181a       |
+   | 50185 | 50190  | 50193       | 50183a       |
+   | 50186 | 50188  | 50191       | 50181a       |
+   | 50186 | 50188  | 50192       | 50181a       |
+   | 50186 | 50188  | 50193       | 50182a       |
+   | 50186 | 50189  | 50191       | 50181a       |
+   | 50186 | 50189  | 50192       | 50182a       |
+   | 50186 | 50189  | 50193       | 50182a       |
+   | 50186 | 50190  | 50191       | 50182a       |
+   | 50186 | 50190  | 50192       | 50182a       |
+   | 50186 | 50190  | 50193       | 50183a       |
+   | 50187 | 50188  | 50191       | 50181a       |
+   | 50187 | 50188  | 50192       | 50183a       |
+   | 50187 | 50188  | 50193       | 50183a       |
+   | 50187 | 50189  | 50191       | 50183a       |
+   | 50187 | 50189  | 50192       | 50182a       |
+   | 50187 | 50189  | 50193       | 50182a       |
+   | 50187 | 50190  | 50191       | 50183a       |
+   | 50187 | 50190  | 50192       | 50182a       |
+   | 50187 | 50190  | 50193       | 50183a       |
+
+   **Validation the data test carries** (computed from the table by script this session): the 27 triples are all
+   different and cover every combination once; each board member has nine rows; and each evidence card's rows split
+   among (Medical, Surveillance, Tactical) as 50185, 50188 and 50191: 5, 1, 3; 50186, 50189 and 50192: 3, 5, 1; 50187,
+   50190 and 50193: 1, 3, 5. A wrong cell breaks that pattern, which is why it is worth a test of its own. This replaces
+   §1.12's "not transcribed and unchecked" and satisfies §8.1 item 1's two readings.
+
+4. **Counter names the campaign reads** (§1.6): `secret` on 50181a/b–50183a/b and `lock` on 50105a–50108a. A record
+   instruction names a counter by the key `CardInstance.counters` uses, so these two spellings are fixed here.
+5. **The Thunderbolt minion to encounter set map**, derived, not typed in: every minion with the Thunderbolt trait in
+   the playable pool and the encounter set it belongs to. Scenario 5 reads it for "shuffle those minions and their
+   encounter sets, except for Jolt's" (MC50 p. 19). Jolt 50133 belongs to the Thunderbolts scenario set, the one set the
+   sentence leaves out. With §8.1 item 14 the map holds the ten Elite minions and Jolt.
+6. **No scenario record changes.** What the campaign adds to a scenario (the Executive Board set in scenarios 1 to 4;
+   Adaptoids, their environments and the Thunderbolt sets in scenario 5) is composed by the definition (§3.73), not
+   written into `AOS_SCENARIOS`.
+
 ## 2. Per-scenario setup needs
 
 RRG 1.8 Appendix II (p. 51) with the wave 1–8 engine. The Campaign Instructions boxes are pass 1b's; in a standalone
@@ -614,6 +740,112 @@ linked ally card should be set aside during setup for any scenario using Trickst
 6. Who resolves a Fading Figment: "The first player. If an encounter card requires a card ability to be resolved, a game
    function to be performed, or a choice to be made but does not specify which player should act, the first player does
    so." (MC55 p. 23.)
+
+### 2.9 The campaign (pass 1b; MC50 pp. 4–6, 9, 11, 13, 15, 19, 24)
+
+Every quote here is checked against a rendered page (§0.3). The definition that carries it out is §3.73.
+
+**The frame (p. 4).** "To complete the campaign, the players must win all five scenarios in numerical order." "Each
+player must use their chosen identity for the entire campaign, but they are free to change aspects and alter the
+contents of their deck between scenarios." "To play a scenario in campaign mode, set up the scenario as per the normal
+rules of the game. Then, **before players draw their starting hands**, follow that scenario's setup instructions in the
+order they are listed." "When the game ends, if the players won, follow that scenario's victory instructions in the
+order they are listed … If the players lost, they may reset the scenario and try again with no penalty."
+
+**The mole (p. 5).** "Preparing the Evidence": the nine evidence cards are separated "by their card backs into three
+sets of three cards" (means, motive, opportunity); each set is shuffled and one card of each goes into the A.I.M.
+envelope "**without looking at them**"; the other six are shuffled together into the S.H.I.E.L.D. envelope, also unseen.
+The three A.I.M. cards name one row of the log's grid, and that row's board member is the mole. Scenario 1's Setup does
+this once for the campaign (p. 9).
+
+**The Executive Board (pp. 6, 9, 11).** The three Board Member environments 50181a–50183a are in play in every scenario,
+with the three A.I.M. Interference treacheries 50184a–c in the encounter deck. Scenario 1 starts each at two secret
+counters; every later scenario starts each at the number recorded after the scenario before. "If a board member ever has
+four secrets on it (three in expert mode), that board member permanently turns against the heroes, flipping to its
+attachment side." "In campaign mode, secrets placed on board members carry over from one scenario to the next. Because
+of this, **once a board member flips to its attachment side, it remains an attachment for the rest of the campaign.**"
+The Victory list records "the number of secret counters on each Board Member **card**", either face, which is the
+campaign's own support for §4.1 Q1's default (a flipped member keeps its counters). Three attachments in play lose the
+game in any scenario (50181b, pass 1a §3.26).
+
+**Evidence (p. 6).** "If at least one of the board members has no secret counters on them when the scenario ends, the
+players gain an evidence card from the S.H.I.E.L.D. envelope. Evidence cards are **not** added to any deck once gained.
+Instead, they provide the players with information about the mole, as well as a 'Setup' ability that is resolved by the
+campaign setup instructions for each subsequent scenario." One card for a scenario, however many members are clean. That
+card is the campaign's only reward; it has no other.
+
+**Scenario by scenario.** "Board" is the three bullets "Put the three Board Member environments into play", place the
+secret counters, "Shuffle the three copies of the A.I.M. Interference treachery into the encounter deck". "Common
+Victory" is the three bullets every scenario from 1 to 4 prints: "Record the number of secret counters on each Board
+Member card in the campaign log"; "If at least one Board Member environment in play has no secret counters on it, gain
+one evidence card from the S.H.I.E.L.D. envelope and cross out each combination of means, motive, and opportunity in the
+campaign log that includes the icon on the evidence card gained"; and the shaded "Expert Campaign Only: Record each
+identity's remaining hit points in the campaign log". "Expert Setup" is the two shaded bullets of §0.3.
+
+| Scenario               | Setup, in printed order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Victory, in printed order                                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 1 Black Widow (p. 9)   | "Each player records their identity in the campaign log … Players cannot switch identities during a campaign." "Prepare the evidence (see page 5)." Board, with "two secret counters on each Board Member environment".                                                                                                                                                                                                                                                                                                                                                                                                          | "Record the total number of minions and side schemes in play in the campaign log." Common Victory.              |
+| 2 Batroc (p. 11)       | "Place threat on the Alert Level environment equal to the number of minions and side schemes recorded in the campaign log for scenario #1." Board, with the counters "recorded for that environment in scenario #1. (This will cause the environment to flip to its attachment side if enough secrets are placed on it.)" The evidence bullet. Expert Setup.                                                                                                                                                                                                                                                                     | "Record the number of Rescued Captive (91) allies in play in the campaign log." Common Victory.                 |
+| 3 M.O.D.O.K. (p. 13)   | "Place 3[per_hero] additional lock counters on the top card of the Holding Cell deck, then remove X[per_hero] lock counters from that card, where X is the number of 'Rescued Captives in Play' recorded in the campaign log." Board, from scenario #2. The evidence bullet. Expert Setup.                                                                                                                                                                                                                                                                                                                                       | "Mark each Adaptoid environment (109-112) in play in the campaign log." Common Victory.                         |
+| 4 Thunderbolts (p. 15) | Board, from scenario #3. The evidence bullet. Expert Setup.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | "If there are any Thunderbolt minions in play, record each of their names in the campaign log." Common Victory. |
+| 5 Baron Zemo (p. 19)   | "Put into play each Adaptoid environment (109-112) marked as 'in play' in the campaign log." "Shuffle each copy of the Adaptoid minion (113) into the encounter deck." "If you recorded any 'Surviving Thunderbolts' in the campaign log, shuffle those minions and their encounter sets, except for Jolt's (133), into the encounter deck." "Set the A.I.M. and S.H.I.E.L.D. envelopes aside so that you can access them during the scenario." "Place secret counters on each Board Member environment equal to the number of secret counters recorded for that environment in scenario #4." The evidence bullet. Expert Setup. | "Zemo is defeated, the mole is exposed, the heroes are exonerated, and the players win the campaign!"           |
+
+The evidence bullet is "**After resolving mulligans,** resolve the 'Setup' ability of each evidence card the players
+have earned" (pp. 11, 13, 15, 19). Expert Setup is "Expert Campaign Only: Set each player's hit points to their
+remaining hit point value recorded in the campaign log for the previous scenario" and "Expert Campaign Only: Each player
+may place one secret counter on a Board Member environment to heal damage from their identity equal to their REC".
+
+**What carries, and what it does next.**
+
+| Carried (log, p. 24)                           | Written                           | Read                                                                                          |
+| ---------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------- |
+| Each player's identity                         | scenario 1 Setup                  | every scenario: it cannot change                                                              |
+| Remaining hit points (expert campaign)         | Victory of 1 to 4, capped at base | Setup of 2 to 5                                                                               |
+| Secret counters on each Board Member, #1 to #4 | Victory of 1 to 4                 | Setup of the next scenario; a flipped member stays flipped (p. 6)                             |
+| Scenario 1: minions and side schemes in play   | Victory of 1                      | Setup of 2: that much threat on Alert Level (at 4 per player it flips to High at once, §3.16) |
+| Scenario 2: Rescued Captives in play           | Victory of 2                      | Setup of 3: the first Holding Cell has (5 − X) per player lock counters, X from 1 to 4        |
+| Scenario 3: Adaptoid environments in play      | Victory of 3                      | Setup of 5: those environments in play, with all four Adaptoids in the encounter deck         |
+| Scenario 4: surviving Thunderbolts             | Victory of 4                      | Setup of 5: those minions and their sets in the encounter deck                                |
+| Evidence gained                                | Victory of 1 to 4                 | Setup of 2 to 5 (each card's Setup ability); the grid; scenario 5's accusation                |
+| The A.I.M. envelope (hidden; not on the sheet) | scenario 1 Setup                  | scenario 5's stage 2 only                                                                     |
+
+**Scenario 5 in campaign mode (pp. 18–19; cards 50167a/b, pass 1a §3.29).** The evidence is not dealt again: "If you are
+playing in campaign mode, simply place the A.I.M. and S.H.I.E.L.D. envelopes within reach" (p. 18, from the conversion).
+Zemo's Manipulations 1B gains "2 cards from the S.H.I.E.L.D. envelope (1 card instead in campaign mode)", and its Setup
+places the two starting secret counters only "If not playing campaign mode". The accusation, the mole, the wrong guesses
+and their secret counters, and the mole's flip at stage 3B are the standalone game's, unchanged (§3.26, §3.29). The
+players enter with at most four evidence cards, so at least two are still in the S.H.I.E.L.D. envelope.
+
+**Rewards and penalties, as a list.** Rewards: an evidence card for a scenario ended with a clean board member (fewer
+rows left in the grid, and one more Setup ability in every later scenario). Penalties, all carried by the log: secret
+counters and flipped members; threat on Alert Level for scenario 1's minions and side schemes; more lock counters for
+fewer captives; Adaptoid environments and Thunderbolt sets in scenario 5; and in scenario 5 the secret counters for a
+wrong accusation.
+
+**Expert campaign (p. 6).** "Some Setup and Victory instructions are preceded by Expert Campaign Only. Ignore these
+instructions unless you are playing an expert campaign." Persistent damage: "each player must record their remaining hit
+points in the campaign log after they win a game. This determines each player's starting hit points for the next
+scenario. If a player's remaining hit point value is greater than their base hit point value, record their base hit
+points in the campaign log instead." "In an expert campaign, if a player is defeated during a scenario that their
+teammates go on to win, the defeated player does not participate in the Victory steps of that scenario. However, during
+the Setup instructions of the next scenario, the defeated player can rejoin their teammates for the next scenario by
+following that scenario's Setup instructions for healing their identity to its full hit points." The same page says the
+Setup instructions "offer each player the opportunity to restore their identity to their full hit point value at a cost
+specific to that scenario", but every Setup list prints the same bullet, and it heals REC, not to full (§4.1 Q14). The
+expert campaign and expert mode are separate choices: each scenario may be played in standard or expert mode (RRG "Modes
+of Play", p. 28), which changes a Board Member's threshold from one scenario to the next (§4.1 Q11).
+
+**A loss.**
+
+- Scenarios 1 to 4, either campaign: "they may reset the scenario and try again with no penalty" (p. 4). Nothing of the
+  lost game is recorded: the log, the envelopes and the decks are as they stood when the scenario began.
+- Scenario 5, expert campaign (p. 19): "The heroes are arrested by S.H.I.E.L.D., convicted of their alleged crimes, and
+  the players lose the campaign."
+- Scenario 5, standard campaign (p. 19): "To replay this scenario, do the following: Prepare the evidence as if you are
+  starting a new campaign (see page 5). Gain one evidence card from the S.H.I.E.L.D. envelope for each scenario in which
+  you had at least one Board Member environment with no secret counters on it. Perform the campaign setup instructions
+  above." The lost game opened the A.I.M. envelope, so the mole is drawn again and may be a different member; the
+  players keep the **number** of evidence cards they had earned, not the cards.
 
 ## 3. Engine primitives (owner: `game-rules-architect`)
 
@@ -3091,27 +3323,290 @@ events.
 event in hand is unplayable; a non-event attack ability resolves. In alter-ego form with an energy and a mental
 resource: the action discards it.
 
+### 3.73 The campaign definition (`AOS_CAMPAIGN_DEFINITION`, pass 1b)
+
+> **Status: not started (compose).** A linear graph, `LossPolicy.retry: "byInstruction"`, `EliminationPolicy`, the
+> windows `beforeStartingHands` and `afterMulligans`, hidden log fields and the `cardState` field type all exist and
+> were written with this box in mind (`campaign.ts`). Four gaps stand between that and a definition: §3.74 (a
+> `cardState` field nothing can write), §3.75 (a draw that must stay sealed, and the envelope inside a game), §3.76 (a
+> DEFEAT block that draws) and §3.77 (the evidence cards' Setup abilities). §3.78 lists what is reused as is.
+
+**Cards.** The log (MC50 p. 24) and the five Campaign Instructions boxes (§2.9). The definition is
+`packages/cards/src/campaigns/aos.ts`; its in-game effects come from the `aos/campaign/*` modules (§8.4).
+
+**Log fields.**
+
+| Field                   | Label, as the sheet prints it                | Scope   | Type                                               | Notes                                                                           |
+| ----------------------- | -------------------------------------------- | ------- | -------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `remainingHp`           | Remaining hit points                         | perSeat | `number`, min 0                                    | `whenModes: { expertCampaign: true }`; pp. 6, 24                                |
+| `secrets1`…`secrets4`   | Remaining Secret Counters by Scenario, #1…#4 | shared  | `cardState` over 50181a, 50182a, 50183a            | counter `secret` and the face; four fields, one a column (§3.74); pp. 6, 11, 24 |
+| `minionsAndSideSchemes` | Scenario 1: Minions and side schemes in play | shared  | `number`, min 0                                    | pp. 9, 24                                                                       |
+| `rescuedCaptives`       | Scenario 2: Rescued captives                 | shared  | `number`, min 0, max 4                             | pp. 11, 24                                                                      |
+| `adaptoidEnvironments`  | Scenario 3: Adaptoid environments            | shared  | `cardList` (drawn as the sheet's four check boxes) | pp. 13, 24                                                                      |
+| `survivingThunderbolts` | Scenario 4: Surviving Thunderbolts           | shared  | `cardList`                                         | pp. 15, 24                                                                      |
+| `evidence`              | Evidence gained                              | shared  | `cardList`                                         | the sheet's crossed-out rows are derived from it; pp. 6, 24                     |
+| `aimEnvelope`           | A.I.M. envelope                              | shared  | `cardList`, **`hidden`**                           | three cards, one a kind; p. 5                                                   |
+| `boardEnvironments`     | (working)                                    | shared  | `number`, `working`                                | Board Member environments in play as the game ended                             |
+| `cleanBoardMembers`     | (working)                                    | shared  | `number`, `working`                                | those of them with no secret counter                                            |
+| `notes`                 | Notes                                        | shared  | `text`                                             | p. 24                                                                           |
+
+The identity is `CampaignSeat.identityCardId`, as in every box. The S.H.I.E.L.D. envelope is not a field: it is the nine
+evidence cards less `aimEnvelope` less `evidence`, and a gain draws from that set with the campaign's seeded RNG at the
+moment of the gain. A paper envelope shuffled once and a draw made later are the same distribution; the difference is
+flagged in §4.2, not asked. No field holds the accusation: it is made, answered and finished inside scenario 5's game
+(§3.29's `accusationMade` event).
+
+**Loss, elimination.** `loss: { retry: "byInstruction", retryBaseline: "nodeStart", citation: "MC50 pp. 4, 19" }`; only
+node 5 has a `defeat` list. `elimination: { id: "mc50.elimination", citation: "MC50 p. 6", whenModes: { expertCampaign:
+true } }` with no `rejoinAtPrintedHitPoints` (Q14 = A), and `everyNodeVictory: [defeatedSeatRecordsZero(…)]` as MC45
+has.
+
+**Instructions.** Ids are `mc50.s<n>.<setup|victory|defeat>.<name>`; each carries the printed sentence and its page.
+"board(N)" and "common victory" are helpers shared by the nodes.
+
+| Instruction                    | Step                                                                                                                                                                                                                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| s1 `identity`                  | `betweenGames`, no ops (the seat already holds it)                                                                                                                                                                                                                                                             |
+| s1 `evidence`                  | `betweenGames`: three **sealed** `random` draws (§3.75), one from each kind's three cards (`cards` sources built from the content records' `evidence` kind), into `aimEnvelope`; `clearField evidence`                                                                                                         |
+| board(two) (s1)                | composition `setAsideCards` 50181a–50183a and 50184a–c; `inGame`, `beforeStartingHands`: put the three environments into play, 2 secret counters on each, shuffle the three treacheries into the encounter deck                                                                                                |
+| board(`secretsN`) (s2, s3, s4) | the same, with each member's recorded counters placed on its environment and the recorded face restored (§3.74)                                                                                                                                                                                                |
+| s2 `alertLevel`                | `inGame`: threat on Alert Level 50090a equal to `campaignLog minionsAndSideSchemes` (§3.7 (a)); the environment's own threshold then applies (§3.16)                                                                                                                                                           |
+| s3 `locks`                     | `inGame`: 3 per player `lock` counters on the top card of the Holding Cell deck, then remove `rescuedCaptives` per player                                                                                                                                                                                      |
+| s5 `adaptoidEnvironments`      | composition `setAsideCards` of the `adaptoidEnvironments` field; `inGame`: put them into play                                                                                                                                                                                                                  |
+| s5 `adaptoids`                 | composition `setAsideCards` 50113 with `copies` 4; `inGame`: shuffle them into the encounter deck                                                                                                                                                                                                              |
+| s5 `thunderbolts`              | composition: for each row of §1.16 item 5, `if fieldContains(survivingThunderbolts, title)` → `composeEncounterSets` adds that minion's set to the encounter deck; Jolt alone is added as a card. The Elite minions are in the deck, not set aside: 50130a's Setup is not this scenario's                      |
+| s5 `envelopes`                 | `inGame`, `beforeStartingHands`: `seedHiddenPiles` from `aimEnvelope` and `evidence` (§3.75)                                                                                                                                                                                                                   |
+| s5 `secrets`                   | `inGame`: the counters and faces of `secrets4` on the environments 50167a's Setup put into play (§3.74)                                                                                                                                                                                                        |
+| s2–s5 `evidenceSetup`          | `inGame`, **`afterMulligans`**: for each card in `evidence`, its Setup ability (§3.77)                                                                                                                                                                                                                         |
+| s2–s5 `hp`, `heal` (expert)    | `hpSet`; then the new helper `healRecForSecret` (§3.78), both at the default window (Q13 = A)                                                                                                                                                                                                                  |
+| s1 `count`                     | `record`: `minionsAndSideSchemes` = `count(cardsInPlay(minions and side schemes))`, player side schemes included (RRG p. 34)                                                                                                                                                                                   |
+| s2 `captives`                  | `record`: `rescuedCaptives` = `count(cardsInPlay(50091))`                                                                                                                                                                                                                                                      |
+| s3 `adaptoidEnvironments`      | `record`: `adaptoidEnvironments` = `cardsInPlay(50109–50112)`                                                                                                                                                                                                                                                  |
+| s4 `thunderbolts`              | `record`: `survivingThunderbolts` = `cardsInPlay(minions with the Thunderbolt trait)`; the minion attached to Thunderbolt Backup is in play (MC50 p. 15, §3.21)                                                                                                                                                |
+| common victory `secrets`       | `record`: `secretsN` = `cardStateOf(Board Member cards, either face)` (§3.74)                                                                                                                                                                                                                                  |
+| common victory `gain`          | `record` the two working numbers (`cardsInPlay` of Board Member environments, and of those with `missingCounter: "secret"`); then `betweenGames`: `if valueAtLeast(cleanBoardMembers, 1)` → one `random` from the six cards not in `aimEnvelope`, less `evidence` (`excludingTitles`), `appendToList evidence` |
+| common victory `hp` (expert)   | `hpRecord`                                                                                                                                                                                                                                                                                                     |
+| s5 `defeat.expert`             | `whenModes: { expertCampaign: true }`: `endCampaign lost`                                                                                                                                                                                                                                                      |
+| s5 `defeat.standard`           | a standard campaign only (the complement of the expert gate), `betweenGames` (§3.76): read N = `count(evidence)`; three sealed draws into `aimEnvelope`; `clearField evidence`; N gains as in "common victory `gain`". The retry then runs node 5's Setup as printed                                           |
+| s5 `victory`                   | `betweenGames`: `endCampaign won`                                                                                                                                                                                                                                                                              |
+
+N is the number of cards in `evidence` when scenario 5 began: each of scenarios 1 to 4 gains at most one, and evidence
+gained inside scenario 5 is the game's own state, never written to the log.
+
+**Tests (definition level, two seats).** Scenario 1 won with the Medical Officer at 0 and 3 minions and 1 side scheme in
+play: `minionsAndSideSchemes` 4, `secrets1` holds the three numbers, `evidence` holds one card that is not in
+`aimEnvelope`. Scenario 2's Setup: 4 threat on Alert Level (two players: below 8, still Low); with 8 recorded it empties
+and flips to High. Scenario 2 won with 3 captives: scenario 3's first Holding Cell holds (5 − 3) × 2 = 4 lock counters.
+Scenario 4 won with the Elite minion of Gravitational Pull and Jolt in play: scenario 5's encounter deck holds every
+card of Gravitational Pull and Jolt, and no other card of the Thunderbolts scenario set. Every instruction's `citation`
+names a page of §2.9.
+
+### 3.74 A `cardState` log field: written by a record, read inside a game
+
+> **Status: not started (extend).** `LogFieldType cardState { cardIds }` and `LogValue cardState { cards: Record<string,
+{ counters, face? }> }` exist. Nothing can write one: `campaign/result.ts` throws "a record instruction cannot yet
+> write" it, and `campaign/log.ts` and `campaign/ops.ts` throw the same for the between-games vocabulary. `ValueSpec
+campaignLog` and `Predicate campaignLog` read numbers, lists and flags only.
+
+**Cards.** 50181a/b, 50182a/b, 50183a/b.
+
+**Rules.** MC50 pp. 9–15: "Record the number of secret counters on each Board Member card in the campaign log"; p. 11:
+"Place secret counters on each Board Member environment equal to the number of secret counters recorded for that
+environment in scenario #1. (This will cause the environment to flip to its attachment side if enough secrets are placed
+on it.)"; p. 6: "once a board member flips to its attachment side, it remains an attachment for the rest of the
+campaign". The parenthesis and the bold sentence agree whenever the threshold is the same in both scenarios. They part
+when it is not (§4.1 Q11), and that is why the face is recorded with the number.
+
+**Plan.**
+
+1. `CampaignGameQuery { kind: "cardStateOf"; query: TargetQuery; counters: readonly string[]; withFace?: true }`: one
+   entry for each card in play that matches, keyed by the card id of its front face, with each named counter (0 when it
+   has none) and, with `withFace`, the face it is on as §1.5 names faces. `campaign/result.ts` writes it to a
+   `cardState` field and refuses a card the field's `cardIds` does not list.
+2. The between-games vocabulary still cannot write a `cardState` field, and this box does not need it to. The two other
+   throws stay.
+3. In a game: `ValueSpec campaignLog` takes `card` and `counter` (the recorded number; 0 for a card not recorded), and
+   `Predicate campaignLog` takes `card` and `face`. board(`secretsN`) is then three ordinary effects for each member:
+   place the recorded counters on the environment in one placement; the environment's own text flips it at its threshold
+   (§3.26); and if the recorded face is the attachment and the card is still an environment, flip it (Q11 = A).
+4. The counters are placed while the card is an environment, so the attachment's "Forced Response: After a secret
+   counter is placed here" does not answer them, at any count.
+
+**Tests (standard mode unless said).** Recorded 2, 0, 5 with the third on its attachment face: the next scenario opens
+with two environments at 2 and 0 and Tactical Officer's Aid attached to the villain holding 5; no Forced Response
+resolved; the villain has its stat bonus. Recorded 3 on the environment face, the next scenario in expert mode: it flips
+at setup by its own text. Recorded 3 on the attachment face (flipped in an expert-mode scenario), the next in standard
+mode: an attachment holding 3 (Q11 = A; under B an environment holding 3). Two members recorded as attachments and the
+third at 3 on its environment face, the next scenario in expert mode: all three are attachments and the players lose
+during setup. A record names a card outside `cardIds`: an `EngineInvariantError`.
+
+### 3.75 The A.I.M. envelope: a sealed draw, and the envelopes inside scenario 5
+
+> **Status: not started (extend),** on §3.29 (a) (task 19). `LogFieldDef.hidden` and `CampaignLog.hidden` exist, and no
+> view model reads their values. Two leaks remain. `CampaignOp random` traces what it drew
+> (`CampaignChoiceRecord.picked`, kept in `CampaignLog.history`), so dealing the envelope with it writes the mole into
+> the history. And `logViewFor` (`campaign/runner.ts`) copies a hidden field any instruction of the game reads into the
+> game's `log.shared`. No predicate says "in campaign mode": `spec.ts` has only `campaignLog` reads (grep, this
+> session).
+
+**Cards.** 50185–50193; Zemo's Manipulations 50167a/b; The Accusation 50168a.
+
+**Rules.** MC50 p. 5: "put one card from each set into the A.I.M. envelope **without looking at them**"; p. 19: "Set the
+A.I.M. and S.H.I.E.L.D. envelopes aside so that you can access them during the scenario"; "Next, the players take the
+evidence cards from the A.I.M. envelope". The owner's decision on design Q4 (2026-09-25) stands: the value is stored,
+kept out of every view, and shown as a sealed envelope with a card count.
+
+**Plan.**
+
+1. `CampaignOp random` takes `sealed?: true`. Its record holds how many cards were drawn and `sealed: true`, with
+   `picked` empty. A later op of the same step list may still read the slot, but only to write a `hidden` field; any
+   other use is an `EngineInvariantError`. `perAttempt` composes with it (§3.76).
+2. `CampaignLogView` gains `hidden`, apart from `shared`. A hidden field an instruction reads goes there and nowhere
+   else.
+3. `EffectSpec seedHiddenPiles { piles: Record<string, { campaignLogField }>; revealed: { campaignLogField }; rest: {
+set: EncounterSetId; to: string } }` fills §3.29's `hiddenPiles` and `revealedPileCards` from the log: `aim` from
+   `aimEnvelope`, the revealed cards from `evidence`, and the other cards of the set, shuffled with the game's RNG, as
+   `shield`. Logged as `hiddenPilesDealt` with sizes only, as the standalone deal is.
+4. `Predicate inCampaign`: true when `GameState.campaign` is present. Zemo's Manipulations uses it three times: 1A deals
+   the piles only outside a campaign and places the two starting counters only outside one, and 1B gains 1 card inside
+   one and 2 outside. These are branches of pass 1a's `baron-zemo` scripts, not a second script.
+5. The visibility rule of §3.29 covers the campaign's copies as well: no player view, preview, log line, step trace,
+   history entry or `CampaignLogView.shared` holds a card id of `aimEnvelope` or of the `shield` pile, before the
+   accusation reveals the first and a gain reveals a card of the second.
+6. `evidenceRowsLeft(grid, revealed)`, the pure function `accuse` already needs, is exported: the Dossier calls it with
+   the log's `evidence` between games, and the table with `revealedPileCards` during scenario 5.
+
+**Tests.** After scenario 1's Setup: `hidden.aimEnvelope` holds one card of each kind; the history entry of that step
+holds three sealed records and none of the three ids; serializing every view model of the log finds none of them.
+Scenario 5's opening state with two evidence cards earned: `hiddenPiles.aim` has 3 cards, `shield` 4,
+`revealedPileCards` 2, and 27 rows are down to those without either card. A sealed slot written to `evidence`: refused.
+The same campaign seed twice: the same envelope. The Response of 1B gains 1 card in the campaign and 2 in a standalone
+game.
+
+### 3.76 A DEFEAT block that draws: scenario 5 lost in a standard campaign
+
+> **Status: exists (verify), extend if the proof fails.** `LossPolicy.retry: "byInstruction"` runs a node's `defeat`
+> list, and the runner's own comment says a loss restores the log to the node's start **less** what the lost game
+> removed from the campaign and what the `defeat` instructions wrote (`campaign.ts`, `LossPolicy.retryBaseline`;
+> `campaign/runner.ts`). `random.perAttempt` exists (wave 8, task 42), documented for a node's Setup. No box before this
+> one draws inside a DEFEAT block.
+
+**Rules.** MC50 p. 19, DEFEAT (§2.9). MC50 p. 4's "no penalty" is the general sentence and p. 19's list the specific
+one.
+
+**What must hold.**
+
+1. The block's writes survive the restore: the retry's `aimEnvelope` and `evidence` are the newly dealt ones.
+2. **A second loss deals again.** A loss restores the campaign's RNG to the node's start, so a plain draw in the block
+   would deal after the second loss exactly what it dealt after the first, and the players have seen that envelope.
+   Every draw of the block carries `perAttempt`. To prove: the attempt count the mix reads inside a DEFEAT block differs
+   between the first and the second loss.
+3. N is read before `evidence` is cleared, and the N gains never draw a card of the new `aimEnvelope`.
+4. In an expert campaign the same loss ends the campaign: `status` is `"lost"`, and no retry is offered.
+5. The lost game's own evidence gains are nowhere in the log.
+
+**Tests.** A standard campaign that reaches scenario 5 with 3 evidence cards and loses it twice: after each loss
+`aimEnvelope` holds one card of each kind and `evidence` 3 cards outside it; the two deals differ (seeds chosen so they
+do; the mix can repeat a deal by chance); `secrets4`, `adaptoidEnvironments`, `survivingThunderbolts` and every seat's
+deck are as they were when the node began. Replaying the log from its seed reproduces both deals. The same in an expert
+campaign: one loss, `status` `"lost"`.
+
+### 3.77 The evidence cards' Setup abilities: a paid search of the collection for "a different" card
+
+> **Status: not started (extend).** `EffectSpec searchCollection { player, filter, bind }` and `CollectionSearchFilter`
+> (a pick of `categories`, `aspects` and `traits`; wave 7 §3.81) exist; so do a deck search to hand, a cost in counters
+> on another card and a cost in threat. `CollectionFilter.notInOwnDeck` exists only between games. Missing: "a
+> different" card inside a game.
+
+**Cards.** 50185–50193 (nine scans, checked; §1.16 item 2 has each card's aspect and card type). 50186: "Setup: Each
+player may add 1 secret counter to a Board Member environment to search their collection for a different Justice ally
+and shuffle it into their deck. Each player may add 1 threat to the main scheme to search their deck for a Justice ally
+and add it to their hand. (Shuffle.)"
+
+**Rules.** MC50 p. 6: evidence cards "provide the players with … a 'Setup' ability that is resolved by the campaign
+setup instructions for each subsequent scenario"; pp. 11–19: "After resolving mulligans, resolve the 'Setup' ability of
+each evidence card the players have earned"; p. 18 (conversion): in the scenario itself "Ignore the text on the lower
+portion of the evidence card as this text only applies during setup". Ruling August 3, 2026 – Ruling 4 (3): "Linked
+cards cannot be included in decks", asked about a campaign reward.
+
+**Plan.**
+
+- An evidence card is never in play, so its ability is resolved by the instruction `evidenceSetup`, not by a trigger.
+  `aos/campaign/evidence.ts` builds one effect list from (aspect, card type) and exports it by card id; the instruction
+  resolves the list of each card in `evidence`, in the order gained. The registry entries `50185.setup` to `50193.setup`
+  point at the same lists so the coverage guard counts them; the scripting agent reports how the guard treats an ability
+  no card in play ever has.
+- Each list is two offers to each player in player order. First: pay 1 secret counter onto a Board Member environment of
+  that player's choice → `searchCollection` for the aspect and type, shuffled into their deck. Second: pay 1 threat onto
+  the main scheme → search their deck for the aspect and type, into their hand, shuffle. A search may find nothing; the
+  cost stays paid (RRG "Search", p. 39).
+- `CollectionSearchFilter` gains `notAmongOwnCards?: true`: no card whose title is among the searching player's cards in
+  this game (deck, hand, discard pile, play area). That is "a different" under Q12 = A.
+- Linked cards are left out of the search by the ruling above. The card's aspect need not be the deck's: the card names
+  the aspect, and that is what the players paid for.
+- The first offer needs a Board Member environment in play, and its counter can flip that environment (§3.26); a third
+  flip here loses the game before the first turn.
+
+**Tests.** Wiretap earned, two players, standard mode: each is offered both; player 1 pays both: a board member gains 1
+secret counter, a Justice ally no card of theirs shares a title with is in their deck, the main scheme has 1 more
+threat, a Justice ally from their deck is in their hand (seven cards). Player 2 declines both: nothing changes. A deck
+with no Justice ally: the threat is placed and the search finds nothing. Three evidence cards: six offers a player. A
+board member at 3 chosen for the cost: 4, it flips before the search. Standalone Baron Zemo: no offer is ever made.
+
+### 3.78 Reusable as is (pass 1b; checked by name against `campaign.ts`, `spec.ts` and `expert-helpers.ts`)
+
+| Need                                                                    | Vocabulary                                                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Five scenarios in order; a DEFEAT list; elimination                     | `graph.kind: "linear"`, `LossPolicy`, `EliminationPolicy`, `everyNodeVictory`                          |
+| "before players draw their starting hands"; "After resolving mulligans" | `CampaignWindow` `beforeStartingHands`, `afterMulligans` (`setup-steps.ts`)                            |
+| Persistent damage                                                       | `hpRecord`, `hpSet`, `defeatedSeatRecordsZero` (`expert-helpers.ts`), `remainingHitPointsCappedAtBase` |
+| Counting cards in play as the game ends                                 | `CampaignGameQuery` `cardsInPlay`, `count`; `TargetQuery.hasCounter` / `missingCounter`                |
+| A draw from what is left of nine cards                                  | `random`, `CampaignChoiceSource` `cards` and `excludingTitles`, `appendToList`, `clearField`           |
+| Branches on the log between games                                       | `if`, `fieldContains`, `valueAtLeast`, `CampaignValue` `count`                                         |
+| Cards and sets added to a scenario                                      | `setAsideCards` (with `copies`), `composeEncounterSets`                                                |
+| The end of the campaign                                                 | `endCampaign`                                                                                          |
+| A number of the log inside a game                                       | `ValueSpec campaignLog`, `CardSelector campaignLog`                                                    |
+| Threat on Alert Level; lock and secret counters                         | §3.7 (a), `addCounters`, `removeCounters` (wave 9 tasks 2 and 3)                                       |
+
+**New in `expert-helpers.ts`, with no engine change:** `healRecForSecret(id, citation)`: each player may place 1 secret
+counter on a Board Member environment of their choice to heal damage from their identity equal to its REC, the REC of
+the face in play (the alter-ego at setup). A seat recorded at 0 is asked to rejoin or to sit the scenario out, as
+`healForThreat` asks (owner decision 2026-10-08, made for MC45; §4.1 Q14).
+
+**To verify, each with a definition test** (shapes named above were found by grep, not read in full): `excludingTitles`
+reading a hidden field without tracing it; `setAsideCards` naming cards of another scenario's sets (50109–50113 are
+M.O.D.O.K. cards, used here in Baron Zemo); `composeEncounterSets` adding none to ten sets by `if`; `cardsInPlay`
+counting a minion attached to Thunderbolt Backup and a player side scheme; a `record` and a `betweenGames` step in one
+Victory list resolving in printed order. **Not checked on any scan this session:** whether Adaptoid 50113 or an Adaptoid
+environment 50109–50112 names M.O.D.O.K., the Holding Cell deck or Upgrading Adaptoids in a way that does nothing in the
+Baron Zemo scenario (§3.18 specified them for scenario 3). The `aos/campaign/carryover` agent reads the five scans
+first.
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Rules questions for the owner
 
-Ten questions, all open (6 and 7 are pass 2's, 8 to 10 pass 2c's). **A is the recommended default in every one, and
-every §8.2 task that touches a question builds on A until the owner answers.** None is settled by a ruling: no FFG
-ruling in the repo names these cases, except that one ruling half-answers question 6 (§4.2). The long form of each is in
-§4.2.
+Fourteen questions, all open (6 and 7 are pass 2's, 8 to 10 pass 2c's, 11 to 14 pass 1b's). **A is the recommended
+default in every one, and every §8.2 task that touches a question builds on A until the owner answers.** None is settled
+by a ruling: no FFG ruling in the repo names these cases, except that one ruling half-answers question 6 (§4.2). The
+long form of each is in §4.2.
 
-| Q   | Question                                                                                                    | A (default)                                                                                                       | B                                                                                  | Cites                                                                                              | Decision |
-| --- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------- |
-| 1   | A Board Member flips from environment to attachment: what happens to its secret counters?                   | They stay on it (the rulebook's setup and stage 3B count them)                                                    | They are discarded (the flip changes the card's type)                              | RRG "Flip" p. 20 against MC50 pp. 11 and 19, card 50169b                                           | open     |
-| 2   | Citizen V is stunned or confused and "would activate" against a player engaged with a Thunderbolt           | The status card resolves first: it is discarded, no heal                                                          | His Forced Interrupt first: no activation, he heals, the status card stays         | MC50 p. 22 FAQ; RRG "'Would'" p. 48, "Stun" p. 41, "Activation" p. 6                               | open     |
-| 3   | M.O.D.O.K. has "+5 hit points" attached when his hit points are "reset to 10"                               | As printed: set to 10, then the attachment is discarded and he drops to 5                                         | The reset ends at his printed value: 10 after the attachment leaves                | RRG "Hit Points" p. 22; cards 50103a, 50114                                                        | open     |
-| 4   | "This attack" in a Preparation when the attack has several targets (Spray Fire on Black Widow)              | The whole attack: all its damage is prevented, or all of it resolves against the one minion                       | Only the part aimed at Black Widow                                                 | MC50 p. 9; ruling January 17, 2026 – Ruling 2; cards 50073, 50076                                  | open     |
-| 5   | A card makes an enemy attack an ally: do "after [enemy] attacks you" abilities answer?                      | Yes, against the ally's controller (the later RRG text and the ruling)                                            | No (the rulebook's bullet)                                                         | RRG "Attack" p. 8; ruling December 17, 2025 – Ruling 3; MC50 p. 4                                  | open     |
-| 6   | Bird of Prey and Bird's-Eye View: "You may discard the top card" when it is faceup with no icons            | Not offered (the FAQ's reason for Redwing: the player knows it does nothing)                                      | Offered: the card is discarded for 0 additional                                    | RRG FAQ p. 65; ruling January 26, 2026 – Ruling 6 (1); cards 53003, 53004                          | open     |
-| 7   | Hunting the Spider-Bride: is a cost, or the identity's four-card cap, "a player card effect"?               | Yes: any discard a player card causes, cost or effect, the cap included, deals the 2 damage                       | No: only an effect; a cost (Cindy Moon's action) and the cap are free              | RRG "Cost" p. 13; cards 52001a/b, 52009, 52031                                                     | open     |
-| 8   | A new Avatar's hit points after the Shatter swap, with Intense Focus or Total Focus attached                | Printed value plus the attachment's bonus: the bonus is in effect on the Avatar it is attached to                 | Exactly the printed value: the card says "its printed hit point value"             | Shatter the Illusion step 2; 55034a/b; RRG "Hit Points" p. 22; ruling February 28, 2026 – Ruling 3 | open     |
-| 9   | Worlds Collide reaches its target in Single Group Mode: when is the game lost?                              | By the insert: at once in the villain phase; in a player phase, at that phase's end unless Loki is defeated first | By the card: at once, whenever                                                     | MC55 p. 21 against card 55028b                                                                     | open     |
-| 10  | Loki's flip attaches Intense Focus in standard mode: does its "When Revealed: In standard mode, …" resolve? | Yes: it is the only moment a standard game could ever resolve that text                                           | No: the card is attached, not revealed, and only a reveal resolves a When Revealed | Cards 55027b, 55034a, 55033a; RRG "When Revealed Abilities" p. 48; MC55 p. 7                       | open     |
+| Q   | Question                                                                                                     | A (default)                                                                                                                     | B                                                                                         | Cites                                                                                              | Decision |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------- |
+| 1   | A Board Member flips from environment to attachment: what happens to its secret counters?                    | They stay on it (the rulebook's setup and stage 3B count them)                                                                  | They are discarded (the flip changes the card's type)                                     | RRG "Flip" p. 20 against MC50 pp. 11 and 19, card 50169b                                           | open     |
+| 2   | Citizen V is stunned or confused and "would activate" against a player engaged with a Thunderbolt            | The status card resolves first: it is discarded, no heal                                                                        | His Forced Interrupt first: no activation, he heals, the status card stays                | MC50 p. 22 FAQ; RRG "'Would'" p. 48, "Stun" p. 41, "Activation" p. 6                               | open     |
+| 3   | M.O.D.O.K. has "+5 hit points" attached when his hit points are "reset to 10"                                | As printed: set to 10, then the attachment is discarded and he drops to 5                                                       | The reset ends at his printed value: 10 after the attachment leaves                       | RRG "Hit Points" p. 22; cards 50103a, 50114                                                        | open     |
+| 4   | "This attack" in a Preparation when the attack has several targets (Spray Fire on Black Widow)               | The whole attack: all its damage is prevented, or all of it resolves against the one minion                                     | Only the part aimed at Black Widow                                                        | MC50 p. 9; ruling January 17, 2026 – Ruling 2; cards 50073, 50076                                  | open     |
+| 5   | A card makes an enemy attack an ally: do "after [enemy] attacks you" abilities answer?                       | Yes, against the ally's controller (the later RRG text and the ruling)                                                          | No (the rulebook's bullet)                                                                | RRG "Attack" p. 8; ruling December 17, 2025 – Ruling 3; MC50 p. 4                                  | open     |
+| 6   | Bird of Prey and Bird's-Eye View: "You may discard the top card" when it is faceup with no icons             | Not offered (the FAQ's reason for Redwing: the player knows it does nothing)                                                    | Offered: the card is discarded for 0 additional                                           | RRG FAQ p. 65; ruling January 26, 2026 – Ruling 6 (1); cards 53003, 53004                          | open     |
+| 7   | Hunting the Spider-Bride: is a cost, or the identity's four-card cap, "a player card effect"?                | Yes: any discard a player card causes, cost or effect, the cap included, deals the 2 damage                                     | No: only an effect; a cost (Cindy Moon's action) and the cap are free                     | RRG "Cost" p. 13; cards 52001a/b, 52009, 52031                                                     | open     |
+| 8   | A new Avatar's hit points after the Shatter swap, with Intense Focus or Total Focus attached                 | Printed value plus the attachment's bonus: the bonus is in effect on the Avatar it is attached to                               | Exactly the printed value: the card says "its printed hit point value"                    | Shatter the Illusion step 2; 55034a/b; RRG "Hit Points" p. 22; ruling February 28, 2026 – Ruling 3 | open     |
+| 9   | Worlds Collide reaches its target in Single Group Mode: when is the game lost?                               | By the insert: at once in the villain phase; in a player phase, at that phase's end unless Loki is defeated first               | By the card: at once, whenever                                                            | MC55 p. 21 against card 55028b                                                                     | open     |
+| 10  | Loki's flip attaches Intense Focus in standard mode: does its "When Revealed: In standard mode, …" resolve?  | Yes: it is the only moment a standard game could ever resolve that text                                                         | No: the card is attached, not revealed, and only a reveal resolves a When Revealed        | Cards 55027b, 55034a, 55033a; RRG "When Revealed Abilities" p. 48; MC55 p. 7                       | open     |
+| 11  | A Board Member flipped at 3 secrets in an expert-mode scenario; the next scenario is played in standard mode | It stays an attachment for the rest of the campaign: the log records the face with the number                                   | The Setup bullet as printed: 3 counters on the environment, below 4, no flip              | MC50 p. 6 against p. 11; RRG "Modes of Play" p. 28                                                 | open     |
+| 12  | An evidence card's Setup: "search their collection for a different [aspect] [type]". Different from what?    | From that player's own cards: no title in their deck, hand, discard pile or play area                                           | From the other players' picks: any card of the kind, but no two players take the same one | Cards 50185–50193; MC50 p. 6                                                                       | open     |
+| 13  | When do the two shaded "Expert Campaign Only" Setup bullets resolve (set hit points; heal REC for a secret)? | Before starting hands, with every bullet that prints no timing of its own                                                       | In printed order: after mulligans and after the evidence cards' Setup abilities           | MC50 p. 4 against pp. 11, 13, 15, 19                                                               | open     |
+| 14  | Expert campaign: a player defeated in a scenario the team won, at the next Setup                             | Recorded at 0. The printed bullet is the way back: 1 secret counter, heal REC, start at REC hit points; or sit the scenario out | Page 6's sentence: the bullet brings a defeated player back at full hit points            | MC50 p. 6 against pp. 11, 13, 15, 19; owner decision 2026-10-08 (MC45)                             | open     |
 
 ### 4.2 The questions as asked
 
@@ -3216,6 +3711,50 @@ Each is implemented the way stated, or not at all, and named here rather than de
   of the same sentence.
 - B: it does not; in standard mode the flip only adds the attachment's stats.
 
+11. **A Board Member's face when the mode changes between scenarios.** (§3.74.) MC50 p. 6: "If a board member ever has
+    four secrets on it (three in expert mode), that board member permanently turns against the heroes" and "once a board
+    member flips to its attachment side, it remains an attachment for the rest of the campaign". MC50 p. 11 carries that
+    out only through a count: "Place secret counters on each Board Member environment equal to the number of secret
+    counters recorded … (This will cause the environment to flip to its attachment side if enough secrets are placed on
+    it.)" The players choose standard or expert mode for each scenario of a campaign (RRG "Modes of Play", p. 28). A
+    member that flipped at 3 in an expert-mode scenario and is recorded at 3 would not flip again in a standard-mode
+    scenario, where the threshold is 4.
+    - **A (default):** it stays an attachment (p. 6's bold sentence is the rule; p. 11's parenthesis describes the usual
+      case). The log records each member's face beside its number.
+    - B: the bullet as printed: it returns as an environment holding 3, one secret from flipping again.
+12. **"A different" card in an evidence card's Setup.** (§3.77.) All nine cards (scans): "Each player may add 1 secret
+    counter to a Board Member environment to search their collection for a different [aspect] [ally, upgrade or support]
+    and shuffle it into their deck." Nothing on the card or in the rulebook says what the card must differ from.
+    - **A (default):** from the player's own cards: a card of a title their deck does not already hold. The second
+      sentence of the same ability searches "their deck" for a card of the same kind, and the two read as a pair: one
+      fetches a card you built in, the other brings one you did not.
+    - B: from the other players' choices: each player who pays takes a card no other player took with this ability; a
+      copy of a card already in their own deck is allowed.
+13. **The timing of the two Expert Campaign Only Setup bullets.** (§3.73, §3.78.) MC50 p. 4: "**before players draw
+    their starting hands**, follow that scenario's setup instructions in the order they are listed". On pp. 11, 13, 15
+    and 19 the list's last unshaded bullet begins "**After resolving mulligans,**", and the two shaded expert bullets
+    are printed under it. If the list's order is binding, they resolve after mulligans; if p. 4's timing is, they
+    resolve before the hands are drawn and only the one bullet that says otherwise waits. What changes: whether a player
+    sees their opening hand, and what the evidence cards did to the board members, before deciding to pay a secret
+    counter for the heal.
+    - **A (default):** before starting hands. Only one bullet prints its own timing; the shaded box is at the foot of
+      the list on every page of this box and of MC45, wherever its bullets fall in time; and every earlier box sets hit
+      points at that point.
+    - B: in printed order, after mulligans and after the evidence cards' Setup abilities.
+14. **A defeated player's return in an expert campaign.** (§3.73, §3.78.) MC50 p. 6: "the defeated player can rejoin
+    their teammates for the next scenario by following that scenario's Setup instructions for healing their identity to
+    its full hit points", and "The Setup instructions for each scenario offer each player the opportunity to restore
+    their identity to their full hit point value at a cost specific to that scenario." No Setup list prints such an
+    instruction. Each prints the same one: "Each player may place one secret counter on a Board Member environment to
+    heal damage from their identity equal to their REC" (pp. 11, 13, 15, 19). Page 6 reads like the paragraph of an
+    earlier box (MC45 p. 20 has it with a heal to full).
+    - **A (default):** the printed bullet. A defeated player took no part in the Victory steps and is recorded at 0. At
+      the next Setup they may place the secret counter and start with hit points equal to their REC, or decline and sit
+      that scenario out, to be asked again at the next (the owner's decision of 2026-10-08 for the same sentence in
+      MC45).
+    - B: p. 6: a defeated player who places the secret counter returns at full hit points; an undefeated player who
+      places it heals REC.
+
 **Conventions used above, flagged rather than asked** (each follows a rule already cited; say so if any should be a
 question):
 
@@ -3256,6 +3795,25 @@ question):
   way; the multiplayer phase's question (plan Q-B).
 - (Pass 2c) Loki's flip and a Worlds Collide completion are applied when the resolution in progress has finished, not in
   the middle of it (MC55 pp. 20, 21), in Single Group Mode too (§3.66).
+- (Pass 1b) The S.H.I.E.L.D. envelope is not stored as a shuffled pile: a gain draws at random from the cards that are
+  in neither the A.I.M. envelope nor the players' hands. The distribution is the paper game's (§3.73).
+- (Pass 1b) A retry of scenario 1 keeps the envelope it dealt the first time. Nothing of it was seen, so the players
+  cannot tell, and the log is restored as for any free retry (§3.73).
+- (Pass 1b) Scenario 1's "minions and side schemes in play" counts player side schemes (RRG "Player Side Scheme", p. 34)
+  and every minion in play, engaged or not (§3.73).
+- (Pass 1b) A card an evidence Setup ability brings from the collection is in that game only. It is shuffled into a deck
+  after mulligans of one game, the ability is paid for again in the next, and nothing says "for the rest of the
+  campaign" (§3.77).
+- (Pass 1b) Earned evidence cards resolve in the order gained, and each card's two offers go to the players in player
+  order (§3.77).
+- (Pass 1b) Secret counters placed by a Setup bullet are placed on the environment, so a member that flips from them
+  does not answer its own Forced Response (§3.74).
+- (Pass 1b) "Surviving Thunderbolts": Jolt, if recorded, is shuffled in alone; her set is the Thunderbolts scenario set,
+  which the sentence leaves out. The recorded Elite minions are in the encounter deck with their sets, not set aside
+  (§3.73).
+- (Pass 1b) On a standard-campaign loss of scenario 5, "each scenario in which you had at least one Board Member
+  environment with no secret counters" is the number of evidence cards held when scenario 5 began (§3.73).
+- (Pass 1b) "Their REC" is the REC printed on the face in play at setup, the alter-ego (§3.78).
 
 ## 5. What this asks of the other agents (pass 1a)
 
@@ -3326,16 +3884,34 @@ question):
 - **`content-release-tracker`:** the RRG p. 70 erratum rewrites a page of the insert, not a card: file it against the
   scenario.
 
+### 5.3 Pass 1b (the campaign)
+
+- **`card-data-pipeline`:** §8.1 items 28 to 33: `AOS_CAMPAIGN`, the evidence icons and colors, the 27-row grid with its
+  checksum test, the two counter names, the Thunderbolt minion to set map.
+- **`ability-scripting-engineer`:** §8.4 lines 73 to 78. The evidence Setup abilities are effect lists an instruction
+  resolves, not triggers. The three campaign clauses of Zemo's Manipulations are branches on `inCampaign` inside pass
+  1a's scripts. Copy the cards' words: "Board Member **environment**" (the costs, the gain condition, the heal) against
+  "Board Member **card**" (what Victory records).
+- **`encounter-ai-designer`:** the automated player's answers to the new offers: the two offers of each evidence card,
+  the expert heal and the rejoin, and in the campaign's scenario 5 when to gain (1 card a use, 2 secret counters each)
+  against when to accuse.
+- **`rules-qa-engineer`:** §8.4 lines 79 to 81. The four questions at their defaults, each written so a B answer changes
+  one assertion. The hidden-evidence test reads every surface a client can reach, not one view.
+- **`game-client-engineer`:** §8.5.
+- **`multiplayer-netcode-engineer`:** the A.I.M. envelope is the first campaign value no client may be sent. In local
+  play it sits in the save (design Q4); with an authoritative host it stays on the host until the accusation.
+- **`content-release-tracker`:** MC50 p. 6's two sentences about healing "to full" disagree with every Setup list (Q14):
+  file it as a rulebook inconsistency to watch for an erratum.
+
 ## 6. Later passes (placeholders)
 
-Sections 6.2 to 6.6 are written and point to their sections. The others are placeholders: do not script from them.
+Sections 6.1 to 6.6 are written and point to their sections.
 
 ### 6.1 Pass 1b: the MC50 campaign
 
-**Placeholder.** The Campaign Instructions boxes (MC50 pp. 9, 11, 13, 15, 19), the campaign log (p. 24), the
-envelopes across scenarios, secret counters and faces carried over, the evidence cards' "Setup" abilities
-(50185–50193), persistent damage and the expert campaign (p. 6), scenario 5's Adaptoids and surviving Thunderbolts,
-and its DEFEAT block.
+**Written (2026-10-09).** Sources §0.3; the record, the evidence icons and the grid §1.16; the rules §2.9; the
+definition and its four engine gaps §3.73–§3.78; questions 11 to 14 (§4.1); the other agents §5.3; the cards §7.16; the
+build order §8.1 items 28–33, §8.2 tasks 51–56, §8.4 lines 73–81 and §8.5.
 
 ### 6.2 Pass 2a: Black Panther (`bp`)
 
@@ -3906,6 +4482,35 @@ Every row checked on a scan (§0.2).
 | 55065 | Whirlwind           | ally        | §3.57; DSL (§3.71, threat removed as ATK); §3.70                      |
 | 55066 | Zzzax               | ally        | §3.57; DSL (search the top 5 for a printed energy resource)           |
 
+### 7.16 The campaign (pass 1b)
+
+**No record of the box is a campaign-specific card** (§1.16 item 1), so no card is gated to campaign mode. What the
+campaign adds is the text below, on cards pass 1a already lists (§7.5–§7.8). "Compose" is existing vocabulary (§3.78).
+
+| Id                | Title                              | What the campaign reads or adds                                                               | Verdict                                 |
+| ----------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 50185             | Medical Records                    | Setup: Protection ally (collection, then deck)                                                | §3.77                                   |
+| 50186             | Wiretap                            | Setup: Justice ally                                                                           | §3.77                                   |
+| 50187             | Security Scanner                   | Setup: Aggression ally                                                                        | §3.77                                   |
+| 50188             | Money                              | Setup: Protection upgrade                                                                     | §3.77                                   |
+| 50189             | Blackmail                          | Setup: Justice upgrade                                                                        | §3.77                                   |
+| 50190             | Ideology                           | Setup: Aggression upgrade                                                                     | §3.77                                   |
+| 50191             | Security Clearance                 | Setup: Protection support                                                                     | §3.77                                   |
+| 50192             | Travel                             | Setup: Justice support                                                                        | §3.77                                   |
+| 50193             | Authority                          | Setup: Aggression support                                                                     | §3.77                                   |
+| 50185–50193       | (all nine)                         | Dealt once for the campaign; one hidden kind each; gained at a Victory                        | §3.75, §3.73                            |
+| 50167a            | Zemo's Manipulations 1A            | "Prepare the evidence": from the log; "If not playing campaign mode, place 2 secret counters" | §3.75 (`inCampaign`, `seedHiddenPiles`) |
+| 50167b            | Zemo's Manipulations 1B            | "(1 card instead in campaign mode)"                                                           | §3.75 (`inCampaign`)                    |
+| 50181a/b–50183a/b | The three Board Members            | In play in scenarios 1 to 4; counters and face recorded and restored                          | §3.74; Q1, Q11                          |
+| 50184a–c          | A.I.M. Interference                | Shuffled into the encounter deck of scenarios 1 to 4                                          | compose                                 |
+| 50090a            | Alert Level                        | Threat from scenario 1's record                                                               | compose (§3.7 (a), §3.16)               |
+| 50091             | Rescued Captive                    | Counted in play at scenario 2's Victory                                                       | compose                                 |
+| 50105a–50108a     | Holding Cell                       | Lock counters from scenario 2's record                                                        | compose (§3.17)                         |
+| 50109–50112       | The four Adaptoid environments     | Marked at scenario 3's Victory; in play in scenario 5                                         | compose; scans to read first (§3.78)    |
+| 50113             | Adaptoid                           | Four copies in scenario 5's encounter deck                                                    | compose; scan to read first (§3.78)     |
+| (derived)         | Thunderbolt minions and their sets | Recorded at scenario 4's Victory; in scenario 5's encounter deck                              | compose (§1.16 item 5)                  |
+| 50133             | Jolt                               | Recorded like the others; shuffled in without her set                                         | compose                                 |
+
 ## 8. Build order (pass 1a)
 
 Written 2026-10-09 from §3's status lines. None of this wave's engine work has landed, and none of the identifiers
@@ -3969,6 +4574,18 @@ Nothing of `aos` is emitted. For `card-data-pipeline`, in order; none blocks an 
     the Enchantress record if the builder wants it listed (§1.15).
 27. (Pass 2c) The scenario builders confirmed to set aside an encounter set's permanent cards by keyword (Hypnotic Gaze
     × 5, Intense Focus, the four Synergy environments), and Trickster Magic's allies when the set is in the game.
+28. (Pass 1b) **`packages/content/src/data/aos/campaign.ts`**, hand-authored: `AOS_CAMPAIGN` (§1.16 item 1), exported
+    from the pack's index and registered in `CAMPAIGNS`. `campaignSetIds` stays empty. Blocks §8.4 line 77.
+29. (Pass 1b) `evidenceIcon` and `evidenceColor` on 50185–50193 from §1.16 item 2's table (checked on the nine scans).
+    This is the icon half of item 1.
+30. (Pass 1b) `AOS_EVIDENCE_COMBINATIONS` from §1.16 item 3's 27 rows, with the test it describes (27 different triples,
+    nine a member, the 5-1-3 pattern by card). This is the grid half of item 1 and unblocks engine task 20.
+31. (Pass 1b) `definedCounterTypes`: `secret` on 50181a/b–50183a/b and `lock` on 50105a–50108a, in those spellings
+    (§1.16 item 4). With item 3.
+32. (Pass 1b) The Thunderbolt minion to encounter set map as a derived export with its test (§1.16 item 5).
+33. (Pass 1b) A scan check that no `aos` record prints "Campaign" in its set name area (the nine evidence cards were
+    checked this pass; 50181a–50184c were not). If one does, report it: `campaignSetIds` and §7.16's first sentence
+    change.
 
 ### 8.2 Engine queue, in order
 
@@ -3993,62 +4610,73 @@ two groups or a remote coordinator. None of their identifiers (`forced` on an ac
 `PodInboundEvent`, `groupSeed`) exists in the engine or the DSL (grep, this session). They depend on none of tasks 1 to
 36 except task 2 (§3.6's counter types, for 39 and 43).
 
+**Pass 1b adds tasks 51 to 56**: the campaign foundation's four gaps (§3.74–§3.77), two of them split in two. None of
+`cardStateOf`, `sealed`, `seedHiddenPiles`, `inCampaign`, `evidenceRowsLeft` or `notAmongOwnCards` exists in the engine
+or the DSL (grep, this session). Tasks 51 to 53 and 55 touch only `campaign.ts` and `campaign/`, so they can run beside
+the scenario tasks.
+
 File paths are under `packages/engine/src/` unless they start with `dsl/` (`packages/cards/src/dsl/`) or `schema/`
 (`packages/content/src/schema/`). Every task adds its own colocated test file with the row's exact-number tests.
 **Decisions:** a §4.1 question the task builds on at default A until answered.
 
-| #   | §                   | Change                                                                                                                                        | Files                                                                                                                                | Decisions | Unblocks                                         |
-| --- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------ |
-| 1   | 3.1                 | Vulnerable in `giveStatus`: discard, not defeat; steady; ahead of simultaneous damage; log `vulnerableDiscarded`                              | `effects.ts`, `keywords.ts`, `resolve/effects-frame.ts`, `events.ts`                                                                 | none      | eight minions in six sets                        |
-| 2   | 3.6 (a)             | `definedCounterType`; `counterType: "allPurpose"` lands as the destination's type; `counterType: "any"` on removal, values and queries        | `schema/cards/base.ts`, `spec.ts`, `select.ts`, `effects.ts`, `resolve/apply-effect.ts`, `choices.ts`                                | none      | Maria Hill's kit and nemesis set; Adaptoid 50113 |
-| 3   | 3.6 (b) (after 2)   | `moveCounters.amount`; arriving counters retyped; `countersPlaced` on the destination; a uses card emptied by a move is discarded             | `spec.ts`, `effects.ts`, `resolve/apply-effect.ts`, `resolve/state-checks.ts`, `dsl/effects.ts`                                      | none      | Maria Hill 50001a                                |
-| 4   | 3.7 (a)             | `placeThreat` / `removeThreat` / `moveThreat` on a card that is not a scheme: tokens only, no scheme checks                                   | `resolve/apply-effect.ts`, `resolve/target-validity.ts`, `select.ts`, `dsl/effects.ts`                                               | none      | Nick Fury's kit; Alert Level                     |
-| 5   | 3.7 (b) (after 4)   | `AbilityCost removeThreat { from, amount or choose }`, the paid amount bound                                                                  | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                                        | none      | 50035a, 50040, 50044, 50045                      |
-| 6   | 3.11                | `chooseCards.maxTotal { of: "printedCost", atMost }`                                                                                          | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `dsl/effects.ts`                                                                | none      | 50004, 50005                                     |
-| 7   | 3.9 (after 4)       | `enemyScheme.divert { amount, to, if }` read at the place-threat step; the replaced attack deals no boost card                                | `spec.ts`, `resolve/apply-effect.ts`, `resolve/enemy-activation.ts`, `dsl/effects.ts`                                                | none      | Stealth 50035b                                   |
-| 8   | 3.12                | `lookAt` over dealt cards and the deck top; the `rearrange` choice; views for the acting player only                                          | `spec.ts`, `choices.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                                     | none      | Intelligence 50051                               |
-| 9   | 3.2                 | The `preparation` trigger kind; `resolveSpecials.which: "preparation"` on a card in the discard pile; the count on the attack                 | `abilities.ts`, `spec.ts`, `resolve/effects-frame.ts`, `resolve/enemy-activation.ts`, `dsl/abilities.ts`                             | none      | the Black Widow set                              |
-| 10  | 3.3 (after 9)       | `RuleSpec grantsLabeledAbility`; granted abilities joined to the printed ones, the granting card as the named card                            | `abilities.ts`, `rules.ts`, `resolve/effects-frame.ts`, `dsl/abilities.ts`                                                           | none      | 50070, 50074                                     |
-| 11  | 3.4 (after 9)       | `modifyAttack.preventAll` with `bind` for a player attack; `Predicate attackResolvedLabeled`; `retargetAttack` onto a minion proved           | `spec.ts`, `select.ts`, `resolve/apply-effect.ts`, `resolve/attack-ability.ts`, `dsl/effects.ts`, `dsl/values.ts`                    | Q4 = A    | 50064–50066, 50068, 50073, 50076                 |
-| 12  | 3.20                | `replaceLeaveDestination { to: { tuckedUnder } }` from an interrupt to `cardLeavesPlay`                                                       | `spec.ts`, `resolve/cards.ts`, `resolve/defeat.ts`, `resolve/apply-effect.ts`                                                        | none      | A.I.M. Abduction                                 |
-| 13  | 3.17                | `ScenarioSeparateDeck.topCardInPlay`: the top card in play, the next entering play, a card put under an empty deck entering play              | `state.ts`, `resolve/separate-decks.ts`, `resolve/setup-cards.ts`, `resolve/other-face.ts`, `schema/sets.ts`                         | none      | the M.O.D.O.K. set                               |
-| 14  | 3.21                | A minion held by an environment (`attach … as: "heldMinion"`): in play, engaged with nobody, attackable by all, detached by `engage`          | `attachment-hosts.ts`, `resolve/attach.ts`, `resolve/apply-effect.ts`, `select.ts`, `legal.ts`                                       | none      | the Thunderbolts set                             |
-| 15  | 3.24                | `EffectSpec rotateEngagement`                                                                                                                 | `spec.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                                                  | none      | 50135, 50136, 50164                              |
-| 16  | 3.33                | `TriggerEvent statusBeingGiven` and `on.wouldGainStatus`, opened only when an ability listens                                                 | `effects.ts`, `trigger-events.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                                         | none      | Solid Sound Constructs 50144                     |
-| 17  | 3.27                | `divide` over counters (remove); `superlative` by counters                                                                                    | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `select.ts`                                                                     | none      | the Baron Zemo set; the Executive Board set      |
-| 18  | 3.26 (after 17)     | A flip that changes the card type, attaches to the villain and keeps its counters                                                             | `resolve/other-face.ts`, `resolve/attach.ts`, `spec.ts`, `dsl/effects.ts`                                                            | Q1 = A    | 50181a/b–50183a/b                                |
-| 19  | 3.29 (a)            | `GameState.hiddenPiles` and `revealedPileCards`; `dealHiddenPiles`; `gainFromHiddenPile`; never in a view                                     | `state.ts`, `spec.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                                       | none      | 50167a/b                                         |
-| 20  | 3.29 (b) (after 19) | `EffectSpec accuse` over the scenario's grid; `accused`, `mole`, `wrongGuesses`, `accusedWrong`; needs data item 1                            | `spec.ts`, `choices.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                                    | none      | 50168a/b, 50169b                                 |
-| 21  | 3.30                | A `CollectionSearchFilter` for identity cards; `treatHostAsMinion` on an identity card with no controller                                     | `spec.ts`, `resolve/collection.ts`, `treat-as.ts`, `abilities.ts`                                                                    | none      | Reluctant Foe 50171                              |
-| 22  | 3.31                | `RuleSpec additionalPowerCost` over other characters' attack, thwart and defense                                                              | `abilities.ts`, `actions.ts`, `legal.ts`, `defense-claim.ts`, `resolve/basic-power-by.ts`                                            | none      | Divided Loyalties 50173                          |
-| 23  | 3.40 (a)            | `TriggerEvent cardBeingTucked` with `byPlayerCard`, opened only when an ability listens; `EffectSpec replaceTuckHost`                         | `trigger-events.ts`, `spec.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                 | none      | Silk Sense Overload 52028                        |
-| 24  | 3.40 (b) (after 23) | `activeIn: "tucked"`; `TriggerEvent tuckedCardDiscarded` with the host and `byPlayerCard`                                                     | `abilities.ts`, `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/validate.ts`                                          | Q7 = A    | Hunting the Spider-Bride 52031                   |
-| 25  | 3.42                | `RuleSpec topOfDeckFaceup.deck: "encounter"`; `Predicate topOfDeckFaceup` on it; views and the `encounterTopShown` log                        | `abilities.ts`, `select.ts`, `visibility.ts`, `deck-top.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts`                        | Q6 = A    | Falcon's kit                                     |
-| 26  | 3.43 (a)            | `AbilityCost.discardFromEncounterDeck { amount or choose, slot }`                                                                             | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `effects.ts`, `dsl/abilities.ts`                                             | none      | 51015, 53002, 53010                              |
-| 27  | 3.43 (b), (c)       | `cardDiscardedFromDeck` for the encounter deck; `abilityResolved` carries the resolved ability's slots                                        | `trigger-events.ts`, `resolve/deck-discard.ts`, `resolve/triggers.ts`, `resolve/ability.ts`, `dsl/abilities.ts`                      | none      | Serpent Solutions 53031, Talon Line 53012        |
-| 28  | 3.44                | `TriggerEvent boostCardGiven`; `lookAt` and `swapCards` over a facedown boost card and the deck top                                           | `trigger-events.ts`, `resolve/enemy-activation.ts`, `resolve/swap-cards.ts`, `visibility.ts`, `dsl/abilities.ts`                     | none      | Up, Up, and Away 53005                           |
-| 29  | 3.45                | `TriggerEvent encounterCardBeingDealt`, opened only when an ability listens; a replaced deal leaves the card on the deck                      | `trigger-events.ts`, `effects.ts`, `resolve/reveal.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                    | none      | Aerial Recon 53009                               |
-| 30  | 3.46 (a)            | `AbilityLimit.per: "paidCard"`                                                                                                                | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`                                                                               | none      | Falcon's Flock 53006                             |
-| 31  | 3.46 (b)            | Slot `paid.cards` on a play's announcement: the cards that paid for it                                                                        | `stack.ts`, `select.ts`, `resolve/play-card.ts`, `dsl/values.ts`                                                                     | none      | Spectrum 53018                                   |
-| 32  | 3.46 (c)            | `RuleSpec spendableFromTucked`: a tucked resource card as a payment source for every player                                                   | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `resources.ts`, `dsl/abilities.ts`                                           | none      | Resource Reserve 53021                           |
-| 33  | 3.47                | `RuleSpec defendsWithoutExhausting`                                                                                                           | `abilities.ts`, `rules.ts`, `defense-claim.ts`, `defend-preview.ts`, `resolve/enemy-activation.ts`                                   | none      | Draw Their Fire 53011                            |
-| 34  | 3.48                | `ValueSpec distinctTraits { of }`                                                                                                             | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                                              | none      | Strength in Diversity 53019                      |
-| 35  | 3.49                | `TriggerEvent cardBeingAttached`; `EffectSpec replaceAttachHost`; `CardInstance.villainAlias` read by `theVillain`                            | `trigger-events.ts`, `state.ts`, `attachment-hosts.ts`, `resolve/attach.ts`, `select.ts`, `dsl/effects.ts`                           | none      | the Techno set                                   |
-| 36  | 3.50                | `RuleSpec attackableAsMinion`: a target of attacks that holds damage, never defeated                                                          | `abilities.ts`, `select.ts`, `legal.ts`, `resolve/attack-ability.ts`, `resolve/target-validity.ts`                                   | none      | the Whiteout set                                 |
-| 37  | 3.53                | `action.forced`; `outstandingForcedActions`; `endTurn` refused; the phase end puts late ones to their controllers                             | `abilities.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `flow.ts`, `events.ts`, `dsl/abilities.ts`                                   | none      | the Temptations, the five Trances                |
-| 38  | 3.54                | `attach { card: { randomSetAside }, hideReverse }`; `CardInstance.reverseHidden`; `otherFaceVisible`                                          | `spec.ts`, `state.ts`, `visibility.ts`, `resolve/attach.ts`, `preview.ts`, `dsl/effects.ts`                                          | none      | Prime Real Estate 1A, Hypnotic Gaze              |
-| 39  | 3.55 (after 2)      | `TriggerEvent countersBeingPlaced`, opened only when heard; a replacement per counter                                                         | `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                                         | none      | Prime Real Estate 1B, Sovereign Sorceress 2B     |
-| 40  | 3.57                | Linked cards set aside for a named encounter card, by title and card type                                                                     | `schema/keywords.ts`, `setup.ts`, `keywords.ts`                                                                                      | none      | Trickster Magic, `tt/aspect-basic`               |
-| 41  | 3.58                | `AbilityCost.eachPlayer`                                                                                                                      | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `dsl/abilities.ts`                                             | none      | Crown of the Enchantress                         |
-| 42  | 3.60                | `swapVillain { with: { setAsideTrait }, face, dial }`; the pool by starting face                                                              | `spec.ts`, `resolve/villain-swap.ts`, `dsl/effects.ts`                                                                               | Q8 = A    | the Avatars, Stories and Lies                    |
-| 43  | 3.61 (after 2)      | `RuleSpec counterLimit`; `addCounters` and `moveCounters` place up to it; `countersNotPlaced`                                                 | `schema/cards/encounter-cards.ts`, `abilities.ts`, `effects.ts`, `events.ts`, `dsl/abilities.ts`                                     | none      | the Synergy environments                         |
-| 44  | 3.64                | `pod.ts`: `GroupId`, `PodState`, `podOf`; `GameState.pod?`; `GameSetupConfig.pod?`                                                            | `pod.ts`, `ids.ts`, `state.ts`, `setup.ts`, `index.ts`                                                                               | none      | tasks 45 to 49                                   |
-| 45  | 3.65 (after 44)     | `scale` takes a group count; `scaleIn`; `hpPerGroup` in `minionPrintedHp`; hand-built two-group numbers                                       | `query.ts` and every `scale` caller                                                                                                  | none      | The Mangog, Door Between Worlds                  |
-| 46  | 3.66 (after 44)     | `SharedPodState`, `applySharedEvent`; `EffectSpec sharedEvent`; `sharedEventEmitted`; `applyInbound` at the quiet point; three trigger events | `pod.ts`, `spec.ts`, `trigger-events.ts`, `effects.ts`, `flow.ts`, `events.ts`, `query.ts`, `dsl/effects.ts`                         | Q9 = A    | Loki, God of Lies; Worlds Collide; the Shatter   |
-| 47  | 3.67 (after 44)     | `chooseGroup`, `inGroup`, `groupPlayerCount`; `podEffectRequested`; `RuleSpec reachableFromPod` (no effect at one group)                      | `spec.ts`, `abilities.ts`, `resolve/apply-effect.ts`, `select.ts`, `events.ts`, `dsl/effects.ts`, `dsl/values.ts`, `dsl/validate.ts` | none      | every "group in your pod" card                   |
-| 48  | 3.68 (after 46, 47) | `Command externalEvent`; `PodInboundEvent`; sequence, `no_remote_coordinator`, `pod_halted`; `isAuthorityCommand`; hand-built remote tests    | `commands.ts`, `engine.ts`, `errors.ts`, `pod.ts`, `legal.ts`, `events.ts`                                                           | none      | the multiplayer phase only                       |
-| 49  | 3.69 (after 48)     | `groupSeed`; `GameSetupConfig.pod.podSeed`; no draw for bookkeeping inbound events                                                            | `pod.ts`, `setup.ts`, `engine.ts`                                                                                                    | none      | the multiplayer phase only                       |
-| 50  | 3.72                | `cannotAttack.basicOnly`                                                                                                                      | `abilities.ts`, `rules.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`                                                             | none      | Seduced                                          |
+| #   | §                   | Change                                                                                                                                        | Files                                                                                                                                 | Decisions | Unblocks                                         |
+| --- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------ |
+| 1   | 3.1                 | Vulnerable in `giveStatus`: discard, not defeat; steady; ahead of simultaneous damage; log `vulnerableDiscarded`                              | `effects.ts`, `keywords.ts`, `resolve/effects-frame.ts`, `events.ts`                                                                  | none      | eight minions in six sets                        |
+| 2   | 3.6 (a)             | `definedCounterType`; `counterType: "allPurpose"` lands as the destination's type; `counterType: "any"` on removal, values and queries        | `schema/cards/base.ts`, `spec.ts`, `select.ts`, `effects.ts`, `resolve/apply-effect.ts`, `choices.ts`                                 | none      | Maria Hill's kit and nemesis set; Adaptoid 50113 |
+| 3   | 3.6 (b) (after 2)   | `moveCounters.amount`; arriving counters retyped; `countersPlaced` on the destination; a uses card emptied by a move is discarded             | `spec.ts`, `effects.ts`, `resolve/apply-effect.ts`, `resolve/state-checks.ts`, `dsl/effects.ts`                                       | none      | Maria Hill 50001a                                |
+| 4   | 3.7 (a)             | `placeThreat` / `removeThreat` / `moveThreat` on a card that is not a scheme: tokens only, no scheme checks                                   | `resolve/apply-effect.ts`, `resolve/target-validity.ts`, `select.ts`, `dsl/effects.ts`                                                | none      | Nick Fury's kit; Alert Level                     |
+| 5   | 3.7 (b) (after 4)   | `AbilityCost removeThreat { from, amount or choose }`, the paid amount bound                                                                  | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`, `dsl/validate.ts`                                         | none      | 50035a, 50040, 50044, 50045                      |
+| 6   | 3.11                | `chooseCards.maxTotal { of: "printedCost", atMost }`                                                                                          | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `dsl/effects.ts`                                                                 | none      | 50004, 50005                                     |
+| 7   | 3.9 (after 4)       | `enemyScheme.divert { amount, to, if }` read at the place-threat step; the replaced attack deals no boost card                                | `spec.ts`, `resolve/apply-effect.ts`, `resolve/enemy-activation.ts`, `dsl/effects.ts`                                                 | none      | Stealth 50035b                                   |
+| 8   | 3.12                | `lookAt` over dealt cards and the deck top; the `rearrange` choice; views for the acting player only                                          | `spec.ts`, `choices.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                                      | none      | Intelligence 50051                               |
+| 9   | 3.2                 | The `preparation` trigger kind; `resolveSpecials.which: "preparation"` on a card in the discard pile; the count on the attack                 | `abilities.ts`, `spec.ts`, `resolve/effects-frame.ts`, `resolve/enemy-activation.ts`, `dsl/abilities.ts`                              | none      | the Black Widow set                              |
+| 10  | 3.3 (after 9)       | `RuleSpec grantsLabeledAbility`; granted abilities joined to the printed ones, the granting card as the named card                            | `abilities.ts`, `rules.ts`, `resolve/effects-frame.ts`, `dsl/abilities.ts`                                                            | none      | 50070, 50074                                     |
+| 11  | 3.4 (after 9)       | `modifyAttack.preventAll` with `bind` for a player attack; `Predicate attackResolvedLabeled`; `retargetAttack` onto a minion proved           | `spec.ts`, `select.ts`, `resolve/apply-effect.ts`, `resolve/attack-ability.ts`, `dsl/effects.ts`, `dsl/values.ts`                     | Q4 = A    | 50064–50066, 50068, 50073, 50076                 |
+| 12  | 3.20                | `replaceLeaveDestination { to: { tuckedUnder } }` from an interrupt to `cardLeavesPlay`                                                       | `spec.ts`, `resolve/cards.ts`, `resolve/defeat.ts`, `resolve/apply-effect.ts`                                                         | none      | A.I.M. Abduction                                 |
+| 13  | 3.17                | `ScenarioSeparateDeck.topCardInPlay`: the top card in play, the next entering play, a card put under an empty deck entering play              | `state.ts`, `resolve/separate-decks.ts`, `resolve/setup-cards.ts`, `resolve/other-face.ts`, `schema/sets.ts`                          | none      | the M.O.D.O.K. set                               |
+| 14  | 3.21                | A minion held by an environment (`attach … as: "heldMinion"`): in play, engaged with nobody, attackable by all, detached by `engage`          | `attachment-hosts.ts`, `resolve/attach.ts`, `resolve/apply-effect.ts`, `select.ts`, `legal.ts`                                        | none      | the Thunderbolts set                             |
+| 15  | 3.24                | `EffectSpec rotateEngagement`                                                                                                                 | `spec.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                                                   | none      | 50135, 50136, 50164                              |
+| 16  | 3.33                | `TriggerEvent statusBeingGiven` and `on.wouldGainStatus`, opened only when an ability listens                                                 | `effects.ts`, `trigger-events.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                                          | none      | Solid Sound Constructs 50144                     |
+| 17  | 3.27                | `divide` over counters (remove); `superlative` by counters                                                                                    | `spec.ts`, `choices.ts`, `resolve/effects-frame.ts`, `select.ts`                                                                      | none      | the Baron Zemo set; the Executive Board set      |
+| 18  | 3.26 (after 17)     | A flip that changes the card type, attaches to the villain and keeps its counters                                                             | `resolve/other-face.ts`, `resolve/attach.ts`, `spec.ts`, `dsl/effects.ts`                                                             | Q1 = A    | 50181a/b–50183a/b                                |
+| 19  | 3.29 (a)            | `GameState.hiddenPiles` and `revealedPileCards`; `dealHiddenPiles`; `gainFromHiddenPile`; never in a view                                     | `state.ts`, `spec.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `events.ts`                                                        | none      | 50167a/b                                         |
+| 20  | 3.29 (b) (after 19) | `EffectSpec accuse` over the scenario's grid; `accused`, `mole`, `wrongGuesses`, `accusedWrong`; needs data item 1                            | `spec.ts`, `choices.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                                     | none      | 50168a/b, 50169b                                 |
+| 21  | 3.30                | A `CollectionSearchFilter` for identity cards; `treatHostAsMinion` on an identity card with no controller                                     | `spec.ts`, `resolve/collection.ts`, `treat-as.ts`, `abilities.ts`                                                                     | none      | Reluctant Foe 50171                              |
+| 22  | 3.31                | `RuleSpec additionalPowerCost` over other characters' attack, thwart and defense                                                              | `abilities.ts`, `actions.ts`, `legal.ts`, `defense-claim.ts`, `resolve/basic-power-by.ts`                                             | none      | Divided Loyalties 50173                          |
+| 23  | 3.40 (a)            | `TriggerEvent cardBeingTucked` with `byPlayerCard`, opened only when an ability listens; `EffectSpec replaceTuckHost`                         | `trigger-events.ts`, `spec.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                  | none      | Silk Sense Overload 52028                        |
+| 24  | 3.40 (b) (after 23) | `activeIn: "tucked"`; `TriggerEvent tuckedCardDiscarded` with the host and `byPlayerCard`                                                     | `abilities.ts`, `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/validate.ts`                                           | Q7 = A    | Hunting the Spider-Bride 52031                   |
+| 25  | 3.42                | `RuleSpec topOfDeckFaceup.deck: "encounter"`; `Predicate topOfDeckFaceup` on it; views and the `encounterTopShown` log                        | `abilities.ts`, `select.ts`, `visibility.ts`, `deck-top.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts`                         | Q6 = A    | Falcon's kit                                     |
+| 26  | 3.43 (a)            | `AbilityCost.discardFromEncounterDeck { amount or choose, slot }`                                                                             | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `effects.ts`, `dsl/abilities.ts`                                              | none      | 51015, 53002, 53010                              |
+| 27  | 3.43 (b), (c)       | `cardDiscardedFromDeck` for the encounter deck; `abilityResolved` carries the resolved ability's slots                                        | `trigger-events.ts`, `resolve/deck-discard.ts`, `resolve/triggers.ts`, `resolve/ability.ts`, `dsl/abilities.ts`                       | none      | Serpent Solutions 53031, Talon Line 53012        |
+| 28  | 3.44                | `TriggerEvent boostCardGiven`; `lookAt` and `swapCards` over a facedown boost card and the deck top                                           | `trigger-events.ts`, `resolve/enemy-activation.ts`, `resolve/swap-cards.ts`, `visibility.ts`, `dsl/abilities.ts`                      | none      | Up, Up, and Away 53005                           |
+| 29  | 3.45                | `TriggerEvent encounterCardBeingDealt`, opened only when an ability listens; a replaced deal leaves the card on the deck                      | `trigger-events.ts`, `effects.ts`, `resolve/reveal.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                     | none      | Aerial Recon 53009                               |
+| 30  | 3.46 (a)            | `AbilityLimit.per: "paidCard"`                                                                                                                | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`                                                                                | none      | Falcon's Flock 53006                             |
+| 31  | 3.46 (b)            | Slot `paid.cards` on a play's announcement: the cards that paid for it                                                                        | `stack.ts`, `select.ts`, `resolve/play-card.ts`, `dsl/values.ts`                                                                      | none      | Spectrum 53018                                   |
+| 32  | 3.46 (c)            | `RuleSpec spendableFromTucked`: a tucked resource card as a payment source for every player                                                   | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `resources.ts`, `dsl/abilities.ts`                                            | none      | Resource Reserve 53021                           |
+| 33  | 3.47                | `RuleSpec defendsWithoutExhausting`                                                                                                           | `abilities.ts`, `rules.ts`, `defense-claim.ts`, `defend-preview.ts`, `resolve/enemy-activation.ts`                                    | none      | Draw Their Fire 53011                            |
+| 34  | 3.48                | `ValueSpec distinctTraits { of }`                                                                                                             | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                                               | none      | Strength in Diversity 53019                      |
+| 35  | 3.49                | `TriggerEvent cardBeingAttached`; `EffectSpec replaceAttachHost`; `CardInstance.villainAlias` read by `theVillain`                            | `trigger-events.ts`, `state.ts`, `attachment-hosts.ts`, `resolve/attach.ts`, `select.ts`, `dsl/effects.ts`                            | none      | the Techno set                                   |
+| 36  | 3.50                | `RuleSpec attackableAsMinion`: a target of attacks that holds damage, never defeated                                                          | `abilities.ts`, `select.ts`, `legal.ts`, `resolve/attack-ability.ts`, `resolve/target-validity.ts`                                    | none      | the Whiteout set                                 |
+| 37  | 3.53                | `action.forced`; `outstandingForcedActions`; `endTurn` refused; the phase end puts late ones to their controllers                             | `abilities.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `flow.ts`, `events.ts`, `dsl/abilities.ts`                                    | none      | the Temptations, the five Trances                |
+| 38  | 3.54                | `attach { card: { randomSetAside }, hideReverse }`; `CardInstance.reverseHidden`; `otherFaceVisible`                                          | `spec.ts`, `state.ts`, `visibility.ts`, `resolve/attach.ts`, `preview.ts`, `dsl/effects.ts`                                           | none      | Prime Real Estate 1A, Hypnotic Gaze              |
+| 39  | 3.55 (after 2)      | `TriggerEvent countersBeingPlaced`, opened only when heard; a replacement per counter                                                         | `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                                                          | none      | Prime Real Estate 1B, Sovereign Sorceress 2B     |
+| 40  | 3.57                | Linked cards set aside for a named encounter card, by title and card type                                                                     | `schema/keywords.ts`, `setup.ts`, `keywords.ts`                                                                                       | none      | Trickster Magic, `tt/aspect-basic`               |
+| 41  | 3.58                | `AbilityCost.eachPlayer`                                                                                                                      | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `why-not.ts`, `dsl/abilities.ts`                                              | none      | Crown of the Enchantress                         |
+| 42  | 3.60                | `swapVillain { with: { setAsideTrait }, face, dial }`; the pool by starting face                                                              | `spec.ts`, `resolve/villain-swap.ts`, `dsl/effects.ts`                                                                                | Q8 = A    | the Avatars, Stories and Lies                    |
+| 43  | 3.61 (after 2)      | `RuleSpec counterLimit`; `addCounters` and `moveCounters` place up to it; `countersNotPlaced`                                                 | `schema/cards/encounter-cards.ts`, `abilities.ts`, `effects.ts`, `events.ts`, `dsl/abilities.ts`                                      | none      | the Synergy environments                         |
+| 44  | 3.64                | `pod.ts`: `GroupId`, `PodState`, `podOf`; `GameState.pod?`; `GameSetupConfig.pod?`                                                            | `pod.ts`, `ids.ts`, `state.ts`, `setup.ts`, `index.ts`                                                                                | none      | tasks 45 to 49                                   |
+| 45  | 3.65 (after 44)     | `scale` takes a group count; `scaleIn`; `hpPerGroup` in `minionPrintedHp`; hand-built two-group numbers                                       | `query.ts` and every `scale` caller                                                                                                   | none      | The Mangog, Door Between Worlds                  |
+| 46  | 3.66 (after 44)     | `SharedPodState`, `applySharedEvent`; `EffectSpec sharedEvent`; `sharedEventEmitted`; `applyInbound` at the quiet point; three trigger events | `pod.ts`, `spec.ts`, `trigger-events.ts`, `effects.ts`, `flow.ts`, `events.ts`, `query.ts`, `dsl/effects.ts`                          | Q9 = A    | Loki, God of Lies; Worlds Collide; the Shatter   |
+| 47  | 3.67 (after 44)     | `chooseGroup`, `inGroup`, `groupPlayerCount`; `podEffectRequested`; `RuleSpec reachableFromPod` (no effect at one group)                      | `spec.ts`, `abilities.ts`, `resolve/apply-effect.ts`, `select.ts`, `events.ts`, `dsl/effects.ts`, `dsl/values.ts`, `dsl/validate.ts`  | none      | every "group in your pod" card                   |
+| 48  | 3.68 (after 46, 47) | `Command externalEvent`; `PodInboundEvent`; sequence, `no_remote_coordinator`, `pod_halted`; `isAuthorityCommand`; hand-built remote tests    | `commands.ts`, `engine.ts`, `errors.ts`, `pod.ts`, `legal.ts`, `events.ts`                                                            | none      | the multiplayer phase only                       |
+| 49  | 3.69 (after 48)     | `groupSeed`; `GameSetupConfig.pod.podSeed`; no draw for bookkeeping inbound events                                                            | `pod.ts`, `setup.ts`, `engine.ts`                                                                                                     | none      | the multiplayer phase only                       |
+| 50  | 3.72                | `cannotAttack.basicOnly`                                                                                                                      | `abilities.ts`, `rules.ts`, `actions.ts`, `legal.ts`, `dsl/abilities.ts`                                                              | none      | Seduced                                          |
+| 51  | 3.74 (a)            | `CampaignGameQuery cardStateOf`; a `record` writes a `cardState` field, checked against its `cardIds`                                         | `campaign.ts`, `campaign/result.ts`, `campaign/log.ts`                                                                                | Q1 = A    | the definition (§8.4 line 77)                    |
+| 52  | 3.74 (b) (after 51) | `ValueSpec campaignLog { card, counter }`; `Predicate campaignLog { card, face }`                                                             | `spec.ts`, `select.ts`, `dsl/values.ts`, `dsl/validate.ts`                                                                            | Q11 = A   | the Board Members restored at Setup              |
+| 53  | 3.75 (a)            | `random.sealed`: a draw no trace, history entry or view holds; only a hidden field may take it                                                | `campaign.ts`, `campaign/ops.ts`, `campaign/runner.ts`                                                                                | none      | the A.I.M. envelope                              |
+| 54  | 3.75 (b) (after 19) | `CampaignLogView.hidden`; `EffectSpec seedHiddenPiles`; `Predicate inCampaign`; `evidenceRowsLeft` exported; hidden values in no player view  | `campaign.ts`, `campaign/runner.ts`, `spec.ts`, `state.ts`, `visibility.ts`, `resolve/apply-effect.ts`, `select.ts`, `dsl/effects.ts` | none      | scenario 5 in the campaign; Zemo's Manipulations |
+| 55  | 3.76 (after 53)     | A DEFEAT block's writes and `perAttempt` draws across two losses: proved, and extended only if the proof fails                                | `campaign/runner.ts`, `campaign/ops.ts`                                                                                               | none      | scenario 5 lost in a standard campaign           |
+| 56  | 3.77                | `CollectionSearchFilter.notAmongOwnCards`; linked cards left out of a collection search                                                       | `spec.ts`, `resolve/apply-effect.ts`, `dsl/effects.ts`                                                                                | Q12 = A   | the nine evidence cards                          |
 
 ### 8.3 The "exists (verify)" and "exists (compose)" rows
 
@@ -4219,6 +4847,78 @@ Winter Soldier (`winter/winter-soldier/`):
     `externalEvent`.
 72. The pass 2c ruling tests of §5.2 that no module above owns.
 
+**Pass 1b: the campaign.** Lines 73 to 76 are effect builders in `aos/campaign/`; they hold no `CampaignDefinition`.
+
+73. `aos/campaign/evidence` (50185–50193): the nine Setup effect lists by card id and their registry entries (§3.77).
+    Waits on 56 and on 18 (the Board Member's flip).
+74. `aos/campaign/executive-board`: `prepareBoard` (two counters, or a `secretsN` field with its faces), the three
+    treacheries shuffled in, and the queries the Victory records use (§3.74). Waits on 51 and 52.
+75. `aos/campaign/carryover`: Alert Level's threat, the Holding Cell's lock counters, the Adaptoid environments and
+    Adaptoids, the surviving Thunderbolts' sets (§3.73). Reads the five scans §3.78 names first. Waits on the `batroc`,
+    `modok` and `thunderbolts` modules of pass 1a.
+76. `campaigns/expert-helpers.ts`: `healRecForSecret` (§3.78). One function and its test; another agent's file, so its
+    own commit.
+77. `packages/cards/src/campaigns/aos.ts`: `AOS_CAMPAIGN_DEFINITION` (§3.73), registered in `campaigns/index.ts`, with
+    `aos.test.ts` for the definition-level tests of §3.73–§3.76. Waits on 53 to 55, on §8.1 items 28 and 30 to 32, on
+    lines 73 to 76 and on all five scenario modules.
+78. The campaign branches of pass 1a's `baron-zemo` module (50167a, 50167b; §3.75), in that module, after its own line.
+    Waits on 54.
+79. `packages/cards/src/campaigns/aos.qa.test.ts` (`rules-qa-engineer`), a standard campaign played end to end by
+    commands, two players: five wins; evidence gained after at least two scenarios and its Setup offers taken and
+    declined; a Board Member flipped in a scenario that was won and still an attachment two scenarios later; the
+    accusation made from the grid; `status` `"won"`. Replay of every game deep-equal.
+80. The same file, **a lost and retried scenario proving the log survives**: scenario 2 lost with a Board Member flipped
+    during the lost game, then retried: the log equals the node's start (that member is an environment again, the
+    envelope and decks unchanged), then won. Scenario 5 lost twice in a standard campaign (§3.76's test). This box
+    removes nothing from the campaign, so the definition of done's third proof (a permanent removal that sticks across a
+    retry) has no subject here: the flipped member that survives a later scenario's retry stands in for it, and the test
+    says so.
+81. The same file, **hidden evidence never visible**: at every command of line 79's campaign, until the accusation, no
+    card id of `aimEnvelope` appears in any player's view of the game, any `preview`, any event or log line, any step
+    trace or history entry, or any view model of the log; the same for the cards still in the S.H.I.E.L.D. pile. Then
+    the expert campaign: persistent damage through four scenarios, a player defeated in a won scenario who rejoins at
+    REC hit points and one who sits out, and scenario 5 lost: `status` `"lost"`.
+
 ### 8.5 The campaign, the client and Guided mode
 
-**Placeholder** for pass 1b and pass 3.
+Pass 1b's needs, for `game-client-engineer`. The checklist is `docs/wave-definition-of-done.md` §6;
+`docs/campaign-client-per-box.md` §3 already says this box needs a design pass (Dossier, Rewind, Briefing). Pass 3 adds
+the rest of the wave's client work.
+
+1. **The Saga shelf.** `aos` on the shelf, a run signed, issue #1 briefed. `art/campaigns/aos/` holds `rulebook/` (eight
+   page scans: 008, 010, 012, 014, 016, 017, 020, 021, the rulebook's full-page comic pages) and an empty `artboards/`.
+   There is no `cover.*`; ask the owner for one, as `art/campaigns/aoa/cover.jpg`.
+2. **The story file**, `packages/client/src/campaign/stories/aos.ts` with its `STORIES` entry: the five scenario
+   introductions (the italic text of MC50 pp. 9, 11, 13, 15 and 18) and the conclusion ("Turn the page to read the
+   conclusion", p. 19; pp. 20–21 were not read this pass).
+3. **The comic reader's artboards** in `art/campaigns/aos/artboards/`, cut from the eight `rulebook/` pages: one before
+   each scenario (8, 10, 12, 14, 16–17) and the conclusion (20–21). Render the design canvas to tiles before the brief,
+   as for every box.
+4. **The evidence notebook** (new; the design pass). The log's grid as the sheet draws it: three columns of nine rows,
+   one a board member, each row three icons. A row holding an earned evidence card is crossed out; each column shows how
+   many rows are left. Icons and colors from §1.16; two cards are blue, so every icon carries its title and nothing is
+   told by color alone. Open from the Dossier between games (`evidenceRowsLeft` over the log's `evidence`) and from the
+   table during a game: in every campaign scenario, and in a standalone Baron Zemo game over `revealedPileCards`. A view
+   model in plain TypeScript; no row is ever marked as the answer.
+5. **The envelopes.** The existing sealed envelope with a card count (design Q4) for the A.I.M. envelope, and a second
+   for the S.H.I.E.L.D. envelope with its count (6 less the cards earned). Nothing else of a hidden card is drawn,
+   anywhere, before the engine reveals it.
+6. **Gaining evidence.** At a Victory: which board member was clean, the card turned faceup, the rows it crosses out. In
+   scenario 5: the same reveal on the table for each card the Response gains.
+7. **The accusation prompt** (The Accusation 2A). Three pickers, means, motive and opportunity, each offering only cards
+   not yet earned; the board member the three name is shown as "the accused" before the player confirms; one
+   confirmation. Then the reveal, in the engine's order: the three A.I.M. cards, the mole, how many of the four guesses
+   were wrong, the secret counters placed, any member that flips.
+8. **The Executive Board in the Dossier.** The sheet's table of secret counters by scenario, with a mark on a member
+   that has turned, and the threshold of the mode about to be played.
+9. **The Briefing.** What this scenario's Setup will do from the log, in the sheet's words (threat on Alert Level, lock
+   counters, Adaptoid environments, surviving Thunderbolts). The offers made during setup are ordinary prompts: the
+   expert heal, rejoin or sit out, and after mulligans the two offers of each evidence card.
+10. **Defeat.** Scenarios 1 to 4 keep the "no penalty" rewind. Scenario 5 does not: in a standard campaign the screen
+    says the evidence is prepared anew and how many cards are dealt back; in an expert campaign it is the end of the
+    campaign. The rewind row's wording for this box is not the generic one (`campaign-client-per-box.md` §3).
+11. **Guided mode** (`docs/wave-definition-of-done.md` §5): glossary entries for secret counter, evidence, means, motive
+    and opportunity, the mole and the accused; a tip the first time a board member reaches one secret from flipping; a
+    tricky-wording hint for "Board Member environment" against "Board Member card"; a Try-it for reading the grid.
+12. **Seen in the browser**, by clicking: the notebook between games and in a game, an evidence gain, an accusation
+    right and wrong, a scenario 5 loss in each campaign. The Playwright suite before the last push.
