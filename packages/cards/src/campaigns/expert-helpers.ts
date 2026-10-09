@@ -65,6 +65,32 @@ export function hpSet(id: string, citation: string): CampaignInstruction {
 }
 
 /**
+ * A seat that sat out a won scenario's Victory steps (eliminated, MC40 p. 7) gets no `hpRecord` write, so the record
+ * it had from an earlier scenario would survive and read as a live identity at the next setup's heal: the player
+ * would be offered "Decline" and start at the stale hit points instead of paying to rejoin. This sets that seat's
+ * record to 0 ("defeated"), the value every heal below reads as "must pay to rejoin". Put it in the definition's
+ * `everyNodeVictory`; `forEachSeat`'s `sittingOut` scope is empty when nobody sat out, so it is a no-op otherwise.
+ */
+export function defeatedSeatRecordsZero(id: string, citation: string): CampaignInstruction {
+  return {
+    id,
+    text: "Expert Campaign Only: A defeated player who does not participate in the Victory steps has no hit points to record, so their last record is cleared.",
+    citation,
+    whenModes: { expertCampaign: true },
+    step: {
+      kind: "betweenGames",
+      ops: [
+        {
+          kind: "forEachSeat",
+          scope: "sittingOut",
+          ops: [{ kind: "setField", field: "remainingHp", seat: "self", value: { kind: "const", value: 0 } }],
+        },
+      ],
+    },
+  };
+}
+
+/**
  * "Expert Campaign Only: Each player may place one acceleration token on the main scheme to heal their identity to its
  * full hit point value." A defeated player rejoins only by paying (MC40 p. 7), so an identity whose recorded hit
  * points are 0 (or none: a seat that sat out the Victory steps) is not offered "Decline".
@@ -135,7 +161,7 @@ export function healWithFacedownCard(id: string, citation: string): CampaignInst
  * is how the printed sentence names the scheme.
  *
  * **A seat recorded at 0 or with no record** (it was defeated in a scenario its teammates won and sat out the Victory
- * steps) is asked whether to rejoin. MC45 p. 20: "during the Setup instructions of the next scenario, the defeated
+ * steps) is asked whether to rejoin (`defeatedSeatRecordsZero` writes the 0, so an older record cannot survive). MC45 p. 20: "during the Setup instructions of the next scenario, the defeated
  * player can rejoin their teammates by placing 3 threat on that scenario's [MISSION] side scheme to restore their
  * identity to full hit points." Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 72): the player may decline
  * rather than being made to pay. "Can" in the print allows it; the print does not say what happens to a player who

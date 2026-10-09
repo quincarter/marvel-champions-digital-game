@@ -6,7 +6,7 @@
  * (`<pack>/<hero>/{identity,events,support-upgrades-allies,obligation-nemesis}.ts`, `<pack>/aspect-basic.ts`, and one
  * module per scenario, modular and campaign-only encounter set). `card-groups.ts` maps every module to its card ids.
  * The wave is joined to the playable pool (`../playable/index.ts`, `../modular-pool.ts`): its heroes, scenarios and
- * modular sets are chosen through `playableScenario`. The campaign definition (`../campaigns/aoa.ts`) is not registered.
+ * modular sets are chosen through `playableScenario`. The campaign definition (`../campaigns/aoa.ts`) is registered in `CAMPAIGNS` (`../campaigns/index.ts`).
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";

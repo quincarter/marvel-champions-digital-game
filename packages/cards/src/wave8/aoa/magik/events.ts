@@ -26,6 +26,7 @@ import {
   you,
   zone,
   cards,
+  draw,
 } from "../../../dsl/index.js";
 
 /**
@@ -57,7 +58,10 @@ import {
 export const MAGIK_EVENTS: AbilityRegistry = defineAbilities({
   "45036.scrying-action": action(
     chooseCards("drawn", topOfDeck(3), { min: 1, max: 1 }),
-    moveCards(cards(chosen("drawn")), "hand"),
+    // RRG 1.8 "Draw, Drawing Cards" (p. 17): a draw takes the top card of the deck and adds it to the hand. The chosen
+    // card is put on top and drawn, so the draw happens (cardDrawn is emitted) rather than a move to hand.
+    moveCards(cards(chosen("drawn")), "deckTop"),
+    draw(1),
     chooseCards("discarded", topOfDeck(2), { min: 1, max: 1 }),
     moveCards(cards(chosen("discarded")), "discard"),
   ),

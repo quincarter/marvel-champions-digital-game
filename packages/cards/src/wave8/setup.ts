@@ -1,6 +1,5 @@
 import {
   CORE_STARTER_DECKS,
-  WAVE8_ENCOUNTER_SETS,
   WAVE8_SCENARIOS,
   WAVE8_STARTER_DECKS,
   autoIncludedSetsOf,
@@ -9,7 +8,6 @@ import {
   type AnyCard,
   type CardId,
   type DifficultySetChoice,
-  type EncounterSet,
   type Scenario,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
@@ -76,21 +74,7 @@ export const offersEasierStart = (scenarioId: string, difficulty: Wave8Difficult
 export const offersGenePoolThreat = (encounterSetIds: readonly string[]): boolean =>
   encounterSetIds.includes(INFINITES_SET_ID);
 
-/**
- * Every encounter set a game can name (`chooseModularSets` checks picks against these): the playable pool's sets,
- * which already list wave 8's (the union keeps this builder usable on its own).
- */
-const ENCOUNTER_SETS: readonly EncounterSet[] = [
-  ...new Map([...PLAYABLE_ENCOUNTER_SETS, ...WAVE8_ENCOUNTER_SETS].map((set) => [set.id as string, set])).values(),
-];
-
 const cardsById = new Map<string, AnyCard>(WAVE8_CARDS.map((card) => [card.id, card]));
-
-/**
- * Scenarios `wave8Scenario` refuses to build, each with the reason. None: all five Age of Apocalypse scenarios build a
- * game the card scripts can complete. Add an entry for a scenario whose engine row turns out to be needed first.
- */
-const NOT_YET_SUPPORTED: Readonly<Record<string, string>> = {};
 
 /**
  * Whether a scenario's Standard set may be replaced by another set of the Standard classification (Standard II,
@@ -109,7 +93,7 @@ export const standardSetReplaceable = (scenario: Pick<Scenario, "standardEncount
  */
 function checkDifficultySets(scenario: Scenario, choice: DifficultySetChoice | undefined): void {
   if (!choice) return;
-  const errors = difficultySetChoiceErrors(choice, ENCOUNTER_SETS);
+  const errors = difficultySetChoiceErrors(choice, PLAYABLE_ENCOUNTER_SETS);
   if (errors.length > 0) throw new Error(`${scenario.name}: difficultySets: ${errors.join("; ")}`);
   if (choice.standard !== undefined && !standardSetReplaceable(scenario))
     throw new Error(`${scenario.name}: difficultySets: the scenario does not use the Standard set`);
@@ -150,7 +134,12 @@ const SETTING_SETS: Readonly<Record<string, readonly string[]>> = {
 
 /** The Horsemen's side B card for a Horseman's side A card, and whether the scenario takes the per-villain choice. */
 const horsemanCardId = (entry: { villainCardId: CardId; sideBCardId?: CardId }, side: HorsemanSide): CardId =>
-  side === "B" ? (entry.sideBCardId ?? entry.villainCardId) : entry.villainCardId;
+  side === "B" ? requireSideB(entry) : entry.villainCardId;
+
+const requireSideB = (entry: { villainCardId: CardId; sideBCardId?: CardId }): CardId => {
+  if (entry.sideBCardId === undefined) throw new Error(`${entry.villainCardId} has no side B card to build`);
+  return entry.sideBCardId;
+};
 
 /** The index of `stageNumber` among the stages of `villain`'s side `sideLetter`. */
 function stageIndexOf(villain: Extract<AnyCard, { type: "villain" }>, sideLetter: string, stageNumber: number): number {
@@ -184,8 +173,6 @@ const villainCard = (id: CardId): Extract<AnyCard, { type: "villain" }> => {
  * - **En Sabah Nur**: one villain card with sides A, B and C over three stages, started on side A.
  */
 function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameSetupConfig {
-  const unsupported = NOT_YET_SUPPORTED[scenario.id];
-  if (unsupported) throw new Error(`${scenario.name}: not yet supported: ${unsupported}`);
   if (options.horsemanSides && !scenario.multipleVillains)
     throw new Error(`${scenario.name}: horsemanSides belongs to the Four Horsemen scenario`);
   const modes = resolveModes(options.difficulty, options.modes);
@@ -197,10 +184,13 @@ function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameS
         : `${scenario.name}: easierStart is a standard mode option`,
     );
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
-  const modular = chooseModularSets(scenario, ENCOUNTER_SETS, { ...options, playerCount: options.players.length });
+  const modular = chooseModularSets(scenario, PLAYABLE_ENCOUNTER_SETS, {
+    ...options,
+    playerCount: options.players.length,
+  });
   const settingSets = SETTING_SETS[scenario.id] ?? [];
   const ownSets = scenario.encounterSetIds.filter((id) => !settingSets.includes(id));
-  // Standard III (or Standard II) in place of the Standard set, the Expert set unchanged (section 3.6, Q10 = A).
+  // Standard III (or Standard II) in place of the Standard set, the Expert set unchanged (section 3.6; owner decision Q10 = A).
   checkDifficultySets(scenario, options.difficultySets);
   const sets = [
     ...ownSets,
@@ -209,10 +199,12 @@ function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameS
   ];
   if (options.genePoolThreatPerPlayer !== undefined && !offersGenePoolThreat(sets))
     throw new Error(`${scenario.name}: genePoolThreatPerPlayer belongs to a game that uses the Infinites set`);
-  // Off unless a player stated an amount above 0; the mode never fills one in (Q1 = A).
-  const setupOptions = options.genePoolThreatPerPlayer
-    ? [infinitesGenePoolThreat(options.genePoolThreatPerPlayer)]
-    : [];
+  // Off unless a player stated an amount other than 0; the mode never fills one in (Q1 = A). NaN, negatives and
+  // fractions are not "off": `infinitesGenePoolThreat` throws on them.
+  const setupOptions =
+    options.genePoolThreatPerPlayer !== undefined && options.genePoolThreatPerPlayer !== 0
+      ? [infinitesGenePoolThreat(options.genePoolThreatPerPlayer)]
+      : [];
   const settingAside = settingSets.map((setId) => ({
     encounterSetId: setId,
     cardIds: withoutBackFaces(encounterCardsOf([setId], WAVE8_CARDS)),
@@ -242,7 +234,7 @@ function buildScenario(scenario: Scenario, options: Wave8ScenarioOptions): GameS
     encounterDeck,
     players: seats,
     // Sets a setup condition includes (Dreadpool, when a seat chose the 'Pool aspect): the engine decides.
-    autoIncludedSets: autoIncludedSetsOf(ENCOUNTER_SETS, WAVE8_CARDS),
+    autoIncludedSets: autoIncludedSetsOf(PLAYABLE_ENCOUNTER_SETS, WAVE8_CARDS),
     ...(setAside.length > 0 ? { setAside } : {}),
     ...(settingAside.length > 0
       ? { setAsideModularSets: settingAside, setAsideUntilCalled: { encounterSetIds: settingSets } }

@@ -6,8 +6,8 @@
  *
  * - **Standard and Expert set alternatives** (`difficultySetAlternativesFor`): The Hood insert, p. 2, "Alternative
  *   Sets": "When a scenario requires the Standard encounter set, the Standard II encounter set may be used instead",
- *   and the same for Expert II; Q10 = A: "Standard III may replace the Standard set on any scenario that uses it". The
- *   rule reads the scenario record, never its pack: every scenario whose Standard set is the plain Standard set, from
+ *   and the same for Expert II. Owner decision (Q10 = A, not printed in the insert or RRG): Standard III may replace the
+ *   Standard set on any scenario that uses it. The rule reads the scenario record, never its pack: every scenario whose Standard set is the plain Standard set, from
  *   any box, is offered every other set of the Standard classification.
  * - **The Horsemen's versions** (`horsemanSidesOffer`): the Four Horsemen only, one A/B choice per villain (Q9 = B).
  * - **The easier Apocalypse start** (`offersEasierStart`): Apocalypse on standard only (Q12 = A).

@@ -39,7 +39,7 @@ export type { Wave3ScenarioOptions } from "./wave3/index.js";
 // Wave 7 (cycle 7, NeXt Evolution): joined to `playable/`; its own builder stays exported for its tests.
 export { WAVE7_ABILITIES, WAVE7_CARDS, WAVE7_DEPS, wave7Scenario, wave7StarterDeckSetup } from "./wave7/index.js";
 export type { Wave7ScenarioOptions } from "./wave7/index.js";
-// Wave 8 (cycle 8, Age of Apocalypse): joined to `playable/`. Its campaign definition is not registered in `CAMPAIGNS`.
+// Wave 8 (cycle 8, Age of Apocalypse): joined to `playable/`. Its campaign definition (`aoa`) is registered in `CAMPAIGNS`.
 export { WAVE8_ABILITIES, WAVE8_CARDS, WAVE8_DEPS, wave8Scenario, wave8StarterDeckSetup } from "./wave8/index.js";
 export type { HorsemanSide, Wave8ScenarioOptions } from "./wave8/index.js";
 // Which optional setup choices a playable scenario offers (Standard III, the Horsemen's versions, the easier

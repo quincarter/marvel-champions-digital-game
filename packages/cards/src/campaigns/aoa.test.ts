@@ -884,7 +884,10 @@ describe("AOA campaign §3.45 (7): the expert campaign", () => {
     const done = seatTwoDefeated();
     expect(done.asked.map((choice) => [choice.slot, choice.seatNumber])).toEqual([["reward", 1]]);
     expect(done.log.seats.map((seat) => seat.grants.length)).toEqual([1, 0]);
-    expect(done.log.seats.map((seat) => seat.fields.remainingHp)).toEqual([{ kind: "number", value: 4 }, undefined]);
+    expect(done.log.seats.map((seat) => seat.fields.remainingHp)).toEqual([
+      { kind: "number", value: 4 },
+      { kind: "number", value: 0 },
+    ]);
     // The shared strike and the result belong to the team and still happen.
     expect(struckOf(done.log, "missions")).toEqual([FIND]);
     expect(optionOf(done.log, "resultFind")).toBe(AOA_DEFEATED);
@@ -926,7 +929,7 @@ describe("AOA campaign §3.45 (7): the expert campaign", () => {
     expect(after.asked.every((choice) => choice.seatNumber !== 2)).toBe(true);
     expect(after.log.status).toBe("active");
     expect(after.log.position.nextNodeId).toBe("apocalypse");
-    expect(after.log.seats[1]!.fields.remainingHp).toBeUndefined();
+    expect(after.log.seats[1]!.fields.remainingHp).toEqual({ kind: "number", value: 0 });
     expect(after.log.seats[0]!.fields.remainingHp).toEqual({ kind: "number", value: 4 });
 
     // Scenario 3: the seat is in the game's seats again and is offered the same two answers; this time it rejoins.
@@ -938,6 +941,19 @@ describe("AOA campaign §3.45 (7): the expert campaign", () => {
     expect(back.players.map((player) => player.eliminated)).toEqual([false, false]);
     expect(hpOf(back, 1)).toBe(10);
     expect(missionThreat(back)).toBe(13);
+  });
+
+  it("a seat with an earlier record (7) that is defeated in a later won scenario is still asked to rejoin, not offered a free heal (MC45 p. 20)", () => {
+    // Scenario 1 records seat 1 at 4 and seat 2 at 7; scenario 2 is won with seat 2 defeated.
+    const first = playNode(newLog(EXPERT), { hp: { 1: 4, 2: 7 } }, { after: rewardFirst }).log;
+    expect(first.seats[1]!.fields.remainingHp).toEqual({ kind: "number", value: 7 });
+    const second = compose(first);
+    const done = apply(second.log, resultOf(second.log, { hp: { 1: 4 }, sittingOut: [2] }), rewardFirst);
+    // The sitting-out seat's stale 7 is replaced by 0, so the gate reads it as defeated.
+    expect(done.log.seats[1]!.fields.remainingHp).toEqual({ kind: "number", value: 0 });
+    const { asked } = askedToRejoin(done.log);
+    expect(asked.pendingChoice!.playerId).toBe(asked.players[1]!.playerId);
+    expect(asked.pendingChoice!.options.map((option) => option.label)).toEqual([REJOIN, SIT_OUT]);
   });
 
   it("every player sitting out loses that game, and the campaign's loss rule applies as printed: the scenario is retried (MC45 p. 4)", () => {

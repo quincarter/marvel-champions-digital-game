@@ -45,6 +45,7 @@
  * shuffled in, and any seat may reveal him): an X-cost card is not a "—" cost and may be recorded; a cost is the printed cost.
  */
 
+import { defeatedSeatRecordsZero } from "./expert-helpers.js";
 import {
   DATA_ONLY_CARDS,
   PLAYABLE_CARDS,
@@ -676,6 +677,8 @@ export const MOJO_CAMPAIGN_DEFINITION: CampaignDefinition = {
   loss: { retry: "free", retryBaseline: "nodeStart", citation: "MojoMania insert p. 4" },
   // Insert p. 5: "If a player is defeated during a scenario that their teammates go on to win, the defeated player does
   // not participate in any of the victory steps for that scenario." The rejoin is the facedown-card heal.
+  // A seat that sat out the Victory steps gets no hp record, so its earlier one is zeroed: it must pay to rejoin.
+  everyNodeVictory: [defeatedSeatRecordsZero("mojo.victory.defeatedHp", "MojoMania insert p. 5")],
   elimination: {
     id: "mojo.elimination",
     text: "If a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in any of the victory steps for that scenario.",

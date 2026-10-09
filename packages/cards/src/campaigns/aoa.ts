@@ -90,7 +90,7 @@ import {
   removeOverseersPrelate,
   theMission,
 } from "../wave8/aoa/campaign/mission-rules.js";
-import { healForThreat, hpRecord, hpSet } from "./expert-helpers.js";
+import { defeatedSeatRecordsZero, healForThreat, hpRecord, hpSet } from "./expert-helpers.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Sets, cards and constants
@@ -799,6 +799,8 @@ export const AOA_CAMPAIGN_DEFINITION: CampaignDefinition = {
   // Victory steps (no pick in a Defeated cell, no hit points recorded). They rejoin by paying the heal (`healForThreat`),
   // so there is no `rejoinAtPrintedHitPoints`; or they decline and sit the next scenario out (owner decision,
   // 2026-10-08), which leaves them with no record again.
+  // A seat that sat out the Victory steps gets no hp record, so its earlier one is zeroed: it must pay to rejoin.
+  everyNodeVictory: [defeatedSeatRecordsZero("mc45.victory.defeatedHp", "MC45 p. 20")],
   elimination: {
     id: "mc45.elimination",
     text: "In an expert campaign, if a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario.",

@@ -168,7 +168,7 @@ describe("Magik plays the top card of her deck: events", () => {
 
 describe("Scrying (45036): draw one", () => {
   // RRG 1.8 "Draw": the card Scrying draws is drawn; a "cardDrawn" event is what draw-triggered cards listen to.
-  it.fails("the chosen card is drawn (emits cardDrawn), not merely moved to the hand", () => {
+  it("the chosen card is drawn (emits cardDrawn), not merely moved to the hand", () => {
     const { state, ids } = moveToHand(heroGame(), P1, SCRYING);
     const run = driveEventsPicking(DEPS, state, firstLegal, play(P1, ids[0]!, []));
     const drawn = run.events.filter((e: GameEvent) => e.type === "cardDrawn");
