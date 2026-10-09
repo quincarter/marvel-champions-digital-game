@@ -161,3 +161,13 @@ area. Unless explicitly stated, players, cards, and components in one game area 
 Cross-Group Communication: Cross-group communication is allowed and highly encouraged!"
 
 So in Single Group Mode the per-group multiplier is 1 (one group began the scenario).
+
+## Epic Multiplayer (owner, 2026-10-09)
+
+Decision: wave 9 supports **Single Group Mode only** for Loki, God of Lies. Epic Multiplayer Mode is planned for the
+multiplayer phase, and this wave builds whatever engine and DSL groundwork it can so that phase adds groups and pods
+without reshaping the cards: at the least, the per-group value reads a group count from game state (1 in a single
+group), and every God of Lies script is written against "this group" rather than assuming one table. To do:
+`docs/epic-multiplayer-plan.md` (by `multiplayer-netcode-engineer`, from insert pp. on Epic Multiplayer in
+`docs/campaign-modes/markdown/mc55_trickster_takeover.md` and the Epic Multiplayer Reminder card above), a pointer to
+it from PLAN.md's multiplayer phase, and the groundwork primitives in spec pass 4 (Trickster Takeover).
