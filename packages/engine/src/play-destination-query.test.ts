@@ -1,8 +1,8 @@
 /**
  * `playCard.into` honors `RuleSpec playDestination.cards` as a query (code review, Piece 10b; docs/phase7-wave8.md
  * §3.34): which cards may be played into an in-play scenario area is the rule's to say, card by card. What the rule
- * cannot do is have a play put a card loose into an area when that card does not enter play that way (an upgrade is
- * there on a host; MC45 p. 5: "Players may attach upgrades to allies in the mission area").
+ * cannot do is have a play put a card into an area when that card does not stay in play (an event; RRG 1.8 "Event",
+ * p. 18: "the event is not in play"). Each type that does stay is in `play-destination-types.test.ts`.
  *
  * Sources: MC45 p. 5; RRG 1.8 "Play, Put into Play" (p. 32). Synthetic cards and rules; the engine names no card.
  */
@@ -114,16 +114,25 @@ describe("playCard.into reads the rule's `cards` query", () => {
     expect(play(state, CRATE.id, true).ok).toBe(false);
   });
 
-  it("a rule that names a card which does not enter play loose in a play area is refused, not played elsewhere", () => {
-    const state = start([{ kind: "playDestination", cards: { categories: ["upgrade", "event"] }, area: AREA }]);
-    const badge = play(state, BADGE.id, true);
-    expect(badge.ok).toBe(false);
-    if (!badge.ok) {
-      expect(badge.message).toBe("a card of that type is not played into an area of its own");
-      expect(locateCard(badge.before, badge.id)).toEqual({ kind: "hand", playerId: P1 });
-      expect(destinationsOf(badge.before, badge.id)).toBeUndefined();
+  it("a rule that names a card which does not stay in play is refused for it, not played elsewhere", () => {
+    const state = start([
+      {
+        kind: "playDestination",
+        cards: { anyOf: [{ categories: ["upgrade"] }, { name: OPEN.name }] },
+        area: AREA,
+      },
+    ]);
+    const open = play(state, OPEN.id, true);
+    expect(open.ok).toBe(false);
+    if (!open.ok) {
+      expect(open.message).toBe("an event is not in play while it resolves, so it is not played into an area");
+      expect(locateCard(open.before, open.id)).toEqual({ kind: "hand", playerId: P1 });
+      expect(destinationsOf(open.before, open.id)).toBeUndefined();
     }
-    // Played as usual it goes where an upgrade goes.
-    expect(play(state, BADGE.id, false).ok).toBe(true);
+    // Played as usual it resolves as an event does.
+    expect(play(state, OPEN.id, false).ok).toBe(true);
+    // The upgrade the same rule names stays in play, so it has the destination.
+    const badge = play(state, BADGE.id, true);
+    expect(badge.ok && locateCard(badge.state, badge.id)).toEqual({ kind: "scenarioPlayArea", name: AREA });
   });
 });

@@ -267,21 +267,33 @@ const LOOSE_IN_SCENARIO_PLAY_AREA: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * What a play may also put loose in one (`playCard.into`, when a `playDestination` rule names the card): an upgrade
+ * with no "attach to" text, which has no host to be on there (RRG 1.8 "Attach To", p. 8; "Upgrade", p. 46), and a
+ * player side scheme, which the rule sends there in place of "next to the main scheme" (RRG 1.8 "Player Side Scheme",
+ * p. 34).
+ */
+const PLAYED_LOOSE_IN_SCENARIO_PLAY_AREA: ReadonlySet<string> = new Set(["upgrade", "player_side_scheme"]);
+
+/**
  * Places a card in an in-play scenario area (`putIntoPlay.into`; a play to the area): faceup, with no controller and
  * no engaged player, its owner unchanged (MC45 p. 5: "in play but under no player's control"; RRG 1.8 "Ownership and
  * Control", p. 31). Every card attached to it is in the area with it and under no player's control either.
  *
  * Returns `"entered"` for a card that was out of play (the caller raises its entering play), `"moved"` for one that
- * was in play already, and a refusal otherwise. A side scheme that enters play gets the threat it enters play with.
+ * was in play already, and a refusal otherwise. A side scheme that enters play gets the threat it enters play with; a
+ * played player side scheme gets its own from the play, after its entering play is raised (`executePlayCardFrame`).
  */
 export function placeInScenarioPlayArea(
   ctx: Ctx,
   id: InstanceId,
   name: string,
+  /** The card is being played there, which admits the types only a play puts loose in an area. */
+  played = false,
 ): "entered" | "moved" | "noSuchArea" | "cardType" {
   if (!ctx.state.scenarioPlayAreas?.[name]) return "noSuchArea";
   const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
-  if (!LOOSE_IN_SCENARIO_PLAY_AREA.has(card.type)) return "cardType";
+  if (!LOOSE_IN_SCENARIO_PLAY_AREA.has(card.type) && !(played && PLAYED_LOOSE_IN_SCENARIO_PLAY_AREA.has(card.type)))
+    return "cardType";
   const wasInPlay = cardsInPlay(ctx.state).includes(id);
   const before = mustInstance(ctx.state, id);
   moveCard(ctx, id, { kind: "scenarioPlayArea", name });

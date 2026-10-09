@@ -182,7 +182,10 @@ function restrictedMayBeGranted(state: GameState, deps: EngineDeps): boolean {
 
 /** The player side schemes in play that count toward the limit, in the order they entered the villain's play area. */
 function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
-  return ctx.state.villainArea.filter(
+  // One played into an in-play scenario area (`playCard.into`) is in play too, and the limit is on "the number of
+  // player side schemes in play" (RRG 1.8 "Player Side Scheme Limit", p. 34).
+  const inAreas = Object.values(ctx.state.scenarioPlayAreas ?? {}).flatMap((area) => area.cards);
+  return [...ctx.state.villainArea, ...inAreas].filter(
     (id) =>
       cardOf(ctx.state, id)?.type === "player_side_scheme" &&
       // One already defeated and waiting to leave play after its When Defeated is not seen by a rule counting cards in
