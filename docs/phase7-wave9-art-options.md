@@ -302,3 +302,8 @@ for slots 8 and 9, which want a portrait of at least about 800 px wide, so they 
   `art/scenarios/_pending/black-widow/villain.webp`. Saved as WebP, the format the wiki serves. Seen full size by the
   main session: 2C has two blank white caption boxes at the top right and part of a second figure at the right edge;
   3D carries the artist's signature at the bottom right; 1B is clean.
+- **2026-10-09:** 4A Batroc (Unbelievable Gwenpool #2 panel, 998x1535) saved as
+  `art/scenarios/_pending/batroc/villain.webp`: no text, but a blonde head pokes in at the bottom left corner and a
+  sliver of another figure at the bottom right. 5A M.O.D.O.K. (Legendary: World War Hulk card art, 1408x1920) as
+  `art/scenarios/_pending/modok/villain.webp`: clean. **Slot 6, the Thunderbolts: none of 6A to 6D accepted** ("no
+  clear image of all of the Thunderbolts"); more options are being searched for.
