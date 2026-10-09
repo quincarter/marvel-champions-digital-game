@@ -136,8 +136,20 @@ export const ATTACHMENT_HOST_KINDS: readonly AttachmentHostKind[] = [
   "encounterCard",
 ];
 
-/** The card categories a `qualified` host narrows. `character` is any character in play. */
-export type AttachmentHostCategory = "ally" | "minion" | "enemy" | "character" | "friendlyCharacter" | "sideScheme";
+/**
+ * The card categories a `qualified` host narrows. `character` is any character in play. `villain` is a villain in play
+ * told apart by a trait, because the plain `{ kind: "villain" }` host is "the villain" (the single villain of the
+ * scenario): Trickster Takeover's Dark Scepter `tt` 55036, "Attach to the Avatar of Loki villain." (trait AVATAR OF
+ * LOKI), where several villains carry that trait but only one is in play at a time.
+ */
+export type AttachmentHostCategory =
+  | "ally"
+  | "minion"
+  | "enemy"
+  | "character"
+  | "friendlyCharacter"
+  | "sideScheme"
+  | "villain";
 
 export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
   "ally",
@@ -146,6 +158,7 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
   "character",
   "friendlyCharacter",
   "sideScheme",
+  "villain",
 ];
 
 /** The three player-card classifications a host can be narrowed by. */

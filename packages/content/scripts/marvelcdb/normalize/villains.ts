@@ -27,6 +27,14 @@ import { ROMAN, scalingOf } from "./values.ts";
 const MODE_LABEL_RE = /^([A-Z])(\d+)$/;
 
 /**
+ * A face label with an optional mode letter: `"A1"` (MODE_LABEL_RE) or a bare digit, `"1"`/`"2"` — Trickster
+ * Takeover's Loki, God of Lies (`tt` 55027a/b), a double-sided villain whose faces are numbered 1 and 2. A bare digit
+ * is a face position in a mode with no letter, handled by the same linked-pair branch as the mode+face labels; unlike
+ * them it carries no `stageLabel` (the label is not a printed stage letter).
+ */
+const FACE_LABEL_RE = /^([A-Z]?)(\d+)$/;
+
+/**
  * Stage order: a roman numeral (Core, and wave 1's single-sided villains), per The Wrecking Crew, a printed
  * version letter (docs/phase7-wave1.md §1.2 — position A=1, B=2, kept as `VillainStage.stageLabel`), or a
  * mode+face label (`MODE_LABEL_RE`), whose digit is the face position within its mode's own double-sided card.
@@ -34,7 +42,7 @@ const MODE_LABEL_RE = /^([A-Z])(\d+)$/;
 const stageOrder = (rec: RawCard): number => {
   const s = rec.stage ?? "";
   if (ROMAN[s] !== undefined) return ROMAN[s];
-  const modeMatch = MODE_LABEL_RE.exec(s);
+  const modeMatch = FACE_LABEL_RE.exec(s);
   if (modeMatch) return Number(modeMatch[2]);
   if (/^[A-Z]$/.test(s)) return s.charCodeAt(0) - 64;
   return 0;
@@ -90,7 +98,7 @@ function buildVillainStage(
   const stage: VillainStage = {
     stageNumber,
     ...(stageLabel ? { stageLabel } : {}),
-    hp: scalingOf(r.health ?? 0, Boolean(r.health_per_hero)),
+    hp: scalingOf(r.health ?? 0, Boolean(r.health_per_hero), Boolean(r.health_per_group)),
     ...(infiniteHp ? { infiniteHp: true } : {}),
     atk: r.attack ?? 0,
     sch: r.scheme ?? 0,
@@ -126,12 +134,17 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
     // to its own hidden back record (digit 2); the mode letter, not the digit, decides which physical card a
     // record belongs to. Handled before `versionPairs`/`doubleSided` below, which would otherwise read the
     // digit as a *stage* number and misfile the pair the MaGog way (docs/phase7-wave2.md §15.2).
-    const modeLabelled = stageRecords.length > 0 && stageRecords.every((r) => MODE_LABEL_RE.test(r.stage ?? ""));
+    //
+    // A set may hold both kinds (Trickster Takeover's `god_of_lies`: the numbered Loki, God of Lies and the four
+    // `"A1"`..`"D2"` Avatars of Loki): the face-labelled records are split off and built here, and whatever remains
+    // continues through the version-pair/stage-chain paths below, decided per record group and not per set.
+    const faceRecords = stageRecords.filter((r) => FACE_LABEL_RE.test(r.stage ?? ""));
+    const modeLabelled = faceRecords.length > 0;
     if (modeLabelled) {
-      const modeOf = (r: RawCard) => (MODE_LABEL_RE.exec(r.stage ?? "") as RegExpExecArray)[1] as string;
-      const modes = [...new Set(stageRecords.map(modeOf))];
+      const modeOf = (r: RawCard) => (FACE_LABEL_RE.exec(r.stage ?? "") as RegExpExecArray)[1] as string;
+      const modes = [...new Set(faceRecords.map(modeOf))];
       for (const mode of modes) {
-        for (const r of stageRecords.filter((rec) => modeOf(rec) === mode)) {
+        for (const r of faceRecords.filter((rec) => modeOf(rec) === mode)) {
           const linked = r.linked_card;
           if (!linked || linked.type_code !== "villain") {
             errors.push(`${r.code}: expected a mode+face villain stage linked to its other face`);
@@ -139,7 +152,10 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
           }
           const front = buildVillainStage(ctx, r);
           const back = buildVillainStage(ctx, linked);
-          if (front.prepared.name !== back.prepared.name) errors.push(`${r.code}: villain face names differ`);
+          // Two faces with different titles (the Avatars of Loki flip to Fading Figment) are legitimate only where the
+          // pack's curation says so (`PackCuration.villainFaceNamesMayDiffer`); elsewhere a mismatch is a typo.
+          if (front.prepared.name !== back.prepared.name && !ctx.curation.villainFaceNamesMayDiffer?.includes(set))
+            errors.push(`${r.code}: villain face names differ`);
           // Both faces are the same single stage, flipped (VillainCard doc: "every side lists the same stage
           // numbers"); the printed digit told them apart as records, not as stages.
           const card: VillainCard = {
@@ -164,7 +180,8 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       // Standard and expert are different physical cards, so there is no single "the villain" of this set for
       // `villainIdBySet` to point at — the scenario names each card id directly (`villainCardId` and
       // `expertVillains.villainCardId`, the same shape The Once and Future Kang's colliding-stage sets use below).
-      continue;
+      stageRecords.splice(0, stageRecords.length, ...stageRecords.filter((r) => !faceRecords.includes(r)));
+      if (stageRecords.length === 0) continue;
     }
 
     // A linked pair whose two faces print *different* stages is one card carrying two difficulty versions, not

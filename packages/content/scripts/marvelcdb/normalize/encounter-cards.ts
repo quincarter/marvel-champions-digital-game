@@ -87,8 +87,6 @@ export function normalizeEncounterCard(
       if ((p.scheme ?? r.scheme) == null && !curation.cardNotes[r.code]) {
         errors.push(`${r.code}: minion has no scheme value (printed "0", or "—"?) — needs a cardNotes entry`);
       }
-      // "Per group" hit points have no schema field yet; never emit such a minion with a flat value.
-      if (r.health_per_group) errors.push(`${r.code}: minion health_per_group is not supported`);
       const minion: MinionCard = {
         ...common,
         type: "minion",
@@ -99,6 +97,8 @@ export function normalizeEncounterCard(
         // A per player icon beside the hit points (raw `health_per_hero`): `hp` keeps the printed numeral and the
         // engine multiplies it by the players who started the scenario (RRG 1.8 "Per Player Icon", p. 32).
         ...(r.health_per_hero ? { hpPerPlayer: true as const } : {}),
+        // The per group icon (The Mangog, `tt` 55041; MC55 insert p. 4): `hp` times the groups, one in single-table play.
+        ...(r.health_per_group ? { hpPerGroup: true as const } : {}),
         ...encounterCommon,
         ...(parsed.nemesisMinion ? { nemesisMinion: true } : {}),
       };
@@ -196,7 +196,11 @@ export function normalizeEncounterCard(
         ...common,
         type: "side_scheme",
         encounterSetIds,
-        startingThreat: scalingOf(r.base_threat ?? 0, p.startingThreatPerPlayer ?? !r.base_threat_fixed),
+        startingThreat: scalingOf(
+          r.base_threat ?? 0,
+          p.startingThreatPerPlayer ?? !r.base_threat_fixed,
+          r.base_threat_per_group,
+        ),
         icons: schemeIcons(
           p.schemeIcons
             ? {

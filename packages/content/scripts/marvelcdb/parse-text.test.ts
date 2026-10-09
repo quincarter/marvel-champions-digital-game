@@ -200,6 +200,19 @@ describe("attach shapes: tough status clause and identity without a named attach
     );
     expect(parsed.attachesTo).toEqual({ kind: "yourIdentity", withoutAttachmentNamed: "Targeted for Elimination" });
   });
+
+  it('"Attach to the Avatar of Loki villain." is a villain host qualified by a trait (Dark Scepter, `tt` 55036)', () => {
+    const parsed = parseCardText("Attach to the Avatar of Loki villain.\nTreacheries cannot be canceled.", {
+      villainNames: new Set(["Loki the Rascal"]),
+    });
+    expect(parsed.attachesTo).toEqual({ kind: "qualified", category: "villain", trait: "AVATAR OF LOKI" });
+    expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
+  });
+
+  it('"Attach to the <villain name> villain." still names the villain, not a trait', () => {
+    const parsed = parseCardText("Attach to the Rhino villain.", { villainNames: new Set(["Rhino"]) });
+    expect(parsed.attachesTo).toEqual({ kind: "villain" });
+  });
 });
 
 /**

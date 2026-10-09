@@ -565,6 +565,12 @@ export interface PackCuration {
    */
   readonly villainFrontIsSideA?: readonly string[];
   /**
+   * Villain sets whose double-sided mode+face or numbered cards may print a different title on each face (Trickster
+   * Takeover's four Avatars of Loki flip to Fading Figment, `tt` 55029 to 55032). Elsewhere differing face titles are an
+   * ingestion error (a typo). Absent = none.
+   */
+  readonly villainFaceNamesMayDiffer?: readonly string[];
+  /**
    * An auxiliary `card_set_code` → the pack's hero identity's own (primary) `card_set_code`, for a hero-kit card
    * MarvelCDB files under a themed sub-set instead of the identity's own set — Storm's four Weather Deck supports
    * (`storm_weather_deck` → `storm`; Clear Skies/Hurricane/Thunderstorm/Blizzard, a "one active weather condition

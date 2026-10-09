@@ -108,6 +108,12 @@ export interface MinionCard extends EncounterCardCommon {
    */
   readonly hpPerPlayer?: true;
   /**
+   * The hit point value is printed with the per group icon (The Mangog, `tt` 55041, "10 per group"): the minion's
+   * printed hit points are `hp` times the number of groups. In single-table play there is one group, so it equals `hp`.
+   * Never together with `hpPerPlayer`. See `ScalingValue.perGroup` (MC55 insert p. 4).
+   */
+  readonly hpPerGroup?: true;
+  /**
    * True on the minion a nemesis set names as the hero's nemesis, printed as reminder text such as "(Captain
    * America's nemesis minion.)". Core's Shadow of the Past reads "Reveal your set-aside nemesis minion", and wave 1
    * nemesis sets hold other minions too (Hydra Soldier with Baron Zemo, Edison's Giant Robot with Thomas Edison), so

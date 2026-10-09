@@ -237,7 +237,7 @@ export function normalizePlayerCard(
         type: "player_side_scheme",
         ...needCost(),
         resourceIcons: resourceIcons(r),
-        startingThreat: scalingOf(r.base_threat ?? 0, !r.base_threat_fixed),
+        startingThreat: scalingOf(r.base_threat ?? 0, !r.base_threat_fixed, r.base_threat_per_group),
         ...playerCommon,
       };
       record(ctx, scheme, set, [p, ...flipParts]);

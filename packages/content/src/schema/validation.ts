@@ -58,10 +58,13 @@ function isCardTextAllowEmpty(value: unknown): value is { printed: string; curre
 const isPrintedStat = (value: unknown): boolean =>
   value === null || value === "X" || (typeof value === "number" && Number.isFinite(value) && value >= 0);
 
-function isScalingValue(value: unknown): value is { base: number; perPlayer: number } {
+function isScalingValue(value: unknown): value is { base: number; perPlayer: number; perGroup?: number } {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  return typeof v.base === "number" && typeof v.perPlayer === "number";
+  if (typeof v.base !== "number" || typeof v.perPlayer !== "number") return false;
+  // A per group value (`ScalingValue.perGroup`) is a positive whole number and has no flat or per player part.
+  if (v.perGroup === undefined) return true;
+  return Number.isInteger(v.perGroup) && (v.perGroup as number) > 0 && v.base === 0 && v.perPlayer === 0;
 }
 
 function isNonNegativeNumber(value: unknown): value is number {
@@ -915,6 +918,10 @@ export function validateMinionCard(card: MinionCard): ValidationResult {
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("minion hp must be a positive number");
   if (card.hpPerPlayer !== undefined && card.hpPerPlayer !== true)
     errors.push("minion hpPerPlayer must be true when present");
+  if (card.hpPerGroup !== undefined && card.hpPerGroup !== true)
+    errors.push("minion hpPerGroup must be true when present");
+  if (card.hpPerGroup === true && card.hpPerPlayer === true)
+    errors.push("minion cannot print its hit points both per player and per group");
   if (card.nemesisMinion !== undefined && typeof card.nemesisMinion !== "boolean")
     errors.push("minion nemesisMinion must be a boolean");
   return result(errors);

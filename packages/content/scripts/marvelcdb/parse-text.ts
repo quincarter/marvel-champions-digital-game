@@ -632,7 +632,7 @@ function parseAttach(
   // A plain category with only a "without X attached" suffix and no trait word at all: "an enemy without a copy
   // of Adamantium Upgrades attached" (Wolverine). Tried before the trait-qualified pattern below, since that
   // pattern requires a word between the article and the category noun and would otherwise never match here.
-  const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme";
+  const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme|villain";
   const bareWithoutRe = new RegExp(
     `^(?:an?|the) (${CATEGORY_NOUN})\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$`,
     "i",
