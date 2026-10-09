@@ -262,7 +262,7 @@ describe("§3.15 steps 4–5 and 10: identity sets and encounter decks", () => {
   });
 
   // Per FFG ruling Jan 17, 2026 (Ruling 5: in The Wrecking Crew "You can play Face the Past to find your set-aside
-  // nemesis minion"); the Wrecking Crew insert has not been checked. Owner decision, 2026-10-08 (wave 8 §4.1 row 81).
+  // nemesis minion"); the insert says otherwise. Owner decisions, wave 8 §4.1 rows 81 and 86.
   it("`includeNemesisSets` with the identity sets off: the nemesis set is set aside, the obligation stays out", () => {
     const state = mustBuild({
       villainCardId: WRECKER.id,

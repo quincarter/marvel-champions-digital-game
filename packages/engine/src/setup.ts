@@ -216,8 +216,8 @@ export interface GameSetupConfig {
    * The nemesis half of `includeIdentitySets` on its own: whether each identity's nemesis set is set aside. Default:
    * as `includeIdentitySets`. True with `includeIdentitySets: false` is a scenario that leaves the obligations out
    * and still sets the nemesis sets aside, where a card can find them (`Scenario.nemesisSetsSetAside`: per FFG ruling
-   * Jan 17, 2026, Ruling 5, "You can play Face the Past to find your set-aside nemesis minion"; the insert of the
-   * scenario that ruling is about has not been checked).
+   * Jan 17, 2026, Ruling 5, "You can play Face the Past to find your set-aside nemesis minion"; that scenario's
+   * insert says nemesis cards are not used, and the owner follows the later ruling).
    */
   readonly includeNemesisSets?: boolean;
   readonly requireIdentitySets?: boolean;

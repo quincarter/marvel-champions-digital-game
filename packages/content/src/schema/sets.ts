@@ -371,8 +371,8 @@ export interface Scenario {
    *
    * The Wrecking Crew, per FFG ruling Jan 17, 2026 (Ruling 5): "You can play Face the Past to find your set-aside
    * nemesis minion; once defeated, it is placed in the active villain's encounter discard pile." Built to the ruling
-   * on the owner's decision of 2026-10-08 (docs/phase7-wave8.md §4.1 row 81); the Wrecking Crew insert, which the
-   * line above quotes from the repo's spec, has not been checked.
+   * on the owner's decision of 2026-10-08 (docs/phase7-wave8.md §4.1 rows 81 and 86). The Wrecking Crew insert says
+   * nemesis cards are not used; the ruling is FFG's later text and the owner follows it.
    */
   readonly nemesisSetsSetAside?: true;
   /**
