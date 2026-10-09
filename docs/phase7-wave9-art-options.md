@@ -307,3 +307,55 @@ for slots 8 and 9, which want a portrait of at least about 800 px wide, so they 
   sliver of another figure at the bottom right. 5A M.O.D.O.K. (Legendary: World War Hulk card art, 1408x1920) as
   `art/scenarios/_pending/modok/villain.webp`: clean. **Slot 6, the Thunderbolts: none of 6A to 6D accepted** ("no
   clear image of all of the Thunderbolts"); more options are being searched for.
+
+## 6 (second round). The Thunderbolts
+
+The owner rejected 6A to 6D because none shows the whole team clearly. Every option here was looked at as a 420 px
+thumbnail, not at full size; sizes and links were resolved through the wiki's API. Preview sheet:
+`docs/design-renders/wave9-art-options/sheet-thunderbolts.jpg`. The original six are Citizen V, Meteorite (Moonstone),
+MACH-1, Songbird, Atlas and Techno. In the game's Thunderbolts set (cards 50129 to 50160) Citizen V is the villain
+and the minions are Moonstone, Songbird, MACH-IV, Jolt, Black Widow and Radioactive Man; Atlas and Techno have no
+card. No clean, textless, large picture of all six turned up: the clean ones are small and the large ones carry
+lettering.
+
+- **6E (top pick).** Thunderbolts '97 #1 (the 1997 annual) textless: all six bursting toward the reader in one tight
+  group, each large and easy to tell apart: Atlas at the top with his fist out, Meteorite, Songbird, MACH-1, Techno,
+  and Citizen V at the front with his sword. Shows Citizen V, Moonstone, Songbird and MACH from the game's set. No
+  logo. 699×1058, under the size target. The backdrop is a collage of old comic covers, so there are tiny cover
+  logos behind the team (part of the art). Wiki credits Mark Bagley.
+  [page](https://marvel.fandom.com/wiki/File:Thunderbolts_%2797_Vol_1_1_Textless.jpg)
+- **6F.** Thunderbolts #1 (1997) interior splash page: the team's entrance, all six as full figures: Citizen V in the
+  foreground with his sword raised, giant Atlas behind, Songbird, MACH-1, Meteorite and Techno between them. Shows
+  Citizen V, Moonstone, Songbird and MACH. 1332×2048. Has two speech bubbles, two caption boxes and a "The
+  Thunderbolts!" title burst, all in the middle of the page, so they cannot be cropped away. Wiki credits Mark Bagley.
+  [page](<https://marvel.fandom.com/wiki/File:Thunderbolts_(Earth-616)_from_Thunderbolts_Vol_1_1_0001.jpg>)
+- **6G.** Thunderbolts #4 (1997) cover: Jolt full figure in the center with six large head shots around her (Citizen
+  V, Meteorite, Songbird, Atlas, Techno, MACH-1). The only option with Citizen V, Moonstone, Songbird, MACH and Jolt
+  together, so it covers the most of the game's set. 1988×3056. Has the logo across the top, "Introducing Jolt" and a
+  blurb along the bottom; heads only, not a group pose.
+  [page](https://marvel.fandom.com/wiki/File:Thunderbolts_Vol_1_4.jpg)
+- **6H.** Thunderbolts '97 #1 with trade dress: the same picture as 6E at 1988×3056. The logo covers the top and a
+  tall "'97 Annual" banner runs down the right edge over part of the art (it clips Atlas's fist and Techno). A crop
+  to the team keeps roughly 1500×2300 but not a clean right side.
+  [page](https://marvel.fandom.com/wiki/File:Thunderbolts_%2797_Vol_1_1.jpg)
+- **6I.** Thunderbolts '97 #1 interior panel: all six lined up from the waist up, side by side (Atlas, Techno,
+  Songbird, MACH-1, Meteorite, Citizen V). Shows Citizen V, Moonstone, Songbird and MACH. Landscape, 1311×532, so it
+  suits an `intro` banner more than a portrait slot. Speech bubbles run along the top edge (a crop to the lower two
+  thirds loses most of them and leaves about 1311×380).
+  [page](<https://marvel.fandom.com/wiki/File:Thunderbolts_(Earth-616)_from_Thunderbolts_Annual_Vol_1_1_001.jpg>)
+- **6J.** Thunderbolts: First Strikes (trade paperback) cover: a montage of all six, Citizen V and his sword at the
+  front, in muted bronze colors. Shows Citizen V, Moonstone, Songbird and MACH. 649×992, the smallest here, and it
+  looks like a scan. Has the logo at the top and "First Strikes" plus the credits at the bottom.
+  [page](https://marvel.fandom.com/wiki/File:Thunderbolts_First_Strikes_Vol_1_1.jpg)
+- **6K.** Thunderbolts (2016) #10 Bagley variant textless (the 20th anniversary cover): clean, no lettering,
+  1400×2128, but a different roster and no Citizen V: Jolt flying at the center, Atlas, Moonstone, MACH-X, Songbird
+  and the Fixer, plus the Winter Soldier and Kobik. Shows Jolt, Moonstone, Songbird and MACH from the game's set. The
+  best quality here if the villain can be missing from the picture. Wiki credits Mark Bagley.
+  [page](https://marvel.fandom.com/wiki/File:Thunderbolts_Vol_4_10_Bagley_Variant_Textless.jpg)
+
+Looked at and passed over: Thunderbolts #3, #7 and #10 covers (the team is small or broken up among other figures
+and lettering), the #12 and #25 wraparounds (crowded with the Avengers, the Fantastic Four or the Masters of Evil,
+with logos), Tales of the Marvel Universe #1 and Spider-Man Team-Up #7 (part of the team only), Thunderbolts #100
+and Avengers/Thunderbolts textless covers (later rosters or close-ups), Thunderbolts: Doomstrike #3 Bagley variant
+(Doctor Doom in front, no Citizen V), and the omnibus and Epic Collection covers (reuse 6A or the annual art with
+logos).
