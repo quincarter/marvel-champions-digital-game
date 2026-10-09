@@ -2282,6 +2282,30 @@ export const playFromDeckIgnoringCost = (
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional === false ? {} : { optional: true }),
 });
+/**
+ * "Search your deck for a Black Panther or Tech upgrade and play it, reducing its resource cost by 2." (Shuri's
+ * Inventor, `bp` 51001b; docs/phase7-wave9.md §3.37): `playFromDeckReducingCost(2, you, { filter })`, the paying
+ * sibling of `playFromDeckIgnoringCost`. The whole deck is searched; only a card `filter` matches that the player could
+ * legally play now and could pay for after the reduction is offered; the rest of its cost is paid as for any play
+ * (a host is asked for when the upgrade has several); it is played, so "after you play" responses answer; and the
+ * deck is shuffled once the played card has resolved, or at once when none was played (RRG 1.8 "Search", p. 39).
+ *
+ * Required by default: the text is "search … and play it", with no "may". An ability made of this can still be
+ * initiated with nothing to find (RRG 1.8 "Target", p. 43: "An ability with a search effect requires only a
+ * searchable game area in order to initiate"): its cost is paid, nothing is played and the deck is shuffled.
+ */
+export const playFromDeckReducingCost = (
+  n: Amount,
+  player: PlayerRef = you,
+  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  from: "deck",
+  costReduction: amount(n),
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+});
 
 /**
  * "Play the ally here as if it was in your hand. It enters play exhausted." (Med Lab, 38028; docs/phase7-wave6.md

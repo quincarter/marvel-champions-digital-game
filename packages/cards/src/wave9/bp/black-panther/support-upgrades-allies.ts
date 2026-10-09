@@ -19,7 +19,9 @@ import {
   dealDamage,
   defineAbilities,
   discard,
+  draw,
   each,
+  exhaustCardsCost,
   exhaustThis,
   giveTough,
   heal,
@@ -34,6 +36,7 @@ import {
   stun,
   theVillain,
   thwartAScheme,
+  varOf,
   yourIdentity,
   zone,
   you,
@@ -53,9 +56,14 @@ const WAKANDA = trait("Wakanda");
  * attack gains piercing" is one instance of 5 damage with piercing (docs/phase7-wave9.md section 3.36), so the choice
  * to discard comes before the attack is made: 5 with piercing, or 2.
  *
+ * The Elephant's Trunk: "Exhaust The Elephant's Trunk and up to 2 other Wakanda allies and/or supports you control"
+ * is one pick of 1 to 3 Wakanda allies and supports that always holds the Trunk (`includingThis`), not `exhaustThis`
+ * plus a pick of others: RRG 1.8 FAQ p. 65 rules that exhausting only the Trunk pays, because it is itself a Wakanda
+ * support and so meets the minimum of one (RRG 1.8 "Cost", p. 14). It draws 1 card per card exhausted, itself included.
+ *
  * Cards (8):
  * - 51002 T'Challa (ally)
- * - 51007 The Elephant's Trunk (support): skipped, see the map below
+ * - 51007 The Elephant's Trunk (support)
  * - 51008 Queen Ramonda (support)
  * - 51009 Aja-Adanna (upgrade)
  * - 51010 Kimoyo Beads (upgrade)
@@ -65,6 +73,17 @@ const WAKANDA = trait("Wakanda");
  */
 export const BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "51002.tchalla-response": heroResponse(after.basicPowerUsed("self"), ...RESOLVE_ONE_SPECIAL),
+
+  "51007.the-elephants-trunk-action": alterEgoAction(
+    {
+      cost: exhaustCardsCost(query(["ally", "support"], { trait: WAKANDA }), {
+        includingThis: true,
+        max: 3,
+        bind: "exhausted",
+      }),
+    },
+    draw(varOf("exhausted")),
+  ),
 
   "51008.queen-ramonda-action": alterEgoAction(
     { cost: exhaustThis },
@@ -137,7 +156,4 @@ export const BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbil
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "51007.the-elephants-trunk-action":
-    "needs an exhaust cost 'this card and up to 2 other Wakanda allies/supports' that the card itself satisfies (RRG FAQ p. 65: exhausting only itself pays): exhaustThis plus exhaustCardsCost(others) is rejected by the validator (min >= 1, RRG 'Cost' p. 14) and would force a second card, and a pick that includes itself cannot require itself",
-};
+export const BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {};

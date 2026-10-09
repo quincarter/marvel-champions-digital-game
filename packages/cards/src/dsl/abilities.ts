@@ -1018,12 +1018,19 @@ export const takesDamageOnlyFromAttacks = (
  * (`next_evol` 40182; docs/phase7-wave7.md §3.30): `constant(reducesAttackDamageTaken({ self: true }, 1, {
  * exceptAttacker: { trait: TINY } }))`, a `reduceDamageTaken` with `fromAttack`. Without `exceptAttacker` it is Wide
  * Stance's shape (docs/phase7-wave3.md §3.15). Excess damage is measured on the reduced amount (RRG 1.8 "Overkill",
- * p. 31).
+ * p. 31). "… unless the attacker or attack has the [AERIAL] trait, or the attack has ranged" (Aerial Dogfight, `aos`
+ * 50159; docs/phase7-wave9.md §3.25) adds `exceptAttackCard: { trait: AERIAL }, exceptAttackKeyword: "ranged"`, read
+ * as `takesDamageOnlyFromAttacks` reads its `attackCard` and `attackKeyword`.
  */
 export const reducesAttackDamageTaken = (
   target: TargetQuery,
   amount: number,
-  opts: { readonly exceptAttacker?: TargetQuery; readonly while?: Predicate } = {},
+  opts: {
+    readonly exceptAttacker?: TargetQuery;
+    readonly exceptAttackCard?: TargetQuery;
+    readonly exceptAttackKeyword?: AttackKeyword;
+    readonly while?: Predicate;
+  } = {},
 ): ConstantPart =>
   rule({
     kind: "reduceDamageTaken",
@@ -1031,6 +1038,8 @@ export const reducesAttackDamageTaken = (
     amount,
     fromAttack: true,
     ...(opts.exceptAttacker ? { exceptAttacker: opts.exceptAttacker } : {}),
+    ...(opts.exceptAttackCard ? { exceptAttackCard: opts.exceptAttackCard } : {}),
+    ...(opts.exceptAttackKeyword ? { exceptAttackKeyword: opts.exceptAttackKeyword } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
@@ -2017,11 +2026,20 @@ export interface InPlayCostOptions {
    * must match; `max` is not allowed.
    */
   readonly each?: true;
+  /**
+   * "Exhaust The Elephant's Trunk and up to 2 other [Wakanda] allies and/or supports you control →" (`bp` 51007): this
+   * card is one of the picks, always (`InPlayCostPick.includesSelf`), and counts toward `min`, `max` and `bind`, so
+   * that cost is `exhaustCardsCost(<Wakanda allies and supports>, { includingThis: true, max: 3, bind: "n" })` with no
+   * `exhaustThis` beside it. The query must match this card (RRG 1.8 FAQ p. 65: it is itself a Wakanda support, which
+   * is why it meets the minimum of one). Not with `each`.
+   */
+  readonly includingThis?: true;
 }
 
 const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string): InPlayCostPick => {
   if (opts.each) {
     if (opts.max !== undefined) throw new Error("an `each` cost takes every matching card: it has no max");
+    if (opts.includingThis) throw new Error("an `each` cost takes every matching card: `includingThis` is a pick");
     return {
       slot: opts.slot ?? defaultSlot,
       query: q,
@@ -2040,6 +2058,7 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
     query: q,
     min,
     ...(max !== "any" ? { max } : {}),
+    ...(opts.includingThis ? { includesSelf: true as const } : {}),
     ...(opts.bind ? { bind: opts.bind } : {}),
     ...(opts.hosts ? { bindHosts: opts.hosts } : {}),
     ...(opts.stats ? { snapshotStats: true as const } : {}),

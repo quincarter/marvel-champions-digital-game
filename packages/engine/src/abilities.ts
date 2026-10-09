@@ -1301,6 +1301,14 @@ export type RuleSpec =
        * so pair it with `fromAttack` for "from each attack".
        */
       readonly exceptAttacker?: TargetQuery;
+      /**
+       * "… unless the attacker or attack has the [AERIAL] trait, or the attack has ranged." (docs/phase7-wave9.md
+       * §3.25): no reduction either when the card whose ability makes the attack matches (`exceptAttackCard`) or the
+       * attack has the keyword (`exceptAttackKeyword`), read exactly as `cannotTakeDamage`'s fields of the same names
+       * (`attackMeetsException`). Any one exception given that holds lifts the reduction.
+       */
+      readonly exceptAttackCard?: TargetQuery;
+      readonly exceptAttackKeyword?: AttackKeyword;
       /** Only an ally's consequential damage: "Cannonball takes -1 consequential damage after …" (§3.31). */
       readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;
@@ -2643,6 +2651,23 @@ export interface InPlayCostPick {
    *   cost (RRG 1.8 "Cost", p. 13), so that cost would never be payable.
    */
   readonly each?: true;
+  /**
+   * "Exhaust [this card] and up to 2 other [Wakanda] allies and/or supports you control →" (The Elephant's Trunk, `bp`
+   * 51007): the ability's own card is one of the picks, always, and the rest are the payer's choice. RRG 1.8 FAQ
+   * "The Elephant's Trunk (#7)" (p. 65): "The Elephant's Trunk is itself a Wakanda support, so it satisfies the minimum
+   * of one Wakanda ally or support needed to pay its ability's cost."
+   *
+   * - **One pick, not two.** The card counts toward `min` and `max` and into `bind` ("for each card exhausted this
+   *   way (including this one)"), so "this and up to 2 others" is `min: 1, max: 3`: the minimum of one (RRG 1.8
+   *   "Cost", p. 14) is kept, and the card itself is what meets it.
+   * - **The card must match `query`** and be able to pay (ready, to exhaust it). When it does not, the cost is not
+   *   payable whatever else could pay: the text names this card. A card that is named beside a pick it is not one of
+   *   ("exhaust this support and up to 2 allies") is `exhaustSelf` plus a pick instead, which needs one of the others.
+   * - **Picking.** A command's `costChoices[slot]` must hold the card. `legalActions`' default pick is the card alone
+   *   (with `min` 1), and a timing window asks only for the others.
+   * - Not with `each`, and not beside another part of the cost that spends the same card (`exhaustSelf`).
+   */
+  readonly includesSelf?: true;
 }
 
 export interface AbilityLimit {

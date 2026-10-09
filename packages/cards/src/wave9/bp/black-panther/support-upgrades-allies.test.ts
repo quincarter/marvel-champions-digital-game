@@ -1,5 +1,5 @@
 import { BP_CARDS, cardId, type AllyCard, type UpgradeCard } from "@mc/content";
-import { activeEncounterDeck, applyCommand, type GameState, type InstanceId } from "@mc/engine";
+import { activeEncounterDeck, applyCommand, legalActions, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
@@ -40,6 +40,7 @@ const BITES = "51012";
 const SUIT = "51013";
 const REFS = {
   [TCHALLA]: "51002.tchalla-response",
+  [TRUNK]: "51007.the-elephants-trunk-action",
   [RAMONDA]: "51008.queen-ramonda-action",
   [AJA]: "51009.aja-adanna-action",
   [KIMOYO]: "51010.kimoyo-beads-special",
@@ -156,13 +157,12 @@ function withMinion(state: GameState): { state: GameState; id: InstanceId } {
 
 describe("support-upgrades-allies registry", () => {
   const registered = Object.values(REFS);
-  it("the seven registered refs validate", () => {
+  it("the eight registered refs validate", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([...registered].sort());
     for (const ref of registered) expect(validateDefinition(REGISTRY[ref]!), ref).toEqual([]);
   });
-  it("51007.the-elephants-trunk-action is skipped with a reason; every printed ability id is registered or skipped", () => {
-    expect(Object.keys(SKIPPED)).toEqual(["51007.the-elephants-trunk-action"]);
-    expect(SKIPPED["51007.the-elephants-trunk-action"]).toMatch(/exhaustCardsCost/);
+  it("nothing is skipped; every printed ability id is registered", () => {
+    expect(SKIPPED).toEqual({});
     for (const code of [TCHALLA, TRUNK, RAMONDA, AJA, KIMOYO, CLAWS, BITES, SUIT]) {
       const ids = card<AllyCard>(code).abilities.map((a) => a.id as string);
       expect(ids, code).toHaveLength(1);
@@ -307,6 +307,105 @@ describe(`${REFS[TCHALLA]} (T'Challa 51002): Hero Response, after he uses a basi
     const cmd = { type: "basicThwart", playerId: P1, thwarterInstanceId: t.id, schemeInstanceId: schemeOf(s) } as const;
     const { state } = driveEventsPicking(BP_DEPS, t.state, picker({ respond: REFS[TCHALLA] }), cmd);
     expect(threat(state)).toBe(3);
+  });
+});
+
+describe(`${REFS[TRUNK]} (The Elephant's Trunk 51007): Alter-Ego Action, exhaust it and up to 2 other Wakanda allies and/or supports, draw 1 card for each card exhausted`, () => {
+  const MANIFOLD = "51014";
+  /** Shuri (alter-ego) with the Trunk and these others (by code) in play; hand and deck sizes read before the action. */
+  function council(...codes: readonly string[]) {
+    const trunk = putInPlay(bpGame(), TRUNK);
+    let state = trunk.state;
+    const others: InstanceId[] = [];
+    for (const code of codes) {
+      const put = putInPlay(state, code);
+      state = put.state;
+      others.push(put.id);
+    }
+    return { state, trunk: trunk.id, others };
+  }
+  const hand = (s: GameState): number => playerOf(s, P1).hand.length;
+  const deck = (s: GameState): number => playerOf(s, P1).deck.length;
+  const exhausted = (s: GameState, ...ids: readonly InstanceId[]) => ids.map((id) => inst(s, id).exhausted);
+  const act = (s: GameState, trunk: InstanceId, picks?: readonly InstanceId[]) =>
+    driveEventsPicking(BP_DEPS, s, picker(), use(P1, trunk, REFS[TRUNK], [], picks ? { exhausted: picks } : undefined));
+  const refusal = (s: GameState, trunk: InstanceId, picks?: readonly InstanceId[]) => {
+    const result = applyCommand(s, use(P1, trunk, REFS[TRUNK], [], picks ? { exhausted: picks } : undefined), BP_DEPS);
+    return result.ok ? "accepted" : result.error.code;
+  };
+
+  it("prints cost 2, unique, Persona and Wakanda, and the cost validates as one pick of 1 to 3 that holds the card", () => {
+    const c = card<AllyCard>(TRUNK);
+    expect([c.type, c.cost, c.unique]).toEqual(["support", 2, true]);
+    expect(c.traits.map(String)).toEqual(["PERSONA", "WAKANDA"]);
+    expect(REGISTRY[REFS[TRUNK]]!.cost).toMatchObject({
+      exhaustCards: { min: 1, max: 3, includesSelf: true, bind: "exhausted" },
+    });
+    expect(REGISTRY[REFS[TRUNK]]!.cost!.exhaustSelf).toBeUndefined();
+  });
+  it("alone (RRG 1.8 FAQ p. 65): exhausting only the Trunk pays, 1 card exhausted, 1 card drawn", () => {
+    const t = council();
+    const { state } = act(t.state, t.trunk);
+    expect(exhausted(state, t.trunk)).toEqual([true]);
+    expect([hand(state) - hand(t.state), deck(t.state) - deck(state)]).toEqual([1, 1]);
+  });
+  it("with 1 other (Queen Ramonda, a Wakanda support): 2 exhausted, 2 cards drawn", () => {
+    const t = council(RAMONDA);
+    const { state } = act(t.state, t.trunk, [t.trunk, t.others[0]!]);
+    expect(exhausted(state, t.trunk, ...t.others)).toEqual([true, true]);
+    expect([hand(state) - hand(t.state), deck(t.state) - deck(state)]).toEqual([2, 2]);
+  });
+  it("with 2 others (Queen Ramonda and the ally T'Challa): 3 exhausted, 3 cards drawn", () => {
+    const t = council(RAMONDA, TCHALLA);
+    const { state } = act(t.state, t.trunk, [t.trunk, ...t.others]);
+    expect(exhausted(state, t.trunk, ...t.others)).toEqual([true, true, true]);
+    expect([hand(state) - hand(t.state), deck(t.state) - deck(state)]).toEqual([3, 3]);
+  });
+  it("'up to 2 other': a third other (Manifold) is refused, and so are picks that leave the Trunk out", () => {
+    const t = council(RAMONDA, TCHALLA, MANIFOLD);
+    expect(refusal(t.state, t.trunk, [t.trunk, ...t.others])).toBe("invalid_choice");
+    expect(refusal(t.state, t.trunk, [t.others[0]!, t.others[1]!])).toBe("invalid_choice");
+    expect(exhausted(t.state, t.trunk, ...t.others)).toEqual([false, false, false, false]);
+  });
+  it("only Wakanda allies and supports count: Aja-Adanna (an upgrade) and Shuri herself (a Wakanda identity) are no picks", () => {
+    const base = council(RAMONDA);
+    const aja = attachUpgrade(base.state, AJA);
+    expect(refusal(aja.state, base.trunk, [base.trunk, aja.id])).toBe("no_valid_target");
+    expect(refusal(aja.state, base.trunk, [base.trunk, identityOf(aja.state)])).toBe("no_valid_target");
+  });
+  it("an already-exhausted Trunk cannot pay, even with two ready Wakanda cards named: not offered, refused, nothing drawn", () => {
+    const t = council(RAMONDA, TCHALLA);
+    const tired = patchInstance(t.state, t.trunk, { exhausted: true });
+    const legal = legalActions(tired, P1, BP_DEPS);
+    if (legal.kind !== "turn") throw new Error(legal.kind);
+    expect(legal.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === t.trunk)).toBe(false);
+    expect(refusal(tired, t.trunk)).toBe("already_exhausted");
+    expect(refusal(tired, t.trunk, [...t.others])).toBe("already_exhausted");
+    expect(refusal(tired, t.trunk, [t.trunk, ...t.others])).toBe("already_exhausted");
+    expect(exhausted(tired, ...t.others)).toEqual([false, false]);
+  });
+  it("an exhausted other is no pick, and the Trunk still pays alone: 1 card drawn", () => {
+    const t = council(RAMONDA);
+    const tired = patchInstance(t.state, t.others[0]!, { exhausted: true });
+    expect(refusal(tired, t.trunk, [t.trunk, t.others[0]!])).toBe("already_exhausted");
+    const { state } = act(tired, t.trunk);
+    expect(hand(state) - hand(tired)).toBe(1);
+  });
+  it("legalActions' default pick is the Trunk alone with others ready, and that command draws 1 and exhausts only it", () => {
+    const t = council(RAMONDA, TCHALLA);
+    const legal = legalActions(t.state, P1, BP_DEPS);
+    if (legal.kind !== "turn") throw new Error(legal.kind);
+    const entry = legal.legal.find((a) => a.action.kind === "useAbility" && a.action.instanceId === t.trunk)!;
+    expect(entry.example).toMatchObject({ type: "useAbility", costChoices: { exhausted: [t.trunk] } });
+    const { state } = driveEventsPicking(BP_DEPS, t.state, picker(), entry.example);
+    expect(exhausted(state, t.trunk, ...t.others)).toEqual([true, false, false]);
+    expect(hand(state) - hand(t.state)).toBe(1);
+    // With others able to pay the choice is the player's: a command naming no picks is not guessed at.
+    expect(refusal(t.state, t.trunk)).toBe("invalid_choice");
+  });
+  it("it is an alter-ego action: refused in hero form", () => {
+    const trunk = putInPlay(bpHeroGame(), TRUNK);
+    expect(refusal(trunk.state, trunk.id)).not.toBe("accepted");
   });
 });
 

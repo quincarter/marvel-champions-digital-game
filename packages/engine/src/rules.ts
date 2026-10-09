@@ -131,6 +131,34 @@ export interface DamageAttackInfo {
   readonly keywords: readonly AttackKeyword[];
 }
 
+/** The "unless the attacker or attack …" exceptions of a damage rule (`cannotTakeDamage`, `reduceDamageTaken`). */
+export interface AttackExceptions {
+  readonly exceptAttacker?: TargetQuery;
+  readonly exceptAttackCard?: TargetQuery;
+  readonly exceptAttackKeyword?: AttackKeyword;
+}
+
+/**
+ * Whether the attack a damage is from meets any exception the rule gives: "unless the attacker or attack has the [X]
+ * trait, or the attack has ranged" (docs/phase7-wave7.md §3.30; docs/phase7-wave9.md §3.25). The attacking character
+ * matches `exceptAttacker`, the card whose ability makes the attack matches `exceptAttackCard` (a basic attack and an
+ * enemy's activation have no such card), or the attack has `exceptAttackKeyword`. Damage that is not an attack's
+ * (`attack` absent) meets none (§4.1 Q17). Queries read "you" as the rule card's speaker (`context`).
+ */
+export function attackMeetsException(
+  state: GameState,
+  attack: DamageAttackInfo | undefined,
+  rule: AttackExceptions,
+  context: EffectContext,
+): boolean {
+  if (!attack) return false;
+  const matches = (id: InstanceId | null, query: TargetQuery | undefined): boolean =>
+    query !== undefined && id !== null && matchesQuery(state, id, query, context);
+  if (matches(attack.attackerInstanceId, rule.exceptAttacker)) return true;
+  if (matches(attack.cardInstanceId, rule.exceptAttackCard)) return true;
+  return rule.exceptAttackKeyword !== undefined && attack.keywords.includes(rule.exceptAttackKeyword);
+}
+
 /**
  * "X cannot take damage [while …] [from …]". `sources` are the damage's source and then the card it came through, if
  * any; `fromSource` matches either. `exceptFromSource` ("can only take damage from cards with a printed [physical]
@@ -148,18 +176,12 @@ export function cannotTakeDamage(
   attack?: DamageAttackInfo,
 ): boolean {
   const card = sources[1] ?? sources[0] ?? null;
-  const matches = (id: InstanceId | null, query: TargetQuery | undefined, context: EffectContext): boolean =>
-    query !== undefined && id !== null && matchesQuery(state, id, query, context);
   return activeRules(state, deps, "cannotTakeDamage").some(({ rule, context }) => {
     if (!matchesQuery(state, targetId, rule.target, context)) return false;
     if (rule.exceptFromSource && card !== null && matchesQuery(state, card, rule.exceptFromSource, context)) {
       return false;
     }
-    if (attack) {
-      if (matches(attack.attackerInstanceId, rule.exceptAttacker, context)) return false;
-      if (matches(attack.cardInstanceId, rule.exceptAttackCard, context)) return false;
-      if (rule.exceptAttackKeyword !== undefined && attack.keywords.includes(rule.exceptAttackKeyword)) return false;
-    }
+    if (attackMeetsException(state, attack, rule, context)) return false;
     if (!rule.fromSource) return true;
     const query = rule.fromSource;
     return sources.some((id) => id !== null && id !== undefined && matchesQuery(state, id, query, context));
@@ -1185,11 +1207,9 @@ export function damageTakenBreakdown(
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
-    // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30).
-    const attacker = source?.attack?.attackerInstanceId ?? null;
-    if (rule.exceptAttacker && attacker !== null && matchesQuery(state, attacker, rule.exceptAttacker, context)) {
-      continue;
-    }
+    // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30); "… unless the attacker or attack has
+    // the [AERIAL] trait, or the attack has ranged" (docs/phase7-wave9.md §3.25).
+    if (attackMeetsException(state, source?.attack, rule, context)) continue;
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
   }
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).

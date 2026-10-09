@@ -12,7 +12,18 @@ import {
 } from "@mc/engine";
 import { coreScenario } from "../core/setup.js";
 import { mergeRegistries } from "../dsl/index.js";
-import { P1, endTurn, firstLegal, identityOf, settle, stackEncounterDeck, type Picker } from "../testing/harness.js";
+import {
+  P1,
+  endTurn,
+  firstLegal,
+  identityOf,
+  moveToHand,
+  payWith,
+  play,
+  settle,
+  stackEncounterDeck,
+  type Picker,
+} from "../testing/harness.js";
 import { driveEventsPicking, withForm } from "../testing/staging.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
 
@@ -38,7 +49,15 @@ export const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
 export const CAPTAIN_MARVEL = { starterDeckId: "core-captain-marvel-leadership" } as const;
 export const SHE_HULK = { starterDeckId: "core-she-hulk-aggression" } as const;
 export const IRON_MAN = { starterDeckId: "core-iron-man-aggression" } as const;
-export type Seats = readonly (typeof SPIDER_MAN | typeof CAPTAIN_MARVEL | typeof SHE_HULK | typeof IRON_MAN)[];
+/** The Core Black Panther starter deck: two Weapon upgrades (Energy Daggers 01046, Panther Claws 01047), each cost 2. */
+export const BLACK_PANTHER_CORE = { starterDeckId: "core-black-panther-protection" } as const;
+export type Seats = readonly (
+  | typeof SPIDER_MAN
+  | typeof CAPTAIN_MARVEL
+  | typeof SHE_HULK
+  | typeof IRON_MAN
+  | typeof BLACK_PANTHER_CORE
+)[];
 
 export const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
 export const piles = (s: GameState) => s.encounterDecks[activeEncounterDeckId(s)]!;
@@ -181,4 +200,44 @@ export function heroThwarts(
     thwarterInstanceId: identityOf(state, player),
     schemeInstanceId: scheme,
   });
+}
+
+/** Mockingbird (Core, in the Spider-Man starter deck): "Response: After Mockingbird enters play, stun an enemy." */
+export const MOCKINGBIRD = "01083";
+
+/**
+ * The first player plays Mockingbird (cost 3, paid with other hand cards) and takes her response to stun `target`
+ * (an enemy in play). Returns the state and the events of the whole play. For a Vulnerable target: the stun lands
+ * from a player card, outside an attack.
+ */
+export function stunWith(deps: EngineDeps, state: GameState, target: InstanceId, player: PlayerId = P1) {
+  const given = moveToHand(state, player, MOCKINGBIRD);
+  const [id] = given.ids as [InstanceId];
+  const pay = payWith(given.state, player, 3, [id]);
+  const pick: Picker = (s) => {
+    const choice = s.pendingChoice!;
+    if (choice.prompt.kind === "chooseTarget") return picking(target)(s);
+    const take = choice.options.find((o) => o.optionId !== "decline" && o.optionId.includes("mockingbird"));
+    return take ? [take.optionId] : firstLegal(s);
+  };
+  return driveEventsPicking(deps, given.state, pick, play(player, id, pay));
+}
+
+/** The first `code` in the encounter deck or discard pile moved into the shared victory display, faceup (by surgery, no defeat). */
+export function intoVictoryDisplay(state: GameState, code: string): GameState {
+  const pile = piles(state);
+  const id = [...pile.deck, ...pile.discard].find((i) => codeOf(state, i) === code);
+  if (!id) throw new Error(`no ${code} in the encounter deck or discard`);
+  return {
+    ...state,
+    encounterDecks: {
+      ...state.encounterDecks,
+      [activeEncounterDeckId(state)]: {
+        deck: pile.deck.filter((i) => i !== id),
+        discard: pile.discard.filter((i) => i !== id),
+      },
+    },
+    victoryDisplay: [...state.victoryDisplay, id],
+    instances: { ...state.instances, [id]: { ...state.instances[id]!, faceup: true } },
+  };
 }

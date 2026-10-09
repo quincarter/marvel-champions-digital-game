@@ -1157,7 +1157,8 @@ function resourcePickChoices(
     const most = Math.min(pick.max ?? candidates.length, candidates.length);
     const options: (readonly InstanceId[])[] = [];
     for (let size = pick.min; size <= most && options.length < MAX_PICK_OPTIONS; size++) {
-      options.push(...combinations(candidates, size));
+      // "This card and up to N others" (`InPlayCostPick.includesSelf`): only the picks holding the card pay.
+      options.push(...combinations(candidates, size).filter((ids) => !pick.includesSelf || ids.includes(instanceId)));
     }
     sets = sets.flatMap((set) => options.map((ids) => ({ ...set, [pick.slot]: ids }))).slice(0, MAX_PICK_OPTIONS);
   }
@@ -2513,9 +2514,13 @@ export function inPlayCostCandidates(
   mode: InPlayCostMode,
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
-  return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
+  const candidates = eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
     canPayInPlayPick(state, deps, sourceId, id, mode, pick),
   );
+  if (!pick.includesSelf) return candidates;
+  // "This card and up to N others" (`InPlayCostPick.includesSelf`): no card can pay while this one cannot, and it is
+  // listed first, so the smallest payment (`defaultInPlayPicks`) is the card itself.
+  return candidates.includes(sourceId) ? [sourceId, ...candidates.filter((id) => id !== sourceId)] : [];
 }
 
 /**
@@ -2646,6 +2651,8 @@ function planInPlayPick(
     const stray = named?.find((id) => !eligible.includes(id));
     return stray ? whyNot(stray) : eligible;
   }
+  // "This card and up to N others" (`InPlayCostPick.includesSelf`): the card the text names pays, or nothing does.
+  if (pick.includesSelf && !candidates.includes(sourceId)) return whyNot(sourceId);
   // RRG 1.8 "Initiating Abilities" (p. 24, steps 3 and 5): a cost that can't be paid in full can't be initiated.
   if (candidates.length < pick.min) {
     // Enough matching cards, but some are exhausted (or can't leave play): say that, rather than "no card".
@@ -2665,6 +2672,8 @@ function planInPlayPick(
   }
   if (new Set(picks).size !== picks.length)
     return { code: "invalid_choice", message: `duplicate choice for ${pick.slot}` };
+  if (pick.includesSelf && !picks.includes(sourceId))
+    return { code: "invalid_choice", message: `${pick.slot} must include the card whose cost this is` };
   const bad = picks.find((id) => !candidates.includes(id));
   return bad ? whyNot(bad) : picks;
 }

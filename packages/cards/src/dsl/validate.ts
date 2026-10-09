@@ -65,6 +65,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkCardTotals(definition, problems);
   checkPreparations(definition, problems);
   checkRearranges(definition, problems);
+  checkPlays(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -178,6 +179,13 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     };
     const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
+    // "This card and up to N others" (`InPlayCostPick.includesSelf`): one pick the card itself is part of.
+    if (pick.includesSelf && pick.each)
+      problems.push(`cost ${name}: includesSelf is a pick the card is part of, not an each cost`);
+    if (pick.includesSelf && mode === "exhaust" && cost.exhaustSelf)
+      problems.push(
+        `cost ${name}: includesSelf already exhausts this card; with exhaustSelf it would pay twice (RRG 1.8 "Cost", p. 13)`,
+      );
     if (pick.each) {
       // "Each support you control" (`InPlayCostPick.each`) takes all that match, none included: no count to bound.
       if (!Number.isInteger(pick.min) || pick.min < 0)
@@ -523,6 +531,24 @@ function checkPreparations(definition: AbilityDefinition, problems: string[]): v
     if (effect.asIf) problems.push("resolveSpecials preparation: `asIf` is not read for a Preparation ability");
     if (effect.includeKeywords)
       problems.push("resolveSpecials preparation: `includeKeywords` is for When Revealed abilities");
+  }
+}
+
+/**
+ * `playFromHand`'s cost modes (docs/phase7-wave9.md §3.37): the cost is ignored or reduced, never both, and a constant
+ * reduction is a whole number of at least 0. A play from a searched deck picks its card from what the search finds, so
+ * it does not name one already picked.
+ */
+function checkPlays(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "playFromHand") continue;
+    if (effect.ignoreCost && effect.costReduction !== undefined)
+      problems.push("playFromHand: the cost is ignored or reduced, not both");
+    const reduction = effect.costReduction;
+    if (reduction?.kind === "const" && (!Number.isInteger(reduction.value) || reduction.value < 0))
+      problems.push("playFromHand costReduction: a constant reduction must be a whole number of at least 0");
+    if (effect.from === "deck" && effect.card)
+      problems.push("playFromHand from deck: the card is picked from the searched deck, so `card` is not read");
   }
 }
 

@@ -627,6 +627,10 @@ function askCostPick(
     );
     // An `each` pick takes every matching card (`InPlayCostPick.each`): nothing to ask.
     if (pick.each || candidates.length <= pick.min) continue;
+    // "This card and up to N others" (`InPlayCostPick.includesSelf`): the card itself is not a question, only the
+    // others are, and picking none of them pays with the card alone (`absorbCostPick` adds it).
+    const own = pick.includesSelf ? 1 : 0;
+    const offered = pick.includesSelf ? candidates.filter((id) => id !== candidate.instanceId) : candidates;
     setFrame(ctx, {
       ...frame,
       queue: rest,
@@ -643,13 +647,13 @@ function askCostPick(
         slot: pick.slot,
         mode,
       },
-      options: candidates.map((id) => ({
+      options: offered.map((id) => ({
         optionId: id,
         label: mustCardOf(ctx.state, id).name,
         ref: { kind: "card", instanceId: id },
       })),
       minSelections: 0,
-      maxSelections: Math.min(candidates.length, pick.max ?? candidates.length),
+      maxSelections: Math.min(offered.length, (pick.max ?? candidates.length) - own),
       frameId: frame.frameId,
     });
     return true;
@@ -740,8 +744,11 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
     (slot === HAND_DISCARD_SLOT && cost?.discardFromHand
       ? { slot: HAND_DISCARD_SLOT, min: Math.max(cost.discardFromHand.min, 1) }
       : undefined);
-  if (!candidate || !pick || answer.length < pick.min) return setFrame(ctx, cleared);
-  const picked = answer.map((id) => id as InstanceId);
+  const chosen = answer.map((id) => id as InstanceId);
+  // "This card and up to N others" (`InPlayCostPick.includesSelf`): only the others were asked for.
+  const picked =
+    candidate && pick && "includesSelf" in pick && pick.includesSelf ? [candidate.instanceId, ...chosen] : chosen;
+  if (!candidate || !pick || picked.length < pick.min) return setFrame(ctx, cleared);
   setFrame(ctx, {
     ...cleared,
     queue: [candidate, ...frame.queue],

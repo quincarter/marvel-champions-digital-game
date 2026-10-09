@@ -20,6 +20,7 @@ import {
   notMatching,
   on,
   query,
+  reducesAttackDamageTaken,
   removeCountersFrom,
   revealCard,
   rule,
@@ -50,7 +51,10 @@ const AERIAL = trait("AERIAL");
  * **Heat-Seeking Missiles (50158)**: Forced Response after the attached enemy attacks you: remove 1 missile counter
  * from here (the last one discards the card, Uses) and take 2 indirect damage.
  *
- * **Aerial Dogfight (50159)**: left unscripted, see `SUPERSONIC_SKIPPED`.
+ * **Aerial Dogfight (50159)**: each Aerial character (an enemy or a player's) takes 2 less from each attack, unless
+ * the attacking character is Aerial, the card whose ability makes the attack is Aerial ("the attack has the Aerial
+ * trait": the RRG gives an attack no traits of its own, RRG 1.8 "Traits", p. 45), or the attack has ranged, printed
+ * on the attacker or granted to the attack. Damage that is not an attack's is not reduced.
  *
  * **Supersonic (50160)**: reveals MACH-IV (found, or engaged with the revealing player when in play), who activates
  * against the revealing player; surge when nobody activated. Boost: an attack gains overkill and ranged.
@@ -86,6 +90,14 @@ export const SUPERSONIC: AbilityRegistry = defineAbilities({
     dealIndirectDamage(you, 2),
   ),
 
+  "50159.aerial-dogfight-constant": constant(
+    reducesAttackDamageTaken(query("character", { trait: AERIAL }), 2, {
+      exceptAttacker: { trait: AERIAL },
+      exceptAttackCard: { trait: AERIAL },
+      exceptAttackKeyword: "ranged",
+    }),
+  ),
+
   "50160.when-revealed": whenRevealed(
     revealCard(find(query("minion", { name: MACH_IV })), you),
     enemyActivates(named(MACH_IV), { against: you, bind: "activated" }),
@@ -95,7 +107,4 @@ export const SUPERSONIC: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const SUPERSONIC_SKIPPED: Readonly<Record<string, string>> = {
-  "50159.aerial-dogfight-constant":
-    'reduceDamageTaken (the "reduce the damage each Aerial character takes from each attack by 2" rule) has only exceptAttacker; the card also exempts "the attack has the Aerial trait" (an attacking card) and "the attack has ranged", which cannotTakeDamage can name (exceptAttackCard, exceptAttackKeyword) but reduceDamageTaken cannot',
-};
+export const SUPERSONIC_SKIPPED: Readonly<Record<string, string>> = {};

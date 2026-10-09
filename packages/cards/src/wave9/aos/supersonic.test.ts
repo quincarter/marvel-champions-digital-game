@@ -1,5 +1,7 @@
+import { cardId } from "@mc/content";
 import type { GameEvent, GameState, InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
+import { anAttackableEnemy, attack, chosen, heroAction } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -8,11 +10,14 @@ import {
   identityOf,
   inst,
   moveToHand,
+  patchInstance,
+  payWith,
   picking as pickOption,
+  play,
   playerOf,
   type Picker,
 } from "../../testing/harness.js";
-import { playFromHand } from "../../testing/staging.js";
+import { driveEventsPicking, encounterCardInVillainArea, playFromHand } from "../../testing/staging.js";
 import { attachToHost, engageMinion, handWith } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import {
   BLACK_CAT,
@@ -20,6 +25,7 @@ import {
   CAPTAIN_MARVEL,
   CHARGE,
   FILLER_A,
+  FILLER_B,
   ONE_ICON,
   SPIDER_MAN,
   attacksBy,
@@ -30,6 +36,7 @@ import {
   inDiscard,
   inPlayCard,
   onlyDeck,
+  picking as pickingTarget,
   piles,
   revealedCodes,
   schemesBy,
@@ -46,7 +53,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Supersonic), docs/phase7-wave9.md sections 3.25, 3.26, 3.34 and 3.35. Rhino (Core, standard) against a Core starter
  * deck, the set's cards added to the encounter deck by hand. MACH-IV is engaged with `engageMinion`, attachments are
  * placed with `attachToHost` (or dealt for real), and the defender is declared (or refused) through the real prompt.
- * Aerial Dogfight is skipped (see `SUPERSONIC_SKIPPED`).
+ * Aerial Dogfight is put in play with `encounterCardInVillainArea`.
  */
 const MACH_IV = "50156";
 const BLASTERS = "50157";
@@ -59,13 +66,28 @@ const REGISTERED = [
   "50157.blasters-constant",
   "50157.blasters-response",
   "50158.heat-seeking-missiles-forced-response",
+  "50159.aerial-dogfight-constant",
   "50160.when-revealed",
   "50160.boost",
 ];
 const BACKFLIP = "01003";
 const COSMIC_FLIGHT = "01017";
+const SWINGING_WEB_KICK = "01005";
+const CONCENTRATED_FIRE = "50037";
 
 const { deps: DEPS, setupGame, villainPhase } = setKit("supersonic", SUPERSONIC);
+/** Kits whose registry also scripts Concentrated Fire's ref with a stand-in attack, with and without ranged. */
+const standIn = (ranged: boolean) =>
+  setKit("supersonic", {
+    ...SUPERSONIC,
+    "50037.concentrated-fire-action": heroAction(
+      { label: "attack" },
+      anAttackableEnemy(),
+      attack(4, chosen("enemy"), ranged ? { keywords: ["ranged"] } : {}),
+    ),
+  });
+const RANGED_KIT = standIn(true);
+const UNRANGED_KIT = standIn(false);
 const totalAttackDamage = (events: readonly GameEvent[]) =>
   events.reduce((n, e) => n + (e.type === "attackResolved" ? e.damageDealt : 0), 0);
 const damageOf = (s: GameState, id: InstanceId) => inst(s, id).damage;
@@ -113,11 +135,10 @@ const attackDamage = (events: readonly GameEvent[]) =>
   );
 
 describe("registry", () => {
-  it("registers the six refs of the five cards, each a valid definition, and skips the Aerial Dogfight constant with its reason", () => {
+  it("registers the seven refs of the five cards, each a valid definition, and skips none", () => {
     expect(Object.keys(SUPERSONIC).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(SUPERSONIC)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(SUPERSONIC_SKIPPED)).toEqual(["50159.aerial-dogfight-constant"]);
-    expect(SUPERSONIC_SKIPPED["50159.aerial-dogfight-constant"]).toContain("reduceDamageTaken");
+    expect(SUPERSONIC_SKIPPED).toEqual({});
   });
 
   it("the data names exactly the registered and skipped refs for the five cards", () => {
@@ -387,6 +408,104 @@ describe("Aerial Dogfight (50159)", () => {
       ["hazard"],
       [{ name: "hinder", value: 0, perPlayer: 2 }],
     ]);
+  });
+
+  /** MACH-IV (Aerial) engaged with a hero-form first player, Aerial Dogfight in play when `scheme`. */
+  function dogfight(players: Parameters<typeof setupGame>[0] = [SPIDER_MAN], scheme = true, game = setupGame) {
+    const { state: engaged, id } = engageMinion(heroForm(game(players)), MACH_IV, P1);
+    return { state: scheme ? encounterCardInVillainArea(engaged, DOGFIGHT, 3).state : engaged, mach: id };
+  }
+  /** Plays `code` from hand (paying `cost` with other hand cards) at `target`. */
+  function playAt(deps: typeof DEPS, state: GameState, code: string, cost: number, target: InstanceId) {
+    const given = moveToHand(state, P1, code);
+    const [id] = given.ids as [InstanceId];
+    const command = play(P1, id, payWith(given.state, P1, cost, [id]));
+    return driveEventsPicking(deps, given.state, pickingTarget(target), command);
+  }
+  const reducedOn = (events: readonly GameEvent[], target: InstanceId) =>
+    events.flatMap((e) =>
+      e.type === "damagePrevented" && e.targetInstanceId === target && e.reason === "reduced" ? [e.amount] : [],
+    );
+
+  it("CONSTANT 50159.aerial-dogfight-constant: a non-Aerial hero's basic attack on the Aerial MACH-IV is reduced by 2 (Spider-Man's ATK 2 deals 0); without the scheme it deals 2", () => {
+    const { state, mach } = dogfight();
+    const run = heroAttacks(DEPS, state, mach);
+    expect(damageOf(run.state, mach)).toBe(0);
+    expect(reducedOn(run.events, mach)).toEqual([2]);
+
+    const control = dogfight([SPIDER_MAN], false);
+    expect(damageOf(heroAttacks(DEPS, control.state, control.mach).state, control.mach)).toBe(2);
+  });
+
+  it("CONSTANT: only Aerial characters are protected: the same basic attack deals its 2 to Rhino", () => {
+    const { state } = dogfight();
+    const run = heroAttacks(DEPS, state, villainOf(state));
+    expect(damageOf(run.state, villainOf(state))).toBe(2);
+    expect(reducedOn(run.events, villainOf(state))).toEqual([]);
+  });
+
+  it("CONSTANT, 'the attacker has the Aerial trait': Captain Marvel with Cosmic Flight deals her ATK 2 to MACH-IV; without it, 0", () => {
+    const { state: flying } = playFromHand(DEPS, setupGame([CAPTAIN_MARVEL]), COSMIC_FLIGHT, 2);
+    const { state: engaged, id } = engageMinion(heroForm(flying), MACH_IV, P1);
+    const state = encounterCardInVillainArea(engaged, DOGFIGHT, 3).state;
+    expect(damageOf(heroAttacks(DEPS, state, id).state, id)).toBe(2);
+
+    const plain = dogfight([CAPTAIN_MARVEL]);
+    expect(damageOf(heroAttacks(DEPS, plain.state, plain.mach).state, plain.mach)).toBe(0);
+  });
+
+  it("CONSTANT, 'the attack has the Aerial trait': Swinging Web Kick (an Aerial attack event) deals its 8 from the non-Aerial Spider-Man", () => {
+    const { state, mach } = dogfight();
+    expect(state.cardPool[cardId(SWINGING_WEB_KICK)]!.traits).toContain("AERIAL");
+    const run = playAt(DEPS, state, SWINGING_WEB_KICK, 3, mach);
+    expect(damageOf(run.state, mach)).toBe(8);
+    expect(reducedOn(run.events, mach)).toEqual([]);
+  });
+
+  // Spec section 3.25: "Concentrated Fire (ranged) deals its 4". Nick Fury's events are not scripted yet, so the
+  // card's ref is given a stand-in of its damage line ("Deal 4 damage to an enemy. This attack gains ranged.") and a
+  // deck card is rewritten into a copy of it.
+  it("CONSTANT, 'the attack has ranged': Concentrated Fire (stand-in script, a non-Aerial Attack event) deals its 4; the same attack without ranged deals 4 - 2 = 2", () => {
+    expect(dataOf(CONCENTRATED_FIRE).traits).toEqual(["ATTACK"]);
+    for (const [kit, dealt, reduced] of [
+      [RANGED_KIT, 4, []],
+      [UNRANGED_KIT, 2, [2]],
+    ] as const) {
+      const { state, mach } = dogfight([SPIDER_MAN], true, kit.setupGame);
+      const top = playerOf(state, P1).deck[0]!;
+      const rewritten = patchInstance(state, top, { cardId: cardId(CONCENTRATED_FIRE) });
+      const run = playAt(kit.deps, rewritten, CONCENTRATED_FIRE, 2, mach);
+      expect(damageOf(run.state, mach)).toBe(dealt);
+      expect(reducedOn(run.events, mach)).toEqual(reduced);
+    }
+  });
+
+  it("CONSTANT: an Aerial hero is protected too: Rhino's attack (ATK 2) on Captain Marvel with Cosmic Flight deals 0, the Aerial MACH-IV's (ATK 2) its 2", () => {
+    const { state: flying } = playFromHand(DEPS, setupGame([CAPTAIN_MARVEL]), COSMIC_FLIGHT, 2);
+    const { state: engaged } = engageMinion(heroForm(flying), MACH_IV, P1);
+    const state = encounterCardInVillainArea(engaged, DOGFIGHT, 3).state;
+    const hero = identityOf(state);
+    const run = villainPhase(state, [BLANK, BLANK, FILLER_A, FILLER_B]);
+    expect(attacksBy(run.state, run.events, MACH_IV)).toMatchObject([{ baseAtk: 2, damageDealt: 2 }]);
+    expect(reducedOn(run.events, hero)).toEqual([2]);
+    expect(damageOf(run.state, hero)).toBe(2);
+  });
+
+  it("CONSTANT: a ranged enemy attack is not reduced: Rhino with Blasters (ATK 2 + 1, ranged) deals 3 to the Aerial Captain Marvel", () => {
+    const { state: flying } = playFromHand(DEPS, setupGame([CAPTAIN_MARVEL]), COSMIC_FLIGHT, 2);
+    const base = heroForm(flying);
+    const { state: armed } = attachToHost(base, BLASTERS, villainOf(base));
+    const state = encounterCardInVillainArea(armed, DOGFIGHT, 3).state;
+    const run = villainPhase(state, [BLANK, FILLER_A, FILLER_B]);
+    expect(reducedOn(run.events, identityOf(state))).toEqual([]);
+    expect(damageOf(run.state, identityOf(state))).toBe(3);
+  });
+
+  it("CONSTANT: a non-Aerial hero is not protected: Rhino's attack deals its 2 to Spider-Man", () => {
+    const base = heroForm(setupGame());
+    const state = encounterCardInVillainArea(base, DOGFIGHT, 3).state;
+    const run = villainPhase(state, [BLANK, FILLER_A, FILLER_B]);
+    expect(damageOf(run.state, identityOf(state))).toBe(2);
   });
 });
 

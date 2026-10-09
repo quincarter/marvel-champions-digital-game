@@ -12,6 +12,9 @@ import { abilityRefIds } from "../ability-refs.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
+import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
+import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-supreme.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
 import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
@@ -26,9 +29,11 @@ import {
   BLACK_PANTHER_OBLIGATION_NEMESIS,
   BLACK_PANTHER_OBLIGATION_NEMESIS_SKIPPED,
 } from "./bp/black-panther/obligation-nemesis.js";
+import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { SILK_ABILITIES } from "./silk/index.js";
+import { SILK_IDENTITY, SILK_IDENTITY_SKIPPED } from "./silk/silk/identity.js";
 import { TT_ABILITIES } from "./tt/index.js";
 import { WINTER_ABILITIES } from "./winter/index.js";
 
@@ -69,6 +74,18 @@ const SCRIPTED_MODULES: Readonly<
   // Agents of S.H.I.E.L.D. is scripted module by module; the pack stays "not started" until every module is in.
   aos: [
     {
+      module: "aim-science",
+      cardIds: ["50083", "50084", "50085"],
+      registry: AIM_SCIENCE,
+      skipped: AIM_SCIENCE_SKIPPED,
+    },
+    {
+      module: "batrocs-brigade",
+      cardIds: ["50098", "50099", "50100", "50101", "50102"],
+      registry: BATROCS_BRIGADE,
+      skipped: BATROCS_BRIGADE_SKIPPED,
+    },
+    {
       module: "gravitational-pull",
       cardIds: ["50139", "50140", "50141", "50142"],
       registry: GRAVITATIONAL_PULL,
@@ -85,6 +102,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50152", "50153", "50154", "50155"],
       registry: POWER_OF_THE_ATOM,
       skipped: POWER_OF_THE_ATOM_SKIPPED,
+    },
+    {
+      module: "scientist-supreme",
+      cardIds: ["50125", "50126", "50127", "50128"],
+      registry: SCIENTIST_SUPREME,
+      skipped: SCIENTIST_SUPREME_SKIPPED,
     },
     {
       module: "supersonic",
@@ -117,6 +140,20 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["51031", "51032", "51033", "51034", "51035"],
       registry: BLACK_PANTHER_OBLIGATION_NEMESIS,
       skipped: BLACK_PANTHER_OBLIGATION_NEMESIS_SKIPPED,
+    },
+    {
+      module: "extreme-risk",
+      cardIds: ["51039", "51040", "51041", "51042"],
+      registry: EXTREME_RISK,
+      skipped: EXTREME_RISK_SKIPPED,
+    },
+  ],
+  silk: [
+    {
+      module: "silk/identity",
+      cardIds: ["52001a"],
+      registry: SILK_IDENTITY,
+      skipped: SILK_IDENTITY_SKIPPED,
     },
   ],
 };
