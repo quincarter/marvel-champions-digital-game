@@ -9,7 +9,7 @@ import { storyFor, type CampaignStory } from "../campaign/story.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { PipState } from "../ui/campaign-chrome.js";
 import { ladderFieldOf, walletFieldsOf } from "./campaign-dossier-model.js";
-import { FIELD_SHORT_LABEL } from "./campaign-run-model.js";
+import { FIELD_SHORT_LABEL, lostAtLineOf } from "./campaign-run-model.js";
 
 export interface CoverModel {
   readonly campaignId: string;
@@ -29,6 +29,8 @@ export interface CoverModel {
   readonly nextIssueVillain: string | null;
   /** The run's terminal state, for "no next issue" — null while a run is still active, or there is no run. */
   readonly finished: CampaignStatus | null;
+  /** "Campaign lost at issue #5" for a lost run, else null. */
+  readonly lostLine: string | null;
   /** Read Issue / Sign the roster is the only enabled action while true. */
   readonly canReadIssue: boolean;
   readonly canOpenDossier: boolean;
@@ -134,6 +136,13 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
     nextIssueTitle,
     nextIssueVillain,
     finished,
+    lostLine:
+      record && linearNodes
+        ? lostAtLineOf(
+            record,
+            linearNodes.map((node) => node.id),
+          )
+        : null,
     canReadIssue,
     canOpenDossier,
     canOpenRun,

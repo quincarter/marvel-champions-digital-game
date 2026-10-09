@@ -33,20 +33,11 @@ export function drawEasierStart(
   if (brief.on)
     g.lineStyle(4, accent.heroRed.hex, 1).strokeRect(card.x + 2, card.y + 2, card.width - 4, card.height - 4);
   else
-    g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(
-      card.x + 0.75,
-      card.y + 0.75,
-      card.width - 1.5,
-      card.height - 1.5,
-    );
+    // Off is a choice the player can make, not a dead control: a full-strength frame and text, the state in words.
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(card.x + 1, card.y + 1, card.width - 2, card.height - 2);
   const size = phone ? 16 : 18;
   const name = scene.add
-    .text(
-      card.x + 12,
-      card.y + 10,
-      brief.name.toUpperCase(),
-      textStyle(bangers(size), surface.ink.hex, brief.on ? 1 : ink.secondary),
-    )
+    .text(card.x + 12, card.y + 10, brief.name.toUpperCase(), textStyle(bangers(size), surface.ink.hex, 1))
     .setOrigin(0, 0);
   fitText(name, card.width - 24, size);
   scene.add
@@ -54,7 +45,7 @@ export function drawEasierStart(
       card.x + 12,
       card.y + 10 + name.height + 4,
       brief.meta,
-      textStyle(typeRole.body, surface.ink.hex, brief.on ? ink.secondary : ink.disabled),
+      textStyle(typeRole.body, surface.ink.hex, ink.secondary),
     )
     .setOrigin(0, 0);
   return card.y + card.height;

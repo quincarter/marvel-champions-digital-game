@@ -429,7 +429,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ ISSUES",
       onBack: back,
-      title: `Briefing · Issue #${this.#issueNumber}`,
+      title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}`,
       ...(hiddenEvidence
         ? {
             right: hiddenEvidence.revealedCards

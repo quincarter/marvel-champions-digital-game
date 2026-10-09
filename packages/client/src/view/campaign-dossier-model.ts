@@ -37,6 +37,7 @@ import type { RunIssueRow } from "./campaign-run-model.js";
 import {
   campaignRunModel,
   FIELD_SHORT_LABEL,
+  lostAtNodeIdOf,
   PLURALIZED_FIELDS,
   pluralizeFieldWord,
   signedCount,
@@ -1099,16 +1100,19 @@ export function campaignDossierHero(
   const heroName = isHero ? heroFaceDisplayName(identity) : (seat.identityCardId as string);
 
   const nodeIds = definition.graph.nodes.map((node) => node.id);
+  const lostAt = lostAtNodeIdOf(record, nodeIds);
   const issues: DossierHeroIssueBox[] = definition.graph.nodes.map((node) => {
     const resolved = record.position.resolved[node.id];
     const isCurrent = node.id === record.position.nextNodeId;
     const state: DossierHeroIssueBox["state"] = isCurrent
       ? "next"
-      : resolved === "completed"
-        ? "won"
-        : resolved === "failed"
-          ? "lost"
-          : "sealed";
+      : node.id === lostAt
+        ? "lost"
+        : resolved === "completed"
+          ? "won"
+          : resolved === "failed"
+            ? "lost"
+            : "sealed";
     return {
       number: issueNumberOf(nodeIds, node.id),
       label: state === "won" ? "WON" : state === "lost" ? "LOST" : state === "next" ? "NEXT" : "—",

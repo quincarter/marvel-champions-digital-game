@@ -49,6 +49,9 @@ const CELL_WORDS: Readonly<Record<string, { readonly defeated: string; readonly 
   },
 };
 
+/** The rows whose Not Defeated cell lasts "for the rest of the campaign" in every later game (MC45 p. 24). */
+const CARRIED_ROWS: ReadonlySet<string> = new Set(["evacuate", "sabotage"]);
+
 /** What the row does when it is drawn (its Setup cell), in a few words. */
 const SETUP_WORDS: Readonly<Record<string, string>> = {
   liberate: "Desperate Measures is set aside this game.",
@@ -200,6 +203,11 @@ export interface MissionBriefing {
   readonly prelateAbsent: string | null;
   /** The draws of the lost attempts at this scenario, oldest first; empty on a first try. A retry draws again (Q22). */
   readonly earlier: readonly MissionDraw[];
+  /**
+   * Penalties still in force from earlier missions that were not defeated, in a few words each: the cards they shuffle
+   * into every deck or the encounter deck for the rest of the campaign (MC45 p. 24). Empty when none apply.
+   */
+  readonly carried: readonly string[];
   /** The mission is the scenario's own fixed one (Protect the Professor, MC45 p. 20), not a draw. */
   readonly fixed: boolean;
 }
@@ -254,6 +262,10 @@ export function missionBriefingOf(
     overseer,
     prelateAbsent: prelateRan && overseer ? `${overseer.name} (Prelate)` : null,
     earlier,
+    carried: AOA_MISSIONS.filter(
+      (candidate) =>
+        CARRIED_ROWS.has(candidate.id) && optionOf(record.shared[candidate.resultField]) === AOA_NOT_DEFEATED,
+    ).map((candidate) => CELL_WORDS[candidate.id]!.notDefeated),
     fixed: mission !== null && drawOf(attempt.steps, "mission") === undefined,
   };
 }

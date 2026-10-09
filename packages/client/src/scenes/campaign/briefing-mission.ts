@@ -100,5 +100,17 @@ export function drawMissionBriefing(ctx: SideSchemeDrawContext, top: number, bri
     fitText(line, rect.width, 12);
     y += line.height + 4;
   }
+  if (brief.carried.length > 0) {
+    y += 4;
+    y += label(scene, rect.x, y, "Carried over", typeRole.label, signal.cost.hex, 1).height + 4;
+    for (const text of brief.carried) {
+      const line = scene.add
+        .text(rect.x, y, text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .setOrigin(0, 0)
+        .setFontSize(12);
+      fitText(line, rect.width, 12);
+      y += line.height + 4;
+    }
+  }
   return y;
 }

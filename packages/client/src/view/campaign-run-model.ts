@@ -70,6 +70,28 @@ export function signedCount(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
 }
 
+/**
+ * The issue a lost campaign was lost at (MC45 p. 20: winning the last scenario can still lose the campaign): the first
+ * node not marked completed, else the last. Null for any run that is not lost. A lost run's `nextNodeId` is cleared, so
+ * that node would otherwise read as a sealed issue that was never played.
+ */
+export function lostAtNodeIdOf(
+  record: { readonly status: string; readonly position: { readonly resolved: Readonly<Record<string, string>> } },
+  nodeIds: readonly string[],
+): string | null {
+  if (record.status !== "lost" || nodeIds.length === 0) return null;
+  return nodeIds.find((id) => record.position.resolved[id] !== "completed") ?? nodeIds.at(-1)!;
+}
+
+/** "Campaign lost at issue #5" for a lost run, else null: the one sentence Saga, Cover and Dossier say a lost campaign with. */
+export function lostAtLineOf(
+  record: { readonly status: string; readonly position: { readonly resolved: Readonly<Record<string, string>> } },
+  nodeIds: readonly string[],
+): string | null {
+  const nodeId = lostAtNodeIdOf(record, nodeIds);
+  return nodeId === null ? null : `Campaign lost at issue #${nodeIds.indexOf(nodeId) + 1}`;
+}
+
 export type RunIssueStatus = "finished" | "current" | "sealed";
 
 /**
@@ -295,10 +317,11 @@ export function campaignRunModel(
   const currentId = record.position.nextNodeId;
   const heroLabel = heroLabelOf(record.seats, cardName);
   const unlisted = unlistedFieldIds(definition);
+  const lostAt = lostAtNodeIdOf(record, nodeIds);
   const issues: RunIssueRow[] = definition.graph.nodes.map((node) => {
     const resolved = record.position.resolved[node.id];
     const isCurrent = node.id === currentId;
-    const status: RunIssueStatus = isCurrent ? "current" : resolved ? "finished" : "sealed";
+    const status: RunIssueStatus = isCurrent ? "current" : resolved || node.id === lostAt ? "finished" : "sealed";
     const issueStory = issueStoryFor(definition.campaignId as string, node.id);
     const title = issueStory?.title ?? node.label;
     // A page-based issue's own crop is just art layout — never a spoiler on its own (it's shown pixelated while
@@ -313,14 +336,18 @@ export function campaignRunModel(
         title,
         status,
         won: resolved === "completed",
-        resultLine: resultLineFor(
-          node.id,
-          record.history,
-          cardName,
-          heroLabel,
-          new Set(node.victory.map((instruction) => instruction.id)),
-          unlisted,
-        ),
+        // The game itself may have been won (MC45 p. 20); the campaign is what was lost.
+        resultLine:
+          node.id === lostAt
+            ? "Campaign lost"
+            : resultLineFor(
+                node.id,
+                record.history,
+                cardName,
+                heroLabel,
+                new Set(node.victory.map((instruction) => instruction.id)),
+                unlisted,
+              ),
         teaser: null,
         blurb: null,
         pageProgressLine: null,

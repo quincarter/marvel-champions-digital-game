@@ -40,7 +40,7 @@ import {
   type DossierReputationTrack,
   type DossierWalletSeat,
 } from "../../view/campaign-dossier-model.js";
-import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
+import { campaignRunModel, lostAtLineOf, type RunIssueRow } from "../../view/campaign-run-model.js";
 import type { CampaignPoolOverview, PoolStillInPlayRow } from "../../view/campaign-pool-model.js";
 import type { HiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
 import type { Rect } from "../../view/layout.js";
@@ -79,6 +79,10 @@ interface LoadedDossier {
   readonly totalIssues: number;
   /** The last node marked `completed`, by its 1-based issue number — null on a run with nothing finished yet. */
   readonly lastCompletedNumber: number | null;
+  /** "Campaign lost at issue #5" on a lost run, else null. */
+  readonly lostLine: string | null;
+  /** A won, lost or abandoned run has no deck left to edit. */
+  readonly finishedRun: boolean;
   readonly overview: DossierOverview;
   readonly log: DossierLog;
   readonly issues: readonly RunIssueRow[];
@@ -175,6 +179,11 @@ export class CampaignDossierScene extends Phaser.Scene {
       issueNumber: run.issueNumber,
       totalIssues: run.totalIssues,
       lastCompletedNumber,
+      lostLine: lostAtLineOf(
+        record,
+        definition.graph.nodes.map((node) => node.id),
+      ),
+      finishedRun: record.status !== "active",
       overview,
       log,
       issues: run.issues,
@@ -221,11 +230,13 @@ export class CampaignDossierScene extends Phaser.Scene {
       onBack: () => this.#back(),
       title: "Dossier",
       right: loaded
-        ? this.#tab === "overview"
-          ? loaded.lastCompletedNumber === null
-            ? "No issues yet"
-            : `After issue #${loaded.lastCompletedNumber}`
-          : loaded.campaignName
+        ? loaded.lostLine
+          ? loaded.lostLine
+          : this.#tab === "overview"
+            ? loaded.lastCompletedNumber === null
+              ? "No issues yet"
+              : `After issue #${loaded.lastCompletedNumber}`
+            : loaded.campaignName
         : "",
     });
     if (top.back && top.backRect) {
@@ -261,7 +272,7 @@ export class CampaignDossierScene extends Phaser.Scene {
     // Only the Heroes tab has an action bar (design tile 14's "EDIT HAWKEYE'S DECK") — Overview and Log run their
     // content to the bottom of the screen (tiles 12/13).
     let bodyBottom = frame.height;
-    if (this.#tab === "heroes") {
+    if (this.#tab === "heroes" && !loaded.finishedRun) {
       const bar = drawActionBar(this);
       bodyBottom = bar.y;
       this.#heroesActionBar(bar, stops, order);

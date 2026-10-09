@@ -1301,7 +1301,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
         .setWordWrapWidth(noteWidth);
     }
     const ctaRect = this.#ctaRect(rect, phone);
-    const label_ = group?.optional && !ready ? "Each hero decides" : "Each hero takes one";
+    const label_ = ready ? "Confirm picks" : group?.optional ? "Each hero decides" : "Each hero takes one";
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",

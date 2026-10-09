@@ -211,7 +211,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: frame.phone ? "◂" : "◂ Cover",
       onBack: () => this.#onCancel(),
-      title: "Sign the roster",
+      title: this.#expertCampaign ? "Sign the roster · Expert" : "Sign the roster",
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => this.#onCancel() });
 

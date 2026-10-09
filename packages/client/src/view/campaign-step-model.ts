@@ -120,6 +120,10 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
           ? `${renderLogValue(write.value, cardName)} (running total)`
           : renderLogValue(write.value, cardName);
     if (write.mode === "set" && chosenText.has(rendered)) return;
+    // A write that only records a name the instruction's own printed sentence already says ("Reveal the Protect the
+    // Professor side scheme" setting the current mission to Protect the Professor) is bookkeeping, not a second fact.
+    if (write.mode === "set" && rendered.length >= 6 && step.text.toLowerCase().includes(rendered.toLowerCase()))
+      return;
     const seat = write.seatNumber === null ? "" : ` (seat ${write.seatNumber})`;
     lines.push(
       isStrike

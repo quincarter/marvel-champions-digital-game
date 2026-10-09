@@ -300,28 +300,55 @@ function fieldLogRowsOf(
   return [...nowRows, ...laterRows];
 }
 
-/** One row for the seats' current campaign grants — MC10 p. 3's "start in play" TECH/Basic Condition upgrades. */
 /**
  * A pooled card's own grant (Shawarma's `poolDeckGrant`, MC21 p. 17/21/25) is never named here: "From the pool"
- * already shows it, correctly, as "shuffled into their deck" rather than the MC10-only "start in play" wording this
- * row prints — listing it here too would say the same card lands in two different places.
+ * already shows it, correctly, as "shuffled into their deck" rather than the MC10-only "start in play" wording the
+ * first row prints — listing it here too would say the same card lands in two different places.
  */
-function grantsRowOf(record: CampaignRecord, cardName: CardNameOf, definition?: CampaignDefinition): HandledRow | null {
+/**
+ * The seats' campaign grants as up to two rows, each saying what really happens to its cards:
+ *  - the ones the campaign puts in play at setup (MC10 p. 3's TECH/Basic Condition upgrades): "start in play";
+ *  - rewards (`deckSize: "maximumOnly"`, MC45 p. 24's "They may include 1 copy of that card in their deck"): they are
+ *    in the shuffled deck, not in play, and one the player left out of the deck in Edit deck is not.
+ * Only a grant the campaign keeps counts: a "this game" grant is a card added to the deck for that game (MC32 p. 5's
+ * role-building) and its own per-seat row says so.
+ */
+export function grantRowsOf(
+  record: CampaignRecord,
+  cardName: CardNameOf,
+  definition?: CampaignDefinition,
+): readonly HandledRow[] {
   const poolNames = definition ? new Set(poolFieldsOf(definition).map((field) => field.name)) : new Set<string>();
-  // Only a grant the campaign keeps (MC10 p. 3's TECH/Basic Condition upgrades) starts in play. A "this game" grant is
-  // a card added to the deck for that game (MC32 p. 5's role-building): its own per-seat row says so, and listing it
-  // here too said it started in play.
-  const lines = record.seats
-    .map((seat) => {
-      const names = seat.grants
-        .filter((grant) => grant.permanence !== "thisGame")
-        .map((grant) => cardName(grant.cardId))
-        .filter((name) => !poolNames.has(name));
-      return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
-    })
-    .filter((line): line is string => line !== null);
-  if (lines.length === 0) return null;
-  return { key: "grants", status: "done", title: "Setup cards start in play", detail: lines.join(" ") };
+  const linesOf = (pick: (grant: CampaignRecord["seats"][number]["grants"][number]) => boolean): string[] =>
+    record.seats
+      .map((seat) => {
+        const names = seat.grants
+          .filter((grant) => grant.permanence !== "thisGame" && pick(grant))
+          .map((grant) => cardName(grant.cardId))
+          .filter((name) => !poolNames.has(name));
+        return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
+      })
+      .filter((line): line is string => line !== null);
+  const isReward = (grant: { readonly deckSize?: string }): boolean => grant.deckSize === "maximumOnly";
+  const rows: HandledRow[] = [];
+  const inPlay = linesOf((grant) => !isReward(grant));
+  if (inPlay.length > 0) {
+    rows.push({ key: "grants", status: "done", title: "Setup cards start in play", detail: inPlay.join(" ") });
+  }
+  const inDeck = linesOf((grant) => isReward(grant) && grant.leftOut !== true);
+  if (inDeck.length > 0) {
+    rows.push({
+      key: "rewards",
+      status: "done",
+      title: "Rewards are in the deck",
+      detail: `${inDeck.join(" ")} Shuffled in, not in play. Leave one out in Edit deck.`,
+    });
+  }
+  const leftOut = linesOf((grant) => isReward(grant) && grant.leftOut === true);
+  if (leftOut.length > 0) {
+    rows.push({ key: "rewards-left-out", status: "done", title: "Rewards left out", detail: leftOut.join(" ") });
+  }
+  return rows;
 }
 
 function joinNames(names: readonly string[]): string {
@@ -461,7 +488,7 @@ function genericHandledRowsOf(
   definition?: CampaignDefinition,
   nodeIds: readonly string[] = [],
 ): readonly HandledRow[] {
-  const grants = grantsRowOf(record, cardName, definition);
+  const grants = grantRowsOf(record, cardName, definition);
   const statusById = new Map(attempt.steps.map((step) => [step.instructionId, statusOf(step)] as const));
   const rows = campaignStepRows(attempt.steps, cardName);
   const stepRows = rows
@@ -486,7 +513,7 @@ function genericHandledRowsOf(
       return plain ? [plain] : [];
     });
   const fieldRows = definition ? fieldLogRowsOf(attempt, record, definition, nodeIds) : [];
-  return [...(grants ? [grants] : []), ...stepRows, ...fieldRows];
+  return [...grants, ...stepRows, ...fieldRows];
 }
 
 /**
