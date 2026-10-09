@@ -7,14 +7,6 @@ import { validateCard, type AnyCard, type HeroIdentityCard } from "../schema/ind
 import {
   DATA_ONLY_CARDS,
   DATA_ONLY_ENCOUNTER_SETS,
-  BP_CARDS,
-  BP_PACK,
-  WINTER_CARDS,
-  WINTER_PACK,
-  FALCON_CARDS,
-  FALCON_PACK,
-  SILK_CARDS,
-  SILK_PACK,
   WONDER_MAN_CARDS,
   WONDER_MAN_PACK,
   PHOENIX_CARDS,
@@ -28,18 +20,13 @@ import { WAVE5_CARDS } from "./index.js";
 import { WAVE6_CARDS } from "./index.js";
 import { WAVE7_CARDS } from "./index.js";
 import { WAVE8_CARDS } from "./index.js";
+import { WAVE9_CARDS } from "./index.js";
 
 const PACKS: readonly {
   readonly code: string;
   readonly cards: readonly AnyCard[];
   readonly pack: { readonly cycleId: string; readonly releaseDate?: string };
-}[] = [
-  { code: "bp", cards: BP_CARDS, pack: BP_PACK },
-  { code: "winter", cards: WINTER_CARDS, pack: WINTER_PACK },
-  { code: "falcon", cards: FALCON_CARDS, pack: FALCON_PACK },
-  { code: "silk", cards: SILK_CARDS, pack: SILK_PACK },
-  { code: "wonder_man", cards: WONDER_MAN_CARDS, pack: WONDER_MAN_PACK },
-];
+}[] = [{ code: "wonder_man", cards: WONDER_MAN_CARDS, pack: WONDER_MAN_PACK }];
 
 describe("data-only pool — integrity", () => {
   it("every emitted card passes validateCard()", () => {
@@ -49,14 +36,14 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("five packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(5);
+  it("one pack, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(1);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3), wave 5 (cycle 4), wave 6 (cycle 6), wave 7 (cycle 7) or wave 8 (cycle 8)", () => {
+  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2), wave 4 (cycle 3), wave 5 (cycle 4), wave 6 (cycle 6), wave 7 (cycle 7), wave 8 (cycle 8) or wave 9 (cycle 9)", () => {
     const known = new Set(
       [
         ...CORE_CARDS,
@@ -68,6 +55,7 @@ describe("data-only pool — integrity", () => {
         ...WAVE6_CARDS,
         ...WAVE7_CARDS,
         ...WAVE8_CARDS,
+        ...WAVE9_CARDS,
       ].map((c) => c.id as string),
     );
     for (const c of DATA_ONLY_CARDS) expect(known.has(c.id as string), c.id as string).toBe(false);
@@ -97,8 +85,8 @@ describe("data-only pool — integrity", () => {
     // `WAVE7_CARDS` (wave7.test.ts, docs/phase7-wave7.md).
     // Cycle 8 (Age of Apocalypse, Nightcrawler, Magneto, Iceman, Jubilee) has moved entirely out of this pool: they are
     // now `WAVE8_CARDS` (wave8.test.ts, docs/phase7-wave8.md).
-    // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).
-    for (const code of ["bp", "silk", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
+    // Cycle 9 (Agents of S.H.I.E.L.D., Black Panther/Shuri, Silk, Winter Soldier, Falcon, Trickster Takeover) has moved
+    // entirely out of this pool: they are now `WAVE9_CARDS` (wave9.test.ts, docs/phase7-wave9.md).
     // Cycle 10: Wonder Man (Hercules/Fear No Evil are not in this pool yet).
     expect(cycleOf("wonder_man")).toBe("cycle10");
   });
@@ -128,20 +116,4 @@ describe("data-only pool — integrity", () => {
     expect(card.text.printed).toMatch(/this card gains surge\. Discard this card\.$/);
     expect(card.text.current).toBe(card.text.printed);
   });
-
-  it.each([
-    ["bp", BP_CARDS, "51031", 4, "doubt"],
-    ["falcon", FALCON_CARDS, "53029", 3, "emergency"],
-  ] as const)(
-    "%s: obligation %s carries real Uses and Victory 0 keywords (no scripts exist yet to double-place counters)",
-    (_pack, cards, id, count, counterType) => {
-      const card = cards.find((c) => c.id === id);
-      expect(card?.type).toBe("obligation");
-      if (card?.type !== "obligation") return;
-      expect(card.keywords).toEqual([
-        { name: "uses", count, counterType },
-        { name: "victory", value: 0 },
-      ]);
-    },
-  );
 });
