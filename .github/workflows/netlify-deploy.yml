@@ -27,17 +27,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The Vitest suites of every package, split over four runners. The suites need about an hour of CPU and a runner has
-  # four cores, so one runner took 20 to 50 minutes (2026-10-09); `--shard` gives each runner a quarter of the test
-  # files. Every shard runs to the end so one failure doesn't hide another.
-  test:
-    name: Unit tests (shard ${{ matrix.shard }} of 4)
+  # Decides which unit-test jobs run (scripts/ci-test-plan.mjs): one per wave of the cards package and three for
+  # everything else. A pull request that only changes wave folders skips the waves before the earliest one it touches.
+  plan:
+    name: Plan the unit tests
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            packages/cards/src
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          : > changed.txt
+          if [ -n "$PR" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)' > changed.txt
+            # The API lists at most 3000 files; a pull request that large runs everything.
+            if [ "$(wc -l < changed.txt)" -ge 3000 ]; then : > changed.txt; fi
+          fi
+          matrix=$(node scripts/ci-test-plan.mjs changed.txt)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix" | jq -r '"Unit-test jobs: " + ([.include[].name] | join(", "))' >> "$GITHUB_STEP_SUMMARY"
+
+  # The Vitest suites of every package, split over one runner per group. The suites need about an hour of CPU and a
+  # runner has four cores, so one runner took 20 to 50 minutes (2026-10-09). Every job runs to the end so one failure
+  # doesn't hide another.
+  test:
+    name: Unit tests (${{ matrix.name }})
+    needs: plan
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -46,12 +77,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test --shard=${{ matrix.shard }}/4
+      - run: pnpm test ${{ matrix.args }}
 
   deploy:
     name: Build, test and deploy to Netlify
     runs-on: ubuntu-latest
-    # Waits for every test shard: a failure deploys nothing.
+    # Waits for every unit-test job: a failure deploys nothing.
     needs: test
     # Fork PRs get no secrets, so they can't deploy.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository

@@ -1,3 +1,3 @@
 kind: Changed
-body: The pull request and main unit tests run on four runners in parallel (Vitest shards) instead of one.
+body: The pull request and main unit tests run as parallel jobs, one per wave of the cards package plus three for everything else, and a pull request that only changes wave folders skips the earlier waves.
 time: 2026-10-09T11:11:01.272526-04:00
