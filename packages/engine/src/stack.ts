@@ -350,6 +350,14 @@ export type StackFrame =
        */
       readonly optionalAtOpen?: readonly TriggerCandidate[];
       /**
+       * Set when a player picked an optional ability in the round of `chooseTriggers` prompts now resolving. RRG 1.8
+       * "Response" (p. 36) and "Interrupt": several may be triggered from one triggering condition, each once, until
+       * "all players decide they do not wish to resolve any (further)" ones; "In Player Order" (p. 24): the sequence
+       * of opportunities continues until it is complete. So once the picked ones have resolved, the ones left in
+       * `pending` are offered again, and the tier ends with a round in which nobody picks.
+       */
+      readonly pickedThisRound?: true;
+      /**
        * Interrupt windows only: the optional abilities that were live as the window opened and listen for this kind
        * of event (`hearersOf`), by key, whether or not their whole condition was met then. One of them whose
        * condition comes to be met while the window is open, before the event resolves, is offered then ("When you
