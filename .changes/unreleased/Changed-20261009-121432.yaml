@@ -1,0 +1,3 @@
+kind: Changed
+body: Each test job heads its report on the Actions summary page with what it ran ("Wave 1 card tests", "Core engine and card data tests") instead of "Vitest Test Report".
+time: 2026-10-09T12:14:32.504008-04:00

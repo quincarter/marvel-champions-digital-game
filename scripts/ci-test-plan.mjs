@@ -16,19 +16,37 @@ if (plan.projects.length === 0) plan = everything();
 
 const has = (project) => plan.projects.includes(project);
 const lower = ["engine", "content"].filter(has);
+const LOWER_TITLE = { engine: "core engine", content: "card data" };
+const capitalized = (text) => text[0].toUpperCase() + text.slice(1);
+
+// `name` is the job's name in the checks list; `title` heads its test report on the run's summary page.
 
 const include = [
   ...(lower.length > 0
-    ? [{ name: lower.join(" and "), args: lower.map((project) => `--project @mc/${project}`).join(" ") }]
+    ? [
+        {
+          name: lower.join(" and "),
+          title: capitalized(`${lower.map((project) => LOWER_TITLE[project]).join(" and ")} tests`),
+          args: lower.map((project) => `--project @mc/${project}`).join(" "),
+        },
+      ]
     : []),
-  ...(has("client") ? [{ name: "client", args: "--project @mc/client" }] : []),
+  ...(has("client") ? [{ name: "client", title: "Game client tests", args: "--project @mc/client" }] : []),
   ...(has("cards")
     ? [
-        { name: "cards (shared)", args: `--project @mc/cards --exclude "**/src/wave*/**"` },
+        {
+          name: "cards (shared)",
+          title: "Shared card tests (core set, campaigns, ability DSL)",
+          args: `--project @mc/cards --exclude "**/src/wave*/**"`,
+        },
         ...wavesOnDisk()
           .filter((wave) => wave >= plan.firstWave)
           // The trailing slash keeps wave1 from also matching wave10.
-          .map((wave) => ({ name: `cards wave ${wave}`, args: `--project @mc/cards ${WAVES_DIR}/wave${wave}/` })),
+          .map((wave) => ({
+            name: `cards wave ${wave}`,
+            title: `Wave ${wave} card tests`,
+            args: `--project @mc/cards ${WAVES_DIR}/wave${wave}/`,
+          })),
       ]
     : []),
 ];

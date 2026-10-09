@@ -73,3 +73,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test ${{ matrix.args }}
+        env:
+          # Heads this job's report on the run's summary page (vitest.config.ts).
+          TEST_REPORT_TITLE: ${{ matrix.title }}
