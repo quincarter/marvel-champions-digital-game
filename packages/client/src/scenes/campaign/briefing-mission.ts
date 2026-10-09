@@ -4,7 +4,7 @@
  * (`view/campaign-mission-model.ts`); the Inspect chip opens the card, the scene owns the launch and the redraw.
  */
 import { cardId } from "@mc/content";
-import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../../tokens.js";
 import { bangers, ruleHeading } from "../../ui/campaign-chrome.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton, fitText, label } from "../../ui/widgets.js";
@@ -42,9 +42,9 @@ function drawRow(
   if (row.cardId) {
     const chip = {
       x: rect.x + rect.width - 12 - chipWidth,
-      y: top + (ROW_HEIGHT - 34) / 2,
+      y: top + (ROW_HEIGHT - hit.target) / 2,
       width: chipWidth,
-      height: 34,
+      height: hit.target,
     };
     const open = (): void => ctx.inspect({ cardId: cardId(row.cardId!), name: row.name });
     ctx.buttons.push(

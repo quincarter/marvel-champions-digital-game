@@ -84,12 +84,12 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   let back: McButton | null = null;
   let backRect: Rect | null = null;
   if (options.backLabel && options.onBack) {
-    const labelWidth = Math.max(frame.phone ? 36 : 64, estimateBangersWidth(options.backLabel, 22) + 26);
+    const labelWidth = Math.max(frame.phone ? hit.target : 64, estimateBangersWidth(options.backLabel, 22) + 26);
     backRect = {
       x,
-      y: (height - 38) / 2,
-      width: frame.phone && options.backLabel.length <= 2 ? 36 : labelWidth,
-      height: 38,
+      y: (height - hit.target) / 2,
+      width: frame.phone && options.backLabel.length <= 2 ? hit.target : labelWidth,
+      height: hit.target,
     };
     back = new McButton(scene, {
       kind: "onInk",

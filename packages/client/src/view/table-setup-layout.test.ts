@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { rectsOverlap, type Rect } from "./layout.js";
 import { hit } from "../tokens.js";
 import {
+  COMPACT_MAX_COLUMN,
+  COMPACT_PAD,
   COMPACT_SET_CHOICE_HEIGHT,
   OPTION_CARD_HEIGHT,
   OPTION_GROUPS_STACKED_HEIGHT,
@@ -515,24 +517,62 @@ describe("tableSetupLayout: the set choices live in the difficulty row", () => {
     });
   }
 
-  test("1280x720, the Four Horsemen page: the modular grid and the encounter panels fit above the bottom edge", () => {
-    const layout = tableSetupLayout({ ...HORSEMEN, width: 1280, height: 720 });
-    expect(bottomOf(layout.encounterPanels.composition)).toBeLessThanOrEqual(720 - 24);
-    // Two tiles' rows stay in view in the grid, and the panels keep at least two body rows each.
-    expect(layout.modularGrid.height).toBeGreaterThanOrEqual(2 * 58);
+  // Piece 14, D1 (2026-10-08): a page that cannot give the grid two full tile rows (group labels included) and the
+  // panels two body rows no longer squeezes them below that; it scrolls (`scrollsPage`) as the phone does.
+  test("1440x900, the Four Horsemen page: two full tile rows and two panel body rows, so the page does not scroll", () => {
+    const layout = tableSetupLayout({ ...HORSEMEN, width: 1440, height: 900 });
+    expect(layout.scrollsPage).toBe(false);
+    expect(bottomOf(layout.encounterPanels.composition)).toBeLessThanOrEqual(900 - 24);
+    // The second tile row, below its group label, ends inside the panel.
+    const rowTops = [...new Set(layout.modularPlan.cells.map((c) => c.y))].sort((a, b) => a - b);
+    expect(rowTops.length).toBeGreaterThanOrEqual(2);
+    expect(layout.modularGrid.height).toBeGreaterThanOrEqual(rowTops[1]! + 58);
     expect(Math.min(...layout.encounterPanels.rowBudgets)).toBeGreaterThanOrEqual(2);
-    // The same page with a row of its own for the set choice leaves the panels no body rows at all.
-    const separate = tableSetupLayout({ ...SEPARATE, width: 1280, height: 720 });
-    expect(Math.max(...separate.encounterPanels.rowBudgets)).toBe(0);
-    expect(layout.encounterPanels.composition.height).toBeGreaterThan(separate.encounterPanels.composition.height);
+    // The same page with a row of its own for the set choice is no taller on panels.
+    const separate = tableSetupLayout({ ...SEPARATE, width: 1440, height: 900 });
+    expect(layout.encounterPanels.composition.height).toBeGreaterThanOrEqual(
+      separate.encounterPanels.composition.height,
+    );
   });
 
-  test("tablet portrait: the Four Horsemen page keeps panel rows the separate row took away", () => {
-    const layout = tableSetupLayout({ ...HORSEMEN, width: 768, height: 1024 });
-    const separate = tableSetupLayout({ ...SEPARATE, width: 768, height: 1024 });
-    expect(Math.min(...layout.encounterPanels.rowBudgets)).toBeGreaterThanOrEqual(2);
-    expect(Math.max(...separate.encounterPanels.rowBudgets)).toBe(0);
-    expect(layout.difficultyRow.height).toBeLessThan(80);
+  test("1280x720 and tablet portrait, the Four Horsemen page: too short for the fixed page, so it scrolls", () => {
+    expect(tableSetupLayout({ ...HORSEMEN, width: 1280, height: 720 }).scrollsPage).toBe(true);
+    expect(tableSetupLayout({ ...HORSEMEN, width: 768, height: 1024 }).scrollsPage).toBe(true);
+    expect(tableSetupLayout({ ...HORSEMEN, width: 390, height: 844 }).scrollsPage).toBe(true);
+  });
+
+  test("a roomy desktop keeps the fixed page; the grid is never squeezed under two tile rows", () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 1870, height: 1050 },
+    ]) {
+      const layout = tableSetupLayout({ ...HORSEMEN, ...size });
+      expect(layout.scrollsPage).toBe(false);
+      expect(layout.modularGrid.height).toBeGreaterThanOrEqual(2 * 58);
+    }
+  });
+
+  test("the scrolling page's column is capped and centered on a wide window, and its back button is a touch target", () => {
+    const base = {
+      difficultyIds: ["standard", "expert"],
+      requiredModularIds: ["req"],
+      candidateModularIds: ["a", "b"],
+      modularHeaderRightLabel: "1 REQUIRED · 0 CHOSEN",
+      optionRows: [],
+      hasTowerDefenseSetupDamage: false,
+      hoodSetIds: [],
+      seatCount: 1,
+      compositionRows: 3,
+      whatsInThereRows: 3,
+      hasNemesisStandby: false,
+    };
+    const wide = tableSetupCompactLayout({ ...base, width: 1280, height: 720 });
+    expect(wide.column).toBe(COMPACT_MAX_COLUMN);
+    expect(wide.pad * 2 + wide.column).toBe(1280);
+    const phone = tableSetupCompactLayout({ ...base, width: 390, height: 844 });
+    expect(phone.column).toBe(390 - 2 * COMPACT_PAD);
+    expect(phone.back.height).toBeGreaterThanOrEqual(hit.target);
+    expect(phone.back.width).toBeGreaterThanOrEqual(hit.target);
   });
 
   test("a set card is a full touch target: every chip row is hit.target tall, wide (beside) and narrow (over)", () => {

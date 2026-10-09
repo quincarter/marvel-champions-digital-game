@@ -22,7 +22,7 @@ import { storyFor } from "../../campaign/story.js";
 import { ensurePictureLoaded } from "../../art/pictures.js";
 import { coverCropFavoringBeats } from "../../view/comic-crop.js";
 import { campaignService } from "../../session.js";
-import { accent, surface, typeRole } from "../../tokens.js";
+import { accent, hit, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import {
   bangers,
@@ -38,6 +38,8 @@ import {
 } from "../../ui/campaign-chrome.js";
 import { fitText, McButton } from "../../ui/widgets.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import {
   campaignRunModel,
@@ -92,6 +94,9 @@ export class CampaignRunScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #buttons: McButton[] = [];
   #status = "";
+  /** The phone's issue list scrolls (five rows and the hint are taller than the screen); the offset survives redraws. */
+  #region: McScrollRegion | null = null;
+  #scroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.campaignRun);
@@ -138,6 +143,8 @@ export class CampaignRunScene extends Phaser.Scene {
   }
 
   #draw(): void {
+    this.#region?.destroy();
+    this.#region = null;
     destroyChildren(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -171,7 +178,17 @@ export class CampaignRunScene extends Phaser.Scene {
     const bodyTop = top.height;
     const bodyBottom = bar.y;
 
-    if (frame.phone) this.#drawPhone(model, frame, bodyTop, bodyBottom, stops, order);
+    // A page-based box's current issue reads its own comic page first — the note and CTA say so, matching
+    // `gmw-comic-reader.dc`'s "Tap a finished one to reread it in the reader" / "READ ISSUE #N ▸" — but the CTA
+    // still lands on Briefing exactly like the plain "BRIEFING ▸" it replaces (the run's normal next stop, C03's
+    // own opener, is reached from there): only the label and note change here, matching the design tile.
+    const currentIssue = model.issues.find((issue) => issue.status === "current");
+    const note = currentIssue?.pageCrop
+      ? "Each issue is shown as its own comic page. Tap a finished one to reread it in the reader. Sealed pages stay blurred, so each issue still opens on a reveal."
+      : "Future villains stay sealed so each issue opens on a reveal. Tap a finished issue to reread it.";
+    // On a phone the hint ends the scrolling list instead of squeezing into the 80px bar beside the CTA.
+    if (frame.phone)
+      this.#drawPhone(model, frame, bodyTop, bodyBottom, stops, order, model.finished || model.lost ? null : note);
     else this.#drawWide(model, frame, bodyTop, bodyBottom, stops, order);
 
     // Bottom bar: a note, and the Briefing CTA (or a finished/lost run's own message).
@@ -204,24 +221,19 @@ export class CampaignRunScene extends Phaser.Scene {
         );
       }
     } else {
-      // A page-based box's current issue reads its own comic page first — the note and CTA say so, matching
-      // `gmw-comic-reader.dc`'s "Tap a finished one to reread it in the reader" / "READ ISSUE #N ▸" — but the CTA
-      // still lands on Briefing exactly like the plain "BRIEFING ▸" it replaces (the run's normal next stop, C03's
-      // own opener, is reached from there): only the label and note change here, matching the design tile.
-      const currentIssue = model.issues.find((issue) => issue.status === "current");
-      const note = currentIssue?.pageCrop
-        ? "Each issue is shown as its own comic page. Tap a finished one to reread it in the reader. Sealed pages stay blurred, so each issue still opens on a reveal."
-        : "Future villains stay sealed so each issue opens on a reveal. Tap a finished issue to reread it.";
       const ctaLabel = currentIssue?.pageCrop ? `READ ISSUE #${currentIssue.number} ▸` : "BRIEFING ▸";
       const ctaWidth = frame.phone ? bar.width - pad * 2 : 200;
-      const noteWidth = frame.phone ? bar.width - pad * 2 : bar.width - pad * 2 - ctaWidth - 24;
-      const noteText = this.add
-        .text(pad, bar.y, note, textStyle(typeRole.body, surface.paper.hex, 0.85))
-        .setFontSize(frame.phone ? 10 : 12)
-        .setWordWrapWidth(noteWidth);
-      noteText.setOrigin(0, frame.phone ? 0 : 0.5).setY(frame.phone ? bar.y + 8 : bar.y + bar.height / 2);
+      if (!frame.phone) {
+        const noteWidth = bar.width - pad * 2 - ctaWidth - 24;
+        this.add
+          .text(pad, bar.y + bar.height / 2, note, textStyle(typeRole.body, surface.paper.hex, 0.85))
+          .setFontSize(12)
+          .setWordWrapWidth(noteWidth)
+          .setOrigin(0, 0.5);
+      }
+      const phoneCtaHeight = Math.min(hit.primary, bar.height - 16);
       const ctaRect: Rect = frame.phone
-        ? { x: pad, y: bar.y + bar.height - 44 - 8, width: ctaWidth, height: 44 }
+        ? { x: pad, y: bar.y + (bar.height - phoneCtaHeight) / 2, width: ctaWidth, height: phoneCtaHeight }
         : { x: bar.x + bar.width - pad - ctaWidth, y: bar.y + (bar.height - 62) / 2, width: ctaWidth, height: 62 };
       this.#button(
         "primary",
@@ -438,8 +450,17 @@ export class CampaignRunScene extends Phaser.Scene {
     bottom: number,
     stops: Map<string, FocusStop>,
     order: string[],
+    note: string | null,
   ): void {
     const pad = frame.gutter;
+    const viewport: Rect = { x: 0, y: top, width: frame.width, height: bottom - top };
+    // The rows are drawn into the region's own masked layer, whose content height is only known once they are drawn
+    // (`refresh` after the draw), so a taller list than the screen scrolls instead of dropping its last rows.
+    const heights = [viewport.height];
+    const region = new McScrollRegion(this, { rect: viewport, heights, scroll: this.#scroll, clipInteractive: true });
+    this.#region = region;
+    const known = new Set(stops.keys());
+    const before = this.children.list.length;
     let y = top + 12;
     for (const issue of model.issues) {
       const current = issue.status === "current";
@@ -451,7 +472,23 @@ export class CampaignRunScene extends Phaser.Scene {
       if (issue.pageCrop) this.#rowComic(issue, issue.pageCrop, rect, current, stops, order);
       else this.#row(issue, rect, current, stops, order);
       y += rowHeight + 12;
-      if (y > bottom - 20) break;
+    }
+    if (note) {
+      const text = this.add
+        .text(pad, y + 4, note, textStyle(typeRole.body, surface.ink.hex, 0.7))
+        .setFontSize(11)
+        .setWordWrapWidth(frame.width - pad * 2);
+      y = text.y + text.height + 12;
+    }
+    const added = this.children.list.slice(before);
+    if (added.length > 0) region.content.add(added);
+    heights[0] = Math.max(viewport.height, y - top);
+    region.refresh();
+    // A row's focus ring follows the list as it scrolls.
+    for (const [key, stop] of stops) {
+      if (known.has(key) || typeof stop.rect === "function") continue;
+      const fixed = stop.rect;
+      stops.set(key, { ...stop, rect: () => ({ ...fixed, y: fixed.y - this.#scroll.offsetPx }) });
     }
   }
 

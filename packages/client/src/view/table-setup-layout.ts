@@ -171,6 +171,12 @@ export interface EncounterPanelsLayout {
 export interface TableSetupLayout {
   readonly formFactor: FormFactor;
   readonly wide: boolean;
+  /**
+   * The scene draws the scrolling page (`tableSetupCompactLayout`) instead of this layout: every touch form factor
+   * (phone, tablet portrait), and a wide viewport too short to give the modular grid two full tile rows and the
+   * encounter panels two body rows. The rects here are then not drawn.
+   */
+  readonly scrollsPage: boolean;
   readonly headerBar: Rect;
   readonly back: Rect;
   readonly step: Rect;
@@ -272,6 +278,8 @@ const MODULAR_SCROLLBAR_ROOM = 10;
 const MODULAR_MIN_VIEWPORT_ROWS = 2;
 /** What the encounter-deck panels keep on wide when the modular grid takes the room it can. */
 const WIDE_PANELS_MIN_HEIGHT = 150;
+/** The least body rows an encounter panel keeps before the page scrolls instead. */
+const PANEL_MIN_BODY_ROWS = 2;
 /** What the flexible description blocks keep on tablet portrait when the grid takes the room it can. */
 const NARROW_FLEXIBLE_MIN_HEIGHT = 340;
 
@@ -289,7 +297,7 @@ function planModularGrid(
   width: number,
   cardHeight: number,
   gap: number,
-  maxHeight: number,
+  available: number,
 ): PlannedGrid {
   const sections = input.modularSections ?? [{ id: "all", label: null, itemCount: input.modularCardCount }];
   const itemCount = sections.reduce((sum, section) => sum + section.itemCount, 0);
@@ -298,11 +306,20 @@ function planModularGrid(
     return { plan: modularGridPlan({ width: w, columns, cardHeight, gap, sections }), columns };
   };
   let { plan, columns } = planAt(width);
+  // A scrolling grid is never given less than its first two rows of tiles in full, group labels above them included.
+  const maxHeight = Math.max(minViewportOf(plan, cardHeight), available);
   const scrolls = input.modularSections !== undefined && plan.contentHeight > maxHeight;
   if (scrolls) ({ plan, columns } = planAt(width - MODULAR_SCROLLBAR_ROOM));
   const rows = Math.max(1, Math.ceil(itemCount / columns));
   const natural = Math.max(plan.contentHeight, cardHeight);
   return { plan, columns, rows, height: scrolls ? maxHeight : natural, scrolls };
+}
+
+/** The height that shows the plan's first `MODULAR_MIN_VIEWPORT_ROWS` tile rows in full (labels between or above them count). */
+function minViewportOf(plan: ModularGridPlan, cardHeight: number): number {
+  const rowTops = [...new Set(plan.cells.map((cell) => cell.y))].sort((a, b) => a - b);
+  const last = rowTops[Math.min(MODULAR_MIN_VIEWPORT_ROWS, rowTops.length) - 1];
+  return last === undefined ? cardHeight : Math.min(plan.contentHeight, last + cardHeight);
 }
 
 /** How many columns the modular grid gets at `width`: as many `MODULAR_CARD_MIN_WIDTH`-wide cards as fit, 4 at most (D05's own "~4 per row"), 1 at least. */
@@ -505,14 +522,7 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     (SECTION_HEADER_HEIGHT + 8 + SEAT_CARD_HEIGHT + SECTION_GAP) +
     (SECTION_HEADER_HEIGHT + 8) +
     WIDE_PANELS_MIN_HEIGHT;
-  const minViewport = MODULAR_MIN_VIEWPORT_ROWS * MODULAR_CARD_HEIGHT + (MODULAR_MIN_VIEWPORT_ROWS - 1) * ROW_GAP;
-  const planned = planModularGrid(
-    input,
-    bodyWidth,
-    MODULAR_CARD_HEIGHT,
-    ROW_GAP,
-    Math.max(minViewport, bodyBottom - y - belowGrid),
-  );
+  const planned = planModularGrid(input, bodyWidth, MODULAR_CARD_HEIGHT, ROW_GAP, bodyBottom - y - belowGrid);
   const modularColumns = planned.columns;
   const modularRows = planned.rows;
   const modularGrid: Rect = { x: bodyLeft, y, width: bodyWidth, height: planned.height };
@@ -549,6 +559,9 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   y += SECTION_HEADER_HEIGHT + 8;
   const panelsTop = y;
   const panelsHeight = Math.max(PANEL_HEADER_HEIGHT + PANEL_ROW_HEIGHT, bodyBottom - panelsTop);
+  // The page no longer fits when, with the grid already at its two-row floor, the panels would have fewer than
+  // `PANEL_MIN_BODY_ROWS` rows: the scene then draws the scrolling page instead of squeezing.
+  const overflows = bodyBottom - panelsTop < PANEL_HEADER_HEIGHT + PANEL_PAD + PANEL_MIN_BODY_ROWS * PANEL_ROW_HEIGHT;
   const panelGap = 16;
   const panelWidth = (bodyWidth - panelGap * 2) / 3;
   const composition: Rect = { x: bodyLeft, y: panelsTop, width: panelWidth, height: panelsHeight };
@@ -598,6 +611,7 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   return {
     formFactor,
     wide: true,
+    scrollsPage: overflows,
     headerBar,
     back,
     step,
@@ -693,14 +707,12 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     (SECTION_HEADER_HEIGHT + 6 + NARROW_SEATING_CARD_HEIGHT + gap) +
     NARROW_FLEXIBLE_MIN_HEIGHT +
     (hit.target + 10 + hit.primary + pad);
-  const narrowMinViewport =
-    MODULAR_MIN_VIEWPORT_ROWS * NARROW_MODULAR_CARD_HEIGHT + (MODULAR_MIN_VIEWPORT_ROWS - 1) * NARROW_MODULAR_GRID_GAP;
   const planned = planModularGrid(
     input,
     column,
     NARROW_MODULAR_CARD_HEIGHT,
     NARROW_MODULAR_GRID_GAP,
-    Math.max(narrowMinViewport, height - y - belowNarrowGrid),
+    height - y - belowNarrowGrid,
   );
   const modularColumns = planned.columns;
   const modularRows = planned.rows;
@@ -814,6 +826,7 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   return {
     formFactor,
     wide: false,
+    scrollsPage: true,
     headerBar,
     back,
     step,
@@ -909,7 +922,7 @@ export const COMPACT_HEADER_ROW_HEIGHT_STACKED = 48;
 export const COMPACT_DIFFICULTY_ROW_HEIGHT = 44;
 export const COMPACT_MODULAR_ROW_HEIGHT = 60;
 /** A modular group's own row on the phone: its name, how many sets, and Show/Hide. */
-export const COMPACT_GROUP_ROW_HEIGHT = 36;
+export const COMPACT_GROUP_ROW_HEIGHT = hit.target;
 export const COMPACT_GROUP_ROW_PREFIX = "modulargroup:";
 
 export type CompactModularEntry =
@@ -932,7 +945,10 @@ export const COMPACT_SEED_ROW_HEIGHT = 100;
 export const COMPACT_ROW_GAP = 10;
 export const COMPACT_CONTENT_PAD_TOP = 14;
 export const COMPACT_CONTENT_PAD_BOTTOM = 18;
-export const COMPACT_BACK_SIZE = 36;
+/** The square back button: a full touch target. */
+export const COMPACT_BACK_SIZE = hit.target;
+/** The scrolling page's column is no wider than this: on a wide, short window it is centered, not stretched. */
+export const COMPACT_MAX_COLUMN = 720;
 const COMPACT_HEADING_CHAR_PX = 10.5;
 const COMPACT_RIGHT_LABEL_CHAR_PX = 7.4;
 const COMPACT_RIGHT_LABEL_GAP_PX = 14;
@@ -1026,7 +1042,7 @@ export function compactRowIndex(layout: TableSetupCompactLayout, id: string): nu
 export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): TableSetupCompactLayout {
   const { width, height } = input;
   const formFactor = formFactorFor(width, height);
-  const pad = COMPACT_PAD;
+  const pad = Math.max(COMPACT_PAD, (width - COMPACT_MAX_COLUMN) / 2);
   const column = width - pad * 2;
 
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };

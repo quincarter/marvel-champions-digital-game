@@ -61,6 +61,7 @@ import {
 import { pointInRect } from "../../view/drag-gesture.js";
 import { aspectStampOf, type AspectStamp } from "../../view/aspect-stamp.js";
 import { drawAspectChips } from "../../ui/aspect-chips.js";
+import { deckRowLayout, deckRowTitleWidth } from "../../view/campaign-deck-row-layout.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -2073,9 +2074,14 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!view) {
       return y + this.#drawWaiting(rect.x, y, rect.width, "decks");
     }
-    const baseHeight = 44;
-    // A row naming a problem wraps it under the hero, so the row grows by a line instead of cutting the reason.
-    const heights = view.decks.map((row) => (row.problem ? baseHeight + 22 : baseHeight));
+    const countOf = (row: (typeof view.decks)[number]): string =>
+      row.pinnedCount > 0 ? `${row.deckSize} + ${row.pinnedCount} pinned` : `${row.deckSize}`;
+    // A row naming a problem wraps it under the hero, and a narrow panel drops the count to its own line, so the row
+    // grows by a line instead of cutting the reason or printing the count over the name.
+    const rowLayouts = view.decks.map((row) =>
+      deckRowLayout(rect.width, `${row.heroName.toUpperCase()} · ${row.aspectLabel}`, countOf(row), !!row.problem),
+    );
+    const heights = rowLayouts.map((row) => row.height);
     const total = heights.reduce((sum, h) => sum + h, 0);
     const listTop = y;
     const g = this.add.graphics();
@@ -2088,7 +2094,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (index > 0) g.lineStyle(1, surface.ink.hex, 0.2).lineBetween(rect.x, top, rect.x + rect.width, top);
       if (row.problem)
         g.fillStyle(accent.heroRed.hex, 0.1).fillRect(rect.x + 1, top + 1, rect.width - 2, rowHeight - 2);
-      const nameY = row.problem ? top + 22 : top + rowHeight / 2;
+      const rowLayout = rowLayouts[index] as ReturnType<typeof deckRowLayout>;
+      const countText = countOf(row);
+      const nameY = top + rowLayout.titleY;
       const title = this.add
         .text(
           rect.x + 12,
@@ -2097,12 +2105,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
           textStyle(bangers(16), surface.ink.hex),
         )
         .setOrigin(0, 0.5);
-      fitText(title, rect.width * 0.55, 16);
-      const countText = row.pinnedCount > 0 ? `${row.deckSize} + ${row.pinnedCount} pinned` : `${row.deckSize}`;
+      fitText(title, deckRowTitleWidth(rect.width, countText, rowLayout.stacked), 16);
       this.add
         .text(
           rect.x + rect.width - 36,
-          nameY,
+          top + rowLayout.countY,
           countText,
           textStyle({ ...typeRole.rowTitle, size: 14 }, surface.ink.hex),
         )
@@ -2116,7 +2123,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         this.add
           .text(
             rect.x + 12,
-            top + 36,
+            top + (rowLayout.problemY ?? 36),
             `! ${row.problem}`,
             textStyle({ ...typeRole.label, size: 14 }, accent.heroRed.hex, 1),
           )

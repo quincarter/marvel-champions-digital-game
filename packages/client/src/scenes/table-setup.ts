@@ -35,7 +35,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { progressionScope } from "../progression/progression-scope.js";
-import { estimateWrappedLines, formFactorFor, type Rect } from "../view/layout.js";
+import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
@@ -362,35 +362,6 @@ export class TableSetupScene extends Phaser.Scene {
       };
     }
 
-    // Phone: P12's own scrolling page (2026-09-18 correction) — a whole different composition from wide/tablet
-    // portrait's, not a squeeze of the same layout, so it's a separate draw path entirely rather than a branch
-    // inside the one below.
-    if (formFactorFor(width, height) === "phone") {
-      this.#drawCompact(
-        width,
-        height,
-        scenario,
-        difficultyCards,
-        deckOptions,
-        players,
-        requiredSets,
-        modularOptions,
-        modularCap,
-        compositionRows,
-        whatsInThereRows,
-        nemesisStandby,
-        encounterDeckSize,
-        preview,
-        optionRows,
-        setChoices,
-        hoodOptions,
-      );
-      return;
-    }
-    this.#compactRegion?.destroy();
-    this.#compactRegion = null;
-    this.#compactViewport = null;
-
     // The nemesis panel's own line count: the wrapped sentence plus one foot line for "N CARDS ON STANDBY" — a
     // conservative estimate against roughly a third of the body width (`view/layout.ts`'s own "estimate before a
     // live text object exists" rule; three side-by-side panels at wide, one full-width panel at narrow, so a third
@@ -416,6 +387,35 @@ export class TableSetupScene extends Phaser.Scene {
       hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
       hoodSetCount: hoodOptions.length,
     });
+
+    // The scrolling page (P12's own, 2026-09-18 correction) — a whole different composition from the wide one, not
+    // a squeeze of it, so it's a separate draw path rather than a branch inside the one below. Every touch form
+    // factor gets it, and a wide window too short to keep two tile rows and two panel rows (Piece 14, D1).
+    if (layout.scrollsPage) {
+      this.#drawCompact(
+        width,
+        height,
+        scenario,
+        difficultyCards,
+        deckOptions,
+        players,
+        requiredSets,
+        modularOptions,
+        modularCap,
+        compositionRows,
+        whatsInThereRows,
+        nemesisStandby,
+        encounterDeckSize,
+        preview,
+        optionRows,
+        setChoices,
+        hoodOptions,
+      );
+      return;
+    }
+    this.#compactRegion?.destroy();
+    this.#compactRegion = null;
+    this.#compactViewport = null;
 
     // Ground: paper body (dot grid) under the ink header on wide, where the body is a real paper page beside the
     // ink sidebar; on narrow the whole page is ink (no room for two grounds — `table-setup-layout.ts`'s own doc
@@ -1424,11 +1424,12 @@ export class TableSetupScene extends Phaser.Scene {
       layout.footer.width,
       layout.footer.height,
     );
-    const difficultyLabel = `${this.#draft.difficulty}${preview ? ` ${preview.villainStageLabel}` : ""}`;
+    // The villain's starting stage reads "Stage II", never a bare numeral beside the difficulty (it read as the Standard set chip).
+    const villainLabel = preview ? `${villainName} · Stage ${preview.villainStageLabel}` : villainName;
     const heroCount = players.length;
     const summary = preview
-      ? `${villainName} · ${difficultyLabel} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
-      : `${villainName} · ${difficultyLabel}`;
+      ? `${villainLabel} · ${this.#draft.difficulty} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
+      : `${villainName} · ${this.#draft.difficulty}`;
     const summaryText = label(
       this,
       layout.footerSummary.x,

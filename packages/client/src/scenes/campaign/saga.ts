@@ -336,7 +336,8 @@ export class CampaignSagaScene extends Phaser.Scene {
       .setFontSize(9);
     const chipRect: Rect = {
       x: rowRect.x + rowRect.width - 10 - chipLabel.width - 12,
-      y: rowRect.y + rowRect.height / 2 - 10,
+      // On the row's own bottom line, beside the box code: a long name ("AGENTS OF S.H.I.E.L.D.") has the whole top line.
+      y: rowRect.y + rowRect.height - 8 - 20,
       width: chipLabel.width + 12,
       height: 20,
     };

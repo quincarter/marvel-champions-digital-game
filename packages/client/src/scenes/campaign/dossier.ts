@@ -11,7 +11,7 @@ import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
 import { storyFor } from "../../campaign/story.js";
 import { campaignService } from "../../session.js";
-import { accent, signal, surface, typeRole } from "../../tokens.js";
+import { accent, hit, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import {
   actionBarCta,
@@ -88,6 +88,10 @@ interface LoadedDossier {
   readonly issues: readonly RunIssueRow[];
   readonly seatNumbers: readonly number[];
 }
+
+/** Below this width the Heroes tab is one scrolling column (seat switcher, then the hero panel). */
+const STACKED_HEROES_BELOW = 1000;
+const HEROES_MAX_COLUMN = 720;
 
 const TABS: readonly { readonly id: DossierTab; readonly label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -252,7 +256,7 @@ export class CampaignDossierScene extends Phaser.Scene {
       return;
     }
 
-    const tabBarHeight = frame.phone ? 40 : 44;
+    const tabBarHeight = hit.target;
     const tabRect: Rect = { x: 0, y: top.height, width: frame.width, height: tabBarHeight };
     this.#tabs = new McTabs(this, {
       rect: tabRect,
@@ -280,10 +284,10 @@ export class CampaignDossierScene extends Phaser.Scene {
     const bodyRect: Rect = { x: 0, y: bodyTop, width: frame.width, height: bodyBottom - bodyTop };
     switch (this.#tab) {
       case "overview":
-        this.#drawOverview(loaded, frame, bodyRect);
+        this.#drawScrolled(bodyRect, () => this.#drawOverview(loaded, frame, bodyRect));
         break;
       case "log":
-        this.#drawLog(loaded, frame, bodyRect);
+        this.#drawScrolled(bodyRect, () => this.#drawLogContent(loaded, frame, bodyRect));
         break;
       case "heroes":
         this.#drawHeroes(loaded, frame, bodyRect, stops, order);
@@ -323,7 +327,8 @@ export class CampaignDossierScene extends Phaser.Scene {
   // Overview
   // -----------------------------------------------------------------------------------------------------------
 
-  #drawOverview(loaded: LoadedDossier, frame: ReturnType<typeof campaignFrame>, body: Rect): void {
+  /** Draws the Overview's whole body and returns the height it used, measured from `body.y` (`#drawScrolled`'s scroll math). */
+  #drawOverview(loaded: LoadedDossier, frame: ReturnType<typeof campaignFrame>, body: Rect): number {
     const pad = frame.gutter;
     // Desktop/tablet (#12/#19): a fixed 320px "The world" column on the right; everything else wraps in what's
     // left. Phone: one column, the left column's own content then the world box beneath — no room for a side
@@ -400,6 +405,7 @@ export class CampaignDossierScene extends Phaser.Scene {
       leftY = drawMissionTable(this, { x: leftX, y: leftY, width: leftWidth, height: 0 }, loaded.overview.missions) + 8;
     }
 
+    let bottom = leftY;
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;
     let worldY = frame.phone ? leftY + 16 : body.y + pad;
     // Not shown on the empty-pool state (design tile 25): the dashed slot list already names every card that can
@@ -417,6 +423,7 @@ export class CampaignDossierScene extends Phaser.Scene {
       });
       worldY += 16;
     }
+    bottom = Math.max(bottom, worldY);
     if (loaded.overview.world.length > 0) {
       let wy = ruleHeading(this, worldX, worldY, worldWidth, "The world");
       const box = this.add.graphics();
@@ -444,13 +451,15 @@ export class CampaignDossierScene extends Phaser.Scene {
         this.add.rectangle(worldX, wy, worldWidth, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
       }
       box.lineStyle(2, surface.ink.hex, 1).strokeRect(worldX, boxTop, worldWidth, wy - boxTop);
-      this.add
+      const worldNote = this.add
         .text(worldX, wy + 8, "Each line says when it matters. Nothing here needs to be written down.", {
           ...textStyle(typeRole.body, surface.ink.hex, 0.55),
           fontSize: "11px",
         })
         .setWordWrapWidth(worldWidth);
+      bottom = Math.max(bottom, worldNote.y + worldNote.height);
     }
+    return bottom - body.y + pad;
   }
 
   #seatOverviewCard(seat: DossierOverview["seats"][number], rect: Rect): number {
@@ -923,16 +932,16 @@ export class CampaignDossierScene extends Phaser.Scene {
   // -----------------------------------------------------------------------------------------------------------
 
   /**
-   * The Log tab's content can run taller than the screen (a finished, multi-issue run stacks one section per
-   * issue) — scrolled inside its own box, `McScrollRegion`, rather than left to run off-canvas past `body` the
-   * way a plain draw once did. `McScrollRegion` needs its content's total height *before* construction (for the
-   * scroll clamp), which drawing only produces as a side effect, so this measures once into a throwaway pass
-   * (drawn, measured, destroyed — the section/row shapes are cheap text draws, not art), then draws for real into
-   * the region's own masked, scrolling layer.
+   * Overview and Log can run taller than the screen (four seats, missions, a finished multi-issue run) — each is drawn
+   * inside a scroll region of its own, `McScrollRegion`, rather than left to run off-canvas past `body`.
+   * `McScrollRegion` needs its content's total height *before* construction (for the scroll clamp), which drawing
+   * only produces as a side effect, so this measures once into a throwaway pass (drawn, measured, destroyed — the
+   * shapes are cheap text and graphics, not art), then draws for real into the region's masked, scrolling layer.
+   * `draw` returns the content's height, measured from `body.y`.
    */
-  #drawLog(loaded: LoadedDossier, frame: ReturnType<typeof campaignFrame>, body: Rect): void {
+  #drawScrolled(body: Rect, draw: () => number): void {
     const before = this.children.list.length;
-    const measuredHeight = this.#drawLogContent(loaded, frame, body);
+    const measuredHeight = draw();
     for (const obj of this.children.list.slice(before)) obj.destroy();
 
     this.#logRegion = new McScrollRegion(this, {
@@ -940,7 +949,7 @@ export class CampaignDossierScene extends Phaser.Scene {
       heights: [Math.max(body.height, measuredHeight)],
       scroll: this.#logScroll,
     });
-    this.#captureInto(this.#logRegion.content, () => this.#drawLogContent(loaded, frame, body));
+    this.#captureInto(this.#logRegion.content, draw);
   }
 
   /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into
@@ -981,17 +990,18 @@ export class CampaignDossierScene extends Phaser.Scene {
       const bodyTop = y;
       const box = this.add.graphics();
       const minRowHeight = 38;
-      const detailTop = 22;
       const detailBottomPad = 8;
       // Phone has no room for a right-aligned citation column beside the headline (`leftWidth` is the full frame
       // width there) — the citation drops under the detail line instead of squeezing/overlapping the headline.
       const citationColumnWidth = frame.phone ? 0 : 150;
       for (const entry of section.entries) {
         const rowTop = y;
-        this.add
+        const headline = this.add
           .text(pad + 24, y + 6, entry.headline, textStyle(typeRole.emphasis, surface.ink.hex))
           .setFontSize(12)
           .setWordWrapWidth(leftWidth - 34 - citationColumnWidth);
+        // The detail starts under the headline's own wrapped height: a two-line title never runs into it.
+        const detailTop = Math.max(22, 6 + headline.height + 4);
         const detail = this.add
           .text(pad + 24, y + detailTop, entry.detail, textStyle(typeRole.body, surface.ink.hex, 0.6))
           .setFontSize(10)
@@ -1098,26 +1108,22 @@ export class CampaignDossierScene extends Phaser.Scene {
     if (!this.#record || !this.#definition) return;
     const hero = campaignDossierHero(this.#record, this.#definition, this.#seatNumber, cardOf);
     const pad = frame.gutter;
-    if (frame.phone) {
-      // Two-button seat switcher up top, then the hero panel beneath.
-      const switchHeight = 40;
+    // Phone and tablet portrait: one column. The seat switcher stays put; the hero's panel scrolls beneath it, so
+    // nothing runs under the action bar and a narrow window never squeezes the campaign cards and stats beside the art.
+    if (frame.phone || frame.width < STACKED_HEROES_BELOW) {
+      const switchHeight = hit.target;
       const half = (body.width - pad * 2 - 8) / Math.max(1, loaded.seatNumbers.length);
       loaded.seatNumbers.forEach((seatNumber, index) => {
         const rect: Rect = { x: pad + index * (half + 8), y: body.y + pad, width: half, height: switchHeight };
         this.#seatButton(seatNumber, rect, stops, order);
       });
-      if (hero)
-        this.#heroPanel(
-          hero,
-          {
-            x: pad,
-            y: body.y + pad + switchHeight + 12,
-            width: body.width - pad * 2,
-            height: body.height - pad * 2 - switchHeight - 12,
-          },
-          stops,
-          order,
-        );
+      if (hero) {
+        const top = body.y + pad + switchHeight + 12;
+        const region: Rect = { x: 0, y: top, width: body.width, height: body.y + body.height - top };
+        const column = Math.min(body.width - pad * 2, HEROES_MAX_COLUMN);
+        const panel: Rect = { x: (body.width - column) / 2, y: top, width: column, height: 0 };
+        this.#drawScrolled(region, () => this.#heroPanel(hero, panel) - region.y + pad);
+      }
       return;
     }
     const listWidth = 220;
@@ -1236,19 +1242,18 @@ export class CampaignDossierScene extends Phaser.Scene {
     order.push(key);
   }
 
-  #heroPanel(hero: DossierHero, rect: Rect, stops: Map<string, FocusStop>, order: string[]): void {
+  /** The stacked hero panel (art, issue boxes, campaign cards, stats), drawn from `rect.y` down; returns the bottom y it reached. */
+  #heroPanel(hero: DossierHero, rect: Rect): number {
     const boxesHeight = 44;
-    const artHeight = rect.height * 0.5;
+    const artHeight = Math.min(300, Math.round(rect.width * 0.75));
     this.#heroBigPanel(hero, { x: rect.x, y: rect.y, width: rect.width, height: artHeight });
     this.#issueBoxesRow(hero, { x: rect.x, y: rect.y + artHeight + 8, width: rect.width, height: boxesHeight });
-    this.#heroSidePanel(hero, {
+    return this.#heroSidePanel(hero, {
       x: rect.x,
       y: rect.y + artHeight + boxesHeight + 20,
       width: rect.width,
-      height: rect.height - artHeight - boxesHeight - 20,
+      height: 0,
     });
-    void stops;
-    void order;
   }
 
   #heroBigPanel(hero: DossierHero, rect: Rect): void {
@@ -1280,30 +1285,35 @@ export class CampaignDossierScene extends Phaser.Scene {
       .setOrigin(0, 1);
   }
 
-  #heroSidePanel(hero: DossierHero, rect: Rect): void {
+  /** The campaign cards and the stats table, from `rect.y` down; returns the bottom y it reached (`rect.height` is not read). */
+  #heroSidePanel(hero: DossierHero, rect: Rect): number {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Campaign cards");
     for (const card of hero.campaignCards) {
-      const cardHeight = 62;
-      const box = this.add.graphics();
-      box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, cardHeight);
+      // The box is sized from the wrapped text, never a fixed height the text can run past (and into the next card or
+      // the stats heading); the outline is drawn last, so it needs no estimate.
+      const tagWidth = card.improvesIn ? 96 : 0;
       this.add.text(rect.x + 10, y + 6, card.typeLabel.toUpperCase(), {
         ...textStyle(typeRole.label, surface.ink.hex, 0.55),
         fontSize: "9px",
       });
-      this.add.text(rect.x + 10, y + 18, card.name, textStyle(bangers(15), surface.ink.hex));
-      this.add
-        .text(rect.x + 10, y + cardHeight - 16, card.textLine, textStyle(typeRole.body, surface.ink.hex, 0.65))
+      const name = this.add
+        .text(rect.x + 10, y + 18, card.name, textStyle(bangers(15), surface.ink.hex))
+        .setWordWrapWidth(rect.width - 20 - tagWidth);
+      const body = this.add
+        .text(rect.x + 10, name.y + name.height + 4, card.textLine, textStyle(typeRole.body, surface.ink.hex, 0.65))
         .setFontSize(10)
         .setWordWrapWidth(rect.width - 20);
+      const cardHeight = Math.max(62, body.y + body.height + 10 - y);
+      this.add.graphics().lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, cardHeight);
       if (card.improvesIn) {
-        const tagWidth = 90;
-        const tagRect: Rect = { x: rect.x + rect.width - tagWidth - 6, y: y + 4, width: tagWidth, height: 16 };
+        const tagRect: Rect = { x: rect.x + rect.width - tagWidth + 2, y: y + 4, width: tagWidth - 8, height: 16 };
         const tag = this.add.graphics();
         tag.fillStyle(signal.cost.hex, 1).fillRect(tagRect.x, tagRect.y, tagRect.width, tagRect.height);
         this.add
           .text(tagRect.x + tagRect.width / 2, tagRect.y + tagRect.height / 2, `IMPROVES IN ${card.improvesIn}`, {
             ...textStyle(typeRole.label, surface.paper.hex, 1),
             fontSize: "8px",
+            fontStyle: "700",
           })
           .setOrigin(0.5);
       }
@@ -1320,37 +1330,40 @@ export class CampaignDossierScene extends Phaser.Scene {
       16,
     );
     const boxTop = y;
-    // Estimated up front so the fill can be drawn before the rows' text — a fill drawn (or reordered) after would
-    // paint over its own numbers, the same "graphics is a z-order slot" trap `campaign-chrome.ts` avoids.
-    const rowHeight = 40;
-    const boxHeight = hero.stats.length * rowHeight;
+    // The fill is drawn first (a fill drawn after would paint over its own numbers, the same "graphics is a z-order
+    // slot" trap `campaign-chrome.ts` avoids) and sized once the rows are measured. Three columns, none overlapping:
+    // the label at the left, the big number in its own column, the note right-aligned and wrapped to what is left
+    // of the number, so a long note takes a second line instead of running under the value or off the edge.
     const fill = this.add.graphics();
-    fill.fillStyle(0xeae3d3, 1).fillRect(rect.x, boxTop, rect.width, boxHeight);
-    // Three columns, none overlapping: label at the left edge, the big number in its own column ~130px in, the
-    // short note right-aligned at the far edge — the same layout `#drawLog`'s "In force now" table uses.
     const statValueX = rect.x + 130;
+    const noteWidth = Math.max(60, rect.width - 130 - 70 - 20);
     for (const stat of hero.stats) {
-      this.add
-        .text(rect.x + 10, y + rowHeight / 2, stat.label, textStyle(typeRole.emphasis, surface.ink.hex))
-        .setFontSize(12)
-        .setOrigin(0, 0.5);
-      this.add
-        .text(statValueX, y + rowHeight / 2, stat.value, textStyle(bangers(16), surface.ink.hex))
-        .setOrigin(0, 0.5);
-      this.add
-        .text(rect.x + rect.width - 10, y + rowHeight / 2, stat.note, {
+      const note = this.add
+        .text(rect.x + rect.width - 10, y, stat.note, {
           ...textStyle(typeRole.body, surface.ink.hex, 0.5),
           fontSize: "9px",
+          align: "right",
         })
-        .setOrigin(1, 0.5)
-        .setWordWrapWidth(rect.width - 140);
+        .setOrigin(1, 0)
+        .setWordWrapWidth(noteWidth);
+      const rowHeight = Math.max(40, note.height + 16);
+      const mid = y + rowHeight / 2;
+      note.setY(mid - note.height / 2);
+      this.add
+        .text(rect.x + 10, mid, stat.label, textStyle(typeRole.emphasis, surface.ink.hex))
+        .setFontSize(12)
+        .setOrigin(0, 0.5)
+        .setWordWrapWidth(statValueX - rect.x - 18);
+      this.add.text(statValueX, mid, stat.value, textStyle(bangers(16), surface.ink.hex)).setOrigin(0, 0.5);
       y += rowHeight;
       this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.12).setOrigin(0, 0.5);
     }
+    fill.fillStyle(0xeae3d3, 1).fillRect(rect.x, boxTop, rect.width, y - boxTop);
     this.add
       .graphics()
       .lineStyle(2, surface.ink.hex, 1)
       .strokeRect(rect.x, boxTop, rect.width, y - boxTop);
+    return y;
   }
 
   // -----------------------------------------------------------------------------------------------------------
