@@ -579,6 +579,12 @@ export interface BoardModel {
   /** The top of your discard, which the pile box shows faceup. */
   readonly myDiscardTop: ArtSource | null;
   readonly encounterPiles: PileCounts;
+  /**
+   * Encounter cards dealt facedown to the players and not yet revealed (Expert setup deals one per player in the Age
+   * of Apocalypse; they flip in step four of the first villain phase). Public as a count, never as a card: nobody
+   * looks at them (MC45 p. 3). Zero when none are out.
+   */
+  readonly dealtFacedown: number;
   /** The top of the encounter discard, which is faceup at the table. */
   readonly encounterDiscardTop: ArtSource | null;
   /** The encounter deck's own top card, for Inspect — facedown at the table (D08's own subtitle: "any card, anywhere, including facedown counts"), so the sheet shows a card back rather than its face. Null with an empty deck. */
@@ -771,6 +777,7 @@ export function boardModel(
       deck: activeEncounterDeck(state).deck.length,
       discard: activeEncounterDeck(state).discard.length,
     },
+    dealtFacedown: state.players.reduce((total, player) => total + player.dealtEncounter.length, 0),
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
     encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
