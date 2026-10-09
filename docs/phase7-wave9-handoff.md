@@ -179,3 +179,54 @@ Two 700x620 FFG promo pictures, each with a "© 2025 MARVEL" line at the bottom 
 use at the client step: `cover.png` as the pack's shelf header on Scenario select (`art/README.md`, `packs/<packCode>/
 cover.<ext>`; it would be the first pack cover), and `promo-dance.png` as a win or intro picture for one of the two
 scenarios. They are too small and too wide to be the villain portraits, so those are still asked for.
+
+## State at the end of the first session (2026-10-09, usage ran out)
+
+`origin/feature/wave-9` holds everything verified; the PR (#109) "Working notes" section is the full resume list.
+
+**Not pushed: work in the main checkout's working tree on the owner's Mac.** Four agents were still running when the
+session stopped; whatever they finished is uncommitted there and unverified. A session on that Mac should run the
+tests named below, then commit what passes; a cloud session starts from the branch and redoes these pieces.
+
+- Extreme Risk (`packages/cards/src/wave9/bp/extreme-risk.ts` and its test, 7 refs, 26 tests): finished and passing
+  when reported; it only waits to be committed with its `bp` entry in `wave9/coverage.test.ts`.
+- A.I.M. Science, Batroc's Brigade, Scientist Supreme (`packages/cards/src/wave9/aos/`): in progress. At the last
+  check A.I.M. Science was written, one Batroc's Brigade test failed (Soldiers of Fortune 50102, the spend option
+  offered to a player who cannot pay), Scientist Supreme was not started, and the `aos` coverage check was red.
+- The three skipped refs (`51001b.inventor`, `51007.the-elephants-trunk-action`, `50159.aerial-dogfight-constant`):
+  in progress in `packages/engine/src/{abilities,actions,rules}.ts`, `resolve/window.ts`,
+  `packages/cards/src/dsl/`, `wave9/aos/supersonic*`; `@mc/cards` typecheck was red at the last check
+  (`traits` on `HeroIdentityCard` in `supersonic.test.ts`).
+- The Silk identity (`packages/cards/src/wave9/silk/silk/identity.ts`, `wave9/silk/testing.ts`): just started.
+- A second Thunderbolts art search appending "6 (second round)" to `docs/phase7-wave9-art-options.md` and writing
+  `docs/design-renders/wave9-art-options/sheet-thunderbolts.jpg` (git-ignored).
+
+To check that tree: `pnpm --filter @mc/engine test`, `pnpm --filter @mc/cards typecheck`, then in `packages/cards`
+`pnpm exec vitest run src/wave9 src/dsl src/core`, and a whole `pnpm check` before any step is called done.
+
+## Art picks (owner, 2026-10-09)
+
+All from Marvel Database, saved as the WebP the wiki serves, each looked at full size by the main session. They wait
+in `_pending` folders until the client step.
+
+| Slot                           | Pick                                           | File                                                                  | Notes                                        |
+| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------- |
+| Maria Hill                     | 1B, Secret Avengers (2014) #2 panel, 1183x1649 | `art/heroes/_pending/50001a-maria-hill/hero.webp`                     | clean                                        |
+| Nick Fury                      | 2C, Battle Scars #6 panel, 1047x2044           | `art/heroes/_pending/50034a-nick-fury/hero.webp`                      | two blank caption boxes, a figure at an edge |
+| Black Widow                    | 3D, White Widow #1 virgin variant, 1800x2733   | `art/scenarios/_pending/black-widow/villain.webp`                     | signature                                    |
+| Batroc                         | 4A, Unbelievable Gwenpool #2 panel, 998x1535   | `art/scenarios/_pending/batroc/villain.webp`                          | heads poke in at the bottom corners          |
+| M.O.D.O.K.                     | 5A, Legendary: World War Hulk art, 1408x1920   | `art/scenarios/_pending/modok/villain.webp`                           | clean                                        |
+| Baron Zemo                     | 7A, Captain America (2011) #1 panel, 1102x1718 | `art/scenarios/_pending/baron-zemo/villain.webp`                      | clean                                        |
+| Enchantress                    | 8A, Immortal Thor #17 Go variant, 1325x2048    | `art/scenarios/_pending/enchantress/villain.webp`                     | small signature                              |
+| Enchantress wins               | Totally Awesome Hulk #5 textless, 937x1200     | `art/scenarios/_pending/enchantress/villain-wins.webp`                | clean                                        |
+| Loki, God of Lies              | 9B, Loki (2010) #1 textless, 900x1367          | `art/scenarios/_pending/loki-god-of-lies/villain.webp`                | clean                                        |
+| Campaign cover                 | 10A, S.H.I.E.L.D. (2014) #9 textless, 921x1397 | `art/campaigns/aos/cover.webp`                                        | portrait; check the Saga tile's crop         |
+| T'Challa and Shuri             | 12B, Black Panther (2021) #1 Romita virgin     | `art/teamups/_pending/black-panther-shuri-tchalla/splash.webp`        | badge crop still to make; slug to decide     |
+| Silk and Spider-Man            | 13B, Spider(fly) Effect #2 textless, 900x1366  | `art/teamups/_pending/silk-spider-man/splash.webp`                    | badge crop still to make                     |
+| Black Widow and Winter Soldier | 15B's second, Winter Soldier #7 textless       | `art/teamups/_pending/black-widow-winter-soldier/{splash,badge}.webp` | badge is a 360x360 faces crop                |
+
+**Still open, each needs a second round of options and a picture sheet for the owner:** the Thunderbolts ("no clear
+image of all of the Thunderbolts" among 6A to 6D), Maria Hill with Nick Fury (none of 11 liked), Captain America with
+Winter Soldier (none of 14 liked). The preview-sheet script is not in the repo: fetch 420 px thumbnails through the
+wiki API (`prop=imageinfo&iiurlwidth=420`, with a browser User-Agent; the HTML pages return 403) and tile them with
+PIL, labeled by option.
