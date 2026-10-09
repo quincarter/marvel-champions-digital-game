@@ -16,14 +16,14 @@ Pack_." Packs: `aos` (MC50, with Maria Hill and Nick Fury), `bp`, `silk`, `falco
 `tt` (Trickster Takeover), which the owner asked to ship with this wave. The spec is written in passes so each stays
 small (the split after 1a is proposed; the main session decides it):
 
-| Pass   | Scope                                                                                                   | State       |
-| ------ | ------------------------------------------------------------------------------------------------------- | ----------- |
-| **1a** | **The box in standalone play: new rules and keywords, five scenarios, their modular sets, both heroes** | **written** |
-| 1b     | The MC50 campaign; evidence cards in campaign mode; the Executive Board across scenarios                | not written |
-| 2a     | Black Panther (`bp`), Silk (`silk`)                                                                     | not written |
-| 2b     | Falcon (`falcon`), Winter Soldier (`winter`)                                                            | not written |
-| 2c     | Trickster Takeover (`tt`): Forced Action, the per-group icon, Enchantress, Loki                         | not written |
-| 3      | The owner's answers written in and reconciled; §8 extended to the whole wave                            | not written |
+| Pass   | Scope                                                                                                   | State            |
+| ------ | ------------------------------------------------------------------------------------------------------- | ---------------- |
+| **1a** | **The box in standalone play: new rules and keywords, five scenarios, their modular sets, both heroes** | **written**      |
+| 1b     | The MC50 campaign; evidence cards in campaign mode; the Executive Board across scenarios                | not written      |
+| 2a     | Black Panther (`bp`), Silk (`silk`)                                                                     | written (pass 2) |
+| 2b     | Falcon (`falcon`), Winter Soldier (`winter`)                                                            | written (pass 2) |
+| 2c     | Trickster Takeover (`tt`): Forced Action, the per-group icon, Enchantress, Loki                         | not written      |
+| 3      | The owner's answers written in and reconciled; §8 extended to the whole wave                            | not written      |
 
 - **Pass 1a's content.** MC50 pp. 3–4 (featured terms and keywords, all-purpose counters, attacks against allies,
   non-scaling villain hit points), the standalone parts of pp. 6, 9, 11, 13, 15, 18, 19 and the FAQ on p. 22; all 195
@@ -39,12 +39,29 @@ small (the split after 1a is proposed; the main session decides it):
   3.1–3.35, questions 1–5, §5, §7 and §8.
 - **Not in this pass** (placeholders in §6): the Campaign Instructions boxes on MC50 pp. 9, 11, 13, 15 and 19, the
   campaign log and the expert campaign; the evidence cards' own "Setup" abilities (campaign only, MC50 p. 18: "Ignore
-  the text on the lower portion of the evidence card"); the four hero packs; Trickster Takeover. **Forced Action and the
-  per-group icon are Trickster Takeover's** (its insert pp. 4 and 7 per the sources page): no `aos` record prints
-  either, and every `*_per_group` field of the raw `aos` cache is empty (checked by script). They are pass 2c's.
+  the text on the lower portion of the evidence card"); the four hero packs (pass 2, below); Trickster Takeover.
+  **Forced Action and the per-group icon are Trickster Takeover's** (its insert pp. 4 and 7 per the sources page): no
+  `aos` record prints either, and every `*_per_group` field of the raw `aos` cache is empty (checked by script). They
+  are pass 2c's.
 - **Data state (2026-10-09, HEAD 8d35670b):** `aos` is not emitted (raw cache only); `bp`, `silk`, `falcon` and
   `winter` are data only; no data survey exists yet (`docs/phase7-wave9-data-survey.md`). Nothing of this wave is
   scripted.
+- **Passes 2a and 2b's content (written 2026-10-09, HEAD acae896e).** The four hero packs in one pass: `bp` (Black
+  Panther / Shuri, 51001a/b to 51042), `silk` (52001a/b to 52038), `falcon` (53001a/b to 53042) and `winter` (Winter
+  Soldier, 54001a/b to 54037): 159 raw records and their four alter-ego faces, every one read by script, 32 scans read
+  (§0.1). Sections 0.1, 3.36–3.52, questions 6 and 7, §5.1, §7.9–§7.12, §8.1 items 12–17, §8.2 tasks 23–36, §8.3 and
+  §8.4 lines 32–63. **No new keyword and no deck-building rule** in the four packs: no identity prints one (raw
+  `deck_options` and `deck_requirements` are empty on all four), and the keywords are Team-Up, Linked, Restricted,
+  Uses, Requirement, Alliance, Victory, Villainous, Quickstrike, Surge, Guard and Toughness, all of earlier waves. The
+  data is emitted: the four packs left the data-only list at this HEAD, and the survey exists
+  (`docs/phase7-wave9-data-survey.md` §3 and §6.2).
+- **Each hero's defining mechanic (pass 2).** Shuri: "Special" abilities on Black Panther upgrades, resolved one at a
+  time by her basic powers and events, each upgrade spendable for a bigger effect (§3.36), and an alter-ego that
+  searches for and plays them (§3.37). Silk: encounter cards tucked under the identity, at most four, read by their
+  encounter set (§3.39–§3.41). Falcon: the encounter deck's top card faceup in his player phase, and Redwing and his
+  Aerial cards discarding it for the icons in its boost area (§3.42–§3.45). Winter Soldier: Cybernetic Arm paying for
+  Attack events, which read that payment, and rewards for attacking and defeating an enemy; his kit needs no engine
+  change (§3.52), only his pack's Whiteout set does (§3.50).
 
 ## 0. Sources
 
@@ -115,6 +132,39 @@ Reference; FFG rulings clarify both):
 
 No ruling of this pass says a printed wording is unintended, and none disagrees with the RRG. The conflicts found are
 between the RRG and the rulebook (§4.1 Q1, Q2 and Q5).
+
+### 0.1 Pass 2 sources (the four hero packs)
+
+- **Card text.** `packages/content/raw/marvelcdb/{bp,silk,falcon,winter}.json`, every record and linked alter-ego
+  face pulled by script. **Scans read this session** (`assets/card-art/bundles/cards/`), 32 faces: 51001a, 51001b,
+  51015, 51016, 51017, 51018, 51036, 51038; 52001a, 52001b, 52005, 52008, 52028, 52031; 53001a, 53001b, 53002, 53005,
+  53006, 53008, 53009, 53020, 53023, 53034, 53038; 54002, 54004, 54018, 54027, 54033, 54034, 54035. **A printed-card
+  claim of this pass is "checked" only for those faces**; every other card is "unchecked (raw data)". One difference
+  from the raw cache: Infiltration 51015 prints "remove 1 threat" (raw: "remote").
+- **No hero pack insert is in the repo.** The starter decks are the printed decklist cards the data survey read
+  (§6.2 there); the four modular set names are on the cards themselves ("Techno (1/6)" on 53038, "Whiteout (1/6)" and
+  "(2/6)" on 54034 and 54035, checked; Extreme Risk and Growing Strong from the raw set codes, unchecked).
+- **RRG 1.8 FAQ** (p. 65, text layer read, checked): "Black Panther Hero Pack": The Elephant's Trunk (#7), Target
+  Spotter (#38); "Falcon Hero Pack": Redwing (#2). No FAQ entry names Silk or Winter Soldier. The "Black Panther"
+  retaliate entry elsewhere in the FAQ is Core's card.
+- **RRG 1.8 errata** (p. 70, text layer read, checked): "Silk Hero Pack": Eidetic Memory (#8); "Winter Soldier Hero
+  Pack": S.H.I.E.L.D. Deputy (#33). None for Black Panther or Falcon.
+- **RRG glossary pages** of this pass were taken from the markdown's page footers by script, not from the PDF:
+  "Alliance" (p. 6), "Amplify Icon" (p. 7), "Attach To" (p. 8), "Cost" (p. 13), "Deal, Deal an Encounter Card"
+  (p. 15), "Defend, Defense" (p. 15), "Encounter Deck" (p. 17), "Encounter Set" (p. 18), "Find" (p. 19), "'For Each'"
+  (p. 20), "'Instead'" (p. 25), "Limit" (p. 27), "Linked (Card Title)" (p. 27), "Look, Looked-At" (p. 27), "Move"
+  (p. 30), "'Otherwise'" (p. 31), "Player Card" (p. 33), "Player Side Scheme" (p. 34), "Replacement Effect" (p. 37),
+  "Resource Ability" (p. 37), "Scenario-Specific Card" (p. 39), "Special" (p. 40), "Star Icon" (p. 40), "'Swap'"
+  (p. 42), "Team-Up" (p. 43), "Traits" (p. 45), "Tuck" (p. 45), "Unique Icon" (p. 45), "Victory X" (p. 46).
+- **FFG rulings.** Every card title and identity name of the four packs was matched against the rulings file by script
+  and each hit read: December 17, 2025 – Rulings 1 (2) and 2; January 17, 2026 – Rulings 2 and 3; January 26, 2026 –
+  Ruling 6; March 6, 2026 – Rulings 1 and 2; March 19, 2026 – Ruling 5; April 30, 2026 – Ruling 3 (3); June 2, 2026 –
+  Ruling 2 (2); June 25, 2026 – Ruling 1; July 9, 2026 – Ruling 2; August 3, 2026 – Ruling 4 (3). §3.51 says where
+  each lands. The Captain America rulings of January 11, 2026 are about the Civil War leader's shield, not these
+  cards.
+- **No ruling of this pass says a printed wording is unintended**, and none disagrees with the RRG. Two errata change
+  printed text (§3.41, §3.51). Ruling January 26, 2026 – Ruling 6 answers a question that named three cards by naming
+  one (§4.1 Q6).
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
@@ -392,43 +442,60 @@ run: the scripting agent proves it in a test before relying on it, and a failure
 (compose)** (several existing pieces, no engine change); **extend** (an existing primitive needs one more case);
 **new**. Each section is one agent, one commit. Searches that found nothing are named, so nobody repeats them.
 
-| §    | Primitive                                                                                        | Needed by                                                                    | Status (all not started) |
-| ---- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------ |
-| 3.1  | Vulnerable                                                                                       | 50083, 50093, 50094, 50098, 50125, 50126, 50172, 50178                       | new                      |
-| 3.2  | Preparation: a labeled ability that is not a boost ability, resolved from the discard pile       | 50064–50066, 50068–50073, 50076–50079                                        | extend                   |
-| 3.3  | An ability a rule gives to every encounter card that does not print one of that label            | 50070, 50074                                                                 | new                      |
-| 3.4  | The attack in progress as a Preparation reads it; the villain's Forced Interrupt                 | 50064–50066, 50068, 50071–50073, 50076, 50079                                | extend                   |
-| 3.5  | "Would be defeated … reset his hit points to N instead": fixed hit points, never defeated        | 50086a/b, 50103a/b, 50165a, 50166a, 50114–50119                              | exists (verify)          |
-| 3.6  | All-purpose counters: any type, retyped by the card they land on, a uses card emptied by a move  | 50001a, 50002, 50005, 50007, 50011, 50024, 50029, 50030, 50031, 50033, 50113 | extend                   |
-| 3.7  | Threat on a card that is not a scheme; threat removed from a card as a cost of a chosen size     | 50034a, 50035a/b, 50036–50046, 50059, 50090a/b                               | extend                   |
-| 3.8  | A suit form: a permanent double-sided upgrade as an additional form; a forced change on attack   | 50034a/b, 50035a/b, 50037, 50038, 50059                                      | exists (verify)          |
-| 3.9  | An attack that becomes a scheme; one threat of that activation placed elsewhere                  | 50035b                                                                       | extend                   |
-| 3.10 | Deck building: an all-or-nothing off-aspect package; Team-Up with "Max 1 per deck"               | 50001b, 50024                                                                | exists (verify)          |
-| 3.11 | A choice of cards capped by their combined printed cost                                          | 50004, 50005                                                                 | extend                   |
-| 3.12 | Looking at every dealt encounter card and the top of the deck, and swapping them                 | 50051                                                                        | extend                   |
-| 3.13 | An enemy attack on an ally: chosen by a superlative, redirected by the main scheme               | 50089b, 50096, 50120                                                         | exists (verify)          |
-| 3.14 | Main scheme stages left by removing the last threat: forced, by choice, and a win at no threat   | 50087b, 50088b, 50089b                                                       | exists (verify)          |
-| 3.15 | Allies the scenario owns: set aside, put into play under any player, not removable by abilities  | 50091, 50105b–50108b                                                         | exists (verify)          |
-| 3.16 | An environment that holds threat, flips at a threshold and loses the game at one                 | 50090a/b, 50093–50097                                                        | exists (compose)         |
-| 3.17 | A scenario deck whose top card is in play, flips to an ally and comes back to the bottom         | 50105a/b–50108a/b                                                            | extend                   |
-| 3.18 | Environments that change every card of a title; a main scheme whose completion is replaced       | 50104b, 50109–50113                                                          | exists (compose)         |
-| 3.19 | An ally held on a side scheme under no player's control                                          | 50121                                                                        | exists (verify)          |
-| 3.20 | An ally that would leave play tucked under a scheme instead; X from a tucked card's printed cost | 50080–50082, 50100, 50119                                                    | extend                   |
-| 3.21 | A minion attached to an environment: in play, engaged with nobody, swapped as the round ends     | 50130b, 50131a/b                                                             | extend                   |
-| 3.22 | Setup that picks sets by the minion they hold; each player reveals a random set-aside minion     | 50130a, 50131a                                                               | exists (verify)          |
-| 3.23 | A villain that cannot be defeated below a victory display count; an activation given up to heal  | 50129a/b                                                                     | exists (verify)          |
-| 3.24 | Every player engages the next player's minions at once                                           | 50135, 50136, 50164                                                          | extend                   |
-| 3.25 | Damage that goes somewhere else: threat off a scheme, onto the attachment, back at the attacker  | 50092, 50117, 50146, 50149, 50154                                            | exists (compose)         |
-| 3.26 | Board Members: named counters, a flip to an attachment on the villain, a loss at three           | 50181a/b–50183a/b, 50168b, 50169b                                            | extend                   |
-| 3.27 | "Remove N counters from among" several cards; "the [card] with the fewest counters"              | 50165a, 50166a, 50170, 50172–50177                                           | extend                   |
-| 3.28 | "You may spend X [type] resources to prevent X of …"                                             | 50175, 50184a–c                                                              | exists (verify)          |
-| 3.29 | Evidence in a standalone game: two hidden piles, gained cards, the grid, the accusation          | 50167a/b, 50168a/b, 50169b, 50185–50193                                      | new                      |
-| 3.30 | A hero from the collection in play as a minion                                                   | 50171                                                                        | extend                   |
-| 3.31 | An additional cost to attack, thwart or defend with an ally                                      | 50173                                                                        | extend                   |
-| 3.32 | Player-deck cards facedown as minions whose base stats an environment sets                       | 50030–50033                                                                  | exists (verify)          |
-| 3.33 | Keywords and icons a rule gives to other cards, to cards being revealed, and takes away          | 50075, 50085, 50089b, 50093, 50094, 50101, 50144, 50060                      | exists (verify)          |
-| 3.34 | An attachment's stat box on an identity, replaced under a trait; the two errata                  | 50153, 50156, 50159                                                          | exists (compose)         |
-| 3.35 | Reusable as is                                                                                   | the rest (§7)                                                                | checked by name          |
+| §    | Primitive                                                                                         | Needed by                                                                    | Status (all not started) |
+| ---- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------ |
+| 3.1  | Vulnerable                                                                                        | 50083, 50093, 50094, 50098, 50125, 50126, 50172, 50178                       | new                      |
+| 3.2  | Preparation: a labeled ability that is not a boost ability, resolved from the discard pile        | 50064–50066, 50068–50073, 50076–50079                                        | extend                   |
+| 3.3  | An ability a rule gives to every encounter card that does not print one of that label             | 50070, 50074                                                                 | new                      |
+| 3.4  | The attack in progress as a Preparation reads it; the villain's Forced Interrupt                  | 50064–50066, 50068, 50071–50073, 50076, 50079                                | extend                   |
+| 3.5  | "Would be defeated … reset his hit points to N instead": fixed hit points, never defeated         | 50086a/b, 50103a/b, 50165a, 50166a, 50114–50119                              | exists (verify)          |
+| 3.6  | All-purpose counters: any type, retyped by the card they land on, a uses card emptied by a move   | 50001a, 50002, 50005, 50007, 50011, 50024, 50029, 50030, 50031, 50033, 50113 | extend                   |
+| 3.7  | Threat on a card that is not a scheme; threat removed from a card as a cost of a chosen size      | 50034a, 50035a/b, 50036–50046, 50059, 50090a/b                               | extend                   |
+| 3.8  | A suit form: a permanent double-sided upgrade as an additional form; a forced change on attack    | 50034a/b, 50035a/b, 50037, 50038, 50059                                      | exists (verify)          |
+| 3.9  | An attack that becomes a scheme; one threat of that activation placed elsewhere                   | 50035b                                                                       | extend                   |
+| 3.10 | Deck building: an all-or-nothing off-aspect package; Team-Up with "Max 1 per deck"                | 50001b, 50024                                                                | exists (verify)          |
+| 3.11 | A choice of cards capped by their combined printed cost                                           | 50004, 50005                                                                 | extend                   |
+| 3.12 | Looking at every dealt encounter card and the top of the deck, and swapping them                  | 50051                                                                        | extend                   |
+| 3.13 | An enemy attack on an ally: chosen by a superlative, redirected by the main scheme                | 50089b, 50096, 50120                                                         | exists (verify)          |
+| 3.14 | Main scheme stages left by removing the last threat: forced, by choice, and a win at no threat    | 50087b, 50088b, 50089b                                                       | exists (verify)          |
+| 3.15 | Allies the scenario owns: set aside, put into play under any player, not removable by abilities   | 50091, 50105b–50108b                                                         | exists (verify)          |
+| 3.16 | An environment that holds threat, flips at a threshold and loses the game at one                  | 50090a/b, 50093–50097                                                        | exists (compose)         |
+| 3.17 | A scenario deck whose top card is in play, flips to an ally and comes back to the bottom          | 50105a/b–50108a/b                                                            | extend                   |
+| 3.18 | Environments that change every card of a title; a main scheme whose completion is replaced        | 50104b, 50109–50113                                                          | exists (compose)         |
+| 3.19 | An ally held on a side scheme under no player's control                                           | 50121                                                                        | exists (verify)          |
+| 3.20 | An ally that would leave play tucked under a scheme instead; X from a tucked card's printed cost  | 50080–50082, 50100, 50119                                                    | extend                   |
+| 3.21 | A minion attached to an environment: in play, engaged with nobody, swapped as the round ends      | 50130b, 50131a/b                                                             | extend                   |
+| 3.22 | Setup that picks sets by the minion they hold; each player reveals a random set-aside minion      | 50130a, 50131a                                                               | exists (verify)          |
+| 3.23 | A villain that cannot be defeated below a victory display count; an activation given up to heal   | 50129a/b                                                                     | exists (verify)          |
+| 3.24 | Every player engages the next player's minions at once                                            | 50135, 50136, 50164                                                          | extend                   |
+| 3.25 | Damage that goes somewhere else: threat off a scheme, onto the attachment, back at the attacker   | 50092, 50117, 50146, 50149, 50154                                            | exists (compose)         |
+| 3.26 | Board Members: named counters, a flip to an attachment on the villain, a loss at three            | 50181a/b–50183a/b, 50168b, 50169b                                            | extend                   |
+| 3.27 | "Remove N counters from among" several cards; "the [card] with the fewest counters"               | 50165a, 50166a, 50170, 50172–50177                                           | extend                   |
+| 3.28 | "You may spend X [type] resources to prevent X of …"                                              | 50175, 50184a–c                                                              | exists (verify)          |
+| 3.29 | Evidence in a standalone game: two hidden piles, gained cards, the grid, the accusation           | 50167a/b, 50168a/b, 50169b, 50185–50193                                      | new                      |
+| 3.30 | A hero from the collection in play as a minion                                                    | 50171                                                                        | extend                   |
+| 3.31 | An additional cost to attack, thwart or defend with an ally                                       | 50173                                                                        | extend                   |
+| 3.32 | Player-deck cards facedown as minions whose base stats an environment sets                        | 50030–50033                                                                  | exists (verify)          |
+| 3.33 | Keywords and icons a rule gives to other cards, to cards being revealed, and takes away           | 50075, 50085, 50089b, 50093, 50094, 50101, 50144, 50060                      | exists (verify)          |
+| 3.34 | An attachment's stat box on an identity, replaced under a trait; the two errata                   | 50153, 50156, 50159                                                          | exists (compose)         |
+| 3.35 | Reusable as is                                                                                    | the rest (§7)                                                                | checked by name          |
+| 3.36 | Specials resolved by count and by choice; a Special that discards its own card; on allies         | 51001a, 51002–51005, 51010–51013, 51022–51025, 51030                         | exists (verify)          |
+| 3.37 | A card searched for in the deck and played at a reduced cost                                      | 51001b                                                                       | exists (verify)          |
+| 3.38 | Threat a scheme loses placed on a minion; the minion taken as an ally by a linked attachment      | 51017, 51036                                                                 | exists (compose)         |
+| 3.39 | Encounter cards tucked under an identity: a cap, tucks from the discard pile, "the same set"      | 52001a/b, 52002–52006, 52009–52012, 52029, 52030, 51018                      | exists (verify)          |
+| 3.40 | A tuck sent somewhere else; a tucked card that answers its own discard                            | 52028, 52029, 52031                                                          | new                      |
+| 3.41 | A revealed card swapped with a tucked card of its set                                             | 52008                                                                        | exists (verify)          |
+| 3.42 | The top card of the encounter deck faceup; an ability refused when the visible card gives nothing | 53001a, 53002–53004, 53010, 53012                                            | extend                   |
+| 3.43 | Cards discarded from the top of the encounter deck: a chosen cost, a trigger, a card handed on    | 51015, 53001a, 53002–53004, 53010, 53012, 53017, 53030, 53031, 53036         | extend                   |
+| 3.44 | A response to a boost card being given: look at it and the deck top, and swap them                | 53005                                                                        | extend                   |
+| 3.45 | An interrupt to an encounter card being dealt to a player                                         | 53009                                                                        | new                      |
+| 3.46 | Payment: once per card paid for; the cards that paid; a tucked resource card anyone may spend     | 53006, 53018, 53021                                                          | extend                   |
+| 3.47 | A hero that does not exhaust to defend                                                            | 53011                                                                        | extend                   |
+| 3.48 | The number of different traits among a group of cards                                             | 53019                                                                        | extend                   |
+| 3.49 | An attachment bound for the villain attached to another enemy; "the villain" on that card         | 53038–53040, 51040, 54030                                                    | new                      |
+| 3.50 | An attachment that players attack "as if it were a minion"                                        | 54034, 54035                                                                 | new                      |
+| 3.51 | Rulings, FAQ entries and errata on cards the engine already covers                                | 51007, 51038, 52016, 52034, 53008, 53023, 53034, 54004, 54033, the Team-Ups  | exists (verify)          |
+| 3.52 | Reusable as is (pass 2)                                                                           | the rest (§7.9–§7.12)                                                        | checked by name          |
 
 ### 3.1 Vulnerable
 
@@ -1388,21 +1455,590 @@ not that the card's behavior was run; the scripting agent's tests prove each.
   50078**, **Psionic Blast 50124** (indirect damage, then confuse each character damaged), **Disavowed 50180**
   (`CostModifierSpec`), **Arrest Warrant 50179**, **S.H.I.E.L.D. Trooper 50178**.
 
+### 3.36 Specials resolved by count and by choice; a Special that discards its own card; Specials on allies
+
+> **Status: not started (exists, verify).** `special` (DSL) and `EffectSpec resolveSpecials { cards | of, player,
+abilities, bind }` (`spec.ts`; its doc cites Wakanda Forever!), the "(attack)" and "(thwart)" labels on a Special
+> (Core's Black Panther upgrades, wave 1), `chooseCards` feeding `of`, `basicPowerUsed`, `discardThis`,
+> `thatAttackGainsKeywords`, `attack { moveDamageFrom }`. Not run: one Special chosen out of several, "up to 4", a
+> Special printed on an ally, a Special whose card leaves play as it resolves.
+
+**Cards.** Black Panther 51001a (scan: "Response: After Black Panther uses a basic power, resolve the 'Special'
+ability on 1 Black Panther upgrade you control"); T'Challa 51002 (the same as a Hero Response on an ally); Clawed
+Strike 51003 and On the Prowl 51004 (an event's effect, then one Special); Wakanda Forever! 51005 ("on each … in any
+order"); Heart of the Panther 51025 ("put it into play. Resolve the 'Special' ability on up to 4 Black Panther upgrades
+you control in any order"); the four upgrades Kimoyo Beads 51010, Panther Claws 51011, Spider Bites 51012 and
+Vibranium Suit 51013, each ending "You may discard this card to …"; Aneka 51022, Ayo 51023 and Okoye 51024 ("resolve
+the 'Special' ability on another Dora Milaje ally", each printing its own Special); Dora Milaje 51030 ("on 1 Dora
+Milaje ally and heal 1 damage from that ally").
+
+**Rules.** RRG "Special" (p. 40): "Special abilities may only be resolved through the explicit instruction of another
+card ability." RRG "Move" (p. 30): "If damage is moved off a character, the moved damage is considered to be healed
+from that character. If damage is moved to a character, the moved damage is considered to be dealt to that
+character"; "If there is no valid source or destination for a move, the move cannot be made."
+
+**What to verify.**
+
+- **"On 1".** The resolving player picks one card that prints a Special among those the text names; with none, that
+  sentence does nothing and the rest of the ability still resolves. A new DSL builder over `chooseCards` and
+  `resolveSpecialsOf` is DSL work, not engine work.
+- **"Each … in any order" and "up to 4 … in any order".** The player orders them as today. "Up to 4" follows the
+  owner's wave 3 decision (§4 Q16 there): at least one when one can resolve. The upgrade Heart of the Panther put into
+  play is a candidate.
+- **A Special that discards its card.** "You may discard this card to …" is an optional effect, not a cost: the first
+  sentence has already resolved. The discarded upgrade is gone for the next basic power use.
+- **Labels.** Kimoyo Beads "(thwart)", Panther Claws and Vibranium Suit "(attack)" resolve as the hero's thwart or
+  attack, exactly as Core's four upgrades do today (wave 1); Spider Bites prints no label and is neither. Panther
+  Claws' 2 damage and its 3 "additional" are one instance of 5, and "this attack gains piercing" reaches all of it.
+  Vibranium Suit moves 1 damage (healed from the hero, dealt to the enemy); a hero with no damage moves nothing and
+  may still discard the card for a tough status card.
+- **Specials on allies.** "Another Dora Milaje ally" is any player's (the text has no "you control"), resolved with
+  the responding player as "you" (`resolveSpecials.player`). Only the Special resolves: the other ally's own
+  Response does not chain, because no basic power was used.
+- **T'Challa 51002** is a Hero Response: nothing in alter-ego form. He matches Core's T'Challa identity (RRG "Unique
+  Icon", p. 45: "the identity with the T'Challa alter-ego, the T'Challa ally … are all considered to match").
+
+**Tests (exact numbers).** Black Panther (THW 2) thwarts a scheme at 5: 3, then Kimoyo Beads' Special: 2; discarding
+it confuses the villain and the upgrade is in the discard pile. Clawed Strike on an enemy with a tough status card,
+then Panther Claws discarded: the tough card is discarded by the first 4 damage's attack; a second enemy with a tough
+card named by Panther Claws takes 5 through it (piercing). Wakanda Forever! with all four upgrades: four Specials in
+the chosen order. Heart of the Panther with five Black Panther upgrades in play after its search: four resolve.
+Vibranium Suit with 0 damage on the hero: nothing moves. Aneka attacks with Ayo in play: 1 damage from Ayo's
+Special; with no other Dora Milaje ally: nothing. T'Challa thwarts while Shuri is in alter-ego form: no response.
+
+### 3.37 A card searched for in the deck and played at a reduced cost
+
+> **Status: not started (exists, verify).** `EffectSpec playFromHand { from: "hand" | "setAside" | "deck" | …, filter,
+costReduction, ignoreCost }` (`spec.ts`). The DSL has `playFromHandReducingCost` and `playFromDeckIgnoringCost`
+> (Fetch Quest) and no builder that sets `from: "deck"` with a reduction: one DSL builder, no engine change expected.
+
+**Cards.** Shuri 51001b (scan): "Inventor — Action: Exhaust Shuri → search your deck for a Black Panther or Tech
+upgrade and play it, reducing its resource cost by 2. (Limit once per round.)"
+
+**What to verify.** The whole deck is searched; only an upgrade the player may legally play and can pay for after
+the reduction is offered; the rest of its cost is paid as for any play; it is played (`cardPlayed` is announced, so
+"after you play" responses answer); the deck is shuffled once the card has resolved, or at once when none was played
+(as `playFromDeckIgnoringCost` does). A Tech upgrade of any aspect in her deck qualifies (Invisibility Gear 51019,
+Sonic Rifle 51020).
+
+**Tests.** Kimoyo Beads (cost 2): played for 0. Sonic Rifle (cost 3) with one card in hand: 1 paid. Sonic Rifle with
+an empty hand and no resource ability: not offered; Shuri is exhausted and the deck shuffled. A second use in the
+round: refused.
+
+### 3.38 Threat a scheme loses placed on a minion; the minion taken as an ally by a linked attachment
+
+> **Status: not started (exists, compose).** Threat on a card that is not a scheme (wave 6 §3.59,
+> `threat-on-characters.test.ts`; §3.7 (a) here), the `removeThreat` interrupt with `eventAmount`,
+> `addToVictoryDisplay`, linked cards set aside (`linked-set-aside.test.ts`), `RuleSpec treatHostAsAlly` (wave 4 §3.29,
+> landed; its doc cites Redemption 51036), `remainingHpOf`, the victory keyword on an attachment.
+
+**Cards.** Show of Empathy 51017 (scan; unique, Justice, 6 threat, Victory 0): "Forced Interrupt: When threat is
+removed from this scheme, place that threat on a non-Elite minion. If that minion has threat on it equal to or
+greater than its remaining hit points, add Show of Empathy to the victory display and attach 1 set-aside copy of
+Redemption to that minion." Redemption 51036 (scan; cost –, "Linked (Show of Empathy). Victory 0. Take control of
+attached minion and treat it as a Redeemed ally with a blank text box. Its THW is equal to its printed SCH and it
+takes 1 consequential damage after it thwarts or attacks").
+
+**Rules.** RRG "Linked (Card Title)" (p. 27): set aside at setup when a deck holds the named card; "When a player
+takes control of a card with the linked keyword, that player becomes the owner of that card." RRG "Victory X"
+(p. 46), for an attachment: "Forced Interrupt: When the attached card is defeated, add this card to the victory
+display." RRG "Player Side Scheme" (p. 34).
+
+**Plan (composition).** A forced interrupt to any removal of threat from the scheme (a thwart, an ability, an
+encounter card). The amount is what is actually being removed. The player whose card removes it chooses the minion,
+any player's; when no player's card did, the scheme's owner chooses. The threat lands as tokens (§3.7 (a)). Then the
+check, once, against the minion's remaining hit points at that moment. With no non-Elite minion in play the threat
+is simply removed. When the last threat goes and the check failed, the scheme is defeated as any side scheme and its
+Victory 0 sends it to the victory display. Redemption's controller is the player who chose the minion (flagged, §4.2).
+
+**Tests (exact numbers).** A minion with 3 hit points and 1 damage (2 remaining): a thwart for 2 places 2 threat on
+it; Show of Empathy (4 threat left) goes to the victory display, Redemption attaches, the minion is the chooser's
+ally with THW equal to its printed SCH and a blank text box, and it takes 1 consequential damage when it thwarts.
+The same thwart with only an Elite minion in play: 4 threat left, nothing placed. Threat 2 removed onto a minion with
+5 remaining, then 2 more onto the same minion next turn: 4, no flip; 1 more: 5, it is redeemed. The redeemed ally is
+defeated: it goes to the encounter discard pile and Redemption to the victory display.
+
+### 3.39 Encounter cards tucked under an identity: a cap, tucks from the discard pile, "the same encounter set"
+
+> **Status: not started (exists, verify).** `tuckCards` (from any zone), `tuckedUnder` / `tuckedCount(of, filter)`,
+> `TargetQuery.encounterSetOf` (`select.ts`; every "from the [X] set" reads it), `stateCheck`,
+> `encounterCardResolved`, `characterDefeated` / `schemeDefeated` with the defeating player, `discardEncounterUntil`,
+> `lookAt`, `modifyBasicPower`, `gainTraitUntil`. Not run: encounter cards under an identity through a change of form,
+> and a count of tucked cards filtered by another card's set.
+
+**Cards.** Silk 52001a and Cindy Moon 52001b (scans; both faces: "If there are more than 4 tucked cards here,
+discard all but 4 of those cards"; Silk Sense: "Response: After you defeat a minion or side scheme, or resolve a
+treachery card, tuck that card under here from the encounter discard pile"; Cindy Moon: "Action: Discard a card
+tucked here → draw 2 cards. (Limit once per round.)"); Smooth as Silk 52002; Swinging Silk Kick 52003; Wallcrawl
+52004; Get the Scoop 52005 (scan); Albert Moon 52006; Organic Webbing 52009; Outwit 52010; Spider Claws 52011; Spider
+Reflexes 52012; Morlun 52029 and The Great Hunt 52030 ("for each card tucked under each identity"); The Raft 51018
+(scan: a minion that left play tucked under a support "from the encounter discard pile").
+
+**Rules.** RRG "Tuck" (p. 45): "Tucked cards are not in play and are not considered 'attached'"; "When a card leaves
+play, each card tucked under it is discarded." An identity does not leave play when it changes form (ruling January
+26, 2026 – Ruling 6 (2)), and both faces print the cap, so the cards stay. RRG "Encounter Set" (p. 18): "Encounter
+sets with the same name but different set icons are considered distinct sets." RRG "Encounter Deck" (p. 17): a discard
+"until a card with specific criteria is discarded" that empties the deck "is considered to be fulfilled. Do not
+continue the discard effect with the newly shuffled encounter deck."
+
+**What to verify.**
+
+- **The cap.** A state check on both faces: with five or more tucked cards the controller chooses which four stay,
+  and the rest go to their owners' discard piles (encounter cards to the encounter discard pile). The discard is the
+  identity card's own (§4.1 Q7).
+- **Silk Sense** tucks only a card that is in the encounter discard pile when the response resolves: not a card that
+  went to the victory display, was shuffled away or was removed from the game. "You defeat": the defeating player.
+  "Resolve a treachery card": a treachery this player revealed and resolved (`encounterCardResolved`), not one
+  resolved as a boost card.
+- **"From the same encounter set as"** reads the two cards' sets (`encounterSetOf`), a card of several sets matching
+  on any. A player card tucked there by another effect has no encounter set and never matches.
+- **Smooth as Silk** with no card of that set left: the deck is discarded to the end, reset once (one acceleration
+  token), and nothing is tucked.
+- **Get the Scoop** 52005 (unique, 4 threat, no victory keyword): "Any player may trigger this ability" with the
+  triggering player's own identity exhausted (`triggerableBy`); "The Cindy Moon player" looks and tucks whoever
+  defeated it, and nothing happens when that player has been eliminated.
+- **The Raft**: the response needs the minion in the encounter discard pile; "remove threat … equal to the tucked
+  minion's printed SCH"; at four tucked minions one chosen at random is dealt facedown to a player of the
+  controller's choice (`dealAsEncounterCard`).
+
+**Tests (exact numbers).** Four cards tucked and Silk Sense tucks a fifth: the player discards one of the five. Two
+Morlun-set cards tucked and Spider Claws on a basic attack against Morlun: ATK 2 + 2 = 4, piercing. Outwit with one
+card of the scheme's set and three of another: THW 1 + 1 = 2 (3 with Organic Webbing). Swinging Silk Kick with a
+matching card discarded: 9 with overkill; with none: 7. Wallcrawl: 2 removed, then 3 more from a scheme whose set
+matches the discarded card. Albert Moon with 3 tucked cards: heal 3. A minion with Victory 1 defeated: nothing to
+tuck. The Raft with a minion of printed SCH 2: 2 threat removed; the fourth minion tucked: one of the four, by the
+seeded draw, is dealt facedown and three remain. Morlun with 2 cards under Silk and 1 under another identity: +3 SCH
+and +3 ATK.
+
+### 3.40 A tuck sent somewhere else; a tucked card that answers its own discard; "by a player card effect"
+
+> **Status: not started (new).** No trigger announces a tuck or a tucked card's discard (grep of `cardTucked`,
+> `beingTucked`, `wouldBeTucked` finds nothing; `tuckCards` moves the card at once), and `AbilityDefinition.activeIn`
+> is `"hand" | "victoryDisplay" | "discard"`.
+
+**Cards.** Silk Sense Overload 52028 (scan; an obligation that stays in play): "Forced Interrupt: When a card would
+be tucked under your identity by a player card effect, tuck it under here instead. Then, if there are 2 tucked cards
+here, you may discard this card (remove it from the game instead if there are 3 or more tucked cards here)."
+Hunting the Spider-Bride 52031 (scan): "Surge. When Revealed: If you have 4 cards tucked under your identity, discard
+1 of those cards at random. Tuck this card under your identity. Forced Response: After a player card effect discards
+this card from under an identity, that identity takes 2 damage." Morlun 52029: "When Defeated: Discard each copy of
+Hunting the Spider-Bride tucked under each identity."
+
+**Rules.** RRG "'Would'" (p. 48) and "Replacement Effect" (p. 37). RRG "In Play and Out of Play" (p. 23): out-of-play
+text works only when it "specifically refer[s] to being used from an out-of-play area", which a card that speaks of
+its own discard "from under an identity" does. RRG "Player Card" (p. 33): identity cards are player cards.
+
+**Plan.**
+
+- (a) `TriggerEvent cardBeingTucked { instanceId, hostInstanceId, sourceInstanceId, byPlayerCard }`, an interrupt
+  window opened only when an ability in the registry listens, and `EffectSpec replaceTuckHost { to }`, which changes
+  where the pending tuck lands. `byPlayerCard` is true when the card whose ability tucks is a player card (an identity,
+  a player side scheme, an upgrade), false for an encounter card (Hunting the Spider-Bride tucking itself).
+- (b) `activeIn: "tucked"` for a triggered ability the card itself makes to its own discard from under a card, and
+  `TriggerEvent tuckedCardDiscarded { instanceId, hostInstanceId, sourceInstanceId, byPlayerCard }`, announced after
+  the card has reached its discard pile. "That identity" is the host it was under. Whether a cost and the identity's
+  own cap count as "a player card effect" is §4.1 Q7 (default: yes).
+- Silk Sense Overload's "Then" reads its own tucked count after the redirected tuck: exactly 2 offers the discard, 3
+  or more removes it from the game without asking. Either way the cards under it go to their discard piles (RRG
+  p. 45), and that discard is an encounter card's.
+- Morlun's When Defeated and the treachery's own "discard 1 of those cards at random" are encounter card effects:
+  `byPlayerCard` false, no damage.
+
+**Tests (exact numbers).** Overload in play, Silk Sense after a minion's defeat: the minion is under the obligation
+(1), Silk has none. A second: 2, the player declines; a third: 3, the obligation is removed from the game and three
+cards are in the encounter discard pile. Hunting the Spider-Bride revealed with Overload in play: it tucks under
+Silk (an encounter card's tuck), surge. Spider-Bride under Silk, discarded by Swinging Silk Kick against Morlun:
+9 damage with overkill and Silk takes 2. Morlun defeated with two copies tucked: both discarded, 0 damage.
+Spider-Bride revealed with four cards tucked: one of the four, by the seeded draw, is discarded with no damage,
+then it tucks (4 again).
+
+### 3.41 A revealed card swapped with a tucked card of its set
+
+> **Status: not started (exists, verify).** `EffectSpec swapCards` (wave 6 §3.47): `resolve/swap-cards.ts` says "Two
+> out-of-play cards (Eidetic Memory, `silk`, erratum RRG 1.8 p. 69) just exchange places and orientations" (the
+> erratum is on **p. 70**; the comment's page is a slip). `encounterCardRevealing`, `revealCard`,
+> `cancelTriggeringEvent`. Not run for this card.
+
+**Cards.** Eidetic Memory 52008 (scan prints "under Silk"). **Erratum, RRG p. 70 (checked):** "Interrupt: When you
+reveal a card from the same encounter set as a card tucked under your identity, exhaust Eidetic Memory → swap those
+cards. Reveal the card that had been tucked under your identity instead." (Changed "Silk" to "your identity".) The
+erratum is the text scripted, so it works in either form.
+
+**Rules.** RRG "'Swap'" (p. 42). Ruling April 30, 2026 – Ruling 3 (3): "flipping environments are not considered
+'revealed'", so Wheel of Genres and Alert Level never open this interrupt (as §3.16 already has it).
+
+**What to verify.** The interrupt opens when its controller reveals an encounter card (from a deal, a surge, a
+"reveal" instruction), before incite, When Revealed and the other reveal keywords. The first card is then tucked,
+unrevealed and unresolved; the formerly tucked card is revealed in its place and resolves in full, keywords and
+surge included. The swap is not a tuck "by a player card effect" under §3.40 (a swap is not a tuck instruction;
+flagged, §4.2). One use per round follows from the exhaust.
+
+**Tests.** A treachery of the villain's set tucked, a minion of that set revealed: the minion is under the identity
+and the treachery resolves. No tucked card of the revealed card's set: not offered. Alert Level flips: not offered.
+In alter-ego form: offered (the erratum).
+
+### 3.42 The top card of the encounter deck faceup; an ability refused when the visible card gives it nothing
+
+> **Status: not started (extend).** `RuleSpec topOfDeckFaceup { player, while }` and `Predicate topOfDeckFaceup` (wave
+> 8 §3.48) are written for player decks; `RuleSpec mayLookAtTopOfEncounterDeck` (wave 5 §3.28) shows the card to one
+> player only. No rule keeps the encounter deck's top card faceup for the table.
+
+**Cards.** Falcon 53001a (scan): "During the player phase, play with the top card of the encounter deck faceup."
+Redwing 53002 (scan), Battlefield Awareness 53010, Bird of Prey 53003, Bird's-Eye View 53004 and Talon Line 53012
+read that card's icons (§3.43).
+
+**Rules.** RRG FAQ "Redwing (#2)" (p. 65, checked): "Q: Can Redwing's ability be triggered if the top card of the
+encounter deck is visible and that card has no icons in its boost area? A: No, because the player knows that the
+ability will not be able to affect its target, the ability cannot be triggered." Ruling January 26, 2026 – Ruling 6
+(1): "If there are no boost icons on the top card of the encounter deck, Redwing's ability has no effect and cannot
+be initiated." Ruling March 19, 2026 – Ruling 5: visible with 0 icons, cannot trigger; "facedown/unknown, Redwing
+can trigger (paying cost with incomplete information …). Confirm valid targets first, then discard and resolve as
+much as possible"; facedown but known, "it can still trigger". Ruling January 26, 2026 – Ruling 6 (2): "Limits
+apply to cards. An identity never leaves play when flipping; limits applied to its abilities persist across flips."
+
+**Plan.**
+
+- `RuleSpec topOfDeckFaceup` gains `deck: "encounter"`: while the rule holds (hero face up, player phase), the top
+  card of the active villain's encounter deck is visible to every player. As for a player deck, nothing is written
+  on the card, nothing triggers, the order does not change, and each change of the top card logs
+  `encounterTopShown` / `encounterTopHidden`. The rule is off in the villain phase, in alter-ego form and under a
+  blank text box.
+- `Predicate topOfDeckFaceup` reads that card only while it is faceup (wave 8 §4.1 Q26 = B: a hidden card answers no
+  question), which is the rulings' line between "visible" and "facedown but known".
+- **The refusal.** An ability whose whole effect is a number read from the icons of a top card it discards as a cost
+  (Redwing, Battlefield Awareness) is not offered while that card is faceup and prints no icons. Scripted as the
+  ability's condition, not as an engine rule about one card. With the card facedown the ability is offered and
+  resolves for whatever the card prints, 0 included. Redwing still needs a target for one of its two choices.
+- Bird of Prey's and Bird's-Eye View's optional discard with a visible 0 is §4.1 Q6 (default: not offered).
+
+**Tests.** Falcon's turn: every player's view shows the top card; it is hidden when the villain phase begins and when
+Sam Wilson is up. The top card is discarded: the next one is shown at once. A visible card with 0 icons: Redwing and
+Battlefield Awareness are not offered. Another player's turn with Falcon in hero form: Redwing is offered against a
+visible 2-icon card. Sam Wilson's action, a change to hero form, Aerial Evacuation back to alter-ego: the action is
+refused a second time that round.
+
+### 3.43 Cards discarded from the top of the encounter deck: a cost of chosen size, a trigger, a card handed on
+
+> **Status: not started (extend).** `AbilityCost.encounterLookDiscard { look, discard, slot }` (wave 6 §3.54) with
+> `<slot>.boostIcons`; `EffectSpec discardEncounterCards` with a bind; `ValueSpec boostIcons` and `starIcons`,
+> "independent counts over the same pile" (`spec.ts`); `TriggerEvent cardDiscardedFromDeck` (a player deck only: it
+> carries a `playerId`); `TriggerEvent abilityResolved { instanceId, abilityId, controllerId }` (no bindings).
+
+**Cards.** Redwing 53002 (scan: "Exhaust Redwing, return him to your hand, and discard the top card of the encounter
+deck → choose to either deal X damage to an enemy or remove X threat from a scheme. X is the number of icons (★ and
+boost) in the discarded card's boost area"); Battlefield Awareness 53010; Bird of Prey 53003 and Bird's-Eye View
+53004 ("You may discard the top card of the encounter deck to …"); Falcon's Eagle-Eyed 53001a; Talon Line 53012
+("After you resolve Falcon's 'Eagle-Eyed' ability, discard Talon Line → for each icon in the discarded card's boost
+area, choose 1"); Misty Knight 53036; Hugin & Munin 53017; Infiltration 51015 (scan: "Choose a number from 1 to 5.
+Discard that many cards from the top of the encounter deck → remove 1 threat from a scheme for each card discarded
+this way. Put 1 minion discarded this way into play engaged with you"); Viper 53030 ("discard the top 5 cards of the
+encounter deck"); Serpent Solutions 53031 ("Forced Response: After a Serpent Society minion is discarded from the
+top of the encounter deck, deal that minion to the first player as a facedown encounter card"); Spoiling for a Fight
+54016 and Smooth as Silk 52002 discard from the top too.
+
+**Rules.** RRG "Star Icon" (p. 40): a star in the boost field is a reminder to read the text box. The engine counts
+stars apart from boost icons (`starIcons`), and these cards count both: the number is `boostIcons + starIcons` of
+the printed card. RRG "Amplify Icon" (p. 7): an icon is added "When a boost
+card is turned faceup during an enemy activation", so amplify adds nothing here. RRG "Encounter Deck" (p. 17). RRG
+"Cost" (p. 13).
+
+**Plan.**
+
+- (a) `AbilityCost.discardFromEncounterDeck { amount: number | { choose: { min, max } }, slot }`: that many cards from
+  the top, bound to `slot` with `<slot>.count`, the chosen number made as the cost is paid. A deck the cost empties is
+  reset at once; the cost is paid with what was discarded (RRG p. 17). Redwing and Battlefield Awareness use 1,
+  Infiltration `{ choose: { min: 1, max: 5 } }`.
+- (b) `cardDiscardedFromDeck` is announced for the encounter deck too (`playerId: null`, the deck named), under the
+  same rules as today: only when an ability listens, one response window for the cards one effect or cost discarded,
+  and a card a response took away is no longer counted by the discarding ability (wave 7 §4.1 Q32). Boost cards
+  discarded after an activation come from play, not from the top of the deck, and are not announced.
+- (c) `abilityResolved` carries the resolved ability's slots, so "the discarded card" of Eagle-Eyed is the card it
+  bound, read where it is now. If Serpent Solutions dealt it away, Talon Line still reads its printed icons.
+- Infiltration's minion is mandatory when one was discarded; with several the player picks one. Serpent Solutions
+  answers first for a Serpent Society minion (a forced response), and a minion it dealt away is no longer in the
+  discard pile to be put into play, nor counted for threat (Q32's rule).
+- Talon Line with a discarded card of 0 icons is not offered (the FAQ's reasoning in §3.42; flagged, §4.2).
+
+**Tests (exact numbers).** Redwing with a top card of 2 boost icons and a star: X = 3; he is in hand and the card in
+the discard pile. Battlefield Awareness on a basic thwart with a 1-icon card: THW 2 + 1. Bird of Prey with a 3-icon
+card: 4 + 3 = 7 as one instance. Infiltration choosing 4 with a minion third from the top: 4 threat removed, the
+minion engaged with the player. Infiltration choosing 5 with 2 cards left: 2 discarded, the deck reset with one
+acceleration token, 2 threat removed. Viper activates with Serpent Solutions in play and two Serpent Soldiers in the
+top 5: both are dealt facedown to the first player. Eagle-Eyed discards a Serpent Soldier (boost area: a star) with
+Serpent Solutions in play: it is dealt to the first player, and Talon Line still offers 1 choice. An amplify icon in
+play: Redwing's X is unchanged.
+
+### 3.44 A response to a boost card being given: look at it and the deck top, and swap them
+
+> **Status: not started (extend).** `boostCardDealt` is a log event (`events.ts`, `resolve/enemy-activation.ts`), not a
+> `TriggerEvent`; `boostCardTurnedFaceup` and `boostIconsCounting` come later in the activation. `swapCards` covers two
+> out-of-play cards; `lookAt` covers the deck top.
+
+**Cards.** Up, Up, and Away 53005 (scan): "Hero Response (defense): After an attacking enemy is given a facedown
+boost card, look at that card and the top card of the encounter deck. You may swap those cards. Draw 1 card for each
+printed icon (★ and boost) in the (current) boost card's boost area."
+
+**Rules.** RRG "Attack (Enemy Activation)" (p. 8), "Look, Looked-At" (p. 27), "'Swap'" (p. 42: "swapped cards
+maintain the orientation … of the original card"), "Defend, Defense" (p. 15).
+
+**Plan.** `TriggerEvent boostCardGiven { enemyInstanceId, instanceId, activation: "attack" | "scheme", playerId }`,
+a response window after each facedown boost card an enemy is given, the extra ones included (Klaw 51032, Playing for
+Keeps 51041), opened only when an ability listens. The event's effects: `lookAt` both cards (the player's view only),
+an optional `swapCards` (the new boost card stays facedown, the old one is the facedown top of the deck), then a
+draw per printed icon of whichever card is now the boost card. The "(defense)" label is handled as for any
+defense-labeled event of earlier waves.
+
+**Tests.** Boost card with 0 icons, top card with 3: swapped, 3 cards drawn, and the activation later turns up the
+3-icon card. Not swapped: 0 drawn. A scheme's boost card: not offered. Klaw's second boost card: a second window, and
+a second copy may be played.
+
+### 3.45 An interrupt to an encounter card being dealt to a player
+
+> **Status: not started (new).** `dealEncounterCardTo` (`effects.ts`) deals at once; `AbilityCost.dealEncounterCards`
+> (wave 3 §3.20) and `dealtEncounterCount` exist. A grep for "would be dealt" as a trigger finds nothing.
+
+**Cards.** Aerial Recon 53009 (scan): "Hero Action: Exhaust Aerial Recon and deal a player 1 facedown encounter card
+→ place 1 recon counter here. Interrupt: When a player would be dealt an encounter card, remove 1 recon counter from
+here instead."
+
+**Rules.** RRG "Deal, Deal an Encounter Card" (p. 15): step three of the villain phase, and "If a card ability
+instructs a player to be dealt an encounter card". RRG "'Would'" (p. 48), "'Instead'" (p. 25), "Cost" (p. 13).
+
+**Plan.** `TriggerEvent encounterCardBeingDealt { playerId, source: "villainPhase" | "ability" | "deckReset" |
+"hazard", sourceInstanceId }`, an interrupt window before each card is taken from the deck, opened only when an
+ability listens. Replacing it leaves the card on the deck and deals nothing; a count of cards dealt "this way" does
+not include it. It hears every deal to any player: the villain phase's, a hazard icon's, a player deck running out,
+a card's "deal … as a facedown encounter card" (Serpent Solutions, The Raft). A surge is a reveal, not a deal, and
+is not heard. The interrupt is not a Hero Interrupt, so it works in either form. The Hero Action's own deal may be
+replaced by a counter already there: the cost is then unpaid and no counter is placed (as wave 8 §3.54 has it for a
+replaced ready).
+
+**Tests.** The action deals player 2 a card: 1 recon counter, player 2 has 2 cards to reveal that round. Villain
+phase step three with 1 counter: the controller removes it and that player is dealt 0 cards. With 0 counters: not
+offered. Serpent Solutions' deal of a discarded minion replaced: the minion stays in the encounter discard pile.
+
+### 3.46 Payment details: once per card paid for; the cards that paid; a tucked resource card any player may spend
+
+> **Status: not started (extend).** `AbilityLimit.per` is `"aspectOfEventCard" | "player" | "triggeringEvent"`;
+> a resource "for an [X] card" exists (wave 4 §3.30); the payment is remembered as `paid.*` vars and
+> `paid.cards.<cardType>` counts (`stack.ts`), with `paidWithCard` for a named card, but not as a slot of cards;
+> `spendableForAnyPlayer` is for resource abilities. A grep of `payable.ts` for "tucked" finds nothing.
+
+**Cards.** Falcon's Flock 53006 (scan): "Uses (5 bird counters). Resource: Remove 1 bird counter from here → generate
+a [energy] resource for an Aerial card. (Limit once per card.)" Spectrum 53018: "Response: After you play Spectrum,
+tuck 1 card used to pay for her under her. If that card's printed resource has: [mental] – Spectrum gets +2 THW.
+[physical] – +2 ATK. [energy] – +2 hit points. [wild] – All of the above." Resource Reserve 53021: "Max 1 per player.
+Any player may spend the resource card tucked here as if it were in their hand. Action: Exhaust Resource Reserve →
+tuck 1 resource card from your hand under here (to a maximum of 1)."
+
+**Rules.** RRG "Limit" (p. 27), "Resource Ability" (p. 37), "Tuck" (p. 45). Ruling June 2, 2026 – Ruling 2 (2):
+"Spectrum only gains bonuses while a card remains tucked under her."
+
+**Plan.**
+
+- (a) `AbilityLimit.per: "paidCard"`: one use for each card or ability being paid for, the count kept on the payment
+  and dropped when it ends. Without it one card could take all five counters.
+- (b) The cards discarded from hand (or spent from elsewhere) to pay for a play are bound on its `cardPlayed`
+  announcement as slot `paid.cards`, read where they are now. Spectrum's player picks one still in a discard pile and
+  tucks it; with none (paid by resource abilities, or put into play without being played) nothing is tucked. The
+  bonuses are a constant read from the tucked card's printed resources: each type it prints gives its bonus once, a
+  wild gives all three, and a card that later leaves ends them (the ruling).
+- (c) `RuleSpec spendableFromTucked { cards, by }`: a resource card tucked under the rule's card is a payment source
+  for every player, spent "as if it were in their hand", generating what it would from hand (The Power of Flight
+  doubles for an Aerial card) and going to its owner's discard pile. The action is refused while a card is tucked.
+
+**Tests.** A 3-cost Aerial card: one bird counter spent, the second use refused, 4 counters left; a second card that
+turn takes another. The fifth counter spent: Falcon's Flock is discarded. Spectrum paid with Genius and three other
+cards: Genius tucked, THW 1 + 2; paid with a wild-resource card: THW 3, ATK 3, 5 hit points. The tucked card leaves:
+her bonuses end, and damage above her 3 hit points defeats her. Resource Reserve holding Strength: player 2 spends it
+for 2 physical and it is in its owner's discard pile.
+
+### 3.47 A hero that does not exhaust to defend
+
+> **Status: not started (extend).** `EffectSpec declareDefender { exhaust: false }` ("declare … the defender without
+> exhausting", wave 4 §3.22) is one declaration by one effect. No lasting rule changes the basic defense itself.
+
+**Cards.** Draw Their Fire 53011: "Hero Response: After the villain phase begins, discard Draw Their Fire → Falcon
+does not exhaust to defend until the end of the phase."
+
+**Rules.** RRG "Defend, Defense" (p. 15): "A hero must exhaust to use this power"; "A card ability that allows a hero
+to be declared as a defender without exhausting can be used on an exhausted hero"; "Only one player at a time can
+defend against an enemy attack."
+
+**Plan.** `RuleSpec defendsWithoutExhausting { character, while? }`, carried by `applyRuleUntil` to the end of the
+phase: that hero's basic defense is offered whether he is ready or exhausted and does not exhaust him, for each
+attack, against any player. Everything else about a defense is unchanged (one defender per attack, "after you
+defend" responses). An exhausted Falcon may defend under it, by the RRG sentence above read for this wording
+(flagged, §4.2). If he changes to alter-ego form he cannot defend.
+
+**Tests.** Three attacks in one villain phase (the villain, a minion, a quickstrike reveal): Falcon defends all three
+with DEF 2 and is ready afterward. Falcon exhausted from the player phase: he defends and stays exhausted. The rule
+is gone when the phase ends.
+
+### 3.48 The number of different traits among a group of cards
+
+> **Status: not started (extend).** `ValueSpec distinctAspects` and `distinctCardTypes` exist; a grep for
+> `distinctTraits` finds nothing. Alliance is a keyword rule of an earlier wave (`alliance.test.ts`).
+
+**Cards.** Strength in Diversity 53019: "Alliance. Hero Action: For each different Trait on friendly characters in
+play, choose: Remove 1 threat from a scheme. Deal 1 damage to an enemy."
+
+**Rules.** RRG "Traits" (p. 45), "'For Each'" (p. 20): a "for each … choose" effect makes each choice its own
+instance. RRG "Alliance" (p. 6).
+
+**Plan.** `ValueSpec distinctTraits { of: TargetRef }`: the number of different traits among the cards named, each
+read as it is now (the faceup side of an identity, gained traits included, a blank text box's printed traits kept).
+The event repeats one `chooseOne` that many times.
+
+**Tests.** Falcon (Aerial, Avenger), Redwing (Aerial, Avenger, Bird) and another player's Shuri (Genius, Wakanda):
+5 choices. S.H.I.E.L.D. Deputy on Redwing: 6. Five choices of damage on one enemy with a tough status card: the
+first discards it, 4 damage.
+
+### 3.49 An attachment bound for the villain attached to another enemy; "the villain" on that card
+
+> **Status: not started (new).** `attachment-hosts.ts` picks the host from the card's "attach to" text and
+> `cardAttached` is a response. A grep for a "would be attached" interrupt or a host replacement finds nothing.
+
+**Cards.** Fixer 53038 (scan; Techno 1/6, Elite, 15 hit points, Villainous, Victory 1): "Forced Interrupt: When a
+non-scenario-specific Tech attachment would be attached to the villain, attach it to Fixer instead. Text on that card
+that refers to 'the villain' refers to Fixer instead." Tech attachments of this wave: Jet Pack 53039 and Tech-Pac
+53040 ("Attach to Fixer. Otherwise, attach to the villain"), Energy Truncheon 51040, High-Tech Armament 54030.
+
+**Rules.** RRG "Attach To" (p. 8): "The 'attach to' phrase is checked for legality when the card would be attached";
+"The 'attach to' phrase on a card is not resolved if another ability causes that card to attach to a specific game
+element." RRG "Scenario-Specific Card" (p. 39).
+
+**Plan.** `TriggerEvent cardBeingAttached { instanceId, hostInstanceId, sourceInstanceId }`, an interrupt window
+opened only when an ability listens, and `EffectSpec replaceAttachHost { to, villainAlias? }`. With `villainAlias`
+the attachment instance records the new host, and on that card alone `theVillain` (and "the villain" in its attach
+text) resolves to it while it stays attached there. The interrupt hears every way an attachment reaches the villain:
+a reveal, a boost ability's "attach this card to the villain", a search. An attachment whose own text names Fixer
+first never reaches the interrupt. `scenarioSpecific: false` is the existing query.
+
+**Tests.** Fixer in play, High-Tech Armament revealed with Crossbones out of play: it is on Fixer, and its "that enemy
+activates against you" is Fixer's activation. A scenario's own Tech attachment: on the villain. Fixer defeated: his
+attachments are discarded. Tech-Pac on Fixer with Jet Pack: +1 ATK more, and his SCH is 3 with Tech-Pac's own +1;
+characters with a combined THW of 4 discard it, a combined 3 do not. Jet Pack on Fixer: 3 damage is prevented and Jet
+Pack discarded; 2 damage is dealt.
+
+### 3.50 An attachment that players attack "as if it were a minion"
+
+> **Status: not started (new).** Damage on a card that is not a character exists (wave 4 §3.5), as do
+> `RuleSpec cannotAttack` with an `attacker` scope (wave 3 §3.26), `attach` to a named host and `placeDamage`. Nothing
+> makes a card that is not a character a target of attacks (grep of `attackableAs`, "as if it were a minion").
+
+**Cards.** Encased in Ice 54035 (scan; Whiteout 2/6, Ice): "Attach to your identity. Attached character cannot
+attack enemies other than this card. Any player can attack this card as if it were a minion. If there is 3 or more
+damage here, move all but 3 damage here to attached character and discard this card." Blizzard 54034 (scan):
+"Forced Response: After Blizzard attacks a character, search the encounter deck and discard pile for Encased in Ice
+and attach it to that character. (Shuffle.) Otherwise, stun the attacked character."
+
+**Rules.** RRG "Attach To" (p. 8), last bullet: Blizzard names the host, so an ally he attacked is encased and the
+card's own "Attach to your identity" is not resolved. RRG "Move" (p. 30): damage moved to a character "is considered
+to be dealt to that character". RRG "'Otherwise'" (p. 31).
+
+**Plan.** `RuleSpec attackableAsMinion { card: self }`:
+
+- Wherever a player's attack chooses "an enemy" or "a minion" (a basic attack, an attack-labeled ability), the card
+  is a candidate for every player, engaged with no one. It is no candidate for anything that is not an attack, nor
+  for an attack that names enemies by a group ("each minion engaged with you").
+- Damage dealt to it is placed on it. It has no hit points, no status cards and no keywords of a minion, is never
+  defeated, and gives no excess damage. Guard, which protects the villain, does not protect it.
+- A state check on the card: at 3 or more damage, all but 3 is dealt to the attached character (as moved damage: no
+  attacker, not an attack) and the card is discarded. It was discarded, not defeated: "attack and defeat an enemy"
+  (Winter Soldier's kit) does not answer.
+- "Attached character cannot attack enemies other than this card" is `cannotAttack` scoped to the attached
+  character, target every enemy; the card itself stays attackable by that character.
+- Blizzard's response: with a copy in the deck or discard pile it attaches and the deck is shuffled; with none (both
+  attached), the attacked character is stunned.
+
+**Tests (exact numbers).** Winter Soldier encased: his basic attack offers only the card; ATK 2 places 2; a second
+character's attack for 2 makes 4: 1 damage is dealt to Winter Soldier and the card is discarded. Metal Punch (7) on
+the card: 4 dealt to him, no overkill excess anywhere. An attack for exactly 3: 0 moved, discarded. Blizzard attacks
+an ally: the ally is encased. Both copies attached and Blizzard attacks: the character is stunned. Lethal Protector
+after the card is discarded: no response.
+
+### 3.51 Rulings, FAQ entries and errata on cards the engine already covers
+
+> **Status: not started (exists, verify).** Each line is a test the scripting agent writes; a failure comes back as
+> an extend.
+
+- **Aerial Evacuation 53008** (scan). Rulings December 17, 2025 – Ruling 1 (2), March 6, 2026 – Ruling 1 and July 9,
+  2026 – Ruling 2: it prevents damage **taken**; "damage is still considered dealt". Ruling January 17, 2026 – Ruling
+  3 (2): "keywords have timing priority over triggered abilities. Piercing removes the Tough status card before Aerial
+  Evacuation triggers" (`pierceBeforeInterrupts` cites it). Ruling March 6, 2026 – Ruling 1 (2): with overkill against
+  a protected ally, "Sam Wilson does not take excess Overkill damage". The other hero's controller changes form too;
+  either change is skipped for a player who cannot change form.
+- **Arm Block 54004** (scan). Ruling January 17, 2026 – Ruling 2 (against Black Widow, §3.4) and March 6, 2026 –
+  Ruling 1 (1): "Arm Block prevents damage taken; because damage was still dealt, Sonic Boom still exhausts Winter
+  Soldier."
+- **Captain America 53023 and Captain America's Shield 53034** (scans). Ruling June 25, 2026 – Ruling 1: with Steve
+  Rogers in the game, "Falcon takes the Shield into his hand and plays it under his control. If discarded, it
+  returns to Steve's discard pile"; Steve "cannot pay costs for Shield Toss with cards he does not control"
+  (`takeIntoHand { keepOwner }`, wave 7 §4.1 Q53). The linked 53034 is set aside for a deck that holds 53023 (RRG
+  p. 27) and belongs to the player who takes it. Ruling August 3, 2026 – Ruling 4 (3): "Linked cards cannot be
+  included in decks." `findCard` reaches both shields; the player picks (flagged, §4.2). "If it leaves play this way"
+  is true only for a shield found in play.
+- **The Elephant's Trunk 51007.** RRG FAQ (p. 65, checked): exhausting only itself pays the cost. Ruling February 28,
+  2026 – Ruling 8 (2) is about Family Matters' "each", not this "up to".
+- **Target Spotter 51038** (scan). RRG FAQ (p. 65, checked): it "interrupts the engagement of that minion and causes
+  it to engage the player using Target Spotter instead" (`resolve/enter-play.ts` cites it).
+- **Quick Quip 52034.** Ruling March 6, 2026 – Ruling 2: one enemy may be chosen (`divide` with `maxTargets`).
+- **"Stop Hitting Yourself" 52016.** Ruling December 17, 2025 – Ruling 2: playable after a defense-labeled ability
+  made the hero the defender; the damage is the hero's current DEF (4 with Not Today!).
+- **S.H.I.E.L.D. Deputy 54033** (scan prints no maximum). **Erratum, RRG p. 70 (checked):** "Attach to a friendly
+  character. Max 1 per character." Scripted with the maximum; a data correction (§8.1).
+- **Team-Up** (RRG p. 43). Heart of the Panther 51025 names two identity cards by both sides (`titles.ts`, an earlier
+  wave's decision): it needs Core's T'Challa and this pack's Shuri in the same game, so it is never playable solo.
+  Investigative Journalism 52024 needs Cindy Moon faceup and Peter Parker, as an alter-ego or as the Spider-Man ally
+  52022 by subtitle. Super-Soldiers 54022 and Winter, Widow, Soldier, Spy 54023 are met by the allies Captain America
+  54012 and Black Widow 54003 of the same pack. The Captain America upgrade 53023 is not a character.
+
+### 3.52 Reusable as is (pass 2; checked by name against the engine unions)
+
+As §3.35: the identifier and its doc comment were read; the scripting agent's tests prove each.
+
+- **An activation replaced or canceled.** Invisibility Gear 51019 ("that enemy schemes instead") is §3.9's
+  replacement without `divert`; Ready for a Fight 52019 is its mirror ("would scheme" → `changeForm` to hero, then
+  `enemyAttack`); Investigative Journalism 52024 cancels the activation and confuses (`cancelTriggeringEvent`).
+- **Find and reveal, already in play** (51042, 52037, 53042, 54037) and **villainous, Victory 1** (Joystick, Atlas,
+  Fixer, Blizzard): §3.35's vocabulary. Each of the four sets holds an Elite Thunderbolt minion, so each joins the
+  Thunderbolts pool of §1.10.
+- **Paid with.** `paidWithCard` and `resource` with `paidFor` (their docs cite Cybernetic Arm 54002), `paidWith`
+  (Electrical Discharge 54006), a two-label ability (`label` is a list: Arm Block's "attack/defense").
+- **Costs.** `exhaustCardsCost` with a maximum and a bind (The Elephant's Trunk, Firepower 54014, Tech-Pac 53040 with
+  `totalStatOf`), `removeUpToCounters` (Stun Gun 52020), `spendX` (Energy Shield 52018), `returnToHandCost` and
+  `exhaustThis` (Redwing), `chooseCardCost` with a printed-cost superlative (Red Room Programming 54027).
+- **Cost changes.** `costModifier` with `activeIn: "hand"` (Spider-Byte 52014, Dora Milaje 51030), a cost increase on
+  an obligation in play (T'Challa's Shadow 51031), `reduceNextCardCost` with a filter or a count (Soup Kitchen 53007,
+  Man on the Wall 54019).
+- **Keywords and limits by condition.** `gainsKeyword` with `while` (Bambino 54018: restricted on an identity; Winter
+  Armor 54009: steady on an identity), `allyLimit` with `while` and `maxWithTrait` (Flight Squadron 53020; the test
+  file names it), `statusLimit`.
+- **Obligations that stay in play with uses and Victory 0** (51031, 53029), **a player side scheme found by search**
+  (Manifold 51014, J. Jonah Jameson 52007), **`lookAt` with a victory display pick and top or bottom** (Going
+  Undercover 51016), **`abilityResolved`** (White Widow 54032), **`minionEngaged`** (Aggressive Stance 54017),
+  **damage redirected** (Scarlet Spider 52013), **`preventConsequentialDamage`** (Wingman 53024).
+- **Counters and state checks.** Atlas 52035 (growth counters, +2 hit points each), Grow Invulnerable 52036 (a loss
+  while it is in play and Atlas holds 10), Harlem's Protector 53029.
+
 ## 4. Open questions (for the user or FFG)
 
 ### 4.1 Rules questions for the owner
 
-Five questions, all open. **A is the recommended default in every one, and every §8.2 task that touches a question
-builds on A until the owner answers.** None is settled by a ruling: no FFG ruling in the repo names these cases. The
-long form of each is in §4.2.
+Seven questions, all open (6 and 7 are pass 2's). **A is the recommended default in every one, and every §8.2 task
+that touches a question builds on A until the owner answers.** None is settled by a ruling: no FFG ruling in the repo
+names these cases, except that one ruling half-answers question 6 (§4.2). The long form of each is in §4.2.
 
-| Q   | Question                                                                                          | A (default)                                                                                 | B                                                                          | Cites                                                                | Decision |
-| --- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------- |
-| 1   | A Board Member flips from environment to attachment: what happens to its secret counters?         | They stay on it (the rulebook's setup and stage 3B count them)                              | They are discarded (the flip changes the card's type)                      | RRG "Flip" p. 20 against MC50 pp. 11 and 19, card 50169b             | open     |
-| 2   | Citizen V is stunned or confused and "would activate" against a player engaged with a Thunderbolt | The status card resolves first: it is discarded, no heal                                    | His Forced Interrupt first: no activation, he heals, the status card stays | MC50 p. 22 FAQ; RRG "'Would'" p. 48, "Stun" p. 41, "Activation" p. 6 | open     |
-| 3   | M.O.D.O.K. has "+5 hit points" attached when his hit points are "reset to 10"                     | As printed: set to 10, then the attachment is discarded and he drops to 5                   | The reset ends at his printed value: 10 after the attachment leaves        | RRG "Hit Points" p. 22; cards 50103a, 50114                          | open     |
-| 4   | "This attack" in a Preparation when the attack has several targets (Spray Fire on Black Widow)    | The whole attack: all its damage is prevented, or all of it resolves against the one minion | Only the part aimed at Black Widow                                         | MC50 p. 9; ruling January 17, 2026 – Ruling 2; cards 50073, 50076    | open     |
-| 5   | A card makes an enemy attack an ally: do "after [enemy] attacks you" abilities answer?            | Yes, against the ally's controller (the later RRG text and the ruling)                      | No (the rulebook's bullet)                                                 | RRG "Attack" p. 8; ruling December 17, 2025 – Ruling 3; MC50 p. 4    | open     |
+| Q   | Question                                                                                          | A (default)                                                                                 | B                                                                          | Cites                                                                     | Decision |
+| --- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------- |
+| 1   | A Board Member flips from environment to attachment: what happens to its secret counters?         | They stay on it (the rulebook's setup and stage 3B count them)                              | They are discarded (the flip changes the card's type)                      | RRG "Flip" p. 20 against MC50 pp. 11 and 19, card 50169b                  | open     |
+| 2   | Citizen V is stunned or confused and "would activate" against a player engaged with a Thunderbolt | The status card resolves first: it is discarded, no heal                                    | His Forced Interrupt first: no activation, he heals, the status card stays | MC50 p. 22 FAQ; RRG "'Would'" p. 48, "Stun" p. 41, "Activation" p. 6      | open     |
+| 3   | M.O.D.O.K. has "+5 hit points" attached when his hit points are "reset to 10"                     | As printed: set to 10, then the attachment is discarded and he drops to 5                   | The reset ends at his printed value: 10 after the attachment leaves        | RRG "Hit Points" p. 22; cards 50103a, 50114                               | open     |
+| 4   | "This attack" in a Preparation when the attack has several targets (Spray Fire on Black Widow)    | The whole attack: all its damage is prevented, or all of it resolves against the one minion | Only the part aimed at Black Widow                                         | MC50 p. 9; ruling January 17, 2026 – Ruling 2; cards 50073, 50076         | open     |
+| 5   | A card makes an enemy attack an ally: do "after [enemy] attacks you" abilities answer?            | Yes, against the ally's controller (the later RRG text and the ruling)                      | No (the rulebook's bullet)                                                 | RRG "Attack" p. 8; ruling December 17, 2025 – Ruling 3; MC50 p. 4         | open     |
+| 6   | Bird of Prey and Bird's-Eye View: "You may discard the top card" when it is faceup with no icons  | Not offered (the FAQ's reason for Redwing: the player knows it does nothing)                | Offered: the card is discarded for 0 additional                            | RRG FAQ p. 65; ruling January 26, 2026 – Ruling 6 (1); cards 53003, 53004 | open     |
+| 7   | Hunting the Spider-Bride: is a cost, or the identity's four-card cap, "a player card effect"?     | Yes: any discard a player card causes, cost or effect, the cap included, deals the 2 damage | No: only an effect; a cost (Cindy Moon's action) and the cap are free      | RRG "Cost" p. 13; cards 52001a/b, 52009, 52031                            | open     |
 
 ### 4.2 The questions as asked
 
@@ -1451,6 +2087,28 @@ Each is implemented the way stated, or not at all, and named here rather than de
    - **A (default):** the RRG and the ruling, which is also what `enemyAttack.targetCharacter` does today.
    - B: the rulebook: such abilities do not trigger when a card effect aims the attack at an ally.
 
+6. **An optional top-card discard that is known to add nothing.** (§3.42, §3.43.) Bird of Prey 53003: "Deal 4 damage
+   to an enemy. You may discard the top card of the encounter deck to deal 1 additional damage to that enemy for each
+   icon …"; Bird's-Eye View 53004 is the thwart twin. During Falcon's player phase the top card is faceup. RRG FAQ
+   "Redwing (#2)" (p. 65) refuses Redwing "because the player knows that the ability will not be able to affect its
+   target". Ruling January 26, 2026 – Ruling 6 (1) was asked about "Redwing ally hero action …, or cards like Bird's
+   Eye View / Bird of Prey" and answered "No", giving its reason for Redwing only. The events differ from Redwing:
+   they do something without the discard, and the discard is a "may" inside the effect, not the ability's cost.
+   - **A (default):** the "No" covers them: with a faceup top card of 0 icons the option is not offered. Eagle-Eyed
+     stays the way to discard an unwanted top card.
+   - B: the option is offered and the card is discarded for 0 additional damage or threat.
+7. **"A player card effect" in the Silk nemesis set.** (§3.39, §3.40.) Hunting the Spider-Bride 52031: "Forced
+   Response: After a player card effect discards this card from under an identity, that identity takes 2 damage."
+   Swinging Silk Kick and Wallcrawl discard a tucked card as an optional effect; Cindy Moon's action and Organic
+   Webbing discard one as a **cost** ("Discard a card tucked here → draw 2 cards"); the identity's own "discard all
+   but 4" is a constant on a player card. RRG "Cost" (p. 13) keeps a cost apart from an effect. No ruling names the
+   card.
+   - **A (default):** the card's line is between player cards and encounter cards: any discard a player card causes
+     (cost, effect, or the cap) deals the 2 damage; Morlun's When Defeated and the treachery's own random discard do
+     not. Otherwise Cindy Moon's action would clear the nemesis card and draw 2 cards for it.
+   - B: "effect" as the RRG uses the word: only what follows a cost or stands without one. Cindy Moon's action,
+     Organic Webbing and the cap discard it for free.
+
 **Conventions used above, flagged rather than asked** (each follows a rule already cited; say so if any should be a
 question):
 
@@ -1461,6 +2119,19 @@ question):
   `moveCounters` (§3.6).
 - Stealth diverts only threat that was going to the main scheme (§3.9).
 - An ally held by Hostage Situation is not a candidate for an enemy attack (§3.19).
+- (Pass 2) Redemption's controller is the player who chose the minion: the player whose card removed the threat,
+  else Show of Empathy's owner (§3.38).
+- (Pass 2) Eidetic Memory's swap is not a tuck "by a player card effect": Silk Sense Overload does not redirect it
+  (§3.41).
+- (Pass 2) Talon Line is not offered when Eagle-Eyed's discarded card prints no icons, by the Redwing FAQ's reason
+  (§3.43).
+- (Pass 2) An exhausted Falcon may defend under Draw Their Fire, by RRG p. 15's sentence on a hero "declared as a
+  defender without exhausting" (§3.47).
+- (Pass 2) "Find Captain America's Shield" offers every card of that title a find reaches (RRG "Find", p. 19): the
+  linked copy and, with Steve Rogers in the game, his (§3.51).
+- (Pass 2) Encased in Ice is a candidate only where an attack chooses its target, not for an attack on a group of
+  enemies (§3.50).
+- (Pass 2) Aerial Recon's interrupt may replace its own action's deal; the cost is then unpaid (§3.45).
 
 ## 5. What this asks of the other agents (pass 1a)
 
@@ -1482,9 +2153,29 @@ question):
 - **`content-release-tracker`:** the RRG's wrong collector number for Radiation Exposure (§0), so the erratum is
   filed against 50153.
 
+### 5.1 Pass 2 (the four hero packs)
+
+- **`card-data-pipeline`:** §8.1 items 12 to 17: one raw typo checked on a scan and one to check, the two errata as
+  `current` text, the Thunderbolts pool with ten sets, the four Team-Up rows of `docs/team-ups.md`.
+- **`ability-scripting-engineer`:** the modules of §8.4 lines 32 to 63. Copy the card's own word where the packs
+  separate two things: "discarded" and "defeated" (Encased in Ice, Sting Operation), "would be dealt" damage and
+  damage taken (Aerial Evacuation), "tucked … by a player card effect" (§3.40), "icons (★ and boost)" and boost icons
+  (§3.43), "another Dora Milaje ally" and "you control" (§3.36).
+- **`encounter-ai-designer`:** nothing new to decide for the villain; the four Thunderbolt minions are villainous and
+  use the existing boost flow. The first player's choices: who is dealt The Raft's minion and Aerial Recon's card.
+- **`rules-qa-engineer`:** a ruling test for each line of §3.51, the three RRG FAQ entries of p. 65, the two errata of
+  p. 70, rulings March 19, 2026 – 5 (all three cases) and January 26, 2026 – 6 (both answers).
+- **`game-client-engineer`:** new things a player must see: encounter cards tucked under an identity with their set
+  icons (and the count against the cap of four); the encounter deck's top card faceup during Falcon's player phase;
+  threat on a minion and a minion redeemed as an ally; Encased in Ice as an attack target holding damage; an
+  attachment redirected to Fixer; bird, recon, growth, doubt, emergency, target, alert and ammo counters. A Guided
+  mode tip for Specials, for the tucked-card kit, for the faceup top card (including why Redwing is refused at 0
+  icons) and for Cybernetic Arm (`docs/wave-definition-of-done.md` §5).
+- **`content-release-tracker`:** `resolve/swap-cards.ts` cites the Eidetic Memory erratum as p. 69; it is p. 70.
+
 ## 6. Later passes (placeholders)
 
-Nothing below is written. Each heading is a later pass's; do not script from it.
+Sections 6.2 to 6.5 are written and point to their sections. The others are placeholders: do not script from them.
 
 ### 6.1 Pass 1b: the MC50 campaign
 
@@ -1495,19 +2186,19 @@ and its DEFEAT block.
 
 ### 6.2 Pass 2a: Black Panther (`bp`)
 
-**Placeholder.**
+**Written.** §3.36–§3.38, §3.43 (a), §3.51, §3.52; cards in §7.9; modules in §8.4 lines 32 to 38.
 
 ### 6.3 Pass 2a: Silk (`silk`)
 
-**Placeholder.**
+**Written.** §3.39–§3.41, §3.51, §3.52; question 7; cards in §7.10; modules in §8.4 lines 39 to 45.
 
 ### 6.4 Pass 2b: Falcon (`falcon`)
 
-**Placeholder.**
+**Written.** §3.42–§3.49, §3.51, §3.52; question 6; cards in §7.11; modules in §8.4 lines 46 to 53.
 
 ### 6.5 Pass 2b: Winter Soldier (`winter`)
 
-**Placeholder.**
+**Written.** §3.50–§3.52; cards in §7.12; modules in §8.4 lines 54 to 63.
 
 ### 6.6 Pass 2c: Trickster Takeover (`tt`)
 
@@ -1781,6 +2472,191 @@ card with no ability text. A verdict is a plan, not a proof: §8.3 says who prov
 | 50192  | Travel                           | evidence opportunity | §3.29 (a hidden card; its Setup text is pass 1b)                                |
 | 50193  | Authority                        | evidence opportunity | §3.29 (a hidden card; its Setup text is pass 1b)                                |
 
+### 7.9 Black Panther (`bp`): Shuri, her nemesis set, the pack's other cards, Extreme Risk
+
+Pass 2. Verdicts as above; "DSL" for a pass 2 card means vocabulary named in §3.52 or found by name this session.
+
+| Id     | Title                  | Type               | Verdict                                                                  |
+| ------ | ---------------------- | ------------------ | ------------------------------------------------------------------------ |
+| 51001a | Black Panther          | hero               | §3.36                                                                    |
+| 51001b | Shuri                  | alter ego          | §3.37                                                                    |
+| 51002  | T'Challa               | ally               | §3.36                                                                    |
+| 51003  | Clawed Strike          | event              | §3.36                                                                    |
+| 51004  | On the Prowl           | event              | §3.36                                                                    |
+| 51005  | Wakanda Forever!       | event              | §3.36 (`resolveSpecials` cites it)                                       |
+| 51006  | Vibranium              | resource           | none                                                                     |
+| 51007  | The Elephant's Trunk   | support            | DSL (`exhaustThis`, `exhaustCardsCost` up to 2 more); §3.51 (FAQ p. 65)  |
+| 51008  | Queen Ramonda          | support            | DSL (`heal` by the chosen alter-ego's REC)                               |
+| 51009  | Aja-Adanna             | upgrade            | DSL (`ofClassification`, discard pile into the deck)                     |
+| 51010  | Kimoyo Beads           | upgrade            | §3.36                                                                    |
+| 51011  | Panther Claws          | upgrade            | §3.36                                                                    |
+| 51012  | Spider Bites           | upgrade            | §3.36                                                                    |
+| 51013  | Vibranium Suit         | upgrade            | §3.36 (`moveDamageFrom`)                                                 |
+| 51014  | Manifold               | ally               | DSL (`choosePlayer`, a search for a player side scheme)                  |
+| 51015  | Infiltration           | event              | §3.43 (a)                                                                |
+| 51016  | Going Undercover       | player side scheme | DSL (`lookAt` 5, `addToVictoryDisplay`, `scenarioSpecific: false`)       |
+| 51017  | Show of Empathy        | player side scheme | §3.38                                                                    |
+| 51018  | The Raft               | support            | DSL (§3.39: a tuck from the encounter discard pile, a random deal)       |
+| 51019  | Invisibility Gear      | upgrade            | DSL (§3.52: §3.9's replacement without `divert`)                         |
+| 51020  | Sonic Rifle            | upgrade            | DSL (reprint of 20015)                                                   |
+| 51021  | Sting Operation        | upgrade            | DSL (a response to `enemyScheme`; the minion is discarded, not defeated) |
+| 51022  | Aneka                  | ally               | §3.36                                                                    |
+| 51023  | Ayo                    | ally               | §3.36                                                                    |
+| 51024  | Okoye                  | ally               | §3.36                                                                    |
+| 51025  | Heart of the Panther   | event              | §3.36; Team-Up (§3.51)                                                   |
+| 51026  | Build Support          | player side scheme | DSL (reprint of 40027)                                                   |
+| 51027  | Energy                 | resource           | none (reprint)                                                           |
+| 51028  | Genius                 | resource           | none (reprint)                                                           |
+| 51029  | Strength               | resource           | none (reprint)                                                           |
+| 51030  | Dora Milaje            | support            | §3.36; the ignored cost is DSL (§3.52)                                   |
+| 51031  | T'Challa's Shadow      | obligation         | DSL (§3.52: an obligation in play with uses; cost +1)                    |
+| 51032  | Klaw                   | minion             | DSL (`giveBoostCard`)                                                    |
+| 51033  | Manipulated M.U.S.I.C. | side scheme        | DSL                                                                      |
+| 51034  | M.U.S.I.C.             | minion             | DSL (`moveThreat` to the main scheme)                                    |
+| 51035  | The Scream             | treachery          | DSL (stun, 1 damage to each already stunned)                             |
+| 51036  | Redemption             | upgrade            | §3.38 (`treatAttachedMinionAsAlly` cites it)                             |
+| 51037  | White Wolf             | ally               | DSL                                                                      |
+| 51038  | Target Spotter         | support            | DSL (`resolve/enter-play.ts` cites it); §3.51 (FAQ p. 65)                |
+| 51039  | Joystick               | minion             | DSL (`chooseOne` on `enemyActivating`)                                   |
+| 51040  | Energy Truncheon       | attachment         | DSL (`attacksGainKeywords`, `enemyAttack`); §3.49 with Fixer in play     |
+| 51041  | Playing for Keeps      | side scheme        | DSL (hand size, `giveBoostCard`)                                         |
+| 51042  | Extreme Risk           | treachery          | DSL (§3.52, find and reveal)                                             |
+
+### 7.10 Silk (`silk`): Silk, her nemesis set, the pack's other cards, Growing Strong
+
+| Id     | Title                    | Type               | Verdict                                                             |
+| ------ | ------------------------ | ------------------ | ------------------------------------------------------------------- |
+| 52001a | Silk                     | hero               | §3.39                                                               |
+| 52001b | Cindy Moon               | alter ego          | §3.39; §4.1 Q7                                                      |
+| 52002  | Smooth as Silk           | event              | §3.39 (`discardEncounterUntil` by set)                              |
+| 52003  | Swinging Silk Kick       | event              | §3.39                                                               |
+| 52004  | Wallcrawl                | event              | §3.39                                                               |
+| 52005  | Get the Scoop            | player side scheme | §3.39 (`triggerableBy`, `lookAt` 2, a tuck)                         |
+| 52006  | Albert Moon              | support            | §3.39                                                               |
+| 52007  | J. Jonah Jameson         | support            | DSL                                                                 |
+| 52008  | Eidetic Memory           | upgrade            | §3.41 (erratum p. 70)                                               |
+| 52009  | Organic Webbing          | upgrade            | §3.39; §4.1 Q7                                                      |
+| 52010  | Outwit                   | upgrade            | §3.39                                                               |
+| 52011  | Spider Claws             | upgrade            | §3.39                                                               |
+| 52012  | Spider Reflexes          | upgrade            | §3.39 (the top card of the encounter discard pile, `atEndOfAttack`) |
+| 52013  | Scarlet Spider           | ally               | DSL (§3.52, damage redirected)                                      |
+| 52014  | Spider-Byte              | ally               | DSL (§3.52, cost changes)                                           |
+| 52015  | Not Today!               | event              | DSL (reprint of 38016)                                              |
+| 52016  | "Stop Hitting Yourself"  | event              | DSL; §3.51                                                          |
+| 52017  | Dr. Sinclair             | support            | DSL (`triggerableBy`)                                               |
+| 52018  | Energy Shield            | upgrade            | DSL (§3.52, costs)                                                  |
+| 52019  | Ready for a Fight        | upgrade            | DSL (§3.52, an activation replaced)                                 |
+| 52020  | Stun Gun                 | upgrade            | DSL (§3.52, costs)                                                  |
+| 52021  | Madame Web               | ally               | DSL (`lookAt`, a count of Web-Warrior cards)                        |
+| 52022  | Spider-Man               | ally               | DSL (reprint of 27049)                                              |
+| 52023  | Across the Spider-Verse  | event              | DSL (reprint of 27018)                                              |
+| 52024  | Investigative Journalism | event              | DSL (§3.52); Team-Up (§3.51)                                        |
+| 52025  | Energy                   | resource           | none (reprint)                                                      |
+| 52026  | Genius                   | resource           | none (reprint)                                                      |
+| 52027  | Strength                 | resource           | none (reprint)                                                      |
+| 52028  | Silk Sense Overload      | obligation         | §3.40 (a)                                                           |
+| 52029  | Morlun                   | minion             | §3.39 (the count); §3.40 (its discard)                              |
+| 52030  | The Great Hunt           | side scheme        | §3.39 (the count)                                                   |
+| 52031  | Hunting the Spider-Bride | treachery          | §3.40 (b); §4.1 Q7                                                  |
+| 52032  | Spider-Man 2099          | ally               | DSL                                                                 |
+| 52033  | Spider-Woman             | ally               | DSL                                                                 |
+| 52034  | Quick Quip               | event              | DSL (`divide` with `maxTargets`); §3.51                             |
+| 52035  | Atlas                    | minion             | DSL (§3.52, counters)                                               |
+| 52036  | Grow Invulnerable        | side scheme        | DSL (§3.52, a loss by state check)                                  |
+| 52037  | Growing Strong           | treachery          | DSL (§3.52, find and reveal)                                        |
+| 52038  | Titanic Proportions      | treachery          | DSL (indirect damage among the players)                             |
+
+### 7.11 Falcon (`falcon`): Falcon, his nemesis set, the pack's other cards, Techno
+
+| Id     | Title                    | Type        | Verdict                                                             |
+| ------ | ------------------------ | ----------- | ------------------------------------------------------------------- |
+| 53001a | Falcon                   | hero        | §3.42; Eagle-Eyed is DSL, heard by §3.43 (b) and (c)                |
+| 53001b | Sam Wilson               | alter ego   | DSL                                                                 |
+| 53002  | Redwing                  | ally        | §3.42, §3.43 (a)                                                    |
+| 53003  | Bird of Prey             | event       | §3.43; §4.1 Q6                                                      |
+| 53004  | Bird's-Eye View          | event       | §3.43; §4.1 Q6                                                      |
+| 53005  | Up, Up, and Away         | event       | §3.44                                                               |
+| 53006  | Falcon's Flock           | support     | §3.46 (a)                                                           |
+| 53007  | Soup Kitchen             | support     | DSL (§3.52, cost changes)                                           |
+| 53008  | Aerial Evacuation        | upgrade     | DSL; §3.51                                                          |
+| 53009  | Aerial Recon             | upgrade     | §3.45                                                               |
+| 53010  | Battlefield Awareness    | upgrade     | §3.42, §3.43 (a)                                                    |
+| 53011  | Draw Their Fire          | upgrade     | §3.47                                                               |
+| 53012  | Talon Line               | upgrade     | §3.43 (c)                                                           |
+| 53013  | Vibranium Microweave     | upgrade     | DSL                                                                 |
+| 53014  | Adam Warlock             | ally        | DSL (reprint of 17011)                                              |
+| 53015  | Aero                     | ally        | DSL                                                                 |
+| 53016  | Cloud 9                  | ally        | DSL (reprint of 29014)                                              |
+| 53017  | Hugin & Munin            | ally        | DSL (a search of the top 10; the icon count of §3.43)               |
+| 53018  | Spectrum                 | ally        | §3.46 (b); §3.51                                                    |
+| 53019  | Strength in Diversity    | event       | §3.48                                                               |
+| 53020  | Flight Squadron          | support     | DSL (§3.52, limits by condition)                                    |
+| 53021  | Resource Reserve         | support     | §3.46 (c)                                                           |
+| 53022  | The Triskelion           | support     | DSL (reprint of 01073)                                              |
+| 53023  | Captain America          | upgrade     | DSL (`findCard`, `takeIntoHand`); §3.51                             |
+| 53024  | Wingman                  | upgrade     | DSL (§3.52)                                                         |
+| 53025  | Energy                   | resource    | none (reprint)                                                      |
+| 53026  | Genius                   | resource    | none (reprint)                                                      |
+| 53027  | Strength                 | resource    | none (reprint)                                                      |
+| 53028  | The Power of Flight      | resource    | DSL (reprint of 42022)                                              |
+| 53029  | Harlem's Protector       | obligation  | DSL (§3.52)                                                         |
+| 53030  | Viper                    | minion      | DSL; its discard is heard by §3.43 (b)                              |
+| 53031  | Serpent Solutions        | side scheme | §3.43 (b)                                                           |
+| 53032  | Serpent Soldier          | minion      | DSL                                                                 |
+| 53033  | Adder-tisement           | treachery   | DSL                                                                 |
+| 53034  | Captain America's Shield | upgrade     | DSL (linked); §3.51                                                 |
+| 53035  | Winter Soldier           | ally        | DSL                                                                 |
+| 53036  | Misty Knight             | ally        | DSL (`encounterLookDiscardCost`'s look as an effect; §3.43's count) |
+| 53037  | Ops Room                 | support     | DSL                                                                 |
+| 53038  | Fixer                    | minion      | §3.49                                                               |
+| 53039  | Jet Pack                 | attachment  | DSL (a damage threshold); §3.49                                     |
+| 53040  | Tech-Pac                 | attachment  | DSL (§3.52, costs); §3.49                                           |
+| 53041  | Technological Innovation | side scheme | DSL (`searchAndReveal`); the revealed attachment meets §3.49        |
+| 53042  | Techno                   | treachery   | DSL (§3.52, find and reveal)                                        |
+
+### 7.12 Winter Soldier (`winter`): Winter Soldier, his nemesis set, the pack's other cards, Whiteout
+
+| Id     | Title                       | Type        | Verdict                                           |
+| ------ | --------------------------- | ----------- | ------------------------------------------------- |
+| 54001a | Winter Soldier              | hero        | DSL ("attack and defeat")                         |
+| 54001b | Bucky Barnes                | alter ego   | DSL                                               |
+| 54002  | Cybernetic Arm              | upgrade     | DSL (§3.52, paid with; `resource` cites it)       |
+| 54003  | Black Widow                 | ally        | DSL (played from hand)                            |
+| 54004  | Arm Block                   | event       | DSL (§3.52, paid with); §3.51                     |
+| 54005  | Metal Punch                 | event       | DSL (§3.52, paid with)                            |
+| 54006  | Electrical Discharge        | event       | DSL (§3.52, paid with)                            |
+| 54007  | Safe House #30              | support     | DSL (a search of the encounter deck for a minion) |
+| 54008  | Silent Infiltration         | upgrade     | DSL                                               |
+| 54009  | Winter Armor                | upgrade     | DSL (§3.52, keywords by condition)                |
+| 54010  | Winter Mask                 | upgrade     | DSL                                               |
+| 54011  | Winter Rifle                | upgrade     | DSL                                               |
+| 54012  | Captain America             | ally        | DSL                                               |
+| 54013  | Deathlok                    | ally        | DSL                                               |
+| 54014  | Firepower                   | event       | DSL (§3.52, costs)                                |
+| 54015  | One by One                  | event       | DSL (reprint of 28014)                            |
+| 54016  | Spoiling for a Fight        | event       | DSL (`discardEncounterUntil`); heard by §3.43 (b) |
+| 54017  | Aggressive Stance           | upgrade     | DSL (§3.52)                                       |
+| 54018  | Bambino                     | upgrade     | DSL (§3.52, keywords by condition)                |
+| 54019  | Man on the Wall             | upgrade     | DSL (§3.52, cost changes)                         |
+| 54020  | S.H.I.E.L.D. Sidearm        | upgrade     | DSL                                               |
+| 54021  | Nick Fury, Sr.              | ally        | DSL (reprint of 50054)                            |
+| 54022  | Super-Soldiers              | event       | DSL; Team-Up (§3.51)                              |
+| 54023  | Winter, Widow, Soldier, Spy | event       | DSL; Team-Up (§3.51)                              |
+| 54024  | Energy                      | resource    | none (reprint)                                    |
+| 54025  | Genius                      | resource    | none (reprint)                                    |
+| 54026  | Strength                    | resource    | none (reprint)                                    |
+| 54027  | Red Room Programming        | obligation  | DSL (§3.52, costs)                                |
+| 54028  | Crossbones                  | minion      | DSL                                               |
+| 54029  | Hydra Hit Squad             | side scheme | DSL                                               |
+| 54030  | High-Tech Armament          | attachment  | DSL; §3.49 with Fixer in play                     |
+| 54031  | Hydra Mercenary             | minion      | DSL (guard only)                                  |
+| 54032  | White Widow                 | ally        | DSL (§3.52, `abilityResolved`)                    |
+| 54033  | S.H.I.E.L.D. Deputy         | upgrade     | DSL; §3.51 (erratum p. 70)                        |
+| 54034  | Blizzard                    | minion      | §3.50                                             |
+| 54035  | Encased in Ice              | attachment  | §3.50                                             |
+| 54036  | Slippery Conditions         | side scheme | DSL                                               |
+| 54037  | Whiteout                    | treachery   | DSL (§3.52, find and reveal)                      |
+
 ## 8. Build order (pass 1a)
 
 Written 2026-10-09 from §3's status lines. None of this wave's engine work has landed, and none of the identifiers
@@ -1813,6 +2689,18 @@ Nothing of `aos` is emitted. For `card-data-pipeline`, in order; none blocks an 
 10. The Thunderbolts pool derived from the trait query (§1.10).
 11. Reprints (§1.13); the cycle renamed "Agents of S.H.I.E.L.D."; hero art out of `art/heroes/_pending/` when the
     box becomes playable.
+12. (Pass 2) `textReplace` on Infiltration 51015: "remote" → "remove" (scan checked). Metal Punch 54005's raw "en
+    enemy" and the stray `</b>` at the end of Morlun 52029's raw text: read each scan first.
+13. (Pass 2) The two errata as `current` text (RRG p. 70): Eidetic Memory 52008 ("your identity", twice; the emitted
+    `current` still says "Silk") and S.H.I.E.L.D. Deputy 54033 ("Max 1 per character", with its per-host maximum).
+14. (Pass 2) The Thunderbolts pool of §1.10 now holds ten sets: Extreme Risk, Growing Strong, Techno and Whiteout
+    each hold an Elite, Thunderbolt minion. Confirm the derived pool and its test.
+15. (Pass 2) The four starter decks against the survey's §6.2 lists, each 40 cards by script; Redemption 51036 and
+    Captain America's Shield 53034 as linked, set-aside cards outside every deck.
+16. (Pass 2) `docs/team-ups.md`: four pairs (Black Panther/T'Challa and Black Panther/Shuri; Cindy Moon and Peter
+    Parker; Captain America and Winter Soldier; Black Widow and Winter Soldier). No art folder exists for any.
+17. (Pass 2) Unique icons checked on scans for 51016, 51017 and 52005; the reprints by `duplicate_of_code` (`bp` 5,
+    `silk` 6, `falcon` 7, `winter` 5) into `reprints.ts`'s source list.
 
 ### 8.2 Engine queue, in order
 
@@ -1820,6 +2708,13 @@ Nothing of `aos` is emitted. For `card-data-pipeline`, in order; none blocks an 
 they hold two independent changes (§3.6, §3.7, §3.29), and one for the extend inside §3.33's verify row. "After N" names
 a dependency, not just the order. The order: what most scripts need; the heroes'
 primitives; then the scenarios in box order.
+
+**Pass 2 adds tasks 23 to 36**: one for each of the 4 **new** rows and the 6 **extend** rows of §3.36–§3.50, with
+§3.40 and §3.43 split in two and §3.46 in three. None of their identifiers (`cardBeingTucked`, `replaceTuckHost`,
+`tuckedCardDiscarded`, `discardFromEncounterDeck`, `boostCardGiven`, `encounterCardBeingDealt`, `spendableFromTucked`,
+`defendsWithoutExhausting`, `distinctTraits`, `cardBeingAttached`, `replaceAttachHost`, `villainAlias`,
+`attackableAsMinion`) exists in the engine or the DSL (grep, this session). They depend on none of tasks 1 to 22
+except where said, so they may be queued in any order after the pass 1 tasks a hero of pass 1 waits on.
 
 File paths are under `packages/engine/src/` unless they start with `dsl/` (`packages/cards/src/dsl/`) or `schema/`
 (`packages/content/src/schema/`). Every task adds its own colocated test file with the row's exact-number tests.
@@ -1849,30 +2744,51 @@ File paths are under `packages/engine/src/` unless they start with `dsl/` (`pack
 | 20  | 3.29 (b) (after 19) | `EffectSpec accuse` over the scenario's grid; `accused`, `mole`, `wrongGuesses`, `accusedWrong`; needs data item 1                     | `spec.ts`, `choices.ts`, `resolve/apply-effect.ts`, `events.ts`, `dsl/effects.ts`                                 | none      | 50168a/b, 50169b                                 |
 | 21  | 3.30                | A `CollectionSearchFilter` for identity cards; `treatHostAsMinion` on an identity card with no controller                              | `spec.ts`, `resolve/collection.ts`, `treat-as.ts`, `abilities.ts`                                                 | none      | Reluctant Foe 50171                              |
 | 22  | 3.31                | `RuleSpec additionalPowerCost` over other characters' attack, thwart and defense                                                       | `abilities.ts`, `actions.ts`, `legal.ts`, `defense-claim.ts`, `resolve/basic-power-by.ts`                         | none      | Divided Loyalties 50173                          |
+| 23  | 3.40 (a)            | `TriggerEvent cardBeingTucked` with `byPlayerCard`, opened only when an ability listens; `EffectSpec replaceTuckHost`                  | `trigger-events.ts`, `spec.ts`, `resolve/apply-effect.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`              | none      | Silk Sense Overload 52028                        |
+| 24  | 3.40 (b) (after 23) | `activeIn: "tucked"`; `TriggerEvent tuckedCardDiscarded` with the host and `byPlayerCard`                                              | `abilities.ts`, `trigger-events.ts`, `effects.ts`, `resolve/triggers.ts`, `dsl/validate.ts`                       | Q7 = A    | Hunting the Spider-Bride 52031                   |
+| 25  | 3.42                | `RuleSpec topOfDeckFaceup.deck: "encounter"`; `Predicate topOfDeckFaceup` on it; views and the `encounterTopShown` log                 | `abilities.ts`, `select.ts`, `visibility.ts`, `deck-top.ts`, `events.ts`, `dsl/abilities.ts`, `dsl/values.ts`     | Q6 = A    | Falcon's kit                                     |
+| 26  | 3.43 (a)            | `AbilityCost.discardFromEncounterDeck { amount or choose, slot }`                                                                      | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `effects.ts`, `dsl/abilities.ts`                          | none      | 51015, 53002, 53010                              |
+| 27  | 3.43 (b), (c)       | `cardDiscardedFromDeck` for the encounter deck; `abilityResolved` carries the resolved ability's slots                                 | `trigger-events.ts`, `resolve/deck-discard.ts`, `resolve/triggers.ts`, `resolve/ability.ts`, `dsl/abilities.ts`   | none      | Serpent Solutions 53031, Talon Line 53012        |
+| 28  | 3.44                | `TriggerEvent boostCardGiven`; `lookAt` and `swapCards` over a facedown boost card and the deck top                                    | `trigger-events.ts`, `resolve/enemy-activation.ts`, `resolve/swap-cards.ts`, `visibility.ts`, `dsl/abilities.ts`  | none      | Up, Up, and Away 53005                           |
+| 29  | 3.45                | `TriggerEvent encounterCardBeingDealt`, opened only when an ability listens; a replaced deal leaves the card on the deck               | `trigger-events.ts`, `effects.ts`, `resolve/reveal.ts`, `resolve/triggers.ts`, `dsl/abilities.ts`                 | none      | Aerial Recon 53009                               |
+| 30  | 3.46 (a)            | `AbilityLimit.per: "paidCard"`                                                                                                         | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`                                                            | none      | Falcon's Flock 53006                             |
+| 31  | 3.46 (b)            | Slot `paid.cards` on a play's announcement: the cards that paid for it                                                                 | `stack.ts`, `select.ts`, `resolve/play-card.ts`, `dsl/values.ts`                                                  | none      | Spectrum 53018                                   |
+| 32  | 3.46 (c)            | `RuleSpec spendableFromTucked`: a tucked resource card as a payment source for every player                                            | `abilities.ts`, `payable.ts`, `actions.ts`, `legal.ts`, `resources.ts`, `dsl/abilities.ts`                        | none      | Resource Reserve 53021                           |
+| 33  | 3.47                | `RuleSpec defendsWithoutExhausting`                                                                                                    | `abilities.ts`, `rules.ts`, `defense-claim.ts`, `defend-preview.ts`, `resolve/enemy-activation.ts`                | none      | Draw Their Fire 53011                            |
+| 34  | 3.48                | `ValueSpec distinctTraits { of }`                                                                                                      | `spec.ts`, `select.ts`, `dsl/values.ts`                                                                           | none      | Strength in Diversity 53019                      |
+| 35  | 3.49                | `TriggerEvent cardBeingAttached`; `EffectSpec replaceAttachHost`; `CardInstance.villainAlias` read by `theVillain`                     | `trigger-events.ts`, `state.ts`, `attachment-hosts.ts`, `resolve/attach.ts`, `select.ts`, `dsl/effects.ts`        | none      | the Techno set                                   |
+| 36  | 3.50                | `RuleSpec attackableAsMinion`: a target of attacks that holds damage, never defeated                                                   | `abilities.ts`, `select.ts`, `legal.ts`, `resolve/attack-ability.ts`, `resolve/target-validity.ts`                | none      | the Whiteout set                                 |
 
 ### 8.3 The "exists (verify)" and "exists (compose)" rows
 
 No engine task. The scripting line that first needs each row proves it in a test, and a failure comes back here as
 an extend.
 
-| §    | Proved by (module, §8.4)                | The test that proves it                                                                 |
-| ---- | --------------------------------------- | --------------------------------------------------------------------------------------- |
-| 3.5  | `batroc`, `modok`, `baron-zemo`         | §3.5 tests 1, 3, 4, 6; Q3's numbers under the default                                   |
-| 3.8  | `nick-fury/identity`                    | Break Cover then Assault's interrupt in one attack                                      |
-| 3.10 | `maria-hill/identity`                   | the six deck cases of §3.10                                                             |
-| 3.13 | `batroc`, `modok`                       | Leaping Kick's overkill past another player's ally; 3B's redirect                       |
-| 3.14 | `batroc`                                | the two-player walk through all three stages                                            |
-| 3.15 | `batroc`                                | a captive cannot be chosen for a discard, and is defeated by damage                     |
-| 3.16 | `batroc`                                | Low to High at 8, the loss at 8, the consequential "except"                             |
-| 3.18 | `modok`                                 | the third completion loses in standard mode                                             |
-| 3.19 | `modok`                                 | the defeating player takes the held ally                                                |
-| 3.22 | `thunderbolts`                          | one player and four players                                                             |
-| 3.23 | `thunderbolts`                          | 0 hit points with one in the victory display; the heal with no boost card; Q2's default |
-| 3.25 | `batroc`, `modok`, the Thunderbolt sets | each card's numbers in §3.25                                                            |
-| 3.28 | `executive-board`                       | 2 spent, 2 counters not placed                                                          |
-| 3.32 | `maria-hill/obligation-nemesis`         | a 1 / 1 / 1 facedown minion and its defeat                                              |
-| 3.33 | `black-widow`, `aim-science`            | incite on a card being revealed; three acceleration icons                               |
-| 3.34 | `power-of-the-atom`, `supersonic`       | THW −1 for a Gamma hero; nobody may defend MACH-IV                                      |
+| §    | Proved by (module, §8.4)                                | The test that proves it                                                                        |
+| ---- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 3.5  | `batroc`, `modok`, `baron-zemo`                         | §3.5 tests 1, 3, 4, 6; Q3's numbers under the default                                          |
+| 3.8  | `nick-fury/identity`                                    | Break Cover then Assault's interrupt in one attack                                             |
+| 3.10 | `maria-hill/identity`                                   | the six deck cases of §3.10                                                                    |
+| 3.13 | `batroc`, `modok`                                       | Leaping Kick's overkill past another player's ally; 3B's redirect                              |
+| 3.14 | `batroc`                                                | the two-player walk through all three stages                                                   |
+| 3.15 | `batroc`                                                | a captive cannot be chosen for a discard, and is defeated by damage                            |
+| 3.16 | `batroc`                                                | Low to High at 8, the loss at 8, the consequential "except"                                    |
+| 3.18 | `modok`                                                 | the third completion loses in standard mode                                                    |
+| 3.19 | `modok`                                                 | the defeating player takes the held ally                                                       |
+| 3.22 | `thunderbolts`                                          | one player and four players                                                                    |
+| 3.23 | `thunderbolts`                                          | 0 hit points with one in the victory display; the heal with no boost card; Q2's default        |
+| 3.25 | `batroc`, `modok`, the Thunderbolt sets                 | each card's numbers in §3.25                                                                   |
+| 3.28 | `executive-board`                                       | 2 spent, 2 counters not placed                                                                 |
+| 3.32 | `maria-hill/obligation-nemesis`                         | a 1 / 1 / 1 facedown minion and its defeat                                                     |
+| 3.33 | `black-widow`, `aim-science`                            | incite on a card being revealed; three acceleration icons                                      |
+| 3.34 | `power-of-the-atom`, `supersonic`                       | THW −1 for a Gamma hero; nobody may defend MACH-IV                                             |
+| 3.36 | `bp/shuri/identity`, `bp/shuri/support-upgrades-allies` | "on 1" with two upgrades; a Special that discards its card; a Special on another player's ally |
+| 3.37 | `bp/shuri/identity`                                     | the three plays of §3.37                                                                       |
+| 3.38 | `bp/aspect-basic`                                       | the redeemed minion and Redemption's victory display                                           |
+| 3.39 | `silk/silk/identity`                                    | the cap with a fifth card; a count by set; nothing tucked for a Victory minion                 |
+| 3.41 | `silk/silk/support-upgrades-allies`                     | the tucked card revealed and resolved; not offered on a flip                                   |
+| 3.51 | the module of each card named                           | one test per line of §3.51                                                                     |
+| 3.52 | the module of each card named                           | Invisibility Gear and Ready for a Fight; Bambino on an identity; Flight Squadron's limit       |
 
 ### 8.4 Scripting order
 
@@ -1932,6 +2848,54 @@ The box's other player cards:
 30. `baron-zemo` (50165a/b–50177, with the evidence of 50185–50193 as hidden cards): waits on 1, 17, 18, 19, 20, 21
     and 22, and on data item 1.
 31. Baron Zemo standalone scenario game, seeded.
+
+**Pass 2: the four hero packs.** Paths stay relative to `packages/cards/src/wave9/`; each pack's `card-groups`
+entries join the scaffold of line 1. One pack at a time (the owner's standing rule), at most three modules of that
+pack at once.
+
+Black Panther (`bp/shuri/`):
+
+32. `identity` (51001a/b): waits on nothing.
+33. `events` (51003–51006; Vibranium is a resource card and lives here): waits on nothing.
+34. `support-upgrades-allies` (51002, 51007–51013): waits on nothing.
+35. `obligation-nemesis` (51031–51035): waits on nothing.
+36. `bp/aspect-basic` (51014–51030, 51036–51038): waits on 26 (Infiltration).
+37. `bp/extreme-risk` (51039–51042): waits on nothing.
+38. Black Panther starter deck e2e.
+
+Silk (`silk/silk/`):
+
+39. `identity` (52001a/b): waits on nothing; Q7 at its default.
+40. `events` (52002–52004): waits on nothing.
+41. `support-upgrades-allies` (52005–52012; Get the Scoop is a player side scheme and lives here): waits on nothing.
+42. `obligation-nemesis` (52028–52031): waits on 23 and 24.
+43. `silk/aspect-basic` (52013–52027, 52032–52034): waits on nothing.
+44. `silk/growing-strong` (52035–52038): waits on nothing.
+45. Silk starter deck e2e, with Morlun's set dealt in.
+
+Falcon (`falcon/falcon/`):
+
+46. `identity` (53001a/b): waits on 25.
+47. `events` (53003–53005): waits on 25 and 28.
+48. `support-upgrades-allies` (53002, 53006–53013): waits on 25, 26, 27, 29, 30 and 33.
+49. `obligation-nemesis` (53029–53033): waits on 27.
+50. `falcon/aspect-basic` (53014–53028, 53034–53037): waits on 31, 32 and 34.
+51. `falcon/techno` (53038–53042): waits on 35.
+52. Falcon starter deck e2e.
+53. A Thunderbolts scenario game whose seeded pool draws one of the four new sets.
+
+Winter Soldier (`winter/winter-soldier/`):
+
+54. `identity` (54001a/b): waits on nothing.
+55. `events` (54004–54006): waits on nothing; Arm Block's Black Widow test needs 11.
+56. `support-upgrades-allies` (54002, 54003, 54007–54011): waits on nothing.
+57. `obligation-nemesis` (54027–54031): waits on nothing; High-Tech Armament's Fixer test needs 35.
+58. `winter/aspect-basic` (54012–54026, 54032, 54033): waits on nothing.
+59. `winter/whiteout` (54034–54037): waits on 36.
+60. Winter Soldier starter deck e2e.
+61. A two-player game, Shuri and Core's T'Challa, that plays Heart of the Panther.
+62. A two-player game, Falcon with the Captain America upgrade and Steve Rogers, for ruling June 25, 2026 – Ruling 1.
+63. The pass 2 ruling tests of §5.1 that no module above owns.
 
 ### 8.5 The campaign, the client and Guided mode
 
