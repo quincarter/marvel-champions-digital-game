@@ -92,3 +92,8 @@ Already in the repo:
 
 `main` is at v0.18.0 (2026-10-09). Wave 9 is a minor release (v0.19.0 unless something else ships first); check
 `changie next auto` before merging.
+
+## Tools on this machine
+
+`pdftoppm` is not installed, so the Read tool cannot open PDF pages. Render a page with PyMuPDF instead and read the
+PNG: `python3 -c "import pymupdf; d=pymupdf.open('<pdf>'); d[<page-1>].get_pixmap(dpi=130).save('<scratchpad>/p.png')"`.

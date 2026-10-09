@@ -475,6 +475,11 @@ Copy counts compared by script with raw `quantity` and names:
 
 - Every named card exists in raw with at least the printed copy count (script match, no misses). Maria Hill's
   `Super Spies` has `quantity: 2` in raw and the list uses 1 in each deck (one copy per deck, Team-Up, Max 1).
+- **Checked 2026-10-09 by the main session:** page 7 was rendered with PyMuPDF (`python3 -c "import pymupdf"` works on
+  this machine; `pdftoppm` is not installed) and read. Both printed lists match the table above card for card and
+  count for count. Nick Fury's printed hero list does include Assault / Stealth, so 41 is what the page prints: his
+  suit form upgrade starts in play and sits outside the 40-card deck. No owner input is needed for item 2 of
+  section 10.
 - **Nick Fury's list sums to 41, not 40.** Either Assault/Stealth (a Setup card that starts in play) is not counted in
   the 40, or one count in the markdown is wrong (md conversion has struck-through headings and dropped text elsewhere
   on the same page). The scan route is closed here; **needs the printed page 7 image, or the Hall of Heroes
