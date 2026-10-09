@@ -128,4 +128,20 @@ describe("data-only pool — integrity", () => {
     expect(card.text.printed).toMatch(/this card gains surge\. Discard this card\.$/);
     expect(card.text.current).toBe(card.text.printed);
   });
+
+  it.each([
+    ["bp", BP_CARDS, "51031", 4, "doubt"],
+    ["falcon", FALCON_CARDS, "53029", 3, "emergency"],
+  ] as const)(
+    "%s: obligation %s carries real Uses and Victory 0 keywords (no scripts exist yet to double-place counters)",
+    (_pack, cards, id, count, counterType) => {
+      const card = cards.find((c) => c.id === id);
+      expect(card?.type).toBe("obligation");
+      if (card?.type !== "obligation") return;
+      expect(card.keywords).toEqual([
+        { name: "uses", count, counterType },
+        { name: "victory", value: 0 },
+      ]);
+    },
+  );
 });
