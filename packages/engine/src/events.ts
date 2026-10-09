@@ -1222,6 +1222,18 @@ export type GameEvent =
     }
   | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
   /**
+   * RRG 1.8 "Vulnerable" (p. 48): the `status` card just given made this character stunned or confused, so its
+   * vulnerable keyword discards it, without defeating it (docs/phase7-wave9.md §3.1). Logged right after the
+   * `statusGiven` and before the discard itself (`cardDiscardedFromPlay`, or the character waiting for a "when this
+   * leaves play" interrupt). Not logged for a character that cannot leave play (`leavePlayBlocked` follows instead).
+   */
+  | {
+      readonly type: "vulnerableDiscarded";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly status: "stunned" | "confused";
+    }
+  /**
    * RRG 1.8 "Player Side Scheme Limit" (p. 34): `chosenBy` chose this player side scheme to discard for the limit (the
    * player who played one past it, otherwise the first player). Logged before the discard itself, which is not a defeat.
    */

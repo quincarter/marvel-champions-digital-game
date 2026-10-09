@@ -132,7 +132,7 @@ import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
-import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
+import { hasKeyword, keywordTotal, statusCapacity, wouldDiscardAsVulnerable } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import { thwartBlockedOn } from "./event.js";
@@ -255,6 +255,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
+  // RRG 1.8 "Vulnerable" (p. 48): a status card that discards a vulnerable character resolves ahead of damage the same
+  // instruction deals to it.
+  if (statusAheadOfDamage(ctx, frame, effect, context)) return;
   // An "(attack)" ability with no attack effect is still one attack (owner ruling Q48). It begins as the ability
   // begins resolving, before its first instruction (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08,
   // row 61); one whose damage instructions are all inside a branch makes it as the branch reaches the first.
@@ -334,6 +337,52 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+/**
+ * RRG 1.8 "Vulnerable" (p. 48): "If a character with the vulnerable keyword would simultaneously take enough damage to
+ * defeat it and become either confused or stunned, it is discarded before the damage is applied and is not considered
+ * defeated." Effects joined by "and" resolve simultaneously (RRG 1.8 "'And'", p. 7), and the engine resolves a list in
+ * its written order, so "deal 2 damage to it and confuse it" written damage first would defeat the character before
+ * the status card arrived.
+ *
+ * So when `effect` deals damage (`dealDamage`, `attack`) and a later `giveStatus` of the same instruction (the effects
+ * up to the next `then`, docs/phase7-wave9.md §3.1) would discard, as vulnerable, a character that damage is aimed at
+ * (`wouldDiscardAsVulnerable`), that `giveStatus` is moved in front of `effect` in the frame's own list, and resolves
+ * first: the character is gone before the damage is applied, so the damage finds nobody, none is dealt and overkill
+ * has no excess. Returns true when it moved one (the frame is re-read). The move is the whole `giveStatus`, so its
+ * other targets get their card first too, which simultaneous effects allow. Nothing moves in a game without a
+ * vulnerable character, nor when the status is already written first.
+ *
+ * The list cannot tell "X and Y" from two sentences ("Deal 2 damage to an enemy. Stun that enemy."), which resolve in
+ * order (the first would defeat the character); §3.1 reads every list up to a `then` as one instruction.
+ */
+function statusAheadOfDamage(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec, context: EffectContext): boolean {
+  if (effect.kind !== "dealDamage" && effect.kind !== "attack") return false;
+  let damaged: readonly InstanceId[] | null = null;
+  for (let at = frame.cursor + 1; at < frame.effects.length; at++) {
+    const later = frame.effects[at];
+    if (!later || later.kind === "then") return false;
+    if (later.kind !== "giveStatus" || later.status === "tough") continue;
+    damaged ??= resolveRef(ctx.state, effect.target, context);
+    const aimedAt = damaged;
+    const status = later.status;
+    const discards = resolveRef(ctx.state, later.target, context).some(
+      (id) => aimedAt.includes(id) && wouldDiscardAsVulnerable(ctx.state, id, status, ctx.deps),
+    );
+    if (!discards) continue;
+    setFrame(ctx, {
+      ...frame,
+      effects: [
+        ...frame.effects.slice(0, frame.cursor),
+        later,
+        ...frame.effects.slice(frame.cursor, at),
+        ...frame.effects.slice(at + 1),
+      ],
+    });
+    return true;
+  }
+  return false;
 }
 
 /**

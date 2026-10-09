@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Vulnerable: a character that becomes stunned or confused is discarded without being defeated, ahead of simultaneous damage (RRG 1.8 p. 48)'
+time: 2026-10-09T18:14:24.149473-04:00

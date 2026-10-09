@@ -13,7 +13,7 @@ import {
   updatePlayer,
   type Ctx,
 } from "./ctx.js";
-import { canTakeStatus, hasKeyword, isPermanent, usesKeyword } from "./keywords.js";
+import { canTakeStatus, hasKeyword, isPermanent, usesKeyword, vulnerableTo } from "./keywords.js";
 import {
   activeEncounterDeckId,
   discardZoneFor,
@@ -290,7 +290,27 @@ export function giveStatus(
     const placed = { instanceId: id, status, sourceInstanceId: by.sourceInstanceId, playerId: by.playerId };
     ctx.state = { ...ctx.state, pendingStatusPlaced: [...(ctx.state.pendingStatusPlaced ?? []), placed] };
   }
+  if (status !== "tough" && vulnerableTo(ctx.state, id, status, ctx.deps)) discardAsVulnerable(ctx, id, status);
   return true;
+}
+
+/**
+ * RRG 1.8 "Vulnerable" (p. 48; MC50 rulebook p. 3): the character that just became stunned or confused "is
+ * immediately discarded (without being defeated)". An ordinary discard from play (`discardFromPlay`): its owner's
+ * discard pile, its attachments with it, "leaves play" announced as usual. It is not a defeat, so there is no
+ * `characterDefeated`, no When Defeated, no victory display (the victory keyword reads a defeat, p. 46) and no
+ * defeating player. The keyword is the game's rule, with no source card, so a permanent character or one that
+ * "cannot leave play" stays and keeps the status card (RRG 1.8 "'Cannot'", p. 11; `leavePlayBlocked` is logged by
+ * `leavePlay`). Logged before the move so the log reads cause first.
+ */
+function discardAsVulnerable(ctx: Ctx, id: InstanceId, status: "stunned" | "confused"): void {
+  const stays =
+    permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) ||
+    cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true);
+  if (!stays) {
+    emit(ctx, { type: "vulnerableDiscarded", instanceId: id, cardId: mustInstance(ctx.state, id).cardId, status });
+  }
+  discardFromPlay(ctx, id);
 }
 
 /**

@@ -426,3 +426,41 @@ export function statusActive(
   const needed = status === "tough" ? 1 : hasKeyword(state, id, "steady", deps) ? 2 : 1;
   return instance.statuses[status] >= needed;
 }
+
+/** Stunned and confused: the two status cards the vulnerable keyword reads. */
+const VULNERABLE_STATUSES: readonly StatusName[] = ["stunned", "confused"];
+
+/**
+ * RRG 1.8 "Vulnerable" (p. 48): "When a character with vulnerable becomes confused or stunned, that character is
+ * immediately discarded (without being defeated)." Whether `id`, holding the status cards it holds now, has just
+ * become stunned or confused that way: it has the keyword and *is* stunned or confused by the rules, which with
+ * steady takes the second card ("the vulnerable keyword does not take effect until that character has two confused
+ * or two stunned status cards"; `statusActive`). Read by `giveStatus` right after a card lands.
+ */
+export function vulnerableTo(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean {
+  if (!VULNERABLE_STATUSES.includes(status)) return false;
+  return hasKeyword(state, id, "vulnerable", deps) && statusActive(state, id, status, deps);
+}
+
+/**
+ * Whether a `status` card given to `id` now would discard it as vulnerable: there is room for the card
+ * (`canTakeStatus`) and it is the one that makes the character stunned or confused (its first; its second with
+ * steady). The look-ahead `vulnerableTo` answers after the card lands, for an instruction that deals damage to the
+ * character and gives it the card at once (`effects-frame.ts` `statusAheadOfDamage`).
+ */
+export function wouldDiscardAsVulnerable(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean {
+  if (!VULNERABLE_STATUSES.includes(status) || !canTakeStatus(state, id, status, deps)) return false;
+  if (!hasKeyword(state, id, "vulnerable", deps)) return false;
+  const needed = hasKeyword(state, id, "steady", deps) ? 2 : 1;
+  return (getInstance(state, id)?.statuses[status] ?? 0) + 1 >= needed;
+}
