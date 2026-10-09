@@ -40,7 +40,12 @@ export interface EventPattern {
   readonly together?: true;
   readonly selfIs?: "source" | "target" | "either";
   readonly playerIs?: "controller";
-  /** The originally-attacked player rather than the final target (RRG p.9). */
+  /**
+   * "[enemy] attacks **you**": on an `enemyAttack` event, "you" is the attack's one player for the timing rather than
+   * either of the event's players. An interrupt ("When [enemy] attacks you") reads the player the attack was
+   * initiated against; a response ("After [enemy] attacks you") reads the player whose character defended it, who is
+   * the attacked player when nobody else defended (RRG 1.8 "Defend, Defense", pp. 15-16; `attackYouOf`).
+   */
   readonly usesAttackedPlayer?: boolean;
   readonly targetIs?: TargetQuery;
   /** The event's source must match: "When Rhino attacks" → `{ categories: ["villain"] }`; "When attached enemy attacks" → `{ hostOfSelf: true }`. */

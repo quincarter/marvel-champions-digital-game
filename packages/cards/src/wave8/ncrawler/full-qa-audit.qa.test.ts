@@ -277,8 +277,8 @@ describe("Bamf! (48006) beside the cards that read a defense", () => {
     expect(damageTo(events, rhino)[0]).toBe(1);
   });
 
-  // RRG 1.8 p. 15 (Defend): "after [enemy] attacks you" refers to the player whose character defended, here Nightcrawler's player.
-  it.fails("Azazel's Sword: 'after the attached enemy attacks you' is the player whose character defended (RRG p. 15), so the Sword is offered to Nightcrawler's player for the attack on Spider-Man", () => {
+  // RRG 1.8 "Defend, Defense" (pp. 15-16): "after [enemy] attacks you" refers to the player whose character defended, here Nightcrawler's player.
+  it("Azazel's Sword: 'after the attached enemy attacks you' is the player whose character defended (RRG p. 16), so the Sword is offered to Nightcrawler's player for the attack on Spider-Man", () => {
     const base = nightcrawlerTurn();
     const { state: s, rhino } = bamfOnRhino(base);
     const sword = Object.keys(s.instances).find((id) => codeOf(s, id as InstanceId) === SWORD) as InstanceId;

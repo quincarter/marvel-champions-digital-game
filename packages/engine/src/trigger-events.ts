@@ -299,9 +299,16 @@ export type TriggerEventBody =
   | {
       readonly kind: "enemyAttack";
       readonly enemyInstanceId: InstanceId;
-      /** The player the attack was initiated against (RRG p.9: "attacks you" keys off this). */
+      /**
+       * The player the attack was initiated against: the "you" of "**When** [enemy] attacks you", and of the attack
+       * while it resolves (`PlayerRef attackedPlayer`). A declared defender never changes it.
+       */
       readonly attackedPlayerId: PlayerId;
-      /** The player who ends up targeted — changes if another player defends. */
+      /**
+       * The attack's target player now: the attacked player until another player's hero or ally defends, or another
+       * player's "(defense)" ability makes their identity the defender, and that player from then on. The "you" of
+       * "**After** [enemy] attacks you" (RRG 1.8 "Defend, Defense", pp. 15-16; `EventPattern.usesAttackedPlayer`).
+       */
       readonly targetPlayerId: PlayerId;
       readonly targetInstanceId: InstanceId;
       /** The same attack resolved against another player (Whirlwind): the attacker's "when it attacks" abilities don't re-trigger. */

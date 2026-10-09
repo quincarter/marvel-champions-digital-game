@@ -2172,6 +2172,12 @@ const pattern = (
   on: TriggerEventKind | readonly TriggerEventKind[],
   ...parts: readonly Partial<EventPattern>[]
 ): EventPattern => Object.assign({ on }, ...parts) as EventPattern;
+/**
+ * "[enemy] attacks **you**" (`EventPattern.usesAttackedPlayer`). Who "you" is follows the timing (RRG 1.8 "Defend,
+ * Defense", pp. 15-16; owner ruling 2026-10-09, docs/phase7-wave8.md §4.1 row 91): an interrupt ("When [enemy]
+ * attacks you") is the player the attack was initiated against, and a response ("After [enemy] attacks you") is the
+ * player whose hero or ally defended it, who is the attacked player when nobody else's character defended.
+ */
 const againstYou: Partial<EventPattern> = { playerIs: "controller", usesAttackedPlayer: true };
 
 const enemyAttacks = (
@@ -2213,8 +2219,9 @@ export const on = {
   /**
    * "When/After [enemy] activates (against you)": its attacks and its schemes, from the villain phase or from a card
    * (RRG 1.8 "Activation", p. 6: "Some card abilities can also cause enemies to attack or scheme. These are also
-   * considered activations"; docs/phase7-wave5.md §4.1 Q67). `againstYou`: an attack initiated against you (not the
-   * defender's player, as `enemyAttacks`) or a scheme against you. Not "when X would activate" (`enemyActivating`).
+   * considered activations"; docs/phase7-wave5.md §4.1 Q67). `againstYou`: an attack against you, read by timing as
+   * `enemyAttacks` reads it (the defending player in a response), or a scheme against you. Not "when X would
+   * activate" (`enemyActivating`).
    */
   enemyActivates: (by: Who, opts: { readonly againstYou?: boolean } = {}): EventPattern =>
     pattern(["enemyAttack", "enemyScheme"], asSource(by), opts.againstYou ? againstYou : {}),
