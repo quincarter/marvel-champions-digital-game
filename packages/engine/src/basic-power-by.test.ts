@@ -95,6 +95,28 @@ const TAX = stubAbility(
     effects: [],
   }),
 );
+/** "As an additional cost for this character to make a basic attack, discard 1 card from your hand." */
+const DROP = stubAbility(
+  "dropper.constant",
+  def({
+    trigger: {
+      kind: "constant",
+      basicPowerCosts: [{ power: "attack", cost: { discardFromHand: { min: 1, max: 1 } } }],
+    },
+    effects: [],
+  }),
+);
+/** Both at once: "discard 1 card from your hand and spend 1 resource". */
+const DROP_AND_TAX = stubAbility(
+  "both.constant",
+  def({
+    trigger: {
+      kind: "constant",
+      basicPowerCosts: [{ power: "attack", cost: { discardFromHand: { min: 1, max: 1 }, resources: 1 } }],
+    },
+    effects: [],
+  }),
+);
 /** "As an additional cost to thwart this scheme, you must spend a [energy] resource." */
 const TOLL = stubAbility(
   "toll.constant",
@@ -122,12 +144,14 @@ const THUG = stubMinion({ id: "thug", atk: 1, sch: 1, hp: 10 });
 const ORDERS = stubSupport({ id: "order", cost: 0, abilities: [ORDER.ref] });
 const LISTENER = stubSupport({ id: "listener", cost: 0, abilities: [HEAR.ref] });
 const TAXED = stubAlly({ id: "taxed", cost: 0, atk: 2, thw: null, hp: 3, abilities: [TAX.ref] });
+const DROPPER = stubAlly({ id: "dropper", cost: 0, atk: 2, thw: null, hp: 3, abilities: [DROP.ref] });
+const BOTH = stubAlly({ id: "both", cost: 0, atk: 2, thw: null, hp: 3, abilities: [DROP_AND_TAX.ref] });
 const BODYGUARD = stubMinion({ id: "bodyguard", atk: 1, sch: 1, hp: 10, keywords: [{ name: "guard" }] });
 const CRISIS = stubSideScheme({ id: "crisis", startingThreat: 3, icons: ["crisis"] });
 const TOLLED = stubSideScheme({ id: "tolled", startingThreat: 6, abilities: [TOLL.ref] });
 const SPARK = stubResource({ id: "spark", icons: 0, produces: { energy: 1 } });
 
-const deps: EngineDeps = depsOf(CALL, ORDER, HEAR, TAX, TOLL, SPLIT);
+const deps: EngineDeps = depsOf(CALL, ORDER, HEAR, TAX, TOLL, SPLIT, DROP, DROP_AND_TAX);
 
 interface Setup {
   readonly state: GameState;
@@ -155,9 +179,9 @@ const identityOf = (state: GameState, player: PlayerId) => mustPlayer(state, pla
 function setup(): Setup {
   const base = gameAtFirstTurn({
     players: 2,
-    cards: [PHONE, ORDERS, LISTENER, TAXED, BODYGUARD, CRISIS, TOLLED, SPARK, SPLITTER, THUG],
+    cards: [PHONE, ORDERS, LISTENER, TAXED, DROPPER, BOTH, BODYGUARD, CRISIS, TOLLED, SPARK, SPLITTER, THUG],
     deps,
-    deck: [PHONE.id, ORDERS.id, LISTENER.id, TAXED.id, SPARK.id, SPLITTER.id],
+    deck: [PHONE.id, ORDERS.id, LISTENER.id, TAXED.id, SPARK.id, SPLITTER.id, DROPPER.id, BOTH.id],
     encounter: [BODYGUARD.id, CRISIS.id, TOLLED.id, THUG.id, ...copiesOf(TREACHERY.id, 26)],
   });
   const phone = playerCardIntoPlay(base, PHONE.id);
@@ -193,6 +217,8 @@ interface Plan {
   readonly shares?: readonly string[];
   /** Answer a `spendResources` prompt with every option (true) or nothing (false, the default). */
   readonly pay?: boolean;
+  /** The answer to a `chooseCostCards` prompt (the power's own "discard N cards from your hand" cost). */
+  readonly discard?: readonly string[];
 }
 /** Answers this effect's prompts as planned and records every prompt it saw; anything else as `defaultPick`. */
 function planned(plan: Plan) {
@@ -207,6 +233,7 @@ function planned(plan: Plan) {
     if (kind === "chooseBasicPowerTarget" && plan.targets) return plan.targets;
     if (kind === "chooseBasicPowerTarget" && plan.target) return [plan.target];
     if (kind === "divide" && plan.shares) return plan.shares;
+    if (kind === "chooseCostCards" && plan.discard) return plan.discard;
     if (kind === "spendResources") return plan.pay ? choice.options.map((o) => o.optionId) : [];
     return defaultPick(state);
   };
@@ -403,6 +430,70 @@ describe("basicPowerBy — 'that player makes a basic attack or thwart with a ch
       players: taxed.state.players.map((p) => (p.playerId === P2 ? { ...p, hand: [] } : p)),
     };
     expect(applyCommand(broke, use(s.phone, CALL), deps).ok).toBe(false);
+  });
+
+  // Code review, Piece 10b: the instructed power could pay only a resource cost; any other cost shape was never
+  // offered. RRG 1.8 "Cost" (p. 13): an additional cost is paid with the power's other costs, whoever's turn it is.
+  it("a power whose own cost is 'discard 1 card from your hand' asks the chosen player which card and pays it", () => {
+    const s = setup();
+    const dropper = playerCardIntoPlay(patch(s.state, s.ally, { exhausted: true }), DROPPER.id, P2);
+    const hand = mustPlayer(dropper.state, P2).hand;
+    expect(hand.length).toBeGreaterThan(1);
+    const picked = hand[1]!;
+    const plan = { player: P2, power: `attack:${dropper.id}`, target: s.villain };
+    const paid = run(dropper.state, { ...plan, discard: [picked] }, use(s.phone, CALL));
+    const asked = prompt(paid.seen, "chooseCostCards");
+    expect(asked?.playerId).toBe(P2);
+    expect(asked?.prompt).toMatchObject({ instanceId: dropper.id, slot: "discard", mode: "discardFromHand" });
+    expect(optionIds(asked)).toEqual(hand);
+    expect([asked?.minSelections, asked?.maxSelections]).toEqual([0, 1]);
+    expect(prompt(paid.seen, "spendResources")).toBeUndefined();
+    expect(mustPlayer(paid.state, P2).hand).toEqual(hand.filter((id) => id !== picked));
+    expect(mustPlayer(paid.state, P2).discard).toContain(picked);
+    expect(mustInstance(paid.state, s.villain).damage).toBe(3);
+    expect(mustInstance(paid.state, dropper.id).exhausted).toBe(true);
+    expect(of(paid.events, "basicPowerNotMade")).toEqual([]);
+
+    // Nothing picked backs out of the power, as it does for an interrupt's discard cost in a timing window.
+    const declined = run(dropper.state, { ...plan, discard: [] }, use(s.phone, CALL));
+    expect(of(declined.events, "basicPowerNotMade").map((e) => e.reason)).toEqual(["costNotPaid"]);
+    expect(mustInstance(declined.state, s.villain).damage).toBe(0);
+    expect(mustInstance(declined.state, dropper.id).exhausted).toBe(false);
+    expect(mustPlayer(declined.state, P2).hand).toEqual(hand);
+    expect(declined.state.lastingEffects).toEqual([]);
+
+    // With no card to discard the power is no legal use, so the player cannot be chosen.
+    const empty = {
+      ...dropper.state,
+      players: dropper.state.players.map((p) => (p.playerId === P2 ? { ...p, hand: [] } : p)),
+    };
+    expect(applyCommand(empty, use(s.phone, CALL), deps).ok).toBe(false);
+
+    const replayed = replay(paid.session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(paid.state);
+  });
+
+  it("a discard and a resource cost together: the card picked to discard is not offered as payment", () => {
+    const s = setup();
+    const both = playerCardIntoPlay(patch(s.state, s.ally, { exhausted: true }), BOTH.id, P2);
+    const hand = mustPlayer(both.state, P2).hand;
+    const picked = hand[0]!;
+    const plan = { player: P2, power: `attack:${both.id}`, target: s.villain };
+    const paid = run(both.state, { ...plan, discard: [picked], pay: true }, use(s.phone, CALL));
+    const payment = prompt(paid.seen, "spendResources");
+    expect(payment?.playerId).toBe(P2);
+    expect(optionIds(payment)).not.toContain(`hand:${picked}`);
+    expect(optionIds(payment).length).toBeGreaterThan(0);
+    expect(mustInstance(paid.state, s.villain).damage).toBe(3);
+    expect(mustPlayer(paid.state, P2).discard).toContain(picked);
+
+    // One card in hand cannot be both the discard and the payment: no legal use.
+    const one = {
+      ...both.state,
+      players: both.state.players.map((p) => (p.playerId === P2 ? { ...p, hand: [picked] } : p)),
+    };
+    expect(applyCommand(one, use(s.phone, CALL), deps).ok).toBe(false);
   });
 
   it("a scheme's additional thwart cost is asked of that player as usual: paid, THW 1 + 1 comes off; declined, nothing", () => {

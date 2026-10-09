@@ -370,7 +370,8 @@ class PhaseTracker {
         return;
       case "encounterCardPassed":
         // A card passed to another player (docs/phase7-wave8.md §3.75) is no longer step three's deal to the player
-        // it was dealt to: its new holder reveals it, in this step four or the next.
+        // it was dealt to: its new holder reveals it in this step four, which goes around the table again for a
+        // player left holding one (`executeRevealEncounterCards`; RRG 1.8 "Villain Phase", p. 47, step 4).
         this.passed.add(event.instanceId);
         return;
       case "encounterCardRevealed": {

@@ -6,17 +6,25 @@
  * character, an alter-ego, guard, crisis, patrol, another game area, a "cannot" rule, a printed "—") is not a use.
  */
 
-import type { AbilityCost, EngineDeps } from "./abilities.js";
-import { basicAttack, basicPowerCost, basicThwart } from "./actions.js";
+import type { AbilityId } from "@mc/content";
+import { type AbilityCost, type EngineDeps, resourcesChoiceOf } from "./abilities.js";
+import {
+  basicAttack,
+  basicPowerCost,
+  basicThwart,
+  defaultHandDiscardPicks,
+  isPriceFault,
+  planCost,
+} from "./actions.js";
 import type { Command } from "./commands.js";
 import { createCtx } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import { canPaySpend } from "./payable.js";
 import { cardOf, getInstance, getPlayer, isMinion, mainSchemeStates, undefeatedVillains } from "./query.js";
-import type { ResourceRequirement } from "./resources.js";
+import type { ResolvedRequirement } from "./resources.js";
 import { mayThwartWithAtk } from "./rules.js";
-import { cardsInPlay, isAlly } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, isAlly } from "./select.js";
 import type { GameState } from "./state.js";
 
 export type BasicPowerKind = "attack" | "thwart";
@@ -37,8 +45,13 @@ export function basicPowerCommand(
   playerId: PlayerId,
   use: BasicPowerUse,
   payment: BasicPowerCommand["payment"] = undefined,
+  /** The cards from hand that pay a "discard N cards from your hand" part of the power's own cost. */
+  discard: readonly InstanceId[] | undefined = undefined,
 ): BasicPowerCommand {
-  const paid = payment && payment.length > 0 ? { payment } : {};
+  const paid = {
+    ...(payment && payment.length > 0 ? { payment } : {}),
+    ...(discard && discard.length > 0 ? { costChoices: { discard } } : {}),
+  };
   return use.power === "attack"
     ? {
         type: "basicAttack",
@@ -57,31 +70,77 @@ export function basicPowerCommand(
       };
 }
 
+/** A basic power's own additional cost (`basicPowerCosts`) as it would be paid on a card's instruction. */
+export interface BasicPowerCostNeeds {
+  readonly cost: AbilityCost;
+  /** The ability the cost is printed on, which a prompt for the cost names. */
+  readonly abilityId: AbilityId;
+  /** The resources the payment must cover, as `planCost` read them with `discard` picked. */
+  readonly requirement: ResolvedRequirement;
+  /** The cards from hand a "discard N cards from your hand" part is paid with; absent when the cost has none. */
+  readonly discard?: readonly InstanceId[];
+  /** The player picks the cards to discard: the cost has such a part with a minimum or a `combined` threshold. */
+  readonly asksDiscard: boolean;
+}
+
 /**
- * The resources a basic power's own additional cost asks for (`basicPowerCosts`: "that hero must spend 1 of any
- * resource"), when resources of a fixed size are all it asks for; null for no cost and for any other cost shape.
+ * What `characterId`'s basic `power` costs on top of exhausting: null with no such cost, `fault` when `planCost`
+ * refuses it. Every cost shape is planned by `planCost`, the planner the player's own command pays through, so nothing
+ * about a cost is judged here. `discard` is the player's pick for a hand-discard part; without it the picks are the
+ * defaults a timing window judges an interrupt's cost with (`defaultHandDiscardPicks`).
+ *
+ * A cost that needs any other pick (`costChoices` slots besides `discard`, a `costSelection`) is planned with none, as
+ * the player's own basic power is offered by `legalActions`: `planCost` refuses it unless the pick is forced.
  */
-export function basicPowerResourceCost(
+export function basicPowerCostNeeds(
   state: GameState,
   deps: EngineDeps,
+  playerId: PlayerId,
   characterId: InstanceId,
   power: BasicPowerKind,
-): ResourceRequirement | null {
-  const cost: AbilityCost | undefined = basicPowerCost(state, deps, characterId, power);
-  if (!cost || Object.keys(cost).some((key) => key !== "resources")) return null;
-  const resources = cost.resources;
-  if (resources === undefined) return null;
-  if (typeof resources === "number") return { generic: resources };
-  return "choose" in resources ? null : resources;
+  discard?: readonly InstanceId[],
+): BasicPowerCostNeeds | { readonly fault: string } | null {
+  const cost = basicPowerCost(state, deps, characterId, power);
+  if (!cost) return null;
+  const abilityId = activeAbilityRefs(state, characterId, deps).find((ref) => {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    return trigger?.kind === "constant" && trigger.basicPowerCosts?.some((entry) => entry.cost === cost);
+  })?.id;
+  if (abilityId === undefined) return { fault: "no ability carries this basic power's cost" };
+  const picks = discard ?? defaultHandDiscardPicks(state, deps, characterId, playerId, cost);
+  const plan = planCost(state, deps, characterId, playerId, cost, picks ? { discard: picks } : {}, new Set());
+  if (isPriceFault(plan)) return { fault: plan.message };
+  const part = cost.discardFromHand;
+  return {
+    cost,
+    abilityId,
+    requirement: plan.requirement,
+    ...(picks ? { discard: picks } : {}),
+    asksDiscard: part !== undefined && (part.min > 0 || part.combined !== undefined),
+  };
 }
+
+/** `state` with `cards` out of every hand: what is left to pay resources with once those cards are discarded. */
+const withoutInHand = (state: GameState, cards: readonly InstanceId[]): GameState =>
+  cards.length === 0
+    ? state
+    : { ...state, players: state.players.map((p) => ({ ...p, hand: p.hand.filter((id) => !cards.includes(id)) })) };
 
 /** Whether `use` could be declared now by `playerId` on a card's instruction (see the file comment). */
 function declarable(state: GameState, deps: EngineDeps, playerId: PlayerId, use: BasicPowerUse): boolean {
-  // A resource cost is checked for affordability and then taken as paid: the payment itself is the player's to pick.
-  const resources = basicPowerResourceCost(state, deps, use.characterInstanceId, use.power);
-  if (resources !== null && !canPaySpend(state, deps, playerId, resources)) return false;
-  const by = { instructed: true, assumeCostPaid: resources !== null };
-  const command = basicPowerCommand(playerId, use);
+  const needs = basicPowerCostNeeds(state, deps, playerId, use.characterInstanceId, use.power);
+  if (needs && "fault" in needs) return false;
+  let command = basicPowerCommand(playerId, use);
+  let by: { instructed: true; assumeCostPaid?: true } = { instructed: true };
+  if (needs && resourcesChoiceOf(needs.cost) !== null) {
+    // A resource cost of a size the payer chooses has no requirement to check: the command judges it unpaid.
+    if (needs.discard) command = { ...command, costChoices: { discard: needs.discard } };
+  } else if (needs) {
+    // The cost is planned (above) and its resources checked for affordability with the discards out of hand, then it
+    // is taken as paid: which cards are discarded and spent is the player's to pick when the power is made.
+    if (!canPaySpend(withoutInHand(state, needs.discard ?? []), deps, playerId, needs.requirement)) return false;
+    by = { instructed: true, assumeCostPaid: true };
+  }
   const scratch = createCtx(state, deps);
   return (
     (command.type === "basicAttack" ? basicAttack(scratch, command, by) : basicThwart(scratch, command, by)) === null

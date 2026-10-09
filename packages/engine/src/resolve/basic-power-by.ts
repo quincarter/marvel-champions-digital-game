@@ -8,7 +8,8 @@
  * 0. choose the character and the power;
  * 1. choose the target, or several for a character who may divide the power;
  * 4. (several targets only) divide the power among them;
- * 2. pay the power's own additional resource cost, if it has one, then declare the power;
+ * 2. pay the power's own additional cost, if it has one (the cards a "discard N cards from your hand" part is paid
+ *    with, then its resources), then declare the power;
  * 3. (after everything the power pushed has resolved) end a bonus the power never started.
  *
  * The power itself is the ordinary command (`basicAttack` / `basicThwart` with `BasicPowerBy.instructed`), declared
@@ -23,10 +24,17 @@
  * (`dividedBasicPowerValue`). A thwart made with ATK by the player's choice is not divided, as on their own turn.
  */
 
-import { basicAttack, basicThwart, dividedBasicPowerValue, paymentOptions, paymentsFromOptionIds } from "../actions.js";
+import {
+  basicAttack,
+  basicThwart,
+  dividedBasicPowerValue,
+  handDiscardCandidates,
+  paymentOptions,
+  paymentsFromOptionIds,
+} from "../actions.js";
 import {
   basicPowerCommand,
-  basicPowerResourceCost,
+  basicPowerCostNeeds,
   basicPowerUses,
   type BasicPowerKind,
   type BasicPowerUse,
@@ -39,7 +47,7 @@ import type { InstanceId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import type { LastingScope } from "../lasting.js";
 import { mustCardOf } from "../query.js";
-import { combineRequirements } from "../resources.js";
+import { requirementTotal } from "../resources.js";
 import { canDivideBasicPower } from "../rules.js";
 import { type EffectContext, resolvePlayers } from "../select.js";
 import type { EffectSpec } from "../spec.js";
@@ -54,6 +62,8 @@ const CHARACTER = "_power.character";
 const TARGET = "_power.target";
 /** The share of the n-th target of a divided power (`_power.share.<n>`), in the order of `TARGET`. */
 const SHARE = "_power.share.";
+/** The cards from hand picked to pay the power's own "discard N cards from your hand" cost. */
+const DISCARD = "_power.discard";
 const ATK_SUFFIX = "#atk";
 
 const powerOptionId = (use: BasicPowerUse): string => `${use.power}:${use.characterInstanceId}`;
@@ -258,15 +268,52 @@ export function executeBasicPowerBy(
     ? targets.map((targetInstanceId, index) => ({ targetInstanceId, amount: frame.vars[`${SHARE}${index}`] ?? 0 }))
     : undefined;
 
-  // Step 2. A power with an additional resource cost of its own ("that hero must spend 1 of any resource") asks for
-  // the payment first; the command checks and spends it with the power's other costs.
-  const resources = basicPowerResourceCost(ctx.state, ctx.deps, character, power);
-  if (resources !== null && frame.answer === null) {
-    const options = paymentOptions(ctx, playerId, null);
+  // Step 2. A power with an additional cost of its own asks for it first, as a timing window asks an interrupt's
+  // (RRG 1.8 "Initiating Abilities", p. 24: the cost is determined, then paid): the cards a "discard N cards from
+  // your hand" part is paid with, then the payment of its resources ("that hero must spend 1 of any resource"). The
+  // command checks and pays all of it with the power's other costs.
+  const picked = frame.bindings[DISCARD];
+  const needs = basicPowerCostNeeds(ctx.state, ctx.deps, playerId, character, power, picked);
+  if (needs && !("fault" in needs) && needs.asksDiscard && picked === undefined) {
+    const part = needs.cost.discardFromHand;
+    const from = handDiscardCandidates(ctx.state, ctx.deps, character, playerId, needs.cost);
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId,
+        prompt: {
+          kind: "chooseCostCards",
+          instanceId: character,
+          abilityId: needs.abilityId,
+          slot: "discard",
+          mode: "discardFromHand",
+        },
+        options: from.map((id) => ({
+          optionId: id,
+          label: mustCardOf(ctx.state, id).name,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
+        // Selecting fewer than the cost needs backs out of the power, as it backs out of an interrupt.
+        minSelections: 0,
+        maxSelections: Math.min(from.length, part?.max ?? from.length),
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    const chosen = from.filter((id) => frame.answer?.includes(id));
+    if (chosen.length < Math.max(part?.min ?? 0, 1)) return notMade("costNotPaid");
+    // Kept in the order of the hand; the resources are asked next, on the frame's next run.
+    setFrame(ctx, { ...frame, answer: null, bindings: { ...frame.bindings, [DISCARD]: chosen } });
+    return;
+  }
+  if (needs && "fault" in needs) return notMade("costNotPaid", needs.fault);
+  if (needs && requirementTotal(needs.requirement) > 0 && frame.answer === null) {
+    // A card picked to be discarded is not also spent.
+    const kept = new Set((needs.discard ?? []).map((id) => `hand:${id}`));
+    const options = paymentOptions(ctx, playerId, null).filter((option) => !kept.has(option.optionId));
     if (options.length > 0) {
       requestChoice(ctx, {
         playerId,
-        prompt: { kind: "spendResources", requirement: combineRequirements(resources, 0) },
+        prompt: { kind: "spendResources", requirement: needs.requirement },
         options,
         minSelections: 0,
         maxSelections: options.length,
@@ -275,7 +322,7 @@ export function executeBasicPowerBy(
       return;
     }
   }
-  const payment = resources !== null ? paymentsFromOptionIds(frame.answer ?? []) : [];
+  const payment = needs ? paymentsFromOptionIds(frame.answer ?? []) : [];
 
   // "+1 THW and +1 ATK for this use": in place before the power is declared, started by the power's own event frame
   // (`startNextBasicPowerEffects`) and ended with it. The frame then waits beneath the power (step 3).
@@ -297,7 +344,7 @@ export function executeBasicPowerBy(
     ...(use.useAtk ? { useAtk: true as const } : {}),
     ...(divide ? { divide } : {}),
   });
-  const command = { ...basicPowerCommand(playerId, use, payment), ...(divide ? { divide } : {}) };
+  const command = { ...basicPowerCommand(playerId, use, payment, picked), ...(divide ? { divide } : {}) };
   const by = { instructed: true };
   const error = command.type === "basicAttack" ? basicAttack(ctx, command, by) : basicThwart(ctx, command, by);
   if (error) {

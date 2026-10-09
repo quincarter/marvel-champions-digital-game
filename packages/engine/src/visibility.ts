@@ -12,8 +12,15 @@
  *    read those cards (p. 27 "Look, Looked-At"), and the shuffle afterwards is what keeps the order secret; and for
  *    the top card of a player deck kept faceup by a card ("Play with the top card of your deck faceup",
  *    `RuleSpec topOfDeckFaceup`, docs/phase7-wave8.md §3.48), which every player sees while that rule holds;
+ *  - a card being played or resolving from out of play (a player's `resolving` area: an event while it resolves, RRG
+ *    1.8 "Event", p. 19; a card played off the top of a deck; an Invocation whose Special is resolving) is on the table
+ *    for every player to read, though nothing sets its `faceup` flag;
+ *  - a set-aside card (the scenario's, or a player's nemesis set) that an open decision is offering is read by the
+ *    player deciding ("add one set-aside ally to your hand": they choose among faces), as a card offered out of a
+ *    deck is;
  *  - everything else is open exactly when it is faceup, which covers a facedown boost card, a dealt encounter card, a
- *    tucked card and a set-aside nemesis set without naming any of them.
+ *    tucked card and a set-aside nemesis set without naming any of them. Being offered by a decision does not open any
+ *    of these: only the deck and set-aside arms read the open decision.
  *
  * This lives in the engine because two things need the same answer and must not fork: the client's card rendering
  * (`view/visibility.ts` delegates here) and `preview()`'s truncation rule, which is the thing that stops an outcome
@@ -28,6 +35,12 @@
  * look at (RRG 1.8 "Look, Looked-At", p. 27: "only the player who is resolving the ability can look at those cards")
  * has no table-wide answer, so it is face-visible only when a viewer is named and the permission is that viewer's.
  * Without a viewer (the log's card names, `preview()`'s truncation) the card stays hidden.
+ *
+ * A card a decision offers out of a set-aside area follows the same shape: with a viewer named it is visible to the
+ * player the decision belongs to and to no other viewer (p. 27 again); with no viewer named (the table, the log,
+ * `preview()`) it is visible, which is the answer the deck arms have always given for an offered card and the right
+ * one while one human holds every seat. A client that draws for one seat names that seat; one that draws the open
+ * decision's own sheet names the decision's player or the table.
  *
  * A permission every player holds because of a rule on a card (the faceup top card of a deck) needs the rules read
  * but no viewer: a `TableContext` carries the deps alone. A caller that passes neither gets the answer of the zones
@@ -63,12 +76,20 @@ const isDeckZone = (zone: ZoneId): boolean =>
  *
  * Every choice the engine opens over a deck is a real look: a search, or "look at the top 3". Deliberately not scoped
  * to deck zones here — the caller decides where it matters — because being offered a card that is facedown *in play*
- * (a facedown Drone as an attack target) does not turn it over.
+ * (a facedown Drone as an attack target) does not turn it over. Nor does this ask whose decision it is:
+ * `faceVisible` does, for the zones where that is the rule.
  */
 export const offeredByOpenChoice = (state: GameState, id: InstanceId): boolean =>
   state.pendingChoice?.options.some(
     (option) => (option.ref.kind === "card" || option.ref.kind === "ability") && option.ref.instanceId === id,
   ) ?? false;
+
+/**
+ * The open decision offers the card to this viewer: to whoever it belongs to when a viewer is named, and to the table
+ * when none is (see "Whose eyes" in the file comment).
+ */
+const offeredToViewer = (state: GameState, id: InstanceId, view: ViewerContext | TableContext | undefined): boolean =>
+  offeredByOpenChoice(state, id) && (!view || !("viewer" in view) || state.pendingChoice?.playerId === view.viewer);
 
 /**
  * "You may look at the top card of the encounter deck at any time" (`RuleSpec mayLookAtTopOfEncounterDeck`,
@@ -115,7 +136,12 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
     case "encounterDiscard":
     case "separateDiscard":
     case "victoryDisplay":
+    // Being played, or resolving from out of play: chosen and laid on the table (RRG 1.8 "Event", p. 19).
+    case "resolving":
       return true;
+    case "encounterSetAside":
+    case "setAside":
+      return instance.faceup || offeredToViewer(state, id, view);
     case "encounterDeck":
       return instance.faceup || offeredByOpenChoice(state, id) || viewerMayLookAtEncounterTop(state, id, view);
     case "deck":

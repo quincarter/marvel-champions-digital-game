@@ -106,43 +106,127 @@ const resolving = (cost: ResolveAbilityCost): EffectSpec => ({
 });
 
 /**
- * What a probe leaves different without anything in the game having changed: the stack itself, the counters that name
- * frames, choices and lasting effects, the per-ability use counts and the between-frames bookkeeping.
+ * Every field of the state, as a probe reads it: `game` is the game itself, compared before and after; `bookkeeping`
+ * is what resolving anything leaves different without the game having changed, and is not compared.
+ *
+ * The map is exhaustive over `GameState` by its type, so a field added to the state does not compile until it is
+ * placed here: a bookkeeping field cannot be forgotten and so read as a change (a cost judged payable that is not).
+ *
+ * Bookkeeping: the stack and the open choice; the counters that name frames, choices and lasting effects; the
+ * per-ability use counts ("Limit once per round" counts a resolution that did nothing); and the memory of what the
+ * between-frames checks and the log last saw (`stateChecks`, `hitPointsSeen`, `deckTopsAnnounced`), none of which the
+ * game is ever read from. The queues those checks drain (`pending…`) are game: a card left play or entered a hand.
  */
-const NOT_GAME_STATE: ReadonlySet<string> = new Set([
-  "stack",
-  "pendingChoice",
-  "nextFrameSeq",
-  "nextChoiceSeq",
-  "nextLastingSeq",
-  "abilityUses",
-  "stateChecks",
-]);
+export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" | "bookkeeping" } = {
+  stack: "bookkeeping",
+  pendingChoice: "bookkeeping",
+  nextFrameSeq: "bookkeeping",
+  nextChoiceSeq: "bookkeeping",
+  nextLastingSeq: "bookkeeping",
+  abilityUses: "bookkeeping",
+  stateChecks: "bookkeeping",
+  hitPointsSeen: "bookkeeping",
+  deckTopsAnnounced: "bookkeeping",
+  round: "game",
+  step: "game",
+  firstPlayerId: "game",
+  startingPlayerCount: "game",
+  players: "game",
+  villains: "game",
+  activeVillainId: "game",
+  villainRow: "game",
+  mainScheme: "game",
+  extraMainSchemes: "game",
+  gameAreas: "game",
+  nextGameAreaSeq: "game",
+  spentMainSchemeStages: "game",
+  revealedMainSchemes: "game",
+  scenarioRules: "game",
+  tableRules: "game",
+  encounterDecks: "game",
+  encounterDeckOrder: "game",
+  encounterSetAside: "game",
+  setAsideModularSets: "game",
+  scenarioDecks: "game",
+  pendingDeckRunOuts: "game",
+  pendingEncounterFromDeck: "game",
+  pendingEnteredHand: "game",
+  pendingLeftPlay: "game",
+  pendingStatusPlaced: "game",
+  pendingDeckDiscards: "game",
+  deckDiscardWindows: "game",
+  villainArea: "game",
+  victoryDisplay: "game",
+  removedFromGame: "game",
+  instances: "game",
+  cardPool: "game",
+  lastingEffects: "game",
+  heldAtZero: "game",
+  heldAtNoThreat: "game",
+  playedThisRound: "game",
+  playedThisPhase: "game",
+  playedByPlayerThisRound: "game",
+  attackedThisTurn: "game",
+  attacksThisTurn: "game",
+  characterActsThisPhase: "game",
+  revealedThisRound: "game",
+  playedThisTurn: "game",
+  playedByPlayerThisPhase: "game",
+  scenarioAreas: "game",
+  scenarioPlayAreas: "game",
+  campaign: "game",
+  campaignWrites: "game",
+  setupStack: "game",
+  villainsEnteringAtSetup: "game",
+  setupCardsAwaitingHost: "game",
+  outcome: "game",
+  rng: "game",
+  nextInstanceSeq: "game",
+};
 
-/** Whether two states hold the same game: every field outside `NOT_GAME_STATE`, by identity or else by content. */
-function sameGame(a: GameState, b: GameState): boolean {
-  const left = a as unknown as Record<string, unknown>;
-  const right = b as unknown as Record<string, unknown>;
-  for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
-    if (NOT_GAME_STATE.has(key) || left[key] === right[key]) continue;
-    if (JSON.stringify(left[key]) !== JSON.stringify(right[key])) return false;
+const GAME_FIELDS = (Object.keys(PROBE_FIELDS) as (keyof GameState)[]).filter((key) => PROBE_FIELDS[key] === "game");
+
+/** Whether two states hold the same game: every `game` field of `PROBE_FIELDS`, by identity or else by content. */
+export function sameGame(a: GameState, b: GameState): boolean {
+  for (const key of GAME_FIELDS) {
+    if (a[key] !== b[key] && JSON.stringify(a[key]) !== JSON.stringify(b[key])) return false;
   }
   return true;
 }
 
 /** Frames a probe runs before it stops looking and answers yes: far more than any printed ability resolves in. */
 const PROBE_FRAMES = 400;
-/** A probe is running: a cost judged from inside it is taken as payable, so probes never nest. */
-let probing = false;
+/**
+ * How deep probes nest. A cost judged while a probe resolves (an interrupt offered in one of its windows, a predicate
+ * that asks whether a power could be paid for) is probed in turn, on the outer probe's state; a cost asked about any
+ * deeper than this is not payable, which ends a cost whose abilities lead back to itself. Refusing is the side RRG 1.8
+ * "Initiating Abilities" (p. 24) errs on: an ability whose cost cannot be shown payable is not initiated.
+ */
+const PROBE_DEPTH_LIMIT = 2;
+/**
+ * How many probes deep a resolution is, carried on the deps a probe resolves with: a probe hands its frames a copy of
+ * the deps marked one deeper, and everything those frames call receives that copy. No state outside the call: a
+ * probe that throws leaves nothing set, and two games probing at once do not see each other.
+ */
+const PROBE_DEPTH = Symbol("probeDepth");
+type ProbeDeps = EngineDeps & { readonly [PROBE_DEPTH]?: number };
+const probeDepthOf = (deps: EngineDeps): number => (deps as ProbeDeps)[PROBE_DEPTH] ?? 0;
 
 /**
  * Whether resolving `ofId`'s abilities as this cost asks would change the game right now, found by resolving them on
  * a copy of the state (the state is immutable data, so the copy is the state itself and nothing here reaches the real
  * game or its log). The answer is yes as soon as the game would be over, a player would be asked a choice with
- * something to choose, or the state differs once the abilities have finished; no when no such ability is live on the
- * card (a blank text box, the wrong face) or everything they did left the game as it was (a discard with nothing to
- * discard, damage to nobody). The frames beneath stay on the copy's stack untouched, so the abilities read the same
- * surroundings they will read when the cost is paid.
+ * something to choose, or a `game` field of the state (`PROBE_FIELDS`) differs after a frame; no when no such ability
+ * is live on the card (a blank text box, the wrong face) or everything they did left the game as it was (a discard
+ * with nothing to discard, damage to nobody). The frames beneath stay on the copy's stack untouched, so the abilities
+ * read the same surroundings they will read when the cost is paid.
+ *
+ * **Between frames.** The game's own loop (`runFlow`) looks at the state between frames: it drains the `pending…`
+ * queues and fires condition-triggered abilities. The probe does not, and does not need to: each of those reacts to a
+ * game field that has already changed (a card that left play, damage that brought a character to zero), and the probe
+ * has answered yes at the frame that changed it, before any of them would have run. It is looked at after every frame
+ * for that reason, not once at the end: a change undone by a later frame (damage, then healing) is still a change.
+ * The one thing this cannot see is a condition that reads the stack alone, which no game field records.
  */
 export function resolvingWouldChange(
   state: GameState,
@@ -152,28 +236,26 @@ export function resolvingWouldChange(
   ofId: InstanceId,
   cost: ResolveAbilityCost,
 ): boolean {
-  if (probing) return true;
-  probing = true;
-  try {
-    const before: GameState = { ...state, pendingChoice: null };
-    const ctx = createCtx(before, deps);
-    const depth = before.stack.length;
-    pushEffects(ctx, {
-      effects: [resolving(cost)],
-      selfInstanceId: sourceId,
-      controllerId: playerId,
-      bindings: { [OF_SLOT]: [ofId] },
-    });
-    for (let frames = 0; ctx.state.stack.length > depth; frames++) {
-      if (frames >= PROBE_FRAMES) return true;
-      executeFrame(ctx);
-      if (ctx.state.outcome !== before.outcome) return true;
-      if (ctx.state.pendingChoice) return ctx.state.pendingChoice.options.length > 0;
-    }
-    return !sameGame(before, ctx.state);
-  } finally {
-    probing = false;
+  const depth = probeDepthOf(deps);
+  if (depth >= PROBE_DEPTH_LIMIT) return false;
+  const probeDeps: ProbeDeps = { ...deps, [PROBE_DEPTH]: depth + 1 };
+  const before: GameState = { ...state, pendingChoice: null };
+  const ctx = createCtx(before, probeDeps);
+  const floor = before.stack.length;
+  pushEffects(ctx, {
+    effects: [resolving(cost)],
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    bindings: { [OF_SLOT]: [ofId] },
+  });
+  for (let frames = 0; ctx.state.stack.length > floor; frames++) {
+    if (frames >= PROBE_FRAMES) return true;
+    executeFrame(ctx);
+    if (ctx.state.outcome !== before.outcome) return true;
+    if (!sameGame(before, ctx.state)) return true;
+    if (ctx.state.pendingChoice) return ctx.state.pendingChoice.options.length > 0;
   }
+  return false;
 }
 
 /**

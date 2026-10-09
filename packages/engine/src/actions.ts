@@ -776,6 +776,12 @@ export function playCostModifier(
   );
 }
 
+/**
+ * The card types a play can put loose into an in-play scenario area (`playCard.into`): the ones that enter play
+ * unattached in a play area, which is where `executePlayCardFrame` reads the destination.
+ */
+const PLAYED_INTO_A_PLAY_AREA: ReadonlySet<AnyCard["type"]> = new Set<AnyCard["type"]>(["ally", "support"]);
+
 /** The additional cost on this character's own basic power, if it has one (`basicPowerCosts`). */
 export function basicPowerCost(
   state: GameState,
@@ -3800,11 +3806,15 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (controllerId !== command.playerId) {
       return engineError("no_valid_target", "a card played into that area is under no player's control", command);
     }
-    if (
-      (card.type !== "ally" && card.type !== "support") ||
-      !playDestinationsOf(ctx.state, ctx.deps, command.cardInstanceId).includes(area)
-    ) {
+    // Which cards may go there is the rule's own `cards` query, read by `playDestinationsOf` and by nothing else.
+    if (!playDestinationsOf(ctx.state, ctx.deps, command.cardInstanceId).includes(area)) {
       return engineError("no_valid_target", "that card cannot be played into that area right now", command);
+    }
+    // What is left is not the rule's to say: a play puts a card loose into an area only when the card enters play
+    // unattached in a play area (`executePlayCardFrame`). An upgrade a rule names is in the area on its host
+    // (`playDestination.attachments`), and an event never enters play; neither is quietly played somewhere else.
+    if (!PLAYED_INTO_A_PLAY_AREA.has(card.type)) {
+      return engineError("no_valid_target", "a card of that type is not played into an area of its own", command);
     }
   }
 
@@ -5166,6 +5176,13 @@ function dividedShares(
  *   recalculated with every active modifier; "Assault", p. 8, and docs/phase7-wave7.md §4.1 Q3: a divided basic
  *   thwart is one basic thwart). The scratch copy has the thwart on its stack, as the undivided thwart has when it
  *   reads its own THW.
+ * - **An attack's stat is read while that attack is being made**, for the same reason: "+1 ATK while making a basic
+ *   attack" counts toward what is divided, as it counts for the undivided attack, which reads its ATK with its own
+ *   event on the stack (RRG 1.8 FAQ "Wasp (#1C)", p. 61: the divided attack is her basic attack). The scratch copy has
+ *   the attack on the division's first target on its stack, the first attack the command pushes. A bonus that reads
+ *   which enemy is attacked (`attackInProgress.target`) is therefore read against that first target alone; no
+ *   official source says how such a bonus divides, and an attack event names one target where a thwart's names every
+ *   scheme (`dividedAmong`).
  */
 export function dividedBasicPowerValue(
   state: GameState,
@@ -5197,6 +5214,15 @@ export function dividedBasicPowerValue(
       basic: true,
       dividedAmong: targets,
       ...(stat === "atk" ? { useAtk: true as const } : {}),
+    });
+  }
+  if (power === "attack" && firstTarget !== undefined) {
+    pushEvent(reading, {
+      kind: "attack",
+      attackerInstanceId: characterId,
+      targetInstanceId: firstTarget,
+      playerId,
+      basic: true,
     });
   }
   return characterProfile(reading.state, characterId, deps)?.[stat] ?? 0;
