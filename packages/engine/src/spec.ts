@@ -293,7 +293,8 @@ export interface TargetQuery {
   readonly hasThreat?: boolean;
   /**
    * At least one counter of this type is on the card: "the main scheme with the glider counter" (Venom Goblin, MC27
-   * p. 17; docs/phase7-wave5.md §3.3). Exclusion `missingCounter`.
+   * p. 17; docs/phase7-wave5.md §3.3). Exclusion `missingCounter`. `"any"`: at least one all-purpose counter of any
+   * type ("a S.H.I.E.L.D. support with a counter", docs/phase7-wave9.md §3.6); acceleration tokens are not counters.
    */
   readonly hasCounter?: string;
   readonly damaged?: boolean;
@@ -903,6 +904,7 @@ export type ValueSpec =
       readonly printed?: true;
       readonly base?: true;
     }
+  /** `counterType: "any"`: every all-purpose counter on the card, whatever its type (docs/phase7-wave9.md §3.6). */
   | { readonly kind: "counters"; readonly of: TargetRef; readonly counterType: string }
   | { readonly kind: "eventAmount" }
   /**
@@ -1278,6 +1280,7 @@ export type Predicate =
    * has no valid target.
    */
   | { readonly kind: "canRemoveThreatFrom"; readonly scheme: TargetRef; readonly ignoreCrisis?: true }
+  /** `counterType: "any"` counts every all-purpose counter on the card (docs/phase7-wave9.md §3.6). */
   | { readonly kind: "counterAtLeast"; readonly of: TargetRef; readonly counterType: string; readonly amount: number }
   | { readonly kind: "damagedAtLeast"; readonly of: TargetRef; readonly amount: number }
   | { readonly kind: "not"; readonly of: Predicate }
@@ -3253,6 +3256,13 @@ export type EffectSpec =
   | {
       readonly kind: "addCounters";
       readonly target: TargetRef;
+      /**
+       * `"allPurpose"`: "place 1 all-purpose counter on [a card]". Each target stores them under the type it defines
+       * (its `uses` keyword's, else `BaseCard.definedCounterTypes`), and under `allPurpose` when it defines none
+       * (`definedCounterType`). RRG 1.8 "All-Purpose Counter" (p. 6), MC50 rulebook p. 4, ruling Jan 26, 2026 (2).
+       * `upTo`, `bind` and the `countersPlaced` announcement all read that stored type. Any other word is stored as
+       * written. docs/phase7-wave9.md §3.6.
+       */
       readonly counterType: string;
       readonly amount: ValueSpec;
       /**
@@ -3273,6 +3283,14 @@ export type EffectSpec =
        * Omitted: "discard all counters from [target]" (Green Gobbler, `spiderham` 30026) — every counter type
        * currently on the target is removed in full, not just one named type. `amount` is meaningless in that form
        * (each type's whole count is removed) and is omitted too.
+       *
+       * `"any"`: "remove 1 all-purpose counter from [a card]" (RRG 1.8 "All-Purpose Counter", p. 6: an ability that
+       * refers to an all-purpose counter "can refer to any all-purpose counter, regardless of what other types that
+       * counter might have"). `amount` is then the number taken from each target in all, across its types (absent:
+       * every counter; acceleration tokens are never taken). When a target holds several types and fewer are taken
+       * than it holds, the player resolving the effect picks which (`ChoicePrompt chooseCounters`); an effect nobody
+       * controls takes the card's defined type first. Each stored type taken is its own `countersRemoved`, so "the
+       * last lock counter is removed" and a uses card's discard hear it as a removal by name. docs/phase7-wave9.md §3.6.
        */
       readonly counterType?: string;
       readonly amount?: ValueSpec;
@@ -3706,9 +3724,34 @@ export type EffectSpec =
    * "Move the glider counter to the main scheme with the least threat" (Venom Goblin, MC27 p. 17); "moving all counters
    * on this card … to her" (SP//dr Suit 1B, `spdr` 31001b). Every counter of `counterType` (absent: of every type) on
    * each card `from` names goes to the first card `to` names; with no `to`, nothing moves. A move is not a removal, so
-   * it announces no `countersRemoved` and never empties a uses card. Log `countersMoved`. docs/phase7-wave5.md §3.3.
+   * it announces no `countersRemoved`. Log `countersMoved`. docs/phase7-wave5.md §3.3.
+   *
+   * All-purpose counters (docs/phase7-wave9.md §3.6; RRG 1.8 "All-Purpose Counter", p. 6; MC50 rulebook p. 4):
+   *
+   * - `amount`: "Move 1 all-purpose counter" moves that many from each `from` card, capped at what it holds (absent:
+   *   all of them, as above). With a named `counterType` that many of that type; with none, that many of each type.
+   * - `counterType: "any"`: counters of any type, `amount` in all across the card's types (acceleration tokens stay).
+   *   When the card holds several types and fewer are moved than it holds, the player resolving the effect picks
+   *   which (`ChoicePrompt chooseCounters`).
+   * - **Retyped on arrival.** A moved counter "loses any previous type it had and gains the type defined on the new
+   *   card it occupies": it is stored under the destination's defined type (`definedCounterTypeOrNull`: its `uses`
+   *   keyword's, else `BaseCard.definedCounterTypes`). Onto a card that defines none, a counter moved as `"any"`
+   *   becomes plain `allPurpose` ("considered only an 'all-purpose counter'"), and one moved by name or with no
+   *   `counterType` keeps its key: the cards written before `definedCounterTypes` existed (a glider counter between
+   *   main schemes, a suit's counters to its identity) carry no such data, and their destinations read the old name.
+   * - **Placed.** The destination hears `countersPlaced` with the type the counters arrived as, and the log's
+   *   `countersMoved` carries both types.
+   * - **A uses card emptied by the move is discarded** (RRG 1.8 "Uses", p. 46: the keyword is the constant ability
+   *   "If there are no all-purpose counters on this card, discard this card"), or added to the victory display with
+   *   Victory X, once every card of this effect has moved its counters.
    */
-  | { readonly kind: "moveCounters"; readonly from: TargetRef; readonly to: TargetRef; readonly counterType?: string }
+  | {
+      readonly kind: "moveCounters";
+      readonly from: TargetRef;
+      readonly to: TargetRef;
+      readonly counterType?: string;
+      readonly amount?: ValueSpec;
+    }
   /**
    * "Remove Kang (Immortus) and this stage from the game": a villain leaves play, removed from the game rather than
    * defeated (no When Defeated, no win). Its attachments and boost cards are discarded as it leaves.

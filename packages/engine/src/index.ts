@@ -35,6 +35,13 @@ export type {
 export { NO_STATUSES } from "./state.js";
 
 export { cardTypeName, isRulesCardType, RULES_CARD_TYPES, type RulesCardType } from "./card-types.js";
+export {
+  ALL_PURPOSE_COUNTER,
+  ANY_COUNTER,
+  countersOfType,
+  definedCounterType,
+  definedCounterTypeOrNull,
+} from "./counter-types.js";
 
 export type {
   AttackInProgress,

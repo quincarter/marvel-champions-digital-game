@@ -220,13 +220,19 @@ export type GameEvent =
     }
   /** A villain was removed from the game without being defeated (`removeVillain`). */
   | { readonly type: "villainRemoved"; readonly instanceId: InstanceId }
-  /** Counters moved from one card to another (`EffectSpec moveCounters`, docs/phase7-wave5.md §3.3). */
+  /**
+   * Counters moved from one card to another (`EffectSpec moveCounters`, docs/phase7-wave5.md §3.3). `counterType` is
+   * the type they had on `from`. `toCounterType` is the type they have on `to` when that differs: an all-purpose
+   * counter "loses any previous type it had and gains the type defined on the new card it occupies" (RRG 1.8
+   * "All-Purpose Counter", p. 6; docs/phase7-wave9.md §3.6). Absent: they kept their type.
+   */
   | {
       readonly type: "countersMoved";
       readonly from: InstanceId;
       readonly to: InstanceId;
       readonly counterType: string;
       readonly amount: number;
+      readonly toCounterType?: string;
     }
   /** A main scheme stage turned to its other face (Venom Goblin's environments; docs/phase7-wave5.md §3.3). */
   | {

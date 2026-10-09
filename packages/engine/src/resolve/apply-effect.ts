@@ -33,6 +33,7 @@ import {
   removeAccelerationToken,
   removeCounters,
   moveCounters,
+  discardEmptiedUsesCard,
   flipVillain,
   removeStatus,
   discardStatusCards,
@@ -46,10 +47,11 @@ import {
   settleAwaitingAttackEffects,
   turnToFlipSide,
 } from "../effects.js";
+import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } from "../counter-types.js";
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { printedFormTypes, statusActive } from "../keywords.js";
+import { printedFormTypes, statusActive, usesKeyword } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { AttachmentBound, LastingDuration, LastingEffectBody, LastingScope } from "../lasting.js";
@@ -1411,12 +1413,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const events: TriggerEvent[] = [];
       for (const id of targets(effect.target)) {
         // "(to a maximum of X)" is local to this effect (ruling, Mar 30, 2026 (1); docs/phase7-wave3.md §3.10).
-        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
+        // An all-purpose counter takes the type its new card defines (docs/phase7-wave9.md §3.6).
+        const counterType = landingCounterType(ctx.state, id, effect.counterType, ctx.deps);
+        const held = getInstance(ctx.state, id)?.counters[counterType] ?? 0;
         const count = upTo === null ? amount : Math.max(0, Math.min(amount, upTo - held));
-        addCounters(ctx, id, effect.counterType, count);
+        addCounters(ctx, id, counterType, count);
         placed += Math.max(0, count);
         // One announcement per placement, with the number placed (docs/phase7-wave6.md §3.2, §4.1 Q8).
-        if (count > 0) events.push(countersPlaced(id, effect.counterType, count, frame.controllerId));
+        if (count > 0) events.push(countersPlaced(id, counterType, count, frame.controllerId));
       }
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: placed });
       pushHeard(events);
@@ -1464,10 +1468,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of targets(effect.target)) {
         const instance = getInstance(ctx.state, id);
         if (!instance) continue;
-        const counterTypes = effect.counterType ? [effect.counterType] : Object.keys(instance.counters);
+        // "Any": the counters taken from this card across its types, the player's pick where there was one to make
+        // (docs/phase7-wave9.md §3.6); each stored type is then removed by name, as below.
+        const any =
+          effect.counterType === ANY_COUNTER
+            ? anyCounterTake(
+                ctx.state,
+                id,
+                effect.amount === undefined ? undefined : value(effect.amount),
+                anyCounterPickOf(frame.vars, frame.frameId, frame.cursor, id),
+                ctx.deps,
+              ).byType
+            : null;
+        const counterTypes = any
+          ? any.map(([counterType]) => counterType)
+          : effect.counterType
+            ? [effect.counterType]
+            : Object.keys(instance.counters);
         for (const counterType of counterTypes) {
           const held = instance.counters[counterType] ?? 0;
-          const removing = effect.amount !== undefined ? Math.min(value(effect.amount), held) : held;
+          const taken = any?.find(([type]) => type === counterType)?.[1];
+          const removing =
+            taken !== undefined ? taken : effect.amount !== undefined ? Math.min(value(effect.amount), held) : held;
           if (removing <= 0) continue;
           const event: TriggerEvent = {
             kind: "countersRemoved",
@@ -2123,11 +2145,31 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "moveCounters": {
       const [to] = targets(effect.to);
       if (!to) return;
-      // Counters moved onto `to` are placed there (docs/phase7-wave6.md §3.2): one announcement per type moved.
+      // Counters moved onto `to` are placed there (docs/phase7-wave6.md §3.2): one announcement per card they came
+      // from and type they arrived as (docs/phase7-wave9.md §3.6: two types that both became the destination's are one
+      // placement of that type).
       const events: TriggerEvent[] = [];
-      for (const from of targets(effect.from))
-        for (const moved of moveCounters(ctx, from, to, effect.counterType))
-          events.push(countersPlaced(to, moved.counterType, moved.amount, frame.controllerId));
+      const amount = effect.amount === undefined ? undefined : value(effect.amount);
+      const emptied: InstanceId[] = [];
+      for (const from of targets(effect.from)) {
+        const pick =
+          effect.counterType === ANY_COUNTER
+            ? anyCounterPickOf(frame.vars, frame.frameId, frame.cursor, from)
+            : undefined;
+        const moved = moveCounters(ctx, from, to, effect.counterType, {
+          ...(amount === undefined ? {} : { amount }),
+          ...(pick ? { pick } : {}),
+        });
+        const arrived = new Map<string, number>();
+        for (const counters of moved)
+          arrived.set(counters.counterType, (arrived.get(counters.counterType) ?? 0) + counters.amount);
+        for (const [counterType, count] of arrived)
+          events.push(countersPlaced(to, counterType, count, frame.controllerId));
+        const usesType = usesKeyword(ctx.state, from, ctx.deps)?.counterType;
+        if (moved.some((counters) => counters.fromCounterType === usesType)) emptied.push(from);
+      }
+      // RRG 1.8 "Uses" (p. 46): a uses card left with none of its counters is discarded, once the move is done.
+      for (const from of emptied) discardEmptiedUsesCard(ctx, from);
       pushHeard(events);
       return;
     }

@@ -146,6 +146,21 @@ export type ChoicePrompt =
       readonly min: number;
       readonly max: number;
     }
+  /**
+   * "Remove 1 all-purpose counter from [a card]" / "move 1 all-purpose counter" (`counterType: "any"`,
+   * docs/phase7-wave9.md §3.6) from a card that holds counters of several types, with fewer taken than it holds: the
+   * player resolving the effect picks which. RRG 1.8 "All-Purpose Counter" (p. 6): such an ability "can refer to any
+   * all-purpose counter, regardless of what other types that counter might have". One option per counter that could
+   * go (at most `amount` of a type), its `optionId` `<type>#<n>` and its label the type; exactly `amount` are
+   * selected. `byType` is what the card holds. Not asked when the card holds one type or every counter goes.
+   */
+  | {
+      readonly kind: "chooseCounters";
+      readonly instanceId: InstanceId;
+      readonly amount: number;
+      readonly reason: "remove" | "move";
+      readonly byType: Readonly<Record<string, number>>;
+    }
   /** Paying for an interrupt/response event played from hand inside a timing window. */
   | {
       readonly kind: "payForCard";

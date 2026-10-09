@@ -2329,12 +2329,17 @@ export const moveActiveCounterToNextInRow: EffectSpec = { kind: "moveActiveCount
 /**
  * "Move the glider counter to the main scheme with the least threat" (MC27 p. 17): every counter of `counterType`
  * (absent: every type) on the cards `from` names goes to the first card `to` names. docs/phase7-wave5.md §3.3.
+ *
+ * `n` (docs/phase7-wave9.md §3.6): "Move 1 all-purpose counter from a S.H.I.E.L.D. support to another" is
+ * `moveCounters(from, to, "any", 1)`: that many, of any type, stored on `to` under the type `to` defines (RRG 1.8
+ * "All-Purpose Counter", p. 6). A uses card the move leaves with none of its counters is discarded.
  */
-export const moveCounters = (from: TargetRef, to: TargetRef, counterType?: string): EffectSpec => ({
+export const moveCounters = (from: TargetRef, to: TargetRef, counterType?: string, n?: Amount): EffectSpec => ({
   kind: "moveCounters",
   from,
   to,
   ...(counterType !== undefined ? { counterType } : {}),
+  ...(n !== undefined ? { amount: amount(n) } : {}),
 });
 /** "Remove [villain] and this stage from the game." */
 export const removeVillain = (villain: TargetRef): EffectSpec => ({ kind: "removeVillain", villain });

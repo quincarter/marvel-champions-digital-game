@@ -8,6 +8,7 @@ import {
   type RuleSpec,
 } from "./abilities.js";
 import { isRulesCardType, type RulesCardType } from "./card-types.js";
+import { countersOfType } from "./counter-types.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
   activeFormType,
@@ -1277,7 +1278,7 @@ export function explainQuery(
     return query.exhausted ? "ready" : "exhausted";
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat)
     return query.hasThreat ? "noThreat" : "hasThreat";
-  if (query.hasCounter !== undefined && (instance.counters[query.hasCounter] ?? 0) <= 0) return "missingCounter";
+  if (query.hasCounter !== undefined && countersOfType(state, id, query.hasCounter) <= 0) return "missingCounter";
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged)
     return query.damaged ? "notDamaged" : "damaged";
   // The status cards of a card that has left play are its last known ones (`EffectContext.lastKnown`).
@@ -2353,7 +2354,7 @@ export function resolveValue(
     case "counters": {
       const [id] = resolveRef(state, value.of, context);
       if (!id) return 0;
-      return getInstance(state, id)?.counters[value.counterType] ?? 0;
+      return countersOfType(state, id, value.counterType);
     }
     case "eventAmount":
       return eventAmount(state, deps, context.event);
@@ -2667,7 +2668,7 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "counterAtLeast": {
       const [id] = resolveRef(state, predicate.of, context);
-      const counters = id ? (getInstance(state, id)?.counters[predicate.counterType] ?? 0) : 0;
+      const counters = id ? countersOfType(state, id, predicate.counterType) : 0;
       return counters >= predicate.amount;
     }
     case "damagedAtLeast": {

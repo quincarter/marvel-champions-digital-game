@@ -1,6 +1,7 @@
 import type { CardId, VillainSideLetter } from "@mc/content";
 import { announceDeckTops } from "./deck-top.js";
 import type { EngineDeps } from "./abilities.js";
+import { ALL_PURPOSE_COUNTER, ANY_COUNTER, anyCounterTake, definedCounterTypeOrNull } from "./counter-types.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import {
   emit,
@@ -365,33 +366,53 @@ export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amoun
   emit(ctx, { type: "counterAdded", instanceId: id, counterType, amount });
 }
 
+/** What one type's worth of a move did: `amount` counters of `fromCounterType` arrived on `to` as `counterType`. */
+export interface MovedCounters {
+  readonly counterType: string;
+  readonly fromCounterType: string;
+  readonly amount: number;
+}
+
 /**
- * `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. Returns
- * the counters (not acceleration tokens, which have `accelerationTokenPlaced`) it moved, per type, for the
- * `countersPlaced` announcement (docs/phase7-wave6.md §3.2).
+ * `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`, or
+ * `options.amount` of them (docs/phase7-wave9.md §3.6). Returns the counters (not acceleration tokens, which have
+ * `accelerationTokenPlaced`) it moved, per type, for the `countersPlaced` announcement (docs/phase7-wave6.md §3.2).
+ *
+ * `counterType` `ANY_COUNTER`: `amount` counters in all, across the card's types (`anyCounterTake`; `options.pick` is
+ * the player's choice where there was one to make). Counters are stored on `to` under the type it defines (RRG 1.8
+ * "All-Purpose Counter", p. 6); see `EffectSpec moveCounters` for a destination that defines none. Nothing is discarded
+ * here: a uses card the move emptied is the caller's to discard (`discardEmptiedUsesCard`), since a flip that carries
+ * its counters across (`separated-identity.ts`) is not an effect that empties a card.
  */
 export function moveCounters(
   ctx: Ctx,
   from: InstanceId,
   to: InstanceId,
   counterType?: string,
-): readonly { readonly counterType: string; readonly amount: number }[] {
+  options: { readonly amount?: number; readonly pick?: Readonly<Record<string, number>> } = {},
+): readonly MovedCounters[] {
   if (from === to) return [];
-  const moved: { counterType: string; amount: number }[] = [];
+  const moved: MovedCounters[] = [];
+  const most = options.amount === undefined ? Number.POSITIVE_INFINITY : Math.max(0, options.amount);
   // Acceleration tokens (docs/phase7-wave5.md §3.4): a main scheme's are its `accelerationTokens`, any other card's its
   // `acceleration` counter; "Move … each acceleration token from here to the main scheme" moves them either way.
   if (counterType === undefined || counterType === ACCELERATION_COUNTER) {
     const fromScheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === from);
     const toScheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === to);
-    const tokens = fromScheme
+    const heldTokens = fromScheme
       ? fromScheme.accelerationTokens
       : (mustInstance(ctx.state, from).counters[ACCELERATION_COUNTER] ?? 0);
+    const tokens = Math.min(heldTokens, most);
     if (tokens > 0 && (fromScheme || toScheme)) {
-      if (fromScheme) updateMainSchemeState(ctx, from, (s) => ({ ...s, accelerationTokens: 0 }));
+      if (fromScheme)
+        updateMainSchemeState(ctx, from, (s) => ({ ...s, accelerationTokens: s.accelerationTokens - tokens }));
       else
         updateInstance(ctx, from, (i) => {
           const { [ACCELERATION_COUNTER]: _moved, ...rest } = i.counters;
-          return { ...i, counters: rest };
+          return {
+            ...i,
+            counters: tokens < heldTokens ? { ...rest, [ACCELERATION_COUNTER]: heldTokens - tokens } : rest,
+          };
         });
       if (toScheme)
         updateMainSchemeState(ctx, to, (s) => ({ ...s, accelerationTokens: s.accelerationTokens + tokens }));
@@ -404,17 +425,53 @@ export function moveCounters(
     }
   }
   const held = mustInstance(ctx.state, from).counters;
-  for (const [type, amount] of Object.entries(held)) {
-    if ((counterType !== undefined && type !== counterType) || amount <= 0) continue;
+  const going: readonly (readonly [string, number])[] =
+    counterType === ANY_COUNTER
+      ? anyCounterTake(ctx.state, from, options.amount, options.pick, ctx.deps).byType
+      : Object.entries(held)
+          .filter(([type]) => counterType === undefined || type === counterType)
+          .map(([type, amount]) => [type, Math.min(amount, most)] as const);
+  // The type the destination defines, read once: the counters arriving do not change it.
+  const defined = definedCounterTypeOrNull(ctx.state, to, ctx.deps);
+  for (const [type, amount] of going) {
+    if (amount <= 0) continue;
+    const arrivesAs =
+      type === ACCELERATION_COUNTER ? type : (defined ?? (counterType === ANY_COUNTER ? ALL_PURPOSE_COUNTER : type));
     updateInstance(ctx, from, (i) => {
-      const { [type]: _moved, ...rest } = i.counters;
-      return { ...i, counters: rest };
+      const { [type]: had = 0, ...rest } = i.counters;
+      return { ...i, counters: amount < had ? { ...rest, [type]: had - amount } : rest };
     });
-    updateInstance(ctx, to, (i) => ({ ...i, counters: { ...i.counters, [type]: (i.counters[type] ?? 0) + amount } }));
-    emit(ctx, { type: "countersMoved", from, to, counterType: type, amount });
-    if (type !== ACCELERATION_COUNTER) moved.push({ counterType: type, amount });
+    updateInstance(ctx, to, (i) => ({
+      ...i,
+      counters: { ...i.counters, [arrivesAs]: (i.counters[arrivesAs] ?? 0) + amount },
+    }));
+    emit(ctx, {
+      type: "countersMoved",
+      from,
+      to,
+      counterType: type,
+      amount,
+      ...(arrivesAs !== type ? { toCounterType: arrivesAs } : {}),
+    });
+    if (type !== ACCELERATION_COUNTER) moved.push({ counterType: arrivesAs, fromCounterType: type, amount });
   }
   return moved;
+}
+
+/**
+ * RRG 1.8 "Uses (X 'type')" (p. 46): the keyword "is equivalent to the following constant ability: 'This card enters
+ * play with X all-purpose counters. These are "type counters." If there are no all-purpose counters on this card,
+ * discard this card.'" So a uses card whose last counter was moved to another card is discarded as one whose last
+ * counter was removed is (`removeCounters`), or added to the victory display with Victory X (p. 46). Called once a
+ * move has finished, for a card it took counters of the keyword's type from. docs/phase7-wave9.md §3.6.
+ */
+export function discardEmptiedUsesCard(ctx: Ctx, id: InstanceId): boolean {
+  const uses = usesKeyword(ctx.state, id, ctx.deps);
+  if (!uses || (mustInstance(ctx.state, id).counters[uses.counterType] ?? 0) > 0) return false;
+  if (!cardsInPlay(ctx.state).includes(id)) return false;
+  if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  else discardFromPlay(ctx, id);
+  return true;
 }
 
 export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): number {

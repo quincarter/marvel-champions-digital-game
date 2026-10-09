@@ -32,6 +32,13 @@ import {
 } from "../form-change-cost.js";
 import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
 import {
+  allPurposeCountersOn,
+  ANY_COUNTER,
+  anyCounterPickMadeVar,
+  anyCounterPickVar,
+  anyCounterTake,
+} from "../counter-types.js";
+import {
   PLAY_TO_OWN_AREA,
   playToAreaOption,
   type ChoiceList,
@@ -334,6 +341,12 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     return;
 
   if (effect.kind === "putIntoPlay" && askPutIntoPlayHost(ctx, frame, effect, context)) return;
+  // docs/phase7-wave9.md §3.6: which of a card's counters "1 all-purpose counter" is, where its types differ.
+  if (
+    (effect.kind === "removeCounters" || effect.kind === "moveCounters") &&
+    askAnyCounters(ctx, frame, effect, context)
+  )
+    return;
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
@@ -1844,6 +1857,68 @@ function executeChooseSeveral(
       byPlayer: frame.byPlayer === true,
     });
   }
+}
+
+/**
+ * "Remove / move N all-purpose counters" (`counterType: "any"`, docs/phase7-wave9.md §3.6) from a card holding several
+ * types, fewer than it holds: the player resolving the effect picks which (`ChoicePrompt chooseCounters`), one card at
+ * a time in target order. The answer is kept in the frame's vars under this effect's own place
+ * (`anyCounterPickVar`), where `applyEffect` reads it. Returns true while a choice is open or was just recorded (the
+ * frame is re-read). An effect no player resolves is not asked: `anyCounterTake`'s default order decides.
+ */
+function askAnyCounters(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "removeCounters" | "moveCounters" }>,
+  context: EffectContext,
+): boolean {
+  if (effect.counterType !== ANY_COUNTER) return false;
+  const playerId = context.controllerId ?? context.scopedPlayerId ?? null;
+  if (!playerId) return false;
+  const amount = effect.amount === undefined ? undefined : resolveValue(ctx.state, effect.amount, context, ctx.deps);
+  const sources = resolveRef(ctx.state, effect.kind === "removeCounters" ? effect.target : effect.from, context);
+  for (const id of sources) {
+    if (frame.vars[anyCounterPickMadeVar(frame.frameId, frame.cursor, id)] === 1) continue;
+    const { take, ambiguous } = anyCounterTake(ctx.state, id, amount, undefined, ctx.deps);
+    if (!ambiguous) continue;
+    const held = allPurposeCountersOn(ctx.state, id);
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId,
+        prompt: {
+          kind: "chooseCounters",
+          instanceId: id,
+          amount: take,
+          reason: effect.kind === "removeCounters" ? "remove" : "move",
+          byType: Object.fromEntries(held),
+        },
+        options: held.flatMap(([type, count]) =>
+          Array.from({ length: Math.min(count, take) }, (_, index) => ({
+            optionId: `${type}#${index + 1}`,
+            label: type,
+            ref: { kind: "none" } as const,
+          })),
+        ),
+        minSelections: take,
+        maxSelections: take,
+        frameId: frame.frameId,
+      });
+      return true;
+    }
+    const picked: Record<string, number> = {};
+    for (const optionId of frame.answer) {
+      const type = optionId.slice(0, optionId.lastIndexOf("#"));
+      picked[anyCounterPickVar(frame.frameId, frame.cursor, id, type)] =
+        (picked[anyCounterPickVar(frame.frameId, frame.cursor, id, type)] ?? 0) + 1;
+    }
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: { ...frame.vars, ...picked, [anyCounterPickMadeVar(frame.frameId, frame.cursor, id)]: 1 },
+    });
+    return true;
+  }
+  return false;
 }
 
 /**

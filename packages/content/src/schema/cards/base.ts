@@ -87,4 +87,15 @@ export interface BaseCard {
    * `"encounter"` otherwise (`cardBackOf` in `@mc/engine`). Only an exception needs it written.
    */
   readonly cardBack?: "encounter" | "player";
+  /**
+   * The counter types this card's own text defines without a `uses` keyword: "lock" for a card that reads "place 4
+   * lock counters here". RRG 1.8 "All-Purpose Counter" (p. 6): a moved all-purpose counter "gains the type defined on
+   * the new card it occupies. If the new card does not define a type, it is considered only an 'all-purpose
+   * counter.'" The MC50 rulebook (p. 4) says the same of a counter placed on a card. A type is the key the engine
+   * stores its counters under (`CardInstance.counters`), the way a `uses` keyword's `counterType` is.
+   *
+   * Absent when the card defines no type or only its `uses` keyword's (`definedCounterType` in `@mc/engine` reads the
+   * keyword first). docs/phase7-wave9.md §1.6.
+   */
+  readonly definedCounterTypes?: readonly string[];
 }
