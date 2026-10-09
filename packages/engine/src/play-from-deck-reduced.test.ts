@@ -111,7 +111,7 @@ function run(t: ReturnType<typeof start>, want: string | null, pay?: number) {
       return option ? [option.optionId] : defaultPick(state);
     }
     if (choice?.prompt.kind === "spendResources") {
-      const generic = choice.prompt.requirement.generic;
+      const generic = choice.prompt.requirement.generic ?? 0;
       seen.asked.push({ generic, options: choice.options.length });
       return choice.options.slice(0, pay ?? generic).map((o) => o.optionId);
     }

@@ -255,3 +255,12 @@ register). Spec §3.40 still needs a `byPlayerCard` hook in the engine. Possible
 scans: Rescued Captive, Scientist Supreme and Monica Rappaccini carry `victory` with `value: -1` in `aos/cards.ts`.
 Note for Silk's other modules: a `stateCheck` is edge-triggered, so a cap that removes several cards must do it in one
 firing.
+
+**Update, the last agent finished (2026-10-09):** the three skipped refs are closed and registered
+(`51001b.inventor` via `playFromDeckReducingCost`; `51007.the-elephants-trunk-action` via
+`exhaustCardsCost(q, { includingThis: true, max, bind })` and the engine's `InPlayCostPick.includesSelf`;
+`50159.aerial-dogfight-constant` via `reduceDamageTaken.exceptAttackCard` / `exceptAttackKeyword`). The agent reported
+engine 5,298 passed and both typechecks clean; **the main session did not rerun the suites**, so start by running
+them. Everything is on the branch from the WIP commit b8b928f6 on (still marked unverified). Left from it: lock the
+source card as picked in `packages/client/src/view/in-play-cost-choice.ts`; an owner question, whether Shuri's
+Inventor search may be failed on purpose (built as required, no "may" printed); a changie fragment for these fixes.

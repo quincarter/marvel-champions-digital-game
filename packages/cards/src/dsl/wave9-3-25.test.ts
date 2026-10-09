@@ -44,7 +44,7 @@ describe("§3.25 `reducesAttackDamageTaken` with the attack's own exceptions", (
       kind: "constant",
       rules: [{ kind: "reduceDamageTaken", target: { self: true }, amount: 1, fromAttack: true }],
     });
-    const [rule] = (definition.trigger as { rules: object[] }).rules;
+    const [rule] = (definition.trigger as { rules: readonly object[] }).rules;
     expect(Object.keys(rule!).sort()).toEqual(["amount", "fromAttack", "kind", "target"]);
   });
 });

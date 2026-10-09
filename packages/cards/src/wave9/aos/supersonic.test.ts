@@ -456,7 +456,7 @@ describe("Aerial Dogfight (50159)", () => {
 
   it("CONSTANT, 'the attack has the Aerial trait': Swinging Web Kick (an Aerial attack event) deals its 8 from the non-Aerial Spider-Man", () => {
     const { state, mach } = dogfight();
-    expect(state.cardPool[cardId(SWINGING_WEB_KICK)]!.traits).toContain("AERIAL");
+    expect((state.cardPool[cardId(SWINGING_WEB_KICK)] as { traits: readonly string[] }).traits).toContain("AERIAL");
     const run = playAt(DEPS, state, SWINGING_WEB_KICK, 3, mach);
     expect(damageOf(run.state, mach)).toBe(8);
     expect(reducedOn(run.events, mach)).toEqual([]);

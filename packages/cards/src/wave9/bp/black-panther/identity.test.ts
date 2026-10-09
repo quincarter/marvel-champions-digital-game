@@ -302,7 +302,7 @@ describe(`${INVENTOR}: exhaust Shuri, search your deck for a Black Panther or Te
         return option ? [option.optionId] : firstLegal(state);
       }
       if (choice.prompt.kind === "spendResources") {
-        const needed = choice.prompt.requirement.generic;
+        const needed = choice.prompt.requirement.generic ?? 0;
         seen.asked.push(needed);
         return choice.options.slice(0, needed).map((o) => o.optionId);
       }
