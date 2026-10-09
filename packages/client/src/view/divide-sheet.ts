@@ -32,6 +32,24 @@ const refInstanceId = (ref: ChoiceRef): InstanceId | null =>
 export const isDivideSheet = (choice: Pick<PendingChoice, "prompt">): boolean =>
   choice.prompt.kind === "divide" || choice.prompt.kind === "assignIndirectDamage";
 
+/**
+ * The options the sheet draws. Indirect damage offers one tile per point a card could still take before it falls (a
+ * hero at 7 hit points left is seven tiles), but only `amount` points are being assigned, so a card's tiles past
+ * that number can never all be picked: two indirect damage across a hero and two allies was seven or more tiles. The
+ * engine's choice is untouched and answers are still its option ids; this only leaves out tiles that a full answer
+ * could not reach.
+ */
+export function shownDivideChoice(choice: PendingChoice): PendingChoice {
+  const { prompt } = choice;
+  if (prompt.kind !== "assignIndirectDamage") return choice;
+  const options = choice.options.filter((option) => {
+    const hash = option.optionId.lastIndexOf("#");
+    const point = hash < 0 ? 1 : Number(option.optionId.slice(hash + 1));
+    return !(point > prompt.amount);
+  });
+  return options.length === choice.options.length ? choice : { ...choice, options };
+}
+
 export function divideSheetOf(
   state: GameState,
   choice: PendingChoice,

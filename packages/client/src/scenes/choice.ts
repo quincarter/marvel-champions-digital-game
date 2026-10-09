@@ -28,7 +28,7 @@ import type { Rect } from "../view/layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { divideSheetOf } from "../view/divide-sheet.js";
+import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
 import { chosenResourcesNoteOf, paymentSheetView, type PaymentSheetView } from "../view/payment-sheet.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
@@ -290,7 +290,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #rebuild(): void {
     const { store } = appSession();
     const state = store.state;
-    const choice = state.game?.pendingChoice;
+    const choice = state.game?.pendingChoice ? shownDivideChoice(state.game.pendingChoice) : undefined;
     const action = choiceSheetAction({
       leaving: this.#motion.leaving,
       shownChoiceId: this.#choiceId,
