@@ -18,7 +18,19 @@ resume, the scope, and anything decided along the way. Rules for running agents 
   and campaign first, then the hero packs, then Trickster Takeover) → schema changes and `aos` / `tt` emitted →
   engine primitives one at a time (one engine agent at a time) → scripting per hero / per scenario (≤ 3 agents, one
   small task each) → rules QA → custom decks → client wiring and Guided mode → campaign → progression → shipping.
-- **The e2e pre-push hook stays on** for this wave. `pnpm check` runs before every push.
+- **Push often (owner, 2026-10-09).** Usage is short, so every verified piece is pushed at once and the PR's top
+  section and working notes are updated with it, so any session can resume from GitHub alone.
+
+## The push hook is removed on this branch (owner, 2026-10-09)
+
+The owner asked for the e2e pre-push hook to be off until the client step is in place. `.githooks/pre-push` is deleted
+on this branch (its last version is on `main` at 1a7290af); `.githooks/e2e-gate.sh`, `pre-commit` and `commit-msg` are
+untouched, so `pnpm e2e:verify` still runs the whole suite on demand. `pnpm check` runs before every push that changes
+`packages/`.
+
+**The hook must be re-added before the wave ships.** Restore it (`git checkout origin/main -- .githooks/pre-push`)
+when the client step (definition of done §5) starts landing, so those pushes and the merge go up with the whole
+Playwright suite passed. This PR must not merge with the file missing, or `main` loses its gate.
 
 ## Rules policy (owner, 2026-10-07, carried over)
 
