@@ -13,7 +13,7 @@ import { McScrollRegion } from "../../ui/scroll-region.js";
 import { ink, surface, threatMeter, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { label, paintPanel } from "../../ui/widgets.js";
-import type { BoardModel, SchemePanel } from "../../view/board-model.js";
+import { counterNote, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
@@ -231,7 +231,14 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // the same `▶` affordance a character panel's foot strip gives its own
   // usable ability, drawn only where it fits above the threat meter.
   const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
-  const abilityTop = rect.y + 48;
+  // Counters the scheme itself holds (En Sabah Nur's Pyramid: "place 1 power counter here") get their own line, so
+  // the tally that drives the scenario is on the table and not only in Inspect.
+  let abilityTop = rect.y + 48;
+  const counterText = counterNote(scheme.counters);
+  if (counterText && abilityTop + 14 <= schemeMeterRect(rect).y - 2) {
+    label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
+    abilityTop += 14;
+  }
   // A name that does not fit one row wraps to two lines when the room above the meter allows, and only otherwise is
   // fitted to one row (the full text is the Inspect pop-up's).
   const wrapped = abilityLine ? footStripLayout(abilityLine, textWidth).height : FOOT_STRIP_HEIGHT;

@@ -49,6 +49,8 @@ import {
   type PlayerId,
   type PlayerState,
   type ViewerContext,
+  mainSchemeValue,
+  villainStageOf,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
@@ -228,6 +230,21 @@ export function damageNote(damage: number, threshold: number | null): string | n
   return damage > 0 ? `${damage} damage` : null;
 }
 
+/**
+ * What a compact villain tile (the multi-villain row) says beyond its stats: statuses in words, then each attachment
+ * and the card's own counters, "Stunned · Golden Horse · 1 power counter". Empty when the villain has none, so the
+ * tile draws nothing. The single-villain panel draws the same facts as chips; this is their one-line form.
+ */
+export function compactVillainNote(panel: CharacterPanel): string {
+  const statuses = panel.statuses.map((pip) => {
+    const word = pip.status.charAt(0).toUpperCase() + pip.status.slice(1);
+    return pip.count > 1 ? `${word} ×${pip.count}` : word;
+  });
+  return [...statuses, ...panel.attachments.map(attachmentChipText), counterNote(panel.counters)]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** The chip's label without its damage: the part that may be clipped when the chip is narrow. */
 export function attachmentChipText(chip: AttachmentChip): string {
   return [
@@ -290,6 +307,8 @@ export interface SchemePanel {
    * Defense, §3.2). Empty for every scheme nothing is attached to, which is every scheme before wave 4.
    */
   readonly attachments: readonly AttachmentChip[];
+  /** Counters on the scheme card itself (En Sabah Nur's Pyramid collects power counters). Empty draws nothing. */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
 }
 
 /**
@@ -1013,6 +1032,10 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
         state.scenarioRules.victoryCondition !== undefined
           ? ` · Victory ${state.victoryDisplay.length}/${state.scenarioRules.victoryCondition}`
           : "";
+      // The Four Horsemen print a version letter (A/B) on each card instead of a stage (`stageLabel`): a roman
+      // numeral would call War's B card "Stage I".
+      const letter = villainStageOf(state, instance.instanceId).stageLabel;
+      if (letter) return `Villain · Side ${letter}${victory}`;
       return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}${victory}`;
     }
     case "hero_identity": {
@@ -1145,15 +1168,15 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       name: stage.name ?? card?.name ?? "Main scheme",
       subtitle: `Main scheme ${printedStageOf(stage)}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
-      // The stage's target threat, scaled the way the engine scales it: the
-      // player count is fixed at setup, so eliminations don't change it.
+      // The engine's own target (`mainSchemeValue`): scaled per player, and for a printed "X" (Apocalypse's scheme)
+      // the ability-defined value, not the 0 the card data prints.
       // A dashed target ("—", RRG p. 15) is never reached: no target, so no threshold state and no meter.
       target: stage.dashedValues?.includes("targetThreat")
         ? null
-        : scale(stage.targetThreat, state.startingPlayerCount),
+        : mainSchemeValue(state, "targetThreat", deps, scheme),
       meterMax: stage.dashedValues?.includes("targetThreat")
         ? null
-        : scale(stage.targetThreat, state.startingPlayerCount),
+        : mainSchemeValue(state, "targetThreat", deps, scheme),
       ...(stage.dashedValues?.includes("targetThreat") ? { targetDashed: true } : {}),
       isMain: true,
       // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
@@ -1163,6 +1186,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
       attachments,
+      counters: countersOf(state, id),
     };
   }
 
@@ -1195,6 +1219,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
     attachments: attachmentChipsOf(state, instance, deps),
+    counters: countersOf(state, id),
   };
 }
 

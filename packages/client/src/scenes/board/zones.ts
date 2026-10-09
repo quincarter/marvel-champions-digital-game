@@ -34,7 +34,7 @@ import {
 import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { drawScheme } from "./schemes.js";
 import { missionSlots } from "../../view/mission-area-layout.js";
-import { counterNote, type ScenarioPlayAreaPanel } from "../../view/board-model.js";
+import { compactVillainNote, counterNote, type ScenarioPlayAreaPanel } from "../../view/board-model.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import {
   ENVIRONMENT_MIN_WIDTH,
@@ -329,6 +329,15 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
       textWidth,
       typeRole.label.size,
     );
+  }
+
+  // Statuses and attachments (War stunned, with a Golden Horse): the compact tile's one-line form of what the
+  // single-villain panel draws as chips. Wrapped into whatever room is left above the HP bar; Inspect has the rest.
+  const note = compactVillainNote(panel);
+  const noteRoom = rect.y + rect.height - 20 - top;
+  if (note && noteRoom >= 11) {
+    const noteText = label(scene, textLeft, top, note, typeRole.label, surface.ink.hex, ink.body * dim);
+    fitWrapped(noteText, textWidth, Math.max(1, Math.min(3, Math.floor(noteRoom / 11))), typeRole.label.size);
   }
 
   // A thin HP bar pinned to the foot, the compact panel's stand-in for the full panel's `McHpPlate`.
