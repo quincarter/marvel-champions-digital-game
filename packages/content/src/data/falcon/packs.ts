@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const FALCON_CYCLE: Cycle = { id: cycleId("cycle9"), name: "Cycle 9", order: 9 };
+export const FALCON_CYCLE: Cycle = { id: cycleId("cycle9"), name: "Agents of S.H.I.E.L.D.", order: 9 };
 
 /** Release date source: Hall of Heroes Falcon page (https://hallofheroeslcg.com/falcon-sam-wilson/): "Release date: June 20, 2025" */
 export const FALCON_PACK: Pack = { code: setCode("falcon"), name: "Falcon", cycleId: cycleId("cycle9"), releaseDate: "2025-06-20" };

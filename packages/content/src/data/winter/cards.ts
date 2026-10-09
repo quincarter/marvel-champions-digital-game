@@ -491,14 +491,12 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     traits: [trait("WEAPON")],
     keywords: [{ name: "uses", count: 3, counterType: "ammo" }],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a S.H.I.E.L.D. character. Limit 1 per character. Uses (3 ammo counters).\nInterrupt: When attached character makes a basic attack, exhaust S.H.I.E.L.D. Sidearm and remove 1 ammo counter from it → deal 1 damage to an enemy.",
       current: "Attach to a S.H.I.E.L.D. character. Limit 1 per character. Uses (3 ammo counters).\nInterrupt: When attached character makes a basic attack, exhaust S.H.I.E.L.D. Sidearm and remove 1 ammo counter from it → deal 1 damage to an enemy.",
     },
-    abilities: [
-      { id: abilityId("54020.shield-sidearm-constant") },
-      { id: abilityId("54020.shield-sidearm-interrupt") },
-    ],
+    abilities: [{ id: abilityId("54020.shield-sidearm-interrupt") }],
   },
   {
     id: cardId("54021"),

@@ -671,7 +671,12 @@ export const SILK_CARDS: readonly AnyCard[] = [
       printed: "Give to the Cindy Moon player.\nForced Interrupt: When a card would be tucked under your identity by a player card effect, tuck it under here instead. Then, if there are 2 tucked cards here, you may discard this card (remove it from the game instead if there are 3 or more tucked cards here).",
       current: "Give to the Cindy Moon player.\nForced Interrupt: When a card would be tucked under your identity by a player card effect, tuck it under here instead. Then, if there are 2 tucked cards here, you may discard this card (remove it from the game instead if there are 3 or more tucked cards here).",
     },
-    abilities: [{ id: abilityId("52028.obligation") }],
+    abilities: [
+      { id: abilityId("52028.silk-sense-overload-constant") },
+      {
+        id: abilityId("52028.silk-sense-overload-forced-interrupt"),
+      },
+    ],
   },
   {
     id: cardId("52029"),
