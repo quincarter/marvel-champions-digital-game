@@ -21,6 +21,7 @@ import { POOL_VERSION } from "../content/pool.js";
 import {
   COLLECTION_PICK_FLOOR,
   isCollectionPick,
+  leaveSummaryDestination,
   postFoldDestination,
   startAftermathGroup,
   type AftermathOption,
@@ -142,5 +143,12 @@ describe("where a folded win goes", () => {
     expect(postFoldDestination("won")).toBe("finale");
     expect(postFoldDestination("lost")).toBe("campaignLost");
     expect(postFoldDestination("active")).toBe("summary");
+  });
+
+  it("a won campaign whose last issue has aftermath beats plays them first, then leaves for the Finale", () => {
+    expect(postFoldDestination("won", true)).toBe("summary");
+    expect(postFoldDestination("lost", true)).toBe("campaignLost");
+    expect(leaveSummaryDestination("won")).toBe("finale");
+    expect(leaveSummaryDestination("active")).toBe("opener");
   });
 });

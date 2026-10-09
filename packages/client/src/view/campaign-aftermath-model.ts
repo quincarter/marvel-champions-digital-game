@@ -135,10 +135,16 @@ export function isDealtPerSeatSlot(slot: string): boolean {
 /**
  * Where a folded win goes: the Finale when the campaign is won, the campaign-lost Rewind when the last scenario was
  * won and the campaign lost anyway (MC45 p. 20: Protect the Professor not defeated), and the ordinary summary for every
- * other win.
+ * other win. A won campaign whose last issue names aftermath beats plays them first (the summary), then the Finale.
  */
-export function postFoldDestination(status: string): "finale" | "campaignLost" | "summary" {
-  return status === "won" ? "finale" : status === "lost" ? "campaignLost" : "summary";
+export function postFoldDestination(status: string, hasAftermathBeats = false): "finale" | "campaignLost" | "summary" {
+  if (status === "won") return hasAftermathBeats ? "summary" : "finale";
+  return status === "lost" ? "campaignLost" : "summary";
+}
+
+/** Where the summary's last button goes: the Finale once the campaign is won, otherwise the next issue's opener. */
+export function leaveSummaryDestination(status: string): "finale" | "opener" {
+  return status === "won" ? "finale" : "opener";
 }
 
 /** Slots whose shared catalog is never exclusive — see `AftermathChoiceGroup.noExclusivity`'s doc comment. */
