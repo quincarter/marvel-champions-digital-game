@@ -890,7 +890,7 @@ today; what is undecided is whether Chaos Control (`scw`, not started) can repla
 7. **The side-scheme deck's discard.** Red Skull rulebook p. 15: "When a side-scheme is defeated or otherwise discarded, place it in the side-scheme discard pile." Does that include side schemes that were never in the side-scheme deck, such as a nemesis side scheme revealed by Shadow of the Past?
    - **Proposed:** only its own cards (by `home`); every other side scheme goes to the encounter discard.
 8. **Chaos Control's reach** (§3.6). Does "When boost icons on an encounter card would be counted" apply to counts made by card effects (Hex Bolt, Taskmaster, Crossbones' Machine Gun), or only to a boost card's icons during an activation?
-   - **Proposed:** every count, since the text says "an encounter card", not "a boost card". Needs confirming.
+   - **Proposed:** every count, since the text says "an encounter card", not "a boost card". Built this way on 2026-10-09 (PR #106, `countBoostIcons`); still needs the owner to confirm the reading.
 9. **Zero-hit-point allies** (§3.9). With no overpayment, are the Ant-Man and Wasp allies defeated as soon as their enter-play interrupt resolves?
    - **Proposed: yes**, per RRG 1.8 "Damage" (p. 14).
 10. **First player choices inside a game area** (§3.1). When an encounter card in an area without the first player needs "the first player decides" (a tie on a target), who decides?
