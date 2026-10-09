@@ -356,6 +356,22 @@ describe("a nested minion face in another encounter set is its own card (Oversee
     expect(b?.type === "minion" && b.flipSide).toBeUndefined();
   });
 
+  it("carries the per player icon beside the hit points (raw health_per_hero) on each face; a flat value has no flag", () => {
+    const { ctx } = run([VELOCIRAPTOR, MISTER_SINISTER], [schemeCorrection, dashCorrection]);
+    const hp = (id: string) => {
+      const card = ctx.cards.find((c) => c.id === id);
+      return card?.type === "minion" ? [card.hp, card.hpPerPlayer] : undefined;
+    };
+    expect(hp("45179a")).toEqual([5, true]);
+    expect(hp("45179b")).toEqual([5, true]);
+    expect(hp("45129")).toEqual([3, undefined]);
+  });
+
+  it("refuses a minion with per group hit points rather than emitting a flat value", () => {
+    const { ctx } = run([{ ...VELOCIRAPTOR, health_per_group: true }], [schemeCorrection]);
+    expect(ctx.errors).toEqual(["45129: minion health_per_group is not supported"]);
+  });
+
   it("gives the Prelate face its own ATK, SCH, hit points, boost icons and Victory", () => {
     const { ctx } = run([MISTER_SINISTER], [dashCorrection]);
     const b = ctx.cards.find((c) => c.id === "45179b");

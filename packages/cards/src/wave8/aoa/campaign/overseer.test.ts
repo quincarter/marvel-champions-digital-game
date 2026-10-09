@@ -1,5 +1,12 @@
 import { AOA_CARDS } from "@mc/content";
-import { cannotTakeDamage, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
+import {
+  cannotTakeDamage,
+  cardsInPlay,
+  maxHitPoints,
+  remainingHitPoints,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -101,6 +108,33 @@ describe("Overseer (45179a to 45183a)", () => {
       expect(cardsInPlay(run.state)).toContain(overseer);
     },
   );
+
+  // RRG 1.8 "Per Player Icon" (p. 32): "multiplies that value by the number of players who started the scenario".
+  it.each([
+    [1, 5],
+    [2, 10],
+    [3, 15],
+  ] as const)("%i hero(es): Mikhail Rasputin's printed '5 per player' is %i hit points", (players, expected) => {
+    const start = campaignGame({
+      players,
+      encounter: [FILLER, FILLER],
+      mission: { mission: "45167a", overseer: "45183a" },
+    });
+    const overseer = overseerOf(start, "45183a");
+    expect(maxHitPoints(start, overseer, CAMPAIGN_DEPS)).toBe(expected);
+    expect(remainingHitPoints(start, overseer, CAMPAIGN_DEPS)).toBe(expected);
+  });
+
+  it.each(CODES)("%s: 10 hit points with two heroes, and its Prelate face prints the same icon", (code) => {
+    const start = campaignGame({
+      players: 2,
+      encounter: [FILLER, FILLER],
+      mission: { mission: "45167a", overseer: code },
+    });
+    expect(maxHitPoints(start, overseerOf(start, code), CAMPAIGN_DEPS)).toBe(10);
+    const back = AOA_CARDS.find((c) => c.id === code.replace("a", "b"));
+    expect(back).toMatchObject({ type: "minion", hp: 5, hpPerPlayer: true });
+  });
 
   it("'Cannot take damage while another minion is at the mission': true once an Agent of Apocalypse is added, false again when it is gone", () => {
     const start = campaignGame({ encounter: [AGENT, FILLER], mission: { mission: "45167a", overseer: "45182a" } });

@@ -913,6 +913,8 @@ export function validateMinionCard(card: MinionCard): ValidationResult {
   if (!isPrintedStat(card.atk)) errors.push('minion atk must be a non-negative number, "X", or null (printed —)');
   if (!isPrintedStat(card.sch)) errors.push('minion sch must be a non-negative number, "X", or null (printed —)');
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("minion hp must be a positive number");
+  if (card.hpPerPlayer !== undefined && card.hpPerPlayer !== true)
+    errors.push("minion hpPerPlayer must be true when present");
   if (card.nemesisMinion !== undefined && typeof card.nemesisMinion !== "boolean")
     errors.push("minion nemesisMinion must be a boolean");
   return result(errors);

@@ -55,6 +55,7 @@ import {
   playerOrder,
   printedHandSize,
   printedHpNumeral,
+  printedMinionHp,
   printedProfile,
   textBoxBlank,
   undefeatedVillains,
@@ -1296,7 +1297,8 @@ export function explainQuery(
     return "noStatusRoom";
   if (query.maxPrintedHp !== undefined) {
     const card = cardOf(state, id);
-    const hp = card && "hp" in card ? (card.hp as number) : undefined;
+    const hp =
+      card?.type === "minion" ? printedMinionHp(state, card) : card && "hp" in card ? (card.hp as number) : undefined;
     if (hp === undefined || hp > query.maxPrintedHp) return "printedHpTooHigh";
   }
   if (query.maxPrintedCost !== undefined) {

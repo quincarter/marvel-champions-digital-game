@@ -487,6 +487,7 @@ export {
   isTerminal,
   maxHitPoints,
   printedHpNumeral,
+  printedMinionHp,
   printedHandSize,
   inClosedScenarioPlayArea,
   locateCard,

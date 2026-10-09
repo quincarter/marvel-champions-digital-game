@@ -3130,6 +3130,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 1,
     hp: 5,
+    hpPerPlayer: true,
     encounterSetIds: [encounterSetId("red_skull")],
     boostIcons: 1,
     traits: [trait("ELITE"), trait("HYDRA"), trait("ROBOT")],

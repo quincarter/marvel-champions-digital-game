@@ -21,6 +21,7 @@ export const RON_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 3,
     hp: 9,
+    hpPerPlayer: true,
     encounterSetIds: [encounterSetId("kree_fanatic")],
     boostIcons: 0,
     starIcon: true,

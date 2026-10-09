@@ -7,6 +7,7 @@ import type {
   HeroIdentityCard,
   Trait,
   MainSchemeStage,
+  MinionCard,
   PrintedStat,
   ScalingValue,
   VillainStage,
@@ -61,6 +62,18 @@ export const cardOf = (state: GameState, id: InstanceId): AnyCard | undefined =>
 export function printedCostOf(state: GameState, card: AnyCard | undefined): number {
   if (!card || !("cost" in card) || typeof card.cost !== "number") return 0;
   return card.costPerPlayer ? card.cost * state.startingPlayerCount : card.cost;
+}
+
+/**
+ * A minion card's printed hit points in this game. A value printed with the per player icon (`MinionCard.hpPerPlayer`)
+ * is its numeral times the number of players who started the scenario, and "if a player is eliminated, this value
+ * does not change" (RRG 1.8 "Per Player Icon", p. 32). The icon "is not considered a modifier and is applied before any
+ * modifiers are applied" (RRG 1.8 "Modifiers", p. 29), so the product is the base that "gets +N hit points" adds to,
+ * the same as a villain stage's. Recomputed on each read from `startingPlayerCount`, which never changes; only damage
+ * is stored. Every reader of a minion's `hp` goes through here.
+ */
+export function printedMinionHp(state: GameState, card: MinionCard): number {
+  return card.hpPerPlayer ? card.hp * state.startingPlayerCount : card.hp;
 }
 
 export function mustCardOf(state: GameState, id: InstanceId): AnyCard {
@@ -747,7 +760,7 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: 0,
-      maxHp: card.hp,
+      maxHp: printedMinionHp(state, card),
     };
   }
 
@@ -789,7 +802,7 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: statValue(card.sch),
-      maxHp: card.hp,
+      maxHp: printedMinionHp(state, card),
     };
   }
   if (card.type === "villain" && isVillain(state, id)) {
@@ -825,6 +838,8 @@ export function printedHpNumeral(state: GameState, id: InstanceId): number {
     if (stage.infiniteHp) return 0;
     return stage.hp.perPlayer > 0 ? stage.hp.perPlayer : stage.hp.base;
   }
+  // A minion's `hp` is already the numeral, whether or not the icon follows it (and whatever it is treated as).
+  if (card?.type === "minion" && getInstance(state, id)?.facedownAs?.kind !== "minion") return card.hp;
   return printedProfile(state, id)?.maxHp ?? 0;
 }
 

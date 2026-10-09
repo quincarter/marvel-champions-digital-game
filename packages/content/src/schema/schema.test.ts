@@ -494,6 +494,15 @@ describe("schema fixtures: malformed cards are rejected", () => {
   });
 });
 
+describe('a minion\'s hit points printed with the per player icon (RRG 1.8 "Per Player Icon", p. 32)', () => {
+  it("accepts hpPerPlayer: true and rejects any other value", () => {
+    expect(validateMinionCard({ ...hydraMercenary, hpPerPlayer: true }).errors).toEqual([]);
+    expect(validateMinionCard({ ...hydraMercenary, hpPerPlayer: false } as unknown as MinionCard).errors).toEqual([
+      "minion hpPerPlayer must be true when present",
+    ]);
+  });
+});
+
 describe("Phase 2 schema follow-ups", () => {
   it("scaling(base, perPlayer) builds a ScalingValue", () => {
     expect(scaling(2, 1)).toEqual({ base: 2, perPlayer: 1 });

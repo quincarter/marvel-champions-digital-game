@@ -87,6 +87,8 @@ export function normalizeEncounterCard(
       if ((p.scheme ?? r.scheme) == null && !curation.cardNotes[r.code]) {
         errors.push(`${r.code}: minion has no scheme value (printed "0", or "—"?) — needs a cardNotes entry`);
       }
+      // "Per group" hit points have no schema field yet; never emit such a minion with a flat value.
+      if (r.health_per_group) errors.push(`${r.code}: minion health_per_group is not supported`);
       const minion: MinionCard = {
         ...common,
         type: "minion",
@@ -94,6 +96,9 @@ export function normalizeEncounterCard(
         atk: p.dashedMinionStats?.includes("atk") ? null : rawAtk === -1 ? "X" : (rawAtk ?? 0),
         sch: p.dashedMinionStats?.includes("sch") ? null : (p.scheme ?? r.scheme ?? 0),
         hp: r.health ?? 0,
+        // A per player icon beside the hit points (raw `health_per_hero`): `hp` keeps the printed numeral and the
+        // engine multiplies it by the players who started the scenario (RRG 1.8 "Per Player Icon", p. 32).
+        ...(r.health_per_hero ? { hpPerPlayer: true as const } : {}),
         ...encounterCommon,
         ...(parsed.nemesisMinion ? { nemesisMinion: true } : {}),
       };
