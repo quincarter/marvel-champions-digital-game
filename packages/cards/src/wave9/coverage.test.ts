@@ -13,6 +13,15 @@ import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
+import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
+import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
+import { PALE_LITTLE_SPIDER, PALE_LITTLE_SPIDER_SKIPPED } from "./aos/pale-little-spider.js";
+import { BLACK_PANTHER_EVENTS, BLACK_PANTHER_EVENTS_SKIPPED } from "./bp/black-panther/events.js";
+import { BLACK_PANTHER_IDENTITY, BLACK_PANTHER_IDENTITY_SKIPPED } from "./bp/black-panther/identity.js";
+import {
+  BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES,
+  BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./bp/black-panther/support-upgrades-allies.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { SILK_ABILITIES } from "./silk/index.js";
@@ -60,6 +69,44 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50139", "50140", "50141", "50142"],
       registry: GRAVITATIONAL_PULL,
       skipped: GRAVITATIONAL_PULL_SKIPPED,
+    },
+    {
+      module: "pale-little-spider",
+      cardIds: ["50148", "50149", "50150", "50151"],
+      registry: PALE_LITTLE_SPIDER,
+      skipped: PALE_LITTLE_SPIDER_SKIPPED,
+    },
+    {
+      module: "power-of-the-atom",
+      cardIds: ["50152", "50153", "50154", "50155"],
+      registry: POWER_OF_THE_ATOM,
+      skipped: POWER_OF_THE_ATOM_SKIPPED,
+    },
+    {
+      module: "supersonic",
+      cardIds: ["50156", "50157", "50158", "50159", "50160"],
+      registry: SUPERSONIC,
+      skipped: SUPERSONIC_SKIPPED,
+    },
+  ],
+  bp: [
+    {
+      module: "black-panther/identity",
+      cardIds: ["51001a"],
+      registry: BLACK_PANTHER_IDENTITY,
+      skipped: BLACK_PANTHER_IDENTITY_SKIPPED,
+    },
+    {
+      module: "black-panther/events",
+      cardIds: ["51003", "51004", "51005", "51006"],
+      registry: BLACK_PANTHER_EVENTS,
+      skipped: BLACK_PANTHER_EVENTS_SKIPPED,
+    },
+    {
+      module: "black-panther/support-upgrades-allies",
+      cardIds: ["51002", "51007", "51008", "51009", "51010", "51011", "51012", "51013"],
+      registry: BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES,
+      skipped: BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
     },
   ],
 };

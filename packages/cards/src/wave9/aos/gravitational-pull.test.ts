@@ -1,34 +1,40 @@
-import { AOS_CARDS, CORE_CARDS, encounterSetId } from "@mc/content";
-import {
-  activeEncounterDeckId,
-  cardsInPlay,
-  createGame,
-  type EngineDeps,
-  type GameEvent,
-  type GameState,
-  type InstanceId,
-  type PlayerId,
-} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
-import { coreScenario } from "../../core/setup.js";
-import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
-import {
-  P1,
-  P2,
-  endTurn,
-  firstLegal,
-  identityOf,
-  inst,
-  patchInstance,
-  playerOf,
-  settle,
-  stackEncounterDeck,
-  type Picker,
-} from "../../testing/harness.js";
-import { defeatWithAttack, driveEventsPicking, playFromHand, withDamage, withForm } from "../../testing/staging.js";
-import { WAVE8_ABILITIES } from "../../wave8/index.js";
+import { P1, P2, firstLegal, identityOf, inst, patchInstance, playerOf } from "../../testing/harness.js";
+import { defeatWithAttack, playFromHand, withDamage } from "../../testing/staging.js";
 import { engageMinion } from "../../wave6/mut_gen/project-wideawake-testing.js";
+import {
+  AUNT_MAY,
+  BLACK_CAT,
+  BLANK,
+  CAPTAIN_MARVEL,
+  CHARGE,
+  FILLER_A,
+  FILLER_B,
+  IRON_MAN,
+  ONE_ICON,
+  SHE_HULK,
+  SPIDER_MAN,
+  attacksBy,
+  codeOf,
+  dataOf,
+  flippedBoosts,
+  heroForm,
+  idOf,
+  inDiscard,
+  inDiscardPile,
+  inPlayCard,
+  onlyDeck,
+  picking,
+  piles,
+  revealedCodes,
+  schemesBy,
+  setKit,
+  tough,
+  types,
+  without,
+  type Seats,
+} from "../testing.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./gravitational-pull.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -55,128 +61,8 @@ const REFS = [
   "50142.when-revealed-alter-ego",
   "50142.when-revealed-hero",
 ];
-/** Core treachery with no boost icons and no Boost ability; the filler for boost cards that should add nothing. */
-const BLANK = "01186";
-/** Core treachery with 1 boost icon and no Boost ability. */
-const ONE_ICON = "01188";
-/** Core Rhino attachments: they attach to the villain without touching the players; the filler for dealt cards. */
-const FILLER_A = "01098";
-const FILLER_B = "01100";
-/** Core Rhino attachment with 2 boost icons, two copies. */
-const CHARGE = "01099";
-const BLACK_CAT = "01002";
-const AUNT_MAY = "01006";
 
-const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, GRAVITATIONAL_PULL) };
-const SPIDER_MAN = { starterDeckId: "core-spider-man-justice" } as const;
-const CAPTAIN_MARVEL = { starterDeckId: "core-captain-marvel-leadership" } as const;
-const SHE_HULK = { starterDeckId: "core-she-hulk-aggression" } as const;
-const IRON_MAN = { starterDeckId: "core-iron-man-aggression" } as const;
-type Seats = readonly (typeof SPIDER_MAN | typeof CAPTAIN_MARVEL | typeof SHE_HULK | typeof IRON_MAN)[];
-
-function setupGame(players: Seats = [SPIDER_MAN]): GameState {
-  const config = coreScenario("rhino", {
-    players,
-    seed: 1,
-    difficulty: "standard",
-    modularSetIds: [],
-    cardPool: [...CORE_CARDS, ...AOS_CARDS],
-  });
-  const cards = AOS_CARDS.filter(
-    (c) => "encounterSetIds" in c && c.encounterSetIds.includes(encounterSetId("gravitational_pull")),
-  );
-  const copies = cards.flatMap((c) => Array.from({ length: c.quantityInSet }, () => c.id));
-  const created = createGame({ ...config, encounterDeck: [...config.encounterDeck, ...copies] }, DEPS);
-  if (!created.ok) throw new Error(created.error.message);
-  return settle(created.state, firstLegal, (s) => s.step.phase === "player", DEPS);
-}
-
-const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
-const piles = (s: GameState) => s.encounterDecks[activeEncounterDeckId(s)]!;
-const inDiscard = (s: GameState, code: string) => piles(s).discard.filter((id) => codeOf(s, id) === code);
-const inPlayCard = (s: GameState, code: string): InstanceId | undefined =>
-  cardsInPlay(s).find((id) => codeOf(s, id) === code);
-const idOf = (s: GameState, code: string): InstanceId => {
-  const id = Object.keys(s.instances).find((i) => codeOf(s, i as InstanceId) === code);
-  return id as InstanceId;
-};
-const dataOf = (code: string) =>
-  AOS_CARDS.find((c) => (c.id as string) === code)! as unknown as Record<string, unknown>;
-const types = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
-  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
-const attacksBy = (s: GameState, events: readonly GameEvent[], code: string) =>
-  types(events, "attackResolved").filter((a) => codeOf(s, a.enemyInstanceId) === code);
-const schemesBy = (s: GameState, events: readonly GameEvent[], code: string) =>
-  types(events, "schemeResolved").filter((a) => codeOf(s, a.enemyInstanceId) === code);
-const revealedCodes = (s: GameState, events: readonly GameEvent[]) =>
-  types(events, "encounterCardRevealed").map((e) => codeOf(s, e.instanceId));
-const flippedBoosts = (events: readonly GameEvent[]) => types(events, "boostCardFlipped");
-const tough = (s: GameState, id: InstanceId): number => inst(s, id).statuses.tough;
-
-const heroForm = (s: GameState, ...seats: readonly PlayerId[]): GameState =>
-  (seats.length > 0 ? seats : [P1]).reduce((acc, p) => withForm(acc, { heroForm: 0 }, p), s);
-
-/** Every player ends their turn, in seat order, and the villain phase runs on the stacked deck. */
-function villainPhase(state: GameState, stack: readonly string[], pick: Picker = firstLegal) {
-  const staged = stackEncounterDeck(state, ...stack);
-  return driveEventsPicking(DEPS, staged, pick, ...state.players.map((p) => endTurn(p.playerId)));
-}
-
-/** An encounter card out of the game: `code` removed from the deck and discard pile. */
-function without(state: GameState, code: string): GameState {
-  const pile = piles(state);
-  const keep = (id: InstanceId) => codeOf(state, id) !== code;
-  return {
-    ...state,
-    encounterDecks: {
-      ...state.encounterDecks,
-      [activeEncounterDeckId(state)]: { deck: pile.deck.filter(keep), discard: pile.discard.filter(keep) },
-    },
-  };
-}
-
-/** Moonstone placed in the encounter discard pile. */
-function inDiscardPile(state: GameState, code: string): GameState {
-  const pile = piles(state);
-  const id = pile.deck.find((i) => codeOf(state, i) === code)!;
-  return {
-    ...state,
-    encounterDecks: {
-      ...state.encounterDecks,
-      [activeEncounterDeckId(state)]: { deck: pile.deck.filter((i) => i !== id), discard: [...pile.discard, id] },
-    },
-  };
-}
-
-/** Picks the option naming the card `target`; any other choice is answered as `firstLegal` does. */
-const picking =
-  (target: InstanceId): Picker =>
-  (s) => {
-    const choice = s.pendingChoice!;
-    // Only the effect's own target prompt: a defender or a trigger prompt is declined, as `firstLegal` does.
-    if (choice.prompt.kind !== "chooseTarget") return firstLegal(s);
-    const option = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === target);
-    return option ? [option.optionId] : firstLegal(s);
-  };
-
-/**
- * The encounter deck exactly `codes`, top first (the rest of the deck and the discard pile are dropped). Finding a card
- * shuffles the encounter deck (RRG 1.8 "Find", p. 19; "Search", p. 39), so a test that stacks cards behind a
- * Gravitational Pull leaves at most one card there: a one-card deck shuffles to itself.
- */
-function onlyDeck(state: GameState, ...codes: readonly string[]): GameState {
-  const pile = piles(state);
-  const used: InstanceId[] = [];
-  for (const code of codes) {
-    const id = [...pile.deck, ...pile.discard].find((i) => codeOf(state, i) === code && !used.includes(i));
-    if (!id) throw new Error(`no ${code} in the encounter deck or discard`);
-    used.push(id);
-  }
-  return {
-    ...state,
-    encounterDecks: { ...state.encounterDecks, [activeEncounterDeckId(state)]: { deck: used, discard: [] } },
-  };
-}
+const { deps: DEPS, setupGame, villainPhase } = setKit("gravitational_pull", GRAVITATIONAL_PULL);
 
 describe("registry", () => {
   it("registers the seven refs of the four cards, each a valid definition, and skips nothing", () => {
