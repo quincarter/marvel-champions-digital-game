@@ -8,7 +8,7 @@ resume, the scope, and anything decided along the way. Rules for running agents 
 
 ## Resuming
 
-- **Branch:** `claude/project-thread-fu5eqf`, off `main` at 1a7290af (v0.18.0, #107; Wave 8 is #103, merged
+- **Branch:** `feature/wave-9`, off `main` at 1a7290af (v0.18.0, #107; Wave 8 is #103, merged
   2026-10-09). Everything finished and verified is pushed there; each verified commit goes up as it lands.
 - **Read first:** the PR checklist, this page, then `docs/phase7-wave9-sources.md`, `docs/phase7-wave9-data-survey.md`
   and `docs/phase7-wave9.md` once they exist.
