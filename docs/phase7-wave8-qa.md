@@ -121,3 +121,37 @@ environments from a modular set may legitimately sit beside a Setting.
   Four Horsemen games. The file runs in about 150 s because the engine spends about 30 ms per command and the driver probes every candidate.
 
 A passing run of this file is a claim about the games and states above, not about the five scenarios in general.
+
+## 8. Full QA and code review (2026-10-09)
+
+The owner asked for a full QA and code review after the PR left draft. The piece-by-piece record, every defect with
+its file and fixing commit, and the briefs are in [phase7-wave8-full-qa.md](phase7-wave8-full-qa.md). In short:
+
+- **Card audits (pieces 1 to 9).** 396 card records read against printed text, data and script: the six hero kits, the
+  five scenarios, the modular sets and the campaign cards. About 150 new tests, mostly two-player cases that had no
+  coverage. Two card defects: Scrying 45036 did not draw its chosen card (fixed), and Azazel's Sword 48029 offers its
+  response to the originally attacked player when another player's hero defends (pinned with `it.fails`; waits on the
+  owner's answer).
+- **Code review (pieces 10 to 12).** Engine, shared card scripting, content pipeline and client, read against
+  `origin/main`. No card names in the engine, no nondeterminism, replay intact, package boundaries hold, saves load.
+  Fixed: a retarget lost in a begun or label-only attack (Psionic Illusion); a defeated player rejoining an expert
+  campaign free on a stale hit point record (Age of Apocalypse, NeXt Evolution, Mutant Genesis, Mojo Mania); an
+  instructed basic power unable to pay a non-resource cost (Wonder Man); the ability cost probe failing open; the
+  visibility rule forked into the client; the random-deck soak skipping waves 6 and 7; main scheme attachments not
+  discarded on advance (RRG 1.8 p. 27).
+- **Browser (pieces 13 to 15).** Two-hero Expert games of all five scenarios (every per-player and Expert value
+  correct), phone and tablet layouts on 14 screen groups, and Guided mode (six Try-its completed; eight texts
+  corrected to the current rulings). Fixed: the pair sheet scroll crash, Horsemen tile overprint, the missing
+  engaged-with marker, Dossier and Set the Table layouts, tips lost during the villain phase.
+
+**Not covered, and confidence.** No campaign was fought start to finish by clicks. No two-hero game reached a win,
+a stage advance or an environment change in a browser (the seeded engine games do). The rewritten Try-its and the
+wild sheet's wrapped title were not replayed in a browser after their fixes. Printed stats were compared with
+MarvelCDB data, not with card scans, except where the provenance file records a scan. The reward picker on a phone
+was not reached.
+
+**Left open on purpose.** `playCard.into` places only allies and supports; about 25 unused engine exports; a few
+cosmetic board items (game-over timeline order, indirect-damage tiles, a marker for facedown setup cards, a badge
+over a villain tile's hit points). A saved campaign whose reward flag and deck list disagree would now be refused by
+the engine's new check; the old client always wrote the two together, and no real saved campaign was loaded to prove
+it.
