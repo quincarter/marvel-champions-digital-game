@@ -22,6 +22,10 @@ import {
   BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES,
   BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./bp/black-panther/support-upgrades-allies.js";
+import {
+  BLACK_PANTHER_OBLIGATION_NEMESIS,
+  BLACK_PANTHER_OBLIGATION_NEMESIS_SKIPPED,
+} from "./bp/black-panther/obligation-nemesis.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { SILK_ABILITIES } from "./silk/index.js";
@@ -107,6 +111,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["51002", "51007", "51008", "51009", "51010", "51011", "51012", "51013"],
       registry: BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES,
       skipped: BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
+      module: "black-panther/obligation-nemesis",
+      cardIds: ["51031", "51032", "51033", "51034", "51035"],
+      registry: BLACK_PANTHER_OBLIGATION_NEMESIS,
+      skipped: BLACK_PANTHER_OBLIGATION_NEMESIS_SKIPPED,
     },
   ],
 };
