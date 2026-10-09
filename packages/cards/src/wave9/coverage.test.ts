@@ -12,6 +12,7 @@ import { abilityRefIds } from "../ability-refs.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
+import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { SILK_ABILITIES } from "./silk/index.js";
@@ -51,7 +52,17 @@ const SCRIPTED_MODULES: Readonly<
       readonly skipped: Readonly<Record<string, string>>;
     }>
   >
-> = {};
+> = {
+  // Agents of S.H.I.E.L.D. is scripted module by module; the pack stays "not started" until every module is in.
+  aos: [
+    {
+      module: "gravitational-pull",
+      cardIds: ["50139", "50140", "50141", "50142"],
+      registry: GRAVITATIONAL_PULL,
+      skipped: GRAVITATIONAL_PULL_SKIPPED,
+    },
+  ],
+};
 
 const PACKS: ReadonlyArray<{
   readonly code: string;
