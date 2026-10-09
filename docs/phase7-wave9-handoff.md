@@ -236,3 +236,13 @@ six members) saved as `art/scenarios/_pending/thunderbolts/villain.*` and 6I (an
 six, speech bubbles along the top) as `intro.*` in the same folder. Neither was looked at full size by the main
 session: check both for marks before the client step. Open art is now only Maria Hill with Nick Fury and Captain
 America with Winter Soldier.
+
+**Update, the encounter-set agent finished (still uncommitted in the working tree):** A.I.M. Science 3 of 3 refs (22
+tests pass); Batroc's Brigade 12 of 12 (41 pass; Soldiers of Fortune uses `anyOfCards` plus `chooseCards` so the
+player picks the Mercenary); Scientist Supreme 4 refs with `50127.when-revealed` skipped (the DSL's
+`addAccelerationToken(target?)` has no `count`, though the engine spec has one: add it and register the ref), 23 of
+26 tests pass. **The 3 failures are a data error to fix first:** Monica Rappaccini 50126 carries `villainous` in
+`packages/content/src/data/aos/cards.ts` but the print has none (spec §1.14.2): correct it in `curation/aos.ts` and
+re-emit `aos`. It also added helpers to `wave9/testing.ts`. Noted, not acted on: `ranged` is stamped on
+`characterAttacked` but not on an indirect `dealDamage`; a hero interrupt's `playerIn: you` never matches encounter
+cards.
