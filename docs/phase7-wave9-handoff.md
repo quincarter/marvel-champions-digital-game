@@ -230,3 +230,9 @@ image of all of the Thunderbolts" among 6A to 6D), Maria Hill with Nick Fury (no
 Winter Soldier (none of 14 liked). The preview-sheet script is not in the repo: fetch 420 px thumbnails through the
 wiki API (`prop=imageinfo&iiurlwidth=420`, with a browser User-Agent; the HTML pages return 403) and tile them with
 PIL, labeled by option.
+
+**Added 2026-10-09 (after the table above):** the Thunderbolts, second round: 6E ('97 annual textless, 699x1058, all
+six members) saved as `art/scenarios/_pending/thunderbolts/villain.*` and 6I (annual panel, 1311x532 landscape, all
+six, speech bubbles along the top) as `intro.*` in the same folder. Neither was looked at full size by the main
+session: check both for marks before the client step. Open art is now only Maria Hill with Nick Fury and Captain
+America with Winter Soldier.
