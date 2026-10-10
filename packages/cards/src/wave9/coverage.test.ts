@@ -17,6 +17,7 @@ import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
 import { BATROC, BATROC_SKIPPED } from "./aos/batroc.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { MODOK, MODOK_SKIPPED } from "./aos/modok.js";
 import {
   BLACK_WIDOW,
   BLACK_WIDOW_SKIPPED,
@@ -197,6 +198,39 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50086a", "50087a", "50090a", "50091", "50092", "50093", "50094", "50095", "50096", "50097"],
       registry: BATROC,
       skipped: BATROC_SKIPPED,
+    },
+    {
+      module: "modok",
+      cardIds: [
+        "50103a",
+        "50104a",
+        "50105a",
+        "50105b",
+        "50106a",
+        "50106b",
+        "50107a",
+        "50107b",
+        "50108a",
+        "50108b",
+        "50109",
+        "50110",
+        "50111",
+        "50112",
+        "50113",
+        "50114",
+        "50115",
+        "50116",
+        "50117",
+        "50118",
+        "50119",
+        "50120",
+        "50121",
+        "50122",
+        "50123",
+        "50124",
+      ],
+      registry: MODOK,
+      skipped: MODOK_SKIPPED,
     },
     {
       module: "batrocs-brigade",
