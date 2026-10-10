@@ -14,6 +14,7 @@ import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { BLACK_WIDOW, BLACK_WIDOW_SKIPPED, GOGGLES_GRANTED_PREPARATION } from "./aos/black-widow.js";
 import { MARIA_HILL_EVENTS, MARIA_HILL_EVENTS_SKIPPED } from "./aos/maria-hill/events.js";
 import { MARIA_HILL_IDENTITY, MARIA_HILL_IDENTITY_SKIPPED } from "./aos/maria-hill/identity.js";
 import {
@@ -88,6 +89,8 @@ const SCRIPTED_MODULES: Readonly<
       readonly cardIds: readonly string[];
       readonly registry: AbilityRegistry;
       readonly skipped: Readonly<Record<string, string>>;
+      /** Registry entries listed on no card: an ability a rule grants (Night Vision Goggles 50070). */
+      readonly registryOnly?: readonly string[];
     }>
   >
 > = {
@@ -122,6 +125,28 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50083", "50084", "50085"],
       registry: AIM_SCIENCE,
       skipped: AIM_SCIENCE_SKIPPED,
+    },
+    {
+      module: "black-widow",
+      cardIds: [
+        "50064",
+        "50067a",
+        "50068",
+        "50069",
+        "50070",
+        "50071",
+        "50072",
+        "50073",
+        "50074",
+        "50075",
+        "50076",
+        "50077",
+        "50078",
+        "50079",
+      ],
+      registry: BLACK_WIDOW,
+      skipped: BLACK_WIDOW_SKIPPED,
+      registryOnly: [GOGGLES_GRANTED_PREPARATION],
     },
     {
       module: "batrocs-brigade",
@@ -266,7 +291,9 @@ describe("wave 9 pack ability coverage", () => {
           expect(refs.length).toBeGreaterThan(0);
           expect(refs.filter((id) => !(id in m.registry) && !(id in m.skipped))).toEqual([]);
           expect(Object.keys(m.skipped).filter((id) => id in m.registry || !refs.includes(id))).toEqual([]);
-          expect(Object.keys(m.registry).filter((id) => !refs.includes(id))).toEqual([]);
+          expect(Object.keys(m.registry).filter((id) => !refs.includes(id) && !m.registryOnly?.includes(id))).toEqual(
+            [],
+          );
         },
       );
     } else {
