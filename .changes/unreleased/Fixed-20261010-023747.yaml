@@ -1,0 +1,3 @@
+kind: Fixed
+body: Discarding an ally over the ally limit (or a Restricted card over its limit) no longer repeats the prompt while that card's leaving is being interrupted
+time: 2026-10-10T02:37:47.607587-04:00

@@ -92,8 +92,21 @@ function placeHinder(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * A card a limit on cards in play neither counts nor offers, though it is still in a zone in play: one whose leaving
+ * play is on the stack while a "when this leaves play" interrupt resolves (`leavingPlayPending`; RRG 1.8 "Interrupt",
+ * p. 25, docs/phase7-wave5.md §4.1 Q17), and one already defeated that leaves once its When Defeated has resolved
+ * (`defeatedAwaitingLeave`; FAQ "Fabian Cortez (#159)", RRG 1.8 p. 64). The limit discard is itself a leaving ("choose
+ * and discard from play", RRG 1.8 "Ally Limit", p. 7; "Leaves Play", p. 27), so without this the check between frames
+ * would see the card just chosen still in play and ask for it again, forever (docs/phase7-wave9.md §3.20). A leaving
+ * an interrupt cancelled is not pending: that card stays, and it counts.
+ */
+const onItsWayOut = (state: GameState, id: InstanceId): boolean =>
+  leavingPlayPending(state, id) || defeatedAwaitingLeave(state, id);
+
+/**
  * RRG "Ally Limit": allies may be played past the limit, but the controller then
  * immediately discards down to it — before abilities that resolve on entering play.
+ * An ally already leaving play is not counted and not offered (`onItsWayOut`).
  * Returns true when it asked the player to discard.
  */
 function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
@@ -102,6 +115,7 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
     (id) =>
       isAlly(ctx.state, id) &&
       controllerOf(ctx.state, id) === playerId &&
+      !onItsWayOut(ctx.state, id) &&
       !excludedFromAllyLimit(ctx.state, ctx.deps, id),
   );
   // Unless something can reduce an ally limit ("Reduce your ally limit by 2", The Odd Couple), every rule is an increase
@@ -192,8 +206,7 @@ function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
       // One already defeated and waiting to leave play after its When Defeated is not seen by a rule counting cards in
       // play (`defeatedAwaitingLeave`, FAQ "Fabian Cortez (#159)", RRG 1.8 p. 64), nor is one whose discard is on the
       // stack waiting for a "when this leaves play" interrupt: asking again would discard a second scheme for it.
-      !defeatedAwaitingLeave(ctx.state, id) &&
-      !leavingPlayPending(ctx.state, id) &&
+      !onItsWayOut(ctx.state, id) &&
       !excludedFromPlayerSideSchemeLimit(ctx.state, ctx.deps, id),
   );
 }
@@ -295,7 +308,19 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
 function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
   // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
-  const { load, limit, held } = restrictedStanding(ctx.state, ctx.deps, playerId);
+  const standing = restrictedStanding(ctx.state, ctx.deps, playerId);
+  if (standing.load <= standing.limit) return false;
+  // A restricted card already leaving play no longer weighs on the limit and is not offered again (`onItsWayOut`): its
+  // weight comes off the load, and the limit is read as it stands, the leaving card's own rules still applying until
+  // it has left.
+  const { limit } = standing;
+  const held = standing.held.filter((id) => !onItsWayOut(ctx.state, id));
+  let load = standing.load;
+  for (const id of cardsInPlay(ctx.state)) {
+    if (controllerOf(ctx.state, id) === playerId && onItsWayOut(ctx.state, id)) {
+      load -= restrictedWeightOf(ctx.state, id, ctx.deps);
+    }
+  }
   if (load <= limit) return false;
   const options = held.filter(
     (id) =>

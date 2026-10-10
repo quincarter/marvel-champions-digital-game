@@ -21,13 +21,16 @@ import {
   query,
   replaceTuckHost,
   self,
+  tuckCards,
   tuckedCount,
+  tuckedUnder,
   tuckedUnderRef,
   valueAtLeast,
   valueEquals,
   whenDefeated,
   whenRevealed,
   whileTucked,
+  yourIdentity,
 } from "../../../dsl/index.js";
 
 /** "Each identity": every player's identity, in whichever form it shows. */
@@ -65,8 +68,13 @@ const ENCOUNTER_CARDS_TUCKED_UNDER_IDENTITIES = tuckedCount(EACH_IDENTITY, query
  * (`whileTucked`): after a player card discards it from under an identity, that identity takes 2 damage. Owner decision
  * Q7 = A (provisional): any discard a player card causes counts (a cost, an effect, the identity's four-card cap),
  * so it is `by: "playerCard"` with no `how`; an encounter card's discard (Morlun, its own random discard) is not.
- * "That identity" is the host it was under (`eventPlayer`'s identity). A swap is not a discard. The When Revealed is
- * skipped, see `SILK_OBLIGATION_NEMESIS_SKIPPED`.
+ * "That identity" is the host it was under (`eventPlayer`'s identity). A swap is not a discard. When Revealed, two
+ * sentences in order: with 4 cards tucked under the revealing player's identity, one of them picked by the game's
+ * seeded RNG is discarded (`tuckedUnder(..., { random: 1 })`), an encounter card's discard, so a Spider-Bride picked
+ * that way deals nothing; then the card tucks itself there, an encounter card's tuck, which Silk Sense Overload does
+ * not redirect. With fewer it only tucks. The condition is read as "at least 4": the identity's own cap keeps the
+ * count at 4 or less, and should a card ever hold more (its text box blank), the discard still happens (flagged in the
+ * report). Surge follows the reveal as for any card.
  */
 export const SILK_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "52028.silk-sense-overload-constant": coveredByEngineRule(),
@@ -99,6 +107,10 @@ export const SILK_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 
   "52030.when-revealed": whenRevealed(placeThreat(TUCKED_UNDER_IDENTITIES, self)),
 
+  "52031.when-revealed": whenRevealed(
+    ifThen(valueAtLeast(tuckedCount(yourIdentity), 4), moveCards(tuckedUnder(yourIdentity, { random: 1 }), "discard")),
+    tuckCards(cards(self), yourIdentity),
+  ),
   "52031.hunting-the-spider-bride-forced-response": whileTucked(
     forcedResponse(
       on.thisDiscardedFromUnder({ fromUnder: "identity", by: "playerCard" }),
@@ -107,8 +119,5 @@ export const SILK_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   ),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const SILK_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {
-  "52031.when-revealed":
-    "\"If you have 4 cards tucked under your identity, discard 1 of those cards at random\" needs a random pick among tucked cards: the DSL's `random` exists only on `zone(...)` (hand, deck, discard), `encounterCards` and `encounterSetAside` selectors, not on `tuckedUnder` / `cards(tuckedUnderRef(...))`, and `chooseCards` has no random chooser. Scripting only the self-tuck would let a fifth card trigger the identity's cap instead of the random discard, so the whole When Revealed waits for a tucked-card `random` selector (docs/phase7-wave9.md section 3.40 and The Raft 51018 need the same).",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const SILK_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {};

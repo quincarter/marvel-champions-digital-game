@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { applyCommand, cardsInPlay, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { applyCommand, cardsInPlay, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../ability-refs.js";
 import { mergeRegistries } from "../../dsl/index.js";
@@ -12,6 +12,8 @@ import {
   identityOf,
   inst,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   putOnTopOfDeck,
   type Picker,
@@ -106,6 +108,35 @@ function control(
         [id]: { ...relabeled.instances[id]!, faceup: true, controllerId: player, ...change },
       },
     },
+  };
+}
+
+/** The allies `player` controls in their play area. */
+const ALLY_CODES = new Set(CORE_CARDS.filter((c) => c.type === "ally").map((c) => c.id as string));
+const alliesOf = (s: GameState, player: PlayerId = P1) =>
+  playerOf(s, player).playArea.filter((id) => ALLY_CODES.has(codeOf(s, id)) && inst(s, id).controllerId === player);
+
+/** How many times Abduct Superhumans's Forced Interrupt resolved. */
+const interrupts = (events: readonly GameEvent[]) =>
+  events.filter((e) => e.type === "abilityResolved" && e.abilityId === "50081.abduct-superhumans-forced-interrupt")
+    .length;
+/** Answers each ally-limit prompt with `discard`, counting the prompts (it throws rather than loop). */
+function limitPicker(discard: InstanceId) {
+  const seen = { prompts: 0, offered: [] as string[][] };
+  const pick: Picker = (state) => {
+    const choice = state.pendingChoice;
+    if (choice?.prompt.kind !== "discardOverAllyLimit") return firstLegal(state);
+    seen.prompts += 1;
+    seen.offered.push(choice.options.map((o) => o.optionId));
+    if (seen.prompts > 5) throw new Error("the ally limit prompt keeps repeating");
+    return [discard];
+  };
+  return {
+    pick,
+    get prompts() {
+      return seen.prompts;
+    },
+    offered: seen.offered,
   };
 }
 
@@ -303,9 +334,9 @@ describe("Abduct Superhumans (50081)", () => {
 
   describe("When Defeated", () => {
     /** The first player's hero thwarts `scheme` (1 threat left) and takes the last threat off. */
-    function defeat(state: GameState, scheme: InstanceId, player: PlayerId = P1) {
+    function defeat(state: GameState, scheme: InstanceId, player: PlayerId = P1, pick: Picker = firstLegal) {
       const near = patchInstance(state, scheme, { threat: 1 });
-      return driveEventsPicking(DEPS, near, firstLegal, {
+      return driveEventsPicking(DEPS, near, pick, {
         type: "basicThwart",
         playerId: player,
         thwarterInstanceId: identityOf(near, player),
@@ -370,12 +401,78 @@ describe("Abduct Superhumans (50081)", () => {
       expect(tuckedUnder(thwart.state, base.id)).toEqual([]);
     });
 
-    // Answering that prompt does not finish: the discarded ally leaves play while Abduct Superhumans (defeated, still in
-    // play until its When Defeated has resolved) answers with its Forced Interrupt, and the ally limit is asked again
-    // with the card still counted. See the report; the follow-up belongs to the engine.
-    it.todo(
-      "discarding down to the ally limit with Abduct Superhumans in play resolves (engine: the limit prompt repeats)",
-    );
+    it("answering that prompt finishes it: asked once; Vision goes under the defeated scheme (its Forced Interrupt answers once) and is discarded with it; Hulk and two others remain", () => {
+      const { state: a, id: hulk } = control(heroForm(setupGame()), HULK);
+      const base = withScheme(a);
+      let s = hulkDiscardsHimself(base.state, hulk).state;
+      const others: InstanceId[] = [];
+      for (const code of [VISION, BLACK_CAT, MARIA_HILL]) {
+        const c = control(s, code);
+        s = c.state;
+        others.push(c.id);
+      }
+      const vision = others[0]!;
+      const limit = limitPicker(vision);
+      const run = defeat(s, base.id, P1, limit.pick);
+      expect(limit.prompts).toBe(1);
+      expect(run.state.pendingChoice).toBeNull();
+      // The scheme is still in play while its When Defeated resolves (RRG 1.8 p. 48), so the limit discard is answered
+      // by its Forced Interrupt, and a card tucked under a card that leaves play is discarded (RRG 1.8 p. 27).
+      expect(interrupts(run.events)).toBe(1);
+      expect(playerOf(run.state, P1).discard).toContain(vision);
+      expect(inPlayArea(run.state, vision)).toBe(false);
+      expect(inPlayArea(run.state, hulk)).toBe(true);
+      expect(alliesOf(run.state)).toHaveLength(3);
+      expect(cardsInPlay(run.state)).not.toContain(base.id);
+      expect(inDiscard(run.state, SCHEME)).toEqual([base.id]);
+    });
+  });
+
+  describe("the ally limit (RRG 1.8 p. 7: 'choose and discard from play' is a leaving of play)", () => {
+    it("a fourth ally played with Abduct Superhumans in play: asked once; the chosen Black Cat (cost 2) is tucked, threat 2 + 2, 1 token, three allies remain", () => {
+      let s = heroForm(setupGame());
+      const held: InstanceId[] = [];
+      for (const code of [LUKE_CAGE, BLACK_CAT, MARIA_HILL]) {
+        const c = control(s, code);
+        s = c.state;
+        held.push(c.id);
+      }
+      const base = withScheme(s);
+      const fourth = playerOf(base.state, P1).hand[0]!;
+      const ready = relabel(base.state, fourth, VISION);
+      const cat = held[1]!;
+      const limit = limitPicker(cat);
+      const run = driveEventsPicking(DEPS, ready, limit.pick, play(P1, fourth, payWith(ready, P1, 4, [fourth])));
+      expect(limit.prompts).toBe(1);
+      expect(limit.offered[0]!.sort()).toEqual([...held, fourth].sort());
+      expect(run.state.pendingChoice).toBeNull();
+      expect(tuckedUnder(run.state, base.id)).toEqual([cat]);
+      expect(playerOf(run.state, P1).discard).not.toContain(cat);
+      expect(threat(run.state, base.id)).toBe(4);
+      expect(tokens(run.state, base.id)).toBe(1);
+      expect(interrupts(run.events)).toBe(1);
+      expect(alliesOf(run.state).sort()).toEqual([held[0]!, held[2]!, fourth].sort());
+    });
+
+    it("the ally just played may be the one chosen (Vision, cost 4): tucked, threat 2 + 4, 1 token, the first three remain", () => {
+      let s = heroForm(setupGame());
+      const held: InstanceId[] = [];
+      for (const code of [LUKE_CAGE, BLACK_CAT, MARIA_HILL]) {
+        const c = control(s, code);
+        s = c.state;
+        held.push(c.id);
+      }
+      const base = withScheme(s);
+      const fourth = playerOf(base.state, P1).hand[0]!;
+      const ready = relabel(base.state, fourth, VISION);
+      const limit = limitPicker(fourth);
+      const run = driveEventsPicking(DEPS, ready, limit.pick, play(P1, fourth, payWith(ready, P1, 4, [fourth])));
+      expect(limit.prompts).toBe(1);
+      expect(tuckedUnder(run.state, base.id)).toEqual([fourth]);
+      expect(threat(run.state, base.id)).toBe(6);
+      expect(tokens(run.state, base.id)).toBe(1);
+      expect(alliesOf(run.state).sort()).toEqual([...held].sort());
+    });
   });
 });
 

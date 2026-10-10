@@ -68,6 +68,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkPreparations(definition, problems);
   checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
+  checkRandomPicks(definition, "definition", problems);
   checkPlays(definition, problems);
   checkTuckReplacement(definition, problems);
   checkLeaveReplacement(definition, problems);
@@ -663,6 +664,33 @@ function checkRearranges(definition: AbilityDefinition, problems: string[]): voi
     if (!positional(effect.cards))
       problems.push("lookAt rearrange: the cards are dealt encounter cards (dealtEncounterCards) and deck cards only");
   }
+}
+
+/** The card selectors that take `random`: that many of their cards, by the game's seeded RNG. */
+const RANDOM_SELECTORS: readonly string[] = ["zone", "encounter", "encounterSetAside", "tucked"];
+
+/**
+ * A selector's `random` is a number of cards to pick ("1 of those cards at random", docs/phase7-wave9.md §3.40): a
+ * constant must be a whole number of at least 1, since the engine reads anything less as picking nothing, which would
+ * silently drop what the text names. A computed count is read when the effect resolves.
+ */
+function checkRandomPicks(value: unknown, path: string, problems: string[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => checkRandomPicks(item, `${path}[${i}]`, problems));
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  const random = record.random as { kind?: unknown; value?: unknown } | boolean | undefined;
+  if (
+    typeof record.kind === "string" &&
+    RANDOM_SELECTORS.includes(record.kind) &&
+    typeof random === "object" &&
+    random.kind === "const" &&
+    (typeof random.value !== "number" || !Number.isInteger(random.value) || random.value < 1)
+  )
+    problems.push(`${path}: a ${record.kind} selector's random count must be a whole number of at least 1`);
+  for (const [key, item] of Object.entries(record)) checkRandomPicks(item, `${path}.${key}`, problems);
 }
 
 /** Every effect in the tree, including nested branches and deferred effects. */

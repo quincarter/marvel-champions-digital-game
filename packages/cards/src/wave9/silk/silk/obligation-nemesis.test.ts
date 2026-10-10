@@ -55,12 +55,14 @@ const HUNT = "52030";
 const BRIDE = "52031";
 const INTERRUPT = "52028.silk-sense-overload-forced-interrupt";
 const BRIDE_RESPONSE = "52031.hunting-the-spider-bride-forced-response";
+const BRIDE_REVEALED = "52031.when-revealed";
 const REFS = [
   "52028.silk-sense-overload-constant",
   INTERRUPT,
   "52029.morlun-constant",
   "52029.when-defeated",
   "52030.when-revealed",
+  BRIDE_REVEALED,
   BRIDE_RESPONSE,
 ];
 const MERC = "01101";
@@ -194,16 +196,16 @@ const kinds = (events: readonly GameEvent[], ref: string): number =>
   events.filter((e) => e.type === "abilityResolved" && (e as { abilityId?: string }).abilityId === ref).length;
 
 describe("registry", () => {
-  it("registers every printed ref but the Spider-Bride's When Revealed, which is skipped with its reason", () => {
+  it("registers every printed ref; nothing is skipped", () => {
     const printed = [OVERLOAD, MORLUN, HUNT, BRIDE].flatMap((c) => abilityRefIds(data(c)));
-    expect([...printed].sort()).toEqual([...REFS, "52031.when-revealed"].sort());
+    expect([...printed].sort()).toEqual([...REFS].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(SKIPPED)).toEqual(["52031.when-revealed"]);
-    expect(SKIPPED["52031.when-revealed"]).toContain("random");
+    expect(Object.keys(SKIPPED)).toEqual([]);
   });
   it.each([...REFS])("%s validates", (ref) => {
     expect(validateDefinition(REGISTRY[ref]!)).toEqual([]);
   });
+
   it("timing: Overload is a forced `would` interrupt, Morlun's and the Hunt's are When Defeated / When Revealed, the Bride answers from under a card", () => {
     expect(REGISTRY[INTERRUPT]!.trigger).toMatchObject({ kind: "interrupt", forced: true, would: true });
     expect(REGISTRY["52029.when-defeated"]!.trigger).toMatchObject({ kind: "whenDefeated" });
@@ -744,7 +746,7 @@ describe(`52031 Hunting the Spider-Bride: ${BRIDE_RESPONSE}`, () => {
     });
   });
 
-  it("a swap with Eidetic Memory is not a discard: Silk takes only Rhino's 2, and the Hunt is tucked in the Bride's place", () => {
+  it("a swap with Eidetic Memory is not a discard: Silk takes only Rhino's 2, the Hunt is tucked in the Bride's place, and the Bride revealed instead tucks itself after it", () => {
     const hero = withForm(silkHeroGame(), { heroForm: 0 });
     const memory = playFromHand(SILK_DEPS, hero, "52008", 1);
     const t = tuckSetAside(memory.state, BRIDE);
@@ -758,18 +760,90 @@ describe(`52031 Hunting the Spider-Bride: ${BRIDE_RESPONSE}`, () => {
       }),
       endTurn(P1),
     );
-    expect(tuckedOf(state)).toEqual([base.id]);
+    // The Bride is revealed in the Hunt's place: with 1 card tucked (the Hunt) its When Revealed only tucks it again.
+    expect(tuckedOf(state)).toEqual([base.id, t.id]);
+    expect(kinds(events, BRIDE_REVEALED)).toBe(1);
     expect(kinds(events, BRIDE_RESPONSE)).toBe(0);
-    expect(encounterDiscard(state)).toContain(t.id); // the Bride was revealed instead and discarded from play, not from under Silk
+    expect(encounterDiscard(state)).not.toContain(t.id);
     expect(damageOf(state)).toBe(2);
   });
+});
 
-  it("its When Revealed is skipped for want of a random tucked-card pick: revealed, it only Surges (nothing tucked, nothing discarded)", () => {
-    // Pins the gap (SILK_OBLIGATION_NEMESIS_SKIPPED): when "discard 1 of those cards at random" and the self-tuck are
-    // scripted this test is replaced by the 0, 3 and 4 tucked cases.
-    const staged = setAsideToDeckTop(fillers(silkGame(), 6), BRIDE, 1);
-    const { state } = run(calm(staged.state), picker(), endTurn(P1));
-    expect(tuckedOf(state)).toEqual([]);
-    expect(encounterDiscard(state)).toContain(staged.id);
+describe(`52031 Hunting the Spider-Bride: ${BRIDE_REVEALED}`, () => {
+  /** The Bride dealt to Cindy Moon in a real villain phase (Rhino's boost card first), six blank cards behind it. */
+  function revealed(start: GameState, deps: EngineDeps = SILK_DEPS) {
+    const staged = setAsideToDeckTop(fillers(start, 6), BRIDE, 1);
+    const run = driveEventsPicking(deps, calm(staged.state), picker(), endTurn(P1));
+    return { ...run, bride: staged.id, before: staged.state };
+  }
+  /** `codes` tucked under Cindy Moon, in order (Rhino-set encounter cards). */
+  function tucked(start: GameState, ...codes: string[]): { state: GameState; ids: InstanceId[] } {
+    let state = start;
+    const ids: InstanceId[] = [];
+    for (const code of codes) {
+      const t = tuckEncounterCard(state, code);
+      state = t.state;
+      ids.push(t.id);
+    }
+    return { state, ids };
+  }
+  const asked = (events: readonly GameEvent[], kind: string) =>
+    ofType(events, "choiceRequested").filter((e) => e.choice.prompt.kind === kind);
+
+  it("0 tucked: nothing is discarded, it tucks itself under Cindy Moon (1), and it surges (1 more card revealed)", () => {
+    const { state, events, bride } = revealed(silkGame());
+    expect(tuckedOf(state)).toEqual([bride]);
+    expect(encounterDiscard(state)).not.toContain(bride);
+    expect(kinds(events, BRIDE_REVEALED)).toBe(1);
+    expect(kinds(events, BRIDE_RESPONSE)).toBe(0);
+    expect(ofType(events, "surgeTriggered").map((e) => e.instanceId)).toEqual([bride]);
+    expect(damageOf(state)).toBe(0);
+  });
+
+  it("3 tucked: nothing is discarded, it tucks itself fourth (4), in order, with no prompt for the cap", () => {
+    const t = tucked(silkGame(), MERC, SANDMAN, SHOCKER);
+    const { state, events, bride } = revealed(t.state);
+    expect(tuckedOf(state)).toEqual([...t.ids, bride]);
+    for (const id of t.ids) expect(encounterDiscard(state)).not.toContain(id);
+    expect(asked(events, "chooseCards")).toEqual([]);
+    expect(damageOf(state)).toBe(0);
+  });
+
+  it("4 tucked: exactly 1 of the four is discarded at random (no choice), then it tucks itself (4 again, the Bride last); the same game picks the same card", () => {
+    const t = tucked(silkGame(), MERC, SANDMAN, SHOCKER, HARD);
+    const { state, events, bride } = revealed(t.state);
+    const gone = t.ids.filter((id) => !tuckedOf(state).includes(id));
+    expect(gone).toHaveLength(1);
+    expect(encounterDiscard(state)).toContain(gone[0]);
+    expect(tuckedOf(state)).toEqual([...t.ids.filter((id) => id !== gone[0]), bride]);
+    // The pick is the engine's, not the player's: nobody is asked, and the cap (more than 4) never comes up.
+    expect(asked(events, "chooseCards")).toEqual([]);
+    expect(damageOf(state)).toBe(0);
+    // Deterministic by seed: the same state resolves to the same pick.
+    const again = revealed(t.state);
+    expect(t.ids.filter((id) => !tuckedOf(again.state).includes(id))).toEqual(gone);
+  });
+
+  it("4 Brides tucked: the Bride discarded at random by another Bride (an encounter card's discard) deals no damage", () => {
+    // Three copies exist, so the four tucked ones are Rhino-set cards relabeled as the Bride (surgery).
+    const t = tucked(silkGame(), MERC, SANDMAN, SHOCKER, HARD);
+    const brides = t.ids.reduce((acc, id) => patchInstance(acc, id, { cardId: cardId(BRIDE) }), t.state);
+    const { state, events, bride } = revealed(brides);
+    const gone = t.ids.filter((id) => !tuckedOf(state).includes(id));
+    expect(gone).toHaveLength(1);
+    expect(codeOf(state, gone[0]!)).toBe(BRIDE);
+    expect(kinds(events, BRIDE_RESPONSE)).toBe(0);
+    expect(damageOf(state)).toBe(0);
+    expect(tuckedOf(state)).toHaveLength(4);
+    expect(tuckedOf(state)[3]).toBe(bride);
+  });
+
+  it("Silk Sense Overload in play: the treachery's own tuck is an encounter card's, so it lands under Silk and Overload stays empty", () => {
+    const base = withOverload();
+    const { state, events, bride } = revealed(base.state);
+    expect(tuckedOf(state)).toEqual([bride]);
+    expect(tuckedUnder(state, base.id)).toEqual([]);
+    expect(kinds(events, INTERRUPT)).toBe(0);
+    expect(inPlayArea(state, base.id)).toBe(true);
   });
 });

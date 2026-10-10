@@ -1323,7 +1323,22 @@ export const createScenarioPlayArea = (name: string, opts: { readonly closed?: b
   name,
   closed: opts.closed ?? true,
 });
-export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked", under });
+/**
+ * "Each card tucked here": the cards tucked under the card(s) `under` names, in the order they were tucked. `filter`
+ * keeps the matching ones; `random` picks that many of them with the game's seeded RNG ("discard 1 of those cards at
+ * random", Hunting the Spider-Bride, `silk` 52031; "deal 1 random minion here …", The Raft, `bp` 51018;
+ * docs/phase7-wave9.md §3.39, §3.40), fewer when fewer are there.
+ */
+export const tuckedUnder = (
+  under: TargetRef,
+  opts: { readonly filter?: TargetQuery; readonly random?: Amount } = {},
+): CardSelector => ({
+  kind: "tucked",
+  under,
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  // "1 of those cards at random" (docs/phase7-wave9.md §3.39, §3.40): that many of them, by the game's seeded RNG.
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
+});
 /**
  * "Search the encounter deck, discard pile, **and set-aside area** for X" (Kang's Wrath 4B, 11013b; docs/phase7-
  * wave2.md §10.1/§17.1): every card any listed selector names, each once, in the order listed — one pool across

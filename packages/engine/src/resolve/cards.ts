@@ -71,6 +71,24 @@ import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
 import { cannotLeavePlay, staysInHand } from "../rules.js";
 
+/**
+ * `count` cards of `pool` at random, without replacement, in the order drawn; every card of a smaller pool, none of an
+ * empty one. Each pick is one draw on the game's seeded RNG (`GameState.rng`), which advances with it, so a replay of
+ * the command log picks the same cards; an empty pool or a count of zero draws nothing and leaves the RNG as it was.
+ * The one place a selector's `random` is resolved (`zone`, `encounter`, `encounterSetAside`, `tucked`).
+ */
+function pickAtRandom(ctx: Ctx, pool: readonly InstanceId[], count: number): InstanceId[] {
+  const left = [...pool];
+  const picked: InstanceId[] = [];
+  for (let i = 0; i < count && left.length > 0; i++) {
+    const [index, rng] = nextInt(ctx.state.rng, left.length);
+    ctx.state = { ...ctx.state, rng };
+    picked.push(left[index] as InstanceId);
+    left.splice(index, 1);
+  }
+  return picked;
+}
+
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
   const state = ctx.state;
@@ -167,29 +185,12 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         ids.push(...(selector.topmostOnly ? pool.slice(0, 1) : pool));
       }
       if (!selector.random) return ids;
-      // Random picks draw on the game's seeded RNG, so a replay picks the same cards.
-      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
-      const picked: InstanceId[] = [];
-      for (let i = 0; i < count && ids.length > 0; i++) {
-        const [index, rng] = nextInt(ctx.state.rng, ids.length);
-        ctx.state = { ...ctx.state, rng };
-        picked.push(ids[index] as InstanceId);
-        ids.splice(index, 1);
-      }
-      return picked;
+      return pickAtRandom(ctx, ids, resolveValue(ctx.state, selector.random, context));
     }
     case "encounterSetAside": {
       const matching = [...filtered(state.encounterSetAside, selector.filter)];
       if (!selector.random) return matching;
-      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
-      const picked: InstanceId[] = [];
-      for (let i = 0; i < count && matching.length > 0; i++) {
-        const [index, rng] = nextInt(ctx.state.rng, matching.length);
-        ctx.state = { ...ctx.state, rng };
-        picked.push(matching[index] as InstanceId);
-        matching.splice(index, 1);
-      }
-      return picked;
+      return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
     }
     case "removedFromGame":
       return filtered(state.removedFromGame, selector.filter);
@@ -220,8 +221,14 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
         filtered(mustPlayer(state, playerId).setAside, selector.filter),
       );
-    case "tucked":
-      return resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
+    case "tucked": {
+      const under = filtered(
+        resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []),
+        selector.filter,
+      );
+      if (!selector.random) return under;
+      return pickAtRandom(ctx, under, resolveValue(ctx.state, selector.random, context));
+    }
     case "dealtEncounter":
       // Facedown and not being revealed, as `passEncounterCards` reads a card that is still a dealt one. A surge's
       // card whose reveal has not begun (`afterDeal`) is one.
@@ -262,16 +269,7 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         }
         let matching = [...filtered(pool, selector.filter)];
         if (selector.random) {
-          // Random picks draw on the game's seeded RNG, so a replay picks the same cards.
-          const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
-          const picked: InstanceId[] = [];
-          for (let i = 0; i < count && matching.length > 0; i++) {
-            const [index, rng] = nextInt(ctx.state.rng, matching.length);
-            ctx.state = { ...ctx.state, rng };
-            picked.push(matching[index] as InstanceId);
-            matching.splice(index, 1);
-          }
-          matching = picked;
+          matching = pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
         }
         found.push(
           ...(selector.bottommostOnly ? matching.slice(-1) : selector.topmostOnly ? matching.slice(0, 1) : matching),

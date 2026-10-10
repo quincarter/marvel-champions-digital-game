@@ -38,8 +38,8 @@ import { SILK_OBLIGATION_NEMESIS_SKIPPED } from "./obligation-nemesis.js";
  * Seeding is limited to what the other starter-deck games use: `moveToHand` (the cards a round needs, and spare cards
  * to pay with, pulled from the deck or discard pile), `stackEncounterDeck` (the order the villain phase draws in) and
  * `stageNemesisCardForReveal` (the set-aside nemesis cards, dealt in a real villain phase). The one extra surgery is
- * `tuckSetAside`: Hunting the Spider-Bride is staged already tucked, because its When Revealed is the one unscripted ref
- * (`52031.when-revealed`, needs a random pick among tucked cards); its 2-damage response while tucked is scripted.
+ * `tuckSetAside`: Hunting the Spider-Bride is staged already tucked in the game (it was written before the card's When
+ * Revealed was scripted); a reveal of it through a real villain phase is the separate game at the end of this file.
  *
  * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md; page numbers as the modules cite them):
  * - "Tuck" (p. 45): faceup, not in play; a card that leaves play discards the cards tucked under it. Silk's 4-card cap
@@ -271,8 +271,8 @@ describe("Silk (Protection) precon against Rhino (standard, solo), seed 1", () =
     expect(mainThreat()).toBe(0);
     expect(state.round).toBe(1);
     expect(state.pendingChoice).toBeNull();
-    // The one ref left unscripted is the Spider-Bride's When Revealed; that card is staged tucked below.
-    expect(Object.keys(SILK_OBLIGATION_NEMESIS_SKIPPED)).toEqual(["52031.when-revealed"]);
+    // Nothing of the nemesis set is left unscripted. The Spider-Bride is still staged tucked below.
+    expect(Object.keys(SILK_OBLIGATION_NEMESIS_SKIPPED)).toEqual([]);
     encounterTotal = Object.keys(state.instances).filter((id) => inst(state, id as InstanceId).ownerId !== P1).length;
     instanceTotal = Object.keys(state.instances).length;
   });
@@ -1054,8 +1054,15 @@ describe("Stop Hitting Yourself while a guard minion is engaged", () => {
   });
 });
 
-describe("not yet scripted", () => {
-  it.todo(
-    "Hunting the Spider-Bride (52031) When Revealed: 'If you have 4 cards tucked under your identity, discard 1 of those cards at random. Tuck this card under your identity.' (unscripted: needs a random pick among tucked cards; revealed today it only surges and is discarded)",
-  );
+describe("Hunting the Spider-Bride (52031) revealed in a real villain phase (a game of its own, seed 1)", () => {
+  it("dealt to Cindy Moon from the nemesis set with nothing tucked: it tucks itself under her identity and surges", () => {
+    const start = silkGame();
+    const staged = stageNemesisCardForReveal(start, "52031", P1, 1);
+    const decline: Picker = (s) => (s.pendingChoice!.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s));
+    const { state, events } = driveEventsPicking(SILK_DEPS, staged, decline, endTurn(P1));
+    const tucked = inst(state, identityOf(state)).tucked;
+    expect(tucked).toHaveLength(1);
+    expect(inst(state, tucked[0]!).cardId).toBe("52031");
+    expect(events.filter((e) => e.type === "surgeTriggered").map((e) => e.instanceId)).toEqual(tucked);
+  });
 });

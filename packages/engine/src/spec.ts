@@ -4542,8 +4542,21 @@ export type CardSelector =
       readonly top?: ValueSpec;
       readonly filter?: TargetQuery;
     }
-  /** Cards tucked under a card ("each facedown card here"). */
-  | { readonly kind: "tucked"; readonly under: TargetRef }
+  /**
+   * Cards tucked under a card ("each facedown card here"), in the order they were tucked. `filter` keeps the matching
+   * ones. `random` (docs/phase7-wave9.md §3.39, §3.40): that many of them at random, from the game's seeded RNG, as
+   * `encounterSetAside.random`; over the cards under every card `under` names as one pool, after `filter`, fewer when
+   * fewer are there and none under a card with nothing tucked. "If you have 4 cards tucked under your identity, discard
+   * 1 of those cards at random" (Hunting the Spider-Bride, `silk` 52031); "deal 1 random minion here to any player as a
+   * facedown encounter card" (The Raft, `bp` 51018). What is then done with the picked card is the effect's own: a
+   * discard is recorded with the cause of the card whose ability made it (`recordTuckedDiscard`).
+   */
+  | {
+      readonly kind: "tucked";
+      readonly under: TargetRef;
+      readonly filter?: TargetQuery;
+      readonly random?: ValueSpec;
+    }
   /**
    * "Each encounter card dealt to each player" (docs/phase7-wave9.md §3.12): the facedown encounter cards dealt to the
    * players `player` names and not yet revealed (`PlayerState.dealtEncounter`; a card whose reveal has begun is no
