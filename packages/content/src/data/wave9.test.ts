@@ -474,4 +474,12 @@ describe("wave 9 data: text corrections and errata (docs/phase7-wave9.md section
     const card = byId(AOS_CARDS, "50119") as { statModifiers?: unknown };
     expect(card.statModifiers).toBeUndefined();
   });
+  it("a card that grants itself a quoted ability keeps one ref: Flight Squadron 53020 and Agents of S.H.I.E.L.D. 50015", () => {
+    // The gained response/interrupt is not a ref of its own (parse-text.ts QUOTED_HEADER_RE note); the scripting side
+    // registers a registry-only id, as for Night Vision Goggles 50070's granted Preparation.
+    const squadron = byId(FALCON_CARDS, "53020") as { abilities: { id: string }[] };
+    expect(squadron.abilities.map((a) => a.id)).toEqual(["53020.flight-squadron-constant"]);
+    const agents = byId(AOS_CARDS, "50015") as { abilities: { id: string }[] };
+    expect(agents.abilities.map((a) => a.id)).toEqual(["50015.agents-of-shield-constant"]);
+  });
 });
