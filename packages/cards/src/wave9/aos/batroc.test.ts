@@ -1,6 +1,8 @@
 import { AOS_CARDS } from "@mc/content";
 import {
   activeEncounterDeckId,
+  cannotLeavePlay,
+  cardAbilitiesCannotRemove,
   createGame,
   hasKeyword,
   mainSchemeValue,
@@ -31,7 +33,13 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { defeatWithAttack, driveEventsPicking, playFromHand, withForm } from "../../testing/staging.js";
+import {
+  defeatWithAttack,
+  driveEventsPicking,
+  encounterCardInVillainArea,
+  playFromHand,
+  withForm,
+} from "../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import {
   BLACK_CAT,
@@ -46,6 +54,8 @@ import {
   inPlayCard,
   picking,
   piles,
+  revealedCodes,
+  stunWith,
   types,
 } from "../testing.js";
 import { wave9Scenario } from "../setup.js";
@@ -54,15 +64,16 @@ import { BATROC, BATROC_SKIPPED } from "./batroc.js";
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Batroc, first half (docs/phase7-wave9.md sections 2.3, 3.5, 3.13 to 3.16): the villain 50086a/b, the three main scheme
- * stages 50087a/b to 50089a/b and Alert Level 50090a/b. The real `batroc` scenario (Spider-Man and Iron Man preconstructed
- * decks from Core), every seat in hero form. Rescued Captive 50091 is the second half: its ally limit exception and its
- * action are not scripted yet, so tests put at most two captives under one player.
+ * Batroc (docs/phase7-wave9.md sections 2.3, 3.1, 3.5, 3.13 to 3.16, 3.25, 3.33): the villain 50086a/b, the three main
+ * scheme stages 50087a/b to 50089a/b and Alert Level 50090a/b, then the second half: Rescued Captive 50091, Heightened
+ * Reflexes 50092, Embassy Guard / Patrol 50093 / 50094, Commandeer Security Office 50095, Leaping Kick 50096 and
+ * Security Cameras 50097. The real `batroc` scenario (Spider-Man and Iron Man preconstructed decks from Core), every seat
+ * in hero form.
  */
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, BATROC) };
 const SEATS = [SPIDER_MAN, IRON_MAN] as const;
 const SECOND_HALF = ["50091", "50092", "50093", "50094", "50095", "50096", "50097"];
-const REGISTERED = [
+const REGISTERED_FIRST_HALF = [
   "50086a.batroc-forced-response",
   "50086a.batroc-forced-interrupt",
   "50086b.batroc-forced-response",
@@ -83,6 +94,22 @@ const REGISTERED = [
   "50090b.alert-level-forced-response",
   "50090b.alert-level-action",
 ];
+const REGISTERED_SECOND_HALF = [
+  "50091.rescued-captive-constant",
+  "50091.rescued-captive-action",
+  "50092.heightened-reflexes-forced-interrupt",
+  "50092.boost",
+  "50093.embassy-guard-constant",
+  "50093.when-defeated",
+  "50094.embassy-patrol-constant",
+  "50094.when-defeated",
+  "50095.when-revealed",
+  "50095.when-defeated",
+  "50096.when-revealed-alter-ego",
+  "50096.when-revealed-hero",
+  "50097.when-revealed-alter-ego",
+];
+const REGISTERED = [...REGISTERED_FIRST_HALF, ...REGISTERED_SECOND_HALF];
 const GUARD = "50093";
 /** Three fillers (Core treacheries): two blanks and a one-icon boost; the villain phase reveals one per player and boosts once. */
 const STACK = [BLANK, BLANK, ONE_ICON];
@@ -182,17 +209,20 @@ const villainPhase = (t: Table, pick: Picker = firstLegal, ...stack: string[]) =
   );
 
 describe("registry", () => {
-  it("registers exactly the first half's refs, each a valid definition; the second half is skipped with its reason", () => {
+  it("registers every ref of the module's cards except the one skipped, each a valid definition", () => {
     expect(Object.keys(BATROC).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(BATROC)) expect(validateDefinition(def), id).toEqual([]);
     const refs = SECOND_HALF.flatMap((code) => abilityRefIds(AOS_CARDS.find((c) => c.id === code)!));
-    expect(Object.keys(BATROC_SKIPPED).sort()).toEqual([...refs].sort());
-    expect(new Set(Object.values(BATROC_SKIPPED))).toEqual(new Set(["second half of the module, not started"]));
+    expect([...Object.keys(BATROC_SKIPPED), ...REGISTERED_SECOND_HALF].sort()).toEqual([...refs].sort());
+    expect(Object.keys(BATROC_SKIPPED)).toEqual(["50097.when-revealed-hero"]);
+    expect(BATROC_SKIPPED["50097.when-revealed-hero"]).toContain("that character");
   });
 
-  it("the data names exactly the registered refs", () => {
-    const refs = ["50086a", "50087a", "50090a"].flatMap((code) => abilityRefIds(AOS_CARDS.find((c) => c.id === code)!));
-    expect([...refs].sort()).toEqual([...REGISTERED].sort());
+  it("the data names exactly the registered and skipped refs", () => {
+    const refs = ["50086a", "50087a", "50090a", ...SECOND_HALF].flatMap((code) =>
+      abilityRefIds(AOS_CARDS.find((c) => c.id === code)!),
+    );
+    expect([...refs].sort()).toEqual([...REGISTERED, ...Object.keys(BATROC_SKIPPED)].sort());
   });
 });
 
@@ -599,21 +629,23 @@ describe("Alert Level (50090a/b)", () => {
     expect(statBonus(t.state, DEPS, t.villain, "atk")).toBe(0);
     const state = defeatWithAttack(DEPS, t.state, id);
     expect(side(state)).toBe("High");
-    expect(threat(state, alertOf(state))).toBe(0);
+    // The Guard's own When Defeated (50093) takes Alert Level to 8, which flips it; Alert Level's response then adds 1.
+    expect(threat(state, alertOf(state))).toBe(1);
     expect(statBonus(state, DEPS, t.villain, "sch")).toBe(1);
     expect(statBonus(state, DEPS, t.villain, "atk")).toBe(1);
     expect(state.outcome).toBeNull();
   });
 
-  it("Low at 3 (two players): a minion defeated gives 4 and nothing flips; at one player the threshold is 4 and it flips", () => {
+  it("Low at 3 (two players): a Guard defeated gives 5 (its own When Defeated and Alert Level's response) and nothing flips; at one player the threshold is 4 and it flips", () => {
     const { t, id } = engagedMinion(alertAt(game(), 3));
     const state = defeatWithAttack(DEPS, t.state, id);
     expect(side(state)).toBe("Low");
-    expect(threat(state, alertOf(state))).toBe(4);
+    expect(threat(state, alertOf(state))).toBe(5);
     const m = engagedMinion(alertAt(game(1), 3));
     const s1 = defeatWithAttack(DEPS, m.t.state, m.id);
     expect(side(s1)).toBe("High");
-    expect(threat(s1, alertOf(s1))).toBe(0);
+    // The Guard's When Defeated reaches 4 and flips it (tokens cleared); Alert Level's response then adds 1.
+    expect(threat(s1, alertOf(s1))).toBe(1);
   });
 
   it("flipping keeps the tokens a High side shows: High at 3 stays at 3 until the threshold", () => {
@@ -630,7 +662,7 @@ describe("Alert Level (50090a/b)", () => {
     expect(threat(state, alertOf(state))).toBe(8);
   });
 
-  it("an ally defeated by its own consequential damage places no threat; a minion defeated by an attack places 1", () => {
+  it("an ally defeated by its own consequential damage places no threat; a Guard defeated by an attack places 2", () => {
     const base = game();
     const played = playFromHand(DEPS, base.state, BLACK_CAT, 2);
     // Black Cat (2 hit points, 1 consequential damage on a thwart) with 1 damage thwarts and is defeated by her own 1.
@@ -644,7 +676,8 @@ describe("Alert Level (50090a/b)", () => {
     expect(types(thwarted.events, "characterDefeated").map((e) => e.instanceId)).toContain(played.id);
     expect(threat(thwarted.state, alertOf(thwarted.state))).toBe(0);
     const killed = defeatWithAttack(DEPS, t.state, id);
-    expect(threat(killed, alertOf(killed))).toBe(1);
+    // The Guard's own When Defeated (50093) and Alert Level's response: 2.
+    expect(threat(killed, alertOf(killed))).toBe(2);
   });
 
   it("Hero Action: spend 1 resource of any type -> remove 1 threat from here, on either side", () => {
@@ -663,5 +696,499 @@ describe("Alert Level (50090a/b)", () => {
     const t = alertAt(game(), 0, true);
     expect(statBonus(t.state, DEPS, t.villain, "atk")).toBe(1);
     expect(statBonus(t.state, DEPS, t.villain, "sch")).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Second half
+// ---------------------------------------------------------------------------------------------------------------------
+
+const CAPTIVE = "50091";
+const JESSICA_JONES = "01059";
+const DAREDEVIL = "01058";
+const REFLEXES = "50092";
+const PATROL = "50094";
+const COMMANDEER = "50095";
+const KICK = "50096";
+const CAMERAS = "50097";
+const HAYMAKER = "01087";
+/** Two Core "Assault" treacheries (0 boost icons, no boost ability): fillers for a boost card. */
+const FILL = "01187";
+/** Six more cards from the top of P1's deck in hand, to pay for a card. */
+const refill = (s: GameState): GameState => ({
+  ...s,
+  players: s.players.map((p) =>
+    p.playerId === P1 ? { ...p, hand: [...p.hand, ...p.deck.slice(0, 6)], deck: p.deck.slice(6) } : p,
+  ),
+});
+
+/** The next set-aside Rescued Captive put into play under `player` by surgery (faceup, ready, `damage` on it). */
+function withCaptive(t: Table, player: PlayerId, damage = 0): { readonly t: Table; readonly id: InstanceId } {
+  const id = t.state.encounterSetAside[0]!;
+  const state: GameState = {
+    ...t.state,
+    encounterSetAside: t.state.encounterSetAside.filter((i) => i !== id),
+    players: t.state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
+    instances: {
+      ...t.state.instances,
+      [id]: { ...t.state.instances[id]!, faceup: true, exhausted: false, controllerId: player, damage },
+    },
+  };
+  return { t: withState(t, state), id };
+}
+
+describe("Rescued Captive (50091)", () => {
+  it("data: cost dash, THW 1, ATK 1, 5 hit points, Civilian, Victory -1, 1 consequential damage, no deck limit beyond the scenario", () => {
+    const card = dataOf(CAPTIVE);
+    expect([card.type, card.cost, card.specialCost, card.thw, card.atk, card.hp]).toEqual(["ally", 0, "dash", 1, 1, 5]);
+    expect(card.keywords).toEqual([{ name: "victory", value: -1 }]);
+    expect(card.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(card.traits).toEqual(["CIVILIAN"]);
+  });
+
+  it("enters play under the chosen player (P2), exhausted, with 5 hit points", () => {
+    const t = advanceTo(game(), 1, firstLegal);
+    const { state } = thwartLast(
+      t,
+      choosing("Do not advance", () => P2),
+    );
+    const [captive] = captivesInPlay(state) as [InstanceId];
+    expect(playerOf(state, P2).playArea).toContain(captive);
+    expect(inst(state, captive).controllerId).toBe(P2);
+    expect(remainingHitPoints(state, captive, DEPS)).toBe(5);
+  });
+
+  it("does not count against the ally limit: P1 holds three allies and takes a captive, so all four stay and nothing is discarded", () => {
+    let t = advanceTo(game(), 1, firstLegal);
+    for (const [code, cost] of [
+      [BLACK_CAT, 2],
+      [JESSICA_JONES, 3],
+      [DAREDEVIL, 4],
+    ] as const)
+      t = withState(t, playFromHand(DEPS, refill(t.state), code, cost).state);
+    const { state } = thwartLast(
+      t,
+      choosing("Do not advance", () => P1),
+    );
+    const [captive] = captivesInPlay(state) as [InstanceId];
+    expect(playerOf(state, P1).playArea).toContain(captive);
+    for (const code of [BLACK_CAT, JESSICA_JONES, DAREDEVIL])
+      expect(playerOf(state, P1).playArea.map((i) => codeOf(state, i))).toContain(code);
+    expect(
+      playerOf(state, P1).discard.filter((i) => [BLACK_CAT, JESSICA_JONES, DAREDEVIL].includes(codeOf(state, i))),
+    ).toEqual([]);
+    expect(state.pendingChoice).toBeNull();
+    // Four allies under one player: three ordinary and the captive.
+    expect(
+      playerOf(state, P1).playArea.filter((i) => inst(state, i).controllerId === P1 && i !== identityOf(state, P1)),
+    ).toHaveLength(4);
+  });
+
+  it("card abilities cannot remove it, but a game rule can: cardAbilitiesCannotRemove and a card-sourced leave are stopped, a defeat is not", () => {
+    const { t, id } = withCaptive(game(), P1);
+    expect(cardAbilitiesCannotRemove(t.state, DEPS, id)).toBe(true);
+    expect(cannotLeavePlay(t.state, DEPS, id, AOS_CARDS.find((c) => c.id === "50096")!.id)).toBe(true);
+    // No source card: the game's own removal (damage to 0, the ally limit) is not stopped.
+    expect(cannotLeavePlay(t.state, DEPS, id)).toBe(false);
+  });
+
+  it("its defeat: Victory -1 in the victory display and 1 threat on Alert Level (Batroc's 3 ATK twice on 5 hit points at stage 3B)", () => {
+    const t = reach3Table();
+    const [first, second] = captivesInPlay(t.state) as [InstanceId, InstanceId];
+    const { state } = villainPhase(t, picking(second), ...STACK);
+    expect(state.victoryDisplay).toContain(second);
+    expect(state.victoryDisplay).not.toContain(first);
+    // Two Batroc attacks place 1 each, the defeated captive 1 more.
+    expect(threat(state, alertOf(state))).toBe(3);
+    expect((dataOf(CAPTIVE).keywords as { name: string; value?: number }[])[0]).toEqual({ name: "victory", value: -1 });
+  });
+
+  it("Hero Action: exhaust it -> remove 1 per hero threat from the main scheme: 12 -> 10 at two players, 6 -> 5 at one", () => {
+    for (const [players, before, after] of [
+      [2, 12, 10],
+      [1, 6, 5],
+    ] as const) {
+      const { t, id } = withCaptive(game(players), P1);
+      const { state } = driveEventsPicking(DEPS, t.state, firstLegal, use(P1, id, "50091.rescued-captive-action"));
+      expect(threat(t.state, t.main)).toBe(before);
+      expect(threat(state, t.main)).toBe(after);
+      expect(inst(state, id).exhausted).toBe(true);
+    }
+  });
+
+  it("the action removes only from the main scheme: Alert Level keeps its threat, and it removes the last threat to advance stage 1B", () => {
+    const base = game();
+    const { t, id } = withCaptive(withState(base, patchInstance(base.state, base.alert, { threat: 3 })), P1);
+    const staged = withState(t, patchInstance(t.state, t.main, { threat: 2 }));
+    const { state } = driveEventsPicking(DEPS, staged.state, firstLegal, use(P1, id, "50091.rescued-captive-action"));
+    expect(threat(state, t.alert)).toBe(3);
+    expect(stage(state)).toBe(1);
+  });
+
+  it("an exhausted captive cannot use the action: the command is refused", () => {
+    const { t, id } = withCaptive(game(), P1);
+    const tired = patchInstance(t.state, id, { exhausted: true });
+    expect(() => driveEventsPicking(DEPS, tired, firstLegal, use(P1, id, "50091.rescued-captive-action"))).toThrow();
+  });
+});
+
+/** Stage 3B by the real path with Alert Level cleared: two captives in play, 24 threat, High side. */
+function reach3Table(): Table {
+  let t = game(2, "standard");
+  t = withState(t, thwartLast(t).state);
+  t = withState(
+    t,
+    thwartLast(
+      t,
+      choosing("Do not advance", () => P1),
+    ).state,
+  );
+  return withState(
+    t,
+    thwartLast(
+      t,
+      choosing("Advance to", () => P2),
+    ).state,
+  );
+}
+
+describe("Heightened Reflexes (50092)", () => {
+  /** Reflexes attached to Batroc with `leap` leap counters, by surgery. */
+  function withReflexes(t: Table, leap = 4): { readonly t: Table; readonly id: InstanceId } {
+    const deckId = activeEncounterDeckId(t.state);
+    const pile = t.state.encounterDecks[deckId]!;
+    const id = [...pile.deck, ...pile.discard].find((i) => codeOf(t.state, i) === REFLEXES)!;
+    const state: GameState = {
+      ...t.state,
+      encounterDecks: {
+        ...t.state.encounterDecks,
+        [deckId]: { deck: pile.deck.filter((i) => i !== id), discard: pile.discard.filter((i) => i !== id) },
+      },
+      instances: {
+        ...t.state.instances,
+        [id]: { ...t.state.instances[id]!, faceup: true, attachedTo: t.villain, counters: { leap } },
+        [t.villain]: {
+          ...t.state.instances[t.villain]!,
+          attachments: [...t.state.instances[t.villain]!.attachments, id],
+        },
+      },
+    };
+    return { t: withState(t, state), id };
+  }
+  const leapOf = (s: GameState, id: InstanceId) => inst(s, id).counters.leap ?? 0;
+  const haymaker = (t: Table): Table => withState(t, playFromHand(DEPS, refill(t.state), HAYMAKER, 2).state);
+
+  it("data: attaches to the villain, Condition, Uses (4 leap counters), 0 boost icons and a star", () => {
+    const card = dataOf(REFLEXES);
+    expect(card.attachesTo).toEqual({ kind: "villain" });
+    expect(card.keywords).toEqual([{ name: "uses", count: 4, counterType: "leap" }]);
+    expect([card.boostIcons, card.starIcon, card.traits]).toEqual([0, true, ["CONDITION"]]);
+  });
+
+  it("Boost: as Batroc's boost card it is attached to him, entering play with 4 leap counters", () => {
+    const t = game();
+    const { state } = villainPhase(t, firstLegal, REFLEXES, BLANK, BLANK, ONE_ICON);
+    const attached = inst(state, t.villain).attachments.filter((i) => codeOf(state, i) === REFLEXES);
+    expect(attached).toHaveLength(1);
+    expect(inst(state, attached[0]!).attachedTo).toBe(t.villain);
+    expect(leapOf(state, attached[0]!)).toBe(4);
+    expect(piles(state).discard.map((i) => codeOf(state, i))).not.toContain(REFLEXES);
+  });
+
+  it("a 3 damage attack on Batroc: 2 prevented, 1 dealt, one counter removed (4 -> 3)", () => {
+    const { t, id } = withReflexes(game());
+    const played = playFromHand(DEPS, t.state, HAYMAKER, 2);
+    expect(inst(played.state, t.villain).damage).toBe(1);
+    expect(leapOf(played.state, id)).toBe(3);
+  });
+
+  it("a 1 damage attack: all 1 prevented (it cannot prevent more than the damage), still one counter removed", () => {
+    const { t, id } = withReflexes(game());
+    const { state } = heroAttacks(DEPS, t.state, t.villain);
+    expect(inst(state, t.villain).damage).toBe(0);
+    expect(leapOf(state, id)).toBe(3);
+  });
+
+  it("an 8 damage blow: 6 dealt (8 - 2), one counter removed", () => {
+    const { t, id } = withReflexes(game());
+    const big = playFromHand(DEPS, t.state, "01005", 3);
+    expect(inst(big.state, t.villain).damage).toBe(6);
+    expect(leapOf(big.state, id)).toBe(3);
+  });
+
+  it("each hit takes one counter: three hits of 3 leave 1 counter and 3 damage; the fourth removes the last counter and the card is discarded", () => {
+    let { t, id } = withReflexes(game());
+    for (const left of [3, 2, 1]) {
+      t = haymaker(t);
+      expect(leapOf(t.state, id)).toBe(left);
+    }
+    expect(inst(t.state, t.villain).damage).toBe(3);
+    t = haymaker(t);
+    expect(inst(t.state, t.villain).damage).toBe(4);
+    expect(inst(t.state, t.villain).attachments).not.toContain(id);
+    expect(piles(t.state).discard).toContain(id);
+  });
+
+  it("with one counter left the hit is still reduced by 2 (1 dealt); once it is gone the next 3 damage is all dealt", () => {
+    let { t } = withReflexes(game(), 1);
+    t = haymaker(t);
+    expect(inst(t.state, t.villain).damage).toBe(1);
+    t = haymaker(t);
+    expect(inst(t.state, t.villain).damage).toBe(4);
+  });
+});
+
+/** The first player in alter-ego form. */
+const alterEgo = (t: Table, player: PlayerId = P1): Table => withState(t, withForm(t.state, "alterEgo", player));
+const alertSet = (t: Table, n: number, flipped = false): Table =>
+  withState(t, patchInstance(t.state, t.alert, { threat: n, flipped }));
+const attacksOf = (s: GameState, events: ReturnType<typeof villainPhase>["events"], villain: InstanceId) =>
+  types(events, "attackResolved").filter((a) => a.enemyInstanceId === villain);
+
+describe("Embassy Guard (50093) and Embassy Patrol (50094)", () => {
+  it("data: Guard ATK 2, SCH 1, 3 hit points, A.I.M., Guard + Vulnerable, 1 boost icon; Patrol ATK 1, SCH 2, 3 hit points, Patrol + Vulnerable, 1 boost icon", () => {
+    const guard = dataOf(GUARD);
+    expect([guard.atk, guard.sch, guard.hp, guard.boostIcons, guard.traits]).toEqual([2, 1, 3, 1, ["A.I.M."]]);
+    expect(guard.keywords).toEqual([{ name: "guard" }, { name: "vulnerable" }]);
+    const patrol = dataOf(PATROL);
+    expect([patrol.atk, patrol.sch, patrol.hp, patrol.boostIcons, patrol.traits]).toEqual([1, 2, 3, 1, ["A.I.M."]]);
+    expect(patrol.keywords).toEqual([{ name: "patrol" }, { name: "vulnerable" }]);
+    for (const code of [GUARD, PATROL]) expect(abilityRefIds(AOS_CARDS.find((c) => c.id === code)!)).toHaveLength(2);
+  });
+
+  it("Alert Level Low: Guard has no surge and Patrol no incite; High: Guard gains surge, Patrol gains incite 1", () => {
+    for (const [flipped, expected] of [
+      [false, false],
+      [true, true],
+    ] as const) {
+      const guard = engagedMinion(alertSet(game(), 0, flipped), GUARD);
+      expect(hasKeyword(guard.t.state, guard.id, "surge", DEPS)).toBe(expected);
+      expect(hasKeyword(guard.t.state, guard.id, "guard", DEPS)).toBe(true);
+      expect(hasKeyword(guard.t.state, guard.id, "vulnerable", DEPS)).toBe(true);
+      const patrol = engagedMinion(alertSet(game(), 0, flipped), PATROL);
+      expect(hasKeyword(patrol.t.state, patrol.id, "incite", DEPS)).toBe(expected);
+      expect(hasKeyword(patrol.t.state, patrol.id, "patrol", DEPS)).toBe(true);
+    }
+  });
+
+  it("revealed on High the Guard surges: the next card is revealed too; on Low only the Guard is", () => {
+    const low = villainPhase(game(1), firstLegal, BLANK, GUARD, BLANK);
+    expect(revealedCodes(low.state, low.events)).toEqual([GUARD]);
+    const high = villainPhase(alertSet(game(1), 0, true), firstLegal, BLANK, GUARD, BLANK);
+    expect(revealedCodes(high.state, high.events)).toEqual([GUARD, BLANK]);
+  });
+
+  it("revealed on High the Patrol's incite 1 puts 1 more threat on the main scheme than on Low", () => {
+    const stack = [BLANK, PATROL, ONE_ICON] as const;
+    const low = villainPhase(game(1), firstLegal, ...stack);
+    const high = villainPhase(alertSet(game(1), 0, true), firstLegal, ...stack);
+    expect(
+      threat(high.state, high.state.mainScheme.instanceId) - threat(low.state, low.state.mainScheme.instanceId),
+    ).toBe(1);
+  });
+
+  it("VULNERABLE: stunned by Mockingbird each is discarded, not defeated: encounter discard pile, Alert Level keeps its 3 threat, no defeat logged", () => {
+    for (const code of [GUARD, PATROL]) {
+      const { t, id } = engagedMinion(alertSet(game(), 3), code);
+      const run = stunWith(DEPS, t.state, id);
+      expect(types(run.events, "characterDefeated")).toEqual([]);
+      expect(types(run.events, "vulnerableDiscarded")).toHaveLength(1);
+      expect(piles(run.state).discard).toContain(id);
+      expect(threat(run.state, alertOf(run.state))).toBe(3);
+      expect(run.state.victoryDisplay).not.toContain(id);
+    }
+  });
+
+  it("When Defeated: 1 threat on Alert Level, and Alert Level's own response places 1 more: 0 -> 2 (Low) and 3 -> 5 (High)", () => {
+    for (const code of [GUARD, PATROL]) {
+      for (const [from, flipped] of [
+        [0, false],
+        [3, true],
+      ] as const) {
+        const { t, id } = engagedMinion(alertSet(game(), from, flipped), code);
+        const state = defeatWithAttack(DEPS, t.state, id);
+        expect(threat(state, alertOf(state))).toBe(from + 2);
+        expect(piles(state).discard).toContain(id);
+      }
+    }
+  });
+});
+
+describe("Commandeer Security Office (50095)", () => {
+  const sideScheme = (s: GameState) => inPlayCard(s, COMMANDEER)!;
+
+  it("data: 3 per player starting threat, an acceleration icon, 2 boost icons, no keywords", () => {
+    const card = dataOf(COMMANDEER);
+    expect(card.startingThreat).toEqual({ base: 0, perPlayer: 3 });
+    expect(card.icons).toEqual(["acceleration"]);
+    expect(card.boostIcons).toBe(2);
+    expect(card.keywords).toEqual([]);
+  });
+
+  it("revealed on Low: 3 threat at one player, no acceleration token; 6 at two players", () => {
+    const one = villainPhase(game(1), firstLegal, BLANK, COMMANDEER);
+    expect(threat(one.state, sideScheme(one.state))).toBe(3);
+    expect(inst(one.state, sideScheme(one.state)).counters.acceleration ?? 0).toBe(0);
+    const two = villainPhase(game(2), firstLegal, BLANK, BLANK, COMMANDEER, ONE_ICON);
+    expect(threat(two.state, sideScheme(two.state))).toBe(6);
+    expect(inst(two.state, sideScheme(two.state)).counters.acceleration ?? 0).toBe(0);
+  });
+
+  it("revealed on High: 1 acceleration token is placed on it", () => {
+    const run = villainPhase(alertSet(game(1), 0, true), firstLegal, BLANK, COMMANDEER);
+    expect(inst(run.state, sideScheme(run.state)).counters.acceleration).toBe(1);
+  });
+
+  it("When Defeated: remove 1 per hero threat from Alert Level: 5 -> 3 at two players, 3 -> 2 at one", () => {
+    for (const [players, from, expected] of [
+      [2, 5, 3],
+      [1, 3, 2],
+    ] as const) {
+      const base = alertSet(game(players), from);
+      const { state: staged, id } = encounterCardInVillainArea(base.state, COMMANDEER, 1);
+      const { state } = heroThwarts(DEPS, ready(staged), id);
+      expect(inPlayCard(state, COMMANDEER)).toBeUndefined();
+      expect(threat(state, alertOf(state))).toBe(expected);
+    }
+  });
+});
+
+describe("Leaping Kick (50096)", () => {
+  it("data: no stats or keywords, 2 boost icons, one Alter-Ego and one Hero When Revealed", () => {
+    const card = dataOf(KICK);
+    expect([card.boostIcons, card.keywords]).toEqual([2, []]);
+    expect(abilityRefIds(AOS_CARDS.find((c) => c.id === KICK)!)).toEqual([
+      "50096.when-revealed-alter-ego",
+      "50096.when-revealed-hero",
+    ]);
+  });
+
+  it("Hero, no allies in play: Batroc attacks you (a second attack on the hero), 2 + 1 threat on Alert Level from his two attacks (Q5 not involved)", () => {
+    const t = game(1);
+    const { state, events } = villainPhase(t, firstLegal, BLANK, KICK, BLANK);
+    const attacks = attacksOf(state, events, t.villain);
+    expect(attacks.map((a) => a.targetInstanceId)).toEqual([identityOf(t.state, P1), identityOf(t.state, P1)]);
+    expect(attacks.map((a) => a.damageDealt)).toEqual([2, 2]);
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("Hero, one ally (a captive with 5 left): Batroc attacks it, with the 1-icon boost card: 2 + 1 = 3 damage; his Forced Response answers (Q5 = A): 1 + 1 threat on Alert Level", () => {
+    const { t, id } = withCaptive(game(1), P1);
+    const { state, events } = villainPhase(t, firstLegal, BLANK, KICK, ONE_ICON);
+    const attacks = attacksOf(state, events, t.villain);
+    expect(attacks.map((a) => a.targetInstanceId)).toEqual([identityOf(t.state, P1), id]);
+    expect(attacks[1]).toMatchObject({ baseAtk: 2, boostIcons: 1, damageDealt: 3 });
+    expect(inst(state, id).damage).toBe(3);
+    // The ally's controller is the attacked player: Batroc's "After Batroc attacks" resolved for this attack too.
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("the attack gains overkill: a captive with 1 hit point left is defeated, the 1 excess goes to its controller's hero; Alert Level gets 1 + 1 (attack) + 1 (defeat)", () => {
+    const { t, id } = withCaptive(game(1), P1, 4);
+    const hero = identityOf(t.state, P1);
+    const { state, events } = villainPhase(t, firstLegal, BLANK, KICK, BLANK);
+    const attacks = attacksOf(state, events, t.villain);
+    expect(attacks[1]).toMatchObject({ targetInstanceId: id, damageDealt: 2 });
+    expect(types(events, "characterDefeated").map((e) => e.instanceId)).toEqual([id]);
+    expect(state.victoryDisplay).toContain(id);
+    // The activation's 2 on the hero, plus the 1 excess damage.
+    expect(inst(state, hero).damage).toBe(inst(t.state, hero).damage + 3);
+    expect(threat(state, alertOf(state))).toBe(3);
+  });
+
+  it("several allies: the one with the most remaining hit points is attacked (captive 5 over Black Cat 2), whoever controls it (P2)", () => {
+    const base = game();
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const { t, id } = withCaptive(withState(base, cat.state), P2);
+    expect(remainingHitPoints(t.state, cat.id, DEPS)).toBe(2);
+    expect(remainingHitPoints(t.state, id, DEPS)).toBe(5);
+    const { state, events } = villainPhase(t, firstLegal, FILL, FILL, KICK, BLANK, BLANK);
+    const attacks = attacksOf(state, events, t.villain);
+    expect(attacks).toHaveLength(3);
+    expect(attacks[2]!.targetInstanceId).toBe(id);
+    expect(inst(state, cat.id).damage).toBe(0);
+    expect(inst(state, id).damage).toBe(2);
+  });
+
+  it("allies tied for the most remaining hit points: the first player (P1) chooses, offered exactly the tied allies (not Black Cat)", () => {
+    const base = game();
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const one = withCaptive(withState(base, cat.state), P1);
+    const two = withCaptive(one.t, P2);
+    const asked: { player: PlayerId; cards: string[] }[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget") {
+        asked.push({
+          player: choice.playerId,
+          cards: choice.options.map((o) => (o.ref.kind === "card" ? o.ref.instanceId : "?")).sort(),
+        });
+        return picking(two.id)(s);
+      }
+      return firstLegal(s);
+    };
+    const { state, events } = villainPhase(two.t, pick, FILL, FILL, KICK, BLANK, BLANK);
+    expect(asked).toEqual([{ player: P1, cards: [one.id, two.id].sort() }]);
+    expect(attacksOf(state, events, two.t.villain)[2]!.targetInstanceId).toBe(two.id);
+    expect(inst(state, one.id).damage).toBe(0);
+    expect(inst(state, cat.id).damage).toBe(0);
+  });
+
+  it("allies compare remaining hit points, not maximum: a captive with 1 left (4 damage) is passed over for an undamaged Black Cat (2)", () => {
+    const base = game(1);
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const { t, id } = withCaptive(withState(base, cat.state), P1, 4);
+    expect(remainingHitPoints(t.state, id, DEPS)).toBe(1);
+    const { state, events } = villainPhase(t, firstLegal, BLANK, KICK, BLANK);
+    expect(attacksOf(state, events, t.villain)[1]!.targetInstanceId).toBe(cat.id);
+    expect(inst(state, id).damage).toBe(4);
+  });
+
+  it("Alter-Ego: Batroc schemes (a second scheme on the main scheme: 6 + 1 acceleration + 1 + 1 = 9 at one player)", () => {
+    const t = alterEgo(game(1));
+    const { state, events } = villainPhase(t, firstLegal, BLANK, KICK, BLANK);
+    expect(types(events, "schemeResolved").filter((e) => e.enemyInstanceId === t.villain)).toHaveLength(2);
+    expect(types(events, "attackResolved")).toEqual([]);
+    expect(threat(state, t.main)).toBe(9);
+  });
+});
+
+describe("Security Cameras (50097)", () => {
+  it("data: no stats or keywords, 2 boost icons, a Hero and an Alter-Ego When Revealed", () => {
+    const card = dataOf(CAMERAS);
+    expect([card.boostIcons, card.keywords]).toEqual([2, []]);
+    expect(abilityRefIds(AOS_CARDS.find((c) => c.id === CAMERAS)!)).toEqual([
+      "50097.when-revealed-alter-ego",
+      "50097.when-revealed-hero",
+    ]);
+  });
+
+  it("Alter-Ego: remove 1 threat from Alert Level (3 -> 2) and the card gains surge, so the next card is revealed too", () => {
+    const t = alertSet(alterEgo(game(1)), 3);
+    const { state, events } = villainPhase(t, firstLegal, BLANK, CAMERAS, BLANK);
+    expect(revealedCodes(state, events)).toEqual([CAMERAS, BLANK]);
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("Alter-Ego with Alert Level at 0 threat: nothing to remove, still surge", () => {
+    const t = alterEgo(game(1));
+    const { state, events } = villainPhase(t, firstLegal, BLANK, CAMERAS, BLANK);
+    expect(revealedCodes(state, events)).toEqual([CAMERAS, BLANK]);
+    expect(threat(state, alertOf(state))).toBe(0);
+  });
+
+  it("Alter-Ego on the High side removes only 1 as well (5 -> 4)", () => {
+    const t = alertSet(alterEgo(game(1)), 3, true);
+    const { state } = villainPhase(t, firstLegal, BLANK, CAMERAS, BLANK);
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("Hero: the When Revealed (Hero) half is skipped, not scripted: it does nothing (documented in BATROC_SKIPPED)", () => {
+    const t = alertSet(game(1), 1);
+    const { state, events } = villainPhase(t, firstLegal, BLANK, CAMERAS, BLANK);
+    expect(revealedCodes(state, events)).toEqual([CAMERAS]);
+    // Batroc's activation attack places 1 threat; the unscripted hero half places and exhausts nothing.
+    expect(threat(state, alertOf(state))).toBe(2);
+    expect(inst(state, identityOf(t.state, P1)).exhausted).toBe(false);
   });
 });

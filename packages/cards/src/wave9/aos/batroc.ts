@@ -1,8 +1,11 @@
 import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  addAccelerationToken,
   advanceMainScheme,
   after,
+  bindTargets,
+  cannotLeavePlay,
   chooseOneBy,
   chooseTarget,
   chosen,
@@ -11,12 +14,17 @@ import {
   constant,
   dealEncounterCard,
   defineAbilities,
+  each,
   eachPlayer,
+  enemyAttack,
+  enemyScheme,
   encounterCards,
   encounterSetAside,
   endGame,
+  excludedFromAllyLimit,
   exists,
   exhaust,
+  exhaustThis,
   firstPlayer,
   flipCard,
   forcedInterrupt,
@@ -34,10 +42,13 @@ import {
   option,
   perHero,
   placeThreat,
+  preventDamage,
   putIntoPlay,
   query,
   removeThreat,
   resetHitPoints,
+  removeCountersFrom,
+  remainingHpOf,
   retargetAttack,
   selectCards,
   self,
@@ -46,15 +57,25 @@ import {
   spend,
   stateCheck,
   stateCheckFromEntering,
+  superlative,
+  surge,
   theMainScheme,
+  theVillain,
   threatAtLeast,
   threatOn,
+  whenDefeated,
   whenRevealed,
+  whenRevealedAlterEgo,
+  whenRevealedHero,
+  boost,
+  you,
 } from "../../dsl/index.js";
 
 const ALERT_LEVEL = named("Alert Level");
 const RESCUED_CAPTIVE = query("ally", { name: "Rescued Captive" });
 const BATROC_VILLAIN = query("villain", { name: "Batroc" });
+/** "If Alert Level is on its High side": false with no Alert Level in play. */
+const alertIsHigh = () => hasTrait(ALERT_LEVEL, trait("HIGH"));
 
 /**
  * "Forced Interrupt: When Batroc would be defeated, reset his hit points to N instead. Then, remove 6 threat from the
@@ -81,7 +102,7 @@ const atAlertThreshold = () => threatAtLeast(self, perHero(4));
 /**
  * Batroc (MC50 p. 11; docs/phase7-wave9.md section 2.3, 3.5, 3.13 to 3.16), first half: the villain 50086a (standard,
  * 8 hit points) and 50086b (expert, 12; hit points are fixed, not per player), the three main scheme stages
- * 50087a/b to 50089a/b and the Alert Level environment 50090a/b. The second half (50091 to 50097) is not started.
+ * 50087a/b to 50089a/b and the Alert Level environment 50090a/b. Second half: see "Second half" below.
  *
  * **Stage advances.** "When the last threat is removed from this scheme" is scripted as a forced response to the
  * removal (`on.lastThreatRemoved`), the reading `gmw/escape-the-museum.ts` documents: the removal must have applied
@@ -94,6 +115,17 @@ const atAlertThreshold = () => threatAtLeast(self, perHero(4));
  * **Alert Level.** Threat on an environment is only tokens (section 3.7 (a)). Both faces hold threat, flip at 4
  * [per_hero] (Low) or lose the game at it (High), and gain threat from any ally or minion defeated except by its own
  * consequential damage. The flip keeps every token (RRG "Flip", p. 20) and is not a reveal.
+ *
+ * **Second half** (50091 to 50097). Vulnerable on the Embassy Guard / Patrol is the engine's keyword rule (section 3.1),
+ * so a stun or a confuse discards them without a defeat: their When Defeated and Alert Level do not answer. Their
+ * High-side surge / incite 1 is a constant keyword grant to the card itself, `while` Alert Level shows its High trait
+ * (a revealed minion has it before it enters play). Rescued Captive does not count against the ally limit and no card
+ * ability removes it (damage still defeats it, Victory -1). Heightened Reflexes: the interrupt to damage Batroc would
+ * take prevents 2 and removes a leap counter; its boost puts it into play (it attaches to Batroc as its "Attach to"
+ * text says and enters play with its 4 leap counters, which the generic attach effect would not place). Leaping Kick: the first player picks among the allies tied for the most
+ * remaining hit points (RRG "First Player", p. 19); the attack is an ordinary enemy attack on that ally, so Batroc's
+ * own "After Batroc attacks" answers it (owner decision Q5 = A). Security Cameras (Hero) is skipped, see
+ * `BATROC_SKIPPED`.
  *
  * Cards (10):
  * - 50086a Batroc (villain)
@@ -180,24 +212,58 @@ export const BATROC: AbilityRegistry = defineAbilities({
   "50090b.alert-level-constant-2": stateCheck(atAlertThreshold(), endGame("loss")),
   "50090b.alert-level-forced-response": alertForcedResponse(),
   "50090b.alert-level-action": alertAction(),
-});
 
-const SECOND_HALF = "second half of the module, not started";
+  // Rescued Captive: "Does not count against your ally limit. Card abilities cannot remove this ally from play."
+  "50091.rescued-captive-constant": constant(
+    excludedFromAllyLimit({ self: true }),
+    cannotLeavePlay({ self: true }, { by: "cardAbilities" }),
+  ),
+  // "Hero Action: Exhaust Rescued Captive -> remove 1[per_hero] threat from the main scheme."
+  "50091.rescued-captive-action": heroAction({ cost: exhaustThis }, removeThreat(perHero(1), theMainScheme)),
+
+  // Heightened Reflexes: prevent 2 of the damage Batroc would take, remove 1 leap counter (the Uses 4 keyword is data).
+  "50092.heightened-reflexes-forced-interrupt": forcedInterrupt(
+    on.damage("host"),
+    preventDamage(2),
+    removeCountersFrom(self, "leap", 1),
+  ),
+  "50092.boost": boost(putIntoPlay(self)),
+
+  // Embassy Guard / Patrol: High side adds surge / incite 1 to the card itself; When Defeated: 1 threat on Alert Level.
+  "50093.embassy-guard-constant": constant(gainsKeyword({ name: "surge" }, { self: true }, { while: alertIsHigh() })),
+  "50093.when-defeated": whenDefeated(placeThreat(1, ALERT_LEVEL)),
+  "50094.embassy-patrol-constant": constant(
+    gainsKeyword({ name: "incite", value: 1 }, { self: true }, { while: alertIsHigh() }),
+  ),
+  "50094.when-defeated": whenDefeated(placeThreat(1, ALERT_LEVEL)),
+
+  // Commandeer Security Office.
+  "50095.when-revealed": whenRevealed(ifThen(alertIsHigh(), addAccelerationToken(self))),
+  "50095.when-defeated": whenDefeated(removeThreat(perHero(1), ALERT_LEVEL)),
+
+  // Leaping Kick.
+  "50096.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain)),
+  "50096.when-revealed-hero": whenRevealedHero(
+    ifThen(
+      exists(query("ally")),
+      [
+        bindTargets("mostHp", superlative("highest", each(query("ally")), remainingHpOf(chosen("candidate")))),
+        chooseTarget("victim", { inSlot: "mostHp" }, { chooser: firstPlayer }),
+        enemyAttack(theVillain, { targetCharacter: chosen("victim"), keywords: ["overkill"] }),
+      ],
+      enemyAttack(theVillain, { against: you }),
+    ),
+  ),
+
+  // Security Cameras (Alter-Ego); the Hero half is in BATROC_SKIPPED.
+  "50097.when-revealed-alter-ego": whenRevealedAlterEgo(removeThreat(1, ALERT_LEVEL), surge()),
+});
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
 export const BATROC_SKIPPED: Readonly<Record<string, string>> = {
-  "50091.rescued-captive-action": SECOND_HALF,
-  "50091.rescued-captive-constant": SECOND_HALF,
-  "50092.boost": SECOND_HALF,
-  "50092.heightened-reflexes-forced-interrupt": SECOND_HALF,
-  "50093.embassy-guard-constant": SECOND_HALF,
-  "50093.when-defeated": SECOND_HALF,
-  "50094.embassy-patrol-constant": SECOND_HALF,
-  "50094.when-defeated": SECOND_HALF,
-  "50095.when-defeated": SECOND_HALF,
-  "50095.when-revealed": SECOND_HALF,
-  "50096.when-revealed-alter-ego": SECOND_HALF,
-  "50096.when-revealed-hero": SECOND_HALF,
-  "50097.when-revealed-alter-ego": SECOND_HALF,
-  "50097.when-revealed-hero": SECOND_HALF,
+  "50097.when-revealed-hero":
+    "Security Cameras (Hero): 'for each character you control, choose to either exhaust that character or place 1 threat ...' " +
+    "needs the pass's character bound so 'that character' is exhausted once each. Missing: a per-card iteration effect " +
+    "(spec.ts EffectSpec has forEachPlayer and repeatTimes, which binds nothing per pass; with repeatTimes a pass could " +
+    "choose the same character twice, or skip an already exhausted one).",
 };
