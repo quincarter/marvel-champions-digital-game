@@ -233,7 +233,7 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
   // Attach to Citizen V is data (`attachesTo`); he then activates against the player who revealed it.
   "50132.when-revealed": whenRevealed(enemyActivates(theVillain, { against: you })),
   "50132.citizen-vs-sword-response": heroResponse(
-    after.attacks(query(["identity", "ally"]), { byYou: true, target: { hostOfSelf: true }, damages: true }),
+    after.attacks(query("identity"), { byYou: true, target: { hostOfSelf: true }, damages: true }),
     { cost: spend({ physical: 2 }) },
     discard(self),
   ),
@@ -250,7 +250,7 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
   "50134.innocent-bystanders-constant": constant(),
   "50134.innocent-bystanders-forced-response": forcedResponse(
     on.either(
-      after.attacks(query(["identity", "ally"]), { byYou: true, target: query("enemy") }),
+      after.attacks(query("identity"), { byYou: true, target: query("enemy") }),
       after.enemyAttacks(query("enemy"), { againstYou: true }),
     ),
     chooseOne(

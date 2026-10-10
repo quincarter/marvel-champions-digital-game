@@ -548,3 +548,113 @@ Blast; Scientist Supreme, Monica Rappaccini, Diplomatic Immunity and Sanctions; 
 - No FFG ruling in the file names a card of these scenarios beyond January 17, 2026 - Ruling 2 (Black Widow's interrupt and the Grunt, asserted by
   the scenario game), January 26, 2026 - Ruling 4 and April 30, 2026 - Ruling 3 (flipping Alert Level is not a reveal, asserted by the Batroc
   module) and January 26, 2026 - Ruling 3 (overkill counts damage taken, used above).
+
+## Agents of S.H.I.E.L.D.: Thunderbolts, the Thunderbolt minion sets and the Executive Board (aos, bp, silk)
+
+Scope: the Thunderbolts scenario 50129a to 50138 (`aos/thunderbolts.ts`), the six `aos` Thunderbolt minion sets Gravitational Pull 50139 to 50142,
+Hard Sound 50143 to 50147, Pale Little Spider 50148 to 50151, Power of the Atom 50152 to 50155, Supersonic 50156 to 50160 and The Leaper 50161 to
+50164, the two hero-pack sets Extreme Risk 51039 to 51042 (`bp/extreme-risk.ts`) and Growing Strong 52035 to 52038 (`silk/growing-strong.ts`),
+and the S.H.I.E.L.D. Executive Board 50181a to 50184c (`aos/executive-board.ts`). Baron Zemo is not in this audit. Data:
+`packages/content/src/data/{aos,bp,silk}/cards.ts`. Every script was read against the printed text in the data, RRG 1.8, the rulings file and the
+box rulebook (MC50 pp. 5 to 6, 15, 22). Regression tests: `packages/cards/src/wave9/aos/thunderbolts-rulings.qa.test.ts` (27 tests, 2 of them
+`it.fails` pinning the four open findings below, each with a passing companion that pins today's behavior). The module tests and the two
+Thunderbolts scenario games are thorough (about 500 cases for these sets); this file holds only interactions they do not assert: the held minion
+against its own set's treachery, a stunned minion under "activates against you", what the swap keeps and what its engage triggers, guard against an
+ally, "you" as the identity, a hard-coded chooser, a title two cards share, ranged from a boost, and the Executive Board's "then".
+
+### Findings
+
+| Card id                                                                                    | Expected (source)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Actual                                                                                                                                                                                                                                                                                                                                                                                                                     | Fix                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Thunderbolts 1: 50132 Citizen V's Sword and 50134 Innocent Bystanders ("After you attack") | RRG "You, Your" p. 49: for a trigger "after you attack and defeat an enemy" the identity must be the one that performed it; it triggers "after the controlling player's identity attacks ... but not when an ally under that player's control attacks". The only exception is "after [enemy] attacks you". So an ally's attack on Citizen V does not offer the Sword's discard response, and an ally's attack on an enemy removes no bystander counter and asks for no resource or threat.                  | Both scripts take `query(["identity", "ally"])` as the attacker with `byYou`, so Black Cat's attack offers the Sword response (spend two physical to discard it) and removes a bystander counter, as the identity's attack does. The repo's other "after you attack" cards use `YOUR_HERO` / `YOUR_IDENTITY` (core aggression, Thor, Winter Soldier). **Fixed** in the script; the test now asserts the expected behavior. | Script: one line each (`query("identity")`, or `YOUR_IDENTITY`, for the attacker in `50132.citizen-vs-sword-response` and in the first branch of `50134.innocent-bystanders-forced-response`). The second branch ("an enemy attacks you", Exception in "You, Your") is right as it is.                                                      |
+| Thunderbolts 2: 50184a/b/c A.I.M. Interference (who decides and pays)                      | Card text: "You may spend X [type] resources to prevent X of these counters". "You" is the player the card is resolved by (RRG "You, Your" p. 49, "Reveal" p. 38); "First Player" p. 19 gives the first player a choice only where the card "does not specify which player should act". Spec 3.28 says the same: "the player then picks", and for the boost "you is the player the enemy is activating against". With two players, the player who reveals it (or is attacked, as a boost) decides and pays. | `placeSecrets` asks `chooseOneBy(firstPlayer, ...)`: the first player is asked, and pays from their hand, for an A.I.M. Interference the second player revealed. One-player games are unaffected. **Fixed** in the script; the test now asserts the expected behavior.                                                                                                                                                     | Script: `placeSecrets` should choose by the revealing player (the player resolving the card; for the boost, the attacked player) instead of `firstPlayer`. Check that the payment then comes from that player's hand and resource abilities. The Board Member attachments' choices (no "you" printed) correctly stay with the first player. |
+| Thunderbolts 3: 50181a to 50183a Chief Officers' Hero Action with no secret counter        | "Spend ... -> remove 1 secret counter from here. Then, [effect]." RRG "'Then'" p. 44: the text before "then" must be fully resolved before the rest is; "if the pre-'then' text does not fully resolve, the post-'then' text does not attempt to resolve". With no secret counter to remove, nothing is healed (the action may also be refused). MC50 p. 5: a secret is uncovered to get the help.                                                                                                          | The cost is paid, nothing is removed, and the heal of 1 still happens (tested on the Medical Officer; the Surveillance and Tactical Officers share the same shape). `removeCounters` in `resolve/apply-effect.ts` skips a card holding none (`removing <= 0 → continue`) without marking the instruction unresolved, so `then` runs.                                                                                       | Engine, small: a removal of an `amount` the card cannot supply (nothing, or fewer than asked) should count as unresolved for a following `then`. Alternatively a script-only guard on each of the three actions (`ifThen(valueAtLeast(countersOn(self, "secret"), 1), ...)`), but the engine rule is the general one.                       |
+| Thunderbolts 4: 50163 Batroc the Leaper (and the same pattern in every set's treachery)    | "Find Batroc and reveal him. (If he is already in play, he engages you.) Batroc activates against you. If no enemy activated this way, this card gains surge." The Batroc found and revealed is the minion; in scenario two (villain "Batroc") a title shared by two cards is a referential ability, RRG "Referential Ability" p. 36. Intended: the minion activates once and the card does not surge. See the source gap below: the tie-break list is cut off in the repo's md copy.                       | `named(...)` (`select.ts`, case "named") returns the first card in play with the title, which is the villain: Batroc the villain attacks again for 4 and the minion he just revealed does not activate. The card then gains surge anyway ("If no enemy activated this way") although an enemy attacked.                                                                                                                    | Engine, small: `named` as the target of `enemyActivates` (and the other referential uses) should prefer the card the same ability just found or revealed, or a minion over a villain, per the referential list; plus a look at why `activated.made` stays 0 for the villain's activation.                                                   |
+
+Each finding is pinned: `it.fails` for the expected behavior and a passing test for today's. When one is fixed, flip its `it.fails` to `it` and
+delete its companion. Thunderbolts 1 is the strongest (the RRG text is explicit); Thunderbolts 4 depends on the referential list, which the md copy
+does not print past item 1, so it should be read against the PDF's p. 36 before it is fixed.
+
+### Checked, no findings
+
+- **The held minion against its own set's treachery (RRG "Find" p. 19, "Engage" p. 18; MC50 p. 15).** Gravitational Pull revealed while Moonstone is
+  the held minion finds her in play: she engages the revealer, is no longer held or attached, and attacks (a held minion cannot activate, so the
+  attack proves she left). The other four `find` treacheries share the pattern and were not staged one by one.
+- **Tap In against a stunned minion (RRG "Stun" p. 41, "Activation" p. 6).** The held minion Tap In engages is stunned: the stun is discarded, it
+  does not attack, and "if no minion activated this way" is true, so Citizen V activates against the player. Hard Sound against a stunned,
+  unengaged Songbird behaves the same: she engages, loses the stun, does not attack, and the card gains surge (the wave 4 reading for Waylay).
+- **Thunderbolt Backup's swap keeps what is on the minions (MC50 p. 15).** The minion sent under the environment keeps its confused and tough
+  status cards, its Blasters and its damage less the heal; the minion that comes out keeps its tough card and its attachment and engages the
+  player the other was engaged with.
+- **The swap's engage is an engage (RRG "Engage" p. 18).** With Coup de Foudre 50162 in play, the minion that comes out engages the player and the
+  Forced Interrupt discards the top 4 cards of that player's deck (4 boost icons).
+- **Guard from 50130b (RRG "Guard" p. 21).** A player's ally cannot attack Citizen V while a Thunderbolt minion is engaged with that player, and can
+  attack the minion.
+- **Apprehending Rogue Agents' Forced Response against an attack event and an ally.** Haymaker from the second player on the first player's
+  minion, and Black Cat from the first player on the second player's minion, both engage the minion with the attacker's player. No source says an
+  ally's attack is "a player attacks"; the rulebook (p. 15: "attacked by a player") and the script agree. Compare finding 1, where the RRG does
+  speak.
+- **Jolt 50133 and the victory display (RRG "Victory X" p. 46).** Jolt has no Victory keyword, so a defeated Jolt goes to the encounter discard pile,
+  the display stays empty, and Citizen V at lethal damage stays in play.
+- **A stunned hero and Innocent Bystanders (RRG "Stun" p. 41).** A stunned hero's attack is replaced by discarding the stun; it is not an attack,
+  deals nothing and removes no bystander counter.
+- **Hard Sound Bindings 50145 against an attack event (RRG "Attack (Player Ability Type)" p. 10).** Playing Haymaker with the Bindings on the hero:
+  the attack is replaced, the Bindings are discarded, the hero is stunned, no damage is dealt, and the event is still played and discarded.
+- **Pale Little Spider with two players.** Black Widow engaged with the second player schemes at them: only the second player is confused (no
+  Handspring to find). Handspring 50149 against an ally's attack: the damage is dealt to the ally (the attacking character), Retaliate 1 answers it
+  too, the minion takes nothing and the Handspring is discarded.
+- **Runaway Nuclear Reaction 50154 (ruling January 26, 2026 - Ruling 3: damage dealt is not damage within hit points).** Radioactive Man at 17 of
+  18 hit points takes a basic attack of 2 and is defeated; the scheme, still in play, answers and places the 2 dealt (5 to 7).
+- **Rule the Skies 50140 (RRG "Character" p. 12).** Captain Marvel with Cosmic Flight deals 1 more with a basic attack while it is in play;
+  without Cosmic Flight she does not.
+- **Aerial Dogfight 50159.** Supersonic's boost ("it gains overkill and ranged") makes Rhino's attack ranged before damage, so the reduction of 2
+  does not apply to the Aerial Captain Marvel (3 damage; a plain 1-icon boost is reduced to 1). A hero's basic attack reduced to 0 by Dogfight leaves
+  the Aerial MACH-IV's tough status card in place (RRG "Tough" p. 44, defender bullet: damage reduced to 0 does not use up a tough card).
+- **Executive Board.** A Hero Action cannot be used from the alter-ego form. A.I.M. Interference as a boost card places its counters but no
+  incite threat on the main scheme (RRG "Incite X" p. 24: incite is "when revealed"; a boost card is not revealed).
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests and scenario games assert them: Citizen V's constant and interrupt on both faces
+(owner Q2 = A), the setup, the held minion's first reveal (owner Q26 = B), guard and the engage response, the swap (ties go to the new first player,
+MC50 p. 22), the Sword's data and activation, Jolt's parley, The Coming Storm and Rumbling Thunder, Down but Not Out (owner Q29 = B), Tap In;
+Moonstone's tough card, Rule the Skies, Gravitational Pull, Psychological Manipulation; Songbird, Solid Sound Constructs (stalwart and the
+status replacement), Hard Sound Bindings, Sonic Bubble, Hard Sound; Black Widow's search and confusion, Handspring, Pride of the Red Room, Pale
+Little Spider; Radioactive Man, Radiation Exposure (the RRG erratum on p. 69), Power of the Atom; MACH-IV's defender rule, Blasters, Heat-Seeking
+Missiles, the rest of Aerial Dogfight, Supersonic; Batroc's discard, Coup de Foudre, Batroc the Leaper, Parcours du Combattant; Joystick, Energy
+Truncheon, Playing for Keeps, Extreme Risk (the known card-made activation point excepted); Atlas, Grow Invulnerable, Growing Strong, Titanic
+Proportions; the three Chief Officers' flip (owner Q1 = A) and Aids. No new test was written for these.
+
+### Source conflicts (flagged, not picked)
+
+- **Secret counters on the flip.** RRG "Flip" p. 20 discards every token when the new face has a different card type; MC50 pp. 6 and 11 and owner
+  Q1 = A keep them. Already decided; the Board Member attachments are the only cards in the wave that rely on it.
+- **Citizen V and "activates against you" (MC50 p. 22).** The rulebook FAQ and owner Q2 = A agree with RRG "Stun" for a stunned Citizen V; no
+  conflict, noted because Tap In and the Sword activate him outside step two and so skip his interrupt (by the card text: "during step two").
+
+### Thin coverage and open points
+
+- **Referential list (RRG p. 36).** `mc_rulesreference_v18_compressed.md` prints only item 1 of the "Referential Ability" priority list; items 2
+  onward are cut. Finding 4 and any other shared title ("Black Widow" is a Thunderbolt minion, the villain of scenario one, and a hero of the
+  Black Widow pack; "Batroc" the minion and the villain) need the PDF's p. 36. Not tested: Pale Little Spider with the Black Widow hero or the
+  Black Widow scenario, where `named("Black Widow")` has the same shape.
+- **Tough and a replacement interrupt on the same damage.** Black Widow (expert: tough from Justice, Like Lightning) with Handspring attached, or
+  any tough enemy under Sonic Bubble: both "would take damage" interrupts apply; the RRG says the first player orders simultaneous effects
+  (p. 19) but gives no rule for tough against a card's own replacement, and no ruling covers it. Not tested.
+- **Overkill and Sonic Bubble.** Ruling January 26, 2026 - Ruling 3 (overkill counts damage taken) implies a Sonic Bubble that turns the damage into
+  threat removal leaves no excess for overkill; no overkill hero attack was staged.
+- **Blasters 50157 "highest ATK" ties.** With MACH-IV absent and several enemies at the same highest ATK, who picks (the first player, RRG
+  "First Player" p. 19) is not tested.
+- **A.I.M. Interference as a boost with two players.** Finding 2 is tested on the reveal; the boost path (`resolveWhenRevealedOf`) shares
+  `placeSecrets` and so the same chooser, not staged separately.
+- **Quickstrike, steady, patrol, toughness, overkill on a held minion.** None of these sets prints quickstrike, steady, patrol or toughness. The
+  Q25 quickstrike case is covered by the engine tests of the keyword, not by a card here.
+- **Four-player games.** The scenario games cover first-player tie choices and per-player numbers at four players; no new four-player case was
+  added here (the findings do not change with player count except finding 2, which needs two).
+- **Atlas, Backup and the round end.** Atlas's growth counter ("after the villain phase ends") and the Backup's interrupt ("when the round ends")
+  are different moments of step six; whether the heal sees Atlas before or after his new counter changes nothing except his hit point total, and no
+  test orders them.
+- No FFG ruling in the file names a card of these sets. Used here: December 17, 2025 - Ruling 1 and March 6, 2026 - Ruling 1 (damage prevention
+  reduces damage taken, which Dogfight's "takes" follows), January 26, 2026 - Ruling 3 (dealt against taken, Runaway Nuclear Reaction and
+  overkill) and January 17, 2026 - Ruling 3 (keywords act before triggered abilities, relevant to Truncheon's piercing and a tough card, covered
+  by the Extreme Risk module test).

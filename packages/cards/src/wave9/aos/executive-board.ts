@@ -40,6 +40,7 @@ import {
   theVillain,
   valueAtLeast,
   whenRevealed,
+  you,
 } from "../../dsl/index.js";
 
 const BOARD_MEMBER = trait("BOARD MEMBER");
@@ -76,7 +77,7 @@ const placeSecrets = (type: "energy" | "mental" | "physical") =>
     "member",
     each(BOARD_MEMBER_CARDS),
     chooseOneBy(
-      firstPlayer,
+      you,
       option(`Spend 1 [${type}] resource to prevent this counter`, spendResources({ [type]: 1 }, "prevented")),
       option("Place the counter", addCounters("secret", 1, chosen("member"))),
     ),
