@@ -61,6 +61,7 @@ import {
 import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
+import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js";
 import { SILK_ABILITIES } from "./silk/index.js";
 import { SILK_EVENTS, SILK_EVENTS_SKIPPED } from "./silk/silk/events.js";
 import { SILK_IDENTITY, SILK_IDENTITY_SKIPPED } from "./silk/silk/identity.js";
@@ -293,6 +294,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["52006", "52007", "52008", "52009", "52010", "52011", "52012"],
       registry: SILK_SUPPORT_UPGRADES_ALLIES,
       skipped: SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
+      module: "silk/growing-strong",
+      cardIds: ["52035", "52036", "52037", "52038"],
+      registry: GROWING_STRONG,
+      skipped: GROWING_STRONG_SKIPPED,
     },
   ],
 };
