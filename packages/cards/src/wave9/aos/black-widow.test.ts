@@ -230,7 +230,7 @@ describe("Black Widow data (50064 to 50066)", () => {
 
   // docs/phase7-wave9.md section 1.14 item 1: the scan prints 20 per player; the raw data still has 13. Remove `.fails`
   // once the data agent corrects it.
-  it.fails("stage III has 20 hit points per player (scan 50066)", () => {
+  it("stage III has 20 hit points per player (scan 50066)", () => {
     expect((stages()[2] as { hp: { perPlayer: number } }).hp.perPlayer).toBe(20);
   });
 });

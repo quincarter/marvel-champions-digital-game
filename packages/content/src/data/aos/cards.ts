@@ -469,8 +469,8 @@ export const AOS_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "uses", count: 3, counterType: "operation" }],
     deckLimit: 1,
     text: {
-      printed: "Uses (3 operation counters).\nAction: Exhaust The Douglass and remove 1 operational counter from it → remove 2 threat from each scheme, ignoring any crisis icons ([crisis]) in play.",
-      current: "Uses (3 operation counters).\nAction: Exhaust The Douglass and remove 1 operational counter from it → remove 2 threat from each scheme, ignoring any crisis icons ([crisis]) in play.",
+      printed: "Uses (3 operation counters).\nAction: Exhaust The Douglass and remove 1 operation counter from it → remove 2 threat from each scheme, ignoring any crisis icons ([crisis]) in play.",
+      current: "Uses (3 operation counters).\nAction: Exhaust The Douglass and remove 1 operation counter from it → remove 2 threat from each scheme, ignoring any crisis icons ([crisis]) in play.",
     },
     abilities: [{ id: abilityId("50019.the-douglass-action") }],
   },
@@ -1363,8 +1363,8 @@ export const AOS_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "Reduce the cost to play Leo Fitz by 2 if your identity has the S.H.I.E.L.D. trait.\nAlter-Ego Action: Exhaust Leo Fitz → search you deck for a Tech card and add it to your hand. (Shuffle.)",
-      current: "Reduce the cost to play Leo Fitz by 2 if your identity has the S.H.I.E.L.D. trait.\nAlter-Ego Action: Exhaust Leo Fitz → search you deck for a Tech card and add it to your hand. (Shuffle.)",
+      printed: "Reduce the cost to play Leo Fitz by 2 if your identity has the S.H.I.E.L.D. trait.\nAlter-Ego Action: Exhaust Leo Fitz → search your deck for a Tech card and add it to your hand. (Shuffle.)",
+      current: "Reduce the cost to play Leo Fitz by 2 if your identity has the S.H.I.E.L.D. trait.\nAlter-Ego Action: Exhaust Leo Fitz → search your deck for a Tech card and add it to your hand. (Shuffle.)",
     },
     abilities: [{ id: abilityId("50056.leo-fitz-constant") }, { id: abilityId("50056.leo-fitz-action") }],
   },
@@ -1575,7 +1575,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
           },
           {
             stageNumber: 3,
-            hp: { base: 0, perPlayer: 13 },
+            hp: { base: 0, perPlayer: 20 },
             atk: 2,
             sch: 3,
             text: {
@@ -2826,12 +2826,12 @@ export const AOS_CARDS: readonly AnyCard[] = [
     keywords: [{ name: "toughness" }],
     deckLimit: 1,
     text: {
-      printed: "Toughness.\nDoes not count against your ally limit.\nForced Interrupt: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck.",
-      current: "Toughness.\nDoes not count against your ally limit.\nForced Interrupt: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck.",
+      printed: "Toughness.\nDoes not count against your ally limit.\nForced Response: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck.",
+      current: "Toughness.\nDoes not count against your ally limit.\nForced Response: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck.",
     },
     abilities: [
       { id: abilityId("50108b.strong-inhuman-constant") },
-      { id: abilityId("50108b.strong-inhuman-forced-interrupt") },
+      { id: abilityId("50108b.strong-inhuman-forced-response") },
     ],
     specificTo: { kind: "scenario", encounterSetId: encounterSetId("m.o.d.o.k.") },
   },

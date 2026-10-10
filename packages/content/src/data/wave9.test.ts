@@ -317,6 +317,44 @@ describe("wave 9 data: printed keyword lines", () => {
   });
 });
 
+describe("wave 9 data: scan corrections (docs/phase7-wave9.md section 1.14)", () => {
+  it("Black Widow III (50066) has 20 hit points per player (scan)", () => {
+    const card = find(AOS_CARDS, "50064") as
+      | { sides: readonly { stages: readonly { stageNumber: number; hp: unknown }[] }[] }
+      | undefined;
+    const stage = card?.sides[0]?.stages.find((s) => s.stageNumber === 3);
+    expect(stage?.hp).toEqual({ base: 0, perPlayer: 20 });
+  });
+
+  it("Leo Fitz (50056) prints 'search your deck'", () => {
+    const card = find(AOS_CARDS, "50056") as { text: { printed: string; current: string } } | undefined;
+    for (const text of [card?.text.printed, card?.text.current]) {
+      expect(text).toContain("search your deck");
+      expect(text).not.toContain("search you deck");
+    }
+  });
+
+  it("The Douglass (50019) prints 'operation counter' in its Action", () => {
+    const card = find(AOS_CARDS, "50019") as { text: { printed: string; current: string } } | undefined;
+    for (const text of [card?.text.printed, card?.text.current]) {
+      expect(text).toContain("remove 1 operation counter from it");
+      expect(text).not.toContain("operational");
+    }
+  });
+
+  it("Strong Inhuman (50108b) prints Forced Response, like the other Inhuman allies", () => {
+    const card = find(AOS_CARDS, "50108b") as { text: { printed: string; current: string } } | undefined;
+    for (const text of [card?.text.printed, card?.text.current]) {
+      expect(text).toContain("Forced Response: After this card leaves play");
+      expect(text).not.toContain("Forced Interrupt");
+    }
+  });
+
+  it("the M.O.D.O.K. set title keeps its last period", () => {
+    expect(AOS_ENCOUNTER_SETS.find((e) => (e.id as string) === "m.o.d.o.k.")?.name).toBe("M.O.D.O.K.");
+  });
+});
+
 describe("wave 9 data: Trickster Takeover per-group values (MC55 insert p. 4)", () => {
   it("Worlds Collide (55028a) target threat is 2 per group", () => {
     const card = find(TT_CARDS, "55028a") as { stages?: readonly { targetThreat?: unknown }[] } | undefined;

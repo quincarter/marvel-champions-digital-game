@@ -61,6 +61,12 @@ export interface Correction {
    */
   readonly thwart?: number;
   /**
+   * A villain stage's printed hit points where MarvelCDB's `health` disagrees with the scan (wave 9, `aos` 50066 Black
+   * Widow III prints "HIT POINTS 20" with the per player icon; raw has `health: 13`). Replaces `health`; whether the
+   * value is per player stays MarvelCDB's `health_per_hero`. Villain stages only; never errata.
+   */
+  readonly hitPoints?: number;
+  /**
    * A minion's printed SCH where MarvelCDB sends no `scheme` at all (Velociraptor, `aoa` 45129, prints SCH 1; the scan
    * confirms it). Without it the normalizer needs a `cardNotes` entry, which records a dash or zero, not a number.
    */
@@ -298,6 +304,11 @@ export interface ScenarioSeparateDeckCuration {
  * single-villain restriction.
  */
 export interface EncounterSetCuration {
+  /**
+   * The printed set title where MarvelCDB's `card_set_name` differs (wave 9, `aos` `m.o.d.o.k.`: MarvelCDB reads
+   * "M.O.D.O.K"; the cards print "M.O.D.O.K."). Replaces `EncounterSet.name` only; never errata.
+   */
+  readonly name?: string;
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
   readonly singleVillainOnly?: true;
   /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */

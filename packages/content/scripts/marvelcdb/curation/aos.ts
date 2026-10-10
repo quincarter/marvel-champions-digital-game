@@ -95,6 +95,36 @@ export const AOS_CURATION: PackCuration = {
         'Scan 50126.png (read 2026-10-09): keyword line "Victory -1. Vulnerable. (Discard this character if it is stunned or confused.)", then "While Scientist Supreme is in the victory display, Monica Rappaccini gains villainous." Spec docs/phase7-wave9.md section 1.14 item 2.',
       textReplace: { find: "Victory -1. Villainous. Vulnerable.", replace: "Victory -1. Vulnerable." },
     },
+    {
+      code: "50066",
+      reason:
+        "Black Widow III prints 20 hit points per player; MarvelCDB sends `health: 13` (with `health_per_hero: true`).",
+      evidence:
+        'Scan 50066.png (read 2026-10-09): bottom bar "BLACK WIDOW (3/23) / HIT POINTS 20" followed by the per player icon; SCH 3, ATK 2. Spec docs/phase7-wave9.md section 1.14 item 1.',
+      hitPoints: 20,
+    },
+    {
+      code: "50056",
+      reason: 'MarvelCDB reads "search you deck" in Leo Fitz\'s Alter-Ego Action; the card prints "search your deck".',
+      evidence:
+        'Scan 50056.png (read 2026-10-09): "Alter-Ego Action: Exhaust Leo Fitz -> search your deck for a Tech card and add it to your hand. (Shuffle.)". Spec docs/phase7-wave9.md section 1.14 item 6.',
+      textReplace: { find: "search you deck", replace: "search your deck" },
+    },
+    {
+      code: "50019",
+      reason: 'MarvelCDB reads "operational counter" in The Douglass\'s Action; the card prints "operation counter".',
+      evidence:
+        'Scan 50019.png (read 2026-10-09): "Uses (3 operation counters). Action: Exhaust The Douglass and remove 1 operation counter from it -> remove 2 threat from each scheme..." Spec docs/phase7-wave9.md section 1.14 item 6.',
+      textReplace: { find: "operational counter", replace: "operation counter" },
+    },
+    {
+      code: "50108b",
+      reason:
+        'MarvelCDB labels the Strong Inhuman trigger "Forced Interrupt: After this card leaves play"; the card prints "Forced Response", like the other three Inhuman allies.',
+      evidence:
+        'Scan 50108b.png (read 2026-10-09): "Forced Response: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck." Spec docs/phase7-wave9.md section 1.14 item 7. The trigger word is "After" either way.',
+      textReplace: { find: "Forced Interrupt: After this card", replace: "Forced Response: After this card" },
+    },
     attachTypo("50068", "Black Widow's Gauntlet"),
     attachTypo("50069", "Grappling Hook"),
     attachTypo("50070", "Night Vision Goggles"),
@@ -132,6 +162,12 @@ export const AOS_CURATION: PackCuration = {
       textReplace: { find: "Batrocs's Brigade", replace: "Batroc's Brigade" },
     },
   ],
+
+  encounterSets: {
+    // Set title: scans 50103a/b, 50104a/b and 50108b print "M.O.D.O.K." (the box's own title "M.O.D.O.K." with the last
+    // period); MarvelCDB's `card_set_name` drops it. Spec docs/phase7-wave9.md section 1.14 item 6.
+    "m.o.d.o.k.": { name: "M.O.D.O.K." },
+  },
 
   errata: [
     {

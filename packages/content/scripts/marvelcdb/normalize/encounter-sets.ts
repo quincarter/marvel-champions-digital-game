@@ -96,7 +96,7 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
       }));
       return {
         id: brand("encounterSet", id),
-        name,
+        name: override?.name ?? name,
         packCodes: [ctx.setCode],
         ...(hero ? { nemesisOfIdentityId: brand("card", hero.code) } : {}),
         ...(campaignSets.has(id) || override?.campaignSpecific ? { campaignSpecific: true } : {}),

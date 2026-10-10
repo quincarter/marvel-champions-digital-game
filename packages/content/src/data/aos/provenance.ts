@@ -36,7 +36,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("50017"), cardSetCode: "leadership", marvelcdbCodes: ["50017"], corrections: [] },
   { cardId: cardId("50018"), cardSetCode: "aggression", marvelcdbCodes: ["50018"], corrections: [] },
-  { cardId: cardId("50019"), cardSetCode: "justice", marvelcdbCodes: ["50019"], corrections: [] },
+  {
+    cardId: cardId("50019"),
+    cardSetCode: "justice",
+    marvelcdbCodes: ["50019"],
+    corrections: [
+      "50019: MarvelCDB reads \"operational counter\" in The Douglass's Action; the card prints \"operation counter\". [evidence: Scan 50019.png (read 2026-10-09): \"Uses (3 operation counters). Action: Exhaust The Douglass and remove 1 operation counter from it -> remove 2 threat from each scheme...\" Spec docs/phase7-wave9.md section 1.14 item 6.]",
+    ],
+  },
   { cardId: cardId("50020"), cardSetCode: "protection", marvelcdbCodes: ["50020"], corrections: [] },
   {
     cardId: cardId("50021"),
@@ -153,7 +160,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("50054"), cardSetCode: "basic", marvelcdbCodes: ["50054"], corrections: [] },
   { cardId: cardId("50055"), cardSetCode: "basic", marvelcdbCodes: ["50055"], corrections: [] },
-  { cardId: cardId("50056"), cardSetCode: "basic", marvelcdbCodes: ["50056"], corrections: [] },
+  {
+    cardId: cardId("50056"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["50056"],
+    corrections: [
+      "50056: MarvelCDB reads \"search you deck\" in Leo Fitz's Alter-Ego Action; the card prints \"search your deck\". [evidence: Scan 50056.png (read 2026-10-09): \"Alter-Ego Action: Exhaust Leo Fitz -> search your deck for a Tech card and add it to your hand. (Shuffle.)\". Spec docs/phase7-wave9.md section 1.14 item 6.]",
+    ],
+  },
   {
     cardId: cardId("50057"),
     cardSetCode: "basic",
@@ -191,7 +205,9 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("50064"),
     cardSetCode: "black_widow_villain",
     marvelcdbCodes: ["50064", "50065", "50066"],
-    corrections: [],
+    corrections: [
+      "50066: Black Widow III prints 20 hit points per player; MarvelCDB sends `health: 13` (with `health_per_hero: true`). [evidence: Scan 50066.png (read 2026-10-09): bottom bar \"BLACK WIDOW (3/23) / HIT POINTS 20\" followed by the per player icon; SCH 3, ATK 2. Spec docs/phase7-wave9.md section 1.14 item 1.]",
+    ],
   },
   {
     cardId: cardId("50067a"),
@@ -425,6 +441,7 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["50108b"],
     corrections: [
       "50108b: Inhuman ally (Holding Cell back) prints a dash cost (the back of a Holding Cell card, put into play by an effect); MarvelCDB sends no cost, which the normalizer rejects as a missing value. [evidence: Survey section 4.2 (scratch run: \"without a cost\"). Scan 50108b.png: no cost badge. RRG 1.8 \"Dash (Value)\", p. 15.]",
+      "50108b: MarvelCDB labels the Strong Inhuman trigger \"Forced Interrupt: After this card leaves play\"; the card prints \"Forced Response\", like the other three Inhuman allies. [evidence: Scan 50108b.png (read 2026-10-09): \"Forced Response: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck.\" Spec docs/phase7-wave9.md section 1.14 item 7. The trigger word is \"After\" either way.]",
     ],
   },
   { cardId: cardId("50109"), cardSetCode: "m.o.d.o.k.", marvelcdbCodes: ["50109"], corrections: [] },

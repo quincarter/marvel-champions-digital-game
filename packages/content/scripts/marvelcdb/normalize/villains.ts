@@ -95,10 +95,11 @@ function buildVillainStage(
   // record's back face — the Collector's and Hela's "Wounded" faces. `hp` is `flat(0)` either way (`scalingOf`
   // below), the same encoding `dashedStats` uses for a printed "—".
   const infiniteHp = MODE_LABEL_RE.test(r.stage ?? "") && r.health === 0;
+  const hitPoints = ctx.curation.corrections.find((c) => c.code === r.code && c.hitPoints !== undefined)?.hitPoints;
   const stage: VillainStage = {
     stageNumber,
     ...(stageLabel ? { stageLabel } : {}),
-    hp: scalingOf(r.health ?? 0, Boolean(r.health_per_hero), Boolean(r.health_per_group)),
+    hp: scalingOf(hitPoints ?? r.health ?? 0, Boolean(r.health_per_hero), Boolean(r.health_per_group)),
     ...(infiniteHp ? { infiniteHp: true } : {}),
     atk: r.attack ?? 0,
     sch: r.scheme ?? 0,

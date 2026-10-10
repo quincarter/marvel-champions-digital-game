@@ -24,7 +24,7 @@ export const AOS_ENCOUNTER_SETS: readonly EncounterSet[] = [
     packCodes: [setCode("aos")],
   },
   { id: encounterSetId("hard_sound"), name: "Hard Sound", packCodes: [setCode("aos")] },
-  { id: encounterSetId("m.o.d.o.k."), name: "M.O.D.O.K", packCodes: [setCode("aos")] },
+  { id: encounterSetId("m.o.d.o.k."), name: "M.O.D.O.K.", packCodes: [setCode("aos")] },
   {
     id: encounterSetId("maria_hill_nemesis"),
     name: "Maria Hill Nemesis",
