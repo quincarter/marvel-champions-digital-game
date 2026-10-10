@@ -786,8 +786,9 @@ export function recordEncounterCardDealt(
  * Encounter Card", p. 15). `source`: what dealt it, announced as `encounterCardDealt` when an ability listens
  * (`recordEncounterCardDealt`). `null`: the rules have the player reveal another card, with no deal, and the caller
  * reveals it at once: "reveal an additional encounter card" for an obligation that cannot be given (RRG 1.8
- * "Obligation", p. 30) and this engine's same handling of a card the unique rule turned away. The surge keyword's
- * card is a deal (`surge`; RRG 1.8 "Surge", p. 42; docs/phase7-wave9.md §4.1 Q19).
+ * "Obligation", p. 30). The surge keyword's card is a deal (`surge`; RRG 1.8 "Surge", p. 42; docs/phase7-wave9.md
+ * §4.1 Q19), and so is the card that replaces one the unique rule turned away (`uniqueRule`; "Unique Icon", p. 46;
+ * §4.1 Q38).
  */
 export function dealEncounterCardTo(
   ctx: Ctx,

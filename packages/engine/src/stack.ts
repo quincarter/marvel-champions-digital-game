@@ -531,6 +531,14 @@ export type StackFrame =
       readonly basicDefense: boolean;
       readonly boostIcons: number;
       readonly stage: "giveBoost" | "declareDefender" | "flipBoosts" | "dealDamage" | "done";
+      /**
+       * The Declare Defender step declared this character and its defense has an additional cost (`RuleSpec
+       * additionalPowerCost`, docs/phase7-wave9.md §3.31): its controller is being asked to pay it, and it is not
+       * exhausted or made the defender until they have.
+       */
+      readonly defenderCostFor?: InstanceId;
+      /** The characters whose additional cost to defend went unpaid during this step; not offered again in it. */
+      readonly defendersNotPaidFor?: readonly InstanceId[];
       /** The `enemyAttack` event frame this procedure belongs to. */
       readonly eventFrameId: FrameId | null;
       /** No boost card for this attack (`TriggerEvent.noBoost`). */

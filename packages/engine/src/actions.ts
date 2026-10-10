@@ -41,6 +41,7 @@ import { engineError, EngineInvariantError, type EngineError, type EngineErrorCo
 import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
 import {
+  additionalPowerCostFor,
   canDivideBasicPower,
   attachLimitFault,
   cannotBeHealed,
@@ -58,6 +59,7 @@ import {
   characterCannotRemoveThreat,
   triggeredAbilityForbidden,
   iconsInPlay,
+  maxPerPlayerReached,
   mayThwartWithAtk,
   patrolledBy,
   playerTraitLimitFault,
@@ -4361,13 +4363,8 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     return engineError("wrong_form", `this card can only be played in ${restrictions.form} form`, command);
   }
   // "Max N per player": copies (same title) already in play under that player's control.
-  if (restrictions?.maxPerPlayer !== undefined) {
-    const held = cardsInPlay(ctx.state).filter(
-      (id) => controllerOf(ctx.state, id) === controllerId && cardOf(ctx.state, id)?.name === card.name,
-    ).length;
-    if (held >= restrictions.maxPerPlayer)
-      return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
-  }
+  const maxReached = maxPerPlayerReached(ctx.state, command.cardInstanceId, controllerId);
+  if (maxReached !== null) return engineError("no_valid_target", `max ${maxReached} per player`, command);
   // "Max 1 TEAM card per player" (docs/phase7-wave6.md §3.28): counted under the player who would control it.
   const overTraitLimit = playerTraitLimitFault(ctx.state, ctx.deps, controllerId, card, command.cardInstanceId);
   if (overTraitLimit) return engineError("no_valid_target", overTraitLimit, command);
@@ -5219,7 +5216,12 @@ function usableCharacter(ctx: Ctx, playerId: PlayerId, characterId: InstanceId, 
   return null;
 }
 
-/** Plans, prices and pays a basic power's additional cost (`basicPowerCosts`); the error when it cannot be paid. */
+/**
+ * Plans, prices and pays a basic power's additional costs, as one payment: its own (`basicPowerCosts`) and the
+ * resources a rule over the character adds (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md §3.31; RRG 1.8
+ * "Cost", p. 13: additional costs are paid "simultaneously with the cost that is being added to"). The error when
+ * they cannot be paid, with nothing paid.
+ */
 function payBasicPowerCost(
   ctx: Ctx,
   command: Command & { type: "basicAttack" | "basicThwart" },
@@ -5230,7 +5232,8 @@ function payBasicPowerCost(
   by: BasicPowerBy = OWN_BASIC_POWER,
 ): EngineError | null {
   const cost = basicPowerCost(ctx.state, ctx.deps, characterId, power);
-  if (!cost || by.assumeCostPaid === true) return null;
+  const ruled = additionalPowerCostFor(ctx.state, ctx.deps, characterId, power);
+  if ((!cost && !ruled) || by.assumeCostPaid === true) return null;
   const payment = command.payment ?? [];
   const plan = planCost(
     ctx.state,
@@ -5244,15 +5247,25 @@ function payBasicPowerCost(
   if (isFault(plan)) return engineError(plan.code, plan.message, command);
   const pool = priceOf(ctx, command.playerId, payment, null, null);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
-  if (!satisfies(pool, plan.requirement)) {
+  const requirement = ruled ? combineRequirements(plan.requirement, ruled.resources) : plan.requirement;
+  if (!satisfies(pool, requirement)) {
     return engineError(
       "insufficient_resources",
-      `need ${requirementTotal(plan.requirement)}, paid ${poolTotal(pool)}`,
+      `need ${requirementTotal(requirement)}, paid ${poolTotal(pool)}`,
       command,
     );
   }
   spentOut.push(payPayment(ctx, command.playerId, payment));
-  payCost(ctx, characterId, command.playerId, cost, plan);
+  if (cost) payCost(ctx, characterId, command.playerId, cost, plan);
+  if (ruled) {
+    emit(ctx, {
+      type: "additionalPowerCostPaid",
+      playerId: command.playerId,
+      characterInstanceId: characterId,
+      power,
+      sourceInstanceIds: ruled.sourceInstanceIds,
+    });
+  }
   return null;
 }
 

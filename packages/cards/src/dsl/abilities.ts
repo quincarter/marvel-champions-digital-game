@@ -954,6 +954,25 @@ export const additionalCostToReady = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "As an additional cost for a player to attack, thwart, or defend with an ally, that player must spend 1 resource of
+ * any type" (Divided Loyalties, `aos` 50173; docs/phase7-wave9.md §3.31) →
+ * `constant(additionalPowerCost(query("ally"), ["attack", "thwart", "defend"], 1))`. A number is that many resources of
+ * any type; a typed cost is `{ energy: 1 }`.
+ *
+ * Paid by the character's controller with the power's own costs (RRG 1.8 "Cost", p. 13): a basic attack or thwart
+ * carries the payment and is refused unpaid, the character unexhausted; at the Declare Defender step a character whose
+ * controller cannot pay is not offered, and one declared and then not paid for is not the defender and does not
+ * exhaust. Several rules add up. It reaches basic attacks, basic thwarts and the step's defenders only: not an attack
+ * or thwart a character makes by its own triggered ability, nor a defender a card ability declares.
+ */
+export const additionalPowerCost = (
+  character: TargetQuery,
+  powers: readonly ("attack" | "thwart" | "defend")[],
+  resources: number | ResourceRequirement,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "additionalPowerCost", character, powers, resources, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "While there are no other [Symbiote] environments in play, this card is considered a [Symbiote] environment"
  * (Festering Mass, `sm` 27124; docs/phase7-wave5.md §3.9): `constant(countsAs({ self: true }, ["environment"], {
  * traits: [SYMBIOTE], while: not(exists(query("environment", { trait: SYMBIOTE, self: false }))) }))`. Read by query

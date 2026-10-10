@@ -1499,6 +1499,36 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "As an additional cost for a player to attack, thwart, or defend with an ally, that player must spend 1 resource of
+   * any type." (Divided Loyalties, `aos` 50173; docs/phase7-wave9.md §3.31.) A cost a rule adds to other characters'
+   * basic powers: each basic attack, basic thwart or defense (`powers`) made with a character `character` matches asks
+   * the player making it for `resources` on top of the power's own costs. Several rules add up, and they add to a
+   * power's own additional cost (`basicPowerCosts`).
+   *
+   * RRG 1.8 "Cost" (p. 13): "A player must pay all additional costs simultaneously with the cost that is being added
+   * to … if they cannot pay for all of the costs at once, then they do not pay any of the costs and the effect
+   * associated with the costs does not occur." So the resources are paid with the exhaust, never apart from it:
+   * - **Basic attack and thwart**, the player's own or one a card instructs (`EffectSpec basicPowerBy`): the command
+   *   carries the payment and is refused unpaid, the character unexhausted (`additionalPowerCostFor`,
+   *   `actions.ts payBasicPowerCost`). `legalActions` offers the power only with a payment that works.
+   * - **Defense**, at the Declare Defender step: a character whose controller cannot pay is not offered as a defender;
+   *   declaring one asks its controller for the payment (`ChoicePrompt spendResources`), and a controller who does not
+   *   pay has not declared it: the character stays ready and the step is asked again without it.
+   *
+   * The payer is the player the power is made by: the character's controller. Not reached: an attack or thwart a
+   * character makes by a triggered ability of its own, and a defender a card ability declares (docs/phase7-wave9.md
+   * §3.31 covers the basic powers; whether the printed "attack, thwart, or defend with an ally" reaches those is an
+   * open rules question).
+   */
+  | {
+      readonly kind: "additionalPowerCost";
+      readonly character: TargetQuery;
+      readonly powers: readonly ("attack" | "thwart" | "defend")[];
+      /** A number is that many resources of any type. */
+      readonly resources: number | ResourceRequirement;
+      readonly while?: Predicate;
+    }
+  /**
    * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
    * docs/phase7-wave5.md §3.20): every printed resource icon of each card in the hand of each player `player` names
    * (read from the rule's speaker, the identity it is attached to) counts as one `as` resource, wild included — for

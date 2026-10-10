@@ -77,6 +77,7 @@ import {
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { addPools, combineRequirements, poolTotal, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { basicPowerCostNeeds } from "./basic-power-uses.js";
 import { attachmentReachOf, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "./rules.js";
 import { formChangeCostSources } from "./form-change-cost.js";
 import {
@@ -482,6 +483,63 @@ function formChangeWithCost(
       payment,
       ...(costChoices ? { costChoices } : {}),
     }),
+  };
+}
+
+type BasicPowerRef = Extract<ActionRef, { kind: "basicAttack" | "basicThwart" }>;
+
+/**
+ * A basic attack or thwart whose additional costs ask for resources: the power's own (`basicPowerCosts`, "that hero
+ * must spend 1 of any resource") and a rule's over the character (`RuleSpec additionalPowerCost`,
+ * docs/phase7-wave9.md §3.31). As `formChangeWithCost`: the command carries the payment, the payments that generate
+ * exactly the total are tried first, then everything the player holds. Null when the power asks for no resources.
+ */
+function basicPowerWithCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: BasicPowerRef,
+  given?: CostChoices,
+): {
+  readonly costChoices: CostChoices | undefined;
+  readonly reserved: ReadonlySet<InstanceId>;
+  readonly requirement: ResolvedRequirement;
+  readonly tryWallets: readonly (readonly Payment[])[];
+} | null {
+  const power = action.kind === "basicAttack" ? "attack" : "thwart";
+  const character = action.instanceId;
+  const picks =
+    given?.discard ?? discardPicks(state, deps, playerId, character, basicPowerCost(state, deps, character, power));
+  const costChoices = mergeChoices(picks.length > 0 ? { discard: picks } : undefined, given);
+  const needs = basicPowerCostNeeds(state, deps, playerId, character, power, picks.length > 0 ? picks : undefined);
+  if (!needs || "fault" in needs) return null;
+  const total = requirementTotal(needs.requirement);
+  if (total === 0) return null;
+  const reserved = new Set(picks);
+  const spend = spendOrder(state, deps, playerId, reserved, null);
+  const exact = chosenSizeWallets(state, deps, playerId, spend, { min: total, max: total }, null, FORM_CHANGE_WALLETS);
+  return {
+    costChoices,
+    reserved,
+    requirement: needs.requirement,
+    tryWallets: [...exact, ...walletsWithWhenSpent(state, deps, playerId, reserved, null, spend)],
+  };
+}
+
+/** The basic attack or thwart command with its cost picks and payment filled in. */
+function basicPowerCommandWith(
+  playerId: PlayerId,
+  action: BasicPowerRef,
+  target: InstanceId,
+  costChoices: CostChoices | undefined,
+  payment: readonly Payment[],
+): Command {
+  const command = mustBasicCommand(playerId, action, target);
+  if (command.type !== "basicAttack" && command.type !== "basicThwart") return command;
+  return {
+    ...command,
+    ...(costChoices ? { costChoices } : {}),
+    ...(payment.length > 0 ? { payment } : {}),
   };
 }
 
@@ -1220,29 +1278,22 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
       return type === "side_scheme" || type === "player_side_scheme";
     }),
   ];
-  // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`).
-  const withPicks = (character: InstanceId, power: "attack" | "thwart", command: Command): Command => {
+  // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`);
+  // one whose additional costs ask for resources is tried with a payment (`basicPowerWithCost`).
+  const powerOf = (action: BasicPowerRef, targets: readonly InstanceId[]): Evaluated => {
+    const character = action.instanceId;
+    const power = action.kind === "basicAttack" ? "attack" : "thwart";
+    const costed = basicPowerWithCost(state, deps, playerId, action);
     const picks = discardPicks(state, deps, playerId, character, basicPowerCost(state, deps, character, power));
-    return picks.length > 0 && (command.type === "basicAttack" || command.type === "basicThwart")
-      ? { ...command, costChoices: { discard: picks } }
-      : command;
+    const costChoices = costed?.costChoices ?? (picks.length > 0 ? { discard: picks } : undefined);
+    const variants: Variant[] = targets.map((target) => ({
+      target,
+      build: (payment) => basicPowerCommandWith(playerId, action, target, costChoices, costed ? payment : []),
+    }));
+    return evaluate(state, deps, action, variants, costed?.tryWallets ?? NO_PAYMENT);
   };
-  for (const attacker of characters) {
-    const action: ActionRef = { kind: "basicAttack", instanceId: attacker };
-    const variants: Variant[] = enemies.map((target) => ({
-      target,
-      build: () => withPicks(attacker, "attack", mustBasicCommand(playerId, action, target)),
-    }));
-    results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
-  }
-  for (const thwarter of characters) {
-    const action: ActionRef = { kind: "basicThwart", instanceId: thwarter };
-    const variants: Variant[] = schemes.map((target) => ({
-      target,
-      build: () => withPicks(thwarter, "thwart", mustBasicCommand(playerId, action, target)),
-    }));
-    results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
-  }
+  for (const attacker of characters) results.push(powerOf({ kind: "basicAttack", instanceId: attacker }, enemies));
+  for (const thwarter of characters) results.push(powerOf({ kind: "basicThwart", instanceId: thwarter }, schemes));
   results.push(simple(state, deps, playerId, { kind: "basicRecover" }));
   const identityCard = cardOf(state, player.identity.instanceId);
   const faces = identityCard?.type === "hero_identity" ? heroFacesOf(identityCard).length : 1;
@@ -1507,6 +1558,21 @@ function payableFor(
       ...(chosenResources ? { chosenResources } : {}),
     };
   }
+  if (action.kind === "basicAttack" || action.kind === "basicThwart") {
+    // Only a basic power whose additional costs ask for resources carries a payment (docs/phase7-wave9.md §3.31).
+    const costed = basicPowerWithCost(state, deps, playerId, action, options.costChoices);
+    const target = options.target;
+    if (!costed || !target) return null;
+    return {
+      build: (payment) => basicPowerCommandWith(playerId, action, target, costed.costChoices, payment),
+      excludeInstanceId: null,
+      reserved: costed.reserved,
+      payingFor: null,
+      requirement: costed.requirement,
+      spendable: true,
+      preferred: costed.tryWallets,
+    };
+  }
   if (action.kind === "changeForm") {
     // Only a change with an additional cost carries a payment (docs/phase7-wave8.md §3.63); a free one is a basic action.
     const costed = formChangeWithCost(state, deps, playerId, action.to, options.costChoices);
@@ -1527,7 +1593,8 @@ function payableFor(
 /**
  * What the player must pay for `action`, what they may pay it with, and the
  * payment the engine itself would make. Null when there is nothing to decide:
- * a basic action, a card that costs nothing and has no "spend X" cost, or a
+ * a basic action with no additional resource cost (a basic attack or thwart
+ * that has one is asked with its `target`), a card that costs nothing and has no "spend X" cost, or a
  * cost the engine refuses as configured (`tryPayment` then reports why).
  *
  * Pure, and cheap enough for the main thread: it prices the cost once, then

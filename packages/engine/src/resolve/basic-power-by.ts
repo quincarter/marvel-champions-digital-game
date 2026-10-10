@@ -275,16 +275,18 @@ export function executeBasicPowerBy(
   // command checks and pays all of it with the power's other costs.
   const picked = frame.bindings[DISCARD];
   const needs = basicPowerCostNeeds(ctx.state, ctx.deps, playerId, character, power, picked);
-  if (needs && !("fault" in needs) && needs.asksDiscard && picked === undefined) {
-    const part = needs.cost.discardFromHand;
-    const from = handDiscardCandidates(ctx.state, ctx.deps, character, playerId, needs.cost);
+  // Only the power's own cost has a discard part; a rule over the character adds resources alone.
+  const own = needs && !("fault" in needs) && needs.cost && needs.abilityId !== null ? needs : null;
+  if (own?.cost && own.abilityId !== null && own.asksDiscard && picked === undefined) {
+    const part = own.cost.discardFromHand;
+    const from = handDiscardCandidates(ctx.state, ctx.deps, character, playerId, own.cost);
     if (frame.answer === null) {
       requestChoice(ctx, {
         playerId,
         prompt: {
           kind: "chooseCostCards",
           instanceId: character,
-          abilityId: needs.abilityId,
+          abilityId: own.abilityId,
           slot: "discard",
           mode: "discardFromHand",
         },

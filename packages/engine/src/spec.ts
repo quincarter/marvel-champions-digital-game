@@ -231,7 +231,8 @@ export interface TargetQuery {
    * title, faceup cards in play only, the player's own game area when the players are split, a `uniqueRuleExempt` rule
    * honored. The candidate is a card out of play; one already in play never matches itself. The player is whose area
    * it would enter; a ref naming nobody checks against every area. A card a `RuleSpec cannotEnterPlay` names is not
-   * offered either (docs/phase7-wave8.md §3.43).
+   * offered either (docs/phase7-wave8.md §3.43), nor is another copy of a "Max N per player" card that player already
+   * controls (RRG 1.8 "Max, Maximum", p. 28; docs/phase7-wave9.md §4.1 Q37 = A).
    *
    * It narrows a choice only: the effect still refuses a matching card on its own.
    */

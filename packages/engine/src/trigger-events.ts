@@ -1569,10 +1569,12 @@ export type TriggerEventKind = TriggerEvent["kind"];
  * interrupt `encounterCardBeingDealt` carries the same, docs/phase7-wave9.md §3.45): step three of the villain
  * phase's one card each (`villainPhase`) or its additional card for a hazard icon (`hazard`; RRG 1.8 "Villain Phase",
  * p. 47), a card ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), a player deck that ran
- * out (`deckReset`; "Player Deck", p. 33), or the surge keyword (`surge`; "Surge", p. 42: "the player resolving the
- * card deals themself a facedown encounter card from the top of the encounter deck"; docs/phase7-wave9.md §4.1 Q19).
+ * out (`deckReset`; "Player Deck", p. 33), the surge keyword (`surge`; "Surge", p. 42: "the player resolving the
+ * card deals themself a facedown encounter card from the top of the encounter deck"; docs/phase7-wave9.md §4.1 Q19),
+ * or the unique rule turning away an encounter card being revealed (`uniqueRule`; "Unique Icon", p. 46: "the player
+ * revealing it is dealt a facedown encounter card"; docs/phase7-wave9.md §4.1 Q38).
  */
-export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset" | "surge";
+export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset" | "surge" | "uniqueRule";
 
 /**
  * Whose card effect makes a card leave play (`TriggerEvent cardLeavesPlay.by`): the side of the card whose ability's

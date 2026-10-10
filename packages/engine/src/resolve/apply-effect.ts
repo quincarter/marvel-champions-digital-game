@@ -142,6 +142,7 @@ import {
   cannotActivate,
   cannotChangeForm,
   cannotEnterPlay,
+  maxPerPlayerReached,
   cannotFlip,
   cannotThwart,
   canTakePlayerAttack,
@@ -222,6 +223,7 @@ import {
   enterPlayOnReveal,
   replaceRevealInProgress,
   revealFrame,
+  putIntoPlayHostCandidates,
   revealNewFaceFrame,
   upgradeHostCandidates,
 } from "./reveal.js";
@@ -283,6 +285,32 @@ function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[], forPlayer: Playe
     if (!isPlayerCard && !inAnyEncounterDiscard(ctx.state, id)) moveCard(ctx, id, discardZoneFor(ctx.state, id));
   }
   return admitted;
+}
+
+/**
+ * RRG 1.8 "Max, Maximum" (p. 28): "'Max 1 per player' … restricts the number of copies of that card that each player
+ * may control in play at a given time. A player cannot take control of another copy of a 'Max 1 per player' card they
+ * already control." A limit on control, so an effect that puts the card into play under a player who already controls
+ * a copy has no effect for that card, which stays where it was (owner decision, docs/phase7-wave9.md §4.1 Q37 = A;
+ * "Play, Put into Play", p. 32, lifts only "restrictions or prohibitions regarding playing that card").
+ *
+ * An upgrade is controlled by its host's controller (p. 31), so it is refused only when the maximum leaves it no host
+ * (`putIntoPlayHostCandidates`) where its "attach to" text alone would have given it one; with no host at all it is
+ * left for the attach step to report (`noLegalHost`). A card already in play is not entering, and an encounter card is
+ * no player's. Returns the ids that may proceed, and logs every refusal.
+ */
+function admitUnderPlayerMax(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId): readonly InstanceId[] {
+  const inPlay = cardsInPlay(ctx.state);
+  return ids.filter((id) => {
+    if (inPlay.includes(id)) return true;
+    const refused =
+      cardOf(ctx.state, id)?.type === "upgrade"
+        ? upgradeHostCandidates(ctx.state, ctx.deps, id, forPlayer).length > 0 &&
+          putIntoPlayHostCandidates(ctx.state, ctx.deps, id, forPlayer).length === 0
+        : maxPerPlayerReached(ctx.state, id, forPlayer) !== null;
+    if (refused) emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: forPlayer, reason: "maxPerPlayer" });
+    return !refused;
+  });
 }
 
 /**
@@ -1750,7 +1778,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         for (const id of entered) enterPlay(ctx, id, controller);
         return;
       }
-      const admitted = admitUniqueEntry(ctx, targets(effect.card), controller);
+      const unmatched = admitUniqueEntry(ctx, targets(effect.card), controller);
+      // A card put into play facedown shows no title, so it is no copy of anything ("copies … by title", p. 28).
+      const admitted = effect.facedown === true ? unmatched : admitUnderPlayerMax(ctx, unmatched, controller);
       const placed: InstanceId[] = [];
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
@@ -1784,7 +1814,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (effect.facedown === true) break;
         if (placed.includes(id) || cardOf(ctx.state, id)?.type !== "upgrade" || cardsInPlay(ctx.state).includes(id))
           continue;
-        const hosts = upgradeHostCandidates(ctx.state, ctx.deps, id, controller);
+        const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
         const [picked] = frame.bindings[putIntoPlayHostSlot(id)] ?? [];
         const host = picked !== undefined && hosts.includes(picked) ? picked : hosts[0];
         placed.push(id);

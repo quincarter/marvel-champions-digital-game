@@ -63,6 +63,7 @@ import {
   combineRequirements,
   EMPTY_POOL,
   poolOf,
+  requirementTotal,
   type ResolvedRequirement,
   type ResourcePool,
 } from "./resources.js";
@@ -650,6 +651,28 @@ export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: Instanc
 };
 
 /**
+ * The card's printed "Max N per player" when `controllerId` already controls that many copies of it in play, or null
+ * when they may take control of this one. RRG 1.8 "Max, Maximum" (p. 28): "'Max 1 per player' is player specific, and
+ * restricts the number of copies of that card that each player may control in play at a given time", copies "by
+ * title"; "A player cannot take control of another copy of a 'Max 1 per player' card they already control." The card
+ * never counts against itself.
+ *
+ * It is a limit on control, not only on playing: the play command reads it, and so does an effect that puts the card
+ * into play (`resolve/apply-effect.ts admitUnderPlayerMax`; owner decision, docs/phase7-wave9.md §4.1 Q37 = A). "Play,
+ * Put into Play" (p. 32) lets a put into play bypass "any restrictions or prohibitions regarding playing that card",
+ * which this is not.
+ */
+export function maxPerPlayerReached(state: GameState, id: InstanceId, controllerId: PlayerId): number | null {
+  const card = cardOf(state, id);
+  const max = card && "playRestrictions" in card ? card.playRestrictions?.maxPerPlayer : undefined;
+  if (!card || max === undefined) return null;
+  const held = cardsInPlay(state).filter(
+    (other) => other !== id && controllerOf(state, other) === controllerId && cardOf(state, other)?.name === card.name,
+  ).length;
+  return held >= max ? max : null;
+}
+
+/**
  * Why `attachmentId` cannot attach to `hostId` under its own printed maximums, or null. RRG 1.8 "Max, Maximum" (p. 28):
  * "'Max 1 per [game element]' restricts the number of copies of that card that can be attached to each indicated game
  * element" (`maxPerHost`, copies by title), and "Max 1 TRAINING upgrade per ally" counts attachments with that trait,
@@ -874,6 +897,29 @@ export function thwartCostFor(
     indirectDamage += rule.indirectDamage ?? 0;
   }
   return any ? { resources, indirectDamage } : null;
+}
+
+/**
+ * The resources a player must spend, on top of the power's own costs, to make this basic power with this character
+ * (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md §3.31): every applicable rule added together, or null when
+ * none applies. `sourceInstanceIds`: the cards whose rules ask, for the log.
+ */
+export function additionalPowerCostFor(
+  state: GameState,
+  deps: EngineDeps,
+  characterId: InstanceId,
+  power: "attack" | "thwart" | "defend",
+): { readonly resources: ResolvedRequirement; readonly sourceInstanceIds: readonly InstanceId[] } | null {
+  let resources: ResolvedRequirement | null = null;
+  const sourceInstanceIds: InstanceId[] = [];
+  for (const { rule, context } of activeRules(state, deps, "additionalPowerCost")) {
+    if (!rule.powers.includes(power) || !matchesQuery(state, characterId, rule.character, context)) continue;
+    resources = combineRequirements(resources ?? 0, rule.resources);
+    if (context.selfInstanceId !== null && !sourceInstanceIds.includes(context.selfInstanceId)) {
+      sourceInstanceIds.push(context.selfInstanceId);
+    }
+  }
+  return resources !== null && requirementTotal(resources) > 0 ? { resources, sourceInstanceIds } : null;
 }
 
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */

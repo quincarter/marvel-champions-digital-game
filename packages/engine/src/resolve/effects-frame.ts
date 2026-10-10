@@ -147,7 +147,7 @@ import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
-import { upgradeHostCandidates } from "./reveal.js";
+import { putIntoPlayHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
@@ -440,7 +440,7 @@ function askPutIntoPlayHost(
   for (const id of resolveRef(ctx.state, effect.card, context)) {
     const slot = putIntoPlayHostSlot(id);
     if (frame.bindings[slot] || inPlay.includes(id)) continue;
-    const hosts = upgradeHostCandidates(ctx.state, ctx.deps, id, controller);
+    const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
     if (hosts.length < 2) continue;
     if (frame.answer === null) {
       requestChoice(ctx, {

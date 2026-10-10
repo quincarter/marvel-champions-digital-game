@@ -3,6 +3,17 @@
 import { displayNameOf } from "../visibility.js";
 import { type AbilityDefinition, DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
+  announceResourcesSpent,
+  isPriceFault,
+  joinSpent,
+  NOTHING_SPENT,
+  paymentOptions,
+  paymentsFromOptionIds,
+  payPayment,
+  priceOf,
+  type SpentPayment,
+} from "../actions.js";
+import {
   type Ctx,
   emit,
   moveCard,
@@ -31,7 +42,10 @@ import {
   areaOfCard,
   mainSchemeFor,
 } from "../query.js";
+import { canPaySpend } from "../payable.js";
+import { satisfies } from "../resources.js";
 import {
+  additionalPowerCostFor,
   attacksDealIndirectDamage,
   attacksDividedEvenly,
   boostIgnored,
@@ -756,8 +770,80 @@ export const declarableDefenders = (
   attackerId: InstanceId | null = null,
 ): readonly InstanceId[] =>
   legalDefenders(state, attackedPlayerId, deps, attackerId).filter(
-    (id) => defenseBarFor(state, controllerOf(state, id)) === null,
+    (id) => defenseBarFor(state, controllerOf(state, id)) === null && defenseCostPayable(state, deps, id),
   );
+
+/**
+ * Whether the additional cost to defend with this character (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md
+ * §3.31) can be paid by its controller right now; true when there is none. A character whose controller cannot pay is
+ * not offered at the Declare Defender step: the cost is paid with the exhaust or the defense is not made (RRG 1.8
+ * "Cost", p. 13).
+ */
+export function defenseCostPayable(state: GameState, deps: EngineDeps, defenderId: InstanceId): boolean {
+  const ruled = additionalPowerCostFor(state, deps, defenderId, "defend");
+  if (!ruled) return true;
+  const payer = controllerOf(state, defenderId);
+  return payer !== null && canPaySpend(state, deps, payer, ruled.resources);
+}
+
+/**
+ * The Declare Defender step's question for a declared defender whose defense has an additional cost
+ * (`Frame<"enemyAttack">.defenderCostFor`): its controller is asked for the payment, and the answer is judged here.
+ * Returns true once the cost is paid (the caller then declares the defender, and announces `spent` last); false when
+ * the step has been handed back (a prompt is open, or the cost went unpaid and the step asks again without the
+ * character).
+ */
+function settleDefenseCost(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack">,
+  defenderId: InstanceId,
+  spentOut: SpentPayment[],
+): boolean {
+  const payer = controllerOf(ctx.state, defenderId);
+  const ruled = additionalPowerCostFor(ctx.state, ctx.deps, defenderId, "defend");
+  // The rule ended, or the character left play, while the question stood: nothing is owed.
+  if (!ruled || payer === null) return true;
+  const notPaid = (): false => {
+    emit(ctx, {
+      type: "additionalPowerCostNotPaid",
+      playerId: payer,
+      characterInstanceId: defenderId,
+      power: "defend",
+    });
+    const { defenderCostFor: _asked, ...rest } = frame;
+    setFrame(ctx, {
+      ...rest,
+      answer: null,
+      defendersNotPaidFor: [...(frame.defendersNotPaidFor ?? []), defenderId],
+    });
+    return false;
+  };
+  if (frame.answer === null) {
+    const options = paymentOptions(ctx, payer, null);
+    if (options.length === 0) return notPaid();
+    requestChoice(ctx, {
+      playerId: payer,
+      prompt: { kind: "spendResources", requirement: ruled.resources },
+      options,
+      minSelections: 0,
+      maxSelections: options.length,
+      frameId: frame.frameId,
+    });
+    return false;
+  }
+  const payment = paymentsFromOptionIds(frame.answer);
+  const pool = priceOf(ctx, payer, payment, null, null);
+  if (isPriceFault(pool) || !satisfies(pool, ruled.resources)) return notPaid();
+  spentOut.push(payPayment(ctx, payer, payment));
+  emit(ctx, {
+    type: "additionalPowerCostPaid",
+    playerId: payer,
+    characterInstanceId: defenderId,
+    power: "defend",
+    sourceInstanceIds: ruled.sourceInstanceIds,
+  });
+  return true;
+}
 
 /** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
 function endedByLeavingPlay(
@@ -832,8 +918,14 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     case "giveBoost":
       return giveBoostStep(ctx, frame, "declareDefender", "attack");
     case "declareDefender": {
-      if (frame.answer) {
-        const [picked] = frame.answer;
+      // A declared defender whose defense has an additional cost (`RuleSpec additionalPowerCost`,
+      // docs/phase7-wave9.md §3.31): the cost is settled first, and the declaration below is made only once it is paid,
+      // so the resources and the exhaust are paid together or not at all (RRG 1.8 "Cost", p. 13).
+      const costFor = frame.defenderCostFor;
+      const spent: SpentPayment[] = [];
+      if (costFor !== undefined && !settleDefenseCost(ctx, frame, costFor, spent)) return;
+      if (costFor !== undefined || frame.answer) {
+        const [picked] = costFor !== undefined ? [costFor] : (frame.answer ?? []);
         if (!picked || picked === "decline") {
           emit(ctx, {
             type: "defenseDeclined",
@@ -846,6 +938,16 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         }
         const defenderId = asInstanceId(picked);
         const defenderPlayer = controllerOf(ctx.state, defenderId) ?? frame.targetPlayerId;
+        if (costFor === undefined && additionalPowerCostFor(ctx.state, ctx.deps, defenderId, "defend")) {
+          emit(ctx, {
+            type: "additionalPowerCostAsked",
+            playerId: defenderPlayer,
+            characterInstanceId: defenderId,
+            power: "defend",
+          });
+          setFrame(ctx, { ...frame, answer: null, defenderCostFor: defenderId });
+          return;
+        }
         // "[It] does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47): read
         // as it is declared, so a rule that ended earlier in the phase no longer spares it.
         const withoutExhausting = defendsWithoutExhausting(ctx.state, ctx.deps, defenderId);
@@ -857,13 +959,19 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           ...(withoutExhausting ? { withoutExhausting: true as const } : {}),
         });
         if (!withoutExhausting) exhaustCard(ctx, defenderId);
-        const next = { ...frame, answer: null, stage: "flipBoosts" } as const;
+        const { defenderCostFor: _asked, defendersNotPaidFor: _notPaid, ...declaring } = frame;
+        const next = { ...declaring, answer: null, stage: "flipBoosts" } as const;
         // The hero a "(defense)" ability already made the defender: the basic defense subtracts DEF, and it is the
         // same defense of this attack, announced when the ability made the hero the defender, not a second one
         // (owner ruling 2026-10-06; `declareDefenderByEffect` reads an effect's declaration the same way).
         if (frame.defenderInstanceId === defenderId) setFrame(ctx, { ...next, basicDefense: true });
         else setDefender(ctx, next, defenderId, defenderPlayer, true);
         announceBasicDefense(ctx, defenderId, defenderPlayer);
+        // What the additional cost spent is announced on top, so "after you spend this card" resolves first, as a
+        // basic power's is (`withSpentAnnounced`, `actions.ts`).
+        if (spent.length > 0) {
+          announceResourcesSpent(ctx, defenderPlayer, spent.reduce(joinSpent, NOTHING_SPENT), defenderId, "ability");
+        }
         return;
       }
       // A defender an effect declared (`declareDefender`, §3.22): an ally, or a hero already making a basic defense,
@@ -878,7 +986,10 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that
       // hero may still make a basic defense; nobody else can defend this attack.
       const existing = frame.defenderInstanceId;
-      const all = declarableDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId);
+      // Less a character whose controller was asked for its additional cost during this step and did not pay it.
+      const all = declarableDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId).filter(
+        (id) => !frame.defendersNotPaidFor?.includes(id),
+      );
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
         ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)

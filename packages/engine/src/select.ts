@@ -76,7 +76,12 @@ import {
 } from "./campaign-state.js";
 import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
-import { attachHostCandidates, hostAllowsCategory } from "./attachment-hosts.js";
+import {
+  attachHostCandidates,
+  hostAllowsCategory,
+  putIntoPlayHostCandidates,
+  upgradeHostCandidates,
+} from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
@@ -85,6 +90,7 @@ import { accusationWrongGuesses, accusedWrong, isAccusationBoardMember } from ".
 import {
   canHaveAttached,
   cannotEnterPlay,
+  maxPerPlayerReached,
   cannotFlip,
   canTakePlayerAttack,
   iconsInPlay,
@@ -1276,6 +1282,18 @@ export function explainQuery(
     // Nor a card a rule keeps out of play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43).
     if (!cardsInPlay(state).includes(id) && cannotEnterPlay(state, context.deps ?? DEFAULT_DEPS, id))
       return "cannotEnterPlay";
+    // Nor another copy of a "Max N per player" card that player already controls (RRG 1.8 "Max, Maximum", p. 28;
+    // docs/phase7-wave9.md §4.1 Q37 = A), as the effect itself refuses it (`admitUnderPlayerMax`): an upgrade when the
+    // maximum leaves it no host, any other card by the player it would enter play under.
+    if (forPlayer && !cardsInPlay(state).includes(id)) {
+      const deps = context.deps ?? DEFAULT_DEPS;
+      const overMax =
+        cardOf(state, id)?.type === "upgrade"
+          ? upgradeHostCandidates(state, deps, id, forPlayer).length > 0 &&
+            putIntoPlayHostCandidates(state, deps, id, forPlayer).length === 0
+          : maxPerPlayerReached(state, id, forPlayer) !== null;
+      if (overMax) return "cannotEnterPlay";
+    }
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";

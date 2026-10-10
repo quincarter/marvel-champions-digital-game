@@ -641,6 +641,34 @@ export type GameEvent =
       readonly readied: number;
       readonly paid: boolean;
     }
+  /**
+   * A rule's additional cost to attack, thwart or defend with a character was paid with the power's own costs
+   * (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md §3.31). `sourceInstanceIds`: the cards whose rules asked.
+   */
+  | {
+      readonly type: "additionalPowerCostPaid";
+      readonly playerId: PlayerId;
+      readonly characterInstanceId: InstanceId;
+      readonly power: "attack" | "thwart" | "defend";
+      readonly sourceInstanceIds: readonly InstanceId[];
+    }
+  /**
+   * A defender was declared whose defense has an additional cost: its controller is asked to pay it
+   * (`additionalPowerCostAsked`), and one who does not pay has not declared it (`additionalPowerCostNotPaid`): the
+   * character stays ready and the Declare Defender step is asked again without it.
+   */
+  | {
+      readonly type: "additionalPowerCostAsked";
+      readonly playerId: PlayerId;
+      readonly characterInstanceId: InstanceId;
+      readonly power: "defend";
+    }
+  | {
+      readonly type: "additionalPowerCostNotPaid";
+      readonly playerId: PlayerId;
+      readonly characterInstanceId: InstanceId;
+      readonly power: "defend";
+    }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
@@ -1582,8 +1610,11 @@ export type GameEvent =
       /**
        * `noSuchArea`: `into` names an in-play scenario area the game does not have. `cardType`: no place for it there.
        * `cannotEnterPlay`: a `RuleSpec cannotEnterPlay` names the card (docs/phase7-wave8.md §3.43).
+       * `maxPerPlayer`: `playerId`, or the player who controls every host it could attach to, already controls as
+       * many copies as its "Max N per player" allows (RRG 1.8 "Max, Maximum", p. 28: "A player cannot take control of
+       * another copy of a 'Max 1 per player' card they already control"; docs/phase7-wave9.md §4.1 Q37 = A).
        */
-      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay";
+      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay" | "maxPerPlayer";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   /**

@@ -3,7 +3,7 @@
 import { displayNameOf } from "../visibility.js";
 import type { AttachmentHost } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
-import { dealEncounterCardTo, encounterDealAwaitingInterrupt } from "../effects.js";
+import { dealEncounterCardOrAnnounce, dealEncounterCardTo, encounterDealAwaitingInterrupt } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -131,7 +131,7 @@ export function replaceRevealInProgress(
 }
 
 // Host legality is a read of the state alone (`attachment-hosts.ts`); re-exported for the resolution steps that use it.
-export { attachmentHostCandidates, upgradeHostCandidates } from "../attachment-hosts.js";
+export { attachmentHostCandidates, putIntoPlayHostCandidates, upgradeHostCandidates } from "../attachment-hosts.js";
 
 const sameZone = (a: ZoneId | null | undefined, b: ZoneId | null | undefined): boolean =>
   a !== undefined && a !== null && b !== undefined && b !== null && JSON.stringify(a) === JSON.stringify(b);
@@ -297,8 +297,13 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
       moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       setFrame(ctx, { ...frame, stage: "done" });
-      const next = dealEncounterCardTo(ctx, frame.playerId, null);
-      if (next) pushFrames(ctx, [revealFrame(ctx, frame.playerId, next)]);
+      // "… the player revealing it is dealt a facedown encounter card": a deal, not a reveal (the owner's decisions,
+      // docs/phase7-wave9.md §4.1 Q38 = A after Q22 = B; RRG 1.8 "Deal, Deal an Encounter Card", p. 15: "This card is
+      // not revealed at this time"). Like a surge's card (`resolveSurge`) it waits facedown among the player's dealt
+      // encounter cards: in step three or four of the villain phase it is revealed in that same step four, after the
+      // cards already waiting; anywhere else, at the next one. Announced as every deal is, and open to a "would be
+      // dealt an encounter card" interrupt. Before Q38 this engine revealed it at once.
+      dealEncounterCardOrAnnounce(ctx, frame.playerId, "uniqueRule", frame.instanceId);
       return;
     }
     case "quickstrike": {
