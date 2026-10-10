@@ -10,7 +10,7 @@ import {
   type InstanceId,
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
-import { allOf, mergeRegistries } from "../../../dsl/index.js";
+import { mergeRegistries, not, topOfEncounterDeckShowsNoIcons } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
@@ -39,7 +39,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * 01098 Armored Rhino Suit 0 icons, 01101 Hydra Mercenary 1, 01099 Charge 2, 01118 Sonic Converter 3, 01121 Weapons
  * Runner 0 icons and a star (1). Cost is paid with Falcon's Energy 53025. Both Bird of Prey and Bird's-Eye View are
  * Aerial, so Falcon's Eagle-Eyed (53001a) is offered after each; these tests decline it unless one says otherwise.
- * Tests that rest on owner question 6 (docs/phase7-wave9.md section 4.1 row 6) name "Q6": flip the constant, flip those.
+ * Tests that rest on owner question 6 (docs/phase7-wave9.md section 4.1 row 6) name "Q6" (answered A, 2026-10-10).
  */
 const BIRD = "53003.bird-of-prey-action";
 const VIEW = "53004.birds-eye-view-action";
@@ -177,8 +177,8 @@ describe("Falcon events registry", () => {
       expect(card(code).traits.map(String)).toContain("AERIAL");
     }
   });
-  it("Q6: the discard option's condition is the one switch for both cards, currently always true (B)", () => {
-    expect(DISCARD_OPTION_OFFERED_WHEN).toEqual(allOf());
+  it("Q6 = A: the discard option's condition is the one switch for both cards, not(topOfEncounterDeckShowsNoIcons)", () => {
+    expect(DISCARD_OPTION_OFFERED_WHEN).toEqual(not(topOfEncounterDeckShowsNoIcons));
     for (const ref of [BIRD, VIEW]) {
       const found = FALCON_EVENTS[ref]!.effects.find((e) => e.kind === "chooseOne");
       if (found?.kind !== "chooseOne") throw new Error("no chooseOne");
@@ -204,7 +204,6 @@ describe(`${BIRD} (Bird of Prey 53003): 4 damage to an enemy, an optional discar
     expect(deckOf(state)[0]).toBe(top);
   });
   it.each([
-    ["0 icons", ZERO, 4],
     ["1 icon", ONE, 5],
     ["2 icons", TWO, 6],
     ["3 icons", THREE, 7],
@@ -219,22 +218,27 @@ describe(`${BIRD} (Bird of Prey 53003): 4 damage to an enemy, an optional discar
     expect(discardOf(state)).toContain(top);
     expect(deckOf(state)).not.toContain(top);
   });
-  it("Q6: a faceup top card with no icons still offers the discard (B), for 0 additional", () => {
+  it("Q6 = A: a faceup top card with no icons: the discard is not offered, the attack is 4 and the card stays", () => {
     const s = withTop(falconHeroGame(), ZERO);
-    expect(faceVisible(s, deckOf(s)[0]!, { viewer: P1, deps: FALCON_DEPS })).toBe(true);
+    const top = deckOf(s)[0]!;
+    expect(faceVisible(s, top, { viewer: P1, deps: FALCON_DEPS })).toBe(true);
     const { seen, state } = playEvent(s, "53003", { discard: true });
-    expect(seen.find((x) => x.kind === "chooseOption")!.labels).toEqual([
-      "Discard the top card of the encounter deck",
-      "Do not discard",
-    ]);
+    expect(seen.some((x) => x.labels.includes("Discard the top card of the encounter deck"))).toBe(false);
     expect(inst(state, villainOf(state)).damage).toBe(4);
-    expect(discardOf(state)).toContain(deckOf(s)[0]!);
+    expect(discardOf(state)).not.toContain(top);
+    expect(deckOf(state)[0]).toBe(top);
+  });
+  it("Q6 = A: a faceup star-only top card (the star is an icon) still offers the discard, for 1 additional", () => {
+    const s = withTop(falconHeroGame(), STAR);
+    const { seen, state } = playEvent(s, "53003", { discard: true });
+    expect(seen.find((x) => x.kind === "chooseOption")!.labels).toHaveLength(2);
+    expect(inst(state, villainOf(state)).damage).toBe(5);
   });
   it("a faceup top card with icons offers both options", () => {
     const { seen } = bird([TWO]);
     expect(seen.find((x) => x.kind === "chooseOption")!.labels).toHaveLength(2);
   });
-  it("a facedown top card (no identity script, so nothing keeps it faceup): the discard is offered and resolves for what it prints", () => {
+  it("Q6 = A: a facedown top card (no identity script, so nothing keeps it faceup; ruling March 19, 2026 - Ruling 5): the discard is offered, even for a 0-icon card and resolves for what it prints", () => {
     const s = withTop(falconHeroGame(), THREE);
     expect(faceVisible(s, deckOf(s)[0]!, { viewer: P1, deps: NO_FALCON_IDENTITY })).toBe(false);
     const { state, seen } = playEvent(s, "53003", { discard: true }, NO_FALCON_IDENTITY);
@@ -304,7 +308,6 @@ describe(`${VIEW} (Bird's-Eye View 53004): remove 3 threat from a scheme, an opt
     expect(deckOf(state)[0]).toBe(deckOf(s)[0]);
   });
   it.each([
-    ["0 icons", ZERO, 3],
     ["1 icon", ONE, 4],
     ["2 icons", TWO, 5],
     ["3 icons", THREE, 6],
@@ -319,12 +322,19 @@ describe(`${VIEW} (Bird's-Eye View 53004): remove 3 threat from a scheme, an opt
       expect(discardOf(state)).toContain(top);
     },
   );
-  it("Q6: a faceup top card with no icons still offers the discard (B), for 0 additional", () => {
+  it("Q6 = A: a faceup top card with no icons: the discard is not offered, 3 threat is removed and the card stays", () => {
     const s = withThreat(10, ZERO);
-    expect(faceVisible(s, deckOf(s)[0]!, { viewer: P1, deps: FALCON_DEPS })).toBe(true);
+    const top = deckOf(s)[0]!;
+    expect(faceVisible(s, top, { viewer: P1, deps: FALCON_DEPS })).toBe(true);
     const { seen, state } = playEvent(s, "53004", { discard: true });
-    expect(seen.find((x) => x.kind === "chooseOption")!.labels).toHaveLength(2);
+    expect(seen.some((x) => x.labels.includes("Discard the top card of the encounter deck"))).toBe(false);
     expect(threatOf(state, state.mainScheme.instanceId)).toBe(7);
+    expect(deckOf(state)[0]).toBe(top);
+  });
+  it("Q6 = A: a faceup star-only top card still offers the discard, for 1 additional", () => {
+    const { state, seen } = playEvent(withThreat(10, STAR), "53004", { discard: true });
+    expect(seen.find((x) => x.kind === "chooseOption")!.labels).toHaveLength(2);
+    expect(threatOf(state, state.mainScheme.instanceId)).toBe(6);
   });
   it("a facedown top card (no identity script): the discard is offered and resolves for what it prints", () => {
     const { state, seen } = playEvent(withThreat(10, TWO), "53004", { discard: true }, NO_FALCON_IDENTITY);

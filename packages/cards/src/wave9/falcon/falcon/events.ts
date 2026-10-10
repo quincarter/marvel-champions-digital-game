@@ -2,7 +2,6 @@ import type { AbilityRegistry, Predicate } from "@mc/engine";
 import {
   aScheme,
   anAttackableEnemy,
-  allOf,
   attack,
   boostAreaIconsOn,
   chooseOne,
@@ -17,11 +16,13 @@ import {
   heroAction,
   heroResponse,
   lookAtAndRearrange,
+  not,
   on,
   option,
   printedBoostAreaIconsOn,
   sum,
   thwart,
+  topOfEncounterDeckShowsNoIcons,
 } from "../../../dsl/index.js";
 
 /**
@@ -44,13 +45,14 @@ import {
  * **53004.birds-eye-view-action** (Hero Action, thwart): the same shape with "Remove 3 threat from a scheme" as a thwart
  * (confused and crisis apply) and the additional threat removed from that same scheme.
  *
- * **Q6 (docs/phase7-wave9.md section 4.1 row 6; OWNER QUESTION OPEN).** When the top card is faceup (Falcon's player
- * phase) and prints no icon at all, is "you may discard the top card" still offered? The owner answered B (offered, for 0
- * additional); an official ruling points to A. Ruling January 26, 2026 - Ruling 6 (1) (marvel-champions-rulings-post-rrg-1-7.md):
- * "If there are no boost icons on the top card of the encounter deck, Redwing's ability has no effect and cannot be
- * initiated." Scripted as B for now; the choice lives in ONE place, `DISCARD_OPTION_OFFERED_WHEN` below, used by both
- * cards. To flip to A, change it to `not(topOfEncounterDeckShowsNoIcons)` (import it from the DSL) and flip the tests
- * named "Q6" in events.test.ts.
+ * **Q6 = A (docs/phase7-wave9.md section 4.1 row 6; the owner's answer of 2026-10-10).** When the top card is faceup
+ * (Falcon's player phase) and prints no icon at all, the "you may discard the top card" option is NOT offered, so only
+ * "Do not discard" remains (the chooseOne with one legal option is skipped and the plain 4 or 3 resolves). Ruling January
+ * 26, 2026 - Ruling 6 (1) (marvel-champions-rulings-post-rrg-1-7.md), which names both cards: with no boost icons on the
+ * top card the optional discard has no effect and cannot be initiated. The star counts as an icon (the card says "icon
+ * (star and boost)"), so a star-only top card still offers the discard, for 1 additional. A FACEDOWN top card is unknown
+ * to the player, so `topOfEncounterDeckShowsNoIcons` is false for it and the discard is still offered (ruling March 19,
+ * 2026 - Ruling 5). The choice lives in ONE place, `DISCARD_OPTION_OFFERED_WHEN` below, used by both cards.
  *
  * **53005.up-up-and-away-response** (Hero Response, defense): "After an attacking enemy is given a facedown boost card,
  * look at that card and the top card of the encounter deck. You may swap those cards. Draw 1 card for each printed icon
@@ -62,10 +64,10 @@ import {
  */
 
 /**
- * Q6: the condition on the "you may discard the top card" option of Bird of Prey and Bird's-Eye View. B (current): always
- * offered, an empty `allOf()` that holds. A: `not(topOfEncounterDeckShowsNoIcons)`.
+ * Q6 = A: the discard option is offered unless the faceup top card shows no icons (a facedown top card is offered, the
+ * predicate is false for it).
  */
-export const DISCARD_OPTION_OFFERED_WHEN: Predicate = allOf();
+export const DISCARD_OPTION_OFFERED_WHEN: Predicate = not(topOfEncounterDeckShowsNoIcons);
 
 export const FALCON_EVENTS: AbilityRegistry = defineAbilities({
   "53003.bird-of-prey-action": heroAction(

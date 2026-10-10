@@ -33,7 +33,14 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { driveEventsPicking, withDamage } from "../../../testing/staging.js";
-import { FALCON_DEPS, encounterTopCodes, falconGame, falconHeroGame, stackedEncounter } from "../testing.js";
+import {
+  FALCON_DEPS,
+  encounterTopCodes,
+  falconGame,
+  falconHeroGame,
+  stackedEncounter,
+  stagedInPlay,
+} from "../testing.js";
 import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./identity.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -416,18 +423,25 @@ describe(`${BIRDS}: Action: discard 1 card from your hand, search your deck and 
     expect(offeredAbilities(falconHeroGame())).not.toContain(BIRDS);
   });
   it("the limit belongs to the card and persists across flips (ruling January 26, 2026, Ruling 6 (2))", () => {
-    // No scripted card lets Falcon change form twice in a round yet (Aerial Evacuation 53008 is another module's), so the
-    // second flip is staged by clearing the once-per-round form-change flag the way such a card's permission would.
+    // Aerial Evacuation (53008) changes Falcon to alter-ego form by an effect, which is not the voluntary change of the
+    // round: Redwing's basic attack deals him consequential damage and Falcon's player takes the interrupt.
     const used = birds(falconGame(), notBird(falconGame())).state;
     const hero = driveEventsPicking(FALCON_DEPS, used, firstLegal, changeForm()).state;
     expect(playerOf(hero, P1).identity.form).toBe("hero");
-    const again: GameState = {
-      ...hero,
-      players: hero.players.map((p) =>
-        p.playerId === P1 ? { ...p, identity: { ...p.identity, changedFormThisRound: false } } : p,
-      ),
+    const withEvac = stagedInPlay(hero, "53008", { attach: true });
+    const withRedwing = stagedInPlay(withEvac.state, "53002");
+    const attack: Command = {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: withRedwing.id,
+      targetInstanceId: villainOf(withRedwing.state),
     };
-    const back = driveEventsPicking(FALCON_DEPS, again, firstLegal, changeForm()).state;
+    const takeEvac: Picker = (st) => {
+      const c = st.pendingChoice!;
+      const mine = c.options.find((o) => o.optionId.endsWith("53008.aerial-evacuation-interrupt"));
+      return c.prompt.kind === "chooseTriggers" && mine ? [mine.optionId] : firstLegal(st);
+    };
+    const back = driveEventsPicking(FALCON_DEPS, withRedwing.state, takeEvac, attack).state;
     expect(playerOf(back, P1).identity.form).toBe("alterEgo");
     expect(back.abilityUses[`${identityOf(back)}:${BIRDS}`]).toBe(1);
     expect(offeredAbilities(back)).not.toContain(BIRDS);
