@@ -148,6 +148,8 @@ export interface ParseOptions {
   readonly obligation?: boolean;
   /** Names of villains in the pack, so "Attach to Rhino." maps to `{ kind: "villain" }`. */
   readonly villainNames: ReadonlySet<string>;
+  /** Every card title in the pack, so a host name that ends in an abbreviation period keeps it (see `parseAttach`). */
+  readonly titles?: ReadonlySet<string>;
   /**
    * Whether *this scenario* puts several villains in play at once (docs/phase7-wave1.md §1.6 — The Wrecking
    * Crew), so "Attach to Wrecker." maps to `{ kind: "namedVillain" }` instead of the single-villain `{ kind:
@@ -483,11 +485,24 @@ function parseAttach(
   sentence: string,
   villainNames: ReadonlySet<string>,
   multiVillain: boolean,
+  titles?: ReadonlySet<string>,
 ): { host: AttachmentHost; villainName?: string } | undefined {
   const s = sentence.replace(/\.$/, "");
   const m = /^Attach to (.+)$/.exec(s);
   if (!m) return undefined;
-  const target = m[1] as string;
+  let target = m[1] as string;
+  // `splitSentences` does not split after an acronym-style period ("V."), so a following sentence can arrive glued
+  // to the host ("Attach to Citizen V. He activates against you."): when the text up to a ". " is a known card
+  // title (with or without its own final period), the host ends there.
+  if (titles) {
+    for (const dot of target.matchAll(/\. (?=[A-Z])/g)) {
+      const head = target.slice(0, dot.index);
+      if (titles.has(head) || titles.has(`${head}.`)) {
+        target = head;
+        break;
+      }
+    }
+  }
   // The host ends at the clause: leave the whole sentence unparsed here so the caller splits the clause off (below)
   // and parses the host alone, rather than reading "Apocalypse and heal 5 damage from him" as a card name.
   if (ATTACH_CLAUSE_VERB.test(target)) return undefined;
@@ -799,7 +814,11 @@ function parseAttach(
   // letter, so this can't swallow an unrecognized common-noun phrase ("an identity-specific ally you control", "a
   // card with \"Spider\" in its title", "an enemy or scheme") that needs a real schema shape instead.
   if (/^[A-Z]/.test(target) && !/^(?:a|an|the|your)\b/.test(target)) {
-    return { host: { kind: "namedCard", name: target } };
+    // The sentence's own period was stripped above, which also strips the last period of a title that ends in an
+    // abbreviation ("Attach to M.O.D.O.K." names the card titled "M.O.D.O.K."): restore it when a card of that exact
+    // title exists and none matches without it.
+    const name = titles && !titles.has(target) && titles.has(`${target}.`) ? `${target}.` : target;
+    return { host: { kind: "namedCard", name } };
   }
   return undefined;
 }
@@ -1089,11 +1108,17 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (continuation && otherwiseAttach) {
           flushConstant();
           const preferredSentence = sentence.replace(/,\s*if able\.?$/i, ".");
-          const preferred = parseAttach(preferredSentence, options.villainNames, options.multipleVillains ?? false);
+          const preferred = parseAttach(
+            preferredSentence,
+            options.villainNames,
+            options.multipleVillains ?? false,
+            options.titles,
+          );
           const otherwise = parseAttach(
             `Attach to ${otherwiseAttach[1] as string}`,
             options.villainNames,
             options.multipleVillains ?? false,
+            options.titles,
           );
           if (preferred && otherwise) {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
@@ -1171,7 +1196,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (restriction.maxPerDeck !== undefined) maxPerDeckText = restriction.maxPerDeck;
         continue;
       }
-      const attach = parseAttach(sentence, options.villainNames, options.multipleVillains ?? false);
+      const attach = parseAttach(sentence, options.villainNames, options.multipleVillains ?? false, options.titles);
       if (attach) {
         flushConstant();
         if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
@@ -1195,6 +1220,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
             `${clauseSplit[1] as string}.`,
             options.villainNames,
             options.multipleVillains ?? false,
+            options.titles,
           );
           if (hostOnly) {
             flushConstant();
@@ -1276,7 +1302,12 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       if (!attachesTo) {
         const firstSentence = splitSentences(body.slice(h.length).trim())[0];
         if (firstSentence) {
-          const bodyAttach = parseAttach(firstSentence, options.villainNames, options.multipleVillains ?? false);
+          const bodyAttach = parseAttach(
+            firstSentence,
+            options.villainNames,
+            options.multipleVillains ?? false,
+            options.titles,
+          );
           if (bodyAttach) {
             attachesTo = bodyAttach.host;
             if (bodyAttach.villainName) attachesToVillainNamed = bodyAttach.villainName;
@@ -1293,6 +1324,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
                 `Attach to ${midSentence[1] as string}.`,
                 options.villainNames,
                 options.multipleVillains ?? false,
+                options.titles,
               );
               if (synthetic) {
                 attachesTo = synthetic.host;

@@ -23,6 +23,7 @@ export interface NormalizeContext extends Flattened {
   readonly setCode: AnyCard["setCode"];
   readonly cycleId: AnyCard["cycleId"];
   readonly villainNames: ReadonlySet<string>;
+  readonly titles: ReadonlySet<string>;
   /**
    * Whether any of this pack's scenarios puts several villains in play at once (The Wrecking Crew) — a pack
    * property of curation, not "this pack happens to contain more than one villain name" (Core has three
@@ -118,6 +119,7 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     villainNames: new Set(
       flat.topLevel.filter((r) => r.type_code === "villain" || r.type_code === "leader").map((r) => r.name),
     ),
+    titles: new Set(flat.topLevel.map((r) => r.name)),
     packHasMultipleVillains: curation.scenarios.some((s) => s.multipleVillains !== undefined),
     heroBySet,
     cards: [],
@@ -157,6 +159,7 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
   const parsed = parseCardText(p.text.current, {
     obligation: p.raw.type_code === "obligation",
     villainNames: ctx.villainNames,
+    titles: ctx.titles,
     multipleVillains: ctx.packHasMultipleVillains,
     ...(p.unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed: p.unheadedWhenRevealed } : {}),
     ...(p.extraConstantFrom !== undefined ? { extraConstantFrom: p.extraConstantFrom } : {}),

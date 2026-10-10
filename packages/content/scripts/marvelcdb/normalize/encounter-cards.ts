@@ -163,7 +163,11 @@ export function normalizeEncounterCard(
       // MarvelCDB has no THW field for an attachment and files a printed "-1 THW" badge under `scheme` (Psychic
       // Inertia, `next_evol` 40173, which attaches to an identity). `Correction.thwart` emits it as THW instead.
       if (p.thwart !== undefined) mods.thw = p.thwart;
-      else if (r.scheme !== null && r.scheme !== undefined) mods.sch = r.scheme;
+      // A SCH badge of -1 beside an X ATK badge is the same printed X (Reverse Engineering, `aos` 50119, "+X SCH" and
+      // "+X ATK"), omitted like the ATK one; a card whose ATK is a real number keeps its SCH as sent.
+      else if (r.scheme === -1 && printedX && curation.cardNotes[r.code]) {
+        // printed X: no flat number
+      } else if (r.scheme !== null && r.scheme !== undefined) mods.sch = r.scheme;
       const attachment: AttachmentCard = {
         ...common,
         type: "attachment",

@@ -453,4 +453,25 @@ describe("wave 9 data: text corrections and errata (docs/phase7-wave9.md section
     expect(card.playRestrictions?.requiresIdentityTrait).toBeDefined();
     expect(card.errata?.currentVersion).toBe("RRG 1.8");
   });
+
+  it("every aos attachment whose host is a named card names a title in the pack exactly (the final period of M.O.D.O.K. kept)", () => {
+    const titles = new Set(AOS_CARDS.map((c) => c.name));
+    const hosts = AOS_CARDS.filter((c) => c.type === "attachment").flatMap((c) =>
+      c.type === "attachment" && c.attachesTo?.kind === "namedCard" ? [{ id: c.id, name: c.attachesTo.name }] : [],
+    );
+    expect(hosts.map((h) => h.id)).toEqual(
+      expect.arrayContaining(["50114", "50115", "50116", "50117", "50118", "50119"]),
+    );
+    for (const h of hosts) expect(titles.has(h.name), `${h.id} attaches to "${h.name}"`).toBe(true);
+  });
+
+  it("Citizen V's Sword 50132 attaches to the villain, not to a name with the next sentence glued on", () => {
+    const sword = byId(AOS_CARDS, "50132") as { attachesTo?: { kind: string } };
+    expect(sword.attachesTo).toEqual({ kind: "villain" });
+  });
+
+  it("Reverse Engineering 50119 prints +X SCH and +X ATK: no flat stat modifier", () => {
+    const card = byId(AOS_CARDS, "50119") as { statModifiers?: unknown };
+    expect(card.statModifiers).toBeUndefined();
+  });
 });
