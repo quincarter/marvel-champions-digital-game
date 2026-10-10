@@ -11,6 +11,7 @@ import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
+import { campaignDefinitionOf } from "@mc/cards";
 import { CAMPAIGN_RECORDS, CampaignService } from "./campaign-service.js";
 
 const POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
@@ -119,7 +120,8 @@ describe("CampaignService", () => {
     expect(folded.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
   });
 
-  test.each(Object.keys(CAMPAIGN_RECORDS))(
+  // A record with no `CampaignDefinition` yet is listed sealed, not playable (campaign-service.ts header).
+  test.each(Object.keys(CAMPAIGN_RECORDS).filter((id) => campaignDefinitionOf(id)))(
     "%s: a rewound issue is dealt a fresh shuffle, not the lost attempt's decks again",
     async (campaignId) => {
       const campaigns = service();

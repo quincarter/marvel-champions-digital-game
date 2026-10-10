@@ -90,7 +90,7 @@ describe("Campaign content records", () => {
     }
   });
 
-  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27, MC32, MC39, MC40, MC45 today; see data/index.ts CAMPAIGNS doc)", () => {
+  it("only campaign boxes with data actually ingested are present (MC10, MC16, MC21, MC27, MC32, MC39, MC40, MC45, MC50 today; see data/index.ts CAMPAIGNS doc)", () => {
     expect(CAMPAIGNS.map((c) => c.id as string)).toEqual([
       "trors",
       "gmw",
@@ -100,6 +100,7 @@ describe("Campaign content records", () => {
       "mojo",
       "next_evol",
       "aoa",
+      "aos",
     ]);
   });
 });

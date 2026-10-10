@@ -78,9 +78,8 @@ export const AOS_CURATION: PackCuration = {
   },
   outDir: "src/data/aos",
   exportPrefix: "AOS",
-  // MarvelCDB has no campaign record: `campaign.ts` (`AOS_CAMPAIGN`) is hand-authored in a later step (survey section
-  // 11 step 4). Ingest refuses a named module whose file is missing, so it is not listed here yet.
-  handAuthoredModules: ["evidence", "thunderbolts"],
+  // MarvelCDB has no campaign record: `campaign.ts` (`AOS_CAMPAIGN`) is hand-authored.
+  handAuthoredModules: ["evidence", "thunderbolts", "campaign"],
 
   corrections: [
     dashCost("50035a", "Assault / Stealth (Nick Fury's suit form)", "a Permanent upgrade that starts in play"),

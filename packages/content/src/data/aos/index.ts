@@ -11,3 +11,4 @@ export * from "./starterDecks.js";
 export * from "./provenance.js";
 export * from "./evidence.js";
 export * from "./thunderbolts.js";
+export * from "./campaign.js";

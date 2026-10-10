@@ -676,7 +676,7 @@ export const WAVE8_STARTER_DECKS: readonly StarterDeck[] = [
 // and Nick Fury, five scenarios), the four hero packs (`bp`, `silk`, `falcon`, `winter`) and the villain pack `tt`
 // (Trickster Takeover). Declared here (before `PLAYABLE_CARDS`, which reads `WAVE9_CARDS`) for the same source-order
 // reason as the earlier waves. Pool membership is not a claim that a pack is scripted: `unscriptedCards` keeps
-// unscripted precons from being seated. The `aos` Campaign record is a later step and is not in `CAMPAIGNS` yet.
+// unscripted precons from being seated. `AOS_CAMPAIGN` is registered in `CAMPAIGNS` below.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./aos/index.js";
 export * from "./bp/index.js";
@@ -685,6 +685,7 @@ export * from "./falcon/index.js";
 export * from "./winter/index.js";
 export * from "./tt/index.js";
 
+import { AOS_CAMPAIGN } from "./aos/campaign.js";
 import { AOS_CARDS } from "./aos/cards.js";
 import { AOS_ENCOUNTER_SETS } from "./aos/encounterSets.js";
 import { AOS_SCENARIOS } from "./aos/scenarios.js";
@@ -800,6 +801,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   MOJO_CAMPAIGN,
   NEXT_EVOL_CAMPAIGN,
   AOA_CAMPAIGN,
+  AOS_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
