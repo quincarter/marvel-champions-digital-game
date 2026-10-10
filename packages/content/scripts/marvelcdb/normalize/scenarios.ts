@@ -66,7 +66,8 @@ export function normalizeScenarios(
       ? {
           villainCardId: brand(
             "card",
-            resolveCardCode(s.neutralCardCodes.villainCardCode, `scenario ${s.id} neutralCardCodes.villainCardCode`) ?? "",
+            resolveCardCode(s.neutralCardCodes.villainCardCode, `scenario ${s.id} neutralCardCodes.villainCardCode`) ??
+              "",
           ),
           mainSchemeCardId: brand(
             "card",

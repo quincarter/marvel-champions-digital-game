@@ -39,7 +39,10 @@ describe("tt corrections", () => {
   it("item 18: the Enchantress record has no neutral cards, and neutralCards cannot repeat a used card", () => {
     expect(scenario("enchantress").neutralCards).toBeUndefined();
     const god = scenario("god-of-lies");
-    const clash = { ...god, neutralCards: { villainCardId: god.villainCardId, mainSchemeCardId: god.mainSchemeCardId } };
+    const clash = {
+      ...god,
+      neutralCards: { villainCardId: god.villainCardId, mainSchemeCardId: god.mainSchemeCardId },
+    };
     expect(validateScenario(clash).errors.join("\n")).toMatch(/neutralCards lists/);
   });
 
