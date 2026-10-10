@@ -1,22 +1,38 @@
 import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  activatingEnemy,
+  activationIs,
   addCounters,
   after,
+  andThen,
+  attachCard,
   attacksGainKeywords,
+  bindTargets,
   boost,
   buildScenarioDeck,
   chooseTarget,
   choosePlayer,
   chosen,
   chosenPlayer,
+  confuse,
   constant,
+  damagedAtLeast,
+  dealEncounterCard,
+  dealIndirectDamage,
+  defeatingPlayer,
   defineAbilities,
+  detach,
+  discard,
+  each,
   eachPlayer,
   eitherCost,
   encounterCards,
   encounterSetAside,
   endGame,
+  enemyAttack,
+  enemyScheme,
+  eventAmount,
   eventTarget,
   excludedFromAllyLimit,
   exists,
@@ -28,19 +44,26 @@ import {
   gainsKeyword,
   gainsTrait,
   gets,
+  heal,
   heroAction,
+  host,
   heroResponse,
   ifElse,
   ifThen,
   inMode,
   instead,
+  modifyAttack,
   moveCards,
   named,
   on,
   oneCopyOf,
   perHero,
+  placeDamage,
+  preventAllDamageTo,
+  printedCostOf,
   putIntoPlay,
   query,
+  remainingHpOf,
   removeCountersFrom,
   removeThreat,
   resetHitPoints,
@@ -50,20 +73,47 @@ import {
   setup,
   shuffleEncounterDeck,
   spend,
+  statOf,
+  superlative,
   thatPlayer,
+  theVillain,
   threatOn,
   toScenarioDeck,
+  topOfDeck,
+  tuckCards,
+  tuckedUnderRef,
   cards,
   valueEquals,
   varOf,
   when,
   whenDefeated,
+  whenRevealed,
+  whenRevealedAlterEgo,
+  whenRevealedHero,
+  you,
+  yourIdentity,
   atEndOfActivation,
 } from "../../dsl/index.js";
 
 /**
- * Wave 9 scripting module `aos/modok` (docs/phase7-wave9.md section 8.4). Not started: the registry is empty and nothing is
- * skipped. `card-groups.ts` maps this module to the ids below; keep the two in step.
+ * Wave 9 scripting module `aos/modok` (docs/phase7-wave9.md section 8.4). `card-groups.ts` maps this module to the ids
+ * below; keep the two in step.
+ *
+ * **The reset and the "+5 hit points" attachment (owner decision Q3 = A, still open in the engine).** M.O.D.O.K.'s
+ * interrupt resets his hit points with `resetHitPoints`, which sets the dial to his maximum, Automated Mobile Unit's
+ * +5 included (15); each attachment then answers "After M.O.D.O.K.'s hit points are reset" by leaving, so he ends at his
+ * printed 10 (14) with no damage. Q3 = A wants the dial set to the printed 10 (14) and then dropped to 5 (9) as the
+ * attachment leaves; that needs a reset effect that sets a number and still announces `hitPointsReset`, which the engine
+ * lacks (`setRemainingHitPoints` announces only a dial set to its maximum). Reported, not worked around.
+ *
+ * **Reverse Engineering (50119)**: X (the printed cost of the card tucked here) is added to both ATK and SCH
+ * (provenance: the scan prints +X SCH and +X ATK). The data file still carries `statModifiers: { sch: -1 }` from
+ * MarvelCDB's X marker, which this script cannot correct (packages/content is not this module's).
+ *
+ * **A.I.M. Jailer (50120)**: the first player picks among the Rescued allies tied for the fewest remaining hit points
+ * (RRG 1.8 "First Player", p. 19); the attack is an ordinary enemy attack on that ally, answered for the ally's
+ * controller (owner decision Q5 = A). **Hostage Situation (50121)**: its When Revealed is skipped (an attached ally
+ * cannot be put under no player's control); the "cannot take damage" constant and the When Defeated hand-over stand.
  *
  * Cards (26):
  * - 50103a M.O.D.O.K. (villain)
@@ -140,6 +190,14 @@ const inhumanLimit = () => constant(excludedFromAllyLimit({ self: true }));
 /** The Inhuman allies: "Forced Response: After this card leaves play, flip it and place it on the bottom of the Holding Cell deck." */
 const inhumanLeaves = () =>
   forcedResponse(after.leavesPlay("self"), moveCards(cards(self), toScenarioDeck(HOLDING_CELL_DECK, "bottom")));
+
+/** The card an attachment is attached to: "attached enemy", "M.O.D.O.K." (the attachments attach to him by data). */
+const HOST_ENEMY = query("enemy", { hostOfSelf: true });
+/** The Rescued allies in play. */
+const RESCUED = query("ally", { trait: trait("RESCUED") });
+
+/** "Forced Response: After M.O.D.O.K.'s hit points are reset, discard this card." (50114, 50115, 50116, 50118, 50119) */
+const discardAfterReset = () => forcedResponse(on.hitPointsReset("host"), discard(self));
 
 /**
  * M.O.D.O.K. (MC50 p. 13; docs/phase7-wave9.md sections 2.4, 3.5, 3.15, 3.17, 3.18), first half. The villain's hit
@@ -239,34 +297,88 @@ export const MODOK: AbilityRegistry = defineAbilities({
     removeCountersFrom(chosen("environment"), "any", 1),
   ),
   "50113.boost": boost(atEndOfActivation(moveCards(cards(self), "encounterDeckShuffle"))),
+
+  // Second half. The attachments ("Attach to M.O.D.O.K." is data); each leaves when his hit points are reset (Q3 = A).
+  "50114.automated-mobile-unit-constant": constant(gets("hp", 5, HOST_ENEMY)),
+  "50114.automated-mobile-unit-forced-response": discardAfterReset(),
+  "50115.focusing-crystal-forced-response": discardAfterReset(),
+  // Nanobots: the star Forced Response (heal) first, the reset one second; the heal is the host's own.
+  "50116.nanobots-forced-response": forcedResponse(on.enemyActivates("host"), heal(1, host)),
+  "50116.nanobots-forced-response-2": discardAfterReset(),
+  "50117.psionic-force-field-constant": constant(gainsKeyword({ name: "stalwart" }, HOST_ENEMY)),
+  // "Then" is the printed word: the discard is read after the damage is placed, so a hit that brings it to 5 is absorbed.
+  "50117.psionic-force-field-forced-interrupt": forcedInterrupt(
+    when.damage("host"),
+    instead(placeDamage(eventAmount, self), andThen(ifThen(damagedAtLeast(self, 5), discard(self)))),
+  ),
+  "50117.boost": boost(attachCard(self, activatingEnemy)),
+  "50118.psionic-machetes-constant": constant(attacksGainKeywords(["piercing"], { attacker: HOST_ENEMY })),
+  "50118.psionic-machetes-forced-response": discardAfterReset(),
+  "50118.boost": boost(ifThen(activationIs("attack"), modifyAttack({ keywords: ["piercing"] }))),
+  // Reverse Engineering: X is the tucked card's printed cost, added to ATK and SCH. Tuck an upgrade you control,
+  // otherwise the top card of your deck (the player chooses among several upgrades).
+  "50119.reverse-engineering-constant": constant(
+    gets("atk", printedCostOf(tuckedUnderRef(self)), HOST_ENEMY),
+    gets("sch", printedCostOf(tuckedUnderRef(self)), HOST_ENEMY),
+  ),
+  "50119.when-revealed": whenRevealed(
+    ifThen(
+      exists(query("upgrade", { controller: "you" })),
+      [chooseTarget("upgrade", query("upgrade", { controller: "you" })), tuckCards(cards(chosen("upgrade")), self)],
+      tuckCards(topOfDeck(1, you), self),
+    ),
+  ),
+  "50119.reverse-engineering-forced-response": discardAfterReset(),
+
+  // A.I.M. Jailer: Guard is data. The Rescued ally with the fewest remaining hit points (the first player breaks a
+  // tie) is attacked; with none, a lock counter goes on the Holding Cell.
+  "50120.when-revealed": whenRevealed(
+    ifThen(
+      exists(RESCUED),
+      [
+        bindTargets("fewest", superlative("lowest", each(RESCUED), remainingHpOf(chosen("candidate")))),
+        chooseTarget("victim", { inSlot: "fewest" }, { chooser: firstPlayer }),
+        enemyAttack(self, { targetCharacter: chosen("victim") }),
+      ],
+      addCounters("lock", 1, HOLDING_CELL),
+    ),
+  ),
+
+  // Hostage Situation: "Attached ally is under no player's control" has no engine support (see MODOK_SKIPPED), so
+  // "50121.when-revealed" is not registered; the constant and When Defeated stand alone.
+  "50121.hostage-situation-constant": constant(preventAllDamageTo(query("villain", { name: "M.O.D.O.K." }))),
+  "50121.when-defeated": whenDefeated(detach(each(query("ally", { host: self })), defeatingPlayer)),
+
+  "50122.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+
+  // "It's Alive!": each player searches the deck and discard pile for an Adaptoid and reveals it, the deck is shuffled,
+  // and a player who found none is dealt a facedown encounter card (nobody is left to find one after the first miss).
+  "50123.when-revealed": whenRevealed(
+    forEachPlayer(
+      eachPlayer,
+      selectCards("found", oneCopyOf(encounterCards(["deck", "discard"], ADAPTOID))),
+      ifThen(
+        valueEquals(varOf("found.count"), 0),
+        [shuffleEncounterDeck(), dealEncounterCard(thatPlayer)],
+        [revealCard(chosen("found"), thatPlayer), shuffleEncounterDeck()],
+      ),
+    ),
+  ),
+
+  // Psionic Blast.
+  "50124.when-revealed-alter-ego": whenRevealedAlterEgo(confuse(yourIdentity), enemyScheme(theVillain)),
+  "50124.when-revealed-hero": whenRevealedHero(
+    dealIndirectDamage(you, statOf(theVillain, "sch"), { bind: "blast" }),
+    andThen(confuse(chosen("blast.damaged"))),
+  ),
 });
 
-const SECOND_HALF = "second half of the module, not started";
-
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const MODOK_SKIPPED: Readonly<Record<string, string>> = Object.fromEntries(
-  [
-    "50114.automated-mobile-unit-constant",
-    "50114.automated-mobile-unit-forced-response",
-    "50115.focusing-crystal-forced-response",
-    "50116.nanobots-forced-response",
-    "50116.nanobots-forced-response-2",
-    "50117.psionic-force-field-constant",
-    "50117.psionic-force-field-forced-interrupt",
-    "50117.boost",
-    "50118.psionic-machetes-constant",
-    "50118.psionic-machetes-forced-response",
-    "50118.boost",
-    "50119.reverse-engineering-constant",
-    "50119.when-revealed",
-    "50119.reverse-engineering-forced-response",
-    "50120.when-revealed",
-    "50121.hostage-situation-constant",
-    "50121.when-revealed",
-    "50121.when-defeated",
-    "50122.boost",
-    "50123.when-revealed",
-    "50124.when-revealed-alter-ego",
-    "50124.when-revealed-hero",
-  ].map((ref) => [ref, SECOND_HALF]),
-);
+export const MODOK_SKIPPED: Readonly<Record<string, string>> = {
+  "50121.when-revealed":
+    "Needs an ally attached to a side scheme to be under no player's control. `attach` (resolve/attach.ts attachCard) " +
+    "keeps the ally's controllerId, and no effect clears a card's controller (`detach` only gives one), so a scripted " +
+    "attach would leave the hostage usable by its old controller. Wanted: an `attach` option (or a `releaseControl` " +
+    "effect) that leaves the card in play, attached, with no controller; then: chooseTarget among the Rescued allies " +
+    "(first player), attachCard(chosen, self).",
+};
