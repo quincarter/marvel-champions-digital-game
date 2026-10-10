@@ -1837,11 +1837,13 @@ export const moveBoostCards = (from: TargetRef, to: TargetRef): EffectSpec => ({
 /**
  * "Place 1 acceleration token here" (The Master of Time 2B) / "place one acceleration token on one of the main
  * schemes" (MC21 p. 13's campaign instructions, a multi-main-scheme scenario). `target` absent is the central main
- * scheme (`EffectSpec addAccelerationToken.target`, RRG 1.8 "Acceleration Token", p. 5).
+ * scheme (`EffectSpec addAccelerationToken.target`, RRG 1.8 "Acceleration Token", p. 5). `count` is how many to
+ * place (a literal or live value, default 1): "place 1 acceleration token here for each A.I.M. minion in the victory display".
  */
-export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
+export const addAccelerationToken = (target?: TargetRef, count?: Amount): EffectSpec => ({
   kind: "addAccelerationToken",
   ...(target ? { target } : {}),
+  ...(count !== undefined ? { count: amount(count) } : {}),
 });
 /**
  * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22 reputation

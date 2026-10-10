@@ -32,8 +32,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * The Scientist Supreme set (50125 Scientist Supreme, 50126 Monica Rappaccini, 50127 Diplomatic Immunity, 50128
  * Diplomatic Sanctions), docs/phase7-wave9.md sections 3.1 and 3.35. Rhino (Core, standard) against a Spider-Man starter
  * deck, the set's cards added to the encounter deck by hand. The two minions are the A.I.M. cards that reach the
- * victory display (Victory -1), put there by surgery (`intoVictoryDisplay`) or by a real defeat. Diplomatic Immunity is
- * skipped (see `SCIENTIST_SUPREME_SKIPPED`).
+ * victory display (Victory -1), put there by surgery (`intoVictoryDisplay`) or by a real defeat. Every ref is scripted.
  */
 const SUPREME = "50125";
 const MONICA = "50126";
@@ -43,6 +42,7 @@ const SET = [SUPREME, MONICA, IMMUNITY, SANCTIONS];
 const REGISTERED = [
   "50125.scientist-supreme-constant",
   "50126.monica-rappaccini-constant",
+  "50127.when-revealed",
   "50128.when-revealed",
   "50128.boost",
 ];
@@ -54,11 +54,10 @@ const villainOf = (s: GameState) => s.villains[0]!.instanceId;
 const inDisplay = (s: GameState, code: string) => s.victoryDisplay.filter((id) => codeOf(s, id) === code);
 
 describe("registry", () => {
-  it("registers the four refs of the four cards, each a valid definition, and skips Diplomatic Immunity's When Revealed with its reason", () => {
+  it("registers the four refs of the four cards, each a valid definition, and skips nothing", () => {
     expect(Object.keys(SCIENTIST_SUPREME).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(SCIENTIST_SUPREME)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(SCIENTIST_SUPREME_SKIPPED)).toEqual(["50127.when-revealed"]);
-    expect(SCIENTIST_SUPREME_SKIPPED["50127.when-revealed"]).toContain("addAccelerationToken");
+    expect(SCIENTIST_SUPREME_SKIPPED).toEqual({});
   });
 
   it("the data names exactly the registered and skipped refs for the four cards", () => {
@@ -208,6 +207,39 @@ describe("Diplomatic Immunity (50127)", () => {
       ["acceleration"],
       2,
     ]);
+  });
+});
+
+describe("Diplomatic Immunity (50127) When Revealed", () => {
+  /** Immunity revealed from the top of the encounter deck with `display` in the victory display. */
+  function reveal(...display: string[]) {
+    let state = heroForm(setupGame());
+    for (const code of display) state = intoVictoryDisplay(state, code);
+    const run = villainPhase(onlyDeck(state, BLANK, IMMUNITY, FILLER_A, FILLER_B), []);
+    const id = inPlayCard(run.state, IMMUNITY)!;
+    return { run, id, tokens: inst(run.state, id).counters["acceleration"] ?? 0 };
+  }
+
+  it("with no A.I.M. minion in the victory display it places no token (control)", () => {
+    expect(reveal().tokens).toBe(0);
+  });
+
+  it("with 1 A.I.M. minion in the display it places 1 token on this side scheme", () => {
+    expect(reveal(SUPREME).tokens).toBe(1);
+  });
+
+  it("with 2 A.I.M. minions in the display it places 2 tokens", () => {
+    expect(reveal(SUPREME, MONICA).tokens).toBe(2);
+  });
+
+  it("only A.I.M. minions count: a Hydra Mercenary beside Supreme still gives 1", () => {
+    expect(reveal(HYDRA_MERCENARY, SUPREME).tokens).toBe(1);
+  });
+
+  it("the tokens land on the side scheme, not the main scheme", () => {
+    const before = heroForm(setupGame()).mainScheme.accelerationTokens;
+    const { run } = reveal(SUPREME, MONICA);
+    expect(run.state.mainScheme.accelerationTokens).toBe(before);
   });
 });
 
