@@ -61,6 +61,7 @@ import {
 import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
+import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
 import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js";
 import { SILK_ABILITIES } from "./silk/index.js";
 import { SILK_EVENTS, SILK_EVENTS_SKIPPED } from "./silk/silk/events.js";
@@ -277,6 +278,31 @@ const SCRIPTED_MODULES: Readonly<
     },
   ],
   silk: [
+    {
+      module: "silk/aspect-basic",
+      cardIds: [
+        "52013",
+        "52014",
+        "52015",
+        "52016",
+        "52017",
+        "52018",
+        "52019",
+        "52020",
+        "52021",
+        "52022",
+        "52023",
+        "52024",
+        "52025",
+        "52026",
+        "52027",
+        "52032",
+        "52033",
+        "52034",
+      ],
+      registry: SILK_ASPECT_BASIC,
+      skipped: SILK_ASPECT_BASIC_SKIPPED,
+    },
     {
       module: "silk/identity",
       cardIds: ["52001a"],
