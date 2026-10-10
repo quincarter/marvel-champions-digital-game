@@ -101,7 +101,10 @@ const batrocForcedResponse = () => forcedResponse(after.enemyAttacks("self"), pl
 
 /** Both faces of Alert Level: "Forced Response: After a character is defeated except by consequential damage, place 1 threat here." */
 const alertForcedResponse = () =>
-  forcedResponse(on.defeated({ categories: ["ally", "minion"] }, { consequential: false }), placeThreat(1, self));
+  forcedResponse(
+    on.defeated({ categories: ["ally", "minion", "identity"] }, { consequential: false }),
+    placeThreat(1, self),
+  );
 
 /** Both faces of Alert Level: "Hero Action: Spend 1 resource of any type -> remove 1 threat from here." */
 const alertAction = () => heroAction({ cost: spend(1) }, removeThreat(1, self));

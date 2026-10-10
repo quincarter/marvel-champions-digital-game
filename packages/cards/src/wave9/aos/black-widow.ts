@@ -1,7 +1,7 @@
 import type { AbilityRegistry, EventPattern } from "@mc/engine";
 import {
   atEndOfAttack,
-  attackPreventedAmount,
+  attackPreventedTotal,
   changeForm,
   chooseTarget,
   confuse,
@@ -204,7 +204,7 @@ export const BLACK_WIDOW: AbilityRegistry = defineAbilities({
   // The prevented amount is read at the end of the attack (the validator rejects reading it any other way).
   "50076.preparation": preparation(
     modifyAttack({ preventAllDamage: true, bind: "prevented" }),
-    ifThen(inMode("expert"), atEndOfAttack(dealDamage(attackPreventedAmount("prevented"), eventSource))),
+    ifThen(inMode("expert"), atEndOfAttack(dealDamage(attackPreventedTotal("prevented"), eventSource))),
   ),
 
   "50077.when-revealed": whenRevealed(confuse(yourIdentity), enemyScheme(theVillain, { against: you })),

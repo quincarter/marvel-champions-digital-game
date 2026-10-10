@@ -197,6 +197,7 @@ One case is an open rules point rather than a finding (see below).
 ### Open point (pinned, not an `it.fails`)
 
 - **54023 Winter, Widow, Soldier, Spy putting a second Aggressive Stance 54017 ("Max 1 per player") into play while one is attached.**
+  **Answered: owner 37 = A (2026-10-10), built in the engine: the second copy does not enter play and stays where it was.** As found:
   RRG "Play, Put into Play" (p. 32): a card put into play bypasses "any restrictions or prohibitions regarding playing that card". RRG "Max":
   "A player cannot take control of another copy of a 'Max 1 per player' card they already control." The RRG does not say which wins, and no
   ruling in `marvel-champions-rulings-post-rrg-1-7.md` names it. Today both copies end up attached to the identity (put into play wins).
@@ -423,3 +424,127 @@ Acquire Infinity Formula, Leviathan Soldier and Cold Storage.
   controller.
 - No FFG ruling in the file names Maria Hill or the other cards of this box outside Rulings December 17, 2025 - Ruling 3 (Stealth Suit, above)
   and the August 13 and August 3, 2026 rulings used here for the stun and surge cases.
+
+## Agents of S.H.I.E.L.D.: Black Widow, Batroc and M.O.D.O.K. scenarios (aos)
+
+Scope: the first three scenarios of the box and their sets. Black Widow 50064 to 50079 (`aos/black-widow.ts`), A.I.M. Abduction 50080 to 50082
+(`aim-abduction.ts`), A.I.M. Science 50083 to 50085 (`aim-science.ts`), Batroc 50086 to 50097 (`batroc.ts`), Batroc's Brigade 50098 to 50102
+(`batrocs-brigade.ts`), M.O.D.O.K. 50103 to 50124 (`modok.ts`), Scientist Supreme 50125 to 50128 (`scientist-supreme.ts`) and S.H.I.E.L.D. 50178
+to 50180 (`shield.ts`). Thunderbolts, Baron Zemo, the Executive Board and the Thunderbolt minion sets are a later audit. Data:
+`packages/content/src/data/aos/cards.ts`. Every script was read against the printed text in the data and the box rulebook
+(`docs/campaign-modes/markdown/mc50_agents_of_shield.md`, pp. 9, 11, 13 and the FAQ on p. 22). Regression tests:
+`packages/cards/src/wave9/aos/scenarios-rulings.qa.test.ts` (37 tests, 1 of them `it.fails` pinning the open finding below, each with a companion test
+that pins today's behavior; the Grunt, Attacrobatics and hero-defeat cases). The module tests and the scenario games are thorough (the eleven
+`aos` module and scenario files hold about 900 cases, including the owner's Q3, Q4 (single target), Q5, Q24, Q25 and Q33 cases); this file holds
+only interactions they do not assert: status cards on the villain (stunned, steady, stalwart), crisis icons against the box's own allies and
+villains, an attack with several targets, expert mode at stage 3B, villain stage changes, two-player attacker and "engaged player" cases, and
+Maria Hill's trait grant against the S.H.I.E.L.D. set.
+
+### Findings
+
+| Card id                                                                                   | Expected (source)                                                                                                                                                                                                                                                                                                                                                                                                                        | Actual                                                                                                                                                                                                                                                                                                                                  | Fix                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Black Widow 1: 50073 A.I.M. Grunt with 50039 Spray Fire (any attack with several targets) | Owner Q4 = A (`docs/phase7-wave9.md` 4.1, provisional; 3.4 spells it out): "this attack" is the whole attack, so "resolve this attack against A.I.M. Grunt instead" makes the Grunt "its only target, for 3 damage once". Spray Fire on her with a minion engaged and the Grunt discarded: the Grunt takes 3, she takes 0, the other minion takes 0 (MC50 p. 9; ruling January 17, 2026 - Ruling 2 for the single-target case).          | Only her share moves: the Grunt takes 3, the other minion still takes its own 3, and the Grunt, which is now also a minion engaged with the chosen player, takes its own 3 too: 6 in all, defeated (5 hit points). She takes 0. The single-target case (the scenario games) is right.                                                   | Engine (`retargetPlayerAttack` / the retarget of a player attack with several targets must leave the new minion the only target). Not a script change. |
+| Black Widow 2: 50076 Attacrobatics (expert) with Spray Fire                               | "Prevent all damage from this attack. In expert mode, deal that much damage to the attacking character." Under Q4 = A the attack is all of Spray Fire and all its damage to every target is prevented (the game does this, tested), so "that much" is 3 for her plus 3 for the minion: the attacker takes 6.                                                                                                                             | The attacker takes 3: the script reads `attackPreventedAmount("prevented")`, the share aimed at her. **Fixed** (one line in the script; the test now asserts the expected behavior).                                                                                                                                                    | Fixed                                                                                                                                                  |
+| Batroc 1: 50090a/b Alert Level                                                            | "After a character is defeated except by consequential damage, place 1 threat here." A hero is a character (RRG 1.8 "Character" p. 12: identities, allies, villains and minions) and an identity at zero hit points is defeated (RRG "Defeat" p. 15). In a two-player game the second hero defeated by Batroc's attack puts 1 threat on Alert Level: 3 with the two attacks' threat. No ruling in the file names Alert Level and a hero. | The script listens for `ally` and `minion` only (`alertForcedResponse`): 2 threat, the attacks'. The hero's elimination (`playerEliminated`) adds nothing. In a solo game the hero's defeat ends the game, so this shows only with two or more players. **Fixed** (one line in the script; the test now asserts the expected behavior). | Fixed                                                                                                                                                  |
+
+Each finding is pinned: `it.fails` for the expected behavior and a passing test for today's. When one is fixed, flip its `it.fails` to `it` and
+delete its companion.
+
+### Checked, no findings
+
+- **Spray Fire 50039 on Black Widow, the cases that agree with Q4 = A.** With no Preparation on top, she and the engaged minion each take 3 and her
+  interrupt fires once for the one attack (1 threat off the main scheme, one card discarded). With Night Vision Goggles attached and a card with
+  no printed Preparation on top, the granted Preparation prevents all the damage to every target, and the Goggles are discarded.
+- **Stun Net 50071 and Grappling Hook 50069 against attack events (RRG "Labeled Ability" p. 26: an (attack)-labeled ability is an attack made by
+  the identity; "Cancel" p. 11).** A hero wearing the Net cannot play Haymaker (an attack event); the same play without the Net is legal. A Hook on
+  Black Widow cancels a Haymaker aimed at her: the event is still played and discarded, her Forced Interrupt never fires (no threat removed, no
+  card discarded), and the Hook is discarded. An ally who attacks her wears the Net afterwards and cannot attack again; the hero is not netted.
+- **Black Widow's Gauntlet 50068.** With Night Vision Goggles attached and a card with no printed Preparation on top, the Goggles' granted
+  Preparation counts as "a Preparation ability was resolved": the Gauntlet stays (control: without the Goggles it may be discarded). In a
+  two-player game the response is offered to the attacking second player only and discards the Gauntlet when taken. The Gauntlet's retaliate 1
+  answers the stroke that defeats stage I, and the Gauntlet and her stunned status card are on stage II (RRG "Villain Defeat" p. 47: the new stage is
+  the same character and attachments and status cards carry over).
+- **Destroy Evidence 50075 (RRG "Incite X" p. 24: a revealed card).** A.I.M. Soldier revealed gains incite 1 (+1 threat); the Scientist it puts
+  into play was not revealed, so it gets no incite and its printed Surge does not reveal another card (only the Soldier is revealed).
+- **Batroc stunned (RRG "Stun, Stunned" p. 41: "not considered to have attacked"; MC50 p. 22).** His attack is replaced by removing the stun, nobody
+  is hurt and no threat goes on Alert Level (his Forced Response is "After Batroc attacks").
+- **Crisis icon (RRG "Crisis Icon" p. 14; "Card Types" p. 12: ally is a player card type).** Batroc's Forced Interrupt still removes its 6 threat from
+  the main scheme with a crisis side scheme in play (an encounter card's ability). A Rescued Captive's Hero Action cannot be used on the main
+  scheme under a crisis icon (the ability has no valid target) and removes 1 without one. Flying Inhuman's "remove 1 threat from another scheme"
+  after thwarting a crisis side scheme cannot take the main scheme (no main-scheme target is offered, its threat is unchanged).
+- **Extract Captives 3B in expert mode (card text 50089b; RRG "Quickstrike" p. 36; owner Q25 = A).** An Embassy Patrol revealed engages the hero in
+  hero form and its quickstrike attack is redirected to the Rescued Captive; the hero takes nothing.
+- **Batroc's Brigade 50101 and Soldiers of Fortune 50102.** A Mercenary found by Soldiers of Fortune and revealed offers the Brigade's Hero
+  Interrupt; taken (3 resources), Machete is discarded without entering play, Soldiers of Fortune gains surge ("if no minion entered play this
+  way") and the canceled Machete's own Surge does not reveal a second card. The interrupt is not offered to a player who cannot spend 3. The
+  Soldiers of Fortune boost does not offer "spend 1 resource" to a player with nothing to spend (owner Q33 = A): it gains its 3 icons with no choice.
+- **Zaran 50100 (RRG "Tuck" p. 45).** Defeated, the card tucked under him goes to its owner's discard pile, not the encounter discard pile or the
+  victory display.
+- **M.O.D.O.K.'s status cards.** A damage-proof M.O.D.O.K. (Hostage Situation in play) still draws retaliate 1 when attacked (RRG "Retaliate X"
+  p. 38: "after ... is attacked", no damage needed). Psionic Force Field gives stalwart: a Mockingbird stun cannot be placed on him (control: it
+  lands). Expert M.O.D.O.K. (steady, RRG "Steady" p. 41): one stunned card does not stop his attack and stays; two stop it and both are removed.
+- **Sarah Garza 50107b against a tough Adaptoid (ruling January 26, 2026 - Ruling 3: overkill counts damage taken).** The tough card absorbs
+  her 2 damage, the Adaptoid takes nothing, so nothing spills onto M.O.D.O.K. (control: without the card 1 spills).
+- **"It's Alive!" 50123 with Flying Upgrade 50109.** Each Adaptoid a player finds and reveals gains incite 1: two players, two more threat than
+  without the upgrade.
+- **A.I.M. Scientist 50083 against an attack with several targets.** With another minion engaged, Spray Fire leaves the Scientist out (no damage)
+  and the other minion and the villain take 3; engaged with the Scientist alone it is a target and is defeated (2 hit points).
+- **Maria Hill's trait grant against the S.H.I.E.L.D. set.** Disavowed 50180's When Revealed counts Hill's identity and a Core ally she controls
+  (2 starting + 2). A S.H.I.E.L.D. Trooper 50178 defeated while its player controls only a Core ally: the ally (a S.H.I.E.L.D. ally by the grant)
+  is discarded and no threat is placed. In a two-player game where the second player defeats a Trooper engaged with the first, the first player
+  (the engaged player) discards their S.H.I.E.L.D. support and the second keeps theirs.
+- **Disavowed 50180 and a Core ally in Hill's hand.** Black Cat in her hand costs 2, then 3 under Disavowed; a S.H.I.E.L.D. support (1 to 2)
+  likewise; a Core support (Aunt May) stays at 1. See the open point below.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests and scenario games assert them: Black Widow's Forced Interrupt on all three
+stages (crisis, empty scheme, empty deck, second player), The Widow's Web (setup, X per hero), the four attachments, A.I.M. Commando (quickstrike
+after the attack) and Grunt (single-target retarget), Automated Defenses, the four treacheries; A.I.M. Abduction (Abductor, Abduct Superhumans,
+Nabbed!, the ally limit and the return); A.I.M. Science (Soldier, Mad Science, the Scientist's per-player lock); Batroc's reset and Forced
+Response, the three stages and Alert Level on both faces, Rescued Captive, Heightened Reflexes, Embassy Guard and Patrol, Commandeer Security
+Office, Leaping Kick, Security Cameras; Machete, Rapido, Zaran's ATK; M.O.D.O.K.'s reset (owner Q3 = A), Upgrading Adaptoids, the four Holding
+Cells and Inhumans (owner Q24 = A), the four upgrades, the six attachments, A.I.M. Jailer, Hostage Situation, Psionic Enhancement, Psionic
+Blast; Scientist Supreme, Monica Rappaccini, Diplomatic Immunity and Sanctions; Arrest Warrant. No new test was written for these.
+
+### Open point (pinned, not an `it.fails`)
+
+- **Maria Hill's grant for a card in her hand.** RRG "Ownership and Control" p. 31 says "a player controls the cards in their own out-of-play
+  areas", and Hill prints "Each ally you control gains the S.H.I.E.L.D. trait". Read literally, an ally in her hand is a S.H.I.E.L.D. card, and
+  that is what the game does (Black Cat costs 1 more under Disavowed in her hand). It is also how owner question 20 = B reads "a card you control".
+  No ruling covers Hill's grant; if the owner prefers "in play only", the cost modifier and the Practiced Plan reading would change together.
+
+### Source conflicts (flagged, not picked)
+
+- **Overkill and a replaced defeat.** MC50 p. 22 (the FAQ) says "Overkill damage is simultaneous with the damage from the attack" and uses that to
+  order M.O.D.O.K.'s "would be defeated" interrupt before the Adaptoid's When Defeated. Owner Q31 = A says that when the attacked minion's defeat is
+  replaced the excess is dealt "once the minion is defeated" (no spill), and rejects "strict simultaneity" as answer B. The two agree on the
+  M.O.D.O.K. case (tested by the module and the scenario game) and differ in wording for a replaced defeat. Worth confirming that the FAQ's
+  "simultaneous" is only about the order of the two abilities.
+- **Q4 against the RRG wording of Attacrobatics.** Nothing conflicts, but the owner marked Q4 provisional and the two Black Widow findings above are
+  both its consequences; if it flips to B, the Grunt test and the Attacrobatics expectation change with it.
+
+### Thin coverage and open points
+
+- **Heightened Reflexes 50092 on a tough Batroc.** Batroc's Brigade gives each enemy a tough status card (Batroc included). Whether the tough card
+  or Heightened Reflexes' interrupt acts first, and whether the leap counter is removed when the tough card prevented the damage, is not stated by
+  the RRG or a ruling; not tested.
+- **Q22 (a surge outside the villain phase) is not exercised by this scope.** The only player-phase reveal in these sets is Arrest Warrant, and
+  the S.H.I.E.L.D. Trooper it finds has no surge.
+- **Spray Fire against a Guard minion on Black Widow (owner Q16 = A).** Covered by the Nick Fury tests, not combined with her Preparations.
+- **The Grunt's retarget with an ally's attack.** Only a hero's attack is combined with the Grunt (scenario game C); the ally-attack variant is
+  not tested.
+- **A.I.M. Abductor's order (50080).** The printed text puts "If Abduct Superhumans is not in play, find it" last; the script finds it first
+  (documented in the script: nothing can be tucked under a scheme that is not there). Not changed here.
+- **Nabbed! with no ally in the deck (50082).** The script places the acceleration token though nothing was tucked (documented reading,
+  tested by the module); no source says either way.
+- **Psionic Upgrade (villainous) on a stunned Adaptoid.** Whether a replaced activation is "uses a basic power" and so is dealt a boost card is not
+  stated; not tested.
+- **Two-player Arrest Warrant and Disavowed.** Arrest Warrant held by the second player and Disavowed counting two players' cards are not staged.
+- **The Gauntlet's response is offered even when it will do nothing.** Its "if no Preparation ability was resolved" is read as a condition of the
+  effect, not of the trigger, so a player can take a response that discards nothing. Harmless; the RRG's "Triggering Condition" does not say
+  whether an "if" clause belongs to the trigger.
+- No FFG ruling in the file names a card of these scenarios beyond January 17, 2026 - Ruling 2 (Black Widow's interrupt and the Grunt, asserted by
+  the scenario game), January 26, 2026 - Ruling 4 and April 30, 2026 - Ruling 3 (flipping Alert Level is not a reveal, asserted by the Batroc
+  module) and January 26, 2026 - Ruling 3 (overkill counts damage taken, used above).
