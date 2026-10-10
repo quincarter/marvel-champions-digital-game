@@ -165,6 +165,36 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
     expect(repeats).toBe(1);
   });
 
+  it("27018.across-the-spider-verse-action: the exhaust is a cost, so with no ready Web-Warrior card the event is not playable", () => {
+    const hero = run(ghostSpiderVsRhino(), toHero(P1));
+    const identity = identityOf(hero);
+    const given = moveToHand(moveToDiscard(hero, P1, "27011").state, P1, "27018");
+    const [card] = given.ids as [never];
+    const spent = patchInstance(given.state, identity, { exhausted: true });
+    expect(() => runWith(WAVE5_DEPS, spent, play(P1, card, payWith(spent, P1, 2, [card])))).toThrow();
+  });
+
+  it("27018.across-the-spider-verse-action: the chosen Web-Warrior card is exhausted as the cost (an ally in play, the identity stays ready)", () => {
+    const hero = run(ghostSpiderVsRhino(), toHero(P1));
+    const identity = identityOf(hero);
+    const { state: withAlly, id: ally } = playFromHand(hero, "27011", 4); // Spider-Man (Miles Morales), a Web-Warrior ally.
+    const given = moveToHand(withAlly, P1, "27018");
+    const [card] = given.ids as [never];
+    const after = settle(
+      runWith(
+        WAVE5_DEPS,
+        given.state,
+        play(P1, card, payWith(given.state, P1, 2, [card]), { costChoices: { exhausted: [ally] } }),
+      ),
+      (s) =>
+        s.pendingChoice?.prompt.kind === "chooseOption" ? [s.pendingChoice.options.at(-1)!.optionId] : firstLegal(s),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(after, ally).exhausted).toBe(true);
+    expect(inst(after, identity).exhausted).toBe(false);
+  });
+
   it("27019.young-love-action: heals 3 damage each from Gwen Stacy (the identity) and Miles Morales", () => {
     const state = ghostSpiderVsRhino();
     const { state: withMiles, id: miles } = playFromHand(state, "27011", 4); // Spider-Man (Miles Morales).

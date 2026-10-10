@@ -13,6 +13,8 @@ import {
   discardEncounterUntil,
   enemyAttack,
   exhaust,
+  exhaustCardsCost,
+  exists,
   heal,
   healYourIdentityCost,
   heroAction,
@@ -73,7 +75,9 @@ import {
  * "Momentum Shift", `09016`) then `ready(yourIdentity)`.
  *
  * **Across the Spider-Verse (27018)**: "Max 1 per deck." is a `deckLimit`/`quantityInSet` fact already on the card
- * record. "Hero Action: Exhaust a Web-Warrior card you control → search your discard pile for a Web-Warrior ally
+ * record. The exhaust is a COST (everything before the arrow, RRG 1.8 "Cost" p. 13): `exhaustCardsCost`, so with no
+ * ready Web-Warrior card the event cannot be played. The repeat repeats the whole ability, cost included, so the
+ * chosen player exhausts a card of theirs too (see `CHOOSE_A_PLAYER_WHO_MAY_REPEAT`). Printed: "Hero Action: Exhaust a Web-Warrior card you control → search your discard pile for a Web-Warrior ally
  * and put it into play, then choose a player. That player may spend 3 resources of any type to repeat this
  * ability." resolves the "exhaust a Web-Warrior card / search discard / put into play" sentence for `you` once
  * unconditionally, then a `repeatWhile` loop whose body is exactly the printed "choose a player, they may spend 3
@@ -101,23 +105,36 @@ import {
 const WEB_WARRIOR = trait("WEB-WARRIOR");
 const A_WEB_WARRIOR_CARD: TargetQuery = { categories: ["identity", "ally", "upgrade", "support"], trait: WEB_WARRIOR };
 
-/** "Exhaust a Web-Warrior card you control → search your discard pile for a Web-Warrior ally and put it into play." */
-const exhaustSearchAndPutIntoPlay = (actor: PlayerRef) => [
-  chooseTarget("webWarrior", { ...A_WEB_WARRIOR_CARD, controlledBy: actor, exhausted: false }, { chooser: actor }),
-  exhaust(chosen("webWarrior")),
+/** "… search your discard pile for a Web-Warrior ally and put it into play." (the effect, after the cost). */
+const searchAndPutIntoPlay = (actor: PlayerRef) => [
   chooseCards("found", zone("discard", actor, { filter: query("ally", { trait: WEB_WARRIOR }) }), { min: 0, max: 1 }),
   putIntoPlay(chosen("found"), actor),
 ];
 
-/** "…then choose a player. That player may spend 3 resources of any type to repeat this ability." */
+/**
+ * "…then choose a player. That player may spend 3 resources of any type to repeat this ability." Repeating includes
+ * the cost (RRG 1.8 FAQ p. 62/63: the chosen player must be able to spend 3 resources AND exhaust a Web-Warrior
+ * card), so the repeat is only offered when the chosen player controls a ready Web-Warrior card, and the exhaust is
+ * made for them (in the effect, since the cost slot belongs to the original activation).
+ */
 const CHOOSE_A_PLAYER_WHO_MAY_REPEAT = [
   choosePlayer("player"),
-  chooseOneBy(
-    chosenPlayer("player"),
-    option("Spend 3 resources of any type to repeat", spendResources({ generic: 3 }, "paid", chosenPlayer("player"))),
-    option("Do not repeat"),
-  ),
-  ifThen(varAtLeast("paid.made"), exhaustSearchAndPutIntoPlay(chosenPlayer("player"))),
+  ifThen(exists({ ...A_WEB_WARRIOR_CARD, controlledBy: chosenPlayer("player"), exhausted: false }), [
+    chooseOneBy(
+      chosenPlayer("player"),
+      option("Spend 3 resources of any type to repeat", spendResources({ generic: 3 }, "paid", chosenPlayer("player"))),
+      option("Do not repeat"),
+    ),
+  ]),
+  ifThen(varAtLeast("paid.made"), [
+    chooseTarget(
+      "webWarrior",
+      { ...A_WEB_WARRIOR_CARD, controlledBy: chosenPlayer("player"), exhausted: false },
+      { chooser: chosenPlayer("player") },
+    ),
+    exhaust(chosen("webWarrior")),
+    ...searchAndPutIntoPlay(chosenPlayer("player")),
+  ]),
 ];
 
 export const GHOST_SPIDER_EVENTS_B = defineAbilities({
@@ -144,7 +161,8 @@ export const GHOST_SPIDER_EVENTS_B = defineAbilities({
   "27016.what-doesnt-kill-me-action": heroAction({ cost: healYourIdentityCost(2) }, ready(yourIdentity)),
 
   "27018.across-the-spider-verse-action": heroAction(
-    ...exhaustSearchAndPutIntoPlay(you),
+    { cost: exhaustCardsCost(A_WEB_WARRIOR_CARD) },
+    ...searchAndPutIntoPlay(you),
     repeatWhile(varAtLeast("paid.made"), CHOOSE_A_PLAYER_WHO_MAY_REPEAT),
   ),
 

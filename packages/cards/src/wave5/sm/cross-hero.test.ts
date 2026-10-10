@@ -210,14 +210,11 @@ describe("Ghost-Spider's aspect/basic cards, from a Core hero's own deck", () =>
     expect(after.players[0]!.discard).toContain(whatDoesntKillMe);
   });
 
-  it("27018.across-the-spider-verse-action: with no Web-Warrior card to exhaust, is a legal no-op", () => {
-    // Unlike 27017/27048's own `playOnlyIf` gate, "Exhaust a Web-Warrior card you control" is a plain effect step
-    // (`chooseTarget`) with no legal candidate — the card still plays, that step just picks nothing.
-    const { state } = playFromAnotherHerosDeck("27018", game, {
-      coreHero: "core-black-panther-protection",
-      setup: toHeroFirst,
-    });
-    expect(state.players[0]!.discard.some((id) => state.instances[id]?.cardId === "27018")).toBe(true);
+  it("27018.across-the-spider-verse-action: with no Web-Warrior card to exhaust, is refused (the exhaust is a cost)", () => {
+    // "Exhaust a Web-Warrior card you control →" comes before the arrow: a cost (RRG 1.8 "Cost", p. 13).
+    expect(() =>
+      playFromAnotherHerosDeck("27018", game, { coreHero: "core-black-panther-protection", setup: toHeroFirst }),
+    ).toThrow(/exhaust/);
   });
 
   it("27019.young-love-action: a Team-Up card for Gwen Stacy and Miles Morales — refused for any other identity's deck", () => {

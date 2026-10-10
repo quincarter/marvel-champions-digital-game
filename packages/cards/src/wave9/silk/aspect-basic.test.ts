@@ -1428,7 +1428,13 @@ describe("52023.across-the-spider-verse-action: exhaust a Web-Warrior card you c
   it("the Web-Warrior card to exhaust may be an ally already in play: Madame Web is exhausted, Silk stays ready", () => {
     const { state, across, scarlet, silk } = stage();
     const web = placed(state, WEB);
-    const r = cast(web.state, across, { target: [web.id, scarlet], option: ["1"] });
+    const pay = playerOf(web.state, P1)
+      .hand.filter((i) => i !== across)
+      .slice(0, 2);
+    const r = scripted(web.state, [play(P1, across, pay, { costChoices: { exhausted: [web.id] } })], {
+      target: [scarlet],
+      option: ["1"],
+    });
     expect(inst(r.state, web.id).exhausted).toBe(true);
     expect(inst(r.state, silk).exhausted).toBe(false);
     expect(inPlayArea(r.state, scarlet)).toBe(true);
@@ -1463,9 +1469,7 @@ describe("52023.across-the-spider-verse-action: exhaust a Web-Warrior card you c
       .slice(0, 2);
     expect(() => run(given.state, play(P1, given.ids[0]!, pay))).toThrow();
   });
-  // KNOWN GAP in the aliased wave 5 script (27018): "Exhaust a Web-Warrior card you control" is a cost on the card, so with
-  // nothing ready to exhaust it should be unplayable; the script exhausts inside the effect and the card plays anyway.
-  it.fails("no ready Web-Warrior card to exhaust (Silk exhausted, nothing else in play): the card is not playable", () => {
+  it("no ready Web-Warrior card to exhaust (Silk exhausted, nothing else in play): the card is not playable", () => {
     const { state, across } = stage();
     const spent = exhaust(state, identityOf(state));
     const pay = playerOf(spent, P1)
@@ -1696,9 +1700,9 @@ describe("52033.spider-woman-response: after a Web-Warrior ally (including this 
     const pay = playerOf(given.state, P1)
       .hand.filter((i) => i !== across)
       .slice(0, 2);
-    const r = scripted(given.state, [play(P1, across, pay)], {
+    const r = scripted(given.state, [play(P1, across, pay, { costChoices: { exhausted: [identityOf(state)] } })], {
       accept: [REF],
-      target: [identityOf(state), gone.id],
+      target: [gone.id],
       option: ["1"],
     });
     expect(inPlayArea(r.state, gone.id)).toBe(true);
