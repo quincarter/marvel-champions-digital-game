@@ -65,11 +65,9 @@ const SIDEARM = "S.H.I.E.L.D. Sidearm";
  * identity in either form included; it need not be exhausted.
  *
  * **54013.deathlok-response**: the search covers the deck and the discard pile and is compulsory when a copy of
- * S.H.I.E.L.D. Sidearm is there (owner ruling: a search with no "may"). The copy enters play and is attached to Deathlok;
- * the deck is shuffled (also when nothing was found). The `putIntoPlay` first is what places the Sidearm's Uses counters:
- * the `attach` effect alone moves a card from out of play without announcing that it entered play (engine gap, so no
- * ammo counters), as `putIntoPlayFromSetAside` does it. The hop is through the identity, and a Sidearm already on it does
- * not stop that (tested).
+ * S.H.I.E.L.D. Sidearm is there (owner ruling: a search with no "may"). The copy is attached to Deathlok straight from
+ * where it was found, which is how it enters play (RRG "Enters Play", p. 18), so it arrives with its 3 ammo counters; a
+ * Sidearm already on the identity changes nothing (tested). The deck is shuffled (also when nothing was found).
  *
  * **54014.firepower-action**: "up to 3" in a cost is 1 to 3 (RRG "Cost", p. 13). One attack by the hero for each weapon
  * upgrade exhausted: each pass chooses its own enemy and deals 3 damage, and "this attack gains ranged" is read for
@@ -141,7 +139,6 @@ export const WINTER_ASPECT_BASIC: AbilityRegistry = defineAbilities({
       min: 1,
       max: 1,
     }),
-    putIntoPlay(chosen("found")),
     attachCard(chosen("found"), self),
     shuffleDeck(),
   ),

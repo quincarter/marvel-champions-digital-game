@@ -1343,10 +1343,19 @@ export function leaveCauseSide(
 }
 
 /** The cause of the move a waiting leaving describes (`leaveCauseSide`); an attachment going with its host has none. */
-const requestCauseSide = (state: GameState, request: LeaveRequest): LeaveCauseSide | undefined =>
-  request.kind === "withHost"
+const requestCauseSide = (state: GameState, request: LeaveRequest): LeaveCauseSide | undefined => {
+  const made = leaveMadeBy(request);
+  return made.kind === "withHost"
     ? undefined
-    : leaveCauseSide(state, request.sourceCardId, "asCost" in request && request.asCost === true);
+    : leaveCauseSide(state, made.sourceCardId, "asCost" in made && made.asCost === true);
+};
+
+/**
+ * The request that says what made a card leave: itself, or for one an interrupt sent under a card (`LeaveRequest
+ * tuck`, docs/phase7-wave9.md §3.20) the move that was replaced, whose source card and cost are still the cause.
+ */
+export const leaveMadeBy = (request: LeaveRequest): Exclude<LeaveRequest, { readonly kind: "tuck" }> =>
+  request.kind === "tuck" ? request.replaced : request;
 
 /** What a leaving card is, read while it is still in play (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13). */
 function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
@@ -1479,7 +1488,8 @@ export function waitsForLeaveInterrupts(
   if (!listensForLeavingPlay(ctx.deps)) return false;
   if (!cardsInPlay(ctx.state).includes(id)) return false;
   // Blocked leaves are refused (and logged) by the caller's own path.
-  const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
+  const made = leaveMadeBy(request);
+  const sourceCardId = made.kind === "withHost" ? undefined : made.sourceCardId;
   if (
     permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) ||
     cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, isDiscardRequest(request))

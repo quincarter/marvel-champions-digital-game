@@ -50,7 +50,7 @@ import {
 import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } from "../counter-types.js";
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
-import { tuckCardUnder, tuckOrAnnounce } from "./tuck.js";
+import { resolveTuck, tuckInsteadOfLeaving, tuckOrAnnounce } from "./tuck.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive, usesKeyword } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
@@ -122,7 +122,7 @@ import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
 import { applyFindCard, findToDeal, findToReveal, shuffleSearchedDecks } from "./find.js";
-import { attachCardBy, settleUpgradeControl } from "./attach.js";
+import { announcesAttaching, attachCardBy, settleUpgradeControl } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -1540,10 +1540,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // wave6.md §3.49). A card that "cannot be unattached" (the Power Stone, docs/phase7-wave3.md §3.19) or a host that
       // "cannot have cards attached" (Odin, docs/phase7-wave4.md §3.8) leaves the card where it was (`attachCard`).
       // "After you attach …" (`TriggerEvent cardAttached`): each card that landed, once the effect has attached them all.
-      const attached = targets(effect.card).flatMap((id) =>
-        attachCardBy(ctx, id, host, context.controllerId ?? null, effect.facedown === true),
-      );
-      pushHeard(attached);
+      // A card attached from out of play enters play by it: that announcement is always made (`attachCardBy`).
+      const attached = targets(effect.card)
+        .flatMap((id) => attachCardBy(ctx, id, host, context.controllerId ?? null, effect.facedown === true))
+        .filter((event) => announcesAttaching(event, (e) => heard(ctx.state, ctx.deps, e)));
+      if (attached.length > 0) pushEvents(ctx, attached);
       return;
     }
     case "engage": {
@@ -2565,7 +2566,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       const tuck = pending.event;
       setFrame(ctx, { ...pending, cancelled: true });
-      tuckCardUnder(ctx, tuck.instanceId, to, tuck.facedown === true, tuck.sourceCardId);
+      resolveTuck(ctx, tuck, to);
+      return;
+    }
+    case "replaceLeaveDestination": {
+      // docs/phase7-wave9.md §3.20: the leaving this interrupt answers ends under the named card. What made the card
+      // leave still did (it left play; a defeated one was defeated); only where it goes is replaced.
+      const [to] = targets(effect.to.tuckedUnder);
+      const source = frame.selfInstanceId !== null ? getInstance(ctx.state, frame.selfInstanceId) : undefined;
+      const replaced =
+        frame.eventFrameId !== null &&
+        frame.eventFrameId !== undefined &&
+        to !== undefined &&
+        tuckInsteadOfLeaving(ctx, frame.eventFrameId, to, {
+          sourceInstanceId: source ? frame.selfInstanceId : null,
+          sourceCardId: source?.cardId,
+          facedown: false,
+        });
+      if (!replaced) markPreThenUnresolved(ctx, frame.frameId, "leaveNotReplaced");
       return;
     }
     case "replaceTriggeringEvent": {

@@ -55,7 +55,12 @@ export type PreThenFailure =
    * A `replaceTuckHost` found no pending tuck to send elsewhere, or no card to send it under
    * (docs/phase7-wave9.md §3.40).
    */
-  | "tuckNotReplaced";
+  | "tuckNotReplaced"
+  /**
+   * A `replaceLeaveDestination` found no pending leaving it can send elsewhere (none, one already replaced, one with
+   * a destination of its own), or no card to send it under (docs/phase7-wave9.md §3.20).
+   */
+  | "leaveNotReplaced";
 
 export type GameEvent =
   | {

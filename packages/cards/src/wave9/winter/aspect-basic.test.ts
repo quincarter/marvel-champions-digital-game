@@ -487,6 +487,21 @@ describe("54013.deathlok-response: after he enters play, search your deck and di
     expect(copies(deck(out.state), out.state, SIDEARM)).toHaveLength(2);
     expect(deck(out.state)).toHaveLength(deck(moveToHand(start, P1, DEATHLOK).state).length - 1);
   });
+  it("with a Sidearm already on your identity (2 ammo left): another is attached to him with 3, the first keeps its 2", () => {
+    const first = placed(hero(), SIDEARM, { attach: true, counters: { ammo: 2 } });
+    const out = played(first.state, DEATHLOK, { take: [ID] });
+    const attached = inst(out.state, out.id).attachments;
+    expect(attached).toHaveLength(1);
+    expect(attached[0]).not.toBe(first.id);
+    expect(inst(out.state, attached[0]!)).toMatchObject({ attachedTo: out.id, faceup: true, counters: { ammo: 3 } });
+    expect(inst(out.state, first.id)).toMatchObject({ attachedTo: identityOf(out.state), counters: { ammo: 2 } });
+    // It enters play once, on Deathlok: it never sits on the identity on the way.
+    const entered = ofType(out.events, "triggerEvent").filter(
+      (e) => e.phase === "initiated" && e.event.kind === "cardEntersPlay" && e.event.instanceId === attached[0],
+    );
+    expect(entered).toHaveLength(1);
+    expect(ofType(out.events, "cardMoved").filter((e) => e.instanceId === attached[0])).toHaveLength(1);
+  });
   it("the deck is shuffled afterwards", () => {
     const out = played(hero(), DEATHLOK, { take: [ID] });
     const shuffles = ofType(out.events, "deckShuffled");

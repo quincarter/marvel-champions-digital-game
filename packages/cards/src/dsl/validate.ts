@@ -70,6 +70,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkRearranges(definition, problems);
   checkPlays(definition, problems);
   checkTuckReplacement(definition, problems);
+  checkLeaveReplacement(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -595,6 +596,20 @@ function checkTuckReplacement(definition: AbilityDefinition, problems: string[])
     problems.push(
       "replaceTuckHost needs an interrupt on a tuck about to happen (interrupt(on.cardWouldBeTucked(…), …))",
     );
+}
+
+/**
+ * `replaceLeaveDestination` changes where the leaving its ability interrupts ends (docs/phase7-wave9.md §3.20), so it
+ * is read only in an interrupt whose one triggering condition is `cardLeavesPlay`: a response finds the card gone, and
+ * any other event has no leaving to send elsewhere.
+ */
+function checkLeaveReplacement(definition: AbilityDefinition, problems: string[]): void {
+  if (!allEffects(definition.effects).some((effect) => effect.kind === "replaceLeaveDestination")) return;
+  const trigger = definition.trigger;
+  const kinds =
+    trigger.kind === "interrupt" ? (typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) : [];
+  if (kinds.length !== 1 || kinds[0] !== "cardLeavesPlay")
+    problems.push("replaceLeaveDestination needs an interrupt on a card leaving play (interrupt(on.leavesPlay(…), …))");
 }
 
 /**

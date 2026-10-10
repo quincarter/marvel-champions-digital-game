@@ -72,6 +72,7 @@ import {
   whenRevealedHero,
   boost,
   you,
+  attachCard,
 } from "../../dsl/index.js";
 
 const ALERT_LEVEL = named("Alert Level");
@@ -124,11 +125,11 @@ const atAlertThreshold = () => threatAtLeast(self, perHero(4));
  * High-side surge / incite 1 is a constant keyword grant to the card itself, `while` Alert Level shows its High trait
  * (a revealed minion has it before it enters play). Rescued Captive does not count against the ally limit and no card
  * ability removes it (damage still defeats it, Victory -1). Heightened Reflexes: the interrupt to damage Batroc would
- * take prevents 2 and removes a leap counter; its boost puts it into play (it attaches to Batroc as its "Attach to"
- * text says and enters play with its 4 leap counters, which the generic attach effect would not place). Leaping Kick: the first player picks among the allies tied for the most
- * remaining hit points (RRG "First Player", p. 19); the attack is an ordinary enemy attack on that ally, so Batroc's
- * own "After Batroc attacks" answers it (owner decision Q5 = A). Security Cameras (Hero) resolves once per character
- * the player controls (`forEachCard`), each exhausted or paid for with threat on Alert Level.
+ * take prevents 2 and removes a leap counter; its boost attaches it to Batroc, and a card attached from out of play
+ * enters play by it, so it arrives with its 4 leap counters. Leaping Kick: the first player picks among the allies tied
+ * for the most remaining hit points (RRG "First Player", p. 19); the attack is an ordinary enemy attack on that ally,
+ * so Batroc's own "After Batroc attacks" answers it (owner decision Q5 = A). Security Cameras (Hero) resolves once per
+ * character the player controls (`forEachCard`), each exhausted or paid for with threat on Alert Level.
  *
  * Cards (10):
  * - 50086a Batroc (villain)
@@ -230,7 +231,7 @@ export const BATROC: AbilityRegistry = defineAbilities({
     preventDamage(2),
     removeCountersFrom(self, "leap", 1),
   ),
-  "50092.boost": boost(putIntoPlay(self)),
+  "50092.boost": boost(attachCard(self, theVillain)),
 
   // Embassy Guard / Patrol: High side adds surge / incite 1 to the card itself; When Defeated: 1 threat on Alert Level.
   "50093.embassy-guard-constant": constant(gainsKeyword({ name: "surge" }, { self: true }, { while: alertIsHigh() })),

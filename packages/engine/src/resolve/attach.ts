@@ -78,8 +78,23 @@ export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown 
 }
 
 /**
- * `attachCard`, reporting the `TriggerEvent cardAttached` to announce: one when the card landed on a host it was not on
- * before, none when it could not be attached or was already there. The caller pushes it when an ability listens.
+ * `attachCard`, reporting what to announce: none when the card could not be attached or was already on that host;
+ * otherwise a `TriggerEvent cardAttached`, which the caller pushes when an ability listens, preceded by a
+ * `cardEntersPlay` when the attaching is how the card entered play.
+ *
+ * RRG 1.8 "Enters Play" (p. 18): a card enters play when it "transitions from an out-of-play area into play", by
+ * whatever means, so a card attached from a deck, a discard pile, a hand, a set-aside area or as a boost card has
+ * entered play: its keywords resolve (Uses places its counters, p. 46; toughness, hinder, the restricted check) as
+ * that event's apply step, and "when / after … enters play" abilities answer it, exactly as for a card that
+ * `putIntoPlay` attaches. The caller always pushes this one (`announcesAttaching`): its apply step is the keywords.
+ * Its player is the card's controller, or the attaching player for a card nobody controls (an encounter attachment).
+ *
+ * Not entering play: a card already in play moved from one host to another, which keeps its counters and state
+ * ("Leaves Play", p. 27, and "Enters Play" both name a change of area, and it changed none), and a card attached
+ * facedown, which is out of play on its host (RRG 1.8 "In Play and Out of Play", p. 23).
+ *
+ * Announced elsewhere: an encounter attachment being revealed that its own When Revealed or `cannotAttach` ability
+ * attaches. Its reveal announces it once that ability has resolved (`revealAnnouncesEntry`), as it always has.
  */
 export function attachCardBy(
   ctx: Ctx,
@@ -89,9 +104,33 @@ export function attachCardBy(
   facedown = false,
 ): readonly TriggerEvent[] {
   const was = getInstance(ctx.state, id)?.attachedTo ?? null;
+  const wasInPlay = cardsInPlay(ctx.state).includes(id);
   if (!attachCard(ctx, id, host, facedown) || was === host) return [];
-  return [{ kind: "cardAttached", instanceId: id, hostInstanceId: host, playerId }];
+  const attached: TriggerEvent = { kind: "cardAttached", instanceId: id, hostInstanceId: host, playerId };
+  if (wasInPlay || !cardsInPlay(ctx.state).includes(id) || revealAnnouncesEntry(ctx.state, id)) return [attached];
+  return [{ kind: "cardEntersPlay", instanceId: id, playerId: controllerOf(ctx.state, id) ?? playerId }, attached];
 }
+
+/**
+ * Whether `id` is being revealed at a step whose end announces it entering play if it is attached by then: a
+ * self-attaching attachment's When Revealed (`settleAttach`; ruling Feb 20, 2026 (4)) or its `cannotAttach` abilities
+ * (`resolve/reveal.ts`).
+ */
+const revealAnnouncesEntry = (state: GameState, id: InstanceId): boolean =>
+  state.stack.some(
+    (frame) =>
+      frame.kind === "reveal" &&
+      frame.instanceId === id &&
+      (frame.stage === "settleAttach" || frame.stage === "cannotAttach"),
+  );
+
+/**
+ * Which of `attachCardBy`'s events go on the stack: a card entering play always (its apply step places its keywords'
+ * counters), `cardAttached` only when `heard` says an ability answers it, so an attach nobody hears logs no more than
+ * the move.
+ */
+export const announcesAttaching = (event: TriggerEvent, heard: (event: TriggerEvent) => boolean): boolean =>
+  event.kind === "cardEntersPlay" || heard(event);
 
 /**
  * RRG 1.8 "Ownership and Control" (p. 31): "Upgrades attached to a card controlled by a player other than the upgrade's

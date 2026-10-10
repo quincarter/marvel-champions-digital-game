@@ -66,6 +66,7 @@ import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
 import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
+import { tuckLeavingCard } from "./tuck.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
 import { cannotLeavePlay, staysInHand } from "../rules.js";
@@ -896,28 +897,32 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   if (request.kind === "withHost") return applyLeavingWithHost(ctx, frame.frameId, request.step);
   const inPlay = cardsInPlay(ctx.state).includes(id);
   if (inPlay) {
-    switch (request.kind) {
+    // Sent under a card by an interrupt (docs/phase7-wave9.md §3.20); with that card gone, the move it replaced.
+    const move = request.kind === "tuck" && !tuckLeavingCard(ctx, id, request) ? request.replaced : request;
+    switch (move.kind) {
       case "zone":
         leavePlay(
           ctx,
           id,
-          request.zone,
-          request.position,
-          request.discarded,
-          request.patch,
-          request.sourceCardId,
-          request.asCost === true,
+          move.zone,
+          move.position,
+          move.discarded,
+          move.patch,
+          move.sourceCardId,
+          move.asCost === true,
         );
         break;
       case "moveCards":
-        moveCardsTo(ctx, [id], request.destination, request.into, request.sourceCardId, undefined, request.asCost);
+        moveCardsTo(ctx, [id], move.destination, move.into, move.sourceCardId, undefined, move.asCost);
         break;
       case "defeat":
-        defeatFromPlay(ctx, id, request.insteadTo, request.sourceCardId);
+        defeatFromPlay(ctx, id, move.insteadTo, move.sourceCardId);
+        break;
+      case "tuck":
         break;
       case "swap":
         // The swap completes now: this card takes the other's place as the other enters play (§3.47 of wave 6).
-        swapCards(ctx, id, request.with, request.sourceCardId);
+        swapCards(ctx, id, move.with, move.sourceCardId);
         break;
     }
   }

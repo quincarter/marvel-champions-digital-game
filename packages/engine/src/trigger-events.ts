@@ -901,6 +901,13 @@ export type TriggerEventBody =
       readonly sourceCardId?: CardId;
       /** `EffectSpec tuckCards.facedown`. */
       readonly facedown?: true;
+      /**
+       * The tuck is a leaving card's new destination (`EffectSpec replaceLeaveDestination`, docs/phase7-wave9.md
+       * §3.20): the frame of that card's waiting `cardLeavesPlay`. The card is still in play and leaves when that
+       * event applies, so this event's apply step (and a `replaceTuckHost`) records the host there (`LeaveRequest
+       * tuck`) instead of moving the card.
+       */
+      readonly leavingFrameId?: FrameId;
     }
   /**
    * A card tucked under another was discarded (docs/phase7-wave9.md §3.40 (b)): "Forced Response: After a player card
@@ -1441,6 +1448,13 @@ export type LeaveRequest =
    */
   | { readonly kind: "swap"; readonly with: InstanceId; readonly sourceCardId?: CardId }
   /**
+   * A leaving an interrupt sent under a card (`EffectSpec replaceLeaveDestination`, docs/phase7-wave9.md §3.20): the
+   * card is tucked under `hostInstanceId` when the leaving applies, in place of the move `replaced` describes, which
+   * still says what made it leave (its source card, a cost, a defeat). `replaced` is performed after all when the
+   * host has left play by then.
+   */
+  | { readonly kind: "tuck"; readonly hostInstanceId: InstanceId; readonly replaced: ReplaceableLeave }
+  /**
    * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
    * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
    * leaving of its own on the stack (a villain removed or set aside, a main scheme stage removed or flipped), so this
@@ -1452,6 +1466,9 @@ export type LeaveRequest =
       readonly step?: HostStep;
       readonly moved?: ZoneId["kind"];
     };
+
+/** The leavings whose destination `EffectSpec replaceLeaveDestination` can replace (`LeaveRequest tuck.replaced`). */
+export type ReplaceableLeave = Extract<LeaveRequest, { readonly kind: "zone" | "moveCards" | "defeat" }>;
 
 /**
  * A change to a card that is not itself leaving play but takes its attachments out of play, as plain data so that it

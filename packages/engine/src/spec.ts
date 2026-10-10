@@ -3260,6 +3260,35 @@ export type EffectSpec =
    */
   | { readonly kind: "replaceTuckHost"; readonly to: TargetRef }
   /**
+   * "Forced Interrupt: When an ally leaves play, tuck it under here …" (docs/phase7-wave9.md §3.20). In an interrupt
+   * to `cardLeavesPlay`, whose card is still in play: the leaving card goes under the first card `to.tuckedUnder`
+   * names instead of where it was going, faceup and under its owner's control, when its leaving applies. Whatever made
+   * it leave is unchanged, so the card still left play and, if it was defeated, was still defeated (RRG 1.8 "Leaves
+   * Play", p. 27; "Defeat", p. 15: only the placement that follows is replaced): its When Defeated abilities have
+   * resolved, and "after … is defeated" and "after … leaves play" still answer, the latter with `to: "tucked"`. It is
+   * not discarded, so nothing hears a discard. Its attachments are discarded as it leaves (a Victory X one on a
+   * defeated card to the victory display), and a tucked card is not in play (RRG 1.8 "Tuck", p. 45).
+   *
+   * The card says "tuck", so this is a tuck (RRG 1.8 "Tuck", p. 45: "when a player is instructed to tuck a card under
+   * another card"): an ability that hears `cardBeingTucked` is asked first, with this ability's card as the source and
+   * its side as `by`, and its `replaceTuckHost` names another host. With no such ability nothing is announced.
+   *
+   * What it does not replace (the text before a "Then" did not resolve, `preThenUnresolved` cause `leaveNotReplaced`;
+   * RRG 1.8 "'Then'", p. 44; "'Would'", p. 48: a replaced move leaves a second replacement nothing to replace):
+   * - a leaving another `replaceLeaveDestination` already sent under a different card;
+   * - a defeat with a destination of its own: Victory X (RRG 1.8 "Victory X", p. 46) or a defeat destination
+   *   (`setDefeatDestination`, a `defeatDestination` rule);
+   * - a swap's outgoing card and an attachment leaving with its host, whose moves belong to another card's;
+   * - no pending leaving (not in such an interrupt, or the leaving was cancelled), or no card in play for `to`.
+   * A card already on its way under that same card ("tuck the ally you control … under [it]", which makes the ally
+   * leave play) counts as replaced with nothing changed, so the text after it resolves.
+   *
+   * The Permanent keyword and "cannot leave play" are decided by what made the card leave, before the interrupt window
+   * and again when the leaving applies: a card that could not leave play has no leaving to interrupt. A host that has
+   * left play by the time the leaving applies takes nothing, and the card goes where it was going.
+   */
+  | { readonly kind: "replaceLeaveDestination"; readonly to: { readonly tuckedUnder: TargetRef } }
+  /**
    * "Assign each of the discarded cards to a different ally at the mission. If a resource icon on the ally matches a
    * resource icon on the card assigned to it, that ally participates." (MC45 p. 6, steps 1 and 2 of a mission attempt;
    * docs/phase7-wave8.md §3.36.) `chooser` assigns each card `cards` names to a different card `with` matches, in one

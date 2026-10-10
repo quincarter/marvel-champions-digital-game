@@ -1814,6 +1814,19 @@ export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false
  * (`tuckedCount(self)`). The tuck under `to` is not announced again. `validateDefinition` rejects it anywhere else.
  */
 export const replaceTuckHost = (to: TargetRef): EffectSpec => ({ kind: "replaceTuckHost", to });
+/**
+ * "Forced Interrupt: When an ally leaves play, tuck it under here …" (docs/phase7-wave9.md §3.20): in an interrupt to
+ * `on.leavesPlay(...)`, the leaving card ends under the first card `tuckedUnder` names instead of where it was going,
+ * whatever made it leave (a defeat, a discard, a return to hand or deck). It still left play, and a defeated card was
+ * still defeated. The card is still in play while the interrupt resolves, so the effects after this one read it as it
+ * was (`printedCostOf(eventTarget)`), and a `then(...)` after it resolves only when the card will be tucked: not for
+ * a Victory X or "instead of discarding it" defeat, nor a leaving another card already sent elsewhere.
+ * `validateDefinition` rejects it anywhere else.
+ */
+export const replaceLeaveDestination = (to: { readonly tuckedUnder: TargetRef }): EffectSpec => ({
+  kind: "replaceLeaveDestination",
+  to,
+});
 export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef = you): EffectSpec => ({
   kind: "assignDamage",
   amount: amount(n),
