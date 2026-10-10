@@ -13,6 +13,7 @@ import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
+import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
 import { BLACK_WIDOW, BLACK_WIDOW_SKIPPED, GOGGLES_GRANTED_PREPARATION } from "./aos/black-widow.js";
 import { MARIA_HILL_EVENTS, MARIA_HILL_EVENTS_SKIPPED } from "./aos/maria-hill/events.js";
@@ -119,6 +120,15 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50029", "50030", "50031", "50032", "50033"],
       registry: MARIA_HILL_OBLIGATION_NEMESIS,
       skipped: MARIA_HILL_OBLIGATION_NEMESIS_SKIPPED,
+    },
+    {
+      module: "aspect-basic",
+      cardIds: [
+        ...Array.from({ length: 17 }, (_, i) => String(50012 + i)),
+        ...Array.from({ length: 12 }, (_, i) => String(50047 + i)),
+      ],
+      registry: AOS_ASPECT_BASIC,
+      skipped: AOS_ASPECT_BASIC_SKIPPED,
     },
     {
       module: "aim-science",
