@@ -1171,7 +1171,8 @@ describe("Trickster Takeover (`tt`), normalized from the real raw pack: per grou
       const card = cardById.get(code);
       if (card?.type !== "villain") throw new Error(`${code} is not a villain`);
       expect(card.sides.map((s) => s.name)).toEqual([name, "Fading Figment"]);
-      expect(card.sides[1]?.stages[0]?.hp).toEqual({ base: 99, perPlayer: 0 });
+      expect(card.sides[1]?.stages[0]?.hp).toEqual({ base: 0, perPlayer: 0 });
+      expect(card.sides[1]?.stages[0]?.infiniteHp).toBe(true);
     }
   });
 

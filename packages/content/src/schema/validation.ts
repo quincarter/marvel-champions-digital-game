@@ -1391,6 +1391,33 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
   }
   errors.push(...separateDeckListErrors(scenario.separateDecks, "scenario"));
   errors.push(...setAsideCardErrors(scenario));
+  errors.push(...neutralCardErrors(scenario));
+  return errors;
+}
+
+/**
+ * `Scenario.neutralCards` (docs/phase7-wave9.md §1.15): two cards in a game area of their own, so neither can be the
+ * scenario's villain, main scheme or one of its set-aside cards, and the two must differ.
+ */
+function neutralCardErrors(scenario: Scenario): string[] {
+  const neutral: unknown = scenario.neutralCards;
+  if (neutral === undefined) return [];
+  if (typeof neutral !== "object" || neutral === null) return ["scenario neutralCards must be an object when present"];
+  const { villainCardId, mainSchemeCardId } = neutral as { villainCardId?: unknown; mainSchemeCardId?: unknown };
+  if (!isNonEmptyString(villainCardId) || !isNonEmptyString(mainSchemeCardId))
+    return ["scenario neutralCards must name villainCardId and mainSchemeCardId"];
+  const errors: string[] = [];
+  if (villainCardId === mainSchemeCardId) errors.push("scenario neutralCards names one card twice");
+  const taken = new Set<string>([
+    scenario.villainCardId,
+    scenario.mainSchemeCardId,
+    ...(scenario.setAsideVillainCardIds ?? []),
+    ...(scenario.setAsideCardIds ?? []),
+    ...(scenario.expertVillains ? [scenario.expertVillains.villainCardId] : []),
+    ...(scenario.expertVillains?.setAsideVillainCardIds ?? []),
+  ]);
+  for (const id of [villainCardId, mainSchemeCardId])
+    if (taken.has(id)) errors.push(`scenario neutralCards lists ${id}, which the scenario already uses elsewhere`);
   return errors;
 }
 

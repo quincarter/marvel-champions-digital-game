@@ -94,12 +94,17 @@ function buildVillainStage(
   // ∞ hit points (docs/phase7-wave3.md §1.1): MarvelCDB encodes a printed ∞ as `health: 0` on a mode+face
   // record's back face — the Collector's and Hela's "Wounded" faces. `hp` is `flat(0)` either way (`scalingOf`
   // below), the same encoding `dashedStats` uses for a printed "—".
-  const infiniteHp = MODE_LABEL_RE.test(r.stage ?? "") && r.health === 0;
+  // A curated `Correction.infiniteHp` covers a face MarvelCDB gives a sentinel instead of 0 (`tt` 55029b to 55032b: 99).
+  const infiniteHp =
+    (MODE_LABEL_RE.test(r.stage ?? "") && r.health === 0) ||
+    ctx.curation.corrections.some((c) => c.code === r.code && c.infiniteHp === true);
   const hitPoints = ctx.curation.corrections.find((c) => c.code === r.code && c.hitPoints !== undefined)?.hitPoints;
   const stage: VillainStage = {
     stageNumber,
     ...(stageLabel ? { stageLabel } : {}),
-    hp: scalingOf(hitPoints ?? r.health ?? 0, Boolean(r.health_per_hero), Boolean(r.health_per_group)),
+    hp: infiniteHp
+      ? scalingOf(0, false, false)
+      : scalingOf(hitPoints ?? r.health ?? 0, Boolean(r.health_per_hero), Boolean(r.health_per_group)),
     ...(infiniteHp ? { infiniteHp: true } : {}),
     atk: r.attack ?? 0,
     sch: r.scheme ?? 0,

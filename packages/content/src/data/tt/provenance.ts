@@ -31,6 +31,8 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["55007a", "55007b"],
     corrections: [
       "55007a: Hypnotic Gaze prints no \"Attach to\" sentence: Prime Real Estate 1A's Setup attaches a random one to each identity. Without the field the normalizer reports an attachment with no attach rule. Never applied to text. [evidence: Raw text of 55004a (\"Attach a random Hypnotic Gaze to each identity (players cannot look at the reverse sides). Set each remaining Hypnotic Gaze aside.\") and scan 55004a.png; insert p. 7 (\"Enchantment attachments are double-sided attachments that are dealt to each player during setup\"). The card text itself (\"Your identity gains the Defiant trait\") names the host as the identity.]",
+      "55007a: Hypnotic Gaze (Enchantment side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55007a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55007b: Hypnotic Gaze (Trance side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55007b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
     ],
   },
   {
@@ -39,6 +41,8 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["55008a", "55008b"],
     corrections: [
       "55008a: Hypnotic Gaze prints no \"Attach to\" sentence: Prime Real Estate 1A's Setup attaches a random one to each identity. Without the field the normalizer reports an attachment with no attach rule. Never applied to text. [evidence: Raw text of 55004a (\"Attach a random Hypnotic Gaze to each identity (players cannot look at the reverse sides). Set each remaining Hypnotic Gaze aside.\") and scan 55004a.png; insert p. 7 (\"Enchantment attachments are double-sided attachments that are dealt to each player during setup\"). The card text itself (\"Your identity gains the Defiant trait\") names the host as the identity.]",
+      "55008a: Hypnotic Gaze (Enchantment side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55008a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55008b: Hypnotic Gaze (Trance side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55008b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
     ],
   },
   {
@@ -47,6 +51,8 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["55009a", "55009b"],
     corrections: [
       "55009a: Hypnotic Gaze prints no \"Attach to\" sentence: Prime Real Estate 1A's Setup attaches a random one to each identity. Without the field the normalizer reports an attachment with no attach rule. Never applied to text. [evidence: Raw text of 55004a (\"Attach a random Hypnotic Gaze to each identity (players cannot look at the reverse sides). Set each remaining Hypnotic Gaze aside.\") and scan 55004a.png; insert p. 7 (\"Enchantment attachments are double-sided attachments that are dealt to each player during setup\"). The card text itself (\"Your identity gains the Defiant trait\") names the host as the identity.]",
+      "55009a: Hypnotic Gaze (Enchantment side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55009a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55009b: Hypnotic Gaze (Trance side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55009b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
     ],
   },
   {
@@ -55,6 +61,8 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["55010a", "55010b"],
     corrections: [
       "55010a: Hypnotic Gaze prints no \"Attach to\" sentence: Prime Real Estate 1A's Setup attaches a random one to each identity. Without the field the normalizer reports an attachment with no attach rule. Never applied to text. [evidence: Raw text of 55004a (\"Attach a random Hypnotic Gaze to each identity (players cannot look at the reverse sides). Set each remaining Hypnotic Gaze aside.\") and scan 55004a.png; insert p. 7 (\"Enchantment attachments are double-sided attachments that are dealt to each player during setup\"). The card text itself (\"Your identity gains the Defiant trait\") names the host as the identity.]",
+      "55010a: Hypnotic Gaze (Enchantment side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55010a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55010b: Hypnotic Gaze (Trance side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55010b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
     ],
   },
   {
@@ -63,6 +71,8 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["55011a", "55011b"],
     corrections: [
       "55011a: Hypnotic Gaze prints no \"Attach to\" sentence: Prime Real Estate 1A's Setup attaches a random one to each identity. Without the field the normalizer reports an attachment with no attach rule. Never applied to text. [evidence: Raw text of 55004a (\"Attach a random Hypnotic Gaze to each identity (players cannot look at the reverse sides). Set each remaining Hypnotic Gaze aside.\") and scan 55004a.png; insert p. 7 (\"Enchantment attachments are double-sided attachments that are dealt to each player during setup\"). The card text itself (\"Your identity gains the Defiant trait\") names the host as the identity.]",
+      "55011a: Hypnotic Gaze (Enchantment side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55011a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55011b: Hypnotic Gaze (Trance side) defines the \"charm\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a charm counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55011b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
     ],
   },
   {
@@ -93,7 +103,9 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("55016"),
     cardSetCode: "enchantress_villain",
     marvelcdbCodes: ["55016"],
-    corrections: [],
+    corrections: [
+      "data decision: Crown of the Enchantress prints a star in its SCH stat box with no number (scan 55016.png, read 2026-10-10; MarvelCDB `scheme_star: true`, `scheme` null): a reminder that its star Forced Response exists, so there is no `statModifiers.sch`. Same as Charge (`core` 01099). docs/phase7-wave9.md section 1.15 item 7.",
+    ],
   },
   {
     cardId: cardId("55017"),
@@ -129,7 +141,9 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("55022"),
     cardSetCode: "enchantress_villain",
     marvelcdbCodes: ["55022"],
-    corrections: [],
+    corrections: [
+      "55022: MarvelCDB reads \"When Revealed\"; Spellbound prints \"When Defeated\". The ability id becomes `55022.when-defeated` (it was `55022.when-revealed`). [evidence: Scan 55022.png (read 2026-10-10): \"When Defeated: Each player whose identity has the Defiant trait places 1 charm counter on the Enchantment card in their play area. Each player whose identity has the Enthralled trait discards a card they control.\" Threat 4 with a single crisis-type icon; no boost box. docs/phase7-wave9.md section 1.15 item 1.]",
+    ],
   },
   {
     cardId: cardId("55023"),
@@ -173,25 +187,41 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("55029a"),
     cardSetCode: "god_of_lies",
     marvelcdbCodes: ["55029a", "55029b"],
-    corrections: [],
+    corrections: [
+      "55029a: Avatar of Loki (Avatar side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55029a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55029b: The Fading Figment prints \"HIT POINTS ∞\" (infinite hit points); MarvelCDB sends `health: 99`, a sentinel, not a printed value. Without the correction the normalizer emits 99 hit points, which a villain card could be reduced to zero from. [evidence: Scan 55029b.png (read 2026-10-10): the footer reads \"GOD OF LIES (3/34) / HIT POINTS ∞\", no per player icon, SCH and ATK dashes. RRG 1.8 \"Hit Points\", p. 22 (infinite hit points). docs/phase7-wave9.md section 1.15 item 3. Same encoding as The Collector's and Hela's Wounded faces.]",
+      "55029b: Fading Figment (Figment side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55029b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
   },
   {
     cardId: cardId("55030a"),
     cardSetCode: "god_of_lies",
     marvelcdbCodes: ["55030a", "55030b"],
-    corrections: [],
+    corrections: [
+      "55030a: Avatar of Loki (Avatar side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55030a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55030b: The Fading Figment prints \"HIT POINTS ∞\" (infinite hit points); MarvelCDB sends `health: 99`, a sentinel, not a printed value. Without the correction the normalizer emits 99 hit points, which a villain card could be reduced to zero from. [evidence: Scan 55030b.png (read 2026-10-10): the footer reads \"GOD OF LIES (3/34) / HIT POINTS ∞\", no per player icon, SCH and ATK dashes. RRG 1.8 \"Hit Points\", p. 22 (infinite hit points). docs/phase7-wave9.md section 1.15 item 3. Same encoding as The Collector's and Hela's Wounded faces.]",
+      "55030b: Fading Figment (Figment side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55030b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
   },
   {
     cardId: cardId("55031a"),
     cardSetCode: "god_of_lies",
     marvelcdbCodes: ["55031a", "55031b"],
-    corrections: [],
+    corrections: [
+      "55031a: Avatar of Loki (Avatar side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55031a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55031b: The Fading Figment prints \"HIT POINTS ∞\" (infinite hit points); MarvelCDB sends `health: 99`, a sentinel, not a printed value. Without the correction the normalizer emits 99 hit points, which a villain card could be reduced to zero from. [evidence: Scan 55031b.png (read 2026-10-10): the footer reads \"GOD OF LIES (3/34) / HIT POINTS ∞\", no per player icon, SCH and ATK dashes. RRG 1.8 \"Hit Points\", p. 22 (infinite hit points). docs/phase7-wave9.md section 1.15 item 3. Same encoding as The Collector's and Hela's Wounded faces.]",
+      "55031b: Fading Figment (Figment side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55031b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
   },
   {
     cardId: cardId("55032a"),
     cardSetCode: "god_of_lies",
     marvelcdbCodes: ["55032a", "55032b"],
-    corrections: [],
+    corrections: [
+      "55032a: Avatar of Loki (Avatar side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55032a.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+      "55032b: The Fading Figment prints \"HIT POINTS ∞\" (infinite hit points); MarvelCDB sends `health: 99`, a sentinel, not a printed value. Without the correction the normalizer emits 99 hit points, which a villain card could be reduced to zero from. [evidence: Scan 55032b.png (read 2026-10-10): the footer reads \"GOD OF LIES (3/34) / HIT POINTS ∞\", no per player icon, SCH and ATK dashes. RRG 1.8 \"Hit Points\", p. 22 (infinite hit points). docs/phase7-wave9.md section 1.15 item 3. Same encoding as The Collector's and Hela's Wounded faces.]",
+      "55032b: Fading Figment (Figment side) defines the \"shatter\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a shatter counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55032b.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
   },
   {
     cardId: cardId("55033a"),
@@ -231,10 +261,38 @@ export const TT_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("55049"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55049"], corrections: [] },
   { cardId: cardId("55050"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55050"], corrections: [] },
   { cardId: cardId("55051"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55051"], corrections: [] },
-  { cardId: cardId("55052"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55052"], corrections: [] },
-  { cardId: cardId("55053"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55053"], corrections: [] },
-  { cardId: cardId("55054"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55054"], corrections: [] },
-  { cardId: cardId("55055"), cardSetCode: "god_of_lies", marvelcdbCodes: ["55055"], corrections: [] },
+  {
+    cardId: cardId("55052"),
+    cardSetCode: "god_of_lies",
+    marvelcdbCodes: ["55052"],
+    corrections: [
+      "55052: Synergy environment defines the \"synergy\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a synergy counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55052.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
+  },
+  {
+    cardId: cardId("55053"),
+    cardSetCode: "god_of_lies",
+    marvelcdbCodes: ["55053"],
+    corrections: [
+      "55053: Synergy environment defines the \"synergy\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a synergy counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55053.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
+  },
+  {
+    cardId: cardId("55054"),
+    cardSetCode: "god_of_lies",
+    marvelcdbCodes: ["55054"],
+    corrections: [
+      "55054: Synergy environment defines the \"synergy\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a synergy counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55054.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
+  },
+  {
+    cardId: cardId("55055"),
+    cardSetCode: "god_of_lies",
+    marvelcdbCodes: ["55055"],
+    corrections: [
+      "55055: Synergy environment defines the \"synergy\" counter type in its own text, or the other face of this double-sided card does, with no Uses keyword (the card prints no Uses); the card needs the type so a moved or placed counter is a synergy counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw) and scan 55055.png (read 2026-10-10). docs/phase7-wave9.md section 1.15 item 4 and section 8.1 item 21.]",
+    ],
+  },
   {
     cardId: cardId("55056"),
     cardSetCode: "trickster_magic",

@@ -467,6 +467,15 @@ export interface Scenario {
    * campaign's `setAsideCards` already joins. Villains use `setAsideVillainCardIds`. docs/phase7-wave6.md §1.8.
    */
   readonly setAsideCardIds?: readonly CardId[];
+  /**
+   * A villain and a main scheme that are in play in a game area of their own, neither the scenario's villain nor its
+   * main scheme (Loki, God of Lies 55027a and Worlds Collide 55028a, MC55 pp. 10 and 18: "These cards are not considered
+   * in your game area and can only be affected by cards that refer to them by name"; they "cannot be affected by any
+   * ability that refers to 'the villain' or 'the main scheme'"). `villainCardId` and `mainSchemeCardId` name what the
+   * players interact with. Absent: no such cards. The builder reads this into a neutral area; no engine code reads it
+   * yet. docs/phase7-wave9.md §1.15.
+   */
+  readonly neutralCards?: { readonly villainCardId: CardId; readonly mainSchemeCardId: CardId };
 }
 
 /**

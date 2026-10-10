@@ -103,6 +103,13 @@ export interface Correction {
    * Opt-in per card, so no other card's data changes. Never errata.
    */
   readonly definedCounterTypes?: readonly string[];
+  /**
+   * A villain face that prints infinite hit points (∞) where MarvelCDB's `health` is not the `0` the normalizer reads as
+   * infinite (wave 9, `tt` 55029b to 55032b, the Fading Figments: the scan prints "HIT POINTS ∞", raw has
+   * `health: 99`). Emits `VillainStage.infiniteHp: true` with `hp` `{ base: 0, perPlayer: 0 }`. Villain faces only;
+   * never errata.
+   */
+  readonly infiniteHp?: true;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
@@ -411,6 +418,11 @@ export interface ScenarioCuration {
    * `Scenario.setAsideCardIds` (wave 6, docs/phase7-wave6.md §1.8 — Master Mold's Magneto ally 32172b). Absent = none.
    */
   readonly setAsideCardCodes?: readonly string[];
+  /**
+   * `Scenario.neutralCards`, with MarvelCDB codes (wave 9, docs/phase7-wave9.md section 1.15: Loki, God of Lies 55027a
+   * and Worlds Collide 55028a). Resolved to card ids. Absent = none.
+   */
+  readonly neutralCardCodes?: { readonly villainCardCode: string; readonly mainSchemeCardCode: string };
   /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki; wave 7 §1.21 — On the Run). */
   readonly startingVillain?: "random" | "bySetup";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */

@@ -93,12 +93,13 @@ describe("tt data: God of Lies villains and schemes", () => {
     expect(card.sides[0]?.stages[0]?.hp).toEqual({ base: 0, perPlayer: 20 });
   });
 
-  it("each Avatar of Loki flips to Fading Figment (99 hit points, trait Illusion)", () => {
+  it("each Avatar of Loki flips to Fading Figment (infinite hit points, trait Illusion)", () => {
     for (const id of ["55029a", "55030a", "55031a", "55032a"]) {
       const card = byId.get(id);
       if (card?.type !== "villain") throw new Error(`${id} is not a villain`);
       expect(card.sides[1]?.name, id).toBe("Fading Figment");
-      expect(card.sides[1]?.stages[0]?.hp, id).toEqual({ base: 99, perPlayer: 0 });
+      expect(card.sides[1]?.stages[0]?.hp, id).toEqual({ base: 0, perPlayer: 0 });
+      expect(card.sides[1]?.stages[0]?.infiniteHp, id).toBe(true);
       expect(card.sides[1]?.stages[0]?.traits.map(String), id).toEqual(["ILLUSION"]);
     }
   });
@@ -134,6 +135,7 @@ describe("tt data: scenarios (MC55 pp. 6 to 21)", () => {
         s.mainSchemeCardId,
         ...(s.setAsideVillainCardIds ?? []),
         ...(s.setAsideCardIds ?? []),
+        ...(s.neutralCards ? [s.neutralCards.villainCardId, s.neutralCards.mainSchemeCardId] : []),
       ];
       for (const id of named) expect(byId.has(id as string), `${s.id}: ${id}`).toBe(true);
     }
@@ -150,12 +152,14 @@ describe("tt data: scenarios (MC55 pp. 6 to 21)", () => {
     expect(villain?.type === "villain" && villain.sides[0]?.stages.map((st) => st.stageNumber)).toEqual([1, 2, 3]);
   });
 
-  it("God of Lies: Loki in the neutral area, four Avatars set aside, Mischief and Mayhem the main scheme, Worlds Collide set aside", () => {
+  it("God of Lies: an Avatar in play by Setup, the other three set aside, Loki and Worlds Collide neutral", () => {
     const s = TT_SCENARIOS.find((x) => (x.id as string) === "god-of-lies");
-    expect(s?.villainCardId as string).toBe("55027a");
-    expect((s?.setAsideVillainCardIds ?? []).map(String)).toEqual(["55029a", "55030a", "55031a", "55032a"]);
+    expect(s?.villainCardId as string).toBe("55029a");
+    expect((s?.setAsideVillainCardIds ?? []).map(String)).toEqual(["55030a", "55031a", "55032a"]);
+    expect(s?.startingVillain).toBe("bySetup");
     expect(s?.mainSchemeCardId as string).toBe("55033a");
-    expect((s?.setAsideCardIds ?? []).map(String)).toEqual(["55028a"]);
+    expect(s?.neutralCards).toEqual({ villainCardId: "55027a", mainSchemeCardId: "55028a" });
+    expect(s?.setAsideCardIds).toBeUndefined();
     expect(s?.victory).toBe("cardAbility");
     expect(s?.modularSetCount).toBe(1);
     expect(s?.recommendedModularSetIds.map(String)).toEqual(["trickster_magic"]);

@@ -85,7 +85,8 @@ function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmi
  * - **Villain face by mode**: `Scenario.expertVillains` replaces the villain in expert mode (Baron Zemo 50165a standard,
  *   50166a expert); every other scenario's villain card holds both modes as stages (`villainStages`).
  * - **Set aside**: `Scenario.setAsideCardIds` plus `SETASIDE_BY_SCENARIO` go to `GameSetupConfig.setAside`; God of Lies'
- *   four Loki villains (`setAsideVillainCardIds`) are passed through for its Setup to bring in.
+ *   other three Avatars of Loki (`setAsideVillainCardIds`) are passed through; `startingVillain: "bySetup"` and
+ *   `neutralCards` (Loki, God of Lies and Worlds Collide) are not read yet (engine tasks 42 to 47).
  * - **Thunderbolts**: `chooseModularSets` takes the restricted pool and the set-aside count (base 1 + 1 per player).
  * - **Baron Zemo**: Executive Board Evidence (50185 to 50193) is never in the encounter deck (docs/phase7-wave9.md
  *   section 1.10): it is left out here, and the hidden piles wait on the engine row 3.29 and data item 1. The scenario

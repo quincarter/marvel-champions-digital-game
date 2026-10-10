@@ -79,10 +79,13 @@ describe("wave9Scenario", () => {
     ).toThrow();
   });
 
-  it("God of Lies sets aside the four Loki villains and the second main scheme", () => {
+  it("God of Lies starts the first Avatar and sets the other three aside; Loki and Worlds Collide are neutral cards", () => {
     const config = wave9Scenario("god-of-lies", { players: SEATS, seed: 1 });
-    expect(config.setAsideVillainCardIds).toEqual(["55029a", "55030a", "55031a", "55032a"]);
-    expect(config.setAside).toEqual(["55028a"]);
+    // The record is `startingVillain: "bySetup"` with `neutralCards` (docs/phase7-wave9.md 1.15); the builder does not read
+    // either yet (engine tasks 42 to 47), so 55029a is the villain in play until it does, and nothing is set aside.
+    expect(config.villainCardId).toBe("55029a");
+    expect(config.setAsideVillainCardIds).toEqual(["55030a", "55031a", "55032a"]);
+    expect(config.setAside).toBeUndefined();
   });
 
   it("refuses a scenario id that is not a wave 9 scenario", () => {

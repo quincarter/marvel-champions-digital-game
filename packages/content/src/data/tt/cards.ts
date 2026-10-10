@@ -170,6 +170,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55007a.png") },
+    definedCounterTypes: ["charm"],
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("enchantress_villain")],
     boostIcons: 0,
@@ -215,6 +216,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55008a.png") },
+    definedCounterTypes: ["charm"],
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("enchantress_villain")],
     boostIcons: 0,
@@ -254,6 +256,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55009a.png") },
+    definedCounterTypes: ["charm"],
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("enchantress_villain")],
     boostIcons: 0,
@@ -293,6 +296,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55010a.png") },
+    definedCounterTypes: ["charm"],
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("enchantress_villain")],
     boostIcons: 0,
@@ -332,6 +336,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55011a.png") },
+    definedCounterTypes: ["charm"],
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("enchantress_villain")],
     boostIcons: 0,
@@ -626,10 +631,10 @@ export const TT_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     text: {
-      printed: "When Revealed: Each player whose identity has the Defiant trait places 1 charm counter on the Enchantment card in their play area. Each player whose identity has the Enthralled trait discards a card they control.",
-      current: "When Revealed: Each player whose identity has the Defiant trait places 1 charm counter on the Enchantment card in their play area. Each player whose identity has the Enthralled trait discards a card they control.",
+      printed: "When Defeated: Each player whose identity has the Defiant trait places 1 charm counter on the Enchantment card in their play area. Each player whose identity has the Enthralled trait discards a card they control.",
+      current: "When Defeated: Each player whose identity has the Defiant trait places 1 charm counter on the Enchantment card in their play area. Each player whose identity has the Enthralled trait discards a card they control.",
     },
-    abilities: [{ id: abilityId("55022.when-revealed") }],
+    abilities: [{ id: abilityId("55022.when-defeated") }],
   },
   {
     id: cardId("55023"),
@@ -821,7 +826,7 @@ export const TT_CARDS: readonly AnyCard[] = [
           abilities: [
             {
               id: abilityId("55028a.setup"),
-              notesForScripting: "Single Group Mode only (MC55 insert p. 10): resolve this Setup first, then Mischief and Mayhem 1A's (55033a.setup). Keep Loki, God of Lies, his hit point dial and Worlds Collide in a separate game area outside the players' game area; they are not in anyone's game area and only cards that refer to them by title can affect them (insert pp. 10 and 18). Epic Multiplayer Mode (a separate game area per group, pods, an event organizer, simultaneous play, insert pp. 11 to 17) is NOT built; with one group, 'create a separate game area for each player group' creates the one group's area. The scenario names this card in `setAsideCardIds` (it is not `mainSchemeCardId`: the players interact with Mischief and Mayhem).",
+              notesForScripting: "Single Group Mode only (MC55 insert p. 10): resolve this Setup first, then Mischief and Mayhem 1A's (55033a.setup). Keep Loki, God of Lies, his hit point dial and Worlds Collide in a separate game area outside the players' game area; they are not in anyone's game area and only cards that refer to them by title can affect them (insert pp. 10 and 18). Epic Multiplayer Mode (a separate game area per group, pods, an event organizer, simultaneous play, insert pp. 11 to 17) is NOT built; with one group, 'create a separate game area for each player group' creates the one group's area. The scenario names this card in `neutralCards.mainSchemeCardId` (it is not `mainSchemeCardId`: the players interact with Mischief and Mayhem). Of the two Setup abilities this one resolves first, then 55033a.setup.",
             },
           ],
           image: imageRef("/bundles/cards/55028b.png"),
@@ -838,6 +843,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     collectorNumber: "29A/29B",
     quantityInSet: 1,
     unique: false,
+    definedCounterTypes: ["shatter"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     sides: [
       {
@@ -871,7 +877,8 @@ export const TT_CARDS: readonly AnyCard[] = [
           {
             stageNumber: 1,
             stageLabel: "A2",
-            hp: { base: 99, perPlayer: 0 },
+            hp: { base: 0, perPlayer: 0 },
+            infiniteHp: true,
             atk: 0,
             sch: 0,
             dashedStats: ["atk", "sch"],
@@ -884,7 +891,7 @@ export const TT_CARDS: readonly AnyCard[] = [
             abilities: [
               {
                 id: abilityId("55029b.when-revealed"),
-                notesForScripting: "Shatter the illusion (MC55 insert pp. 19 to 20): follow the steps on the set-aside Shatter the Illusion rules card, in order, each fully resolved, before the second sentence of this When Revealed. The card has no MarvelCDB record and no scan in the repo, so its steps are NOT in the data and must not be invented; the insert states only the first step (remove each shatter counter from the Fading Figment in play, then deal that much damage to Loki, God of Lies, p. 20). The first player resolves it (insert p. 23 FAQ). Needs the card image or a rules ruling before scripting.",
+                notesForScripting: "Shatter the illusion: follow the Shatter the Illusion rules card (scenario `referenceCards`, no MarvelCDB record) in order, each step fully resolved, before this When Revealed's second sentence. Its steps, transcribed from the owner's photo (docs/phase7-wave9-handoff.md, Trickster Takeover reference cards): 1. Remove each shatter counter from the Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside villain, AVATAR OF LOKI side faceup, then set the hit point dial of that Avatar of Loki villain to its printed hit point value. 3. Deal each player 1 facedown encounter card. Insert pp. 19 to 20 (swapping) and p. 23 FAQ (the first player resolves it). The Fading Figment prints infinite hit points (`infiniteHp`).",
               },
             ],
             image: imageRef("/bundles/cards/55029b.png"),
@@ -902,6 +909,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     collectorNumber: "30A/30B",
     quantityInSet: 1,
     unique: false,
+    definedCounterTypes: ["shatter"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     sides: [
       {
@@ -939,7 +947,8 @@ export const TT_CARDS: readonly AnyCard[] = [
           {
             stageNumber: 1,
             stageLabel: "B2",
-            hp: { base: 99, perPlayer: 0 },
+            hp: { base: 0, perPlayer: 0 },
+            infiniteHp: true,
             atk: 0,
             sch: 0,
             dashedStats: ["atk", "sch"],
@@ -952,7 +961,7 @@ export const TT_CARDS: readonly AnyCard[] = [
             abilities: [
               {
                 id: abilityId("55030b.when-revealed"),
-                notesForScripting: "Shatter the illusion (MC55 insert pp. 19 to 20): follow the steps on the set-aside Shatter the Illusion rules card, in order, each fully resolved, before the second sentence of this When Revealed. The card has no MarvelCDB record and no scan in the repo, so its steps are NOT in the data and must not be invented; the insert states only the first step (remove each shatter counter from the Fading Figment in play, then deal that much damage to Loki, God of Lies, p. 20). The first player resolves it (insert p. 23 FAQ). Needs the card image or a rules ruling before scripting.",
+                notesForScripting: "Shatter the illusion: follow the Shatter the Illusion rules card (scenario `referenceCards`, no MarvelCDB record) in order, each step fully resolved, before this When Revealed's second sentence. Its steps, transcribed from the owner's photo (docs/phase7-wave9-handoff.md, Trickster Takeover reference cards): 1. Remove each shatter counter from the Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside villain, AVATAR OF LOKI side faceup, then set the hit point dial of that Avatar of Loki villain to its printed hit point value. 3. Deal each player 1 facedown encounter card. Insert pp. 19 to 20 (swapping) and p. 23 FAQ (the first player resolves it). The Fading Figment prints infinite hit points (`infiniteHp`).",
               },
             ],
             image: imageRef("/bundles/cards/55030b.png"),
@@ -970,6 +979,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     collectorNumber: "31A/31B",
     quantityInSet: 1,
     unique: false,
+    definedCounterTypes: ["shatter"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     sides: [
       {
@@ -1003,7 +1013,8 @@ export const TT_CARDS: readonly AnyCard[] = [
           {
             stageNumber: 1,
             stageLabel: "C2",
-            hp: { base: 99, perPlayer: 0 },
+            hp: { base: 0, perPlayer: 0 },
+            infiniteHp: true,
             atk: 0,
             sch: 0,
             dashedStats: ["atk", "sch"],
@@ -1016,7 +1027,7 @@ export const TT_CARDS: readonly AnyCard[] = [
             abilities: [
               {
                 id: abilityId("55031b.when-revealed"),
-                notesForScripting: "Shatter the illusion (MC55 insert pp. 19 to 20): follow the steps on the set-aside Shatter the Illusion rules card, in order, each fully resolved, before the second sentence of this When Revealed. The card has no MarvelCDB record and no scan in the repo, so its steps are NOT in the data and must not be invented; the insert states only the first step (remove each shatter counter from the Fading Figment in play, then deal that much damage to Loki, God of Lies, p. 20). The first player resolves it (insert p. 23 FAQ). Needs the card image or a rules ruling before scripting.",
+                notesForScripting: "Shatter the illusion: follow the Shatter the Illusion rules card (scenario `referenceCards`, no MarvelCDB record) in order, each step fully resolved, before this When Revealed's second sentence. Its steps, transcribed from the owner's photo (docs/phase7-wave9-handoff.md, Trickster Takeover reference cards): 1. Remove each shatter counter from the Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside villain, AVATAR OF LOKI side faceup, then set the hit point dial of that Avatar of Loki villain to its printed hit point value. 3. Deal each player 1 facedown encounter card. Insert pp. 19 to 20 (swapping) and p. 23 FAQ (the first player resolves it). The Fading Figment prints infinite hit points (`infiniteHp`).",
               },
             ],
             image: imageRef("/bundles/cards/55031b.png"),
@@ -1034,6 +1045,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     collectorNumber: "32A/32B",
     quantityInSet: 1,
     unique: false,
+    definedCounterTypes: ["shatter"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     sides: [
       {
@@ -1069,7 +1081,8 @@ export const TT_CARDS: readonly AnyCard[] = [
           {
             stageNumber: 1,
             stageLabel: "D2",
-            hp: { base: 99, perPlayer: 0 },
+            hp: { base: 0, perPlayer: 0 },
+            infiniteHp: true,
             atk: 0,
             sch: 0,
             dashedStats: ["atk", "sch"],
@@ -1082,7 +1095,7 @@ export const TT_CARDS: readonly AnyCard[] = [
             abilities: [
               {
                 id: abilityId("55032b.when-revealed"),
-                notesForScripting: "Shatter the illusion (MC55 insert pp. 19 to 20): follow the steps on the set-aside Shatter the Illusion rules card, in order, each fully resolved, before the second sentence of this When Revealed. The card has no MarvelCDB record and no scan in the repo, so its steps are NOT in the data and must not be invented; the insert states only the first step (remove each shatter counter from the Fading Figment in play, then deal that much damage to Loki, God of Lies, p. 20). The first player resolves it (insert p. 23 FAQ). Needs the card image or a rules ruling before scripting.",
+                notesForScripting: "Shatter the illusion: follow the Shatter the Illusion rules card (scenario `referenceCards`, no MarvelCDB record) in order, each step fully resolved, before this When Revealed's second sentence. Its steps, transcribed from the owner's photo (docs/phase7-wave9-handoff.md, Trickster Takeover reference cards): 1. Remove each shatter counter from the Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside villain, AVATAR OF LOKI side faceup, then set the hit point dial of that Avatar of Loki villain to its printed hit point value. 3. Deal each player 1 facedown encounter card. Insert pp. 19 to 20 (swapping) and p. 23 FAQ (the first player resolves it). The Fading Figment prints infinite hit points (`infiniteHp`).",
               },
             ],
             image: imageRef("/bundles/cards/55032b.png"),
@@ -1131,7 +1144,7 @@ export const TT_CARDS: readonly AnyCard[] = [
           abilities: [
             {
               id: abilityId("55033a.setup"),
-              notesForScripting: "Setup steps (printed): 1. put a random Avatar of Loki villain into play, set each other one and the Shatter the Illusion card aside (the scenario lists the four Avatars in `setAsideVillainCardIds`; Loki, God of Lies is `villainCardId`, in the neutral game area, never the villain players interact with); 2. put each Synergy environment into play; 3. standard mode: set Intense Focus aside; expert mode: attach it to the Avatar of Loki villain in play (55034a has `impliedAttachHost`, villain with trait AVATAR OF LOKI). Swapping Avatars (insert p. 19): replace the Avatar in play with a random set-aside one without leave-play, enter-play or reveal; sustained damage, attachments, status cards, counters and tokens transfer; the old one is set aside. Shatter counters stay until the Avatar would be defeated (insert p. 18).",
+              notesForScripting: "Setup steps (printed): 1. put a random Avatar of Loki villain into play, set each other one and the Shatter the Illusion card aside (the scenario lists the four Avatars as `villainCardId` 55029a plus `setAsideVillainCardIds`, with `startingVillain` bySetup; Loki, God of Lies is `neutralCards.villainCardId`, in the neutral game area, never the villain players interact with); this Setup resolves second, after 55028a.setup; 2. put each Synergy environment into play; 3. standard mode: set Intense Focus aside; expert mode: attach it to the Avatar of Loki villain in play (55034a has `impliedAttachHost`, villain with trait AVATAR OF LOKI). Swapping Avatars (insert p. 19): replace the Avatar in play with a random set-aside one without leave-play, enter-play or reveal; sustained damage, attachments, status cards, counters and tokens transfer; the old one is set aside. Shatter counters stay until the Avatar would be defeated (insert p. 18).",
             },
             { id: abilityId("55033a.mischief-and-mayhem-constant") },
             { id: abilityId("55033a.mischief-and-mayhem-constant-2") },
@@ -1594,6 +1607,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55052.png") },
+    definedCounterTypes: ["synergy"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     boostIcons: 0,
     traits: [trait("SYNERGY")],
@@ -1617,6 +1631,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55053.png") },
+    definedCounterTypes: ["synergy"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     boostIcons: 0,
     traits: [trait("SYNERGY")],
@@ -1640,6 +1655,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55054.png") },
+    definedCounterTypes: ["synergy"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     boostIcons: 0,
     traits: [trait("SYNERGY")],
@@ -1663,6 +1679,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/55055.png") },
+    definedCounterTypes: ["synergy"],
     encounterSetIds: [encounterSetId("god_of_lies")],
     boostIcons: 0,
     traits: [trait("SYNERGY")],
