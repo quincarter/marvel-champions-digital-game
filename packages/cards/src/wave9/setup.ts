@@ -73,6 +73,32 @@ function withoutBackFaces(deck: readonly CardId[]): CardId[] {
   });
 }
 
+const keywordNamesOf = (card: AnyCard | undefined): readonly string[] =>
+  card && "keywords" in card ? (card.keywords as readonly { name: string }[]).map((k) => k.name) : [];
+
+/** Permanent, no setup keyword: the scenario's Setup text (not step 11) puts it into play. Card data decides. */
+function isPermanentWithoutSetup(id: CardId): boolean {
+  const names = keywordNamesOf(cardsById.get(id));
+  return names.includes("permanent") && !names.includes("setup");
+}
+
+/**
+ * Linked allies (keyword `linked`, `cardTitle` "<Title> minion") whose minion is among these cards and that no set
+ * deals: Trickster Magic's four (55063 to 55066, "set aside at setup", insert p. 2).
+ */
+function linkedAlliesOf(dealt: readonly CardId[]): Extract<AnyCard, { type: "ally" }>[] {
+  const minionTitles = new Set(
+    dealt.map((id) => cardsById.get(id)).flatMap((card) => (card?.type === "minion" ? [card.name] : [])),
+  );
+  return WAVE9_CARDS.flatMap((card) => {
+    if (card.type !== "ally" || ("encounterSetIds" in card && (card.encounterSetIds as readonly string[]).length > 0))
+      return [];
+    const linked = card.keywords.find((k) => k.name === "linked") as { cardTitle?: string } | undefined;
+    const title = linked?.cardTitle?.match(/^(.*) minion$/)?.[1];
+    return title !== undefined && minionTitles.has(title) ? [card] : [];
+  });
+}
+
 /** `Scenario.victoryCondition`'s mode key. */
 function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmish" | "standard" | "expert" | "heroic" {
   if (modes.skirmish) return "skirmish";
@@ -86,8 +112,14 @@ function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmi
  * - **Villain face by mode**: `Scenario.expertVillains` replaces the villain in expert mode (Baron Zemo 50165a standard,
  *   50166a expert); every other scenario's villain card holds both modes as stages (`villainStages`).
  * - **Set aside**: `Scenario.setAsideCardIds` plus `SETASIDE_BY_SCENARIO` go to `GameSetupConfig.setAside`; God of Lies'
- *   other three Avatars of Loki (`setAsideVillainCardIds`) are passed through; `startingVillain: "bySetup"` and
- *   `neutralCards` (Loki, God of Lies and Worlds Collide) are not read yet (engine tasks 42 to 47).
+ *   other three Avatars of Loki (`setAsideVillainCardIds`) are passed through; `startingVillain: "bySetup"` sets
+ *   `villainsStartSetAside` (no villain in play until Mischief and Mayhem 1A's Setup). `neutralCards` (Loki, God of
+ *   Lies and Worlds Collide) are checked to be in the pool but NOT placed: the engine has no neutral area or shared
+ *   record yet (docs/phase7-wave9.md section 3.59, engine tasks 44 to 46).
+ * - **Permanent cards by keyword**: a permanent card without the setup keyword (Hypnotic Gaze x5, Intense Focus, the
+ *   four Synergy environments, the Executive Board attachments' b faces) is set aside, not dealt; Gene Pool-style
+ *   permanent + setup cards stay dealt for step 11. A double-sided card is dealt once, front face (`otherFaceId`), for
+ *   every route including the extra modular set. A linked ally whose "<Title> minion" is dealt (Trickster Magic) is set aside.
  * - **Thunderbolts**: `chooseModularSets` takes the restricted pool and the set-aside count (base 1 + 1 per player).
  * - **Baron Zemo**: Executive Board Evidence (50185 to 50193) is never in the encounter deck (docs/phase7-wave9.md
  *   section 1.10): it is left out here, and the hidden piles wait on the engine row 3.29 and data item 1. The scenario
@@ -115,13 +147,35 @@ function buildScenario(scenario: Scenario, options: Wave9ScenarioOptions): GameS
     ...modular.modularSetIds,
     ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
+  for (const id of scenario.neutralCards
+    ? [scenario.neutralCards.villainCardId, scenario.neutralCards.mainSchemeCardId]
+    : [])
+    if (!cardsById.has(id)) throw new Error(`${scenario.name}: unknown neutral card ${id}`);
   const isEvidence = (id: CardId): boolean => cardsById.get(id)?.type === "evidence";
-  const setAside = [...(scenario.setAsideCardIds ?? []), ...(SETASIDE_BY_SCENARIO[scenario.id] ?? [])].flatMap((id) => {
-    const card = cardsById.get(id);
-    if (!card) throw new Error(`${scenario.name}: unknown set-aside card ${id}`);
-    return Array.from({ length: "quantityInSet" in card ? card.quantityInSet : 1 }, () => id);
-  });
-  const setAsideKinds = new Set<string>(setAside);
+  const namedAside = [...(scenario.setAsideCardIds ?? []), ...(SETASIDE_BY_SCENARIO[scenario.id] ?? [])].flatMap(
+    (id) => {
+      const card = cardsById.get(id);
+      if (!card) throw new Error(`${scenario.name}: unknown set-aside card ${id}`);
+      return Array.from({ length: "quantityInSet" in card ? card.quantityInSet : 1 }, () => id);
+    },
+  );
+  const namedAsideKinds = new Set<string>(namedAside);
+  // Everything the encounter deck is made of, a double-sided card once (its front face, whichever route dealt it).
+  const dealt = withoutBackFaces([
+    ...encounterCardsOf(sets, WAVE9_CARDS).filter((id) => !isEvidence(id) && !namedAsideKinds.has(id)),
+    ...modularSetupCardIds(modular.modularSetIds, WAVE9_CARDS),
+    ...extraModularCardIds(modular.extraModularSetIds, WAVE9_CARDS),
+  ]);
+  // A permanent card without the setup keyword is never shuffled into the deck: the scenario's own Setup text puts it
+  // into play (Hypnotic Gaze, Intense Focus, the Synergy environments). Permanent plus setup (Gene Pool) enters play at
+  // step 11 on its own, so it stays dealt. RRG 1.8 "Permanent" and "Setup (Keyword)" (p. 40); docs/phase7-wave9.md §8.1 item 27.
+  const encounterDeck = dealt.filter((id) => !isPermanentWithoutSetup(id));
+  const permanentAside = dealt.filter(isPermanentWithoutSetup);
+  // A linked ally (Trickster Magic's four) is in no set: it is set aside when its minion is in the game.
+  const linkedAside = linkedAlliesOf(dealt).flatMap((ally) =>
+    Array.from({ length: ally.quantityInSet }, () => ally.id as CardId),
+  );
+  const setAside = [...namedAside, ...permanentAside, ...linkedAside];
   const setAsideVillainCardIds = (expertVillain ?? scenario).setAsideVillainCardIds ?? [];
   return {
     seed: options.seed,
@@ -132,13 +186,7 @@ function buildScenario(scenario: Scenario, options: Wave9ScenarioOptions): GameS
     villainStartStageIndex: expertVillain ? 0 : stageIndex(firstStage),
     villainLastStageIndex: expertVillain ? side.stages.length - 1 : stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: [
-      ...withoutBackFaces(encounterCardsOf(sets, WAVE9_CARDS)).filter(
-        (id) => !isEvidence(id) && !setAsideKinds.has(id),
-      ),
-      ...modularSetupCardIds(modular.modularSetIds, WAVE9_CARDS),
-      ...extraModularCardIds(modular.extraModularSetIds, WAVE9_CARDS),
-    ],
+    encounterDeck,
     players: seatsOf(options.players),
     ...(setAside.length > 0 ? { setAside } : {}),
     ...(modular.setAsideModularSetIds.length > 0
@@ -155,6 +203,9 @@ function buildScenario(scenario: Scenario, options: Wave9ScenarioOptions): GameS
       ? { scenarioDecks: [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)] }
       : {}),
     ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
+    // God of Lies: every Avatar starts set aside and Mischief and Mayhem 1A's Setup puts one into play (as wave 7's On the
+    // Run). Until that Setup is scripted no villain is in play. `neutralCards` has no engine home yet (see the doc above).
+    ...(scenario.startingVillain === "bySetup" ? { villainsStartSetAside: true as const } : {}),
     ...(scenario.victoryCondition
       ? { victoryCondition: scenario.victoryCondition[victoryConditionModeOf(modes)] }
       : {}),
