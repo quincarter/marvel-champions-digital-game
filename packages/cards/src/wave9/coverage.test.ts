@@ -72,6 +72,7 @@ import {
 } from "./silk/silk/support-upgrades-allies.js";
 import { TT_ABILITIES } from "./tt/index.js";
 import { WINTER_ABILITIES } from "./winter/index.js";
+import { WINTER_SOLDIER_IDENTITY, WINTER_SOLDIER_IDENTITY_SKIPPED } from "./winter/winter-soldier/identity.js";
 
 describe("wave 9 ability registry", () => {
   it("includes every wave 8 (Core through cycle 8) script, the same definition object", () => {
@@ -326,6 +327,14 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["52035", "52036", "52037", "52038"],
       registry: GROWING_STRONG,
       skipped: GROWING_STRONG_SKIPPED,
+    },
+  ],
+  winter: [
+    {
+      module: "winter-soldier/identity",
+      cardIds: ["54001a"],
+      registry: WINTER_SOLDIER_IDENTITY,
+      skipped: WINTER_SOLDIER_IDENTITY_SKIPPED,
     },
   ],
 };
