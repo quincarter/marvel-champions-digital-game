@@ -21,6 +21,7 @@ import {
   defeatingPlayer,
   defineAbilities,
   discard,
+  discardChosenFromEncounterDeckCost,
   discardThis,
   encounterCards,
   each,
@@ -63,11 +64,13 @@ import {
   shuffleDeck,
   special,
   theMainScheme,
+  thwartAScheme,
   treatAttachedMinionAsAlly,
   tuckCards,
   tuckedCount,
   tuckedUnder,
   valueAtLeast,
+  varOf,
   threatOn,
   TRAIT,
   whenDefeated,
@@ -92,7 +95,14 @@ const REDEEMED = trait("REDEEMED");
  * searches their own deck and discard pile for a player side scheme; the search is compulsory when one exists (owner
  * ruling), the card goes to that player's hand and their deck is shuffled.
  *
- * **51015.infiltration-action**: skipped, see `BP_ASPECT_BASIC_SKIPPED`.
+ * **51015.infiltration-action**: the number and the discard are before the arrow, so they are the cost
+ * (`discardChosenFromEncounterDeckCost`, docs/phase7-wave9.md section 3.43 (a)). The player may choose more than the
+ * deck holds: the deck's cards are discarded, the deck is reset with an acceleration token and the cost is paid (RRG
+ * 1.8 "Encounter Deck", p. 17), and "for each card discarded this way" counts the cards that were discarded. The
+ * threat is one thwart of that size against one scheme, as Legal Practice 01023's same sentence is. "Put 1 minion
+ * discarded this way into play" is mandatory when a minion was discarded, the player choosing among several; the
+ * minion is taken from where it is, the new deck included when the discard emptied the old one (as Hammer Throw's
+ * minion is; no ruling, reported as an open question).
  *
  * **51016.when-defeated**: "the defeating player" looks at, chooses and orders. A card is "scenario-specific" when it
  * belongs to the encounter set of the scenario's main scheme (RRG 1.8 "Scenario-Specific Card", p. 39); a card from the
@@ -173,6 +183,13 @@ export const BP_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     }),
     moveCards(cards(chosen("found")), "hand"),
     { kind: "shuffleDeck", player: chosenPlayer("player") },
+  ),
+
+  "51015.infiltration-action": heroAction(
+    { label: "thwart", cost: discardChosenFromEncounterDeckCost("discarded", { min: 1, max: 5 }) },
+    thwartAScheme(varOf("discarded.count")),
+    chooseCards("minion", cards(chosen("discarded"), query("minion")), { min: 1, max: 1 }),
+    putIntoPlay(chosen("minion"), you),
   ),
 
   "51016.when-defeated": whenDefeated(
@@ -299,7 +316,4 @@ export const BP_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const BP_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "51015.infiltration-action":
-    "waits on engine task 26 (docs/phase7-wave9.md section 3.43 (a)): no AbilityCost discards a chosen number (1 to 5) of cards from the top of the encounter deck and binds them for the effects (AbilityCost.discardFromEncounterDeck, packages/engine/src/abilities.ts, is not built; encounterLookDiscard has a fixed count and a look)",
-};
+export const BP_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

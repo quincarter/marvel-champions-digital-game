@@ -11,7 +11,9 @@
  *    decision is offering out of it — an ability that instructs a player to look at or search a deck lets that player
  *    read those cards (p. 27 "Look, Looked-At"), and the shuffle afterwards is what keeps the order secret; and for
  *    the top card of a player deck kept faceup by a card ("Play with the top card of your deck faceup",
- *    `RuleSpec topOfDeckFaceup`, docs/phase7-wave8.md §3.48), which every player sees while that rule holds;
+ *    `RuleSpec topOfDeckFaceup`, docs/phase7-wave8.md §3.48), which every player sees while that rule holds, as they
+ *    do the top card of the encounter deck under the same rule ("Play with the top card of the encounter deck
+ *    faceup", `deck: "encounter"`, docs/phase7-wave9.md §3.42);
  *  - a card being played or resolving from out of play (a player's `resolving` area: an event while it resolves, RRG
  *    1.8 "Event", p. 19; a card played off the top of a deck; an Invocation whose Special is resolving) is on the table
  *    for every player to read, though nothing sets its `faceup` flag;
@@ -64,7 +66,7 @@ import type { CardId } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import { activeEncounterDeck, cardOf, getInstance, getPlayer, locateCard } from "./query.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { activeRules, rulePlayers, shownDeckTop } from "./select.js";
+import { activeRules, rulePlayers, shownDeckTop, shownEncounterTop } from "./select.js";
 import type { GameState, ZoneId } from "./state.js";
 
 /** Whose eyes: the player looking, and the deps that let their per-player permissions (rules on cards) be read. */
@@ -157,6 +159,20 @@ const shownOnTopOfDeck = (
   view !== undefined && getPlayer(state, playerId)?.deck[0] === id && shownDeckTop(state, view.deps, playerId) === id;
 
 /**
+ * "Play with the top card of the encounter deck faceup" (`RuleSpec topOfDeckFaceup { deck: "encounter" }`,
+ * docs/phase7-wave9.md §3.42): the card is the one that rule shows on top of the active villain's encounter deck
+ * (`shownEncounterTop`). The same for every viewer, so `view` is only read for its deps; another villain's deck (The
+ * Wrecking Crew) is not "the encounter deck" and stays closed.
+ */
+const shownOnTopOfEncounterDeck = (
+  state: GameState,
+  id: InstanceId,
+  view: ViewerContext | TableContext | undefined,
+): boolean =>
+  // The deck's order is asked first, so the rules are read for one card of the deck and not for each.
+  view !== undefined && activeEncounterDeck(state).deck[0] === id && shownEncounterTop(state, view.deps) === id;
+
+/**
  * Whether this table may read the card's face right now. `view` names the player looking, for the permissions only one
  * player holds, or the table (`TableContext`) for those a rule gives every player; without it the answer is the one
  * the zones and the `faceup` flag give.
@@ -179,7 +195,12 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
     case "setAside":
       return instance.faceup || offeredToViewer(state, id, view);
     case "encounterDeck":
-      return instance.faceup || offeredFromDeck(state, id, view) || viewerMayLookAtEncounterTop(state, id, view);
+      return (
+        instance.faceup ||
+        offeredFromDeck(state, id, view) ||
+        viewerMayLookAtEncounterTop(state, id, view) ||
+        shownOnTopOfEncounterDeck(state, id, view)
+      );
     case "deck":
       return instance.faceup || offeredFromDeck(state, id, view) || shownOnTopOfDeck(state, id, zone.playerId, view);
     case "separateDeck":

@@ -1060,4 +1060,6 @@ export function shuffleEncounterDeck(ctx: Ctx, deckId: EncounterDeckId = activeE
     ...ctx.state,
     encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { ...encounterDeckOf(ctx.state, deckId), deck: order } },
   };
+  // A deck kept faceup shows its new top card (docs/phase7-wave9.md §3.42).
+  announceDeckTops(ctx);
 }

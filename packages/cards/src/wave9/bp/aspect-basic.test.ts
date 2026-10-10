@@ -17,7 +17,7 @@ import {
   playerOf,
   use,
 } from "../../testing/harness.js";
-import { moveToDiscard, withDamage, withForm } from "../../testing/staging.js";
+import { encounterCardInVillainArea, moveToDiscard, withDamage, withForm } from "../../testing/staging.js";
 import { VENOM_KIT } from "../../wave3/vnm/venom-kit.js";
 import { NEXT_EVOL_PRECON_CABLE_DECK } from "../../wave7/next_evol/precon-cable-deck.js";
 import { BLANK, onlyDeck, piles, types } from "../testing.js";
@@ -148,6 +148,7 @@ describe("registry", () => {
   it("registers exactly these refs", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([
       "51014.manifold-response",
+      "51015.infiltration-action",
       "51016.when-defeated",
       "51017.show-of-empathy-forced-interrupt",
       "51018.the-raft-response",
@@ -175,10 +176,8 @@ describe("registry", () => {
     expect(printed).toHaveLength(Object.keys(REGISTRY).length + Object.keys(SKIPPED).length);
     for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
   });
-  it("skips only Infiltration, naming engine task 26", () => {
-    expect(Object.keys(SKIPPED)).toEqual(["51015.infiltration-action"]);
-    expect(SKIPPED["51015.infiltration-action"]).toContain("task 26");
-    expect(SKIPPED["51015.infiltration-action"]).toContain("discardFromEncounterDeck");
+  it("skips nothing", () => {
+    expect(Object.keys(SKIPPED)).toEqual([]);
   });
   it("timing words, costs, forms and labels", () => {
     expect(REGISTRY["51014.manifold-response"]).toMatchObject({ trigger: { kind: "response", forced: false } });
@@ -1056,10 +1055,141 @@ describe("51018.the-raft-response: a minion that left play is tucked here, then 
   });
 });
 
-describe("51015.infiltration-action: skipped (engine task 26), so the card is inert", () => {
-  it("has no script: the card's ref is in the skipped map and not in the registry", () => {
-    expect("51015.infiltration-action" in REGISTRY).toBe(false);
-    expect("51015.infiltration-action" in SKIPPED).toBe(true);
+describe("51015.infiltration-action: choose 1 to 5, discard that many encounter cards, thwart for each", () => {
+  const REF = "51015.infiltration-action";
+  const CROWD_CONTROL = "01108"; // side scheme with a crisis icon
+  const CHARGE = "01099"; // Rhino attachment, two copies
+  const FILLER_A = "01098";
+  /** Black Panther in hero form, the main scheme at 6 threat, the encounter deck exactly `deck` (top first). */
+  const staged = (...deck: readonly string[]): GameState => {
+    const hero = bpHeroGame();
+    return onlyDeck(patchInstance(hero, schemeOf(hero), { threat: 6 }), ...deck);
+  };
+  /** Infiltration moved to hand and played for its cost of 1, the number named in the command when given. */
+  const infiltrate = (state: GameState, number?: number, opts: ScriptOpts = {}) => {
+    const given = moveToHand(state, P1, INFILTRATION);
+    const id = given.ids[0]!;
+    const selection = number === undefined ? {} : { costSelection: { discardFromEncounterDeck: number } };
+    const out = scripted(given.state, [play(P1, id, payWith(given.state, P1, 1, [id]), selection)], opts);
+    return { ...out, id, before: given.state };
+  };
+  const engagedWith = (s: GameState, id: InstanceId) => inst(s, id).engagedWith;
+
+  it("is a Hero Action labeled thwart whose cost is the chosen discard", () => {
+    expect(REGISTRY[REF]).toMatchObject({
+      trigger: { kind: "action", form: "hero" },
+      label: ["thwart"],
+      cost: { discardFromEncounterDeck: { amount: { choose: { min: 1, max: 5 } }, slot: "discarded" } },
+    });
+    const printed = card<{ text: { current: string } }>(INFILTRATION).text.current;
+    expect(printed).toContain("Choose a number from 1 to 5.");
+    expect(printed).toContain("Put 1 minion discarded this way into play engaged with you.");
+    expect(traitsOf(INFILTRATION)).toEqual(["THWART"]);
+  });
+
+  it("choosing 1: 1 card discarded, 1 threat removed; choosing 5: 5 and 5", () => {
+    const deck = [BLANK, FILLER, FILLER_A, CHARGE, CHARGE, BLANK];
+    const one = infiltrate(staged(...deck), 1);
+    expect(threat(one.state)).toBe(5);
+    expect(piles(one.state).discard.map((id) => codeOf(one.state, id))).toEqual([BLANK]);
+    expect(piles(one.state).deck).toHaveLength(5);
+    expect(types(one.events, "encounterDiscardCostSettled")).toMatchObject([{ chosen: 1, paid: true }]);
+    expect(one.kinds).not.toContain("chooseNumber");
+
+    const five = infiltrate(staged(...deck), 5);
+    expect(threat(five.state)).toBe(1);
+    expect(piles(five.state).discard).toHaveLength(5);
+    expect(piles(five.state).deck.map((id) => codeOf(five.state, id))).toEqual([BLANK]);
+    // One thwart of 5 against one scheme, by the player who played the card.
+    expect(types(five.events, "threatRemoved").map((e) => e.amount)).toEqual([5]);
+    // The event itself is in its owner's discard pile.
+    expect(discardOf(five.state)).toContain(five.id);
+  });
+
+  it("without a number in the command the player is asked for one from 1 to 5", () => {
+    const r = infiltrate(staged(BLANK, FILLER, FILLER_A, CHARGE, CHARGE, BLANK));
+    expect(r.offers.chooseNumber).toEqual(["1", "2", "3", "4", "5"]);
+    // The scripted player takes the first: 1 card, 1 threat.
+    expect(threat(r.state)).toBe(5);
+    expect(piles(r.state).discard).toHaveLength(1);
+  });
+
+  it("choosing 4 with a minion third from the top: 4 threat removed, the minion engaged with the player", () => {
+    const r = infiltrate(staged(BLANK, FILLER, SHOCKER, CHARGE, CHARGE), 4);
+    expect(threat(r.state)).toBe(2);
+    const shocker = instancesOf(r.state, SHOCKER).find((id) => engagedWith(r.state, id) === P1);
+    expect(shocker).toBeDefined();
+    expect(playerOf(r.state, P1).playArea).toContain(shocker);
+    expect(piles(r.state).discard.map((id) => codeOf(r.state, id))).not.toContain(SHOCKER);
+    expect(piles(r.state).discard).toHaveLength(3);
+    // Put into play, not revealed: Shocker's When Revealed dealt nothing.
+    expect(types(r.events, "encounterCardRevealed")).toEqual([]);
+    expect(inst(r.state, identityOf(r.state)).damage).toBe(inst(r.before, identityOf(r.before)).damage);
+    // One minion among the discards: it is the only card offered, and it must be taken.
+    expect(r.offers.chooseCards).toEqual([shocker]);
+    expect(r.mins.chooseCards).toBe(1);
+  });
+
+  it("two minions among the discards: the player chooses the one that enters play; the other stays discarded", () => {
+    const start = staged(SHOCKER, BLANK, MERCENARY, CHARGE);
+    const [shocker, , mercenary] = piles(start).deck;
+    const r = infiltrate(start, 3, { target: [mercenary!] });
+    expect(r.offers.chooseCards).toEqual([shocker, mercenary]);
+    expect(r.mins.chooseCards).toBe(1);
+    expect(r.maxes.chooseCards).toBe(1);
+    expect(engagedWith(r.state, mercenary!)).toBe(P1);
+    expect(piles(r.state).discard).toContain(shocker);
+    expect(engagedWith(r.state, shocker!)).toBeNull();
+    expect(threat(r.state)).toBe(3);
+  });
+
+  it("no minion among the discards: nothing enters play and nothing is asked", () => {
+    const r = infiltrate(staged(BLANK, FILLER, SHOCKER, CHARGE), 2);
+    expect(threat(r.state)).toBe(4);
+    expect(r.kinds).not.toContain("chooseCards");
+    expect(instancesOf(r.state, SHOCKER).some((id) => engagedWith(r.state, id) === P1)).toBe(false);
+    expect(piles(r.state).deck.map((id) => codeOf(r.state, id))).toEqual([SHOCKER, CHARGE]);
+  });
+
+  it("choosing 5 with 2 cards left: 2 discarded, the deck reset with one acceleration token, 2 threat removed", () => {
+    const start = staged(BLANK, FILLER);
+    const tokens = start.mainScheme.accelerationTokens;
+    const r = infiltrate(start, 5);
+    expect(types(r.events, "encounterDiscardCostSettled")).toMatchObject([
+      { chosen: 5, deckEmptied: true, paid: true },
+    ]);
+    expect(threat(r.state)).toBe(4);
+    expect(r.state.mainScheme.accelerationTokens).toBe(tokens + 1);
+    expect(piles(r.state).deck).toHaveLength(2);
+    expect(piles(r.state).discard).toEqual([]);
+  });
+
+  it("a discard that empties the deck still puts its minion into play, from the new deck", () => {
+    const start = staged(BLANK, SHOCKER);
+    const shocker = piles(start).deck[1]!;
+    const r = infiltrate(start, 5);
+    expect(threat(r.state)).toBe(4);
+    expect(engagedWith(r.state, shocker)).toBe(P1);
+    expect(piles(r.state).deck.map((id) => codeOf(r.state, id))).toEqual([BLANK]);
+  });
+
+  it("is a thwart: with a crisis icon in play the main scheme cannot be chosen", () => {
+    const hero = bpHeroGame();
+    const crisis = encounterCardInVillainArea(patchInstance(hero, schemeOf(hero), { threat: 6 }), CROWD_CONTROL, 2);
+    const r = infiltrate(onlyDeck(crisis.state, BLANK, FILLER, CHARGE, CHARGE), 3);
+    expect(r.offers.chooseTarget).toEqual([crisis.id]);
+    // 3 against the 2 threat there defeats the side scheme; the main scheme keeps its 6.
+    expect(threat(r.state)).toBe(6);
+    expect(r.state.villainArea).not.toContain(crisis.id);
+    expect(piles(r.state).discard).toHaveLength(3 + 1);
+  });
+
+  it("cannot be played in alter-ego form, and nothing is discarded for it", () => {
+    const alterEgo = onlyDeck(bpGame(), BLANK, FILLER);
+    const given = moveToHand(patchInstance(alterEgo, schemeOf(alterEgo), { threat: 6 }), P1, INFILTRATION);
+    const id = given.ids[0]!;
+    expect(refusal(given.state, play(P1, id, payWith(given.state, P1, 1, [id])))).toBe(true);
+    expect(piles(given.state).deck).toHaveLength(2);
   });
 });
 

@@ -1631,6 +1631,15 @@ export const playWithTopOfDeckFaceup = (
   opts: { readonly while?: Predicate } = {},
 ): ConstantPart => rule({ kind: "topOfDeckFaceup", player, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "During the player phase, play with the top card of the encounter deck faceup." (Falcon 53001a;
+ * docs/phase7-wave9.md §3.42) → `constant(playWithTopOfEncounterDeckFaceup({ while: duringPlayerPhase }))` on the hero
+ * face. While the constant is active the top card of the encounter deck (the active villain's) is visible to every
+ * player and the log follows it (`encounterTopShown` / `encounterTopHidden`); nothing is looked at, revealed or moved.
+ * Off, the card is facedown again and no `topOfEncounterDeck…` condition is met (wave 8 §4.1 Q26 = B).
+ */
+export const playWithTopOfEncounterDeckFaceup = (opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "topOfDeckFaceup", deck: "encounter", ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a
@@ -1889,6 +1898,29 @@ export const resolveSpecialCost = (
  */
 export const encounterLookDiscardCost = (look: number, discard: number, slot: string): AbilityCost => ({
   encounterLookDiscard: { look, discard, slot },
+});
+/**
+ * "Discard the top card of the encounter deck →" (Redwing 53002, Battlefield Awareness 53010; docs/phase7-wave9.md
+ * §3.43 (a)): the top `n` cards of the encounter deck are discarded as the cost, before the effects resolve, and bound
+ * to `slot` with `<slot>.count`, `<slot>.boostIcons` and `<slot>.starIcons` ("X is the number of icons (★ and boost)
+ * in the discarded card's boost area" is `sum(varOf("<slot>.boostIcons"), varOf("<slot>.starIcons"))`). A deck the
+ * discard empties is reset at once and the cost is paid with what was discarded (RRG 1.8 "Encounter Deck", p. 17).
+ */
+export const discardTopOfEncounterDeckCost = (slot: string, n = 1): AbilityCost => ({
+  discardFromEncounterDeck: { amount: n, slot },
+});
+/**
+ * "Choose a number from 1 to 5. Discard that many cards from the top of the encounter deck →" (Infiltration 51015;
+ * docs/phase7-wave9.md §3.43 (a)): the payer chooses the number as the cost is paid, from `min` to `max` whatever the
+ * deck holds (a deck the discard empties is reset and the cost is paid with what was discarded; RRG 1.8 "Encounter
+ * Deck", p. 17). "For each card discarded this way" is `varOf("<slot>.count")`; `varOf("<slot>.chosen")` is the number
+ * chosen; `chosen(slot)` the cards.
+ */
+export const discardChosenFromEncounterDeckCost = (
+  slot: string,
+  range: { readonly min: number; readonly max: number },
+): AbilityCost => ({
+  discardFromEncounterDeck: { amount: { choose: { min: range.min, max: range.max } }, slot },
 });
 /**
  * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33). Payable only if the

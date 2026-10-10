@@ -1,6 +1,7 @@
 /** Applying one non-interactive effect from an effects frame. */
 
 import { announceDeckTops } from "../deck-top.js";
+import { discardTopOfEncounterDeck, encounterTopDiscardVars } from "../encounter-discard-cost.js";
 import type { CardId } from "@mc/content";
 import { nextInt, shuffle } from "../rng.js";
 import {
@@ -70,7 +71,6 @@ import {
   getInstance,
   beforeStartingHandsDrawn,
   getPlayer,
-  hasStarIcon,
   inAnyEncounterDiscard,
   isPlayerCardType,
   locateCard,
@@ -80,12 +80,10 @@ import {
   mustPlayer,
   nextVillainInActivationOrder,
   nextVillainInRow,
-  showingResources,
   turnInProgress,
   villainOf,
   isScheme,
 } from "../query.js";
-import { addPools, EMPTY_POOL } from "../resources.js";
 import {
   AFFECTED_SLOT,
   attachmentHolds,
@@ -3344,51 +3342,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // then "do not continue the discard effect with the newly shuffled encounter deck". The deck resets at the
       // discard that empties it (`resetEncounterDeckIfEmpty`, docs/phase7-wave6.md §3.60), with that card in the new
       // deck, so the last card is known before it moves.
-      const deckId = activeEncounterDeckId(ctx.state);
-      const count = Math.max(0, value(effect.count));
-      const discarded: InstanceId[] = [];
+      // The loop is the one a discard cost uses too (`discardTopOfEncounterDeck`, docs/phase7-wave9.md §3.43 (a)).
+      //
       // "… for each boost icon discarded this way" (Power Drain, Lightning Bolt, Shock Therapy): summed across every
-      // card this discard actually reached — so a discard cut short by the empty-deck rule above counts only what it
+      // card this discard actually reached, so a discard cut short by the empty-deck rule above counts only what it
       // got. Each card's icons are read the moment it is discarded, before it moves, exactly as `moveCards` does.
-      let boostIcons = 0;
-      // "For each star icon in the boost area discarded this way" (Slipping Sanity, `scw`): counted over exactly the
-      // cards this discard reached, and separately from `boostIcons` — RRG 1.8 "Boost, Boost Icon" (p. 11), "A star
-      // icon is not itself considered a boost icon". Printed data, never the ability registry (§18.6).
-      let starIcons = 0;
-      let pool = EMPTY_POOL;
-      for (let i = 0; i < count; i++) {
-        const id = drawEncounterCard(ctx, deckId);
-        if (!id) break;
-        const last = encounterDeckOf(ctx.state, deckId).deck.length === 1;
-        updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
-        boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
-        if (hasStarIcon(ctx.state, id)) starIcons += 1;
-        pool = addPools(pool, showingResources(ctx.state, id));
-        // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
-        moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
-        discarded.push(id);
-        if (last) break;
-      }
+      // "For each star icon in the boost area discarded this way" (Slipping Sanity, `scw`) is counted over exactly the
+      // same cards, separately: RRG 1.8 "Boost, Boost Icon" (p. 11), "A star icon is not itself considered a boost
+      // icon". Printed data, never the ability registry (§18.6).
+      const taken = discardTopOfEncounterDeck(ctx, Math.max(0, value(effect.count)));
+      const discarded = taken.discarded;
       const bind = effect.bind;
       if (bind) {
-        const totals = pool;
-        const icons = boostIcons;
-        const stars = starIcons;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
             ? {
                 ...f,
                 bindings: { ...f.bindings, [bind]: discarded },
-                vars: {
-                  ...f.vars,
-                  [`${bind}.count`]: discarded.length,
-                  [`${bind}.boostIcons`]: icons,
-                  [`${bind}.starIcons`]: stars,
-                  [`${bind}.physical`]: totals.physical,
-                  [`${bind}.mental`]: totals.mental,
-                  [`${bind}.energy`]: totals.energy,
-                  [`${bind}.wild`]: totals.wild,
-                },
+                vars: { ...f.vars, ...encounterTopDiscardVars(bind, taken) },
               }
             : f,
         );

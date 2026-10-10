@@ -1865,7 +1865,29 @@ export type RuleSpec =
    * (RRG 1.8 "Text Box", p. 44). Off, the card is facedown again and satisfies no condition that reads it
    * (`Predicate topOfDeckFaceup`; owner decision §4.1 Q26 = B).
    */
-  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly while?: Predicate }
+  | {
+      readonly kind: "topOfDeckFaceup";
+      readonly deck?: "player";
+      readonly player: PlayerRef;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Play with the top card of the encounter deck faceup." (docs/phase7-wave9.md §3.42): the same rule over the
+   * encounter deck, which is no player's, so it names none. While it is in force the top card of the active villain's
+   * encounter deck (`activeEncounterDeck`: "the encounter deck" is the active villain's) is visible to every player
+   * (`faceVisible`, `shownEncounterTop`), derived from the deck's order and this rule each time it is asked; the
+   * card's own `faceup` stays false. Not a look, a reveal or a search (RRG 1.8 "Look, Looked-At", p. 27): nothing
+   * triggers, the deck's order does not change and the card is still in the deck (RRG 1.8 "Encounter Deck", p. 17).
+   * The log follows it with `encounterTopShown` / `encounterTopHidden` (`announceDeckTops`).
+   *
+   * "During the player phase" is the rule's `while` (`Predicate gameStep { phase: "player" }`), so the card is
+   * facedown again when the villain phase begins; on a hero face it is off in alter-ego form, and under a blank text
+   * box (RRG 1.8 "Text Box", p. 44). A card that leaves the deck while it is showing (dealt facedown, given as a boost
+   * card) is facedown where it lands: what the players remember of it is theirs, and the log's (ruling, March 19,
+   * 2026 – Ruling 5: "facedown but known"). Off, the card satisfies no condition that reads it
+   * (`Predicate topOfDeckFaceup`; wave 8 §4.1 Q26 = B).
+   */
+  | { readonly kind: "topOfDeckFaceup"; readonly deck: "encounter"; readonly while?: Predicate }
   /**
    * "Attached villain … is considered to have at least 1 hit point." (docs/phase7-wave8.md §3.10, owner decision §4.1
    * Q6 = A): a floor on what every reader sees as a matching character's remaining hit points. The dial and the damage
@@ -2016,6 +2038,34 @@ export interface RemoveThreatCost {
 /** "Take any amount of damage up to … →": the payer's choice of a `damageSelf` cost's amount (`AbilityCost.damageSelf`). */
 export interface DamageSelfChoice {
   readonly choose: { readonly min: ValueSpec; readonly max: ValueSpec };
+}
+
+/**
+ * "Discard the top card of the encounter deck →" (Redwing 53002, Battlefield Awareness 53010) and "Choose a number
+ * from 1 to 5. Discard that many cards from the top of the encounter deck →" (Infiltration 51015): docs/phase7-wave9.md
+ * §3.43 (a), `encounter-discard-cost.ts`.
+ *
+ * - **`amount`** is the number of cards owed: printed, or `{ choose: { min, max } }` for a number the payer chooses,
+ *   `min` at least 1 (RRG 1.8 "Cost", p. 14). The choice is made as the cost is paid, in a `chooseNumber` choice
+ *   logged as `numberChosen`, unless the command names it (`CostSelection.discardFromEncounterDeck`); a fixed amount
+ *   is not asked.
+ * - **Not cut to the deck's size.** RRG 1.8 "Encounter Deck" (p. 17): a discard of a specified number of cards that
+ *   empties the encounter deck "is considered to be fulfilled", and is not continued with the new deck. So a player
+ *   may choose 5 over a deck of 2: 2 are discarded, the deck is reset at once with its acceleration token, and the
+ *   cost is paid. It cannot be paid only with no card to discard (an empty deck and an empty discard pile).
+ * - **`slot`** binds the cards discarded on the frame being paid for, top first, with `<slot>.count` ("for each card
+ *   discarded this way"), `<slot>.boostIcons`, `<slot>.starIcons` (a separate count; "icons (★ and boost)" is their
+ *   sum) and the resource totals `EffectSpec discardEncounterCards` binds; `<slot>.chosen` is the number chosen. The
+ *   cards are read where they are when the effects resolve: in the encounter discard pile, or, after a discard that
+ *   emptied the deck, shuffled into the new deck.
+ * - Paid before the ability's effects (RRG 1.8 "Cost Arrow Icon", p. 14), and logged as
+ *   `encounterDiscardCostSettled`. The discard is a cost, not an effect of the card.
+ *
+ * Not on a resource ability, whose cost is paid inside another payment and asks nothing.
+ */
+export interface EncounterDeckDiscardCost {
+  readonly amount: number | { readonly choose: { readonly min: number; readonly max: number } };
+  readonly slot: string;
 }
 
 /**
@@ -2277,6 +2327,11 @@ export interface AbilityCost {
    *   hit points" is the card's `max`, not an engine cap.
    */
   readonly damageSelf?: number | ValueSpec | DamageSelfChoice;
+  /**
+   * "Discard the top card of the encounter deck →", "choose a number from 1 to 5, discard that many cards from the top
+   * of the encounter deck →" (`EncounterDeckDiscardCost`, docs/phase7-wave9.md §3.43 (a)).
+   */
+  readonly discardFromEncounterDeck?: EncounterDeckDiscardCost;
   /** "Remove [up to] N threat from [a card] →" (`RemoveThreatCost`, docs/phase7-wave9.md §3.7 (b)). */
   readonly removeThreat?: RemoveThreatCost;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */

@@ -96,6 +96,12 @@ import {
   deckDiscardSupply,
   isDeckDiscardChoice,
 } from "./deck-discard-choice-cost.js";
+import {
+  ENCOUNTER_DISCARD_MAX_VAR,
+  ENCOUNTER_DISCARD_MIN_VAR,
+  encounterDiscardCostEffects,
+  encounterDiscardCostRange,
+} from "./encounter-discard-cost.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
 import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
 import {
@@ -2482,6 +2488,26 @@ export function planCost(
       message: `look at the top ${look} card(s) of the encounter deck and discard ${discard}`,
     };
   }
+  // "Choose a number from 1 to 5. Discard that many cards from the top of the encounter deck →" (`encounter-discard-
+  // cost.ts`, docs/phase7-wave9.md §3.43 (a)): the range the payer will pick from as the cost is paid. A deck with fewer
+  // cards than the number still pays (RRG 1.8 "Encounter Deck", p. 17); only no card at all cannot.
+  if (cost.discardFromEncounterDeck) {
+    const range = encounterDiscardCostRange(state, cost.discardFromEncounterDeck);
+    if (!range) {
+      return { code: "card_not_in_zone", message: "there is no card in the encounter deck to discard for this cost" };
+    }
+    // The number named up front (`CostSelection.discardFromEncounterDeck`) is a range of one number, which is not asked.
+    const named =
+      typeof cost.discardFromEncounterDeck.amount === "number" ? undefined : selection.discardFromEncounterDeck;
+    if (named !== undefined && (!Number.isInteger(named) || named < range.min || named > range.max)) {
+      return {
+        code: "invalid_choice",
+        message: `this cost discards ${range.min} to ${range.max} cards from the encounter deck, not ${named}`,
+      };
+    }
+    vars[ENCOUNTER_DISCARD_MIN_VAR] = named ?? range.min;
+    vars[ENCOUNTER_DISCARD_MAX_VAR] = named ?? range.max;
+  }
   if (cost.exhaustIdentity && identity.exhausted) {
     return { code: "already_exhausted", message: "your identity is already exhausted" };
   }
@@ -3288,6 +3314,21 @@ export function payCost(
   if (cost.encounterLookDiscard) {
     pushEffects(ctx, {
       effects: encounterLookDiscardEffects(cost.encounterLookDiscard, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+    });
+  }
+  // "Discard that many cards from the top of the encounter deck →" (`encounter-discard-cost.ts`, docs/phase7-wave9.md
+  // §3.43 (a)): the payer's pick and the discard are a step above the frame being paid for, so they resolve first and
+  // the cards are bound there.
+  if (cost.discardFromEncounterDeck) {
+    pushEffects(ctx, {
+      effects: encounterDiscardCostEffects(
+        plan.vars[ENCOUNTER_DISCARD_MIN_VAR] ?? 0,
+        plan.vars[ENCOUNTER_DISCARD_MAX_VAR] ?? 0,
+        cost.discardFromEncounterDeck.slot,
+        paidFor,
+      ),
       selfInstanceId: sourceId,
       controllerId: playerId,
     });

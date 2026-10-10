@@ -911,6 +911,43 @@ export const topOfDeckMatches = (matches: TargetQuery, player: PlayerRef = you):
   matches,
 });
 /**
+ * The top card of the encounter deck is kept faceup right now by a `playWithTopOfEncounterDeckFaceup` constant
+ * (docs/phase7-wave9.md §3.42). False in the villain phase, in the other form and under a blank text box.
+ */
+export const topOfEncounterDeckIsFaceup: Predicate = { kind: "topOfDeckFaceup", deck: "encounter" };
+/**
+ * The faceup top card of the encounter deck matches `matches` (its type, a trait, a star icon). False when the card is
+ * facedown, whatever it is and whoever remembers it (wave 8 §4.1 Q26 = B; ruling, March 19, 2026 – Ruling 5), and on
+ * an empty deck.
+ */
+export const topOfEncounterDeckMatches = (matches: TargetQuery): Predicate => ({
+  kind: "topOfDeckFaceup",
+  deck: "encounter",
+  matches,
+});
+/**
+ * The faceup top card of the encounter deck prints this many icons in its boost area, boost icons and the star
+ * counted together ("the number of icons (★ and boost) in the discarded card's boost area", Redwing 53002;
+ * docs/phase7-wave9.md §3.43). False when the card is facedown.
+ */
+export const topOfEncounterDeckShowsIcons = (bound: {
+  readonly atLeast?: number;
+  readonly atMost?: number;
+}): Predicate => ({
+  kind: "topOfDeckFaceup",
+  deck: "encounter",
+  boostAreaIcons: bound,
+});
+/**
+ * The top card of the encounter deck is showing and prints no icon in its boost area: the state in which an ability
+ * whose whole effect is a number read from those icons "cannot be triggered" (Redwing 53002, Battlefield Awareness
+ * 53010; RRG 1.8 FAQ "Redwing (#2)", p. 65; ruling, January 26, 2026 – Ruling 6 (1)) → `condition:
+ * not(topOfEncounterDeckShowsNoIcons)`. False for a facedown card, so the ability is offered against a card nobody can
+ * see (ruling, March 19, 2026 – Ruling 5). Not for Bird of Prey 53003 or Bird's-Eye View 53004, whose optional discard
+ * is offered whatever the card shows (docs/phase7-wave9.md §4.1 Q6 = B).
+ */
+export const topOfEncounterDeckShowsNoIcons: Predicate = topOfEncounterDeckShowsIcons({ atMost: 0 });
+/**
  * "If the top card of your deck has a [physical] or [wild] resource icon" (Soulsword 45034, Soul Strike 45039; the
  * [mental] and [energy] siblings 45033, 45035, 45038, 45040; docs/phase7-wave8.md §3.50) → `topOfYourDeckHas(
  * "physical")`. The printed icons of the card showing on top of your deck include `type` or a wild (RRG 1.8 "Wild
@@ -1270,6 +1307,8 @@ export const characterDidThisPhase = (character: TargetQuery, did: "attack" | "t
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */
 export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
+/** "During the player phase" (Falcon 53001a): any step of it, whoever's turn it is. */
+export const duringPlayerPhase: Predicate = { kind: "gameStep", phase: "player" };
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
 /**

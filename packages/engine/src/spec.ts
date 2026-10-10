@@ -1467,7 +1467,32 @@ export type Predicate =
    * with nothing moved, when the rule is back. Without `matches` it is true whenever the rule holds, an empty deck
    * included; with `matches` an empty deck has no card to match and is false.
    */
-  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly matches?: TargetQuery }
+  | {
+      readonly kind: "topOfDeckFaceup";
+      readonly deck?: "player";
+      readonly player: PlayerRef;
+      readonly matches?: TargetQuery;
+    }
+  /**
+   * The top card of the encounter deck is kept faceup right now (`RuleSpec topOfDeckFaceup { deck: "encounter" }`;
+   * docs/phase7-wave9.md §3.42), and, when asked, that card answers: `matches` is a query on it (its type, its traits,
+   * a star icon), `boostAreaIcons` a bound on the icons its boost area prints, boost icons and the star together:
+   * "X is the number of icons (★ and boost) in the discarded card's boost area" (Redwing 53002), the number
+   * `boostIcons + starIcons` of that card (§3.43; RRG 1.8 "Star Icon", p. 40). Both given, both must hold.
+   *
+   * As for a player deck, only a card the rule is showing is read (wave 8 §4.1 Q26 = B): with the rule off the
+   * predicate is false whatever the card is. That is the rulings' line between a top card that is "visible" and one
+   * that is "facedown/unknown" or facedown but known (RRG 1.8 FAQ "Redwing (#2)", p. 65; ruling, March 19, 2026 –
+   * Ruling 5): "the top card is showing and prints no icons" is `boostAreaIcons: { atMost: 0 }`, false for a facedown
+   * card, so an ability refused on it is still offered against a card nobody can see. Without `matches` or
+   * `boostAreaIcons` it is true whenever the rule holds, an empty deck included; with either an empty deck is false.
+   */
+  | {
+      readonly kind: "topOfDeckFaceup";
+      readonly deck: "encounter";
+      readonly matches?: TargetQuery;
+      readonly boostAreaIcons?: { readonly atLeast?: number; readonly atMost?: number };
+    }
   /**
    * The mode of play (RRG 1.8 "Modes of Play", p. 29; `GameSetupConfig.difficulty`): "In expert mode, this card gains
    * incite 1 and cannot be canceled" (Frequent Flyers, `sm` 27108), "(In expert mode, place 2 threat on Light at the
@@ -4454,6 +4479,20 @@ export type EffectSpec =
       readonly kind: "payDeckDiscardChoice";
       readonly chosen: string;
       readonly slot?: string;
+      readonly paidFor: FrameId | null;
+    }
+  /**
+   * **Engine-internal; no DSL builder.** Paying a "discard [a chosen number of] cards from the top of the encounter
+   * deck →" cost (`AbilityCost.discardFromEncounterDeck`, `encounter-discard-cost.ts`, docs/phase7-wave9.md §3.43 (a)),
+   * pushed by `payCost` above the frame `paidFor` it pays for, after the payer's `chooseNumber` pick bound as `chosen`:
+   * that many cards are discarded from the top of the encounter deck (fewer when the discard empties it; RRG 1.8
+   * "Encounter Deck", p. 17) and bound to `slot` on `paidFor` with their totals. Logged as
+   * `encounterDiscardCostSettled`.
+   */
+  | {
+      readonly kind: "payEncounterDeckDiscard";
+      readonly chosen: string;
+      readonly slot: string;
       readonly paidFor: FrameId | null;
     }
   /**

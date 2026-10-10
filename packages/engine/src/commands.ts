@@ -79,6 +79,13 @@ export interface CostSelection {
    * (`ResourceAbilityUse.costSelection`), which removes the most it can. A fixed-amount threat cost ignores it.
    */
   readonly removeThreat?: number;
+  /**
+   * The number a chosen-size encounter deck discard cost discards (`AbilityCost.discardFromEncounterDeck { choose }`;
+   * docs/phase7-wave9.md §3.43 (a)): a whole number from the cost's `min` to its `max`; anything else is refused. It
+   * may be more than the deck holds (RRG 1.8 "Encounter Deck", p. 17). Named, no `chooseNumber` choice is asked.
+   * Absent: the payer is asked as the cost is paid. A fixed-amount cost ignores it.
+   */
+  readonly discardFromEncounterDeck?: number;
 }
 
 /**

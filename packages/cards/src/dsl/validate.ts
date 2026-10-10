@@ -69,6 +69,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
   checkRandomPicks(definition, "definition", problems);
+  checkEncounterTopIcons(definition, "definition", problems);
   checkHiddenPiles(definition, problems);
   checkPlays(definition, problems);
   checkTuckReplacement(definition, problems);
@@ -147,6 +148,9 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   ];
   if (definition.trigger.kind === "resource" && looks.some((part) => part.encounterLookDiscard))
     problems.push("cost encounterLookDiscard: not on a resource ability");
+  // docs/phase7-wave9.md §3.43 (a): so are the choice of a number and the discard from the encounter deck.
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.discardFromEncounterDeck))
+    problems.push("cost discardFromEncounterDeck: not on a resource ability");
   // docs/phase7-wave7.md §3.19 (b): the attack is such a step too.
   if (definition.trigger.kind === "resource" && looks.some((part) => part.enemyAttack))
     problems.push("cost enemyAttack: not on a resource ability");
@@ -254,6 +258,23 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
       look.slot === "")
   )
     problems.push("cost encounterLookDiscard: needs a slot and whole numbers with 1 <= discard <= look");
+  // docs/phase7-wave9.md §3.43 (a): "discard [a chosen number of] cards from the top of the encounter deck →".
+  const fromEncounter = cost.discardFromEncounterDeck;
+  if (fromEncounter) {
+    if (fromEncounter.slot === "") problems.push("cost discardFromEncounterDeck: needs a slot for the discarded cards");
+    if (typeof fromEncounter.amount === "number") {
+      if (!Number.isInteger(fromEncounter.amount) || fromEncounter.amount < 1)
+        problems.push("cost discardFromEncounterDeck: must be a whole number of at least 1");
+    } else {
+      const { min, max } = fromEncounter.amount.choose;
+      if (!Number.isInteger(min) || min < 1)
+        problems.push('cost discardFromEncounterDeck: a chosen number has a min of at least 1 (RRG 1.8 "Cost", p. 14)');
+      if (!Number.isInteger(max) || max < min)
+        problems.push(
+          "cost discardFromEncounterDeck: a chosen number's max must be a whole number no smaller than min",
+        );
+    }
+  }
   // docs/phase7-wave8.md §3.62: "spend up to N resources →" is a size the payer chooses, with nothing overpaid.
   if (isResourcesChoice(cost.resources)) {
     const { min, max } = cost.resources.choose;
@@ -323,6 +344,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.chooseCard ? [cost.chooseCard.slot] : []),
     ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...(cost.encounterLookDiscard ? [cost.encounterLookDiscard.slot] : []),
+    ...(cost.discardFromEncounterDeck ? [cost.discardFromEncounterDeck.slot] : []),
     ...(cost.attach ? [cost.attach.to.slot, ...(cost.attach.bind ? [cost.attach.bind] : [])] : []),
     ...(cost.dealDamage?.choose ? [cost.dealDamage.choose.slot] : []),
     ...inPlayPicksOf(cost).flatMap(({ pick }) => [pick.slot, ...(pick.bindHosts ? [pick.bindHosts] : [])]),
@@ -742,6 +764,34 @@ function checkRandomPicks(value: unknown, path: string, problems: string[]): voi
   for (const [key, item] of Object.entries(record)) checkRandomPicks(item, `${path}.${key}`, problems);
 }
 
+/**
+ * `Predicate topOfDeckFaceup { deck: "encounter", boostAreaIcons }` (docs/phase7-wave9.md §3.42): a bound on the icons
+ * the showing card prints. An empty bound asks nothing, and one no count can meet is always false; both are slips.
+ */
+function checkEncounterTopIcons(value: unknown, path: string, problems: string[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => checkEncounterTopIcons(item, `${path}[${i}]`, problems));
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  if (record.kind === "topOfDeckFaceup" && record.boostAreaIcons !== undefined) {
+    const bound = record.boostAreaIcons as { atLeast?: unknown; atMost?: unknown };
+    const whole = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
+    if (record.deck !== "encounter") problems.push(`${path}: boostAreaIcons reads the encounter deck's top card`);
+    if (bound.atLeast === undefined && bound.atMost === undefined)
+      problems.push(`${path}: boostAreaIcons needs atLeast or atMost`);
+    else if (
+      (bound.atLeast !== undefined && !whole(bound.atLeast)) ||
+      (bound.atMost !== undefined && !whole(bound.atMost))
+    )
+      problems.push(`${path}: boostAreaIcons bounds must be whole numbers of at least 0`);
+    else if (whole(bound.atLeast) && whole(bound.atMost) && bound.atLeast > bound.atMost)
+      problems.push(`${path}: boostAreaIcons atLeast is above atMost`);
+  }
+  for (const [key, item] of Object.entries(record)) checkEncounterTopIcons(item, `${path}.${key}`, problems);
+}
+
 /** Every effect in the tree, including nested branches and deferred effects. */
 function allEffects(effects: readonly EffectSpec[]): EffectSpec[] {
   return effects.flatMap((effect) => [effect, ...allEffects(nestedLists(effect).flat())]);
@@ -1135,6 +1185,15 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.slots.add(look.slot);
       scope.vars.add(`${look.slot}.count`);
       scope.vars.add(`${look.slot}.boostIcons`);
+    }
+    // docs/phase7-wave9.md §3.43 (a): the cards discarded from the encounter deck, their number, the number chosen
+    // and their icon totals.
+    for (const component of [cost, ...(cost.either ?? [])]) {
+      const fromEncounter = component.discardFromEncounterDeck;
+      if (!fromEncounter) continue;
+      scope.slots.add(fromEncounter.slot);
+      for (const total of ["count", "chosen", "boostIcons", "starIcons", "physical", "mental", "energy", "wild"])
+        scope.vars.add(`${fromEncounter.slot}.${total}`);
     }
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     if (cost.resourcesEqualTo !== undefined) scope.vars.add("cost.resources");

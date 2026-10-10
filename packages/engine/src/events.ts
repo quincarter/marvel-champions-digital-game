@@ -562,6 +562,23 @@ export type GameEvent =
       readonly paid: boolean;
     }
   /**
+   * A "discard [a chosen number of] cards from the top of the encounter deck →" cost
+   * (`AbilityCost.discardFromEncounterDeck`, docs/phase7-wave9.md §3.43 (a)) has been paid or failed: `chosen` is the
+   * number `playerId` owed (their pick, or the printed number) and `discarded` the cards that left the top of the
+   * deck, top first. Fewer than `chosen` with `deckEmptied` is a paid cost (RRG 1.8 "Encounter Deck", p. 17: a discard
+   * that empties the deck "is considered to be fulfilled"); the deck was reset at that card's move. Nothing discarded
+   * means the cost was not paid and the effects of `instanceId`'s ability do not resolve.
+   */
+  | {
+      readonly type: "encounterDiscardCostSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly chosen: number;
+      readonly discarded: readonly InstanceId[];
+      readonly deckEmptied: boolean;
+      readonly paid: boolean;
+    }
+  /**
    * A "remove [up to] N threat from [a card] →" cost (`AbilityCost.removeThreat`, docs/phase7-wave9.md §3.7 (b)) has
    * been paid or failed: `chosen` is the amount the payer owed (their pick, or the printed number) and `removed` what
    * came off `fromInstanceId`, logged before this as `threatRemoved`. Less than chosen means the cost was not paid
@@ -982,6 +999,27 @@ export type GameEvent =
    * `cardMoved` says so, and there is no card left to hide.
    */
   | { readonly type: "deckTopHidden"; readonly playerId: PlayerId }
+  /**
+   * The card now showing faceup on top of the encounter deck under a `topOfDeckFaceup { deck: "encounter" }` rule
+   * (docs/phase7-wave9.md §3.42): logged when the rule turns on over a deck with a card in it (the player phase
+   * begins, a change to hero form), and each time the top card changes while it holds (a discard, a card dealt or
+   * given as a boost card, a shuffle, a deck reset, a card put on top, another villain becoming active), one card at a
+   * time. The card is still in the deck and still `faceup: false`; this line is what tells a replay, and a client that
+   * keeps what its player has seen, what every player knew (ruling, March 19, 2026 – Ruling 5: a card can be "facedown
+   * but known").
+   */
+  | {
+      readonly type: "encounterTopShown";
+      readonly deckId: EncounterDeckId;
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+    }
+  /**
+   * The top card of the encounter deck, which was showing, is facedown again: the rule stopped holding (the villain
+   * phase began, the other form, a blank text box). Not logged when the shown card left an emptied deck: its own
+   * `cardMoved` says so.
+   */
+  | { readonly type: "encounterTopHidden"; readonly deckId: EncounterDeckId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /**
    * An ability that had triggered did not resolve because a rule in effect ignores it (`RuleSpec ignoreAbilities`;

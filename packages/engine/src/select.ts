@@ -21,6 +21,7 @@ import {
   unblankedPrintedKeywordsOf,
 } from "./keywords.js";
 import {
+  activeEncounterDeck,
   activeVillain,
   baseStat,
   cardOf,
@@ -1813,6 +1814,7 @@ export function printedResourcesOf(state: GameState, id: InstanceId, deps: Engin
 export function deckTopFaceupPlayers(state: GameState, deps: EngineDeps): readonly PlayerId[] {
   const players: PlayerId[] = [];
   for (const active of activeRules(state, deps, "topOfDeckFaceup")) {
+    if (active.rule.deck === "encounter") continue;
     for (const playerId of rulePlayers(state, active.rule, active)) {
       if (!players.includes(playerId)) players.push(playerId);
     }
@@ -1865,6 +1867,25 @@ export function shownDeckTop(state: GameState, deps: EngineDeps, playerId: Playe
   const top = getPlayer(state, playerId)?.deck[0];
   if (top === undefined) return null;
   return deckTopFaceupPlayers(state, deps).includes(playerId) ? top : null;
+}
+
+/**
+ * Whether the top card of the encounter deck is kept faceup right now (`RuleSpec topOfDeckFaceup { deck: "encounter" }`,
+ * docs/phase7-wave9.md §3.42): one rule in force is enough, and a second adds nothing. Read from the rules in force,
+ * never from anything stored.
+ */
+export const encounterTopFaceup = (state: GameState, deps: EngineDeps): boolean =>
+  activeRules(state, deps, "topOfDeckFaceup").some((active) => active.rule.deck === "encounter");
+
+/**
+ * The card showing on top of the encounter deck under that rule: the first card of the active villain's encounter deck
+ * while the rule holds, null when it does not or the deck is empty. The single derivation `faceVisible`, the
+ * `topOfDeckFaceup` predicate and the log (`announceDeckTops`) agree on.
+ */
+export function shownEncounterTop(state: GameState, deps: EngineDeps): InstanceId | null {
+  const top = activeEncounterDeck(state).deck[0];
+  if (top === undefined) return null;
+  return encounterTopFaceup(state, deps) ? top : null;
 }
 
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`). */
@@ -2905,6 +2926,19 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return state.gameAreas.length > 0;
     case "topOfDeckFaceup": {
       const deps = context.deps ?? DEFAULT_DEPS;
+      if (predicate.deck === "encounter") {
+        if (!encounterTopFaceup(state, deps)) return false;
+        const { matches, boostAreaIcons } = predicate;
+        if (matches === undefined && boostAreaIcons === undefined) return true;
+        // Only the card the rule shows is read (wave 8 §4.1 Q26 = B); an empty deck has none.
+        const top = activeEncounterDeck(state).deck[0];
+        if (top === undefined) return false;
+        if (matches !== undefined && !matchesQuery(state, top, matches, context)) return false;
+        if (boostAreaIcons === undefined) return true;
+        // Boost icons and the star together, the number a card reads as `<slot>.boostIcons + <slot>.starIcons`.
+        const icons = boostIconsFor(state, deps, top) + (hasStarIcon(state, top) ? 1 : 0);
+        return icons >= (boostAreaIcons.atLeast ?? 0) && icons <= (boostAreaIcons.atMost ?? Infinity);
+      }
       const faceup = deckTopFaceupPlayers(state, deps);
       return resolvePlayers(state, predicate.player, context).some((playerId) => {
         if (!faceup.includes(playerId)) return false;

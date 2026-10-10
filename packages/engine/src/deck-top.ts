@@ -4,10 +4,14 @@
  * Which card is showing is derived (`shownDeckTop`, `select.ts`) and never stored on a card. What is kept is the last
  * value the log announced (`GameState.deckTopsAnnounced`), so each change is logged once: `deckTopShown` for the card
  * now showing, `deckTopHidden` when a showing card is facedown again. `announceDeckTops` is called after every move of
- * a card (`settlePlayerDecks`, `placeAt`), after every shuffle and reset of a player deck, and between frames
+ * a card (`settlePlayerDecks`, `placeAt`), after every shuffle and reset of a player deck or an encounter deck, and
+ * between frames
  * (`checkStateTriggers`) for the rule itself turning on or off with nothing moved (a form change, a blank text box).
  * RRG 1.8 FAQ "Magik (#30A)" (p. 64): "As soon as she does this, she turns the new top card of her deck faceup", so a
  * draw of 2 shows the second card before it is drawn.
+ *
+ * The same rule over the encounter deck (`deck: "encounter"`, docs/phase7-wave9.md §3.42) is logged the same way, as
+ * `encounterTopShown` / `encounterTopHidden` against `GameState.encounterTopAnnounced` (`announceEncounterTop`).
  *
  * A game none of whose cards prints the rule pays cached checks per call (`deckTopRuleCanHold`: its card pool against the
  * registry, then its scenario rules and lasting effects), never a scan of the rules in force, and writes nothing to its
@@ -18,7 +22,8 @@ import type { AbilityRegistry, EngineDeps } from "./abilities.js";
 import { type Ctx, emit } from "./ctx.js";
 import type { InstanceId } from "./ids.js";
 import type { GameState } from "./state.js";
-import { deckTopFaceupPlayers } from "./select.js";
+import { activeEncounterDeck, activeEncounterDeckId } from "./query.js";
+import { deckTopFaceupPlayers, encounterTopFaceup } from "./select.js";
 
 const NO_ABILITIES: ReadonlySet<string> = new Set();
 const RULE_ABILITIES = new WeakMap<AbilityRegistry, ReadonlySet<string>>();
@@ -91,7 +96,8 @@ export function deckTopRuleCanHold(state: GameState, deps: EngineDeps): boolean 
 export function announceDeckTops(ctx: Ctx): void {
   if ((ctx.deckTopsHeld ?? 0) > 0) return;
   const known = ctx.state.deckTopsAnnounced;
-  if (!known && !deckTopRuleCanHold(ctx.state, ctx.deps)) return;
+  if (!known && ctx.state.encounterTopAnnounced === undefined && !deckTopRuleCanHold(ctx.state, ctx.deps)) return;
+  announceEncounterTop(ctx);
   const faceup = deckTopFaceupPlayers(ctx.state, ctx.deps);
   const next: Record<string, InstanceId> = {};
   let changed = false;
@@ -119,6 +125,29 @@ export function announceDeckTops(ctx: Ctx): void {
   if (!changed) return;
   const { deckTopsAnnounced: _was, ...rest } = ctx.state;
   ctx.state = Object.keys(next).length > 0 ? { ...rest, deckTopsAnnounced: next } : rest;
+}
+
+/**
+ * The encounter deck's half of `announceDeckTops` (`RuleSpec topOfDeckFaceup { deck: "encounter" }`,
+ * docs/phase7-wave9.md §3.42): `encounterTopShown` for a card newly showing on top of the active villain's encounter
+ * deck, `encounterTopHidden` when the rule stopped holding over a card that was showing. A showing card that left an
+ * emptied deck logs nothing: its own move says so, and the reset that follows logs the new deck's top card
+ * (`resetEncounterDeckIfEmpty`).
+ */
+function announceEncounterTop(ctx: Ctx): void {
+  const was = ctx.state.encounterTopAnnounced;
+  const faceup = encounterTopFaceup(ctx.state, ctx.deps);
+  const top = faceup ? activeEncounterDeck(ctx.state).deck[0] : undefined;
+  if (top === was) return;
+  const deckId = activeEncounterDeckId(ctx.state);
+  if (top !== undefined) {
+    emit(ctx, { type: "encounterTopShown", deckId, instanceId: top, cardId: ctx.state.instances[top]!.cardId });
+    ctx.state = { ...ctx.state, encounterTopAnnounced: top };
+    return;
+  }
+  if (!faceup) emit(ctx, { type: "encounterTopHidden", deckId });
+  const { encounterTopAnnounced: _was, ...rest } = ctx.state;
+  ctx.state = rest;
 }
 
 /**

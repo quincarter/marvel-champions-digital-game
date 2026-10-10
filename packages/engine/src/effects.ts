@@ -552,6 +552,8 @@ export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): bo
     ...ctx.state,
     encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
   };
+  // The new deck's top card shows at once when the deck is kept faceup (docs/phase7-wave9.md §3.42).
+  announceDeckTops(ctx);
   addAccelerationToken(ctx);
   if (listensForDeckRunOut(ctx.deps)) {
     ctx.state = {

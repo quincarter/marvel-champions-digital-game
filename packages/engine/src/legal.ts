@@ -57,9 +57,11 @@ import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
 import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
+import { encounterDiscardCostRange } from "./encounter-discard-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
+  activeEncounterDeck,
   cardOf,
   cardZoneCandidates,
   getPlayer,
@@ -144,6 +146,15 @@ export interface LegalAction {
    * right now, sent as `costSelection.counters`. `example` removes the most. Absent for any other cost.
    */
   readonly costCounters?: { readonly min: number; readonly max: number };
+  /**
+   * A cost that discards from the top of the encounter deck (`AbilityCost.discardFromEncounterDeck`;
+   * docs/phase7-wave9.md §3.43 (a)): the numbers the player may choose from, `min` equal to `max` for a printed number,
+   * and `inDeck`, the cards the encounter deck holds now. A number above `inDeck` is legal: the deck's cards are
+   * discarded, the deck is reset with an acceleration token and the cost is paid (RRG 1.8 "Encounter Deck", p. 17).
+   * The client may send the number as `costSelection.discardFromEncounterDeck`; without it the engine asks as the cost
+   * is paid. Absent for any other cost.
+   */
+  readonly encounterDeckDiscard?: { readonly min: number; readonly max: number; readonly inDeck: number };
   /**
    * A resource cost whose size the player chooses ("spend up to 3 resources →"; docs/phase7-wave8.md §3.62): the
    * payment must generate at least `min` resources in all, a card with two icons counting two; up to `max` of them
@@ -263,6 +274,18 @@ function counterRange(
   const holder = counterCostHolder(state, deps, source, playerId, counters.target);
   const held = typeof holder === "string" ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
   return { min: 1, max: Math.min(counters.amount, held) };
+}
+
+/** The `encounterDeckDiscard` range of a cost that discards from the top of the encounter deck (wave 9 §3.43 (a)). */
+function encounterDiscardRange(
+  state: GameState,
+  cost: AbilityCost | undefined,
+): LegalAction["encounterDeckDiscard"] | undefined {
+  const component = [cost, ...(cost?.either ?? [])].find((part) => part?.discardFromEncounterDeck);
+  const range = component?.discardFromEncounterDeck
+    ? encounterDiscardCostRange(state, component.discardFromEncounterDeck)
+    : null;
+  return range ? { ...range, inDeck: activeEncounterDeck(state).deck.length } : undefined;
 }
 
 const withBranch = (branch: number | undefined): { readonly costSelection?: CostSelection } =>
@@ -886,7 +909,10 @@ function evaluatePlayOf(
   );
   const own = evaluate(state, deps, action, variants, tryWallets);
   const ranged = (evaluated: Evaluated): Evaluated =>
-    withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
+    withEncounterDiscard(
+      withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost)),
+      encounterDiscardRange(state, cost),
+    );
   if ("legal" in own) return withDestinations(state, deps, id, ranged(own));
   // Not playable to the player's own area. A reduction that reads the destination may still pay for it there
   // (docs/phase7-wave8.md §3.35): the same variants, each naming the area. An upgrade with "attach to" text has other
@@ -972,6 +998,10 @@ const withCounterRange = (
   range: { readonly min: number; readonly max: number } | undefined,
 ): Evaluated => ("legal" in evaluated && range ? { legal: { ...evaluated.legal, costCounters: range } } : evaluated);
 
+/** Adds `encounterDeckDiscard` to a legal action whose cost discards from the encounter deck (wave 9 §3.43 (a)). */
+const withEncounterDiscard = (evaluated: Evaluated, range: LegalAction["encounterDeckDiscard"]): Evaluated =>
+  "legal" in evaluated && range ? { legal: { ...evaluated.legal, encounterDeckDiscard: range } } : evaluated;
+
 /** The `playCostReduction` abilities `playerId` could use on playing this card right now (docs/phase7-wave3.md §3.20). */
 function playCostReducers(
   state: GameState,
@@ -1038,7 +1068,10 @@ function evaluateAbility(
       ),
     ),
   );
-  const ranged = withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
+  const ranged = withEncounterDiscard(
+    withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost)),
+    encounterDiscardRange(state, cost),
+  );
   return "legal" in ranged && chosenSize ? { legal: { ...ranged.legal, chosenResources: chosenSize } } : ranged;
 }
 

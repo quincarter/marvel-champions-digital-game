@@ -1026,6 +1026,13 @@ export interface GameState {
    */
   readonly deckTopsAnnounced?: Readonly<Record<string, InstanceId>>;
   /**
+   * The card last logged as showing on top of the encounter deck under a `topOfDeckFaceup { deck: "encounter" }` rule
+   * (docs/phase7-wave9.md §3.42), so the log says `encounterTopShown` / `encounterTopHidden` once per change
+   * (`announceDeckTops`). The log's memory and nothing else, as `deckTopsAnnounced` is: which card is visible is
+   * derived (`shownEncounterTop`). Absent while no card is showing.
+   */
+  readonly encounterTopAnnounced?: InstanceId;
+  /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
    * Reset when the round ends.

@@ -339,7 +339,7 @@ export function placeAt(ctx: Ctx, id: InstanceId, index: number): void {
   const at = Math.max(0, Math.min(index, rest.length));
   ctx.state = setZone(ctx.state, zone, [...rest.slice(0, at), id, ...rest.slice(at)]);
   if (zone.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
-  if (zone.kind === "deck") announceDeckTops(ctx);
+  if (zone.kind === "deck" || zone.kind === "encounterDeck") announceDeckTops(ctx);
 }
 
 /**
