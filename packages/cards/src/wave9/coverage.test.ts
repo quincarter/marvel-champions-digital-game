@@ -64,6 +64,10 @@ import { FALCON_ABILITIES } from "./falcon/index.js";
 import { SILK_ABILITIES } from "./silk/index.js";
 import { SILK_EVENTS, SILK_EVENTS_SKIPPED } from "./silk/silk/events.js";
 import { SILK_IDENTITY, SILK_IDENTITY_SKIPPED } from "./silk/silk/identity.js";
+import {
+  SILK_SUPPORT_UPGRADES_ALLIES,
+  SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./silk/silk/support-upgrades-allies.js";
 import { TT_ABILITIES } from "./tt/index.js";
 import { WINTER_ABILITIES } from "./winter/index.js";
 
@@ -283,6 +287,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["52002", "52003", "52004", "52005"],
       registry: SILK_EVENTS,
       skipped: SILK_EVENTS_SKIPPED,
+    },
+    {
+      module: "silk/support-upgrades-allies",
+      cardIds: ["52006", "52007", "52008", "52009", "52010", "52011", "52012"],
+      registry: SILK_SUPPORT_UPGRADES_ALLIES,
+      skipped: SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
     },
   ],
 };

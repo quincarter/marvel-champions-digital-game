@@ -1,6 +1,12 @@
 import type { AbilityRegistry } from "@mc/engine";
 import {
   attack,
+  alterEgoAction,
+  eachPlayer,
+  encounterCards,
+  exhaustYourHero,
+  self,
+  whenDefeated,
   cards,
   chooseCards,
   chooseTarget,
@@ -38,8 +44,15 @@ const tuckedOfSetOf = (slot: string) => tuckedUnderRef(yourIdentity, encounterSe
  * - 52004 Wallcrawl (event)
  * - 52005 Get the Scoop (player_side_scheme)
  *
- * Get the Scoop (52005) is listed by `card-groups.ts` for this module, but the spec's build order (item 41) puts it in
- * `silk/silk/support-upgrades-allies`; it is not scripted here (see the skipped map).
+ * Get the Scoop (52005, a player side scheme with 4 threat) is mapped here by `card-groups.ts` (the spec's build order
+ * item 41 names the other module; the map is the one that counts and the card stays in this group).
+ *
+ * **52005.get-the-scoop-action** (Alter-Ego Action): exhaust your identity, remove 2 threat from here; any player may
+ * trigger it (`triggerableBy`), exhausting their own identity.
+ * **52005.when-defeated**: "The Cindy Moon player" is read as the scheme's controller (the Silk deck's owner, who
+ * played it or had Jameson put it into play), whoever removed the last threat: they look at the top 2 cards of the
+ * encounter deck and tuck 1 of them under their identity (the other stays on top). Flagged: the spec says "whoever
+ * defeated it".
  *
  * **52002.smooth-as-silk-action** (Hero Action, no label): the chosen enemy or scheme in play is read for its encounter
  * set; the encounter deck is discarded from the top until a card of that set is discarded, and that card is tucked
@@ -57,6 +70,15 @@ const tuckedOfSetOf = (slot: string) => tuckedUnderRef(yourIdentity, encounterSe
  * second removal is a plain removal by the event, not a thwart (only the first sentence is the labeled thwart).
  */
 export const SILK_EVENTS: AbilityRegistry = defineAbilities({
+  "52005.get-the-scoop-action": alterEgoAction(
+    { cost: exhaustYourHero, triggerableBy: eachPlayer },
+    removeThreat(2, self),
+  ),
+  "52005.when-defeated": whenDefeated(
+    chooseCards("scoop", encounterCards(["deck"], undefined, 2), { min: 1, max: 1 }),
+    tuckCards(cards(chosen("scoop")), yourIdentity),
+  ),
+
   "52002.smooth-as-silk-action": heroAction(
     chooseTarget("target", query(["enemy", "scheme"])),
     discardEncounterUntil(query([], encounterSetOf(chosen("target"))), "found"),
@@ -83,9 +105,4 @@ export const SILK_EVENTS: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const SILK_EVENTS_SKIPPED: Readonly<Record<string, string>> = {
-  "52005.get-the-scoop-action":
-    "Get the Scoop is a player side scheme that card-groups.ts lists here but the spec (build order 41) assigns to silk/silk/support-upgrades-allies; left to that module",
-  "52005.when-defeated":
-    "Get the Scoop is a player side scheme that card-groups.ts lists here but the spec (build order 41) assigns to silk/silk/support-upgrades-allies; left to that module",
-};
+export const SILK_EVENTS_SKIPPED: Readonly<Record<string, string>> = {};

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
+  P2,
   firstLegal,
   identityOf,
   inst,
@@ -12,6 +13,7 @@ import {
   payWith,
   play,
   playerOf,
+  use,
   stackEncounterDeck,
   type Picker,
 } from "../../../testing/harness.js";
@@ -30,6 +32,10 @@ vi.setConfig({ testTimeout: 120_000 });
 const SMOOTH = "52002.smooth-as-silk-action";
 const KICK = "52003.swinging-silk-kick-action";
 const CRAWL = "52004.wallcrawl-action";
+const SCOOP = "52005";
+const SCOOP_ACTION = "52005.get-the-scoop-action";
+const SCOOP_DEFEATED = "52005.when-defeated";
+const card52005 = () => SILK_CARDS.find((c) => c.id === cardId(SCOOP))!;
 const MERC = "01101";
 const SANDMAN = "01102";
 const SHOCKER = "01103";
@@ -83,7 +89,7 @@ const threatEvents = (events: readonly GameEvent[]) =>
 
 describe("Silk events registry", () => {
   it("every ability validates as a Hero Action with its printed label", () => {
-    expect(Object.keys(SILK_EVENTS).sort()).toEqual([SMOOTH, KICK, CRAWL].sort());
+    expect(Object.keys(SILK_EVENTS).sort()).toEqual([SMOOTH, KICK, CRAWL, SCOOP_ACTION, SCOOP_DEFEATED].sort());
     for (const ref of [SMOOTH, KICK, CRAWL]) {
       expect(validateDefinition(SILK_EVENTS[ref]!), ref).toEqual([]);
       expect(SILK_EVENTS[ref]!.trigger, ref).toMatchObject({ kind: "action", form: "hero" });
@@ -103,12 +109,14 @@ describe("Silk events registry", () => {
       if (trait) expect(card(code).traits.map(String)).toContain(trait);
     }
   });
-  it("Get the Scoop 52005 is listed here by card-groups.ts but skipped with a reason: both of its refs", () => {
-    expect(Object.keys(SILK_EVENTS_SKIPPED).sort()).toEqual(["52005.get-the-scoop-action", "52005.when-defeated"]);
-    const scoop = SILK_CARDS.find((c) => c.id === cardId("52005")) as unknown as { abilities: { id: string }[] };
-    const printed = scoop.abilities;
-    expect(printed.map((a) => a.id as string).sort()).toEqual(Object.keys(SILK_EVENTS_SKIPPED).sort());
-    for (const reason of Object.values(SILK_EVENTS_SKIPPED)) expect(reason).toMatch(/support-upgrades-allies/);
+  it("Get the Scoop 52005 is mapped here by card-groups.ts: both of its refs are registered, nothing is skipped", () => {
+    expect(Object.keys(SILK_EVENTS_SKIPPED)).toEqual([]);
+    const printed = (card52005() as unknown as { abilities: { id: string }[] }).abilities.map((a) => a.id as string);
+    expect(printed.sort()).toEqual([SCOOP_ACTION, SCOOP_DEFEATED].sort());
+    for (const ref of printed) expect(validateDefinition(SILK_EVENTS[ref]!), ref).toEqual([]);
+    expect(SILK_EVENTS[SCOOP_ACTION]!.trigger).toMatchObject({ kind: "action", form: "alterEgo" });
+    expect(SILK_EVENTS[SCOOP_ACTION]!.cost).toEqual({ exhaustIdentity: true });
+    expect(SILK_EVENTS[SCOOP_DEFEATED]!.trigger).toMatchObject({ kind: "whenDefeated" });
   });
 });
 
@@ -384,5 +392,105 @@ describe(`${CRAWL} (Wallcrawl 52004): remove 2 threat from a scheme, then 3 more
       SILK_DEPS,
     );
     expect(result.ok).toBe(false);
+  });
+});
+
+describe(`${SCOOP} (Get the Scoop 52005): a player side scheme, 4 threat`, () => {
+  const USE = SCOOP_ACTION;
+  /** Get the Scoop played from the hand (cost 0) in alter-ego form. */
+  const inPlay = (s: GameState = silkGame(), pick: Picker = firstLegal) => {
+    const given = moveToHand(s, P1, SCOOP);
+    const id = given.ids[0]!;
+    const played = driveEventsPicking(SILK_DEPS, given.state, pick, play(P1, id, []));
+    return { state: played.state, id };
+  };
+  const useScoop = (s: GameState, id: InstanceId, player = P1, pick: Picker = firstLegal): GameState =>
+    driveEventsPicking(SILK_DEPS, s, pick, use(player, id, USE)).state;
+  const topCodes = (s: GameState, n: number): string[] =>
+    encounterPiles(s)
+      .deck.slice(0, n)
+      .map((id) => codeOf(s, id));
+
+  it("printed data: unique, cost 0, 4 threat flat (nothing per player), no keywords, a player side scheme", () => {
+    const c = card52005() as unknown as {
+      type: string;
+      unique: boolean;
+      cost: number;
+      startingThreat: { base: number; perPlayer: number };
+      keywords: unknown[];
+    };
+    expect([c.type, c.unique, c.cost]).toEqual(["player_side_scheme", true, 0]);
+    expect(c.startingThreat).toEqual({ base: 4, perPlayer: 0 });
+    expect(c.keywords).toEqual([]);
+  });
+  it("played for 0: in the villain area with 4 threat; with two players still 4", () => {
+    const one = inPlay();
+    expect(one.state.villainArea).toContain(one.id);
+    expect(inst(one.state, one.id).threat).toBe(4);
+    const two = inPlay(silkGame({ twoPlayers: true }));
+    expect(inst(two.state, two.id).threat).toBe(4);
+  });
+  it("Alter-Ego Action: exhaust the identity, remove 2 threat: 4 to 2; refused again while exhausted", () => {
+    const { state, id } = inPlay();
+    const used = useScoop(state, id);
+    expect(inst(used, id).threat).toBe(2);
+    expect(inst(used, identityOf(used)).exhausted).toBe(true);
+    expect(applyCommand(used, use(P1, id, USE), SILK_DEPS).ok).toBe(false);
+  });
+  it("refused in hero form", () => {
+    const { state, id } = inPlay();
+    expect(applyCommand(withForm(state, { heroForm: 0 }), use(P1, id, USE), SILK_DEPS).ok).toBe(false);
+  });
+  it("defeating it (2 threat left, 2 removed): the look at the top 2 encounter cards, tuck the second; the first stays on top", () => {
+    const { state, id } = inPlay(stackEncounterDeck(silkGame(), SANDMAN, SHOCKER, MERC));
+    const damaged = patchInstance(state, id, { threat: 2 });
+    const target = encounterPiles(damaged).deck[1]!;
+    const after = useScoop(damaged, id, P1, (x) => {
+      const ids = x.pendingChoice!.options.map((o) => o.optionId as string);
+      return x.pendingChoice!.prompt.kind === "chooseCards" && ids.includes(target) ? [target] : firstLegal(x);
+    });
+    // The prompt offered exactly the top 2 cards.
+    expect(tuckedCodes(after)).toEqual([SHOCKER]);
+    expect(topCodes(after, 2)).toEqual([SANDMAN, MERC]);
+    expect(after.villainArea).not.toContain(id);
+    expect(playerOf(after, P1).discard).toContain(id);
+  });
+  it("only the top 2 are offered: the third card is never a choice", () => {
+    const { state, id } = inPlay(stackEncounterDeck(silkGame(), SANDMAN, SHOCKER, MERC));
+    const damaged = patchInstance(state, id, { threat: 2 });
+    const offered: string[] = [];
+    useScoop(damaged, id, P1, (x) => {
+      if (x.pendingChoice!.prompt.kind === "chooseCards")
+        offered.push(...x.pendingChoice!.options.map((o) => o.optionId as string));
+      return firstLegal(x);
+    });
+    const deck = encounterPiles(damaged).deck;
+    expect(offered.sort()).toEqual([deck[0], deck[1]].sort());
+  });
+  it("with 3 threat left, 2 removed leaves 1: not defeated, nothing tucked", () => {
+    const { state, id } = inPlay();
+    const used = useScoop(patchInstance(state, id, { threat: 3 }), id);
+    expect(inst(used, id).threat).toBe(1);
+    expect(tuckedOf(used)).toEqual([]);
+    expect(used.villainArea).toContain(id);
+  });
+  it("with 4 cards already tucked, the tuck makes a fifth and the cap leaves 4", () => {
+    let s = stackEncounterDeck(silkGame(), SANDMAN, SHOCKER);
+    for (const code of [MERC, ADVANCE, "01104", "01105"]) s = tuckEncounterCard(s, code).state;
+    const { state, id } = inPlay(s);
+    const after = useScoop(patchInstance(state, id, { threat: 2 }), id);
+    expect(tuckedOf(after)).toHaveLength(4);
+  });
+  it("a second player (alter-ego) triggers it with their own identity and defeats it: the Silk player tucks, not them", () => {
+    const base = stackEncounterDeck(silkGame({ twoPlayers: true }), SANDMAN, SHOCKER);
+    const { state, id } = inPlay(base);
+    const damaged = patchInstance(state, id, { threat: 2 });
+    const p2Identity = identityOf(damaged, P2);
+    const after = useScoop(damaged, id, P2);
+    expect(inst(after, p2Identity).exhausted).toBe(true);
+    expect(inst(after, identityOf(after, P1)).exhausted).toBe(false);
+    expect(inst(after, id).threat).toBe(0);
+    expect(tuckedOf(after)).toHaveLength(1);
+    expect(inst(after, identityOf(after, P2)).tucked).toEqual([]);
   });
 });
