@@ -108,6 +108,7 @@ const REGISTERED_SECOND_HALF = [
   "50096.when-revealed-alter-ego",
   "50096.when-revealed-hero",
   "50097.when-revealed-alter-ego",
+  "50097.when-revealed-hero",
 ];
 const REGISTERED = [...REGISTERED_FIRST_HALF, ...REGISTERED_SECOND_HALF];
 const GUARD = "50093";
@@ -209,13 +210,12 @@ const villainPhase = (t: Table, pick: Picker = firstLegal, ...stack: string[]) =
   );
 
 describe("registry", () => {
-  it("registers every ref of the module's cards except the one skipped, each a valid definition", () => {
+  it("registers every ref of the module's cards (none skipped), each a valid definition", () => {
     expect(Object.keys(BATROC).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(BATROC)) expect(validateDefinition(def), id).toEqual([]);
     const refs = SECOND_HALF.flatMap((code) => abilityRefIds(AOS_CARDS.find((c) => c.id === code)!));
     expect([...Object.keys(BATROC_SKIPPED), ...REGISTERED_SECOND_HALF].sort()).toEqual([...refs].sort());
-    expect(Object.keys(BATROC_SKIPPED)).toEqual(["50097.when-revealed-hero"]);
-    expect(BATROC_SKIPPED["50097.when-revealed-hero"]).toContain("that character");
+    expect(BATROC_SKIPPED).toEqual({});
   });
 
   it("the data names exactly the registered and skipped refs", () => {
@@ -1153,6 +1153,48 @@ describe("Leaping Kick (50096)", () => {
   });
 });
 
+const EXHAUST = "Exhaust that character";
+const THREAT = "Place 1 threat on Alert Level (2 on its High side)";
+/**
+ * Answers Security Cameras: each option prompt with the next of `options` (recorded in `asked`), each "which character
+ * is next" prompt with the next of `order`; with `defend` the attacked hero defends Batroc's attack (and so is
+ * exhausted when the card is revealed). Everything else as `firstLegal`.
+ */
+const cameras = (
+  options: readonly string[],
+  order: readonly InstanceId[] = [],
+  asked: string[][] = [],
+  defend = false,
+): Picker => {
+  const nextOptions = [...options];
+  const nextCards = [...order];
+  return (s) => {
+    const choice = s.pendingChoice!;
+    if (choice.prompt.kind === "declareDefender" && defend) {
+      const hero = identityOf(s, choice.playerId);
+      const option = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === hero);
+      if (option) return [option.optionId];
+    }
+    if (choice.prompt.kind === "chooseOption") {
+      asked.push(choice.options.map((o) => o.label));
+      const label = nextOptions.shift();
+      const hit = choice.options.find((o) => o.label === label);
+      return hit ? [hit.optionId] : firstLegal(s);
+    }
+    if (choice.prompt.kind === "chooseTarget" && choice.prompt.slot === "character") {
+      const next = nextCards.shift();
+      const hit = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === next);
+      return hit ? [hit.optionId] : firstLegal(s);
+    }
+    return firstLegal(s);
+  };
+};
+/** The character each pass of Security Cameras was about, in order. */
+const passesOf = (events: ReturnType<typeof villainPhase>["events"]): InstanceId[] =>
+  types(events, "targetChosen")
+    .filter((e) => e.slot === "character")
+    .flatMap((e) => [...e.instanceIds]);
+
 describe("Security Cameras (50097)", () => {
   it("data: no stats or keywords, 2 boost icons, a Hero and an Alter-Ego When Revealed", () => {
     const card = dataOf(CAMERAS);
@@ -1183,12 +1225,111 @@ describe("Security Cameras (50097)", () => {
     expect(threat(state, alertOf(state))).toBe(2);
   });
 
-  it("Hero: the When Revealed (Hero) half is skipped, not scripted: it does nothing (documented in BATROC_SKIPPED)", () => {
-    const t = alertSet(game(1), 1);
-    const { state, events } = villainPhase(t, firstLegal, BLANK, CAMERAS, BLANK);
+  // Hero half. Batroc's activation attack comes first and places 1 threat on Alert Level (his Forced Response), so
+  // every count below starts 1 above what the test staged. Threshold with one player: 4.
+  it("Hero, identity only, exhaust chosen: one prompt with both options, the hero is exhausted, Alert Level 0 -> 1 (the attack only)", () => {
+    const t = game(1);
+    const asked: string[][] = [];
+    const { state, events } = villainPhase(t, cameras([EXHAUST], [], asked), BLANK, CAMERAS, BLANK);
     expect(revealedCodes(state, events)).toEqual([CAMERAS]);
-    // Batroc's activation attack places 1 threat; the unscripted hero half places and exhausts nothing.
-    expect(threat(state, alertOf(state))).toBe(2);
+    expect(asked).toEqual([[EXHAUST, THREAT]]);
+    expect(inst(state, identityOf(t.state, P1)).exhausted).toBe(true);
+    expect(threat(state, alertOf(state))).toBe(1);
+  });
+
+  it("Hero, identity only, threat chosen: the hero stays ready, Alert Level 0 -> 1 (attack) -> 2", () => {
+    const t = game(1);
+    const { state } = villainPhase(t, cameras([THREAT]), BLANK, CAMERAS, BLANK);
     expect(inst(state, identityOf(t.state, P1)).exhausted).toBe(false);
+    expect(threat(state, alertOf(state))).toBe(2);
+    expect(side(state)).toBe("Low");
+  });
+
+  it("Hero on the High side: the threat option places 2 instead, 0 -> 1 (attack) -> 3", () => {
+    const t = alertSet(game(1), 0, true);
+    const { state } = villainPhase(t, cameras([THREAT]), BLANK, CAMERAS, BLANK);
+    expect(threat(state, alertOf(state))).toBe(3);
+    expect(side(state)).toBe("High");
+    expect(state.outcome).toBeNull();
+  });
+
+  it("Hero, identity plus two allies, mixed: the player picks the order; exhaust the hero, threat for the first captive, exhaust the second: 0 -> 1 -> 2", () => {
+    const first = withCaptive(game(1), P1);
+    const second = withCaptive(first.t, P1);
+    const t = second.t;
+    const hero = identityOf(t.state, P1);
+    const asked: string[][] = [];
+    const { state, events } = villainPhase(
+      t,
+      cameras([EXHAUST, THREAT, EXHAUST], [hero, first.id], asked),
+      BLANK,
+      CAMERAS,
+      BLANK,
+    );
+    expect(passesOf(events)).toEqual([hero, first.id, second.id]);
+    expect(asked).toEqual([
+      [EXHAUST, THREAT],
+      [EXHAUST, THREAT],
+      [EXHAUST, THREAT],
+    ]);
+    expect([hero, first.id, second.id].map((id) => inst(state, id).exhausted)).toEqual([true, false, true]);
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("Hero, three characters all paying threat from Low at 1: 2 (attack), 3, 4 flips to High with no threat, and the third pass places 2", () => {
+    const first = withCaptive(game(1), P1);
+    const second = withCaptive(first.t, P1);
+    const t = alertSet(second.t, 1);
+    const { state } = villainPhase(t, cameras([THREAT, THREAT, THREAT]), BLANK, CAMERAS, BLANK);
+    expect(side(state)).toBe("High");
+    expect(threat(state, alertOf(state))).toBe(2);
+    expect(state.outcome).toBeNull();
+    for (const id of [identityOf(t.state, P1), first.id, second.id]) expect(inst(state, id).exhausted).toBe(false);
+  });
+
+  it("Hero, a character already exhausted (the hero defended Batroc's attack): no prompt, it cannot be exhausted again, 1 threat placed: 0 -> 1 -> 2", () => {
+    const t = game(1);
+    const hero = identityOf(t.state, P1);
+    const asked: string[][] = [];
+    const { state, events } = villainPhase(t, cameras([EXHAUST], [], asked, true), BLANK, CAMERAS, BLANK);
+    // Spider-Man defended (DEF 3 against ATK 2) and is exhausted for it.
+    expect(types(events, "attackResolved")[0]).toMatchObject({ targetInstanceId: hero, defenseReduction: 3 });
+    expect(passesOf(events)).toEqual([hero]);
+    expect(asked).toEqual([]);
+    expect(inst(state, hero).exhausted).toBe(true);
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("Hero, an exhausted hero and a ready ally: only the ally is offered the exhaust; exhausting it leaves 0 -> 1 -> 2", () => {
+    const { t, id } = withCaptive(game(1), P1);
+    const hero = identityOf(t.state, P1);
+    const asked: string[][] = [];
+    const { state } = villainPhase(t, cameras([EXHAUST], [hero], asked, true), BLANK, CAMERAS, BLANK);
+    expect(asked).toEqual([[EXHAUST, THREAT]]);
+    expect([hero, id].map((c) => inst(state, c).exhausted)).toEqual([true, true]);
+    expect(threat(state, alertOf(state))).toBe(2);
+  });
+
+  it("two players, P1 in alter-ego and P2 in hero form, each revealing a copy: P1's removes 1 and surges, P2's asks P2 only: 2 -> 3 (attack on P2) -> 2 -> 3", () => {
+    const t = alertSet(alterEgo(game()), 2);
+    const askedOf: PlayerId[] = [];
+    const pick = cameras([THREAT]);
+    const { state, events } = villainPhase(
+      t,
+      (s) => {
+        if (s.pendingChoice!.prompt.kind === "chooseOption") askedOf.push(s.pendingChoice!.playerId);
+        return pick(s);
+      },
+      FILL,
+      FILL,
+      CAMERAS,
+      CAMERAS,
+      BLANK,
+    );
+    expect(revealedCodes(state, events)).toEqual([CAMERAS, BLANK, CAMERAS]);
+    expect(askedOf).toEqual([P2]);
+    expect(passesOf(events)).toEqual([identityOf(t.state, P2)]);
+    expect(threat(state, alertOf(state))).toBe(3);
+    expect([P1, P2].map((p) => inst(state, identityOf(t.state, p)).exhausted)).toEqual([false, false]);
   });
 });

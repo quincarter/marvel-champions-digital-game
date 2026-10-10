@@ -67,6 +67,7 @@ import {
   type DiscardCombined,
   type InPlayCostMode,
   type InPlayCostPick,
+  tuckedPickOf,
   fixedResourcesOf,
   resourcesChoiceOf,
 } from "./abilities.js";
@@ -1153,7 +1154,7 @@ function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
   const definition = deps.abilities[abilityId];
   const cost = definition?.cost;
   if (definition?.trigger.kind !== "resource" || definition.limit || !cost) return false;
-  const pickKeys = new Set(["exhaustCards", "returnToHand", "discardCards"]);
+  const pickKeys = new Set(["exhaustCards", "returnToHand", "discardCards", "discardTucked"]);
   return inPlayPicksOf(cost).length > 0 && Object.entries(cost).every(([key, v]) => pickKeys.has(key) || !v);
 }
 
@@ -2700,6 +2701,14 @@ function eligibleForInPlayPick(
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  // "Discard a card tucked here →" (`TuckedCostPick`): the cards under the one card named, which the payer controls.
+  const tucked = tuckedPickOf(pick);
+  if (tucked) {
+    const hosts = resolveRef(state, tucked.under, context);
+    const [host] = hosts;
+    if (hosts.length !== 1 || host === undefined || controllerOf(state, host) !== playerId) return [];
+    return (getInstance(state, host)?.tucked ?? []).filter((id) => matchesQuery(state, id, pick.query, context));
+  }
   // RRG 1.8 "Cost" (p. 14): costs are paid with cards the player controls, except for an alliance card, whose costs
   // any player may help pay (RRG 1.8 "Alliance", p. 6): "exhaust an [Avenger] character and a [Guardian] character"
   // may take another player's characters (docs/phase7-wave4.md §3.17).
@@ -2732,6 +2741,8 @@ function canPayInPlayPick(
   mode: InPlayCostMode,
   pick: InPlayCostPick,
 ): boolean {
+  // A tucked card is out of play (RRG 1.8 "Tuck", p. 45): nothing that keeps a card in play keeps it tucked.
+  if (tuckedPickOf(pick)) return true;
   const instance = mustInstance(state, id);
   if (mode === "exhaust") return !instance.exhausted;
   if (mode === "ready") return canPayReadyCost(state, deps, id, sourceId);
@@ -2766,9 +2777,15 @@ function planInPlayPick(
             : "return to hand";
   const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
   const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode, pick));
+  const tucked = tuckedPickOf(pick) !== null;
   const whyNot = (id: InstanceId): PriceFault =>
     !eligible.includes(id)
-      ? { code: "no_valid_target", message: `${id} is not a card in play you control that can pay ${pick.slot}` }
+      ? {
+          code: "no_valid_target",
+          message: tucked
+            ? `${id} is not a card tucked there that can pay ${pick.slot}`
+            : `${id} is not a card in play you control that can pay ${pick.slot}`,
+        }
       : mode === "exhaust"
         ? { code: "already_exhausted", message: `${id} is already exhausted` }
         : mode === "ready"
@@ -2796,7 +2813,12 @@ function planInPlayPick(
     const blocked = eligible.find((id) => !candidates.includes(id));
     return blocked && eligible.length >= pick.min
       ? whyNot(blocked)
-      : { code: "no_valid_target", message: `not enough cards you control to ${verb} for this cost` };
+      : {
+          code: "no_valid_target",
+          message: tucked
+            ? `not enough tucked cards to ${verb} for this cost`
+            : `not enough cards you control to ${verb} for this cost`,
+        };
   }
   // No picks given: pay only a forced choice (exactly `min` candidates); otherwise the choice is the player's.
   const picks = choices[pick.slot] ?? (candidates.length === pick.min ? candidates : undefined);
@@ -3203,6 +3225,10 @@ export function payCost(
           bindings: { [pick.slot]: ids },
         });
       }
+    } else if (tuckedPickOf(pick)) {
+      // "Discard a card tucked here →" (`TuckedCostPick`): the move an effect's discard of a tucked card makes
+      // (`EffectSpec moveCards` to "discard"), from this ability's card, so both are heard alike (§4.1 Q7).
+      moveCardsTo(ctx, ids, "discard", undefined, source, { sourceInstanceId: sourceId });
     } else if (mode === "discard") {
       for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id, source);
     } else {

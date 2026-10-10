@@ -283,6 +283,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
+  if (effect.kind === "forEachCard" || effect.kind === "forEachCardPass")
+    return executeForEachCard(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
   if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
   if (effect.kind === "chooseCardType") return executeChooseCardType(ctx, frame, effect, context);
@@ -1784,6 +1786,80 @@ function executeLookAt(
     maxSelections: rearranges ? ids.length : 0,
     frameId: frame.frameId,
     ...(rearranges ? { ordered: true } : {}),
+  });
+}
+
+/** Where a card is, as one comparable string: a `forEachCard` skips a card that is no longer there. */
+const zoneKey = (state: GameState, id: InstanceId): string => JSON.stringify(locateCard(state, id));
+
+/**
+ * `EffectSpec forEachCard` (RRG 1.8 "'For Each'", p. 20): one pass of `effects` per card, that card bound to `slot`.
+ * The first visit fixes the set and replaces the frame's effect by a `forEachCardPass` holding the waiting cards with
+ * their zones. Every later visit (the frame is re-read after each pass, the cursor still here) drops the cards that
+ * are no longer in that zone, asks the chooser which of two or more waiting cards is next, and pushes that card's pass
+ * as a frame of its own that hands nothing back: a pass's bindings are its own instance's. The cursor moves on once
+ * no card is waiting.
+ */
+function executeForEachCard(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "forEachCard" | "forEachCardPass" }>,
+  context: EffectContext,
+): void {
+  const replaceWith = (pass: EffectSpec | null, answer: Frame<"effects">["answer"] = frame.answer) =>
+    setFrame(ctx, {
+      ...frame,
+      answer,
+      ...(pass
+        ? { effects: [...frame.effects.slice(0, frame.cursor), pass, ...frame.effects.slice(frame.cursor + 1)] }
+        : { cursor: frame.cursor + 1 }),
+    });
+  if (effect.kind === "forEachCard") {
+    const ids = [...new Set(resolveRef(ctx.state, effect.cards, context))];
+    const { cards: _cards, kind: _kind, ...rest } = effect;
+    replaceWith({
+      kind: "forEachCardPass",
+      ...rest,
+      waiting: ids.map((instanceId) => ({ instanceId, zone: zoneKey(ctx.state, instanceId) })),
+    });
+    return;
+  }
+  const waiting = effect.waiting.filter((card) => zoneKey(ctx.state, card.instanceId) === card.zone);
+  if (waiting.length === 0) return replaceWith(null, null);
+  const chooserRef = effect.chooser ?? { kind: "controller" };
+  const [chooser] = resolvePlayers(ctx.state, chooserRef, context);
+  if (chooser && waiting.length > 1 && frame.answer === null) {
+    if (waiting.length !== effect.waiting.length) replaceWith({ ...effect, waiting });
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, chooserRef),
+      prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
+      options: cardOptions(
+        ctx,
+        waiting.map((card) => card.instanceId),
+      ),
+      minSelections: 1,
+      maxSelections: 1,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const answered = frame.answer?.[0];
+  const next = waiting.find((card) => card.instanceId === answered) ?? waiting[0]!;
+  replaceWith({ ...effect, waiting: waiting.filter((card) => card !== next) }, null);
+  emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: [next.instanceId] });
+  pushEffects(ctx, {
+    effects: effect.effects,
+    selfInstanceId: frame.selfInstanceId,
+    abilityId: frame.abilityId,
+    instruction: frame.instruction,
+    controllerId: frame.controllerId,
+    event: frame.event,
+    eventFrameId: frame.eventFrameId,
+    bindings: { ...frame.bindings, [effect.slot]: [next.instanceId] },
+    vars: frame.vars,
+    scopedPlayerId: frame.scopedPlayerId,
+    byPlayer: frame.byPlayer === true,
   });
 }
 

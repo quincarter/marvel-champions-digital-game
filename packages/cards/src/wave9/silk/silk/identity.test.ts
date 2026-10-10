@@ -3,6 +3,8 @@ import {
   activeEncounterDeckId,
   handSize,
   maxHitPoints,
+  applyCommand,
+  legalActions,
   requiredIdentitySet,
   type Command,
   type GameState,
@@ -20,6 +22,7 @@ import {
   runWith,
   settle,
   stackEncounterDeck,
+  use,
   type Picker,
 } from "../../../testing/harness.js";
 import { driveEventsPicking, encounterCardInVillainArea, withDamage, withForm } from "../../../testing/staging.js";
@@ -106,7 +109,7 @@ function withWoundedMinion(code = MERC, damage = 1): { readonly state: GameState
 }
 
 describe("Silk identity registry", () => {
-  for (const ref of [CAP, SENSE, CINDY_CAP]) {
+  for (const ref of [CAP, SENSE, CINDY_CAP, CINDY_ACTION]) {
     it(`${ref} validates`, () => {
       expect(validateDefinition(SILK_IDENTITY[ref]!)).toEqual([]);
     });
@@ -115,11 +118,15 @@ describe("Silk identity registry", () => {
     expect(SILK_IDENTITY[CAP]!.trigger).toMatchObject({ kind: "stateCheck" });
     expect(SILK_IDENTITY[CINDY_CAP]!.trigger).toMatchObject({ kind: "stateCheck" });
     expect(SILK_IDENTITY[SENSE]!.trigger).toMatchObject({ kind: "response", forced: false });
-    expect(Object.keys(SILK_IDENTITY).sort()).toEqual([CAP, CINDY_CAP, SENSE].sort());
+    expect(Object.keys(SILK_IDENTITY).sort()).toEqual([CAP, CINDY_ACTION, CINDY_CAP, SENSE].sort());
   });
-  it(`${CINDY_ACTION} is skipped with a reason; every printed ref is registered or skipped`, () => {
-    expect(Object.keys(SILK_IDENTITY_SKIPPED)).toEqual([CINDY_ACTION]);
-    expect(SILK_IDENTITY_SKIPPED[CINDY_ACTION]).toMatch(/AbilityCost/);
+  it(`${CINDY_ACTION} is an action with a tucked-card cost, once per round; nothing is skipped and every printed ref is registered`, () => {
+    expect(SILK_IDENTITY_SKIPPED).toEqual({});
+    expect(SILK_IDENTITY[CINDY_ACTION]).toMatchObject({
+      trigger: { kind: "action" },
+      cost: { discardTucked: { under: { kind: "self" }, min: 1, max: 1 } },
+      limit: { count: 1, period: "round" },
+    });
     const printed = [...IDENTITY.hero.abilities, ...IDENTITY.alterEgo.abilities].map((a) => a.id as string);
     expect(printed.sort()).toEqual([CAP, CINDY_ACTION, CINDY_CAP, SENSE].sort());
     expect(IDENTITY.hero.abilities.map((a) => a.id as string)).toContain(SENSE);
@@ -313,5 +320,119 @@ describe(`${CAP}: more than 4 tucked cards here, discard all but 4`, () => {
     const s = withForm(patchInstance(five, identityOf(five), { damage: 1 }), "alterEgo");
     const { state } = driveEventsPicking(SILK_DEPS, s, firstLegal, { type: "basicRecover", playerId: P1 });
     expect(tuckedOf(state)).toHaveLength(4);
+  });
+});
+
+describe(`${CINDY_ACTION}: Action: Discard a card tucked here → draw 2 cards. (Limit once per round.)`, () => {
+  /** Cindy Moon (alter-ego form, hand of 6) with these Rhino-set cards tucked, in this order. */
+  function cindyWith(...codes: readonly string[]): { readonly state: GameState; readonly ids: readonly InstanceId[] } {
+    let state = silkGame();
+    const ids: InstanceId[] = [];
+    for (const code of codes) {
+      const tucked = tuckEncounterCard(state, code);
+      state = tucked.state;
+      ids.push(tucked.id);
+    }
+    return { state, ids };
+  }
+  const cindy = (s: GameState, pick?: InstanceId): Command =>
+    use(P1, identityOf(s), CINDY_ACTION, [], pick ? { discarded: [pick] } : undefined);
+  const handOf = (s: GameState): number => playerOf(s, P1).hand.length;
+  /** How `legalActions` lists the action: "legal", or the engine's reason for refusing it; null when not listed. */
+  function listed(s: GameState): string | null {
+    const actions = legalActions(s, P1, SILK_DEPS);
+    if (actions.kind !== "turn") return null;
+    const mine = (a: { readonly action: unknown }) => JSON.stringify(a.action).includes(`"${CINDY_ACTION}"`);
+    if (actions.legal.some(mine)) return "legal";
+    return actions.illegal.find(mine)?.reason ?? null;
+  }
+
+  it("0 tucked: the cost cannot be paid, so the action is not legal and the command is refused with nothing drawn", () => {
+    const { state } = cindyWith();
+    expect(listed(state)).toBe("no_valid_target");
+    const result = applyCommand(state, cindy(state), SILK_DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toBe("not enough tucked cards to discard for this cost");
+  });
+
+  it("1 tucked (Hydra Mercenary): it goes to the encounter discard pile, nothing stays tucked, hand 6 to 8, deck 34 to 32", () => {
+    const { state, ids } = cindyWith(MERC);
+    expect(listed(state)).toBe("legal");
+    expect([handOf(state), playerOf(state, P1).deck.length]).toEqual([6, 34]);
+    const { state: after, events } = driveEventsPicking(SILK_DEPS, state, firstLegal, cindy(state));
+    expect(tuckedOf(after)).toEqual([]);
+    expect(encounterDiscard(after)).toEqual([...encounterDiscard(state), ids[0]]);
+    expect([handOf(after), playerOf(after, P1).deck.length]).toEqual([8, 32]);
+    // The move owner question 7 turns on: out of the tucked zone, under the identity, into the encounter discard pile.
+    expect(events.filter((e) => e.type === "cardMoved" && e.from.kind === "tucked")).toEqual([
+      {
+        type: "cardMoved",
+        instanceId: ids[0],
+        cardId: MERC,
+        from: { kind: "tucked", hostInstanceId: identityOf(state) },
+        to: { kind: "encounterDiscard", deckId: activeEncounterDeckId(state) },
+      },
+    ]);
+  });
+
+  it("4 tucked: the player must name one; naming the third (Shocker) discards only it, the other 3 stay in order, hand 6 to 8", () => {
+    const { state, ids } = cindyWith(MERC, SANDMAN, SHOCKER, SIDE);
+    expect(listed(state)).toBe("legal");
+    const bare = applyCommand(state, cindy(state), SILK_DEPS);
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(bare.error.code).toBe("invalid_choice");
+    const { state: after } = driveEventsPicking(SILK_DEPS, state, firstLegal, cindy(state, ids[2]));
+    expect(tuckedOf(after)).toEqual([ids[0], ids[1], ids[3]]);
+    expect(tuckedCodes(after)).toEqual([MERC, SANDMAN, SIDE].sort());
+    expect(encounterDiscard(after)).toContain(ids[2]);
+    expect(handOf(after)).toBe(8);
+  });
+
+  it("a treachery and a side scheme tucked here pay it just as a minion does", () => {
+    for (const code of [TOUGH, SIDE]) {
+      const { state, ids } = cindyWith(code);
+      const { state: after } = driveEventsPicking(SILK_DEPS, state, firstLegal, cindy(state));
+      expect(encounterDiscard(after), code).toContain(ids[0]);
+      expect(handOf(after), code).toBe(8);
+    }
+  });
+
+  it("a card that is not tucked here cannot pay: naming a card in hand is refused", () => {
+    const { state } = cindyWith(MERC);
+    const result = applyCommand(state, cindy(state, playerOf(state, P1).hand[0]), SILK_DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+  });
+
+  it("limit once per round: with 2 tucked the second use this round is refused; 1 stays tucked and the hand stays at 8", () => {
+    const { state, ids } = cindyWith(MERC, SANDMAN);
+    const { state: once } = driveEventsPicking(SILK_DEPS, state, firstLegal, cindy(state, ids[0]));
+    expect(tuckedOf(once)).toEqual([ids[1]]);
+    expect(listed(once)).not.toBe("legal");
+    expect(applyCommand(once, cindy(once), SILK_DEPS).ok).toBe(false);
+    expect([tuckedOf(once).length, handOf(once)]).toEqual([1, 8]);
+  });
+
+  it("the limit is per round: after the villain phase, back in alter-ego form on her next turn, the second tucked card pays it", () => {
+    const { state, ids } = cindyWith(MERC, SANDMAN);
+    const { state: once } = driveEventsPicking(SILK_DEPS, state, firstLegal, cindy(state, ids[0]));
+    const { state: next } = driveEventsPicking(SILK_DEPS, once, firstLegal, { type: "endTurn", playerId: P1 });
+    expect(next.outcome).toBeNull();
+    expect(playerOf(next, P1).identity.form).toBe("alterEgo");
+    expect(tuckedOf(next)).toEqual([ids[1]]);
+    expect(listed(next)).toBe("legal");
+    const before = handOf(next);
+    const { state: twice } = driveEventsPicking(SILK_DEPS, next, firstLegal, cindy(next));
+    expect(tuckedOf(twice)).toEqual([]);
+    expect(encounterDiscard(twice)).toContain(ids[1]);
+    expect(handOf(twice)).toBe(before + 2);
+  });
+
+  it("alter-ego face only: in hero form (Silk) the action is not available, with a card tucked", () => {
+    const { state } = cindyWith(MERC);
+    const silk = withForm(state, { heroForm: 0 });
+    expect(listed(silk)).not.toBe("legal");
+    expect(applyCommand(silk, cindy(silk), SILK_DEPS).ok).toBe(false);
+    expect(tuckedOf(silk)).toHaveLength(1);
   });
 });

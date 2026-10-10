@@ -2239,6 +2239,41 @@ export type EffectSpec =
    * choose resolves as far as it can and the next pass still runs.
    */
   | { readonly kind: "repeatTimes"; readonly times: ValueSpec; readonly effects: readonly EffectSpec[] }
+  /**
+   * "**For each** character you control, choose to either exhaust **that character** or …": `effects` resolve once for
+   * each card `cards` names, with that card bound to `slot` for the pass (`repeatTimes` binds nothing per pass, so
+   * "that character" has nothing to read there).
+   *
+   * The set is fixed as the effect begins: a card that joins it later gets no pass. Each pass is a separate instance
+   * and the game state updates after each (RRG 1.8 "'For Each'", p. 20), so a pass starts from the bindings the
+   * ability held when the loop began plus its own card, and sees nothing an earlier pass bound. A card that is no
+   * longer in the zone it was in when the effect began (it left play, or changed controller) by the time its pass
+   * would start is skipped: "that character" would name nothing.
+   *
+   * The RRG gives the passes no order, and one pass can change what the next one does (a threshold crossed, a card
+   * leaving play), so while two or more cards are waiting `chooser` (default: the ability's controller, or the
+   * resolving player of an encounter card) picks the next one (`ChoicePrompt chooseTarget` on `slot`, offering the
+   * waiting cards); the last card is taken without asking. With nobody to ask, the set's own order is used.
+   */
+  | {
+      readonly kind: "forEachCard";
+      readonly cards: TargetRef;
+      readonly slot: string;
+      readonly chooser?: PlayerRef;
+      readonly effects: readonly EffectSpec[];
+    }
+  /**
+   * **Engine-internal; no DSL builder.** A `forEachCard` under way: the frame's own `forEachCard` is replaced by this
+   * as it begins, holding the cards still waiting for their pass and the zone each was in at that moment
+   * (`resolve/effects-frame.ts` `executeForEachCard`).
+   */
+  | {
+      readonly kind: "forEachCardPass";
+      readonly slot: string;
+      readonly chooser?: PlayerRef;
+      readonly effects: readonly EffectSpec[];
+      readonly waiting: readonly { readonly instanceId: InstanceId; readonly zone: string }[];
+    }
   /** Interrupt to threat being placed: "prevent 1 of that threat" (Jennifer Walters). `amount` absent = all. */
   | { readonly kind: "preventThreat"; readonly amount?: ValueSpec }
   /**

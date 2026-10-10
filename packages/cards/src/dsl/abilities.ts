@@ -2149,6 +2149,29 @@ export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): 
   discardCards: inPlayPick(q, opts, "discarded"),
 });
 /**
+ * "Discard a card tucked here →" (Cindy Moon, `silk` 52001b; docs/phase7-wave9.md §3.39): `min`–`max` (default 1) of
+ * the cards tucked under `under` (default: this card), the payer choosing which, discarded to pay. Payable only while
+ * that many are tucked there, under a card the payer controls. `filter` narrows which tucked cards can pay. The cards
+ * are bound to `"discarded"` (or `slot`), their count to `bind`. `AbilityCost.discardTucked`.
+ */
+export const discardTuckedCost = (
+  under: TargetRef = { kind: "self" },
+  opts: Pick<InPlayCostOptions, "min" | "max" | "slot" | "bind"> & { readonly filter?: TargetQuery } = {},
+): AbilityCost => {
+  const min = opts.min ?? 1;
+  const max = opts.max === undefined ? min : opts.max;
+  return {
+    discardTucked: {
+      slot: opts.slot ?? "discarded",
+      query: opts.filter ?? {},
+      under,
+      min,
+      ...(max !== "any" ? { max } : {}),
+      ...(opts.bind ? { bind: opts.bind } : {}),
+    },
+  };
+};
+/**
  * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
  * the picked character takes `amount` damage from this card, and the cost is payable only while a candidate could take
  * all of it (`AbilityCost.damageCards`). Same picking rules as `exhaustCardsCost`; the cards are bound to `"damaged"`.

@@ -1,6 +1,7 @@
 import {
   GRANTED_BY_SLOT,
   inPlayPicksOf,
+  tuckedPickOf,
   isResourcesChoice,
   MOMENT_PREFIX,
   TOGETHER_TARGETS_SLOT,
@@ -179,7 +180,14 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
       return: "returnToHand",
       damage: "damageCards",
     };
-    const name = names[mode];
+    const tucked = tuckedPickOf(pick);
+    const name = tucked ? "discardTucked" : names[mode];
+    // "Discard a card tucked here →" (`TuckedCostPick`): a pick among out-of-play cards, so nothing that reads a card
+    // in play applies to it.
+    if (tucked && (pick.each || pick.includesSelf || pick.superlative || pick.bindHosts || pick.snapshotStats))
+      problems.push(
+        `cost ${name}: each, includesSelf, superlative, bindHosts and snapshotStats read cards in play, not tucked cards`,
+      );
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     // "This card and up to N others" (`InPlayCostPick.includesSelf`): one pick the card itself is part of.
     if (pick.includesSelf && pick.each)
@@ -622,6 +630,7 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
       return [effect.with];
     case "repeatWhile":
     case "repeatTimes":
+    case "forEachCard":
       return [effect.effects];
     default:
       return [];
@@ -889,6 +898,22 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
       checkRefs(effect.times, scope, `${where} times`, problems);
       const pass: Scope = {
         slots: new Set(scope.slots),
+        vars: new Set(scope.vars),
+        prefixes: new Set(scope.prefixes),
+      };
+      walk(effect.effects, pass, `${where}/0`, problems);
+      return;
+    }
+    // "For each character you control, … that character" (RRG 1.8 "'For Each'", p. 20): the pass's card is read under
+    // `slot` inside the repeated effects only, and nothing a pass binds is handed to the effects after the loop.
+    if (effect.kind === "forEachCard") {
+      if (effect.slot.length === 0) problems.push(`${where}: forEachCard needs a slot name for the pass's card`);
+      if (scope.slots.has(effect.slot))
+        problems.push(`${where}: forEachCard slot "${effect.slot}" is already bound earlier in the ability`);
+      if (effect.effects.length === 0) problems.push(`${where}: forEachCard repeats no effects`);
+      checkRefs(effect.cards, scope, `${where} cards`, problems);
+      const pass: Scope = {
+        slots: new Set([...scope.slots, effect.slot]),
         vars: new Set(scope.vars),
         prefixes: new Set(scope.prefixes),
       };

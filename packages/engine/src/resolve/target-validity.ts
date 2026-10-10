@@ -705,6 +705,8 @@ function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
     case "repeatWhile":
     case "repeatTimes":
     case "forEachPlayer":
+    case "forEachCard":
+    case "forEachCardPass":
       return [effect.effects];
     case "chooseOne":
       return effect.options.map((option) => option.effects);

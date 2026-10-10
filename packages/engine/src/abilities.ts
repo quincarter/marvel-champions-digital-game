@@ -2433,6 +2433,11 @@ export interface AbilityCost {
    */
   readonly discardCards?: InPlayCostPick;
   /**
+   * "Discard a card tucked here →" (Cindy Moon, `silk` 52001b; docs/phase7-wave9.md §3.39): cards tucked under a card
+   * discarded as part of the cost, the payer choosing which. See `TuckedCostPick`.
+   */
+  readonly discardTucked?: TuckedCostPick;
+  /**
    * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
    * the picked character(s) each take `amount` damage from this card as the cost. See `InPlayCostPick` for the pick.
    *
@@ -2604,12 +2609,40 @@ export interface DamageCostPick extends InPlayCostPick {
   readonly amount: number;
 }
 
+/**
+ * `AbilityCost.discardTucked`: a pick among the cards tucked under `under`, each discarded as the cost. It is asked,
+ * defaulted, checked and bound as an `InPlayCostPick` in mode `discard` is (`costChoices[slot]`, `min`–`max`, `bind`,
+ * a forced pick paying itself), with these differences:
+ *
+ * - **Candidates.** The cards tucked under the one card `under` names (the ability's card as `self`, the payer as
+ *   `you`), in tuck order, that match `query` (`{}`: any of them). Tucked cards are out of play and nobody controls
+ *   them (RRG 1.8 "Tuck", p. 45), so it is the card they are under that the payer must control (RRG 1.8 "Cost", p. 14:
+ *   paid "with cards and/or game elements they control"); `under` naming no card, several, or a card of another
+ *   player leaves no candidate.
+ * - **Payable** only while at least `min` cards are there (RRG 1.8 "Cost", p. 13: paid in full or not at all;
+ *   "Initiating Abilities", p. 24, steps 3 and 5). Nothing stops a tucked card being discarded: it is not in play, so
+ *   "cannot leave play" and Permanent do not apply to it.
+ * - **Paid** by the same move as an effect that discards a tucked card (`moveCardsTo(…, "discard")`, with this
+ *   ability's card as the source): each goes to its owner's discard pile, an encounter card to the encounter discard
+ *   pile, and the log holds the same `cardMoved` out of the `tucked` zone. Whatever later answers a tucked card's
+ *   discard "by a player card effect" (docs/phase7-wave9.md §3.40, §4.1 Q7) hears a cost and an effect alike.
+ * - `each`, `includesSelf`, `superlative`, `bindHosts` and `snapshotStats` are for cards in play and are not read.
+ */
+export interface TuckedCostPick extends InPlayCostPick {
+  readonly under: TargetRef;
+}
+
+/** The pick as a `TuckedCostPick` when it is one (`AbilityCost.discardTucked`), else null. */
+export const tuckedPickOf = (pick: InPlayCostPick): TuckedCostPick | null =>
+  "under" in pick ? (pick as TuckedCostPick) : null;
+
 /** How an `InPlayCostPick` spends its cards. */
 export type InPlayCostMode = "exhaust" | "ready" | "return" | "discard" | "damage";
 
 /**
  * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the ready pick, the return
- * pick, the discard pick, the damage pick.
+ * pick, the discard pick, the tucked-card discard pick (mode `discard` too; told apart by `tuckedPickOf`), the damage
+ * pick.
  */
 export function inPlayPicksOf(
   cost: AbilityCost | undefined,
@@ -2622,6 +2655,7 @@ export function inPlayPicksOf(
     ...(cost.readyCards ? [{ mode: "ready" as const, pick: cost.readyCards }] : []),
     ...listOf(cost.returnToHand).map((pick) => ({ mode: "return" as const, pick })),
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
+    ...(cost.discardTucked ? [{ mode: "discard" as const, pick: cost.discardTucked }] : []),
     ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
   ];
 }

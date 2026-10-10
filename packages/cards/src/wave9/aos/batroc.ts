@@ -6,6 +6,7 @@ import {
   after,
   bindTargets,
   cannotLeavePlay,
+  chooseOne,
   chooseOneBy,
   chooseTarget,
   chosen,
@@ -27,12 +28,14 @@ import {
   exhaustThis,
   firstPlayer,
   flipCard,
+  forEachCard,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
   gets,
   hasTrait,
   heroAction,
+  ifElse,
   ifThen,
   inMode,
   instead,
@@ -124,8 +127,8 @@ const atAlertThreshold = () => threatAtLeast(self, perHero(4));
  * take prevents 2 and removes a leap counter; its boost puts it into play (it attaches to Batroc as its "Attach to"
  * text says and enters play with its 4 leap counters, which the generic attach effect would not place). Leaping Kick: the first player picks among the allies tied for the most
  * remaining hit points (RRG "First Player", p. 19); the attack is an ordinary enemy attack on that ally, so Batroc's
- * own "After Batroc attacks" answers it (owner decision Q5 = A). Security Cameras (Hero) is skipped, see
- * `BATROC_SKIPPED`.
+ * own "After Batroc attacks" answers it (owner decision Q5 = A). Security Cameras (Hero) resolves once per character
+ * the player controls (`forEachCard`), each exhausted or paid for with threat on Alert Level.
  *
  * Cards (10):
  * - 50086a Batroc (villain)
@@ -255,15 +258,29 @@ export const BATROC: AbilityRegistry = defineAbilities({
     ),
   ),
 
-  // Security Cameras (Alter-Ego); the Hero half is in BATROC_SKIPPED.
+  // Security Cameras. Hero: one pass per character the player controls as the card is revealed, that character bound;
+  // the player picks which is next while several wait (the Low side can flip between two passes, RRG 1.8 "'For
+  // Each'", p. 20). An exhausted character cannot be exhausted again (RRG 1.8 "Exhausted", p. 19), so its pass offers
+  // only the threat, which then resolves without a prompt.
   "50097.when-revealed-alter-ego": whenRevealedAlterEgo(removeThreat(1, ALERT_LEVEL), surge()),
+  "50097.when-revealed-hero": whenRevealedHero(
+    forEachCard(
+      "character",
+      each(query("character", { controller: "you" })),
+      chooseOne(
+        option(
+          "Exhaust that character",
+          { when: exists(query("character", { inSlot: "character", exhausted: false })) },
+          exhaust(chosen("character")),
+        ),
+        option(
+          "Place 1 threat on Alert Level (2 on its High side)",
+          placeThreat(ifElse(alertIsHigh(), 2, 1), ALERT_LEVEL),
+        ),
+      ),
+    ),
+  ),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const BATROC_SKIPPED: Readonly<Record<string, string>> = {
-  "50097.when-revealed-hero":
-    "Security Cameras (Hero): 'for each character you control, choose to either exhaust that character or place 1 threat ...' " +
-    "needs the pass's character bound so 'that character' is exhausted once each. Missing: a per-card iteration effect " +
-    "(spec.ts EffectSpec has forEachPlayer and repeatTimes, which binds nothing per pass; with repeatTimes a pass could " +
-    "choose the same character twice, or skip an already exhausted one).",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const BATROC_SKIPPED: Readonly<Record<string, string>> = {};

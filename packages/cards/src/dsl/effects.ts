@@ -918,6 +918,30 @@ export const repeatTimes = (times: Amount, ...effects: readonly EffectArg[]): Ef
   times: amount(times),
   effects: flatten(effects),
 });
+/**
+ * "**For each** character you control, choose to either exhaust **that character** or place 1 threat …" (Security
+ * Cameras, `aos` 50097): `effects` resolve once for each card `cards` names as the effect begins, the pass's card read
+ * with `chosen(slot)`. Each pass is a separate instance (RRG 1.8 "'For Each'", p. 20); a card that left its zone before
+ * its pass is skipped; with two or more cards waiting, `chooser` (default: you) picks which is next.
+ * `forEachCard("character", each(query("character", { controller: "you" })), chooseOne(…))`. A "for each" that never
+ * reads the card is `repeatTimes`.
+ */
+export const forEachCard = (
+  slot: string,
+  cards: TargetRef,
+  ...rest: readonly (EffectArg | { readonly chooser: PlayerRef })[]
+): EffectSpec => {
+  const isOpts = (r: unknown): r is { readonly chooser: PlayerRef } =>
+    !Array.isArray(r) && typeof r === "object" && r !== null && "chooser" in r && !("kind" in r);
+  const opts = rest.find(isOpts);
+  return {
+    kind: "forEachCard",
+    cards,
+    slot,
+    ...(opts ? { chooser: opts.chooser } : {}),
+    effects: flatten(rest.filter((r): r is EffectArg => !isOpts(r))),
+  };
+};
 export const preventThreat = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventThreat" } : { kind: "preventThreat", amount: amount(n) };
 /** "… instead": the interrupted event doesn't happen; these resolve in its place (RRG "Replacement Effect"). */

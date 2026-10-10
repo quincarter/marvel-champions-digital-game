@@ -3367,6 +3367,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "chooseCards":
     case "lookAt":
     case "chooseOne":
+    case "forEachCard":
+    case "forEachCardPass":
     case "choosePlayer":
     case "chooseNumber":
     case "chooseCardType":

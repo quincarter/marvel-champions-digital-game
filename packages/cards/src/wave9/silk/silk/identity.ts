@@ -1,15 +1,19 @@
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  action,
   after,
   bindTargets,
   cards,
   chooseCards,
   chosen,
   defineAbilities,
+  discardTuckedCost,
+  draw,
   encounterCards,
   eventTarget,
   moveCards,
   on,
+  oncePerRound,
   query,
   response,
   self,
@@ -50,7 +54,10 @@ const TUCK_CAP = () =>
  * only if it is in the encounter discard pile when the response resolves: a minion with Victory X sits in the victory
  * display, and a treachery that attached or was shuffled away is elsewhere, so nothing is tucked for them.
  *
- * **52001b.cindy-moon-action** is not scripted: see the skipped map.
+ * **52001b.cindy-moon-action** (alter-ego face): "Action: Discard a card tucked here → draw 2 cards. (Limit once per
+ * round.)" The discard is the cost (RRG 1.8 "Cost", p. 13): with nothing tucked the action cannot be initiated, with
+ * several the player chooses which, and it goes to its owner's discard pile (an encounter card to the encounter
+ * discard pile). It makes the same move as an effect's discard of a tucked card (owner question 7, default A).
  */
 export const SILK_IDENTITY: AbilityRegistry = defineAbilities({
   "52001a.silk-constant": TUCK_CAP(),
@@ -64,10 +71,8 @@ export const SILK_IDENTITY: AbilityRegistry = defineAbilities({
     tuckCards(encounterCards(["discard"], { inSlot: "tuck" }), self),
   ),
   "52001b.cindy-moon-constant": TUCK_CAP(),
+  "52001b.cindy-moon-action": action({ cost: discardTuckedCost(), limit: oncePerRound }, draw(2)),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const SILK_IDENTITY_SKIPPED: Readonly<Record<string, string>> = {
-  "52001b.cindy-moon-action":
-    "needs an AbilityCost that discards a card tucked under this card (a cost, not an effect: RRG 1.8 'Cost' p. 13, owner question 7); AbilityCost has discardCards for cards in play and discardFromHand for the hand but nothing for tucked cards, docs/phase7-wave9.md section 3.39",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const SILK_IDENTITY_SKIPPED: Readonly<Record<string, string>> = {};
