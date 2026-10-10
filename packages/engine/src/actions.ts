@@ -115,6 +115,7 @@ import {
   REMOVE_THREAT_FROM_SLOT,
   REMOVE_THREAT_MAX_VAR,
   REMOVE_THREAT_MIN_VAR,
+  REMOVE_THREAT_VAR,
   removeThreatCostEffects,
   removeThreatCostPlan,
 } from "./remove-threat-cost.js";
@@ -938,6 +939,11 @@ export function generatedResources(
     readonly sourceId: InstanceId;
     readonly playerId: PlayerId;
     readonly bindings?: Bindings;
+    /**
+     * What the ability's own cost will have paid, as the text after the arrow reads it: `cost.removeThreat` for "a
+     * resource for each threat you removed this way" (`resourceCostVars`; docs/phase7-wave9.md §3.7 (b)).
+     */
+    readonly vars?: Vars;
   },
 ): ResourcePool {
   if (generation === undefined) return poolOf({ wild: 1 });
@@ -953,6 +959,7 @@ export function generatedResources(
       controllerId: from.playerId,
       event: null,
       bindings: from.bindings ?? {},
+      ...(from.vars ? { vars: from.vars } : {}),
       deps: from.deps,
     };
     if (generation.kind === "amount") {
@@ -1075,7 +1082,34 @@ function resourceCostPlan(
   spender: PlayerId,
 ): CostPlan | PriceFault {
   const cost = deps.abilities[use.abilityId]?.cost;
-  return planCost(state, deps, use.instanceId, spender, cost, use.costChoices ?? {}, new Set());
+  const plan = planCost(
+    state,
+    deps,
+    use.instanceId,
+    spender,
+    cost,
+    use.costChoices ?? {},
+    new Set(),
+    use.costSelection ?? {},
+  );
+  if (isFault(plan)) return plan;
+  // "Remove up to 2 threat from … →" with no amount named: the most it can (`ResourceAbilityUse.costSelection`). A
+  // use in a payment is priced before it is paid and is not asked in between, so its range is one number here.
+  const most = plan.vars[REMOVE_THREAT_MAX_VAR];
+  if (most === undefined || plan.vars[REMOVE_THREAT_MIN_VAR] === most) return plan;
+  return { ...plan, vars: { ...plan.vars, [REMOVE_THREAT_MIN_VAR]: most } };
+}
+
+/**
+ * What a resource ability's planned cost will have paid, for a generation that reads it: `cost.removeThreat`, the
+ * threat a `removeThreat` cost removes ("generate a [mental] resource for each threat you removed this way";
+ * docs/phase7-wave9.md §3.7 (b)). The amount is the plan's (`resourceCostPlan` leaves a range of one number), which is
+ * what paying it removes, so pricing a payment and paying it agree. RRG 1.8 "Initiating Abilities" (p. 24): the cost is
+ * paid (step 5) before the resources are generated (step 6).
+ */
+function resourceCostVars(plan: CostPlan): Vars {
+  const removed = plan.vars[REMOVE_THREAT_MAX_VAR];
+  return removed === undefined ? {} : { [REMOVE_THREAT_VAR]: removed };
 }
 
 /**
@@ -1096,6 +1130,7 @@ export function resourceAbilityGenerates(
     sourceId: use.instanceId,
     playerId: spender,
     bindings: isFault(plan) ? {} : plan.bindings,
+    vars: isFault(plan) ? {} : resourceCostVars(plan),
   });
 }
 
@@ -1167,14 +1202,50 @@ function resourcePickChoices(
 
 /**
  * The option id of one use of a resource ability: "ability:<id>:<abilityId>", then ":<n>" for the n-th use of a
- * `repeatable` one (docs/phase7-wave5.md §3.25), then "@<slot>=<id>,<id>;…" for the cards its cost picks. Parsed back
- * by `paymentsFromOptionIds`.
+ * `repeatable` one (docs/phase7-wave5.md §3.25), then "@" and, separated by ";", "<slot>=<id>,<id>" for the cards its
+ * cost picks and "#removeThreat=<n>" for the threat a chosen-amount threat cost removes (`CostSelection.removeThreat`;
+ * docs/phase7-wave9.md §3.7 (b)). Parsed back by `paymentsFromOptionIds`.
  */
 export function resourceAbilityOptionId(use: ResourceAbilityUse, n = 1): string {
   const base = `ability:${use.instanceId}:${use.abilityId}${n > 1 ? `:${n}` : ""}`;
-  const choices = Object.entries(use.costChoices ?? {});
-  return choices.length === 0 ? base : `${base}@${choices.map(([slot, ids]) => `${slot}=${ids.join(",")}`).join(";")}`;
+  const parts = Object.entries(use.costChoices ?? {}).map(([slot, ids]) => `${slot}=${ids.join(",")}`);
+  const threat = use.costSelection?.removeThreat;
+  if (threat !== undefined) parts.push(`${REMOVE_THREAT_OPTION}${threat}`);
+  return parts.length === 0 ? base : `${base}@${parts.join(";")}`;
 }
+
+/** The option-id part naming the threat a resource ability's cost removes (`resourceAbilityOptionId`). */
+const REMOVE_THREAT_OPTION = "#removeThreat=";
+
+/**
+ * The amounts a resource ability's chosen-amount threat cost could remove right now, fewest first ("remove up to 2
+ * threat from … →": 1 and 2 with 2 or more threat there); empty when the cost has no such choice, cannot be paid, or
+ * has only one amount to offer. Each amount below the most is its own payment option (`paymentOptions`).
+ */
+function resourceThreatAmounts(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  abilityId: string,
+  spender: PlayerId,
+  choices: CostChoices = {},
+): readonly number[] {
+  const cost = deps.abilities[abilityId]?.cost;
+  if (!cost?.removeThreat || typeof cost.removeThreat.amount === "number") return [];
+  const plan = planCost(state, deps, instanceId, spender, cost, choices, new Set());
+  if (isFault(plan)) return [];
+  const min = plan.vars[REMOVE_THREAT_MIN_VAR] ?? 0;
+  const max = plan.vars[REMOVE_THREAT_MAX_VAR] ?? 0;
+  return max > min ? Array.from({ length: max - min + 1 }, (_, i) => min + i) : [];
+}
+
+/**
+ * A payment source that is another amount of a use already listed: a resource ability's use naming how much threat
+ * its cost removes (`paymentOptions` lists the most as the plain option). A list of everything a player could spend at
+ * once (`legal.ts spendOrder`, the upper bound of `costPayable`) leaves these out, since one use pays one amount.
+ */
+export const isAlternativeAmount = (payment: Payment): boolean =>
+  "ability" in payment && payment.ability.costSelection?.removeThreat !== undefined;
 
 /**
  * RRG "Cost": resources come from cards discarded from hand and from "Resource"
@@ -1480,11 +1551,29 @@ export function paymentOptions(
         continue;
       }
       if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor, group)) continue;
+      // "Remove up to 2 threat from … → generate a resource for each" (docs/phase7-wave9.md §3.7 (b)): the plain
+      // option removes the most; each smaller amount is an option of its own, so each shows what it generates.
+      const amounts = resourceThreatAmounts(ctx.state, ctx.deps, id, ref.id, spender);
+      const most = amounts[amounts.length - 1];
       options.push({
         optionId: `ability:${id}:${ref.id}`,
-        label: mustCardOf(ctx.state, id).name,
+        label:
+          most === undefined
+            ? mustCardOf(ctx.state, id).name
+            : `${mustCardOf(ctx.state, id).name} (remove ${most} threat)`,
         ref: { kind: "ability", instanceId: id, abilityId: ref.id },
       });
+      for (const amount of amounts.slice(0, -1).reverse()) {
+        options.push({
+          optionId: resourceAbilityOptionId({
+            instanceId: id,
+            abilityId: ref.id,
+            costSelection: { removeThreat: amount },
+          }),
+          label: `${mustCardOf(ctx.state, id).name} (remove ${amount} threat)`,
+          ref: { kind: "ability", instanceId: id, abilityId: ref.id },
+        });
+      }
       // A `repeatable` ability (docs/phase7-wave5.md §3.25): one more option per further use its cost can pay for.
       if (!trigger.repeatable) continue;
       for (let n = 2; n <= MAX_REPEAT_OPTIONS; n++) {
@@ -1514,11 +1603,13 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
     if (kind === "hand" && first) payments.push({ fromHand: asInstanceId(first) });
     if (kind === "ability" && first && second) {
       const costChoices = at < 0 ? undefined : pickChoicesFromSuffix(optionId.slice(at + 1));
+      const costSelection = at < 0 ? undefined : costSelectionFromSuffix(optionId.slice(at + 1));
       payments.push({
         ability: {
           instanceId: asInstanceId(first),
           abilityId: asAbilityId(second),
           ...(costChoices ? { costChoices } : {}),
+          ...(costSelection ? { costSelection } : {}),
         },
       });
     }
@@ -1526,12 +1617,20 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
   return payments;
 }
 
-/** "<slot>=<id>,<id>;<slot>=<id>" back into `CostChoices`. */
+/** "#removeThreat=<n>" among an option id's parts back into the use's `CostSelection`. */
+function costSelectionFromSuffix(suffix: string): CostSelection | undefined {
+  const part = suffix.split(";").find((each) => each.startsWith(REMOVE_THREAT_OPTION));
+  if (part === undefined) return undefined;
+  const amount = Number(part.slice(REMOVE_THREAT_OPTION.length));
+  return Number.isInteger(amount) ? { removeThreat: amount } : undefined;
+}
+
+/** "<slot>=<id>,<id>;<slot>=<id>" back into `CostChoices`; a "#…" part is not a slot (`costSelectionFromSuffix`). */
 function pickChoicesFromSuffix(suffix: string): CostChoices | undefined {
   const choices: Record<string, readonly InstanceId[]> = {};
   for (const part of suffix.split(";")) {
     const eq = part.indexOf("=");
-    if (eq <= 0) continue;
+    if (eq <= 0 || part.startsWith("#")) continue;
     choices[part.slice(0, eq)] = part
       .slice(eq + 1)
       .split(",")
@@ -1546,6 +1645,17 @@ export interface UsedResourceAbility {
   readonly instanceId: InstanceId;
   readonly abilityId: AbilityId;
   readonly spender: PlayerId;
+}
+
+/**
+ * The threat cost of a resource ability a payment used (`AbilityCost.removeThreat`; docs/phase7-wave9.md §3.7 (b)):
+ * `amount` threat to come off `fromId`, the amount the payment was priced with (`resourceCostVars`).
+ */
+export interface ResourceThreatCost {
+  readonly instanceId: InstanceId;
+  readonly spender: PlayerId;
+  readonly fromId: InstanceId;
+  readonly amount: number;
 }
 
 /** Resources one player generated in a payment (docs/phase7-wave5.md §3.25). */
@@ -1568,6 +1678,13 @@ export interface SpentPayment {
    * `announceResourcesSpent` so they sit above the card or ability paid for, not below it.
    */
   readonly countersRemoved?: readonly TriggerEvent[];
+  /**
+   * The threat costs of the resource abilities used ("remove up to 2 threat from … → generate a resource for each
+   * threat you removed this way"; docs/phase7-wave9.md §3.7 (b)), held for `announceResourcesSpent` like
+   * `countersRemoved`: the removal is an ordinary `removeThreat` event, which has to sit above the card or ability
+   * paid for so that it resolves first (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6).
+   */
+  readonly threatCosts?: readonly ResourceThreatCost[];
 }
 
 export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [], generated: [] };
@@ -1605,6 +1722,7 @@ export function payPayment(
   const spent: InstanceId[] = [];
   const used: UsedResourceAbility[] = [];
   const countersRemoved: TriggerEvent[] = [];
+  const threatCosts: ResourceThreatCost[] = [];
   let generatedBy: readonly GeneratedByPlayer[] = [];
   // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
   // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
@@ -1642,7 +1760,7 @@ export function payPayment(
       spender,
     );
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
-    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved);
+    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved, threatCosts);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
       type: "resourcesGenerated",
@@ -1662,6 +1780,7 @@ export function payPayment(
     resourceAbilities: used,
     generated: generatedBy,
     ...(countersRemoved.length > 0 ? { countersRemoved } : {}),
+    ...(threatCosts.length > 0 ? { threatCosts } : {}),
   };
 }
 
@@ -1706,6 +1825,16 @@ export function announceResourcesSpent(
       selfInstanceId: instanceId,
       controllerId: spender,
       bindings: payingForInstanceId ? { paidFor: [payingForInstanceId] } : {},
+    });
+  }
+  // A resource ability's threat cost (`SpentPayment.threatCosts`): pushed last of all, so the threat comes off before
+  // the ability's own effects, the "after you spend" windows and the card or ability paid for. The resources were
+  // generated from the planned amount; the removal has no frame to report an unpaid cost to.
+  for (const { instanceId, spender, fromId, amount } of [...(paid.threatCosts ?? [])].reverse()) {
+    pushEffects(ctx, {
+      effects: removeThreatCostEffects({ fromId, min: amount, max: amount }, null),
+      selfInstanceId: instanceId,
+      controllerId: spender,
     });
   }
 }
@@ -2348,9 +2477,17 @@ export function planCost(
   if (cost.removeThreat) {
     const planned = removeThreatCostPlan(state, deps, sourceId, playerId, cost.removeThreat, bindings, vars);
     if ("fault" in planned) return { code: "insufficient_resources", message: planned.fault };
+    // The amount named up front (`CostSelection.removeThreat`) is a range of one number, which is not asked.
+    const named = typeof cost.removeThreat.amount === "number" ? undefined : selection.removeThreat;
+    if (named !== undefined && (!Number.isInteger(named) || named < planned.min || named > planned.max)) {
+      return {
+        code: "invalid_choice",
+        message: `this cost removes ${planned.min} to ${planned.max} threat, not ${named}`,
+      };
+    }
     bindings[REMOVE_THREAT_FROM_SLOT] = [planned.fromId];
-    vars[REMOVE_THREAT_MIN_VAR] = planned.min;
-    vars[REMOVE_THREAT_MAX_VAR] = planned.max;
+    vars[REMOVE_THREAT_MIN_VAR] = named ?? planned.min;
+    vars[REMOVE_THREAT_MAX_VAR] = named ?? planned.max;
   }
   // "Take 1 damage →" can be paid only if all of it can be taken (RRG 1.8 "Cost", p. 14): not by an identity holding a
   // tough status card (FAQ "Focused Rage (#27)", p. 57: "you cannot attempt to pay the cost of Focused Rage's ability
@@ -2806,6 +2943,11 @@ export function payCost(
    * `announceResourcesSpent`.
    */
   collectCounterEvents?: TriggerEvent[],
+  /**
+   * Where a `removeThreat` cost's steps go instead of the stack, for the same reason: a resource ability's threat
+   * cost (`SpentPayment.threatCosts`), pushed by `announceResourcesSpent` above the card or ability paid for.
+   */
+  collectThreatCosts?: ResourceThreatCost[],
 ): void {
   const cost = plan.cost ?? written;
   if (!cost) return;
@@ -2945,7 +3087,14 @@ export function payCost(
   // "Remove up to 3 threat from here →" (docs/phase7-wave9.md §3.7 (b)): the payer picks from the planned range, the
   // threat comes off, and the amount removed is recorded on the frame being paid for as `cost.removeThreat`.
   const threatFrom = cost.removeThreat ? plan.bindings[REMOVE_THREAT_FROM_SLOT]?.[0] : undefined;
-  if (threatFrom) {
+  if (threatFrom && collectThreatCosts) {
+    collectThreatCosts.push({
+      instanceId: sourceId,
+      spender: playerId,
+      fromId: threatFrom,
+      amount: plan.vars[REMOVE_THREAT_MAX_VAR] ?? 0,
+    });
+  } else if (threatFrom) {
     pushEffects(ctx, {
       effects: removeThreatCostEffects(
         {

@@ -15,6 +15,7 @@ import {
   exhaustThis,
   forcedInterrupt,
   gainTraitUntil,
+  generatesAmount,
   heal,
   heroAction,
   heroInterrupt,
@@ -34,6 +35,7 @@ import {
   ready,
   removeThreatCost,
   removeThreatUpToCost,
+  resource,
   self,
   threatOn,
   valueAtMost,
@@ -105,10 +107,11 @@ const YOU_REVEAL_TREACHERY: EventPattern = {
  * many (0 to the smaller of 3 and the threat that would be placed; "up to" in an effect may be 0); that much is
  * prevented on the scheme and placed on the suit, the rest still goes on the scheme.
  *
- * **50044.furys-watch-resource** is skipped (`NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED`): "Resource: Exhaust Fury's
- * Watch and remove up to 2 threat from your suit form upgrade -> generate a [mental] resource for each threat you
- * removed this way." A scripted version (`generatesAmount("mental", varOf("cost.removeThreat"))` with
- * `removeThreatUpToCost`) validates but cannot pay for anything, so it is not registered.
+ * **50044.furys-watch-resource**: "Resource: Exhaust Fury's Watch and remove up to 2 threat from your suit form
+ * upgrade -> generate a [mental] resource for each threat you removed this way." No form word, so it pays in either
+ * form. The amount is 1 to the smaller of 2 and the threat on the suit (RRG 1.8 "Cost", p. 14), named in the payment
+ * (`ResourceAbilityUse.costSelection.removeThreat`; unnamed, the most), so the payment is priced with what it will
+ * generate; with 0 threat on the suit it is not a payment source. Overpaying is legal as for any generator (p. 13).
  *
  * **50045.intelligence-analysis-interrupt**: "Interrupt: When you reveal a treachery, discard Intelligence Analysis and
  * remove 1 threat from your suit form upgrade -> cancel the effects of that treachery and discard it."
@@ -174,6 +177,10 @@ export const NICK_FURY_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilitie
     placeThreat(varOf("moved.amount"), YOUR_SUIT_FORM),
   ),
 
+  "50044.furys-watch-resource": resource(generatesAmount("mental", varOf("cost.removeThreat")), {
+    cost: [exhaustThis, removeThreatUpToCost(YOUR_SUIT_FORM, 2)],
+  }),
+
   "50045.intelligence-analysis-interrupt": interrupt(
     YOU_REVEAL_TREACHERY,
     { cost: [discardThis, removeThreatCost(YOUR_SUIT_FORM, 1)] },
@@ -188,13 +195,4 @@ export const NICK_FURY_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilitie
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "50044.furys-watch-resource":
-    'Engine gap: a resource ability that generates "for each threat removed this way" cannot be priced. ' +
-    '`generatedResources` (packages/engine/src/actions.ts) resolves `ResourceGeneration { kind: "amount" }` while the ' +
-    'payment is validated, with no ability vars, so `varOf("cost.removeThreat")` reads 0 and the play is refused ' +
-    '("Needs 2 resources; the payment covers 0"); the chosen threat amount is only asked later, as the cost is paid. ' +
-    "Needs a way to name the chosen amount in the command (a `CostSelection` field, like `counters` / `resources`) and " +
-    "have `generatedResources` read it as `cost.removeThreat`. The DSL side already exists (`removeThreatUpToCost`, " +
-    "`generatesAmount`).",
-};
+export const NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {};

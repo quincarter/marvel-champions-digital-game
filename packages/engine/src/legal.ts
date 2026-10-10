@@ -29,6 +29,7 @@ import {
   isActionEvent,
   usableEventActions,
   handCardResources,
+  isAlternativeAmount,
   paidForMultiplied,
   paymentOptions,
   paymentsFromOptionIds,
@@ -291,7 +292,8 @@ function spendOrder(
   const payments = paymentsFromOptionIds(
     paymentOptions(createCtx(state, deps), playerId, null, payingFor).map((o) => o.optionId),
   );
-  const abilities = payments.filter((p) => "ability" in p);
+  // One use of a resource ability pays one amount: the option for the most it generates (`isAlternativeAmount`).
+  const abilities = payments.filter((p) => "ability" in p && !isAlternativeAmount(p));
   const hand = payments.flatMap((p) => ("fromHand" in p && !reserved.has(p.fromHand) ? [p.fromHand] : []));
   hand.sort(
     (a, b) => resourceCount(state, b) - resourceCount(state, a) || isResourceCard(state, b) - isResourceCard(state, a),
@@ -1204,6 +1206,12 @@ export interface PaymentSource {
   readonly pool: Readonly<Record<ResourceIconType, number>>;
   /** The cards this source's own cost picks, by slot (a resource ability's `ResourceAbilityUse.costChoices`). */
   readonly costChoices?: CostChoices;
+  /**
+   * The amount this source's own cost removes when the source is one amount of several ("remove up to 2 threat from …
+   * → generate a resource for each": a resource ability's `ResourceAbilityUse.costSelection`; docs/phase7-wave9.md
+   * §3.7 (b)). The source for the most it can remove has none. A payment may hold one source of the same ability.
+   */
+  readonly costSelection?: CostSelection;
 }
 
 export interface PaymentQuery {
@@ -1449,6 +1457,7 @@ export function paymentFor(
       if (option.ref.kind !== "ability") return [];
       const use = paymentsFromOptionIds([option.optionId]).find((entry) => "ability" in entry);
       const costChoices = use && "ability" in use ? use.ability.costChoices : undefined;
+      const costSelection = use && "ability" in use ? use.ability.costSelection : undefined;
       return [
         {
           optionId: option.optionId,
@@ -1466,6 +1475,7 @@ export function paymentFor(
                 instanceId: option.ref.instanceId,
                 abilityId: option.ref.abilityId,
                 ...(costChoices ? { costChoices } : {}),
+                ...(costSelection ? { costSelection } : {}),
               },
               playerId,
               discardTop,
@@ -1473,6 +1483,7 @@ export function paymentFor(
             playerId,
           ),
           ...(costChoices ? { costChoices } : {}),
+          ...(costSelection ? { costSelection } : {}),
         },
       ];
     },

@@ -10,6 +10,7 @@ import {
   ownCardPlayFault,
   defaultHandDiscardPicks,
   defaultInPlayPicks,
+  isAlternativeAmount,
   isPriceFault,
   paymentOptions,
   paymentsFromOptionIds,
@@ -130,9 +131,10 @@ function costPayable(
   const ctx = createCtx(state, deps);
   const exclude = fromHand ? id : null;
   const payingFor = plan.payingFor ?? id;
+  // One use of a resource ability pays one amount: only the option for the most it generates counts toward the bound.
   const sources = paymentsFromOptionIds(
     paymentOptions(ctx, playerId, exclude, payingFor).map((option) => option.optionId),
-  );
+  ).filter((source) => !isAlternativeAmount(source));
   // "Spend up to 3 resources →" (`ResourcesChoice`; docs/phase7-wave8.md §3.62): at least one resource (RRG 1.8 "Cost",
   // p. 14), and more than its maximum is overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG p. 13), so the ability
   // is offered when some payment generates its minimum.

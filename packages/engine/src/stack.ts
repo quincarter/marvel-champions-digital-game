@@ -375,6 +375,18 @@ export type StackFrame =
        * `optionalAtOpen` stands for it. Offered ones join `optionalAtOpen`, so none is offered twice.
        */
       readonly heardAtOpen?: readonly string[];
+      /**
+       * Interrupt windows only, and only when the window has forced interrupts to resolve: which face each
+       * double-sided card in play was showing as the window opened (`CardInstance.flipped`, by instance). A card
+       * here that shows its other face once the forced tier is done was turned faceup by this window's own forced
+       * interrupts, and that face's optional interrupts to the occurrence join the optional tier (docs/phase7-wave9.md
+       * §3.8: "Forced Interrupt: When you attack, change to Assault suit form" before Assault's own "Interrupt: When
+       * you attack"). RRG 1.8 "Interrupt" (p. 25): an interrupt resolves "immediately before that triggering condition
+       * resolves", so the attack is still to happen when the face turns up; forced before optional is "Ability",
+       * Simultaneous Timing Priority (p. 5). The rule of `optionalAtOpen` stands for everything else: a card that
+       * entered play or a hand during the forced tier, any response window, and the forced tier itself.
+       */
+      readonly facesAtOpen?: Readonly<Record<InstanceId, boolean>>;
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];

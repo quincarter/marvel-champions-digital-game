@@ -2,11 +2,13 @@ import { AOS_CARDS, cardId, type AllyCard, type SupportCard, type UpgradeCard } 
 import {
   activeEncounterDeckId,
   applyCommand,
+  paymentFor,
   traitsOf,
   type Command,
   type GameEvent,
   type GameState,
   type InstanceId,
+  type Payment,
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
@@ -167,13 +169,13 @@ const damageToMe = (events: readonly GameEvent[], s: GameState): number =>
     .reduce((sum, e) => sum + e.amount, 0);
 
 describe("registry", () => {
-  it("registers every printed ref of the nine cards except the skipped Fury's Watch", () => {
+  it("registers every printed ref of the nine cards; nothing is skipped", () => {
     const printed = CODES.flatMap((code) => abilityRefIds(card(code)));
     expect([...printed].sort()).toEqual([...REFS].sort());
-    expect(Object.keys(REGISTRY).sort()).toEqual(REFS.filter((r) => r !== WATCH).sort());
-    expect(Object.keys(SKIPPED)).toEqual([WATCH]);
+    expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
+    expect(SKIPPED).toEqual({});
   });
-  it.each(REFS.filter((r) => r !== WATCH))("%s validates", (id) => {
+  it.each(REFS)("%s validates", (id) => {
     expect(validateDefinition(REGISTRY[id]!)).toEqual([]);
   });
   it("timing words: Assault, Maria Hill, EM Shield, Eyepatch and Analysis are optional interrupts; Stealth a forced one", () => {
@@ -286,29 +288,37 @@ describe(`${ASSAULT}: Interrupt: when you attack, remove up to 3 threat from her
     const second = run(ready, {}, basicAttack(ready));
     expect(inst(second.state, villainOf(second.state)).damage).toBe(7);
   });
-  it("in Stealth, a basic attack breaks cover (Assault faceup, 4 threat kept) but Assault is NOT offered on that attack", () => {
-    // Pinned engine behavior (resolve/window.ts: "an ability the forced tier switched on is not offered for an occurrence
-    // it did not hear"): Assault was the back face when the attack's window opened, so its interrupt did not hear the
-    // attack. docs/phase7-wave9.md section 3.8 expects the banked threat to be spendable on this very attack; see the
-    // hand-off note.
+  // docs/phase7-wave9.md section 3.8: Break Cover (a forced interrupt) turns Assault faceup before the optional
+  // interrupts to the same attack are offered, so Assault's own interrupt answers the attack that broke cover
+  // (`Frame<"window">.facesAtOpen`; RRG 1.8 "Interrupt", p. 25: the attack has not resolved yet).
+  it("in Stealth with 4 threat, a basic attack breaks cover and Assault is offered: remove 3, 2 + 3 = 5 damage, 1 left", () => {
     const s = heroWithSuit({ threat: 4, flipped: true });
     const seen: string[] = [];
     const { state, events } = run(s, { take: ["assault-interrupt"], number: 3, seen }, basicAttack(s));
-    expect(seen).toEqual([]);
+    expect(seen.filter((o) => o.endsWith("assault-interrupt"))).toHaveLength(1);
+    expect(seen.filter((o) => o.startsWith("number"))).toEqual(["number:1-3"]);
     expect(showsStealth(state)).toBe(false);
     expect(ofType(events, "additionalFormChanged")).toMatchObject([{ formType: "suit", formName: "Assault" }]);
+    expect(inst(state, villainOf(state)).damage).toBe(5);
+    expect(suitThreat(state)).toBe(1);
+  });
+  it("breaking cover and declining Assault: Assault faceup, 2 damage, the 4 threat stays", () => {
+    const s = heroWithSuit({ threat: 4, flipped: true });
+    const seen: string[] = [];
+    const { state } = run(s, { seen }, basicAttack(s));
+    expect(seen.filter((o) => o.endsWith("assault-interrupt"))).toHaveLength(1);
+    expect(showsStealth(state)).toBe(false);
     expect(inst(state, villainOf(state)).damage).toBe(2);
     expect(suitThreat(state)).toBe(4);
   });
-  it("the next attack, with Assault already faceup, spends the banked threat: 2 + 3 = 5 and 1 left", () => {
+  it("the next attack, with Assault already faceup, spends what is left: 2 + 1 = 3 and 0 left", () => {
     const s = heroWithSuit({ threat: 4, flipped: true });
-    const first = run(s, {}, basicAttack(s));
+    const first = run(s, { take: ["assault-interrupt"], number: 3 }, basicAttack(s));
     const ready = patchInstance(first.state, identityOf(first.state), { exhausted: false });
-    const seen: string[] = [];
-    const second = run(ready, { take: ["assault-interrupt"], number: 3, seen }, basicAttack(ready));
-    expect(seen).toContain("number:1-3");
-    expect(inst(second.state, villainOf(second.state)).damage).toBe(2 + 5);
-    expect(suitThreat(second.state)).toBe(1);
+    const { state, events } = run(ready, { take: ["assault-interrupt"] }, basicAttack(ready));
+    expect(ofType(events, "additionalFormChanged")).toEqual([]);
+    expect(inst(state, villainOf(state)).damage).toBe(5 + 3);
+    expect(suitThreat(state)).toBe(0);
   });
   it("in Stealth with 0 threat, Break Cover still turns Assault faceup and nothing is offered", () => {
     const s = heroWithSuit({ threat: 0, flipped: true });
@@ -318,18 +328,31 @@ describe(`${ASSAULT}: Interrupt: when you attack, remove up to 3 threat from her
     expect(showsStealth(state)).toBe(false);
     expect(inst(state, villainOf(state)).damage).toBe(2);
   });
-  it("an attack event also breaks cover without offering Assault on it: Haymaker (3) from Stealth with 2 threat deals 3", () => {
-    const base = withSuit(furyHeroGame({ swap: { "50049": HAYMAKER } }), { threat: 2, flipped: true });
+  it("an attack event breaks cover too: Haymaker (3) from Stealth with 4 threat, remove 3: 3 + 3 = 6 damage, 1 left", () => {
+    const base = withSuit(furyHeroGame({ swap: { "50049": HAYMAKER } }), { threat: 4, flipped: true });
     const given = moveToHand(base, P1, HAYMAKER);
     const haymaker = given.ids[0]!;
+    const seen: string[] = [];
     const { state } = run(
       given.state,
-      { take: ["assault-interrupt"] },
+      { take: ["assault-interrupt"], number: 3, seen },
       play(P1, haymaker, payWith(given.state, P1, 2, [haymaker])),
     );
-    expect(inst(state, villainOf(state)).damage).toBe(3);
-    expect(suitThreat(state)).toBe(2);
+    expect(seen.filter((o) => o.endsWith("assault-interrupt"))).toHaveLength(1);
     expect(showsStealth(state)).toBe(false);
+    expect(inst(state, villainOf(state)).damage).toBe(6);
+    expect(suitThreat(state)).toBe(1);
+  });
+  it("the attack event from Stealth, Assault declined: Haymaker deals 3 and the 4 threat stays", () => {
+    const base = withSuit(furyHeroGame({ swap: { "50049": HAYMAKER } }), { threat: 4, flipped: true });
+    const given = moveToHand(base, P1, HAYMAKER);
+    const haymaker = given.ids[0]!;
+    const seen: string[] = [];
+    const { state } = run(given.state, { seen }, play(P1, haymaker, payWith(given.state, P1, 2, [haymaker])));
+    expect(seen.filter((o) => o.endsWith("assault-interrupt"))).toHaveLength(1);
+    expect(showsStealth(state)).toBe(false);
+    expect(inst(state, villainOf(state)).damage).toBe(3);
+    expect(suitThreat(state)).toBe(4);
   });
   it("an attack event from Assault is an attack too: Haymaker (3) with 2 threat deals 3 + 2 = 5", () => {
     const base = withSuit(furyHeroGame({ swap: { "50049": HAYMAKER } }), { threat: 2 });
@@ -709,10 +732,121 @@ describe(`${EYEPATCH}: Hero Interrupt: when threat would be placed on the main s
 });
 
 describe(`${WATCH}: Resource: exhaust Fury's Watch and remove up to 2 threat from the suit, a mental resource for each`, () => {
-  it("is skipped, with the engine gap written down; nothing of it is registered", () => {
-    expect(REGISTRY[WATCH]).toBeUndefined();
-    expect(Object.keys(SKIPPED)).toEqual([WATCH]);
-    expect(SKIPPED[WATCH]).toMatch(/generatedResources/);
+  const MENTAL = (n: number) => ({ energy: 0, mental: n, physical: 0, wild: 0 });
+  /** Fury's Watch attached, the suit holding `suit` threat, and `code` in hand (Haymaker swapped into the deck). */
+  const withWatch = (suit: number, code = HAYMAKER, base?: GameState) => {
+    const game = base ?? furyHeroGame({ swap: { "50049": HAYMAKER } });
+    const watch = stagedInPlay(withSuit(game, { threat: suit }), "50044", { attach: true });
+    const given = moveToHand(watch.state, P1, code);
+    return { state: given.state, watch: watch.id, card: given.ids[0]! };
+  };
+  const watchUse = (watch: InstanceId, removeThreat?: number): Payment => ({
+    ability: {
+      instanceId: watch,
+      abilityId: WATCH as never,
+      ...(removeThreat === undefined ? {} : { costSelection: { removeThreat } }),
+    },
+  });
+  const generatedByWatch = (events: readonly GameEvent[], watch: InstanceId) =>
+    ofType(events, "resourcesGenerated")
+      .filter((e) => e.instanceId === watch)
+      .map((e) => e.pool);
+  const watchSources = (s: GameState, cardInHand: InstanceId) =>
+    (paymentFor(s, P1, { kind: "playCard", instanceId: cardInHand }, {}, DEPS)?.sources ?? []).filter(
+      (source) => source.kind === "resourceAbility",
+    );
+
+  it("is a Resource ability with no form word: exhaust it and remove up to 2 threat from the suit", () => {
+    expect(REGISTRY[WATCH]!.trigger).toEqual({ kind: "resource" });
+    expect(REGISTRY[WATCH]!.cost).toMatchObject({
+      exhaustSelf: true,
+      removeThreat: { amount: { choose: { min: 1, max: 2 } } },
+    });
+    expect(REGISTRY[WATCH]!.generates).toMatchObject({ kind: "amount", resource: "mental" });
+  });
+  it("with 0 threat on the suit it is not a payment source and a payment naming it is refused", () => {
+    const { state: s, watch, card: haymaker } = withWatch(0);
+    expect(watchSources(s, haymaker)).toEqual([]);
+    expect(refusal(s, play(P1, haymaker, [], { abilities: [watchUse(watch)] }))).toMatch(/not enough threat/);
+  });
+  it("with 1 threat it is worth 1 [mental]: with one hand card it pays Haymaker (2); the suit is left with 0", () => {
+    const { state: s, watch, card: haymaker } = withWatch(1);
+    expect(watchSources(s, haymaker).map((source) => source.pool)).toEqual([MENTAL(1)]);
+    expect(refusal(s, play(P1, haymaker, [], { abilities: [watchUse(watch)] }))).toBeDefined();
+    const seen: string[] = [];
+    const { state, events } = run(
+      s,
+      { seen },
+      play(P1, haymaker, payWith(s, P1, 1, [haymaker]), { abilities: [watchUse(watch)] }),
+    );
+    expect(seen.filter((o) => o.startsWith("number"))).toEqual([]);
+    expect(generatedByWatch(events, watch)).toEqual([MENTAL(1)]);
+    expect(suitThreat(state)).toBe(0);
+    expect(inst(state, watch).exhausted).toBe(true);
+    expect(inst(state, villainOf(state)).damage).toBe(3);
+  });
+  it("with 4 threat it offers 2 [mental] and 1 [mental] as two sources of the one ability", () => {
+    const { state: s, card: haymaker } = withWatch(4);
+    expect(watchSources(s, haymaker).map((source) => [source.costSelection?.removeThreat, source.pool])).toEqual([
+      [undefined, MENTAL(2)],
+      [1, MENTAL(1)],
+    ]);
+  });
+  it("with 4 threat, removing 2 pays Haymaker (2) alone: the suit is left with 2, and no hand card is spent", () => {
+    const { state: s, watch, card: haymaker } = withWatch(4);
+    const hand = playerOf(s, P1).hand.length;
+    const { state, events } = run(s, {}, play(P1, haymaker, [], { abilities: [watchUse(watch, 2)] }));
+    expect(generatedByWatch(events, watch)).toEqual([MENTAL(2)]);
+    expect(suitThreat(state)).toBe(2);
+    expect(playerOf(state, P1).hand.length).toBe(hand - 1);
+    expect(inst(state, villainOf(state)).damage).toBe(3);
+  });
+  it("unnamed, it removes the most: 2 of 4", () => {
+    const { state: s, watch, card: haymaker } = withWatch(4);
+    const { state, events } = run(s, {}, play(P1, haymaker, [], { abilities: [watchUse(watch)] }));
+    expect(generatedByWatch(events, watch)).toEqual([MENTAL(2)]);
+    expect(suitThreat(state)).toBe(2);
+  });
+  it("with 4 threat, removing 1 is 1 [mental]: it needs one hand card for Haymaker, and the suit is left with 3", () => {
+    const { state: s, watch, card: haymaker } = withWatch(4);
+    expect(refusal(s, play(P1, haymaker, [], { abilities: [watchUse(watch, 1)] }))).toBeDefined();
+    const { state, events } = run(
+      s,
+      {},
+      play(P1, haymaker, payWith(s, P1, 1, [haymaker]), { abilities: [watchUse(watch, 1)] }),
+    );
+    expect(generatedByWatch(events, watch)).toEqual([MENTAL(1)]);
+    expect(suitThreat(state)).toBe(3);
+  });
+  it("at most 2: naming 3 of 4 is refused, as is 0", () => {
+    const { state: s, watch, card: haymaker } = withWatch(4);
+    expect(refusal(s, play(P1, haymaker, [], { abilities: [watchUse(watch, 3)] }))).toMatch(/removes 1 to 2 threat/);
+    expect(refusal(s, play(P1, haymaker, [], { abilities: [watchUse(watch, 0)] }))).toMatch(/removes 1 to 2 threat/);
+  });
+  it("the threat it spends is gone before Assault's interrupt: Haymaker paid with 2 of 4, then Assault removes 2 for 3 + 2 = 5", () => {
+    const { state: s, watch, card: haymaker } = withWatch(4);
+    const seen: string[] = [];
+    const { state } = run(
+      s,
+      { take: ["assault-interrupt"], seen },
+      play(P1, haymaker, [], { abilities: [watchUse(watch, 2)] }),
+    );
+    expect(seen.filter((o) => o.startsWith("number"))).toEqual(["number:1-2"]);
+    expect(inst(state, villainOf(state)).damage).toBe(5);
+    expect(suitThreat(state)).toBe(0);
+  });
+  it("it is not a Hero Resource: in alter-ego form it pays for Eyepatch Camera (2)", () => {
+    const { state: s, watch, card: camera } = withWatch(2, "50043", furyGame());
+    const { state, events } = run(s, {}, play(P1, camera, [], { abilities: [watchUse(watch)] }));
+    expect(generatedByWatch(events, watch)).toEqual([MENTAL(2)]);
+    expect(suitThreat(state)).toBe(0);
+    expect(attached(state, camera)).toBe(true);
+  });
+  it("exhausted, it is not a source", () => {
+    const { state: ready, watch, card: haymaker } = withWatch(4);
+    const s = patchInstance(ready, watch, { exhausted: true });
+    expect(watchSources(s, haymaker)).toEqual([]);
+    expect(refusal(s, play(P1, haymaker, [], { abilities: [watchUse(watch, 2)] }))).toBeDefined();
   });
   it("the card's data is right: unique ITEM and TECH upgrade, cost 1, one physical icon", () => {
     const c = card<UpgradeCard>("50044");
