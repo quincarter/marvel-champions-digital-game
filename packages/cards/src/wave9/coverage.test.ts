@@ -17,6 +17,7 @@ import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
 import { BATROC, BATROC_SKIPPED } from "./aos/batroc.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { BARON_ZEMO, BARON_ZEMO_SKIPPED } from "./aos/baron-zemo.js";
 import { EXECUTIVE_BOARD, EXECUTIVE_BOARD_SKIPPED } from "./aos/executive-board.js";
 import { MODOK, MODOK_SKIPPED } from "./aos/modok.js";
 import {
@@ -254,6 +255,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50098", "50099", "50100", "50101", "50102"],
       registry: BATROCS_BRIGADE,
       skipped: BATROCS_BRIGADE_SKIPPED,
+    },
+    {
+      module: "baron-zemo",
+      cardIds: ["50165a", "50166a", "50167a", "50170", "50171", "50172", "50173", "50174", "50175", "50176", "50177"],
+      registry: BARON_ZEMO,
+      skipped: BARON_ZEMO_SKIPPED,
     },
     {
       module: "executive-board",
