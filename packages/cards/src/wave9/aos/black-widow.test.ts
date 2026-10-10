@@ -33,19 +33,35 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEventsPicking, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
+import { driveEventsPicking, encounterCardInVillainArea, playFromHand, withForm } from "../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
-import { codeOf, dataOf, heroAttacks, piles, types } from "../testing.js";
+import {
+  BLACK_CAT,
+  ONE_ICON,
+  attacksBy,
+  codeOf,
+  dataOf,
+  heroAttacks,
+  inPlayCard,
+  piles,
+  schemesBy,
+  types,
+} from "../testing.js";
 import { wave9Scenario } from "../setup.js";
-import { BLACK_WIDOW, BLACK_WIDOW_SKIPPED, GOGGLES_GRANTED_PREPARATION } from "./black-widow.js";
+import {
+  BLACK_WIDOW,
+  BLACK_WIDOW_SKIPPED,
+  DEFENSES_GRANTED_PREPARATION,
+  GOGGLES_GRANTED_PREPARATION,
+} from "./black-widow.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Black Widow, first half (docs/phase7-wave9.md sections 3.2, 3.3 and 3.4): the villain 50064 to 50066, The Widow's Web
- * 50067a/b and the attachments 50068 to 50071. The real `black-widow` scenario (Spider-Man and Iron Man preconds from
- * Core, standard mode), the setup minions removed from the table so no guard stands between the heroes and her. The
- * second half (50072 to 50079) is not scripted, so those cards on top of the deck have no Preparation that resolves.
+ * Black Widow (docs/phase7-wave9.md sections 3.2, 3.3 and 3.4): the villain 50064 to 50066, The Widow's Web 50067a/b,
+ * the attachments 50068 to 50071 and the second half 50072 to 50079 (two minions, two side schemes, four treacheries).
+ * The real `black-widow` scenario (Spider-Man and Iron Man preconds from Core, standard mode), the setup minions
+ * removed from the table so no guard stands between the heroes and her.
  */
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, BLACK_WIDOW) };
 const BLANK = "01186";
@@ -73,7 +89,22 @@ const REGISTERED = [
   "50071.stun-net-constant",
   "50071.stun-net-action",
   "50071.preparation",
+  "50072.preparation",
+  "50073.preparation",
+  "50074.automated-defenses-constant",
+  DEFENSES_GRANTED_PREPARATION,
+  "50075.destroy-evidence-constant",
+  "50076.when-revealed",
+  "50076.preparation",
+  "50077.when-revealed",
+  "50077.preparation",
+  "50078.when-revealed",
+  "50078.preparation",
+  "50079.when-revealed",
+  "50079.preparation",
 ];
+const GRANTED = [GOGGLES_GRANTED_PREPARATION, DEFENSES_GRANTED_PREPARATION];
+const PRINTS_PREPARATION = ["50068", "50069", "50070", "50071", "50072", "50073", "50076", "50077", "50078", "50079"];
 const FIRST_HALF = ["50064", "50067a", GAUNTLET, HOOK, GOGGLES, NET];
 const SECOND_HALF = ["50072", "50073", "50074", "50075", "50076", "50077", "50078", "50079"];
 
@@ -168,10 +199,10 @@ function attached(t: Table, code: string): Table & { readonly id: InstanceId } {
 }
 
 describe("registry", () => {
-  it("registers exactly the first half's refs, each a valid definition; the second half is skipped with a reason", () => {
+  it("registers exactly the module's refs, each a valid definition; none is skipped", () => {
     expect(Object.keys(BLACK_WIDOW).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(BLACK_WIDOW)) expect(validateDefinition(def), id).toEqual([]);
-    expect(new Set(Object.values(BLACK_WIDOW_SKIPPED))).toEqual(new Set(["second half of the module, not started"]));
+    expect(BLACK_WIDOW_SKIPPED).toEqual({});
   });
 
   it("the data names exactly the registered refs (less the granted one, listed on no card) and the skipped ones", () => {
@@ -179,11 +210,12 @@ describe("registry", () => {
       abilityRefIds(AOS_CARDS.find((c) => c.id === code)!),
     );
     expect([...refs].sort()).toEqual(
-      [...REGISTERED.filter((id) => id !== GOGGLES_GRANTED_PREPARATION), ...Object.keys(BLACK_WIDOW_SKIPPED)].sort(),
+      [...REGISTERED.filter((id) => !GRANTED.includes(id)), ...Object.keys(BLACK_WIDOW_SKIPPED)].sort(),
     );
-    // A card that listed the granted ability would print a Preparation.
+    // A card that listed a granted ability would print a Preparation.
     expect(GOGGLES_GRANTED_PREPARATION).toBe("50070.night-vision-goggles-granted-preparation");
-    expect(refs).not.toContain(GOGGLES_GRANTED_PREPARATION);
+    expect(DEFENSES_GRANTED_PREPARATION).toBe("50074.automated-defenses-granted-preparation");
+    for (const id of GRANTED) expect(refs).not.toContain(id);
   });
 });
 
@@ -312,7 +344,11 @@ describe("the Forced Interrupt (50064)", () => {
         ...base.state,
         encounterDecks: {
           ...base.state.encounterDecks,
-          [deckId]: { deck: [], discard: [...pile.deck, ...pile.discard] },
+          // Without the cards that print a Preparation (any of them on top would change the attack).
+          [deckId]: {
+            deck: [],
+            discard: [...pile.deck, ...pile.discard].filter((i) => !PRINTS_PREPARATION.includes(codeOf(base.state, i))),
+          },
         },
       },
     };
@@ -518,5 +554,469 @@ describe("stages II and III (50065, 50066)", () => {
     expect(threat(state, base.main)).toBe(before - 1);
     expect(resolved(events)).toContain("50068.preparation");
     expect(damage(state, base.villain)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The second half: 50072 to 50079
+// ---------------------------------------------------------------------------------------------------------------
+
+const COMMANDO = "50072";
+const GRUNT = "50073";
+const DEFENSES = "50074";
+const EVIDENCE = "50075";
+const ATTACROBATICS = "50076";
+const COVERT_OPS = "50077";
+const DANCE = "50078";
+const BITE = "50079";
+const KICK = "01005"; // Spider-Man's Swinging Web Kick: "Hero Action (attack): Deal 8 damage to an enemy." Cost 3.
+const identityDamage = (s: GameState, p: PlayerId = P1) => damage(s, identityOf(s, p));
+const engagedWith = (s: GameState, code: string) => {
+  const id = inPlayCard(s, code);
+  return id === undefined ? undefined : inst(s, id).engagedWith;
+};
+/** Black Widow's interrupt on a card played by P1: the attack event 'Swinging Web Kick' on her, 8 damage. */
+function kick(t: Table, pick: Picker = firstLegal, target: InstanceId = t.villain) {
+  const given = moveToHand(t.state, P1, KICK);
+  const [event] = given.ids as [InstanceId];
+  const pay = payWith(given.state, P1, 3, [event]);
+  const chooseTheTarget: Picker = (s) => {
+    const choice = s.pendingChoice!;
+    if (choice.prompt.kind === "chooseTarget") {
+      const hit = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === target);
+      if (hit) return [hit.optionId];
+    }
+    return pick(s);
+  };
+  return driveEventsPicking(DEPS, given.state, chooseTheTarget, play(P1, event, pay));
+}
+/** Stacked: the boost card is a no-icon filler, so a quickstrike or an activation adds nothing. */
+const GANG_UP = "01189"; // Core treachery with 1 boost icon
+const ASSAULT = "01187"; // Core treachery, no boost icons, no Boost ability
+const stackedFor = (t: Table, code: string): Table => stack(t, code, BLANK, ASSAULT);
+/** Hero phase over for P1 (one player), the villain phase on a deck whose boost card is blank and whose dealt card is `code`. */
+function reveal(t: Table, code: string, ...rest: string[]) {
+  const staged = stackEncounterDeck(t.state, BLANK, code, ...(rest.length > 0 ? rest : [ASSAULT]));
+  return driveEventsPicking(DEPS, staged, firstLegal, endTurn(P1));
+}
+/** A scripted answer to the target prompts, in order; every other prompt as `firstLegal`. */
+const targeting = (...order: InstanceId[]): Picker => {
+  const queue = [...order];
+  return (s) => {
+    const choice = s.pendingChoice!;
+    if (choice.prompt.kind !== "chooseTarget") return firstLegal(s);
+    const want = queue.shift();
+    const hit = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === want);
+    return hit ? [hit.optionId] : firstLegal(s);
+  };
+};
+
+describe("second half: card data", () => {
+  it("A.I.M. Commando: ATK 2, SCH 1, 3 hit points, quickstrike, 1 boost icon, A.I.M.", () => {
+    const c = dataOf(COMMANDO);
+    expect([c.atk, c.sch, c.hp, c.boostIcons]).toEqual([2, 1, 3, 1]);
+    expect(c.keywords).toEqual([{ name: "quickstrike" }]);
+  });
+
+  it("A.I.M. Grunt: ATK 1, SCH 1, 5 hit points, guard, no boost icons", () => {
+    const c = dataOf(GRUNT);
+    expect([c.atk, c.sch, c.hp, c.boostIcons]).toEqual([1, 1, 5, 0]);
+    expect(c.keywords).toEqual([{ name: "guard" }]);
+  });
+
+  it("Automated Defenses: 3 threat (not per player), no icons, hinder 1 per hero, amplify 1, 3 boost icons", () => {
+    const c = dataOf(DEFENSES);
+    expect(c.startingThreat).toEqual({ base: 3, perPlayer: 0 });
+    expect(c.icons).toEqual([]);
+    expect(c.keywords).toEqual([{ name: "hinder", value: 0, perPlayer: 1 }]);
+    expect([c.amplifyIcons, c.boostIcons]).toEqual([1, 3]);
+  });
+
+  it("Destroy Evidence: 2 threat, a crisis icon, hinder 2 per hero, 2 boost icons", () => {
+    const c = dataOf(EVIDENCE);
+    expect(c.startingThreat).toEqual({ base: 2, perPlayer: 0 });
+    expect(c.icons).toEqual(["crisis"]);
+    expect(c.keywords).toEqual([{ name: "hinder", value: 0, perPlayer: 2 }]);
+    expect(c.boostIcons).toBe(2);
+  });
+
+  it("the treacheries' boost icons: Attacrobatics 3, Covert Ops 2, Dance of Death 2, Widow's Bite 2; none is vulnerable", () => {
+    expect([ATTACROBATICS, COVERT_OPS, DANCE, BITE].map((c) => dataOf(c).boostIcons)).toEqual([3, 2, 2, 2]);
+    expect([COMMANDO, GRUNT].map((c) => (dataOf(c).keywords as { name: string }[]).map((k) => k.name))).toEqual([
+      ["quickstrike"],
+      ["guard"],
+    ]);
+  });
+});
+
+describe("a Preparation is not a boost ability", () => {
+  it.each([COMMANDO, GRUNT, ATTACROBATICS, COVERT_OPS, DANCE, BITE])(
+    "%s turned faceup as the villain's boost card resolves nothing: no Preparation, nobody stunned",
+    (code) => {
+      // The villain's activation against a hero: boost card `code`, then a filler dealt card.
+      const t = game(1);
+      const staged = stackEncounterDeck(t.state, code, ASSAULT);
+      const { state, events } = driveEventsPicking(DEPS, staged, firstLegal, endTurn(P1));
+      expect(resolved(events).filter((id) => id.endsWith(".preparation"))).toEqual([]);
+      expect(inst(state, identityOf(state, P1)).statuses.stunned).toBe(0);
+      const attack = types(events, "attackResolved")[0]!;
+      expect(attack.boostIcons).toBe((dataOf(code).boostIcons as number) ?? 0);
+    },
+  );
+});
+
+describe("A.I.M. Commando (50072)", () => {
+  it("Preparation: after the attack it is put into play engaged with the attacker; the attack is dealt; its quickstrike answers", () => {
+    const t = stackedFor(game(), COMMANDO);
+    const { state, events } = attack(t);
+    expect(resolved(events)).toContain("50072.preparation");
+    expect(engagedWith(state, COMMANDO)).toBe(P1);
+    expect(discardCodes(state)).not.toContain(COMMANDO);
+    expect(damage(state, t.villain)).toBe(2);
+    expect(threat(state, t.main)).toBe(3);
+    // Quickstrike (RRG p. 36): its ATK 2 (a no-icon boost card) hits the exhausted attacker at once.
+    expect(attacksBy(state, events, COMMANDO).map((a) => a.damageDealt)).toEqual([2]);
+    expect(identityDamage(state)).toBe(2);
+  });
+});
+
+describe("A.I.M. Grunt (50073)", () => {
+  it("Preparation: it enters play engaged with the attacker and the attack is resolved against it: 2 damage on the Grunt, 0 on her", () => {
+    const t = stackedFor(game(), GRUNT);
+    const { state, events } = attack(t);
+    expect(resolved(events)).toContain("50073.preparation");
+    expect(engagedWith(state, GRUNT)).toBe(P1);
+    expect(damage(state, inPlayCard(state, GRUNT)!)).toBe(2);
+    expect(damage(state, t.villain)).toBe(0);
+    expect(threat(state, t.main)).toBe(3);
+  });
+
+  it("with the Gauntlet attached her retaliate 1 does not answer: the attacker takes nothing", () => {
+    const t = attached(stackedFor(game(), GRUNT), GAUNTLET);
+    const { state } = attack(t);
+    expect(damage(state, inPlayCard(state, GRUNT)!)).toBe(2);
+    expect(damage(state, t.villain)).toBe(0);
+    expect(identityDamage(state)).toBe(0);
+    // Control: the same attack against her takes retaliate 1 (see the Gauntlet tests).
+  });
+
+  it("an attack event (Swinging Web Kick, 8 damage) is resolved against the Grunt: 5 hit points, defeated; she takes 0", () => {
+    const t = stackedFor(game(), GRUNT);
+    const { state } = kick(t);
+    expect(damage(state, t.villain)).toBe(0);
+    expect(threat(state, t.main)).toBe(3);
+    expect(inPlayCard(state, GRUNT)).toBeUndefined();
+    expect(discardCodes(state)).toContain(GRUNT);
+  });
+});
+
+describe("Automated Defenses (50074)", () => {
+  /** The side scheme in play, a card with no Preparation on top. */
+  const defended = (top: string): Table => {
+    const base = stackedFor(game(), top);
+    return { ...base, state: encounterCardInVillainArea(base.state, DEFENSES, 3).state };
+  };
+
+  it("granted Preparation on a card that prints none: the attacker takes 1 damage; the attack still deals its 2", () => {
+    const t = defended(BLANK);
+    const { state, events } = attack(t);
+    expect(resolved(events)).toContain(DEFENSES_GRANTED_PREPARATION);
+    expect(identityDamage(state)).toBe(1);
+    expect(damage(state, t.villain)).toBe(2);
+    expect(threat(state, t.main)).toBe(3);
+    // The side scheme itself stays in play.
+    expect(inPlayCard(state, DEFENSES)).toBeDefined();
+  });
+
+  it("not on a card that prints one (Grappling Hook): only its own resolves; the attacker is undamaged", () => {
+    const t = defended(HOOK);
+    const { state, events } = attack(t);
+    expect(resolved(events)).toContain("50069.preparation");
+    expect(resolved(events)).not.toContain(DEFENSES_GRANTED_PREPARATION);
+    expect(identityDamage(state)).toBe(0);
+  });
+
+  it("not on A.I.M. Commando either (it prints one): no damage from the Defenses; its own Preparation resolves", () => {
+    const t = defended(COMMANDO);
+    const { events } = attack(t);
+    expect(resolved(events)).not.toContain(DEFENSES_GRANTED_PREPARATION);
+    expect(resolved(events)).toContain("50072.preparation");
+  });
+
+  it("without it in play a card with no Preparation resolves nothing", () => {
+    const { state, events } = attack(stackedFor(game(), BLANK));
+    expect(resolved(events)).not.toContain(DEFENSES_GRANTED_PREPARATION);
+    expect(identityDamage(state)).toBe(0);
+  });
+
+  it("with the Goggles attached too, a no-Preparation card resolves both, in the order the attacking player chose", () => {
+    const orders: string[][] = [];
+    for (const first of ["night-vision-goggles", "automated-defenses"]) {
+      const base = attached(defended(BLANK), GOGGLES);
+      let asked = false;
+      const pick: Picker = (s) => {
+        const choice = s.pendingChoice!;
+        const hit = choice.options.find((o) => o.optionId.includes(first));
+        const other = choice.options.find((o) => o !== hit && o.optionId.includes("granted"));
+        if (hit && other && choice.options.length === 2) {
+          asked = true;
+          return [hit.optionId, other.optionId];
+        }
+        return firstLegal(s);
+      };
+      const { state, events } = attack(base, pick);
+      expect(asked, first).toBe(true);
+      orders.push(resolved(events).filter((id) => GRANTED_IDS.includes(id)));
+      // Whatever the order: the attack deals 0 (the Goggles), the attacker takes 1 (the Defenses), the Goggles are gone.
+      expect(damage(state, base.villain)).toBe(0);
+      expect(identityDamage(state)).toBe(1);
+      expect(attachmentsOf(state, base.villain)).toEqual([]);
+      expect(discardCodes(state)).toContain(GOGGLES);
+    }
+    expect(orders[0]).toEqual([GOGGLES_GRANTED_PREPARATION, DEFENSES_GRANTED_PREPARATION]);
+    expect(orders[1]).toEqual([DEFENSES_GRANTED_PREPARATION, GOGGLES_GRANTED_PREPARATION]);
+  });
+
+  it("with the Goggles attached and a Preparation card on top, neither grant applies: only its own", () => {
+    const base = attached(defended(HOOK), GOGGLES);
+    const { state, events } = attack(base);
+    expect(resolved(events).filter((id) => GRANTED_IDS.includes(id))).toEqual([]);
+    expect(damage(state, base.villain)).toBe(2);
+  });
+});
+
+const GRANTED_IDS = [GOGGLES_GRANTED_PREPARATION, DEFENSES_GRANTED_PREPARATION];
+
+describe("Destroy Evidence (50075)", () => {
+  const withEvidence = (base: Table): Table => ({
+    ...base,
+    state: encounterCardInVillainArea(base.state, EVIDENCE, 2).state,
+  });
+
+  it("each other encounter card gains incite 1: a card revealed with it in play places 1 threat on the main scheme", () => {
+    const base = game(1);
+    const control = reveal(base, ASSAULT, BLANK);
+    const run = reveal(withEvidence(base), ASSAULT, BLANK);
+    expect(threat(run.state, base.main) - threat(control.state, base.main)).toBe(1);
+  });
+
+  it("it does not gain incite itself: dealt from the deck it enters play and the main scheme has the same threat as without", () => {
+    const base = game(1);
+    const control = reveal(base, ASSAULT, BLANK);
+    const run = reveal(base, EVIDENCE, BLANK);
+    expect(inPlayCard(run.state, EVIDENCE)).toBeDefined();
+    expect(threat(run.state, base.main)).toBe(threat(control.state, base.main));
+    // 2 starting threat and Hinder 2 per hero (one hero) more.
+    expect(threat(run.state, inPlayCard(run.state, EVIDENCE)!)).toBe(4);
+  });
+
+  it("a boost card is not revealed: Covert Ops boosting a scheme adds its 2 icons and no incite (alter-ego, so she schemes)", () => {
+    const base = { ...game(1), state: withForm(game(1).state, "alterEgo", P1) };
+    const run = (t: Table) =>
+      driveEventsPicking(DEPS, stackEncounterDeck(t.state, COVERT_OPS, BLANK, ASSAULT), firstLegal, endTurn(P1));
+    const control = run(base);
+    const evidence = run(withEvidence(base));
+    // The dealt card (Advance, which schemes with a no-icon boost card) gains incite 1; the boost card gained nothing, so the total is exactly 1 more.
+    expect(threat(evidence.state, base.main) - threat(control.state, base.main)).toBe(1);
+    expect(schemesBy(control.state, control.events, "50064")[0]!.boostIcons).toBe(2);
+  });
+});
+
+describe("Attacrobatics (50076)", () => {
+  it("When Revealed in hero form: the villain attacks you with 2 boost cards (1 and 1 icon): 1 + 2 = 3 damage", () => {
+    const base = game(1);
+    const { state, events } = driveEventsPicking(
+      DEPS,
+      stackEncounterDeck(base.state, BLANK, ATTACROBATICS, ONE_ICON, GANG_UP),
+      firstLegal,
+      endTurn(P1),
+    );
+    const attacks = attacksBy(state, events, "50064");
+    expect(attacks).toHaveLength(2);
+    expect(attacks[0]!.boostIcons).toBe(0);
+    expect(attacks[1]!.boostIcons).toBe(2);
+    expect(attacks[1]!.damageDealt).toBe(3);
+  });
+
+  it("When Revealed in alter-ego form: changes to hero form first, then she attacks (not schemes) with the extra boost card", () => {
+    const base = game(1);
+    const alter = withForm(base.state, "alterEgo", P1);
+    const { state, events } = driveEventsPicking(
+      DEPS,
+      stackEncounterDeck(alter, BLANK, ATTACROBATICS, ONE_ICON, GANG_UP),
+      firstLegal,
+      endTurn(P1),
+    );
+    expect(schemesBy(state, events, "50064")).toHaveLength(1);
+    const attacks = attacksBy(state, events, "50064");
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0]!.boostIcons).toBe(2);
+    expect(playerOf(state, P1).identity.form).toBe("hero");
+  });
+
+  it("Preparation (standard): all damage of a basic attack is prevented; the attacker takes nothing", () => {
+    const t = stackedFor(game(), ATTACROBATICS);
+    const { state, events } = attack(t);
+    expect(resolved(events)).toContain("50076.preparation");
+    expect(damage(state, t.villain)).toBe(0);
+    expect(identityDamage(state)).toBe(0);
+    expect(threat(state, t.main)).toBe(3);
+  });
+
+  it("Preparation (standard): an attack event's 8 damage is prevented too", () => {
+    const t = stackedFor(game(), ATTACROBATICS);
+    const { state } = kick(t);
+    expect(damage(state, t.villain)).toBe(0);
+    expect(identityDamage(state)).toBe(0);
+  });
+
+  it("Preparation (expert): the basic attack's 2 damage is prevented and dealt to the attacker", () => {
+    const t = stackedFor(game(2, { mode: "expert" }), ATTACROBATICS);
+    const { state } = attack(t);
+    expect(damage(state, t.villain)).toBe(0);
+    expect(identityDamage(state)).toBe(2);
+  });
+
+  it("Preparation (expert): an attack event's 8 damage is prevented and 8 is dealt to the attacker", () => {
+    const t = stackedFor(game(2, { mode: "expert" }), ATTACROBATICS);
+    const { state } = kick(t);
+    expect(damage(state, t.villain)).toBe(0);
+    expect(identityDamage(state)).toBe(8);
+  });
+});
+
+describe("Covert Ops (50077)", () => {
+  it("When Revealed: you are confused and Black Widow schemes (SCH 2, a no-icon boost card: 2 threat on the main scheme)", () => {
+    const base = game(1);
+    const control = reveal(base, ASSAULT, BLANK);
+    const { state, events } = reveal(base, COVERT_OPS, ASSAULT);
+    expect(inst(state, identityOf(state, P1)).statuses.confused).toBe(1);
+    expect(inst(control.state, identityOf(control.state, P1)).statuses.confused).toBe(0);
+    expect(schemesBy(state, events, "50064")).toHaveLength(1);
+    expect(threat(state, base.main) - threat(control.state, base.main)).toBe(2);
+  });
+
+  it("Preparation: 1 threat on the main scheme and on each side scheme", () => {
+    const base = stackedFor(game(), COVERT_OPS);
+    const { state, id } = (() => {
+      const placed = encounterCardInVillainArea(base.state, DEFENSES, 3);
+      return { state: placed.state, id: placed.id };
+    })();
+    const { state: after, events } = attack({ ...base, state });
+    expect(resolved(events)).toContain("50077.preparation");
+    // The interrupt removed 1 first (4 to 3), then the Preparation placed 1.
+    expect(threat(after, base.main)).toBe(4);
+    expect(threat(after, id)).toBe(4);
+  });
+
+  it("Preparation with no side scheme: only the main scheme gets 1", () => {
+    const base = stackedFor(game(), COVERT_OPS);
+    const { state } = attack(base);
+    expect(threat(state, base.main)).toBe(4);
+  });
+});
+
+describe("Dance of Death (50078)", () => {
+  /** P1 in alter-ego form (the villain schemes, nothing else damages) with Black Cat (2 hp) and Mockingbird (3 hp). */
+  const crew = () => {
+    const base = game(1);
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const bird = playFromHand(DEPS, cat.state, "01083", 3);
+    return { base, cat: cat.id, bird: bird.id, state: withForm(bird.state, "alterEgo", P1) };
+  };
+  const hero = (s: GameState) => identityOf(s, P1);
+  const dance = (state: GameState, pick: Picker) =>
+    driveEventsPicking(DEPS, stackEncounterDeck(state, BLANK, DANCE, BLANK), pick, endTurn(P1));
+
+  it("1, 2 and 3 damage to three different characters the player chooses, in that order", () => {
+    const c = crew();
+    const { state } = dance(c.state, targeting(c.bird, hero(c.state), c.cat));
+    // Mockingbird 3 hp takes 1; the identity takes 2; Black Cat (2 hp) takes 3 and is defeated.
+    expect(damage(state, c.bird)).toBe(1);
+    expect(damage(state, hero(state))).toBe(2);
+    expect(cardsInPlay(state)).not.toContain(c.cat);
+  });
+
+  it("the same character cannot be chosen twice: the second choice leaves out the first, the third leaves out both", () => {
+    const c = crew();
+    const offered: InstanceId[][] = [];
+    const first = targeting(hero(c.state), c.bird, c.cat);
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget")
+        offered.push(choice.options.flatMap((o) => (o.ref.kind === "card" ? [o.ref.instanceId] : [])));
+      return first(s);
+    };
+    dance(c.state, pick);
+    expect(offered.map((o) => o.length)).toEqual([3, 2, 1]);
+    expect(offered[1]).not.toContain(hero(c.state));
+    expect(offered[2]).toEqual([c.cat]);
+  });
+
+  it("with one character only the 1 damage is dealt; with two, 1 and 2", () => {
+    const base = game(1);
+    const alone = dance(withForm(base.state, "alterEgo", P1), firstLegal);
+    expect(damage(alone.state, hero(alone.state))).toBe(1);
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const two = dance(withForm(cat.state, "alterEgo", P1), targeting(hero(cat.state), cat.id));
+    expect(damage(two.state, hero(two.state))).toBe(1);
+    // Black Cat has 2 hit points: the 2 damage defeats her.
+    expect(cardsInPlay(two.state)).not.toContain(cat.id);
+  });
+
+  it("Preparation: 1 damage to each character the attacker controls (identity and allies), none to the other player", () => {
+    const base = stackedFor(game(), DANCE);
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const { state } = attack({ ...base, state: cat.state });
+    expect(identityDamage(state)).toBe(1);
+    expect(damage(state, cat.id)).toBe(1);
+    expect(identityDamage(state, P2)).toBe(0);
+    expect(damage(state, base.villain)).toBe(2);
+  });
+});
+
+describe("Widow's Bite (50079)", () => {
+  /** Alter-ego, so the villain's own activation is a scheme and deals no damage. */
+  const bitten = (setup?: (s: GameState) => GameState) => {
+    const base = game(1);
+    const state = withForm(setup ? setup(base.state) : base.state, "alterEgo", P1);
+    return driveEventsPicking(DEPS, stackEncounterDeck(state, BLANK, BITE, BLANK), firstLegal, endTurn(P1));
+  };
+
+  it("When Revealed: you are stunned and take 1 damage", () => {
+    const { state } = bitten();
+    expect(inst(state, identityOf(state, P1)).statuses.stunned).toBe(1);
+    expect(identityDamage(state)).toBe(1);
+  });
+
+  it("When Revealed, already stunned: 2 damage, and the status card stays at 1 (no room for another)", () => {
+    const { state } = bitten((s) =>
+      patchInstance(s, identityOf(s, P1), { statuses: { ...inst(s, identityOf(s, P1)).statuses, stunned: 1 } }),
+    );
+    expect(inst(state, identityOf(state, P1)).statuses.stunned).toBe(1);
+    expect(identityDamage(state)).toBe(2);
+  });
+
+  it("Preparation: after the attack the attacking character is stunned (the attack is dealt first)", () => {
+    const t = stackedFor(game(), BITE);
+    const { state, events } = attack(t);
+    expect(resolved(events)).toContain("50079.preparation");
+    expect(damage(state, t.villain)).toBe(2);
+    expect(inst(state, identityOf(state, P1)).statuses.stunned).toBe(1);
+    expect(inst(state, identityOf(state, P2)).statuses.stunned).toBe(0);
+  });
+
+  it("Preparation, the attacking ally is defeated by retaliate first: nobody is stunned", () => {
+    const base = attached(stackedFor(game(), BITE), GAUNTLET);
+    const cat = playFromHand(DEPS, base.state, BLACK_CAT, 2);
+    const hurt = patchInstance(cat.state, cat.id, { damage: 1 });
+    const { state } = driveEventsPicking(DEPS, hurt, firstLegal, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: cat.id,
+      targetInstanceId: base.villain,
+    });
+    expect(cardsInPlay(state)).not.toContain(cat.id);
+    expect(inst(state, identityOf(state, P1)).statuses.stunned).toBe(0);
   });
 });

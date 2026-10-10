@@ -1,6 +1,23 @@
 import type { AbilityRegistry, EventPattern } from "@mc/engine";
 import {
   atEndOfAttack,
+  attackPreventedAmount,
+  changeForm,
+  chooseTarget,
+  confuse,
+  dealDamage,
+  each,
+  encounterCard,
+  enemyAttack,
+  enemyScheme,
+  gainsKeywordX,
+  inMode,
+  isAlterEgo,
+  isStunned,
+  retargetPlayerAttack,
+  stun,
+  takeDamage,
+  yourIdentity,
   attachCard,
   attackResolvedLabeled,
   cancelIt,
@@ -53,6 +70,9 @@ import {
 /** The id of the ability Night Vision Goggles gives other cards: in the registry, listed on no card (section 3.3). */
 export const GOGGLES_GRANTED_PREPARATION = "50070.night-vision-goggles-granted-preparation";
 
+/** The id of the ability Automated Defenses gives other cards: in the registry, listed on no card (section 3.3). */
+export const DEFENSES_GRANTED_PREPARATION = "50074.automated-defenses-granted-preparation";
+
 /** "When a character you control attacks Black Widow" (hero or ally, basic or labeled): the attack event's target is her. */
 const ATTACKS_BLACK_WIDOW: EventPattern = { on: "attack", selfIs: "target" };
 
@@ -90,7 +110,7 @@ const forcedInterruptOnAttack = () =>
  * from hand; Night Vision Goggles attach themselves and give every encounter card that prints no Preparation a granted
  * one (`GOGGLES_GRANTED_PREPARATION`, registry-only); Stun Net attaches to the attacking character after the attack.
  *
- * Cards (14 records, 50064 to 50079; this half scripts the first 8, the rest are in `BLACK_WIDOW_SKIPPED`):
+ * Cards (14 records, 50064 to 50079; the second half, 50072 to 50079, is scripted below the attachments):
  * - 50064 Black Widow (villain)
  * - 50067a The Widow's Web (main_scheme)
  * - 50068 Black Widow's Gauntlet (attachment)
@@ -155,21 +175,57 @@ export const BLACK_WIDOW: AbilityRegistry = defineAbilities({
     discard(self),
   ),
   "50071.preparation": preparation(atEndOfAttack(attachCard(self, eventSource))),
+
+  // Quickstrike is data. "After this attack": at the end of the attack, so the quickstrike answers its engagement.
+  "50072.preparation": preparation(atEndOfAttack(putIntoPlay(self, you))),
+
+  // Guard is data. Q4 = A: "this attack" is the whole attack, so all of it resolves against the Grunt (ruling January 17,
+  // 2026 - Ruling 2: Black Widow takes nothing and her retaliate does not answer).
+  "50073.preparation": preparation(putIntoPlay(self, you), retargetPlayerAttack(self)),
+
+  // Hinder 1 per hero is data. The granted text is a second registry entry listed on no card, as the Goggles' is.
+  "50074.automated-defenses-constant": constant(grantsPreparation(DEFENSES_GRANTED_PREPARATION)),
+  [DEFENSES_GRANTED_PREPARATION]: preparation(dealDamage(1, eventSource)),
+
+  // Hinder 2 per hero is data. The grant reaches a card as it is revealed (Dial M for Mojo 39035 is the same rule).
+  "50075.destroy-evidence-constant": constant(gainsKeywordX("incite", 1, encounterCard({ self: false }))),
+
+  // "Give her an additional boost card for this attack" is `extraBoostCards`, dealt at the start of this attack only.
+  "50076.when-revealed": whenRevealed(
+    ifThen(isAlterEgo(), changeForm(you, "hero")),
+    enemyAttack(theVillain, { against: you, extraBoostCards: 1 }),
+  ),
+  // The prevented amount is read at the end of the attack (the validator rejects reading it any other way).
+  "50076.preparation": preparation(
+    modifyAttack({ preventAllDamage: true, bind: "prevented" }),
+    ifThen(inMode("expert"), atEndOfAttack(dealDamage(attackPreventedAmount("prevented"), eventSource))),
+  ),
+
+  "50077.when-revealed": whenRevealed(confuse(yourIdentity), enemyScheme(theVillain, { against: you })),
+  "50077.preparation": preparation(placeThreat(1, each(query(["mainScheme", "sideScheme"])))),
+
+  // Three different characters you control, in the printed order; "a second" and "a third" are never one already chosen.
+  // `not: { not: { excluding } }` is "is not that card", the way to leave two chosen cards out of one query.
+  "50078.when-revealed": whenRevealed(
+    chooseTarget("first", query("character", { controller: "you" })),
+    dealDamage(1, chosen("first")),
+    chooseTarget("second", query("character", { controller: "you", excluding: chosen("first") })),
+    dealDamage(2, chosen("second")),
+    chooseTarget("third", {
+      ...query("character", { controller: "you", excluding: chosen("first") }),
+      not: { not: { excluding: chosen("second") } },
+    }),
+    dealDamage(3, chosen("third")),
+  ),
+  "50078.preparation": preparation(dealDamage(1, each(query("character", { controller: "you" })))),
+
+  // The stun is applied after the "already stunned" check, which reads the status the card is about to add.
+  "50079.when-revealed": whenRevealed(
+    ifThen(isStunned(yourIdentity), takeDamage(2), takeDamage(1)),
+    stun(yourIdentity),
+  ),
+  "50079.preparation": preparation(atEndOfAttack(stun(eventSource))),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-const SECOND_HALF = "second half of the module, not started";
-export const BLACK_WIDOW_SKIPPED: Readonly<Record<string, string>> = {
-  "50072.preparation": SECOND_HALF,
-  "50073.preparation": SECOND_HALF,
-  "50074.automated-defenses-constant": SECOND_HALF,
-  "50075.destroy-evidence-constant": SECOND_HALF,
-  "50076.when-revealed": SECOND_HALF,
-  "50076.preparation": SECOND_HALF,
-  "50077.when-revealed": SECOND_HALF,
-  "50077.preparation": SECOND_HALF,
-  "50078.when-revealed": SECOND_HALF,
-  "50078.preparation": SECOND_HALF,
-  "50079.when-revealed": SECOND_HALF,
-  "50079.preparation": SECOND_HALF,
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None: every ref is scripted. */
+export const BLACK_WIDOW_SKIPPED: Readonly<Record<string, string>> = {};

@@ -15,7 +15,12 @@ import { AOS_ABILITIES } from "./aos/index.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
-import { BLACK_WIDOW, BLACK_WIDOW_SKIPPED, GOGGLES_GRANTED_PREPARATION } from "./aos/black-widow.js";
+import {
+  BLACK_WIDOW,
+  BLACK_WIDOW_SKIPPED,
+  DEFENSES_GRANTED_PREPARATION,
+  GOGGLES_GRANTED_PREPARATION,
+} from "./aos/black-widow.js";
 import { MARIA_HILL_EVENTS, MARIA_HILL_EVENTS_SKIPPED } from "./aos/maria-hill/events.js";
 import { MARIA_HILL_IDENTITY, MARIA_HILL_IDENTITY_SKIPPED } from "./aos/maria-hill/identity.js";
 import {
@@ -156,7 +161,7 @@ const SCRIPTED_MODULES: Readonly<
       ],
       registry: BLACK_WIDOW,
       skipped: BLACK_WIDOW_SKIPPED,
-      registryOnly: [GOGGLES_GRANTED_PREPARATION],
+      registryOnly: [GOGGLES_GRANTED_PREPARATION, DEFENSES_GRANTED_PREPARATION],
     },
     {
       module: "batrocs-brigade",
