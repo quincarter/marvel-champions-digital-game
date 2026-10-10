@@ -66,6 +66,7 @@ import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js
 import { SILK_ABILITIES } from "./silk/index.js";
 import { SILK_EVENTS, SILK_EVENTS_SKIPPED } from "./silk/silk/events.js";
 import { SILK_IDENTITY, SILK_IDENTITY_SKIPPED } from "./silk/silk/identity.js";
+import { SILK_OBLIGATION_NEMESIS, SILK_OBLIGATION_NEMESIS_SKIPPED } from "./silk/silk/obligation-nemesis.js";
 import {
   SILK_SUPPORT_UPGRADES_ALLIES,
   SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
@@ -331,6 +332,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["52006", "52007", "52008", "52009", "52010", "52011", "52012"],
       registry: SILK_SUPPORT_UPGRADES_ALLIES,
       skipped: SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
+      module: "silk/obligation-nemesis",
+      cardIds: ["52028", "52029", "52030", "52031"],
+      registry: SILK_OBLIGATION_NEMESIS,
+      skipped: SILK_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
       module: "silk/growing-strong",
