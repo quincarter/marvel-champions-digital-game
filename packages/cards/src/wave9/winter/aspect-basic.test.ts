@@ -11,7 +11,9 @@ import {
 import {
   applyCommand,
   hasKeyword,
+  maxHitPoints,
   restrictedStanding,
+  traitsOf as traitsInPlay,
   type Command,
   type GameEvent,
   type GameState,
@@ -39,14 +41,16 @@ import {
 import { driveEventsPicking } from "../../testing/staging.js";
 import { NOVA_EVENTS } from "../../wave5/nova/events.js";
 import { BLANK, ONE_ICON, piles } from "../testing.js";
+import { AOS_ASPECT_BASIC } from "../aos/aspect-basic.js";
 import { WINTER_ASPECT_BASIC as REGISTRY, WINTER_ASPECT_BASIC_SKIPPED as SKIPPED } from "./aspect-basic.js";
 import { ASPECT_DEPS as DEPS, aspectGame, aspectHero, engaged, placed } from "./aspect-basic.testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Wave 9 `winter/aspect-basic`, first half (54012 to 54019), docs/phase7-wave9.md sections 3.43 and 3.52. The Winter
- * Soldier Aggression precon (it holds every card of the half, three Sidearms included) against Core's Rhino. Winter
+ * Wave 9 `winter/aspect-basic` (54012 to 54026, 54032, 54033), docs/phase7-wave9.md sections 3.43, 3.51 and 3.52. The
+ * Winter Soldier Aggression precon (it holds every card but White Widow and S.H.I.E.L.D. Deputy, which `swap` brings in,
+ * three Sidearms included) against Core's Rhino. Winter
  * Soldier is ATK 2, THW 2, DEF 2 with 11 hit points in hero form, Bucky Barnes REC 3 in alter-ego form. Only Core's
  * cards and this module are scripted here: the Sidearm, Winter Soldier's own cards and the rest of the pack are inert.
  */
@@ -59,6 +63,16 @@ const STANCE = "54017";
 const BAMBINO = "54018";
 const WALL = "54019";
 const SIDEARM = "54020";
+const FURY = "54021";
+const SUPER = "54022";
+const WINTER_WIDOW = "54023";
+const ENERGY = "54024";
+const GENIUS = "54025";
+const STRENGTH = "54026";
+const WHITE_WIDOW = "54032";
+const DEPUTY = "54033";
+const PREP_READY = "54008"; // PREPARATION upgrade, cost 2
+const SPIDEY_ALLY = "01059"; // Core ally without the S.H.I.E.L.D. trait
 const WIDOW = "54003"; // S.H.I.E.L.D. ally, cost 3, ATK 2, THW 2, 3 hit points
 const RIFLE = "54011"; // Weapon upgrade, cost 3
 const MASK = "54010"; // a non-Weapon upgrade
@@ -98,6 +112,8 @@ const refusal = (s: GameState, command: Command): string | undefined => {
 interface Plan {
   readonly take?: readonly string[];
   readonly targets?: readonly InstanceId[];
+  /** The label prefix of the option to take at a "choose one" prompt (the first option when absent). */
+  readonly option?: string;
   readonly seen?: string[][];
 }
 const planner = (plan: Plan = {}): Picker => {
@@ -113,6 +129,10 @@ const planner = (plan: Plan = {}): Picker => {
       }
       case "declareDefender":
         return ["decline"];
+      case "chooseOption": {
+        const hit = plan.option ? choice.options.find((o) => o.label.startsWith(plan.option!)) : undefined;
+        return hit ? [hit.optionId as string] : firstLegal(s);
+      }
       case "chooseTarget":
       case "chooseCards":
       case "chooseCostCards": {
@@ -177,7 +197,7 @@ describe("registry", () => {
   it("every registered script validates", () => {
     for (const [id, def] of Object.entries(REGISTRY)) expect(validateDefinition(def), id).toEqual([]);
   });
-  it("registers exactly these eight refs of the first half; every printed ref of the sixteen cards is registered or skipped, none twice", () => {
+  it("registers exactly these fifteen refs; every printed ref of the cards of the module is registered or skipped, none twice", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([
       "54012.captain-america-response",
       "54013.deathlok-response",
@@ -188,14 +208,6 @@ describe("registry", () => {
       "54018.bambino-constant",
       "54018.bambino-interrupt",
       "54019.man-on-the-wall-action",
-    ]);
-    const codes = [...Array.from({ length: 15 }, (_, i) => String(54012 + i)), "54032", "54033"];
-    const printed = codes.flatMap((code) => abilityRefIds(card(code)));
-    expect(printed).toHaveLength(Object.keys(REGISTRY).length + Object.keys(SKIPPED).length);
-    for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
-  });
-  it("skips only the second half, each with its reason", () => {
-    expect(Object.keys(SKIPPED).sort()).toEqual([
       "54020.shield-sidearm-interrupt",
       "54021.nick-fury-sr-forced-response",
       "54022.super-soldiers-action",
@@ -203,7 +215,13 @@ describe("registry", () => {
       "54032.white-widow-response",
       "54033.shield-deputy-constant",
     ]);
-    for (const reason of Object.values(SKIPPED)) expect(reason).toBe("second half of the module, not started");
+    const codes = [...Array.from({ length: 15 }, (_, i) => String(54012 + i)), "54032", "54033"];
+    const printed = codes.flatMap((code) => abilityRefIds(card(code)));
+    expect(printed).toHaveLength(Object.keys(REGISTRY).length + Object.keys(SKIPPED).length);
+    for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
+  });
+  it("skips nothing: every ref is scripted", () => {
+    expect(SKIPPED).toEqual({});
   });
   it("timing words, forms, labels and costs", () => {
     expect(REGISTRY["54012.captain-america-response"]).toMatchObject({
@@ -251,6 +269,35 @@ describe("registry", () => {
     expect(card<WithIcons>(ONE_BY_ONE).resourceIcons).toEqual((source as unknown as WithIcons).resourceIcons);
     // 28014 is registered by wave 5 under its own id; this id is a different key, so nothing is defined twice.
     expect(DEPS.abilities["28014.one-by-one-action"]).toBe(NOVA_EVENTS["28014.one-by-one-action"]);
+  });
+  it("timing words, forms, labels and costs of the second half", () => {
+    expect(REGISTRY["54020.shield-sidearm-interrupt"]).toMatchObject({
+      trigger: { kind: "interrupt", forced: false },
+      cost: { exhaustSelf: true, spendCounters: { counterType: "ammo", amount: 1 } },
+    });
+    expect(REGISTRY["54020.shield-sidearm-interrupt"]!.trigger).not.toHaveProperty("form");
+    expect(REGISTRY["54021.nick-fury-sr-forced-response"]).toMatchObject({
+      trigger: { kind: "response", forced: true },
+    });
+    for (const id of ["54022.super-soldiers-action", "54023.winter-widow-soldier-spy-action"]) {
+      expect(REGISTRY[id], id).toMatchObject({ trigger: { kind: "action", form: "hero" }, label: ["attack"] });
+      expect(REGISTRY[id]!.cost, id).toBeUndefined();
+    }
+    expect(REGISTRY["54032.white-widow-response"]).toMatchObject({ trigger: { kind: "response", forced: false } });
+    expect(REGISTRY["54033.shield-deputy-constant"]!.trigger).toMatchObject({ kind: "constant" });
+  });
+  it("Nick Fury, Sr. aliases the box's 50054 script, and the source's name, cost, stats, traits and text are the same", () => {
+    expect(REGISTRY["54021.nick-fury-sr-forced-response"]).toBe(AOS_ASPECT_BASIC["50054.nick-fury-sr-forced-response"]);
+    const source = PLAYABLE_CARDS.find((c) => c.id === cardId("50054")) as unknown as AllyCard & WithText & WithIcons;
+    expect(source).toBeDefined();
+    const mine = card<AllyCard & WithText & WithIcons>(FURY);
+    for (const key of ["name", "cost", "atk", "thw", "hp", "aspect", "unique", "deckLimit"] as const)
+      expect(mine[key], key).toEqual(source[key]);
+    expect(mine.text).toEqual(source.text);
+    expect(mine.traits).toEqual(source.traits);
+    expect(mine.keywords).toEqual(source.keywords);
+    expect(mine.resourceIcons).toEqual(source.resourceIcons);
+    expect(mine.consequentialDamage).toEqual(source.consequentialDamage);
   });
 });
 
@@ -1105,3 +1152,577 @@ describe("54019.man-on-the-wall-action: Hero Action, exhaust; reduce the cost of
     expect(refusal(alter.state, use(P1, alter.id, ID))).toBeDefined();
   });
 });
+
+/** Moves `ids` of the player to the top of their discard pile. */
+const toDiscard = (s: GameState, ids: readonly InstanceId[]): GameState => ({
+  ...s,
+  players: s.players.map((p) =>
+    p.playerId === P1
+      ? {
+          ...p,
+          deck: p.deck.filter((i) => !ids.includes(i)),
+          hand: p.hand.filter((i) => !ids.includes(i)),
+          discard: [...p.discard, ...ids],
+        }
+      : p,
+  ),
+});
+const firstCopy = (s: GameState, code: string): InstanceId =>
+  copies([...deck(s), ...hand(s), ...discard(s)], s, code)[0]!;
+const paying = (s: GameState, id: InstanceId, n: number): InstanceId[] =>
+  hand(s)
+    .filter((i) => i !== id)
+    .slice(0, n);
+
+describe("second half printed data", () => {
+  it("S.H.I.E.L.D. Sidearm: Aggression WEAPON upgrade, cost 1, [mental], up to 3 copies, Uses (3 ammo), limit 1 per character", () => {
+    const c = card<UpgradeCard>(SIDEARM);
+    expect([c.cost, c.aspect, c.unique, c.deckLimit]).toEqual([1, "aggression", false, 3]);
+    expect(traitsOf(SIDEARM)).toEqual(["WEAPON"]);
+    expect(card<WithIcons>(SIDEARM).resourceIcons).toEqual({ mental: 1 });
+    expect(c.keywords).toEqual([{ name: "uses", count: 3, counterType: "ammo" }]);
+    const extra = c as unknown as { attachesTo: unknown; playRestrictions: unknown };
+    expect(extra.attachesTo).toEqual({ kind: "qualified", category: "character", trait: trait("S.H.I.E.L.D.") });
+    expect(extra.playRestrictions).toEqual({ maxPerHost: 1 });
+  });
+  it("Nick Fury, Sr.: unique basic ally, cost 4, ATK 2, THW 2, HP 3, consequential 1/1, S.H.I.E.L.D. SOLDIER, [mental]", () => {
+    const c = card<AllyCard>(FURY);
+    expect([c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([4, 2, 2, 3, "basic", true, 1]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(c.traits).toEqual([trait("S.H.I.E.L.D."), trait("SOLDIER")]);
+    expect(c.keywords).toEqual([]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+  });
+  it("Super-Soldiers: basic ATTACK event, cost 3, [physical], Team-Up (Captain America and Winter Soldier), max 1 per deck", () => {
+    const c = card<EventCard>(SUPER);
+    expect([c.cost, c.aspect, c.deckLimit, c.unique]).toEqual([3, "basic", 1, false]);
+    expect(traitsOf(SUPER)).toEqual(["ATTACK"]);
+    expect(card<WithIcons>(SUPER).resourceIcons).toEqual({ physical: 1 });
+    expect(c.keywords).toEqual([{ name: "teamUp", names: ["Captain America", "Winter Soldier"] }]);
+  });
+  it("Winter, Widow, Soldier, Spy: basic ATTACK event, cost 2, [energy], Team-Up (Black Widow and Winter Soldier), max 1 per deck", () => {
+    const c = card<EventCard>(WINTER_WIDOW);
+    expect(c.name).toBe("Winter, Widow, Soldier, Spy");
+    expect([c.cost, c.aspect, c.deckLimit, c.unique]).toEqual([2, "basic", 1, false]);
+    expect(traitsOf(WINTER_WIDOW)).toEqual(["ATTACK"]);
+    expect(card<WithIcons>(WINTER_WIDOW).resourceIcons).toEqual({ energy: 1 });
+    expect(c.keywords).toEqual([{ name: "teamUp", names: ["Black Widow", "Winter Soldier"] }]);
+  });
+  it("the resources: basic, max 1 per deck, two icons of one type each, no ability", () => {
+    const expected: Record<string, Record<string, number>> = {
+      [ENERGY]: { energy: 2 },
+      [GENIUS]: { mental: 2 },
+      [STRENGTH]: { physical: 2 },
+    };
+    for (const [code, icons] of Object.entries(expected)) {
+      const c = card<AnyCard & { producesIcons: unknown; aspect: string; deckLimit: number }>(code);
+      expect(c.type, code).toBe("resource");
+      expect([c.aspect, c.deckLimit, c.producesIcons], code).toEqual(["basic", 1, icons]);
+      expect(abilityRefIds(c), code).toEqual([]);
+    }
+    expect(card<AnyCard & { name: string }>(ENERGY).name).toBe("Energy");
+    expect(card<AnyCard & { name: string }>(GENIUS).name).toBe("Genius");
+    expect(card<AnyCard & { name: string }>(STRENGTH).name).toBe("Strength");
+  });
+  it("White Widow: unique Protection S.H.I.E.L.D. SPY ally, cost 4, ATK 1, THW 2, HP 3, consequential 1/1, [mental]", () => {
+    const c = card<AllyCard>(WHITE_WIDOW);
+    expect([c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([4, 1, 2, 3, "protection", true, 1]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(c.traits).toEqual([trait("S.H.I.E.L.D."), trait("SPY")]);
+    expect(c.keywords).toEqual([]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+  });
+  it("S.H.I.E.L.D. Deputy: basic TITLE upgrade, cost 0, [mental], up to 3 copies; the current text carries the RRG 1.8 p. 70 maximum", () => {
+    const c = card<UpgradeCard>(DEPUTY);
+    expect([c.cost, c.aspect, c.unique, c.deckLimit]).toEqual([0, "basic", false, 3]);
+    expect(traitsOf(DEPUTY)).toEqual(["TITLE"]);
+    expect(card<WithIcons>(DEPUTY).resourceIcons).toEqual({ mental: 1 });
+    const extra = c as unknown as {
+      attachesTo: unknown;
+      playRestrictions: unknown;
+      text: { printed: string; current: string };
+    };
+    expect(extra.attachesTo).toEqual({ kind: "friendlyCharacter" });
+    expect(extra.playRestrictions).toEqual({ requiresIdentityTrait: trait("S.H.I.E.L.D."), maxPerHost: 1 });
+    expect(extra.text.printed).not.toContain("Max 1 per character");
+    expect(extra.text.current).toContain("Attach to a friendly character. Max 1 per character.");
+  });
+});
+
+describe("54020.shield-sidearm-interrupt: attached character's basic attack; exhaust, remove 1 ammo counter -> 1 damage to an enemy", () => {
+  const INT = "54020.shield-sidearm-interrupt";
+  const SHOCK = "m-shocker" as InstanceId;
+  const stage = (counters: Record<string, number> = { ammo: 3 }, host?: "widow") => {
+    const base = engaged(hero(), SHOCKER, "m-shocker");
+    if (host === "widow") {
+      const widow = placed(base, WIDOW);
+      const side = placed(widow.state, SIDEARM, { attach: widow.id, counters });
+      return { state: side.state, side: side.id, widow: widow.id };
+    }
+    const side = placed(base, SIDEARM, { attach: true, counters });
+    return { state: side.state, side: side.id, widow: null as unknown as InstanceId };
+  };
+
+  it("costs 1 and a normal play gives it its 3 ammo counters: attached to your identity, ready", () => {
+    const out = played(hero(), SIDEARM, {}, { attachTo: identityOf(hero()) });
+    expect(inst(out.state, out.id)).toMatchObject({
+      attachedTo: identityOf(out.state),
+      exhausted: false,
+      counters: { ammo: 3 },
+    });
+    expect(hand(out.state)).toHaveLength(out.before - 1 - 1);
+  });
+  it("attaches to a S.H.I.E.L.D. ally; not to a character without the trait (Spider-Man), nor to a minion", () => {
+    const widow = placed(hero({ second: true }), WIDOW);
+    const given = inHand(widow.state, SIDEARM);
+    const pay = paying(given.state, given.id, 1);
+    expect(refusal(given.state, play(P1, given.id, pay, { attachToInstanceId: widow.id }))).toBeUndefined();
+    expect(
+      refusal(given.state, play(P1, given.id, pay, { attachToInstanceId: identityOf(given.state, P2) })),
+    ).toBeDefined();
+    const minion = engaged(given.state, SHOCKER, "m-shocker");
+    expect(refusal(minion, play(P1, given.id, pay, { attachToInstanceId: SHOCK }))).toBeDefined();
+  });
+  it("limit 1 per character: a second Sidearm cannot go on the same character, but can on another", () => {
+    const widow = placed(hero(), WIDOW);
+    const first = placed(widow.state, SIDEARM, { attach: widow.id, counters: { ammo: 3 } });
+    const second = inHand(first.state, SIDEARM);
+    const pay = paying(second.state, second.id, 1);
+    expect(refusal(second.state, play(P1, second.id, pay, { attachToInstanceId: widow.id }))).toBeDefined();
+    expect(
+      refusal(second.state, play(P1, second.id, pay, { attachToInstanceId: identityOf(second.state) })),
+    ).toBeUndefined();
+  });
+  it("a basic attack by the attached hero, taken: Sidearm exhausts and loses 1 ammo; the chosen Shocker takes 1, the villain 2", () => {
+    const { state, side } = stage();
+    const out = drive(state, { take: [INT], targets: [SHOCK] }, basicAttack(state, villainOf(state)));
+    expect(damageOn(out.state, SHOCK)).toBe(1);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(2);
+    expect(inst(out.state, side)).toMatchObject({ exhausted: true, counters: { ammo: 2 } });
+  });
+  it("the 1 damage can go to the villain as well: 2 + 1 = 3", () => {
+    const { state } = stage();
+    const out = drive(state, { take: [INT], targets: [villainOf(state)] }, basicAttack(state, villainOf(state)));
+    expect(damageOn(out.state, villainOf(out.state))).toBe(3);
+    expect(damageOn(out.state, SHOCK)).toBe(0);
+  });
+  it("the 1 damage is added to damage already on the enemy: a Shocker at 1 damage goes to 2", () => {
+    const { state } = stage();
+    const hurt = patchInstance(state, SHOCK, { damage: 1 });
+    const out = drive(hurt, { take: [INT], targets: [SHOCK] }, basicAttack(hurt, villainOf(hurt)));
+    expect(damageOn(out.state, SHOCK)).toBe(2);
+  });
+  it("declined, the attack deals 2, the counters stay and Sidearm stays ready", () => {
+    const { state, side } = stage();
+    const out = drive(state, {}, basicAttack(state, villainOf(state)));
+    expect(damageOn(out.state, villainOf(out.state))).toBe(2);
+    expect(damageOn(out.state, SHOCK)).toBe(0);
+    expect(inst(out.state, side)).toMatchObject({ exhausted: false, counters: { ammo: 3 } });
+  });
+  it("the last ammo counter: the damage is dealt and Sidearm is discarded (Uses)", () => {
+    const { state, side } = stage({ ammo: 1 });
+    const out = drive(state, { take: [INT], targets: [SHOCK] }, basicAttack(state, villainOf(state)));
+    expect(damageOn(out.state, SHOCK)).toBe(1);
+    expect(discard(out.state)).toContain(side);
+    expect(inst(out.state, identityOf(out.state)).attachments).not.toContain(side);
+  });
+  it("with no ammo counters left it is not offered", () => {
+    const { state } = stage({ ammo: 0 });
+    const seen: string[][] = [];
+    const out = drive(state, { take: [INT], seen }, basicAttack(state, villainOf(state)));
+    expect(seen.flat().some((o) => o.endsWith(INT))).toBe(false);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(2);
+  });
+  it("exhausted, it is not offered even with ammo (exhausting it is part of the cost)", () => {
+    const { state, side } = stage();
+    const tired = patchInstance(state, side, { exhausted: true });
+    const seen: string[][] = [];
+    const out = drive(tired, { take: [INT], seen }, basicAttack(tired, villainOf(tired)));
+    expect(seen.flat().some((o) => o.endsWith(INT))).toBe(false);
+    expect(inst(out.state, side).counters).toEqual({ ammo: 3 });
+  });
+  it("on an ally it works for the ally's basic attack: Black Widow (ATK 2) and the Sidearm deal 2 + 1 to the villain, she takes 1", () => {
+    const { state, side, widow } = stage({ ammo: 3 }, "widow");
+    const out = drive(state, { take: [INT], targets: [villainOf(state)] }, basicAttack(state, villainOf(state), widow));
+    expect(damageOn(out.state, villainOf(out.state))).toBe(3);
+    expect(inst(out.state, side)).toMatchObject({ exhausted: true, counters: { ammo: 2 } });
+    expect(damageOn(out.state, widow)).toBe(1);
+  });
+  it("on an ally it is not offered for the hero's own basic attack", () => {
+    const { state } = stage({ ammo: 3 }, "widow");
+    const seen: string[][] = [];
+    drive(state, { take: [INT], seen }, basicAttack(state, villainOf(state)));
+    expect(seen.flat().some((o) => o.endsWith(INT))).toBe(false);
+  });
+  it("only for a basic attack: playing an attack event (Haymaker) does not offer it", () => {
+    const { state, side } = stage();
+    const swapped = placed(hero({ swap: { [WALL]: HAYMAKER } }), SIDEARM, { attach: true, counters: { ammo: 3 } });
+    const given = inHand(swapped.state, HAYMAKER);
+    const seen: string[][] = [];
+    const out = drive(given.state, { take: [INT], seen }, play(P1, given.id, paying(given.state, given.id, 2)));
+    expect(seen.flat().some((o) => o.endsWith(INT))).toBe(false);
+    expect(inst(out.state, swapped.id).counters).toEqual({ ammo: 3 });
+    expect(inst(state, side).counters).toEqual({ ammo: 3 });
+  });
+  it("usable in alter-ego form through an ally's basic attack (no form restriction)", () => {
+    const widow = placed(aspectGame(), WIDOW);
+    const side = placed(widow.state, SIDEARM, { attach: widow.id, counters: { ammo: 3 } });
+    const out = drive(
+      side.state,
+      { take: [INT], targets: [villainOf(side.state)] },
+      basicAttack(side.state, villainOf(side.state), widow.id),
+    );
+    expect(damageOn(out.state, villainOf(out.state))).toBe(3);
+  });
+});
+
+describe("54021.nick-fury-sr-forced-response: the box's 50054 script, on the pack's reprint", () => {
+  const ID = "54021.nick-fury-sr-forced-response";
+  const enter = (state: GameState, option: string, targets: readonly InstanceId[] = []) =>
+    played(state, FURY, { option, targets });
+  it("costs 4 and enters ready; Draw 2 puts two cards in the hand beyond the cost", () => {
+    const out = enter(hero(), "Draw 2");
+    expect(inPlayArea(out.state, out.id)).toBe(true);
+    expect(inst(out.state, out.id).exhausted).toBe(false);
+    expect(hand(out.state)).toHaveLength(out.before - 1 - 4 + 2);
+  });
+  it("Remove 3 threat: the main scheme at 5 goes to 2", () => {
+    const base = hero();
+    const scheme = base.mainScheme.instanceId;
+    const raised = patchInstance(base, scheme, { threat: 5 });
+    const out = enter(raised, "Remove 3 threat", [scheme]);
+    expect(inst(out.state, scheme).threat).toBe(2);
+  });
+  it("Give a S.H.I.E.L.D. character a tough status card: Winter Soldier gets exactly one", () => {
+    const out = enter(hero(), "Give a S.H.I.E.L.D.", [identityOf(hero())]);
+    expect(inst(out.state, identityOf(out.state)).statuses.tough).toBe(1);
+    expect(inst(out.state, out.id).statuses.tough).toBe(0);
+  });
+  it("at the end of the round he is discarded", () => {
+    const out = enter(hero(), "Draw 2");
+    expect(inPlayArea(out.state, out.id)).toBe(true);
+    const ended = drive(out.state, {}, endTurn(P1));
+    expect(inPlayArea(ended.state, out.id)).toBe(false);
+    expect(discard(ended.state)).toContain(out.id);
+  });
+  it("is a Forced Response: with the option chosen no player prompt asks whether to use it", () => {
+    const seen: string[][] = [];
+    played(hero(), FURY, { option: "Draw 2", take: [], seen });
+    expect(seen.flat().some((o) => o.endsWith(ID))).toBe(false);
+  });
+});
+
+describe("54022.super-soldiers-action: Team-Up (Captain America and Winter Soldier); Hero Action (attack), 6 damage to an enemy, each a tough status card", () => {
+  const cast = (s: GameState, plan: Plan = {}) => {
+    const given = inHand(s, SUPER);
+    return { ...drive(given.state, plan, play(P1, given.id, paying(given.state, given.id, 3))), id: given.id, given };
+  };
+  it("costs 3; 6 damage to the chosen enemy; Captain America and Winter Soldier each get one tough status card, no other character does", () => {
+    const cap = placed(hero(), CAP);
+    const widow = placed(cap.state, WIDOW);
+    const out = cast(widow.state, { targets: [villainOf(widow.state)] });
+    expect(damageOn(out.state, villainOf(out.state))).toBe(6);
+    expect(inst(out.state, cap.id).statuses.tough).toBe(1);
+    expect(inst(out.state, identityOf(out.state)).statuses.tough).toBe(1);
+    expect(inst(out.state, widow.id).statuses.tough).toBe(0);
+    expect(discard(out.state)).toContain(out.id);
+    expect(hand(out.state)).toHaveLength(hand(out.given.state).length - 1 - 3);
+  });
+  it("6 damage kills a Shocker (3 hit points) with no spill to the villain", () => {
+    const cap = placed(engaged(hero(), SHOCKER, "m-shocker"), CAP);
+    const out = cast(cap.state, { targets: ["m-shocker" as InstanceId] });
+    expect(gone(out.state, "m-shocker")).toBe(true);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(0);
+  });
+  it("a character already holding a tough status card keeps one (a character has at most one)", () => {
+    const cap = placed(hero(), CAP);
+    const armed = patchInstance(cap.state, cap.id, { statuses: { ...inst(cap.state, cap.id).statuses, tough: 1 } });
+    const out = cast(armed, { targets: [villainOf(armed)] });
+    expect(inst(out.state, cap.id).statuses.tough).toBe(1);
+    expect(inst(out.state, identityOf(out.state)).statuses.tough).toBe(1);
+  });
+  it("Team-Up: refused with Captain America not in play, played with him in play", () => {
+    const given = inHand(hero(), SUPER);
+    const pay = paying(given.state, given.id, 3);
+    expect(refusal(given.state, play(P1, given.id, pay))).toMatch(/Captain America/);
+    const cap = placed(given.state, CAP);
+    expect(refusal(cap.state, play(P1, given.id, pay))).toBeUndefined();
+  });
+  it("Team-Up names Winter Soldier too: in alter-ego form (Bucky Barnes) it cannot be played", () => {
+    const cap = placed(aspectGame(), CAP);
+    const given = inHand(cap.state, SUPER);
+    expect(refusal(given.state, play(P1, given.id, paying(given.state, given.id, 3)))).toBeDefined();
+  });
+  it("Captain America exhausted or damaged still counts: he only has to be in play", () => {
+    const cap = placed(hero(), CAP);
+    const tired = patchInstance(cap.state, cap.id, { exhausted: true, damage: 2 });
+    const given = inHand(tired, SUPER);
+    expect(refusal(given.state, play(P1, given.id, paying(given.state, given.id, 3)))).toBeUndefined();
+  });
+  it("costs 3: paying only 2 is refused", () => {
+    const cap = placed(hero(), CAP);
+    const given = inHand(cap.state, SUPER);
+    expect(refusal(given.state, play(P1, given.id, paying(given.state, given.id, 2)))).toBeDefined();
+  });
+});
+
+describe("54023.winter-widow-soldier-spy-action: Team-Up (Black Widow and Winter Soldier); put a Preparation upgrade from your discard pile into play; 4 damage to an enemy", () => {
+  const cast = (s: GameState, plan: Plan = {}) => {
+    const given = inHand(s, WINTER_WIDOW);
+    // Paid with cards that are not Preparation upgrades: the payment goes to the discard pile before the effect.
+    const pay = hand(given.state)
+      .filter((i) => i !== given.id && ![STANCE, PREP_READY].includes(codeOf(given.state, i)))
+      .slice(0, 2);
+    return { ...drive(given.state, plan, play(P1, given.id, pay)), id: given.id, given };
+  };
+  /** Black Widow in play and an empty discard pile (the dealt game starts with a Preparation upgrade in it). */
+  const stage = () => {
+    const widow = placed(hero(), WIDOW);
+    const s = widow.state;
+    return {
+      ...widow,
+      state: {
+        ...s,
+        players: s.players.map((p) => (p.playerId === P1 ? { ...p, deck: [...p.deck, ...p.discard], discard: [] } : p)),
+      } as GameState,
+    };
+  };
+
+  it("costs 2; the Preparation upgrade in the discard pile is put into play on your hero, ready, and 4 damage goes to the enemy", () => {
+    const widow = stage();
+    const stance = firstCopy(widow.state, STANCE);
+    const state = toDiscard(widow.state, [stance]);
+    const out = cast(state, { targets: [stance, villainOf(state)] });
+    expect(inst(out.state, stance)).toMatchObject({
+      attachedTo: identityOf(out.state),
+      exhausted: false,
+      faceup: true,
+    });
+    expect(inst(out.state, identityOf(out.state)).attachments).toContain(stance);
+    expect(discard(out.state)).not.toContain(stance);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(4);
+    expect(discard(out.state)).toContain(out.id);
+    expect(hand(out.state)).toHaveLength(hand(out.given.state).length - 1 - 2);
+  });
+  it("two Preparation upgrades in the discard pile: the chosen one enters play, the other stays", () => {
+    const widow = stage();
+    const stance = firstCopy(widow.state, STANCE);
+    const ready = firstCopy(widow.state, PREP_READY);
+    const state = toDiscard(widow.state, [stance, ready]);
+    const out = cast(state, { targets: [ready, villainOf(state)] });
+    expect(inst(out.state, identityOf(out.state)).attachments).toEqual([ready]);
+    expect(discard(out.state)).toContain(stance);
+    expect(discard(out.state)).not.toContain(ready);
+  });
+  it("only a Preparation upgrade is offered: Winter Mask (a non-Preparation upgrade) in the discard pile stays there", () => {
+    const widow = stage();
+    const mask = firstCopy(widow.state, MASK);
+    const stance = firstCopy(widow.state, STANCE);
+    const state = toDiscard(widow.state, [mask, stance]);
+    const seen: string[][] = [];
+    const out = cast(state, { seen, targets: [stance, villainOf(state)] });
+    expect(seen.flat()).not.toContain(mask);
+    expect(seen.find((o) => o.includes(stance))).toEqual([stance]);
+    expect(inst(out.state, identityOf(out.state)).attachments).toEqual([stance]);
+    expect(discard(out.state)).toContain(mask);
+  });
+  it("a Preparation upgrade in the deck or hand is not taken: with the discard pile empty of them, nothing enters play and the 4 damage is still dealt", () => {
+    const widow = stage();
+    const out = cast(widow.state, { targets: [villainOf(widow.state)] });
+    expect(inst(out.state, identityOf(out.state)).attachments).toEqual([]);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(4);
+    expect(copies(deck(out.state), out.state, STANCE)).toHaveLength(3);
+  });
+  it("4 damage to a Shocker kills it (3 hit points) with no spill", () => {
+    const base = engaged(stage().state, SHOCKER, "m-shocker");
+    const out = cast(base, { targets: ["m-shocker" as InstanceId] });
+    expect(gone(out.state, "m-shocker")).toBe(true);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(0);
+  });
+  it("Team-Up: refused with Black Widow not in play, played with her in play; refused in alter-ego form", () => {
+    const given = inHand(hero(), WINTER_WIDOW);
+    const pay = paying(given.state, given.id, 2);
+    expect(refusal(given.state, play(P1, given.id, pay))).toMatch(/Black Widow/);
+    const widow = placed(given.state, WIDOW);
+    expect(refusal(widow.state, play(P1, given.id, pay))).toBeUndefined();
+    const alter = placed(aspectGame(), WIDOW);
+    const g2 = inHand(alter.state, WINTER_WIDOW);
+    expect(refusal(g2.state, play(P1, g2.id, paying(g2.state, g2.id, 2)))).toBeDefined();
+  });
+});
+
+describe("54032.white-widow-response: after you resolve the ability of a Preparation card you control, heal White Widow by its printed cost", () => {
+  const ID = "54032.white-widow-response";
+  const SWAP = { [MASK]: WHITE_WIDOW };
+  /** White Widow with `damage`, Stance (cost 1) on the hero, a Sandman on top of the deck, Spoiling for a Fight in hand. */
+  const stageStance = (damage: number) => {
+    const base = hero({ swap: SWAP });
+    const ww = placed(base, WHITE_WIDOW);
+    const hurt = patchInstance(ww.state, ww.id, { damage });
+    const stance = placed(hurt, STANCE, { attach: true });
+    return { state: stackEncounterDeck(stance.state, SANDMAN), ww: ww.id, stance: stance.id };
+  };
+  const spoil = (s: GameState, plan: Plan) => {
+    const given = inHand(s, SPOILING);
+    return drive(given.state, plan, play(P1, given.id, []));
+  };
+
+  it("costs 4 and enters ready", () => {
+    const out = played(hero({ swap: SWAP }), WHITE_WIDOW);
+    expect(inPlayArea(out.state, out.id)).toBe(true);
+    expect(inst(out.state, out.id).exhausted).toBe(false);
+    expect(hand(out.state)).toHaveLength(out.before - 1 - 4);
+  });
+  it("Aggressive Stance (printed cost 1) resolved: taken, White Widow heals 1 (2 damage to 1)", () => {
+    const { state, ww, stance } = stageStance(2);
+    const out = spoil(state, { take: ["54017.aggressive-stance-response", ID] });
+    expect(discard(out.state)).toContain(stance);
+    expect(damageOn(out.state, ww)).toBe(1);
+  });
+  it("the response is optional: declined, her damage stays", () => {
+    const { state, ww } = stageStance(2);
+    const out = spoil(state, { take: ["54017.aggressive-stance-response"] });
+    expect(damageOn(out.state, ww)).toBe(2);
+  });
+  it("a Preparation of printed cost 2 (Defensive Stance 08032, stopping Whiplash's Retaliate) heals 2 (2 damage to 0; never below 0)", () => {
+    const DEFENSIVE = "08032";
+    const WHIP = "m-whip" as InstanceId;
+    for (const [damage, expected] of [
+      [2, 0],
+      [1, 0],
+    ] as const) {
+      const base = hero({ swap: { ...SWAP, [BAMBINO]: DEFENSIVE } });
+      const ww = placed(base, WHITE_WIDOW);
+      const hurt = patchInstance(ww.state, ww.id, { damage });
+      const prep = placed(hurt, DEFENSIVE, { attach: true });
+      const withWhip = engaged(prep.state, WHIPLASH, "m-whip");
+      const out = drive(withWhip, { take: ["08032.defensive-stance-interrupt", ID] }, basicAttack(withWhip, WHIP));
+      expect(discard(out.state)).toContain(prep.id);
+      expect(damageOn(out.state, identityOf(out.state))).toBe(0);
+      expect(damageOn(out.state, ww.id), `damage ${damage}`).toBe(expected);
+    }
+  });
+  it("an ability of a card that is not a Preparation (Man on the Wall) does not offer it", () => {
+    const base = hero({ swap: SWAP });
+    const ww = placed(base, WHITE_WIDOW);
+    const hurt = patchInstance(ww.state, ww.id, { damage: 2 });
+    const wall = placed(hurt, WALL, { attach: true });
+    const seen: string[][] = [];
+    const out = drive(wall.state, { take: [ID], seen }, use(P1, wall.id, "54019.man-on-the-wall-action"));
+    expect(seen.flat().some((o) => o.endsWith(ID))).toBe(false);
+    expect(damageOn(out.state, ww.id)).toBe(2);
+  });
+});
+
+describe("54033.shield-deputy-constant: attached character gets +1 hit point and gains S.H.I.E.L.D.; max 1 per character (RRG 1.8 p. 70)", () => {
+  const SWAP = { [MASK]: DEPUTY, [BAMBINO]: DEPUTY };
+  const deputyGame = (opts: { second?: boolean } = {}) => hero({ swap: SWAP, ...opts });
+  const attach = (s: GameState, host: InstanceId, player: PlayerId = P1) => {
+    const given = inHand(s, DEPUTY, player);
+    return { ...given, command: play(player, given.id, [], { attachToInstanceId: host }) };
+  };
+  it("costs 0 and attaches to your hero: 11 hit points become 12, ready, S.H.I.E.L.D. stays", () => {
+    const base = deputyGame();
+    expect(maxHitPoints(base, identityOf(base), DEPS)).toBe(11);
+    const out = played(base, DEPUTY, {}, { cost: 0, attachTo: identityOf(base) });
+    expect(inst(out.state, out.id)).toMatchObject({ attachedTo: identityOf(out.state), exhausted: false });
+    expect(maxHitPoints(out.state, identityOf(out.state), DEPS)).toBe(12);
+    expect(hand(out.state)).toHaveLength(out.before - 1);
+    expect(traitsInPlay(out.state, identityOf(out.state), DEPS).map(String)).toContain("S.H.I.E.L.D.");
+  });
+  it("on an ally: Black Widow's 3 hit points become 4", () => {
+    const widow = placed(deputyGame(), WIDOW);
+    const out = played(widow.state, DEPUTY, {}, { cost: 0, attachTo: widow.id });
+    expect(maxHitPoints(out.state, widow.id, DEPS)).toBe(4);
+  });
+  it("on another player's character without the trait (Spider-Man): +1 hit point and the S.H.I.E.L.D. trait are gained", () => {
+    const base = deputyGame({ second: true });
+    const spidey = identityOf(base, P2);
+    const hp = maxHitPoints(base, spidey, DEPS);
+    expect(traitsInPlay(base, spidey, DEPS).map(String)).not.toContain("S.H.I.E.L.D.");
+    const { state, command } = (() => {
+      const a = attach(base, spidey);
+      return { state: a.state, command: a.command };
+    })();
+    const out = drive(state, {}, command);
+    expect(maxHitPoints(out.state, spidey, DEPS)).toBe(hp! + 1);
+    expect(traitsInPlay(out.state, spidey, DEPS).map(String)).toContain("S.H.I.E.L.D.");
+  });
+  it("on an ally without the trait: the ally gains S.H.I.E.L.D.", () => {
+    const base = deputyGame({ second: true });
+    const ally = placed(base, SPIDEY_ALLY, { player: P2 });
+    expect(traitsInPlay(ally.state, ally.id, DEPS).map(String)).not.toContain("S.H.I.E.L.D.");
+    const a = attach(ally.state, ally.id);
+    const out = drive(a.state, {}, a.command);
+    expect(traitsInPlay(out.state, ally.id, DEPS).map(String)).toContain("S.H.I.E.L.D.");
+  });
+  it("the bonuses end when it leaves: discarded, the hit points and the granted trait are gone", () => {
+    const base = deputyGame({ second: true });
+    const a = attach(base, identityOf(base, P2));
+    const on = drive(a.state, {}, a.command);
+    const off = toDiscardAttachment(on.state, a.id, identityOf(on.state, P2));
+    expect(traitsInPlay(off, identityOf(off, P2), DEPS).map(String)).not.toContain("S.H.I.E.L.D.");
+    expect(maxHitPoints(off, identityOf(off, P2), DEPS)).toBe(maxHitPoints(base, identityOf(base, P2), DEPS));
+  });
+  it("max 1 per character: a second Deputy cannot attach to the same character, but can to another", () => {
+    const widow = placed(deputyGame(), WIDOW);
+    const first = placed(widow.state, DEPUTY, { attach: widow.id });
+    const second = inHand(first.state, DEPUTY);
+    expect(refusal(second.state, play(P1, second.id, [], { attachToInstanceId: widow.id }))).toBeDefined();
+    expect(
+      refusal(second.state, play(P1, second.id, [], { attachToInstanceId: identityOf(second.state) })),
+    ).toBeUndefined();
+  });
+  it("friendly characters only: not attachable to a minion", () => {
+    const withMinion = engaged(deputyGame(), SHOCKER, "m-shocker");
+    const a = attach(withMinion, "m-shocker" as InstanceId);
+    expect(refusal(a.state, a.command)).toBeDefined();
+  });
+  it("play only if your identity has the S.H.I.E.L.D. trait: Winter Soldier may; Spider-Man (another seat's hand) may not", () => {
+    const base = deputyGame({ second: true });
+    const mine = attach(base, identityOf(base));
+    expect(refusal(mine.state, mine.command)).toBeUndefined();
+    const handed: GameState = {
+      ...mine.state,
+      players: mine.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, hand: p.hand.filter((i) => i !== mine.id) }
+          : p.playerId === P2
+            ? { ...p, hand: [...p.hand, mine.id] }
+            : p,
+      ),
+    };
+    const theirs = patchInstance(handed, mine.id, { ownerId: P2, controllerId: P2 });
+    expect(refusal(theirs, play(P2, mine.id, [], { attachToInstanceId: identityOf(theirs, P2) }))).toBeDefined();
+  });
+});
+
+describe("54024 / 54025 / 54026: the Energy, Genius and Strength resources pay two of their type", () => {
+  for (const [code, label] of [
+    [ENERGY, "Energy"],
+    [GENIUS, "Genius"],
+    [STRENGTH, "Strength"],
+  ] as const) {
+    it(`${label} alone pays Haymaker's cost of 2; one other card does not`, () => {
+      const base = hero({ swap: { [MASK]: HAYMAKER, [WALL]: code } });
+      const res = inHand(base, code);
+      const haymaker = inHand(res.state, HAYMAKER);
+      const other = paying(haymaker.state, haymaker.id, 5).find((i) => i !== res.id)!;
+      expect(refusal(haymaker.state, play(P1, haymaker.id, [res.id]))).toBeUndefined();
+      expect(refusal(haymaker.state, play(P1, haymaker.id, [other]))).toBeDefined();
+      const out = drive(haymaker.state, { targets: [villainOf(haymaker.state)] }, play(P1, haymaker.id, [res.id]));
+      expect(damageOn(out.state, villainOf(out.state))).toBe(3);
+      expect(discard(out.state)).toContain(res.id);
+    });
+  }
+});
+
+/** The Deputy's removal, as discarding it would: off its host into the owner's discard pile. */
+function toDiscardAttachment(s: GameState, id: InstanceId, host: InstanceId): GameState {
+  const detached = patchInstance(s, host, { attachments: inst(s, host).attachments.filter((i) => i !== id) });
+  const owner = inst(detached, id).ownerId ?? P1;
+  return {
+    ...patchInstance(detached, id, { attachedTo: null }),
+    players: detached.players.map((p) => (p.playerId === owner ? { ...p, discard: [...p.discard, id] } : p)),
+  };
+}

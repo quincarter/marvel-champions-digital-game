@@ -13,17 +13,25 @@ import {
   countOf,
   defineAbilities,
   discardEncounterUntil,
+  attackAnEnemy,
+  damageAnEnemy,
   discardThis,
   exhaustCardsCost,
   exhaustThis,
   exists,
+  eventSource,
   gainsKeyword,
+  gainsTrait,
+  gets,
+  giveStatus,
+  heal,
   heroAction,
   heroResponse,
   interrupt,
   modifyAttack,
   moveCards,
   on,
+  printedCostOf,
   putIntoPlay,
   query,
   ready,
@@ -33,22 +41,25 @@ import {
   response,
   self,
   shuffleDeck,
+  teamUpCharacters,
   varOf,
   yourIdentity,
   you,
   zone,
 } from "../../dsl/index.js";
 import { NOVA_EVENTS } from "../../wave5/nova/events.js";
+import { PREPARATION_CARD, onAbilityResolvedOf } from "../../wave1/bkw/local.js";
+import { AOS_ASPECT_BASIC } from "../aos/aspect-basic.js";
 
 const SHIELD = trait("S.H.I.E.L.D.");
 const WEAPON = trait("WEAPON");
 const ATTACK = trait("ATTACK");
+const PREPARATION = trait("PREPARATION");
 const SIDEARM = "S.H.I.E.L.D. Sidearm";
 
 /**
- * Wave 9 scripting module `winter/aspect-basic` (docs/phase7-wave9.md section 8.4, 3.52), first half (54012 to 54019).
- * `card-groups.ts` maps this module to the ids below; keep the two in step. The second half (54020 to 54026, 54032,
- * 54033) is not started and is listed in `WINTER_ASPECT_BASIC_SKIPPED`.
+ * Wave 9 scripting module `winter/aspect-basic` (docs/phase7-wave9.md section 8.4, 3.51, 3.52): 54012 to 54026, 54032
+ * and 54033. `card-groups.ts` maps this module to the ids below; keep the two in step.
  *
  * **54012.captain-america-response**: "a S.H.I.E.L.D. character" is any character with the trait, any player's, an
  * identity in either form included; it need not be exhausted.
@@ -79,6 +90,24 @@ const SIDEARM = "S.H.I.E.L.D. Sidearm";
  *
  * **54019.man-on-the-wall-action**: the reduction counts the minions engaged with you as the action resolves. "Play only
  * if your identity has the Soldier trait" is data.
+ *
+ * **54020.shield-sidearm-interrupt**: "exhaust and remove 1 ammo counter" are both costs (everything before the arrow);
+ * "makes a basic attack" is `on.attacks` of the host, so it works on an ally or an identity. Uses and "Limit 1 per
+ * character" (`maxPerHost`) are data. The 1 damage goes to any enemy, chosen on resolution.
+ *
+ * **54021.nick-fury-sr-forced-response**: a reprint of 50054 (same name, cost, stats, traits and text), aliased.
+ *
+ * **54022.super-soldiers-action / 54023.winter-widow-soldier-spy-action**: Team-Up is data and checked on play by the
+ * engine (both named characters friendly and in play). "Each" of the two named characters is `teamUpCharacters()`, read
+ * from the card's own keyword. Winter, Widow, Soldier, Spy puts a Preparation upgrade from the discard pile into play
+ * first (compulsory when one exists, no "may"), as playing it would attach it, then deals 4.
+ *
+ * **54032.white-widow-response**: "after you resolve the ability of a Preparation card you control" is
+ * `abilityResolved` (errata'd "trigger" to "resolve", RRG 1.8 p. 66, as Widowmaker 08001a). The heal is the printed cost
+ * of the resolved card's source, from White Widow only.
+ *
+ * **54033.shield-deputy-constant**: scripted to the current text (RRG 1.8 p. 70 added "Max 1 per character", carried
+ * by `playRestrictions.maxPerHost` in the data): the attached character gets +1 hit point and gains S.H.I.E.L.D.
  *
  * Cards (17):
  * - 54012 Captain America (ally)
@@ -157,15 +186,38 @@ export const WINTER_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     { cost: exhaustThis },
     reduceNextCardCost(you, countOf(query("minion", { engagedWith: "you" })), "phase"),
   ),
+
+  "54020.shield-sidearm-interrupt": interrupt(
+    on.attacks({ hostOfSelf: true }, { basic: true }),
+    { cost: [exhaustThis, removeCounter("ammo", 1, {})] },
+    damageAnEnemy(1),
+  ),
+
+  "54021.nick-fury-sr-forced-response": AOS_ASPECT_BASIC["50054.nick-fury-sr-forced-response"]!,
+
+  "54022.super-soldiers-action": heroAction(
+    { label: "attack" },
+    attackAnEnemy(6),
+    giveStatus(teamUpCharacters(), "tough"),
+  ),
+
+  "54023.winter-widow-soldier-spy-action": heroAction(
+    { label: "attack" },
+    chooseCards("found", zone("discard", you, { filter: query("upgrade", { trait: PREPARATION }) }), {
+      min: 1,
+      max: 1,
+    }),
+    putIntoPlay(chosen("found")),
+    attackAnEnemy(4),
+  ),
+
+  "54032.white-widow-response": response(onAbilityResolvedOf(PREPARATION_CARD), heal(printedCostOf(eventSource), self)),
+
+  "54033.shield-deputy-constant": constant(
+    gets("hp", 1, query("character", { hostOfSelf: true })),
+    gainsTrait(SHIELD, query("character", { hostOfSelf: true })),
+  ),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-const SECOND_HALF = "second half of the module, not started";
-export const WINTER_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "54020.shield-sidearm-interrupt": SECOND_HALF,
-  "54021.nick-fury-sr-forced-response": SECOND_HALF,
-  "54022.super-soldiers-action": SECOND_HALF,
-  "54023.winter-widow-soldier-spy-action": SECOND_HALF,
-  "54032.white-widow-response": SECOND_HALF,
-  "54033.shield-deputy-constant": SECOND_HALF,
-};
+export const WINTER_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};
