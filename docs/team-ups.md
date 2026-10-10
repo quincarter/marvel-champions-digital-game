@@ -57,7 +57,7 @@ Team-Up line names both characters exactly as the `teamUp` keyword's `names` car
 | Cindy Moon and Peter Parker                    | Investigative Journalism (52024)    | `silk`   | 9     | `cindy-moon-peter-parker`                    | pending: `_pending/silk-spider-man/splash.webp` (splash only; the folder name does not match the slug)             |
 | Captain America and Winter Soldier             | Super-Soldiers (54022)              | `winter` | 9     | `captain-america-winter-soldier`             | none                                                                                                               |
 | Black Widow and Winter Soldier                 | Winter, Widow, Soldier, Spy (54023) | `winter` | 9     | `black-widow-winter-soldier`                 | pending: `_pending/black-widow-winter-soldier/{splash,badge}.webp` (folder name matches)                           |
-| Maria Hill and Nick Fury                       | Super Spies (50024)                 | `aos`    | 9     | `maria-hill-nick-fury`                       | pending: `_pending/maria-hill-nick-fury/` exists but is empty                                                      |
+| Maria Hill and Nick Fury                       | Super Spies (50024)                 | `aos`    | 9     | `maria-hill-nick-fury`                       | pending: `_pending/maria-hill-nick-fury/` holds the splash and the badge (owner, 2026-10-10)                       |
 
 A pending folder is never read (a leading `_` marks a holding area). When a pair's pictures are moved up they go in the
 folder named in the fifth column, which is computed from the `teamUp` names (`teamUpSlug`), so the two pending folders
