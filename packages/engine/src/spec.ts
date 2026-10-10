@@ -1874,8 +1874,42 @@ export type EffectSpec =
        * attack's `damage`/`damaged` results stay 0, and there is no excess damage (RRG 1.8 "Overkill", p. 31).
        * Because the damage is dealt, a piercing attack still discards the attacked character's tough status cards
        * first (ruling January 17, 2026 (3) #1: "Effects that 'prevent damage' prevent damage taken, not dealt").
+       *
+       * The same from an interrupt to a **player's** attack (docs/phase7-wave9.md §3.4), where the frame is that
+       * `attack` event: its own damage and, for an "(attack)" ability, the damage of the ability's later instructions
+       * (each is dealt with this frame as its parent). The attacked characters are still attacked: retaliate answers
+       * (RRG 1.8 "Retaliate X", p. 38), "after … attacks" answers, and an ally attacker takes its consequential damage.
        */
       readonly preventAllDamage?: boolean;
+      /**
+       * With `preventAllDamage` (docs/phase7-wave9.md §3.4: "Preparation: Prevent all damage from this attack. In
+       * expert mode, deal that much damage to the attacking character"): what the prevention stopped is recorded on
+       * the attack's own event frame, as vars named by `attackPreventedVars(bind)`:
+       *
+       * - `<bind>.prevented`: 1 as soon as this effect resolves (the attack is one whose damage is prevented);
+       * - `<bind>.amount`: the damage the attack would have dealt to the character it was against when this effect
+       *   resolved (a player attack's target, the villain whose "when … attacks [this card]" interrupt asked), each
+       *   instance as the attack dealt it: after the attack's own modifiers (ATK, "N additional damage") and before
+       *   anything of the target's (a constant reduction, a tough status card). An enemy attack, or a player attack
+       *   that had named no enemy yet, counts every instance;
+       * - `<bind>.total`: the same for every character the attack dealt damage to.
+       *
+       * The amount is not known in the attack's interrupt window: an "(attack)" ability's damage is dealt by
+       * instructions that resolve after it (`resolve/attack-ability.ts`), so the numbers are added as each instance is
+       * prevented. They are the attack's results from then on: `ValueSpec eventResult` / `Predicate
+       * eventResultAtLeast` in an `atEndOfAttack` effect or an "after … attacks" ability, `Predicate currentAttack`
+       * while the attack is on the stack. Damage something else stopped first (a "cannot take damage" rule, a
+       * "prevent all damage to X" constant) is not counted, and neither is damage the attack never dealt.
+       *
+       * **An attack with several targets** (owner decision, docs/phase7-wave9.md §4.1 Q4 = A: "this
+       * attack" is the whole attack; RRG 1.8 "Attack (Player Ability Type)", p. 10: "An ability labeled as an attack is
+       * considered a single attack, even if that attack deals multiple instances of damage"): on a player attack made
+       * by an "(attack)" ability with its controller's identity, the prevention reaches every instance of damage the
+       * ability deals as that attack from then on, whichever of its `attack` events or damage instructions deals it
+       * and to whichever enemy (`preventAbilityAttackDamage`). Damage the attack dealt before this effect resolved
+       * stays dealt (an earlier enemy of "attack each enemy", whose own event resolved first).
+       */
+      readonly bind?: string;
       /**
        * "Prevent 3 damage from this attack" (Brazen Defense 32178; docs/phase7-wave6.md §3.81), set from an interrupt at
        * attack initiation like `preventAllDamage`: a budget of up to N damage on the attack's own event frame

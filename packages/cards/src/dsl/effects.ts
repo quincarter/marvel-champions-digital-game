@@ -722,6 +722,17 @@ export const modifyAttack = (change: {
    */
   readonly preventAllDamage?: boolean;
   /**
+   * With `preventAllDamage`, on a player's attack or an enemy's (docs/phase7-wave9.md §3.4; "Preparation: Prevent all
+   * damage from this attack. In expert mode, deal that much damage to the attacking character"): what the prevention
+   * stops is recorded on the attack as its results `<bind>.prevented` (1 at once), `<bind>.amount` (the damage it
+   * would have dealt to the character it was against when this resolved) and `<bind>.total` (to every character).
+   * The numbers exist only once the attack has dealt its damage, which is after its interrupt window, so read them
+   * at the end of the attack: `atEndOfAttack(dealDamage(…, attackPreventedAmount(bind)))`, or in an "after …
+   * attacks" ability. They are not vars of this ability (`varOf` does not see them). With several targets the whole
+   * attack is prevented (owner decision §4.1 Q4 = A).
+   */
+  readonly bind?: string;
+  /**
    * "Prevent 3 damage from this attack" (Brazen Defense 32178; docs/phase7-wave6.md §3.81), set at attack initiation:
    * up to N of the damage the attack would have its target take is prevented (after constant reductions and a tough
    * status card, RRG 1.8 "Damage", p. 14), announced as `damagePrevented`, and the rest gone with the attack.
@@ -759,6 +770,7 @@ export const modifyAttack = (change: {
     : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
+  ...(change.bind !== undefined ? { bind: change.bind } : {}),
   ...(change.preventDamage !== undefined ? { preventDamage: amount(change.preventDamage) } : {}),
   ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
   ...(change.boostIconsEach !== undefined ? { boostIconsEach: amount(change.boostIconsEach) } : {}),

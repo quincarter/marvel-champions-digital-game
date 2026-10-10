@@ -1,5 +1,11 @@
 import { trait, type Trait } from "@mc/content";
-import { TOGETHER_TARGETS_SLOT, TOTAL_ATK_RESULT, UNRESOLVED_VAR } from "@mc/engine";
+import {
+  attackPreventedVars,
+  labeledResolvedVar,
+  TOGETHER_TARGETS_SLOT,
+  TOTAL_ATK_RESULT,
+  UNRESOLVED_VAR,
+} from "@mc/engine";
 import type {
   BasicPowerName,
   CardIcon,
@@ -1114,6 +1120,28 @@ export const basicPowerStatIs = (...stat: readonly StatName[]): Predicate => ({
 });
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
+/**
+ * "If no 'Preparation' ability was resolved [during this attack]" → `not(attackResolvedLabeled("preparation"))`
+ * (Black Widow's Gauntlet, `aos` 50068; docs/phase7-wave9.md §3.4): at least `atLeast` abilities of that label were
+ * resolved by a `resolvePreparationsOf` while the triggering attack was the attack in progress. Read off the attack
+ * that triggered this ability, so it belongs in an "after … attacks" response (offered after the attacked
+ * character's retaliate has resolved) or an `atEndOfAttack` effect. The engine's `eventResultAtLeast` over the
+ * attack's `labeledResolvedVar(label)` result: no predicate of its own.
+ */
+export const attackResolvedLabeled = (label: "preparation", atLeast = 1): Predicate =>
+  eventDealt(labeledResolvedVar(label), atLeast);
+/**
+ * "Deal that much damage to the attacking character" after `modifyAttack({ preventAllDamage: true, bind })`
+ * (docs/phase7-wave9.md §3.4): the damage the triggering attack would have dealt to the character it was against
+ * when the prevention resolved, after the attack's own modifiers and before anything of that character's (a tough
+ * status card). Read at the end of the attack (`atEndOfAttack`) or in an "after … attacks" ability; 0 before the
+ * attack has dealt its damage.
+ */
+export const attackPreventedAmount = (bind: string): ValueSpec => eventResult(attackPreventedVars(bind).amount);
+/** `attackPreventedAmount` summed over every character the attack dealt damage to (an attack with several targets). */
+export const attackPreventedTotal = (bind: string): ValueSpec => eventResult(attackPreventedVars(bind).total);
+/** Whether `modifyAttack({ preventAllDamage: true, bind })` resolved for the triggering attack, read as the two above. */
+export const attackWasPrevented = (bind: string): Predicate => eventDealt(attackPreventedVars(bind).prevented);
 /**
  * "If your identity takes any amount of damage from that attack" → `eventDamageTaken(each(YOUR_IDENTITY))`: the triggering
  * attack/activation's damage actually taken by `of` (indirect shares and overkill spill included, prevented damage

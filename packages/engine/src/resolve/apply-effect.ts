@@ -175,10 +175,12 @@ import {
   abilityAttackOf,
   abilityAttackRoot,
   attackEffectCancelled,
+  begunAttackAgainst,
   begunAttackTarget,
   hasBegunAttack,
   isAttackInstruction,
   noteAttackedByAbility,
+  preventAbilityAttackDamage,
   resumeBegunAttack,
   skipForCancelledAttack,
   skipUnattackable,
@@ -548,7 +550,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         return;
       }
       // RRG "Attack (Player Ability Type)": attacks can target any enemy unless guard prevents it.
-      const attackable = targets(effect.target).filter((id) => canAttack(ctx.state, attacker, id, ctx.deps));
+      // An attack the ability began with, moved in its window onto another enemy, is an attack on that enemy
+      // (`attackedInstead`, docs/phase7-wave9.md §3.4): guard is read for it, not for the enemy it was moved off.
+      const attackable = targets(effect.target).filter((id) =>
+        canAttack(ctx.state, attacker, begunAttackAgainst(ctx.state, attackOf, attacker, id), ctx.deps),
+      );
       // Once an attack of that ability was cancelled, the ability's one attack makes no more (owner decision,
       // 2026-10-08, row 65).
       const cancelled = attackOf !== undefined && attackEffectCancelled(ctx.state, ctx.deps, frame);
@@ -780,7 +786,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "The attack gains piercing": one var per keyword on the activation's own event frame, read when it deals
       // damage (`attackKeywordsOf`). `overkill` has always used this var name, so `keywords: ["overkill"]` is the same.
       for (const keyword of effect.keywords ?? []) delta[keyword] = 1;
-      if (effect.preventAllDamage) delta.preventAllDamage = 1;
+      if (effect.preventAllDamage) {
+        delta.preventAllDamage = 1;
+        // Where what it stops is recorded (`bind`), and the rest of an "(attack)" ability's one attack (§3.4, Q4 = A).
+        preventAbilityAttackDamage(ctx, activation, effect.bind);
+      }
       // "Prevent N damage from this attack" (§3.81): a budget `applyDamage` spends on the attacked character's damage.
       if (effect.preventDamage) {
         const budget = Math.max(0, value(effect.preventDamage));

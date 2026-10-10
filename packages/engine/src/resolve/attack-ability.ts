@@ -77,6 +77,28 @@
  * - **A stunned identity is not this case**: its whole ability is cancelled by the status card first (p. 26,
  *   `labelCancels`), as before.
  *
+ * **All damage of the attack prevented** (`modifyAttack.preventAllDamage` in a player attack's "when … attacks"
+ * window: "Preparation: Prevent all damage from this attack"; docs/phase7-wave9.md §3.4, owner decision §4.1 Q4 = A:
+ * with several targets, "this attack" is the whole attack). Official text: p. 10, "An ability labeled as an attack is
+ * considered a single attack, even if that attack deals multiple instances of damage"; RRG 1.8 "Prevent" (p. 35). The
+ * flag is on the `attack` event whose window it was set in, and every instance dealt with that frame as its parent
+ * reads it: its own damage, and the damage of the ability's later instructions while it waits. When the ability makes
+ * more than one `attack` event (one per enemy of "attack each enemy"), its root frame remembers the prevented one
+ * (`attackDamagePrevented`, `preventAbilityAttackDamage`) and the damage of the others is prevented with it
+ * (`attackPreventingDamage`). Unlike a cancelled attack, a prevented one still attacks: every enemy named is attacked
+ * and retaliates, "after … attacks" answers, and its `damage` result is 0. This engine's interpretation, with its
+ * alternatives:
+ *
+ * - **Damage already dealt stays dealt**: an enemy of "each enemy" whose own event resolved before the one the
+ *   prevention was asked in. Prevention replaces damage that would be taken (p. 35); it heals nothing.
+ *   (Alternative: nothing; the damage is on the character.)
+ * - **Separate attacks of one ability are prevented together** (two `attack` instructions), as a cancel stops both
+ *   (row 65). (Alternative: only the attack asked, which is how "that attack deals N additional damage" is read,
+ *   Q53, on p. 10's "only increases the damage of one of that ability's attacks"; not built, since Q4 = A makes
+ *   "this attack" the ability's whole attack.)
+ * - **An attack with no `attackOf`** (an ally's, an unlabeled ability's, each share of a divided basic attack) is one
+ *   event per enemy with nothing joining them, as everywhere else in this file: only the event asked is prevented.
+ *
  * **Every "(attack)" ability is an attack** (owner ruling Q48, 2026-10-07; RRG 1.8 "Labeled Ability", p. 26: "When a
  * player resolves an ability labeled '(attack),' that ability is considered to be an attack made by that player's
  * identity"), whether or not it uses the hero's ATK or has an `attack` effect. An "(attack)" ability with no `attack`
@@ -212,6 +234,14 @@
  *   not answer for it. Guard is read for `from` as the instruction resolves, as before: an instruction that may not
  *   attack `from` deals nothing, so nothing is moved. (Alternative: only the first instance moves; not built, since
  *   the card changes "the target of this attack", and the ability is one attack, p. 10.)
+ * - **Moved onto an enemy, the attack is read as an attack on that enemy** (docs/phase7-wave9.md §3.4: "Preparation:
+ *   Put this minion into play engaged with you. Resolve this attack against it instead", a guard minion; ruling
+ *   January 17, 2026 - Ruling 2, of an attack event: "A.I.M. Grunt is now being attacked by Arm Block, taking the 3
+ *   damage"). Whether the instruction may attack is then read for `to`, not `from` (`attackedInstead`): RRG 1.8
+ *   "Guard" (p. 21) keeps a player from attacking the villain, and this attack is no longer against the villain, so
+ *   the minion's own guard does not stop the attack made against it. A basic attack and a plain `attack`
+ *   instruction already behave so: their event's apply step reads the event's target and no rule for the enemy it
+ *   was moved off.
  * - **The `attack` instruction of a begun attack** takes the begun event over as its attack on `from` and deals its
  *   damage to `to` (`begunAttackTarget`). If it no longer names `from`, it takes it over as its attack on the first
  *   enemy it names, as it does with no retarget, and that enemy is dealt the damage: the move was off `from`.
@@ -284,10 +314,10 @@ import {
   selectTargets,
 } from "../select.js";
 import type { EffectSpec } from "../spec.js";
-import type { ReportTarget } from "../stack.js";
+import { attackPreventedVars, type ReportTarget } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { type Frame, pushEvents } from "./frames.js";
+import { addFrameVars, type Frame, pushEvents } from "./frames.js";
 import { guardsIgnored, recordKeywordsIgnored } from "./keyword-ignored.js";
 import { markPreThenUnresolved } from "./then.js";
 import { abilityRootFrameId } from "./thwart-session.js";
@@ -365,6 +395,73 @@ export function cancelAbilityAttack(ctx: Ctx, frame: Frame<"event">): void {
   updateFrame(ctx, frame.attackOf, (root) => (root.kind === "effects" ? { ...root, attackCancelled: true } : root));
 }
 
+/**
+ * "Prevent all damage from this attack" resolved for the attack or activation `attackFrameId`
+ * (`modifyAttack.preventAllDamage`; the flag itself is the frame's `preventAllDamage` var). With `bind`, the frame
+ * records where what is stopped is reported (`preventAllReports`) and `<bind>.prevented` at once. A player attack of
+ * an "(attack)" ability by its controller's identity (`attackOf`) is one attack with the ability's other `attack`
+ * events and damage instructions (file header, "All damage of the attack prevented"): the ability's root frame
+ * remembers this frame, the first asked.
+ */
+export function preventAbilityAttackDamage(ctx: Ctx, attackFrameId: FrameId, bind: string | undefined): void {
+  const frame = findFrame(ctx.state, attackFrameId);
+  if (frame?.kind !== "event") return;
+  if (bind !== undefined) {
+    const targetInstanceId = frame.event.kind === "attack" ? frame.event.targetInstanceId : null;
+    updateFrame(ctx, attackFrameId, (f) =>
+      f.kind === "event"
+        ? {
+            ...f,
+            vars: { ...f.vars, [attackPreventedVars(bind).prevented]: 1 },
+            preventAllReports: [...(f.preventAllReports ?? []), { bind, targetInstanceId }],
+          }
+        : f,
+    );
+  }
+  if (frame.event.kind !== "attack" || frame.attackOf === undefined) return;
+  updateFrame(ctx, frame.attackOf, (root) =>
+    root.kind === "effects" && root.attackDamagePrevented === undefined
+      ? { ...root, attackDamagePrevented: attackFrameId }
+      : root,
+  );
+}
+
+/**
+ * The attack frame whose "prevent all damage from this attack" stops this attack damage: the damage's own attack
+ * (`parentFrameId`) when it carries the flag, else the prevented attack of the same "(attack)" ability
+ * (`attackDamagePrevented` on the ability's root frame). Undefined when nothing of the kind stops it.
+ */
+export function attackPreventingDamage(state: GameState, damage: Damage): Frame<"event"> | undefined {
+  const parent = damage.parentFrameId ? findFrame(state, damage.parentFrameId) : undefined;
+  if (parent?.kind !== "event") return undefined;
+  if ((parent.vars.preventAllDamage ?? 0) > 0) return parent;
+  if (parent.event.kind !== "attack" || parent.attackOf === undefined) return undefined;
+  const root = findFrame(state, parent.attackOf);
+  const prevented =
+    root?.kind === "effects" && root.attackDamagePrevented !== undefined
+      ? findFrame(state, root.attackDamagePrevented)
+      : undefined;
+  return prevented?.kind === "event" && (prevented.vars.preventAllDamage ?? 0) > 0 ? prevented : undefined;
+}
+
+/**
+ * An instance of attack damage was stopped by its attack's "prevent all damage from this attack": added to what that
+ * attack reports under each `bind` asked (`preventAllReports`; `EffectSpec modifyAttack.bind`).
+ */
+export function recordAttackDamagePrevented(ctx: Ctx, damage: Damage): void {
+  const attack = attackPreventingDamage(ctx.state, damage);
+  const reports = attack?.preventAllReports ?? [];
+  if (!attack || reports.length === 0 || damage.amount <= 0) return;
+  const delta: Record<string, number> = {};
+  for (const { bind, targetInstanceId } of reports) {
+    const vars = attackPreventedVars(bind);
+    delta[vars.total] = (delta[vars.total] ?? 0) + damage.amount;
+    if (targetInstanceId === null || targetInstanceId === damage.targetInstanceId)
+      delta[vars.amount] = (delta[vars.amount] ?? 0) + damage.amount;
+  }
+  addFrameVars(ctx, attack.frameId, delta);
+}
+
 /** Whether this attack event's ability has had an attack cancelled, so this one is cancelled with it. */
 export function cancelledWithAbilityAttack(state: GameState, frame: Frame<"event">): boolean {
   if (frame.event.kind !== "attack" || frame.attackOf === undefined || frame.attackWaiting) return false;
@@ -440,6 +537,16 @@ export const movedAttackTarget = (attack: AttackFrame | undefined, targetId: Ins
   return moved !== undefined && moved.from === targetId && moved.to !== targetId ? moved.to : undefined;
 };
 
+/**
+ * The enemy an instruction's attack on `named` is an attack on: the enemy the waiting attack was moved onto when its
+ * window moved it off `named` onto an enemy still in play (file header, "Moved onto an enemy"), else `named`. What
+ * "may this character attack it" (guard, `canAttack`) is read for.
+ */
+export function attackedInstead(state: GameState, attack: AttackFrame | undefined, named: InstanceId): InstanceId {
+  const to = movedAttackTarget(attack, named);
+  return to !== undefined && cardsInPlay(state).includes(to) && categoriesOf(state, to).includes("enemy") ? to : named;
+}
+
 interface DamageAim {
   readonly named: InstanceId;
   readonly dealtTo: InstanceId;
@@ -500,12 +607,14 @@ export function skipUnattackable(
     return targets.filter((id) => !isEnemy(id));
   }
   return targets.filter((id) => {
-    if (mayAttackWith(ctx.state, ctx.deps, attack, id)) {
+    // An attack moved off this enemy onto another is an attack on that one ("Moved onto an enemy", file header).
+    const against = attackedInstead(ctx.state, attack.waiting, id);
+    if (mayAttackWith(ctx.state, ctx.deps, attack, against)) {
       if (attack.waiting) {
         recordKeywordsIgnored(
           ctx,
           attack.waiting.frameId,
-          guardsIgnored(ctx.state, ctx.deps, attack.attackerId, id, attack.playerId),
+          guardsIgnored(ctx.state, ctx.deps, attack.attackerId, against, attack.playerId),
         );
       }
       return true;
@@ -772,6 +881,18 @@ function begunAttackWaiting(state: GameState, rootId: FrameId, attackerId: Insta
  */
 export const hasBegunAttack = (state: GameState, rootId: FrameId | undefined, attackerId: InstanceId): boolean =>
   rootId !== undefined && begunAttackWaiting(state, rootId, attackerId) !== undefined;
+
+/**
+ * `attackedInstead` for an `attack` instruction of the ability `rootId`: the enemy its attack on `named` is an attack
+ * on, when the attack the ability began with (still waiting for this instruction) was moved off `named` in its window.
+ */
+export const begunAttackAgainst = (
+  state: GameState,
+  rootId: FrameId | undefined,
+  attackerId: InstanceId,
+  named: InstanceId,
+): InstanceId =>
+  rootId === undefined ? named : attackedInstead(state, begunAttackWaiting(state, rootId, attackerId), named);
 
 /**
  * What the attack `rootId`'s ability began with becomes when an `attack` instruction that names `targets` reaches it.

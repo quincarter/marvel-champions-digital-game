@@ -285,6 +285,14 @@ export type StackFrame =
        */
       readonly attackBegun?: true;
       /**
+       * On an attack whose damage is all prevented (`modifyAttack.preventAllDamage` with a `bind`,
+       * docs/phase7-wave9.md §3.4): where each instance the prevention stops is recorded, as this frame's vars
+       * `attackPreventedVars(bind)`. `targetInstanceId`: the character a player attack was against when the effect
+       * resolved, whose instances `<bind>.amount` counts; null counts every instance (an enemy attack, a player attack
+       * that had named no enemy yet).
+       */
+      readonly preventAllReports?: readonly { readonly bind: string; readonly targetInstanceId: InstanceId | null }[];
+      /**
        * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
        * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
        * comes, the event ends there: no interrupt, no enter-play keyword, no response (`resolve/state-checks.ts`).
@@ -490,6 +498,14 @@ export type StackFrame =
        * with it (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65).
        */
       readonly attackCancelled?: true;
+      /**
+       * On the root frame of an "(attack)"-labeled ability: all damage of the attack it makes with its controller's
+       * identity is prevented (`modifyAttack.preventAllDamage` in the window of one of its `attack` events, the frame
+       * named here; `preventAbilityAttackDamage`, `resolve/attack-ability.ts`). The ability is one attack (RRG 1.8
+       * "Attack (Player Ability Type)", p. 10), so the damage of its other `attack` events and of its damage
+       * instructions is prevented too (owner decision, docs/phase7-wave9.md §4.1 Q4 = A).
+       */
+      readonly attackDamagePrevented?: FrameId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -729,6 +745,18 @@ export function paidForFrameId(stack: readonly StackFrame[], instanceId: Instanc
   const frame = stack.find((f) => (f.kind === "ability" || f.kind === "playCard") && f.instanceId === instanceId);
   return frame?.frameId ?? null;
 }
+
+/**
+ * The names of an attack frame's vars that record what `modifyAttack { preventAllDamage, bind }` stopped
+ * (docs/phase7-wave9.md §3.4; `EffectSpec modifyAttack.bind`), which are that attack's results once it resolves.
+ */
+export const attackPreventedVars = (
+  bind: string,
+): { readonly prevented: string; readonly amount: string; readonly total: string } => ({
+  prevented: `${bind}.prevented`,
+  amount: `${bind}.amount`,
+  total: `${bind}.total`,
+});
 
 /**
  * The event frame of the attack or activation currently resolving ("this

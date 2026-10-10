@@ -126,9 +126,11 @@ import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import {
   attackAwaitsAbility,
+  attackPreventingDamage,
   cancelAbilityAttack,
   cancelledWithAbilityAttack,
   pushAttackedByAbility,
+  recordAttackDamagePrevented,
   waitBeneathAbility,
 } from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
@@ -1040,8 +1042,7 @@ function consequentialDamageOf(
 
 /** Whether the attack this damage belongs to is carrying a "prevent all damage from that attack" flag. */
 function preventedByAttackFlag(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
-  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
-  return parent?.kind === "event" && (parent.vars.preventAllDamage ?? 0) > 0;
+  return attackPreventingDamage(ctx.state, event) !== undefined;
 }
 
 /**
@@ -1227,6 +1228,8 @@ export function applyDamage(
       amount: event.amount,
       reason: "effect",
     });
+    // "Deal that much damage to the attacking character" (`modifyAttack.bind`, docs/phase7-wave9.md §3.4).
+    recordAttackDamagePrevented(ctx, event);
     return;
   }
   const target = getInstance(ctx.state, event.targetInstanceId);

@@ -65,6 +65,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkSchemeDivert(definition, problems);
   checkCardTotals(definition, problems);
   checkPreparations(definition, problems);
+  checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
   checkPlays(definition, problems);
   checkCost(definition, problems);
@@ -532,6 +533,21 @@ function checkPreparations(definition: AbilityDefinition, problems: string[]): v
     if (effect.asIf) problems.push("resolveSpecials preparation: `asIf` is not read for a Preparation ability");
     if (effect.includeKeywords)
       problems.push("resolveSpecials preparation: `includeKeywords` is for When Revealed abilities");
+  }
+}
+
+/**
+ * `modifyAttack`'s `bind` (docs/phase7-wave9.md §3.4) names where a "prevent all damage from this attack" reports what
+ * it stopped, so it needs `preventAllDamage` and a name. The numbers are the attack's results, known once it has dealt
+ * its damage: a var read under that name in the same ability (`varOf("<bind>.amount")`) is the likely slip, and is
+ * already rejected as a var nothing bound.
+ */
+function checkAttackPrevention(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "modifyAttack" || effect.bind === undefined) continue;
+    if (effect.bind === "") problems.push("modifyAttack: bind needs a name");
+    if (!effect.preventAllDamage)
+      problems.push("modifyAttack: bind reports what preventAllDamage stops; it needs preventAllDamage");
   }
 }
 
