@@ -7,7 +7,11 @@ import { AOS_ENCOUNTER_SETS } from "./aos/encounterSets.js";
 import { AOS_CYCLE, AOS_PACK } from "./aos/packs.js";
 import { AOS_SCENARIOS } from "./aos/scenarios.js";
 import { AOS_STARTER_DECKS } from "./aos/starterDecks.js";
+import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
+import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
+import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
+import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
 
 interface RawRecord {
   readonly code: string;
@@ -144,7 +148,15 @@ describe("aos data: scenarios (MC50 pp. 9 to 18)", () => {
       "thunderbolts",
       "baron-zemo",
     ]);
-    const sets = [...CORE_ENCOUNTER_SETS, ...AOS_ENCOUNTER_SETS];
+    // The Thunderbolts pool names the four hero packs' Elite, Thunderbolt sets too (MC50 p. 15, 50130a Setup).
+    const sets = [
+      ...CORE_ENCOUNTER_SETS,
+      ...AOS_ENCOUNTER_SETS,
+      ...BP_ENCOUNTER_SETS,
+      ...SILK_ENCOUNTER_SETS,
+      ...FALCON_ENCOUNTER_SETS,
+      ...WINTER_ENCOUNTER_SETS,
+    ];
     for (const s of AOS_SCENARIOS) {
       expect(s.packCode as string).toBe("aos");
       expect(validateScenario(s).errors, s.id as string).toEqual([]);
@@ -173,18 +185,22 @@ describe("aos data: scenarios (MC50 pp. 9 to 18)", () => {
     expect(zemo?.expertVillains?.villainCardId as string).toBe("50166a");
   });
 
-  it("Thunderbolts chooses 1 + 1 per hero of the six Elite Thunderbolt sets", () => {
+  it("Thunderbolts chooses 1 + 1 per hero of the ten Elite Thunderbolt sets", () => {
     const t = AOS_SCENARIOS.find((s) => (s.id as string) === "thunderbolts");
     expect(t?.modularSetCount).toBe(0);
     expect(t?.setAsideModularSetCount).toEqual({ base: 1, perPlayer: 1 });
     expect(t?.modularSetPool?.restricted).toBe(true);
     expect(t?.modularSetPool?.setIds.map(String).sort()).toEqual([
+      "extreme_risk",
       "gravitational_pull",
+      "growing_strong",
       "hard_sound",
       "pale_little_spider",
       "power_of_the_atom",
       "supersonic",
+      "techno",
       "the_leaper",
+      "whiteout",
     ]);
   });
 });

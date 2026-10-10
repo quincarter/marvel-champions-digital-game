@@ -35,11 +35,13 @@ export function normalizeScenarios(
       ...(s.additionalEncounterSetCodes ?? []),
       ...(s.multipleVillains?.villainSetCodes ?? []),
       ...(s.separateDecks?.flatMap((d) => d.contents.encounterSetCodes ?? []) ?? []),
-      ...(s.modularSetPool?.setCodes ?? []),
     ]) {
       if (!setNames.has(code) && !CORE_ENCOUNTER_SET_CODES.has(code))
         errors.push(`scenario ${s.id}: unknown encounter set ${code}`);
     }
+    // A restricted pool may name sets of other packs (wave 9: the Thunderbolts pool holds the four hero packs' sets
+    // beside the box's six), so its codes are not checked against this pack's own sets; a content test pins them to
+    // the sets that exist (`AOS_THUNDERBOLT_POOL_SET_IDS`).
     // Wave 2 (docs/phase7-wave2.md §1.8): Kang's villain set has no single villainIdBySet entry (several
     // single-stage villains collide on one card_set_code — normalize/villains.ts leaves the map unset for that
     // shape), so a scenario that hits it must name its villain card directly instead.

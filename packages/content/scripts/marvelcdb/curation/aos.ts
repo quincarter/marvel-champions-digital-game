@@ -1,8 +1,8 @@
 /**
  * Agents of S.H.I.E.L.D. (MC50, cycle 9 campaign box) curation: the box's 195 top-level records (Maria Hill and Nick
  * Fury's hero kits, the five scenarios' encounter cards, the modular sets and the nine evidence cards), the five
- * scenarios and the two starter decks. The hand-authored `campaign.ts` is a later step (docs/phase7-wave9-data-survey.md
- * section 11 step 4), so `handAuthoredModules` is empty until then.
+ * scenarios and the two starter decks. `handAuthoredModules` lists the hand-authored files next to the emitted
+ * data (`evidence.ts`, `thunderbolts.ts`); the campaign record is `campaign.ts` (docs/phase7-wave9-data-survey.md section 11).
  *
  * Evidence abbreviations: "scan" is `assets/card-art/bundles/cards/<code>.png` (gitignored, read directly, never wired
  * into the data), "rulebook" is docs/campaign-modes/markdown/mc50_agents_of_shield.md (page numbers are the printed
@@ -51,6 +51,9 @@ const counterType = (code: string, title: string, type: string, quote: string): 
   definedCounterTypes: [type],
 });
 
+// Every set with an Elite, Thunderbolt minion: the box's six (MC50 p. 15 lists "the following sets in this product") and
+// the four hero packs' (Black Panther, Silk, Falcon & Winter Soldier). 50130a prints no list, only the criterion;
+// `AOS_THUNDERBOLT_POOL_SET_IDS` derives the same ten from the trait and a test pins the two together.
 const ELITE_THUNDERBOLT_SETS = [
   "gravitational_pull",
   "hard_sound",
@@ -58,6 +61,10 @@ const ELITE_THUNDERBOLT_SETS = [
   "power_of_the_atom",
   "supersonic",
   "the_leaper",
+  "extreme_risk",
+  "growing_strong",
+  "techno",
+  "whiteout",
 ];
 
 export const AOS_CURATION: PackCuration = {
@@ -329,7 +336,7 @@ export const AOS_CURATION: PackCuration = {
       villainStages: { standard: [1, 1], expert: [2, 2] },
       // 50130a Setup: "Choose 1 modular set, plus 1[per_hero] additional modular sets, each with an Elite, Thunderbolt minion.
       // Set each of those minions aside and shuffle the rest of their encounter sets into the encounter deck." The modular
-      // choice is the Mojo shape: nothing shuffled in by the engine, 1 + 1 per hero chosen from the six qualifying sets.
+      // choice is the Mojo shape: nothing shuffled in by the engine, 1 + 1 per hero chosen from the ten qualifying sets.
       recommendedModularSetCodes: [],
       modularSetCount: 0,
       setAsideModularSetCount: { base: 1, perPlayer: 1 },

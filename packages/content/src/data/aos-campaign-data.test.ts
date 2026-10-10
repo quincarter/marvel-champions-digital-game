@@ -199,16 +199,9 @@ describe("aos data: the Thunderbolt minion to encounter set map (MC50 p. 15, p. 
     );
   });
 
-  it("the Thunderbolts scenario record's pool is the box's six of those ten (the four hero-pack sets are not in it)", () => {
+  it("the Thunderbolts scenario record's pool is the derived ten: the criterion is the Elite, Thunderbolt minion (MC50 p. 15, 50130a Setup), not the box's six", () => {
     const record =
       AOS_SCENARIOS.find((s) => (s.id as string) === "thunderbolts")?.modularSetPool?.setIds.map(String) ?? [];
-    const derived = AOS_THUNDERBOLT_POOL_SET_IDS.map(String);
-    expect(record.every((s) => derived.includes(s))).toBe(true);
-    expect(derived.filter((s) => !record.includes(s)).sort()).toEqual([
-      "extreme_risk",
-      "growing_strong",
-      "techno",
-      "whiteout",
-    ]);
+    expect([...record].sort()).toEqual(AOS_THUNDERBOLT_POOL_SET_IDS.map(String).sort());
   });
 });
