@@ -62,6 +62,7 @@ import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { SILK_ABILITIES } from "./silk/index.js";
+import { SILK_EVENTS, SILK_EVENTS_SKIPPED } from "./silk/silk/events.js";
 import { SILK_IDENTITY, SILK_IDENTITY_SKIPPED } from "./silk/silk/identity.js";
 import { TT_ABILITIES } from "./tt/index.js";
 import { WINTER_ABILITIES } from "./winter/index.js";
@@ -276,6 +277,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["52001a"],
       registry: SILK_IDENTITY,
       skipped: SILK_IDENTITY_SKIPPED,
+    },
+    {
+      module: "silk/events",
+      cardIds: ["52002", "52003", "52004", "52005"],
+      registry: SILK_EVENTS,
+      skipped: SILK_EVENTS_SKIPPED,
     },
   ],
 };
