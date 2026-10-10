@@ -138,3 +138,97 @@ those scripts; Quick Quip is the wave 5 script).
   Ruling 2 ("Stop Hitting Yourself"'s DEF), both already asserted by the module tests; no conflict between the RRG and a ruling was found
   for this pack. The RRG's own wording on responses ("may be resolved after the specified triggering condition occurs") and on step 7 of
   "Initiating Abilities" agree with the FAQ's Tigra answer.
+
+## Winter Soldier (winter)
+
+Scope: 54001a/b to 54033 (scripts in `packages/cards/src/wave9/winter/`: the hero's identity, events, support-upgrades-allies and
+obligation-nemesis modules and `aspect-basic.ts`; data in `packages/content/src/data/winter/cards.ts`). Whiteout, Blizzard 54034, Encased in Ice
+54035 and Slippery Conditions 54036 are not scripted yet and were not audited. Every script was read against the printed text in the data.
+Regression tests: `packages/cards/src/wave9/winter/rulings.qa.test.ts` (25 tests, none of them `it.fails`). The module tests are thorough
+(about 350 cases, including the owner's Q21 Firepower cases and the Arm Block cases for ruling January 17, 2026 - Ruling 2); this file holds
+only interactions they do not assert.
+
+### Findings
+
+None. Every case written against an RRG entry, a ruling or an owner decision passed once the test staging was right (the early failures were
+mistakes in the staging, not in the game: a main scheme at 0 threat when Lethal Protector removes 2, a second player thwarting out of turn and
+in alter-ego form, and a stunned Rhino that is dealt no boost card, so the stacked "Assault" was dealt to the player and attacked).
+One case is an open rules point rather than a finding (see below).
+
+### Checked, no findings
+
+- **A stunned hero and Winter Soldier's attack events (RRG "Labeled Ability" p. 26, "Stun, Stunned" p. 41; ruling August 13, 2026 - Ruling 1
+  (1)).** Metal Punch 54005 paid with Cybernetic Arm, Electrical Discharge 54006, Super-Soldiers 54022 and Firepower 54014 (Sidearm exhausted
+  as its cost) are all played, their costs paid (the Arm and the Weapon end exhausted), and the whole ability is canceled: no damage, no stun
+  on the enemy, no tough cards for Captain America and Winter Soldier, and the stun card is removed.
+- **Arm Block 54004 (attack/defense) with status cards.** A stunned hero: the whole ability is canceled, so there is no 3 damage and no
+  defense, and the hero takes Rhino's 2 damage ("the entire ability ... is canceled", "each status card ... that cancels any of the labeled
+  ability's types is removed"). A confused hero: confuse cancels only a thwart, so Arm Block deals 3, defends, and the confused card stays.
+  A stunned Rhino makes no attack ("not considered to have attacked"), so "When an enemy attacks" never happens and Arm Block is not offered.
+- **Winter Armor 54009 and Steady (RRG "Steady" p. 41).** One stunned status card on the armored hero does not resolve: the basic attack is made
+  and the card stays. Two do resolve: the attack is replaced and both are removed.
+- **One basic attack with Winter Rifle 54011, Bambino 54018 and the defeat responses (RRG "Piercing" p. 32, "Overkill" p. 31, "Tough" p. 44,
+  "Restricted" p. 38; ruling January 17, 2026 - Ruling 3 (2); ruling March 6, 2026 - Ruling 1 (2)).** On a tough Shocker the Rifle's piercing
+  discards the tough card first, so ATK 4 + 3 = 7 defeats it and 4 spill to Rhino through Bambino's overkill; Lethal Protector then removes
+  2 threat; two restricted cards stay within the limit. Bambino alone against the tough card: all damage is prevented, nothing spills, and the
+  ammo counter is still spent. Lethal Protector, Winter Mask and Silent Infiltration all answer one defeat: threat 2 removed, 1 card drawn,
+  the hero readied, an enemy confused.
+- **Cybernetic Arm 54002 with the events it pays for (RRG "Event" p. 19; owner answer Q53; "Wild Resource").** One by One 54015 paid with
+  the Arm: both instances of damage are +1 (3 to the Shocker, then 3 to the villain). Electrical Discharge paid with the Arm's wild resource
+  and a [mental] card stuns (the wild counts as [energy]) and deals 4 + 1. Metal Punch with the Arm against a tough Shocker: prevented in
+  full, no overkill excess reaches Rhino.
+- **Team-Up with another player's character (RRG "Team-Up" p. 43).** In a two-player game Super-Soldiers is playable with the other
+  player's Captain America in play ("a friendly character in play"), and he receives the tough status card.
+- **Safe House #30 54007 finding Crossbones (RRG "Quickstrike" p. 36, "Engage" p. 18).** In alter-ego form the Quickstrike minion engages
+  Bucky Barnes and does not attack (Quickstrike needs a player in hero form); the "then" card is drawn.
+- **Crossbones 54028 and Hydra Hit Squad 54029 (RRG "Hit Points" p. 22, "Tough" p. 44).** The side scheme's +1 ATK makes his attack (3) defeat
+  a full-health Black Widow and the Forced Response places 2 threat (without it she survives with 2 damage). A tough Captain America hit for
+  3 is not defeated and the response does not trigger (control: without tough, it does). When the side scheme is defeated the +2 hit points
+  end and a Hydra minion with 4 damage is defeated at once (Hit Points: a "+X hit points" that ceases to be in effect). In a two-player game
+  the player who thwarts it gets the found Hydra minion engaged with them.
+- **High-Tech Armament 54030's Hero Action cost.** With the identity exhausted and no other character the action is refused; with a ready
+  ally, the ally is exhausted to pay it and the card is discarded.
+- **Man on the Wall 54019.** A reduction not used in the hero phase is gone the next round: Winter Rifle (cost 3) paid with 2 cards is
+  refused, and accepted with 3.
+- **Spoiling for a Fight 54016 with no minion (RRG "Encounter Deck" p. 17).** The discard runs out the deck and is "considered to be
+  fulfilled": no minion enters play and the hero is still readied. The module comment's "everything before the arrow is a cost" does not make
+  the event unplayable here, and the RRG sentence says it should not.
+
+### Open point (pinned, not an `it.fails`)
+
+- **54023 Winter, Widow, Soldier, Spy putting a second Aggressive Stance 54017 ("Max 1 per player") into play while one is attached.**
+  RRG "Play, Put into Play" (p. 32): a card put into play bypasses "any restrictions or prohibitions regarding playing that card". RRG "Max":
+  "A player cannot take control of another copy of a 'Max 1 per player' card they already control." The RRG does not say which wins, and no
+  ruling in `marvel-champions-rulings-post-rrg-1-7.md` names it. Today both copies end up attached to the identity (put into play wins).
+  Needs an owner answer; if the Max entry should win, the fix is in the engine's put-into-play path (one check), not in the script.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: Lethal Protector (an own attack that defeats; 2 threat removed,
+not thwarted), Cybernetically Enhanced (cost, compulsory search of deck and discard, shuffle), Black Widow's response (played from the hand,
+Attack events only), Silent Infiltration, Winter Mask's Spy trait and draw, Winter Rifle (basic attacks by the hero only, +2 ATK, piercing and
+ranged), Metal Punch and Arm Block (the Arm's note), Electrical Discharge's energy stun, Red Room Programming (highest printed cost, ties, an
+empty hand), Crossbones' Quickstrike and Forced Response, Hydra Hit Squad's stats and When Defeated, High-Tech Armament's attachment target and
+activation, Captain America's and Deathlok's responses, Firepower (owner answer Q21 = B: one attack, up to three assignments, guard re-read per
+assignment), One by One (a reprint of 28014), Aggressive Stance, Bambino, Man on the Wall's reduction, Sidearm, Nick Fury, Sr. (a reprint of
+50054), Super-Soldiers and Winter, Widow, Soldier, Spy, White Widow's `abilityResolved` heal and S.H.I.E.L.D. Deputy (erratum, RRG p. 70).
+
+### Thin coverage and open points
+
+- **Winter Armor 54009 leaving play with damage.** RRG "Hit Points": when "+X hit points" ceases to be in effect the dial is reduced by X, so a
+  hero with 11 or more damage whose Armor is discarded is defeated. Not tested: nothing in the pack discards an upgrade, and surgery would skip
+  the engine path under test. The module tests cover only the back-to-11 case with no damage over it.
+- **Sidearm 54020 defeating the attack's target before the attack.** A Shocker with 1 hit point left, a basic attack declared against it, and
+  the Sidearm interrupt's 1 damage defeats it first. Whether the attack is canceled and whether "attack and defeat" responses (Lethal Protector)
+  are offered is not stated by the RRG or any ruling found; not tested.
+- **High-Tech Armament 54030 revealed to an enemy that is stunned or confused.** "That enemy activates against you" should spend the status
+  card (RRG "Stun, Stunned"), but Armament is dealt after the villain and the minions have activated, so the status cards are spent first and
+  the harness cannot stop between steps. Needs a stepwise driver (`driveStepwise`) with surgery at the moment the card is revealed. The
+  interaction with Fixer 53038 is `it.todo` in the module test (engine task 35).
+- **Red Room Programming 54027 in a two-player game** (given to the Bucky Barnes player) and the choice of where to put indirect damage with an
+  ally in play are not tested.
+- **Cybernetic Arm and Super-Soldiers/Firepower together with Team-Up in a game with Captain America under the other player's control**: only
+  Super-Soldiers with the Arm absent is tested.
+- No FFG ruling in the file names a `winter` card except Ruling January 17, 2026 - Ruling 2 and Ruling March 6, 2026 - Ruling 1 (1) (Arm
+  Block, both already asserted by the module tests). No conflict between the RRG and a ruling was found for this pack. The RRG's "Encounter Deck"
+  sentence on emptied discards and the module comment on Spoiling for a Fight ("a cost") read differently; the game follows the RRG sentence.
