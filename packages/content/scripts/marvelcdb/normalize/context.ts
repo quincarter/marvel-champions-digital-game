@@ -242,6 +242,7 @@ export function baseFields(
     unique: p.unique,
     ...(images ? { images } : {}),
     ...(p.cardBack ? { cardBack: p.cardBack } : {}),
+    ...(p.definedCounterTypes ? { definedCounterTypes: p.definedCounterTypes } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
     ...amplifyIconsField(p.raw),
     ...schemeIconsField(p.raw),

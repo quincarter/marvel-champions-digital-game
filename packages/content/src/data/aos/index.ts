@@ -9,3 +9,5 @@ export * from "./encounterSets.js";
 export * from "./scenarios.js";
 export * from "./starterDecks.js";
 export * from "./provenance.js";
+export * from "./evidence.js";
+export * from "./thunderbolts.js";

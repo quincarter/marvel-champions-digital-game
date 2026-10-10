@@ -1,12 +1,29 @@
 import type { CardText, Trait } from "../common.js";
 import type { AbilityReference } from "../abilities.js";
-import type { EncounterSetId } from "../ids.js";
+import type { CardId, EncounterSetId } from "../ids.js";
 import type { BaseCard } from "./base.js";
 
 /** The three kinds of evidence card, told apart by their card backs (MarvelCDB `evidence_means` / `_motive` / `_opportunity`). */
 export type EvidenceKind = "means" | "motive" | "opportunity";
 
 export const EVIDENCE_KINDS: readonly EvidenceKind[] = ["means", "motive", "opportunity"];
+
+/**
+ * The colors of the nine evidence cards' art and of their icons on the campaign log's grid (MC50 p. 24). Two cards are
+ * blue (Wiretap, Authority), so a client tells evidence apart by icon and title, never by color alone.
+ */
+export type EvidenceColor = "orange" | "blue" | "pink" | "green" | "black" | "yellow" | "purple" | "red";
+
+export const EVIDENCE_COLORS: readonly EvidenceColor[] = [
+  "orange",
+  "blue",
+  "pink",
+  "green",
+  "black",
+  "yellow",
+  "purple",
+  "red",
+];
 
 /**
  * An Agents of S.H.I.E.L.D. evidence card (wave 2 schema pass, docs/phase7-wave2.md §6.4): the nine cards of the
@@ -39,4 +56,19 @@ export interface EvidenceCard extends BaseCard {
   readonly text: CardText;
   readonly abilities: readonly AbilityReference[];
   readonly evidenceIcon?: string;
+  /** The card's color, read from the scan with `evidenceIcon` (docs/phase7-wave9.md section 1.16 item 2). */
+  readonly evidenceColor?: EvidenceColor;
+}
+
+/**
+ * One row of the Agents of S.H.I.E.L.D. campaign log's "Evidence Combinations" grid (MC50 p. 24): the three evidence
+ * cards (one of each kind) that name one board member as the mole. 27 rows cover every combination once, nine per board
+ * member. Read by the engine through the scenario record, never by card name (docs/phase7-wave9.md section 1.12).
+ */
+export interface EvidenceCombination {
+  readonly means: CardId;
+  readonly motive: CardId;
+  readonly opportunity: CardId;
+  /** The front face of the Board Member environment the combination names. */
+  readonly boardMember: CardId;
 }

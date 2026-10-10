@@ -9,6 +9,7 @@
  * rulebook pages), "RRG" is the v1.8 rules reference, "survey" is docs/phase7-wave9-data-survey.md.
  */
 import { traitOf } from "../normalize/brand.ts";
+import type { EvidenceColor } from "../../../src/schema/index.ts";
 import type { Correction, PackCuration } from "./types.ts";
 
 /** One "Attack to Black Widow." typo (MarvelCDB) for "Attach to Black Widow." */
@@ -25,6 +26,29 @@ const dashCost = (code: string, title: string, why: string): Correction => ({
   reason: `${title} prints a dash cost (${why}); MarvelCDB sends no cost, which the normalizer rejects as a missing value.`,
   evidence: `Survey section 4.2 (scratch run: "without a cost"). Scan ${code}.png: no cost badge. RRG 1.8 "Dash (Value)", p. 15.`,
   specialCost: "dash",
+});
+
+/** One evidence card's printed icon and art color (MarvelCDB records neither), read from the scan. */
+const evidence = (
+  code: string,
+  title: string,
+  icon: string,
+  color: EvidenceColor,
+  looks: string,
+  grid: string,
+): Correction => ({
+  code,
+  reason: `${title} prints ${looks} on ${color} art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24).`,
+  evidence: `Scan ${code}.png (read 2026-10-10): ${looks}, ${color} background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color${grid}. Spec docs/phase7-wave9.md section 1.16 item 2.`,
+  evidenceIcon: { icon, color },
+});
+
+/** A card whose own text defines a counter type with no `uses` keyword. */
+const counterType = (code: string, title: string, type: string, quote: string): Correction => ({
+  code,
+  reason: `${title} defines the "${type}" counter type in its own text (${quote}) with no Uses keyword; the card needs the type so a moved counter becomes a ${type} counter (RRG 1.8 "All-Purpose Counter", p. 6).`,
+  evidence: `Card text (MarvelCDB raw, and the scan ${code}.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.`,
+  definedCounterTypes: [type],
 });
 
 const ELITE_THUNDERBOLT_SETS = [
@@ -49,7 +73,7 @@ export const AOS_CURATION: PackCuration = {
   exportPrefix: "AOS",
   // MarvelCDB has no campaign record: `campaign.ts` (`AOS_CAMPAIGN`) is hand-authored in a later step (survey section
   // 11 step 4). Ingest refuses a named module whose file is missing, so it is not listed here yet.
-  handAuthoredModules: [],
+  handAuthoredModules: ["evidence", "thunderbolts"],
 
   corrections: [
     dashCost("50035a", "Assault / Stealth (Nick Fury's suit form)", "a Permanent upgrade that starts in play"),
@@ -169,6 +193,47 @@ export const AOS_CURATION: PackCuration = {
         "Scan 50180.png (read 2026-10-09): the text box runs from the italic flavor text straight to the rules text with no bold italic trait line; the only S.H.I.E.L.D. outside the rules text is the set footer. Arrest Warrant 50179 does print a S.H.I.E.L.D. trait line (scan 50179.png), which is why the raw data differs between the two.",
       traits: [],
     },
+    evidence("50185", "Medical Records", "folder", "orange", "a folder marked with a caduceus", ""),
+    evidence(
+      "50186",
+      "Wiretap",
+      "phone",
+      "blue",
+      "a phone with a call-and-signal glyph",
+      " (blue, like 50186: told apart by icon)",
+    ),
+    evidence("50187", "Security Scanner", "scanner", "pink", "a fingerprint scanner", ""),
+    evidence("50188", "Money", "dollar", "green", "a dollar sign", ""),
+    evidence("50189", "Blackmail", "handshake", "black", "a handshake in a frame", ""),
+    evidence("50190", "Ideology", "flame", "yellow", "a flame", ""),
+    evidence("50191", "Security Clearance", "badge", "purple", "an ID badge", ""),
+    evidence("50192", "Travel", "pin", "red", "a map pin", ""),
+    evidence("50193", "Authority", "shield", "blue", "a shield with a star", " (blue, like 50186: told apart by icon)"),
+    counterType("50105a", "Holding Cell (Flying)", "lock", '"Enters play with 2[per_hero] lock counters on it"'),
+    counterType("50106a", "Holding Cell (Psionic)", "lock", '"Enters play with 2[per_hero] lock counters on it"'),
+    counterType("50107a", "Holding Cell (Sarah Garza)", "lock", '"Enters play with 2[per_hero] lock counters on it"'),
+    counterType("50108a", "Holding Cell (Strong)", "lock", '"Enters play with 2[per_hero] lock counters on it"'),
+    counterType("50181a", "Chief Medical Officer", "secret", '"secret counters here"'),
+    counterType(
+      "50181b",
+      "Chief Medical Officer (Board Member attachment side)",
+      "secret",
+      '"After a secret counter is placed here"',
+    ),
+    counterType("50182a", "Chief Surveillance Officer", "secret", '"secret counters here"'),
+    counterType(
+      "50182b",
+      "Chief Surveillance Officer (Board Member attachment side)",
+      "secret",
+      '"After a secret counter is placed here"',
+    ),
+    counterType("50183a", "Chief Tactical Officer", "secret", '"secret counters here"'),
+    counterType(
+      "50183b",
+      "Chief Tactical Officer (Board Member attachment side)",
+      "secret",
+      '"After a secret counter is placed here"',
+    ),
   ],
 
   encounterSets: {

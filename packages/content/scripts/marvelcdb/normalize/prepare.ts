@@ -2,7 +2,14 @@
  * A raw record with its hand corrections and errata applied: the name, text, traits and stats every card-type module
  * reads instead of the raw fields.
  */
-import type { AttachmentHost, CardText, MainSchemeThreatField, SpecialCost, Trait } from "../../../src/schema/index.ts";
+import type {
+  AttachmentHost,
+  CardText,
+  EvidenceColor,
+  MainSchemeThreatField,
+  SpecialCost,
+  Trait,
+} from "../../../src/schema/index.ts";
 import type { Errata } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { parseTraits, toPlainText, unknownTokens } from "../text.ts";
@@ -53,6 +60,10 @@ export interface Prepared {
   readonly extraConstantFrom?: string;
   /** A curated `Correction.preambleWhenRevealed` — absent for every ordinary card. */
   readonly preambleWhenRevealed?: string;
+  /** A curated `Correction.evidenceIcon` (evidence cards only) — absent for every other card. */
+  readonly evidenceIcon?: { readonly icon: string; readonly color: EvidenceColor };
+  /** A curated `Correction.definedCounterTypes` — absent for every card that defines no counter type in its text. */
+  readonly definedCounterTypes?: readonly string[];
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
 }
 
@@ -81,6 +92,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let cardBack: "encounter" | "player" | undefined;
   let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
+  let evidenceIcon: { readonly icon: string; readonly color: EvidenceColor } | undefined;
+  let definedCounterTypes: readonly string[] | undefined;
   let unheadedWhenRevealed: string | undefined;
   let extraConstantFrom: string | undefined;
   let preambleWhenRevealed: string | undefined;
@@ -127,6 +140,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
     if (c.dashedThreatFields !== undefined) dashedThreatFields = c.dashedThreatFields;
+    if (c.evidenceIcon !== undefined) evidenceIcon = c.evidenceIcon;
+    if (c.definedCounterTypes !== undefined) definedCounterTypes = c.definedCounterTypes;
     for (const f of c.ignoreFields ?? []) ignored.add(f);
     notes.push(`${r.code}: ${c.reason} [evidence: ${c.evidence}]`);
   });
@@ -179,6 +194,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(extraConstantFrom !== undefined ? { extraConstantFrom } : {}),
     ...(preambleWhenRevealed !== undefined ? { preambleWhenRevealed } : {}),
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
+    ...(evidenceIcon ? { evidenceIcon } : {}),
+    ...(definedCounterTypes ? { definedCounterTypes } : {}),
   };
   ctx.prepared.set(r.code, p);
   return p;

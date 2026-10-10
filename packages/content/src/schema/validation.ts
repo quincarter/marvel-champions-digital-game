@@ -26,7 +26,7 @@ import {
   type HostMeasure,
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
-import { EVIDENCE_KINDS } from "./cards/evidence.js";
+import { EVIDENCE_COLORS, EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
 import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
@@ -1079,6 +1079,8 @@ export function validateEvidenceCard(card: EvidenceCard): ValidationResult {
   errors.push(...abilityRefErrors(card.abilities, "evidence"));
   if (card.evidenceIcon !== undefined && !isNonEmptyString(card.evidenceIcon))
     errors.push("evidence evidenceIcon must be a non-empty string when present");
+  if (card.evidenceColor !== undefined && !EVIDENCE_COLORS.includes(card.evidenceColor))
+    errors.push(`evidence evidenceColor '${String(card.evidenceColor)}' is not a known evidence color`);
   return result(errors);
 }
 

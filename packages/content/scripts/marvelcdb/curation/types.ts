@@ -6,6 +6,7 @@
 import type {
   AttachmentHost,
   CoreAspect,
+  EvidenceColor,
   IdentityDeckbuilding,
   MainSchemeThreatField,
   ResourceIconCounts,
@@ -90,6 +91,18 @@ export interface Correction {
    * Replaces `!base_threat_fixed`. Side schemes only; opt-in per card.
    */
   readonly startingThreatPerPlayer?: boolean;
+  /**
+   * An evidence card's printed icon and color, read from its scan (wave 9, `aos` 50185 to 50193; MarvelCDB does not
+   * record either). `icon` is the slug the combination grid is crossed off by (`EvidenceCard.evidenceIcon`).
+   * Evidence cards only; never errata.
+   */
+  readonly evidenceIcon?: { readonly icon: string; readonly color: EvidenceColor };
+  /**
+   * The counter types the card's own text defines without a `uses` keyword (`BaseCard.definedCounterTypes`; wave 9,
+   * docs/phase7-wave9.md section 1.6 and 1.16 item 4: `lock` on the Holding Cells, `secret` on the Board Members).
+   * Opt-in per card, so no other card's data changes. Never errata.
+   */
+  readonly definedCounterTypes?: readonly string[];
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**

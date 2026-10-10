@@ -229,7 +229,7 @@ export function normalizeEncounterCard(
     case "evidence_opportunity": {
       // Wave 2 (docs/phase7-wave2.md §6.4): the Agents of S.H.I.E.L.D. Executive Board Evidence set. Neither a
       // player nor an encounter card — never enters a deck or the encounter deck; `expectNoAttach` doesn't apply
-      // (no evidence card prints an attach rule) and `evidenceIcon` is left unset (MarvelCDB doesn't record it).
+      // (no evidence card prints an attach rule) and `evidenceIcon` / `evidenceColor` come only from a curated `Correction.evidenceIcon` (MarvelCDB doesn't record them).
       const evidence: EvidenceCard = {
         ...common,
         type: "evidence",
@@ -238,6 +238,7 @@ export function normalizeEncounterCard(
         traits: p.traits,
         text: p.text,
         abilities,
+        ...(p.evidenceIcon ? { evidenceIcon: p.evidenceIcon.icon, evidenceColor: p.evidenceIcon.color } : {}),
       };
       record(ctx, evidence, set, [p, ...flipParts]);
       return;

@@ -407,7 +407,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["50104a", "50104b"],
     corrections: [],
   },
-  { cardId: cardId("50105a"), cardSetCode: "m.o.d.o.k.", marvelcdbCodes: ["50105a"], corrections: [] },
+  {
+    cardId: cardId("50105a"),
+    cardSetCode: "m.o.d.o.k.",
+    marvelcdbCodes: ["50105a"],
+    corrections: [
+      "50105a: Holding Cell (Flying) defines the \"lock\" counter type in its own text (\"Enters play with 2[per_hero] lock counters on it\") with no Uses keyword; the card needs the type so a moved counter becomes a lock counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50105a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
+  },
   {
     cardId: cardId("50105b"),
     cardSetCode: "m.o.d.o.k.",
@@ -416,7 +423,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
       "50105b: Flying Inhuman prints a dash cost (the back of a Holding Cell card, put into play by an effect); MarvelCDB sends no cost, which the normalizer rejects as a missing value. [evidence: Survey section 4.2 (scratch run: \"without a cost\"). Scan 50105b.png: no cost badge. RRG 1.8 \"Dash (Value)\", p. 15.]",
     ],
   },
-  { cardId: cardId("50106a"), cardSetCode: "m.o.d.o.k.", marvelcdbCodes: ["50106a"], corrections: [] },
+  {
+    cardId: cardId("50106a"),
+    cardSetCode: "m.o.d.o.k.",
+    marvelcdbCodes: ["50106a"],
+    corrections: [
+      "50106a: Holding Cell (Psionic) defines the \"lock\" counter type in its own text (\"Enters play with 2[per_hero] lock counters on it\") with no Uses keyword; the card needs the type so a moved counter becomes a lock counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50106a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
+  },
   {
     cardId: cardId("50106b"),
     cardSetCode: "m.o.d.o.k.",
@@ -425,7 +439,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
       "50106b: Inhuman ally (Holding Cell back) prints a dash cost (the back of a Holding Cell card, put into play by an effect); MarvelCDB sends no cost, which the normalizer rejects as a missing value. [evidence: Survey section 4.2 (scratch run: \"without a cost\"). Scan 50106b.png: no cost badge. RRG 1.8 \"Dash (Value)\", p. 15.]",
     ],
   },
-  { cardId: cardId("50107a"), cardSetCode: "m.o.d.o.k.", marvelcdbCodes: ["50107a"], corrections: [] },
+  {
+    cardId: cardId("50107a"),
+    cardSetCode: "m.o.d.o.k.",
+    marvelcdbCodes: ["50107a"],
+    corrections: [
+      "50107a: Holding Cell (Sarah Garza) defines the \"lock\" counter type in its own text (\"Enters play with 2[per_hero] lock counters on it\") with no Uses keyword; the card needs the type so a moved counter becomes a lock counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50107a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
+  },
   {
     cardId: cardId("50107b"),
     cardSetCode: "m.o.d.o.k.",
@@ -434,7 +455,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
       "50107b: Inhuman ally (Holding Cell back) prints a dash cost (the back of a Holding Cell card, put into play by an effect); MarvelCDB sends no cost, which the normalizer rejects as a missing value. [evidence: Survey section 4.2 (scratch run: \"without a cost\"). Scan 50107b.png: no cost badge. RRG 1.8 \"Dash (Value)\", p. 15.]",
     ],
   },
-  { cardId: cardId("50108a"), cardSetCode: "m.o.d.o.k.", marvelcdbCodes: ["50108a"], corrections: [] },
+  {
+    cardId: cardId("50108a"),
+    cardSetCode: "m.o.d.o.k.",
+    marvelcdbCodes: ["50108a"],
+    corrections: [
+      "50108a: Holding Cell (Strong) defines the \"lock\" counter type in its own text (\"Enters play with 2[per_hero] lock counters on it\") with no Uses keyword; the card needs the type so a moved counter becomes a lock counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50108a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
+  },
   {
     cardId: cardId("50108b"),
     cardSetCode: "m.o.d.o.k.",
@@ -663,37 +691,49 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("50181a"),
     cardSetCode: "s.h.i.e.l.d._executive_board",
     marvelcdbCodes: ["50181a"],
-    corrections: [],
+    corrections: [
+      "50181a: Chief Medical Officer defines the \"secret\" counter type in its own text (\"secret counters here\") with no Uses keyword; the card needs the type so a moved counter becomes a secret counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50181a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
   },
   {
     cardId: cardId("50181b"),
     cardSetCode: "s.h.i.e.l.d._executive_board",
     marvelcdbCodes: ["50181b"],
-    corrections: [],
+    corrections: [
+      "50181b: Chief Medical Officer (Board Member attachment side) defines the \"secret\" counter type in its own text (\"After a secret counter is placed here\") with no Uses keyword; the card needs the type so a moved counter becomes a secret counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50181b.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
   },
   {
     cardId: cardId("50182a"),
     cardSetCode: "s.h.i.e.l.d._executive_board",
     marvelcdbCodes: ["50182a"],
-    corrections: [],
+    corrections: [
+      "50182a: Chief Surveillance Officer defines the \"secret\" counter type in its own text (\"secret counters here\") with no Uses keyword; the card needs the type so a moved counter becomes a secret counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50182a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
   },
   {
     cardId: cardId("50182b"),
     cardSetCode: "s.h.i.e.l.d._executive_board",
     marvelcdbCodes: ["50182b"],
-    corrections: [],
+    corrections: [
+      "50182b: Chief Surveillance Officer (Board Member attachment side) defines the \"secret\" counter type in its own text (\"After a secret counter is placed here\") with no Uses keyword; the card needs the type so a moved counter becomes a secret counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50182b.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
   },
   {
     cardId: cardId("50183a"),
     cardSetCode: "s.h.i.e.l.d._executive_board",
     marvelcdbCodes: ["50183a"],
-    corrections: [],
+    corrections: [
+      "50183a: Chief Tactical Officer defines the \"secret\" counter type in its own text (\"secret counters here\") with no Uses keyword; the card needs the type so a moved counter becomes a secret counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50183a.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
   },
   {
     cardId: cardId("50183b"),
     cardSetCode: "s.h.i.e.l.d._executive_board",
     marvelcdbCodes: ["50183b"],
-    corrections: [],
+    corrections: [
+      "50183b: Chief Tactical Officer (Board Member attachment side) defines the \"secret\" counter type in its own text (\"After a secret counter is placed here\") with no Uses keyword; the card needs the type so a moved counter becomes a secret counter (RRG 1.8 \"All-Purpose Counter\", p. 6). [evidence: Card text (MarvelCDB raw, and the scan 50183b.png where read). Spec docs/phase7-wave9.md section 1.6 and 1.16 item 4: the record instructions name the counter by this key.]",
+    ],
   },
   {
     cardId: cardId("50184a"),
@@ -717,49 +757,65 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("50185"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50185"],
-    corrections: [],
+    corrections: [
+      "50185: Medical Records prints a folder marked with a caduceus on orange art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50185.png (read 2026-10-10): a folder marked with a caduceus, orange background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50186"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50186"],
-    corrections: [],
+    corrections: [
+      "50186: Wiretap prints a phone with a call-and-signal glyph on blue art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50186.png (read 2026-10-10): a phone with a call-and-signal glyph, blue background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color (blue, like 50186: told apart by icon). Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50187"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50187"],
-    corrections: [],
+    corrections: [
+      "50187: Security Scanner prints a fingerprint scanner on pink art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50187.png (read 2026-10-10): a fingerprint scanner, pink background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50188"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50188"],
-    corrections: [],
+    corrections: [
+      "50188: Money prints a dollar sign on green art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50188.png (read 2026-10-10): a dollar sign, green background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50189"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50189"],
-    corrections: [],
+    corrections: [
+      "50189: Blackmail prints a handshake in a frame on black art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50189.png (read 2026-10-10): a handshake in a frame, black background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50190"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50190"],
-    corrections: [],
+    corrections: [
+      "50190: Ideology prints a flame on yellow art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50190.png (read 2026-10-10): a flame, yellow background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50191"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50191"],
-    corrections: [],
+    corrections: [
+      "50191: Security Clearance prints an ID badge on purple art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50191.png (read 2026-10-10): an ID badge, purple background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50192"),
     cardSetCode: "executive_board_evidence",
     marvelcdbCodes: ["50192"],
-    corrections: [],
+    corrections: [
+      "50192: Travel prints a map pin on red art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50192.png (read 2026-10-10): a map pin, red background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color. Spec docs/phase7-wave9.md section 1.16 item 2.]",
+    ],
   },
   {
     cardId: cardId("50193"),
@@ -767,6 +823,7 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["50193"],
     corrections: [
       "50193: MarvelCDB reads \"Aggresion\" twice in Authority's Setup; the card prints \"Aggression\". [evidence: Scan 50193.png (read 2026-10-09): \"...search their collection for a different Aggression support and shuffle it into their deck. Each player may add 1 threat to the main scheme to search their deck for an Aggression support...\" Survey section 4.3. One replace spans both occurrences because a `textReplace.find` must match exactly once.]",
+      "50193: Authority prints a shield with a star on blue art; MarvelCDB records no icon or color, and the campaign log's combination grid is crossed off by the icon (MC50 p. 18 and p. 24). [evidence: Scan 50193.png (read 2026-10-10): a shield with a star, blue background. Rulebook p. 24 (campaign log, rendered at 200 dpi): the grid column for this card shows the same icon on the same color (blue, like 50186: told apart by icon). Spec docs/phase7-wave9.md section 1.16 item 2.]",
     ],
   },
 ];
