@@ -1,13 +1,15 @@
 import {
   AOS_CARDS,
+  PLAYABLE_CARDS,
   cardId,
   type AllyCard,
   type EventCard,
   type ResourceCard,
   type SupportCard,
+  type UpgradeCard,
   type AnyCard,
 } from "@mc/content";
-import { type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { mainSchemeValue, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
@@ -22,6 +24,7 @@ import {
   payWith,
   play,
   playerOf,
+  resourceAbility,
   runWith,
   settle,
   stackEncounterDeck,
@@ -40,6 +43,8 @@ vi.setConfig({ testTimeout: 120_000 });
  * (she gives her allies the S.H.I.E.L.D. trait).
  */
 type WithAbilities = AnyCard & { readonly abilities: readonly { readonly id: string }[] };
+type WithText = AnyCard & { readonly text: { readonly current: string } };
+type WithTraits = AnyCard & { readonly traits: readonly unknown[] };
 const card = <T extends AnyCard>(code: string): T => AOS_CARDS.find((c) => c.id === cardId(code)) as unknown as T;
 const hero = (opts: Parameters<typeof aspectGame>[0] = {}): GameState => withForm(aspectGame(opts), { heroForm: 0 });
 const run = (s: GameState, ...c: Parameters<typeof runWith>[2][]): GameState => runWith(DEPS, s, ...c);
@@ -114,7 +119,7 @@ describe("registry", () => {
     for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
     expect(Object.keys(REGISTRY).filter((r) => r in SKIPPED)).toEqual([]);
   });
-  it("registers exactly these thirteen refs", () => {
+  it("registers exactly these twenty-six refs", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual(
       [
         "50012.victoria-hand-response",
@@ -130,6 +135,19 @@ describe("registry", () => {
         "50022.grant-ward-forced-response",
         "50023.melinda-may-response",
         "50024.super-spies-action",
+        "50047.agent-coulson-response",
+        "50048.quake-response",
+        "50049.global-logistics-action",
+        "50050.informant-interrupt",
+        "50052.prism-dust-response",
+        "50053.under-surveillance-constant",
+        "50054.nick-fury-sr-forced-response",
+        "50055.jemma-simmons-constant",
+        "50055.jemma-simmons-resource",
+        "50056.leo-fitz-constant",
+        "50056.leo-fitz-action",
+        "50057.sky-destroyer-response",
+        "50058.practiced-plan-response",
       ].sort(),
     );
   });
@@ -152,11 +170,55 @@ describe("registry", () => {
     expect(REGISTRY["50023.melinda-may-response"]!.trigger).toMatchObject({ kind: "response", forced: false });
     expect(REGISTRY["50024.super-spies-action"]!.trigger).toMatchObject({ kind: "action", form: "hero" });
   });
-  it("skips Organizational Support and Front Organization with a reason, and the second half as not started", () => {
+  it("skips Organizational Support, Front Organization and Intelligence, each with a reason", () => {
     expect(SKIPPED["50014.organizational-support-interrupt"]).toMatch(/generate/);
     expect(SKIPPED["50028.front-organization-interrupt"]).toMatch(/cardLeavesPlay/);
-    expect(SKIPPED["50051.intelligence-response"]).toBe("second half of the module, not started");
-    expect(Object.keys(SKIPPED)).toHaveLength(16);
+    expect(SKIPPED["50051.intelligence-response"]).toMatch(/after a player is dealt an encounter card/);
+    expect(Object.keys(SKIPPED).sort()).toEqual([
+      "50014.organizational-support-interrupt",
+      "50028.front-organization-interrupt",
+      "50051.intelligence-response",
+    ]);
+  });
+  it("second half: trigger kinds, forms and costs", () => {
+    expect(REGISTRY["50050.informant-interrupt"]).toMatchObject({
+      trigger: { kind: "interrupt", forced: false },
+      cost: { discardSelf: true },
+    });
+    expect(REGISTRY["50052.prism-dust-response"]).toMatchObject({
+      trigger: { kind: "response", forced: false },
+      cost: { discardSelf: true },
+    });
+    expect(REGISTRY["50052.prism-dust-response"]!.label).toEqual(["attack"]);
+    expect(REGISTRY["50054.nick-fury-sr-forced-response"]!.trigger).toMatchObject({ kind: "response", forced: true });
+    expect(REGISTRY["50055.jemma-simmons-resource"]).toMatchObject({
+      trigger: { kind: "resource" },
+      cost: { exhaustSelf: true },
+    });
+    expect(REGISTRY["50056.leo-fitz-action"]).toMatchObject({
+      trigger: { kind: "action", form: "alterEgo" },
+      cost: { exhaustSelf: true },
+    });
+    expect(REGISTRY["50058.practiced-plan-response"]).toMatchObject({
+      trigger: { kind: "response", forced: false },
+      cost: { discardSelf: true },
+    });
+  });
+  it("reprints alias the source card's script, and the source's printed text is the same", () => {
+    const rows = [
+      ["50047", "08011", "50047.agent-coulson-response"],
+      ["50048", "08012", "50048.quake-response"],
+      ["50049", "27043", "50049.global-logistics-action"],
+      ["50053", "06031", "50053.under-surveillance-constant"],
+      ["50057", "27055", "50057.sky-destroyer-response"],
+    ] as const;
+    for (const [code, source, ref] of rows) {
+      const original = PLAYABLE_CARDS.find((c) => c.id === cardId(source)) as WithText;
+      expect(original, source).toBeDefined();
+      expect(card<WithText>(code).text.current, code).toBe(original.text.current);
+      expect(card(code).name, code).toBe(original.name);
+      expect(REGISTRY[ref], ref).toBeDefined();
+    }
   });
   it("Energy, Genius and Strength print no ability", () => {
     for (const code of ["50025", "50026", "50027"]) expect(card<WithAbilities>(code).abilities).toEqual([]);
@@ -1066,5 +1128,805 @@ describe("50024.super-spies-action: place a total of 3 all-purpose counters and/
     const fury = placed(base, FURY_ALLY);
     const given = moveToHand(fury.state, P1, SPIES);
     expect(() => run(given.state, play(P1, given.ids[0]!, []))).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Second half (50047 to 50058). The Nick Fury Justice precon (`nick-fury-justice`) holds every card of it; Nick Fury's
+// own identity module is not loaded here (only the S.H.I.E.L.D. trait of his identity matters to these cards).
+// ---------------------------------------------------------------------------------------------------------------------
+
+const COULSON = "50047";
+const QUAKE = "50048";
+const LOGISTICS = "50049";
+const INFORMANT = "50050";
+const INTELLIGENCE = "50051";
+const PRISM = "50052";
+const SURVEILLANCE = "50053";
+const FURY_SR = "50054";
+const JEMMA = "50055";
+const FITZ = "50056";
+const SKY_DESTROYER = "50057";
+const PLAN = "50058";
+const NF = "nick-fury-justice";
+const SANDMAN = "01102"; // minion: ATK 3, SCH 2, HP 4, Toughness
+const SHOCKER = "01103"; // minion: ATK 2, SCH 1, HP 3
+const GUARD = "50093"; // Embassy Guard: Vulnerable
+
+const nfGame = (opts: Parameters<typeof aspectGame>[0] = {}): GameState => aspectGame({ deck: NF, ...opts });
+const nfHero = (opts: Parameters<typeof aspectGame>[0] = {}): GameState => withForm(nfGame(opts), { heroForm: 0 });
+/** The first deck copy of `code` of `player` moved into their discard pile (test surgery). */
+const toDiscard = (state: GameState, code: string, player: PlayerId = P1): { state: GameState; id: InstanceId } => {
+  const id = playerOf(state, player).deck.find((i) => inst(state, i).cardId === cardId(code))!;
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player ? { ...p, deck: p.deck.filter((i) => i !== id), discard: [...p.discard, id] } : p,
+      ),
+    },
+  };
+};
+/** A Preparation upgrade played for real (paid from the hand, attached to P1's identity), settled. */
+const attachedUpgrade = (
+  state: GameState,
+  code: string,
+  player: PlayerId = P1,
+): { state: GameState; id: InstanceId } => {
+  const given = moveToHand(state, player, code);
+  const id = given.ids[0]!;
+  const cost = (card<UpgradeCard>(code).cost as number) ?? 0;
+  const out = drive(
+    run(
+      given.state,
+      play(player, id, payWith(given.state, player, cost, [id]), {
+        attachToInstanceId: identityOf(given.state, player),
+      }),
+    ),
+  );
+  return { state: out, id };
+};
+/**
+ * Test surgery: a new copy of encounter card `code` put into the encounter deck at `index` (a clone of the first deck
+ * card, so its home is the deck's), for a card whose encounter set the scenario does not include.
+ */
+const slipIntoEncounterDeck = (state: GameState, code: string, slot: string, index: number): GameState => {
+  const deckId = Object.keys(state.encounterDecks).find((k) => state.encounterDecks[k]!.deck.length > 0)!;
+  const pile = state.encounterDecks[deckId]!;
+  const template = state.instances[pile.deck[0]!]!;
+  const id = slot as InstanceId;
+  return {
+    ...state,
+    instances: { ...state.instances, [id]: { ...template, instanceId: id, cardId: cardId(code) } },
+    encounterDecks: {
+      ...state.encounterDecks,
+      [deckId]: { ...pile, deck: [...pile.deck.slice(0, index), id, ...pile.deck.slice(index)] },
+    },
+  };
+};
+const threatOf = (s: GameState, id: InstanceId) => inst(s, id).threat;
+
+describe("second half: printed data", () => {
+  it("Agent Coulson: unique Justice ally, cost 3, ATK 1, THW 2, HP 3, consequential 1/1, S.H.I.E.L.D. and SPY, [mental]", () => {
+    const c = card<AllyCard>(COULSON);
+    expect([c.cost, c.atk, c.thw, c.hp, c.unique, c.aspect, c.deckLimit]).toEqual([3, 1, 2, 3, true, "justice", 1]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(c.traits.map(String)).toEqual(["S.H.I.E.L.D.", "SPY"]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+  });
+  it("Quake: unique Justice ally, cost 2, ATK 2, THW 1, HP 2, consequential 1/1, AVENGER and S.H.I.E.L.D., [energy]", () => {
+    const c = card<AllyCard>(QUAKE);
+    expect([c.cost, c.atk, c.thw, c.hp, c.unique, c.aspect]).toEqual([2, 2, 1, 2, true, "justice"]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(c.traits.map(String)).toEqual(["AVENGER", "S.H.I.E.L.D."]);
+    expect(c.resourceIcons).toEqual({ energy: 1 });
+  });
+  it("Global Logistics: Justice TACTIC event, cost 0, [physical], up to 3 copies", () => {
+    const c = card<EventCard>(LOGISTICS);
+    expect([c.cost, c.aspect, c.deckLimit]).toEqual([0, "justice", 3]);
+    expect(c.traits.map(String)).toEqual(["S.H.I.E.L.D.", "TACTIC"]);
+    expect(c.resourceIcons).toEqual({ physical: 1 });
+  });
+  it("the Preparation upgrades: Informant 1 [physical], Intelligence 1 [mental], Prism Dust 1 [physical], Practiced Plan 0 [energy]; max 1 per player", () => {
+    const rows = [
+      [INFORMANT, 1, "justice", ["PREPARATION"], { physical: 1 }],
+      [INTELLIGENCE, 1, "justice", ["PREPARATION"], { mental: 1 }],
+      [PRISM, 1, "justice", ["PREPARATION", "TECH"], { physical: 1 }],
+      [PLAN, 0, "basic", ["PREPARATION"], { energy: 1 }],
+    ] as const;
+    for (const [code, cost, aspect, traits, icons] of rows) {
+      const c = card<UpgradeCard>(code);
+      expect([c.cost, c.aspect, c.deckLimit], code).toEqual([cost, aspect, 3]);
+      expect(c.traits.map(String), code).toEqual(traits);
+      expect(c.resourceIcons, code).toEqual(icons);
+      expect(c.playRestrictions, code).toEqual({ maxPerPlayer: 1 });
+    }
+  });
+  it("Under Surveillance: Justice CONDITION upgrade, cost 2, [energy], attaches to the main scheme, max 1 per scheme", () => {
+    const c = card<UpgradeCard>(SURVEILLANCE);
+    expect([c.cost, c.aspect, c.deckLimit]).toEqual([2, "justice", 3]);
+    expect(c.traits.map(String)).toEqual(["CONDITION"]);
+    expect(c.attachesTo).toEqual({ kind: "mainScheme" });
+    expect(c.playRestrictions).toEqual({ maxPerHost: 1 });
+    expect(c.resourceIcons).toEqual({ energy: 1 });
+  });
+  it("Nick Fury, Sr.: unique basic ally, cost 4, ATK 2, THW 2, HP 3, consequential 1/1, S.H.I.E.L.D. and SOLDIER, [mental]", () => {
+    const c = card<AllyCard>(FURY_SR);
+    expect([c.cost, c.atk, c.thw, c.hp, c.unique, c.aspect]).toEqual([4, 2, 2, 3, true, "basic"]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(c.traits.map(String)).toEqual(["S.H.I.E.L.D.", "SOLDIER"]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+  });
+  it("Jemma Simmons and Leo Fitz: unique basic PERSONA S.H.I.E.L.D. supports, cost 3, [mental]", () => {
+    for (const code of [JEMMA, FITZ]) {
+      const c = card<SupportCard>(code);
+      expect([c.cost, c.unique, c.aspect, c.deckLimit], code).toEqual([3, true, "basic", 1]);
+      expect(c.traits.map(String), code).toEqual(["PERSONA", "S.H.I.E.L.D."]);
+      expect(c.resourceIcons, code).toEqual({ mental: 1 });
+    }
+  });
+  it("Sky-Destroyer: unique basic S.H.I.E.L.D. VEHICLE support, cost 3, [energy]", () => {
+    const c = card<SupportCard>(SKY_DESTROYER);
+    expect([c.cost, c.unique, c.aspect]).toEqual([3, true, "basic"]);
+    expect(c.traits.map(String)).toEqual(["S.H.I.E.L.D.", "VEHICLE"]);
+    expect(c.resourceIcons).toEqual({ energy: 1 });
+  });
+});
+
+describe("50047.agent-coulson-response: after Agent Coulson enters play, search the deck and discard pile for a Preparation card", () => {
+  const ID = "50047.agent-coulson-response";
+  it("costs 3; searching the discard pile adds the chosen Preparation card to hand", () => {
+    const given = toDiscard(nfGame(), PRISM);
+    const { state, id, handBefore } = playIt(given.state, COULSON, 3, { respond: ID, target: given.id });
+    expect(inPlayArea(state, id)).toBe(true);
+    expect(inHandOf(state, given.id)).toBe(true);
+    expect(inDiscard(state, given.id)).toBe(false);
+    // Coulson and the 3 payment cards left the hand, the found card joined it.
+    expect(playerOf(state, P1).hand).toHaveLength(handBefore - 4 + 1);
+  });
+  it("searching the deck: the found card leaves the deck (the deck is shuffled, size minus one)", () => {
+    const base = nfGame();
+    const informant = playerOf(base, P1).deck.find((i) => inst(base, i).cardId === cardId(INFORMANT))!;
+    const deckBefore = playerOf(base, P1).deck.length;
+    const { state } = playIt(base, COULSON, 3, { respond: ID, target: informant });
+    expect(inHandOf(state, informant)).toBe(true);
+    // Staging Coulson into the hand took one card off the deck, the search the second.
+    expect(playerOf(state, P1).deck).toHaveLength(deckBefore - 2);
+  });
+  it("only Preparation cards are offered, from the deck and the discard pile", () => {
+    const given = toDiscard(nfGame(), PRISM);
+    const hand = moveToHand(given.state, P1, COULSON);
+    const asked = settle(
+      run(hand.state, play(P1, hand.ids[0]!, payWith(hand.state, P1, 3, hand.ids))),
+      picker({ respond: ID }),
+      (s) => s.pendingChoice?.prompt.kind === "chooseCards",
+      DEPS,
+    );
+    const offered = asked.pendingChoice!.options.map((o) => inst(asked, o.optionId as InstanceId).cardId as string);
+    expect(offered.length).toBeGreaterThan(0);
+    for (const code of offered) {
+      const c = PLAYABLE_CARDS.find((x) => x.id === cardId(code)) as WithTraits;
+      expect(c.traits.map(String), code).toContain("PREPARATION");
+    }
+    expect(offered).toContain(PRISM); // from the discard pile
+    expect(offered).toContain(INFORMANT); // from the deck
+    expect(offered).not.toContain(QUAKE);
+  });
+  it("declined: nothing is added to hand", () => {
+    const { state, handBefore } = playIt(nfGame(), COULSON, 3);
+    expect(playerOf(state, P1).hand).toHaveLength(handBefore - 4);
+  });
+});
+
+describe("50048.quake-response: after a minion schemes, exhaust Quake to deal 2 damage to that minion", () => {
+  const ID = "50048.quake-response";
+  /** P1 in alter-ego form (so the engaged minion schemes) with Quake in play and Sandman engaged. */
+  const stage = () => {
+    const quake = placed(nfGame(), QUAKE);
+    return { state: engaged(quake.state, SANDMAN, "m-sandman"), quake: quake.id, sandman: "m-sandman" as InstanceId };
+  };
+  it("costs 2 and enters play ready", () => {
+    const { state, id, handBefore } = playIt(nfGame(), QUAKE, 2);
+    expect(inPlayArea(state, id)).toBe(true);
+    expect(inst(state, id).exhausted).toBe(false);
+    expect(playerOf(state, P1).hand).toHaveLength(handBefore - 3);
+  });
+  it("accepted: the scheming minion takes exactly 2 damage and Quake exhausts", () => {
+    const { state, quake, sandman } = stage();
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(inst(after, sandman).damage).toBe(2);
+    expect(inst(after, quake).exhausted).toBe(true);
+  });
+  it("declined: no damage, Quake stays ready", () => {
+    const { state, quake, sandman } = stage();
+    const after = drive(run(state, endTurn(P1)));
+    expect(inst(after, sandman).damage).toBe(0);
+    expect(inst(after, quake).exhausted).toBe(false);
+  });
+  it("2 damage defeats a minion with 2 hit points left", () => {
+    const { state, sandman } = stage();
+    const after = drive(run(patchInstance(state, sandman, { damage: 2 }), endTurn(P1)), { respond: ID });
+    expect(playerOf(after, P1).playArea).not.toContain(sandman);
+  });
+  it("exhausting is the cost: with two minions scheming she answers only the first (she stays exhausted after the villain phase)", () => {
+    const { state, quake, sandman } = stage();
+    const two = engaged(state, SHOCKER, "m-shocker");
+    const after = drive(run(two, endTurn(P1)), { respond: ID });
+    const shocker = "m-shocker" as InstanceId;
+    expect(inst(after, sandman).damage + inst(after, shocker).damage).toBe(2);
+    expect(inst(after, quake).exhausted).toBe(true);
+  });
+  it("the villain scheming is not 'a minion schemes': with no minion engaged Quake is never offered", () => {
+    const quake = placed(nfGame(), QUAKE);
+    const offered = settle(
+      run(quake.state, endTurn(P1)),
+      picker(),
+      (s) => s.pendingChoice?.prompt.kind === "chooseTriggers",
+      DEPS,
+    );
+    expect(offered.pendingChoice).toBeNull();
+    expect(inst(offered, quake.id).exhausted).toBe(false);
+  });
+  it("in hero form the minion attacks rather than schemes: not offered", () => {
+    const quake = placed(nfHero(), QUAKE);
+    const state = engaged(quake.state, SANDMAN, "m-sandman");
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(inst(after, "m-sandman" as InstanceId).damage).toBe(0);
+    expect(inst(after, quake.id).exhausted).toBe(false);
+  });
+});
+
+describe("50049.global-logistics-action: exhaust a S.H.I.E.L.D. card, look at the top 4, discard any, rest on top and/or bottom", () => {
+  const CODES = ["01101", "01102", "01103", "01104"];
+  const stage = (extra: (s: GameState) => GameState = (s) => s) => {
+    const quake = placed(nfGame(), QUAKE);
+    const stacked = stackEncounterDeck(extra(quake.state), ...CODES);
+    const given = moveToHand(stacked, P1, LOGISTICS);
+    return { state: given.state, card: given.ids[0]!, quake: quake.id };
+  };
+  const cast = (t: ReturnType<typeof stage>, pick: Picker) =>
+    settle(
+      run(t.state, play(P1, t.card, payWith(t.state, P1, 0, [t.card]), { costChoices: { exhausted: [t.quake] } })),
+      pick,
+      undefined,
+      DEPS,
+    );
+  const discardPile = (s: GameState): string[] =>
+    Object.values(s.encounterDecks)
+      .flatMap((d) => d.discard)
+      .map((i) => s.instances[i]!.cardId as string);
+  it("costs 0: exhausts the chosen S.H.I.E.L.D. card (Quake) and the event goes to the discard pile", () => {
+    const t = stage();
+    const after = cast(t, picker({ option: "The encounter deck" }));
+    expect(inst(after, t.quake).exhausted).toBe(true);
+    expect(inDiscard(after, t.card)).toBe(true);
+  });
+  it("encounter deck: discarding the first two of the top 4 leaves the other two in that deck, 2 more cards in the discard pile", () => {
+    const t = stage();
+    const before = discardPile(t.state).length;
+    const seen = (s: GameState) => s.pendingChoice!.options.map((o) => s.instances[o.optionId as InstanceId]!.cardId);
+    let discardedIds: string[] = [];
+    const after = cast(t, (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "chooseCards" && (choice.prompt as { slot?: string }).slot === "discarded") {
+        expect(seen(s).sort()).toEqual([...CODES].sort());
+        discardedIds = choice.options.slice(0, 2).map((o) => s.instances[o.optionId as InstanceId]!.cardId as string);
+        return choice.options.slice(0, 2).map((o) => o.optionId);
+      }
+      return picker({ option: "The encounter deck" })(s);
+    });
+    expect(discardPile(after).length).toBe(before + 2);
+    for (const code of discardedIds) expect(discardPile(after)).toContain(code);
+    const deckNow = Object.values(after.encounterDecks).flatMap((d) => d.deck.map((i) => after.instances[i]!.cardId));
+    for (const code of CODES.filter((c) => !discardedIds.includes(c))) expect(deckNow).toContain(code);
+  });
+  it("a player deck: the chosen player's top 4 are looked at, two discarded, two stay on that deck", () => {
+    const t = stage();
+    const top4 = playerOf(t.state, P1).deck.slice(0, 4);
+    const after = cast(t, (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "choosePlayer") return [P1];
+      if (choice.prompt.kind === "chooseCards" && (choice.prompt as { slot?: string }).slot === "discarded")
+        return choice.options.slice(0, 2).map((o) => o.optionId);
+      return picker({ option: "A player deck" })(s);
+    });
+    for (const id of top4.slice(0, 2)) expect(playerOf(after, P1).discard).toContain(id);
+    for (const id of top4.slice(2)) expect(playerOf(after, P1).deck).toContain(id);
+  });
+  it("discarding none is allowed; a kept card can go to the bottom of a player deck", () => {
+    const t = stage();
+    const top4 = playerOf(t.state, P1).deck.slice(0, 4);
+    const kept = top4[0]!;
+    const after = cast(t, (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "choosePlayer") return [P1];
+      if (choice.prompt.kind === "chooseCards" && (choice.prompt as { slot?: string }).slot === "discarded") return [];
+      if (choice.prompt.kind === "chooseBottomCards") return [kept];
+      return picker({ option: "A player deck" })(s);
+    });
+    expect(playerOf(after, P1).deck.at(-1)).toBe(kept);
+    expect([...playerOf(after, P1).deck.slice(0, 3)].sort()).toEqual([...top4.slice(1)].sort());
+  });
+  it("without a S.H.I.E.L.D. card to exhaust it cannot be played", () => {
+    const given = moveToHand(nfGame(), P1, LOGISTICS);
+    expect(() => run(given.state, play(P1, given.ids[0]!, payWith(given.state, P1, 0, given.ids)))).toThrow();
+  });
+  it("an exhausted S.H.I.E.L.D. card does not pay the cost", () => {
+    const t = stage();
+    const spent = patchInstance(t.state, t.quake, { exhausted: true });
+    expect(() =>
+      run(spent, play(P1, t.card, payWith(spent, P1, 0, [t.card]), { costChoices: { exhausted: [t.quake] } })),
+    ).toThrow();
+  });
+});
+
+describe("50050.informant-interrupt: when a minion schemes, discard Informant; that activation removes threat instead", () => {
+  const ID = "50050.informant-interrupt";
+  /** P1 (alter-ego) with Informant attached, Sandman (SCH 2) engaged, the main scheme at `threat` (low: 5 would lose the game). */
+  const stage = (threat = 1) => {
+    const informant = attachedUpgrade(nfGame(), INFORMANT);
+    const withMinion = engaged(informant.state, SANDMAN, "m-sandman");
+    return { state: patchInstance(withMinion, schemeOf(withMinion), { threat }), informant: informant.id };
+  };
+  it("costs 1: playing it spends 1 resource and attaches it to the identity", () => {
+    const given = moveToHand(nfGame(), P1, INFORMANT);
+    const handBefore = playerOf(given.state, P1).hand.length;
+    const out = attachedUpgrade(nfGame(), INFORMANT);
+    expect(inst(out.state, out.id).attachedTo).toBe(identityOf(out.state));
+    expect(playerOf(out.state, P1).hand).toHaveLength(handBefore - 2);
+  });
+  it("accepted: Informant is discarded and Sandman's 2 SCH is removed instead of placed (4 less than declining)", () => {
+    const { state, informant } = stage();
+    const declined = drive(run(state, endTurn(P1)));
+    const accepted = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(inDiscard(declined, informant)).toBe(false);
+    expect(inDiscard(accepted, informant)).toBe(true);
+    expect(threatOf(declined, schemeOf(declined)) - threatOf(accepted, schemeOf(accepted))).toBe(4);
+  });
+  it("the removal cannot take the main scheme below 0", () => {
+    const { state } = stage(0);
+    const accepted = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(threatOf(accepted, schemeOf(accepted))).toBe(0);
+  });
+  it("only a minion's scheme: with no minion engaged it is not offered when the villain schemes", () => {
+    const informant = attachedUpgrade(nfGame(), INFORMANT);
+    const asked = settle(
+      run(informant.state, endTurn(P1)),
+      picker(),
+      (s) => s.pendingChoice?.prompt.kind === "chooseTriggers",
+      DEPS,
+    );
+    expect(asked.pendingChoice).toBeNull();
+    expect(inPlayArea(asked, informant.id) || inst(asked, informant.id).attachedTo !== null).toBe(true);
+  });
+  it("in hero form the minion attacks, so it is not offered", () => {
+    const informant = attachedUpgrade(nfHero(), INFORMANT);
+    const state = engaged(informant.state, SANDMAN, "m-sandman");
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(inDiscard(after, informant.id)).toBe(false);
+  });
+});
+
+describe("50052.prism-dust-response: after a minion enters play, discard Prism Dust to confuse it and deal 2 damage to it", () => {
+  const ID = "50052.prism-dust-response";
+  const FIXTURE = "m-revealed";
+  /** Prism Dust attached, then `code` (a minion, or a treachery) revealed as the encounter card dealt to P1. */
+  const reveal = (code: string, opts: { hero?: boolean } = {}) => {
+    const base = opts.hero === false ? nfGame() : nfHero();
+    const prism = attachedUpgrade(base, PRISM);
+    const slipped = slipIntoEncounterDeck(prism.state, code, FIXTURE, 0);
+    return { prism: prism.id, state: stackEncounterDeck(slipped, "01186") };
+  };
+  const minionOf = (s: GameState) => s.instances[FIXTURE as InstanceId]!;
+  it("accepted on Shocker (3 hp): confused, exactly 2 damage (1 hit point left), Prism Dust discarded", () => {
+    const { prism, state } = reveal(SHOCKER);
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(minionOf(after).statuses.confused).toBe(1);
+    expect(minionOf(after).damage).toBe(2);
+    expect(inDiscard(after, prism)).toBe(true);
+  });
+  it("Toughness: Sandman enters with a tough status card, which the 2 damage removes instead (still confused)", () => {
+    const { state } = reveal(SANDMAN);
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(minionOf(after).statuses).toEqual({ stunned: 0, confused: 1, tough: 0 });
+    expect(minionOf(after).damage).toBe(0);
+  });
+  it("declined: the minion is neither confused nor damaged and Prism Dust stays", () => {
+    const { prism, state } = reveal(SHOCKER);
+    const after = drive(run(state, endTurn(P1)));
+    expect([minionOf(after).statuses.confused, minionOf(after).damage]).toEqual([0, 0]);
+    expect(inDiscard(after, prism)).toBe(false);
+  });
+  it("a Vulnerable minion (Embassy Guard) is discarded by the confused status: 0 damage, not defeated", () => {
+    const { prism, state } = reveal(GUARD);
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(minionOf(after).damage).toBe(0);
+    expect(Object.values(after.encounterDecks).some((d) => d.discard.includes(FIXTURE as InstanceId))).toBe(true);
+    expect(inDiscard(after, prism)).toBe(true);
+  });
+  it("Hero Response: not offered in alter-ego form", () => {
+    const { prism, state } = reveal(SANDMAN, { hero: false });
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(inDiscard(after, prism)).toBe(false);
+    expect(minionOf(after).damage).toBe(0);
+  });
+  it("a treachery is not a minion: not offered", () => {
+    const { prism, state } = reveal("01105");
+    const after = drive(run(state, endTurn(P1)), { respond: ID });
+    expect(inDiscard(after, prism)).toBe(false);
+  });
+});
+
+describe("50053.under-surveillance-constant: attach to the main scheme (max 1); +4 to its target threat", () => {
+  const statOfScheme = (s: GameState): number => mainSchemeValue(s, "targetThreat", DEPS, s.mainScheme);
+  it("costs 2; played onto the main scheme it raises the scheme's target threat by exactly 4", () => {
+    const base = nfGame();
+    const given = moveToHand(base, P1, SURVEILLANCE);
+    const id = given.ids[0]!;
+    const handBefore = playerOf(given.state, P1).hand.length;
+    const before = statOfScheme(base);
+    const after = drive(
+      run(given.state, play(P1, id, payWith(given.state, P1, 2, [id]), { attachToInstanceId: schemeOf(base) })),
+    );
+    expect(inst(after, id).attachedTo).toBe(schemeOf(after));
+    expect(playerOf(after, P1).hand).toHaveLength(handBefore - 3);
+    expect(statOfScheme(after)).toBe(before + 4);
+  });
+  it("a second copy cannot be attached to the same scheme (Max 1 per scheme)", () => {
+    const base = nfGame();
+    const first = moveToHand(base, P1, SURVEILLANCE);
+    const played = drive(
+      run(
+        first.state,
+        play(P1, first.ids[0]!, payWith(first.state, P1, 2, first.ids), { attachToInstanceId: schemeOf(base) }),
+      ),
+    );
+    const second = moveToHand(played, P1, SURVEILLANCE);
+    expect(() =>
+      run(
+        second.state,
+        play(P1, second.ids[0]!, payWith(second.state, P1, 2, second.ids), { attachToInstanceId: schemeOf(base) }),
+      ),
+    ).toThrow();
+  });
+  it("it cannot be attached to a character", () => {
+    const base = nfGame();
+    const given = moveToHand(base, P1, SURVEILLANCE);
+    expect(() =>
+      run(
+        given.state,
+        play(P1, given.ids[0]!, payWith(given.state, P1, 2, given.ids), { attachToInstanceId: identityOf(base) }),
+      ),
+    ).toThrow();
+  });
+});
+
+describe("50054.nick-fury-sr-forced-response: after he enters play choose one; at the end of the round discard him", () => {
+  const REMOVE = "Remove 3 threat";
+  const DRAW = "Draw 2";
+  const TOUGH = "Give a S.H.I.E.L.D.";
+  const enter = (state: GameState, opts: Parameters<typeof picker>[0]) => playIt(state, FURY_SR, 4, opts);
+  it("costs 4 and enters play ready", () => {
+    const { state, id, handBefore } = enter(nfGame(), { option: DRAW });
+    expect(inPlayArea(state, id)).toBe(true);
+    expect(inst(state, id).exhausted).toBe(false);
+    expect(playerOf(state, P1).hand).toHaveLength(handBefore - 5 + 2);
+  });
+  it("remove 3 threat from a scheme: the main scheme at 5 goes to 2", () => {
+    const base = patchInstance(nfGame(), schemeOf(nfGame()), { threat: 5 });
+    const { state } = enter(base, { option: REMOVE, target: schemeOf(base) });
+    expect(threatOf(state, schemeOf(state))).toBe(2);
+  });
+  it("remove 3 threat can take a scheme with less than 3 down to 0", () => {
+    const base = patchInstance(nfGame(), schemeOf(nfGame()), { threat: 2 });
+    const { state } = enter(base, { option: REMOVE, target: schemeOf(base) });
+    expect(threatOf(state, schemeOf(state))).toBe(0);
+  });
+  it("draw 2 cards: the hand grows by exactly 2 beyond the cost", () => {
+    const { state, handBefore } = enter(nfGame(), { option: DRAW });
+    expect(playerOf(state, P1).hand).toHaveLength(handBefore - 1 - 4 + 2);
+  });
+  it("give a S.H.I.E.L.D. character a tough status card: exactly one tough card lands on one of the two S.H.I.E.L.D. characters", () => {
+    const { state, id } = enter(nfGame(), { option: TOUGH });
+    const toughs = [identityOf(state), id].map((i) => inst(state, i).statuses.tough);
+    expect(toughs.reduce((a, b) => a + b, 0)).toBe(1);
+  });
+  it("the tough status card goes to the chosen character: Fury Sr. when he is picked", () => {
+    const given = moveToHand(nfGame(), P1, FURY_SR);
+    const id = given.ids[0]!;
+    const out = drive(run(given.state, play(P1, id, payWith(given.state, P1, 4, [id]))), { option: TOUGH, target: id });
+    expect(inst(out, id).statuses.tough).toBe(1);
+    expect(inst(out, identityOf(out)).statuses.tough).toBe(0);
+  });
+  it("only S.H.I.E.L.D. characters are offered: another player's non-S.H.I.E.L.D. identity and ally are not", () => {
+    const base = nfGame({ players: 2 });
+    const ally = placed(base, "01059", {}, P2); // Jessica Jones: not S.H.I.E.L.D.
+    const given = moveToHand(ally.state, P1, FURY_SR);
+    const id = given.ids[0]!;
+    const asked = settle(
+      run(given.state, play(P1, id, payWith(given.state, P1, 4, [id]))),
+      picker({ option: TOUGH }),
+      (s) => s.pendingChoice?.prompt.kind === "chooseTarget",
+      DEPS,
+    );
+    const offered = asked.pendingChoice!.options.map((o) => o.optionId as string);
+    expect(offered).toContain(id);
+    expect(offered).toContain(identityOf(asked));
+    expect(offered).not.toContain(ally.id);
+    expect(offered).not.toContain(identityOf(asked, P2));
+  });
+  it("at the end of the round he is discarded, whichever mode was chosen", () => {
+    const { state, id } = enter(nfGame(), { option: DRAW });
+    expect(inPlayArea(state, id)).toBe(true);
+    const ended = drive(run(state, endTurn(P1)));
+    expect(inPlayArea(ended, id)).toBe(false);
+    expect(inDiscard(ended, id)).toBe(true);
+  });
+  it("if he left play before the round ended nothing more happens (he stays where he went: the discard pile once)", () => {
+    const { state, id } = enter(nfGame(), { option: DRAW });
+    const gone: GameState = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1 ? { ...p, playArea: p.playArea.filter((i) => i !== id), hand: [...p.hand, id] } : p,
+      ),
+    };
+    const ended = drive(run(gone, endTurn(P1)));
+    expect(inHandOf(ended, id)).toBe(true);
+    expect(inDiscard(ended, id)).toBe(false);
+  });
+});
+
+describe("50055 / 50056: Jemma Simmons and Leo Fitz cost 2 less while your identity has the S.H.I.E.L.D. trait", () => {
+  it("S.H.I.E.L.D. identity (Nick Fury): each costs 1 to play", () => {
+    for (const code of [JEMMA, FITZ]) {
+      const { state, id, handBefore } = playIt(nfGame(), code, 1);
+      expect(inPlayArea(state, id), code).toBe(true);
+      expect(playerOf(state, P1).hand, code).toHaveLength(handBefore - 2);
+    }
+  });
+  it("S.H.I.E.L.D. identity: paying 0 is not enough (the cost is 1, not 0)", () => {
+    for (const code of [JEMMA, FITZ]) {
+      const given = moveToHand(nfGame(), P1, code);
+      expect(() => run(given.state, play(P1, given.ids[0]!, []))).toThrow();
+    }
+  });
+  it("a non-S.H.I.E.L.D. identity (Spider-Man): the full 3", () => {
+    for (const code of [JEMMA, FITZ]) {
+      const base = aspectGame({ deck: "core-spider-man-justice", swap: { "01002": code } });
+      const { state, id, handBefore } = playIt(base, code, 3);
+      expect(inPlayArea(state, id), code).toBe(true);
+      expect(playerOf(state, P1).hand, code).toHaveLength(handBefore - 4);
+      const short = moveToHand(base, P1, code);
+      expect(() => run(short.state, play(P1, short.ids[0]!, payWith(short.state, P1, 1, short.ids)))).toThrow();
+    }
+  });
+});
+
+describe("50055.jemma-simmons-resource: exhaust Jemma to generate a [mental] resource for a Tech card", () => {
+  const ABILITY = "50055.jemma-simmons-resource";
+  it("pays Prism Dust (cost 1, TECH) with no card from hand: Jemma exhausts", () => {
+    const jemma = placed(nfGame(), JEMMA);
+    const given = moveToHand(jemma.state, P1, PRISM);
+    const id = given.ids[0]!;
+    const handBefore = playerOf(given.state, P1).hand.length;
+    const out = drive(
+      run(
+        given.state,
+        play(P1, id, [], {
+          abilities: [resourceAbility(jemma.id, ABILITY)],
+          attachToInstanceId: identityOf(given.state),
+        }),
+      ),
+    );
+    expect(inst(out, id).attachedTo).toBe(identityOf(out));
+    expect(inst(out, jemma.id).exhausted).toBe(true);
+    expect(playerOf(out, P1).hand).toHaveLength(handBefore - 1);
+  });
+  it("cannot pay for a card without the Tech trait (Informant, cost 1)", () => {
+    const jemma = placed(nfGame(), JEMMA);
+    const given = moveToHand(jemma.state, P1, INFORMANT);
+    expect(() =>
+      run(
+        given.state,
+        play(P1, given.ids[0]!, [], {
+          abilities: [resourceAbility(jemma.id, ABILITY)],
+          attachToInstanceId: identityOf(given.state),
+        }),
+      ),
+    ).toThrow();
+  });
+  it("works in alter-ego form and in hero form (no form word)", () => {
+    for (const base of [nfGame(), nfHero()]) {
+      const jemma = placed(base, JEMMA);
+      const given = moveToHand(jemma.state, P1, PRISM);
+      const out = drive(
+        run(
+          given.state,
+          play(P1, given.ids[0]!, [], {
+            abilities: [resourceAbility(jemma.id, ABILITY)],
+            attachToInstanceId: identityOf(given.state),
+          }),
+        ),
+      );
+      expect(inst(out, jemma.id).exhausted).toBe(true);
+    }
+  });
+  it("an exhausted Jemma cannot pay", () => {
+    const jemma = placed(nfGame(), JEMMA);
+    const spent = patchInstance(jemma.state, jemma.id, { exhausted: true });
+    const given = moveToHand(spent, P1, PRISM);
+    expect(() =>
+      run(
+        given.state,
+        play(P1, given.ids[0]!, [], {
+          abilities: [resourceAbility(jemma.id, ABILITY)],
+          attachToInstanceId: identityOf(given.state),
+        }),
+      ),
+    ).toThrow();
+  });
+});
+
+describe("50056.leo-fitz-action: Alter-Ego Action, exhaust Leo Fitz, search the deck for a Tech card and add it to hand", () => {
+  const ACTION = "50056.leo-fitz-action";
+  it("alter-ego form: exhausts Fitz, the chosen Tech card (Prism Dust) moves from the deck to the hand", () => {
+    const fitz = placed(nfGame(), FITZ);
+    const prism = playerOf(fitz.state, P1).deck.find((i) => inst(fitz.state, i).cardId === cardId(PRISM))!;
+    const deckBefore = playerOf(fitz.state, P1).deck.length;
+    const handBefore = playerOf(fitz.state, P1).hand.length;
+    const out = drive(run(fitz.state, use(P1, fitz.id, ACTION)), { target: prism });
+    expect(inHandOf(out, prism)).toBe(true);
+    expect(playerOf(out, P1).deck).toHaveLength(deckBefore - 1);
+    expect(playerOf(out, P1).hand).toHaveLength(handBefore + 1);
+    expect(inst(out, fitz.id).exhausted).toBe(true);
+  });
+  it("only Tech cards of the deck are offered (never the discard pile)", () => {
+    const moved = toDiscard(nfGame(), "50042"); // EM Shield: PREPARATION and TECH
+    const fitz = placed(moved.state, FITZ);
+    const asked = settle(
+      run(fitz.state, use(P1, fitz.id, ACTION)),
+      picker(),
+      (s) => s.pendingChoice?.prompt.kind === "chooseCards",
+      DEPS,
+    );
+    const offered = asked.pendingChoice!.options.map((o) => o.optionId as InstanceId);
+    expect(offered.length).toBeGreaterThan(0);
+    expect(offered).not.toContain(moved.id);
+    for (const i of offered) {
+      const c = PLAYABLE_CARDS.find((x) => x.id === inst(asked, i).cardId) as WithTraits;
+      expect(c.traits.map(String), String(c.id)).toContain("TECH");
+    }
+  });
+  it("may find nothing: choosing no card adds nothing to hand and still exhausts Fitz", () => {
+    const fitz = placed(nfGame(), FITZ);
+    const handBefore = playerOf(fitz.state, P1).hand.length;
+    const out = drive(run(fitz.state, use(P1, fitz.id, ACTION)));
+    expect(inst(out, fitz.id).exhausted).toBe(true);
+    expect(playerOf(out, P1).hand.length).toBeLessThanOrEqual(handBefore + 1);
+  });
+  it("cannot be used in hero form", () => {
+    const fitz = placed(nfHero(), FITZ);
+    expect(() => run(fitz.state, use(P1, fitz.id, ACTION))).toThrow();
+  });
+  it("cannot be used while exhausted", () => {
+    const fitz = placed(nfGame(), FITZ);
+    expect(() => run(patchInstance(fitz.state, fitz.id, { exhausted: true }), use(P1, fitz.id, ACTION))).toThrow();
+  });
+});
+
+describe("50057.sky-destroyer-response: after you play a S.H.I.E.L.D. card, exhaust Sky-Destroyer to deal 2 damage to an enemy", () => {
+  const ID = "50057.sky-destroyer-response";
+  const stage = () => {
+    const sky = placed(engaged(nfGame(), SHOCKER, "m-shocker"), SKY_DESTROYER);
+    return { ...sky, shocker: "m-shocker" as InstanceId };
+  };
+  it("costs 3 and enters play ready", () => {
+    const { state, id, handBefore } = playIt(nfGame(), SKY_DESTROYER, 3);
+    expect(inPlayArea(state, id)).toBe(true);
+    expect(inst(state, id).exhausted).toBe(false);
+    expect(playerOf(state, P1).hand).toHaveLength(handBefore - 4);
+  });
+  it("playing Quake (S.H.I.E.L.D., cost 2): 2 damage to the chosen minion and Sky-Destroyer exhausts", () => {
+    const { state, id, shocker } = stage();
+    const out = playIt(state, QUAKE, 2, { respond: ID, target: shocker });
+    expect(inst(out.state, shocker).damage).toBe(2);
+    expect(inst(out.state, id).exhausted).toBe(true);
+  });
+  it("the villain is a legal target too: 2 damage", () => {
+    const { state, id } = stage();
+    const out = playIt(state, QUAKE, 2, { respond: ID, target: villainOf(state) });
+    expect(inst(out.state, villainOf(out.state)).damage).toBe(2);
+    expect(inst(out.state, id).exhausted).toBe(true);
+  });
+  it("only enemies are offered: the ally just played and the identity are not", () => {
+    const { state } = stage();
+    const given = moveToHand(state, P1, QUAKE);
+    const asked = settle(
+      run(given.state, play(P1, given.ids[0]!, payWith(given.state, P1, 2, given.ids))),
+      picker({ respond: ID }),
+      (s) => s.pendingChoice?.prompt.kind === "chooseTarget",
+      DEPS,
+    );
+    const offered = asked.pendingChoice!.options.map((o) => o.optionId as string).sort();
+    expect(offered).toEqual([villainOf(asked), "m-shocker"].sort());
+  });
+  it("declined: no damage, Sky-Destroyer stays ready", () => {
+    const { state, id, shocker } = stage();
+    const out = playIt(state, QUAKE, 2);
+    expect(inst(out.state, shocker).damage).toBe(0);
+    expect(inst(out.state, id).exhausted).toBe(false);
+  });
+  it("a card without the trait (Informant, an upgrade) does not trigger it", () => {
+    const { state, id } = stage();
+    const given = moveToHand(state, P1, INFORMANT);
+    const out = drive(
+      run(
+        given.state,
+        play(P1, given.ids[0]!, payWith(given.state, P1, 1, given.ids), {
+          attachToInstanceId: identityOf(given.state),
+        }),
+      ),
+      { respond: ID },
+    );
+    expect(inst(out, id).exhausted).toBe(false);
+  });
+  it("playing Sky-Destroyer itself triggers it: she is in play, a S.H.I.E.L.D. card, when the response window opens", () => {
+    const base = engaged(nfGame(), SHOCKER, "m-shocker");
+    const out = playIt(base, SKY_DESTROYER, 3, { respond: ID, target: "m-shocker" as InstanceId });
+    expect(inst(out.state, "m-shocker" as InstanceId).damage).toBe(2);
+    expect(inst(out.state, out.id).exhausted).toBe(true);
+  });
+});
+
+describe("50058.practiced-plan-response: after you discard a Preparation card you control, discard Practiced Plan to return it to hand", () => {
+  const ID = "50058.practiced-plan-response";
+  const INFORMANT_ID = "50050.informant-interrupt";
+  /** Informant and Practiced Plan attached to P1's identity; a minion engaged so that Informant can be used. */
+  const stage = () => {
+    const informant = attachedUpgrade(nfGame(), INFORMANT);
+    const plan = attachedUpgrade(informant.state, PLAN);
+    return {
+      state: patchInstance(engaged(plan.state, SANDMAN, "m-sandman"), schemeOf(plan.state), { threat: 1 }),
+      informant: informant.id,
+      plan: plan.id,
+    };
+  };
+  it("costs 0 and enters play attached", () => {
+    const out = attachedUpgrade(nfGame(), PLAN);
+    expect(inst(out.state, out.id).attachedTo).toBe(identityOf(out.state));
+  });
+  it("Informant used and discarded: Practiced Plan returns that Informant from the discard pile to hand and is discarded", () => {
+    const { state, informant, plan } = stage();
+    const out = driveQueue(run(state, endTurn(P1)), `respond:${INFORMANT_ID}`, `respond:${ID}`);
+    expect(inHandOf(out, informant)).toBe(true);
+    expect(inDiscard(out, informant)).toBe(false);
+    expect(inDiscard(out, plan)).toBe(true);
+  });
+  it("declined: Informant stays in the discard pile and Practiced Plan stays attached", () => {
+    const { state, informant, plan } = stage();
+    const out = driveQueue(run(state, endTurn(P1)), `respond:${INFORMANT_ID}`);
+    expect(inDiscard(out, informant)).toBe(true);
+    expect(inHandOf(out, informant)).toBe(false);
+    expect(inDiscard(out, plan)).toBe(false);
+  });
+  it("a discarded card without the Preparation trait (Command Team, last counter used) does not trigger it", () => {
+    const plan = attachedUpgrade(nfGame({ swap: { "50049": "50016" } }), PLAN);
+    const team = placed(plan.state, "50016", { command: 1 });
+    const ally = placed(team.state, QUAKE);
+    const out = drive(
+      run(patchInstance(ally.state, ally.id, { exhausted: true }), use(P1, team.id, "50016.command-team-action")),
+      {
+        target: ally.id,
+        respond: ID,
+      },
+    );
+    expect(inDiscard(out, team.id)).toBe(true);
+    expect(inDiscard(out, plan.id)).toBe(false);
+  });
+  it("not offered with nothing discarded", () => {
+    const plan = attachedUpgrade(nfGame(), PLAN);
+    const out = drive(run(plan.state, endTurn(P1)), { respond: ID });
+    expect(inDiscard(out, plan.id)).toBe(false);
   });
 });

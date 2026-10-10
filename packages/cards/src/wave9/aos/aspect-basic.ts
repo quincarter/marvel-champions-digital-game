@@ -4,8 +4,10 @@ import {
   action,
   addCounters,
   after,
+  alterEgoAction,
   andThen,
   atEndOfPhase,
+  atEndOfRound,
   cancelRevealedCard,
   cards,
   choosePlayer,
@@ -16,16 +18,23 @@ import {
   chosenPlayer,
   constant,
   countOf,
+  confuse,
+  costModifier,
   dealDamage,
   defineAbilities,
+  discard,
   discardEncounterCards,
+  discardThis,
+  draw,
   each,
   encounterCards,
   exhaustCardsCost,
   exhaustThis,
+  eventTarget,
   exists,
   giveStatus,
   heroAction,
+  heroResponse,
   ifThen,
   inHand,
   interrupt,
@@ -44,9 +53,12 @@ import {
   removeCounter,
   removeStatus,
   removeThreat,
+  removeThreatFromAScheme,
+  resource,
   response,
   revealEncounterCard,
   self,
+  shuffleDeck,
   spend,
   spendResources,
   statOf,
@@ -57,11 +69,32 @@ import {
   varOf,
   zone,
   you,
+  youHaveTrait,
   forcedResponse,
+  modifyAttack,
   when,
 } from "../../dsl/index.js";
+import { BKW_PACK_CARDS } from "../../wave1/bkw/pack-cards.js";
+import { THOR_PACK_CARDS } from "../../wave1/thor/pack-cards.js";
+import { SPIDER_MAN_MORALES_EVENTS } from "../../wave5/sm/spider-man-morales/events.js";
+import { SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS } from "../../wave5/sm/spider-man-morales/precon-player-cards.js";
 
 const SHIELD = trait("S.H.I.E.L.D.");
+const TECH = trait("TECH");
+const PREPARATION = trait("PREPARATION");
+/** A Preparation card you control, as it leaves play (Practiced Plan). */
+const YOUR_PREPARATION_CARD: TargetQuery = { trait: PREPARATION, controller: "you" };
+/** "A Tech card" in a player's deck (any player card type). */
+const TECH_CARD: TargetQuery = { trait: TECH };
+/** The cost of Jemma Simmons and Leo Fitz: 2 less while your identity has the S.H.I.E.L.D. trait. */
+const SHIELD_COST_BREAK = constant(
+  costModifier({
+    delta: -2,
+    appliesTo: query("support", { self: true }),
+    while: youHaveTrait(SHIELD),
+    activeIn: "hand",
+  }),
+);
 
 /** "A S.H.I.E.L.D. support", whoever controls it. */
 const SHIELD_SUPPORTS = query("support", { trait: SHIELD });
@@ -118,9 +151,8 @@ const giveStatusOfChoice = (slot: string) =>
   );
 
 /**
- * Wave 9 scripting module `aos/aspect-basic`, first half (docs/phase7-wave9.md section 8.4, 3.6, 3.7, 3.10, 3.35).
- * `card-groups.ts` maps this module to the ids below; keep the two in step. The second half (50047 to 50058) is not
- * started and is listed in `AOS_ASPECT_BASIC_SKIPPED`.
+ * Wave 9 scripting module `aos/aspect-basic` (docs/phase7-wave9.md section 8.4, 3.1, 3.6, 3.7, 3.10, 3.12, 3.35).
+ * `card-groups.ts` maps this module to the ids below; keep the two in step.
  *
  * **50012.victoria-hand-response**: "ready a S.H.I.E.L.D. support" (any player's, the text does not say "you control").
  *
@@ -149,7 +181,30 @@ const giveStatusOfChoice = (slot: string) =>
  * **50024.super-spies-action**: three placements, each an all-purpose counter or a threat token, each on a S.H.I.E.L.D.
  * support or a suit form upgrade, any player's. Team-Up and "Max 1 per deck" are data.
  *
- * Skipped (see `AOS_ASPECT_BASIC_SKIPPED`): 50014 Organizational Support, 50028 Front Organization, and the second half.
+ * **Second half (50047 to 50058).** Reprints under a new code alias the source card's script (checked against the
+ * source's data in the tests): Agent Coulson 50047 (`bkw` 08011), Quake 50048 (08012), Global Logistics 50049 (`sm`
+ * 27043), Under Surveillance 50053 (Core 06031's "Increase the target threat value" constant; the attach half is data),
+ * Sky-Destroyer 50057 (`sm` 27055).
+ *
+ * **50050.informant-interrupt**: "When a minion schemes" (the villain's scheme is not a minion's) with the activation
+ * removing threat instead of placing it (`modifyAttack({ removesThreat })`). No label: unlike Psychic Manipulation's
+ * "(thwart)", this is not a thwart.
+ *
+ * **50052.prism-dust-response**: "Hero Response (attack): After a minion enters play" (any minion, engaged with anyone,
+ * revealed or put into play): confuse it and deal 2 damage to it. A Vulnerable minion is discarded by the status
+ * before the damage lands (spec 3.1, engine rule), so it is not defeated.
+ *
+ * **50054.nick-fury-sr-forced-response**: the three modes are an option each; the end-of-round discard is part of the
+ * same Forced Response (queued whichever mode was chosen) and only discards him if he is still in play.
+ *
+ * **50055 / 50056**: the cost reduction is a hand-active cost modifier read while the playing player's identity has
+ * the S.H.I.E.L.D. trait. Jemma's resource ability generates [mental] for a Tech card only (`generatesFor`). Fitz's
+ * Alter-Ego Action searches the deck (only), may find nothing, and shuffles.
+ *
+ * **50058.practiced-plan-response**: "After you discard a Preparation card you control": a card you control leaving
+ * play to the discard pile (`cardLeavesPlay`, `to: discard`). Returns that card from the discard pile to your hand.
+ *
+ * Skipped (see `AOS_ASPECT_BASIC_SKIPPED`): 50014 Organizational Support, 50028 Front Organization, 50051 Intelligence.
  * 50025 Energy, 50026 Genius and 50027 Strength print no ability (Max 1 per deck is data).
  *
  * Cards (29):
@@ -170,18 +225,18 @@ const giveStatusOfChoice = (slot: string) =>
  * - 50026 Genius (resource)
  * - 50027 Strength (resource)
  * - 50028 Front Organization (support) -- skipped
- * - 50047 Agent Coulson (ally) -- second half
- * - 50048 Quake (ally) -- second half
- * - 50049 Global Logistics (event) -- second half
- * - 50050 Informant (upgrade) -- second half
- * - 50051 Intelligence (upgrade) -- second half
- * - 50052 Prism Dust (upgrade) -- second half
- * - 50053 Under Surveillance (upgrade) -- second half
- * - 50054 Nick Fury, Sr. (ally) -- second half
- * - 50055 Jemma Simmons (support) -- second half
- * - 50056 Leo Fitz (support) -- second half
- * - 50057 Sky-Destroyer (support) -- second half
- * - 50058 Practiced Plan (upgrade) -- second half
+ * - 50047 Agent Coulson (ally)
+ * - 50048 Quake (ally)
+ * - 50049 Global Logistics (event)
+ * - 50050 Informant (upgrade)
+ * - 50051 Intelligence (upgrade) -- skipped
+ * - 50052 Prism Dust (upgrade)
+ * - 50053 Under Surveillance (upgrade)
+ * - 50054 Nick Fury, Sr. (ally)
+ * - 50055 Jemma Simmons (support)
+ * - 50056 Leo Fitz (support)
+ * - 50057 Sky-Destroyer (support)
+ * - 50058 Practiced Plan (upgrade)
  */
 export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "50012.victoria-hand-response": response(
@@ -276,6 +331,63 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 
   "50024.super-spies-action": heroAction(superSpiesPlacement(1), superSpiesPlacement(2), superSpiesPlacement(3)),
+
+  // Reprints under a new code (the printed text and stats are the same as the source card's; checked in the tests):
+  // Agent Coulson (`bkw` 08011), Quake (08012), Global Logistics (`sm` 27043), Sky-Destroyer (27055), Under
+  // Surveillance (Core `thor` pack 06031; its "Attach to the main scheme. Max 1 per scheme" half is data).
+  "50047.agent-coulson-response": BKW_PACK_CARDS["08011.agent-coulson-response"]!,
+  "50048.quake-response": BKW_PACK_CARDS["08012.quake-response"]!,
+  "50049.global-logistics-action": SPIDER_MAN_MORALES_EVENTS["27043.global-logistics-action"]!,
+  "50053.under-surveillance-constant": THOR_PACK_CARDS["06031.under-surveillance-constant-2"]!,
+  "50057.sky-destroyer-response": SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS["27055.sky-destroyer-response"]!,
+
+  "50050.informant-interrupt": interrupt(
+    on.enemySchemes(query("minion")),
+    { cost: discardThis },
+    modifyAttack({ removesThreat: true }),
+  ),
+
+  "50052.prism-dust-response": heroResponse(
+    on.entersPlay(query("minion")),
+    { label: "attack", cost: discardThis },
+    confuse(eventTarget),
+    dealDamage(2, eventTarget),
+  ),
+
+  "50054.nick-fury-sr-forced-response": forcedResponse(
+    on.entersPlay("self"),
+    chooseOne(
+      option("Remove 3 threat from a scheme", removeThreatFromAScheme(3)),
+      option("Draw 2 cards", draw(2)),
+      option(
+        "Give a S.H.I.E.L.D. character a tough status card",
+        chooseTarget("character", query("character", { trait: SHIELD })),
+        giveStatus(chosen("character"), "tough"),
+        { when: exists(query("character", { trait: SHIELD })) },
+      ),
+    ),
+    atEndOfRound(ifThen(exists({ self: true }), discard(self))),
+  ),
+
+  "50055.jemma-simmons-constant": SHIELD_COST_BREAK,
+  "50055.jemma-simmons-resource": resource(
+    { mental: 1 },
+    { cost: exhaustThis, generatesFor: query(["ally", "event", "support", "upgrade"], { trait: TECH }) },
+  ),
+
+  "50056.leo-fitz-constant": SHIELD_COST_BREAK,
+  "50056.leo-fitz-action": alterEgoAction(
+    { cost: exhaustThis },
+    chooseCards("found", zone("deck", you, { filter: TECH_CARD }), { min: 0, max: 1 }),
+    moveCards(cards(chosen("found")), "hand"),
+    shuffleDeck(),
+  ),
+
+  "50058.practiced-plan-response": response(
+    { on: "cardLeavesPlay", targetIs: YOUR_PREPARATION_CARD, eventIs: { to: "discard" } },
+    { cost: discardThis },
+    moveCards(cards(eventTarget), "hand"),
+  ),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
@@ -295,22 +407,14 @@ export const AOS_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
     'event does not record what caused the discard, so "an encounter card effect" cannot be told from a player card\'s ' +
     "or a defeat (and `EventPattern.eventIs` has only `to`). Needs a cause (source) on `cardLeavesPlay` and a pattern " +
     "field to read it.",
-  ...Object.fromEntries(
-    [
-      "50047.agent-coulson-response",
-      "50048.quake-response",
-      "50049.global-logistics-action",
-      "50050.informant-interrupt",
-      "50051.intelligence-response",
-      "50052.prism-dust-response",
-      "50053.under-surveillance-constant",
-      "50054.nick-fury-sr-forced-response",
-      "50055.jemma-simmons-constant",
-      "50055.jemma-simmons-resource",
-      "50056.leo-fitz-constant",
-      "50056.leo-fitz-action",
-      "50057.sky-destroyer-response",
-      "50058.practiced-plan-response",
-    ].map((id) => [id, "second half of the module, not started"]),
-  ),
+  "50051.intelligence-response":
+    'Response: "After a player is dealt an encounter card, discard Intelligence -> look at each encounter card dealt to ' +
+    'each player and the top card of the encounter deck. You may swap any number of those cards." The effect half is ' +
+    'built (`lookAtAndRearrange(anyOfCards(dealtEncounterCards(), encounterCards(["deck"], undefined, 1)))`, ' +
+    "wave9-3-12), but the trigger is not: no event is announced after a player is dealt an encounter card. " +
+    "`dealEncounterCardTo` (engine/src/effects.ts) emits none; `villainStepStarting` (step three, dealEncounterCards) is " +
+    "an interrupt-only window (resolve/triggers.ts line 580 drops responses to it) and fires before any card is dealt; " +
+    "`villainStepResolved` exists only for placeThreat; spec 3.45's `encounterCardBeingDealt` is an interrupt (\"would " +
+    'be dealt"), not yet built, and is not an "after". Needs an after-dealt event (per card dealt, or the end of step ' +
+    "three, plus ability-dealt cards) from game-rules-architect; spec 3.12 does not name it.",
 };
