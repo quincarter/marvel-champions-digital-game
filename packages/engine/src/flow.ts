@@ -1,4 +1,5 @@
 import type { CampaignWindow } from "./campaign.js";
+import { displayNameOf } from "./visibility.js";
 import type { ChoiceOption } from "./choices.js";
 import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
 import {
@@ -25,15 +26,7 @@ import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import {
-  getPlayer,
-  handSize,
-  mustCardOf,
-  mustPlayer,
-  playerOrder,
-  scenarioPlayAreaOf,
-  undefeatedVillains,
-} from "./query.js";
+import { getPlayer, handSize, mustPlayer, playerOrder, scenarioPlayAreaOf, undefeatedVillains } from "./query.js";
 import {
   announce,
   announceStatusPlaced,
@@ -182,7 +175,7 @@ const handOptions = (ctx: Ctx, playerId: PlayerId): readonly ChoiceOption[] =>
     .hand.filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id))
     .map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id },
     }));
 

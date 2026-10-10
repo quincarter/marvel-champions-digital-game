@@ -11,7 +11,7 @@
  * resources →", docs/phase7-wave8.md §3.62): the payments that fit its range, for `legalActions` and a timing window
  * to tell whether the ability can be offered.
  */
-import { paymentOptions, paymentsFromOptionIds, priceOrNull } from "./actions.js";
+import { isWhenSpentUse, mostFromEachHandCard, paymentOptions, paymentsFromOptionIds, priceOrNull } from "./actions.js";
 import type { EngineDeps } from "./abilities.js";
 import { createCtx } from "./ctx.js";
 import type { Payment } from "./commands.js";
@@ -71,8 +71,14 @@ export function canPaySpend(
   if (needed === 0) return true;
   const options = paymentOptions(ctx, playerId, null).map((option) => option.optionId);
   if (options.length === 0) return false;
-  const whole = price(options);
-  if (whole !== null) return spendPays(whole, requirement, distinctTypes);
+  // One card is spent once: `paymentOptions` lists a card's plain spending and its "When you spend this card" uses.
+  const everything = paymentsFromOptionIds(options);
+  const plain = everything.filter((payment) => !isWhenSpentUse(payment));
+  const whole = priceOrNull(ctx, playerId, plain, null, null);
+  if (whole !== null && spendPays(whole, requirement, distinctTypes)) return true;
+  const most = priceOrNull(ctx, playerId, mostFromEachHandCard(ctx, playerId, everything, null, null), null, null);
+  if (most !== null && spendPays(most, requirement, distinctTypes)) return true;
+  if (whole !== null && plain.length === everything.length) return false;
   for (let size = 1; size <= Math.min(needed, options.length); size++) {
     let tried = 0;
     for (const ids of subsets(options, size)) {

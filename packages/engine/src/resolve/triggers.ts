@@ -11,6 +11,7 @@ import {
   defaultHandDiscardPicks,
   defaultInPlayPicks,
   isAlternativeAmount,
+  mostFromEachHandCard,
   isPriceFault,
   paymentOptions,
   paymentsFromOptionIds,
@@ -135,12 +136,14 @@ function costPayable(
   const sources = paymentsFromOptionIds(
     paymentOptions(ctx, playerId, exclude, payingFor).map((option) => option.optionId),
   ).filter((source) => !isAlternativeAmount(source));
+  // One card is spent once: each hand card counts as the most it could generate ("When you spend this card").
+  const mostEach = mostFromEachHandCard(ctx, playerId, sources, exclude, payingFor);
   // "Spend up to 3 resources →" (`ResourcesChoice`; docs/phase7-wave8.md §3.62): at least one resource (RRG 1.8 "Cost",
   // p. 14), and more than its maximum is overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG p. 13), so the ability
   // is offered when some payment generates its minimum.
   if (chosenSize) return !chosenSizePayments(state, deps, playerId, sources, chosenSize, payingFor, true).next().done;
   let most = EMPTY_POOL;
-  for (const source of sources) {
+  for (const source of mostEach) {
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);
     if (pool) most = addPools(most, pool);
   }

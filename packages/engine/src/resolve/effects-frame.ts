@@ -1,5 +1,6 @@
 /** Stepping through an effects frame, including the effects that stop for a player choice. */
 
+import { displayNameOf } from "../visibility.js";
 import type { AbilityId } from "@mc/content";
 import { announceDeckTops } from "../deck-top.js";
 import { positionsOf, rearrangeable, rearrangeCards } from "./rearrange.js";
@@ -609,7 +610,7 @@ function executePlayFromHand(
   if (step === 1 && places.length > 1 && frame.vars["_play.into"] === undefined) {
     const optionOf = (into: string | null): string => (into === null ? PLAY_TO_OWN_AREA : playToAreaOption(into));
     if (frame.answer === null) {
-      const name = mustCardOf(ctx.state, card).name;
+      const name = displayNameOf(ctx.state, card);
       requestChoice(ctx, {
         playerId,
         prompt: { kind: "chooseOption" },
@@ -806,7 +807,7 @@ function executeDivide(
       options: candidates.flatMap((id) =>
         Array.from({ length: amount }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -957,7 +958,7 @@ function executeHealDivide(
       options: candidates.flatMap((id) =>
         Array.from({ length: caps.get(id) ?? 0 }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -1028,7 +1029,7 @@ function executeStatusDivide(
       options: candidates.flatMap((id) =>
         Array.from({ length: caps[id] ?? 0 }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -1637,7 +1638,7 @@ function placeTarget(
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
   ids.map((id) => ({
     optionId: id,
-    label: mustCardOf(ctx.state, id).name,
+    label: displayNameOf(ctx.state, id),
     ref: { kind: "card", instanceId: id } as const,
   }));
 
@@ -1688,7 +1689,7 @@ function executeChooseCards(
   if (effect.distinctNames) {
     const seen = new Set<string>();
     candidates = candidates.filter((id) => {
-      const name = cardOf(ctx.state, id)?.name ?? id;
+      const name = displayNameOf(ctx.state, id);
       if (seen.has(name)) return false;
       seen.add(name);
       return true;
@@ -2408,7 +2409,7 @@ function executeDealIndirectDamage(
       options: eligible.flatMap((id) =>
         Array.from({ length: caps[id] ?? 0 }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -2612,7 +2613,7 @@ function executeResolveSpecials(
     if (c.grantedBy === null) return { ...printed, optionId: key(c) };
     return {
       optionId: key(c),
-      label: cardOf(ctx.state, c.grantedBy)?.name ?? c.grantedBy,
+      label: displayNameOf(ctx.state, c.grantedBy),
       ref: { kind: "ability", instanceId: c.grantedBy, abilityId: c.abilityId },
     };
   };
@@ -2780,7 +2781,7 @@ function requestTargetChoice(
     prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
     options: legal.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     // "Up to X" chooses at least one (§4 Q16, the user's decision); only a printed "may" (`optional`) allows none.

@@ -1,5 +1,6 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
+import { displayNameOf } from "../visibility.js";
 import { type AbilityDefinition, DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
   type Ctx,
@@ -24,7 +25,6 @@ import {
   discardZoneFor,
   getInstance,
   locateCard,
-  mustCardOf,
   mustInstance,
   mustPlayer,
   playerOrder,
@@ -799,7 +799,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
             : [{ optionId: "decline", label: "No defense", ref: { kind: "none" } } as const]),
           ...defenders.map((id) => ({
             optionId: id,
-            label: mustCardOf(ctx.state, id).name,
+            label: displayNameOf(ctx.state, id),
             ref: { kind: "card", instanceId: id } as const,
           })),
         ],

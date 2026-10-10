@@ -1,5 +1,6 @@
 /** Timing windows: ordering, choosing, paying for and resolving triggered abilities. */
 
+import { displayNameOf } from "../visibility.js";
 import {
   announceResourcesSpent,
   commitPlay,
@@ -9,6 +10,7 @@ import {
   inPlayCostCandidates,
   isPriceFault,
   payCost,
+  handCardOfOptionId,
   paymentOptions,
   paymentsFromOptionIds,
   payPayment,
@@ -33,15 +35,7 @@ import { candidateDefenseBar, windowDefenseBar } from "../defense-claim.js";
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import {
-  cardOf,
-  deckDiscardStillThere,
-  getInstance,
-  mustCardOf,
-  mustPlayer,
-  playerOrder,
-  printedCostOf,
-} from "../query.js";
+import { cardOf, deckDiscardStillThere, getInstance, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { EngineDeps } from "../abilities.js";
@@ -492,7 +486,7 @@ export const candidateOption =
   (state: GameState, among: readonly TriggerCandidate[] = []) =>
   (candidate: TriggerCandidate): ChoiceOption => ({
     optionId: optionIdOf(candidate, among),
-    label: cardOf(state, candidate.instanceId)?.name ?? candidate.instanceId,
+    label: displayNameOf(state, candidate.instanceId),
     ref: { kind: "ability", instanceId: candidate.instanceId, abilityId: candidate.abilityId },
   });
 
@@ -707,7 +701,7 @@ function askCostPick(
       },
       options: offered.map((id) => ({
         optionId: id,
-        label: mustCardOf(ctx.state, id).name,
+        label: displayNameOf(ctx.state, id),
         ref: { kind: "card", instanceId: id },
       })),
       minSelections: 0,
@@ -768,7 +762,7 @@ function askHandDiscard(
     },
     options: candidates.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id },
     })),
     minSelections: 0,
@@ -784,8 +778,12 @@ function withoutHandDiscards(
   candidate: TriggerCandidate,
   options: readonly ChoiceOption[],
 ): readonly ChoiceOption[] {
-  const picked = new Set((costChoicesFor(frame, candidate)[HAND_DISCARD_SLOT] ?? []).map((id) => `hand:${id}`));
-  return picked.size === 0 ? options : options.filter((option) => !picked.has(option.optionId));
+  const picked = new Set(costChoicesFor(frame, candidate)[HAND_DISCARD_SLOT] ?? []);
+  if (picked.size === 0) return options;
+  return options.filter((option) => {
+    const card = handCardOfOptionId(option.optionId);
+    return card === null || !picked.has(card);
+  });
 }
 
 /**

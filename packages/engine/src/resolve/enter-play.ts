@@ -1,10 +1,11 @@
 /** Keywords and limits that resolve as a card enters play. */
 
+import { displayNameOf } from "../visibility.js";
 import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
 import { addCounters, applyToughness, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf, keywordTotal, unblankedPrintedKeywordsOf } from "../keywords.js";
-import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
+import { cardOf, getInstance, getPlayer, isMinion, mustPlayer, startingThreatOf } from "../query.js";
 import {
   allyLimitFor,
   allyLimitMayBeReduced,
@@ -115,7 +116,7 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
     prompt: { kind: "discardOverAllyLimit", limit },
     options: allies.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: allies.length - limit,
@@ -256,7 +257,7 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
     prompt: { kind: "discardOverPlayerSideSchemeLimit", limit },
     options: options.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: over,
@@ -308,7 +309,7 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
     prompt: { kind: "discardRestricted", limit },
     options: options.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: over,

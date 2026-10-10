@@ -24,11 +24,13 @@
  * (`dividedBasicPowerValue`). A thwart made with ATK by the player's choice is not divided, as on their own turn.
  */
 
+import { displayNameOf } from "../visibility.js";
 import {
   basicAttack,
   basicThwart,
   dividedBasicPowerValue,
   handDiscardCandidates,
+  handCardOfOptionId,
   paymentOptions,
   paymentsFromOptionIds,
 } from "../actions.js";
@@ -46,7 +48,6 @@ import { addLastingEffect, endLastingEffect, lastingEffectIdOf } from "../effect
 import type { InstanceId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import type { LastingScope } from "../lasting.js";
-import { mustCardOf } from "../query.js";
 import { requirementTotal } from "../resources.js";
 import { canDivideBasicPower } from "../rules.js";
 import { type EffectContext, resolvePlayers } from "../select.js";
@@ -173,7 +174,7 @@ export function executeBasicPowerBy(
         },
         options: candidates.map((use) => ({
           optionId: targetOptionId(use),
-          label: `${mustCardOf(ctx.state, use.targetInstanceId).name}${use.useAtk ? " (with ATK)" : ""}`,
+          label: `${displayNameOf(ctx.state, use.targetInstanceId)}${use.useAtk ? " (with ATK)" : ""}`,
           ref: { kind: "card", instanceId: use.targetInstanceId } as const,
         })),
         minSelections: 1,
@@ -250,7 +251,7 @@ export function executeBasicPowerBy(
         options: targets.flatMap((id) =>
           Array.from({ length: most }, (_, n) => ({
             optionId: `${id}#${n + 1}`,
-            label: mustCardOf(ctx.state, id).name,
+            label: displayNameOf(ctx.state, id),
             ref: { kind: "card", instanceId: id } as const,
           })),
         ),
@@ -289,7 +290,7 @@ export function executeBasicPowerBy(
         },
         options: from.map((id) => ({
           optionId: id,
-          label: mustCardOf(ctx.state, id).name,
+          label: displayNameOf(ctx.state, id),
           ref: { kind: "card", instanceId: id } as const,
         })),
         // Selecting fewer than the cost needs backs out of the power, as it backs out of an interrupt.
@@ -308,8 +309,11 @@ export function executeBasicPowerBy(
   if (needs && "fault" in needs) return notMade("costNotPaid", needs.fault);
   if (needs && requirementTotal(needs.requirement) > 0 && frame.answer === null) {
     // A card picked to be discarded is not also spent.
-    const kept = new Set((needs.discard ?? []).map((id) => `hand:${id}`));
-    const options = paymentOptions(ctx, playerId, null).filter((option) => !kept.has(option.optionId));
+    const kept = new Set(needs.discard ?? []);
+    const options = paymentOptions(ctx, playerId, null).filter((option) => {
+      const card = handCardOfOptionId(option.optionId);
+      return card === null || !kept.has(card);
+    });
     if (options.length > 0) {
       requestChoice(ctx, {
         playerId,

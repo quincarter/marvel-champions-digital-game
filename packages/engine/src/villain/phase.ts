@@ -6,6 +6,7 @@
  * stack frames as every other game action (`resolve/`).
  */
 
+import { displayNameOf } from "../visibility.js";
 import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
 import {
   dealEncounterCardTo,
@@ -24,7 +25,6 @@ import {
   isMinion,
   mainSchemeValue,
   sharedMainSchemes,
-  mustCardOf,
   mustPlayer,
   nextClockwisePlayer,
   nextVillainInActivationOrder,
@@ -195,7 +195,7 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
       prompt: { kind: "chooseMinionToActivate" },
       options: minions.map((id) => ({
         optionId: id,
-        label: mustCardOf(ctx.state, id).name,
+        label: displayNameOf(ctx.state, id),
         ref: { kind: "card", instanceId: id } as const,
       })),
       minSelections: 1,

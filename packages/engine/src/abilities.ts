@@ -310,6 +310,23 @@ export type AbilityTriggerSpec =
    * Ability", p. 37: triggered while generating resources to pay a cost; "Play Restrictions and Permissions", p. 33).
    * Read with "this card" as the ability's card and "you" as the player spending it. Its limit (RRG 1.8 "Limit",
    * pp. 26–27) counts uses as any resource ability's does, whether or not the condition was true in between.
+   *
+   * `whenSpent`: "**Interrupt**: When you spend this card, [cost] → generate …" on a card spent from hand (a resource
+   * card's own text, "active while using the card to generate resources": RRG 1.8 "Resource Card", p. 37). It is
+   * carried as a resource trigger because its effect is resources generated while a cost is being paid, which count
+   * toward that cost and may overpay it like any others (RRG 1.8 "Cost", p. 13), and because a payment's choices are
+   * all made up front (`Payment`). It differs from a "Resource" ability in three ways:
+   *
+   * - **Only with its own card's spending.** It is used by the payment entry that spends the card
+   *   (`Payment.whenSpent`), never as an `ability` entry and never from a card in play: no spending, no interrupt.
+   * - **Once per spending**, by the player spending the card ("you"): their form, their cards pay its cost, and "your
+   *   identity" is theirs.
+   * - **Its timing word is Interrupt** (`timingWordOf`), so a rule against resolving interrupt abilities stops it and
+   *   one against "Resource" abilities does not.
+   *
+   * Its cost is paid before the card is discarded (an interrupt resolves before its triggering condition, RRG 1.8
+   * "Interrupt", p. 25), and the resources are part of the same payment, generated with the card's own
+   * (FAQ "Pepper Potts (#33)", p. 58: a payment's resources are generated simultaneously).
    */
   | {
       readonly kind: "resource";
@@ -318,6 +335,7 @@ export type AbilityTriggerSpec =
       readonly forAnyPlayer?: boolean;
       readonly repeatable?: boolean;
       readonly spentAsIfResource?: boolean;
+      readonly whenSpent?: boolean;
     }
   /**
    * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player

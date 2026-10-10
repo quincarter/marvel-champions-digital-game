@@ -213,9 +213,9 @@ describe("Maria Hill (Leadership) precon against Rhino (standard, solo), seed 1"
     expect(mainThreat()).toBe(0);
     expect(state.round).toBe(1);
     expect(state.pendingChoice).toBeNull();
-    // The box leaves only 50014 Organizational Support unscripted; the deck holds it and 50028 Front Organization,
-    // and both are only ever resources here.
-    expect(Object.keys(AOS_ASPECT_BASIC_SKIPPED)).toEqual(["50014.organizational-support-interrupt"]);
+    // The box leaves no ref unscripted; the deck holds 50014 Organizational Support and 50028 Front Organization,
+    // and both are only ever plain resources here.
+    expect(Object.keys(AOS_ASPECT_BASIC_SKIPPED)).toEqual([]);
   });
 
   it("round 1, alter ego: the search takes The Iliad and shuffles; Support Staff enters with 3 staff", () => {
@@ -603,7 +603,35 @@ describe("doubts found while writing the game", () => {
   // the same phase. That is the rule (RRG 1.8 "Minion": "If a minion engages a player during an enemy activation in
   // which all minions engaged with that player are instructed to activate ... the newly-engaged minion will also
   // activate"), and the game above asserts its 1 damage.
-  // Observed in rounds 4 and 5: the option labels of target prompts name the facedown minion's hidden card ("Agents of
-  // S.H.I.E.L.D.", "Reinforcements"). A facedown card has no name; the label should not leak the card.
-  it.todo("a facedown Controlled minion is offered as a target without naming the card it was");
+  // Observed in rounds 4 and 5: the option labels of target prompts named the facedown minion's hidden card ("Agents of
+  // S.H.I.E.L.D.", "Reinforcements"). A facedown card in play has no name (RRG 1.8 "In Play and Out of Play", p. 23:
+  // the facedown side is out of play; ruling of Jan 26, 2026 (4) answer 5), and no rule lets a player look at it, so
+  // the engine labels it by what it is treated as (`displayNameOf`).
+  it("a facedown Controlled minion is offered as a target without naming the card it was", () => {
+    const drive = (s: GameState, ...commands: readonly Command[]): GameState =>
+      driveEventsPicking(DEPS, s, planner({}), ...commands).state;
+    // Army of the Controlled finds Controlled Innocents; the next phase's Diabolical Discs makes the minion.
+    let s = stackEncounterDeck(stageNemesisCardForReveal(mariaGame(1), "50031", P1, 0), "01186");
+    s = drive(s, endTurn());
+    s = stackEncounterDeck(stageNemesisCardForReveal(s, "50033", P1, 0), "01186");
+    s = drive(s, endTurn());
+    const [minion] = cardsInPlay(s).filter((i) => inst(s, i).facedownAs != null);
+    expect(minion).toBeDefined();
+    const hidden = s.cardPool[inst(s, minion!).cardId]!.name;
+    const iliad = inPlay(s, "50009", { mission: 4 });
+    const used = applyCommand(iliad.state, use(P1, iliad.id, ILIAD), DEPS);
+    if (!used.ok) throw new Error(used.error.message);
+    const aiming = settle(
+      used.state,
+      (x) => [x.pendingChoice!.options.find((o) => o.label.startsWith("Deal 5"))!.optionId],
+      (x) => x.pendingChoice?.prompt.kind === "chooseTarget",
+      DEPS,
+    );
+    const choice = aiming.pendingChoice!;
+    expect(choice.prompt.kind).toBe("chooseTarget");
+    const labels = Object.fromEntries(choice.options.map((o) => [o.optionId, o.label]));
+    expect(labels[minion!]).toBe("Controlled minion");
+    expect(labels[aiming.activeVillainId!]).toBe("Rhino");
+    expect(JSON.stringify(choice)).not.toContain(hidden);
+  });
 });

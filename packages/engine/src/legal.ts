@@ -30,6 +30,10 @@ import {
   usableEventActions,
   handCardResources,
   isAlternativeAmount,
+  isWhenSpentUse,
+  mostFromEachHandCard,
+  spentCardOptionId,
+  priceOrNull,
   paidForMultiplied,
   paymentOptions,
   paymentsFromOptionIds,
@@ -69,7 +73,7 @@ import {
   scenarioPlayAreaOf,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { combineRequirements, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { addPools, combineRequirements, poolTotal, requirementTotal, type ResolvedRequirement } from "./resources.js";
 import { attachmentReachOf, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "./rules.js";
 import { formChangeCostSources } from "./form-change-cost.js";
 import {
@@ -294,7 +298,10 @@ function spendOrder(
   );
   // One use of a resource ability pays one amount: the option for the most it generates (`isAlternativeAmount`).
   const abilities = payments.filter((p) => "ability" in p && !isAlternativeAmount(p));
-  const hand = payments.flatMap((p) => ("fromHand" in p && !reserved.has(p.fromHand) ? [p.fromHand] : []));
+  // One card is spent once: its plain spending here, its "When you spend this card" uses in `walletsWithWhenSpent`.
+  const hand = payments.flatMap((p) =>
+    "fromHand" in p && !isWhenSpentUse(p) && !reserved.has(p.fromHand) ? [p.fromHand] : [],
+  );
   hand.sort(
     (a, b) => resourceCount(state, b) - resourceCount(state, a) || isResourceCard(state, b) - isResourceCard(state, a),
   );
@@ -309,6 +316,46 @@ function spendOrder(
 function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   const handOnly = spend.filter((p) => "fromHand" in p);
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
+}
+
+/**
+ * `wallets(spend)`, then the same wallets with each hand card spent the way that generates the most: with its own
+ * "Interrupt: When you spend this card, [cost] → generate …" where it has one that can be used (`Payment.whenSpent`,
+ * `mostFromEachHandCard`). They come last, so `example` and `suggested` use such an ability only when the plain
+ * payments do not pay (its cost is cards the player may want ready), and an action that only it makes affordable is
+ * still listed. A wallet is built for each number of cards such a cost may pick, the fewest first, so the payment
+ * found exhausts no more cards than it needs; within a wallet the cards generating the most come first, so the
+ * shortest prefix that pays spends the fewest.
+ */
+function walletsWithWhenSpent(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  reserved: ReadonlySet<InstanceId>,
+  payingFor: InstanceId | null,
+  spend: readonly Payment[],
+): readonly (readonly Payment[])[] {
+  const plain = wallets(spend);
+  const ctx = createCtx(state, deps);
+  const uses = paymentsFromOptionIds(paymentOptions(ctx, playerId, null, payingFor).map((o) => o.optionId)).filter(
+    (p) => "fromHand" in p && isWhenSpentUse(p) && !reserved.has(p.fromHand),
+  );
+  if (uses.length === 0) return plain;
+  const total = (payment: Payment): number => {
+    const pool = priceOrNull(ctx, playerId, [payment], null, payingFor);
+    return pool ? poolTotal(pool) : 0;
+  };
+  const picksOf = (p: Payment): number =>
+    "fromHand" in p ? Object.values(p.whenSpent?.costChoices ?? {}).flat().length : 0;
+  const sizes = [...new Set(uses.map(picksOf))].sort((a, b) => a - b);
+  return [
+    ...plain,
+    ...sizes.flatMap((size) => {
+      const most = mostFromEachHandCard(ctx, playerId, [...spend, ...uses], null, payingFor, size);
+      const hand = most.filter((p) => "fromHand" in p).sort((a, b) => total(b) - total(a));
+      return wallets([...most.filter((p) => "ability" in p), ...hand]);
+    }),
+  ];
 }
 
 /** How many payments of a chosen-size cost `legalActions` probes before the usual wallets (`chosenSizeWallets`). */
@@ -402,7 +449,7 @@ function formChangeWithCost(
     reserved,
     spend,
     requirement,
-    tryWallets: [...exact, ...wallets(spend)],
+    tryWallets: [...exact, ...walletsWithWhenSpent(state, deps, playerId, reserved, null, spend)],
     build: (payment) => ({
       type: "changeForm",
       playerId,
@@ -759,7 +806,8 @@ function evaluatePlayOf(
 ): Evaluated {
   const cost = costAsDetermined(state, deps, id, playerId, ability?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
-  const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
+  const reserved = new Set([id, ...picks]);
+  const spend = spendOrder(state, deps, playerId, reserved, id);
   const context: EffectContext = {
     selfInstanceId: id,
     controllerId: playerId,
@@ -829,7 +877,12 @@ function evaluatePlayOf(
     instanceId: id,
     ...(deckTopPermission(state, deps, playerId)?.instanceId === id ? { from: "deckTop" as const } : {}),
   };
-  const tryWallets = withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost));
+  const tryWallets = withThwartCostWallets(
+    state,
+    deps,
+    ability,
+    leavingCardsToDiscard(walletsWithWhenSpent(state, deps, playerId, reserved, id, spend), cost),
+  );
   const own = evaluate(state, deps, action, variants, tryWallets);
   const ranged = (evaluated: Evaluated): Evaluated =>
     withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
@@ -946,7 +999,8 @@ function evaluateAbility(
 ): Evaluated {
   const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
-  const spend = spendOrder(state, deps, playerId, new Set(picks), null);
+  const reserved = new Set(picks);
+  const spend = spendOrder(state, deps, playerId, reserved, null);
   const chosenSize = resourcesChoiceOf(cost);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
     ({ costChoices, target }) =>
@@ -975,7 +1029,10 @@ function evaluateAbility(
       deps,
       deps.abilities[abilityId],
       leavingCardsToDiscard(
-        [...chosenSizeWallets(state, deps, playerId, spend, chosenSize, instanceId), ...wallets(spend)],
+        [
+          ...chosenSizeWallets(state, deps, playerId, spend, chosenSize, instanceId),
+          ...walletsWithWhenSpent(state, deps, playerId, reserved, null, spend),
+        ],
         cost,
       ),
     ),
@@ -1186,7 +1243,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
 /** One thing the player can spend toward a cost. */
 export interface PaymentSource {
   /**
-   * The option-id shape `paymentOptions` produces: "hand:<id>" | "ability:<id>:<abilityId>", with ":<n>" for a
+   * The option-id shape `paymentOptions` produces: "hand:<id>" | "hand:<id>:<abilityId>" (`spendsHandCard`) |
+   * "ability:<id>:<abilityId>", with ":<n>" for a
    * repeated use and "@<slot>=<id>,…" for the cards a resource ability's own cost picks (`resourceAbilityOptionId`).
    */
   readonly optionId: string;
@@ -1212,6 +1270,13 @@ export interface PaymentSource {
    * §3.7 (b)). The source for the most it can remove has none. A payment may hold one source of the same ability.
    */
   readonly costSelection?: CostSelection;
+  /**
+   * This `resourceAbility` source is a card in hand spent with its own "Interrupt: When you spend this card, [cost] →
+   * generate …" (`Payment.whenSpent`; option id "hand:<id>:<abilityId>…"): `instanceId` is the hand card, choosing it
+   * discards that card, and `pool` is the card's resources and the ability's together. The card's plain `handCard`
+   * source is listed as well, and a payment holds one of the two (one card is spent once).
+   */
+  readonly spendsHandCard?: true;
 }
 
 export interface PaymentQuery {
@@ -1285,7 +1350,7 @@ const mergeChoices = (auto: CostChoices | undefined, given: CostChoices | undefi
 const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
   const uses = new Map<string, number>();
   return payment.map((entry) => {
-    if ("fromHand" in entry) return `hand:${entry.fromHand}`;
+    if ("fromHand" in entry) return spentCardOptionId(entry);
     const id = resourceAbilityOptionId(entry.ability);
     const n = (uses.get(id) ?? 0) + 1;
     uses.set(id, n);
@@ -1455,6 +1520,40 @@ export function paymentFor(
         ];
       }
       if (option.ref.kind !== "ability") return [];
+      const [spending] = paymentsFromOptionIds([option.optionId]);
+      // A hand card spent with its own "When you spend this card" ability (`Payment.whenSpent`): the card's resources
+      // and the ability's together, since choosing this source is choosing both.
+      if (spending && "fromHand" in spending && spending.whenSpent) {
+        if (payable.reserved.has(spending.fromHand)) return [];
+        const picks = spending.whenSpent.costChoices;
+        const use = { instanceId: spending.fromHand, abilityId: spending.whenSpent.abilityId };
+        return [
+          {
+            optionId: option.optionId,
+            kind: "resourceAbility",
+            instanceId: spending.fromHand,
+            label: option.label,
+            pool: addPools(
+              handCardResources(state, deps, spending.fromHand, playerId, payable.payingFor),
+              paidForMultiplied(
+                state,
+                deps,
+                payable.payingFor,
+                resourceAbilityGenerates(
+                  state,
+                  deps,
+                  { ...use, ...(picks ? { costChoices: picks } : {}) },
+                  playerId,
+                  discardTop,
+                ),
+                playerId,
+              ),
+            ),
+            spendsHandCard: true,
+            ...(picks ? { costChoices: picks } : {}),
+          },
+        ];
+      }
       const use = paymentsFromOptionIds([option.optionId]).find((entry) => "ability" in entry);
       const costChoices = use && "ability" in use ? use.ability.costChoices : undefined;
       const costSelection = use && "ability" in use ? use.ability.costSelection : undefined;
@@ -1493,7 +1592,8 @@ export function paymentFor(
   const sized = payable.payingFor
     ? chosenSizeWallets(state, deps, playerId, spend, payable.chosenResources ?? null, payable.payingFor)
     : [];
-  for (const wallet of payable.preferred ?? [...sized, ...wallets(spend)]) {
+  const usual = walletsWithWhenSpent(state, deps, playerId, payable.reserved, payable.payingFor, spend);
+  for (const wallet of payable.preferred ?? [...sized, ...usual]) {
     if (!probe(state, deps, payable.build(wallet)).ok) continue;
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;

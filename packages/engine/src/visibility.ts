@@ -55,7 +55,7 @@
  */
 
 import type { EngineDeps } from "./abilities.js";
-import { activeEncounterDeck, getInstance, getPlayer, locateCard } from "./query.js";
+import { activeEncounterDeck, cardOf, getInstance, getPlayer, locateCard } from "./query.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { activeRules, rulePlayers, shownDeckTop } from "./select.js";
 import type { GameState, ZoneId } from "./state.js";
@@ -213,3 +213,37 @@ export const faceHidden = (state: GameState, id: InstanceId): boolean => {
   const zone = locateCard(state, id);
   return zone !== null && !isDeckZone(zone) && !faceVisible(state, id);
 };
+
+/** What a card in play facedown is called when it has no trait to be called by. */
+const FACEDOWN_MINION_NAME = "Facedown minion";
+const FACEDOWN_CARD_NAME = "Facedown card";
+
+/**
+ * The name the table calls a card by: what every option label, ref text and event field that names a card is built
+ * from. The printed name, except for a card that is in play facedown as something else (`CardInstance.facedownAs`)
+ * and whose face no player may read (`faceVisible` with no viewer): that one is named for what it is treated as, its
+ * role's traits and type ("Drone minion", "Controlled minion"), or "Facedown minion" / "Facedown card" when the role
+ * has no trait.
+ *
+ * RRG 1.8 "In Play and Out of Play" (p. 23): "If a card is double-sided, the facedown side is out of play", and a card
+ * out of play has inactive text. Ruling, Jan 26, 2026 (4) answer 5: "The facedown side of a Drone is not in play and
+ * does not matter." No rule lets a player look at a card put into play facedown off the top of a deck: "Look,
+ * Looked-At" (p. 27) needs an ability that says so, and the ruling of Jan 11, 2026 (1) on counting a deck forbids
+ * "inspect[ing] facedown cards". So the hidden printed name is nobody's to read, the controller's included, and the
+ * shared prompt and the log never carry it. Once the card leaves play it is itself again (`facedownAs` null) and its
+ * name is as public as its zone.
+ *
+ * A facedown card its owner may look at (a card attached facedown from their hand, `faceVisible`'s attachment arm)
+ * keeps its printed name here, because the table's answer is the owner's while one human holds every seat (see "Whose
+ * eyes" in the file comment); a per-viewer label for it is the view's job.
+ */
+export function displayNameOf(state: GameState, id: InstanceId): string {
+  const role = getInstance(state, id)?.facedownAs;
+  if (role && !faceVisible(state, id)) {
+    // Traits are stored in capitals (`trait()`); the cards print them as words ("as a Drone minion").
+    const traits = role.traits.map((t) => t.charAt(0) + t.slice(1).toLowerCase()).join(" ");
+    if (role.kind !== "minion") return traits || FACEDOWN_CARD_NAME;
+    return traits ? `${traits} minion` : FACEDOWN_MINION_NAME;
+  }
+  return cardOf(state, id)?.name ?? id;
+}

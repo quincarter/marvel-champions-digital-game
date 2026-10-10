@@ -21,11 +21,14 @@
  *   or picks cards, which is every pairing the card pool prints.
  */
 
+import { displayNameOf } from "./visibility.js";
 import type { AbilityCost, EngineDeps } from "./abilities.js";
 import {
   announceResourcesSpent,
   type CostPlan,
   isPriceFault as isFault,
+  isWhenSpentUse,
+  mostFromEachHandCard,
   payCost,
   paymentOptions,
   paymentsFromOptionIds,
@@ -40,7 +43,6 @@ import type { CostChoices, Payment } from "./commands.js";
 import { type Ctx, createCtx, emit } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { chosenSizePayments } from "./payable.js";
-import { cardOf } from "./query.js";
 import { combineRequirements, poolTotal, requirementTotal, satisfies, type ResolvedRequirement } from "./resources.js";
 import type { FormChangeCost } from "./rules.js";
 import type { Form, GameState } from "./state.js";
@@ -150,8 +152,7 @@ export function formChangeCostMessage(
   fault: string,
 ): string {
   const parts = costs.map(
-    ({ sourceInstanceId, cost }) =>
-      `${cardOf(state, sourceInstanceId)?.name ?? sourceInstanceId} (${describeCost(cost)})`,
+    ({ sourceInstanceId, cost }) => `${displayNameOf(state, sourceInstanceId)} (${describeCost(cost)})`,
   );
   const form = to === "hero" ? "hero" : "alter-ego";
   return `changing to ${form} form has an additional cost: ${parts.join(", ")}: ${fault}`;
@@ -179,10 +180,13 @@ export function canPayFormChangeCosts(
   const pays = (payment: readonly Payment[]): boolean =>
     !isFault(planFormChangeCosts(ctx, playerId, costs, payment, {}));
   if (pays([])) return true;
-  const all = paymentsFromOptionIds(paymentOptions(ctx, playerId, null).map((option) => option.optionId));
+  const every = paymentsFromOptionIds(paymentOptions(ctx, playerId, null).map((option) => option.optionId));
+  // One card is spent once: plainly in `all`, or the way that generates the most (`mostFromEachHandCard`).
+  const all = every.filter((payment) => !isWhenSpentUse(payment));
   if (all.length === 0) return false;
   const hand = all.filter((payment) => "fromHand" in payment);
   if (pays(all) || (hand.length > 0 && hand.length < all.length && pays(hand))) return true;
+  if (every.length > all.length && pays(mostFromEachHandCard(ctx, playerId, every, null, null))) return true;
   let total = 0;
   for (const { sourceInstanceId, cost } of costs) {
     const plan = planCost(state, deps, sourceInstanceId, playerId, cost, {}, new Set());

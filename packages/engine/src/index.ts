@@ -94,7 +94,7 @@ export { legalActions, paymentFor, tryPayment } from "./legal.js";
 export type { PlayCost, PlayCostContribution } from "./actions.js";
 export { costAsDetermined, inPlayCostCandidates, playCostOf, playableOutsideHand } from "./actions.js";
 export { deckTopPermission, deckTopPlayOf, type DeckTopPermission } from "./actions.js";
-export type { Command, CommandType, Payment, ResourceAbilityUse } from "./commands.js";
+export type { Command, CommandType, Payment, ResourceAbilityUse, SpentCardAbilityUse } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
 
@@ -407,7 +407,7 @@ export { stackEntries } from "./stack-view.js";
 export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
-export { faceHidden, faceVisible, lookedAtBy, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+export { displayNameOf, faceHidden, faceVisible, lookedAtBy, offeredByOpenChoice, zoneHidden } from "./visibility.js";
 export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */

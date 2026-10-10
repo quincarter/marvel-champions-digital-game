@@ -14,7 +14,24 @@ import type { ResourceType } from "./resources.js";
  * resource for each threat you removed this way") names it in `costSelection`, so what the use generates is known
  * when the payment is priced. Absent, it removes as much as it can.
  */
-export type Payment = { readonly fromHand: InstanceId } | { readonly ability: ResourceAbilityUse };
+export type Payment =
+  | {
+      readonly fromHand: InstanceId;
+      /**
+       * The card's own "Interrupt: When you spend this card, [cost] → generate …" used with this spending (a resource
+       * trigger with `whenSpent`): what it generates joins the payment with the card's resources. Absent, the card is
+       * spent without it. One card is spent once, so a payment holds one entry for it, with or without this.
+       */
+      readonly whenSpent?: SpentCardAbilityUse;
+    }
+  | { readonly ability: ResourceAbilityUse };
+
+/** The `whenSpent` ability a payment uses as it spends its card from hand (see `Payment`). */
+export interface SpentCardAbilityUse {
+  readonly abilityId: AbilityId;
+  /** The cards the ability's own cost picks, by slot (as `ResourceAbilityUse.costChoices`). */
+  readonly costChoices?: CostChoices;
+}
 
 /** One use of a resource ability in a payment (see `Payment`). */
 export interface ResourceAbilityUse {

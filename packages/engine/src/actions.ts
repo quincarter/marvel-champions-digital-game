@@ -1,4 +1,5 @@
 import { abilityId as asAbilityId, requirementResources, type AbilityId, type AnyCard } from "@mc/content";
+import { displayNameOf } from "./visibility.js";
 import {
   DEFAULT_DEPS,
   type AbilityCost,
@@ -1032,6 +1033,10 @@ function resourceAbilityFault(
   if (!definition || definition.trigger.kind !== "resource") {
     return { code: "no_valid_target", message: `${abilityId} is not a resource ability` };
   }
+  // "When you spend this card" (`whenSpent`): used by the entry that spends its card (`Payment.whenSpent`) only.
+  if (definition.trigger.whenSpent) {
+    return { code: "no_valid_target", message: `${abilityId} is used by spending its card from hand` };
+  }
   if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
   }
@@ -1067,6 +1072,69 @@ function resourceAbilityFault(
     }
   }
   const plan = planCost(state, deps, instanceId, spender, definition.cost, choices, new Set());
+  return isFault(plan) ? plan : null;
+}
+
+/** A hand entry's `whenSpent` use as a use of that ability on the spent card, or null for a plain spending. */
+const spentCardUse = (entry: Extract<Payment, { fromHand: InstanceId }>): ResourceAbilityUse | null =>
+  entry.whenSpent
+    ? {
+        instanceId: entry.fromHand,
+        abilityId: entry.whenSpent.abilityId,
+        ...(entry.whenSpent.costChoices ? { costChoices: entry.whenSpent.costChoices } : {}),
+      }
+    : null;
+
+/** The `whenSpent` abilities printed on a card ("Interrupt: When you spend this card, … → generate …"). */
+function whenSpentAbilitiesOf(state: GameState, deps: EngineDeps, id: InstanceId): readonly AbilityId[] {
+  const card = cardOf(state, id);
+  if (!card) return [];
+  return printedAbilityRefs(card).flatMap((ref) => {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    return trigger?.kind === "resource" && trigger.whenSpent ? [ref.id] : [];
+  });
+}
+
+/**
+ * Why a card's "Interrupt: When you spend this card, [cost] → generate …" (a resource trigger with `whenSpent`) cannot
+ * be used as `spender` spends the card from their hand, or null when it can. The spending itself (the card is in that
+ * hand and may be spent on this cost) is `priceOf`'s to check; this is the ability's own: it is printed on the card,
+ * no rule stops the spender resolving it, their form, its condition, its limit, the kind of card it generates for,
+ * and its cost with the picks named. RRG 1.8 "Initiating Abilities" (p. 24), steps 2 and 3.
+ */
+function whenSpentFault(
+  state: GameState,
+  deps: EngineDeps,
+  use: ResourceAbilityUse,
+  spender: PlayerId,
+  payingFor: InstanceId | null,
+): PriceFault | null {
+  const { instanceId, abilityId } = use;
+  const definition = deps.abilities[abilityId];
+  if (!definition || !whenSpentAbilitiesOf(state, deps, instanceId).includes(abilityId)) {
+    return { code: "no_valid_target", message: `${abilityId} is not a when-spent ability of ${instanceId}` };
+  }
+  const trigger = definition.trigger;
+  if (trigger.kind !== "resource") return { code: "no_valid_target", message: `${abilityId} generates nothing` };
+  if (triggeredAbilityForbidden(state, deps, instanceId, trigger, spender)) {
+    return { code: "no_valid_target", message: `${abilityId} cannot be resolved right now` };
+  }
+  if (trigger.form && getPlayer(state, spender)?.identity.form !== trigger.form) {
+    return { code: "wrong_form", message: `${abilityId} requires ${trigger.form} form` };
+  }
+  const context: EffectContext = { selfInstanceId: instanceId, controllerId: spender, event: null, bindings: {}, deps };
+  if (trigger.while && !evaluate(state, trigger.while, context)) {
+    return { code: "no_valid_target", message: `${abilityId}'s condition is not met` };
+  }
+  if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, spender)) {
+    return { code: "limit_reached", message: `${abilityId} has reached its limit` };
+  }
+  if (definition.generatesFor) {
+    if (payingFor === null || !matchesQuery(state, payingFor, definition.generatesFor, context)) {
+      return { code: "no_valid_target", message: `${abilityId} only generates resources for a certain kind of card` };
+    }
+  }
+  const plan = planCost(state, deps, instanceId, spender, definition.cost, use.costChoices ?? {}, new Set());
   return isFault(plan) ? plan : null;
 }
 
@@ -1215,6 +1283,24 @@ export function resourceAbilityOptionId(use: ResourceAbilityUse, n = 1): string 
   return parts.length === 0 ? base : `${base}@${parts.join(";")}`;
 }
 
+/**
+ * The option id of a hand card's spending: "hand:<id>", and for a spending that uses the card's own "When you spend
+ * this card" ability (`Payment.whenSpent`) "hand:<id>:<abilityId>" with the same "@<slot>=<id>,<id>" suffix for the
+ * cards its cost picks as `resourceAbilityOptionId`. Parsed back by `paymentsFromOptionIds`.
+ */
+export function spentCardOptionId(entry: Extract<Payment, { fromHand: InstanceId }>): string {
+  if (!entry.whenSpent) return `hand:${entry.fromHand}`;
+  const base = `hand:${entry.fromHand}:${entry.whenSpent.abilityId}`;
+  const parts = Object.entries(entry.whenSpent.costChoices ?? {}).map(([slot, ids]) => `${slot}=${ids.join(",")}`);
+  return parts.length === 0 ? base : `${base}@${parts.join(";")}`;
+}
+
+/** The hand card a payment option spends ("hand:<id>…", plain or with its own ability), or null for any other. */
+export function handCardOfOptionId(optionId: string): InstanceId | null {
+  const [entry] = paymentsFromOptionIds([optionId]);
+  return entry && "fromHand" in entry ? entry.fromHand : null;
+}
+
 /** The option-id part naming the threat a resource ability's cost removes (`resourceAbilityOptionId`). */
 const REMOVE_THREAT_OPTION = "#removeThreat=";
 
@@ -1249,6 +1335,54 @@ export const isAlternativeAmount = (payment: Payment): boolean =>
   "ability" in payment && payment.ability.costSelection?.removeThreat !== undefined;
 
 /**
+ * A payment source that is another way to spend a hand card already listed: the card with its own "When you spend this
+ * card" ability (`Payment.whenSpent`; `paymentOptions` lists the plain spending first). One card is spent once, so a
+ * list of everything a player could spend at once holds one entry per card: the plain one (leave these out), or the
+ * one that generates the most (`mostFromEachHandCard`).
+ */
+export const isWhenSpentUse = (payment: Payment): boolean => "fromHand" in payment && payment.whenSpent !== undefined;
+
+/**
+ * `payments` with each hand card spent once, the way that generates the most: its plain spending, or one use of its
+ * "When you spend this card" ability. Cards are taken in the order listed, and a use whose cost picks a card an
+ * earlier one already picked is passed over (one card pays one cost, RRG 1.8 "Cost", p. 13), so the result can be
+ * priced whole as far as these entries go. Entries that are not hand cards are returned as they are, in place.
+ * `atMostPicks`: only the uses whose cost picks that many cards or fewer, for a caller that wants the cheapest use
+ * that pays (`legal.ts walletsWithWhenSpent`).
+ */
+export function mostFromEachHandCard(
+  ctx: Ctx,
+  playerId: PlayerId,
+  payments: readonly Payment[],
+  excludeInstanceId: InstanceId | null,
+  payingFor: InstanceId | null,
+  atMostPicks = Infinity,
+): readonly Payment[] {
+  const picked = new Set<InstanceId>();
+  const best = new Map<InstanceId, Extract<Payment, { fromHand: InstanceId }>>();
+  for (const id of new Set(payments.flatMap((p) => ("fromHand" in p ? [p.fromHand] : [])))) {
+    let most = -1;
+    for (const entry of payments) {
+      if (!("fromHand" in entry) || entry.fromHand !== id) continue;
+      const picks = Object.values(entry.whenSpent?.costChoices ?? {}).flat();
+      if (picks.length > atMostPicks || picks.some((pick) => picked.has(pick))) continue;
+      const pool = priceOrNull(ctx, playerId, [entry], excludeInstanceId, payingFor);
+      if (pool === null || poolTotal(pool) <= most) continue;
+      most = poolTotal(pool);
+      best.set(id, entry);
+    }
+    for (const pick of Object.values(best.get(id)?.whenSpent?.costChoices ?? {}).flat()) picked.add(pick);
+  }
+  const placed = new Set<InstanceId>();
+  return payments.flatMap((entry): Payment[] => {
+    if (!("fromHand" in entry)) return [entry];
+    if (placed.has(entry.fromHand)) return [];
+    placed.add(entry.fromHand);
+    return [best.get(entry.fromHand) ?? entry];
+  });
+}
+
+/**
  * RRG "Cost": resources come from cards discarded from hand and from "Resource"
  * abilities. Overpaying is legal; the excess is simply lost. Every resource in
  * one payment is generated simultaneously, so "the top card of your discard
@@ -1275,13 +1409,21 @@ function spendableForAnyPlayer(state: GameState, deps: EngineDeps, id: InstanceI
 function paymentSourceVars(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): Record<string, number> {
   const vars: Record<string, number> = {};
   for (const entry of payment) {
-    if (!("ability" in entry)) continue;
-    const { instanceId, abilityId } = entry.ability;
-    const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
+    // A hand card's "When you spend this card" use counts as its ability's, like any other use.
+    const use = "ability" in entry ? entry.ability : spentCardUse(entry);
+    if (!use) continue;
+    const { instanceId, abilityId } = use;
+    const zone = locateCard(ctx.state, instanceId);
+    const spender =
+      "ability" in entry
+        ? resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId)
+        : zone?.kind === "hand"
+          ? zone.playerId
+          : playerId;
     const generated = resourceAbilityGenerates(
       ctx.state,
       ctx.deps,
-      entry.ability,
+      use,
       spender,
       mustPlayer(ctx.state, spender).discard[0] ?? null,
     );
@@ -1438,10 +1580,32 @@ export function priceOf(
       if (spendableIn && player.identity.form !== spendableIn) {
         return {
           code: "wrong_form",
-          message: `${mustCardOf(ctx.state, entry.fromHand).name} can only be spent in ${spendableIn} form`,
+          message: `${displayNameOf(ctx.state, entry.fromHand)} can only be spent in ${spendableIn} form`,
         };
       }
       pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor));
+      // "Interrupt: When you spend this card, [cost] → generate …" (`whenSpent`): what it generates joins the payment.
+      const use = spentCardUse(entry);
+      if (use) {
+        const fault = whenSpentFault(ctx.state, ctx.deps, use, ownerId, payingFor);
+        if (fault) return fault;
+        const plan = resourceCostPlan(ctx.state, ctx.deps, use, ownerId);
+        if (isFault(plan)) return plan;
+        for (const id of cardsSpentByResourceCost(ctx.deps, use, plan)) {
+          if (spentOnCosts.has(id)) return { code: "invalid_choice", message: "one card cannot pay two costs" };
+          spentOnCosts.add(id);
+        }
+        pool = addPools(
+          pool,
+          paidForMultiplied(
+            ctx.state,
+            ctx.deps,
+            payingFor,
+            resourceAbilityGenerates(ctx.state, ctx.deps, use, ownerId, topOf(ownerId)),
+            ownerId,
+          ),
+        );
+      }
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
@@ -1524,9 +1688,30 @@ export function paymentOptions(
       if (spendableIn && spendableIn !== payer.identity.form) continue;
       options.push({
         optionId: `hand:${id}`,
-        label: mustCardOf(ctx.state, id).name,
+        label: displayNameOf(ctx.state, id),
         ref: { kind: "card", instanceId: id },
       });
+      // The same card spent with its own "When you spend this card" ability (`whenSpent`): one more option per legal
+      // pick of the ability's cost, after the plain spending, each showing what it generates. One of them at most
+      // joins a payment (`isWhenSpentUse`).
+      for (const abilityId of whenSpentAbilitiesOf(ctx.state, ctx.deps, id)) {
+        for (const choices of resourcePickChoices(ctx.state, ctx.deps, id, abilityId, payerId)) {
+          const use: ResourceAbilityUse = { instanceId: id, abilityId, ...(choices ? { costChoices: choices } : {}) };
+          if (whenSpentFault(ctx.state, ctx.deps, use, payerId, payingFor)) continue;
+          const picked = Object.values(choices ?? {}).flatMap((ids) => ids.map((p) => displayNameOf(ctx.state, p)));
+          options.push({
+            optionId: spentCardOptionId({
+              fromHand: id,
+              whenSpent: { abilityId, ...(choices ? { costChoices: choices } : {}) },
+            }),
+            label:
+              picked.length > 0
+                ? `${displayNameOf(ctx.state, id)} (${picked.join(", ")})`
+                : displayNameOf(ctx.state, id),
+            ref: { kind: "ability", instanceId: id, abilityId },
+          });
+        }
+      }
     }
   }
   for (const id of cardsInPlay(ctx.state)) {
@@ -1542,10 +1727,10 @@ export function paymentOptions(
         for (const choices of pickChoices) {
           if (!choices) continue;
           if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor, group, choices)) continue;
-          const picked = Object.values(choices).flatMap((ids) => ids.map((pick) => mustCardOf(ctx.state, pick).name));
+          const picked = Object.values(choices).flatMap((ids) => ids.map((pick) => displayNameOf(ctx.state, pick)));
           options.push({
             optionId: resourceAbilityOptionId({ instanceId: id, abilityId: ref.id, costChoices: choices }),
-            label: `${mustCardOf(ctx.state, id).name} (${picked.join(", ")})`,
+            label: `${displayNameOf(ctx.state, id)} (${picked.join(", ")})`,
             ref: { kind: "ability", instanceId: id, abilityId: ref.id },
           });
         }
@@ -1559,9 +1744,7 @@ export function paymentOptions(
       options.push({
         optionId: `ability:${id}:${ref.id}`,
         label:
-          most === undefined
-            ? mustCardOf(ctx.state, id).name
-            : `${mustCardOf(ctx.state, id).name} (remove ${most} threat)`,
+          most === undefined ? displayNameOf(ctx.state, id) : `${displayNameOf(ctx.state, id)} (remove ${most} threat)`,
         ref: { kind: "ability", instanceId: id, abilityId: ref.id },
       });
       for (const amount of amounts.slice(0, -1).reverse()) {
@@ -1571,7 +1754,7 @@ export function paymentOptions(
             abilityId: ref.id,
             costSelection: { removeThreat: amount },
           }),
-          label: `${mustCardOf(ctx.state, id).name} (remove ${amount} threat)`,
+          label: `${displayNameOf(ctx.state, id)} (remove ${amount} threat)`,
           ref: { kind: "ability", instanceId: id, abilityId: ref.id },
         });
       }
@@ -1581,7 +1764,7 @@ export function paymentOptions(
         if (repeatUsesFault(ctx.state, ctx.deps, id, ref.id, spender, n)) break;
         options.push({
           optionId: `ability:${id}:${ref.id}:${n}`,
-          label: mustCardOf(ctx.state, id).name,
+          label: displayNameOf(ctx.state, id),
           ref: { kind: "ability", instanceId: id, abilityId: ref.id },
         });
       }
@@ -1591,7 +1774,8 @@ export function paymentOptions(
 }
 
 /**
- * Option ids name payment entries: "hand:<id>", "ability:<id>:<abilityId>", "ability:<id>:<abilityId>:<n>" for the
+ * Option ids name payment entries: "hand:<id>", "hand:<id>:<abilityId>" for a card spent with its own "When you spend
+ * this card" ability (`spentCardOptionId`), "ability:<id>:<abilityId>", "ability:<id>:<abilityId>:<n>" for the
  * n-th use of a `repeatable` resource ability (docs/phase7-wave5.md §3.25), which is the same entry again, and a
  * "@<slot>=<id>,<id>;…" suffix for the cards a resource ability's own cost picks (`resourceAbilityOptionId`).
  */
@@ -1601,7 +1785,11 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
     const at = optionId.indexOf("@");
     const head = at < 0 ? optionId : optionId.slice(0, at);
     const [kind, first, second] = head.split(":");
-    if (kind === "hand" && first) payments.push({ fromHand: asInstanceId(first) });
+    if (kind === "hand" && first) {
+      const picks = at < 0 ? undefined : pickChoicesFromSuffix(optionId.slice(at + 1));
+      const whenSpent = second ? { abilityId: asAbilityId(second), ...(picks ? { costChoices: picks } : {}) } : null;
+      payments.push({ fromHand: asInstanceId(first), ...(whenSpent ? { whenSpent } : {}) });
+    }
     if (kind === "ability" && first && second) {
       const costChoices = at < 0 ? undefined : pickChoicesFromSuffix(optionId.slice(at + 1));
       const costSelection = at < 0 ? undefined : costSelectionFromSuffix(optionId.slice(at + 1));
@@ -1741,7 +1929,42 @@ export function payPayment(
     if ("fromHand" in entry) {
       // From the hand it is in: another player's, when they help pay for an alliance card (§3.17).
       const zone = locateCard(ctx.state, entry.fromHand);
-      discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, entry.fromHand);
+      const spenderOfCard = zone?.kind === "hand" ? zone.playerId : playerId;
+      // "Interrupt: When you spend this card, [cost] → generate …" (`whenSpent`): its cost is paid before the card is
+      // discarded (RRG 1.8 "Interrupt", p. 25), measured first as any resource ability's is.
+      const use = spentCardUse(entry);
+      const definition = use ? ctx.deps.abilities[use.abilityId] : undefined;
+      if (use && definition) {
+        const generated = paidForMultiplied(
+          ctx.state,
+          ctx.deps,
+          payingFor,
+          resourceAbilityGenerates(
+            ctx.state,
+            ctx.deps,
+            use,
+            spenderOfCard,
+            discardTopBefore.get(spenderOfCard) ?? null,
+          ),
+          spenderOfCard,
+        );
+        const plan = resourceCostPlan(ctx.state, ctx.deps, use, spenderOfCard);
+        if (!isFault(plan))
+          payCost(ctx, use.instanceId, spenderOfCard, definition.cost, plan, countersRemoved, threatCosts);
+        recordAbilityUse(ctx, use.instanceId, use.abilityId, definition, null, spenderOfCard);
+        emit(ctx, {
+          type: "resourcesGenerated",
+          playerId: spenderOfCard,
+          instanceId: use.instanceId,
+          abilityId: use.abilityId,
+          amount: poolTotal(generated),
+          pool: generated,
+        });
+        generatedBy = addGenerated(generatedBy, spenderOfCard, poolTotal(generated));
+        if (definition.effects.length > 0)
+          used.push({ instanceId: use.instanceId, abilityId: use.abilityId, spender: spenderOfCard });
+      }
+      discardFromHand(ctx, spenderOfCard, entry.fromHand);
       spent.push(entry.fromHand);
       const counted = handGenerated.get(entry.fromHand);
       if (counted) generatedBy = addGenerated(generatedBy, counted.playerId, counted.amount);
@@ -4490,8 +4713,17 @@ function paidPlayFault(
   const usable = paymentOptions(ctx, playerId, id).filter(
     (option) => priceOrNull(ctx, playerId, paymentsFromOptionIds([option.optionId]), id) !== null,
   );
-  const most = priceOrNull(ctx, playerId, paymentsFromOptionIds(usable.map((option) => option.optionId)), id);
-  return most !== null && satisfies(most, requirement) ? null : "not enough resources to pay for it";
+  // One card is spent once: every option with each hand card spent plainly, then with each spent the way that
+  // generates the most (its own "When you spend this card" ability, `mostFromEachHandCard`).
+  const everything = paymentsFromOptionIds(usable.map((option) => option.optionId));
+  const pays = (payment: readonly Payment[]): boolean => {
+    const most = priceOrNull(ctx, playerId, payment, id);
+    return most !== null && satisfies(most, requirement);
+  };
+  return pays(everything.filter((payment) => !isWhenSpentUse(payment))) ||
+    pays(mostFromEachHandCard(ctx, playerId, everything, id, id))
+    ? null
+    : "not enough resources to pay for it";
 }
 
 /**

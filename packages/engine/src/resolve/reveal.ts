@@ -1,5 +1,6 @@
 /** Revealing encounter cards and placing them (attachment hosts included). */
 
+import { displayNameOf } from "../visibility.js";
 import type { AttachmentHost } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
 import { dealEncounterCardTo } from "../effects.js";
@@ -684,7 +685,7 @@ function resolveAttachmentTarget(ctx: Ctx, frame: Frame<"reveal">, attachesTo: A
     prompt: { kind: "chooseAttachmentTarget", instanceId: frame.instanceId },
     options: legal.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: 1,

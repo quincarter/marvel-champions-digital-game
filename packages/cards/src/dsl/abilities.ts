@@ -263,6 +263,28 @@ export const resource = (
   return generatesFor ? { ...definition, generatesFor } : definition;
 };
 /**
+ * "Interrupt: When you spend this card, [cost] → generate …" on a card spent from hand (Organizational Support, `aos`
+ * 50014: "exhaust up to 3 allies and/or supports you control that share a Trait with your identity → generate the
+ * printed resources on each card exhausted this way"). A resource trigger with `whenSpent`: used only by the payment
+ * entry that spends the card (`Payment.whenSpent`), once, by the player spending it, with what it generates joining
+ * that payment. `generates` may read the cost's picks by slot, as a resource ability's does
+ * (`printedResourcesOf(query(…, { inSlot: "exhausted" }))`).
+ */
+export const whenSpentGenerate = (
+  generates: ResourceGeneration,
+  options: AbilityOptions & { readonly form?: Form; readonly generatesFor?: TargetQuery } = {},
+  ...effects: readonly EffectArg[]
+): AbilityDefinition => {
+  const { form, generatesFor, ...rest } = options;
+  const definition = build(
+    { kind: "resource", whenSpent: true, ...(form ? { form } : {}), ...(rest.while ? { while: rest.while } : {}) },
+    rest,
+    effects,
+    generates,
+  );
+  return generatesFor ? { ...definition, generatesFor } : definition;
+};
+/**
  * "Each toon counter on Spider-Ham can be spent as if it were a [wild] resource." (`spiderham` 30001a;
  * docs/phase7-wave5.md §3.25): a `repeatable` resource ability whose cost removes one counter from this card, used
  * once per counter spent, as many times in one payment as there are counters. `generates` defaults to 1 wild. Spending

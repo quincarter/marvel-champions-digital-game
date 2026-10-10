@@ -15,10 +15,11 @@
  * different result from all of it at once.
  */
 
+import { displayNameOf } from "../visibility.js";
 import type { ChoiceOption } from "../choices.js";
 import { type Ctx, emit, requestChoice, setFrame } from "../ctx.js";
 import type { InstanceId } from "../ids.js";
-import { mustCardOf, remainingHitPoints } from "../query.js";
+import { remainingHitPoints } from "../query.js";
 import { cannotTakeDamage } from "../rules.js";
 import { type EffectContext, resolvePlayers, resolveValue, selectTargets } from "../select.js";
 import type { EffectSpec } from "../spec.js";
@@ -91,7 +92,7 @@ export function executeSequentialDamage(
     setFrame(ctx, { ...frame, answer: null, bindings, vars });
     const options: readonly ChoiceOption[] = candidates.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id },
     }));
     requestChoice(ctx, {

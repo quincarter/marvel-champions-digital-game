@@ -37,6 +37,7 @@ import {
   giveStatus,
   heroAction,
   heroResponse,
+  identityOf,
   ifThen,
   inHand,
   instead,
@@ -51,6 +52,7 @@ import {
   option,
   placeThreat,
   printedForm,
+  printedResourcesOf,
   putIntoPlay,
   query,
   ready,
@@ -77,6 +79,7 @@ import {
   forcedResponse,
   modifyAttack,
   when,
+  whenSpentGenerate,
 } from "../../dsl/index.js";
 import { BKW_PACK_CARDS } from "../../wave1/bkw/pack-cards.js";
 import { THOR_PACK_CARDS } from "../../wave1/thor/pack-cards.js";
@@ -232,13 +235,19 @@ const giveStatusOfChoice = (slot: string) =>
  * **50058.practiced-plan-response**: "After you discard a Preparation card you control": a card you control leaving
  * play to the discard pile (`cardLeavesPlay`, `to: discard`). Returns that card from the discard pile to your hand.
  *
- * Skipped (see `AOS_ASPECT_BASIC_SKIPPED`): 50014 Organizational Support.
+ * **50014.organizational-support-interrupt**: "Interrupt: When you spend this card, exhaust up to 3 allies and/or
+ * supports you control that share a Trait with your identity -> generate the printed resources on each card exhausted
+ * this way." The card's own text as it is spent from hand (RRG 1.8 "Resource Card", p. 37), so it is `whenSpentGenerate`:
+ * used only by the payment entry that spends the card, the spender's cards pay it, and what it generates joins that
+ * payment and may overpay it ("Cost", p. 13). "Up to 3" is 1 to 3 (p. 14); "your identity" is the side that is up
+ * (`sharesTraitWith: identityOf(you)`), so Maria Hill's hero-side trait grant to her allies counts in hero form only.
+ *
  * 50025 Energy, 50026 Genius and 50027 Strength print no ability (Max 1 per deck is data).
  *
  * Cards (29):
  * - 50012 Victoria Hand (ally)
  * - 50013 Slingshot (ally)
- * - 50014 Organizational Support (resource) -- skipped
+ * - 50014 Organizational Support (resource)
  * - 50015 Agents of S.H.I.E.L.D. (support)
  * - 50016 Command Team (support)
  * - 50017 The Circe (support)
@@ -280,6 +289,11 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
       putIntoPlay(self, chosenPlayer("controller")),
       atEndOfPhase(ifThen(exists({ self: true }), moveCards(cards(self), "hand"))),
     ),
+  ),
+
+  "50014.organizational-support-interrupt": whenSpentGenerate(
+    printedResourcesOf(query(["ally", "support"], { inSlot: "exhausted" })),
+    { cost: exhaustCardsCost(query(["ally", "support"], { sharesTraitWith: identityOf(you) }), { max: 3 }) },
   ),
 
   "50015.agents-of-shield-constant": interrupt(
@@ -430,14 +444,5 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const AOS_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "50014.organizational-support-interrupt":
-    'Interrupt: "When you spend this card, exhaust up to 3 allies and/or supports you control that share a Trait with your ' +
-    'identity -> generate the printed resources on each card exhausted this way." The engine has no effect that adds ' +
-    "generated resources to a payment in progress (spec.ts has no generate-resources EffectSpec; the only resource " +
-    "generation is a `resource(...)` ability used as a cost payment, and `resourcesSpent` interrupts cannot add to the " +
-    "amount being paid), and `resource(printedResourcesOf(...))` would change the timing (a Resource: ability usable by " +
-    "any payment) rather than express this one. Needs an engine primitive (a `generateResources` effect or a bonus to " +
-    "the payment in progress) from game-rules-architect.",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason: none. */
+export const AOS_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

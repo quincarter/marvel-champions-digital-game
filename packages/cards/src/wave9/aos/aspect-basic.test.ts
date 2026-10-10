@@ -9,7 +9,20 @@ import {
   type UpgradeCard,
   type AnyCard,
 } from "@mc/content";
-import { mainSchemeValue, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  applyCommand,
+  legalActions,
+  mainSchemeValue,
+  paymentFor,
+  replay,
+  sessionApply,
+  startSession,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type Payment,
+  type PlayerId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
@@ -120,11 +133,12 @@ describe("registry", () => {
     for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
     expect(Object.keys(REGISTRY).filter((r) => r in SKIPPED)).toEqual([]);
   });
-  it("registers exactly these twenty-eight refs", () => {
+  it("registers exactly these twenty-nine refs", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual(
       [
         "50012.victoria-hand-response",
         "50013.slingshot-action",
+        "50014.organizational-support-interrupt",
         "50015.agents-of-shield-constant",
         "50016.command-team-action",
         "50017.the-circe-action",
@@ -173,9 +187,13 @@ describe("registry", () => {
     expect(REGISTRY["50023.melinda-may-response"]!.trigger).toMatchObject({ kind: "response", forced: false });
     expect(REGISTRY["50024.super-spies-action"]!.trigger).toMatchObject({ kind: "action", form: "hero" });
   });
-  it("skips Organizational Support alone, with a reason", () => {
-    expect(SKIPPED["50014.organizational-support-interrupt"]).toMatch(/generate/);
-    expect(Object.keys(SKIPPED)).toEqual(["50014.organizational-support-interrupt"]);
+  it("skips nothing: Organizational Support's interrupt is a when-spent generation, 1 to 3 cards exhausted", () => {
+    expect(SKIPPED).toEqual({});
+    expect(REGISTRY["50014.organizational-support-interrupt"]).toMatchObject({
+      trigger: { kind: "resource", whenSpent: true },
+      cost: { exhaustCards: { slot: "exhausted", min: 1, max: 3 } },
+      generates: { kind: "printedResourcesOf", cards: { inSlot: "exhausted" } },
+    });
   });
   it("second half: trigger kinds, forms and costs", () => {
     expect(REGISTRY["50050.informant-interrupt"]).toMatchObject({
@@ -481,6 +499,137 @@ describe("50015.agents-of-shield-constant: with S.H.I.E.L.D. characters only, ca
     const start = aspectGame({ deck: "core-spider-man-justice", swap: { "01002": AGENTS } });
     const base = placed(placed(start, AGENTS).state, "01058"); // Daredevil
     expect(asked(base.state).some((o) => o.endsWith(ID))).toBe(false);
+  });
+});
+
+describe("50014.organizational-support-interrupt: when spent, exhaust up to 3 allies/supports sharing a trait with your identity", () => {
+  const INTERRUPT = "50014.organizational-support-interrupt";
+  const BLACK_CAT = "01002"; // a Core ally, HERO FOR HIRE, printing [energy]
+  /**
+   * In play, ready: Nick Fury (S.H.I.E.L.D. ally, [wild]), The Iliad and Command Team (S.H.I.E.L.D. supports, [energy]
+   * each), Support Staff (S.H.I.E.L.D. support, [mental]), Agents of S.H.I.E.L.D. (a TEAM support, [mental]: it shares
+   * no trait with Maria Hill) and Black Cat. In hand: Organizational Support and Victoria Hand (cost 3), nothing else.
+   */
+  const stage = (heroForm = false) => {
+    let s = aspectGame({ swap: { [FRONT_ORG]: BLACK_CAT } });
+    const ids: Record<string, InstanceId> = {};
+    for (const code of [FURY_ALLY, ILIAD, COMMAND_TEAM, STAFF, AGENTS, BLACK_CAT]) {
+      const put = placed(s, code);
+      s = put.state;
+      ids[code] = put.id;
+    }
+    const given = moveToHand(s, P1, ORG_SUPPORT, VICTORIA);
+    const [org, victoria] = given.ids as [InstanceId, InstanceId];
+    s = {
+      ...given.state,
+      players: given.state.players.map((p) => (p.playerId === P1 ? { ...p, hand: [org, victoria] } : p)),
+    };
+    return { state: heroForm ? withForm(s, { heroForm: 0 }) : s, org, victoria, ids };
+  };
+  const spending = (org: InstanceId, exhausted?: readonly InstanceId[]): Payment => ({
+    fromHand: org,
+    whenSpent: { abilityId: INTERRUPT as never, ...(exhausted ? { costChoices: { exhausted } } : {}) },
+  });
+  const playVictoria = (t: ReturnType<typeof stage>, payment: readonly Payment[]) =>
+    play(P1, t.victoria, [], { abilities: payment });
+  const refused = (t: ReturnType<typeof stage>, payment: readonly Payment[]): boolean =>
+    !applyCommand(t.state, playVictoria(t, payment), DEPS).ok;
+  const exhaustedOf = (s: GameState, ...ids: readonly InstanceId[]) => ids.map((id) => inst(s, id).exhausted);
+
+  it("is a Leadership resource card whose own text is the interrupt", () => {
+    const c = card<ResourceCard & WithAbilities & WithText>(ORG_SUPPORT);
+    expect(c.abilities.map((a) => a.id)).toEqual([INTERRUPT]);
+    expect(c.text.current).toMatch(/^Interrupt: When you spend this card, exhaust up to 3 allies and\/or supports/);
+  });
+
+  it("spent plainly it is 1 [mental]: Victoria Hand (3) is not paid for, and nothing is exhausted", () => {
+    const t = stage();
+    expect(refused(t, [{ fromHand: t.org }])).toBe(true);
+    expect(exhaustedOf(t.state, t.ids[FURY_ALLY]!, t.ids[ILIAD]!)).toEqual([false, false]);
+  });
+
+  it("exhausting Nick Fury and The Iliad adds [wild] and [energy]: 3 resources pay for Victoria Hand exactly", () => {
+    const t = stage();
+    const fury = t.ids[FURY_ALLY]!;
+    const iliad = t.ids[ILIAD]!;
+    let session = startSession(t.state);
+    const events: GameEvent[] = [];
+    const applied = sessionApply(session, playVictoria(t, [spending(t.org, [fury, iliad])]), DEPS);
+    if (!applied.ok) throw new Error(applied.error.message);
+    session = applied.session;
+    events.push(...applied.events);
+    expect(events.flatMap((e) => (e.type === "resourcesGenerated" && e.instanceId === t.org ? [e.pool] : []))).toEqual([
+      { physical: 0, mental: 0, energy: 1, wild: 1 },
+    ]);
+    expect(events.flatMap((e) => (e.type === "cardPlayed" ? [[e.resourcesPaid, e.paid]] : []))).toEqual([
+      [3, { physical: 0, mental: 1, energy: 1, wild: 1 }],
+    ]);
+    const after = drive(session.state);
+    expect(inPlayArea(after, t.victoria)).toBe(true);
+    expect(inDiscard(after, t.org)).toBe(true);
+    expect(exhaustedOf(after, fury, t.ids[COMMAND_TEAM]!, t.ids[STAFF]!)).toEqual([true, false, false]);
+    const replayed = replay(session.log, DEPS);
+    expect(replayed.ok && replayed.state).toEqual(session.state);
+  });
+
+  it("three cards at most, each generating what it prints; overpaying (1 + 3 toward 3) is legal", () => {
+    const t = stage();
+    const three = [t.ids[ILIAD]!, t.ids[COMMAND_TEAM]!, t.ids[STAFF]!];
+    expect(refused(t, [spending(t.org, [...three, t.ids[FURY_ALLY]!])])).toBe(true);
+    const result = applyCommand(t.state, playVictoria(t, [spending(t.org, three)]), DEPS);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(
+      result.events.flatMap((e) => (e.type === "resourcesGenerated" && e.instanceId === t.org ? [e.pool] : [])),
+    ).toEqual([{ physical: 0, mental: 1, energy: 2, wild: 0 }]);
+    expect(result.events.flatMap((e) => (e.type === "cardPlayed" ? [e.resourcesPaid] : []))).toEqual([4]);
+    expect(exhaustedOf(result.state, ...three, t.ids[FURY_ALLY]!)).toEqual([true, true, true, false]);
+  });
+
+  it("only cards sharing a trait with the identity side that is up: not a TEAM support, and Black Cat in hero form only", () => {
+    const alterEgo = stage();
+    const fury = alterEgo.ids[FURY_ALLY]!;
+    // Agents of S.H.I.E.L.D. is a TEAM support: the name is not the trait.
+    expect(refused(alterEgo, [spending(alterEgo.org, [fury, alterEgo.ids[AGENTS]!, alterEgo.ids[ILIAD]!])])).toBe(true);
+    // Alter-ego Maria Hill gives her allies nothing: Black Cat (HERO FOR HIRE) shares no trait.
+    expect(refused(alterEgo, [spending(alterEgo.org, [fury, alterEgo.ids[BLACK_CAT]!])])).toBe(true);
+    // Hero-form Maria Hill: "Each ally you control gains the S.H.I.E.L.D. trait."
+    const hero = stage(true);
+    const result = applyCommand(
+      hero.state,
+      playVictoria(hero, [spending(hero.org, [hero.ids[FURY_ALLY]!, hero.ids[BLACK_CAT]!])]),
+      DEPS,
+    );
+    expect(result.ok).toBe(true);
+    // No card picked: the cost before the arrow is at least one card.
+    expect(refused(alterEgo, [spending(alterEgo.org, [])])).toBe(true);
+    // An exhausted card cannot pay.
+    const tired = { ...alterEgo, state: patchInstance(alterEgo.state, fury, { exhausted: true }) };
+    expect(refused(tired, [spending(tired.org, [fury, tired.ids[ILIAD]!])])).toBe(true);
+  });
+
+  it("the listing counts it: Victoria Hand is playable from Organizational Support alone, by a payment exhausting 2 cards", () => {
+    const t = stage();
+    const actions = legalActions(t.state, P1, DEPS);
+    if (actions.kind !== "turn") throw new Error("not the player's turn");
+    const listed = actions.legal.find((a) => a.action.kind === "playCard" && a.action.instanceId === t.victoria);
+    expect(listed).toBeDefined();
+    const example = listed!.example as { readonly payment: readonly Payment[] };
+    expect(example.payment).toHaveLength(1);
+    const [entry] = example.payment as [Extract<Payment, { fromHand: InstanceId }>];
+    expect(entry.fromHand).toBe(t.org);
+    expect(entry.whenSpent?.costChoices?.exhausted).toHaveLength(2);
+    const sources = paymentFor(t.state, P1, { kind: "playCard", instanceId: t.victoria }, {}, DEPS)?.sources ?? [];
+    expect(sources[0]).toMatchObject({ kind: "handCard", instanceId: t.org, pool: { mental: 1 } });
+    expect(
+      sources.slice(1).every((s) => s.kind === "resourceAbility" && s.spendsHandCard && s.instanceId === t.org),
+    ).toBe(true);
+    // With every eligible card exhausted, only the plain spending is left and the ally is out of reach.
+    let none = t.state;
+    for (const code of [FURY_ALLY, ILIAD, COMMAND_TEAM, STAFF])
+      none = patchInstance(none, t.ids[code]!, { exhausted: true });
+    const without = legalActions(none, P1, DEPS);
+    if (without.kind !== "turn") throw new Error("not the player's turn");
+    expect(without.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === t.victoria)).toBe(false);
   });
 });
 

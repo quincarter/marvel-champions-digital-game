@@ -34,7 +34,14 @@
  */
 
 import type { EngineDeps } from "./abilities.js";
-import { commitPrepaidBasicThwart, paymentOptions, paymentsFromOptionIds, priceOrNull } from "./actions.js";
+import {
+  commitPrepaidBasicThwart,
+  isWhenSpentUse,
+  mostFromEachHandCard,
+  paymentOptions,
+  paymentsFromOptionIds,
+  priceOrNull,
+} from "./actions.js";
 import type { Command, Payment } from "./commands.js";
 import { type Ctx, createCtx, emit, setFrame } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
@@ -92,9 +99,12 @@ function canSpend(
 ): boolean {
   if (requirementTotal(requirement) === 0) return true;
   const ctx = createCtx(state, deps);
-  const all = paymentsFromOptionIds(paymentOptions(ctx, playerId, excludeInstanceId, null).map((o) => o.optionId));
+  const every = paymentsFromOptionIds(paymentOptions(ctx, playerId, excludeInstanceId, null).map((o) => o.optionId));
+  // One card is spent once: plainly in `all`, and the way that generates the most in `most` (`mostFromEachHandCard`).
+  const all = every.filter((payment) => !isWhenSpentUse(payment));
+  const most = mostFromEachHandCard(ctx, playerId, every, excludeInstanceId, null);
   const hand = all.filter((payment) => "fromHand" in payment);
-  const wallets: readonly (readonly Payment[])[] = [all, hand, ...all.map((payment) => [payment])];
+  const wallets: readonly (readonly Payment[])[] = [all, hand, most, ...every.map((payment) => [payment])];
   return wallets.some((wallet) => {
     if (wallet.length === 0) return false;
     const pool = priceOrNull(ctx, playerId, wallet, excludeInstanceId, null);

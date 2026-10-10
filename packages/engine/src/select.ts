@@ -505,8 +505,10 @@ export function timingWordOf(trigger: AbilityTriggerSpec): AbilityTimingWord | n
         : base;
   switch (trigger.kind) {
     case "action":
-    case "resource":
       return form(trigger.kind, trigger.form);
+    case "resource":
+      // "Interrupt: When you spend this card …" (`whenSpent`) is printed as an interrupt.
+      return form(trigger.whenSpent ? "interrupt" : "resource", trigger.form);
     case "interrupt":
       return trigger.forced ? "forcedInterrupt" : form("interrupt", trigger.form);
     case "response":
