@@ -2,13 +2,14 @@ import { cardId } from "@mc/content";
 import { cardsInPlay, createGame, type EngineDeps, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { coreScenario } from "../../../core/setup.js";
 import { mergeRegistries } from "../../../dsl/index.js";
-import { firstLegal, P1, settle } from "../../../testing/harness.js";
+import { firstLegal, identityOf, moveToHand, P1, patchInstance, settle } from "../../../testing/harness.js";
 import { withForm } from "../../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../../wave8/index.js";
 import { WAVE9_CARDS } from "../../cards.js";
 import { wave9StarterDeckSetup } from "../../setup.js";
 import { NICK_FURY_EVENTS } from "./events.js";
 import { NICK_FURY_IDENTITY } from "./identity.js";
+import { NICK_FURY_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
 
 /**
  * Shared helpers for the Nick Fury kit's tests: the precon `nick-fury-justice` against Core's Rhino, with every earlier
@@ -107,5 +108,48 @@ export function engageMinion(state: GameState, code: string, slot: string, playe
     ...state,
     players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
     instances: { ...state.instances, [id]: instance },
+  };
+}
+
+/**
+ * `FURY_DEPS` plus the events module and the suit form / upgrade / ally module (50035a/b, 50036, 50040 to 50046), for
+ * the support-upgrades-allies tests.
+ */
+export const FURY_KIT_DEPS: EngineDeps = {
+  abilities: mergeRegistries(WAVE8_ABILITIES, NICK_FURY_IDENTITY, NICK_FURY_EVENTS, NICK_FURY_SUPPORT_UPGRADES_ALLIES),
+};
+
+/**
+ * Staging surgery: the first copy of `code` (from hand, deck or discard) put straight into P1's play area, faceup and
+ * ready, holding `counters`; with `attach`, attached to P1's identity as an upgrade. Returns the new instance.
+ */
+export function stagedInPlay(
+  state: GameState,
+  code: string,
+  opts: { readonly attach?: boolean; readonly counters?: Readonly<Record<string, number>> } = {},
+): { readonly state: GameState; readonly id: InstanceId } {
+  const given = moveToHand(state, P1, code);
+  const id = given.ids[0]!;
+  const s = given.state;
+  const host = identityOf(s);
+  const base: GameState = {
+    ...s,
+    players: s.players.map((p) => {
+      if (p.playerId !== P1) return p;
+      const hand = p.hand.filter((i) => i !== id);
+      return opts.attach ? { ...p, hand } : { ...p, hand, playArea: [...p.playArea, id] };
+    }),
+  };
+  const placed = patchInstance(base, id, {
+    faceup: true,
+    controllerId: P1,
+    counters: { ...opts.counters },
+    ...(opts.attach ? { attachedTo: host } : {}),
+  });
+  return {
+    id,
+    state: opts.attach
+      ? patchInstance(placed, host, { attachments: [...placed.instances[host]!.attachments, id] })
+      : placed,
   };
 }

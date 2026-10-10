@@ -20,6 +20,10 @@ import {
   MARIA_HILL_SUPPORT_UPGRADES_ALLIES,
   MARIA_HILL_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./aos/maria-hill/support-upgrades-allies.js";
+import {
+  MARIA_HILL_OBLIGATION_NEMESIS,
+  MARIA_HILL_OBLIGATION_NEMESIS_SKIPPED,
+} from "./aos/maria-hill/obligation-nemesis.js";
 import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-supreme.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
@@ -30,6 +34,10 @@ import {
   NICK_FURY_OBLIGATION_NEMESIS,
   NICK_FURY_OBLIGATION_NEMESIS_SKIPPED,
 } from "./aos/nick-fury/obligation-nemesis.js";
+import {
+  NICK_FURY_SUPPORT_UPGRADES_ALLIES,
+  NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./aos/nick-fury/support-upgrades-allies.js";
 import { PALE_LITTLE_SPIDER, PALE_LITTLE_SPIDER_SKIPPED } from "./aos/pale-little-spider.js";
 import { BLACK_PANTHER_EVENTS, BLACK_PANTHER_EVENTS_SKIPPED } from "./bp/black-panther/events.js";
 import { BLACK_PANTHER_IDENTITY, BLACK_PANTHER_IDENTITY_SKIPPED } from "./bp/black-panther/identity.js";
@@ -104,6 +112,12 @@ const SCRIPTED_MODULES: Readonly<
       skipped: MARIA_HILL_SUPPORT_UPGRADES_ALLIES_SKIPPED,
     },
     {
+      module: "maria-hill/obligation-nemesis",
+      cardIds: ["50029", "50030", "50031", "50032", "50033"],
+      registry: MARIA_HILL_OBLIGATION_NEMESIS,
+      skipped: MARIA_HILL_OBLIGATION_NEMESIS_SKIPPED,
+    },
+    {
       module: "aim-science",
       cardIds: ["50083", "50084", "50085"],
       registry: AIM_SCIENCE,
@@ -138,6 +152,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50059", "50060", "50061", "50062", "50063"],
       registry: NICK_FURY_OBLIGATION_NEMESIS,
       skipped: NICK_FURY_OBLIGATION_NEMESIS_SKIPPED,
+    },
+    {
+      module: "nick-fury/support-upgrades-allies",
+      cardIds: ["50035a", "50036", "50040", "50041", "50042", "50043", "50044", "50045", "50046"],
+      registry: NICK_FURY_SUPPORT_UPGRADES_ALLIES,
+      skipped: NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED,
     },
     {
       module: "pale-little-spider",
