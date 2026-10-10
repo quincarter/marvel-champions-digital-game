@@ -1944,7 +1944,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (flipped === false || flipped === "waiting") continue;
         } else if (card?.otherFaceId !== undefined) {
           // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
-          const playerId = context.controllerId ?? ctx.state.firstPlayerId;
+          // `controller`: "put [its other face] into play under any player's control" (docs/phase7-wave9.md §3.17).
+          const [named] = effect.controller ? resolvePlayers(ctx.state, effect.controller, context) : [];
+          const playerId = named ?? context.controllerId ?? ctx.state.firstPlayerId;
           const turnedOver = flipToOtherFace(ctx, id, playerId, ctx.deps, effect.reveal === true, context.controllerId);
           if (turnedOver !== true) continue;
           // "Flip this card and reveal [its other face]": it pushed the reveal and the `cardFlipped` under it.

@@ -2590,11 +2590,19 @@ export const changeVillainForm = (
  * "Flip [card]" (RRG 1.8 "Flip"). `{ reveal: true }`: "Flip this card and reveal it" / "flip this card and reveal
  * [its other face]" on an encounter card, whose new face then goes through the reveal (its When Revealed, the "when
  * revealed" windows, incite, peril, surge; docs/phase7-wave7.md §3.14, §3.34). Without it a flip is not a reveal.
+ *
+ * `{ controller }` (docs/phase7-wave9.md §3.17): "flip this card and put Flying Inhuman into play under any player's
+ * control" (Holding Cell, `aos` 50105a) is `choosePlayer(slot, firstPlayer)` then
+ * `flipCard(self, { controller: chosenPlayer(slot) })`: the player the other face goes to when it is another card type.
  */
-export const flipCard = (target: TargetRef, options: { readonly reveal?: boolean } = {}): EffectSpec => ({
+export const flipCard = (
+  target: TargetRef,
+  options: { readonly reveal?: boolean; readonly controller?: PlayerRef } = {},
+): EffectSpec => ({
   kind: "flipCard",
   target,
   ...(options.reveal ? { reveal: true } : {}),
+  ...(options.controller ? { controller: options.controller } : {}),
 });
 /**
  * "Change to Gamma energy form" → `changeAdditionalForm("energy", { toName: "Gamma" })`; "flip that card faceup to change

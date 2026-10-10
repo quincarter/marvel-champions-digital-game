@@ -4903,6 +4903,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if ((definition.activeIn === "hand") !== inHand) {
     return engineError("no_valid_target", `${command.abilityId} is not active where that card is`, command);
   }
+  // A card in a scenario deck is out of play (RRG 1.8 "In Play and Out of Play", p. 23) and no text is used from a
+  // deck: the action of a card under a scenario deck's top card (docs/phase7-wave9.md §3.17) is not the top card's.
+  if (Object.values(ctx.state.scenarioDecks).some((piles) => piles.deck.includes(command.cardInstanceId))) {
+    return engineError("no_valid_target", `${command.abilityId} is not active on a card in a deck`, command);
+  }
   // A card in the victory display is out of play (RRG 1.8 "Victory Display", p. 46): none of its actions can be used
   // there, whoever its last controller was (docs/phase7-wave7.md §3.50).
   if (ctx.state.victoryDisplay.includes(command.cardInstanceId)) {

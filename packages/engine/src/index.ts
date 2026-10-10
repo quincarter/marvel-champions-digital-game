@@ -545,6 +545,7 @@ export { legalDefenders } from "./resolve/enemy-activation.js";
 export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
 export { collectionCandidates } from "./resolve/collection.js";
+export { scenarioDeckCards, scenarioDeckWithTop } from "./resolve/scenario-deck-top.js";
 export {
   REPORT_NO,
   REPORT_YES,

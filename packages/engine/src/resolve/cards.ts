@@ -64,6 +64,12 @@ import { describeFrame } from "../stack.js";
 import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
 import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
+import {
+  scenarioDeckCards,
+  scenarioDeckIsMadeOf,
+  settleScenarioDeckTops,
+  showScenarioDeckFace,
+} from "./scenario-deck-top.js";
 import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
 import { tuckLeavingCard } from "./tuck.js";
@@ -209,9 +215,9 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         return [];
       }
       const zones = selector.zones ?? ["deck"];
-      const deck = selector.top
-        ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context)))
-        : piles.deck;
+      // A deck whose top card is in play counts that card first (`scenarioDeckCards`, docs/phase7-wave9.md §3.17).
+      const whole = scenarioDeckCards(state, selector.name);
+      const deck = selector.top ? whole.slice(0, Math.max(0, resolveValue(state, selector.top, context))) : whole;
       return filtered(
         [...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])],
         selector.filter,
@@ -488,6 +494,9 @@ export function moveCardsTo(
       const home = { kind: "scenarioDeck" as const, name: destination.scenarioDeck };
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, home }));
     }
+    // A deck whose top card is in play is made of one face of its cards: a card put into it shows that face ("flip it
+    // and place it on the bottom of the Holding Cell deck"; docs/phase7-wave9.md §3.17).
+    if (typeof destination === "object") showScenarioDeckFace(ctx, id, destination.scenarioDeck);
     const keepsFace =
       typeof destination === "string" &&
       ["discard", "separateDiscard", "removedFromGame", "setAside", "victoryDisplay"].includes(destination);
@@ -514,6 +523,9 @@ export function moveCardsTo(
     if (destination === "separateDeckShuffle") shuffleSeparateDeck(ctx, playerId, name);
     else syncSeparateDeckTop(ctx, playerId, name);
   }
+  // A card put under a deck whose top card is in play, with no card left in it, is its top card and enters play at
+  // once (MC50 p. 22; docs/phase7-wave9.md §3.17); so does the next card when this move took the top card out of play.
+  settleScenarioDeckTops(ctx);
 }
 
 /** Shuffles an identity's separate deck, then shows its top card as its rules say. */
@@ -546,20 +558,9 @@ export function buildScenarioDeck(
 ): void {
   const piles = ctx.state.scenarioDecks[name];
   if (!piles) return;
-  const { encounterSetIds, cardType, trait, cardIds } = piles.contents;
-  // `cardIds` alone names every card of the deck; with other fields it adds to what they match (wave 6 §3.66).
-  const onlyByCardId = encounterSetIds === undefined && cardType === undefined && trait === undefined;
   const matches = (id: InstanceId): boolean => {
     const card = cardOf(ctx.state, id);
-    if (!card) return false;
-    if (cardIds?.includes(card.id)) return true;
-    if (onlyByCardId) return false;
-    if (cardType !== undefined && card.type !== cardType) return false;
-    if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) return false;
-    return (
-      encounterSetIds === undefined ||
-      ("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))
-    );
+    return card !== undefined && scenarioDeckIsMadeOf(ctx.state, name, card.id);
   };
   const candidates: InstanceId[] = [];
   for (const source of from) {
@@ -574,6 +575,8 @@ export function buildScenarioDeck(
       updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
   }
   shuffleScenarioDeck(ctx, name);
+  // "The top card of this deck is in play" (MC50 p. 13; docs/phase7-wave9.md §3.17): it enters play as the deck is made.
+  settleScenarioDeckTops(ctx);
 }
 
 /**
@@ -585,6 +588,8 @@ export function resetEmptyScenarioDecks(ctx: Ctx): void {
   for (const [name, piles] of Object.entries(ctx.state.scenarioDecks)) {
     if (piles.whenEmpty !== "reshuffleDiscardWithoutPenalty" || piles.deck.length > 0 || piles.discard.length === 0)
       continue;
+    // A deck whose top card is in play is not empty while that card is its top card (docs/phase7-wave9.md §3.17).
+    if (piles.inPlayTopId !== undefined) continue;
     for (const id of [...piles.discard]) {
       moveCard(ctx, id, { kind: "scenarioDeck", name });
       updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));

@@ -211,6 +211,18 @@ export type GameEvent =
   /** A scenario deck took its discard pile back, with no penalty (docs/phase7-wave2.md §3.3). */
   | { readonly type: "scenarioDeckReset"; readonly name: string }
   /**
+   * The top card of a scenario deck whose top card is in play entered play (`ScenarioSeparateDeck.topCardInPlay`, the
+   * Holding Cell deck, MC50 p. 13; docs/phase7-wave9.md §3.17): when the deck was built, when the card above it stopped
+   * being the deck's top card, or when it was put into the deck with no card in it and none in play (MC50 p. 22).
+   * Logged before the card's own entry into play.
+   */
+  | { readonly type: "scenarioDeckTopEnteredPlay"; readonly name: string; readonly instanceId: InstanceId }
+  /**
+   * The card in play as such a deck's top card is no longer the deck's: it left play, or it flipped to a face the deck
+   * is not made of (a Holding Cell to its Inhuman ally). The next card, if any, then enters play.
+   */
+  | { readonly type: "scenarioDeckTopLeft"; readonly name: string; readonly instanceId: InstanceId }
+  /**
    * A player card's ability tried to select, look at or move the cards of a scenario deck that is closed to player card
    * effects, or to put a card into it, and nothing happened (`closedToPlayerCard`; the show deck, MojoMania insert
    * p. 11; docs/phase7-wave6.md §3.66). `instanceIds`: the cards a move left where they were; empty for a selection.

@@ -371,6 +371,19 @@ export interface ScenarioDeckState {
    * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.
    */
   readonly buildAtSetup?: true;
+  /**
+   * `ScenarioSeparateDeck.topCardInPlay` ("The top card of this deck is in play", the Holding Cell deck, MC50 p. 13;
+   * docs/phase7-wave9.md §3.17). The card in play is not in `deck`: it sits where its type lives (an environment in the
+   * villain's area, under no player's control) and `inPlayTopId` names it; `deck` holds the cards under it, out of
+   * play and facedown to every viewer. `scenarioDeckCards` reads the whole deck, top card first.
+   */
+  readonly topCardInPlay?: true;
+  /**
+   * The deck's top card, in play (`topCardInPlay`). Absent while the deck has no card in play: before it is built, and
+   * once every card has left it. Kept by `settleScenarioDeckTops` (`resolve/scenario-deck-top.ts`), which is the only
+   * writer.
+   */
+  readonly inPlayTopId?: InstanceId;
 }
 
 /** A tucked card that was discarded, waiting to be announced: the fields of `TriggerEvent tuckedCardDiscarded`. */

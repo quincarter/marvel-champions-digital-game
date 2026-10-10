@@ -301,6 +301,15 @@ export interface ScenarioSeparateDeck {
    * reorders or moves the cards in this deck, or puts a card into it. docs/phase7-wave6.md §3.66.
    */
   readonly closedToPlayerCards?: true;
+  /**
+   * "The top card of this deck is in play." (the Holding Cell deck, M.O.D.O.K., MC50 p. 13; docs/phase7-wave9.md
+   * §3.17): once the deck is built its top card enters play, faceup, without being revealed, and the cards under it
+   * stay in the deck, out of play. When that card stops being the deck's top card (it leaves play, or flips to a face
+   * the deck is not made of) the next card enters play; a card placed into the deck while it has no card in play
+   * enters play at once (MC50 p. 22). The deck is made of the faces `contents` names: a double-sided card put into it
+   * goes in showing that face ("Place this deck … with its Holding Cell side faceup").
+   */
+  readonly topCardInPlay?: true;
 }
 
 /**

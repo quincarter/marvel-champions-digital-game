@@ -38,6 +38,7 @@ import {
   pushEvent,
 } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
+import { settleScenarioDeckTops } from "./resolve/scenario-deck-top.js";
 import {
   announceCardsLeftPlay,
   announceDeckRunOuts,
@@ -78,6 +79,10 @@ export function runFlow(ctx: Ctx): void {
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
+    // "The top card of this deck is in play" (the Holding Cell deck, MC50 p. 13; docs/phase7-wave9.md §3.17): a top card
+    // that left play or flipped to a face the deck is not made of gives way to the next, whose entering play goes on
+    // the stack above whatever was about to resolve.
+    settleScenarioDeckTops(ctx);
     // A card a response took away from where its discard from a deck left it is no longer counted by the ability that
     // discarded it (docs/phase7-wave7.md §4.1 Q32), settled as soon as that response window has closed.
     settleDeckDiscards(ctx);

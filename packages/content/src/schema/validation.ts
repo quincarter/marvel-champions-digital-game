@@ -1308,6 +1308,8 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
       errors.push(`${label} discardPile must be 'own', 'encounter' or 'none'`);
     if (deck?.closedToPlayerCards !== undefined && deck.closedToPlayerCards !== true)
       errors.push(`${label} closedToPlayerCards must be true when present`);
+    if (deck?.topCardInPlay !== undefined && deck.topCardInPlay !== true)
+      errors.push(`${label} topCardInPlay must be true when present`);
     if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
       errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
     }

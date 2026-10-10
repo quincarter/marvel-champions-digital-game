@@ -236,8 +236,13 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
   }
   if (to.kind === "encounterDiscard") resetEncounterDeckIfEmpty(ctx, to.deckId);
   // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
-  // announces it between frames.
-  if (from?.kind === "scenarioDeck" && ctx.state.scenarioDecks[from.name]?.deck.length === 0) {
+  // announces it between frames. A deck whose top card is in play (docs/phase7-wave9.md §3.17) has not run out while
+  // that card is its top card: `settleScenarioDeckTops` records the run-out when it leaves with no card under it.
+  if (
+    from?.kind === "scenarioDeck" &&
+    ctx.state.scenarioDecks[from.name]?.deck.length === 0 &&
+    ctx.state.scenarioDecks[from.name]?.inPlayTopId === undefined
+  ) {
     ctx.state = {
       ...ctx.state,
       pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "scenario", name: from.name }],

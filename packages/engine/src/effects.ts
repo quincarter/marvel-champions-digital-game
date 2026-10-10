@@ -55,6 +55,7 @@ import {
 } from "./rules.js";
 import { addFrameSlots, eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
+import { staysInGameForScenarioDeck } from "./resolve/scenario-deck-top.js";
 import { flipSeparatedCard, separatedFlipWaits } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import { releaseTreatedBy } from "./treat-as.js";
@@ -1380,8 +1381,14 @@ function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
 /**
  * RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the victory
  * display or set-aside area, it is removed from the game."
+ *
+ * Not a card of a scenario deck whose top card is in play, while it shows its other face or goes back into a scenario
+ * deck (`staysInGameForScenarioDeck`; docs/phase7-wave9.md §3.17): MC50 p. 22 has a defeated Inhuman ally flip over and
+ * become a card of the Holding Cell deck.
  */
 function removedAsDoubleSided(state: GameState, id: InstanceId, requested: ZoneId["kind"]): boolean {
+  // A card of a deck kept one face up, whose own text takes it back there (docs/phase7-wave9.md §3.17; MC50 p. 22).
+  if (staysInGameForScenarioDeck(state, id, requested)) return false;
   const card = state.cardPool[mustInstance(state, id).cardId];
   // A card whose other face is emitted as its own card (`otherFaceId`, docs/phase7-wave4.md §1.7) is double-sided too.
   const doubleSided =

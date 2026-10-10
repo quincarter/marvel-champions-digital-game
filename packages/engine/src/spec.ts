@@ -4040,8 +4040,19 @@ export type EffectSpec =
    * the card kept (RRG 1.8 "Side Scheme", p. 40; "Hinder X", p. 22; §4.1 Q19). The flip, the threat, the reveal, then
    * the `cardFlipped` event. Absent, nothing above happens: a flip is not a reveal. No effect on a villain (always
    * revealed) or on a main scheme stage (never by this effect; its completion reveals it).
+   *
+   * `controller` (docs/phase7-wave9.md §3.17): "flip this card and put Flying Inhuman into play under any player's
+   * control" (Holding Cell, `aos` 50105a). The player the other face of an `otherFaceId` card goes to when it is another
+   * card type (`flipToOtherFace`): an ally, support or upgrade under their control, a minion engaged with them. The
+   * first player the ref names; `choosePlayer` binds "any player" first. Absent, or naming nobody: the player resolving
+   * the flip, else the first player. Read by no other kind of flip.
    */
-  | { readonly kind: "flipCard"; readonly target: TargetRef; readonly reveal?: boolean }
+  | {
+      readonly kind: "flipCard";
+      readonly target: TargetRef;
+      readonly reveal?: boolean;
+      readonly controller?: PlayerRef;
+    }
   /**
    * "Change to Gamma energy form" / "flip that card faceup to change to that energy form" / "change energy forms" /
    * "Change mass form by flipping your mass form upgrade over" (docs/phase7-wave4.md §3.1; RRG 1.8 "Form, Change Form",

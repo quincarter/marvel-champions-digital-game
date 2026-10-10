@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A scenario deck whose top card is in play: the next card enters play when the top leaves, and a card put under an empty deck enters play (wave 9 engine task 13)'
+time: 2026-10-10T03:14:47.833278-04:00
