@@ -19,6 +19,7 @@ import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-su
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
 import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
+import { NICK_FURY_EVENTS, NICK_FURY_EVENTS_SKIPPED } from "./aos/nick-fury/events.js";
 import { NICK_FURY_IDENTITY, NICK_FURY_IDENTITY_SKIPPED } from "./aos/nick-fury/identity.js";
 import { PALE_LITTLE_SPIDER, PALE_LITTLE_SPIDER_SKIPPED } from "./aos/pale-little-spider.js";
 import { BLACK_PANTHER_EVENTS, BLACK_PANTHER_EVENTS_SKIPPED } from "./bp/black-panther/events.js";
@@ -104,6 +105,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50034a"],
       registry: NICK_FURY_IDENTITY,
       skipped: NICK_FURY_IDENTITY_SKIPPED,
+    },
+    {
+      module: "nick-fury/events",
+      cardIds: ["50037", "50038", "50039"],
+      registry: NICK_FURY_EVENTS,
+      skipped: NICK_FURY_EVENTS_SKIPPED,
     },
     {
       module: "pale-little-spider",
