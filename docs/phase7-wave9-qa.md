@@ -232,3 +232,87 @@ assignment), One by One (a reprint of 28014), Aggressive Stance, Bambino, Man on
 - No FFG ruling in the file names a `winter` card except Ruling January 17, 2026 - Ruling 2 and Ruling March 6, 2026 - Ruling 1 (1) (Arm
   Block, both already asserted by the module tests). No conflict between the RRG and a ruling was found for this pack. The RRG's "Encounter Deck"
   sentence on emptied discards and the module comment on Spoiling for a Fight ("a cost") read differently; the game follows the RRG sentence.
+
+## Falcon (falcon)
+
+Scope: 53001a/b to 53037 (scripts in `packages/cards/src/wave9/falcon/`: the hero's identity, events, support-upgrades-allies and
+obligation-nemesis modules and `aspect-basic.ts`; data in `packages/content/src/data/falcon/cards.ts`). The `techno` module is not scripted and
+was not audited. Every script was read against the printed text in the data. Regression tests: `packages/cards/src/wave9/falcon/rulings.qa.test.ts`
+(19 tests, 1 of them `it.fails` pinning the finding below, with a companion test that pins today's behavior). The module tests are thorough
+(about 400 cases, including the owner's Q6, Q34 and Q35 cases and the Redwing FAQ cases of rulings January 26 and March 19, 2026); this file holds
+only interactions they do not assert. Already-recorded gaps (Aerial Recon's action, Talon Line in a real game, Redwing's exhaust cost, Captain
+America's Shield set-aside, Strength in Diversity, and the swapped-in boost card of Up, Up, and Away) were not re-reported.
+
+### Findings
+
+| Card id                                      | Expected (source)                                                                                                                                                                                                                                                                                                                                                                                                                                            | Actual                                                                                                                                                                                                                                                                                                                               | Severity |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| 53009 Aerial Recon / 53031 Serpent Solutions | "Interrupt: When a player would be dealt an encounter card, remove 1 recon counter from here instead." `docs/phase7-wave9.md` section 3.45 says the interrupt hears every deal to any player, "a card's 'deal ... as a facedown encounter card' (Serpent Solutions, The Raft)", and lists "Serpent Solutions' deal of a discarded minion replaced: the minion stays in the encounter discard pile" as a test (RRG 1.8 "Deal, Deal an Encounter Card" p. 15). | Aerial Recon is never offered for Serpent Solutions' deal: the engine does not announce a named-card deal (`trigger-events.ts`, `TriggerEvent encounterCardBeingDealt`, "Not announced: ... a named card dealt to a player"), so the Soldier is dealt facedown to the first player and the recon counter stays. The script is right. | Medium   |
+
+The fix needs the engine (a "would be dealt" window in `dealAsEncounterCards`, whose replacement leaves the named card where it is, in the
+discard pile), not a script change; if the owner prefers the engine comment's reading (a named card is not "taken from the deck", so it is not a
+deal the interrupt hears), the spec's section 3.45 line and test list are what change. The same text names The Raft 51018 (Black Panther), which
+would be answered by the same fix. It is pinned: `it.fails` for the expected behavior and a passing test for today's. When it is fixed, flip the
+`it.fails` to `it` and delete its companion.
+
+### Checked, no findings
+
+- **A stunned or confused Falcon and Bird of Prey 53003 / Bird's-Eye View 53004 (RRG "Labeled Ability" p. 26, "Stun, Stunned" p. 41, "Confuse,
+  Confused" p. 13; ruling August 13, 2026 - Ruling 1 (1)).** Stunned plus Bird of Prey (attack): the event is played and spent and Eagle-Eyed is
+  still offered, but no damage is dealt, the stun card is removed and the optional discard does not happen (the top card stays on the deck: the
+  discard is part of the canceled effect, not a cost). Confused plus Bird of Prey: 4 + 3 damage, the confused card stays. Confused plus
+  Bird's-Eye View (thwart): nothing removed, the confused card goes, the top card stays. Stunned plus Bird's-Eye View: 3 + 3 threat removed, the
+  stunned card stays.
+- **Redwing 53002's action with status cards on Falcon (RRG FAQ "Redwing (#2)" p. 65).** The damage is neither an attack nor a thwart, so a
+  Falcon who is both stunned and confused uses it in full and both cards stay.
+- **Tough (RRG p. 44).** Bird of Prey at a tough minion: the top card is discarded and the +X read, but all the damage is prevented and the tough
+  card is spent. Redwing's "deal X damage" at a tough minion likewise (damage from an ability is damage).
+- **Aerial Evacuation 53008 and Overkill (ruling March 6, 2026 - Ruling 1 (2); RRG "Overkill" p. 31).** Control: Rhino with Charge (ATK 5,
+  overkill) against a defending Redwing defeats him and 3 excess lands on Falcon. With Evacuation the damage to Redwing is prevented, he is not
+  defeated, no excess reaches Falcon, and Falcon changes to alter-ego form.
+- **Vibranium Microweave 53013 with exactly 1 damage.** "Prevent 1 of that damage and deal 1 damage to an enemy": a 1-damage attack is prevented
+  in full (Falcon takes 0) and the 1 damage to the chosen minion is still dealt; the upgrade is exhausted.
+- **Draw Their Fire 53011 in a two-player game.** The rule covers Falcon only: the other player's hero attacked in the same villain phase still
+  exhausts to defend.
+- **Eagle-Eyed 53001a in a two-player game.** The other player playing an Aerial card does not offer it to Falcon's player and discards nothing
+  ("After _you_ play").
+- **Harlem's Protector 53029 with Falcon as the second seat.** Dealt to the first player (Spider-Man) and revealed, it is given to the Sam Wilson
+  player: it lands in P2's play area with 3 emergency counters and not in P1's. (The villain activates once against each player, so a two-player
+  villain phase turns two boost cards before the first deal.)
+- **Serpent Solutions 53031 and the first player.** With P2 as the first player, the Serpent Soldier Eagle-Eyed discards is dealt facedown to P2,
+  not to Falcon's player.
+- **Up, Up, and Away 53005 on an attack against another player (RRG "Labeled Ability" p. 26: a (defense) ability initiated during an attack makes
+  the identity the defender).** Offered for Rhino's attack on P2 as well as on Falcon (the card names no target); taking it makes Falcon the
+  defender, so that hit lands on Falcon. Declined both times, the two hits land on Falcon and on P2.
+- **Viper 53030 with a deck of three (RRG "Encounter Deck" p. 17).** Of the five cards, three are discarded, the deck is reset (one acceleration
+  token) and the discard stops: the other two are not taken from the new deck. The module header's "one at a time with the deck reset if it
+  empties" reads as if it continued; the game follows the RRG sentence.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: Falcon's constant (hero face, player phase only, hidden again
+in the villain phase), Eagle-Eyed (any Aerial card played, no limit), Birds of a Feather (cost, compulsory search of deck and discard, shuffle,
+limit across flips per ruling January 26, 2026 - Ruling 6 (2)), the Q6 = A switch shared by Bird of Prey, Bird's-Eye View, Redwing and
+Battlefield Awareness (a facedown top card per ruling March 19, 2026 - Ruling 5), Falcon's Flock (once per card paid, owner question 36 built on
+A), Soup Kitchen (heal equal to REC, the next ally or support), Draw Their Fire, Talon Line (stars count; Q35 = A), Aerial Recon's interrupt, Serpent
+Society cards, Adder-tisement, and the whole of `aspect-basic.ts` (reprints aliased to their sources; Spectrum, Resource Reserve, Flight Squadron,
+Hugin & Munin, Misty Knight, Ops Room, Wingman, Winter Soldier, Captain America's action).
+
+### Thin coverage and open points
+
+- **Piercing against Aerial Evacuation (ruling January 17, 2026 - Ruling 3 (2)).** Piercing removes a tough card before Evacuation prevents
+  the damage taken. Not tested: it needs an ally with a tough card defending a piercing attack, and no piercing enemy attack was staged; the engine's
+  Piercing and Tough are tested in the Winter Soldier file against Winter Rifle.
+- **Battlefield Awareness 53010 on a basic attack replaced by a stun or a confuse.** Whether "uses a basic power" is true when the stunned
+  Falcon's attack is canceled (RRG "Stun" says costs are still paid and he "is not considered to have attacked") is not stated for this wording and
+  no ruling names it; not tested.
+- **Misty Knight 53036 discarding the second of the top 2 cards when it is a Serpent Society minion with Serpent Solutions in play.** RRG
+  "Discard" (p. 16): cards looked at from the top and discarded "are considered to have been discarded from the top of that deck", so Solutions
+  should hear it; no test combines the two cards.
+- **Hugin & Munin 53017 searching the top 10 while the top card is faceup (Falcon's player phase).** The module tests cover the search; none
+  checks that the new top card is shown (and logged) afterward.
+- **Up, Up, and Away 53005 on a minion's boost card against another player.** The test staging used Rhino's attacks (the minion engaged with P2
+  was not dealt a boost card in the harness); the offer for a minion's attack is covered only for the single-player case by the module tests.
+- No FFG ruling in the file names a `falcon` card outside Rulings December 17, 2025 - Ruling 1 (2), January 17, 2026 - Ruling 3 (2), January 26,
+  2026 - Ruling 6, March 6, 2026 - Ruling 1 (2), March 19, 2026 - Ruling 5, June 25, 2026 - Ruling 1 and July 9, 2026 - Ruling 2, all of them
+  asserted by the module tests or this file's. No conflict between the RRG and a ruling was found for this pack.
