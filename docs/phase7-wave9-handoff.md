@@ -209,22 +209,22 @@ To check that tree: `pnpm --filter @mc/engine test`, `pnpm --filter @mc/cards ty
 All from Marvel Database, saved as the WebP the wiki serves, each looked at full size by the main session. They wait
 in `_pending` folders until the client step.
 
-| Slot                           | Pick                                           | File                                                                  | Notes                                                  |
-| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------ |
-| Maria Hill                     | 1B, Secret Avengers (2014) #2 panel, 1183x1649 | `art/heroes/_pending/50001a-maria-hill/hero.webp`                     | clean                                                  |
-| Nick Fury                      | 2C, Battle Scars #6 panel, 1047x2044           | `art/heroes/_pending/50034a-nick-fury/hero.webp`                      | two blank caption boxes, a figure at an edge           |
-| Black Widow                    | 3D, White Widow #1 virgin variant, 1800x2733   | `art/scenarios/_pending/black-widow/villain.webp`                     | signature                                              |
-| Batroc                         | 4A, Unbelievable Gwenpool #2 panel, 998x1535   | `art/scenarios/_pending/batroc/villain.webp`                          | heads poke in at the bottom corners                    |
-| M.O.D.O.K.                     | 5A, Legendary: World War Hulk art, 1408x1920   | `art/scenarios/_pending/modok/villain.webp`                           | clean                                                  |
-| Baron Zemo                     | 7A, Captain America (2011) #1 panel, 1102x1718 | `art/scenarios/_pending/baron-zemo/villain.webp`                      | clean                                                  |
-| Enchantress                    | 8A, Immortal Thor #17 Go variant, 1325x2048    | `art/scenarios/_pending/enchantress/villain.webp`                     | small signature                                        |
-| Enchantress wins               | Totally Awesome Hulk #5 textless, 937x1200     | `art/scenarios/_pending/enchantress/villain-wins.webp`                | clean                                                  |
-| Loki, God of Lies              | 9B, Loki (2010) #1 textless, 900x1367          | `art/scenarios/_pending/loki-god-of-lies/villain.webp`                | clean                                                  |
-| Campaign cover                 | 10A, S.H.I.E.L.D. (2014) #9 textless, 921x1397 | `art/campaigns/aos/cover.webp`                                        | portrait; check the Saga tile's crop                   |
-| T'Challa and Shuri             | 12B, Black Panther (2021) #1 Romita virgin     | `art/teamups/_pending/black-panther-shuri-tchalla/splash.webp`        | badge crop still to make; slug to decide               |
-| Silk and Spider-Man            | 13B, Spider(fly) Effect #2 textless, 900x1366  | `art/teamups/_pending/silk-spider-man/splash.webp`                    | badge crop still to make                               |
-| Black Widow and Winter Soldier | 15B's second, Winter Soldier #7 textless       | `art/teamups/_pending/black-widow-winter-soldier/{splash,badge}.webp` | badge is a 360x360 faces crop                          |
-| Maria Hill and Nick Fury       | supplied by the owner 2026-10-10, 1024x1536    | `art/teamups/_pending/maria-hill-nick-fury/{splash,badge}.webp`       | badge is a 360x360 crop of the owner's close-up; clean |
+| Slot                           | Pick                                                                        | File                                                                  | Notes                                                                                            |
+| ------------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Maria Hill                     | supplied by the owner 2026-10-10 (Hill pointing on a carrier deck), 715x844 | `art/heroes/_pending/50001a-maria-hill/hero.webp`                     | clean; smaller than the other hero pictures; replaces 1B (in git history at 32cadc59 and before) |
+| Nick Fury                      | 2C, Battle Scars #6 panel, 1047x2044                                        | `art/heroes/_pending/50034a-nick-fury/hero.webp`                      | two blank caption boxes, a figure at an edge                                                     |
+| Black Widow                    | 3D, White Widow #1 virgin variant, 1800x2733                                | `art/scenarios/_pending/black-widow/villain.webp`                     | signature                                                                                        |
+| Batroc                         | 4A, Unbelievable Gwenpool #2 panel, 998x1535                                | `art/scenarios/_pending/batroc/villain.webp`                          | heads poke in at the bottom corners                                                              |
+| M.O.D.O.K.                     | 5A, Legendary: World War Hulk art, 1408x1920                                | `art/scenarios/_pending/modok/villain.webp`                           | clean                                                                                            |
+| Baron Zemo                     | 7A, Captain America (2011) #1 panel, 1102x1718                              | `art/scenarios/_pending/baron-zemo/villain.webp`                      | clean                                                                                            |
+| Enchantress                    | 8A, Immortal Thor #17 Go variant, 1325x2048                                 | `art/scenarios/_pending/enchantress/villain.webp`                     | small signature                                                                                  |
+| Enchantress wins               | Totally Awesome Hulk #5 textless, 937x1200                                  | `art/scenarios/_pending/enchantress/villain-wins.webp`                | clean                                                                                            |
+| Loki, God of Lies              | 9B, Loki (2010) #1 textless, 900x1367                                       | `art/scenarios/_pending/loki-god-of-lies/villain.webp`                | clean                                                                                            |
+| Campaign cover                 | 10A, S.H.I.E.L.D. (2014) #9 textless, 921x1397                              | `art/campaigns/aos/cover.webp`                                        | portrait; check the Saga tile's crop                                                             |
+| T'Challa and Shuri             | 12B, Black Panther (2021) #1 Romita virgin                                  | `art/teamups/_pending/black-panther-shuri-tchalla/splash.webp`        | badge crop still to make; slug to decide                                                         |
+| Silk and Spider-Man            | 13B, Spider(fly) Effect #2 textless, 900x1366                               | `art/teamups/_pending/silk-spider-man/splash.webp`                    | badge crop still to make                                                                         |
+| Black Widow and Winter Soldier | 15B's second, Winter Soldier #7 textless                                    | `art/teamups/_pending/black-widow-winter-soldier/{splash,badge}.webp` | badge is a 360x360 faces crop                                                                    |
+| Maria Hill and Nick Fury       | supplied by the owner 2026-10-10, 1024x1536                                 | `art/teamups/_pending/maria-hill-nick-fury/{splash,badge}.webp`       | badge is a 360x360 crop of the owner's close-up; clean                                           |
 
 **Still open, each needs a second round of options and a picture sheet for the owner:** the Thunderbolts ("no clear
 image of all of the Thunderbolts" among 6A to 6D), Maria Hill with Nick Fury (none of 11 liked), Captain America with
@@ -236,10 +236,9 @@ PIL, labeled by option.
 six members) saved as `art/scenarios/_pending/thunderbolts/villain.*` and 6I (annual panel, 1311x532 landscape, all
 six, speech bubbles along the top) as `intro.*` in the same folder. Neither was looked at full size by the main
 session: check both for marks before the client step. Open art is now only Captain America with Winter Soldier (Maria Hill with Nick Fury was supplied by the owner on
-2026-10-10). The owner also supplied a replacement hero picture for Maria Hill (1280x2294, arms crossed in a
-warehouse); it carries a DeviantArt watermark across the middle, so it is held in the git-ignored
-`docs/design-renders/wave9-art-options/originals/maria-hill-hero-new.png` and 1B stays as `hero.webp` until the owner
-supplies an unmarked copy or says to use it as is. The owner's original PNGs for the Team-Up are in that folder too.
+2026-10-10). The owner replaced Maria Hill's hero picture the same day (the
+table's first row). An earlier candidate with a DeviantArt watermark was not used; it sits in the git-ignored
+`docs/design-renders/wave9-art-options/originals/`. The owner's original PNGs for the Team-Up are in that folder too.
 
 **Update, the encounter-set agent finished (still uncommitted in the working tree):** A.I.M. Science 3 of 3 refs (22
 tests pass); Batroc's Brigade 12 of 12 (41 pass; Soldiers of Fortune uses `anyOfCards` plus `chooseCards` so the
