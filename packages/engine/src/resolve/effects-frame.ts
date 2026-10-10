@@ -141,6 +141,7 @@ import { executePayRemoveThreatCost } from "../remove-threat-cost.js";
 import { executeSettleReadyCardsCost } from "../ready-cards-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
 import { executeSearchCollection } from "./collection.js";
+import { executeAccuse } from "./accusation.js";
 import { executeReportFact } from "./report-fact.js";
 import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
@@ -293,6 +294,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
   if (effect.kind === "chooseCardType") return executeChooseCardType(ctx, frame, effect, context);
   if (effect.kind === "searchCollection") return executeSearchCollection(ctx, frame, effect, context);
+  if (effect.kind === "accuse") return executeAccuse(ctx, frame, effect, context);
   if (effect.kind === "reportFact") return executeReportFact(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "pairCards") return executePairCards(ctx, frame, effect, context);

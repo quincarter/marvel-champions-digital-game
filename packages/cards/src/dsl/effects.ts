@@ -22,11 +22,12 @@ import type {
   TargetQuery,
   TargetRef,
 } from "@mc/engine";
-import { abilityId, type KeywordInstance, type Trait } from "@mc/content";
+import { abilityId, type EvidenceCombination, type KeywordInstance, type Trait } from "@mc/content";
 import {
   amount,
   chosen,
   eachPlayer,
+  firstPlayer,
   query,
   self,
   TRAIT,
@@ -1371,6 +1372,31 @@ export const revealHiddenPile = (pile: string, bind?: string): EffectSpec => ({
   kind: "revealHiddenPile",
   pile,
   ...(bind !== undefined ? { bind } : {}),
+});
+/**
+ * "Make an accusation by guessing a means, a motive, and an opportunity, along with the board member associated with
+ * that combination" (The Accusation 2A, `aos` 50168a; MC50 p. 19; docs/phase7-wave9.md §3.29 (b)): `player` (the first
+ * player unless another is named) chooses one row of `grid` that is not crossed out, a row with no evidence card the
+ * players have gained. `grid` is the scenario's combinations as card ids (`EvidenceCombination` rows from `@mc/content`).
+ * The row's board member is the accused: `each(theAccused)` from then on, in this ability and any later one. No hidden
+ * pile is read; `identifyMole` does that.
+ */
+export const accuse = (grid: readonly EvidenceCombination[], player: PlayerRef = firstPlayer): EffectSpec => ({
+  kind: "accuse",
+  player,
+  grid,
+});
+/**
+ * "Use the cards in the A.I.M. envelope to identify the mole." (The Accusation 2B, `aos` 50168b; MC50 p. 19;
+ * docs/phase7-wave9.md §3.29 (b)): the hidden pile `hidden` is turned faceup and the row of `grid` its cards make names
+ * the mole, compared with the accusation. Afterward, in this ability and any later one: `each(theMole)`,
+ * `accusationWrongGuesses` ("for each guess you got wrong", 0 to 4) and `accusedWrong` ("if you accused the wrong board
+ * member"). It reveals the pile itself, so no `revealHiddenPile` goes before it.
+ */
+export const identifyMole = (hidden: string, grid: readonly EvidenceCombination[]): EffectSpec => ({
+  kind: "identifyMole",
+  hidden,
+  grid,
 });
 /** "Create '[name]' game area" (The Grand Collection 1A, docs/phase7-wave3.md §3.14). Empty; a no-op if it exists. */
 export const createScenarioArea = (name: string): EffectSpec => ({ kind: "createScenarioArea", name });

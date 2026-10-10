@@ -7,6 +7,8 @@ export type { RngState } from "./rng.js";
 export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
 
 export type {
+  Accusation,
+  AccusationGuess,
   AttackRecord,
   RevealRecord,
   CardHome,
@@ -421,6 +423,7 @@ export { frameCardId } from "./ctx.js";
 export { displayNameOf, faceHidden, faceVisible, lookedAtBy, offeredByOpenChoice, zoneHidden } from "./visibility.js";
 export { hiddenPileViews, sealHiddenPiles, type HiddenPileView, type SealedGameState } from "./visibility.js";
 export { placeHiddenPiles, revealedPileCardsOf } from "./resolve/hidden-piles.js";
+export { evidenceRowId, openEvidenceRows, wrongGuessesOf } from "./accusation.js";
 export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */

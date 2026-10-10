@@ -81,6 +81,7 @@ import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
+import { accusationWrongGuesses, accusedWrong, isAccusationBoardMember } from "./accusation.js";
 import {
   canHaveAttached,
   cannotEnterPlay,
@@ -1152,6 +1153,9 @@ export function explainQuery(
     const chosen = chosenFromList(context.vars, query.cardTypeIs.chosen);
     if (chosen === null || cardTypeOf(state, id) !== chosen) return "wrongCategory";
   }
+  // docs/phase7-wave9.md §3.29 (b): the accused or the mole of the game's accusation, a card named by its printed id
+  // (either face), so the exclusion is the one `printedId` gives.
+  if (query.accusation !== undefined && !isAccusationBoardMember(state, id, query.accusation)) return "wrongPrintedId";
   if (query.controller) {
     const controller = controllerOf(state, id);
     if (query.controller === "encounter" && controller !== null) return "wrongController";
@@ -2549,6 +2553,8 @@ export function resolveValue(
     case "hiddenPileCount":
       // A pile's size is open; its cards are not (docs/phase7-wave9.md §3.29 (a)).
       return (state.hiddenPiles?.[value.pile] ?? []).length;
+    case "accusationWrongGuesses":
+      return accusationWrongGuesses(state);
     case "revealedPileCardCount":
       return value.pile === undefined
         ? Object.values(state.revealedPileCards ?? {}).reduce((sum, ids) => sum + ids.length, 0)
@@ -2741,6 +2747,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "varAtLeast":
       return (context.vars?.[predicate.name] ?? 0) >= predicate.amount;
+    case "accusedWrong":
+      return accusedWrong(state);
     // docs/phase7-wave7.md §3.83: setup input frozen in the state; absent is false.
     case "outsideFact": {
       const [playerId] = resolvePlayers(state, predicate.player, context);

@@ -1,4 +1,4 @@
-import type { AbilityId, CardId } from "@mc/content";
+import type { AbilityId, CardId, EvidenceCombination } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
@@ -307,6 +307,18 @@ export type ChoicePrompt =
    * than a card instance. At most one is selected; none finds nothing.
    */
   | { readonly kind: "searchCollection"; readonly slot: string }
+  /**
+   * `EffectSpec accuse` (docs/phase7-wave9.md §3.29 (b); MC50 p. 19, "The Accusation"): choose one combination of the
+   * grid that is not crossed out. `grid` is every row, for drawing the whole grid; `crossedOut` is the evidence cards
+   * the players hold faceup, each of which crosses out the rows it is in (MC50 p. 18). One option per row left, in the
+   * grid's order: its `optionId` is `evidenceRowId(row)` (`<means>+<motive>+<opportunity>`, card ids), its `ref` the
+   * card definition of the row's board member. Exactly one is selected.
+   */
+  | {
+      readonly kind: "accuse";
+      readonly grid: readonly EvidenceCombination[];
+      readonly crossedOut: readonly CardId[];
+    }
   /**
    * `EffectSpec reportFact` (docs/phase7-wave7.md §3.83): `playerId` reports a fact from outside the game, and only
    * that player may answer. Exactly one selection.

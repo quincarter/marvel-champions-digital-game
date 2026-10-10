@@ -774,6 +774,24 @@ export const scenarioAreaCount = (name: string, filter?: TargetQuery): ValueSpec
  * cards are not. "If the S.H.I.E.L.D. envelope is not empty" is `valueAtLeast(hiddenPileCount("shield"), 1)`.
  */
 export const hiddenPileCount = (pile: string): ValueSpec => ({ kind: "hiddenPileCount", pile });
+/**
+ * "The accused" (The Accusation 2B, `aos` 50168b; docs/phase7-wave9.md §3.29 (b)): the board member of the row the
+ * players accused, on either face. `each(theAccused)`; no card before `accuse` has resolved.
+ */
+export const theAccused: Pick<TargetQuery, "accusation"> = { accusation: "accused" };
+/**
+ * "The mole" (Fighting Zemo 3B, `aos` 50169b; docs/phase7-wave9.md §3.29 (b)): the board member the hidden pile named,
+ * on either face. `flipCard(each(theMole), …)`; no card before `identifyMole` has resolved. Read from the game's state,
+ * so a later stage's ability names the same card.
+ */
+export const theMole: Pick<TargetQuery, "accusation"> = { accusation: "mole" };
+/**
+ * "For each guess you got wrong" (The Accusation 2B, `aos` 50168b; MC50 p. 19): how many of the four guesses (means,
+ * motive, opportunity, board member) differ from the mole's, 0 to 4; 0 before `identifyMole` has resolved.
+ */
+export const accusationWrongGuesses: ValueSpec = { kind: "accusationWrongGuesses" };
+/** "If you accused the wrong board member" (The Accusation 2B, `aos` 50168b); false before `identifyMole` has resolved. */
+export const accusedWrong: Predicate = { kind: "accusedWrong" };
 /** How many cards have come out of the hidden pile `pile` faceup, or out of every pile when none is named. */
 export const revealedPileCardCount = (pile?: string): ValueSpec => ({
   kind: "revealedPileCardCount",

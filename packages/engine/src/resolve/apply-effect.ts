@@ -54,6 +54,7 @@ import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import { resolveTuck, tuckInsteadOfLeaving, tuckOrAnnounce } from "./tuck.js";
 import { dealHiddenPiles, gainFromHiddenPile, revealHiddenPile } from "./hidden-piles.js";
+import { identifyMole } from "./accusation.js";
 import { giveStatusOrAnnounce } from "./status-being-given.js";
 import { listensForWouldDiscard, pickRandomFromHand, splitWouldDiscard } from "./would-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -1693,6 +1694,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: revealed.length });
       return;
     }
+    case "identifyMole":
+      identifyMole(ctx, effect);
+      return;
     case "discardFromPlay": {
       const source = leaveSourceOf(ctx, frame);
       for (const id of targets(effect.target)) {
@@ -3489,6 +3493,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "choosePlayer":
     case "chooseNumber":
     case "chooseCardType":
+    case "accuse":
     case "searchCollection":
     case "reportFact":
     case "basicPowerBy":

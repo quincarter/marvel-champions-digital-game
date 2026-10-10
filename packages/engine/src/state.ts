@@ -1,4 +1,4 @@
-import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
+import type { AnyCard, CardId, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
@@ -188,6 +188,20 @@ export type CardHome =
    * none (the show deck; docs/phase7-wave6.md §3.66).
    */
   | { readonly kind: "scenarioDeck"; readonly name: string };
+
+/** One of the four things an accusation guesses (MC50 p. 19: "means, motive, opportunity, and board member"). */
+export type AccusationGuess = "means" | "motive" | "opportunity" | "boardMember";
+
+/**
+ * `GameState.accusation` (docs/phase7-wave9.md §3.29 (b)). `accused`: the grid row the players chose, whose board
+ * member is the accused. `mole`: the row the hidden pile's cards make, whose board member is the mole. `wrong`: the
+ * guesses of `accused` that differ from `mole` (none to all four), present once the mole is identified.
+ */
+export interface Accusation {
+  readonly accused?: EvidenceCombination;
+  readonly mole?: EvidenceCombination;
+  readonly wrong?: readonly AccusationGuess[];
+}
 
 export interface CardInstance {
   readonly instanceId: InstanceId;
@@ -1179,6 +1193,14 @@ export interface GameState {
    * card is revealed.
    */
   readonly revealedPileCards?: Readonly<Record<string, readonly CardId[]>>;
+  /**
+   * The accusation the players made over an evidence grid, and the mole once the hidden pile named it
+   * (docs/phase7-wave9.md §3.29 (b); MC50 p. 19, "The Accusation"). Written by `EffectSpec accuse` and `identifyMole`
+   * alone (`resolve/accusation.ts`) and read by `TargetQuery accusation`, `ValueSpec accusationWrongGuesses` and
+   * `Predicate accusedWrong`, from any ability. Open information: the guess is the players' own, and `mole` is written
+   * only as its hidden pile is turned faceup. **Absent** until an accusation is made.
+   */
+  readonly accusation?: Accusation;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

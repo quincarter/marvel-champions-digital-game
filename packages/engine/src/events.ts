@@ -1,9 +1,17 @@
-import type { AbilityId, CardId, CoreAspect, Trait, VillainSideLetter } from "@mc/content";
+import type { AbilityId, CardId, CoreAspect, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
 import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { CardPosition, PendingChoice } from "./choices.js";
-import type { FacedownRole, Form, GameOutcome, GameStep, MainSchemeAdvancedBy, ZoneId } from "./state.js";
+import type {
+  AccusationGuess,
+  FacedownRole,
+  Form,
+  GameOutcome,
+  GameStep,
+  MainSchemeAdvancedBy,
+  ZoneId,
+} from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
@@ -1740,6 +1748,25 @@ export type GameEvent =
    * cards from the A.I.M. envelope"): every card left in it, by id, now in `GameState.revealedPileCards`.
    */
   | { readonly type: "hiddenPileRevealed"; readonly pile: string; readonly cardIds: readonly CardId[] }
+  /**
+   * `EffectSpec accuse` (docs/phase7-wave9.md §3.29 (b); MC50 p. 19): `playerId` chose the combination `accused` for
+   * the players; its `boardMember` is the accused. The guess is the players' own, so the row is open.
+   */
+  | { readonly type: "accusationMade"; readonly playerId: PlayerId; readonly accused: EvidenceCombination }
+  /**
+   * `EffectSpec identifyMole` (docs/phase7-wave9.md §3.29 (b); MC50 p. 19): the cards of the hidden pile `pile`, turned
+   * faceup just before this (`hiddenPileRevealed`), make the row `mole`, whose `boardMember` is the mole. `accused` is
+   * the row it was compared with and `wrong` the guesses that differ (none: the accusation is correct). `mole` is
+   * null when the pile's cards make no row of the grid, and `accused` is null when no accusation was made; `wrong` is
+   * empty either way.
+   */
+  | {
+      readonly type: "moleIdentified";
+      readonly pile: string;
+      readonly accused: EvidenceCombination | null;
+      readonly mole: EvidenceCombination | null;
+      readonly wrong: readonly AccusationGuess[];
+    }
   /**
    * A campaign-log field named cards, and which instances they turned out to be (the `campaignLog` `CardSelector`).
    *

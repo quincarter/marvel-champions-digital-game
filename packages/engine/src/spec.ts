@@ -1,4 +1,4 @@
-import type { AbilityId, CardId, KeywordInstance, KeywordName, Trait } from "@mc/content";
+import type { AbilityId, CardId, EvidenceCombination, KeywordInstance, KeywordName, Trait } from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -154,6 +154,14 @@ export interface TargetQuery {
    * resolved, or nobody chose) no card matches, so `not: { cardTypeIs }` then matches every card.
    */
   readonly cardTypeIs?: { readonly chosen: string };
+  /**
+   * "The accused" / "the mole" (The Accusation 2B, Fighting Zemo 3B, `aos` 50168b, 50169b; docs/phase7-wave9.md §3.29
+   * (b)): the card is the board member of that row of the game's accusation (`GameState.accusation`), on either face
+   * (the row names the card of one face; a card whose other face is a card of its own matches by `otherFaceId`). No
+   * card matches before the row is recorded: `"accused"` by `EffectSpec accuse`, `"mole"` by `identifyMole`. Read from
+   * state, so an ability on another card, resolving later, names the same card.
+   */
+  readonly accusation?: "accused" | "mole";
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /**
@@ -1198,6 +1206,12 @@ export type ValueSpec =
    */
   | { readonly kind: "revealedPileCardCount"; readonly pile?: string }
   /**
+   * "For each guess you got wrong" (The Accusation 2B, `aos` 50168b; docs/phase7-wave9.md §3.29 (b)): how many of the
+   * accusation's four guesses (means, motive, opportunity, board member; MC50 p. 19) differ from the mole's, 0 to 4.
+   * 0 until `EffectSpec identifyMole` has identified a mole against an accusation.
+   */
+  | { readonly kind: "accusationWrongGuesses" }
+  /**
    * A number recorded in the campaign log: "Place threat on the main scheme equal to the number of delay counters
    * recorded in the campaign log" (MC10 p. 15), "set each player's hit points to their remaining hit point value"
    * (MC10 p. 7, per seat).
@@ -1235,6 +1249,12 @@ export type SchemeValueName = "acceleration" | "targetThreat" | "startingThreat"
 
 export type Predicate =
   | { readonly kind: "form"; readonly player: PlayerRef; readonly form: Form }
+  /**
+   * "If you accused the wrong board member" (The Accusation 2B, `aos` 50168b; docs/phase7-wave9.md §3.29 (b)): the
+   * accused row's board member is not the mole's (`GameState.accusation`). False until `EffectSpec identifyMole` has
+   * identified a mole against an accusation.
+   */
+  | { readonly kind: "accusedWrong" }
   /**
    * `player` could pay a `spendResources` effect asking for `resources` (and `distinctTypes`) right now: some payment
    * from the hand cards and resource abilities that spend would offer them prices to enough (`canPaySpend`, priced as
@@ -3698,6 +3718,43 @@ export type EffectSpec =
    * `bind`: `<bind>.count` is how many cards that was. docs/phase7-wave9.md §3.29 (a).
    */
   | { readonly kind: "revealHiddenPile"; readonly pile: string; readonly bind?: string }
+  /**
+   * "Make an accusation by guessing a means, a motive, and an opportunity, along with the board member associated with
+   * that combination in the campaign log. This board member is the accused." (The Accusation 2A, `aos` 50168a;
+   * docs/phase7-wave9.md §3.29 (b).) MC50 p. 19: "the players must make an accusation by choosing a combination of
+   * means, motive, and opportunity that has not been crossed out in the campaign log. Each combination is listed
+   * underneath a board member."
+   *
+   * `grid` is the combinations as plain data: one row per combination of three evidence card ids with the card id of
+   * the board member it is listed under. `player` chooses one row that is not crossed out, which is a row with no
+   * card that has come out of a hidden pile faceup (`GameState.revealedPileCards`; MC50 p. 18). An `accuse` choice,
+   * the rows in the grid's order; exactly one is selected, so a grid with one row left is accused without asking. The
+   * row is recorded as `GameState.accusation.accused` and logged `accusationMade`; a second accusation replaces the
+   * first whole. This effect reads no hidden pile. Every faceup pile card crosses rows out, whichever pile it came
+   * from, so once `identifyMole` has turned the mole's own cards faceup the mole's row is crossed out too: the
+   * accusation comes first.
+   *
+   * `player` naming several players asks the first. No such player, or no row left: nobody is asked and nothing is
+   * recorded.
+   */
+  | { readonly kind: "accuse"; readonly player: PlayerRef; readonly grid: readonly EvidenceCombination[] }
+  /**
+   * "Use the cards in the A.I.M. envelope to identify the mole." (The Accusation 2B, `aos` 50168b;
+   * docs/phase7-wave9.md §3.29 (b).) MC50 p. 19: "the players take the evidence cards from the A.I.M. envelope and
+   * find the board member associated with the combination means, motive, and opportunity on those cards in the
+   * campaign log. This board member is the **mole**. They compare the mole and its means, motive, and opportunity to
+   * their guesses."
+   *
+   * The hidden pile `hidden` is turned faceup (as `revealHiddenPile`, logged `hiddenPileRevealed`), and the row of
+   * `grid` its cards make is recorded as `GameState.accusation.mole`, with the guesses of the accused row that differ
+   * from it (`wrong`: each of the three cards, and the board member; a wrong card under the right board member is
+   * still a wrong guess). Logged `moleIdentified`. Read afterward, by this ability or any later one, through
+   * `TargetQuery accusation`, `ValueSpec accusationWrongGuesses` and `Predicate accusedWrong`.
+   *
+   * With no accusation made, the mole is recorded and no guess is wrong. With no row the pile's cards make (a pile
+   * that was never prepared), nothing is recorded and the log says so.
+   */
+  | { readonly kind: "identifyMole"; readonly hidden: string; readonly grid: readonly EvidenceCombination[] }
   /**
    * "[MISSION] side schemes begin the game in a separate game area called the 'mission area.'" (MC45 p. 5;
    * docs/phase7-wave8.md §3.33): an empty scenario area that is in play and under no player's control, named `name`

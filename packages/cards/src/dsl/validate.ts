@@ -783,6 +783,14 @@ function checkHiddenPiles(definition: AbilityDefinition, problems: string[]): vo
     if (effect.kind === "gainFromHiddenPile" || effect.kind === "revealHiddenPile") {
       if (effect.pile === "") problems.push(`${effect.kind}: the pile has no name`);
     }
+    // §3.29 (b): a grid is read by its three evidence cards, so two rows with the same three would be one answer.
+    if (effect.kind === "accuse" || effect.kind === "identifyMole") {
+      if (effect.grid.length === 0) problems.push(`${effect.kind}: the grid has no rows`);
+      const triples = new Set(effect.grid.map((row) => `${row.means}+${row.motive}+${row.opportunity}`));
+      if (triples.size !== effect.grid.length)
+        problems.push(`${effect.kind}: two rows of the grid have the same means, motive and opportunity`);
+    }
+    if (effect.kind === "identifyMole" && effect.hidden === "") problems.push("identifyMole: the pile has no name");
     if (
       effect.kind === "gainFromHiddenPile" &&
       effect.count.kind === "const" &&
