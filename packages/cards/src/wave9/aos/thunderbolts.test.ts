@@ -141,9 +141,8 @@ function game(
     difficulty: mode,
     setAsideModularSetIds: sets,
   });
-  // DATA BUG (packages/content/src/data/aos/cards.ts, 50132): `attachesTo` is `{ kind: "namedCard", name: "Citizen V. He
-  // activates against you" }`, the sentence's tail glued into the name, so the Sword finds no host and is discarded
-  // when revealed. The Sword tests run on the card with its `attachesTo` corrected to the villain.
+  // The Sword's data once glued the next sentence into its `attachesTo` name; it now reads `{ kind: "villain" }`
+  // (packages/content, c55024be). The override below pins that value for the Sword tests and changes nothing.
   const config = fixSwordData
     ? {
         ...built,
