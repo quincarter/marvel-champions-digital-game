@@ -1,50 +1,36 @@
-import { trait } from "@mc/content";
-import type { Command, EngineDeps, GameState, InstanceId, PlayerId } from "@mc/engine";
-import {
-  after,
-  chooseTarget,
-  chosen,
-  dealDamage,
-  query,
-  resolveSpecialsOf,
-  response,
-  special,
-  theVillain,
-  you,
-} from "../../dsl/index.js";
-import { firstLegal, P1, type Picker } from "../../testing/harness.js";
+import { createGame, type Command, type EngineDeps, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { coreScenario } from "../../core/setup.js";
+import { firstLegal, P1, settle, type Picker } from "../../testing/harness.js";
 import { driveEventsPicking } from "../../testing/staging.js";
-import { BP_DEPS } from "./testing.js";
+import { WAVE9_CARDS } from "../cards.js";
+import { BP_DEPS, bpSeat } from "./testing.js";
 
 /**
- * Test helpers of `bp/aspect-basic`. Every earlier script and this pack's own are loaded (`BP_DEPS`); the second half of
- * the module is not scripted yet, so Ayo's Special (51023, the other Dora Milaje ally Aneka resolves) is a test stand-in
- * that deals 1 damage to the villain, defined only in `AYO_DEPS`.
+ * Test helpers of `bp/aspect-basic`. Every earlier script and this pack's own are loaded (`BP_DEPS`).
  */
 export const DEPS: EngineDeps = BP_DEPS;
 
-/** `DEPS` with a stand-in for Ayo's printed Special (the real one is in the second half of the module). */
-export const AYO_DEPS: EngineDeps = {
-  abilities: {
-    ...BP_DEPS.abilities,
-    "51023.ayo-special": special(dealDamage(1, theVillain)),
-  },
-};
-
 /**
- * `AYO_DEPS` with a stand-in for Ayo's printed Response too (the real one is in the second half of the module): the same
- * shape as Aneka's, so Aneka's own Special can be resolved by another Dora Milaje ally.
+ * The Shuri precon (P1) with Core's Black Panther / T'Challa starter deck as P2, past setup (both in alter-ego form):
+ * the two identities Heart of the Panther's Team-Up names ("Black Panther/T'Challa and Black Panther/Shuri").
  */
-export const AYO_RESPONSE_DEPS: EngineDeps = {
-  abilities: {
-    ...AYO_DEPS.abilities,
-    "51023.ayo-response": response(
-      after.basicPowerUsed("self"),
-      chooseTarget("ally", query("ally", { trait: trait("DORA MILAJE"), not: { self: true } })),
-      resolveSpecialsOf(chosen("ally"), you),
-    ),
-  },
-};
+export function tchallaGame(seed = 1): GameState {
+  const base = coreScenario("rhino", {
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed,
+    difficulty: "standard",
+    modularSetIds: [],
+    cardPool: WAVE9_CARDS,
+  } as never);
+  const tchalla = coreScenario("rhino", {
+    players: [{ starterDeckId: "core-black-panther-protection" }],
+    seed,
+    modularSetIds: [],
+  }).players[0]!;
+  const created = createGame({ ...base, requireLegalDecks: false, players: [bpSeat(), tchalla] }, BP_DEPS);
+  if (!created.ok) throw new Error(created.error.message);
+  return settle(created.state, firstLegal, (s) => s.step.phase === "player", BP_DEPS);
+}
 
 /** A Core minion `code` engaged with `player` (no reveal), under the instance id `slot`. */
 export function engaged(state: GameState, code: string, slot: string, player: PlayerId = P1): GameState {
@@ -84,6 +70,8 @@ export function engaged(state: GameState, code: string, slot: string, player: Pl
 export interface ScriptOpts {
   readonly deps?: EngineDeps;
   readonly accept?: readonly string[];
+  /** At most this many accepted triggers (default: every offer that matches `accept` is taken). */
+  readonly times?: number;
   readonly target?: readonly (InstanceId | string)[];
   readonly option?: readonly string[];
   readonly defender?: InstanceId;
@@ -91,6 +79,7 @@ export interface ScriptOpts {
 export function scripted(state: GameState, commands: readonly Command[], opts: ScriptOpts = {}) {
   const offers: Record<string, string[]> = {};
   const mins: Record<string, number> = {};
+  const maxes: Record<string, number> = {};
   const kinds: string[] = [];
   const history: { kind: string; ids: string[]; player: PlayerId }[] = [];
   let options = 0;
@@ -102,9 +91,10 @@ export function scripted(state: GameState, commands: readonly Command[], opts: S
     history.push({ kind: open.prompt.kind, ids, player: open.playerId as PlayerId });
     offers[open.prompt.kind] = ids;
     mins[open.prompt.kind] = open.minSelections;
+    maxes[open.prompt.kind] = open.maxSelections;
     if (open.prompt.kind === "chooseTriggers") {
       const hit = ids.find((o) => (opts.accept ?? []).some((a) => o.endsWith(a)));
-      if (hit) {
+      if (hit && triggers < (opts.times ?? Infinity)) {
         triggers++;
         return [hit];
       }
@@ -125,5 +115,5 @@ export function scripted(state: GameState, commands: readonly Command[], opts: S
     return firstLegal(s);
   };
   const result = driveEventsPicking(opts.deps ?? DEPS, state, pick, ...commands);
-  return { ...result, offers, mins, kinds, history, taken: () => triggers };
+  return { ...result, offers, mins, maxes, kinds, history, taken: () => triggers };
 }

@@ -9,6 +9,7 @@ import {
   endTurn,
   identityOf,
   inst,
+  instancesOf,
   moveToHand,
   patchInstance,
   payWith,
@@ -18,18 +19,18 @@ import {
 } from "../../testing/harness.js";
 import { moveToDiscard, withDamage, withForm } from "../../testing/staging.js";
 import { VENOM_KIT } from "../../wave3/vnm/venom-kit.js";
+import { NEXT_EVOL_PRECON_CABLE_DECK } from "../../wave7/next_evol/precon-cable-deck.js";
 import { BLANK, onlyDeck, piles, types } from "../testing.js";
 import { BP_ASPECT_BASIC as REGISTRY, BP_ASPECT_BASIC_SKIPPED as SKIPPED } from "./aspect-basic.js";
-import { AYO_DEPS, AYO_RESPONSE_DEPS, DEPS, engaged, scripted, type ScriptOpts } from "./aspect-basic.testing.js";
+import { DEPS, engaged, scripted, tchallaGame, type ScriptOpts } from "./aspect-basic.testing.js";
 import { bpGame, bpHeroGame } from "./testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Wave 9 `bp/aspect-basic`, first half (51014 to 51022), docs/phase7-wave9.md sections 3.36, 3.38, 3.39, 3.43 and 3.52.
+ * Wave 9 `bp/aspect-basic` (51014 to 51030, 51036 to 51038), docs/phase7-wave9.md sections 3.36, 3.38, 3.39, 3.43 and 3.52.
  * The real precon `bp-justice` against Core's Rhino (ATK 2, SCH 1). Black Panther is ATK 1, THW 2, DEF 2 in hero form; Shuri is the
- * alter-ego. Only Core, the earlier waves and this pack's modules are scripted; Ayo's Special (second half) is a test
- * stand-in in the Aneka tests only (`AYO_DEPS`).
+ * alter-ego. Core, the earlier waves and this pack's modules are scripted.
  */
 const MANIFOLD = "51014";
 const INFILTRATION = "51015";
@@ -41,7 +42,21 @@ const RIFLE = "51020";
 const STING = "51021";
 const ANEKA = "51022";
 const AYO = "51023";
-const BUILD_SUPPORT = "51026"; // the precon's third player side scheme (second half of the module)
+const OKOYE = "51024";
+const HEART = "51025";
+const ENERGY = "51027";
+const GENIUS = "51028";
+const STRENGTH = "51029";
+const DORA = "51030";
+const REDEMPTION = "51036";
+const WHITE_WOLF = "51037";
+const SPOTTER = "51038";
+const BEADS = "51010";
+const CLAWS = "51011";
+const BITES = "51012";
+const SUIT = "51013";
+const BUILD_SUPPORT = "51026"; // the precon's third player side scheme
+const BLACK_CAT_ALLY = "01002"; // Core ally of the Spider-Man precon: not Wakanda
 const SHOCKER = "01103"; // minion: ATK 2, SCH 1, 3 hit points, not Elite
 const SANDMAN = "01102"; // minion: ATK 3, SCH 2, 4 hit points, Elite, Toughness
 const MERCENARY = "01101"; // minion: ATK 1, SCH 0, 3 hit points, Guard
@@ -130,7 +145,7 @@ describe("registry", () => {
   it("every registered script validates", () => {
     for (const [id, def] of Object.entries(REGISTRY)) expect(validateDefinition(def), id).toEqual([]);
   });
-  it("registers exactly these eight refs", () => {
+  it("registers exactly these refs", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([
       "51014.manifold-response",
       "51016.when-defeated",
@@ -141,17 +156,6 @@ describe("registry", () => {
       "51021.sting-operation-response",
       "51022.aneka-response",
       "51022.aneka-special",
-    ]);
-  });
-  it("every printed ref of the twenty cards is registered or skipped, none twice", () => {
-    const codes = [...Array.from({ length: 17 }, (_, i) => String(51014 + i)), "51036", "51037", "51038"];
-    const printed = codes.flatMap((code) => abilityRefIds(card(code) as never));
-    expect(printed).toHaveLength(Object.keys(REGISTRY).length + Object.keys(SKIPPED).length);
-    for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
-  });
-  it("skips Infiltration naming engine task 26, and the second half with its reason", () => {
-    expect(Object.keys(SKIPPED).sort()).toEqual([
-      "51015.infiltration-action",
       "51023.ayo-response",
       "51023.ayo-special",
       "51024.okoye-response",
@@ -164,11 +168,17 @@ describe("registry", () => {
       "51037.white-wolf-forced-response",
       "51038.target-spotter-interrupt",
     ]);
+  });
+  it("every printed ref of the twenty cards is registered or skipped, none twice", () => {
+    const codes = [...Array.from({ length: 17 }, (_, i) => String(51014 + i)), "51036", "51037", "51038"];
+    const printed = codes.flatMap((code) => abilityRefIds(card(code) as never));
+    expect(printed).toHaveLength(Object.keys(REGISTRY).length + Object.keys(SKIPPED).length);
+    for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
+  });
+  it("skips only Infiltration, naming engine task 26", () => {
+    expect(Object.keys(SKIPPED)).toEqual(["51015.infiltration-action"]);
     expect(SKIPPED["51015.infiltration-action"]).toContain("task 26");
     expect(SKIPPED["51015.infiltration-action"]).toContain("discardFromEncounterDeck");
-    for (const ref of Object.keys(SKIPPED).filter((r) => !r.startsWith("51015"))) {
-      expect(SKIPPED[ref], ref).toBe("second half of the module, not started");
-    }
   });
   it("timing words, costs, forms and labels", () => {
     expect(REGISTRY["51014.manifold-response"]).toMatchObject({ trigger: { kind: "response", forced: false } });
@@ -188,6 +198,24 @@ describe("registry", () => {
     });
     expect(REGISTRY["51022.aneka-response"]).toMatchObject({ trigger: { kind: "response", forced: false } });
     expect(REGISTRY["51022.aneka-special"]!.trigger.kind).toBe("special");
+    for (const code of ["51023", "51024"]) {
+      expect(REGISTRY[`${code}.${code === "51023" ? "ayo" : "okoye"}-response`]).toMatchObject({
+        trigger: { kind: "response", forced: false },
+      });
+      expect(REGISTRY[`${code}.${code === "51023" ? "ayo" : "okoye"}-special`]!.trigger.kind).toBe("special");
+    }
+    expect(REGISTRY["51025.heart-of-the-panther-action"]).toMatchObject({ trigger: { kind: "action", form: "hero" } });
+    expect(REGISTRY["51030.dora-milaje-action"]).toMatchObject({
+      trigger: { kind: "action" },
+      cost: { exhaustSelf: true },
+    });
+    expect(REGISTRY["51030.dora-milaje-constant"]!.trigger.kind).toBe("constant");
+    expect(REGISTRY["51036.redemption-constant"]!.trigger.kind).toBe("constant");
+    expect(REGISTRY["51037.white-wolf-forced-response"]).toMatchObject({ trigger: { kind: "response", forced: true } });
+    expect(REGISTRY["51038.target-spotter-interrupt"]).toMatchObject({
+      trigger: { kind: "interrupt", forced: false },
+      cost: { spendCounters: { counterType: "target", amount: 1 } },
+    });
     expect((REGISTRY["51022.aneka-special"] as unknown as { label?: unknown }).label).toBeUndefined();
   });
   it("Sonic Rifle aliases Venom's 20015 script and prints its name, cost, aspect, traits, keywords and text", () => {
@@ -203,6 +231,125 @@ describe("registry", () => {
 });
 
 describe("printed data", () => {
+  it("Ayo: unique Basic ally, cost 3, ATK 2, THW 1, 3 hit points, consequential 1/1, Dora Milaje Wakanda, [physical]", () => {
+    const c = card(AYO);
+    expect([c.type, c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([
+      "ally",
+      3,
+      2,
+      1,
+      3,
+      "basic",
+      true,
+      1,
+    ]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(traitsOf(AYO)).toEqual(["DORA MILAJE", "WAKANDA"]);
+    expect(c.resourceIcons).toEqual({ physical: 1 });
+  });
+  it("Okoye: unique Basic ally, cost 4, ATK 2, THW 2, 3 hit points, consequential 1/1, Dora Milaje Wakanda, [energy]", () => {
+    const c = card(OKOYE);
+    expect([c.type, c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([
+      "ally",
+      4,
+      2,
+      2,
+      3,
+      "basic",
+      true,
+      1,
+    ]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(traitsOf(OKOYE)).toEqual(["DORA MILAJE", "WAKANDA"]);
+    expect(c.resourceIcons).toEqual({ energy: 1 });
+  });
+  it("Heart of the Panther: Basic event, cost 2, [wild], Wakanda, Team-Up (Black Panther/T'Challa and Black Panther/Shuri), max 1 per deck", () => {
+    const c = card(HEART);
+    expect([c.type, c.cost, c.aspect, c.unique, c.deckLimit]).toEqual(["event", 2, "basic", false, 1]);
+    expect(traitsOf(HEART)).toEqual(["WAKANDA"]);
+    expect(c.resourceIcons).toEqual({ wild: 1 });
+    expect(c.keywords).toEqual([{ name: "teamUp", names: ["Black Panther/T'Challa", "Black Panther/Shuri"] }]);
+  });
+  it("Build Support: unique Basic player side scheme, cost 1, [mental], 3 threat per player, Victory 0", () => {
+    const c = card(BUILD_SUPPORT);
+    expect([c.type, c.cost, c.aspect, c.unique, c.deckLimit]).toEqual(["player_side_scheme", 1, "basic", true, 1]);
+    expect(c.startingThreat).toEqual({ base: 0, perPlayer: 3 });
+    expect(c.keywords).toEqual([{ name: "victory", value: 0 }]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+  });
+  it("the three resources: Basic, no text and no ability, two icons each (Energy [energy], Genius [mental], Strength [physical]), max 1 per deck", () => {
+    for (const [code, name, icons] of [
+      [ENERGY, "Energy", { energy: 2 }],
+      [GENIUS, "Genius", { mental: 2 }],
+      [STRENGTH, "Strength", { physical: 2 }],
+    ] as const) {
+      const c = card(code);
+      expect([c.type, c.name, c.aspect, c.deckLimit]).toEqual(["resource", name, "basic", 1]);
+      expect(c.producesIcons, code).toEqual(icons);
+      expect(c.abilities, code).toEqual([]);
+      expect(abilityRefIds(c as never), code).toEqual([]);
+    }
+  });
+  it("Dora Milaje: unique Basic support, cost 3, [wild], Wakanda", () => {
+    const c = card(DORA);
+    expect([c.type, c.cost, c.aspect, c.unique, c.deckLimit]).toEqual(["support", 3, "basic", true, 1]);
+    expect(traitsOf(DORA)).toEqual(["WAKANDA"]);
+    expect(c.resourceIcons).toEqual({ wild: 1 });
+  });
+  it("Redemption: Justice Condition upgrade with no cost, [mental], Linked (Show of Empathy), Victory 0", () => {
+    const c = card(REDEMPTION);
+    expect([c.type, c.cost, c.specialCost, c.aspect]).toEqual(["upgrade", 0, "dash", "justice"]);
+    expect(traitsOf(REDEMPTION)).toEqual(["CONDITION"]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+    expect(c.keywords).toEqual([
+      { name: "linked", cardTitle: "Show of Empathy" },
+      { name: "victory", value: 0 },
+    ]);
+  });
+  it("White Wolf: unique Leadership ally, cost 3, ATK 2, THW 2, 3 hit points, consequential 0 attack / 2 thwart, Wakanda, [physical]", () => {
+    const c = card(WHITE_WOLF);
+    expect([c.type, c.name, c.subtitle, c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique]).toEqual([
+      "ally",
+      "White Wolf",
+      "Hunter",
+      3,
+      2,
+      2,
+      3,
+      "leadership",
+      true,
+    ]);
+    expect(c.consequentialDamage).toEqual({ attack: 0, thwart: 2 });
+    expect(traitsOf(WHITE_WOLF)).toEqual(["WAKANDA"]);
+    expect(c.resourceIcons).toEqual({ physical: 1 });
+  });
+  it("Target Spotter: Aggression support, cost 1, [mental], Persona and S.H.I.E.L.D., Uses (2 target counters), max 3", () => {
+    const c = card(SPOTTER);
+    expect([c.type, c.cost, c.aspect, c.unique, c.deckLimit]).toEqual(["support", 1, "aggression", false, 3]);
+    expect(traitsOf(SPOTTER)).toEqual(["PERSONA", "S.H.I.E.L.D."]);
+    expect(c.resourceIcons).toEqual({ mental: 1 });
+    expect(c.keywords).toEqual([{ name: "uses", count: 2, counterType: "target" }]);
+  });
+  it("Build Support aliases the script of 40027 and prints its name, cost, aspect, threat, keywords and text", () => {
+    expect(REGISTRY["51026.when-defeated"]).toBe(NEXT_EVOL_PRECON_CABLE_DECK["40027.when-defeated"]);
+    const source = PLAYABLE_CARDS.find((c) => c.id === cardId("40027")) as unknown as Card;
+    const mine = card(BUILD_SUPPORT);
+    for (const key of [
+      "type",
+      "name",
+      "cost",
+      "aspect",
+      "traits",
+      "keywords",
+      "resourceIcons",
+      "startingThreat",
+      "unique",
+    ]) {
+      expect(mine[key], key).toEqual(source[key]);
+    }
+    expect(mine.text).toEqual(source.text);
+    expect(DEPS.abilities["40027.when-defeated"]).toBe(NEXT_EVOL_PRECON_CABLE_DECK["40027.when-defeated"]);
+  });
   it("Manifold: unique Justice ally, cost 3, ATK 1, THW 2, 2 hit points, consequential 1/1, Avenger Wakanda, [energy]", () => {
     const c = card(MANIFOLD);
     expect([c.type, c.name, c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([
@@ -416,49 +563,45 @@ describe("51022.aneka-response / 51022.aneka-special: resolve the Special of ano
   const attackWithAneka = (s: GameState, aneka: InstanceId, opts: ScriptOpts = {}) =>
     scripted(s, [{ ...basicAttack(s, villainOf(s)), attackerInstanceId: aneka }], opts);
 
-  it("after Aneka attacks (ATK 2) and the response is accepted, Ayo's Special resolves: 1 more damage (stand-in), 3 in all; Aneka takes 1 consequential damage", () => {
+  it("after Aneka attacks (ATK 2) and the response is accepted, Ayo's Special resolves: 1 more damage (Ayo's real Special), 3 in all; Aneka takes 1 consequential damage", () => {
     const { state, aneka } = staged();
-    const r = attackWithAneka(state, aneka, { deps: AYO_DEPS, accept: [REF] });
+    const r = attackWithAneka(state, aneka, { accept: [REF] });
     expect(r.taken()).toBe(1);
     expect(inst(r.state, villainOf(r.state)).damage).toBe(3);
     expect(inst(r.state, aneka).damage).toBe(1);
   });
-  it("after Aneka thwarts (THW 1): 5 to 4, then the Special of Ayo (stand-in damage to the villain); Aneka takes 1 consequential damage", () => {
+  it("after Aneka thwarts (THW 1): 5 to 4, then the Special of Ayo (1 damage to the villain); Aneka takes 1 consequential damage", () => {
     const { state, aneka } = staged();
-    const r = thwartWithAneka(state, aneka, { deps: AYO_DEPS, accept: [REF] });
+    const r = thwartWithAneka(state, aneka, { accept: [REF] });
     expect(threat(r.state)).toBe(4);
     expect(inst(r.state, villainOf(r.state)).damage).toBe(1);
     expect(inst(r.state, aneka).damage).toBe(1);
   });
   it("the response is optional: declined, only the attack's 2 damage is dealt", () => {
     const { state, aneka } = staged();
-    const r = attackWithAneka(state, aneka, { deps: AYO_DEPS, accept: [] });
+    const r = attackWithAneka(state, aneka, { accept: [] });
     expect(r.taken()).toBe(0);
     expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
   });
   it("with no other Dora Milaje ally in play nothing is chosen and nothing resolves (Aneka herself is not 'another')", () => {
     const hero = bpHeroGame();
     const aneka = inPlay(hero, ANEKA);
-    const r = attackWithAneka(aneka.state, aneka.id, { deps: AYO_DEPS, accept: [REF] });
+    const r = attackWithAneka(aneka.state, aneka.id, { accept: [REF] });
     expect(r.offers["chooseTarget"]).toBeUndefined();
     expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
   });
   it("only Dora Milaje allies count: Ayo is chosen from an ally of another trait too (the choice offers Ayo alone)", () => {
     const { state, aneka, ayo } = staged();
     const withOther = inPlay(state, MANIFOLD); // an ally without the Dora Milaje trait
-    const r = attackWithAneka(withOther.state, aneka, { deps: AYO_DEPS, accept: [REF] });
-    expect(r.offers["chooseTarget"]).toEqual([ayo]);
-  });
-  it("without a script for Ayo's Special (second half not loaded) the response resolves nothing", () => {
-    const { state, aneka } = staged();
-    const r = attackWithAneka(state, aneka, { accept: [REF] });
-    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+    const r = attackWithAneka(withOther.state, aneka, { accept: [REF] });
+    // The first target prompt is the response's own; the last one is Ayo's Special choosing an enemy.
+    expect(asked(r, "chooseTarget")[0]!.ids).toEqual([ayo]);
   });
   it("the Special takes any player's ally: the query names the trait and 'not Aneka', no controller", () => {
     const effects = (REGISTRY["51022.aneka-response"] as unknown as { effects: { query: unknown }[] }).effects;
     expect(effects[0]!.query).toEqual({ categories: ["ally"], trait: trait("DORA MILAJE"), not: { self: true } });
   });
-  it("Aneka's Special removes exactly 1 threat from a scheme: Ayo's response (stand-in) resolves it, 5 to 4; a resolved Special chains no further response", () => {
+  it("Aneka's Special removes exactly 1 threat from a scheme: Ayo's real response resolves it, 5 to 4; a resolved Special chains no further response", () => {
     const { state, ayo } = staged();
     const r = attackWithAnekaAs(state, ayo);
     expect(threat(r.state)).toBe(4);
@@ -466,7 +609,6 @@ describe("51022.aneka-response / 51022.aneka-special: resolve the Special of ano
     expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
     function attackWithAnekaAs(s: GameState, attacker: InstanceId) {
       return scripted(s, [{ ...basicAttack(s, villainOf(s)), attackerInstanceId: attacker }], {
-        deps: AYO_RESPONSE_DEPS,
         accept: ["51023.ayo-response"],
       });
     }
@@ -918,5 +1060,767 @@ describe("51015.infiltration-action: skipped (engine task 26), so the card is in
   it("has no script: the card's ref is in the skipped map and not in the registry", () => {
     expect("51015.infiltration-action" in REGISTRY).toBe(false);
     expect("51015.infiltration-action" in SKIPPED).toBe(true);
+  });
+});
+
+describe("51023.ayo-response / 51023.ayo-special", () => {
+  const REF = "51023.ayo-response";
+  const staged = (extra?: (s: GameState) => GameState) => {
+    const hero = bpHeroGame();
+    const patched = patchInstance(hero, schemeOf(hero), { threat: 5 });
+    const ayo = inPlay(patched, AYO);
+    const aneka = inPlay(ayo.state, ANEKA);
+    return { state: extra ? extra(aneka.state) : aneka.state, ayo: ayo.id, aneka: aneka.id };
+  };
+  const attackWith = (s: GameState, who: InstanceId, opts: ScriptOpts = {}) =>
+    scripted(s, [{ ...basicAttack(s, villainOf(s)), attackerInstanceId: who }], opts);
+  const thwartWith = (s: GameState, who: InstanceId, opts: ScriptOpts = {}) =>
+    scripted(s, [basicThwart(s, schemeOf(s), who)], opts);
+
+  it("costs 3 and enters play as an ally with no damage", () => {
+    const r = played(bpHeroGame(), AYO);
+    expect(playerOf(r.state, P1).playArea).toContain(r.id);
+    expect(inst(r.state, r.id).damage).toBe(0);
+    expect(handOf(r.state)).toHaveLength(handOf(r.before).length - 4);
+  });
+  it("after Ayo attacks (ATK 2) and the response is accepted, Aneka's Special removes 1 threat: 5 to 4; Ayo takes 1 consequential damage", () => {
+    const { state, ayo } = staged();
+    const r = attackWith(state, ayo, { accept: [REF] });
+    expect(r.taken()).toBe(1);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+    expect(threat(r.state)).toBe(4);
+    expect(inst(r.state, ayo).damage).toBe(1);
+  });
+  it("after Ayo thwarts (THW 1): 5 to 4, then Aneka's Special: 3; Ayo takes 1 consequential damage", () => {
+    const { state, ayo } = staged();
+    const r = thwartWith(state, ayo, { accept: [REF] });
+    expect(threat(r.state)).toBe(3);
+    expect(inst(r.state, ayo).damage).toBe(1);
+  });
+  it("the response is optional: declined, only the attack's 2 damage is dealt and no threat is removed", () => {
+    const { state, ayo } = staged();
+    const r = attackWith(state, ayo, { accept: [] });
+    expect(r.taken()).toBe(0);
+    expect(threat(r.state)).toBe(5);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+  });
+  it("with no other Dora Milaje ally in play nothing is chosen and nothing resolves", () => {
+    const hero = bpHeroGame();
+    const ayo = inPlay(patchInstance(hero, schemeOf(hero), { threat: 5 }), AYO);
+    const r = thwartWith(ayo.state, ayo.id, { accept: [REF] });
+    expect(r.kinds).not.toContain("chooseTarget");
+    expect(threat(r.state)).toBe(4);
+  });
+  it("is not offered after the hero's own basic power or an ally without it: Aneka thwarting offers only her own response", () => {
+    const { state, aneka } = staged();
+    const r = thwartWith(state, aneka, { accept: [] });
+    expect(asked(r, "chooseTriggers")[0]!.ids.map((id) => id.split(".").pop())).toHaveLength(1);
+    expect(r.taken()).toBe(0);
+  });
+  it("Ayo's Special (resolved by Aneka's response): 1 damage to the villain, besides Aneka's own 2", () => {
+    const { state, aneka } = staged();
+    const r = attackWith(state, aneka, { accept: ["51022.aneka-response"] });
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(3);
+  });
+  it("the Special offers every enemy, a guarded minion too: Guard does not apply to 1 damage that is not an attack", () => {
+    const { state, aneka } = staged((s) => engaged(s, MERCENARY, "m-guard"));
+    const r = thwartWith(state, aneka, { accept: ["51022.aneka-response"], target: [villainOf(state)] });
+    const prompts = asked(r, "chooseTarget");
+    expect(prompts[prompts.length - 1]!.ids.sort()).toEqual([villainOf(r.state), "m-guard"].sort());
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(1);
+    expect(inst(r.state, "m-guard" as InstanceId).damage).toBe(0);
+  });
+  it("the Special deals exactly 1: on a minion with 3 hit points it leaves 2 remaining, and never defeats the villain at 1 hit point", () => {
+    const { state, aneka } = staged((s) => engaged(s, SHOCKER, "m-shock"));
+    const r = thwartWith(state, aneka, { accept: ["51022.aneka-response"], target: ["m-shock"] });
+    expect(inst(r.state, "m-shock" as InstanceId).damage).toBe(1);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(0);
+  });
+});
+
+describe("51024.okoye-response / 51024.okoye-special", () => {
+  const REF = "51024.okoye-response";
+  const ANEKA_REF = "51022.aneka-response";
+  const staged = (opts: { form?: "hero" | "alterEgo"; extra?: (s: GameState) => GameState } = {}) => {
+    const base =
+      opts.form === "alterEgo" ? bpGame({ twoPlayers: true }) : withForm(bpGame({ twoPlayers: true }), { heroForm: 0 });
+    const patched = patchInstance(base, schemeOf(base), { threat: 5 });
+    const okoye = inPlay(patched, OKOYE);
+    const aneka = inPlay(okoye.state, ANEKA);
+    return { state: opts.extra ? opts.extra(aneka.state) : aneka.state, okoye: okoye.id, aneka: aneka.id };
+  };
+  const thwartWith = (s: GameState, who: InstanceId, opts: ScriptOpts = {}) =>
+    scripted(s, [basicThwart(s, schemeOf(s), who)], opts);
+
+  it("costs 4 and enters play as an ally with no damage", () => {
+    const r = played(bpHeroGame(), OKOYE);
+    expect(playerOf(r.state, P1).playArea).toContain(r.id);
+    expect(handOf(r.state)).toHaveLength(handOf(r.before).length - 5);
+  });
+  it("her own response: after Okoye thwarts (THW 2) Aneka's Special removes 1 more: 5 to 3, then 2; Okoye takes 1 consequential damage", () => {
+    const { state, okoye } = staged();
+    const r = thwartWith(state, okoye, { accept: [REF] });
+    expect(r.taken()).toBe(1);
+    expect(threat(r.state)).toBe(2);
+    expect(inst(r.state, okoye).damage).toBe(1);
+  });
+  it("the Special: Aneka's response resolves it, and the chosen Okoye gets +1 ATK until the end of the phase: her basic attack deals 3", () => {
+    const { state, okoye, aneka } = staged();
+    const first = thwartWith(state, aneka, { accept: [ANEKA_REF], target: [okoye] });
+    expect(threat(first.state)).toBe(4);
+    const attack = scripted(first.state, [
+      { ...basicAttack(first.state, villainOf(first.state)), attackerInstanceId: okoye },
+    ]);
+    expect(inst(attack.state, villainOf(attack.state)).damage).toBe(3);
+  });
+  it("the Special gives +1 THW too: Okoye's basic thwart removes 3", () => {
+    const { state, okoye, aneka } = staged();
+    const first = thwartWith(state, aneka, { accept: [ANEKA_REF], target: [okoye] });
+    const second = thwartWith(first.state, okoye);
+    expect(threat(second.state)).toBe(4 - 3);
+  });
+  it("the Special offers a Wakanda hero or ally: Black Panther in hero form and every Wakanda ally; the other player's non-Wakanda hero and ally are not", () => {
+    const { state, okoye, aneka } = staged({
+      extra: (s) => withForm(inPlay(s, BLACK_CAT_ALLY, P2).state, { heroForm: 0 }, P2),
+    });
+    const r = thwartWith(state, aneka, { accept: [ANEKA_REF], target: [okoye] });
+    const prompts = asked(r, "chooseTarget");
+    const special = prompts[prompts.length - 1]!;
+    // P1's Black Panther (Wakanda trait), Aneka and Okoye; P2's Spider-Man and Black Cat are not Wakanda.
+    expect(special.ids.sort()).toEqual([identityOf(r.state), aneka, okoye].sort());
+  });
+  it("Black Panther in hero form can be chosen: his basic thwart (THW 2) removes 3", () => {
+    const { state, okoye, aneka } = staged();
+    const hero = identityOf(state);
+    const first = thwartWith(state, aneka, { accept: [ANEKA_REF], target: [hero, okoye] });
+    expect(threat(first.state)).toBe(4);
+    const second = scripted(first.state, [basicThwart(first.state, schemeOf(first.state))]);
+    expect(threat(second.state)).toBe(1);
+  });
+  it("and +1 ATK: his basic attack (ATK 1) deals 2", () => {
+    const { state, okoye, aneka } = staged();
+    const hero = identityOf(state);
+    const first = thwartWith(state, aneka, { accept: [ANEKA_REF], target: [hero, okoye] });
+    const attack = scripted(first.state, [basicAttack(first.state, villainOf(first.state))]);
+    expect(inst(attack.state, villainOf(attack.state)).damage).toBe(2);
+  });
+  it("in alter-ego form Black Panther is not a hero: only the Wakanda allies are offered", () => {
+    const { state, okoye, aneka } = staged({ form: "alterEgo" });
+    const r = scripted(state, [basicThwart(state, schemeOf(state), aneka)], { accept: [ANEKA_REF], target: [okoye] });
+    const prompts = asked(r, "chooseTarget");
+    expect(prompts[prompts.length - 1]!.ids.sort()).toEqual([aneka, okoye].sort());
+  });
+  it("lasts until the end of the phase only: two lasting effects (THW and ATK) now, none after the round", () => {
+    const { state, okoye, aneka } = staged();
+    const first = thwartWith(state, aneka, { accept: [ANEKA_REF], target: [okoye] });
+    expect(first.state.lastingEffects).toHaveLength(2);
+    const later = scripted(first.state, [endTurn(P1), endTurn(P2)]);
+    expect(later.state.lastingEffects).toHaveLength(0);
+  });
+  it("without the response nothing is granted: declined, Okoye's attack deals 2", () => {
+    const { state, okoye, aneka } = staged();
+    const first = thwartWith(state, aneka, { accept: [] });
+    expect(first.state.lastingEffects).toHaveLength(0);
+    const attack = scripted(first.state, [
+      { ...basicAttack(first.state, villainOf(first.state)), attackerInstanceId: okoye },
+    ]);
+    expect(inst(attack.state, villainOf(attack.state)).damage).toBe(2);
+  });
+});
+
+/** Surgery: the first copy of `code` of P1 handed to `to` (owner, controller and hand). */
+function giveToHand(state: GameState, code: string, to: PlayerId): { state: GameState; id: InstanceId } {
+  const owner = playerOf(state, P1);
+  const id = [...owner.deck, ...owner.hand, ...owner.discard].find((i) => codeOf(state, i) === code)!;
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              deck: p.deck.filter((i) => i !== id),
+              hand: p.hand.filter((i) => i !== id),
+              discard: p.discard.filter((i) => i !== id),
+            }
+          : p.playerId === to
+            ? { ...p, hand: [...p.hand, id] }
+            : p,
+      ),
+      instances: { ...state.instances, [id]: { ...state.instances[id]!, ownerId: to, controllerId: to } },
+    } as GameState,
+  };
+}
+
+describe("51030.dora-milaje-constant / 51030.dora-milaje-action", () => {
+  const CONSTANT = "51030.dora-milaje-constant";
+  const ACTION = "51030.dora-milaje-action";
+  const staged = (opts: { damage?: number } = {}) => {
+    const hero = bpHeroGame();
+    const patched = patchInstance(hero, schemeOf(hero), { threat: 5 });
+    const dora = inPlay(patched, DORA);
+    const aneka = inPlay(dora.state, ANEKA);
+    const withDamageOn = withDamage(aneka.state, aneka.id, opts.damage ?? 0);
+    return { state: withDamageOn, dora: dora.id, aneka: aneka.id };
+  };
+
+  it("Wakanda identity (Black Panther, hero form): played for 0 with no card paid, and the card is not discarded as payment", () => {
+    const given = moveToHand(bpHeroGame(), P1, DORA);
+    const id = given.ids[0]!;
+    const out = scripted(given.state, [play(P1, id, [])]);
+    expect(playerOf(out.state, P1).playArea).toContain(id);
+    expect(handOf(out.state)).toHaveLength(handOf(given.state).length - 1);
+  });
+  it("also in alter-ego form (Shuri has the Wakanda trait): played for 0", () => {
+    const given = moveToHand(bpGame(), P1, DORA);
+    const id = given.ids[0]!;
+    const out = scripted(given.state, [play(P1, id, [])]);
+    expect(playerOf(out.state, P1).playArea).toContain(id);
+  });
+  it("an identity without the Wakanda trait (the Spider-Man player) pays the full 3: refused with 2 cards, played with 3", () => {
+    const two = bpGame({ twoPlayers: true });
+    const given = giveToHand(two, DORA, P2);
+    const hand = handOf(given.state, P2).filter((i) => i !== given.id);
+    expect(refusal(given.state, play(P2, given.id, hand.slice(0, 2)), endTurn(P1))).toBe(true);
+    const turn = scripted(given.state, [endTurn(P1), play(P2, given.id, payWith(given.state, P2, 3, [given.id]))]);
+    expect(playerOf(turn.state, P2).playArea).toContain(given.id);
+    expect(handOf(turn.state, P2).length).toBeLessThan(handOf(given.state, P2).length - 1);
+  });
+  it("the cost is ignored, not set: with T'Challa's Shadow (51031, +1 to each card you play) in play the card costs 1", () => {
+    const base = bpHeroGame();
+    const shadow = instancesOf(base, "51031")[0]!;
+    const withShadow = patchInstance(
+      {
+        ...base,
+        players: base.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, setAside: p.setAside.filter((i) => i !== shadow), playArea: [...p.playArea, shadow] }
+            : p,
+        ),
+        encounterDecks: Object.fromEntries(
+          Object.entries(base.encounterDecks).map(([k, v]) => [
+            k,
+            { ...v, deck: v.deck.filter((i) => i !== shadow), discard: v.discard.filter((i) => i !== shadow) },
+          ]),
+        ),
+      } as GameState,
+      shadow,
+      { faceup: true, controllerId: P1, counters: { doubt: 4 } },
+    );
+    const given = moveToHand(withShadow, P1, DORA);
+    const id = given.ids[0]!;
+    expect(refusal(given.state, play(P1, id, []))).toBe(true);
+    const paid = scripted(given.state, [play(P1, id, payWith(given.state, P1, 1, [id]))]);
+    expect(playerOf(paid.state, P1).playArea).toContain(id);
+    expect(handOf(paid.state)).toHaveLength(handOf(given.state).length - 2);
+  });
+  it("Action: exhausts Dora Milaje, resolves the Special of Aneka (1 threat) and heals 1 damage from her: 2 damage to 1", () => {
+    const { state, dora, aneka } = staged({ damage: 2 });
+    const r = scripted(state, [use(P1, dora, ACTION)]);
+    expect(inst(r.state, dora).exhausted).toBe(true);
+    expect(threat(r.state)).toBe(4);
+    expect(inst(r.state, aneka).damage).toBe(1);
+  });
+  it("an undamaged Dora Milaje ally: the Special still resolves, nothing is healed", () => {
+    const { state, dora, aneka } = staged();
+    const r = scripted(state, [use(P1, dora, ACTION)]);
+    expect(threat(r.state)).toBe(4);
+    expect(inst(r.state, aneka).damage).toBe(0);
+  });
+  it("heals only 1 even from a heavily damaged ally: 2 damage on Aneka (3 hit points) becomes 1, not 0", () => {
+    const { state, dora, aneka } = staged({ damage: 2 });
+    const r = scripted(state, [use(P1, dora, ACTION)]);
+    expect(inst(r.state, aneka).damage).toBe(1);
+  });
+  it("the choice offers each Dora Milaje ally in play; with Ayo too, picking Ayo resolves her Special (1 damage to the villain) and heals her", () => {
+    const base = staged();
+    const ayo = inPlay(base.state, AYO);
+    const damaged = withDamage(ayo.state, ayo.id, 1);
+    const r = scripted(damaged, [use(P1, base.dora, ACTION)], { target: [ayo.id] });
+    expect(asked(r, "chooseTarget")[0]!.ids.sort()).toEqual([base.aneka, ayo.id].sort());
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(1);
+    expect(inst(r.state, ayo.id).damage).toBe(0);
+    expect(threat(r.state)).toBe(5);
+  });
+  it("a non-Dora Milaje ally (Manifold) is not offered", () => {
+    const base = staged();
+    const manifold = inPlay(base.state, MANIFOLD);
+    const r = scripted(manifold.state, [use(P1, base.dora, ACTION)]);
+    expect(asked(r, "chooseTarget")[0]?.ids ?? [base.aneka]).toEqual([base.aneka]);
+  });
+  it("usable in alter-ego form as well as hero form (an Action, not a Hero Action)", () => {
+    const hero = bpGame();
+    const dora = inPlay(patchInstance(hero, schemeOf(hero), { threat: 5 }), DORA);
+    const aneka = inPlay(dora.state, ANEKA);
+    const r = scripted(aneka.state, [use(P1, dora.id, ACTION)]);
+    expect(threat(r.state)).toBe(4);
+  });
+  it("refused while exhausted, and with no Dora Milaje ally in play", () => {
+    const { state, dora } = staged();
+    expect(refusal(patchInstance(state, dora, { exhausted: true }), use(P1, dora, ACTION))).toBe(true);
+    const lone = inPlay(bpHeroGame(), DORA);
+    expect(refusal(lone.state, use(P1, lone.id, ACTION))).toBe(true);
+  });
+  it("is a cost-reduction constant read from the hand and only for Dora Milaje itself", () => {
+    const def = REGISTRY[CONSTANT] as unknown as { trigger: { costModifiers: { activeIn: string; delta: unknown }[] } };
+    expect(def.trigger.costModifiers).toHaveLength(1);
+    expect(def.trigger.costModifiers[0]!.activeIn).toBe("hand");
+  });
+});
+
+/** Surgery: the first copy of `code` of `player`, wherever it is, moved to the `zone` ("deck" bottom, "discard" or "hand"). */
+function placeIn(state: GameState, code: string, zone: "deck" | "discard" | "hand", player: PlayerId = P1): GameState {
+  const owner = playerOf(state, player);
+  const id = [...owner.deck, ...owner.hand, ...owner.discard].find((i) => codeOf(state, i) === code)!;
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === player
+        ? {
+            ...p,
+            deck: [...p.deck.filter((i) => i !== id), ...(zone === "deck" ? [id] : [])],
+            hand: [...p.hand.filter((i) => i !== id), ...(zone === "hand" ? [id] : [])],
+            discard: [...p.discard.filter((i) => i !== id), ...(zone === "discard" ? [id] : [])],
+          }
+        : p,
+    ),
+  } as GameState;
+}
+
+describe("51025.heart-of-the-panther-action: Team-Up event; search for a Black Panther upgrade, put it into play, resolve up to 4 Specials", () => {
+  const BP_UPGRADES = [BEADS, CLAWS, BITES, SUIT];
+  /** Shuri's hero form with Core's T'Challa as the second player (both identities Heart names are in play). */
+  const withTchalla = () => {
+    const base = tchallaGame();
+    const stocked = BP_UPGRADES.reduce((acc, code) => placeIn(acc, code, "deck"), base);
+    return withForm(patchInstance(stocked, schemeOf(stocked), { threat: 5 }), { heroForm: 0 });
+  };
+  const cast = (state: GameState, opts: ScriptOpts = {}) => {
+    const given = moveToHand(state, P1, HEART);
+    const id = given.ids[0]!;
+    const out = scripted(given.state, [play(P1, id, payWith(given.state, P1, 2, [id]))], opts);
+    return { ...out, id, before: given.state };
+  };
+
+  it("Team-Up: playable with Core's T'Challa (the other player's identity) in play; costs 2 and the event ends in the discard pile", () => {
+    const r = cast(withTchalla(), { target: [] });
+    expect(discardOf(r.state)).toContain(r.id);
+    expect(handOf(r.state)).toHaveLength(handOf(r.before).length - 3);
+  });
+  it("Team-Up: also with T'Challa in his hero form (Black Panther/T'Challa names both sides)", () => {
+    const state = withForm(withTchalla(), { heroForm: 0 }, P2);
+    const r = cast(state, { target: [] });
+    expect(discardOf(r.state)).toContain(r.id);
+  });
+  it("Team-Up: refused in a solo game (T'Challa is not in play)", () => {
+    const given = moveToHand(bpHeroGame(), P1, HEART);
+    expect(refusal(given.state, play(P1, given.ids[0]!, payWith(given.state, P1, 2, [given.ids[0]!])))).toBe(true);
+  });
+  it("Team-Up: refused in a two-player game whose other hero is not T'Challa", () => {
+    const state = withForm(bpGame({ twoPlayers: true }), { heroForm: 0 });
+    const given = moveToHand(state, P1, HEART);
+    expect(refusal(given.state, play(P1, given.ids[0]!, payWith(given.state, P1, 2, [given.ids[0]!])))).toBe(true);
+  });
+  it("Hero Action: refused in alter-ego form even with T'Challa in play", () => {
+    const given = moveToHand(tchallaGame(), P1, HEART);
+    expect(refusal(given.state, play(P1, given.ids[0]!, payWith(given.state, P1, 2, [given.ids[0]!])))).toBe(true);
+  });
+  it("searches the deck and the discard pile: all four Black Panther upgrades are offered, one of them from the discard pile", () => {
+    const base = withTchalla();
+    const r = cast(placeIn(base, BEADS, "discard"), { target: [] });
+    const found = asked(r, "chooseCards")[0]!;
+    expect(found.ids.map((id) => codeOf(r.state, id as InstanceId)).sort()).toEqual([...BP_UPGRADES].sort());
+  });
+  it("puts the chosen upgrade into play on Black Panther (not for a cost), shuffles the deck, then its Special resolves: Kimoyo Beads removes 1 threat", () => {
+    const base = withTchalla();
+    const beads = instancesOf(base, BEADS)[0]!;
+    const r = cast(base, { target: [beads] });
+    expect(inst(r.state, beads).attachedTo).toBe(identityOf(r.state));
+    expect(playerOf(r.state, P1).deck).not.toContain(beads);
+    expect(types(r.events, "deckShuffled").length).toBeGreaterThan(0);
+    expect(threat(r.state)).toBe(4);
+  });
+  it("the choice of Specials is 'up to 4' (0 to 4 cards): with all four attached, four are offered; none chosen, nothing resolves", () => {
+    const base = withTchalla();
+    const all = [BEADS, CLAWS, BITES, SUIT].reduce(
+      (acc, code) => {
+        const next = attached(acc.state, code);
+        return { state: next.state, ids: [...acc.ids, next.id] };
+      },
+      { state: base, ids: [] as InstanceId[] },
+    );
+    const r = cast(all.state, { target: [] });
+    // Nothing is left to search for, so the only prompt is the Specials': 0 to 4.
+    expect(asked(r, "chooseCards")).toHaveLength(1);
+    expect(asked(r, "chooseCards")[0]!.ids.sort()).toEqual([...all.ids].sort());
+    expect([r.mins["chooseCards"], r.maxes["chooseCards"]]).toEqual([0, 4]);
+    expect(threat(r.state)).toBe(5);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(0);
+  });
+  it("Specials resolve on every chosen upgrade: with Panther Claws already attached, Beads (1 threat) and Claws (2 damage to an enemy) both resolve", () => {
+    const base = withTchalla();
+    const claws = attached(base, CLAWS);
+    const beads = instancesOf(claws.state, BEADS)[0]!;
+    const r = cast(claws.state, { target: [beads, claws.id] });
+    expect(threat(r.state)).toBe(4);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+  });
+  it("with no Black Panther upgrade left in the deck or discard pile nothing is found, and the Specials of those in play still resolve", () => {
+    const base = withTchalla();
+    const claws = attached(base, CLAWS);
+    // The other three are in the hand, out of the search.
+    const emptied = [BEADS, BITES, SUIT].reduce((acc, code) => moveToHand(acc, P1, code).state, claws.state);
+    const r = cast(emptied, { target: [claws.id] });
+    expect(r.kinds).toContain("chooseCards");
+    expect(asked(r, "chooseCards")).toHaveLength(1);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+    expect(discardOf(r.state)).toContain(r.id);
+  });
+  it("only upgrades the player controls: another player's Black Panther upgrade is not offered for a Special", () => {
+    const base = withTchalla();
+    const beads = instancesOf(base, BEADS)[0]!;
+    const r = cast(base, { target: [beads] });
+    const prompts = asked(r, "chooseCards");
+    expect(prompts[prompts.length - 1]!.ids).toEqual([beads]);
+  });
+  it("a Black Panther upgrade only: a non-Black Panther upgrade of the deck (Sonic Rifle) is not offered for the search", () => {
+    const base = withTchalla();
+    const r = cast(base, { target: [] });
+    const found = asked(r, "chooseCards")[0]!;
+    expect(found.ids.map((id) => codeOf(r.state, id as InstanceId))).not.toContain(RIFLE);
+  });
+});
+
+describe("51026.when-defeated (Build Support, a reprint of 40027)", () => {
+  /** Hero form, Build Support played for 1 and dropped to `left` threat. */
+  function ready(left: number, opts: { twoPlayers?: boolean } = {}) {
+    const hero = bpHeroGame(opts);
+    const given = played(hero, BUILD_SUPPORT, {});
+    return { ...given, state: patchInstance(given.state, given.id, { threat: left }) };
+  }
+  const thwart = (s: { state: GameState; id: InstanceId }, opts: ScriptOpts = {}) =>
+    scripted(s.state, [basicThwart(s.state, s.id)], opts);
+
+  it("played for 1 it enters with 3 threat in a solo game, 6 with two players", () => {
+    const solo = played(bpHeroGame(), BUILD_SUPPORT, {});
+    expect(inst(solo.state, solo.id).threat).toBe(3);
+    expect(handOf(solo.state)).toHaveLength(handOf(solo.before).length - 2);
+    const duo = played(bpHeroGame({ twoPlayers: true }), BUILD_SUPPORT, {});
+    expect(inst(duo.state, duo.id).threat).toBe(6);
+  });
+  it("a thwart that does not defeat it (3 threat, THW 2) leaves 1 and puts nothing into play", () => {
+    const s = played(bpHeroGame(), BUILD_SUPPORT, {});
+    const r = thwart(s);
+    expect(inst(r.state, s.id).threat).toBe(1);
+    expect(r.kinds).not.toContain("chooseCards");
+  });
+  it("defeated (2 threat, THW 2): Victory 0 sends it to the victory display, and the player searches deck and discard for a support of cost 3 or less", () => {
+    const s = ready(2);
+    const r = thwart(s, { target: [] });
+    expect(r.state.victoryDisplay).toContain(s.id);
+    const offered = asked(r, "chooseCards")[0]!.ids.map((id) => codeOf(r.state, id as InstanceId));
+    expect(offered.length).toBeGreaterThan(0);
+    for (const code of offered) expect(card<{ cost: number; type: string }>(code)).toMatchObject({ type: "support" });
+    for (const code of offered) expect(card<{ cost: number }>(code).cost).toBeLessThanOrEqual(3);
+  });
+  it("the search is 'may': declined (nothing chosen), no support enters play; the choice is min 0", () => {
+    const s = ready(2);
+    const r = thwart(s, { target: [] });
+    expect(r.mins["chooseCards"]).toBe(0);
+    const supports = playerOf(r.state, P1).playArea.filter(
+      (i) => card<{ type: string }>(codeOf(r.state, i)).type === "support",
+    );
+    expect(supports).toHaveLength(0);
+  });
+  it("a chosen support (The Raft, cost 2) from the deck is put into play without paying and the deck is shuffled", () => {
+    const base = placeIn(bpHeroGame(), RAFT, "deck");
+    const given = played(base, BUILD_SUPPORT, {});
+    const s = { ...given, state: patchInstance(given.state, given.id, { threat: 2 }) };
+    const raft = instancesOf(s.state, RAFT)[0]!;
+    const r = thwart(s, { target: [raft] });
+    expect(playerOf(r.state, P1).playArea).toContain(raft);
+    expect(types(r.events, "deckShuffled").length).toBeGreaterThan(0);
+    expect(handOf(r.state)).toHaveLength(handOf(s.state).length);
+  });
+  it("a support from the discard pile is found too", () => {
+    const base = placeIn(bpHeroGame(), RAFT, "discard");
+    const given = played(base, BUILD_SUPPORT, {});
+    const s = { ...given, state: patchInstance(given.state, given.id, { threat: 2 }) };
+    const raft = instancesOf(s.state, RAFT)[0]!;
+    const r = thwart(s, { target: [raft] });
+    expect(playerOf(r.state, P1).playArea).toContain(raft);
+    expect(discardOf(r.state)).not.toContain(raft);
+  });
+  it("each player searches: in a two-player game the other player is asked too, for their own deck", () => {
+    const s = ready(2, { twoPlayers: true });
+    const r = thwart(s, { target: [] });
+    expect(asked(r, "chooseCards").map((h) => h.player)).toEqual(expect.arrayContaining([P1]));
+    const prompts = asked(r, "chooseCards");
+    expect(prompts.map((h) => h.player)).toEqual([P1, P2]);
+    // P1's deck and discard pile hold one support of cost 3 or less (the rest of the precon's are in the opening hand).
+    expect(prompts[0]!.ids.map((id) => codeOf(r.state, id as InstanceId))).toEqual(["51007"]);
+    // P2's offer is made of P2's own cards, every one a support costing 3 or less.
+    for (const id of prompts[1]!.ids) {
+      expect(playerOf(r.state, P2).deck.concat(playerOf(r.state, P2).discard)).toContain(id);
+      const printed = PLAYABLE_CARDS.find((c) => c.id === cardId(codeOf(r.state, id as InstanceId))) as unknown as Card;
+      expect(printed["type"]).toBe("support");
+      expect(printed["cost"] as number).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
+describe("51036.redemption-constant: take control of the attached minion as a Redeemed ally", () => {
+  const M = "m-target" as InstanceId;
+  /** Hero form, Shocker (ATK 2, SCH 1, 3 hit points) engaged with `damage` on it, Show of Empathy thwarted for 2: Redemption attaches. */
+  function redeemed(damage = 1, opts: { twoPlayers?: boolean; thwarter?: PlayerId; minion?: string } = {}) {
+    const hero = bpHeroGame(opts);
+    const withMinion = withDamage(engaged(hero, opts.minion ?? SHOCKER, "m-target"), M, damage);
+    const given = played(withMinion, EMPATHY, {});
+    const scheme = patchInstance(given.state, given.id, { threat: 6 });
+    const thwarter = opts.thwarter ?? P1;
+    const staged = thwarter === P1 ? scheme : withFormP2(scheme);
+    const commands =
+      thwarter === P1
+        ? [basicThwart(staged, given.id)]
+        : [
+            endTurn(P1),
+            {
+              type: "basicThwart",
+              playerId: thwarter,
+              thwarterInstanceId: identityOf(staged, thwarter),
+              schemeInstanceId: given.id,
+            } as const,
+          ];
+    const r = scripted(staged, commands, { target: [M] });
+    const redemption = Object.values(r.state.instances).find((i) => i.cardId === REDEMPTION)!.instanceId;
+    return { ...r, redemption, empathy: given.id };
+  }
+  const allyThwart = (s: GameState) =>
+    scripted(s, [{ type: "basicThwart", playerId: P1, thwarterInstanceId: M, schemeInstanceId: schemeOf(s) }]);
+
+  it("attached by Show of Empathy it is controlled and owned by the player who chose the minion, and the minion is treated as a Redeemed ally", () => {
+    const r = redeemed();
+    expect(inst(r.state, r.redemption)).toMatchObject({ attachedTo: M, ownerId: P1, controllerId: P1 });
+    const minion = inst(r.state, M);
+    expect(minion.controllerId).toBe(P1);
+    expect(minion.engagedWith).toBeNull();
+    expect(minion.treatedAs).toMatchObject({
+      kind: "ally",
+      traits: [trait("REDEEMED")],
+      thwFromSch: true,
+      consequential: 1,
+      controller: P1,
+    });
+  });
+  it("the redeemed ally keeps its damage (1) and the threat tokens placed on it (2)", () => {
+    const r = redeemed();
+    expect(inst(r.state, M).damage).toBe(1);
+    expect(inst(r.state, M).threat).toBe(2);
+  });
+  it("its THW is its printed SCH: Shocker's basic thwart removes 1, not its ATK of 2, and it takes 1 consequential damage", () => {
+    const base = withDamage(redeemed().state, M, 0);
+    const s = patchInstance(base, schemeOf(base), { threat: 5 });
+    const r = allyThwart(s);
+    expect(threat(r.state)).toBe(4);
+    expect(inst(r.state, M).damage).toBe(1);
+    expect(inst(r.state, M).exhausted).toBe(true);
+  });
+  it("its basic attack uses its own ATK 2 and it takes 1 consequential damage after attacking", () => {
+    const base = withDamage(redeemed().state, M, 0);
+    const r = scripted(base, [{ ...basicAttack(base, villainOf(base)), attackerInstanceId: M }]);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+    expect(inst(r.state, M).damage).toBe(1);
+  });
+  it("it is no longer an enemy: the hero cannot attack it", () => {
+    const base = redeemed().state;
+    expect(refusal(base, basicAttack(base, M))).toBe(true);
+  });
+  it("defeated as an ally (3 hit points reached by its consequential damage) it goes to the encounter discard pile and Redemption to the victory display", () => {
+    const base = redeemed(2);
+    const r = scripted(patchInstance(base.state, schemeOf(base.state), { threat: 5 }), [
+      { type: "basicThwart", playerId: P1, thwarterInstanceId: M, schemeInstanceId: schemeOf(base.state) },
+    ]);
+    expect(playerOf(r.state, P1).playArea).not.toContain(M);
+    expect(piles(r.state).discard).toContain(M);
+    expect(r.state.victoryDisplay).toContain(base.redemption);
+    expect(r.state.victoryDisplay).toContain(base.empathy);
+    expect(inst(r.state, base.redemption).attachedTo).toBeNull();
+  });
+  it("two players: when the other player's thwart removes the threat, that player chooses the minion and controls Redemption and the ally", () => {
+    // Spider-Man's THW is 1, so the minion needs 1 hit point left for the 1 threat to flip Show of Empathy.
+    const r = redeemed(2, { twoPlayers: true, thwarter: P2 });
+    expect(inst(r.state, r.redemption)).toMatchObject({ attachedTo: M, ownerId: P2, controllerId: P2 });
+    expect(inst(r.state, M).controllerId).toBe(P2);
+    expect(inst(r.state, M).treatedAs).toMatchObject({ kind: "ally", controller: P2 });
+  });
+  it("is a constant with Mind Control's rule: THW from printed SCH, 1 consequential damage, the Redeemed trait", () => {
+    expect(REGISTRY["51036.redemption-constant"]!.trigger).toMatchObject({
+      kind: "constant",
+      rules: [{ kind: "treatHostAsAlly", traits: [trait("REDEEMED")], thwFromSch: true, consequential: 1 }],
+    });
+  });
+});
+
+describe("51037.white-wolf-forced-response", () => {
+  const REF = "51037.white-wolf-forced-response";
+  const staged = () => {
+    const base = withForm(bpGame({ swap: { "51006": WHITE_WOLF } }), { heroForm: 0 });
+    const wolf = inPlay(patchInstance(base, schemeOf(base), { threat: 5 }), WHITE_WOLF);
+    return { state: wolf.state, wolf: wolf.id };
+  };
+  const attackWith = (s: GameState, who: InstanceId) =>
+    scripted(s, [{ ...basicAttack(s, villainOf(s)), attackerInstanceId: who }]);
+
+  it("costs 3 and enters play as an ally", () => {
+    const base = bpHeroGame({ swap: { "51006": WHITE_WOLF } });
+    const r = played(base, WHITE_WOLF);
+    expect(playerOf(r.state, P1).playArea).toContain(r.id);
+    expect(handOf(r.state)).toHaveLength(handOf(r.before).length - 4);
+    expect(threat(r.state)).toBe(threat(base));
+  });
+  it("after he attacks (ATK 2) 1 threat is placed on the main scheme without being asked: 5 to 6; no consequential damage for an attack", () => {
+    const { state, wolf } = staged();
+    const r = attackWith(state, wolf);
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(2);
+    expect(threat(r.state)).toBe(6);
+    expect(inst(r.state, wolf).damage).toBe(0);
+    expect(r.kinds).not.toContain("chooseTriggers");
+  });
+  it("a thwart (THW 2) does not trigger it, and costs him 2 consequential damage", () => {
+    const { state, wolf } = staged();
+    const r = scripted(state, [basicThwart(state, schemeOf(state), wolf)]);
+    expect(threat(r.state)).toBe(3);
+    expect(inst(r.state, wolf).damage).toBe(2);
+  });
+  it("is a forced response: the hero's own attack does not trigger it", () => {
+    const { state } = staged();
+    const r = scripted(state, [basicAttack(state, villainOf(state))]);
+    expect(threat(r.state)).toBe(5);
+  });
+  it("places exactly 1 threat on the main scheme even when a side scheme is in play", () => {
+    const { state, wolf } = staged();
+    const withSide = played(state, EMPATHY, {});
+    const mainBefore = threat(withSide.state);
+    const r = attackWith(withSide.state, wolf);
+    expect(threat(r.state)).toBe(mainBefore + 1);
+    expect(inst(r.state, withSide.id).threat).toBe(6);
+    expect(REF in REGISTRY).toBe(true);
+  });
+});
+
+describe("51038.target-spotter-interrupt: a minion that would engage a player engages the Spotter's player instead and cannot activate this phase", () => {
+  const REF = "51038.target-spotter-interrupt";
+  const SHOCKER_DEAL = "01103";
+  /** The two-player game with Target Spotter in play for P1 (2 target counters). */
+  function withSpotter(opts: { twoPlayers?: boolean } = {}) {
+    const base = bpGame({ swap: { "51006": SPOTTER }, twoPlayers: opts.twoPlayers ?? true });
+    const spotter = inPlay(base, SPOTTER);
+    return { state: patchInstance(spotter.state, spotter.id, { counters: { target: 2 } }), id: spotter.id };
+  }
+  /** The villain phase with Shocker dealt to the last player (Rhino's two boost cards, then a filler for the first player). */
+  const reveal = (s: GameState, opts: ScriptOpts = {}) => {
+    const staged = onlyDeck(s, BLANK, BLANK, FILLER, SHOCKER_DEAL);
+    return scripted(
+      staged,
+      staged.players.map((p) => endTurn(p.playerId)),
+      opts,
+    );
+  };
+  const shocker = (s: GameState): InstanceId => instancesOf(s, SHOCKER_DEAL)[0]!;
+  const lasting = (r: { events: readonly { type: string }[] }, type: string) =>
+    (
+      r.events as readonly {
+        type: string;
+        effect?: { rule: { kind: string }; duration: { kind: string }; scope: { bindings: Record<string, string[]> } };
+        reason?: string;
+      }[]
+    ).filter((e) => e.type === type);
+
+  it("costs 1 and enters play with 2 target counters", () => {
+    const base = bpGame({ swap: { "51006": SPOTTER } });
+    const r = played(base, SPOTTER);
+    expect(playerOf(r.state, P1).playArea).toContain(r.id);
+    expect(inst(r.state, r.id).counters["target"]).toBe(2);
+    expect(handOf(r.state)).toHaveLength(handOf(r.before).length - 2);
+  });
+  it("a minion revealed to the other player engages the Spotter's player instead: P1 pays 1 counter, the minion is in P1's play area", () => {
+    const { state, id } = withSpotter();
+    const r = reveal(state, { accept: [REF], times: 1 });
+    expect(r.taken()).toBe(1);
+    const m = shocker(r.state);
+    expect(inst(r.state, m).engagedWith).toBe(P1);
+    expect(playerOf(r.state, P1).playArea).toContain(m);
+    expect(playerOf(r.state, P2).playArea).not.toContain(m);
+    expect(inst(r.state, id).counters["target"]).toBe(1);
+  });
+  it("declined it engages the player it was dealt to (P2) and the counters stay at 2", () => {
+    const { state, id } = withSpotter();
+    const r = reveal(state, { accept: [] });
+    expect(r.taken()).toBe(0);
+    const m = shocker(r.state);
+    expect(inst(r.state, m).engagedWith).toBe(P2);
+    expect(inst(r.state, id).counters["target"]).toBe(2);
+    expect(lasting(r, "lastingEffectAdded")).toHaveLength(0);
+  });
+  it("the minion cannot activate until the end of the phase: a lasting cannotActivate rule on that minion, ended at the end of the villain phase", () => {
+    const { state } = withSpotter();
+    const r = reveal(state, { accept: [REF], times: 1 });
+    const added = lasting(r, "lastingEffectAdded");
+    expect(added).toHaveLength(1);
+    expect(added[0]!.effect).toMatchObject({
+      rule: { kind: "cannotActivate" },
+      duration: { kind: "endOfPhase" },
+      scope: { bindings: { minion: [shocker(r.state)] } },
+    });
+    expect(lasting(r, "lastingEffectEnded").map((e) => e.reason)).toEqual(["expired"]);
+    expect(r.state.lastingEffects).toHaveLength(0);
+  });
+  it("the rule names only that minion: a second minion in play is not covered (the query reads the bound slot)", () => {
+    const rule = (REGISTRY[REF] as unknown as { effects: { rule?: { target: unknown } }[] }).effects.find(
+      (e) => e.rule,
+    );
+    expect(rule!.rule!.target).toEqual({ categories: ["minion"], inSlot: "minion" });
+  });
+  it("it also answers a minion engaging the Spotter's own player: offered in a solo game, 1 counter paid, still engaged with P1", () => {
+    const { state, id } = withSpotter({ twoPlayers: false });
+    const staged = onlyDeck(state, BLANK, SHOCKER_DEAL);
+    const r = scripted(staged, [endTurn(P1)], { accept: [REF], times: 1 });
+    expect(r.taken()).toBe(1);
+    expect(inst(r.state, shocker(r.state)).engagedWith).toBe(P1);
+    expect(inst(r.state, id).counters["target"]).toBe(1);
+  });
+  it("taking the interrupt again when the Spotter's player engages it spends the last counter; the empty Spotter is discarded", () => {
+    const { state, id } = withSpotter();
+    const r = reveal(state, { accept: [REF] });
+    expect(r.taken()).toBe(2);
+    expect(discardOf(r.state)).toContain(id);
+    expect(playerOf(r.state, P1).playArea).not.toContain(id);
+    expect(inst(r.state, shocker(r.state)).engagedWith).toBe(P1);
+  });
+  it("the cost is 1 target counter: the ability is not offered with none left", () => {
+    const { state, id } = withSpotter();
+    const r = reveal(patchInstance(state, id, { counters: { target: 0 } }), { accept: [REF] });
+    expect(r.taken()).toBe(0);
+    expect(inst(r.state, shocker(r.state)).engagedWith).toBe(P2);
+  });
+});
+
+describe("51027 Energy / 51028 Genius / 51029 Strength: resources with no ability", () => {
+  it("one resource card pays 2: Sting Operation (cost 2) is played with Genius alone, and the pair of icons is its own, not a third", () => {
+    for (const code of [ENERGY, GENIUS, STRENGTH]) {
+      const base = bpHeroGame();
+      const res = moveToHand(base, P1, code);
+      const sting = moveToHand(res.state, P1, STING);
+      const host = identityOf(sting.state);
+      const out = scripted(sting.state, [play(P1, sting.ids[0]!, [res.ids[0]!], { attachToInstanceId: host })]);
+      expect(inst(out.state, sting.ids[0]!).attachedTo, code).toBe(host);
+      expect(discardOf(out.state), code).toContain(res.ids[0]!);
+      // Cost 3 is out of reach for a single resource card (2 icons).
+      const rifle = moveToHand(res.state, P1, RIFLE);
+      expect(refusal(rifle.state, play(P1, rifle.ids[0]!, [res.ids[0]!], { attachToInstanceId: host })), code).toBe(
+        true,
+      );
+    }
   });
 });
