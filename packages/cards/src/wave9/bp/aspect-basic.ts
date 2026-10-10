@@ -281,7 +281,7 @@ export const BP_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     }),
     putIntoPlay(chosen("found"), you),
     shuffleDeck(),
-    chooseCards("specials", cards(each(YOUR_BLACK_PANTHER_UPGRADES)), { min: 0, max: 4 }),
+    chooseCards("specials", cards(each(YOUR_BLACK_PANTHER_UPGRADES)), { min: 1, max: 4 }),
     resolveSpecialsOf(chosen("specials"), you),
   ),
 

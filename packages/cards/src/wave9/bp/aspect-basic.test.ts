@@ -1571,7 +1571,7 @@ describe("51025.heart-of-the-panther-action: Team-Up event; search for a Black P
     expect(types(r.events, "deckShuffled").length).toBeGreaterThan(0);
     expect(threat(r.state)).toBe(4);
   });
-  it("the choice of Specials is 'up to 4' (0 to 4 cards): with all four attached, four are offered; none chosen, nothing resolves", () => {
+  it("the choice of Specials is 'up to 4', at least one when one can resolve (wave 3 Q16): with all four attached, four are offered; Beads alone chosen, only Beads resolves", () => {
     const base = withTchalla();
     const all = [BEADS, CLAWS, BITES, SUIT].reduce(
       (acc, code) => {
@@ -1580,12 +1580,12 @@ describe("51025.heart-of-the-panther-action: Team-Up event; search for a Black P
       },
       { state: base, ids: [] as InstanceId[] },
     );
-    const r = cast(all.state, { target: [] });
-    // Nothing is left to search for, so the only prompt is the Specials': 0 to 4.
+    const r = cast(all.state, { target: [all.ids[0]!] });
+    // Nothing is left to search for, so the only prompt is the Specials': 1 to 4.
     expect(asked(r, "chooseCards")).toHaveLength(1);
     expect(asked(r, "chooseCards")[0]!.ids.sort()).toEqual([...all.ids].sort());
-    expect([r.mins["chooseCards"], r.maxes["chooseCards"]]).toEqual([0, 4]);
-    expect(threat(r.state)).toBe(5);
+    expect([r.mins["chooseCards"], r.maxes["chooseCards"]]).toEqual([1, 4]);
+    expect(threat(r.state)).toBe(4);
     expect(inst(r.state, villainOf(r.state)).damage).toBe(0);
   });
   it("Specials resolve on every chosen upgrade: with Panther Claws already attached, Beads (1 threat) and Claws (2 damage to an enemy) both resolve", () => {
