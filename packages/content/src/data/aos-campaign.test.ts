@@ -71,10 +71,10 @@ describe("AOS_BOARD_MEMBER_LOG (Q1 and Q11 live here)", () => {
     expect(AOS_CARDS.map((c) => c.id as string)).toEqual(expect.arrayContaining(["50181b", "50182b", "50183b"]));
   });
 
-  it("reads the secret counter key, and holds the owner's current choice (1B, 11B)", () => {
+  it("reads the secret counter key, and holds the owner's choice (1A, 11A; 2026-10-10)", () => {
     expect(AOS_BOARD_MEMBER_LOG.counter).toBe("secret");
-    expect(AOS_BOARD_MEMBER_LOG.recordFace).toBe(false);
-    expect(AOS_BOARD_MEMBER_LOG.secretsStayOnFlip).toBe(false);
+    expect(AOS_BOARD_MEMBER_LOG.recordFace).toBe(true);
+    expect(AOS_BOARD_MEMBER_LOG.secretsStayOnFlip).toBe(true);
   });
 
   it("is grounded in the rulebook's wording", () => {

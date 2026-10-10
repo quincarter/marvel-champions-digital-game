@@ -46,19 +46,20 @@ export const AOS_CAMPAIGN: Campaign = {
  * - `boardMemberIds`: the front faces 50181a Chief Medical Officer, 50182a Chief Surveillance Officer, 50183a Chief
  *   Tactical Officer (the log's three rows of "Remaining Secret Counters by Scenario", MC50 p. 24). The counter key is
  *   `secret` (`definedCounterTypes`).
- * - `recordFace` (Q11): with `true` (11A) the log records the face with the number (task 51's `cardStateOf` `withFace`)
+ * - `recordFace` (Q11): with `true` (11A, the owner's answer of 2026-10-10) the log records the face with the number (task 51's `cardStateOf` `withFace`)
  *   and a Board Member recorded as an attachment is flipped back to its attachment at the next Setup, "once a board
  *   member flips to its attachment side, it remains an attachment for the rest of the campaign" (MC50 p. 6). With
- *   `false` (11B, now) only the number is recorded and the Setup bullet is read as printed: "Place secret counters on
+ *   `false` (11B) only the number is recorded and the Setup bullet is read as printed: "Place secret counters on
  *   each Board Member environment equal to the number of secret counters recorded" (MC50 p. 11).
- * - `secretsStayOnFlip` (Q1): `true` (1A) the flipped attachment holds its secret counters; `false` (1B, now) the flip
+ * - `secretsStayOnFlip` (Q1): `true` (1A, the owner's answer of 2026-10-10) the flipped attachment holds its secret counters; `false` (1B) the flip
  *   discards them, so the number recorded for an attachment is 0.
  *
- * Switching to 1A / 11A changes these two booleans and nothing else in this package; the engine tasks read them.
+ * The owner chose 1A and 11A on 2026-10-10 (docs/phase7-wave9.md section 4.1): the scenario's campaign instructions win
+ * over the general flip rule. These two booleans carry that; the engine tasks read them.
  */
 export const AOS_BOARD_MEMBER_LOG = {
   boardMemberIds: [cardId("50181a"), cardId("50182a"), cardId("50183a")] as readonly CardId[],
   counter: "secret",
-  recordFace: false,
-  secretsStayOnFlip: false,
+  recordFace: true,
+  secretsStayOnFlip: true,
 } as const;
