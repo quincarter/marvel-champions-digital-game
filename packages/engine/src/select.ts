@@ -495,6 +495,33 @@ export function isAttachedMinion(state: GameState, id: InstanceId): boolean {
   return getInstance(state, id)?.attachedTo != null && categoriesOf(state, id).includes("minion");
 }
 
+/**
+ * A minion an environment holds (`EffectSpec attach` with `as: "heldMinion"`; docs/phase7-wave9.md §3.21): Thunderbolt
+ * Backup, `aos` 50131b, "(The minion attached here is in play and can be targeted by attacks and abilities.)". MC50
+ * p. 15: "The attached minion is considered to be in play, retains all tokens, status cards, and attachments on it, and
+ * can be targeted by attacks and player card abilities. The attached minion does not activate because it is not engaged
+ * with any player."
+ *
+ * It is an attached minion (`isAttachedMinion`) in everything that follows from being engaged with nobody: it never
+ * activates (`cannotActivate`), its guard and patrol stop no player (RRG 1.8 "Guard", p. 21, and "Patrol", p. 32, both
+ * read "while a minion … is engaged with a player"), and it is no player's "minion engaged with you". Unlike the minion
+ * of FAQ "Malice (#199)" (p. 64), whose "cannot be defeated again" is that entry's own, it is defeated at zero hit
+ * points or by an effect as any minion is (`cannotBeDefeatedAgain`): the scenario is won by defeating these minions.
+ * `engage` takes it off its host into the engaging player's play area with everything on it (`engageInPlayMinion`).
+ * RRG 1.8 "Attach To" (p. 8) still governs the host: when it leaves play "the attached card is discarded", not defeated.
+ */
+export function isHeldMinion(state: GameState, id: InstanceId): boolean {
+  return getInstance(state, id)?.heldMinion === true && isAttachedMinion(state, id);
+}
+
+/**
+ * RRG 1.8 FAQ "Malice (#199)" (p. 64): a minion its own text attached to a card "cannot be defeated again, even if she
+ * gains hit points or heals damage". A minion an environment holds is not that minion (`isHeldMinion`).
+ */
+export function cannotBeDefeatedAgain(state: GameState, id: InstanceId): boolean {
+  return isAttachedMinion(state, id) && !isHeldMinion(state, id);
+}
+
 /** The printed timing word of an ability's trigger, or null for one with none (a constant, When Revealed, …; §3.33). */
 export function timingWordOf(trigger: AbilityTriggerSpec): AbilityTimingWord | null {
   const form = (base: "action" | "interrupt" | "response" | "resource", f: Form | undefined): AbilityTimingWord =>

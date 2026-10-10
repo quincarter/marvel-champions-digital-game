@@ -3509,7 +3509,21 @@ export type EffectSpec =
    * "Attach 1 card from your hand facedown here" (Bruno Carrelli): `facedown` attaches it face down, and a facedown
    * card in play has no title, traits, keywords or abilities until it is turned faceup or leaves play.
    */
-  | { readonly kind: "attach"; readonly card: TargetRef; readonly to: TargetRef; readonly facedown?: boolean }
+  | {
+      readonly kind: "attach";
+      readonly card: TargetRef;
+      readonly to: TargetRef;
+      readonly facedown?: boolean;
+      /**
+       * `"heldMinion"`: "Reveal and attach the remaining set-aside Thunderbolt minion faceup here", "attach the
+       * Thunderbolt minion with the most damage here" (Justice, Like Lightning / Thunderbolt Backup, `aos` 50131a/b;
+       * docs/phase7-wave9.md §3.21; MC50 p. 15). The minion is held by the host (`isHeldMinion`): in play, engaged with
+       * no player, keeping its damage, counters, status cards and attachments, attacked and targeted by every player,
+       * never activating, defeated as any minion, and taken off the host by `engage`. A card that is not a minion is
+       * attached as without it. Not with `facedown`.
+       */
+      readonly as?: "heldMinion";
+    }
   /**
    * `defeated`: the card leaves play because it was defeated, so Victory X sends it (and any Victory X attachment on it)
    * to the victory display instead (`defeatFromPlay`; RRG 1.8 "Victory X", p. 46). Set by the engine's side-scheme
@@ -3563,6 +3577,21 @@ export type EffectSpec =
    * player's play area and `minionEngaged` is announced; a minion already engaged with that player is left alone.
    */
   | { readonly kind: "engage"; readonly minion: TargetRef; readonly player: PlayerRef }
+  /**
+   * "Each player engages each minion engaged with the player clockwise from them" (The Coming Storm, Rumbling Thunder,
+   * Parcours du Combattant, `aos` 50135, 50136, 50164; docs/phase7-wave9.md §3.24): every engaged minion changes
+   * players at once (`rotateEngagement`, `resolve/enter-play.ts`). `from: "nextPlayer"`: each player takes the minions
+   * of the next player in player order, so a minion moves to the player before the one it was engaged with. A loop of
+   * `engage` over the players cannot say this: it would hand the first player's new minions on to the last.
+   *
+   * RRG 1.8 "Engage" (p. 18): "If a card ability instructs a player to engage a minion, that minion is also considered
+   * to have engaged that player", so each minion that moved engaged its new player: its `minionEngaged` interrupts and
+   * responses resolve ("When Batroc engages you", 50161; "When a minion engages a player", Coup de Foudre 50162) and
+   * quickstrike attacks a hero-form player (p. 36), one minion at a time, the first player's new minions first, then
+   * each next player's in player order. No minion enters play. A minion engaged with nobody (one an environment holds,
+   * §3.21) does not move; with one player nothing does, and nothing is logged or announced.
+   */
+  | { readonly kind: "rotateEngagement"; readonly from: "nextPlayer" }
   /**
    * "Put the others back in any order" (Heimdall). RRG 1.8 "Deck" (p. 15): a deck's order changes only when a card
    * instructs it. `chooser` orders the cards and they go back on top of the encounter deck in that order, the first

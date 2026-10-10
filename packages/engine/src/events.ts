@@ -1115,6 +1115,27 @@ export type GameEvent =
       readonly engaged: boolean;
     }
   /**
+   * Every engaged minion changed players at once (`EffectSpec rotateEngagement`, docs/phase7-wave9.md §3.24), logged
+   * once after the `cardMoved` of each: `moves` in the order the engagements then resolve (the first player's new
+   * minions first, then each next player's in player order). Not logged when nothing moved.
+   */
+  | {
+      readonly type: "engagementRotated";
+      readonly moves: readonly { readonly instanceId: InstanceId; readonly from: PlayerId; readonly to: PlayerId }[];
+    }
+  /**
+   * A minion is now held by an environment (`EffectSpec attach` with `as: "heldMinion"`; `isHeldMinion`,
+   * docs/phase7-wave9.md §3.21; MC50 p. 15), logged after the `cardMoved` that put it on `hostInstanceId`.
+   * `engagedBefore`: the player it was engaged with, null for one that entered play by it or was engaged with nobody.
+   * Its release has no event of its own: the `cardMoved` off the host is the whole of it.
+   */
+  | {
+      readonly type: "minionHeld";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly engagedBefore: PlayerId | null;
+    }
+  /**
    * A swap that could not be completed (RRG 1.8 "'Swap'", p. 42): `missingCard` (a ref named no card, or both the same
    * one), `bothInPlay` (no card swaps two cards in play; not built), `cannotLeavePlay` (the in-play card is permanent and
    * this ability is not of its set, or cannot leave play), `unsupported` (an identity or villain: `swapIdentity`,

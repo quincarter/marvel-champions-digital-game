@@ -96,7 +96,7 @@ import {
   DEFENDER_SLOT,
   type EffectContext,
   evaluate,
-  isAttachedMinion,
+  cannotBeDefeatedAgain,
   matchesQuery,
   resolvePlayers,
   isPlayerCard as isAPlayersCard,
@@ -205,12 +205,13 @@ import {
 import {
   checkRestrictedAfterFlip,
   enterPlay,
-  engagementFrame,
+  engagedInPlayFrames,
   engagementHeardAfter,
   engagementOf,
   playerSideSchemeEntersPlay,
   engageInPlayMinion,
   quickstrikeAttack,
+  rotateEngagement,
   teamworkFrame,
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
@@ -1479,7 +1480,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         targets(effect.target)
           .filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"))
           // "Cannot be defeated again" (FAQ "Malice (#199)", RRG 1.8 p. 64): no defeat, so no window for one either.
-          .filter((id) => !isAttachedMinion(ctx.state, id))
+          .filter((id) => !cannotBeDefeatedAgain(ctx.state, id))
           // Nor for a card already defeated, in play only until its When Defeated abilities resolve (`alreadyDefeated`).
           .filter((id) => !alreadyDefeated(ctx.state, id))
           .map((id) => ({
@@ -1559,7 +1560,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "After you attach …" (`TriggerEvent cardAttached`): each card that landed, once the effect has attached them all.
       // A card attached from out of play enters play by it: that announcement is always made (`attachCardBy`).
       const attached = targets(effect.card)
-        .flatMap((id) => attachCardBy(ctx, id, host, context.controllerId ?? null, effect.facedown === true))
+        .flatMap((id) =>
+          attachCardBy(
+            ctx,
+            id,
+            host,
+            context.controllerId ?? null,
+            effect.facedown === true,
+            effect.as === "heldMinion",
+          ),
+        )
         .filter((event) => announcesAttaching(event, (e) => heard(ctx.state, ctx.deps, e)));
       if (attached.length > 0) pushEvents(ctx, attached);
       return;
@@ -1569,14 +1579,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // and a minion already engaged with that player cannot engage them again.
       const [playerId] = resolvePlayers(ctx.state, effect.player, context);
       if (!playerId) return;
-      // Each engagement's interrupts, then its responses (`engagementFrame`); the first minion's resolve first.
+      // Each engagement's interrupts, then its responses, then its quickstrike attack (`engagedInPlayFrames`); the
+      // first minion's resolve first. A minion an environment holds comes off its host (docs/phase7-wave9.md §3.21).
       const engaged: StackFrame[] = [];
       for (const id of targets(effect.minion)) {
         if (!engageInPlayMinion(ctx, id, playerId)) continue;
-        const frame = engagementFrame(ctx, id);
-        if (frame) engaged.push(frame);
+        engaged.push(...engagedInPlayFrames(ctx, id));
       }
       pushFrames(ctx, engaged);
+      return;
+    }
+    case "rotateEngagement": {
+      // docs/phase7-wave9.md §3.24: the minions move at once, then each one's engagement resolves in turn.
+      pushFrames(
+        ctx,
+        rotateEngagement(ctx).flatMap((id) => engagedInPlayFrames(ctx, id)),
+      );
       return;
     }
     case "setRemainingHitPoints": {

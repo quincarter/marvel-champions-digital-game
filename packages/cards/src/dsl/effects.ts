@@ -2695,15 +2695,40 @@ export const countBoostIcons = (cards: TargetRef, bind: string): EffectSpec => (
   bind,
 });
 
-/** "Attach 1 card from your hand facedown here" (`facedown` for a facedown attach). */
-export const attachCard = (card: TargetRef, to: TargetRef, opts: { readonly facedown?: boolean } = {}): EffectSpec => ({
+/**
+ * "Attach 1 card from your hand facedown here" (`facedown` for a facedown attach). `as: "heldMinion"`: the host holds
+ * the minion (`holdMinion`).
+ */
+export const attachCard = (
+  card: TargetRef,
+  to: TargetRef,
+  opts: { readonly facedown?: boolean; readonly as?: "heldMinion" } = {},
+): EffectSpec => ({
   kind: "attach",
   card,
   to,
   ...(opts.facedown ? { facedown: true } : {}),
+  ...(opts.as ? { as: opts.as } : {}),
 });
+/**
+ * "Reveal and attach the remaining set-aside Thunderbolt minion faceup here", "attach the Thunderbolt minion with the
+ * most damage here" (Justice, Like Lightning / Thunderbolt Backup, `aos` 50131a/b; docs/phase7-wave9.md §3.21; MC50
+ * p. 15): `host` (this card by default) holds `minion`, which is in play, engaged with no player, keeps everything on
+ * it, can be attacked and targeted by every player, does not activate, and is defeated as any minion. `engage` takes it
+ * off the host. "Swapping it with the minion already attached here" is `engage` of the held minion to the player the
+ * other was engaged with, then this.
+ */
+export const holdMinion = (minion: TargetRef, host: TargetRef = self): EffectSpec =>
+  attachCard(minion, host, { as: "heldMinion" });
 /** "Engage that enemy" (RRG 1.8 "Engage"). */
 export const engage = (minion: TargetRef, player: PlayerRef = you): EffectSpec => ({ kind: "engage", minion, player });
+/**
+ * "Each player engages each minion engaged with the player clockwise from them" (The Coming Storm, Rumbling Thunder,
+ * Parcours du Combattant, `aos` 50135, 50136, 50164; docs/phase7-wave9.md §3.24): every engaged minion moves at once to
+ * the player before its own in player order, and each has engaged its new player (RRG 1.8 "Engage", p. 18). A minion
+ * engaged with nobody stays; with one player nothing happens.
+ */
+export const rotateEngagement = (): EffectSpec => ({ kind: "rotateEngagement", from: "nextPlayer" });
 /** "Put the others back in any order" (RRG 1.8 "Deck"). */
 export const reorderCards = (from: CardSelector, chooser: PlayerRef = you): EffectSpec => ({
   kind: "reorderCards",

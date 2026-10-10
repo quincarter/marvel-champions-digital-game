@@ -1010,6 +1010,9 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
       !(Number.isInteger(effect.count) && effect.count >= 1)
     )
       problems.push(`${where}: count must be a whole number of at least 1`);
+    // A held minion is in play (docs/phase7-wave9.md §3.21); a facedown attachment is out of play (RRG 1.8 p. 23).
+    if (effect.kind === "attach" && effect.as === "heldMinion" && effect.facedown === true)
+      problems.push(`${where}: a held minion is attached faceup (as: "heldMinion" with facedown)`);
     // One trait, or the traits of a character (docs/phase7-wave6.md §3.50), never both or neither.
     if (effect.kind === "grantTraitUntil" && (effect.trait === undefined) === (effect.traitsOf === undefined))
       problems.push(`${where}: needs exactly one of trait and traitsOf`);

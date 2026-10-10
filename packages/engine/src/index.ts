@@ -448,6 +448,7 @@ export {
   hitPointFloor,
   ignoredAbilities,
   explainQuery,
+  isHeldMinion,
   matchesQuery,
   resolveValue,
   selectTargets,

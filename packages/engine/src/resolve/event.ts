@@ -68,10 +68,10 @@ import {
 import {
   actingCharacterOf,
   canAttack,
+  cannotBeDefeatedAgain,
   cardsInPlay,
   characterIgnores,
   controllerOf,
-  isAttachedMinion,
   isProtectedMainScheme,
   sourcePlayerOf,
   thwartAmount,
@@ -782,7 +782,8 @@ function beginOneDefeat(
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
   // A minion attached to a card "cannot be defeated again, even if she gains hit points or heals damage" (RRG 1.8 FAQ
   // "Malice (#199)", p. 64; `isAttachedMinion`): not at zero hit points, and not by an effect that says "defeat".
-  if (isAttachedMinion(ctx.state, id)) return false;
+  // A minion an environment holds is defeated as any minion (`isHeldMinion`, docs/phase7-wave9.md §3.21).
+  if (cannotBeDefeatedAgain(ctx.state, id)) return false;
   // Defeated already and still in play for its When Defeated abilities (RRG 1.8 p. 48): one defeat, not a second.
   if (alreadyDefeated(ctx.state, id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);

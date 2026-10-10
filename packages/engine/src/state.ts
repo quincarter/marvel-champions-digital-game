@@ -215,6 +215,13 @@ export interface CardInstance {
   readonly treatedAs?: TreatedAs | null;
   readonly engagedWith: PlayerId | null;
   /**
+   * A minion an environment holds (`EffectSpec attach` with `as: "heldMinion"`; `isHeldMinion`, docs/phase7-wave9.md
+   * §3.21): attached to that card, in play, engaged with no player, and still a minion that is defeated as any other.
+   * Set by `attachCard` and removed by every move off that host (`relocateCard`), so it is only ever present beside a
+   * non-null `attachedTo`; absent on every other instance, so their serialized state is unchanged.
+   */
+  readonly heldMinion?: true;
+  /**
    * A double-sided encounter card showing its other face (`EncounterCardCommon.flipSide`; RRG 1.8 "Flip", p. 20).
    * A villain's face is `VillainState.side` instead. Always false out of play.
    */

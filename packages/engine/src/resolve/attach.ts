@@ -48,9 +48,20 @@ export function canAttachTo(state: GameState, deps: EngineDeps, id: InstanceId, 
  * came from ("search the top 5 cards of your deck for an [Arrow] event and attach it faceup to this card", Hawkeye's
  * Quiver; docs/phase7-wave2.md §3.10).
  */
-export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown = false): boolean {
+export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown = false, held = false): boolean {
   if (!canAttachTo(ctx.state, ctx.deps, id, host)) return false;
-  if (mustInstance(ctx.state, id).attachedTo === host) return true;
+  // `held`: the host holds a minion (`isHeldMinion`, docs/phase7-wave9.md §3.21). Marked after the move, which removes
+  // the mark of any earlier host (`relocateCard`); a card that is no minion, or facedown, is attached without it.
+  const hold = (engagedBefore: PlayerId | null): void => {
+    if (!held || facedown || cardOf(ctx.state, id)?.type !== "minion") return;
+    if (mustInstance(ctx.state, id).heldMinion) return;
+    updateInstance(ctx, id, (i) => ({ ...i, heldMinion: true }));
+    emit(ctx, { type: "minionHeld", instanceId: id, hostInstanceId: host, engagedBefore });
+  };
+  if (mustInstance(ctx.state, id).attachedTo === host) {
+    hold(null);
+    return true;
+  }
   const wasInPlay = cardsInPlay(ctx.state).includes(id);
   // An upgrade whose control came from its old host (p. 31) goes back to its owner when it moves off that host (same
   // page: a change of control lasts until "the ability that changed control of that card ceases to be in effect").
@@ -74,6 +85,7 @@ export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown 
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true, facedownAs: null }));
   else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
   settleUpgradeControl(ctx, id, heldByHost ? ownerId : mustInstance(ctx.state, id).controllerId);
+  hold(before.engagedWith);
   return true;
 }
 
@@ -102,10 +114,11 @@ export function attachCardBy(
   host: InstanceId,
   playerId: PlayerId | null,
   facedown = false,
+  held = false,
 ): readonly TriggerEvent[] {
   const was = getInstance(ctx.state, id)?.attachedTo ?? null;
   const wasInPlay = cardsInPlay(ctx.state).includes(id);
-  if (!attachCard(ctx, id, host, facedown) || was === host) return [];
+  if (!attachCard(ctx, id, host, facedown, held) || was === host) return [];
   const attached: TriggerEvent = { kind: "cardAttached", instanceId: id, hostInstanceId: host, playerId };
   if (wasInPlay || !cardsInPlay(ctx.state).includes(id) || revealAnnouncesEntry(ctx.state, id)) return [attached];
   return [{ kind: "cardEntersPlay", instanceId: id, playerId: controllerOf(ctx.state, id) ?? playerId }, attached];
