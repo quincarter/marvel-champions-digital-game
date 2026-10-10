@@ -425,6 +425,13 @@ export interface ScenarioCuration {
    * and Worlds Collide 55028a). Resolved to card ids. Absent = none.
    */
   readonly neutralCardCodes?: { readonly villainCardCode: string; readonly mainSchemeCardCode: string };
+  /** `Scenario.referenceCards` (wave 9, docs/phase7-wave9.md section 1.15 item 9), copied through. Absent = none. */
+  readonly referenceCards?: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly text: string;
+    readonly image: string;
+  }[];
   /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki; wave 7 §1.21 — On the Run). */
   readonly startingVillain?: "random" | "bySetup";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */

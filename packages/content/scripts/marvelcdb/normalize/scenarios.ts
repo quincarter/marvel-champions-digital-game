@@ -206,6 +206,9 @@ export function normalizeScenarios(
       ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
       ...(setAsideCardIds.length > 0 ? { setAsideCardIds } : {}),
       ...(neutralCards ? { neutralCards } : {}),
+      ...(s.referenceCards
+        ? { referenceCards: s.referenceCards.map((r) => ({ ...r, image: brand("image", r.image) })) }
+        : {}),
       ...(expertVillains ? { expertVillains } : {}),
       ...(s.victory ? { victory: s.victory } : {}),
       ...(s.separateGameAreas ? { separateGameAreas: s.separateGameAreas } : {}),

@@ -201,6 +201,23 @@ export const TT_CURATION: PackCuration = {
       // One villain card with two faces, no escalation by mode.
       villainStages: { standard: [1, 1], expert: [1, 1] },
       modularSetCount: 1,
+      // The two unnumbered rules cards in the box (no MarvelCDB record), for the client's Inspect. Text transcribed from
+      // the owner's photos (docs/phase7-wave9-handoff.md, "Trickster Takeover reference cards"); the scans are tracked
+      // in docs/campaign-modes/mc55-reference-cards/ and the image is a repo-relative path to them.
+      referenceCards: [
+        {
+          id: "shatter-the-illusion",
+          title: "Shatter the Illusion",
+          text: "When a Fading Figment is revealed, follow these steps to shatter Loki's illusion: 1. Remove each shatter counter from Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside villain, AVATAR OF LOKI side faceup, then set the hit point dial of that AVATAR OF LOKI villain to its printed hit point value. 3. Deal each player 1 facedown encounter card.",
+          image: "docs/campaign-modes/mc55-reference-cards/shatter-the-illusion.png",
+        },
+        {
+          id: "epic-multiplayer-reminder",
+          title: "Epic Multiplayer Reminder",
+          text: "Group Pods: A pod is a collection of groups. It is recommended that each pod not exceed 12 to 16 players, or roughly 3 to 4 groups within the same pod. Per Group Icon: If on a card in a group's game area, the [per group] icon next to a value multiplies that value by the number of groups that began the scenario in that pod. Playing in Separate Game Areas: Each player group is in its own game area. Unless explicitly stated, players, cards, and components in one game area cannot affect another game area. Cross-Group Communication: Cross-group communication is allowed and highly encouraged!",
+          image: "docs/campaign-modes/mc55-reference-cards/epic-multiplayer-reminder.png",
+        },
+      ],
       // Loki, God of Lies 55027b: "If Loki, God of Lies is defeated, all players in all groups win the game." The
       // Avatars never win by themselves (Forced Interrupt: when defeated, place 5 shatter counters and flip).
       victory: "cardAbility",

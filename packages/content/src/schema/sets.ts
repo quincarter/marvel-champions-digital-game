@@ -1,6 +1,15 @@
 import type { Aspect, CoreAspect } from "./aspects.js";
 import type { Trait } from "./common.js";
-import type { CampaignId, CardId, CycleId, EncounterSetId, ScenarioId, SetCode, StarterDeckId } from "./ids.js";
+import type {
+  CampaignId,
+  CardId,
+  CycleId,
+  EncounterSetId,
+  ImageRef,
+  ScenarioId,
+  SetCode,
+  StarterDeckId,
+} from "./ids.js";
 
 /** A cycle groups packs the way FFG/Hall of Heroes group product releases (e.g. "Core", "The Rise of Red Skull"). */
 export interface Cycle {
@@ -485,6 +494,23 @@ export interface Scenario {
    * yet. docs/phase7-wave9.md §1.15.
    */
   readonly neutralCards?: { readonly villainCardId: CardId; readonly mainSchemeCardId: CardId };
+  /**
+   * Printed rules or reference cards that ship with the scenario but have no card record (Trickster Takeover's Shatter
+   * the Illusion and Epic Multiplayer Reminder, MC55; docs/phase7-wave9.md section 1.15 item 9). For the client's
+   * Inspect; no engine rule reads them (the Shatter the Illusion steps are scripted inside each Fading Figment's When
+   * Revealed). `text` is the printed text; `image` is a repo-relative path to the owner's scan, not a MarvelCDB path.
+   */
+  readonly referenceCards?: readonly ScenarioReferenceCard[];
+}
+
+/** One `Scenario.referenceCards` entry: a printed rules card with no card record. */
+export interface ScenarioReferenceCard {
+  /** Kebab-case, unique within the scenario. */
+  readonly id: string;
+  readonly title: string;
+  /** The printed text, transcribed from the card. */
+  readonly text: string;
+  readonly image: ImageRef;
 }
 
 /**

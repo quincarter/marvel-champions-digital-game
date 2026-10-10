@@ -3,7 +3,7 @@
 // Hand corrections / curated data: packages/content/scripts/marvelcdb/curation/tt.ts
 // Regenerate: pnpm --filter @mc/content ingest -- --pack tt [--offline]
 
-import { cardId, encounterSetId, scenarioId, setCode } from "../../schema/index.js";
+import { cardId, encounterSetId, imageRef, scenarioId, setCode } from "../../schema/index.js";
 import type { Scenario } from "../../schema/index.js";
 
 /** enchantress: Prime Real Estate 1A (55004a) Contents: "Enchantress (I) and Enchantress (II). (Enchantress (II) and Enchantress (III) instead for expert mode.) Enchantress and Standard encounter sets. One modular set (Trickster Magic)." Setup: "Set the Future of Despair side scheme aside. Attach a random Hypnotic Gaze to each identity (players cannot look at the reverse sides). Set each remaining Hypnotic Gaze aside." Insert pp. 6 to 7 (scenario 1). The Trickster Magic modular set is the one required modular set; its four linked allies are set aside at setup for any scenario using it (insert p. 2). The Expert encounter set comes from RRG 1.8 "Modes of Play" (p. 28), not from the pack (see expertSetCodes).; god-of-lies: Worlds Collide A (55028a) Contents: "Loki, God of Lies (1). God of Lies and Standard encounter sets. One modular encounter set (Trickster Magic)." Setup: "Create a separate game area for each player group. Each group follows the instructions on Mischief and Mayhem (1A)." Insert p. 10 (Single Group Mode): "first resolve the Setup ability on the Worlds Collide (A) main scheme, then resolve the Setup ability on the Mischief and Mayhem (1A) main scheme"; Loki, his hit point dial and Worlds Collide sit in a separate game area and "can only be affected by cards that refer to them by name"; "In Single Group Mode, the only group in your pod is your own group". Mischief and Mayhem 1A Setup: "Put a random Avatar of Loki villain into play. Set each other Avatar of Loki villain and the Shatter the Illusion card aside. Put each Synergy environment into play. In standard mode, set the Intense Focus attachment aside. In expert mode, attach it to the Avatar of Loki villain in play." Insert pp. 18 to 21 (rules for both modes). Single-table play only: Epic Multiplayer Mode is not built. The Expert encounter set comes from RRG 1.8 "Modes of Play" (p. 28), not from the pack. */
@@ -35,6 +35,20 @@ export const TT_SCENARIOS: readonly Scenario[] = [
     modularSetCount: 1,
     setAsideVillainCardIds: [cardId("55030a"), cardId("55031a"), cardId("55032a")],
     neutralCards: { villainCardId: cardId("55027a"), mainSchemeCardId: cardId("55028a") },
+    referenceCards: [
+      {
+        id: "shatter-the-illusion",
+        title: "Shatter the Illusion",
+        text: "When a Fading Figment is revealed, follow these steps to shatter Loki's illusion: 1. Remove each shatter counter from Fading Figment, then deal damage to Loki, God of Lies equal to the number of shatter counters removed this way. 2. Swap the Fading Figment in play with a random set-aside villain, AVATAR OF LOKI side faceup, then set the hit point dial of that AVATAR OF LOKI villain to its printed hit point value. 3. Deal each player 1 facedown encounter card.",
+        image: imageRef("docs/campaign-modes/mc55-reference-cards/shatter-the-illusion.png"),
+      },
+      {
+        id: "epic-multiplayer-reminder",
+        title: "Epic Multiplayer Reminder",
+        text: "Group Pods: A pod is a collection of groups. It is recommended that each pod not exceed 12 to 16 players, or roughly 3 to 4 groups within the same pod. Per Group Icon: If on a card in a group's game area, the [per group] icon next to a value multiplies that value by the number of groups that began the scenario in that pod. Playing in Separate Game Areas: Each player group is in its own game area. Unless explicitly stated, players, cards, and components in one game area cannot affect another game area. Cross-Group Communication: Cross-group communication is allowed and highly encouraged!",
+        image: imageRef("docs/campaign-modes/mc55-reference-cards/epic-multiplayer-reminder.png"),
+      },
+    ],
     victory: "cardAbility",
     startingVillain: "bySetup",
   },

@@ -1394,6 +1394,7 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
   errors.push(...separateDeckListErrors(scenario.separateDecks, "scenario"));
   errors.push(...setAsideCardErrors(scenario));
   errors.push(...neutralCardErrors(scenario));
+  errors.push(...referenceCardErrors(scenario));
   return errors;
 }
 
@@ -1420,6 +1421,25 @@ function neutralCardErrors(scenario: Scenario): string[] {
   ]);
   for (const id of [villainCardId, mainSchemeCardId])
     if (taken.has(id)) errors.push(`scenario neutralCards lists ${id}, which the scenario already uses elsewhere`);
+  return errors;
+}
+
+/** `Scenario.referenceCards` (docs/phase7-wave9.md section 1.15 item 9): unique ids, and a title, text and image each. */
+function referenceCardErrors(scenario: Scenario): string[] {
+  const cards: unknown = scenario.referenceCards;
+  if (cards === undefined) return [];
+  if (!Array.isArray(cards) || cards.length === 0) return ["scenario referenceCards must be a non-empty array"];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  for (const [i, c] of (cards as unknown[]).entries()) {
+    const card = (typeof c === "object" && c !== null ? c : {}) as Record<string, unknown>;
+    for (const key of ["id", "title", "text", "image"])
+      if (!isNonEmptyString(card[key])) errors.push(`scenario referenceCards[${i}] needs a non-empty ${key}`);
+    if (isNonEmptyString(card.id)) {
+      if (seen.has(card.id)) errors.push(`scenario referenceCards repeats id ${card.id}`);
+      seen.add(card.id);
+    }
+  }
   return errors;
 }
 
