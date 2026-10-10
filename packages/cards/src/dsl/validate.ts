@@ -69,6 +69,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
   checkRandomPicks(definition, "definition", problems);
+  checkHiddenPiles(definition, problems);
   checkPlays(definition, problems);
   checkTuckReplacement(definition, problems);
   checkLeaveReplacement(definition, problems);
@@ -689,8 +690,33 @@ function checkRearranges(definition: AbilityDefinition, problems: string[]): voi
   }
 }
 
+/**
+ * Hidden piles (docs/phase7-wave9.md §3.29 (a)) are tied to the effects that read them by name alone, so a pile with
+ * no name is an authoring slip, as is a deal whose two piles are one pile (the card set apart from each group would be
+ * shuffled back in with the rest) or that names no encounter set. A constant gain of less than one card gains nothing.
+ */
+function checkHiddenPiles(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind === "dealHiddenPiles") {
+      if (effect.from === "") problems.push("dealHiddenPiles: names no encounter set to deal from");
+      if (effect.onePerGroupTo === "" || effect.restTo === "") problems.push("dealHiddenPiles: a pile has no name");
+      else if (effect.onePerGroupTo === effect.restTo)
+        problems.push("dealHiddenPiles: onePerGroupTo and restTo must be two different piles");
+    }
+    if (effect.kind === "gainFromHiddenPile" || effect.kind === "revealHiddenPile") {
+      if (effect.pile === "") problems.push(`${effect.kind}: the pile has no name`);
+    }
+    if (
+      effect.kind === "gainFromHiddenPile" &&
+      effect.count.kind === "const" &&
+      (!Number.isInteger(effect.count.value) || effect.count.value < 1)
+    )
+      problems.push("gainFromHiddenPile: a constant count must be a whole number of at least 1");
+  }
+}
+
 /** The card selectors that take `random`: that many of their cards, by the game's seeded RNG. */
-const RANDOM_SELECTORS: readonly string[] = ["zone", "encounter", "encounterSetAside", "tucked"];
+const RANDOM_SELECTORS: readonly string[] = ["zone", "encounter", "encounterSetAside", "victoryDisplay", "tucked"];
 
 /**
  * A selector's `random` is a number of cards to pick ("1 of those cards at random", docs/phase7-wave9.md §3.40): a
@@ -873,6 +899,11 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     // The one card a "find" found (docs/phase7-wave6.md §3.48).
     case "findCard":
       if (effect.bind) scope.slots.add(effect.bind);
+      return;
+    // How many cards came out of a hidden pile (docs/phase7-wave9.md §3.29 (a)); the cards are not instances.
+    case "gainFromHiddenPile":
+    case "revealHiddenPile":
+      if (effect.bind) scope.vars.add(`${effect.bind}.count`);
       return;
     // `draw` with a bind: the cards drawn and `<bind>.count` (docs/phase7-wave8.md §3.70).
     case "draw":

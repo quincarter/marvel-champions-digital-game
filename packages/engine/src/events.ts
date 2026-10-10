@@ -1625,6 +1625,37 @@ export type GameEvent =
       readonly citation: string;
     }
   /**
+   * Hidden piles were put together (`EffectSpec dealHiddenPiles`, docs/phase7-wave9.md §3.29 (a); MC50 p. 5,
+   * "Preparing the Evidence"). **Sizes only, never a card id:** the log is read by the players, and which card went
+   * to which pile is what they may not know. `from` is the encounter set the cards are of. `kept`: a pile of one of
+   * these names was already there (seeded from outside the game), so nothing was dealt and the sizes are the piles'
+   * as they stand. A replay of the command log deals the same piles, because the deal draws on `GameState.rng`.
+   */
+  | {
+      readonly type: "hiddenPilesDealt";
+      readonly from: string;
+      readonly piles: readonly { readonly pile: string; readonly size: number }[];
+      readonly kept: boolean;
+    }
+  /**
+   * Cards came out of a hidden pile faceup, by id (`EffectSpec gainFromHiddenPile`; MC50 p. 18: "When the players gain
+   * an evidence card, they turn it faceup"). They are in `GameState.revealedPileCards` and open to every player from
+   * here on, which is why this event may name them. `requested` is how many the effect asked for; `remaining` is the
+   * pile's size afterward. Logged with no card when the pile was empty.
+   */
+  | {
+      readonly type: "hiddenPileCardsGained";
+      readonly pile: string;
+      readonly cardIds: readonly CardId[];
+      readonly requested: number;
+      readonly remaining: number;
+    }
+  /**
+   * A whole hidden pile was turned faceup (`EffectSpec revealHiddenPile`; MC50 p. 19, "the players take the evidence
+   * cards from the A.I.M. envelope"): every card left in it, by id, now in `GameState.revealedPileCards`.
+   */
+  | { readonly type: "hiddenPileRevealed"; readonly pile: string; readonly cardIds: readonly CardId[] }
+  /**
    * A campaign-log field named cards, and which instances they turned out to be (the `campaignLog` `CardSelector`).
    *
    * **Only this read is traced.** `ValueSpec`/`Predicate` reads happen inside `resolveValue`/`evaluate`, which are

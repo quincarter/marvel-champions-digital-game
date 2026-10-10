@@ -740,6 +740,16 @@ export const scenarioAreaCount = (name: string, filter?: TargetQuery): ValueSpec
   ...(filter ? { filter } : {}),
 });
 /**
+ * How many cards a hidden pile holds (docs/phase7-wave9.md §3.29 (a)): the size of an envelope is open though its
+ * cards are not. "If the S.H.I.E.L.D. envelope is not empty" is `valueAtLeast(hiddenPileCount("shield"), 1)`.
+ */
+export const hiddenPileCount = (pile: string): ValueSpec => ({ kind: "hiddenPileCount", pile });
+/** How many cards have come out of the hidden pile `pile` faceup, or out of every pile when none is named. */
+export const revealedPileCardCount = (pile?: string): ValueSpec => ({
+  kind: "revealedPileCardCount",
+  ...(pile !== undefined ? { pile } : {}),
+});
+/**
  * The cards in the victory display, optionally filtered: "Play only if there is a side scheme in the victory display"
  * (Mission Planning, Critical Hit) is `playOnlyIf(valueAtLeast(victoryDisplayCount(query("sideScheme")), 1))`.
  * docs/phase7-wave3.md §3.42.

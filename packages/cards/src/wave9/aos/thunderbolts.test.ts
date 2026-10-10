@@ -44,6 +44,7 @@ import {
   heroAttacks,
   intoVictoryDisplay,
   piles,
+  revealedCodes,
   types,
 } from "../testing.js";
 import { GRAVITATIONAL_PULL } from "./gravitational-pull.js";
@@ -100,6 +101,7 @@ const SWORD = "50132";
 const BYSTANDERS = "50134";
 const COMING_STORM = "50135";
 const RUMBLING_THUNDER = "50136";
+const DOWN = "50137";
 const TAP_IN = "50138";
 /** Core treacheries with no boost icon and no Boost ability: the encounter deck's top cards that serve as boost cards. */
 const BLANKS = ["01186", "01186", "01187", "01187"];
@@ -122,6 +124,7 @@ const REGISTERED = [
   "50134.innocent-bystanders-forced-response",
   "50135.when-revealed",
   "50136.when-revealed",
+  "50137.when-revealed",
   "50138.when-revealed",
 ];
 
@@ -202,17 +205,16 @@ const attacksBy = (s: GameState, events: readonly GameEvent[], code: string) =>
   types(events, "attackResolved").filter((a) => codeOf(s, a.enemyInstanceId) === code);
 
 describe("registry", () => {
-  it("registers every ref of the module's cards but one, each a valid definition, and skips Down but Not Out", () => {
+  it("registers every ref of the module's cards, each a valid definition, and skips none", () => {
     expect(Object.keys(THUNDERBOLTS).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(THUNDERBOLTS)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(THUNDERBOLTS_SKIPPED)).toEqual(["50137.when-revealed"]);
-    expect(THUNDERBOLTS_SKIPPED["50137.when-revealed"]).toMatch(/random/);
+    expect(THUNDERBOLTS_SKIPPED).toEqual({});
   });
 
   it("the data names exactly the registered refs for the module's cards", () => {
     const ids = AOS_CARDS.filter((c) => /^5012[9]|^5013[0-8]/.test(c.id)).map((c) => c.id);
     const refs = ids.flatMap((id) => abilityRefIds(AOS_CARDS.find((c) => c.id === id)!));
-    expect([...new Set(refs)].sort()).toEqual([...REGISTERED, "50137.when-revealed"].sort());
+    expect([...new Set(refs)].sort()).toEqual([...REGISTERED].sort());
   });
 });
 
@@ -1014,6 +1016,115 @@ describe("The Coming Storm (50135) and Rumbling Thunder (50136): each player eng
     const thunder = dataOf(RUMBLING_THUNDER) as unknown as { startingThreat: unknown; icons: string[] };
     expect([storm.startingThreat, storm.icons]).toEqual([{ base: 0, perPlayer: 2 }, ["hazard"]]);
     expect([thunder.startingThreat, thunder.icons]).toEqual([{ base: 0, perPlayer: 3 }, ["acceleration"]]);
+  });
+});
+
+describe("Down but Not Out (50137)", () => {
+  /**
+   * Two players, each engaged with a Thunderbolt minion, one held (Moonstone, MACH-IV and Batroc: 16 hit points each).
+   * Player 1's minion has 12 damage, so the round's end (Thunderbolt Backup) holds that one and leaves a minion this
+   * card returned (11 damage) as it was.
+   */
+  function table(seed = 1) {
+    const base = game(2, "standard", seed);
+    const [m1, m2, held] = [minionOf(base, P1)!, minionOf(base, P2)!, heldOf(base)!];
+    return { state: withDamage(base, m1, 12), m1, m2, held };
+  }
+  /**
+   * Step two turns two boost cards (the two engaged minions, or one of them and Citizen V against a player engaged
+   * with none); step three deals `dealt` to player 1 and player 2 in that order; `more` are next (a surge's card).
+   */
+  const reveal = (s: GameState, dealt: readonly [string, string] = [DOWN, BYSTANDERS], ...more: string[]) =>
+    villainPhase(stackEncounterDeck(s, BLANKS[0]!, BLANKS[1]!, ...dealt, ...more));
+  const downOf = (s: GameState, events: readonly GameEvent[]): InstanceId =>
+    types(events, "encounterCardRevealed").find((e) => codeOf(s, e.instanceId) === DOWN)!.instanceId;
+  const surgesOf = (events: readonly GameEvent[], id: InstanceId) =>
+    types(events, "surgeTriggered").filter((e) => e.instanceId === id);
+  const remaining = (s: GameState, id: InstanceId) => remainingHitPoints(s, id, DEPS);
+
+  it("data: a treachery with 1 boost icon, two copies", () => {
+    const card = dataOf(DOWN);
+    expect([card.type, card.boostIcons, card.quantityInSet]).toEqual(["treachery", 1, 2]);
+  });
+
+  it("no Thunderbolt minion in the victory display: nothing enters play, the card gains surge and is discarded, not removed", () => {
+    const t = table();
+    // A card in the display that is not a Thunderbolt minion is never the one.
+    const staged = intoVictoryDisplay(t.state, "01187");
+    const other = staged.victoryDisplay[0]!;
+    const { state, events } = reveal(staged, [DOWN, BYSTANDERS], BYSTANDERS);
+    const down = downOf(state, events);
+    expect(state.victoryDisplay).toEqual([other]);
+    expect(thunderbolts(state).sort()).toEqual([t.m1, t.m2, t.held].sort());
+    expect(surgesOf(events, down)).toMatchObject([{ playerId: P1 }]);
+    // Player 1 reveals a second card for the surge: three cards revealed in all.
+    expect(revealedCodes(state, events).sort()).toEqual([BYSTANDERS, BYSTANDERS, DOWN].sort());
+    expect(state.removedFromGame).not.toContain(down);
+    expect(piles(state).discard).toContain(down);
+  });
+
+  it("one in the display: it is revealed and engages the revealing player, not held, with 11 damage (16 hit points, 5 remaining); the card is removed from the game, no surge", () => {
+    const t = table();
+    const staged = inVictory(t.state, t.held);
+    expect(hpOf(staged, t.held)).toBe(16);
+    const { state, events } = reveal(staged);
+    const down = downOf(state, events);
+    expect(state.victoryDisplay).toEqual([]);
+    expect(cardsInPlay(state)).toContain(t.held);
+    expect(engagedWith(state, t.held)).toBe(P1);
+    expect(inst(state, t.held).heldMinion).toBeUndefined();
+    expect(damageOf(state, t.held)).toBe(11);
+    expect(remaining(state, t.held)).toBe(5);
+    expect(toughOf(state, t.held)).toBe(0);
+    expect(revealedCodes(state, events)).toContain(codeOf(state, t.held));
+    expect(state.removedFromGame).toContain(down);
+    expect(piles(state).discard).not.toContain(down);
+    expect(surgesOf(events, down)).toEqual([]);
+    expect(revealedCodes(state, events).filter((code) => code === BYSTANDERS)).toHaveLength(1);
+  });
+
+  it("revealed by player 2: the minion engages player 2", () => {
+    const t = table();
+    const { state } = reveal(inVictory(t.state, t.held), [BYSTANDERS, DOWN]);
+    expect(engagedWith(state, t.held)).toBe(P2);
+    expect(remaining(state, t.held)).toBe(5);
+  });
+
+  it("several in the display: exactly one of them returns, the other stays; which one follows the seed", () => {
+    const returned = new Set<string>();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const t = table(seed);
+      const staged = inVictory(inVictory(t.state, t.held), t.m2);
+      const { state, events } = reveal(staged);
+      const back = [t.held, t.m2].filter((id) => cardsInPlay(state).includes(id));
+      expect(back).toHaveLength(1);
+      expect(state.victoryDisplay).toEqual([t.held, t.m2].filter((id) => id !== back[0]));
+      expect(engagedWith(state, back[0]!)).toBe(P1);
+      expect(remaining(state, back[0]!)).toBe(5);
+      expect(state.removedFromGame).toContain(downOf(state, events));
+      returned.add(back[0] === t.held ? "first" : "second");
+      // The same seed, the same minion.
+      const again = reveal(staged).state;
+      expect(cardsInPlay(again)).toContain(back[0]);
+    }
+    expect([...returned].sort()).toEqual(["first", "second"]);
+  });
+
+  it("Citizen V sees the count drop: at 0 hit points with one Thunderbolt minion in the display, the minion returns and the next one defeated is again only the first (two players)", () => {
+    const t = table();
+    let s = inVictory(t.state, t.held);
+    s = withDamage(s, villainOf(s), hpOf(s, villainOf(s)));
+    const { state } = reveal(s);
+    expect(state.victoryDisplay).toEqual([]);
+    expect(villainDefeated(state)).toBe(false);
+    expect(state.outcome).toBeNull();
+    // The returned minion has 5 hit points left; defeated, it is the only one in the display: one short of two.
+    expect(remaining(state, t.held)).toBe(5);
+    // The round ended: player 2 is the first player and it is their turn.
+    const struck = withDamage(state, t.held, hpOf(state, t.held) - 1);
+    const after = heroAttacks(DEPS, ready(struck), t.held, { player: P2 }).state;
+    expect(after.victoryDisplay).toEqual([t.held]);
+    expect(villainDefeated(after)).toBe(false);
   });
 });
 

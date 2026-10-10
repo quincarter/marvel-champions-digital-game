@@ -1116,6 +1116,27 @@ export interface GameState {
    */
   readonly scenarioPlayAreas?: Readonly<Record<string, ScenarioPlayAreaState>>;
   /**
+   * Piles of cards no player may look at, by name, each in the order it was put together (docs/phase7-wave9.md §3.29
+   * (a)): the A.I.M. and S.H.I.E.L.D. envelopes of MC50 p. 5, "Preparing the Evidence", whose cards go in "**without
+   * looking at them**". Card ids, not instances: a card in a pile is never in play, in a deck or in any zone (`ZoneId`
+   * has no arm for it), has no `CardInstance`, and so can be named by no ref, selector, choice or `cardMoved`. A
+   * pile's size is open; its contents are hidden from **every** player, whoever is asking, so nothing a player is
+   * shown may be built from this field: a client or a wire copy of the state reads `sealHiddenPiles` and
+   * `hiddenPileViews` (`visibility.ts`), the log carries sizes only (`GameEvent hiddenPilesDealt`), and `preview()`
+   * stops at an event that would name one of these cards. The engine itself reads it (it is the authority, and a save
+   * is this state). Written by `placeHiddenPiles` alone (`resolve/hidden-piles.ts`). **Absent** until a scenario
+   * prepares a pile, so every other game serializes as before.
+   */
+  readonly hiddenPiles?: Readonly<Record<string, readonly CardId[]>>;
+  /**
+   * The cards that have come out of a hidden pile faceup, by the pile each came out of, in the order they did
+   * (docs/phase7-wave9.md §3.29 (a)). MC50 p. 18: "When the players gain an evidence card, they turn it faceup", and
+   * the A.I.M. envelope's cards are taken out for the accusation (p. 19). Open information for every player from then
+   * on, and still not in play or in any zone. A card is in exactly one of `hiddenPiles` and this. **Absent** until a
+   * card is revealed.
+   */
+  readonly revealedPileCards?: Readonly<Record<string, readonly CardId[]>>;
+  /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without
    * consulting the campaign log at all, which is what lets the log keep evolving underneath saved games.

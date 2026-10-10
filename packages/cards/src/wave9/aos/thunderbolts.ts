@@ -38,6 +38,7 @@ import {
   ifThen,
   inMode,
   made,
+  max,
   moveCards,
   named,
   not,
@@ -46,9 +47,11 @@ import {
   on,
   option,
   perHero,
+  placeDamage,
   placeThreat,
   query,
   refMatches,
+  remainingHpOf,
   removeCountersFrom,
   repeatTimes,
   revealCard,
@@ -62,11 +65,16 @@ import {
   shuffleInSetAsideModularSet,
   spend,
   spendResources,
+  sum,
   superlative,
+  surge,
+  andThen,
   thatPlayer,
   theMainScheme,
   theVillain,
   valueAtLeast,
+  varAtLeast,
+  victoryDisplayCards,
   victoryDisplayCount,
   whenDefeated,
   whenRevealed,
@@ -108,8 +116,13 @@ import {
  * says `{ kind: "villain" }`; the tests run on the card with that one field corrected. Tap In (50138): the revealing
  * player breaks a tie for "the least damage" (the Backup's FAQ names the first player for 131B only).
  *
- * **Down but Not Out (50137) is not scripted:** it needs a random Thunderbolt minion from the victory display, and no
- * `CardSelector` can pick at random from the victory display (see `THUNDERBOLTS_SKIPPED`).
+ * **Down but Not Out (50137).** The random Thunderbolt minion is revealed by the player who revealed the treachery, so
+ * it enters play engaged with them like any revealed minion (RRG 1.8 "Reveal", p. 38, step 2), its When Revealed and
+ * quickstrike included; it is not held by the environment. It comes back with no damage and takes placed damage
+ * (not dealt: a tough status card stays) down to 5 remaining hit points, none if it has 5 or fewer. It leaves the
+ * victory display, so Citizen V's count drops with it. "Then, remove this card from the game" is a printed Then (RRG
+ * 1.8 "'Then'", p. 44): with no Thunderbolt minion in the display the reveal did not happen, the treachery is not
+ * removed, gains surge and is discarded as usual.
  *
  * Cards (10):
  * - 50129a Citizen V (villain)
@@ -245,6 +258,15 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
   "50135.when-revealed": rotate(),
   "50136.when-revealed": rotate(),
 
+  // Down but Not Out (see the module header). "This way": a minion was picked, and a picked minion is revealed.
+  "50137.when-revealed": whenRevealed(
+    selectCards("minion", victoryDisplayCards(THUNDERBOLT_MINIONS, { random: 1 })),
+    revealCard(chosen("minion"), you),
+    placeDamage(max(0, sum(remainingHpOf(chosen("minion")), -5)), chosen("minion")),
+    andThen(moveCards(cards(self), "removedFromGame")),
+    ifThen(not(varAtLeast("minion.count")), surge()),
+  ),
+
   // Tap In: the revealing player breaks a tie among the least damaged minions not engaged with them.
   "50138.when-revealed": whenRevealed(
     bindTargets(
@@ -262,10 +284,5 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
   ),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const THUNDERBOLTS_SKIPPED: Readonly<Record<string, string>> = {
-  "50137.when-revealed":
-    "no DSL way to pick a random card from the victory display: CardSelector `victoryDisplay` has no `random` option " +
-    "(only `encounter`, `encounterSetAside` and `tucked` do), and `find` never reaches the victory display " +
-    "(packages/engine/src/spec.ts, CardSelector; packages/cards/src/dsl/effects.ts, victoryDisplayCards)",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason: none. */
+export const THUNDERBOLTS_SKIPPED: Readonly<Record<string, string>> = {};

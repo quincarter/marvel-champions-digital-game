@@ -1290,10 +1290,13 @@ export const removedFromGameCards = (filter?: TargetQuery): CardSelector => ({
  * display into play" (Temporal Leap, 40013) is `chooseCards(slot, victoryDisplayCards(query("sideScheme")), …)`, and
  * "Search your deck, discard pile, hand, and victory display for X" (40031) is `anyOfCards(zone(["deck", "discard",
  * "hand"], you, { filter }), victoryDisplayCards(filter))` followed by `shuffleDeck()`, since the deck was searched.
+ * `opts.random`: that many of the matching cards, picked by the game's seeded RNG, fewer when fewer are there ("Choose a
+ * random Thunderbolt minion from the victory display", Down but Not Out, `aos` 50137).
  */
-export const victoryDisplayCards = (filter?: TargetQuery): CardSelector => ({
+export const victoryDisplayCards = (filter?: TargetQuery, opts: { readonly random?: Amount } = {}): CardSelector => ({
   kind: "victoryDisplay",
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /**
  * "Add [this card] and that side scheme to the victory display" (Forced Amnesia, 40010; docs/phase7-wave7.md §3.49):
@@ -1316,6 +1319,43 @@ export const scenarioArea = (name: string, filter?: TargetQuery): CardSelector =
   kind: "scenarioArea",
   name,
   ...(filter ? { filter } : {}),
+});
+/**
+ * "Prepare the evidence" (MC50 p. 18, by the three steps of p. 5; docs/phase7-wave9.md §3.29 (a)): the evidence cards
+ * of the encounter set `from` are separated by kind, each kind is shuffled and gives one card to the hidden pile
+ * `onePerGroupTo`, and the rest are shuffled together into the hidden pile `restTo`. No player sees a card, and the
+ * log records the two sizes only. Deals nothing when a pile of either name is already there (a campaign's envelopes).
+ */
+export const dealHiddenPiles = (
+  from: string,
+  piles: { readonly onePerGroupTo: string; readonly restTo: string },
+): EffectSpec => ({
+  kind: "dealHiddenPiles",
+  from,
+  groupBy: "evidenceKind",
+  onePerGroupTo: piles.onePerGroupTo,
+  restTo: piles.restTo,
+});
+/**
+ * "Gain N cards from the [pile] envelope" (Zemo's Manipulations 1B, `aos` 50167b; docs/phase7-wave9.md §3.29 (a)): that
+ * many cards of the hidden pile at random, or every card left when fewer are there, are turned faceup for every
+ * player (MC50 p. 18). `bind`: `<bind>.count` is how many were gained. An ability whose only effect is this cannot be
+ * used on an empty pile; where the gain follows something else, guard it with `hiddenPileCount(pile)`.
+ */
+export const gainFromHiddenPile = (pile: string, count: Amount = 1, bind?: string): EffectSpec => ({
+  kind: "gainFromHiddenPile",
+  pile,
+  count: amount(count),
+  ...(bind !== undefined ? { bind } : {}),
+});
+/**
+ * "Use the cards in the [pile] envelope" (MC50 p. 19; docs/phase7-wave9.md §3.29 (a)): every card left in the hidden
+ * pile is turned faceup for every player. `bind`: `<bind>.count` is how many cards that was.
+ */
+export const revealHiddenPile = (pile: string, bind?: string): EffectSpec => ({
+  kind: "revealHiddenPile",
+  pile,
+  ...(bind !== undefined ? { bind } : {}),
 });
 /** "Create '[name]' game area" (The Grand Collection 1A, docs/phase7-wave3.md §3.14). Empty; a no-op if it exists. */
 export const createScenarioArea = (name: string): EffectSpec => ({ kind: "createScenarioArea", name });

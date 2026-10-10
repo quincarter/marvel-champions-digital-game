@@ -176,6 +176,8 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   playedByPlayerThisPhase: "game",
   scenarioAreas: "game",
   scenarioPlayAreas: "game",
+  hiddenPiles: "game",
+  revealedPileCards: "game",
   campaign: "game",
   campaignWrites: "game",
   setupStack: "game",

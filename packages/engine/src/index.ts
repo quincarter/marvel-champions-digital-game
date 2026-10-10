@@ -416,6 +416,8 @@ export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
 export { displayNameOf, faceHidden, faceVisible, lookedAtBy, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+export { hiddenPileViews, sealHiddenPiles, type HiddenPileView, type SealedGameState } from "./visibility.js";
+export { placeHiddenPiles, revealedPileCardsOf } from "./resolve/hidden-piles.js";
 export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */

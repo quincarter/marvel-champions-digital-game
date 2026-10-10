@@ -51,6 +51,7 @@ import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } fro
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import { resolveTuck, tuckInsteadOfLeaving, tuckOrAnnounce } from "./tuck.js";
+import { dealHiddenPiles, gainFromHiddenPile, revealHiddenPile } from "./hidden-piles.js";
 import { giveStatusOrAnnounce } from "./status-being-given.js";
 import { listensForWouldDiscard, pickRandomFromHand, splitWouldDiscard } from "./would-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -1679,6 +1680,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "createScenarioPlayArea":
       createScenarioPlayArea(ctx, effect.name, effect.closed);
       return;
+    case "dealHiddenPiles":
+      dealHiddenPiles(ctx, effect);
+      return;
+    case "gainFromHiddenPile": {
+      // docs/phase7-wave9.md §3.29 (a): the gained cards are faceup for every player, so they may be counted.
+      const gained = gainFromHiddenPile(ctx, effect.pile, value(effect.count));
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: gained.length });
+      return;
+    }
+    case "revealHiddenPile": {
+      const revealed = revealHiddenPile(ctx, effect.pile);
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: revealed.length });
+      return;
+    }
     case "discardFromPlay": {
       const source = leaveSourceOf(ctx, frame);
       for (const id of targets(effect.target)) {

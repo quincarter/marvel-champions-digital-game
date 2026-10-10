@@ -2524,6 +2524,13 @@ export function resolveValue(
       return state.scenarioRules.victoryCondition ?? 0;
     case "setAsideModularSetCount":
       return (state.setAsideModularSets ?? []).length;
+    case "hiddenPileCount":
+      // A pile's size is open; its cards are not (docs/phase7-wave9.md §3.29 (a)).
+      return (state.hiddenPiles?.[value.pile] ?? []).length;
+    case "revealedPileCardCount":
+      return value.pile === undefined
+        ? Object.values(state.revealedPileCards ?? {}).reduce((sum, ids) => sum + ids.length, 0)
+        : (state.revealedPileCards?.[value.pile] ?? []).length;
     case "victoryDisplayCount": {
       // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
       const filter = value.filter;

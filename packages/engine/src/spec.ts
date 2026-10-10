@@ -1188,6 +1188,16 @@ export type ValueSpec =
    */
   | { readonly kind: "setAsideModularSetCount" }
   /**
+   * How many cards are in the hidden pile `pile` (`GameState.hiddenPiles`, docs/phase7-wave9.md §3.29 (a)): a pile's
+   * size is open information though its cards are not. 0 for a pile that is empty or was never prepared.
+   */
+  | { readonly kind: "hiddenPileCount"; readonly pile: string }
+  /**
+   * How many cards have come out of hidden piles faceup (`GameState.revealedPileCards`): out of `pile`, or out of every
+   * pile when none is named. docs/phase7-wave9.md §3.29 (a).
+   */
+  | { readonly kind: "revealedPileCardCount"; readonly pile?: string }
+  /**
    * A number recorded in the campaign log: "Place threat on the main scheme equal to the number of delay counters
    * recorded in the campaign log" (MC10 p. 15), "set each player's hit points to their remaining hit point value"
    * (MC10 p. 7, per seat).
@@ -3572,6 +3582,51 @@ export type EffectSpec =
    */
   | { readonly kind: "createScenarioArea"; readonly name: string }
   /**
+   * "Prepare the evidence" (docs/phase7-wave9.md §3.29 (a); MC50 p. 18, which sends a standalone game to p. 5,
+   * "Preparing the Evidence"): "1. Separate the nine evidence cards (185–193) by their card backs into three sets of
+   * three cards. 2. Shuffle each set of three cards separately and put one card from each set into the A.I.M. envelope
+   * **without looking at them**. 3. Shuffle the six remaining evidence cards together and put them in the S.H.I.E.L.D.
+   * envelope **without looking at them**."
+   *
+   * `from` is an encounter set id: the cards dealt are the evidence cards of that set in the game's card pool
+   * (`GameState.cardPool`; an evidence card is never in a deck, so the pool is the only place it is). `groupBy` is what
+   * separates them (`"evidenceKind"`: the three card backs, `EvidenceCard.evidence`). Each group is shuffled on its
+   * own with the game's seeded RNG and its first card goes to the pile `onePerGroupTo`; the cards left over from every
+   * group are shuffled together into the pile `restTo`. With the nine cards of MC50 that is a pile of 3 (one of each
+   * kind) and a pile of 6. Both piles are `GameState.hiddenPiles`: no instance is created and no player sees a card.
+   *
+   * Logged `hiddenPilesDealt` with the two sizes and no card id. A set with no evidence card in the pool makes two
+   * empty piles and the log says so (sizes 0). If a pile of either name already exists, nothing is dealt (`kept`):
+   * the piles were seeded from outside the game (a campaign's envelopes, MC50 p. 18: "simply place the A.I.M. and
+   * S.H.I.E.L.D. envelopes within reach"), and a Setup that runs in both modes does not deal over them.
+   */
+  | {
+      readonly kind: "dealHiddenPiles";
+      readonly from: string;
+      readonly groupBy: "evidenceKind";
+      readonly onePerGroupTo: string;
+      readonly restTo: string;
+    }
+  /**
+   * "Gain 2 cards from the S.H.I.E.L.D. envelope" (Zemo's Manipulations 1B, `aos` 50167b; docs/phase7-wave9.md §3.29
+   * (a)): `count` cards of the hidden pile `pile`, picked with the game's seeded RNG, or every card left when fewer
+   * are there, leave the pile and are open to every player from then on (`GameState.revealedPileCards`; MC50 p. 18:
+   * "When the players gain an evidence card, they turn it faceup"). The players gain them together: no player owns a
+   * gained card and it enters no zone. Logged `hiddenPileCardsGained` with the card ids.
+   *
+   * `bind`: `<bind>.count` is how many cards were gained (0 from an empty pile). An ability whose only effects are
+   * these, each on a pile with no card, cannot be initiated (`abilityTargetFault`), so its cost is not paid for
+   * nothing; inside a longer effect list an empty pile gains nothing and the rest resolves.
+   */
+  | { readonly kind: "gainFromHiddenPile"; readonly pile: string; readonly count: ValueSpec; readonly bind?: string }
+  /**
+   * "Use the cards in the A.I.M. envelope" (The Accusation 2B, `aos` 50168b; MC50 p. 19: "the players take the evidence
+   * cards from the A.I.M. envelope"): every card left in the hidden pile `pile` is turned faceup, in the pile's order,
+   * and is open to every player from then on (`GameState.revealedPileCards`). Logged `hiddenPileRevealed`.
+   * `bind`: `<bind>.count` is how many cards that was. docs/phase7-wave9.md §3.29 (a).
+   */
+  | { readonly kind: "revealHiddenPile"; readonly pile: string; readonly bind?: string }
+  /**
    * "[MISSION] side schemes begin the game in a separate game area called the 'mission area.'" (MC45 p. 5;
    * docs/phase7-wave8.md §3.33): an empty scenario area that is in play and under no player's control, named `name`
    * (`GameState.scenarioPlayAreas`, `ZoneId scenarioPlayArea`), logged `scenarioPlayAreaCreated`. `closed`: "Cards in
@@ -4607,9 +4662,12 @@ export type CardSelector =
    * "shared by all players", so there is no player to name, and its cards are faceup, in the order they arrived. Every
    * card there is named however it got there: by the Victory X keyword, as a main scheme stage (`EffectSpec
    * addMainSchemeStageToVictoryDisplay`) or by `CardDestination "victoryDisplay"`. Only card text naming this area
-   * reaches it: a "find" never does (RRG 1.8 "Find", p. 19).
+   * reaches it: a "find" never does (RRG 1.8 "Find", p. 19). `random`: that many of the matching cards at random, from
+   * the game's seeded RNG, as `encounterSetAside.random`; after `filter`, fewer when fewer are there and none of an
+   * empty display ("Choose a random Thunderbolt minion from the victory display and reveal it", Down but Not Out, `aos`
+   * 50137). A card that leaves the display this way is no longer counted there (`ValueSpec victoryDisplayCount`).
    */
-  | { readonly kind: "victoryDisplay"; readonly filter?: TargetQuery }
+  | { readonly kind: "victoryDisplay"; readonly filter?: TargetQuery; readonly random?: ValueSpec }
   /**
    * A scenario deck and/or its own discard pile (docs/phase7-wave2.md §3.3): "Reveal the top card of the Experimental
    * Weapons deck" → `{ name: "Experimental Weapons", top: 1 }`. `zones` defaults to the deck.

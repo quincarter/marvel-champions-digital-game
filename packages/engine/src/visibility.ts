@@ -49,11 +49,18 @@
  * one while one human holds every seat. A client that draws for one seat names that seat; one that draws the open
  * decision's own sheet names the decision's player or the table.
  *
+ * **Hidden piles are nobody's.** A card in `GameState.hiddenPiles` (docs/phase7-wave9.md §3.29 (a); MC50 p. 5: put in
+ * the envelope "**without looking at them**") is hidden from every player with no exception, and it is not an instance,
+ * so `faceVisible` is never asked about it. What a player may be shown of a pile is its size (`hiddenPileViews`); what
+ * a client holds or a server sends is the state with the piles' contents taken out (`sealHiddenPiles`). A card that
+ * has come out of a pile (`GameState.revealedPileCards`) is open to all.
+ *
  * A permission every player holds because of a rule on a card (the faceup top card of a deck) needs the rules read
  * but no viewer: a `TableContext` carries the deps alone. A caller that passes neither gets the answer of the zones
  * and the `faceup` flag only, in which that card is still closed.
  */
 
+import type { CardId } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import { activeEncounterDeck, cardOf, getInstance, getPlayer, locateCard } from "./query.js";
 import type { InstanceId, PlayerId } from "./ids.js";
@@ -213,6 +220,50 @@ export const faceHidden = (state: GameState, id: InstanceId): boolean => {
   const zone = locateCard(state, id);
   return zone !== null && !isDeckZone(zone) && !faceVisible(state, id);
 };
+
+/** What every player may know of one hidden pile: that it is there, and how many cards it holds. */
+export interface HiddenPileView {
+  readonly pile: string;
+  readonly size: number;
+}
+
+/**
+ * The hidden piles as a player sees them (docs/phase7-wave9.md §3.29 (a)): each pile's name and size, in the order the
+ * piles were prepared, and nothing of what is in them. The same for every viewer: no player may look into a pile (MC50
+ * p. 5, "without looking at them"), so there is no viewer to name. Empty in a game with no pile.
+ */
+export const hiddenPileViews = (state: GameState): readonly HiddenPileView[] =>
+  Object.entries(state.hiddenPiles ?? {}).map(([pile, cardIds]) => ({ pile, size: cardIds.length }));
+
+/**
+ * A game state with the contents of its hidden piles taken out: `hiddenPiles` is absent and `hiddenPileSizes` says how
+ * many cards each one holds. Everything else is the state as it is, `revealedPileCards` included.
+ */
+export type SealedGameState = Omit<GameState, "hiddenPiles"> & {
+  readonly hiddenPileSizes?: Readonly<Record<string, number>>;
+};
+
+/**
+ * The state a player's view is built from, or that is sent to a client: the same game with no hidden pile's card in
+ * it (docs/phase7-wave9.md §3.29 (a)). Not a state the engine can resume or replay from (the piles are gone): a save
+ * is the full `GameState`, held by whoever is the game's authority. Returns the state itself when it has no pile, so a
+ * game without one costs nothing.
+ *
+ * It closes the piles and nothing else. The cards of a deck or a hand are instances with a zone, and which of those a
+ * given seat may read is `faceVisible`'s question (see "Whose eyes").
+ */
+export function sealHiddenPiles(state: GameState): SealedGameState {
+  if (state.hiddenPiles === undefined) return state;
+  const { hiddenPiles, ...rest } = state;
+  return {
+    ...rest,
+    hiddenPileSizes: Object.fromEntries(Object.entries(hiddenPiles).map(([pile, cardIds]) => [pile, cardIds.length])),
+  };
+}
+
+/** Every card id that is in a hidden pile right now: what no event a player reads, and no preview, may name. */
+export const hiddenPileCardIds = (state: GameState): ReadonlySet<CardId> =>
+  new Set(Object.values(state.hiddenPiles ?? {}).flat());
 
 /** What a card in play facedown is called when it has no trait to be called by. */
 const FACEDOWN_MINION_NAME = "Facedown minion";
