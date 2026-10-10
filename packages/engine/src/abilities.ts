@@ -786,6 +786,37 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Each encounter card without a printed 'Preparation' ability gains 'Preparation: Prevent all damage from this
+   * attack. Then, discard Night Vision Goggles.'" (`aos` 50070); "… gains 'Preparation: Deal 1 damage to the attacking
+   * character.'" (Automated Defenses, 50074). docs/phase7-wave9.md §3.3. A constant on the granting card that names a
+   * second registry entry, `abilityId`: an ordinary `AbilityDefinition` whose trigger is the `label`'s kind
+   * (`AbilityTriggerSpec preparation`), listed on no card's own abilities.
+   *
+   * - **Who gains it** (`to: "encounterCardsWithoutPrinted"`): a card of an encounter card type (RRG 1.8 "Encounter
+   *   Card", p. 17; never a player card type, whatever deck it is discarded from) that prints no ability of that label
+   *   anywhere on it. "Printed" is the physical card (RRG 1.8 "Printed", p. 35), so a blank text box does not make a
+   *   card that prints one gain another, and a gained ability "is not considered to be printed" (RRG 1.8 "'Gains'",
+   *   p. 21): a card gains from every such rule in effect, two granting cards give two abilities. The granting card
+   *   and the other cards of its set that print none gain it like any other (a second copy that is the discarded card).
+   * - **Where it is read** (`grantedLabeledAbilities`, rules.ts): by `EffectSpec resolveSpecials` with that `trigger`,
+   *   for each card it names, wherever that card is (the encounter discard pile). The granted abilities join the
+   *   card's printed ones: same resolving player, same triggering event, ordered together by that player, counted in
+   *   `<bind>.count` and in the attack's `labeledResolvedVar(label)`. Nothing else reads it: like a printed
+   *   Preparation it is never a boost ability.
+   * - **Inside the granted ability** "this card" (`self`) is the card that gained it, the discarded one, and the card
+   *   the text names ("discard Night Vision Goggles") is the granting card, bound to the slot `GRANTED_BY_SLOT`. The
+   *   two differ: discarding the named card discards the granting card in play, not the card in the discard pile.
+   * - A constant like any other: off while its `while` is false, on a face that is not up, under a blank text box, and
+   *   once its card has left play (an ability already on the stack still resolves).
+   */
+  | {
+      readonly kind: "grantsLabeledAbility";
+      readonly label: GrantableAbilityLabel;
+      readonly to: "encounterCardsWithoutPrinted";
+      readonly abilityId: AbilityId;
+      readonly while?: Predicate;
+    }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the
@@ -2506,13 +2537,24 @@ export type ResolvableAbilityKind =
   | "forcedInterrupt"
   | "preparation";
 
+/** The ability labels a `RuleSpec grantsLabeledAbility` can give to other cards (docs/phase7-wave9.md §3.3). */
+export type GrantableAbilityLabel = Extract<ResolvableAbilityKind, "preparation">;
+
+/**
+ * The binding slot a granted ability's frame names its granting card in (`RuleSpec grantsLabeledAbility`;
+ * docs/phase7-wave9.md §3.3): the card in play whose constant gave the resolving card this ability, the card its text
+ * names ("Then, discard Night Vision Goggles"). Bound by `resolveSpecials` as the ability is put on the stack, so the
+ * ability still names that card if it leaves play first. Absent on a printed ability.
+ */
+export const GRANTED_BY_SLOT = "_grantedBy";
+
 /**
  * The result an attack records for the labeled abilities resolved during it (docs/phase7-wave9.md §3.2): how many
  * "Preparation" abilities a `resolveSpecials` resolved while that attack was the innermost one on the stack. Kept in
  * the attack's event frame `vars`, so it is in the event's `results` once its response window opens ("if no
  * 'Preparation' ability was resolved"). Absent when none resolved.
  */
-export const labeledResolvedVar = (label: "preparation"): string => `labeledResolved.${label}`;
+export const labeledResolvedVar = (label: GrantableAbilityLabel): string => `labeledResolved.${label}`;
 
 /**
  * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a

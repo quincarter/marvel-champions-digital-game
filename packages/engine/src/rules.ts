@@ -1,15 +1,17 @@
-import type {
-  AbilityCost,
-  AbilityRegistry,
-  AbilityTriggerSpec,
-  CardIcon,
-  ConsequentialDamageScope,
-  EngineDeps,
-  RuleSpec,
+import {
+  resolvableAs,
+  type AbilityCost,
+  type AbilityRegistry,
+  type AbilityTriggerSpec,
+  type CardIcon,
+  type ConsequentialDamageScope,
+  type EngineDeps,
+  type GrantableAbilityLabel,
+  type RuleSpec,
 } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { attackKeywordsOf, hasKeyword } from "./keywords.js";
-import type { AnyCard, CardId, SchemeIcon } from "@mc/content";
+import type { AbilityId, AnyCard, CardId, SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
@@ -17,6 +19,7 @@ import {
   encounterFace,
   getInstance,
   identityFace,
+  isPlayerCardType,
   mainSchemeFor,
   mainSchemeStageOf,
   mainSchemeStates,
@@ -40,6 +43,7 @@ import {
   isAttachedMinion,
   isPlayerCard,
   matchesQuery,
+  printedAbilityRefs,
   resolveRef,
   resolveValue,
   restrictedCardsOf,
@@ -1621,6 +1625,37 @@ export function grantedIcons(
     }
   }
   return total;
+}
+
+/** One ability a card gains from a rule in effect, and the card whose constant gives it (null: no card, a scenario rule). */
+export interface GrantedAbility {
+  readonly abilityId: AbilityId;
+  readonly grantedBy: InstanceId | null;
+}
+
+/**
+ * The abilities of one label a card gains from rules in effect (`RuleSpec grantsLabeledAbility`; docs/phase7-wave9.md
+ * §3.3): "Each encounter card without a printed 'Preparation' ability gains 'Preparation: …'". Read wherever the card
+ * is, since the card that gains a Preparation is in the encounter discard pile when it resolves. Empty for a card of a
+ * player card type (RRG 1.8 "Encounter Card", p. 17) and for a card that prints an ability of that label on any face,
+ * blank or not (RRG 1.8 "Printed", p. 35). One entry per rule in effect, in the order `activeRules` reads them, so two
+ * granting cards (or two copies of one) give two abilities. A rule naming an ability that is not of its label, or not
+ * in the registry, gives nothing.
+ */
+export function grantedLabeledAbilities(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  label: GrantableAbilityLabel,
+): readonly GrantedAbility[] {
+  const rules = activeRules(state, deps, "grantsLabeledAbility").filter(({ rule }) => rule.label === label);
+  if (rules.length === 0) return [];
+  const card = cardOf(state, id);
+  if (!card || isPlayerCardType(card)) return [];
+  if (printedAbilityRefs(card).some((ref) => resolvableAs(deps.abilities[ref.id], label))) return [];
+  return rules
+    .filter(({ rule }) => resolvableAs(deps.abilities[rule.abilityId], label))
+    .map(({ rule, context }) => ({ abilityId: rule.abilityId, grantedBy: context.selfInstanceId }));
 }
 
 /**

@@ -1,4 +1,5 @@
 import {
+  GRANTED_BY_SLOT,
   inPlayPicksOf,
   isResourcesChoice,
   MOMENT_PREFIX,
@@ -901,6 +902,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   // the engine binds as it is initiated.
   if ((trigger.kind === "response" || trigger.kind === "interrupt") && trigger.on?.together === true)
     scope.slots.add(TOGETHER_TARGETS_SLOT);
+  // A Preparation another card's rule gives (`RuleSpec grantsLabeledAbility`, docs/phase7-wave9.md §3.3) names its
+  // granting card from a slot the engine binds as it resolves (`grantingCard`).
+  if (trigger.kind === "preparation") scope.slots.add(GRANTED_BY_SLOT);
   // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
   if (definition.cost?.conditional) scope.vars.add("cost.condition");
   // A resource ability's effects resolve with the payment, the card paid for bound to `paidFor` (engine

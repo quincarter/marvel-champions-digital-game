@@ -1,7 +1,7 @@
 /** Resolving an ability frame, labeled-ability rules, and ability-limit bookkeeping. */
 
 import type { AbilityId } from "@mc/content";
-import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
+import { type AbilityDefinition, abilityUseKey, GRANTED_BY_SLOT } from "../abilities.js";
 import { COST_NOT_PAID_VAR } from "../cost-damage.js";
 import { type Ctx, emit, popFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -110,11 +110,13 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   if ((frame.vars[COST_NOT_PAID_VAR] ?? 0) > 0) return;
   if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId)) return;
   recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId);
+  const grantedBy = frame.bindings[GRANTED_BY_SLOT]?.[0];
   emit(ctx, {
     type: "abilityResolved",
     instanceId: frame.instanceId,
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
+    ...(grantedBy ? { grantedByInstanceId: grantedBy } : {}),
   });
   if (keyword) {
     emit(ctx, {

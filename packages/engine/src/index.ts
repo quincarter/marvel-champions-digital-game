@@ -211,6 +211,7 @@ export {
   excessDamageBonus,
   formChangeCostsFor,
   grantedIcons,
+  grantedLabeledAbilities,
   iconsBlankedOn,
   iconsInPlay,
   iconsOn,
@@ -224,7 +225,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost, GrantedAbility } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { pairOfOptionId, pairOptionId, pairSelectionFault, resourceIconsMatch } from "./resolve/pair-cards.js";
@@ -236,6 +237,7 @@ export {
   abilityUseKey,
   DEFAULT_DEPS,
   fixedResourcesOf,
+  GRANTED_BY_SLOT,
   inPlayPicksOf,
   labeledResolvedVar,
   isResourcesChoice,

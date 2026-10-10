@@ -34,6 +34,7 @@ import type {
   TriggerEventKind,
   TypedResource,
 } from "@mc/engine";
+import { GRANTED_BY_SLOT } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
 import { amount, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
@@ -809,6 +810,31 @@ export const schemeThreatOn = (
   opts: { readonly while?: Predicate } = {},
 ): ConstantPart =>
   rule({ kind: "schemeThreatDestination", enemy, scheme, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * "Each encounter card without a printed 'Preparation' ability gains 'Preparation: Deal 1 damage to the attacking
+ * character.'" (Automated Defenses, `aos` 50074; Night Vision Goggles 50070; docs/phase7-wave9.md §3.3) →
+ * `constant(grantsPreparation("50074.automated-defenses-granted-preparation"))` on the granting card, with the quoted
+ * text as a second registry entry under that id: `preparation(...)`, listed on no card's own abilities (a card that
+ * listed it would print a Preparation). While the rule is in effect, each encounter card that prints no Preparation
+ * resolves the granted one when the villain's `resolvePreparationsOf` names it: in the order the resolving player
+ * chooses when another card grants one too, and counted in `<bind>.count`. Inside the granted ability `self` is the
+ * discarded card and `grantingCard` is this card.
+ */
+export const grantsPreparation = (granted: string, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({
+    kind: "grantsLabeledAbility",
+    label: "preparation",
+    to: "encounterCardsWithoutPrinted",
+    abilityId: abilityId(granted),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * The card a granted ability's text names: "Then, discard Night Vision Goggles" inside the Preparation that Night
+ * Vision Goggles gives other cards (`aos` 50070; docs/phase7-wave9.md §3.3) → `discard(grantingCard)`. The card whose
+ * `grantsPreparation` rule gave the resolving card this ability (engine `GRANTED_BY_SLOT`), not `self`, which is the
+ * discarded card that gained it. No card outside a granted ability.
+ */
+export const grantingCard: TargetRef = { kind: "slot", slot: GRANTED_BY_SLOT };
 /**
  * "You take the first turn during the player phase" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md §3.27) →
  * `constant(takesFirstTurn(you))`. Read as the player phase begins (§4.1 Q16): that player's turn first, then the rest

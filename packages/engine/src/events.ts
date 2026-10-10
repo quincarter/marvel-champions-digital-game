@@ -1192,6 +1192,11 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly controllerId: PlayerId | null;
+      /**
+       * On an ability `instanceId` gained from another card's rule (`RuleSpec grantsLabeledAbility`;
+       * docs/phase7-wave9.md §3.3): the granting card, whose text the ability is. Absent on a card's own ability.
+       */
+      readonly grantedByInstanceId?: InstanceId;
     }
   | {
       readonly type: "abilityUseRecorded";

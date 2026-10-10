@@ -3,7 +3,7 @@
 import type { AbilityId } from "@mc/content";
 import { announceDeckTops } from "../deck-top.js";
 import { positionsOf, rearrangeable, rearrangeCards } from "./rearrange.js";
-import { type EngineDeps, labeledResolvedVar, resolvableAs } from "../abilities.js";
+import { type EngineDeps, GRANTED_BY_SLOT, labeledResolvedVar, resolvableAs } from "../abilities.js";
 import {
   cardsInPlayFromZone,
   hostChoicesForEffectPlay,
@@ -71,7 +71,13 @@ import {
   shuffleZone,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import { cannotChangeForm, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "../rules.js";
+import {
+  cannotChangeForm,
+  formChangeCostsFor,
+  grantedLabeledAbilities,
+  playDestinationsOf,
+  type FormChangeCost,
+} from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
@@ -2464,7 +2470,10 @@ function executeResolveSpecials(
   effect: Extract<EffectSpec, { kind: "resolveSpecials" }>,
   context: EffectContext,
 ): void {
-  const steps: TriggerCandidate[] = [];
+  // `grantedBy`: the step is an ability the card gains from a rule (`RuleSpec grantsLabeledAbility`), and this is the
+  // card whose constant gives it (null for a rule no card carries). Absent: one of the card's own abilities.
+  type Step = TriggerCandidate & { readonly grantedBy?: InstanceId | null };
+  const steps: Step[] = [];
   // Cards in play (`cards`), or cards a ref names wherever they are (`of`): an Invocation card resolves from its deck.
   const sources = effect.of
     ? resolveRef(ctx.state, effect.of, context).filter((id) => getInstance(ctx.state, id) !== undefined)
@@ -2501,17 +2510,45 @@ function executeResolveSpecials(
         fromHand: false,
       });
     }
+    // "Each encounter card without a printed 'Preparation' ability gains 'Preparation: …'" (`RuleSpec
+    // grantsLabeledAbility`, docs/phase7-wave9.md §3.3): the abilities this card gains join its own. The card has them
+    // (RRG 1.8 "'Gains'", p. 21), so each is its ability, resolved by the same player against the same event.
+    if (trigger !== "preparation") continue;
+    for (const granted of grantedLabeledAbilities(ctx.state, ctx.deps, id, trigger)) {
+      if (only && !only.has(granted.abilityId)) continue;
+      steps.push({
+        instanceId: id,
+        abilityId: granted.abilityId,
+        controllerId: controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId,
+        forced: true,
+        fromHand: false,
+        grantedBy: granted.grantedBy,
+      });
+    }
   }
-  const key = (c: TriggerCandidate) => `${c.instanceId}:${c.abilityId}`;
+  // Two copies of a granting card give one card the same ability twice: the granting card tells them apart.
+  const key = (c: Step) =>
+    c.grantedBy === undefined ? `${c.instanceId}:${c.abilityId}` : `${c.instanceId}:${c.abilityId}@${c.grantedBy}`;
+  // A granted ability is offered under its granting card, the card that prints its text.
+  const option = (c: Step): ChoiceOption => {
+    const printed = candidateOption(ctx.state)(c);
+    if (c.grantedBy === undefined) return printed;
+    if (c.grantedBy === null) return { ...printed, optionId: key(c) };
+    return {
+      optionId: key(c),
+      label: cardOf(ctx.state, c.grantedBy)?.name ?? c.grantedBy,
+      ref: { kind: "ability", instanceId: c.grantedBy, abilityId: c.abilityId },
+    };
+  };
   let ordered = steps;
   if (frame.answer !== null) {
     const byKey = new Map(steps.map((c) => [key(c), c]));
-    ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is TriggerCandidate => c !== undefined);
+    ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is Step => c !== undefined);
   } else if (steps.length > 1 && frame.controllerId) {
     requestChoice(ctx, {
       playerId: frame.controllerId,
       prompt: { kind: "orderSpecials" },
-      options: steps.map(candidateOption(ctx.state)),
+      options: steps.map(option),
       minSelections: steps.length,
       maxSelections: steps.length,
       frameId: frame.frameId,
@@ -2598,7 +2635,8 @@ function executeResolveSpecials(
           step,
           eventFor(step),
           null,
-          {},
+          // "Then, discard [the granting card]": the card a granted ability names (`GRANTED_BY_SLOT`).
+          step.grantedBy ? { [GRANTED_BY_SLOT]: [step.grantedBy] } : {},
           { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
         ),
         ...returnTo,
