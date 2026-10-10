@@ -22,7 +22,7 @@ import type { EngineDeps } from "./abilities.js";
 import { replay } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
-import { activeVillain, locateCard, mustInstance } from "./query.js";
+import { activeVillain, locateCard, mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
@@ -334,12 +334,16 @@ describe("§3.14 a double-sided attachment that flips and reveals its other face
 });
 
 describe("§3.14 the reveal keywords of a face revealed by a flip (as a villain's new face, wave 6 Q36)", () => {
-  it("surge: the revealing player reveals one more card, and the flipped card stays", () => {
+  // Q22: the surge's card is dealt facedown in the player phase and waits for step four.
+  it("surge: the revealing player is dealt one more card, facedown, and the flipped card stays", () => {
     const attached = revealed(start(), SURGING);
     const before = onTopOfEncounterDeck(attached.state, BLANK.id);
     const { state, events } = play(before, FLIP_REVEAL.card.id);
-    expect(reveals(events).map((r) => r.card)).toEqual(["surging", "blank"]);
+    expect(reveals(events).map((r) => r.card)).toEqual(["surging"]);
     expect(events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
+    expect(mustPlayer(state, P1).dealtEncounter.map((id) => mustInstance(state, id))).toMatchObject([
+      { cardId: BLANK.id, faceup: false },
+    ]);
     expect(locateCard(state, attached.id)?.kind).toBe("attachment");
   });
 

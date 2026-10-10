@@ -242,14 +242,12 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       return pickAtRandom(ctx, under, resolveValue(ctx.state, selector.random, context));
     }
     case "dealtEncounter":
-      // Facedown and not being revealed, as `passEncounterCards` reads a card that is still a dealt one. A surge's
-      // card whose reveal has not begun (`afterDeal`) is one.
+      // Facedown and not being revealed, as `passEncounterCards` reads a card that is still a dealt one.
       return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
         filtered(
           mustPlayer(state, playerId).dealtEncounter.filter(
             (id) =>
-              !mustInstance(state, id).faceup &&
-              !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id && !f.afterDeal),
+              !mustInstance(state, id).faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id),
           ),
           selector.filter,
         ),
@@ -813,8 +811,7 @@ export function dealAsEncounterCards(
  * `passEncounterCard` (docs/phase7-wave8.md §3.75): each card facedown among `from`'s dealt encounter cards goes to the
  * back of `to`'s, still facedown (RRG 1.8 "Deal, Deal an Encounter Card", p. 15: the queue a player reveals in the
  * order the cards came to them). A card whose reveal has begun is no longer a facedown card to pass (it is parked in
- * that zone while it resolves, `revealFrame`; a surge's card passed before its reveal begins, `afterDeal`, is no longer
- * in front of the surging player, so the surge does not reveal it). Out of play before and after, so nothing leaves or enters play.
+ * that zone while it resolves, `revealFrame`). Out of play before and after, so nothing leaves or enters play.
  * Returns the cards passed.
  */
 export function passEncounterCards(
@@ -828,7 +825,7 @@ export function passEncounterCards(
   for (const id of ids) {
     if (!mustPlayer(ctx.state, from).dealtEncounter.includes(id)) continue;
     if (mustInstance(ctx.state, id).faceup) continue;
-    if (ctx.state.stack.some((f) => f.kind === "reveal" && f.instanceId === id && !f.afterDeal)) continue;
+    if (ctx.state.stack.some((f) => f.kind === "reveal" && f.instanceId === id)) continue;
     moveCard(ctx, id, { kind: "dealtEncounter", playerId: to });
     emit(ctx, { type: "encounterCardPassed", instanceId: id, fromPlayerId: from, toPlayerId: to });
     passed.push(id);

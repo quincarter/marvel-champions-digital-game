@@ -567,7 +567,8 @@ describe("§3.1 tests 4 and 5: a side scheme found and revealed", () => {
     expect(typed(events, "deckShuffled")).toEqual([]);
   });
 
-  it("a side scheme with surge found in play at 1 threat: 1 threat still, and the finder reveals 1 more card", () => {
+  // Q22: the surge's card is dealt to the finder facedown and is not revealed at once.
+  it("a side scheme with surge found in play at 1 threat: 1 threat still, and the finder is dealt 1 more card", () => {
     const start = game();
     const alarm = the(start, ALARM);
     const at = schemeInPlay(start, alarm, 1);
@@ -576,10 +577,11 @@ describe("§3.1 tests 4 and 5: a side scheme found and revealed", () => {
     expect(state.villainArea).toContain(alarm);
     expect(typed(events, "surgeTriggered")).toEqual([{ type: "surgeTriggered", instanceId: alarm, playerId: p1 }]);
     const reveals = typed(events, "encounterCardRevealed");
-    expect(reveals).toHaveLength(2);
+    expect(reveals).toHaveLength(1);
     expect(reveals[0]).toMatchObject({ instanceId: alarm, playerId: p1 });
-    expect(reveals[1]!.playerId).toBe(p1);
-    expect(reveals[1]!.instanceId).not.toBe(alarm);
+    const dealt = state.players.find((p) => p.playerId === p1)!.dealtEncounter;
+    expect(dealt).toHaveLength(1);
+    expect(mustInstance(state, dealt[0]!).faceup).toBe(false);
   });
 });
 

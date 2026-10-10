@@ -3105,8 +3105,29 @@ export type EffectSpec =
    * and `cards` are revealed in full as above, their own "when revealed" window, keywords and surge included. Logged
    * `revealReplaced`. With no such reveal in progress, or its card still where the reveal found it (the swap was not
    * completed), nothing is replaced and nothing is revealed (`preThenUnresolved nothingToCancel`).
+   *
+   * `heldBy` (docs/phase7-wave9.md §3.21, §4.1 Q26 = B): "Reveal and attach the remaining set-aside Thunderbolt minion
+   * faceup here." (Justice, Like Lightning, `aos` 50131a). The owner: "'Reveal and attach' is different from simply
+   * putting a minion into play attached. Its When Revealed ability should resolve." Each minion among `cards` goes
+   * through the whole reveal procedure for `player` (RRG 1.8 "Reveal", p. 38) with one change to step 2: where a minion
+   * "enters play engaged with the player who revealed it", this one enters play held by the card `heldBy` names
+   * (`attach` with `as: "heldMinion"`, `isHeldMinion`), engaged with no player. So its "when revealed" windows open,
+   * `cardEntersPlay` is announced and its enter-play keywords resolve (toughness), the unique rule applies, its When
+   * Revealed abilities, incite and surge resolve with `player` as "you" and as the player the surge deals to, and
+   * "after … is revealed" responses follow. What an engagement brings does not happen, since there is none: no
+   * `minionEngaged` in either window, no quickstrike (RRG 1.8 "Quickstrike", p. 36: "After a minion with the
+   * quickstrike keyword engages a player whose identity is in hero form, that minion attacks that player") and no
+   * teamwork (p. 43: "After a minion with teamwork enters play and engages a player"). A card that is not a minion,
+   * one found faceup in play, and a minion whose host is not in play or cannot have it attached (`canAttachTo`) are
+   * revealed as without `heldBy`.
    */
-  | { readonly kind: "revealCard"; readonly cards: TargetRef; readonly player: PlayerRef; readonly instead?: true }
+  | {
+      readonly kind: "revealCard";
+      readonly cards: TargetRef;
+      readonly player: PlayerRef;
+      readonly instead?: true;
+      readonly heldBy?: TargetRef;
+    }
   | { readonly kind: "shuffleEncounterDeck" }
   /**
    * "Create the Experimental Weapons deck" / "Shuffle every other encounter side scheme into the side-scheme deck"
@@ -3592,9 +3613,9 @@ export type EffectSpec =
       readonly to: TargetRef;
       readonly facedown?: boolean;
       /**
-       * `"heldMinion"`: "Reveal and attach the remaining set-aside Thunderbolt minion faceup here", "attach the
-       * Thunderbolt minion with the most damage here" (Justice, Like Lightning / Thunderbolt Backup, `aos` 50131a/b;
-       * docs/phase7-wave9.md §3.21; MC50 p. 15). The minion is held by the host (`isHeldMinion`): in play, engaged with
+       * `"heldMinion"`: "attach the Thunderbolt minion with the most damage here" (Thunderbolt Backup, `aos` 50131b;
+       * docs/phase7-wave9.md §3.21; MC50 p. 15; its other face's "Reveal and attach … here" is a reveal,
+       * `revealCard.heldBy`, §4.1 Q26). The minion is held by the host (`isHeldMinion`): in play, engaged with
        * no player, keeping its damage, counters, status cards and attachments, attacked and targeted by every player,
        * never activating, defeated as any minion, and taken off the host by `engage`. A card that is not a minion is
        * attached as without it. Not with `facedown`.

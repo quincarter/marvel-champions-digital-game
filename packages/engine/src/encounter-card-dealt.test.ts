@@ -13,8 +13,9 @@
  * (p. 42), "the player resolving the card deals themself a facedown encounter card from the top of the encounter deck",
  * the keyword being "equivalent to … 'When Revealed: Deal yourself 1 facedown encounter card.'" (ruling August 3, 2026,
  * Ruling 3, treats it as a When Revealed ability). Its event carries `source: "surge"` and its window opens once the
- * card is dealt and before it is revealed, in or out of the villain phase, once per surge of a chain; a card swapped
- * into the dealt card's place in that window is the card the surge reveals.
+ * card is dealt, in or out of the villain phase, once per surge of a chain. The card is then a dealt card like any
+ * other, revealed by step four (§4.1 Q22 = B; `surge-deals-facedown.test.ts`); a card swapped into its place in that
+ * window is the card step four reveals there.
  *
  * Not a deal: "reveal the top card of the encounter deck" (`EffectSpec revealEncounterCard`; RRG 1.8 "Reveal", p. 38:
  * "If a player is instructed by card text to reveal an encounter card from the encounter deck or any other game area,
@@ -332,7 +333,8 @@ describe("encounterCardDealt: after a player is dealt an encounter card", () => 
     expectReplays(session, HEARD);
   });
 
-  it("a surging card revealed in the player phase: the reveal is not a deal, the surge's card is (1 event, 1 window), and it is revealed then", () => {
+  // Q22: the surge's card is not revealed in the player phase; it waits facedown for the next step four.
+  it("a surging card revealed in the player phase: the reveal is not a deal, the surge's card is (1 event, 1 window), and it waits facedown", () => {
     const t = table();
     const { state, events, session } = playFree(stacked(t.state, RUSH.id, FILLER.id), HEARD, REVEAL_TOP.card.id);
     expect(state.step.phase).toBe("player");
@@ -341,11 +343,12 @@ describe("encounterCardDealt: after a player is dealt an encounter card", () => 
     expect(deals(events)).toEqual([[P1, "surge"]]);
     expect(windows(events)).toBe(1);
     expect(counted(state, t.witness)).toBe(1);
-    expect(revealed(events)).toEqual([RUSH.id, FILLER.id]);
+    expect(revealed(events)).toEqual([RUSH.id]);
     const [window] = dealWindows(events) as [number];
     expect(window).toBeGreaterThan(dealMoves(events)[1]!);
-    expect(reveals(events)[1]).toBeGreaterThan(window);
-    expect(mustPlayer(state, P1).dealtEncounter).toEqual([]);
+    expect(mustPlayer(state, P1).dealtEncounter.map((id) => mustInstance(state, id))).toMatchObject([
+      { cardId: FILLER.id, faceup: false },
+    ]);
     expectReplays(session, HEARD);
   });
 

@@ -61,9 +61,12 @@ vi.setConfig({ testTimeout: 300_000 });
  *
  * Owner decisions in force: Q2 = A (a stunned or confused Citizen V who "would activate" against a player engaged with a
  * Thunderbolt minion discards the status card and does not heal; game C), Q25 = A (a minion already in play that
- * engages a player triggers quickstrike; no quickstrike minion is in the scripted sets, see the todos), Q26 = A (the
- * remaining minion is put into play held and resolves its keywords, not its When Revealed; every game's setup and game
- * E's tough card), Q27 = A (the environment leaving play discards a held minion; see the todos).
+ * engages a player triggers quickstrike; no quickstrike minion is in the scripted sets, see the todos), Q26 = B (the
+ * remaining minion is revealed by the first player and enters play held: its When Revealed would resolve; every game's
+ * setup and game E's tough card. None of the ten Elite, Thunderbolt minions prints a When Revealed, surge, quickstrike
+ * or toughness, so no setup number moved with that decision: the held minion is now in the round's reveal history,
+ * revealed by the first player), Q27 = A (the environment leaving play discards a held minion; see the todos), Q29 = B
+ * (Down but Not Out is removed from the game whether or not a minion returned; not revealed in these games).
  *
  * Games:
  * - A (solo, Spider-Man, The Leaper + Power of the Atom, to a win): setup numbers; guard on Thunderbolt minions
@@ -372,6 +375,13 @@ describe("Thunderbolts scenario, game A: solo (Spider-Man), standard, The Leaper
     expect(seating(a)).toEqual({ [BATROC]: "p1", [RADIOACTIVE_MAN]: "held" });
     expect(inst(a.state, radio())).toMatchObject({ attachedTo: environmentOf(a), engagedWith: null, faceup: true });
     expect(heldOf(a)).toBe(radio());
+    // Q26 = B: the held minion was revealed too, by the first player. Radioactive Man prints no When Revealed, so the
+    // numbers above and below are what they were when he was put into play held.
+    expect((a.state.revealedThisRound ?? []).map((r) => [codeOf(a.state, r.instanceId), r.playerId])).toEqual([
+      [JUSTICE, "p1"],
+      [BATROC, "p1"],
+      [RADIOACTIVE_MAN, "p1"],
+    ]);
     expect(playAreaCodes(a)).toEqual([BATROC]);
     // "Set each of those minions aside and shuffle the rest of their encounter sets into the encounter deck": the
     // set-aside area is empty (both minions were used) and neither Elite minion is anywhere in the deck.
@@ -1234,6 +1244,13 @@ describe("Thunderbolts scenario, game E: expert mode, two players", () => {
     expect(maxHitPoints(e.state, villainOf(e), DEPS)).toBe(32);
     // (The Expert set joins the shuffle, so the random deal differs from the standard game's with the same seed.)
     expect(seating(e)).toEqual({ [RADIOACTIVE_MAN]: "p1", [BATROC]: "p2", [MACH_IV]: "held" });
+    // Q26 = B: the held MACH-IV was revealed by the first player, after each player's own minion.
+    expect((e.state.revealedThisRound ?? []).map((r) => [codeOf(e.state, r.instanceId), r.playerId])).toEqual([
+      [JUSTICE, "p1"],
+      [RADIOACTIVE_MAN, "p1"],
+      [BATROC, "p2"],
+      [MACH_IV, "p1"],
+    ]);
     for (const code of [BATROC, RADIOACTIVE_MAN, MACH_IV]) expect(inst(e.state, id(code)).statuses.tough, code).toBe(1);
     // The scheme numbers do not change with the mode: 1 per player to start, 11 to complete.
     expect(mainThreat(e)).toBe(2);

@@ -196,10 +196,13 @@ describe("§3.71 an ally with an encounter card back", () => {
     expect(events.some((e) => e.type === "ownershipChanged")).toBe(false);
     // An ally is a player card (RRG 1.8 "Player Card", p. 33) whoever owns it: "by player card effects" includes it.
     expect(isPlayerCard(state, longshot)).toBe(true);
-    // Surge: P1 revealed one more card, a treachery, discarded to the encounter discard pile.
+    // Surge: P1 was dealt one more card, a treachery, which waits facedown for step four (Q22: not revealed at once).
     expect(events).toContainEqual({ type: "surgeTriggered", instanceId: longshot, playerId: P1 });
     expect(encounterPiles(state).deck.length).toBe(deckBefore - 2);
-    expect(encounterPiles(state).discard.map((id) => mustInstance(state, id).cardId)).toEqual([TREACHERY.id]);
+    expect(encounterPiles(state).discard).toEqual([]);
+    expect(mustPlayer(state, P1).dealtEncounter.map((id) => mustInstance(state, id))).toMatchObject([
+      { cardId: TREACHERY.id, faceup: false },
+    ]);
     expect(discardZoneFor(state, longshot)).toEqual({
       kind: "encounterDiscard",
       deckId: activeEncounterDeckId(state),
@@ -225,14 +228,14 @@ describe("§3.71 an ally with an encounter card back", () => {
   });
 
   it("defeated, it goes to the encounter discard pile, is reshuffled with it and revealed again by another player", () => {
-    // Two treacheries under him: his surge reveals and discards one, and one is left in the encounter deck. (With only
-    // one, the surge would leave the deck and its discard pile both empty, which loses the game: RRG 1.8 "Encounter
-    // Deck", p. 17.)
+    // Two treacheries under him: his surge deals one, which waits facedown in front of P1 (Q22: a surge's card is not
+    // revealed at once), and one is left in the encounter deck.
     const encounter = [LONGSHOT.id, ...copiesOf(TREACHERY.id, 2)];
     const revealed = reveal(onTopOfEncounterDeck(start({ encounter }).state, LONGSHOT.id)).state;
     const longshot = idOf(revealed, LONGSHOT.id);
     expect(encounterPiles(revealed).deck).toHaveLength(1);
-    expect(encounterPiles(revealed).discard).toHaveLength(1);
+    expect(encounterPiles(revealed).discard).toHaveLength(0);
+    expect(mustPlayer(revealed, P1).dealtEncounter).toHaveLength(1);
 
     const defeated = playFree(revealed, deps, SMITE_LONGSHOT.card.id);
     const state = defeated.state;
@@ -297,7 +300,11 @@ describe("§3.71 an ally with an encounter card back", () => {
     expect(mustPlayer(state, P1).playArea).toContain(longshot);
     expect(mustInstance(state, longshot)).toMatchObject({ ownerId: null, controllerId: P1 });
     expect(setupEvents).toContainEqual({ type: "surgeTriggered", instanceId: longshot, playerId: P1 });
+    // Q22: the surge's card is dealt, not revealed; it waits facedown for the first villain phase's step four.
     expect(encounterPiles(state).deck).toHaveLength(5);
-    expect(encounterPiles(state).discard.map((id) => mustInstance(state, id).cardId)).toEqual([TREACHERY.id]);
+    expect(encounterPiles(state).discard).toEqual([]);
+    expect(mustPlayer(state, P1).dealtEncounter.map((id) => mustInstance(state, id))).toMatchObject([
+      { cardId: TREACHERY.id, faceup: false },
+    ]);
   });
 });

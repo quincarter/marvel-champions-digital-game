@@ -25,6 +25,7 @@ import { encounterTargetSelector } from "../villain/authority.js";
 import { EngineInvariantError } from "../errors.js";
 import { matchingCardInPlay } from "../unique.js";
 import { attachmentHostCandidates } from "../attachment-hosts.js";
+import { attachCard } from "./attach.js";
 import { engagedEvent } from "./apply-effect.js";
 import {
   engageInPlayMinion,
@@ -44,7 +45,7 @@ import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./fr
  * `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44).
  *
  * `source` (docs/phase7-wave6.md §3.64, §4 Q35): where the reveal was initiated. By default a card dealt facedown
- * straight off an encounter deck (`CardInstance.dealtFromEncounterDeck`: villain phase step 4, surge, "reveal the top
+ * straight off an encounter deck (`CardInstance.dealtFromEncounterDeck`: villain phase step 4, "reveal the top
  * card of the encounter deck") is `encounterDeck` and anything else `elsewhere`; `revealCard` (a search, a scenario
  * deck, the set-aside area, a discard pile) passes `elsewhere` itself.
  */
@@ -159,18 +160,6 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
     case "faceup": {
-      if (frame.afterDeal) {
-        // The surge keyword's card, after the response window of its deal (`surgeRevealFrame`): begun now, if it is
-        // still a facedown card in front of this player.
-        const zone = locateCard(ctx.state, frame.instanceId);
-        const dealt =
-          zone?.kind === "dealtEncounter" &&
-          zone.playerId === frame.playerId &&
-          getInstance(ctx.state, frame.instanceId)?.faceup === false;
-        const { afterDeal: _, ...begun } = frame;
-        setFrame(ctx, dealt ? begun : { ...begun, stage: "done" });
-        return;
-      }
       if (UNREVEALABLE.has(card.type) && !frame.newFace) {
         const from = frame.revealedFrom ? JSON.stringify(frame.revealedFrom) : "nowhere";
         throw new EngineInvariantError(
@@ -264,11 +253,11 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       } else if (attachesTo && attachesTo.kind !== "villain") {
         const resolved = resolveAttachmentTarget(ctx, frame, attachesTo);
         if (!resolved) return;
-      } else {
+      } else if (!enterPlayHeld(ctx, frame)) {
         enterPlayOnReveal(ctx, frame.instanceId, frame.playerId);
       }
       // A minion's `cardEntersPlay` frame (its engagement interrupts and enter-play keywords) resolves first, then its
-      // quickstrike stage (quickstrike, then teamwork).
+      // quickstrike stage (quickstrike, then teamwork). A held minion engaged nobody, so that stage finds neither.
       const afterEntering = card.type === "minion" ? "quickstrike" : "whenRevealed";
       // A unique minion, side scheme or environment is checked once its enter-play window has resolved (below).
       const checksUnique = card.type === "minion" || card.type === "side_scheme" || card.type === "environment";
@@ -455,18 +444,14 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       if (!frame.effectsCancelled && engaged && card.type === "minion")
         events.push(...engagedEvent(ctx, frame.instanceId));
       const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
-      // RRG "Surge": the original card is fully resolved first, then the same
-      // player reveals one more — so the extra reveal is queued last.
-      if (surges) {
-        const surge: TriggerEvent = { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId };
-        if (heard(ctx.state, ctx.deps, surge)) {
-          // "When the surge keyword … would be resolved" (Espionage): its windows first, then `resolveSurge`.
-          frames.push(eventFrame(ctx, surge));
-        } else {
-          const next = surgeRevealFrame(ctx, frame.instanceId, frame.playerId);
-          if (next) frames.push(next);
-        }
-      }
+      // RRG 1.8 "Surge" (p. 42): the keyword deals its player a facedown encounter card, queued last so the original
+      // card and the responses to its reveal are done first. Always on its own frame (`resolveSurge`), where "when
+      // the surge keyword … would be resolved" (Espionage) has its window. Nothing is revealed here
+      // (docs/phase7-wave9.md §4.1 Q22).
+      if (surges)
+        frames.push(
+          eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }),
+        );
       pushFrames(ctx, frames);
       return;
     }
@@ -474,6 +459,29 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       popFrame(ctx);
       return;
   }
+}
+
+/**
+ * The placement step of a minion revealed "and attach[ed] … here" (`EffectSpec revealCard.heldBy`, `Frame<"reveal">
+ * .heldBy`; the owner's decision, docs/phase7-wave9.md §4.1 Q26 = B): it enters play held by that card
+ * (`attachCard`, `isHeldMinion`) instead of engaged with the revealing player, and its entering play is announced for
+ * that player as any revealed card's is, so its enter-play keywords resolve (toughness; RRG 1.8 "Enters Play", p. 18).
+ * RRG 1.8 "Reveal" (p. 38) step 2 has a minion enter play "engaged with the player who revealed it"; the card's own
+ * "attach … here" replaces that placement only (the Golden Rules, p. 4), and steps 3 and 4 follow as written.
+ *
+ * It engages no player, so everything the rules hang on an engagement has nothing to answer: `engagementOf` is null
+ * (no `minionEngaged` interrupt in its enter-play window, no "after you engage" response at `finish`),
+ * `quickstrikeAttack` is null (RRG 1.8 "Quickstrike", p. 36: "After a minion with the quickstrike keyword engages a
+ * player whose identity is in hero form, that minion attacks that player") and so is `teamworkFrame` (p. 43).
+ *
+ * False, with nothing done, for a reveal with no `heldBy`, a card that is not a minion, and a minion that cannot be
+ * attached there (the host left play, or cannot have it attached): the caller then places it as any revealed card.
+ */
+function enterPlayHeld(ctx: Ctx, frame: Frame<"reveal">): boolean {
+  if (frame.heldBy === undefined || mustCardOf(ctx.state, frame.instanceId).type !== "minion") return false;
+  if (!attachCard(ctx, frame.instanceId, frame.heldBy, false, true)) return false;
+  enterPlay(ctx, frame.instanceId, frame.playerId);
+  return true;
 }
 
 /**
@@ -522,9 +530,8 @@ function revealWhereFound(ctx: Ctx, frame: Frame<"reveal">): void {
 }
 
 /**
- * The surge keyword of `instanceId`, resolved by `playerId`: deals that player a facedown encounter card and returns
- * the frame that reveals it, for the caller to put on the stack under whatever must resolve first. Null when no card
- * could be dealt.
+ * The surge keyword of `instanceId`, resolved by `playerId` on its own frame (`TriggerEvent surgeResolving`): deals
+ * that player a facedown encounter card from the top of the encounter deck, and reveals nothing.
  *
  * RRG 1.8 "Surge" (p. 42): "When an encounter card with this keyword is revealed, the player resolving the card deals
  * themself a facedown encounter card from the top of the encounter deck. The surge keyword is equivalent to the
@@ -532,58 +539,46 @@ function revealWhereFound(ctx: Ctx, frame: Frame<"reveal">): void {
  * resolving the original card, as well as any response abilities that are triggered by that card being revealed,
  * before revealing the additional card." So it is a deal (`EncounterDealSource surge`; the owner's decision,
  * docs/phase7-wave9.md §4.1 Q19: "Surge deals an additional facedown encounter card, satisfying … 'after a player is
- * dealt an encounter card' … The response occurs when that card is dealt, not when it is subsequently revealed"). The
- * flow announces the deal before the next frame is run (`announceEncounterCardsDealt`), so its response window opens
- * above this frame and above the original card's "after it is revealed" responses, with the card facedown in front
- * of the player; the frame is marked `afterDeal` for that wait. With no listener in the registry nothing is recorded
- * and the frame is the plain reveal it always was.
+ * dealt an encounter card' … The response occurs when that card is dealt, not when it is subsequently revealed"),
+ * announced like every other deal (`announceEncounterCardsDealt`), and one "when a player would be dealt an encounter
+ * card" can interrupt (docs/phase7-wave9.md §3.45): replaced, no card is dealt.
  *
- * This engine reveals the surge card as soon as the original card and its responses are done, in or out of the villain
- * phase, as the last sentence quoted above and the keyword list's "that player reveals an additional encounter card"
- * (p. 25) have it. NOT SETTLED: "Deal, Deal an Encounter Card" (p. 15) says of a card ability's deal that "This card
- * is not revealed at this time. This card is added to the queue of cards that player resolves during the villain
- * phase", which read onto the 1.8 wording of surge would leave a surge card dealt in the player phase facedown until
- * step four. Unchanged here and reported with docs/phase7-wave9.md §4.1 Q19.
+ * The card is an ordinary dealt facedown encounter card of that player from then on (the owner's decision, §4.1 Q22:
+ * "Dealing a facedown encounter card is not revealing it. This should apply outside the villain phase as well."). RRG
+ * 1.8 "Deal, Deal an Encounter Card" (p. 15): "This card is not revealed at this time. This card is added to the queue
+ * of cards that player resolves during the villain phase. If a player is dealt an encounter card during step three or
+ * four of the villain phase, the extra encounter card is added to the queue of cards that are being dealt and revealed
+ * in those same steps." So a surge in step three or four is revealed in that same step four, after the cards that
+ * player already had waiting ("one card at a time in the order in which they were dealt … until no dealt encounter
+ * cards remain", "Villain Phase" step 4, p. 47; `executeRevealEncounterCards`), a chain of surges one card at a time
+ * the same way; a surge anywhere else (the player phase, steps one and two, setup) leaves its card facedown until the
+ * next step four. Before Q22 this engine revealed the card at once, in or out of the villain phase.
  */
-export function surgeRevealFrame(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): StackFrame | null {
-  // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): the surge's deal is a deal (Q19),
-  // so an ability that could interrupt it gets its window first. The frame returned is then that event's, and the
-  // deal and the reveal are its apply step (`dealSurgeCard`); replaced, no card is dealt and none is revealed.
+export function resolveSurge(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): void {
   const waiting = encounterDealAwaitingInterrupt(ctx, playerId, "surge", instanceId);
-  if (waiting) return eventFrame(ctx, waiting);
-  return dealSurgeCard(ctx, instanceId, playerId);
+  if (waiting) pushEvent(ctx, waiting);
+  else dealSurgeCard(ctx, instanceId, playerId);
 }
 
-/** Deals the surge keyword's card to `playerId` now and returns the frame that reveals it (`surgeRevealFrame`). */
-export function dealSurgeCard(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): Frame<"reveal"> | null {
+/** Deals the surge keyword's card to `playerId` now (`resolveSurge`); it waits facedown. Null with no card to deal. */
+function dealSurgeCard(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): InstanceId | null {
   const next = dealEncounterCardTo(ctx, playerId, "surge");
-  if (!next) return null;
-  emit(ctx, { type: "surgeTriggered", instanceId, playerId });
-  const recorded = (ctx.state.pendingEncounterDealt ?? []).some((dealt) => dealt.instanceId === next);
-  return { ...revealFrame(ctx, playerId, next), ...(recorded ? { afterDeal: true as const } : {}) };
+  if (next) emit(ctx, { type: "surgeTriggered", instanceId, playerId });
+  return next;
 }
 
 /**
  * An `encounterCardBeingDealt` whose interrupts have resolved (docs/phase7-wave9.md §3.45): the top card of the
  * encounter deck is dealt now, as every deal is (`dealEncounterCardTo`, so `encounterCardDealt` follows when an
- * ability listens). The surge keyword's card is then revealed by the frame pushed here, as `surgeRevealFrame` has it.
+ * ability listens), the surge keyword's card included (`resolveSurge`).
  */
 export function applyEncounterCardBeingDealt(
   ctx: Ctx,
   event: Extract<TriggerEvent, { kind: "encounterCardBeingDealt" }>,
 ): void {
-  if (event.source === "surge" && event.sourceInstanceId !== null) {
-    const next = dealSurgeCard(ctx, event.sourceInstanceId, event.playerId);
-    if (next) pushFrames(ctx, [next]);
-    return;
-  }
-  dealEncounterCardTo(ctx, event.playerId, event.source);
-}
-
-/** A surge resolved on its own frame (`TriggerEvent surgeResolving`): deals the card and queues its reveal. */
-export function resolveSurge(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): void {
-  const next = surgeRevealFrame(ctx, instanceId, playerId);
-  if (next) pushFrames(ctx, [next]);
+  if (event.source === "surge" && event.sourceInstanceId !== null)
+    dealSurgeCard(ctx, event.sourceInstanceId, event.playerId);
+  else dealEncounterCardTo(ctx, event.playerId, event.source);
 }
 
 /**

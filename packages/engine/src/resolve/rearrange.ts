@@ -40,7 +40,7 @@ const REARRANGEABLE: ReadonlySet<ZoneId["kind"]> = new Set([
  * dealt encounter cards (not one whose reveal has begun, which is parked there while it resolves), in a deck, or on an
  * enemy as a boost card not yet turned up (docs/phase7-wave9.md §3.44: "look at that card and the top card of the
  * encounter deck. You may swap those cards"; one turned faceup is being resolved, RRG 1.8 "Boost, Boost Icon",
- * p. 11). The card a surge just dealt, whose reveal waits for the responses to that deal (`afterDeal`), has not begun.
+ * p. 11). The card a surge dealt is a facedown dealt card like any other (docs/phase7-wave9.md §4.1 Q22).
  */
 export function rearrangeable(state: GameState, id: InstanceId): boolean {
   const zone = locateCard(state, id);
@@ -48,7 +48,7 @@ export function rearrangeable(state: GameState, id: InstanceId): boolean {
   if (!zone || !instance || !REARRANGEABLE.has(zone.kind)) return false;
   if (zone.kind === "boost") return !instance.faceup;
   if (zone.kind !== "dealtEncounter") return true;
-  return !instance.faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id && !f.afterDeal);
+  return !instance.faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id);
 }
 
 /** Where each card is now: its zone and its index there (0 is the top of a deck, the front of a dealt queue). */
@@ -94,10 +94,6 @@ export function boostCardReplaced(ctx: Ctx, zone: ZoneId, was: InstanceId, taker
  * Logged as one `cardsRearranged` after the `cardMoved` of each card that changed zones. Returns how many cards are
  * somewhere new.
  *
- * A reveal waiting to begin on one of the cards (the surge keyword's card, `afterDeal`) reveals the card that takes
- * its place: the surge reveals the card the player holds for it, whichever that now is (RRG 1.8 "Surge", p. 42;
- * "'Swap'", p. 42).
- *
  * The moves are `relocateCard`s, not `moveCard`s: `moveCard` resets a deck the moment its last card leaves it, and here
  * the card that replaces it is already on its way. A one-card encounter deck is therefore not emptied by a swap of its
  * top card and takes no acceleration token (RRG 1.8 "Encounter Deck", p. 17, resets a deck that "is empty"; a swap
@@ -127,13 +123,6 @@ export function rearrangeCards(
       for (const { id, index } of byIndex.sort((a, b) => a.index - b.index)) placeAt(ctx, id, index);
     });
     arrangement.forEach((taker, i) => boostCardReplaced(ctx, positions[i]!.zone, cards[i]!, taker));
-    for (const waiting of ctx.state.stack) {
-      if (waiting.kind !== "reveal" || !waiting.afterDeal) continue;
-      const taker = arrangement[cards.indexOf(waiting.instanceId)];
-      if (taker === undefined || taker === waiting.instanceId) continue;
-      const fromDeck = getInstance(ctx.state, taker)?.dealtFromEncounterDeck === true;
-      setFrame(ctx, { ...waiting, instanceId: taker, source: fromDeck ? "encounterDeck" : "elsewhere" });
-    }
   }
   emit(ctx, { type: "cardsRearranged", playerId, positions, instanceIds: arrangement, moved });
   return moved;

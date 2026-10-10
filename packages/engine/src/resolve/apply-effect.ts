@@ -3187,6 +3187,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           );
       }
       const inPlay = new Set(cardsInPlay(ctx.state));
+      // "Reveal and attach … here" (`heldBy`, docs/phase7-wave9.md §4.1 Q26): the reveal places its minion on this card.
+      const [holder] = effect.heldBy ? targets(effect.heldBy) : [];
       const frames: StackFrame[] = [];
       for (const id of revealing) {
         // A card faceup in play is revealed where it is and does not enter play (RRG 1.8 "Find", p. 19; ruling June 25,
@@ -3202,7 +3204,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (parked?.kind !== "dealtEncounter" || parked.playerId !== playerId)
           moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
-        frames.push(revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"));
+        frames.push({
+          ...revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"),
+          ...(holder ? { heldBy: holder } : {}),
+        });
       }
       // Each deck the find looked through is shuffled once the card is out of it, as `findCard` does (RRG 1.8
       // "Search", p. 39), found or not (docs/phase7-wave6.md §4.1 Q77); a card found in an open area searched none.

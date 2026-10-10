@@ -1830,6 +1830,19 @@ export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSp
   player,
 });
 /**
+ * "Reveal and attach the remaining set-aside Thunderbolt minion faceup here." (Justice, Like Lightning, `aos` 50131a;
+ * docs/phase7-wave9.md §4.1 Q26 = B): `minion` is revealed in full by `player` (its "when revealed" windows, its
+ * enter-play keywords, its When Revealed with `player` as "you", surge), entering play held by `host` instead of
+ * engaged with `player`: no engagement, so no quickstrike and no "after you engage" (`EffectSpec revealCard.heldBy`).
+ * `holdMinion` is the attach with no reveal, for a minion already in play.
+ */
+export const revealHeldMinion = (minion: TargetRef, player: PlayerRef = you, host: TargetRef = self): EffectSpec => ({
+  kind: "revealCard",
+  cards: minion,
+  player,
+  heldBy: host,
+});
+/**
  * "Reveal the card that had been tucked under your identity instead." (Eidetic Memory, `silk` 52008, erratum RRG 1.8
  * p. 70; docs/phase7-wave9.md §3.41): in an interrupt to a reveal (`on.encounterCardRevealed`), after the effect that
  * moved the card being revealed away (`swapCards(eventTarget, …)`). That reveal ends unresolved and `target` is

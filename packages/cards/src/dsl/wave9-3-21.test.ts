@@ -10,8 +10,11 @@ import {
   holdMinion,
   on,
   query,
+  revealCard,
+  revealHeldMinion,
   self,
   validateDefinition,
+  whenRevealed,
 } from "./index.js";
 
 const THUNDERBOLT_MINIONS = query("minion", { trait: trait("THUNDERBOLT") });
@@ -50,5 +53,29 @@ describe("holdMinion: a minion an environment holds (Thunderbolt Backup, aos 501
     );
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(/held minion is attached faceup/);
+  });
+});
+
+describe("revealHeldMinion: 'Reveal and attach … here' (Justice, Like Lightning, aos 50131a; owner decision Q26 = B)", () => {
+  it("builds a reveal whose minion is held by this card, resolved by you by default", () => {
+    expect(revealHeldMinion(chosen("held"))).toEqual({
+      kind: "revealCard",
+      cards: { kind: "slot", slot: "held" },
+      player: { kind: "controller" },
+      heldBy: { kind: "self" },
+    });
+    expect(revealHeldMinion(chosen("held"), { kind: "firstPlayer" }, chosen("environment"))).toEqual({
+      kind: "revealCard",
+      cards: { kind: "slot", slot: "held" },
+      player: { kind: "firstPlayer" },
+      heldBy: { kind: "slot", slot: "environment" },
+    });
+  });
+
+  it("a plain reveal names no holder, and the held reveal validates in a When Revealed", () => {
+    expect(revealCard(chosen("held"))).not.toHaveProperty("heldBy");
+    expect(
+      validateDefinition(whenRevealed(revealHeldMinion(each(THUNDERBOLT_MINIONS), { kind: "firstPlayer" }))),
+    ).toEqual([]);
   });
 });

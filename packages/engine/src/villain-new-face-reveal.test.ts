@@ -202,8 +202,10 @@ describe("§3.65 a villain's new face is revealed (FAQ #35, §4.1 Q36)", () => {
     const before = onTopOfEncounterDeck(start({ villain: SURGER }), BLANK.id);
     const surger = activeVillain(before).instanceId;
     const { state, events } = playFree(before, deps, FLIP_VILLAIN.card.id);
-    expect(revealedCards(events)).toEqual(["surger", "blank"]);
+    // Q22: the blank its surge deals is not revealed in the player phase; it waits facedown for step four.
+    expect(revealedCards(events)).toEqual(["surger"]);
     expect(events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
+    expect(state.players[0]!.dealtEncounter).toHaveLength(1);
     expect(state.villains.map((v) => v.instanceId)).toContain(surger);
     expect(activeVillain(state)).toMatchObject({ instanceId: surger, side: "B", defeated: false });
   });

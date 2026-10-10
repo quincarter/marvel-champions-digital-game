@@ -55,6 +55,7 @@ import {
   removeCountersFrom,
   repeatTimes,
   revealCard,
+  revealHeldMinion,
   rotateEngagement,
   rule,
   selectCards,
@@ -68,7 +69,6 @@ import {
   sum,
   superlative,
   surge,
-  andThen,
   thatPlayer,
   theMainScheme,
   theVillain,
@@ -94,10 +94,13 @@ import {
  * stays in the deck.
  *
  * **Justice, Like Lightning (50131a).** Each player reveals a random set-aside Thunderbolt minion (it engages them);
- * the remaining one is held by the environment: it is in play, engaged with nobody (owner questions 25 to 27 of the
- * wave 9 spec: a held minion that leaves engagement is engaged like any other, its When Revealed does not resolve
- * when it is attached, the minion is discarded undefeated if the environment leaves play). In expert mode each of
- * them gets a tough status card.
+ * the remaining one is revealed too and held by the environment: it is in play, engaged with nobody (owner questions
+ * 25 to 27 of the wave 9 spec: a held minion that leaves engagement is engaged like any other; "reveal and attach" is
+ * a reveal, so its When Revealed resolves, Q26 = B; the minion is discarded undefeated if the environment leaves
+ * play). The card names no player for that reveal, so the first player resolves it (RRG 1.8 "First Player", p. 19):
+ * "you" in the held minion's When Revealed is the first player, and a surge deals them a facedown card. It engages
+ * nobody, so its quickstrike has no one to attack (RRG 1.8 "Quickstrike", p. 36). In expert mode each of them gets a
+ * tough status card.
  *
  * **Thunderbolt Backup (50131b), the end-of-round swap.** "When the round ends" is the villain phase ending, after
  * step five has already passed the first player token, so "the first player chooses" among tied minions is the NEW
@@ -120,9 +123,10 @@ import {
  * it enters play engaged with them like any revealed minion (RRG 1.8 "Reveal", p. 38, step 2), its When Revealed and
  * quickstrike included; it is not held by the environment. It comes back with no damage and takes placed damage
  * (not dealt: a tough status card stays) down to 5 remaining hit points, none if it has 5 or fewer. It leaves the
- * victory display, so Citizen V's count drops with it. "Then, remove this card from the game" is a printed Then (RRG
- * 1.8 "'Then'", p. 44): with no Thunderbolt minion in the display the reveal did not happen, the treachery is not
- * removed, gains surge and is discarded as usual.
+ * victory display, so Citizen V's count drops with it. "Then, remove this card from the game" happens in both cases
+ * (owner decision Q29 = B, over RRG 1.8 "'Then'", p. 44; worth official clarification): with no Thunderbolt minion in
+ * the display nothing is revealed, the treachery is still removed from the game, and, as printed ("If no minion
+ * entered play this way, this card gains surge"), it gains surge: its player is dealt a facedown encounter card.
  *
  * Cards (10):
  * - 50129a Citizen V (villain)
@@ -210,8 +214,9 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
       revealCard(chosen("minion"), thatPlayer),
       ifThen(inMode("expert"), giveStatus(chosen("minion"), "tough")),
     ),
+    // "Reveal and attach": revealed in full by the first player, entering play held here (owner decision Q26 = B).
     selectCards("held", encounterSetAside(THUNDERBOLT_MINIONS, { random: 1 })),
-    holdMinion(chosen("held")),
+    revealHeldMinion(chosen("held"), firstPlayer),
     ifThen(inMode("expert"), giveStatus(chosen("held"), "tough")),
     flipCard(self),
   ),
@@ -263,7 +268,8 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
     selectCards("minion", victoryDisplayCards(THUNDERBOLT_MINIONS, { random: 1 })),
     revealCard(chosen("minion"), you),
     placeDamage(max(0, sum(remainingHpOf(chosen("minion")), -5)), chosen("minion")),
-    andThen(moveCards(cards(self), "removedFromGame")),
+    // Removed whether or not a minion came back (owner decision Q29 = B), so not a Then that waits on the reveal.
+    moveCards(cards(self), "removedFromGame"),
     ifThen(not(varAtLeast("minion.count")), surge()),
   ),
 

@@ -1,4 +1,4 @@
-import { AOS_CARDS, CORE_CARDS } from "@mc/content";
+import { abilityId, AOS_CARDS, CORE_CARDS } from "@mc/content";
 import {
   cardsInPlay,
   createGame,
@@ -13,7 +13,14 @@ import {
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../ability-refs.js";
-import { mergeRegistries } from "../../dsl/index.js";
+import {
+  addCounters,
+  defineAbilities,
+  mergeRegistries,
+  placeThreat,
+  theMainScheme,
+  whenRevealed,
+} from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -65,9 +72,10 @@ vi.setConfig({ testTimeout: 120_000 });
  * (Radioactive Man 50152), Supersonic (MACH-IV 50156) and The Leaper (Batroc 50161).
  *
  * Owner questions named below (docs/phase7-wave9.md section 4.1): Q2 = A (a stunned or confused Citizen V who would
- * activate discards the status and does not heal), Q25 (a held minion that engages quickstrikes), Q26 (the remaining
- * minion is put into play held, its When Revealed does not resolve), Q27 (the environment leaving play discards the
- * held minion undefeated).
+ * activate discards the status and does not heal), Q25 (a held minion that engages quickstrikes), Q26 = B (the
+ * remaining minion is revealed by the first player, its When Revealed resolving, and enters play held), Q27 (the
+ * environment leaving play discards the held minion undefeated), Q29 = B (Down but Not Out is removed from the game
+ * even when no minion returned).
  */
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(
@@ -299,6 +307,58 @@ describe("setup (50130a, 50131a)", () => {
       expect(thunderbolts(exp)).toHaveLength(players + 1);
       for (const id of thunderbolts(exp)) expect(toughOf(exp, id)).toBe(1);
     }
+  });
+
+  /**
+   * Owner decision Q26 = B: "Reveal and attach" is a reveal, so the held minion's When Revealed resolves, the first
+   * player resolving it. None of the Elite, Thunderbolt minions in the card data prints a When Revealed, surge or
+   * quickstrike, so the real setup's numbers are the same as before; this game gives each of them a test-only
+   * "Surge. When Revealed: place 1 threat on the main scheme and 1 revealed counter here" to show the reveal.
+   */
+  it("Q26: the held minion is revealed by the first player: its When Revealed resolves and its surge deals the first player a card", () => {
+    const TEST_REF = "99999.test-elite-when-revealed";
+    const deps: EngineDeps = {
+      abilities: mergeRegistries(
+        DEPS.abilities,
+        defineAbilities({ [TEST_REF]: whenRevealed(placeThreat(1, theMainScheme), addCounters("revealed", 1)) }),
+      ),
+    };
+    const built = wave9Scenario("thunderbolts", {
+      players: SEATS.slice(0, 2),
+      seed: 1,
+      difficulty: "standard",
+      setAsideModularSetIds: SETS[1],
+    });
+    const cards = built.cards.map((c) =>
+      ELITES.includes(c.id) && c.type === "minion"
+        ? {
+            ...c,
+            keywords: [...c.keywords, { name: "surge" as const }],
+            abilities: [...c.abilities, { id: abilityId(TEST_REF) }],
+          }
+        : c,
+    );
+    const created = createGame({ ...built, cards }, deps);
+    if (!created.ok) throw new Error(created.error.message);
+    const s = settle(created.state, firstLegal, (state) => state.step.phase === "player", deps);
+    const held = heldOf(s)!;
+    expect(inst(s, held)).toMatchObject({ attachedTo: environmentOf(s), engagedWith: null, heldMinion: true });
+    // All three were revealed, the held one by the first player: 1 counter each, and 2 + 3 threat on the main scheme.
+    for (const id of thunderbolts(s)) expect(inst(s, id).counters.revealed).toBe(1);
+    expect(mainThreat(s)).toBe(5);
+    expect(s.firstPlayerId).toBe(P1);
+    expect((s.revealedThisRound ?? []).filter((r) => r.instanceId === held)).toMatchObject([{ playerId: P1 }]);
+    // Each surge dealt its player a facedown card, which waits for the first villain phase (Q22): player 1 has their
+    // own minion's and the held minion's, player 2 has one.
+    expect(s.players.map((p) => p.dealtEncounter.length)).toEqual([2, 1]);
+    for (const p of s.players) for (const id of p.dealtEncounter) expect(inst(s, id).faceup).toBe(false);
+    // Control: the real data, where no Elite minion has a When Revealed: 2 threat, nothing dealt.
+    const real = game(2);
+    expect(mainThreat(real)).toBe(2);
+    expect(real.players.map((p) => p.dealtEncounter.length)).toEqual([0, 0]);
+    expect((real.revealedThisRound ?? []).filter((r) => r.instanceId === heldOf(real))).toMatchObject([
+      { playerId: P1 },
+    ]);
   });
 
   it("the environment was flipped by its own When Revealed, and shows Thunderbolt Backup", () => {
@@ -1070,7 +1130,8 @@ describe("Down but Not Out (50137)", () => {
     expect([card.type, card.boostIcons, card.quantityInSet]).toEqual(["treachery", 1, 2]);
   });
 
-  it("no Thunderbolt minion in the victory display: nothing enters play, the card gains surge and is discarded, not removed", () => {
+  // Owner decision Q29 = B: the card is removed from the game even when no minion returned; the surge is as printed.
+  it("no Thunderbolt minion in the victory display (Q29): nothing enters play, the card gains surge and is removed from the game all the same", () => {
     const t = table();
     // A card in the display that is not a Thunderbolt minion is never the one.
     const staged = intoVictoryDisplay(t.state, "01187");
@@ -1080,10 +1141,16 @@ describe("Down but Not Out (50137)", () => {
     expect(state.victoryDisplay).toEqual([other]);
     expect(thunderbolts(state).sort()).toEqual([t.m1, t.m2, t.held].sort());
     expect(surgesOf(events, down)).toMatchObject([{ playerId: P1 }]);
-    // Player 1 reveals a second card for the surge: three cards revealed in all.
+    // The surge deals player 1 a second card in step four, revealed there before player 2's (Q22): three in all.
+    expect(types(events, "encounterCardRevealed").map((e) => [codeOf(state, e.instanceId), e.playerId])).toEqual([
+      [DOWN, P1],
+      [BYSTANDERS, P1],
+      [BYSTANDERS, P2],
+    ]);
     expect(revealedCodes(state, events).sort()).toEqual([BYSTANDERS, BYSTANDERS, DOWN].sort());
-    expect(state.removedFromGame).not.toContain(down);
-    expect(piles(state).discard).toContain(down);
+    expect(state.removedFromGame).toContain(down);
+    expect(piles(state).discard).not.toContain(down);
+    expect(piles(state).deck).not.toContain(down);
   });
 
   it("one in the display: it is revealed and engages the revealing player, not held, with 11 damage (16 hit points, 5 remaining); the card is removed from the game, no surge", () => {

@@ -341,13 +341,14 @@ describe("Creeping Willow (40133): 40133.creeping-willow-forced-response, 40133.
 
 describe("Making Green (40134): 40134.making-green-constant", () => {
   // Making Green's hazard icon deals each player a second encounter card (RRG 1.8 "Hazard"), both moved before the first
-  // is revealed, so a surge reveals the third card of the stack.
+  // is revealed, so a surge deals the third card of the stack. Wave 9 Q22: that card joins the back of the player's
+  // queue and is revealed after the hazard card ("in the order in which they were dealt", RRG 1.8 p. 47 step 4).
   const CAPTIVE_HOPE = "40131";
 
   it("each copy of Creeping Willow gains surge: a Willow revealed with Making Green in play reveals the next card too", () => {
     const planted = encounterCardInVillainArea(calm(game()), MAKING_GREEN, 2);
     const run = round(planted.state, ["01186", WILLOW, FILLER, CAPTIVE_HOPE]);
-    expect(revealedIds(run)).toEqual([WILLOW, CAPTIVE_HOPE, FILLER]);
+    expect(revealedIds(run)).toEqual([WILLOW, FILLER, CAPTIVE_HOPE]);
     expect(events(run.events, "surgeTriggered").map((e) => cardOf(run.state, e.instanceId))).toEqual([WILLOW]);
   });
 

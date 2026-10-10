@@ -402,9 +402,10 @@ describe("§3.41: surge and the card revealed instead", () => {
     expect(tuckedOf(state)).toEqual([thug]);
     expect(counterOn(state, "snared")).toBe(1);
     expect(typed(events, "surgeTriggered")).toEqual([{ type: "surgeTriggered", instanceId: ids[0], playerId: p1 }]);
-    // Three reveals: the minion (replaced), the surge treachery, the card its surge dealt.
-    expect(typed(events, "encounterCardRevealed")).toHaveLength(3);
-    expect(revealOrder(events).slice(0, 2)).toEqual([THUG.id, SNARE.id]);
+    // Two reveals: the minion (replaced) and the surge treachery. Q22: the card its surge dealt waits facedown.
+    expect(typed(events, "encounterCardRevealed")).toHaveLength(2);
+    expect(revealOrder(events)).toEqual([THUG.id, SNARE.id]);
+    expect(state.players.find((p) => p.playerId === p1)!.dealtEncounter).toHaveLength(1);
   });
 
   it("a surge treachery revealed and swapped away: no surge, no When Revealed, and it is tucked", () => {

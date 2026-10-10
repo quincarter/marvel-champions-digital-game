@@ -102,8 +102,10 @@ describe("§3.64 'If this card was revealed from the encounter deck'", () => {
   });
 
   it("revealed off the top of the encounter deck by an effect: it surges", () => {
-    const { events } = playFree(stacked(start(), [SHOW.id, BLANK.id]), deps, REVEAL_TOP.card.id);
-    expect(summary(events)).toEqual({ revealed: ["show", "blank"], surges: 1 });
+    // Q22: in the player phase the blank its surge deals waits facedown; only the show is revealed.
+    const { events, state } = playFree(stacked(start(), [SHOW.id, BLANK.id]), deps, REVEAL_TOP.card.id);
+    expect(summary(events)).toEqual({ revealed: ["show"], surges: 1 });
+    expect(state.players[0]!.dealtEncounter).toHaveLength(1);
   });
 
   it("found by a search of the encounter deck and revealed: no surge", () => {
