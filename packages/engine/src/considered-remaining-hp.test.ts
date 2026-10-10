@@ -262,7 +262,7 @@ describe("§3.10 considered to have at least 1 hit point", () => {
     expect(consideredRemainingHitPoints(horsed, idOf(horsed, "famine"), deps)).toBe(5);
   });
 
-  it("the defeat check sees it: a villain alone at 0 under the floor is not defeated, takes more damage, and falls when the attachment leaves", () => {
+  it("the defeat check sees it: a villain alone at 0 under the floor is not defeated, takes more damage (his dial stays at 0), and falls when the attachment leaves", () => {
     const horsed = attach(start(unprotected), HORSE.id, idOf(start(unprotected), "famine")).state;
     const struck = playFree(horsed, unprotected, HIT_FAMINE.card.id);
     expect(damageOf(struck.state, "famine")).toBe(5);
@@ -270,9 +270,11 @@ describe("§3.10 considered to have at least 1 hit point", () => {
     expect(struck.events.filter((e) => e.type === "characterDefeated")).toHaveLength(0);
     expect(struck.state.heldAtZero).toEqual([idOf(struck.state, "famine")]);
 
-    // Damage is still dealt and taken below the floor: the dial does not move it back.
+    // Damage is still dealt and taken below the floor, and a hit point dial stops at zero (RRG 1.8 "Hit Points",
+    // p. 22; `settleDials`, `dial-stops-at-zero.test.ts`): the 2 are logged as dealt and none is kept past his 5.
     const again = playFree(struck.state, unprotected, HIT_FAMINE_2.card.id);
-    expect(damageOf(again.state, "famine")).toBe(7);
+    expect(again.events.filter((e) => e.type === "damageDealt").map((e) => e.amount)).toEqual([2]);
+    expect(damageOf(again.state, "famine")).toBe(5);
     expect(defeatedNames(again.state)).toEqual([]);
 
     const freed = playFree(again.state, unprotected, UNHORSE.card.id);
@@ -288,7 +290,8 @@ describe("§3.10 considered to have at least 1 hit point", () => {
     const horsed = attach(withDamage(base, { famine: 5 }), HORSE.id, idOf(base, "famine")).state;
     const struck = playFree(horsed, unprotected, HIT_FAMINE_2.card.id).state;
     const healed = playFree(struck, unprotected, HEAL_FAMINE.card.id).state;
-    expect(damageOf(healed, "famine")).toBe(4);
+    // Healed from zero, not from 2 below it: the dial stopped at zero (`settleDials`). It read 4 until 2026-10-10.
+    expect(damageOf(healed, "famine")).toBe(2);
     const freed = playFree(healed, unprotected, UNHORSE.card.id);
     expect(defeatedNames(freed.state)).toEqual([]);
     expect(freed.state.heldAtZero ?? []).toEqual([]);
@@ -370,7 +373,8 @@ describe("§3.10 considered to have at least 1 hit point", () => {
     );
     const counter = outcome.counters.find((c) => c.instanceId === famine)!;
     expect(counter.before).toMatchObject({ remainingHitPoints: 1, consideredHp: 1 });
-    expect(counter.after).toMatchObject({ remainingHitPoints: -4, consideredHp: 1, inPlay: true });
+    // 5 more on 1 remaining: the true dial stops at zero (`settleDials`); it read -4 until 2026-10-10.
+    expect(counter.after).toMatchObject({ remainingHitPoints: 0, consideredHp: 1, inPlay: true });
 
     const plain = giveCard(withDamage(base, { famine: 0 }), P1, HIT_FAMINE_2.card.id);
     const without = preview(

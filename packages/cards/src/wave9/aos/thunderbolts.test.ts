@@ -932,6 +932,29 @@ describe("Innocent Bystanders (50134)", () => {
     expect(after.players[0]!.hand).not.toContain(spare);
   });
 
+  it("the spend, once chosen, is paid: an answer with no card is refused (RRG 1.8 'Cost', p. 13)", () => {
+    const s = withBystanders();
+    expect(() => attackMinion(s, choosing(/spend/i, []))).toThrow(/resolveChoice rejected: invalid_choice/);
+  });
+
+  it("a player with nothing to spend is not offered the spend: the threat is placed (owner default Q8 = A, docs/phase7-wave7.md)", () => {
+    const held = withBystanders();
+    const s: GameState = {
+      ...held,
+      players: held.players.map((p, seat) => (seat === 0 ? { ...p, hand: [], deck: [...p.deck, ...p.hand] } : p)),
+    };
+    const threat = mainThreat(s);
+    const offered: string[][] = [];
+    const after = attackMinion(s, (st) => {
+      const c = st.pendingChoice!;
+      if (c.prompt.kind === "chooseOption") offered.push(c.options.map((o) => o.label));
+      return firstLegal(st);
+    });
+    expect(offered).toEqual([]); // one option left: it resolves without asking
+    expect(mainThreat(after)).toBe(threat + 1);
+    expect(counters(after)).toBe(3);
+  });
+
   it("after an enemy attacks you, in the villain phase: the same choice", () => {
     const s = withBystanders();
     const threat = mainThreat(s);

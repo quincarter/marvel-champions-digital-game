@@ -391,11 +391,26 @@ export interface ChoiceOption {
   readonly condition?: Predicate;
   readonly effects: readonly EffectSpec[];
 }
-/** One option of `chooseOne`; `when` limits it to states where it can happen. */
+/**
+ * One option of `chooseOne`; `when` limits it to states where it can happen.
+ *
+ * A `spendResources` written as one of the option's own effects is a spend the player has chosen ("choose to either
+ * spend 1 resource of any type or place 1 threat on the main scheme"), so it is made `required` here (engine
+ * `EffectSpec spendResources.required`): the option is offered only to a player who can pay it, and once chosen the
+ * payment is made in full (RRG 1.8 "Choose (Option)", p. 12, and "Cost", p. 13; for an encounter card the owner's
+ * standing default, docs/phase7-wave7.md §4.2 Q8 = A). No `when: canPayResources(…)` is needed for that. A spend
+ * nested deeper (inside an `ifThen`, a `forEachPlayer`) is left as written.
+ */
 export const option = (label: string, ...rest: readonly (EffectArg | { readonly when: Predicate })[]): ChoiceOption => {
   const condition = rest.find((r): r is { readonly when: Predicate } => !Array.isArray(r) && "when" in (r as object));
   const effects = rest.filter((r): r is EffectArg => Array.isArray(r) || !("when" in (r as object)));
-  return { label, ...(condition ? { condition: condition.when } : {}), effects: flatten(effects) };
+  return {
+    label,
+    ...(condition ? { condition: condition.when } : {}),
+    effects: flatten(effects).map((effect) =>
+      effect.kind === "spendResources" ? { ...effect, required: true as const } : effect,
+    ),
+  };
 };
 /** "Choose one: …" / "Choose to either … or …" (made by you). */
 export const chooseOne = (...options: readonly ChoiceOption[]): EffectSpec => chooseOneBy(you, ...options);
@@ -2007,18 +2022,23 @@ export const countTowardStartingHand = (player: PlayerRef, count: Amount = 1): E
  *
  * `distinctTypes` (docs/phase7-wave6.md §3.69): "Spend 2 different resources" (Director's Directions, `mojo` 39033) is
  * `spendResources({ generic: 2 }, bind, you, { distinctTypes: 2 })`, or `spendDifferentResources(2, bind)`.
+ *
+ * On its own the spend is the player's to decline (paying nothing sets `<bind>.made` to 0). As an effect of a
+ * `chooseOne` `option(…)` it is the option the player chose, and `option` makes it `required`: paid in full, and not
+ * offered to a player who cannot pay. `required: true` says the same of a spend written anywhere else.
  */
 export const spendResources = (
   resources: ResourceRequirement,
   bind: string,
   player: PlayerRef = you,
-  opts: { readonly distinctTypes?: number } = {},
+  opts: { readonly distinctTypes?: number; readonly required?: true } = {},
 ): EffectSpec => ({
   kind: "spendResources",
   player,
   resources,
   bind,
   ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
+  ...(opts.required ? { required: true as const } : {}),
 });
 /** "Spend N different resources": N resources of N different types, a wild being any one type (§3.69). */
 export const spendDifferentResources = (count: number, bind: string, player: PlayerRef = you): EffectSpec =>

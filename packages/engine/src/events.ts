@@ -953,6 +953,18 @@ export type GameEvent =
       readonly damage: number;
     }
   /**
+   * An identity or villain that was not defeated at zero stood with more damage than its maximum hit points, and its
+   * hit point dial reads zero (RRG 1.8 "Hit Points", p. 22; `settleDials`): `amount` damage past zero is not kept,
+   * leaving `damage` on the card, its maximum hit points. The damage was dealt and taken in full where it was logged.
+   */
+  | {
+      readonly type: "damageBeyondZeroLost";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly amount: number;
+      readonly damage: number;
+    }
+  /**
    * The card now showing faceup on top of `playerId`'s deck under a `topOfDeckFaceup` rule (docs/phase7-wave8.md
    * §3.48): logged when the rule turns on over a deck with a card in it, and each time the top card changes while it
    * holds (a draw, a discard, a swap, a shuffle, a deck reset, a card put on top), one card at a time. The card is

@@ -16,6 +16,7 @@ import {
   paymentFor,
   replay,
   sessionApply,
+  showingResources,
   startSession,
   type GameEvent,
   type GameState,
@@ -1082,11 +1083,32 @@ describe("50022.grant-ward: cannot defend; Forced Response after you reveal a tr
   });
   it("with no [mental] resource in hand she cannot be saved: damage and removal", () => {
     const ward = placed(aspectGame(), WARD);
+    // The hand is drawn back to its size before the treachery is revealed, so no card left in the deck prints a
+    // [mental] or [wild] resource either. (Until 2026-10-10 the drawn hand could pay, and this test passed only
+    // because its default answer chose to spend and then paid with nothing, which the engine no longer accepts.)
+    const pays = (id: InstanceId): boolean => {
+      const printed = showingResources(ward.state, id);
+      return printed.mental > 0 || printed.wild > 0;
+    };
     const empty: GameState = {
       ...ward.state,
-      players: ward.state.players.map((p) => (p.playerId === P1 ? { ...p, hand: [] } : p)),
+      players: ward.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: [], deck: p.deck.filter((id) => !pays(id)) } : p,
+      ),
     };
-    const after = reveal(empty, [TREACHERY]);
+    const offered: string[][] = [];
+    const after = settle(
+      run(stackEncounterDeck(empty, "01186", TREACHERY), endTurn(P1)),
+      (s) => {
+        const choice = s.pendingChoice!;
+        if (choice.prompt.kind === "chooseOption") offered.push(choice.options.map((o) => o.label));
+        return firstLegal(s);
+      },
+      undefined,
+      DEPS,
+    );
+    // The spend cannot be paid, so it is not offered and "do not spend" resolves without a choice.
+    expect(offered).toEqual([]);
     expect(inst(after, identityOf(after)).damage).toBe(2);
     expect(removed(after, ward.id)).toBe(true);
   });

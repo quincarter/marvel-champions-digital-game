@@ -535,7 +535,7 @@ interface DefeatHint {
  * damage to the engaged player's identity") sweeps again while the defeated card is still in play at zero remaining hit
  * points, and it must not be defeated a second time.
  */
-const defeatPending = (state: GameState, id: InstanceId): boolean =>
+export const defeatPending = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
     (f) =>
       (f.kind === "event" &&

@@ -220,6 +220,12 @@ export type ChoicePrompt =
   /**
    * An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines.
    *
+   * `required` (`EffectSpec spendResources.required`): the player already chose to spend, so there is no declining: a
+   * selection that does not pay `requirement` (and `distinctTypes`) in full is refused by `resolveChoice` and the
+   * choice stays pending. It is only asked of a player who can pay. The choice's options then list a payment in full
+   * from the fewest of them first, and `minSelections` is that many (`fewestSpend`): no payment holds fewer, and the
+   * first `minSelections` options are a legal answer, as for any choice.
+   *
    * `distinctTypes` (docs/phase7-wave6.md §3.69, "spend 2 different resources"): present only when the effect asks for
    * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
    */
@@ -227,6 +233,7 @@ export type ChoicePrompt =
       readonly kind: "spendResources";
       readonly requirement: ResourceRequirement;
       readonly distinctTypes?: number;
+      readonly required?: true;
       /**
        * The payment is an additional cost to change form, asked as a player card's effect changes the player's form
        * (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the form being changed to and the cards the cost is

@@ -331,7 +331,9 @@ describe("§3.1 `RuleSpec cannotBeDefeated`", () => {
   it("a villain at zero remaining hit points is not defeated while the rule holds", () => {
     const { session } = play(start(UNDEFEATABLE), HIT_50.card);
     expect(session.state.outcome).toBeNull();
-    expect(damageOf(session.state)).toBe(50);
+    // Not defeated, and his dial reads zero: the damage past it is not kept (RRG 1.8 "Hit Points", p. 22;
+    // `settleDials`). The card showed all 50 until 2026-10-10.
+    expect(damageOf(session.state)).toBe(8);
     expect(activeVillain(session.state).defeated).toBe(false);
   });
 

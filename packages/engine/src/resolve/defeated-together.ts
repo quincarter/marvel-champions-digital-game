@@ -12,16 +12,18 @@
  *    occurrence's several triggering conditions (RRG 1.8 "Triggering Condition", p. 45). An interrupt that cancels or
  *    replaces one defeat leaves the others imminent (`stillImminent`).
  * 2. Every defeat that still happens, happens (logged, reported to the damage), in sweep order.
- * 3. Step 7: every When Defeated ability. Each is "Forced Interrupt: When this card is defeated" (RRG 1.8 "When
+ * 3. Any overkill spill, in sweep order: "Overkill damage is simultaneous with the damage from the attack" (MC50
+ *    rulebook FAQ, p. 22), so it lands, and a "would be defeated" interrupt on the character it lands on resolves,
+ *    before any When Defeated ability (`beginDefeat`, `resolve/event.ts`).
+ * 4. Step 7: every When Defeated ability. Each is "Forced Interrupt: When this card is defeated" (RRG 1.8 "When
  *    Defeated Abilities", p. 48), so those on different cards share a bold timing trigger and the first player orders
  *    them ("Simultaneous Resolution", p. 40; "First Player", p. 19). One card's own abilities keep their printed order.
  *    Every defeated card is still in play while they resolve ("A defeated card leaves play after its 'When Defeated'
  *    ability is resolved", p. 48), and none can be defeated again (`defeatPending`).
- * 4. Step 8: every card still in play showing the defeated face leaves from one step, so their "when this leaves play"
+ * 5. Step 8: every card still in play showing the defeated face leaves from one step, so their "when this leaves play"
  *    interrupts, and those of the attachments leaving with them, share one window, and their leavings one response
  *    window (§4.1 Q32–Q33, `openLeavingInterrupts`). Victory X, a "… instead" destination and the Permanent keyword are
  *    each card's own, as for a card defeated alone (`defeatFromPlay`).
- * 5. Any overkill spill, in sweep order.
  * 6. Step 9: one response window for all the defeats.
  *
  * A villain or identity in the same sweep is not a member: it is removed from the game or eliminated rather than
@@ -183,12 +185,18 @@ export function executeDefeatedTogether(ctx: Ctx, frame: Frame<"effects">, step:
     });
   switch (step.stage) {
     case "apply": {
+      const spills: StackFrame[] = [];
       const members = step.members.map((member): DefeatedTogetherMember => {
         if (member.cancelled) return member;
         const begun = beginDefeat(ctx, member.event);
-        return typeof begun === "boolean" ? member : { ...member, defeated: begun };
+        if (typeof begun === "boolean") return member;
+        // Dealt now, before the When Defeated abilities, so it is not kept for the legacy `spill` stage.
+        const { spill, ...followUp } = begun;
+        if (spill) spills.push(eventFrame(ctx, spill));
+        return { ...member, defeated: followUp };
       });
       advance({ ...step, stage: "whenDefeated", members });
+      pushFrames(ctx, spills);
       return;
     }
     case "whenDefeated": {
@@ -260,6 +268,7 @@ export function executeDefeatedTogether(ctx: Ctx, frame: Frame<"effects">, step:
       return;
     }
     case "spill": {
+      // Only a game saved mid-step before 2026-10-10 still carries a spill here: it is dealt at `apply` now.
       advance({ ...step, stage: "responses" });
       pushFrames(
         ctx,

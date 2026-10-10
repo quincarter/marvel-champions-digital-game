@@ -1086,7 +1086,7 @@ describe("Thunderbolts scenario, game C: two players, Citizen V cannot be defeat
     expect(remaining()).toBe(1);
     const basic = act(c, {}, attack(hero(P1), citizen()));
     expect(ofType(basic, "damageDealt")).toMatchObject([{ targetInstanceId: citizen(), amount: 2 }]);
-    expect(remaining()).toBeLessThanOrEqual(0); // (see the it.fails at the end: the engine keeps the excess damage)
+    expect(remaining()).toBe(0); // 2 dealt on 1 remaining: his dial stops at zero (RRG 1.8 "Hit Points", p. 22)
     expect(c.state.villains[0]!.defeated).toBe(false);
     // (Innocent Bystanders, dealt to p1 in round 1, asked for a resource after each attack: the hand is read again.)
     const handNow = playerOf(c.state, P1).hand.filter((i) => i !== mocking);
@@ -1095,12 +1095,12 @@ describe("Thunderbolts scenario, game C: two players, Citizen V cannot be defeat
     expect(inst(c.state, citizen()).statuses.stunned).toBe(1);
   });
 
-  // DOUBT (engine; not fixed here): RRG 1.8 "Hit Points" / "Hit Point Dials" (pp. 21 to 22): "a villain's hit point dial
-  // represents their remaining hit points ... reduced by the amount of damage it took", and a dial reads 0 at the lowest.
-  // The engine keeps the excess as damage on the card (25 on 24 hit points after the basic attack above), so
-  // `remainingHitPoints` is -1 and a later heal of 4 would leave 3 where the dial shows 4.
-  it.fails("a villain hit more than his remaining hit points shows 0 remaining, not -1", () => {
+  // RRG 1.8 "Hit Points" (p. 22): "a villain's hit point dial represents their remaining hit points", reduced by the
+  // damage he took, and a dial reads 0 at the lowest. The damage past zero is dealt and not kept (24 on 24 hit points
+  // after the basic attack above, not 25), so a later heal of 4 leaves 4 (the engine's `settleDials`).
+  it("a villain hit more than his remaining hit points shows 0 remaining, not -1", () => {
     expect(remaining()).toBe(0);
+    expect(damageOf(c, citizen())).toBe(24);
   });
 
   it("round 2 villain phase, owner Q2 = A: the stunned Citizen V would activate against p2 (engaged with MACH-IV): the stun card is discarded and he does not heal", () => {
@@ -1116,7 +1116,7 @@ describe("Thunderbolts scenario, game C: two players, Citizen V cannot be defeat
     ]);
     // Q2 = A (docs/phase7-wave9.md section 4.1; MC50 p. 22): status discarded, no heal, no attack on p2.
     expect(ofType(ev, "damageHealed").filter((e) => e.targetInstanceId === citizen())).toEqual([]);
-    expect(remaining()).toBeLessThanOrEqual(0);
+    expect(remaining()).toBe(0);
     // The stun was spent on p2's activation, so he attacked free p1 normally.
     expect(inst(c.state, citizen()).statuses.stunned).toBe(0);
     expect(
@@ -1295,12 +1295,10 @@ describe("Thunderbolts scenario, game E: expert mode, two players", () => {
 // ---------------------------------------------------------------------------------------------------------------
 
 describe("Innocent Bystanders: spending the resource", () => {
-  // DOUBT (card script or engine prompt; not fixed here): 50134 "either spend 1 resource of any type or place 1 threat
-  // on the main scheme. Remove 1 bystander counter." Choosing the first option and then paying with no card at all is
-  // accepted: the counter is removed, nothing is spent and no threat is placed. Owner: packages/cards
-  // src/wave9/aos/thunderbolts.ts (`spendResources({ generic: 1 }, "spent")` inside a `chooseOne` branch) or the
-  // engine's `spendResources` prompt (packages/engine/src/choices.ts), which offers a 0-card answer.
-  it.fails("a player who picks 'spend 1 resource' must lose a card from hand (or the choice must be refused)", () => {
+  // 50134 "either spend 1 resource of any type or place 1 threat on the main scheme. Remove 1 bystander counter."
+  // The spend is an option the player chose, so its payment is made in full (the engine's `spendResources.required`,
+  // set by the DSL's `option`): choosing it and then paying with no card at all is refused and the choice stays open.
+  it("a player who picks 'spend 1 resource' must lose a card from hand: paying with nothing is refused", () => {
     const a = open(1, ["the_leaper", "power_of_the_atom"], { seed: 4 });
     act(a, {}, { type: "changeForm", playerId: P1 });
     stack(a, BLANK, BYSTANDERS);
@@ -1308,9 +1306,13 @@ describe("Innocent Bystanders: spending the resource", () => {
     const bystanders = inPlayCard(a.state, BYSTANDERS)!;
     const handBefore = playerOf(a.state, P1).hand.length;
     const threatBefore = mainThreat(a);
-    act(a, { spend: "none" }, attack(identityOf(a.state, P1), idOfCode(a, RADIOACTIVE_MAN)));
+    const strike = attack(identityOf(a.state, P1), idOfCode(a, RADIOACTIVE_MAN));
+    expect(() => act(a, { spend: "none" }, strike)).toThrow(/resolveChoice rejected: invalid_choice/);
+    expect(inst(a.state, bystanders).counters).toMatchObject({ bystander: 4 }); // nothing happened
+    act(a, {}, strike);
     expect(inst(a.state, bystanders).counters).toMatchObject({ bystander: 3 });
-    expect(playerOf(a.state, P1).hand.length < handBefore || mainThreat(a) > threatBefore).toBe(true);
+    expect(playerOf(a.state, P1).hand.length).toBe(handBefore - 1);
+    expect(mainThreat(a)).toBe(threatBefore);
   });
 });
 

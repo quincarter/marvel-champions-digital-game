@@ -90,6 +90,38 @@ export function canPaySpend(
 }
 
 /**
+ * A payment of `resources` (with `distinctTypes`) from the fewest of the payment options a spend would offer
+ * `playerId` now, as their option ids in the order offered; the first found of that size. Null when there is none, or
+ * when the search was cut short (`MAX_SUBSETS`) and so cannot say which is the fewest.
+ *
+ * A `required` spend (`EffectSpec spendResources.required`) lists these options first and asks for at least that many
+ * selections: no payment in full holds fewer, and the choice keeps the property every other choice has, that its first
+ * `minSelections` options are a legal answer.
+ */
+export function fewestSpend(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  resources: ResourceRequirement,
+  distinctTypes = 0,
+): readonly string[] | null {
+  const ctx = createCtx(state, deps);
+  const requirement = combineRequirements(resources, 0);
+  const needed = Math.max(requirementTotal(requirement), distinctTypes);
+  if (needed === 0) return [];
+  const options = paymentOptions(ctx, playerId, null).map((option) => option.optionId);
+  for (let size = 1; size <= Math.min(needed, options.length); size++) {
+    let tried = 0;
+    for (const ids of subsets(options, size)) {
+      const pool = priceOrNull(ctx, playerId, paymentsFromOptionIds(ids), null, null);
+      if (pool !== null && spendPays(pool, requirement, distinctTypes)) return ids;
+      if (++tried >= MAX_SUBSETS) return null;
+    }
+  }
+  return null;
+}
+
+/**
  * The payments that pay a chosen-size resource cost (`AbilityCost.resources { choose }`; docs/phase7-wave8.md §3.62)
  * without overpaying it: each set of `sources` that generates from `min` to `max` resources in all, the fewest sources
  * first and, within a size, in the order given. Every source generates at least one resource, so no such payment

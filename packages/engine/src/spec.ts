@@ -2548,7 +2548,8 @@ export type EffectSpec =
   | { readonly kind: "drawUpTo"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
    * "Choose one: …" / "Choose to either … or …". Options whose `condition`
-   * fails aren't offered; with one option left it resolves without asking.
+   * fails aren't offered, nor is one holding a `required` `spendResources` its player cannot pay (see that effect);
+   * with one option left it resolves without asking.
    */
   | {
       readonly kind: "chooseOne";
@@ -2919,6 +2920,21 @@ export type EffectSpec =
    * The payment must also hold at least this many resource types, by the rule the cost field
    * `AbilityCost.distinctResourceTypes` uses (`distinctTypeCount`): each wild is any one type not otherwise present
    * (RRG 1.8 "Wild Resource", p. 48). A payment of one type only is too little: nothing is spent and `<bind>.made` is 0.
+   *
+   * `required`: the spend is not the player's to decline, because they already chose it: the "spend" option of a
+   * "choose to either spend 1 resource of any type or place 1 threat on the main scheme" (the alternative is the other
+   * option of the `chooseOne`, not a `<bind>.made` branch). A player who chose an option resolves it, so:
+   * - the payment must pay `resources` (and `distinctTypes`) in full: a `resolveChoice` that selects nothing, or too
+   *   little, is refused and the choice stays pending (as a cost's payment is, RRG 1.8 "Cost", p. 13). Overpaying is
+   *   legal;
+   * - a `chooseOne` does not offer an option holding a required spend its player cannot pay (`executeChooseOne`).
+   *   RRG 1.8 "Choose (Option)" (p. 12) says so for a player card ("cannot choose an option … [that has] a cost the
+   *   player cannot pay"); for an encounter card that paragraph names only options without targets, and this follows
+   *   the owner's standing default instead (docs/phase7-wave7.md §4.2 Q8 = A, docs/phase7-wave6.md Q51: the choice is
+   *   a price, so an option is offered only to a player who can carry it out);
+   * - reached all the same by a player who cannot pay (the only option left, or no `chooseOne` around it), nobody is
+   *   asked, nothing is spent and `<bind>.made` is 0.
+   * Without it the effect is the "either spend … or" / "you may spend" prompt above, where paying nothing declines.
    */
   | {
       readonly kind: "spendResources";
@@ -2926,6 +2942,7 @@ export type EffectSpec =
       readonly resources: ResourceRequirement;
       readonly bind: string;
       readonly distinctTypes?: number;
+      readonly required?: true;
     }
   /**
    * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
@@ -4515,9 +4532,10 @@ export type EffectSpec =
   /**
    * **Engine-internal; no DSL builder.** Allies and minions defeated by one effect resolved together
    * (docs/phase7-wave5.md §4.1 Q49, `resolve/defeated-together.ts`): after one shared interrupt window for their
-   * defeats, every defeat happens, their When Defeated abilities resolve (the first player orders them across cards),
-   * they leave play from one step (one leave window, `openLeavingInterrupts`), overkill spills, and their defeats share
-   * one response window. `stage` is the next of those steps.
+   * defeats, every defeat happens and overkill spills (MC50 rulebook FAQ, p. 22), their When Defeated abilities resolve
+   * (the first player orders them across cards), they leave play from one step (one leave window,
+   * `openLeavingInterrupts`), and their defeats share one response window. `stage` is the next of those steps; `spill`
+   * is passed through with nothing to do.
    */
   | {
       readonly kind: "defeatedTogether";
@@ -4818,7 +4836,7 @@ export interface DefeatFollowUp {
   readonly insteadTo?: CardDestination;
   /** The card whose ability defeated it, for the Permanent keyword (docs/phase7-wave5.md §4.1 Q46). */
   readonly sourceCardId?: CardId;
-  /** Overkill's excess, dealt after it leaves play. */
+  /** Overkill's excess, dealt once the defeat has happened and before its When Defeated abilities (`beginDefeat`). */
   readonly spill?: Extract<TriggerEvent, { kind: "dealDamage" }>;
 }
 

@@ -870,7 +870,7 @@ describe("M.O.D.O.K. scenario, game B: two players (Iron Man P1, Spider-Man P2),
     expect(deckOfCells(b).map((i) => codeOf(b.state, i))).toEqual(["50106a", "50107a"]);
   });
 
-  it.fails("MC50 p. 22 FAQ: M.O.D.O.K.'s Forced Interrupt resolves first (overkill is simultaneous with the attack's damage), then the Adaptoid's When Defeated: the freed cell no longer holds counters, so the NEW cell (4) loses 1 (3). The engine resolves When Defeated first: it takes 1 from the old cell (2 -> 1) and the new cell stays at 4", () => {
+  it("MC50 p. 22 FAQ: M.O.D.O.K.'s Forced Interrupt resolves first (overkill is simultaneous with the attack's damage), then the Adaptoid's When Defeated: the freed cell no longer holds counters, so the NEW cell (4) loses 1 (3)", () => {
     const sim: Sim = { state: beforeAssault!.state, log: [] };
     const target = adaptoidOf(P2);
     const card = handOf(sim, RELENTLESS_ASSAULT, P1)[0]!;

@@ -524,6 +524,10 @@ function answerChoice(
     case "payForAbility":
       return payFromOptions(state, choice, prompt.cost, null);
     case "spendResources": {
+      // A spend the player chose (`required`) is paid in full or refused, and the engine lists a payment in full from
+      // the fewest options first (`fewestSpend`). The estimate below prices every resource ability as 1 of any type,
+      // which a typed spend does not always accept; before 2026-10-10 such an answer silently paid nothing.
+      if (prompt.required) return take(ids, min);
       const r = prompt.requirement;
       const cost = (r.generic ?? 0) + (r.physical ?? 0) + (r.mental ?? 0) + (r.energy ?? 0);
       return payFromOptions(state, choice, cost, r);

@@ -21,6 +21,7 @@ import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
+import { spendPays } from "./payable.js";
 import { getPlayer, handSize } from "./query.js";
 import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
@@ -163,6 +164,14 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
     const size = pool ? poolTotal(pool) : null;
     if (size !== null && size < min) {
       return engineError("invalid_choice", `spend from ${min} to ${max} resources; the selection is ${size}`, command);
+    }
+  }
+  // The player chose to spend (`EffectSpec spendResources.required`): the payment is made in full or not accepted, as
+  // a cost's is (RRG 1.8 "Cost", p. 13), and the choice stays open. Overpaying is legal.
+  if (choice.prompt.kind === "spendResources" && choice.prompt.required) {
+    const pool = priceOrNull(ctx, choice.playerId, paymentsFromOptionIds(selected), null, null);
+    if (pool === null || !spendPays(pool, requirementOf(choice.prompt.requirement), choice.prompt.distinctTypes ?? 0)) {
+      return engineError("invalid_choice", "the selection does not pay the resources this option spends", command);
     }
   }
   if (choice.prompt.kind === "divide") {

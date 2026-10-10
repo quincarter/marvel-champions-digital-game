@@ -105,7 +105,7 @@ import {
 } from "../query.js";
 import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
 import { combineRequirements, requirementTotal, type ResolvedRequirement } from "../resources.js";
-import { spendPays } from "../payable.js";
+import { canPaySpend, fewestSpend, spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -1974,6 +1974,18 @@ function executeForEachCard(
   });
 }
 
+/**
+ * False only for a `required` `spendResources` its player could not pay right now, from the payment options that
+ * spend would offer them (`canPaySpend`): the option holding it cannot be carried out, so `executeChooseOne` does not
+ * offer it, and the effect itself asks nobody. A spend that names no player is not judged here (nobody is asked, as
+ * for any spend).
+ */
+function requiredSpendPayable(ctx: Ctx, effect: EffectSpec, context: EffectContext): boolean {
+  if (effect.kind !== "spendResources" || effect.required !== true) return true;
+  const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+  return !playerId || canPaySpend(ctx.state, ctx.deps, playerId, effect.resources, effect.distinctTypes ?? 0);
+}
+
 function executeChooseOne(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -1982,7 +1994,9 @@ function executeChooseOne(
 ): void {
   const available = effect.options
     .map((option, index) => ({ option, index }))
-    .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context));
+    .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context))
+    // An option to spend resources is offered only to a player who can pay it (`EffectSpec spendResources.required`).
+    .filter(({ option }) => option.effects.every((step) => requiredSpendPayable(ctx, step, context)));
   const count = effect.count ?? 1;
   if (count > 1) return executeChooseSeveral(ctx, frame, effect, context, available, count);
   const pickedIndex =
@@ -2336,6 +2350,9 @@ function executeChoosePlayer(
  * usual payment options (hand cards, resource abilities). A payment that covers
  * the requirement is spent and `<bind>.made` is 1; selecting nothing or too
  * little spends nothing and `<bind>.made` is 0.
+ *
+ * `required` (the player chose the option to spend): asked only of a player who can pay, and then the choice takes
+ * nothing less than a payment in full (`resolveChoice` refuses it, `engine.ts`), so the answer read here always pays.
  */
 function executeSpendResources(
   ctx: Ctx,
@@ -2358,11 +2375,26 @@ function executeSpendResources(
   if (frame.answer === null) {
     const options = playerId ? paymentOptions(ctx, playerId, null) : [];
     if (!playerId || options.length === 0) return finish(false);
+    const required = effect.required === true;
+    if (required && !requiredSpendPayable(ctx, effect, context)) return finish(false);
+    // A payment in full from the fewest options goes first and sets the minimum (`fewestSpend`), so the first
+    // `minSelections` options are a legal answer here as for any choice.
+    const fewest = required ? fewestSpend(ctx.state, ctx.deps, playerId, effect.resources, distinctTypes) : null;
     requestChoice(ctx, {
       playerId,
-      prompt: { kind: "spendResources", requirement, ...(distinctTypes > 0 ? { distinctTypes } : {}) },
-      options,
-      minSelections: 0,
+      prompt: {
+        kind: "spendResources",
+        requirement,
+        ...(distinctTypes > 0 ? { distinctTypes } : {}),
+        ...(required ? { required } : {}),
+      },
+      options: fewest
+        ? [
+            ...options.filter((option) => fewest.includes(option.optionId)),
+            ...options.filter((option) => !fewest.includes(option.optionId)),
+          ]
+        : options,
+      minSelections: required ? (fewest?.length ?? 1) : 0,
       maxSelections: options.length,
       frameId: frame.frameId,
     });
