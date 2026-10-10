@@ -37,6 +37,7 @@ import {
 import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-supreme.js";
 import { SHIELD, SHIELD_SKIPPED } from "./aos/shield.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
+import { HARD_SOUND, HARD_SOUND_SKIPPED } from "./aos/hard-sound.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
 import { THE_LEAPER, THE_LEAPER_SKIPPED } from "./aos/the-leaper.js";
 import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
@@ -251,6 +252,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50139", "50140", "50141", "50142"],
       registry: GRAVITATIONAL_PULL,
       skipped: GRAVITATIONAL_PULL_SKIPPED,
+    },
+    {
+      module: "hard-sound",
+      cardIds: ["50143", "50144", "50145", "50146", "50147"],
+      registry: HARD_SOUND,
+      skipped: HARD_SOUND_SKIPPED,
     },
     {
       module: "nick-fury/identity",
