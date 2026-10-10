@@ -71,3 +71,36 @@ export function inPlay(
 }
 
 export { identityOf };
+
+/**
+ * Test surgery: a Core minion `code` put straight into play engaged with P1 under the instance id `slot`, with no
+ * reveal and no When Revealed (the same shape `nick-fury/testing.ts` builds).
+ */
+export function engageHillMinion(state: GameState, code: string, slot: string): GameState {
+  const id = slot as InstanceId;
+  const instance = {
+    instanceId: id,
+    cardId: code,
+    ownerId: null,
+    controllerId: null,
+    home: { kind: "playArea", playerId: P1 },
+    faceup: true,
+    exhausted: false,
+    damage: 0,
+    threat: 0,
+    statuses: { stunned: 0, confused: 0, tough: 0 },
+    counters: {},
+    attachedTo: null,
+    attachments: [],
+    boostCards: [],
+    tucked: [],
+    facedownAs: null,
+    engagedWith: P1,
+    flipped: false,
+  } as never;
+  return {
+    ...state,
+    players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, id] } : p)),
+    instances: { ...state.instances, [id]: instance },
+  };
+}

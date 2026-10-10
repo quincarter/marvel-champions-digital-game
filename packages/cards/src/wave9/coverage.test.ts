@@ -14,6 +14,7 @@ import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { MARIA_HILL_EVENTS, MARIA_HILL_EVENTS_SKIPPED } from "./aos/maria-hill/events.js";
 import { MARIA_HILL_IDENTITY, MARIA_HILL_IDENTITY_SKIPPED } from "./aos/maria-hill/identity.js";
 import {
   MARIA_HILL_SUPPORT_UPGRADES_ALLIES,
@@ -25,6 +26,10 @@ import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
 import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
 import { NICK_FURY_EVENTS, NICK_FURY_EVENTS_SKIPPED } from "./aos/nick-fury/events.js";
 import { NICK_FURY_IDENTITY, NICK_FURY_IDENTITY_SKIPPED } from "./aos/nick-fury/identity.js";
+import {
+  NICK_FURY_OBLIGATION_NEMESIS,
+  NICK_FURY_OBLIGATION_NEMESIS_SKIPPED,
+} from "./aos/nick-fury/obligation-nemesis.js";
 import { PALE_LITTLE_SPIDER, PALE_LITTLE_SPIDER_SKIPPED } from "./aos/pale-little-spider.js";
 import { BLACK_PANTHER_EVENTS, BLACK_PANTHER_EVENTS_SKIPPED } from "./bp/black-panther/events.js";
 import { BLACK_PANTHER_IDENTITY, BLACK_PANTHER_IDENTITY_SKIPPED } from "./bp/black-panther/identity.js";
@@ -87,6 +92,12 @@ const SCRIPTED_MODULES: Readonly<
       skipped: MARIA_HILL_IDENTITY_SKIPPED,
     },
     {
+      module: "maria-hill/events",
+      cardIds: ["50003", "50004", "50005", "50006", "50007"],
+      registry: MARIA_HILL_EVENTS,
+      skipped: MARIA_HILL_EVENTS_SKIPPED,
+    },
+    {
       module: "maria-hill/support-upgrades-allies",
       cardIds: ["50002", "50008", "50009", "50010", "50011"],
       registry: MARIA_HILL_SUPPORT_UPGRADES_ALLIES,
@@ -121,6 +132,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50037", "50038", "50039"],
       registry: NICK_FURY_EVENTS,
       skipped: NICK_FURY_EVENTS_SKIPPED,
+    },
+    {
+      module: "nick-fury/obligation-nemesis",
+      cardIds: ["50059", "50060", "50061", "50062", "50063"],
+      registry: NICK_FURY_OBLIGATION_NEMESIS,
+      skipped: NICK_FURY_OBLIGATION_NEMESIS_SKIPPED,
     },
     {
       module: "pale-little-spider",
