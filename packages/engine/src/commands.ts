@@ -6,6 +6,10 @@ import type { ResourceType } from "./resources.js";
  * One source of resources toward a cost: a card discarded from hand, or a
  * "Resource" ability triggered while paying (RRG "Cost", "Resource Ability").
  *
+ * `fromHand` also names a card tucked under a card whose rule lets the paying player spend it "as if it were in their
+ * hand" (`RuleSpec spendableFromTucked`, Resource Reserve; docs/phase7-wave9.md §3.46 (c)): it is spent as a hand card
+ * is, from under its host.
+ *
  * A resource ability whose own cost picks cards ("Exhaust an [Interface] upgrade you control → generate that
  * upgrade's resources", SP//dr Suit's Sync Ratio) names its picks in `costChoices`, keyed by slot as for a command's
  * `CostChoices`. Absent, the pick pays itself only when it is forced (`InPlayCostPick`).

@@ -3,7 +3,7 @@ import type { EventPattern } from "./abilities.js";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, Predicate, StatName, StatusName, TargetCategory } from "./spec.js";
-import type { Bindings, Vars } from "./stack.js";
+import { PAID_CARDS_SLOT, type Bindings, type Vars } from "./stack.js";
 import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
@@ -429,6 +429,11 @@ export type TriggerEventBody =
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly payment?: Vars;
+      /**
+       * The cards that paid for the play (`PAID_CARDS_SLOT`, docs/phase7-wave9.md §3.46 (b)), which an answering
+       * ability reads as slot `paid.cards` (`carriedByEvent`). Absent when no card paid.
+       */
+      readonly paidCards?: readonly InstanceId[];
     }
   /**
    * A card has been paid for and is about to resolve: "When you play an [Attack] event" (Embiggen!, Shrink). An
@@ -436,7 +441,13 @@ export type TriggerEventBody =
    * instance of damage the event deals. `cardPlayed` stays where it is — announced after the card has resolved — so
    * "after you play" responses are unaffected. Only put on the stack when an ability could react (`heard`).
    */
-  | { readonly kind: "cardBeingPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  | {
+      readonly kind: "cardBeingPlayed";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      /** The cards that paid for the play, as `cardPlayed.paidCards` has them; absent when no card paid. */
+      readonly paidCards?: readonly InstanceId[];
+    }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
    * A revealed treachery (or a revealed event) has **resolved**: "After you resolve a treachery, … attach that treachery
@@ -2076,8 +2087,9 @@ const NOTHING_CARRIED: {
  * vars a `momentRaised` carries, each under `MOMENT_PREFIX`, so the raising ability's `pulled` is the answering
  * ability's `moment.pulled` and `pulled.count` its `moment.pulled.count`. The prefix keeps them apart from the
  * answering ability's own slots and cost results. An `abilityResolved` hands over the resolved ability's slots the
- * same way (docs/phase7-wave9.md §3.43 (c)), and no vars. Every other event, and one that carries nothing, gives
- * nothing.
+ * same way (docs/phase7-wave9.md §3.43 (c)), and no vars. A play's `cardBeingPlayed` and `cardPlayed` hand over the
+ * cards that paid for it as slot `paid.cards` (`PAID_CARDS_SLOT`, §3.46 (b)). Every other event, and one that carries
+ * nothing, gives nothing.
  *
  * Read wherever an ability is judged or resolved against its event: its condition and targets (`resolve/triggers.ts`,
  * `target-validity.ts`), its cost (`actions.ts`) and its frame (`abilityFrame`).
@@ -2086,6 +2098,9 @@ export function carriedByEvent(event: TriggerEvent | null | undefined): typeof N
   const prefixed = <T>(record: Readonly<Record<string, T>> | undefined): Record<string, T> =>
     Object.fromEntries(Object.entries(record ?? {}).map(([key, item]) => [`${MOMENT_PREFIX}${key}`, item]));
   if (event?.kind === "abilityResolved" && event.carried) return { bindings: prefixed(event.carried), vars: {} };
+  // The cards that paid for a play, under the slot's own name: there is one play, so nothing to keep apart (§3.46 (b)).
+  if ((event?.kind === "cardPlayed" || event?.kind === "cardBeingPlayed") && event.paidCards?.length)
+    return { bindings: { [PAID_CARDS_SLOT]: event.paidCards }, vars: {} };
   if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
 }

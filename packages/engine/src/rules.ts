@@ -45,6 +45,7 @@ import {
   isPlayerCard,
   matchesQuery,
   printedAbilityRefs,
+  resolvePlayers,
   resolveRef,
   resolveValue,
   restrictedCardsOf,
@@ -497,6 +498,57 @@ export const cannotThwart = (
     if (rule.player) return rulePlayers(state, { player: rule.player }, active).includes(playerId);
     return true;
   });
+
+/** A tucked card a player may spend as if it were in their hand, and the card it is tucked under. */
+export interface TuckedSpendSource {
+  readonly instanceId: InstanceId;
+  readonly hostInstanceId: InstanceId;
+}
+
+/**
+ * "Any player may spend the resource card tucked here as if it were in their hand" (`RuleSpec spendableFromTucked`,
+ * docs/phase7-wave9.md §3.46 (c)): the tucked cards `playerId` may spend right now, each once, hosts in the order the
+ * rules are read and cards in the order they were tucked. A facedown tucked card is no card to spend: it has no
+ * printed resources to read (RRG 1.8 "Tuck", p. 45: a tucked card is placed faceup unless a card says otherwise).
+ */
+export function tuckedSpendSources(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+): readonly TuckedSpendSource[] {
+  const found: TuckedSpendSource[] = [];
+  for (const active of activeRules(state, deps, "spendableFromTucked")) {
+    if (!resolvePlayers(state, active.rule.by, active.context).includes(playerId)) continue;
+    const hostInstanceId = active.context.selfInstanceId;
+    if (hostInstanceId === null) continue;
+    for (const instanceId of getInstance(state, hostInstanceId)?.tucked ?? []) {
+      const tucked = getInstance(state, instanceId);
+      if (!tucked || !tucked.faceup || tucked.facedownAs !== null) continue;
+      if (active.rule.cards && !matchesQuery(state, instanceId, active.rule.cards, active.context)) continue;
+      if (!found.some((source) => source.instanceId === instanceId)) found.push({ instanceId, hostInstanceId });
+    }
+  }
+  return found;
+}
+
+/**
+ * Who spends the tucked card `id` "as if it were in their hand" in a payment of `playerId`'s (`RuleSpec
+ * spendableFromTucked`): `playerId` when a rule names them; else, with `anyPlayer` (a group payment, RRG 1.8
+ * "Alliance", p. 6), the first player in player order a rule names. Null when nobody may, or the card is not tucked.
+ */
+export function tuckedSpender(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  playerId: PlayerId,
+  anyPlayer = false,
+): PlayerId | null {
+  const spends = (player: PlayerId): boolean =>
+    tuckedSpendSources(state, deps, player).some((source) => source.instanceId === id);
+  if (spends(playerId)) return playerId;
+  if (!anyPlayer) return null;
+  return state.players.find((p) => !p.eliminated && p.playerId !== playerId && spends(p.playerId))?.playerId ?? null;
+}
 
 /**
  * "Attached identity cannot … recover" (`RuleSpec cannotRecover`, docs/phase7-wave6.md §3.14): this player cannot make
@@ -1558,6 +1610,17 @@ export const cannotDefend = (
     ({ rule, context }) =>
       matchesQuery(state, characterId, rule.target, context) &&
       (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
+  );
+
+/**
+ * "[This character] does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47): its
+ * basic defense is declared without exhausting it, so it is offered ready or exhausted (RRG 1.8 "Defend, Defense",
+ * p. 15: an ability "that allows a hero to be declared as a defender without exhausting can be used on an exhausted
+ * hero"). Read by `legalDefenders`, the Declare Defender step and the defend preview.
+ */
+export const defendsWithoutExhausting = (state: GameState, deps: EngineDeps, characterId: InstanceId): boolean =>
+  activeRules(state, deps, "defendsWithoutExhausting").some(({ rule, context }) =>
+    matchesQuery(state, characterId, rule.character, context),
   );
 
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */

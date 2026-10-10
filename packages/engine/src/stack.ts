@@ -734,6 +734,37 @@ export function paymentVarsIn(vars: Vars): Vars {
   );
 }
 
+/**
+ * The slot holding the cards that paid for a play (docs/phase7-wave9.md §3.46 (b)): "tuck 1 card used to pay for her
+ * under her" (Spectrum, `falcon` 53018). The cards spent as cards to pay for the play, in payment order: the cards
+ * discarded from a hand (the paying player's, or another player's for an alliance card) and a tucked card spent "as if
+ * it were in their hand" (`RuleSpec spendableFromTucked`, §3.46 (c)). They are the same cards `paid.cards.<cardType>`
+ * counts, judged the same way (`cardsThatPaid` in `actions.ts`):
+ *
+ * - RRG 1.8 "Cost" (p. 13): resources come "by discarding cards from their hand or by using 'Resource' card
+ *   abilities". A resource ability generates a resource and is no card that paid, whatever card carries it; the card a
+ *   resource ability's own cost exhausts or discards is that ability's cost, not the play's.
+ * - RRG 1.8 "Cost" (p. 13): resources "generated beyond the specified cost … were not paid for that cost", so a card
+ *   whose every resource was overpaid is left out, and at a cost of 0 no card paid (docs/phase7-wave8.md §4.1 Q28 = A).
+ *
+ * Bound on the play's frame (`playFrameCost`), so the played card's own abilities read it while the play resolves
+ * (`playPaidCards`, an event's ability through the frame's bindings), and carried by the play's `cardBeingPlayed` and
+ * `cardPlayed` events to the abilities that answer them (`carriedByEvent`). Absent when no card paid: a play paid by
+ * resource abilities alone, a free play, a card put into play without being played. The slot holds instance ids; a
+ * reader finds each card where it is now (a discard pile, or wherever an answer to its spending moved it).
+ */
+export const PAID_CARDS_SLOT = "paid.cards";
+
+/**
+ * The cards that paid for the play of `instanceId` while that play is still resolving, as the bindings its own
+ * abilities start with (`PAID_CARDS_SLOT`); empty when none did or the card is not being played. The slot twin of
+ * `playPaymentVars`.
+ */
+export function playPaidCards(stack: readonly StackFrame[], instanceId: InstanceId): Bindings {
+  const paid = playFrameOf(stack, instanceId)?.bindings[PAID_CARDS_SLOT];
+  return paid && paid.length > 0 ? { [PAID_CARDS_SLOT]: paid } : {};
+}
+
 /** The var prefix of the paid resources by the type each was used as (`paid.as.<type>`; docs/phase7-wave8.md §3.62). */
 export const PAID_AS_PREFIX = "paid.as.";
 

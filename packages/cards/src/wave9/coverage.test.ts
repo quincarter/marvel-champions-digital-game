@@ -70,6 +70,7 @@ import {
   FALCON_ASPECT_BASIC,
   FALCON_ASPECT_BASIC_SKIPPED,
   FLIGHT_SQUADRON_GRANTED_RESPONSE,
+  SPECTRUM_GRANTED_RESPONSE,
 } from "./falcon/aspect-basic.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { FALCON_EVENTS, FALCON_EVENTS_SKIPPED } from "./falcon/falcon/events.js";
@@ -470,7 +471,7 @@ const SCRIPTED_MODULES: Readonly<
       ],
       registry: FALCON_ASPECT_BASIC,
       skipped: FALCON_ASPECT_BASIC_SKIPPED,
-      registryOnly: [FLIGHT_SQUADRON_GRANTED_RESPONSE],
+      registryOnly: [FLIGHT_SQUADRON_GRANTED_RESPONSE, SPECTRUM_GRANTED_RESPONSE],
     },
     {
       module: "falcon/events",

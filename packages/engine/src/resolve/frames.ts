@@ -19,6 +19,7 @@ import {
 import type { EffectSpec } from "../spec.js";
 import {
   type Bindings,
+  playPaidCards,
   playPaymentVars,
   type ReportTarget,
   type SetupInstructionSource,
@@ -305,7 +306,9 @@ export function abilityFrame(
     eventFrameId,
     // Read before the cost is paid: "discard this card →" leaves the effect's "attached scheme" readable (`SELF_HOST`).
     // What the answered moment carries is the ability's to read as `moment.<slot>` (`carriedByEvent`, §3.71).
+    // The cards that paid for this card's own play, while it resolves (`playPaidCards`, docs/phase7-wave9.md §3.46 (b)).
     bindings: withSelfHost(ctx.state, candidate.instanceId, {
+      ...playPaidCards(ctx.state.stack, candidate.instanceId),
       ...carriedByEvent(event).bindings,
       // One answer for several conditions of the occurrence (`EventPattern.together`): each one's targets, once.
       ...(candidate.together

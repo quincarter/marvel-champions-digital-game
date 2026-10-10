@@ -234,7 +234,7 @@ export { pairOfOptionId, pairOptionId, pairSelectionFault, resourceIconsMatch } 
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
-export { attackPreventedVars, currentActivationFrameId } from "./stack.js";
+export { attackPreventedVars, currentActivationFrameId, PAID_CARDS_SLOT } from "./stack.js";
 export {
   abilityUseKey,
   DEFAULT_DEPS,

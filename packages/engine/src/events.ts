@@ -143,6 +143,17 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly slot: string;
     }
+  /**
+   * `playerId` spent a card tucked under `hostInstanceId` "as if it were in their hand" (`RuleSpec
+   * spendableFromTucked`, docs/phase7-wave9.md §3.46 (c)): it went from under its host to its owner's discard pile
+   * (the `cardMoved` before this). Logged in place of the `cardDiscardedFromHand` a hand card's spending logs.
+   */
+  | {
+      readonly type: "tuckedCardSpent";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+    }
   | {
       readonly type: "cardPlayed";
       readonly playerId: PlayerId;
@@ -886,6 +897,12 @@ export type GameEvent =
       readonly defenderInstanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly byEffect?: true;
+      /**
+       * The step's declaration did not exhaust the defender: a rule has it defend without exhausting (`RuleSpec
+       * defendsWithoutExhausting`, docs/phase7-wave9.md §3.47). No `cardExhausted` follows, and a defender that was
+       * already exhausted stays so. Absent on every other declaration.
+       */
+      readonly withoutExhausting?: true;
     }
   | { readonly type: "defenseDeclined"; readonly attackInstanceId: InstanceId; readonly playerId: PlayerId }
   /** The declared defender left play before damage: the attack is undefended and targets that player's identity (RRG 1.8 p. 9 step 5). */

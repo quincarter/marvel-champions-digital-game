@@ -67,6 +67,7 @@ import {
   getPlayer,
   heroFacesOf,
   isMinion,
+  locateCard,
   playerOrder,
   showingResources,
   undefeatedVillains,
@@ -1313,6 +1314,12 @@ export interface PaymentSource {
    * source is listed as well, and a payment holds one of the two (one card is spent once).
    */
   readonly spendsHandCard?: true;
+  /**
+   * This `handCard` source is not in the player's hand: it is tucked under this card, whose rule lets the player
+   * spend it "as if it were in their hand" (`RuleSpec spendableFromTucked`, Resource Reserve; docs/phase7-wave9.md
+   * §3.46 (c)). Its option id is a hand card's; choosing it discards it from under its host. Absent for a card in hand.
+   */
+  readonly tuckedUnder?: InstanceId;
 }
 
 export interface PaymentQuery {
@@ -1545,6 +1552,8 @@ export function paymentFor(
       if (option.ref.kind === "card") {
         // A card the cost already claims cannot also be spent (RRG "Cost": each card pays once).
         if (payable.reserved.has(option.ref.instanceId)) return [];
+        // A card spent "as if it were in their hand" from under its host (`RuleSpec spendableFromTucked`).
+        const at = locateCard(state, option.ref.instanceId);
         return [
           {
             optionId: option.optionId,
@@ -1552,6 +1561,7 @@ export function paymentFor(
             instanceId: option.ref.instanceId,
             label: option.label,
             pool: handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+            ...(at?.kind === "tucked" ? { tuckedUnder: at.hostInstanceId } : {}),
           },
         ];
       }

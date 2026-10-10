@@ -38,6 +38,7 @@ import {
   mustDefendWithAlly,
   schemeActivationDestination,
   cannotDefend,
+  defendsWithoutExhausting,
 } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, evaluate, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
@@ -724,13 +725,17 @@ export function legalDefenders(
 ): readonly InstanceId[] {
   const defenders: InstanceId[] = [];
   for (const player of playerOrder(state)) {
+    // Ready, or under a rule that has it defend without exhausting (`RuleSpec defendsWithoutExhausting`,
+    // docs/phase7-wave9.md §3.47; RRG 1.8 "Defend, Defense", p. 15: such an ability "can be used on an exhausted hero").
+    const canDeclare = (id: InstanceId, exhausted: boolean): boolean =>
+      !exhausted || defendsWithoutExhausting(state, deps, id);
     const identity = getInstance(state, player.identity.instanceId);
-    if (identity && player.identity.form === "hero" && !identity.exhausted) {
+    if (identity && player.identity.form === "hero" && canDeclare(identity.instanceId, identity.exhausted)) {
       defenders.push(identity.instanceId);
     }
     for (const id of player.playArea) {
       if (!isAlly(state, id)) continue;
-      if (!mustInstance(state, id).exhausted) defenders.push(id);
+      if (canDeclare(id, mustInstance(state, id).exhausted)) defenders.push(id);
     }
   }
   const attacked = mustPlayer(state, attackedPlayerId);
@@ -841,13 +846,17 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         }
         const defenderId = asInstanceId(picked);
         const defenderPlayer = controllerOf(ctx.state, defenderId) ?? frame.targetPlayerId;
+        // "[It] does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47): read
+        // as it is declared, so a rule that ended earlier in the phase no longer spares it.
+        const withoutExhausting = defendsWithoutExhausting(ctx.state, ctx.deps, defenderId);
         emit(ctx, {
           type: "defenderDeclared",
           attackInstanceId: frame.enemyInstanceId,
           defenderInstanceId: defenderId,
           playerId: frame.attackedPlayerId,
+          ...(withoutExhausting ? { withoutExhausting: true as const } : {}),
         });
-        exhaustCard(ctx, defenderId);
+        if (!withoutExhausting) exhaustCard(ctx, defenderId);
         const next = { ...frame, answer: null, stage: "flipBoosts" } as const;
         // The hero a "(defense)" ability already made the defender: the basic defense subtracts DEF, and it is the
         // same defense of this attack, announced when the ability made the hero the defender, not a second one

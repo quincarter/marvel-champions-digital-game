@@ -878,6 +878,49 @@ export const gainsAbility = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Any player may spend the resource card tucked here as if it were in their hand." (Resource Reserve, `falcon` 53021;
+ * docs/phase7-wave9.md §3.46 (c)) → `constant(spendableFromTucked())`. Each faceup resource card tucked under this
+ * card is a payment source for every player: it is offered with their hand cards, generates what it would from their
+ * hand (its printed resources, wild included; The Power of Flight doubles for an Aerial card), is a card that paid
+ * (`paidCards`), and spending it discards it from under this card to its owner's discard pile. Only spending: it is
+ * not a card in hand for a "discard a card from your hand" cost and cannot be played.
+ *
+ * `cards`: which tucked cards (default: resource cards, "the resource card tucked here"). `by`: who may spend them
+ * (default: any player; `you` for "you may spend …"), read with this card's controller as "you".
+ */
+export const spendableFromTucked = (
+  opts: { readonly cards?: TargetQuery; readonly by?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "spendableFromTucked",
+    cards: opts.cards ?? { categories: ["resource"] },
+    by: opts.by ?? { kind: "each" },
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Falcon does not exhaust to defend until the end of the phase." (Draw Their Fire, `falcon` 53011;
+ * docs/phase7-wave9.md §3.47): the rule itself, for `applyRuleUntil(doesNotExhaustToDefend(YOUR_HERO), "endOfPhase")`
+ * in an ability's effects. `character` is who it covers, read with the ability's controller as "you". While it lasts
+ * each matching character makes its basic defense without exhausting, attack after attack, ready or already exhausted
+ * (RRG 1.8 "Defend, Defense", p. 15: an ability that lets a character be declared the defender without exhausting "can
+ * be used on an exhausted hero"), and stays as it was. Everything else about the defense is unchanged: a hero's DEF
+ * comes off, "after you defend" abilities resolve, one defender per attack, and a hero in alter-ego form has no
+ * defense to make. `defendsWithoutExhausting(...)` is the same rule as a constant's part.
+ */
+export const doesNotExhaustToDefend = (
+  character: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): Extract<RuleSpec, { kind: "defendsWithoutExhausting" }> => ({
+  kind: "defendsWithoutExhausting",
+  character,
+  ...(opts.while ? { while: opts.while } : {}),
+});
+/** "[This character] does not exhaust to defend." as a constant's part: `constant(defendsWithoutExhausting(query))`. */
+export const defendsWithoutExhausting = (
+  character: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule(doesNotExhaustToDefend(character, opts));
+/**
  * The card a granted ability's text names: "Then, discard Night Vision Goggles" inside the Preparation that Night
  * Vision Goggles gives other cards (`aos` 50070; docs/phase7-wave9.md §3.3) → `discard(grantingCard)`. The card whose
  * `grantsPreparation` rule gave the resolving card this ability (engine `GRANTED_BY_SLOT`), not `self`, which is the

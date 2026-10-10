@@ -49,6 +49,18 @@ import {
   YOUR_HERO,
   exhaustThis,
   you,
+  PAID_CARDS,
+  paidCards,
+  refCount,
+  self,
+  action,
+  spendableFromTucked,
+  valueAtMost,
+  tuckCards,
+  tuckedCount,
+  valueAtLeast,
+  zone,
+  eachPlayer,
 } from "../../dsl/index.js";
 import { LEADERSHIP } from "../../core/aspects/leadership.js";
 import { STAR_LORD_KIT } from "../../wave3/stld/star-lord-kit.js";
@@ -59,6 +71,18 @@ const AERIAL = trait("AERIAL");
 
 /** The id of Flight Squadron's gained response, registered under no card's own abilities (see the module header). */
 export const FLIGHT_SQUADRON_GRANTED_RESPONSE = "53020.flight-squadron-granted-response";
+
+/**
+ * The id of Spectrum's "Response: After you play Spectrum, tuck 1 card used to pay for her under her", registered
+ * under no card's own abilities (see the module header).
+ */
+export const SPECTRUM_GRANTED_RESPONSE = "53018.spectrum-granted-response";
+
+/** Spectrum herself, for her own constant. */
+const SPECTRUM_SELF = query("ally", { self: true });
+/** "If that card's printed resource has [type]", and "[wild] – All of the above": a card tucked under her prints it. */
+const tuckedPrints = (type: "mental" | "physical" | "energy") =>
+  valueAtLeast(tuckedCount(self, { anyPrintedResource: [type, "wild"] }), 1);
 
 /** "If each of your allies has the Aerial trait": true with no allies, as Avengers Tower 03024 reads the same wording. */
 const EACH_OF_YOUR_ALLIES_IS_AERIAL = not(exists(query("ally", { controller: "you", withoutTrait: AERIAL })));
@@ -89,6 +113,20 @@ const CAPTAINS_SHIELD = query("upgrade", { name: "Captain America's Shield" });
  * are the first effects: with no minion in the top 10 the response is still offered and does nothing, instead of not
  * being offered. Each readied character is its own choice (RRG "'For Each'", p. 20), so one may be named twice.
  *
+ * **53018.spectrum-response / 53018.spectrum-granted-response**: the data keeps one ref for the whole text, which
+ * is two things: the response that tucks, and the bonuses, which last "only … while a card remains tucked under her"
+ * (ruling June 2, 2026 - Ruling 2 (2)) and so are a constant read from the tucked card, not a lasting effect of the
+ * response (section 3.46 (b)). The printed ref is that constant, and it gives her the response under the registry-only
+ * id `SPECTRUM_GRANTED_RESPONSE` (`gainsAbility`, as Flight Squadron's), with no condition: she always has it. The
+ * response answers her own play only ("After you play Spectrum": put into play another way she tucks nothing) and is
+ * offered when a card paid for her (engine slot `paid.cards`: cards discarded from a hand, another player's too, or
+ * spent from under a Resource Reserve; never a resource a "Resource" ability generated, never an overpaid card). The
+ * player picks 1 of those still in a discard pile, whoever owns it; it is tucked faceup and stays its owner's. Each
+ * bonus reads the printed resources of what is tucked under her: [mental] +2 THW, [physical] +2 ATK, [energy] +2 hit
+ * points, each once however many icons, and a printed [wild] gives all three. A card of any type can be tucked (the
+ * ruling's example is Captain America's Shield, a [wild]). When the tucked card leaves, the bonuses end at once; with
+ * the hit points gone, damage of 3 or more defeats her.
+ *
  * **53020.flight-squadron-constant / 53020.flight-squadron-granted-response**: "If each of your allies has the Aerial
  * trait, increase your ally limit by 1 and this card gains: 'Response: ...'". One condition (no ally you control
  * lacks the trait; true with no allies) over both halves of the constant: the ally limit (+1), and the grant of the
@@ -96,6 +134,16 @@ const CAPTAINS_SHIELD = query("upgrade", { name: "Captain America's Shield" });
  * registry-only id `FLIGHT_SQUADRON_GRANTED_RESPONSE`, as Night Vision Goggles 50070 registers its granted
  * Preparation (the data keeps one ref per constant, packages/content/src/data/wave9.test.ts), and carries no
  * condition of its own: while the constant's holds the card has it, with its cost (exhaust this card) its own.
+ *
+ * **53021.resource-reserve-constant / 53021.resource-reserve-action**: "Any player may spend the resource card tucked
+ * here as if it were in their hand" is the engine rule `spendableFromTucked` (section 3.46 (c)): the tucked resource
+ * card is offered to every player with their hand cards, generates what it would from the spender's hand (a wild is a
+ * wild; The Power of Flight 53028 doubles for an Aerial card), counts as a card that paid, and is discarded from under
+ * the support to its owner's discard pile. Only spending: it is not a card in hand for a discard cost and cannot be
+ * played. The Action (any form, the controller's) exhausts the support as its cost and tucks 1 card of the resource
+ * card type from the controller's hand (RRG 1.8 "Resource Card", p. 37: a card type, not any card with a resource
+ * icon); "(to a maximum of 1)" refuses the action while a card is tucked. "Max 1 per player" is data. When the support
+ * leaves play the card under it is discarded (RRG 1.8 "Tuck", p. 45).
  *
  * **53022.the-triskelion-constant / 53028.the-power-of-flight-constant**: reprints of Core's The Triskelion 01073 and
  * Angel's The Power of Flight 42022, same cost, icons, traits and text; aliased.
@@ -130,7 +178,7 @@ const CAPTAINS_SHIELD = query("upgrade", { name: "Captain America's Shield" });
  * defended attack and an undefended attack are not answered. Removing the counter is the cost; the threat removal is a
  * plain removal (not a thwart) from a scheme of the player's choice.
  *
- * **Skipped** (see the map): 53018 (task 31), 53019 (task 34), 53021 (task 32).
+ * **Skipped** (see the map): 53019 (task 34).
  *
  * Cards (19):
  * - 53014 Adam Warlock (ally)
@@ -175,6 +223,19 @@ export const FALCON_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     ),
   ),
 
+  "53018.spectrum-response": constant(
+    gets("thw", 2, SPECTRUM_SELF, { while: tuckedPrints("mental") }),
+    gets("atk", 2, SPECTRUM_SELF, { while: tuckedPrints("physical") }),
+    gets("hp", 2, SPECTRUM_SELF, { while: tuckedPrints("energy") }),
+    gainsAbility(SPECTRUM_GRANTED_RESPONSE),
+  ),
+  [SPECTRUM_GRANTED_RESPONSE]: response(
+    after.youPlayThis(),
+    { while: valueAtLeast(refCount(paidCards), 1) },
+    chooseCards("tucked", zone("discard", eachPlayer, { filter: { inSlot: PAID_CARDS } }), { min: 1, max: 1 }),
+    tuckCards(cards(chosen("tucked")), self),
+  ),
+
   "53020.flight-squadron-constant": constant(
     rule({ kind: "allyLimit", amount: 1, while: EACH_OF_YOUR_ALLIES_IS_AERIAL }),
     gainsAbility(FLIGHT_SQUADRON_GRANTED_RESPONSE, { while: EACH_OF_YOUR_ALLIES_IS_AERIAL }),
@@ -184,6 +245,13 @@ export const FALCON_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     { cost: exhaustThis },
     chooseTarget("ally", query("ally", { controller: "you" })),
     ready(chosen("ally")),
+  ),
+
+  "53021.resource-reserve-constant": constant(spendableFromTucked()),
+  "53021.resource-reserve-action": action(
+    { cost: exhaustThis, while: valueAtMost(tuckedCount(self), 0) },
+    chooseCards("tucked", zone("hand", you, { filter: query("resource") }), { min: 1, max: 1 }),
+    tuckCards(cards(chosen("tucked")), self),
   ),
 
   "53022.the-triskelion-constant": LEADERSHIP["01073.the-triskelion-constant"]!,
@@ -247,12 +315,6 @@ export const FALCON_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
 export const FALCON_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "53018.spectrum-response":
-    "needs engine task 31 (section 3.46 (b)): a slot `paid.cards` on a play's announcement, the cards that paid for the play; nothing existing names the cards that paid (only `paid.*` counts and `paidWithCard` for a named card)",
   "53019.strength-in-diversity-action":
     "needs engine task 34 (section 3.48): `ValueSpec distinctTraits { of }`, the number of different traits among friendly characters in play (only `distinctAspects` and `distinctCardTypes` exist); the rest is `repeatTimes(times, chooseOne(...))`",
-  "53021.resource-reserve-constant":
-    "needs engine task 32 (section 3.46 (c)): `RuleSpec spendableFromTucked`, a tucked resource card as a payment source for every player (nothing in payable.ts names a tucked card)",
-  "53021.resource-reserve-action":
-    "needs engine task 32 (section 3.46 (c)); the tuck is only meaningful with the constant that makes the tucked card spendable, so both refs of the card wait together",
 };

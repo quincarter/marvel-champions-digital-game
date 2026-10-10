@@ -5,6 +5,8 @@ import {
   allyLimitFor,
   applyCommand,
   keywordTotal,
+  locateCard,
+  maxHitPoints,
   replay,
   sessionApply,
   startSession,
@@ -36,11 +38,12 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEventsPicking, withForm } from "../../testing/staging.js";
+import { driveEventsPicking, withDamage, withForm } from "../../testing/staging.js";
 import {
   FALCON_ASPECT_BASIC as REGISTRY,
   FALCON_ASPECT_BASIC_SKIPPED as SKIPPED,
   FLIGHT_SQUADRON_GRANTED_RESPONSE as GRANTED,
+  SPECTRUM_GRANTED_RESPONSE as SPECTRUM_GRANTED,
 } from "./aspect-basic.js";
 import { ASPECT_DEPS as DEPS, aspectGame, aspectHero, withLinkedShield } from "./aspect-basic.testing.js";
 import { engageMinion, stagedInPlay } from "./testing.js";
@@ -51,7 +54,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Wave 9 `falcon/aspect-basic` (53014 to 53028, 53034 to 53037), docs/phase7-wave9.md sections 3.43, 3.46, 3.48, 3.51,
  * 3.52. The Falcon Leadership precon against Core's Rhino. Falcon is ATK 2, THW 2, DEF 2 with 10 hit points in hero
  * form and an Aerial; Sam Wilson (alter ego) is REC 3. Only earlier waves and this module are scripted here, so
- * Falcon's own Eagle-Eyed is inert. The refs of 53018, 53019 and 53021 are skipped (named in `SKIPPED`).
+ * Falcon's own Eagle-Eyed is inert. The ref of 53019 is skipped (named in `SKIPPED`).
  */
 const ADAM = "53014";
 const AERO = "53015";
@@ -204,15 +207,19 @@ describe("registry", () => {
   it("every registered script validates", () => {
     for (const [id, def] of Object.entries(REGISTRY)) expect(validateDefinition(def), id).toEqual([]);
   });
-  it("registers exactly these sixteen ids: fifteen printed refs and Flight Squadron's registry-only response", () => {
+  it("registers exactly these ids: the printed refs, and the registry-only responses of Spectrum and Flight Squadron", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual(
       [
         "53014.adam-warlock-response",
         "53015.aero-action",
         "53016.cloud-9-action",
         "53017.hugin-and-munin-response",
+        "53018.spectrum-granted-response",
+        "53018.spectrum-response",
         "53020.flight-squadron-constant",
         "53020.flight-squadron-granted-response",
+        "53021.resource-reserve-action",
+        "53021.resource-reserve-constant",
         "53022.the-triskelion-constant",
         "53023.captain-america-action",
         "53023.captain-america-constant",
@@ -225,24 +232,19 @@ describe("registry", () => {
       ].sort(),
     );
     expect(GRANTED).toBe("53020.flight-squadron-granted-response");
+    expect(SPECTRUM_GRANTED).toBe("53018.spectrum-granted-response");
   });
-  it("every printed ref of the 19 cards is registered or skipped, none twice; the one extra id is registry-only", () => {
+  it("every printed ref of the 19 cards is registered or skipped, none twice; the two extra ids are registry-only", () => {
     const codes = [...Array.from({ length: 15 }, (_, i) => String(53014 + i)), "53034", "53035", "53036", "53037"];
     const printed = codes.flatMap((c) => abilityRefIds(card(c)));
     expect(printed).not.toContain(GRANTED); // the data lists one ref for Flight Squadron
-    expect(printed).toHaveLength(Object.keys(REGISTRY).length - 1 + Object.keys(SKIPPED).length);
+    expect(printed).not.toContain(SPECTRUM_GRANTED); // and one for Spectrum
+    expect(printed).toHaveLength(Object.keys(REGISTRY).length - 2 + Object.keys(SKIPPED).length);
     for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
   });
-  it("skips Spectrum, Strength in Diversity and Resource Reserve, each with a reason", () => {
-    expect(Object.keys(SKIPPED).sort()).toEqual([
-      "53018.spectrum-response",
-      "53019.strength-in-diversity-action",
-      "53021.resource-reserve-action",
-      "53021.resource-reserve-constant",
-    ]);
-    expect(SKIPPED["53018.spectrum-response"]).toContain("task 31");
+  it("skips Strength in Diversity alone, with a reason", () => {
+    expect(Object.keys(SKIPPED)).toEqual(["53019.strength-in-diversity-action"]);
     expect(SKIPPED["53019.strength-in-diversity-action"]).toContain("task 34");
-    expect(SKIPPED["53021.resource-reserve-constant"]).toContain("task 32");
     for (const [ref, why] of Object.entries(SKIPPED)) expect(why.length, ref).toBeGreaterThan(10);
   });
   it("timing words, forms and costs", () => {
@@ -1573,6 +1575,310 @@ describe("53034.captain-americas-shield-constant: your hero gets +1 DEF and gain
   });
 });
 
+describe("53018 Spectrum: after you play her, tuck 1 card used to pay for her under her; its printed resources give her bonuses", () => {
+  const BIRD_OF_PREY = "53003"; // [physical] event
+  const BIRDS_EYE_VIEW = "53004"; // [mental] event
+  const AERIAL_EVACUATION = "53008"; // [physical]
+  const TUCK = { take: [SPECTRUM_GRANTED] };
+  /** Spectrum (ATK 1, THW 1, 3 hit points, cost 5) and exactly these cards in hand; she is played with all of them. */
+  function played(codes: readonly string[], plan: Plan = TUCK, s: GameState = aspectHero()) {
+    const given = withHand(s, [SPECTRUM, ...codes]);
+    const [spectrum, ...paying] = given.ids as [InstanceId, ...InstanceId[]];
+    const out = drive(given.state, plan, play(P1, spectrum, paying));
+    return { ...out, spectrum, paying, before: given.state };
+  }
+  /** [ATK bonus, THW bonus, maximum hit points]. */
+  const stats = (s: GameState, id: InstanceId) => [bonus(s, id, "atk"), bonus(s, id, "thw"), maxHitPoints(s, id, DEPS)];
+  const tuckedCodes = (s: GameState, id: InstanceId) => inst(s, id).tucked.map((t) => codeOf(s, t));
+
+  it("is printed 1 ATK, 1 THW, 3 hit points for 5, and the data keeps one ref for her whole text", () => {
+    const printed = card<AllyCard>(SPECTRUM);
+    expect([printed.cost, printed.atk, printed.thw, printed.hp]).toEqual([5, 1, 1, 3]);
+    expect(abilityRefIds(printed)).toEqual(["53018.spectrum-response"]);
+    expect(REGISTRY["53018.spectrum-response"]).toMatchObject({ trigger: { kind: "constant" } });
+    expect(REGISTRY[SPECTRUM_GRANTED]).toMatchObject({ trigger: { kind: "response", forced: false } });
+  });
+
+  it("paid with Genius and three other cards, Genius tucked: THW 1 + 2 = 3, ATK 1, 3 hit points", () => {
+    // Genius 2 [mental] + three [physical] cards = 5.
+    const out = played([GENIUS, BIRD_OF_PREY, AERIAL_EVACUATION, SQUADRON], { ...TUCK, targets: [] });
+    const genius = out.paying[0]!;
+    const picked = played([GENIUS, BIRD_OF_PREY, AERIAL_EVACUATION, SQUADRON], { ...TUCK, targets: [genius] });
+    expect(out.paying).toHaveLength(4);
+    expect(tuckedCodes(picked.state, picked.spectrum)).toEqual([GENIUS]);
+    expect(locateCard(picked.state, genius)).toMatchObject({ kind: "tucked", hostInstanceId: picked.spectrum });
+    expect(playerOf(picked.state, P1).discard).not.toContain(genius);
+    expect(stats(picked.state, picked.spectrum)).toEqual([0, 2, 3]);
+    // The three others stay in the discard pile.
+    for (const id of picked.paying.slice(1)) expect(playerOf(picked.state, P1).discard).toContain(id);
+  });
+
+  it("the prompt offers exactly the cards that paid, and takes exactly 1", () => {
+    // A card already in the discard pile is not one of them.
+    const discarded = moveToHand(aspectHero(), P1, ENERGY);
+    const staged: GameState = {
+      ...discarded.state,
+      players: discarded.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, hand: p.hand.filter((i) => i !== discarded.ids[0]), discard: [discarded.ids[0]!, ...p.discard] }
+          : p,
+      ),
+    };
+    const seen: NonNullable<Plan["seen"]> = [];
+    const out = played([GENIUS, BIRD_OF_PREY, AERIAL_EVACUATION, SQUADRON], { ...TUCK, seen }, staged);
+    const prompt = seen.find((p) => p.kind === "chooseCards")!;
+    expect([...prompt.options].sort()).toEqual([...out.paying].sort());
+    expect(prompt.options).not.toContain(discarded.ids[0]);
+    expect([prompt.min, prompt.max]).toEqual([1, 1]);
+  });
+
+  it("a [physical] card tucked: ATK 1 + 2 = 3 only", () => {
+    const first = played([STRENGTH, GENIUS, BIRDS_EYE_VIEW]);
+    const strength = first.paying[0]!;
+    const out = played([STRENGTH, GENIUS, BIRDS_EYE_VIEW], { ...TUCK, targets: [strength] });
+    expect(tuckedCodes(out.state, out.spectrum)).toEqual([STRENGTH]);
+    expect(stats(out.state, out.spectrum)).toEqual([2, 0, 3]);
+  });
+
+  it("an [energy] card tucked: 3 + 2 = 5 hit points only", () => {
+    const first = played([ENERGY, GENIUS, BIRDS_EYE_VIEW]);
+    const out = played([ENERGY, GENIUS, BIRDS_EYE_VIEW], { ...TUCK, targets: [first.paying[0]!] });
+    expect(tuckedCodes(out.state, out.spectrum)).toEqual([ENERGY]);
+    expect(stats(out.state, out.spectrum)).toEqual([0, 0, 5]);
+  });
+
+  it("paid with a wild-resource card, tucked: all of the above, THW 3, ATK 3, 5 hit points", () => {
+    // Redwing [wild] 1 + Energy 2 + Strength 2 = 5.
+    const first = played([REDWING, ENERGY, STRENGTH]);
+    const out = played([REDWING, ENERGY, STRENGTH], { ...TUCK, targets: [first.paying[0]!] });
+    expect(tuckedCodes(out.state, out.spectrum)).toEqual([REDWING]);
+    expect(stats(out.state, out.spectrum)).toEqual([2, 2, 5]);
+    // A double resource gives its bonus once: two [energy] icons are still +2 hit points (the test above).
+  });
+
+  it("declined: nothing is tucked and she has her printed stats", () => {
+    const out = played([REDWING, ENERGY, STRENGTH], {});
+    expect(tuckedCodes(out.state, out.spectrum)).toEqual([]);
+    expect(stats(out.state, out.spectrum)).toEqual([0, 0, 3]);
+  });
+
+  it("put into play without being played: no response, nothing tucked", () => {
+    const seen: NonNullable<Plan["seen"]> = [];
+    const staged = stagedInPlay(aspectHero(), SPECTRUM);
+    const out = drive(staged.state, { ...TUCK, seen }, endTurn(P1));
+    expect(seen.flatMap((p) => p.options).some((o) => o.endsWith(SPECTRUM_GRANTED))).toBe(false);
+    expect(tuckedCodes(out.state, staged.id)).toEqual([]);
+  });
+
+  it("the tucked card leaves: the bonuses end (ruling June 2, 2026 - Ruling 2 (2)), and 3 damage on her 3 hit points defeats her", () => {
+    const first = played([ENERGY, GENIUS, BIRDS_EYE_VIEW]);
+    const energy = first.paying[0]!;
+    const out = played([ENERGY, GENIUS, BIRDS_EYE_VIEW], { ...TUCK, targets: [energy] });
+    // 3 damage on 5 hit points: she lives.
+    const hurt = withDamage(out.state, out.spectrum, 3);
+    expect(maxHitPoints(hurt, out.spectrum, DEPS)).toBe(5);
+    const alive = drive(hurt, {}, basicAttack(hurt, hurt.activeVillainId!, identityOf(hurt)));
+    expect(locateCard(alive.state, out.spectrum)).toMatchObject({ kind: "playArea" });
+    // Surgery: the tucked card goes back to its owner's hand (as a "return to hand" effect would take it).
+    const left: GameState = {
+      ...patchInstance(hurt, out.spectrum, { tucked: [] }),
+      players: hurt.players.map((p) => (p.playerId === P1 ? { ...p, hand: [...p.hand, energy] } : p)),
+    };
+    expect(stats(left, out.spectrum)).toEqual([0, 0, 3]);
+    const after = drive(left, {}, basicAttack(left, left.activeVillainId!, identityOf(left)));
+    expect(playerOf(after.state, P1).discard).toContain(out.spectrum);
+    expect(ofType(after.events, "characterDefeated").map((e) => e.instanceId)).toContain(out.spectrum);
+  });
+
+  it("replays: the play, the tuck and the stats come back from the log", () => {
+    const given = withHand(aspectHero(), [SPECTRUM, REDWING, ENERGY, STRENGTH]);
+    const [spectrum, ...paying] = given.ids as [InstanceId, ...InstanceId[]];
+    let session = startSession(given.state);
+    const apply = (command: Command) => {
+      const result = sessionApply(session, command, DEPS);
+      if (!result.ok) throw new Error(result.error.message);
+      session = result.session;
+    };
+    apply(play(P1, spectrum, paying));
+    const pick = planner({ ...TUCK, targets: [paying[0]!] });
+    while (session.state.pendingChoice) {
+      const choice = session.state.pendingChoice;
+      apply({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: pick(session.state),
+      });
+    }
+    expect(stats(session.state, spectrum)).toEqual([2, 2, 5]);
+    const replayed = replay(session.log, DEPS);
+    expect(replayed.ok && replayed.state).toEqual(session.state);
+  });
+});
+
+describe("53021 Resource Reserve: any player may spend the resource card tucked here as if it were in their hand", () => {
+  const ACTION = "53021.resource-reserve-action";
+  const BLACK_CAT = "01002"; // Spider-Man's ally, cost 2, no Aerial trait
+  const tuckedCodes = (s: GameState, id: InstanceId) => inst(s, id).tucked.map((t) => codeOf(s, t));
+  /** Resource Reserve in play under P1 (ready), and exactly these cards in P1's hand. */
+  function reserve(hand: readonly string[], opts: Parameters<typeof aspectHero>[0] = {}) {
+    const staged = stagedInPlay(aspectHero(opts), RESERVE);
+    const given = withHand(staged.state, hand);
+    return { state: given.state, reserve: staged.id, hand: given.ids };
+  }
+  /** The same with `code` (the first hand card) tucked under it by its own action. */
+  function holding(code: string, more: readonly string[] = [], opts: Parameters<typeof aspectHero>[0] = {}) {
+    const r = reserve([code, ...more], opts);
+    const out = drive(r.state, { targets: [r.hand[0]!] }, use(P1, r.reserve, ACTION));
+    return { state: out.state, events: out.events, reserve: r.reserve, tucked: r.hand[0]!, hand: r.hand.slice(1) };
+  }
+  const paidOf = (events: readonly GameEvent[]) => ofType(events, "cardPlayed").map((e) => e.paid);
+  const pool = (parts: Partial<Record<"physical" | "mental" | "energy" | "wild", number>>) => ({
+    energy: 0,
+    mental: 0,
+    physical: 0,
+    wild: 0,
+    ...parts,
+  });
+
+  it("is printed cost 1, Max 1 per player, with a constant and an Action of any form", () => {
+    const printed = card<AnyCard & { cost: number; playRestrictions: { maxPerPlayer: number } }>(RESERVE);
+    expect(printed.cost).toBe(1);
+    expect(printed.playRestrictions.maxPerPlayer).toBe(1);
+    expect(REGISTRY["53021.resource-reserve-constant"]).toMatchObject({
+      trigger: {
+        kind: "constant",
+        rules: [{ kind: "spendableFromTucked", cards: { categories: ["resource"] }, by: { kind: "each" } }],
+      },
+    });
+    expect(REGISTRY[ACTION]).toMatchObject({ trigger: { kind: "action" }, cost: { exhaustSelf: true } });
+    expect((REGISTRY[ACTION]!.trigger as { form?: string }).form).toBeUndefined();
+  });
+
+  it("the Action exhausts it and tucks 1 resource card from hand; only resource cards are offered", () => {
+    const r = reserve([STRENGTH, GENIUS, REDWING]);
+    const seen: NonNullable<Plan["seen"]> = [];
+    const out = drive(r.state, { targets: [r.hand[0]!], seen }, use(P1, r.reserve, ACTION));
+    const prompt = seen.find((p) => p.kind === "chooseCards")!;
+    expect([...prompt.options].sort()).toEqual([r.hand[0], r.hand[1]].sort());
+    expect([prompt.min, prompt.max]).toEqual([1, 1]);
+    expect(tuckedCodes(out.state, r.reserve)).toEqual([STRENGTH]);
+    expect(inst(out.state, r.reserve).exhausted).toBe(true);
+    expect(playerOf(out.state, P1).hand).toEqual([r.hand[1], r.hand[2]]);
+  });
+
+  it("to a maximum of 1: with a card tucked the Action is refused, readied or not, and is free again once it is spent", () => {
+    const h = holding(STRENGTH, [GENIUS, MARIA_HILL], { swap: { [ADAM]: MARIA_HILL } });
+    const ready = patchInstance(h.state, h.reserve, { exhausted: false });
+    expect(refusal(ready, use(P1, h.reserve, ACTION))).toBeDefined();
+    // Maria Hill (cost 2) paid with the tucked Strength: the support is empty and takes Genius.
+    const spent = drive(ready, {}, play(P1, h.hand[1]!, [h.tucked]));
+    expect(tuckedCodes(spent.state, h.reserve)).toEqual([]);
+    const again = drive(spent.state, { targets: [h.hand[0]!] }, use(P1, h.reserve, ACTION));
+    expect(tuckedCodes(again.state, h.reserve)).toEqual([GENIUS]);
+  });
+
+  it("with no resource card in hand the Action is refused and the support stays ready", () => {
+    const r = reserve([REDWING]);
+    expect(refusal(r.state, use(P1, r.reserve, ACTION))).toBeDefined();
+    expect(inst(r.state, r.reserve).exhausted).toBe(false);
+  });
+
+  it("holding Strength: its controller spends it for 2 [physical], and it goes to the discard pile", () => {
+    const h = holding(STRENGTH, [MARIA_HILL], { swap: { [ADAM]: MARIA_HILL } });
+    const out = drive(h.state, {}, play(P1, h.hand[0]!, [h.tucked]));
+    expect(paidOf(out.events)).toEqual([pool({ physical: 2 })]);
+    expect(playerOf(out.state, P1).discard).toContain(h.tucked);
+    expect(ofType(out.events, "tuckedCardSpent")).toEqual([
+      { type: "tuckedCardSpent", playerId: P1, instanceId: h.tucked, hostInstanceId: h.reserve },
+    ]);
+    expect(ofType(out.events, "cardDiscardedFromHand")).toEqual([]);
+  });
+
+  it("holding Strength: player 2 spends it for 2 [physical] and it is in its owner's discard pile", () => {
+    const h = holding(STRENGTH, [], { second: true });
+    const turn = drive(h.state, {}, endTurn(P1));
+    expect(turn.state.step).toMatchObject({ phase: "player", activePlayerId: P2 });
+    const given = withHand(turn.state, [BLACK_CAT], P2);
+    const out = drive(given.state, {}, play(P2, given.ids[0]!, [h.tucked]));
+    expect(paidOf(out.events)).toEqual([pool({ physical: 2 })]);
+    expect(locateCard(out.state, given.ids[0]!)).toMatchObject({ kind: "playArea", playerId: P2 });
+    expect(playerOf(out.state, P1).discard).toContain(h.tucked);
+    expect(playerOf(out.state, P2).discard).not.toContain(h.tucked);
+    expect(tuckedCodes(out.state, h.reserve)).toEqual([]);
+    expect(ofType(out.events, "tuckedCardSpent").map((e) => e.playerId)).toEqual([P2]);
+  });
+
+  it("holding The Power of Flight: 2 [energy] for an Aerial card (Redwing, cost 2) and 1 for any other", () => {
+    const aerial = holding(POWER_OF_FLIGHT, [REDWING]);
+    const out = drive(aerial.state, {}, play(P1, aerial.hand[0]!, [aerial.tucked]));
+    expect(paidOf(out.events)).toEqual([pool({ energy: 2 })]);
+    const other = holding(POWER_OF_FLIGHT, [MARIA_HILL], { swap: { [ADAM]: MARIA_HILL } });
+    // 1 [energy] does not pay Maria Hill's 2.
+    expect(refusal(other.state, play(P1, other.hand[0]!, [other.tucked]))).toMatch(/Needs 2/);
+  });
+
+  it("it is a card that paid: Spectrum, paid with the tucked Genius and three hand cards, tucks Genius for THW 1 + 2 = 3", () => {
+    const h = holding(GENIUS, [SPECTRUM, "53003", "53008", SQUADRON]);
+    const [spectrum, ...others] = h.hand as [InstanceId, ...InstanceId[]];
+    const out = drive(
+      h.state,
+      { take: [SPECTRUM_GRANTED], targets: [h.tucked] },
+      play(P1, spectrum, [h.tucked, ...others]),
+    );
+    expect(tuckedCodes(out.state, h.reserve)).toEqual([]);
+    expect(tuckedCodes(out.state, spectrum)).toEqual([GENIUS]);
+    expect(bonus(out.state, spectrum, "thw")).toBe(2);
+    expect(maxHitPoints(out.state, spectrum, DEPS)).toBe(3);
+  });
+
+  it("Resource Reserve leaves play: the card under it is discarded, and nobody can spend it", () => {
+    const h = holding(STRENGTH, [MARIA_HILL], { swap: { [ADAM]: MARIA_HILL } });
+    // Surgery standing in for a discard effect: the support and what is under it go to their owner's discard pile.
+    const gone: GameState = {
+      ...patchInstance(h.state, h.reserve, { tucked: [] }),
+      players: h.state.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              playArea: p.playArea.filter((i) => i !== h.reserve),
+              discard: [h.reserve, h.tucked, ...p.discard],
+            }
+          : p,
+      ),
+    };
+    expect(refusal(gone, play(P1, h.hand[0]!, [h.tucked]))).toBeDefined();
+  });
+
+  it("replays: tuck, then a play paid from under it", () => {
+    const r = reserve([STRENGTH, MARIA_HILL], { swap: { [ADAM]: MARIA_HILL } });
+    let session = startSession(r.state);
+    const apply = (command: Command) => {
+      const result = sessionApply(session, command, DEPS);
+      if (!result.ok) throw new Error(result.error.message);
+      session = result.session;
+    };
+    const settleChoices = (pick: Picker) => {
+      while (session.state.pendingChoice) {
+        const choice = session.state.pendingChoice;
+        apply({
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(session.state),
+        });
+      }
+    };
+    apply(use(P1, r.reserve, ACTION));
+    settleChoices(planner({ targets: [r.hand[0]!] }));
+    apply(play(P1, r.hand[1]!, [r.hand[0]!]));
+    settleChoices(planner());
+    expect(playerOf(session.state, P1).discard).toContain(r.hand[0]);
+    const replayed = replay(session.log, DEPS);
+    expect(replayed.ok && replayed.state).toEqual(session.state);
+  });
+});
+
 describe("the linked shield at setup", () => {
   it.todo(
     "a Falcon deck holding the Captain America upgrade 53023 has 53034 set aside outside the deck: setup.ts linkedCardsByTitle matches the keyword's title 'Captain America upgrade' against card names, and 53023 is named 'Captain America' (content or engine)",
@@ -1580,7 +1886,7 @@ describe("the linked shield at setup", () => {
 });
 
 describe("the skipped cards stay inert", () => {
-  it("Spectrum, Strength in Diversity and Resource Reserve have no script in this registry", () => {
+  it("Strength in Diversity has no script in this registry", () => {
     for (const ref of Object.keys(SKIPPED)) expect(REGISTRY[ref], ref).toBeUndefined();
   });
   it("the first player's end-of-turn still works with them in the deck (no ability is registered under their ids)", () => {

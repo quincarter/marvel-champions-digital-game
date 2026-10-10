@@ -5,7 +5,14 @@ import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstanc
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer, scenarioPlayAreaOf } from "../query.js";
 import { controllerOf, printedAbilityRefs } from "../select.js";
-import { paymentVarsIn, type Bindings, type StackFrame, type UndeclaredWilds, type Vars } from "../stack.js";
+import {
+  PAID_CARDS_SLOT,
+  paymentVarsIn,
+  type Bindings,
+  type StackFrame,
+  type UndeclaredWilds,
+  type Vars,
+} from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
   endUntilCardPlayedEffects,
@@ -149,10 +156,12 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // them first would queue them past anything the interrupt could do (RRG 1.8 "Cancel", p. 13: "Only the
       // effects are prevented from initiating, and do not resolve").
       setFrame(ctx, { ...frame, stage: card.type === "event" ? "abilities" : "discardEvent" });
+      const paidCards = frame.bindings[PAID_CARDS_SLOT];
       const beingPlayed: TriggerEvent = {
         kind: "cardBeingPlayed",
         instanceId: frame.instanceId,
         playerId: frame.playerId,
+        ...(paidCards && paidCards.length > 0 ? { paidCards } : {}),
       };
       if (heard(ctx.state, ctx.deps, beingPlayed)) pushEvent(ctx, beingPlayed);
       return;
@@ -231,12 +240,16 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       }
       // The payment goes with the announcement, so "after you play" reads what paid for "that event" from the event it
       // answers (`TriggerEvent cardPlayed.payment`, docs/phase7-wave8.md §3.62).
+      // So do the cards that paid, as slot `paid.cards` (`PAID_CARDS_SLOT`, docs/phase7-wave9.md §3.46 (b)): "After
+      // you play Spectrum, tuck 1 card used to pay for her under her".
       const payment = paymentVarsIn(frame.vars);
+      const paidCards = frame.bindings[PAID_CARDS_SLOT];
       announce(ctx, {
         kind: "cardPlayed",
         instanceId: frame.instanceId,
         playerId: frame.playerId,
         ...(Object.keys(payment).length > 0 ? { payment } : {}),
+        ...(paidCards && paidCards.length > 0 ? { paidCards } : {}),
       });
       return;
     }

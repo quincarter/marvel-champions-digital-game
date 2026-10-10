@@ -878,6 +878,40 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Any player may spend the resource card tucked here as if it were in their hand." (Resource Reserve, `falcon`
+   * 53021; docs/phase7-wave9.md §3.46 (c)). Each faceup card tucked under the rule's card that matches `cards`
+   * (absent: every one) is a payment source for each player `by` names, read as the rule's card reads them: it is
+   * named in a payment as a hand card is (`Payment.fromHand`) and the engine treats it as one for that spending.
+   *
+   * - **As if in hand** (RRG 1.8 "Cost", p. 13: resources come "by discarding cards from their hand"). It generates
+   *   what it would from the spender's hand, read with the spender as "you": its printed resources ("Resource Card",
+   *   p. 37), wild included, doubled by its own text for the card paid for (The Power of Flight), with its own "When
+   *   you spend this card" ability if it has one and "spend this card only in hero form" read for the spender. It is a
+   *   card that paid (`PAID_CARDS_SLOT`, `paid.cards.<cardType>`), and its spending is announced as the spender's
+   *   (`resourcesSpent`: "after you spend this card").
+   * - **Only spending.** The card is not in a hand: it is not counted in one, not a card "discarded from your hand"
+   *   for a discard cost or an effect, and cannot be played. A card that restricts what pays for it ("you can only
+   *   spend [physical] resources") is read as for any other source.
+   * - **Where it goes.** Spending it discards it from under its host to its owner's discard pile (RRG 1.8 "Tuck",
+   *   p. 45: a tucked card is out of play, so it does not leave play). Logged `tuckedCardSpent`; heard as a
+   *   `tuckedCardDiscarded` with `how: "cost"`, its host as the source and the host's side as `by`, when an ability
+   *   listens (`recordTuckedDiscard`): the discard pays a cost, and the host's rule is what let it be spent.
+   * - **Who.** `by` is read with the rule's speaker as "you" (`each`: any player). A player it does not name cannot
+   *   spend the card, alliance or not, except that a group payment (RRG 1.8 "Alliance", p. 6) takes it from a player
+   *   it does name, who is then the spender.
+   * - A constant like any other: off while its `while` is false, under a blank text box and once its card has left
+   *   play, when the cards under it are discarded by the game (RRG 1.8 "Tuck", p. 45).
+   *
+   * Read by `tuckedSpendSources` / `tuckedSpender` (`rules.ts`), which `priceOf`, `paymentOptions` and `payPayment`
+   * consult; everything that lists or suggests payments works from `paymentOptions`.
+   */
+  | {
+      readonly kind: "spendableFromTucked";
+      readonly cards?: TargetQuery;
+      readonly by: PlayerRef;
+      readonly while?: Predicate;
+    }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the
@@ -1213,6 +1247,33 @@ export type RuleSpec =
       readonly attacker?: TargetQuery;
       readonly while?: Predicate;
     }
+  /**
+   * "Falcon does not exhaust to defend until the end of the phase." (Draw Their Fire, `falcon` 53011;
+   * docs/phase7-wave9.md §3.47), carried by `applyRuleUntil`, or a constant's "[this character] does not exhaust to
+   * defend". A character matching `character` (read with "you" as the rule's speaker) makes its basic defense without
+   * exhausting, at every Declare Defender step while the rule lasts:
+   *
+   * - **Offered ready or exhausted.** RRG 1.8 "Defend, Defense" (p. 15): "A hero must exhaust to use this power";
+   *   under the rule it does not, so being exhausted does not stop it: "A card ability that allows a hero to be
+   *   declared as a defender without exhausting can be used on an exhausted hero" (and the same sentence for an ally),
+   *   read for this wording (flagged, §4.2). An exhausted defender stays exhausted; a ready one stays ready.
+   * - **For each attack.** It is a state of the character, not one declaration (`EffectSpec declareDefender
+   *   { exhaust: false }` is that), so it may defend every attack of the phase, against any player.
+   * - **Nothing else changes.** It is a basic defense: the hero's DEF reduces the damage (p. 15), an ally takes the
+   *   damage, the defender's player becomes the target player, one defender per attack and one defending player at a
+   *   time (`defenseBarFor`), `defended` / `basicPowerUsed` are announced, so "after you defend" and "when your hero
+   *   defends" abilities resolve as for any defense. Stunned and confused status cards are untouched: they replace
+   *   attacks and thwarts (RRG 1.8 "Status Cards", p. 41), not a defense. A character that `cannotDefend` still
+   *   cannot, a hero in alter-ego form cannot (only a hero has the basic defense power), and an enemy that must be
+   *   defended by an ally (`mustDefendWithAlly`) is unchanged.
+   * - **Only the step's own exhaustion.** An ability that says "exhaust [it] and declare it the defender" exhausts as
+   *   its own instruction (`declareDefenderByEffect`), and a cost that exhausts the character is a cost.
+   *
+   * Logged on the declaration (`defenderDeclared.withoutExhausting`); the defend preview's `exhausts` is empty for it.
+   * The rule ending mid-phase (its `while`, its card leaving play, the lasting effect expiring) is read at the next
+   * declaration: a defense already declared stands.
+   */
+  | { readonly kind: "defendsWithoutExhausting"; readonly character: TargetQuery; readonly while?: Predicate }
   /**
    * "When Wrecker schemes, place the threat on his side scheme instead of the main scheme" — printed as a constant ★
    * ability on each Wrecking Crew villain (docs/phase7-wave1.md §3.6). A scheme activation by a matching enemy places

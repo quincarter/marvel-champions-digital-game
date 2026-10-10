@@ -23,6 +23,8 @@ import {
   dealEncounterCardTo,
   discardFromDeckAsCost,
   discardFromHand,
+  recordTuckedDiscard,
+  tuckedHostToRecord,
   discardFromPlay,
   discardRandomFromHand,
   discardStatusCards,
@@ -61,6 +63,8 @@ import {
   playerTraitLimitFault,
   attachmentReachOf,
   playDestinationsOf,
+  tuckedSpender,
+  tuckedSpendSources,
 } from "./rules.js";
 import {
   inPlayPicksOf,
@@ -139,6 +143,7 @@ import {
   getInstance,
   getPlayer,
   isMinion,
+  discardZoneFor,
   locateCard,
   areaOfCard,
   areaOfPlayer,
@@ -231,6 +236,7 @@ import {
 } from "./select.js";
 import {
   describeFrame,
+  PAID_CARDS_SLOT,
   paidAsVars,
   type Bindings,
   type ReportTarget,
@@ -1083,6 +1089,45 @@ function resourceAbilityFault(
   return isFault(plan) ? plan : null;
 }
 
+/**
+ * Whose hand a payment's card is spent from: the hand it is in, or, for a card tucked under a `RuleSpec
+ * spendableFromTucked` host, the player who spends it "as if it were in their hand" (`tuckedSpender`: the paying
+ * player when the rule names them; docs/phase7-wave9.md §3.46 (c)). Null when it is in no hand and nobody may spend
+ * it from under its host. `anyPlayer`: a group payment, which takes a tucked card from any player the rule names.
+ */
+function spentFromHandOf(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  playerId: PlayerId,
+  anyPlayer = false,
+): PlayerId | null {
+  const zone = locateCard(state, id);
+  if (zone?.kind === "hand") return zone.playerId;
+  return zone?.kind === "tucked" ? tuckedSpender(state, deps, id, playerId, anyPlayer) : null;
+}
+
+/**
+ * Spends a tucked card "as if it were in [the spender's] hand" (`RuleSpec spendableFromTucked`,
+ * docs/phase7-wave9.md §3.46 (c)): it goes from under its host to its owner's discard pile, faceup and its owner's to
+ * control (RRG 1.8 "Ownership and Control", p. 31). It was out of play (RRG 1.8 "Tuck", p. 45), so nothing leaves play.
+ * Logged `tuckedCardSpent`, and recorded as a tucked card's discard paid as a cost, with the host as its source
+ * (`recordTuckedDiscard`; heard as `tuckedCardDiscarded` with `how: "cost"` when an ability listens).
+ */
+function spendTuckedCard(ctx: Ctx, playerId: PlayerId, id: InstanceId, hostInstanceId: InstanceId): void {
+  const recorded = tuckedHostToRecord(ctx, id);
+  const ownerId = getInstance(ctx.state, id)?.ownerId ?? null;
+  moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+  updateInstance(ctx, id, (i) => ({ ...i, faceup: true, controllerId: ownerId }));
+  emit(ctx, { type: "tuckedCardSpent", playerId, instanceId: id, hostInstanceId });
+  const hostCardId = getInstance(ctx.state, hostInstanceId)?.cardId;
+  recordTuckedDiscard(ctx, id, recorded, {
+    sourceInstanceId: hostInstanceId,
+    ...(hostCardId !== undefined ? { sourceCardId: hostCardId } : {}),
+    asCost: true,
+  });
+}
+
 /** A hand entry's `whenSpent` use as a use of that ability on the spent card, or null for a plain spending. */
 const spentCardUse = (entry: Extract<Payment, { fromHand: InstanceId }>): ResourceAbilityUse | null =>
   entry.whenSpent
@@ -1421,13 +1466,10 @@ function paymentSourceVars(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     const use = "ability" in entry ? entry.ability : spentCardUse(entry);
     if (!use) continue;
     const { instanceId, abilityId } = use;
-    const zone = locateCard(ctx.state, instanceId);
     const spender =
       "ability" in entry
         ? resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId)
-        : zone?.kind === "hand"
-          ? zone.playerId
-          : playerId;
+        : (spentFromHandOf(ctx.state, ctx.deps, instanceId, playerId, true) ?? playerId);
     const generated = resourceAbilityGenerates(
       ctx.state,
       ctx.deps,
@@ -1484,9 +1526,27 @@ function paidRequirementOf(
  *   all a card in the pool asks, and an upper bound as a number.
  * - "Spend X resources" (`resourcesX`): the X resources are paid too, so they join the requirement here.
  *
- * Read before paying, while the cards are still in hand. They travel with the other `paid.*` vars (`playPaymentVars`).
+ * The cards themselves are `cardsThatPaid`, read before paying, while the cards are still in hand; a play binds them as
+ * slot `paid.cards` (`PAID_CARDS_SLOT`). The vars travel with the other `paid.*` vars (`playPaymentVars`).
  */
-function paidCardVars(
+function paidCardVars(ctx: Ctx, paidCards: readonly InstanceId[]): Record<string, number> {
+  const vars: Record<string, number> = {};
+  for (const id of paidCards) {
+    const type = cardTypeOf(ctx.state, id);
+    if (type === null) continue;
+    const key = `paid.cards.${type}`;
+    vars[key] = (vars[key] ?? 0) + 1;
+  }
+  return vars;
+}
+
+/**
+ * The cards that paid for a cost, in payment order (`PAID_CARDS_SLOT`, docs/phase7-wave9.md §3.46 (b); counted by card
+ * type as `paid.cards.<cardType>`, `paidCardVars`): each card the payment spends as a card with a resource among the
+ * ones **paid** (`canBePaidFor`; the rules read in `paidCardVars`' note). Read before paying, while the cards are still
+ * where they are spent from.
+ */
+function cardsThatPaid(
   ctx: Ctx,
   playerId: PlayerId,
   payment: readonly Payment[],
@@ -1495,21 +1555,15 @@ function paidCardVars(
   requirement: ResolvedRequirement,
   cost: AbilityCost | undefined,
   resourceVarsRead: Vars,
-): Record<string, number> {
-  const vars: Record<string, number> = {};
+): readonly InstanceId[] {
   const paidFor = paidRequirementOf(pool, requirement, cost, resourceVarsRead);
-  for (const entry of payment) {
-    if (!("fromHand" in entry)) continue;
-    const type = cardTypeOf(ctx.state, entry.fromHand);
-    if (type === null) continue;
-    const zone = locateCard(ctx.state, entry.fromHand);
-    const ownerId = zone?.kind === "hand" ? zone.playerId : playerId;
+  return payment.flatMap((entry) => {
+    if (!("fromHand" in entry)) return [];
+    if (cardTypeOf(ctx.state, entry.fromHand) === null) return [];
+    const ownerId = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, true) ?? playerId;
     const generated = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
-    if (!canBePaidFor(pool, generated, paidFor)) continue;
-    const key = `paid.cards.${type}`;
-    vars[key] = (vars[key] ?? 0) + 1;
-  }
-  return vars;
+    return canBePaidFor(pool, generated, paidFor) ? [entry.fromHand] : [];
+  });
 }
 
 /**
@@ -1570,11 +1624,16 @@ export function priceOf(
       if (entry.fromHand === excludeInstanceId) {
         return { code: "insufficient_resources", message: "a card cannot pay for itself" };
       }
-      const zone = locateCard(ctx.state, entry.fromHand);
-      const ownerId = zone?.kind === "hand" ? zone.playerId : null;
+      // In a hand, or tucked under a card whose rule lets this player spend it "as if it were in their hand"
+      // (`RuleSpec spendableFromTucked`, docs/phase7-wave9.md §3.46 (c)): then theirs is the hand it is read from.
+      const ownerId = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, group);
+      const tucked = locateCard(ctx.state, entry.fromHand)?.kind === "tucked";
       if (
         ownerId === null ||
-        (ownerId !== playerId && !group && !spendableForAnyPlayer(ctx.state, ctx.deps, entry.fromHand, ownerId))
+        (!tucked &&
+          ownerId !== playerId &&
+          !group &&
+          !spendableForAnyPlayer(ctx.state, ctx.deps, entry.fromHand, ownerId))
       ) {
         return { code: "card_not_in_zone", message: `payment card ${entry.fromHand} is not in hand` };
       }
@@ -1726,6 +1785,19 @@ export function paymentOptions(
           });
         }
       }
+    }
+    // "Any player may spend the resource card tucked here as if it were in their hand" (`RuleSpec
+    // spendableFromTucked`, docs/phase7-wave9.md §3.46 (c)): after that player's hand, named as a hand card is. The
+    // label says where it is. A group payment lists it once, under the first payer who may spend it.
+    for (const { instanceId: id, hostInstanceId } of tuckedSpendSources(ctx.state, ctx.deps, payerId)) {
+      if (id === excludeInstanceId || options.some((option) => option.optionId === `hand:${id}`)) continue;
+      const spendableIn = printedConstants(ctx.state, ctx.deps, id).find((trigger) => trigger.spendableIn)?.spendableIn;
+      if (spendableIn && spendableIn !== payer.identity.form) continue;
+      options.push({
+        optionId: `hand:${id}`,
+        label: `${displayNameOf(ctx.state, id)} (under ${displayNameOf(ctx.state, hostInstanceId)})`,
+        ref: { kind: "card", instanceId: id },
+      });
     }
   }
   for (const id of cardsInPlay(ctx.state)) {
@@ -1879,6 +1951,12 @@ export interface SpentPayment {
   readonly resourceAbilities: readonly UsedResourceAbility[];
   readonly generated: readonly GeneratedByPlayer[];
   /**
+   * Who spent each card that its owner did not spend from their own hand, by instance id: a tucked card spent "as if
+   * it were in [the spender's] hand" (`RuleSpec spendableFromTucked`, docs/phase7-wave9.md §3.46 (c)). Absent for
+   * every other payment; a card not named here was spent by its owner (`cardsSpentEvents`).
+   */
+  readonly cardSpenders?: Readonly<Record<string, PlayerId>>;
+  /**
    * The `countersRemoved` (`paidAsCost`) a resource ability's counter cost made (Psionic Bond, wave 6 §3.85), held for
    * `announceResourcesSpent` so they sit above the card or ability paid for, not below it.
    */
@@ -1909,6 +1987,7 @@ export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
   cards: [...a.cards, ...b.cards],
   resourceAbilities: [...a.resourceAbilities, ...b.resourceAbilities],
   generated: b.generated.reduce((all, entry) => addGenerated(all, entry.playerId, entry.amount), a.generated),
+  ...(a.cardSpenders || b.cardSpenders ? { cardSpenders: { ...a.cardSpenders, ...b.cardSpenders } } : {}),
   countersRemoved: [...(a.countersRemoved ?? []), ...(b.countersRemoved ?? [])],
 });
 
@@ -1925,6 +2004,7 @@ export function payPayment(
   payingFor: InstanceId | null = null,
 ): SpentPayment {
   const spent: InstanceId[] = [];
+  const tuckedSpenders: Record<string, PlayerId> = {};
   const used: UsedResourceAbility[] = [];
   const countersRemoved: TriggerEvent[] = [];
   const threatCosts: ResourceThreatCost[] = [];
@@ -1936,16 +2016,16 @@ export function payPayment(
   const handGenerated = new Map<InstanceId, GeneratedByPlayer>();
   for (const entry of payment) {
     if (!("fromHand" in entry)) continue;
-    const zone = locateCard(ctx.state, entry.fromHand);
-    const ownerId = zone?.kind === "hand" ? zone.playerId : playerId;
+    const ownerId = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, true) ?? playerId;
     const pool = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
     handGenerated.set(entry.fromHand, { playerId: ownerId, amount: poolTotal(pool) });
   }
   for (const entry of payment) {
     if ("fromHand" in entry) {
-      // From the hand it is in: another player's, when they help pay for an alliance card (§3.17).
+      // From the hand it is in: another player's, when they help pay for an alliance card (§3.17). A card tucked
+      // under a `spendableFromTucked` host is spent by the player it is as if in the hand of (§3.46 (c) of wave 9).
       const zone = locateCard(ctx.state, entry.fromHand);
-      const spenderOfCard = zone?.kind === "hand" ? zone.playerId : playerId;
+      const spenderOfCard = spentFromHandOf(ctx.state, ctx.deps, entry.fromHand, playerId, true) ?? playerId;
       // "Interrupt: When you spend this card, [cost] → generate …" (`whenSpent`): its cost is paid before the card is
       // discarded (RRG 1.8 "Interrupt", p. 25), measured first as any resource ability's is.
       const use = spentCardUse(entry);
@@ -1980,8 +2060,11 @@ export function payPayment(
         if (definition.effects.length > 0)
           used.push({ instanceId: use.instanceId, abilityId: use.abilityId, spender: spenderOfCard });
       }
-      discardFromHand(ctx, spenderOfCard, entry.fromHand);
+      if (zone?.kind === "tucked") spendTuckedCard(ctx, spenderOfCard, entry.fromHand, zone.hostInstanceId);
+      else discardFromHand(ctx, spenderOfCard, entry.fromHand);
       spent.push(entry.fromHand);
+      // Its owner is who a spent card's spender is taken to be; a tucked card may be spent by another player.
+      if (zone?.kind === "tucked") tuckedSpenders[entry.fromHand] = spenderOfCard;
       const counted = handGenerated.get(entry.fromHand);
       if (counted) generatedBy = addGenerated(generatedBy, counted.playerId, counted.amount);
       continue;
@@ -2019,6 +2102,7 @@ export function payPayment(
     cards: spent,
     resourceAbilities: used,
     generated: generatedBy,
+    ...(Object.keys(tuckedSpenders).length > 0 ? { cardSpenders: tuckedSpenders } : {}),
     ...(countersRemoved.length > 0 ? { countersRemoved } : {}),
     ...(threatCosts.length > 0 ? { threatCosts } : {}),
   };
@@ -2047,7 +2131,7 @@ export function announceResourcesSpent(
   const events = [
     // A resource ability's counter cost, paid first (RRG 1.8 "Initiating Abilities", p. 24, step 5), already heard.
     ...(paid.countersRemoved ?? []),
-    ...cardsSpentEvents(ctx, playerId, paid.cards, payingForInstanceId, purpose),
+    ...cardsSpentEvents(ctx, playerId, paid.cards, payingForInstanceId, purpose, paid.cardSpenders),
     ...resourcesGeneratedEvents(playerId, paid.generated, payingForInstanceId, purpose),
   ].filter((event) => heard(ctx.state, ctx.deps, event));
   pushEventsSharingResponses(ctx, events);
@@ -2109,7 +2193,8 @@ function resourcesGeneratedEvents(
 /**
  * One `resourcesSpent` per player who spent cards, the paying player's first: an alliance payment (§3.17) spans
  * players, and "After you spend this card for a player" (Everyday Hero) names both the spender and the player paid for.
- * Spenders are the cards' owners (a hand card is in its owner's hand).
+ * Spenders are the cards' owners (a hand card is in its owner's hand), except a tucked card spent "as if it were in"
+ * another player's hand, whose spender `cardSpenders` names (`SpentPayment.cardSpenders`).
  */
 function cardsSpentEvents(
   ctx: Ctx,
@@ -2117,11 +2202,14 @@ function cardsSpentEvents(
   spent: readonly InstanceId[],
   payingForInstanceId: InstanceId | null,
   purpose: "playCard" | "ability" | "effect",
+  cardSpenders: Readonly<Record<string, PlayerId>> = {},
 ): readonly TriggerEvent[] {
   if (spent.length === 0) return [];
   const spenders = [playerId, ...ctx.state.players.flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))];
   return spenders.flatMap((spender): TriggerEvent[] => {
-    const theirs = spent.filter((id) => (getInstance(ctx.state, id)?.ownerId ?? playerId) === spender);
+    const theirs = spent.filter(
+      (id) => (cardSpenders[id] ?? getInstance(ctx.state, id)?.ownerId ?? playerId) === spender,
+    );
     if (theirs.length === 0) return [];
     return [
       {
@@ -3768,6 +3856,8 @@ export interface PricedPlay {
   readonly vars: Vars;
   /** Present only when the payment is read for resource types (`settlePaidTypes`; docs/phase7-wave8.md §3.62). */
   readonly types?: PaidTypesSettled;
+  /** The cards that paid (`cardsThatPaid`; docs/phase7-wave9.md §3.46 (b)); absent when no card did. */
+  readonly paidCards?: readonly InstanceId[];
 }
 
 /**
@@ -3956,9 +4046,12 @@ export function logAbilityWildTypes(
   });
 }
 
-/** What a play frame is pushed with for a priced play: its cost's bindings and vars, and any wilds still to declare. */
+/**
+ * What a play frame is pushed with for a priced play: its cost's bindings and vars, the cards that paid for it as slot
+ * `paid.cards` (`PAID_CARDS_SLOT`; docs/phase7-wave9.md §3.46 (b)), and any wilds still to declare.
+ */
 export const playFrameCost = (priced: PricedPlay, bindings: Bindings = priced.plan.bindings) => ({
-  bindings,
+  bindings: priced.paidCards ? { ...bindings, [PAID_CARDS_SLOT]: priced.paidCards } : bindings,
   vars: priced.vars,
   ...(priced.types?.undeclared ? { undeclaredWilds: priced.types.undeclared } : {}),
 });
@@ -4032,13 +4125,14 @@ export function pricePlay(
   const vars = resourceVars(pool, plan.cost ?? cost, requirement, selection.resources);
   if (isFault(vars)) return vars;
   const payingFor = plan.payingFor ?? cardInstanceId;
+  const paidCards = cardsThatPaid(ctx, playerId, payment, payingFor, pool, requirement, plan.cost ?? cost, vars);
   const settled = settlePaidTypes(
     pool,
     {
       ...plan.vars,
       ...vars,
       ...paymentSourceVars(ctx, playerId, payment),
-      ...paidCardVars(ctx, playerId, payment, payingFor, pool, requirement, plan.cost ?? cost, vars),
+      ...paidCardVars(ctx, paidCards),
       ...(printedX ? { x: xValue } : {}),
     },
     paidRequirementOf(pool, requirement, plan.cost ?? cost, vars),
@@ -4047,7 +4141,7 @@ export function pricePlay(
     paidTypes.wildAs,
   );
   if (isFault(settled)) return settled;
-  return { pool, plan, ...settled };
+  return { pool, plan, ...settled, ...(paidCards.length > 0 ? { paidCards } : {}) };
 }
 
 /**
@@ -5066,13 +5160,16 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
     ...paymentSourceVars(ctx, command.playerId, command.payment),
     ...paidCardVars(
       ctx,
-      command.playerId,
-      command.payment,
-      payingFor,
-      pool,
-      plan.requirement,
-      plan.cost ?? definition.cost,
-      vars,
+      cardsThatPaid(
+        ctx,
+        command.playerId,
+        command.payment,
+        payingFor,
+        pool,
+        plan.requirement,
+        plan.cost ?? definition.cost,
+        vars,
+      ),
     ),
   };
   // The types the ability reads of its own payment, each wild as its player declares it (docs/phase7-wave8.md §3.62).
