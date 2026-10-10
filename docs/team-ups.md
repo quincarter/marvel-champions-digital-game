@@ -48,14 +48,19 @@ wave 8 (cycle 8) made Jubilee and Wolverine playable.
 ## In later packs (card data only)
 
 Each of these goes on the "Content to add" list of the wave PR that makes its pack playable; the wave definition of
-done (`wave-definition-of-done.md` §5) has the box.
+done (`wave-definition-of-done.md` §5) has the box. All five cards were read on their scans (2026-10-10): the printed
+Team-Up line names both characters exactly as the `teamUp` keyword's `names` carry them.
 
-| Pair                                 | Card (ids)                          | Pack     | Cycle | Folder                                       |
-| ------------------------------------ | ----------------------------------- | -------- | ----- | -------------------------------------------- |
-| Black Panther (T'Challa) and (Shuri) | Heart of the Panther (51025)        | `bp`     | 9     | `black-panther-shuri-black-panther-t-challa` |
-| Cindy Moon and Peter Parker          | Investigative Journalism (52024)    | `silk`   | 9     | `cindy-moon-peter-parker`                    |
-| Captain America and Winter Soldier   | Super-Soldiers (54022)              | `winter` | 9     | `captain-america-winter-soldier`             |
-| Black Widow and Winter Soldier       | Winter, Widow, Soldier, Spy (54023) | `winter` | 9     | `black-widow-winter-soldier`                 |
+| Pair                                           | Card (ids)                          | Pack     | Cycle | Folder the client looks for                  | Pictures                                                                                                           |
+| ---------------------------------------------- | ----------------------------------- | -------- | ----- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Black Panther/T'Challa and Black Panther/Shuri | Heart of the Panther (51025)        | `bp`     | 9     | `black-panther-shuri-black-panther-t-challa` | pending: `_pending/black-panther-shuri-tchalla/splash.webp` (splash only; the folder name does not match the slug) |
+| Cindy Moon and Peter Parker                    | Investigative Journalism (52024)    | `silk`   | 9     | `cindy-moon-peter-parker`                    | pending: `_pending/silk-spider-man/splash.webp` (splash only; the folder name does not match the slug)             |
+| Captain America and Winter Soldier             | Super-Soldiers (54022)              | `winter` | 9     | `captain-america-winter-soldier`             | none                                                                                                               |
+| Black Widow and Winter Soldier                 | Winter, Widow, Soldier, Spy (54023) | `winter` | 9     | `black-widow-winter-soldier`                 | pending: `_pending/black-widow-winter-soldier/{splash,badge}.webp` (folder name matches)                           |
+| Maria Hill and Nick Fury                       | Super Spies (50024)                 | `aos`    | 9     | `maria-hill-nick-fury`                       | pending: `_pending/maria-hill-nick-fury/` exists but is empty                                                      |
 
-Captain America and Black Widow
-are playable too, so both Winter Soldier pairs wait only on `winter`.
+A pending folder is never read (a leading `_` marks a holding area). When a pair's pictures are moved up they go in the
+folder named in the fifth column, which is computed from the `teamUp` names (`teamUpSlug`), so the two pending folders
+whose names differ (`black-panther-shuri-tchalla`, `silk-spider-man`) must be renamed on the way up, and a badge made
+for each of the three splash-only pairs. Captain America and Black Widow are playable already, so both Winter Soldier
+pairs wait only on `winter`.

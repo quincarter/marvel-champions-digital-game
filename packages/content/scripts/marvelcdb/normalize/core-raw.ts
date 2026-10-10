@@ -30,6 +30,13 @@ import type { RawCard } from "../raw-types.ts";
 export const CORE_ART_BY_NAME = new Map<string, string>();
 
 /**
+ * Artwork by MarvelCDB code over every cached pack, for a reprint's `duplicate_of_code` target (see `reprintImages`).
+ * The name-and-type lookup above can land on a different card that shares the title (Spider-Man the ally is both
+ * Miles Morales's 27011 and the basic Peter Parker 27049, which `silk`'s 52022 reprints), so the named original wins.
+ */
+export const ART_BY_CODE = new Map<string, string>();
+
+/**
  * Encounter set codes that exist only in Core's own raw cache, for scenarios in *other* packs that reuse Core's
  * shared Standard/Expert sets rather than shipping their own copies (docs/phase7-wave1.md §2.2 — the Green Goblin
  * insert: "include no modular encounter sets for an easier challenge or multiple sets for a greater challenge",
@@ -50,6 +57,7 @@ const PRIORITY_ORDER = ["core", "cap", "msm", "thor", "bkw", "drs", "hlk", "gob"
 
 function recordArt(cards: readonly RawCard[]): void {
   for (const c of cards) {
+    if (c.imagesrc) ART_BY_CODE.set(c.code, c.imagesrc);
     const key = `${c.type_code} ${c.name}`;
     if (c.imagesrc && !CORE_ART_BY_NAME.has(key)) CORE_ART_BY_NAME.set(key, c.imagesrc);
     if (c.linked_card) {

@@ -542,7 +542,7 @@ export const SILK_CARDS: readonly AnyCard[] = [
     collectorNumber: "22",
     quantityInSet: 1,
     unique: true,
-    images: { front: imageRef("/bundles/cards/27011.png") },
+    images: { front: imageRef("/bundles/cards/27049.png") },
     cost: 3,
     resourceIcons: { mental: 1 },
     atk: 2,
