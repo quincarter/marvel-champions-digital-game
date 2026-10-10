@@ -17,6 +17,7 @@ import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
 import { BATROC, BATROC_SKIPPED } from "./aos/batroc.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { EXECUTIVE_BOARD, EXECUTIVE_BOARD_SKIPPED } from "./aos/executive-board.js";
 import { MODOK, MODOK_SKIPPED } from "./aos/modok.js";
 import {
   BLACK_WIDOW,
@@ -253,6 +254,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50098", "50099", "50100", "50101", "50102"],
       registry: BATROCS_BRIGADE,
       skipped: BATROCS_BRIGADE_SKIPPED,
+    },
+    {
+      module: "executive-board",
+      cardIds: ["50181a", "50181b", "50182a", "50182b", "50183a", "50183b", "50184a", "50184b", "50184c"],
+      registry: EXECUTIVE_BOARD,
+      skipped: EXECUTIVE_BOARD_SKIPPED,
     },
     {
       module: "thunderbolts",
