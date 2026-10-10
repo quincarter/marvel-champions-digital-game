@@ -264,3 +264,19 @@ engine 5,298 passed and both typechecks clean; **the main session did not rerun 
 them. Everything is on the branch from the WIP commit b8b928f6 on (still marked unverified). Left from it: lock the
 source card as picked in `packages/client/src/view/in-play-cost-choice.ts`; an owner question, whether Shuri's
 Inventor search may be failed on purpose (built as required, no "may" printed); a changie fragment for these fixes.
+
+## Second session (2026-10-09, late; main checkout on the owner's Mac)
+
+The first session's leftovers were verified here and are no longer "unverified": engine suite 5,298 passed, both
+typechecks clean, `wave9` and `dsl` card tests green once two things were fixed (6de66b92 Monica Rappaccini 50126's
+keyword line, a data correction from the scan; 0c78ff19 Diplomatic Immunity 50127 scripted, `addAccelerationToken`
+takes a count). A.I.M. Science, Batroc's Brigade, Scientist Supreme, Extreme Risk, the Silk identity and the three
+formerly skipped refs are all registered with no skips. Changelog fragments for them are in.
+
+Working order from here: one engine agent at a time down §8.2 from task 10, and beside it two scripting agents, one
+module each (Maria Hill, then Nick Fury, per §8.4). Each piece is committed and pushed as soon as the main session has
+rerun its tests. The PR's working notes carry the live list.
+
+Still open from the first session: lock the source card as picked in `packages/client/src/view/in-play-cost-choice.ts`
+(`InPlayCostPick.includesSelf`; client step); the owner question on whether Shuri's Inventor search may be failed on
+purpose (built as required).
