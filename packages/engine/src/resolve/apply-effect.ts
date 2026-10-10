@@ -213,7 +213,13 @@ import {
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
 import { treatAsAlly } from "../treat-as.js";
-import { enterPlayOnReveal, revealFrame, revealNewFaceFrame, upgradeHostCandidates } from "./reveal.js";
+import {
+  enterPlayOnReveal,
+  replaceRevealInProgress,
+  revealFrame,
+  revealNewFaceFrame,
+  upgradeHostCandidates,
+} from "./reveal.js";
 
 /**
  * The frame binding holding the host a player chose for an upgrade a `putIntoPlay` is about to put into play
@@ -3062,6 +3068,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Reveal that minion, then …" with no minion found (RRG 1.8 "'Then'", p. 44).
       if (revealing.length === 0) markPreThenUnresolved(ctx, frame.frameId, "revealFoundNothing");
       if (!playerId) return;
+      if (effect.instead) {
+        // "Reveal [that card] instead" (docs/phase7-wave9.md §3.41): the reveal this interrupt answers ends unresolved
+        // and its window closes, as `replaceTriggeringEvent` closes one (RRG 1.8 "Replacement Effect", p. 36).
+        const replaced = frame.event?.kind === "encounterCardRevealing" ? frame.event.instanceId : null;
+        if (!replaceRevealInProgress(ctx, replaced, revealing)) {
+          markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel", replaced ?? undefined);
+          return;
+        }
+        if (frame.eventFrameId)
+          updateFrame(ctx, frame.eventFrameId, (target) =>
+            target.kind === "event" ? { ...target, cancelled: true } : target,
+          );
+      }
       const inPlay = new Set(cardsInPlay(ctx.state));
       const frames: StackFrame[] = [];
       for (const id of revealing) {
@@ -3073,7 +3092,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
         // Park it with the revealing player's dealt cards while it resolves (out of the deck/discard it came from).
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
-        moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
+        // A card a swap already put there (`instead`) is revealed from where it is.
+        const parked = locateCard(ctx.state, id);
+        if (parked?.kind !== "dealtEncounter" || parked.playerId !== playerId)
+          moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
         frames.push(revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"));
       }

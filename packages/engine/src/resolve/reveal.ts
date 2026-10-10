@@ -95,6 +95,39 @@ export function inciteFrames(ctx: Ctx, id: InstanceId, scheme: InstanceId | unde
   return [eventFrame(ctx, { kind: "placeThreat", schemeInstanceId: scheme, amount: incite, sourceInstanceId: id })];
 }
 
+/**
+ * The reveal in progress of `revealing` is replaced by the reveal of `withIds` (`EffectSpec revealCard.instead`,
+ * docs/phase7-wave9.md §3.41; RRG 1.8 "Replacement Effect", p. 36). Only while that reveal waits in its "when
+ * revealed" window (stage `enterPlay`: faceup, nothing resolved yet) and only once its card has left the place the
+ * reveal found it: a card still there would be left faceup among the dealt encounter cards with no reveal to resolve
+ * it. The frame goes to `done`, so the card stays wherever the replacing ability put it, and its record leaves
+ * `revealedThisRound`: "the first card revealed each round" is the card revealed instead. False when there is nothing
+ * to replace; the caller reveals the other cards only when true.
+ */
+export function replaceRevealInProgress(
+  ctx: Ctx,
+  revealing: InstanceId | null,
+  withIds: readonly InstanceId[],
+): boolean {
+  const reveal = ctx.state.stack.find(
+    (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing && f.stage === "enterPlay",
+  );
+  if (!reveal || withIds.length === 0 || withIds.includes(reveal.instanceId)) return false;
+  if (sameZone(locateCard(ctx.state, reveal.instanceId), reveal.revealedFrom)) return false;
+  const history = ctx.state.revealedThisRound ?? [];
+  // Its own record is the latest one for this card and player.
+  const at = history.map((r) => r.instanceId === reveal.instanceId && r.playerId === reveal.playerId).lastIndexOf(true);
+  if (at >= 0) ctx.state = { ...ctx.state, revealedThisRound: history.filter((_, index) => index !== at) };
+  setFrame(ctx, { ...reveal, stage: "done" });
+  emit(ctx, {
+    type: "revealReplaced",
+    instanceId: reveal.instanceId,
+    withInstanceIds: withIds,
+    playerId: reveal.playerId,
+  });
+  return true;
+}
+
 // Host legality is a read of the state alone (`attachment-hosts.ts`); re-exported for the resolution steps that use it.
 export { attachmentHostCandidates, upgradeHostCandidates } from "../attachment-hosts.js";
 

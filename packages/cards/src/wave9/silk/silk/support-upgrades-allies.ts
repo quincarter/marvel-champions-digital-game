@@ -1,3 +1,4 @@
+import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
   YOUR_HERO,
@@ -6,19 +7,24 @@ import {
   alterEgoAction,
   atEndOfAttack,
   attackingEnemy,
+  cards,
   chooseCards,
   chooseOne,
   chooseTarget,
   chosen,
   constant,
   defineAbilities,
+  discardTuckedCost,
   encounterCards,
   encounterSetOf,
   eventTarget,
   exhaustThis,
+  gainTraitUntil,
   gets,
   heal,
+  heroAction,
   heroInterrupt,
+  interrupt,
   isHero,
   modifyAttack,
   modifyStat,
@@ -27,10 +33,14 @@ import {
   option,
   putIntoPlay,
   query,
+  ready,
   removeThreat,
+  revealInstead,
   shuffleDeck,
+  swapCards,
   tuckCards,
   tuckedCount,
+  tuckedUnderRef,
   yourIdentity,
   you,
   zone,
@@ -52,11 +62,23 @@ const tuckedOfSetOf = (of: Parameters<typeof encounterSetOf>[0]) =>
  * put it into play (one shuffle). **52007.j-jonah-jameson-action-2** (Action, exhaust, either form): remove 2 threat
  * from a side scheme.
  *
- * **52008.eidetic-memory-interrupt** is not scripted (see the skipped map). The errata text it would implement (RRG
- * 1.8 p. 70: "your identity", twice, so it works in either form) is: when you reveal a card from the same encounter
- * set as a card tucked under your identity, exhaust to swap those cards and reveal the formerly tucked card instead.
+ * **52008.eidetic-memory-interrupt** (Interrupt, either form), the erratum's text (RRG 1.8 p. 70, "your identity"
+ * twice): "When you reveal a card from the same encounter set as a card tucked under your identity, exhaust Eidetic
+ * Memory → swap those cards. Reveal the card that had been tucked under your identity instead." Opens in the revealed
+ * card's "when revealed" window, before any of it resolves, and only while a tucked card of its set is there to choose
+ * (with several, the player chooses one). The swap is RRG 1.8 "'Swap'" (p. 42): the revealed card takes the tucked
+ * card's place under the identity, so the count of tucked cards does not change and the four-card cap is not touched.
+ * "Instead" is a replacement (RRG 1.8 "Replacement Effect", p. 36): the first card's reveal ends unresolved (it does
+ * not enter play, resolves no keyword or When Revealed, is not discarded) and the formerly tucked card is revealed by
+ * the same player in full, its own "when revealed" window, When Revealed, keywords and surge included
+ * (`revealInstead`, docs/phase7-wave9.md section 3.41). A villain's or main scheme's new face is not answered: those
+ * cards have no swap with a tucked card, so the ability could change nothing.
  *
- * **52009.organic-webbing-constant**: Silk gets +1 THW (hero form). Its action is skipped (see the map).
+ * **52009.organic-webbing-constant**: Silk gets +1 THW (hero form). **52009.organic-webbing-action** (Hero Action):
+ * "Exhaust Organic Webbing and discard a card tucked under Silk → ready Silk. She gains the Aerial trait until the end
+ * of the round." Both halves before the arrow are the cost (RRG 1.8 "Cost", p. 13): with nothing tucked under the
+ * identity it cannot be initiated, with several the player chooses which, and the card goes to its owner's discard pile
+ * (an encounter card to the encounter discard pile; RRG 1.8 "Tuck", p. 45). No printed limit: the exhaust is the limit.
  *
  * **52010.outwit-interrupt**: when Silk makes a basic thwart, exhaust: +1 THW for each card tucked under her from the
  * same encounter set as the thwarted scheme, read when it resolves, as extra threat removed by that thwart.
@@ -107,7 +129,26 @@ export const SILK_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
     removeThreat(2, chosen("scheme")),
   ),
 
+  "52008.eidetic-memory-interrupt": interrupt(
+    {
+      ...on.encounterCardRevealed(query([], { not: query(["villain", "mainScheme"]) })),
+      playerIs: "controller",
+    },
+    { cost: exhaustThis },
+    chooseCards("tucked", cards(tuckedUnderRef(yourIdentity, query([], encounterSetOf(eventTarget)))), {
+      min: 1,
+      max: 1,
+    }),
+    swapCards(eventTarget, chosen("tucked")),
+    revealInstead(chosen("tucked")),
+  ),
+
   "52009.organic-webbing-constant": constant(gets("thw", 1, YOUR_IDENTITY, { while: isHero() })),
+  "52009.organic-webbing-action": heroAction(
+    { cost: [exhaustThis, discardTuckedCost(yourIdentity)] },
+    ready(yourIdentity),
+    gainTraitUntil(trait("AERIAL"), yourIdentity, "endOfRound"),
+  ),
 
   "52010.outwit-interrupt": heroInterrupt(
     on.thwarts(YOUR_IDENTITY, { basic: true }),
@@ -129,10 +170,5 @@ export const SILK_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   ),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {
-  "52008.eidetic-memory-interrupt":
-    "swapCards(eventTarget, chosen tucked) then revealCard(chosen tucked) swaps and reveals the tucked card fully (both verified), but cancelTriggeringEvent on encounterCardRevealing only marks the event cancelled: the original reveal frame (engine resolve/reveal.ts, stage enterPlay) keeps resolving its instance, which after the swap is the card tucked under the identity, and moves it from under the identity into play. Needs an engine effect that ends the reveal in progress without resolving it (docs/phase7-wave9.md section 3.41 names cancelTriggeringEvent, which does not do that for a reveal)",
-  "52009.organic-webbing-action":
-    "its cost discards a card tucked under Silk; AbilityCost has no tucked-card discard yet (same gap as 52001b.cindy-moon-action, docs/phase7-wave9.md section 3.39, owner question 7); the engine agent is adding it",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED: Readonly<Record<string, string>> = {};

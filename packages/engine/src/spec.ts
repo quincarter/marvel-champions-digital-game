@@ -3016,8 +3016,20 @@ export type EffectSpec =
       readonly bind?: string;
       readonly rearrange?: true;
     }
-  /** "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is. */
-  | { readonly kind: "revealCard"; readonly cards: TargetRef; readonly player: PlayerRef }
+  /**
+   * "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is.
+   *
+   * `instead` (docs/phase7-wave9.md §3.41): "When you reveal a card …, swap those cards. Reveal the card that had been
+   * tucked under your identity instead." In an interrupt to `encounterCardRevealing`, once the card being revealed has
+   * left the place its reveal found it (the ability's own swap), that reveal is replaced (RRG 1.8 "Replacement
+   * Effect", p. 36: "it is no longer considered imminent and no further interrupts or responses to that effect can be
+   * triggered"): its interrupt window closes, it ends where it stands (the card does not enter play, resolves no
+   * keyword or When Revealed, is not discarded, announces no `cardRevealed`, and leaves the round's reveal history),
+   * and `cards` are revealed in full as above, their own "when revealed" window, keywords and surge included. Logged
+   * `revealReplaced`. With no such reveal in progress, or its card still where the reveal found it (the swap was not
+   * completed), nothing is replaced and nothing is revealed (`preThenUnresolved nothingToCancel`).
+   */
+  | { readonly kind: "revealCard"; readonly cards: TargetRef; readonly player: PlayerRef; readonly instead?: true }
   | { readonly kind: "shuffleEncounterDeck" }
   /**
    * "Create the Experimental Weapons deck" / "Shuffle every other encounter side scheme into the side-scheme deck"

@@ -15,7 +15,9 @@
  *   read against the swapping ability's card, RRG 1.8 "Permanent", p. 32), into the other card's exact place with the
  *   other card's orientation; the incoming card takes the outgoing card's place, faceup if it was, under its controller,
  *   and its `cardEntersPlay` is announced (the enter-play keywords are that event's apply step).
- * Two out-of-play cards (Eidetic Memory, `silk`, erratum RRG 1.8 p. 69) just exchange places and orientations.
+ * Two out-of-play cards (Eidetic Memory, `silk`, erratum RRG 1.8 p. 70) just exchange places and orientations. A card
+ * swapped out of a reveal in progress is still that reveal's card: ending it is `revealCard.instead`
+ * (docs/phase7-wave9.md §3.41).
  *
  * A facedown card attached to a card in play is out of play (RRG 1.8 "In Play and Out of Play", p. 23:
  * `isFacedownAttachment`), so swapping it with a card in play is the play-area / out-of-play-area swap above: the

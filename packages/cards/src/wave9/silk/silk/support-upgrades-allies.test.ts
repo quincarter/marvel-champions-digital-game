@@ -1,5 +1,13 @@
 import { SILK_CARDS, cardId, type SupportCard, type UpgradeCard } from "@mc/content";
-import { activeEncounterDeckId, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  applyCommand,
+  legalActions,
+  traitsOf,
+  type Command,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
@@ -78,13 +86,10 @@ describe("Silk supports and upgrades registry", () => {
   it("every registered ability validates", () => {
     for (const [ref, def] of Object.entries(REGISTRY)) expect(validateDefinition(def), ref).toEqual([]);
   });
-  it("registers every printed ref of 52006 to 52012 except the two skipped ones, each with a reason", () => {
+  it("registers every printed ref of 52006 to 52012; nothing is skipped", () => {
     const printed = [ALBERT, JAMESON, MEMORY, WEBBING, OUTWIT, CLAWS, REFLEXES].flatMap(refsOf);
-    const skipped = [MEMORY_INTERRUPT, WEBBING_ACTION];
-    expect(Object.keys(REGISTRY).sort()).toEqual(printed.filter((r) => !skipped.includes(r)).sort());
-    expect(Object.keys(SKIPPED).sort()).toEqual([...skipped].sort());
-    expect(SKIPPED[WEBBING_ACTION]).toMatch(/AbilityCost/);
-    expect(SKIPPED[MEMORY_INTERRUPT]).toMatch(/cancelTriggeringEvent/);
+    expect(Object.keys(REGISTRY).sort()).toEqual([...printed].sort());
+    expect(SKIPPED).toEqual({});
   });
   it("trigger kinds, forms and costs", () => {
     expect(REGISTRY[ALBERT_ACTION]!.trigger).toMatchObject({ kind: "action", form: "alterEgo" });
@@ -93,6 +98,27 @@ describe("Silk supports and upgrades registry", () => {
     expect(REGISTRY[JAMESON_SEARCH]!.cost).toEqual({ exhaustSelf: true });
     expect(REGISTRY[JAMESON_THWART]!.trigger).toMatchObject({ kind: "action" });
     expect(REGISTRY[JAMESON_THWART]!.trigger).not.toHaveProperty("form");
+    // The erratum's "your identity": an Interrupt with no form, so it works on either face.
+    expect(REGISTRY[MEMORY_INTERRUPT]!.trigger).toMatchObject({
+      kind: "interrupt",
+      forced: false,
+      on: { on: "encounterCardRevealing", playerIs: "controller" },
+    });
+    expect(REGISTRY[MEMORY_INTERRUPT]!.trigger).not.toHaveProperty("form");
+    expect(REGISTRY[MEMORY_INTERRUPT]!.cost).toEqual({ exhaustSelf: true });
+    expect(REGISTRY[MEMORY_INTERRUPT]).not.toHaveProperty("limit");
+    expect(REGISTRY[WEBBING_ACTION]!.trigger).toMatchObject({ kind: "action", form: "hero" });
+    expect(REGISTRY[WEBBING_ACTION]!.cost).toEqual({
+      exhaustSelf: true,
+      discardTucked: {
+        slot: "discarded",
+        query: {},
+        under: { kind: "identityOf", player: { kind: "controller" } },
+        min: 1,
+        max: 1,
+      },
+    });
+    expect(REGISTRY[WEBBING_ACTION]).not.toHaveProperty("limit");
     for (const ref of [OUTWIT_INTERRUPT, CLAWS_INTERRUPT, REFLEXES_INTERRUPT]) {
       expect(REGISTRY[ref]!.trigger, ref).toMatchObject({ kind: "interrupt", forced: false, form: "hero" });
       expect(REGISTRY[ref]!.cost, ref).toEqual({ exhaustSelf: true });
@@ -124,9 +150,12 @@ describe("printed data", () => {
       expect(c.traits.map(String), code).toEqual([trait]);
     }
   });
-  it("Eidetic Memory's emitted current text still says 'Silk' in its second sentence (RRG p. 70 erratum not applied to the data)", () => {
-    const text = card<UpgradeCard>(MEMORY).text.current ?? "";
-    expect(text).toContain("tucked under Silk instead");
+  it("Eidetic Memory's current text is the RRG 1.8 p. 70 erratum ('your identity' twice); the printed text keeps 'Silk'", () => {
+    const text = card<UpgradeCard>(MEMORY).text;
+    expect(text.current).toBe(
+      "Interrupt: When you reveal a card from the same encounter set as a card tucked under your identity, exhaust Eidetic Memory → swap those cards. Reveal the card that had been tucked under your identity instead.",
+    );
+    expect(text.printed).toContain("under Silk instead");
   });
 });
 
@@ -284,6 +313,176 @@ const upgraded = (state: GameState, code: string, cost: number): GameState => ca
 const upgradeOf = (s: GameState, code: string): InstanceId =>
   inst(s, identityOf(s)).attachments.find((a) => codeOf(s, a) === code)!;
 
+describe("Eidetic Memory (52008): Interrupt: When you reveal a card from the same encounter set as a card tucked under your identity, exhaust Eidetic Memory → swap those cards. Reveal the card that had been tucked under your identity instead.", () => {
+  const HARD = "01104";
+  const TOUGH = "01105";
+  const BREAKIN = "01107";
+  const ASSAULT = "01187";
+
+  /**
+   * Eidetic Memory in play (cost 1), these cards tucked in this order, and the encounter deck stacked: Advance for
+   * Rhino's boost card, then `dealt` as the card dealt to Silk in the villain phase, then `next`.
+   */
+  function staged(
+    tucked: readonly string[],
+    dealt: string,
+    next: readonly string[] = [],
+    start: GameState = silkHeroGame(),
+  ) {
+    let state = cast(start, MEMORY, 1).state;
+    const ids: InstanceId[] = [];
+    for (const code of tucked) {
+      const placed = tuckEncounterCard(state, code);
+      state = placed.state;
+      ids.push(placed.id);
+    }
+    state = stackEncounterDeck(state, ADVANCE, dealt, ...next);
+    const deck = state.encounterDecks[activeEncounterDeckId(state)]!.deck;
+    return { state, ids, dealt: deck[1]!, memory: upgradeOf(state, MEMORY) };
+  }
+  /** Ends the turn: the villain phase plays out, the interrupt taken when offered, `tucked` chosen when asked. */
+  const villainPhase = (s: GameState, tucked?: InstanceId) =>
+    driveEventsPicking(SILK_DEPS, s, accepting(MEMORY_INTERRUPT, tucked), { type: "endTurn", playerId: P1 });
+  const encounterDiscard = (s: GameState): readonly InstanceId[] => s.encounterDecks[activeEncounterDeckId(s)]!.discard;
+  const inPlay = (s: GameState, id: InstanceId): boolean =>
+    playerOf(s, P1).playArea.includes(id) || s.villainArea.includes(id);
+  const toughOn = (s: GameState): number => inst(s, villainOf(s)).statuses.tough;
+  const revealedCodes = (events: readonly { readonly type: string }[]): string[] =>
+    events
+      .filter((e): e is { type: "encounterCardRevealed"; cardId: string } => e.type === "encounterCardRevealed")
+      .map((e) => e.cardId);
+  const memoryOffers = (events: readonly { readonly type: string }[]): number =>
+    events.filter((e) => e.type === "choiceRequested" && JSON.stringify(e).includes(MEMORY_INTERRUPT)).length;
+
+  it("played for 1: attached to Silk's identity", () => {
+    const { state } = cast(silkHeroGame(), MEMORY, 1);
+    expect(inst(state, identityOf(state)).attachments.map((a) => codeOf(state, a))).toContain(MEMORY);
+  });
+
+  it('0 tucked: not offered; "I\'m Tough!" resolves as usual (Rhino gets a tough status card) and Eidetic Memory stays ready', () => {
+    const { state: at, dealt } = staged([], TOUGH);
+    const { state, events } = villainPhase(at);
+    expect(memoryOffers(events)).toBe(0);
+    expect(toughOn(state)).toBe(1);
+    expect(tuckedOf(state)).toEqual([]);
+    expect(encounterDiscard(state)).toContain(dealt);
+    expect(inst(state, upgradeOf(state, MEMORY)).exhausted).toBe(false);
+  });
+
+  it("only a card of another encounter set tucked (Assault, Standard): not offered for a Rhino-set card", () => {
+    const { state: at, ids } = staged([ASSAULT], TOUGH);
+    const { state, events } = villainPhase(at);
+    expect(memoryOffers(events)).toBe(0);
+    expect(toughOn(state)).toBe(1);
+    expect(tuckedOf(state)).toEqual(ids);
+  });
+
+  it('1 tucked minion (Hydra Mercenary), a treachery revealed ("I\'m Tough!"): the treachery is tucked unresolved and the minion is revealed and engages Silk', () => {
+    const { state: at, ids, dealt, memory } = staged([MERC], TOUGH);
+    const { state, events } = villainPhase(at);
+    expect(memoryOffers(events)).toBe(1);
+    expect(tuckedOf(state)).toEqual([dealt]);
+    expect(tuckedCodes(state)).toEqual([TOUGH]);
+    expect(toughOn(state)).toBe(0);
+    expect(encounterDiscard(state)).not.toContain(dealt);
+    expect(playerOf(state, P1).playArea).toContain(ids[0]);
+    expect(inst(state, ids[0]!).engagedWith).toBe(P1);
+    expect(revealedCodes(events)).toEqual([TOUGH, MERC]);
+    expect(events.filter((e) => e.type === "revealReplaced")).toEqual([
+      { type: "revealReplaced", instanceId: dealt, withInstanceIds: [ids[0]], playerId: P1 },
+    ]);
+    // It was exhausted for this in the villain phase; the next round has readied it.
+    expect(events.some((e) => e.type === "cardExhausted" && e.instanceId === memory)).toBe(true);
+  });
+
+  it('1 tucked treachery ("I\'m Tough!"), a minion revealed (Sandman): Sandman is tucked and never enters play; Rhino gets the tough status card', () => {
+    const { state: at, ids, dealt } = staged([TOUGH], SANDMAN);
+    const { state, events } = villainPhase(at);
+    expect(tuckedOf(state)).toEqual([dealt]);
+    expect(inPlay(state, dealt)).toBe(false);
+    expect(inst(state, dealt).engagedWith).toBeNull();
+    expect(toughOn(state)).toBe(1);
+    expect(encounterDiscard(state)).toContain(ids[0]);
+    expect(revealedCodes(events)).toEqual([SANDMAN, TOUGH]);
+  });
+
+  it("1 tucked side scheme (Breakin' & Takin'), a treachery revealed: the side scheme enters play with 2 + 1 = 3 threat; the treachery is tucked", () => {
+    const { state: at, ids, dealt } = staged([BREAKIN], TOUGH);
+    const { state } = villainPhase(at);
+    expect(tuckedOf(state)).toEqual([dealt]);
+    expect(toughOn(state)).toBe(0);
+    expect(state.villainArea).toContain(ids[0]);
+    expect(inst(state, ids[0]!).threat).toBe(3);
+  });
+
+  it("1 tucked minion, a side scheme revealed (Breakin' & Takin'): the side scheme is tucked with no threat; the minion engages", () => {
+    const { state: at, ids, dealt } = staged([SHOCKER], BREAKIN);
+    const { state } = villainPhase(at);
+    expect(tuckedOf(state)).toEqual([dealt]);
+    expect(state.villainArea).not.toContain(dealt);
+    expect(inst(state, dealt).threat).toBe(0);
+    expect(inst(state, ids[0]!).engagedWith).toBe(P1);
+  });
+
+  it('the card revealed instead surges: "I\'m Tough!" with Rhino already tough gains surge, and the next card (Hydra Mercenary) is revealed', () => {
+    const base = staged([TOUGH], SANDMAN, [MERC]);
+    const at = patchInstance(base.state, villainOf(base.state), {
+      statuses: { ...inst(base.state, villainOf(base.state)).statuses, tough: 1 },
+    });
+    const merc = at.encounterDecks[activeEncounterDeckId(at)]!.deck[2]!;
+    const { state, events } = villainPhase(at);
+    expect(tuckedOf(state)).toEqual([base.dealt]);
+    expect(revealedCodes(events)).toEqual([SANDMAN, TOUGH, MERC]);
+    expect(events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
+    expect(inst(state, merc).engagedWith).toBe(P1);
+  });
+
+  it("the card swapped away does not surge: Hard to Keep Down (Rhino undamaged) is tucked and the next card stays on the deck", () => {
+    const { state: at, ids, dealt } = staged([MERC], HARD, [SHOCKER]);
+    const next = at.encounterDecks[activeEncounterDeckId(at)]!.deck[2]!;
+    const { state, events } = villainPhase(at);
+    expect(tuckedOf(state)).toEqual([dealt]);
+    expect(events.filter((e) => e.type === "surgeTriggered")).toEqual([]);
+    expect(revealedCodes(events)).toEqual([HARD, MERC]);
+    expect(inst(state, ids[0]!).engagedWith).toBe(P1);
+    expect(inPlay(state, next)).toBe(false);
+  });
+
+  it("4 tucked, 3 of Rhino's set: those 3 are offered; choosing \"I'm Tough!\" puts Sandman in its place, still 4 tucked and the cap discards nothing", () => {
+    const { state: at, ids, dealt } = staged([MERC, ASSAULT, TOUGH, BREAKIN], SANDMAN);
+    const { state, events } = villainPhase(at, ids[2]);
+    const asked = events.find((e) => e.type === "choiceRequested" && e.choice.prompt.kind === "chooseCards");
+    const options = asked?.type === "choiceRequested" ? asked.choice.options.map((o) => o.optionId as string) : [];
+    expect(options.sort()).toEqual([ids[0], ids[2], ids[3]].sort());
+    expect(tuckedOf(state)).toEqual([ids[0], ids[1], dealt, ids[3]]);
+    expect(tuckedCodes(state)).toEqual([MERC, ASSAULT, SANDMAN, BREAKIN]);
+    expect(toughOn(state)).toBe(1);
+    expect(encounterDiscard(state)).toContain(ids[2]);
+    for (const kept of [ids[0], ids[1], ids[3]]) expect(encounterDiscard(state)).not.toContain(kept);
+    expect(state.villainArea).not.toContain(ids[3]);
+  });
+
+  it("declined: the revealed card resolves as usual and nothing is swapped", () => {
+    const { state: at, ids, dealt } = staged([MERC], TOUGH);
+    const { state, events } = driveEventsPicking(SILK_DEPS, at, declining, { type: "endTurn", playerId: P1 });
+    expect(memoryOffers(events)).toBe(1);
+    expect(tuckedOf(state)).toEqual(ids);
+    expect(toughOn(state)).toBe(1);
+    expect(encounterDiscard(state)).toContain(dealt);
+    expect(events.filter((e) => e.type === "revealReplaced")).toEqual([]);
+  });
+
+  it("alter-ego form (the erratum's 'your identity'): Cindy Moon uses it the same way", () => {
+    const { state: at, ids, dealt } = staged([MERC], TOUGH, [], silkGame());
+    expect(playerOf(at, P1).identity.form).toBe("alterEgo");
+    const { state, events } = villainPhase(at);
+    expect(tuckedOf(state)).toEqual([dealt]);
+    expect(toughOn(state)).toBe(0);
+    expect(inst(state, ids[0]!).engagedWith).toBe(P1);
+    expect(revealedCodes(events)).toEqual([TOUGH, MERC]);
+  });
+});
+
 describe("Organic Webbing (52009)", () => {
   it("played for 2: attached to Silk's identity", () => {
     const { state } = cast(silkHeroGame(), WEBBING, 2);
@@ -298,8 +497,151 @@ describe("Organic Webbing (52009)", () => {
     const withIt = run(armed, basicThwart(armed, schemeOf(armed)));
     expect(before - inst(withIt, schemeOf(withIt)).threat).toBe(2);
   });
-  it("its action is skipped, so only the constant is registered", () => {
-    expect(Object.keys(REGISTRY).filter((r) => r.startsWith("52009"))).toEqual([WEBBING_CONSTANT]);
+});
+
+describe("Organic Webbing's action (52009): Hero Action: Exhaust Organic Webbing and discard a card tucked under Silk → ready Silk. She gains the Aerial trait until the end of the round.", () => {
+  it("both printed abilities are registered", () => {
+    expect(
+      Object.keys(REGISTRY)
+        .filter((r) => r.startsWith("52009"))
+        .sort(),
+    ).toEqual([WEBBING_ACTION, WEBBING_CONSTANT].sort());
+  });
+
+  /** Silk in hero form, exhausted, with Organic Webbing ready on her and these cards tucked under her, in this order. */
+  function webbed(...codes: readonly string[]): {
+    readonly state: GameState;
+    readonly webbing: InstanceId;
+    readonly ids: readonly InstanceId[];
+  } {
+    let state = upgraded(silkHeroGame(), WEBBING, 2);
+    const ids: InstanceId[] = [];
+    for (const code of codes) {
+      const tucked = tuckEncounterCard(state, code);
+      state = tucked.state;
+      ids.push(tucked.id);
+    }
+    state = patchInstance(state, identityOf(state), { exhausted: true });
+    return { state, webbing: upgradeOf(state, WEBBING), ids };
+  }
+  const web = (s: GameState, pick?: InstanceId): Command =>
+    use(P1, upgradeOf(s, WEBBING), WEBBING_ACTION, [], pick ? { discarded: [pick] } : undefined);
+  const go = (s: GameState, pick?: InstanceId) => driveEventsPicking(SILK_DEPS, s, firstLegal, web(s, pick));
+  const encounterDiscard = (s: GameState): readonly InstanceId[] => s.encounterDecks[activeEncounterDeckId(s)]!.discard;
+  const aerial = (s: GameState): boolean => traitsOf(s, identityOf(s), SILK_DEPS).map(String).includes("AERIAL");
+  /** How `legalActions` lists the action: "legal", or the engine's reason for refusing it; null when not listed. */
+  function listed(s: GameState): string | null {
+    const actions = legalActions(s, P1, SILK_DEPS);
+    if (actions.kind !== "turn") return null;
+    const mine = (a: { readonly action: unknown }) => JSON.stringify(a.action).includes(`"${WEBBING_ACTION}"`);
+    if (actions.legal.some(mine)) return "legal";
+    return actions.illegal.find(mine)?.reason ?? null;
+  }
+
+  it("0 tucked: the cost cannot be paid; the action is not legal, the command is refused, nothing exhausts or readies", () => {
+    const { state, webbing } = webbed();
+    expect(listed(state)).toBe("no_valid_target");
+    const result = applyCommand(state, web(state), SILK_DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toBe("not enough tucked cards to discard for this cost");
+    expect([inst(state, webbing).exhausted, inst(state, identityOf(state)).exhausted, aerial(state)]).toEqual([
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it("1 tucked (Hydra Mercenary): it goes to the encounter discard pile, Organic Webbing exhausts, Silk readies and is Aerial", () => {
+    const { state, webbing, ids } = webbed(MERC);
+    expect(listed(state)).toBe("legal");
+    expect(aerial(state)).toBe(false);
+    const { state: after, events } = go(state);
+    expect(tuckedOf(after)).toEqual([]);
+    expect(encounterDiscard(after)).toEqual([ids[0], ...encounterDiscard(state)]);
+    expect(inst(after, webbing).exhausted).toBe(true);
+    expect(inst(after, identityOf(after)).exhausted).toBe(false);
+    expect(aerial(after)).toBe(true);
+    expect(events.filter((e) => e.type === "cardMoved" && e.from.kind === "tucked")).toEqual([
+      {
+        type: "cardMoved",
+        instanceId: ids[0],
+        cardId: MERC,
+        from: { kind: "tucked", hostInstanceId: identityOf(state) },
+        to: { kind: "encounterDiscard", deckId: activeEncounterDeckId(state) },
+      },
+    ]);
+  });
+
+  it("4 tucked: the player must name one; naming the third (Shocker) discards only it and the other 3 stay in order", () => {
+    const { state, ids } = webbed(MERC, SANDMAN, SHOCKER, ADVANCE);
+    expect(listed(state)).toBe("legal");
+    const bare = applyCommand(state, web(state), SILK_DEPS);
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(bare.error.code).toBe("invalid_choice");
+    const { state: after } = go(state, ids[2]);
+    expect(tuckedOf(after)).toEqual([ids[0], ids[1], ids[3]]);
+    expect(tuckedCodes(after)).toEqual([MERC, SANDMAN, ADVANCE]);
+    expect(encounterDiscard(after)).toEqual([ids[2], ...encounterDiscard(state)]);
+    expect([inst(after, identityOf(after)).exhausted, aerial(after)]).toEqual([false, true]);
+  });
+
+  it("a card that is not tucked under Silk cannot pay: naming a card in hand is refused", () => {
+    const { state } = webbed(MERC);
+    const result = applyCommand(state, web(state, playerOf(state, P1).hand[0]), SILK_DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+  });
+
+  it("the readied Silk thwarts again: 2 threat (THW 1 + 1) before and 2 more after, 10 to 6", () => {
+    const { state, ids } = webbed(MERC);
+    const ready = patchInstance(
+      patchInstance(state, identityOf(state), { exhausted: false }),
+      state.mainScheme.instanceId,
+      { threat: 10 },
+    );
+    const once = run(ready, basicThwart(ready, schemeOf(ready)));
+    expect([inst(once, schemeOf(once)).threat, inst(once, identityOf(once)).exhausted]).toEqual([8, true]);
+    const { state: readied } = go(once, ids[0]);
+    const twice = run(readied, basicThwart(readied, schemeOf(readied)));
+    expect(inst(twice, schemeOf(twice)).threat).toBe(6);
+  });
+
+  it("no printed limit, but exhausted it cannot be used again: with 2 tucked the second use is refused and 1 stays tucked", () => {
+    const { state, ids } = webbed(MERC, SANDMAN);
+    const { state: once } = go(state, ids[0]);
+    expect(listed(once)).not.toBe("legal");
+    expect(applyCommand(once, web(once, ids[1]), SILK_DEPS).ok).toBe(false);
+    expect(tuckedOf(once)).toEqual([ids[1]]);
+  });
+
+  it("readied by another effect in the same round, it is used a second time: no once-per-round limit", () => {
+    const { state, webbing, ids } = webbed(MERC, SANDMAN);
+    const { state: once } = go(state, ids[0]);
+    const again = patchInstance(once, webbing, { exhausted: false });
+    expect(listed(again)).toBe("legal");
+    const { state: twice } = go(again, ids[1]);
+    expect(tuckedOf(twice)).toEqual([]);
+    // The top of the pile is first: the second discard lies on the first.
+    expect(encounterDiscard(twice).slice(0, 2)).toEqual([ids[1], ids[0]]);
+  });
+
+  it("the Aerial trait lasts until the end of the round: still there in the villain phase's wake, gone on her next turn", () => {
+    const { state } = webbed(MERC);
+    const { state: after } = go(state);
+    expect(aerial(after)).toBe(true);
+    const { state: next } = driveEventsPicking(SILK_DEPS, after, firstLegal, { type: "endTurn", playerId: P1 });
+    expect(next.outcome).toBeNull();
+    expect(next.round).toBe(after.round + 1);
+    expect(aerial(next)).toBe(false);
+  });
+
+  it("a Hero Action: in alter-ego form (Cindy Moon) it is not available, with a card tucked", () => {
+    const { state } = webbed(MERC);
+    const cindy = withForm(state, "alterEgo");
+    expect(playerOf(cindy, P1).identity.form).toBe("alterEgo");
+    expect(listed(cindy)).not.toBe("legal");
+    expect(applyCommand(cindy, web(cindy), SILK_DEPS).ok).toBe(false);
+    expect(tuckedOf(cindy)).toHaveLength(1);
   });
 });
 

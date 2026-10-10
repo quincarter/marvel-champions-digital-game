@@ -1744,6 +1744,18 @@ export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSp
   player,
 });
 /**
+ * "Reveal the card that had been tucked under your identity instead." (Eidetic Memory, `silk` 52008, erratum RRG 1.8
+ * p. 70; docs/phase7-wave9.md §3.41): in an interrupt to a reveal (`on.encounterCardRevealed`), after the effect that
+ * moved the card being revealed away (`swapCards(eventTarget, …)`). That reveal ends unresolved and `target` is
+ * revealed in full in its place (`EffectSpec revealCard.instead`).
+ */
+export const revealInstead = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({
+  kind: "revealCard",
+  cards: target,
+  player,
+  instead: true,
+});
+/**
  * "One player may reveal him" (the MojoMania campaign's setup, Longshot from the set-aside cards; ruling Apr 30, 2026
  * (3) #1): `player` reveals each set-aside card matching `filter`, which resolves in full, When Revealed and surge
  * included (docs/phase7-wave6.md §3.71, §4 Q42). An ally with an encounter back enters play under that player's control

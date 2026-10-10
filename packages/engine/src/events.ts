@@ -622,6 +622,17 @@ export type GameEvent =
       readonly sourceInstanceId: InstanceId | null;
     }
   | { readonly type: "revealCancelled"; readonly instanceId: InstanceId; readonly scope: "whenRevealed" | "allEffects" }
+  /**
+   * The reveal of `instanceId` in progress was replaced (`EffectSpec revealCard.instead`, docs/phase7-wave9.md §3.41;
+   * RRG 1.8 "Replacement Effect", p. 36): it ended unresolved where the replacing ability left the card, and
+   * `withInstanceIds` are revealed by `playerId` instead (each logs its own `encounterCardRevealed`).
+   */
+  | {
+      readonly type: "revealReplaced";
+      readonly instanceId: InstanceId;
+      readonly withInstanceIds: readonly InstanceId[];
+      readonly playerId: PlayerId;
+    }
   | { readonly type: "damageHealed"; readonly targetInstanceId: InstanceId; readonly amount: number }
   /**
    * A heal of damage the target had healed nothing: a `RuleSpec cannotBeHealed` matched it (docs/phase7-wave6.md
