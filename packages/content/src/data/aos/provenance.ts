@@ -460,7 +460,9 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("50126"),
     cardSetCode: "scientist_supreme",
     marvelcdbCodes: ["50126"],
-    corrections: [],
+    corrections: [
+      "50126: MarvelCDB's raw text reads \"Victory -1. Villainous. Vulnerable.\"; the card prints \"Victory -1. Vulnerable.\" Monica gains villainous only from her own text while Scientist Supreme is in the victory display. [evidence: Scan 50126.png (read 2026-10-09): keyword line \"Victory -1. Vulnerable. (Discard this character if it is stunned or confused.)\", then \"While Scientist Supreme is in the victory display, Monica Rappaccini gains villainous.\" Spec docs/phase7-wave9.md section 1.14 item 2.]",
+    ],
   },
   {
     cardId: cardId("50127"),

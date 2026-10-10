@@ -304,6 +304,19 @@ describe("wave 9 data: RRG 1.8 errata keep the print", () => {
   });
 });
 
+describe("wave 9 data: printed keyword lines", () => {
+  it("Monica Rappaccini (50126): Victory -1 and Vulnerable only; villainous comes from her text", () => {
+    const card = find(AOS_CARDS, "50126") as
+      | { keywords: unknown; text: { printed: string; current: string } }
+      | undefined;
+    expect(card?.keywords).toEqual([{ name: "victory", value: -1 }, { name: "vulnerable" }]);
+    for (const text of [card?.text.printed, card?.text.current]) {
+      expect(text?.startsWith("Victory -1. Vulnerable.")).toBe(true);
+      expect(text).toContain("Monica Rappaccini gains villainous.");
+    }
+  });
+});
+
 describe("wave 9 data: Trickster Takeover per-group values (MC55 insert p. 4)", () => {
   it("Worlds Collide (55028a) target threat is 2 per group", () => {
     const card = find(TT_CARDS, "55028a") as { stages?: readonly { targetThreat?: unknown }[] } | undefined;

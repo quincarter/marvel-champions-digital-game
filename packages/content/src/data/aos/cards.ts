@@ -3259,10 +3259,10 @@ export const AOS_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("scientist_supreme")],
     boostIcons: 2,
     traits: [trait("A.I.M."), trait("GENIUS")],
-    keywords: [{ name: "victory", value: -1 }, { name: "villainous" }, { name: "vulnerable" }],
+    keywords: [{ name: "victory", value: -1 }, { name: "vulnerable" }],
     text: {
-      printed: "Victory -1. Villainous. Vulnerable. (Discard this character if it is stunned or confused.)\nWhile Scientist Supreme is in the victory display, Monica Rappaccini gains villainous.",
-      current: "Victory -1. Villainous. Vulnerable. (Discard this character if it is stunned or confused.)\nWhile Scientist Supreme is in the victory display, Monica Rappaccini gains villainous.",
+      printed: "Victory -1. Vulnerable. (Discard this character if it is stunned or confused.)\nWhile Scientist Supreme is in the victory display, Monica Rappaccini gains villainous.",
+      current: "Victory -1. Vulnerable. (Discard this character if it is stunned or confused.)\nWhile Scientist Supreme is in the victory display, Monica Rappaccini gains villainous.",
     },
     flavor: "As second-in-command of A.I.M., Monica has her sights set on the title of Scientist Supreme.",
     abilities: [{ id: abilityId("50126.monica-rappaccini-constant") }],
