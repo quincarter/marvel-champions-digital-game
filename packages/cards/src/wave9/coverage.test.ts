@@ -71,6 +71,7 @@ import {
   SILK_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./silk/silk/support-upgrades-allies.js";
 import { TT_ABILITIES } from "./tt/index.js";
+import { WINTER_ASPECT_BASIC, WINTER_ASPECT_BASIC_SKIPPED } from "./winter/aspect-basic.js";
 import { WINTER_ABILITIES } from "./winter/index.js";
 import { WINTER_SOLDIER_EVENTS, WINTER_SOLDIER_EVENTS_SKIPPED } from "./winter/winter-soldier/events.js";
 import { WINTER_SOLDIER_IDENTITY, WINTER_SOLDIER_IDENTITY_SKIPPED } from "./winter/winter-soldier/identity.js";
@@ -339,6 +340,30 @@ const SCRIPTED_MODULES: Readonly<
     },
   ],
   winter: [
+    {
+      module: "aspect-basic",
+      cardIds: [
+        "54012",
+        "54013",
+        "54014",
+        "54015",
+        "54016",
+        "54017",
+        "54018",
+        "54019",
+        "54020",
+        "54021",
+        "54022",
+        "54023",
+        "54024",
+        "54025",
+        "54026",
+        "54032",
+        "54033",
+      ],
+      registry: WINTER_ASPECT_BASIC,
+      skipped: WINTER_ASPECT_BASIC_SKIPPED,
+    },
     {
       module: "winter-soldier/identity",
       cardIds: ["54001a"],
