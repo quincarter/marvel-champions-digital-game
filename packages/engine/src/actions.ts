@@ -3030,7 +3030,7 @@ export function payCost(
   // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20). A cost is paid in one piece: should one
   // of several cards dealt here reset the encounter deck, the response to the reset follows the whole payment (no
   // card in the pool deals more than one this way; docs/phase7-wave6.md §4.1 Q58).
-  for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
+  for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId, "ability");
   for (const id of plan.bindings.discard ?? []) {
     const zone = locateCard(ctx.state, id);
     discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, id);
@@ -3197,8 +3197,9 @@ export function payCost(
     });
   }
   // A cost is part of its card's ability, so the Permanent keyword's same-set exception reads that card (§4.1 Q46).
+  // It is not that ability's effect (RRG 1.8 "Cost", p. 13), so each move below says so (`leaveCauseSide`).
   const source = getInstance(ctx.state, sourceId)?.cardId;
-  if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId, source);
+  if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId, source, true);
   for (const { mode, pick } of inPlayPicksOf(cost)) {
     const ids = plan.bindings[pick.slot] ?? [];
     if (mode === "exhaust") {
@@ -3228,11 +3229,11 @@ export function payCost(
     } else if (tuckedPickOf(pick)) {
       // "Discard a card tucked here →" (`TuckedCostPick`): the move an effect's discard of a tucked card makes
       // (`EffectSpec moveCards` to "discard"), from this ability's card, so both are heard alike (§4.1 Q7).
-      moveCardsTo(ctx, ids, "discard", undefined, source, { sourceInstanceId: sourceId });
+      moveCardsTo(ctx, ids, "discard", undefined, source, { sourceInstanceId: sourceId }, true);
     } else if (mode === "discard") {
-      for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id, source);
+      for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id, source, true);
     } else {
-      moveCardsTo(ctx, ids, "hand", undefined, source);
+      moveCardsTo(ctx, ids, "hand", undefined, source, undefined, true);
     }
   }
 }

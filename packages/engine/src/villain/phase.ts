@@ -323,7 +323,7 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
   const total = order.length === 0 ? 0 : order.length + hazards;
   for (let index = step.dealt ?? 0; index < total; index++) {
     const player = order[index % order.length];
-    if (player) dealEncounterCardTo(ctx, player.playerId);
+    if (player) dealEncounterCardTo(ctx, player.playerId, index < order.length ? "villainPhase" : "hazard");
     // RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck empties during the resolution of any other type of game
     // effect (for example, the dealing of encounter cards), that effect finishes resolving after the encounter deck has
     // been reset." Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58): a response to the reset resolves right

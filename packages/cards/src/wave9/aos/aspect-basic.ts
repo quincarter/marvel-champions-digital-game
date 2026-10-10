@@ -3,6 +3,7 @@ import type { AbilityRegistry, RuleSpec, TargetQuery } from "@mc/engine";
 import {
   action,
   addCounters,
+  anyOfCards,
   after,
   alterEgoAction,
   andThen,
@@ -27,6 +28,7 @@ import {
   discardThis,
   draw,
   each,
+  dealtEncounterCards,
   encounterCards,
   exhaustCardsCost,
   exhaustThis,
@@ -37,8 +39,10 @@ import {
   heroResponse,
   ifThen,
   inHand,
+  instead,
   interrupt,
   lookAt,
+  lookAtAndRearrange,
   made,
   modifyBasicPower,
   moveCards,
@@ -181,6 +185,19 @@ const giveStatusOfChoice = (slot: string) =>
  * **50024.super-spies-action**: three placements, each an all-purpose counter or a threat token, each on a S.H.I.E.L.D.
  * support or a suit form upgrade, any player's. Team-Up and "Max 1 per deck" are data.
  *
+ * **50028.front-organization-interrupt**: "When an encounter card effect would discard a card you control, discard
+ * Front Organization instead of discarding that card." A replacement (RRG 1.8 "Replacement Effect", p. 37) on the
+ * leaving of a card you control for a discard pile, heard only when an encounter card's effect is what discards it
+ * (`on.playerCardDiscardedFromPlay({ by: "encounterCard" })`, `cardLeavesPlay.by`): a treachery's When Revealed, a
+ * Boost, a minion's or scheme's ability. Not offered for a player card's effect, a cost (RRG 1.8 "Cost", p. 13), a
+ * defeat by damage from any source ("Defeat", p. 15: the game discards the defeated ally, not the card that dealt the
+ * damage), an attachment going with its discarded host ("Leaves Play", p. 27) or a uses card emptied. There is no
+ * arrow, so discarding Front Organization is the replacement's effect, not a cost; it is optional (a plain Interrupt),
+ * and "you" is whoever controls it ("Play under any player's control" is data). Its own discard is not offered to it.
+ * **In play only**: RRG 1.8 "Ownership and Control" (p. 31) has a player control the cards in their hand and deck too,
+ * and an encounter card effect that discards those is not heard here (no "would be discarded" event exists for a hand
+ * or a deck); an open question for the owner, reported with this piece.
+ *
  * **Second half (50047 to 50058).** Reprints under a new code alias the source card's script (checked against the
  * source's data in the tests): Agent Coulson 50047 (`bkw` 08011), Quake 50048 (08012), Global Logistics 50049 (`sm`
  * 27043), Under Surveillance 50053 (Core 06031's "Increase the target threat value" constant; the attach half is data),
@@ -201,10 +218,21 @@ const giveStatusOfChoice = (slot: string) =>
  * the S.H.I.E.L.D. trait. Jemma's resource ability generates [mental] for a Tech card only (`generatesFor`). Fitz's
  * Alter-Ego Action searches the deck (only), may find nothing, and shuffles.
  *
+ * **50051.intelligence-response**: "After a player is dealt an encounter card, discard Intelligence → look at each
+ * encounter card dealt to each player and the top card of the encounter deck. You may swap any number of those cards."
+ * "A player" is any player (`on.aPlayerIsDealtAnEncounterCard()`, `encounterCardDealt`), in either form (a plain
+ * Response). Each dealt card is a triggering condition, but the cards one step deals share one response window (RRG
+ * 1.8 "Triggering Condition", p. 45), so in step three it is offered once, after every player's card and the hazard
+ * cards are dealt and before any is revealed; a card ability's deal and a deck that ran out offer it too. Discarding
+ * it is the cost, so each copy answers one deal; the card prints no limit ("Max 1 per player" is data). The look and
+ * the swap are §3.12's `lookAtAndRearrange`: its controller alone sees the cards, every position keeps a card, and
+ * the arrangement that swaps nothing is allowed. The surge keyword's card is not heard as a deal (reported with this
+ * piece: RRG 1.8 "Surge", p. 42, words a surge as a deal).
+ *
  * **50058.practiced-plan-response**: "After you discard a Preparation card you control": a card you control leaving
  * play to the discard pile (`cardLeavesPlay`, `to: discard`). Returns that card from the discard pile to your hand.
  *
- * Skipped (see `AOS_ASPECT_BASIC_SKIPPED`): 50014 Organizational Support, 50028 Front Organization, 50051 Intelligence.
+ * Skipped (see `AOS_ASPECT_BASIC_SKIPPED`): 50014 Organizational Support.
  * 50025 Energy, 50026 Genius and 50027 Strength print no ability (Max 1 per deck is data).
  *
  * Cards (29):
@@ -224,12 +252,12 @@ const giveStatusOfChoice = (slot: string) =>
  * - 50025 Energy (resource)
  * - 50026 Genius (resource)
  * - 50027 Strength (resource)
- * - 50028 Front Organization (support) -- skipped
+ * - 50028 Front Organization (support)
  * - 50047 Agent Coulson (ally)
  * - 50048 Quake (ally)
  * - 50049 Global Logistics (event)
  * - 50050 Informant (upgrade)
- * - 50051 Intelligence (upgrade) -- skipped
+ * - 50051 Intelligence (upgrade)
  * - 50052 Prism Dust (upgrade)
  * - 50053 Under Surveillance (upgrade)
  * - 50054 Nick Fury, Sr. (ally)
@@ -383,6 +411,18 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     shuffleDeck(),
   ),
 
+  "50028.front-organization-interrupt": interrupt(
+    on.playerCardDiscardedFromPlay({ who: { controller: "you", self: false }, by: "encounterCard" }),
+    { would: true },
+    instead(discard(self)),
+  ),
+
+  "50051.intelligence-response": response(
+    on.aPlayerIsDealtAnEncounterCard(),
+    { cost: discardThis },
+    lookAtAndRearrange(anyOfCards(dealtEncounterCards(), encounterCards(["deck"], undefined, 1))),
+  ),
+
   "50058.practiced-plan-response": response(
     { on: "cardLeavesPlay", targetIs: YOUR_PREPARATION_CARD, eventIs: { to: "discard" } },
     { cost: discardThis },
@@ -400,21 +440,4 @@ export const AOS_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
     "amount being paid), and `resource(printedResourcesOf(...))` would change the timing (a Resource: ability usable by " +
     "any payment) rather than express this one. Needs an engine primitive (a `generateResources` effect or a bonus to " +
     "the payment in progress) from game-rules-architect.",
-  "50028.front-organization-interrupt":
-    'Interrupt: "When an encounter card effect would discard a card you control, discard Front Organization instead." ' +
-    "The spec names `discardRedirected`, but that event is only the post-event of Collector's area redirect " +
-    "(engine/trigger-events.ts). The usable hook is a `cardLeavesPlay` interrupt with `replaceTriggeringEvent`, but the " +
-    'event does not record what caused the discard, so "an encounter card effect" cannot be told from a player card\'s ' +
-    "or a defeat (and `EventPattern.eventIs` has only `to`). Needs a cause (source) on `cardLeavesPlay` and a pattern " +
-    "field to read it.",
-  "50051.intelligence-response":
-    'Response: "After a player is dealt an encounter card, discard Intelligence -> look at each encounter card dealt to ' +
-    'each player and the top card of the encounter deck. You may swap any number of those cards." The effect half is ' +
-    'built (`lookAtAndRearrange(anyOfCards(dealtEncounterCards(), encounterCards(["deck"], undefined, 1)))`, ' +
-    "wave9-3-12), but the trigger is not: no event is announced after a player is dealt an encounter card. " +
-    "`dealEncounterCardTo` (engine/src/effects.ts) emits none; `villainStepStarting` (step three, dealEncounterCards) is " +
-    "an interrupt-only window (resolve/triggers.ts line 580 drops responses to it) and fires before any card is dealt; " +
-    "`villainStepResolved` exists only for placeThreat; spec 3.45's `encounterCardBeingDealt` is an interrupt (\"would " +
-    'be dealt"), not yet built, and is not an "after". Needs an after-dealt event (per card dealt, or the end of step ' +
-    "three, plus ability-dealt cards) from game-rules-architect; spec 3.12 does not name it.",
 };

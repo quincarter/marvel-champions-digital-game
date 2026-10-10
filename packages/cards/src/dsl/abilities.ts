@@ -3,6 +3,7 @@ import type {
   AbilityCost,
   CardIcon,
   DiscardCombined,
+  EncounterDealSource,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
@@ -13,6 +14,7 @@ import type {
   EventPattern,
   Form,
   KeywordGrantSpec,
+  LeaveCauseSide,
   Predicate,
   ResourceGeneration,
   ResourceMultiplierSpec,
@@ -2754,8 +2756,19 @@ export const on = {
    * owner's discard pile, an encounter card to the encounter discard pile). Event cards never match: they resolve from
    * out of play and are never in play (RRG 1.8 "In Play and Out of Play", p. 23). With `instead(...)` it is a
    * replacement (RRG 1.8 "Replacement Effect", p. 37): the leaving is cancelled and the card moves where the effects say.
+   *
+   * `who`: which card ("a card **you control**": `query([], { controlledBy: you })`). `by`: whose card effect
+   * discards it (`TriggerEvent cardLeavesPlay.by`). `by: "encounterCard"` is "When **an encounter card effect** would
+   * discard a card you control" (Front Organization, `aos` 50028): the effect of any ability on a card of an encounter
+   * card type (RRG 1.8 "Card Types", p. 12), a When Revealed, a Boost or a minion's Forced Response alike. With `by`
+   * the routes that are no card's effect never match: a defeat at zero hit points, whatever dealt the damage ("Defeat",
+   * p. 15), an attachment going with its host ("Leaves Play", p. 27), a uses card emptied ("Uses", p. 46), the ally
+   * limit, and a cost ("Cost", p. 13: the arrow "distinguishes a cost from an effect").
    */
-  playerCardDiscardedFromPlay: (): EventPattern => pattern("cardLeavesPlay", { eventIs: { to: "discard" } }),
+  playerCardDiscardedFromPlay: (opts: { readonly who?: Who; readonly by?: LeaveCauseSide } = {}): EventPattern =>
+    pattern("cardLeavesPlay", opts.who === undefined ? {} : asTarget(opts.who), {
+      eventIs: { to: "discard", ...(opts.by === undefined ? {} : { by: opts.by }) },
+    }),
   /**
    * "When a SHOW environment would be discarded" (Across the Mojoverse 1B, `mojo` 39015b; docs/phase7-wave6.md §3.66):
    * the encounter-card sibling of `playerCardDiscardedFromPlay`, a card `who` names leaving play for the encounter
@@ -2779,6 +2792,17 @@ export const on = {
    */
   encounterCardFromPlayerDeck: (how?: "draw" | "discard"): EventPattern =>
     pattern("encounterCardFromPlayerDeck", ...(how ? [{ eventIs: { how } }] : [])),
+  /**
+   * "After **a player** is dealt an encounter card" (Intelligence, `aos` 50051; docs/phase7-wave9.md §3.12): any
+   * player's, named with `eventPlayer`; the facedown card is `eventTarget`. Heard for every deal (RRG 1.8 "Deal, Deal
+   * an Encounter Card", p. 15): step three of the villain phase and its hazard cards, a card ability's deal (an effect
+   * or a cost, a card dealt "as a facedown encounter card" included) and a player deck that ran out. `source` narrows
+   * it. One event per card, but the cards one step or one effect dealt share one response window, so step three asks
+   * once, after every card is dealt and before any is revealed. Response only; "would be dealt" is another event
+   * (docs/phase7-wave9.md §3.45). The surge keyword's card is not heard.
+   */
+  aPlayerIsDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
+    pattern("encounterCardDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),
   /**
    * "After this card enters your hand" (Infiltration, Shapeshifter Surprise, `mut_gen` 32082-32083;
    * docs/phase7-wave6.md §3.10): however it enters a hand (drawn, searched for, returned, moved there). Pair with

@@ -1460,7 +1460,7 @@ function executeDealEncounterCards(
   // the new deck, in the order already chosen (`eachEncounterCard`; RRG 1.8 "Encounter Deck", p. 17).
   eachEncounterCard(ctx, frame, order.length * count, (index) => {
     const playerId = order[Math.floor(index / count)];
-    if (playerId) dealEncounterCardTo(ctx, playerId);
+    if (playerId) dealEncounterCardTo(ctx, playerId, "ability");
   });
 }
 

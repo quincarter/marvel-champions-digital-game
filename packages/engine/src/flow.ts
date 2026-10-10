@@ -48,6 +48,7 @@ import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import {
   announceCardsLeftPlay,
   announceDeckRunOuts,
+  announceEncounterCardsDealt,
   announceCardsEnteredHand,
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
@@ -86,6 +87,10 @@ export function runFlow(ctx: Ctx): void {
     // A card a response took away from where its discard from a deck left it is no longer counted by the ability that
     // discarded it (docs/phase7-wave7.md §4.1 Q32), settled as soon as that response window has closed.
     settleDeckDiscards(ctx);
+    // "After a player is dealt an encounter card" (docs/phase7-wave9.md §3.12). Looked at first, so its frames sit under
+    // whatever else the same step announces and resolve last: being dealt a card is the last thing a deck that ran
+    // out does (RRG 1.8 "Player Deck", p. 33).
+    if (announceEncounterCardsDealt(ctx)) continue;
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
     // "After this card is discarded from the top of your deck" (docs/phase7-wave7.md §3.55). Looked at after the deck

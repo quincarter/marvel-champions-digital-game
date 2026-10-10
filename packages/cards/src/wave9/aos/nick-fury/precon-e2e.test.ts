@@ -56,7 +56,7 @@ vi.setConfig({ testTimeout: 240_000 });
  *
  * Not exercised here (covered by the kit tests in this folder): Eyepatch Camera 50043, Intelligence Analysis 50045,
  * Secret Agent 50046, Super Spies 50024, and the six Justice/basic cards left in hand. Intelligence 50051 (three
- * copies in the deck) is skipped in `AOS_ASPECT_BASIC_SKIPPED`, so it is only ever used as a resource here.
+ * copies in the deck) is only ever used as a resource here.
  */
 const DEPS: EngineDeps = {
   abilities: mergeRegistries(

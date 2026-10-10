@@ -8,6 +8,7 @@ import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
 import type { RuleSpec } from "./abilities.js";
 import type { EffectSpec, StatusName } from "./spec.js";
+import type { EncounterDealSource, LeaveCauseSide } from "./trigger-events.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -372,6 +373,13 @@ export interface ScenarioDeckState {
   readonly buildAtSetup?: true;
 }
 
+/** A facedown encounter card dealt to a player, waiting to be announced (`TriggerEvent encounterCardDealt`). */
+export interface DealtEncounterCard {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly source: EncounterDealSource;
+}
+
 /** A card that entered a player's hand, waiting to be announced (`TriggerEvent cardEntersHand`, wave 6 §3.10). */
 export interface EnteredHand {
   readonly playerId: PlayerId;
@@ -440,6 +448,8 @@ export interface LeftPlay {
   readonly traits: readonly Trait[];
   /** The attachments its leaving left in play, unattached (`TriggerEvent cardLeavesPlay.strandedAttachments`). */
   readonly strandedAttachments?: readonly InstanceId[];
+  /** Whose card effect moved it (`TriggerEvent cardLeavesPlay.by`); absent for a game rule or a cost. */
+  readonly by?: LeaveCauseSide;
   /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
   readonly interruptsResolved?: true;
 }
@@ -906,6 +916,12 @@ export interface GameState {
    * until one first enters. docs/phase7-wave6.md §3.10.
    */
   readonly pendingEnteredHand?: readonly EnteredHand[];
+  /**
+   * Facedown encounter cards dealt to players since the flow last looked, oldest first, recorded only when some ability
+   * in the registry triggers on it: the flow announces them as `encounterCardDealt` between frames, sharing one
+   * response window, and empties the list. Absent until one is first dealt. docs/phase7-wave9.md §3.12.
+   */
+  readonly pendingEncounterDealt?: readonly DealtEncounterCard[];
   /**
    * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
    * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent

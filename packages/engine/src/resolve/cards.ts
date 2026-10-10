@@ -25,6 +25,7 @@ import {
   permanentStopsLeaving,
   recordDeckDiscard,
   shuffleZone,
+  recordEncounterCardDealt,
   waitsForLeaveInterrupts,
 } from "../effects.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "../ids.js";
@@ -281,7 +282,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
  * `separate…` destinations follow each card's `home` separate deck and skip any other card. `sourceCardId`: the card
  * whose ability moves them, if any; a permanent card in play that it cannot move stays as it is (`permanentStopsLeaving`,
  * docs/phase7-wave5.md §4.1 Q46). `deckDiscardBy`: what a card this discards from a player's deck was discarded by
- * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55).
+ * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55). `asCost`: `sourceCardId`'s ability moves them as its cost, so a
+ * card in play leaves by no card effect (`leaveCauseSide`).
  */
 export function moveCardsTo(
   ctx: Ctx,
@@ -290,6 +292,7 @@ export function moveCardsTo(
   into?: PlayerId,
   sourceCardId?: CardId,
   deckDiscardBy: DeckDiscarder = { sourceInstanceId: null },
+  asCost = false,
 ): void {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
@@ -340,6 +343,7 @@ export function moveCardsTo(
         destination,
         ...(into !== undefined ? { into } : {}),
         ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+        ...(asCost ? { asCost: true as const } : {}),
       };
       if (waitsForLeaveInterrupts(ctx, id, request, moveDestinationKind(ctx.state, ctx.deps, id, destination)))
         continue;
@@ -347,7 +351,7 @@ export function moveCardsTo(
     // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
     if (typeof destination === "object" && "scenarioArea" in destination) {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
-      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId);
+      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId, asCost);
       else moveCard(ctx, id, area, "bottom");
       updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
       continue;
@@ -447,7 +451,7 @@ export function moveCardsTo(
     // docs/phase7-wave5.md).
     // The victory display is faceup too, like the other open out-of-play areas.
     if (discarding || destination === "victoryDisplay") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
+    if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId, asCost);
     else {
       // From a player's deck to that player's discard pile: a discard from the top of the deck (docs/phase7-wave7.md
       // §3.55), whichever card's effect this is. Looked for when an ability hears one or keeps a set of these cards.
@@ -764,6 +768,7 @@ export function dealAsEncounterCards(
     }
     updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
     moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+    recordEncounterCardDealt(ctx, playerId, id, "ability");
     dealt.push(id);
   }
   return dealt;
@@ -820,6 +825,31 @@ export function dealUnhandledEncounterCard(ctx: Ctx, event: EncounterCardFromPla
 }
 
 /**
+ * Announces each facedown encounter card dealt to a player since the last look (`TriggerEvent encounterCardDealt`,
+ * docs/phase7-wave9.md §3.12), when an ability hears it, and empties the list. The cards dealt since the last look
+ * were dealt by one step or one effect (step three of the villain phase deals every player's card and the hazard
+ * cards without a frame in between), so their events share one response window (RRG 1.8 "Triggering Condition",
+ * p. 45), as cards leaving play from one step do. A card no longer among that player's dealt cards (revealed, passed
+ * or moved since) is skipped. Returns true when it pushed a frame.
+ */
+export function announceEncounterCardsDealt(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingEncounterDealt;
+  if (!pending || pending.length === 0) return false;
+  const { pendingEncounterDealt: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events = pending
+    .map((dealt): TriggerEvent => ({ kind: "encounterCardDealt", ...dealt }))
+    .filter((event) => {
+      if (event.kind !== "encounterCardDealt") return false;
+      const zone = locateCard(ctx.state, event.instanceId);
+      return zone?.kind === "dealtEncounter" && zone.playerId === event.playerId && heard(ctx.state, ctx.deps, event);
+    });
+  if (events.length === 0) return false;
+  pushEventsSharingResponses(ctx, events);
+  return true;
+}
+
+/**
  * Announces each card that left play since the last look (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13),
  * when an ability listens, and empties the list; the oldest resolves first. Cards that left since the last look left
  * from one step, so their leavings share one response window (docs/phase7-wave5.md §4.1 Q33, Q49; RRG 1.8 "Triggering
@@ -856,10 +886,19 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   if (inPlay) {
     switch (request.kind) {
       case "zone":
-        leavePlay(ctx, id, request.zone, request.position, request.discarded, request.patch, request.sourceCardId);
+        leavePlay(
+          ctx,
+          id,
+          request.zone,
+          request.position,
+          request.discarded,
+          request.patch,
+          request.sourceCardId,
+          request.asCost === true,
+        );
         break;
       case "moveCards":
-        moveCardsTo(ctx, [id], request.destination, request.into, request.sourceCardId);
+        moveCardsTo(ctx, [id], request.destination, request.into, request.sourceCardId, undefined, request.asCost);
         break;
       case "defeat":
         defeatFromPlay(ctx, id, request.insteadTo, request.sourceCardId);

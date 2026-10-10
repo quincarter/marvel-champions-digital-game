@@ -847,6 +847,30 @@ export type TriggerEventBody =
       readonly from: ZoneId["kind"] | null;
     }
   /**
+   * A player has been dealt a facedown encounter card: "Response: After a player is dealt an encounter card, …"
+   * (docs/phase7-wave9.md §3.12). RRG 1.8 "Deal, Deal an Encounter Card" (p. 15): step three of the villain phase, and
+   * "If a card ability instructs a player to be dealt an encounter card, the player takes the top card of the encounter
+   * deck and places it facedown in front of them"; "Villain Phase" (p. 47) step three with its hazard cards; "Player
+   * Deck" (p. 33), a deck that ran out. One event per card dealt, `playerId` the player it was dealt to ("a player",
+   * `PlayerRef eventPlayer`), `instanceId` the facedown card and `source` what dealt it (`EncounterDealSource`).
+   *
+   * Response only: the card is already in front of the player. Recorded as it is dealt (`recordEncounterCardDealt`)
+   * only when an ability in the registry listens, and announced between frames (`announceEncounterCardsDealt`): the
+   * cards one step or one effect dealt share one response window (RRG 1.8 "Triggering Condition", p. 45), so step
+   * three asks once, after every player's card and the hazard cards are dealt, not once per card. A card no longer
+   * among that player's dealt cards by then is not announced.
+   *
+   * The after-the-fact sibling of the "would be dealt" interrupt, `encounterCardBeingDealt` (docs/phase7-wave9.md
+   * §3.45, not built): that one is to open before each card is taken from the deck, and a deal it replaces is never
+   * announced here.
+   */
+  | {
+      readonly kind: "encounterCardDealt";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly source: EncounterDealSource;
+    }
+  /**
    * A card was discarded from the top of a player's deck (docs/phase7-wave7.md §3.55): "Response: After this card is
    * discarded from the top of your deck, shuffle it back into your deck" / "add it to your hand" / "put her into play
    * under your control" (`next_evol` 40043, 40060, 40057), read from the card itself in the discard pile
@@ -930,6 +954,13 @@ export type TriggerEventBody =
        * §3.61). Absent when there is none.
        */
       readonly strandedAttachments?: readonly InstanceId[];
+      /**
+       * Whose card effect made the card leave play (`LeaveCauseSide`, `leaveCauseSide`), read from the move's source
+       * card: "When an encounter card effect would discard a card you control" is `eventIs: { by: "encounterCard" }`
+       * with `to: "discard"`. Absent when no card effect moved it: a game rule (a defeat at zero hit points or zero
+       * threat, a uses card emptied, the ally limit, an attachment going with its host), or an ability's cost.
+       */
+      readonly by?: LeaveCauseSide;
       readonly leaving?: LeaveRequest;
       readonly interruptsResolved?: true;
     }
@@ -1275,6 +1306,27 @@ export const damageTakenKey = (instanceId: InstanceId): string => `damageTaken.$
 export type TriggerEventKind = TriggerEvent["kind"];
 
 /**
+ * What dealt a player a facedown encounter card (`TriggerEvent encounterCardDealt.source`; the same four the "would be
+ * dealt" interrupt of docs/phase7-wave9.md §3.45 is to carry): step three of the villain phase's one card each
+ * (`villainPhase`) or its additional card for a hazard icon (`hazard`; RRG 1.8 "Villain Phase", p. 47), a card
+ * ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), or a player deck that ran out
+ * (`deckReset`; "Player Deck", p. 33).
+ */
+export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset";
+
+/**
+ * Whose card effect makes a card leave play (`TriggerEvent cardLeavesPlay.by`): the side of the card whose ability's
+ * effect moves it, by that card's printed type (RRG 1.8 "Card Types", p. 12: attachment, environment, main scheme,
+ * minion, obligation, side scheme, treachery and villain cards are encounter cards; the rest are player cards). Any
+ * ability of such a card counts, a When Revealed, a Boost, a Forced Response or a constant one alike (RRG 1.8
+ * "Ability", p. 4). A cost is not an effect (RRG 1.8 "Cost", p. 13: the cost arrow "distinguishes a cost from an
+ * effect"), and a move the game's rules make has no card effect behind it, whatever card set it up: damage from an
+ * encounter card that leaves an ally at zero hit points defeats it by "Defeat" (p. 15), and a card's attachments go
+ * with it by "Leaves Play" (p. 27).
+ */
+export type LeaveCauseSide = "encounterCard" | "playerCard";
+
+/**
  * The move a `cardLeavesPlay` event with an interrupt window performs when it applies (docs/phase7-wave5.md §4.1 Q17),
  * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
  * for what its caller sets on the card afterwards), one card of a `moveCards` effect, an ally's or minion's defeat
@@ -1282,7 +1334,7 @@ export type TriggerEventKind = TriggerEvent["kind"];
  *
  * `sourceCardId`: the card whose ability makes the card leave, if any, for the Permanent keyword's same-set exception
  * (RRG 1.8 "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46). Absent for a move
- * the game's rules make.
+ * the game's rules make. `asCost`: that ability moves the card as its cost, not as its effect (`LeaveCauseSide`).
  */
 export type LeaveRequest =
   | {
@@ -1292,12 +1344,14 @@ export type LeaveRequest =
       readonly discarded: boolean;
       readonly patch?: LeavePatch;
       readonly sourceCardId?: CardId;
+      readonly asCost?: true;
     }
   | {
       readonly kind: "moveCards";
       readonly destination: CardDestination;
       readonly into?: PlayerId;
       readonly sourceCardId?: CardId;
+      readonly asCost?: true;
     }
   | { readonly kind: "defeat"; readonly insteadTo?: CardDestination; readonly sourceCardId?: CardId }
   /**
@@ -1576,6 +1630,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "encounterCardFromPlayerDeck":
       return of([], [event.instanceId], [event.playerId]);
     case "cardEntersHand":
+      return of([], [event.instanceId], [event.playerId]);
+    case "encounterCardDealt":
       return of([], [event.instanceId], [event.playerId]);
     // The discarded card is the target ("this card", "that card"); the deck's player is "you"; the discarding card the
     // source.

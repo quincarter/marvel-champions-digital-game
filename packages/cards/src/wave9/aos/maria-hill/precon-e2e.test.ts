@@ -213,9 +213,9 @@ describe("Maria Hill (Leadership) precon against Rhino (standard, solo), seed 1"
     expect(mainThreat()).toBe(0);
     expect(state.round).toBe(1);
     expect(state.pendingChoice).toBeNull();
-    // The box leaves 50014 Organizational Support, 50028 Front Organization and 50051 Intelligence unscripted (3 refs);
-    // the deck holds the first two, so they are only ever resources here.
-    expect(Object.keys(AOS_ASPECT_BASIC_SKIPPED)).toHaveLength(3);
+    // The box leaves only 50014 Organizational Support unscripted; the deck holds it and 50028 Front Organization,
+    // and both are only ever resources here.
+    expect(Object.keys(AOS_ASPECT_BASIC_SKIPPED)).toEqual(["50014.organizational-support-interrupt"]);
   });
 
   it("round 1, alter ego: the search takes The Iliad and shuffles; Support Staff enters with 3 staff", () => {
@@ -598,13 +598,11 @@ describe("Maria Hill gives her allies the S.H.I.E.L.D. trait in hero form only (
   });
 });
 
-describe("doubts found while writing the game (no authoritative ruling; see the report)", () => {
-  // Observed in round 4: a Controlled minion made by Controller's Forced Response during step 2 of the villain phase
-  // attacked in the same phase. RRG "Activation" (p. 6): "each minion engaged with a player activates" at step 2; it
-  // does not say whether a minion that enters play during step 2 activates. No ruling in marvel-champions-rulings-post-rrg-1-7.md.
-  it.todo(
-    "a minion that enters play during step 2 of the villain phase (Controller's Controlled minion) does not activate that round",
-  );
+describe("doubts found while writing the game", () => {
+  // Round 4: a Controlled minion made by Controller's Forced Response during step 2 of the villain phase attacked in
+  // the same phase. That is the rule (RRG 1.8 "Minion": "If a minion engages a player during an enemy activation in
+  // which all minions engaged with that player are instructed to activate ... the newly-engaged minion will also
+  // activate"), and the game above asserts its 1 damage.
   // Observed in rounds 4 and 5: the option labels of target prompts name the facedown minion's hidden card ("Agents of
   // S.H.I.E.L.D.", "Reinforcements"). A facedown card has no name; the label should not leak the card.
   it.todo("a facedown Controlled minion is offered as a target without naming the card it was");

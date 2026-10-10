@@ -378,7 +378,7 @@ export {
   sameCampaignFace,
 } from "./campaign-state.js";
 
-export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
+export type { EncounterDealSource, LeaveCauseSide, TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export {
   BASIC_POWER_STAT,
   carriedByEvent,

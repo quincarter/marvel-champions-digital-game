@@ -15,6 +15,7 @@ import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
   P2,
+  answer,
   endTurn,
   firstLegal,
   identityOf,
@@ -119,7 +120,7 @@ describe("registry", () => {
     for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
     expect(Object.keys(REGISTRY).filter((r) => r in SKIPPED)).toEqual([]);
   });
-  it("registers exactly these twenty-six refs", () => {
+  it("registers exactly these twenty-eight refs", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual(
       [
         "50012.victoria-hand-response",
@@ -135,10 +136,12 @@ describe("registry", () => {
         "50022.grant-ward-forced-response",
         "50023.melinda-may-response",
         "50024.super-spies-action",
+        "50028.front-organization-interrupt",
         "50047.agent-coulson-response",
         "50048.quake-response",
         "50049.global-logistics-action",
         "50050.informant-interrupt",
+        "50051.intelligence-response",
         "50052.prism-dust-response",
         "50053.under-surveillance-constant",
         "50054.nick-fury-sr-forced-response",
@@ -170,15 +173,9 @@ describe("registry", () => {
     expect(REGISTRY["50023.melinda-may-response"]!.trigger).toMatchObject({ kind: "response", forced: false });
     expect(REGISTRY["50024.super-spies-action"]!.trigger).toMatchObject({ kind: "action", form: "hero" });
   });
-  it("skips Organizational Support, Front Organization and Intelligence, each with a reason", () => {
+  it("skips Organizational Support alone, with a reason", () => {
     expect(SKIPPED["50014.organizational-support-interrupt"]).toMatch(/generate/);
-    expect(SKIPPED["50028.front-organization-interrupt"]).toMatch(/cardLeavesPlay/);
-    expect(SKIPPED["50051.intelligence-response"]).toMatch(/after a player is dealt an encounter card/);
-    expect(Object.keys(SKIPPED).sort()).toEqual([
-      "50014.organizational-support-interrupt",
-      "50028.front-organization-interrupt",
-      "50051.intelligence-response",
-    ]);
+    expect(Object.keys(SKIPPED)).toEqual(["50014.organizational-support-interrupt"]);
   });
   it("second half: trigger kinds, forms and costs", () => {
     expect(REGISTRY["50050.informant-interrupt"]).toMatchObject({
@@ -1207,6 +1204,102 @@ const slipIntoEncounterDeck = (state: GameState, code: string, slot: string, ind
 };
 const threatOf = (s: GameState, id: InstanceId) => inst(s, id).threat;
 
+describe("50028.front-organization-interrupt: when an encounter card effect would discard a card you control, discard Front Organization instead", () => {
+  const ID = "50028.front-organization-interrupt";
+  const CAUGHT = "01188"; // Caught Off Guard: "When Revealed: Discard an upgrade or support you control."
+  /**
+   * The Iliad (3 mission counters) in play under P1, and P1's Front Organization in play under `orgPlayer` ("Play under
+   * any player's control").
+   */
+  const stage = (opts: Parameters<typeof aspectGame>[0] = {}, orgPlayer: PlayerId = P1) => {
+    const iliad = placed(aspectGame(opts), ILIAD, { mission: 3 });
+    const org = placed(iliad.state, FRONT_ORG);
+    if (orgPlayer === P1) return { state: org.state, iliad: iliad.id, org: org.id };
+    const moved: GameState = {
+      ...org.state,
+      players: org.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, playArea: p.playArea.filter((i) => i !== org.id) }
+          : p.playerId === orgPlayer
+            ? { ...p, playArea: [...p.playArea, org.id] }
+            : p,
+      ),
+    };
+    return { state: patchInstance(moved, org.id, { controllerId: orgPlayer }), iliad: iliad.id, org: org.id };
+  };
+  /** Ends the round with a filler for each of the villain's boosts and Caught Off Guard dealt to P1. */
+  const caught = (state: GameState, ...answers: readonly string[]) => {
+    const fillers = state.players.map(() => "01186");
+    const ended = state.players.reduce(
+      (s, p) => run(s, endTurn(p.playerId)),
+      stackEncounterDeck(state, ...fillers, CAUGHT),
+    );
+    return driveQueue(ended, ...answers);
+  };
+
+  it("is an optional 'would' interrupt with no cost", () => {
+    expect(REGISTRY[ID]).toMatchObject({
+      trigger: {
+        kind: "interrupt",
+        forced: false,
+        would: true,
+        on: { on: "cardLeavesPlay", eventIs: { to: "discard", by: "encounterCard" } },
+      },
+    });
+    expect(REGISTRY[ID]!.cost).toBeUndefined();
+  });
+  it("Caught Off Guard would discard the Iliad: Front Organization is discarded instead, the Iliad keeps its 3 counters", () => {
+    const { state, iliad, org } = stage();
+    const out = caught(state, iliad, `respond:${ID}`);
+    expect(inPlayArea(out, iliad)).toBe(true);
+    expect(counters(out, iliad)).toEqual({ mission: 3 });
+    expect(inDiscard(out, iliad)).toBe(false);
+    expect(inPlayArea(out, org)).toBe(false);
+    expect(inDiscard(out, org)).toBe(true);
+  });
+  it("declined: the Iliad is discarded and Front Organization stays", () => {
+    const { state, iliad, org } = stage();
+    const out = caught(state, iliad);
+    expect(inDiscard(out, iliad)).toBe(true);
+    expect(inPlayArea(out, org)).toBe(true);
+  });
+  it("Caught Off Guard discarding Front Organization itself is not offered: it is discarded, the Iliad stays", () => {
+    const { state, iliad, org } = stage();
+    const out = caught(state, org, `respond:${ID}`);
+    expect(inDiscard(out, org)).toBe(true);
+    expect(inPlayArea(out, iliad)).toBe(true);
+  });
+  it("another player's Front Organization does not answer for a card you control (only 'a card you control')", () => {
+    const { state, iliad, org } = stage({ players: 2 }, P2);
+    const out = caught(state, iliad, `respond:${ID}`);
+    expect(inDiscard(out, iliad)).toBe(true);
+    expect(inPlayArea(out, org, P2)).toBe(true);
+  });
+  it("a uses card emptied by its own action (Command Team's last counter) is not an encounter card effect: not offered", () => {
+    const org = placed(aspectGame(), FRONT_ORG);
+    const team = placed(org.state, COMMAND_TEAM, { command: 1 });
+    const ally = placed(team.state, VICTORIA);
+    const out = drive(
+      run(patchInstance(ally.state, ally.id, { exhausted: true }), use(P1, team.id, "50016.command-team-action")),
+      { target: ally.id, respond: ID },
+    );
+    expect(inDiscard(out, team.id)).toBe(true);
+    expect(inPlayArea(out, org.id)).toBe(true);
+  });
+  it("an ally defeated defending the villain's attack is discarded by the game's rule: not offered", () => {
+    const org = placed(hero(), FRONT_ORG);
+    const ally = placed(org.state, VICTORIA); // 2 hit points against Rhino's 2 ATK
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "declareDefender") return [ally.id];
+      return picker({ respond: ID })(s);
+    };
+    const out = settle(run(stackEncounterDeck(ally.state, "01186", "01186"), endTurn(P1)), pick, undefined, DEPS);
+    expect(inDiscard(out, ally.id)).toBe(true);
+    expect(inPlayArea(out, org.id)).toBe(true);
+  });
+});
+
 describe("second half: printed data", () => {
   it("Agent Coulson: unique Justice ally, cost 3, ATK 1, THW 2, HP 3, consequential 1/1, S.H.I.E.L.D. and SPY, [mental]", () => {
     const c = card<AllyCard>(COULSON);
@@ -1879,6 +1972,141 @@ describe("50057.sky-destroyer-response: after you play a S.H.I.E.L.D. card, exha
   });
 });
 
+describe("50051.intelligence-response: after a player is dealt an encounter card, discard Intelligence to look at the dealt cards and the deck top and swap any", () => {
+  const ID = "50051.intelligence-response";
+  const TOUGH = "01105"; // "I'm Tough!", a treachery: revealed, it is discarded
+  const MERCENARY = "01101"; // Hydra Mercenary, a minion: revealed, it engages the player
+  const deckOf = (s: GameState): readonly InstanceId[] => Object.values(s.encounterDecks)[0]!.deck;
+  const discardedEncounter = (s: GameState, id: InstanceId) => Object.values(s.encounterDecks)[0]!.discard.includes(id);
+  const dealtTo = (s: GameState, p: PlayerId = P1) => playerOf(s, p).dealtEncounter;
+  const atRearrange = (s: GameState) => s.pendingChoice?.prompt.kind === "rearrange";
+  /** Every player ends their turn; choices are answered from `answers` until `stop` (default: until none is left). */
+  const round = (state: GameState, answers: readonly string[], stop?: (s: GameState) => boolean) =>
+    settle(
+      state.players.reduce((s, p) => run(s, endTurn(p.playerId)), state),
+      queue(...answers),
+      stop,
+      DEPS,
+    );
+  /**
+   * Intelligence attached to P1's identity and the encounter deck stacked: a filler for each of the villain's boosts,
+   * then `codes`, the first of them dealt to P1 in step three. Returns the stacked cards' ids, in order.
+   */
+  const stage = (codes: readonly string[], opts: Parameters<typeof nfGame>[0] = {}) => {
+    const intel = attachedUpgrade(nfGame(opts), INTELLIGENCE);
+    const fillers = intel.state.players.map(() => "01186");
+    const state = stackEncounterDeck(intel.state, ...fillers, ...codes);
+    return { state, intel: intel.id, ids: deckOf(state).slice(fillers.length, fillers.length + codes.length) };
+  };
+
+  it("is an optional Response in either form whose cost is its own discard", () => {
+    expect(REGISTRY[ID]).toMatchObject({
+      trigger: { kind: "response", forced: false, on: { on: "encounterCardDealt" } },
+      cost: { discardSelf: true },
+    });
+    expect("form" in REGISTRY[ID]!.trigger).toBe(false);
+  });
+  it("costs 1 and enters play attached to your identity", () => {
+    const out = attachedUpgrade(nfGame(), INTELLIGENCE);
+    expect(inst(out.state, out.id).attachedTo).toBe(identityOf(out.state));
+  });
+  it("solo, 1 dealt card: you look at it and the deck top, and swapping them reveals the other card", () => {
+    const { state, intel, ids } = stage([TOUGH, MERCENARY]);
+    const [tough, mercenary] = ids as [InstanceId, InstanceId];
+    const asked = round(state, [`respond:${ID}`], atRearrange);
+    // Discarded as the cost, before the look; P1 alone is asked, with the 2 cards in their positions.
+    expect(inDiscard(asked, intel)).toBe(true);
+    expect(asked.pendingChoice!.playerId).toBe(P1);
+    expect(asked.pendingChoice!.options.map((o) => o.optionId)).toEqual([tough, mercenary]);
+    expect(dealtTo(asked)).toEqual([tough]);
+    expect(deckOf(asked)[0]).toBe(mercenary);
+
+    const swapped = answer(asked, [mercenary, tough], DEPS);
+    const out = settle(swapped, firstLegal, undefined, DEPS);
+    expect(inst(out, mercenary).engagedWith).toBe(P1);
+    expect(deckOf(out)[0]).toBe(tough);
+    expect(discardedEncounter(out, tough)).toBe(false);
+    expect(dealtTo(out)).toEqual([]);
+  });
+  it("used with no swap: Intelligence is still discarded and the cards stay where they were", () => {
+    const { state, intel, ids } = stage([TOUGH, MERCENARY]);
+    const [tough, mercenary] = ids as [InstanceId, InstanceId];
+    const out = round(state, [`respond:${ID}`]);
+    expect(inDiscard(out, intel)).toBe(true);
+    expect(discardedEncounter(out, tough)).toBe(true);
+    expect(deckOf(out)[0]).toBe(mercenary);
+  });
+  it("declined: Intelligence stays attached and nothing is looked at", () => {
+    const { state, intel, ids } = stage([TOUGH, MERCENARY]);
+    const [tough, mercenary] = ids as [InstanceId, InstanceId];
+    const prompts: string[] = [];
+    const out = settle(
+      run(state, endTurn(P1)),
+      (s) => {
+        prompts.push(s.pendingChoice!.prompt.kind);
+        return firstLegal(s);
+      },
+      undefined,
+      DEPS,
+    );
+    expect(prompts).toContain("chooseTriggers");
+    expect(prompts).not.toContain("rearrange");
+    expect(inst(out, intel).attachedTo).toBe(identityOf(out));
+    expect(discardedEncounter(out, tough)).toBe(true);
+    expect(deckOf(out)[0]).toBe(mercenary);
+  });
+  it("2 players, 2 dealt cards: offered once after both are dealt; P1 gets the deck top, P2 gets P1's card, P2's goes on top", () => {
+    const { state, intel, ids } = stage([TOUGH, MERCENARY, SANDMAN], { players: 2 });
+    const [tough, mercenary, sandman] = ids as [InstanceId, InstanceId, InstanceId];
+    let offers = 0;
+    const asked = settle(
+      state.players.reduce((s, p) => run(s, endTurn(p.playerId)), state),
+      (s) => {
+        const choice = s.pendingChoice!;
+        const rows = choice.options.filter((o) => (o.optionId as string).includes(ID));
+        if (choice.prompt.kind !== "chooseTriggers" || rows.length === 0) return firstLegal(s);
+        offers += 1;
+        // One row for each player's deal (2 triggering conditions in 1 window); both cards are already dealt.
+        expect(rows).toHaveLength(2);
+        expect([dealtTo(s, P1), dealtTo(s, P2)]).toEqual([[tough], [mercenary]]);
+        expect(choice.playerId).toBe(P1);
+        return rows.map((o) => o.optionId);
+      },
+      atRearrange,
+      DEPS,
+    );
+    expect(asked.pendingChoice!.playerId).toBe(P1);
+    expect(asked.pendingChoice!.options.map((o) => o.optionId)).toEqual([tough, mercenary, sandman]);
+
+    const out = settle(answer(asked, [sandman, tough, mercenary], DEPS), firstLegal, undefined, DEPS);
+    expect(inst(out, sandman).engagedWith).toBe(P1);
+    expect(discardedEncounter(out, tough)).toBe(true);
+    expect(deckOf(out)[0]).toBe(mercenary);
+    expect([dealtTo(out, P1), dealtTo(out, P2)]).toEqual([[], []]);
+    // Its discard is the cost: choosing both rows resolved it once, and it was offered in 1 prompt.
+    expect(offers).toBe(1);
+    expect(inDiscard(out, intel)).toBe(true);
+  });
+  it("another player's deal alone (their deck runs out) is 'a player is dealt an encounter card'", () => {
+    const intel = attachedUpgrade(nfGame({ players: 2 }), INTELLIGENCE);
+    // Surgery: P2 has an empty hand and 1 card in their deck, so drawing up at the end of their turn resets the deck.
+    const seat = playerOf(intel.state, P2);
+    const all = [...seat.hand, ...seat.deck];
+    const thin: GameState = {
+      ...intel.state,
+      players: intel.state.players.map((p) =>
+        p.playerId === P2 ? { ...p, hand: [], deck: all.slice(0, 1), discard: [...p.discard, ...all.slice(1)] } : p,
+      ),
+    };
+    const asked = round(thin, [`respond:${ID}`], atRearrange);
+    // Before step three: only P2 holds a dealt card, the one their deck's reset dealt them.
+    expect(dealtTo(asked, P1)).toEqual([]);
+    expect(dealtTo(asked, P2)).toHaveLength(1);
+    expect(asked.pendingChoice!.playerId).toBe(P1);
+    expect(asked.pendingChoice!.options.map((o) => o.optionId)).toEqual([dealtTo(asked, P2)[0], deckOf(asked)[0]]);
+    expect(inDiscard(asked, intel.id)).toBe(true);
+  });
+});
 describe("50058.practiced-plan-response: after you discard a Preparation card you control, discard Practiced Plan to return it to hand", () => {
   const ID = "50058.practiced-plan-response";
   const INFORMANT_ID = "50050.informant-interrupt";

@@ -213,7 +213,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
           // Can't be given: ignore its ability, remove it from the game, reveal another card.
           moveCard(ctx, frame.instanceId, { kind: "removedFromGame" });
           setFrame(ctx, { ...frame, stage: "done" });
-          const next = dealEncounterCardTo(ctx, frame.playerId);
+          const next = dealEncounterCardTo(ctx, frame.playerId, null);
           if (next) pushFrames(ctx, [revealFrame(ctx, frame.playerId, next)]);
           return;
         }
@@ -295,7 +295,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
       moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       setFrame(ctx, { ...frame, stage: "done" });
-      const next = dealEncounterCardTo(ctx, frame.playerId);
+      const next = dealEncounterCardTo(ctx, frame.playerId, null);
       if (next) pushFrames(ctx, [revealFrame(ctx, frame.playerId, next)]);
       return;
     }
@@ -450,7 +450,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
           // "When the surge keyword … would be resolved" (Espionage): its windows first, then `resolveSurge`.
           frames.push(eventFrame(ctx, surge));
         } else {
-          const next = dealEncounterCardTo(ctx, frame.playerId);
+          const next = dealEncounterCardTo(ctx, frame.playerId, null);
           if (next) {
             emit(ctx, { type: "surgeTriggered", instanceId: frame.instanceId, playerId: frame.playerId });
             frames.push(revealFrame(ctx, frame.playerId, next));
@@ -513,7 +513,7 @@ function revealWhereFound(ctx: Ctx, frame: Frame<"reveal">): void {
 
 /** RRG 1.8 "Surge" (p. 42): the player resolving the card deals themself another encounter card, then reveals it. */
 export function resolveSurge(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): void {
-  const next = dealEncounterCardTo(ctx, playerId);
+  const next = dealEncounterCardTo(ctx, playerId, null);
   if (!next) return;
   emit(ctx, { type: "surgeTriggered", instanceId, playerId });
   pushFrames(ctx, [revealFrame(ctx, playerId, next)]);

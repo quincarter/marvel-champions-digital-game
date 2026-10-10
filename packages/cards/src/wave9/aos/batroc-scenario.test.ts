@@ -884,7 +884,7 @@ describe("Batroc scenario, game E: solo, stage 3B is lost when the only Rescued 
 
 describe("not played in a whole game", () => {
   it.todo(
-    "Security Cameras, hero half (50097, BATROC_SKIPPED): 'for each character you control, exhaust it or place 1 threat (2 on High)' is unscripted, so a hero-form reveal of it does nothing; 4 copies are in the deck",
+    "Security Cameras, hero half (50097): scripted since; covered by the unit tests only (batroc.test.ts), kept out of these stacks",
   );
   it.todo(
     "expert mode: Alert Level's 2[per_hero] threat at setup and at 3A, Batroc (B) with 12 hit points, quickstrike minions at 3B",
