@@ -19,8 +19,29 @@ export const WINTER_CURATION: PackCuration = {
   outDir: "src/data/winter",
   exportPrefix: "WINTER",
 
-  corrections: [],
-  errata: [],
+  corrections: [
+    {
+      code: "54005",
+      reason: 'MarvelCDB\'s text reads "Deal 7 damage to en enemy"; the card prints "Deal 7 damage to an enemy".',
+      evidence:
+        'Scan 54005.png (read 2026-10-09): "Hero Action (attack): Deal 7 damage to an enemy. If you exhausted Cybernetic Arm to pay for this event, this attack gains overkill." Spec docs/phase7-wave9.md section 8.1 item 12.',
+      textReplace: { find: "to en enemy", replace: "to an enemy" },
+    },
+  ],
+  errata: [
+    {
+      code: "54033",
+      version: "RRG 1.8",
+      changedFields: ["text", "playRestrictions"],
+      note: 'S.H.I.E.L.D. Deputy: "Max 1 per character." was added after "Attach to a friendly character." The print has no such line; the emitted `current` text and `playRestrictions.maxPerHost` carry it.',
+      evidence:
+        'RRG 1.8, Winter Soldier Hero Pack errata (mc_rulesreference_v18_compressed.md line 5156 to 5158, p. 70): "S.H.I.E.L.D. DEPUTY (#33) Should read: "Attach to a friendly character. Max 1 per character." (Added "Max 1 per character.")". Scan 54033.png (read 2026-10-09) prints "Title. Play only if your identity has the S.H.I.E.L.D. trait. Attach to a friendly character. Attached character gets +1 hit point and gains the S.H.I.E.L.D. trait." with no max line; MarvelCDB\'s text is the print.',
+      currentReplace: {
+        find: "Attach to a friendly character.",
+        replace: "Attach to a friendly character. Max 1 per character.",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},

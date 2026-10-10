@@ -20,10 +20,23 @@ export const SILK_CURATION: PackCuration = {
   exportPrefix: "SILK",
 
   corrections: [],
-  errata: [],
+  errata: [
+    {
+      code: "52008",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Eidetic Memory: "Reveal the card that had been tucked under Silk instead." became "... under your identity instead." The first sentence already prints "your identity"; only the last words change.',
+      evidence:
+        'RRG 1.8, Silk Hero Pack errata (mc_rulesreference_v18_compressed.md line 5146, p. 70): "Should read: ... Reveal the card that had been tucked under your identity instead." (Changed "Silk" to "your identity".) Scan 52008.png (read 2026-10-09): "... a card tucked under your identity, exhaust Eidetic Memory -> swap those cards. Reveal the card that had been tucked under Silk instead." The spec says "your identity" twice; the scan shows it printed once already, so one replacement.',
+      currentReplace: { find: "tucked under Silk instead", replace: "tucked under your identity instead" },
+    },
+  ],
 
   scriptingNotes: {},
-  cardNotes: {},
+  cardNotes: {
+    "52029":
+      'MarvelCDB\'s raw text ends with a stray closing </b> after "tucked under each identity." with no matching open tag. Scan 52029.png (read 2026-10-09) shows nothing there. No effect on the emitted text: toPlainText strips all HTML tags, so this never reaches a textReplace; recorded only so the source anomaly is documented.',
+  },
 
   scenarios: [],
   starterDecks: [

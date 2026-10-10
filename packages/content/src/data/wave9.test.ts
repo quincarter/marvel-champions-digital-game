@@ -401,3 +401,56 @@ describe("wave 9 data: obligations", () => {
     },
   );
 });
+
+describe("wave 9 data: text corrections and errata (docs/phase7-wave9.md section 8.1 items 12 and 13)", () => {
+  const byId = (cards: readonly { readonly id: string }[], id: string): never =>
+    cards.find((c) => c.id === id) as never;
+
+  it("Infiltration 51015 prints 'remove 1 threat' (scan), not MarvelCDB's 'remote'", () => {
+    const text = (byId(BP_CARDS, "51015") as { text: { printed: string; current: string } }).text;
+    for (const t of [text.printed, text.current]) {
+      expect(t).toContain("→ remove 1 threat from a scheme");
+      expect(t).not.toContain("remote");
+    }
+  });
+
+  it("Metal Punch 54005 prints 'an enemy' (scan), not 'en enemy'", () => {
+    const text = (byId(WINTER_CARDS, "54005") as { text: { printed: string; current: string } }).text;
+    for (const t of [text.printed, text.current]) {
+      expect(t).toContain("Deal 7 damage to an enemy.");
+      expect(t).not.toContain("en enemy");
+    }
+  });
+
+  it("Morlun 52029's text carries no stray closing tag", () => {
+    const text = (byId(SILK_CARDS, "52029") as { text: { printed: string; current: string } }).text;
+    expect(text.printed).not.toContain("<");
+    expect(text.current).not.toContain("<");
+    expect(text.current.endsWith("tucked under each identity.")).toBe(true);
+  });
+
+  it("Eidetic Memory 52008: printed keeps 'under Silk', current (RRG 1.8 p. 70) says 'your identity' in both sentences", () => {
+    const card = byId(SILK_CARDS, "52008") as {
+      text: { printed: string; current: string };
+      errata?: { currentVersion: string };
+    };
+    expect(card.text.printed).toContain("Reveal the card that had been tucked under Silk instead.");
+    expect(card.text.current).toContain("tucked under your identity, exhaust");
+    expect(card.text.current).toContain("Reveal the card that had been tucked under your identity instead.");
+    expect(card.text.current).not.toContain("Silk");
+    expect(card.errata?.currentVersion).toBe("RRG 1.8");
+  });
+
+  it("S.H.I.E.L.D. Deputy 54033: printed has no max line, current adds 'Max 1 per character.' and maxPerHost 1 (RRG 1.8 p. 70)", () => {
+    const card = byId(WINTER_CARDS, "54033") as {
+      text: { printed: string; current: string };
+      playRestrictions?: { maxPerHost?: number; requiresIdentityTrait?: string };
+      errata?: { currentVersion: string };
+    };
+    expect(card.text.printed).not.toContain("Max 1 per character");
+    expect(card.text.current).toContain("Attach to a friendly character. Max 1 per character.");
+    expect(card.playRestrictions?.maxPerHost).toBe(1);
+    expect(card.playRestrictions?.requiresIdentityTrait).toBeDefined();
+    expect(card.errata?.currentVersion).toBe("RRG 1.8");
+  });
+});

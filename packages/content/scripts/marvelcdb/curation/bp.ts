@@ -41,6 +41,14 @@ export const BP_CURATION: PackCuration = {
         "raw (51036, no cost field at all); card image (marvelcdb.com/bundles/cards/51036.jpg, a dash where a cost circle would be)",
       specialCost: "dash",
     },
+    {
+      code: "51015",
+      reason:
+        'MarvelCDB\'s text reads "remote 1 threat from a scheme"; the card prints "remove 1 threat from a scheme".',
+      evidence:
+        'Scan 51015.png (read 2026-10-09): "Hero Action (thwart): Choose a number from 1 to 5. Discard that many cards from the top of the encounter deck → remove 1 threat from a scheme for each card discarded this way. Put 1 minion discarded this way into play engaged with you." Spec docs/phase7-wave9.md section 8.1 item 12.',
+      textReplace: { find: "→ remote 1 threat", replace: "→ remove 1 threat" },
+    },
   ],
   errata: [],
 

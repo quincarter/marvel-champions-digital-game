@@ -19,7 +19,14 @@ export const SILK_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("52005"), cardSetCode: "silk", marvelcdbCodes: ["52005"], corrections: [] },
   { cardId: cardId("52006"), cardSetCode: "silk", marvelcdbCodes: ["52006"], corrections: [] },
   { cardId: cardId("52007"), cardSetCode: "silk", marvelcdbCodes: ["52007"], corrections: [] },
-  { cardId: cardId("52008"), cardSetCode: "silk", marvelcdbCodes: ["52008"], corrections: [] },
+  {
+    cardId: cardId("52008"),
+    cardSetCode: "silk",
+    marvelcdbCodes: ["52008"],
+    corrections: [
+      "52008: errata RRG 1.8 — Eidetic Memory: \"Reveal the card that had been tucked under Silk instead.\" became \"... under your identity instead.\" The first sentence already prints \"your identity\"; only the last words change. [evidence: RRG 1.8, Silk Hero Pack errata (mc_rulesreference_v18_compressed.md line 5146, p. 70): \"Should read: ... Reveal the card that had been tucked under your identity instead.\" (Changed \"Silk\" to \"your identity\".) Scan 52008.png (read 2026-10-09): \"... a card tucked under your identity, exhaust Eidetic Memory -> swap those cards. Reveal the card that had been tucked under Silk instead.\" The spec says \"your identity\" twice; the scan shows it printed once already, so one replacement.]",
+    ],
+  },
   { cardId: cardId("52009"), cardSetCode: "silk", marvelcdbCodes: ["52009"], corrections: [] },
   { cardId: cardId("52010"), cardSetCode: "silk", marvelcdbCodes: ["52010"], corrections: [] },
   { cardId: cardId("52011"), cardSetCode: "silk", marvelcdbCodes: ["52011"], corrections: [] },
@@ -76,7 +83,14 @@ export const SILK_PROVENANCE: readonly CardProvenance[] = [
     duplicateOfCardId: cardId("01090"),
   },
   { cardId: cardId("52028"), cardSetCode: "silk", marvelcdbCodes: ["52028"], corrections: [] },
-  { cardId: cardId("52029"), cardSetCode: "silk_nemesis", marvelcdbCodes: ["52029"], corrections: [] },
+  {
+    cardId: cardId("52029"),
+    cardSetCode: "silk_nemesis",
+    marvelcdbCodes: ["52029"],
+    corrections: [
+      "data decision: MarvelCDB's raw text ends with a stray closing </b> after \"tucked under each identity.\" with no matching open tag. Scan 52029.png (read 2026-10-09) shows nothing there. No effect on the emitted text: toPlainText strips all HTML tags, so this never reaches a textReplace; recorded only so the source anomaly is documented.",
+    ],
+  },
   { cardId: cardId("52030"), cardSetCode: "silk_nemesis", marvelcdbCodes: ["52030"], corrections: [] },
   { cardId: cardId("52031"), cardSetCode: "silk_nemesis", marvelcdbCodes: ["52031"], corrections: [] },
   { cardId: cardId("52032"), cardSetCode: "leadership", marvelcdbCodes: ["52032"], corrections: [] },
