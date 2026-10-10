@@ -381,6 +381,7 @@ export {
 export type {
   EncounterDealSource,
   LeaveCauseSide,
+  OutOfPlayDiscard,
   TriggerEvent,
   TriggerEventKind,
   TuckedDiscardCause,

@@ -3,7 +3,7 @@ import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from 
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, Predicate, StatName, StatusName, TargetCategory } from "./spec.js";
 import type { Bindings, Vars } from "./stack.js";
-import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
+import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -851,8 +851,10 @@ export type TriggerEventBody =
    * (docs/phase7-wave9.md §3.12). RRG 1.8 "Deal, Deal an Encounter Card" (p. 15): step three of the villain phase, and
    * "If a card ability instructs a player to be dealt an encounter card, the player takes the top card of the encounter
    * deck and places it facedown in front of them"; "Villain Phase" (p. 47) step three with its hazard cards; "Player
-   * Deck" (p. 33), a deck that ran out. One event per card dealt, `playerId` the player it was dealt to ("a player",
-   * `PlayerRef eventPlayer`), `instanceId` the facedown card and `source` what dealt it (`EncounterDealSource`).
+   * Deck" (p. 33), a deck that ran out; "Surge" (p. 42), the card the keyword deals, heard when it is dealt and before
+   * it is revealed (docs/phase7-wave9.md §4.1 Q19; `resolveSurge`). One event per card dealt, `playerId` the player it
+   * was dealt to ("a player", `PlayerRef eventPlayer`), `instanceId` the facedown card and `source` what dealt it
+   * (`EncounterDealSource`).
    *
    * Response only: the card is already in front of the player. Recorded as it is dealt (`recordEncounterCardDealt`)
    * only when an ability in the registry listens, and announced between frames (`announceEncounterCardsDealt`): the
@@ -869,6 +871,47 @@ export type TriggerEventBody =
       readonly playerId: PlayerId;
       readonly instanceId: InstanceId;
       readonly source: EncounterDealSource;
+    }
+  /**
+   * A card in a player's hand or deck is about to be discarded by the effect of a card's ability: "Interrupt: When an
+   * encounter card effect would discard a card you control, discard [this card] instead of discarding that card."
+   * (docs/phase7-wave9.md §4.1 Q20 = B). RRG 1.8 "Ownership and Control" (p. 31): "A player controls the cards in their
+   * own out-of-play areas (such as the hand, the deck, and the discard pile)", so "a card you control" reaches a hand
+   * and a deck; "Discard" (p. 16): "Discarding is the act of attempting to move a card from a non-discard-pile play
+   * area to a discard pile." The in-play half of the same text is `cardLeavesPlay` with `to: "discard"`.
+   *
+   * `instanceId` is the card (`eventTarget`), `playerId` the player whose hand or deck holds it, who controls it
+   * (`eventPlayer`), `from` which of the two, and `sourceInstanceId` the card whose ability discards it
+   * (`eventSource`). `to` is always `"discard"`, so one `eventIs: { to: "discard", by }` reads this event and
+   * `cardLeavesPlay` alike. `by`: the side of that card (`LeaveCauseSide`, `leaveCauseSide`), the same notion as
+   * `cardLeavesPlay.by`, read by the same function; absent with no source card.
+   *
+   * Interrupt only ("would", RRG 1.8 p. 48): the discard is this event's apply step (`discard`, `applyWouldDiscard`),
+   * and cancelling or replacing the event (`EffectSpec replaceTriggeringEvent`; RRG 1.8 "Replacement Effect", p. 37)
+   * leaves the card where it was, in the hand or on the deck. Pushed only when an ability hears it
+   * (`resolve/would-discard.ts`); otherwise the card is discarded at once, with the log, state and replay of a game
+   * that has no such ability.
+   *
+   * Announced for the effects that discard named or chosen cards: `EffectSpec discardFromHand` (chosen and `random`:
+   * a random card is picked first, then announced) and a `moveCards` to the discard pile of a card in a hand or a
+   * deck ("discard the top N cards of your deck"), each card its own event. **Not** announced: a cost (RRG 1.8 "Cost",
+   * p. 13: the arrow "distinguishes a cost from an effect"), whichever card prints it; the game's own discards (the
+   * end-of-phase discard down to hand size); and `EffectSpec discardDeckUntil` ("discard cards from the top of your
+   * deck until …"), whose next card depends on the one before (a replaced card would stay on top and be the next card
+   * again; reported with §4.1 Q20).
+   */
+  | {
+      readonly kind: "cardBeingDiscarded";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly from: "hand" | "deck";
+      readonly to: "discard";
+      readonly sourceInstanceId: InstanceId | null;
+      readonly by?: LeaveCauseSide;
+      /** The card whose ability discards it, as `moveCardsTo` reads it. */
+      readonly sourceCardId?: CardId;
+      /** The discard this event performs when it applies. */
+      readonly discard: OutOfPlayDiscard;
     }
   /**
    * A card is about to be tucked under another (docs/phase7-wave9.md §3.40; RRG 1.8 "Tuck", p. 45: "When a player is
@@ -1380,13 +1423,14 @@ export const damageTakenKey = (instanceId: InstanceId): string => `damageTaken.$
 export type TriggerEventKind = TriggerEvent["kind"];
 
 /**
- * What dealt a player a facedown encounter card (`TriggerEvent encounterCardDealt.source`; the same four the "would be
- * dealt" interrupt of docs/phase7-wave9.md §3.45 is to carry): step three of the villain phase's one card each
+ * What dealt a player a facedown encounter card (`TriggerEvent encounterCardDealt.source`; the "would be dealt"
+ * interrupt of docs/phase7-wave9.md §3.45 is to carry the same): step three of the villain phase's one card each
  * (`villainPhase`) or its additional card for a hazard icon (`hazard`; RRG 1.8 "Villain Phase", p. 47), a card
- * ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), or a player deck that ran out
- * (`deckReset`; "Player Deck", p. 33).
+ * ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), a player deck that ran out
+ * (`deckReset`; "Player Deck", p. 33), or the surge keyword (`surge`; "Surge", p. 42: "the player resolving the card
+ * deals themself a facedown encounter card from the top of the encounter deck"; docs/phase7-wave9.md §4.1 Q19).
  */
-export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset";
+export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset" | "surge";
 
 /**
  * Whose card effect makes a card leave play (`TriggerEvent cardLeavesPlay.by`): the side of the card whose ability's
@@ -1399,6 +1443,17 @@ export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckR
  * with it by "Leaves Play" (p. 27).
  */
 export type LeaveCauseSide = "encounterCard" | "playerCard";
+
+/**
+ * The discard a `cardBeingDiscarded` event performs when it applies, as plain data so the stack stays serializable and
+ * replayable (as `LeaveRequest` is for a card in play): `hand`, a card of `EffectSpec discardFromHand` (`random`: it
+ * was picked at random), through `discardFromHand`; `moveCards`, one card of a `moveCards` to the discard pile,
+ * through `moveCardsTo`. `boundOn`: the set the discarding ability keeps of the cards "discarded this way"
+ * (`DeckDiscard.boundOn`); a card whose discard is replaced leaves it.
+ */
+export type OutOfPlayDiscard =
+  | { readonly kind: "hand"; readonly random?: true }
+  | { readonly kind: "moveCards"; readonly boundOn?: DeckDiscard["boundOn"] };
 
 /**
  * What a tucked card's host is (`TriggerEvent cardBeingTucked.under`, `tuckedCardDiscarded.under`): an identity card
@@ -1594,6 +1649,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "formChanging":
     // "When a card would be tucked" (docs/phase7-wave9.md §3.40): the tuck is still to come.
     case "cardBeingTucked":
+    // "When … would discard a card you control" from a hand or a deck (§4.1 Q20): the discard is still to come.
+    case "cardBeingDiscarded":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1735,6 +1792,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId]);
     // The card being tucked is the target ("it"), the tucking card the source, the host's player "you".
     case "cardBeingTucked":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The card about to be discarded is the target ("that card"), the discarding card the source, its player "you".
+    case "cardBeingDiscarded":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The discarded card is the target ("this card"), the discarding card the source, the host's player "you".
     case "tuckedCardDiscarded":

@@ -190,16 +190,21 @@ const giveStatusOfChoice = (slot: string) =>
  *
  * **50028.front-organization-interrupt**: "When an encounter card effect would discard a card you control, discard
  * Front Organization instead of discarding that card." A replacement (RRG 1.8 "Replacement Effect", p. 37) on the
- * leaving of a card you control for a discard pile, heard only when an encounter card's effect is what discards it
- * (`on.playerCardDiscardedFromPlay({ by: "encounterCard" })`, `cardLeavesPlay.by`): a treachery's When Revealed, a
- * Boost, a minion's or scheme's ability. Not offered for a player card's effect, a cost (RRG 1.8 "Cost", p. 13), a
- * defeat by damage from any source ("Defeat", p. 15: the game discards the defeated ally, not the card that dealt the
- * damage), an attachment going with its discarded host ("Leaves Play", p. 27) or a uses card emptied. There is no
- * arrow, so discarding Front Organization is the replacement's effect, not a cost; it is optional (a plain Interrupt),
- * and "you" is whoever controls it ("Play under any player's control" is data). Its own discard is not offered to it.
- * **In play only**: RRG 1.8 "Ownership and Control" (p. 31) has a player control the cards in their hand and deck too,
- * and an encounter card effect that discards those is not heard here (no "would be discarded" event exists for a hand
- * or a deck); an open question for the owner, reported with this piece.
+ * discard of a card you control, heard only when an encounter card's effect is what discards it
+ * (`on.cardYouControlDiscarded({ by: "encounterCard" })`): a treachery's When Revealed, a Boost, a minion's or scheme's
+ * ability. Not offered for a player card's effect, a cost (RRG 1.8 "Cost", p. 13), a defeat by damage from any source
+ * ("Defeat", p. 15: the game discards the defeated ally, not the card that dealt the damage), an attachment going with
+ * its discarded host ("Leaves Play", p. 27) or a uses card emptied. There is no arrow, so discarding Front Organization
+ * is the replacement's effect, not a cost; it is optional (a plain Interrupt), and "you" is whoever controls it ("Play
+ * under any player's control" is data). Its own discard is not offered to it.
+ * **In play, in your hand and in your deck** (the owner's decision, spec §4.1 Q20 = B): the card says "a card you
+ * control", not "in play", and RRG 1.8 "Ownership and Control" (p. 31) has a player control "the cards in their own
+ * out-of-play areas (such as the hand, the deck, and the discard pile)". A card in play is heard as it leaves play
+ * (`cardLeavesPlay.by`), a card in your hand or deck as `cardBeingDiscarded`, and the replaced card stays where it
+ * was: in the hand, or on the deck in its place. A random discard from hand picks its card first; each card of
+ * "discard N cards" is its own discard, and Front Organization, discarded by the first it answers, is not offered
+ * the rest. The hand-size discard at the end of the phase is the game's rule, and "discard cards from the top of your
+ * deck until …" is not announced by the engine; neither is offered.
  *
  * **Second half (50047 to 50058).** Reprints under a new code alias the source card's script (checked against the
  * source's data in the tests): Agent Coulson 50047 (`bkw` 08011), Quake 50048 (08012), Global Logistics 50049 (`sm`
@@ -226,11 +231,13 @@ const giveStatusOfChoice = (slot: string) =>
  * "A player" is any player (`on.aPlayerIsDealtAnEncounterCard()`, `encounterCardDealt`), in either form (a plain
  * Response). Each dealt card is a triggering condition, but the cards one step deals share one response window (RRG
  * 1.8 "Triggering Condition", p. 45), so in step three it is offered once, after every player's card and the hazard
- * cards are dealt and before any is revealed; a card ability's deal and a deck that ran out offer it too. Discarding
- * it is the cost, so each copy answers one deal; the card prints no limit ("Max 1 per player" is data). The look and
- * the swap are §3.12's `lookAtAndRearrange`: its controller alone sees the cards, every position keeps a card, and
- * the arrangement that swaps nothing is allowed. The surge keyword's card is not heard as a deal (reported with this
- * piece: RRG 1.8 "Surge", p. 42, words a surge as a deal).
+ * cards are dealt and before any is revealed; a card ability's deal and a deck that ran out offer it too. So does the
+ * card the surge keyword deals (the owner's decision, spec §4.1 Q19 = B; RRG 1.8 "Surge", p. 42: the player "deals
+ * themself a facedown encounter card"): offered when that card is dealt, before it is revealed, and a card swapped
+ * into its place is the card the surge reveals. "Reveal the top card of the encounter deck" deals nothing and is not
+ * heard. Discarding it is the cost, so each copy answers one deal; the card prints no limit ("Max 1 per player" is
+ * data). The look and the swap are §3.12's `lookAtAndRearrange`: its controller alone sees the cards, every position
+ * keeps a card, and the arrangement that swaps nothing is allowed.
  *
  * **50058.practiced-plan-response**: "After you discard a Preparation card you control": a card you control leaving
  * play to the discard pile (`cardLeavesPlay`, `to: discard`). Returns that card from the discard pile to your hand.
@@ -426,7 +433,7 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 
   "50028.front-organization-interrupt": interrupt(
-    on.playerCardDiscardedFromPlay({ who: { controller: "you", self: false }, by: "encounterCard" }),
+    on.cardYouControlDiscarded({ who: { controller: "you", self: false }, by: "encounterCard" }),
     { would: true },
     instead(discard(self)),
   ),

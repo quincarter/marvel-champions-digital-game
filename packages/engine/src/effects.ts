@@ -760,26 +760,29 @@ function listensForEncounterDealt(deps: EngineDeps): boolean {
  * Records that `playerId` was dealt the facedown encounter card `id`, for the flow to announce between frames
  * (`TriggerEvent encounterCardDealt`, `announceEncounterCardsDealt`), when an ability listens. Called by every path
  * that deals one: `dealEncounterCardTo` with a source, and a card's "deal [this card] to a player as a facedown
- * encounter card" (`dealAsEncounterCards`, and `leaveNow` for one dealt from play).
+ * encounter card" (`dealAsEncounterCards`, and `leaveNow` for one dealt from play). Returns whether it was recorded.
  */
 export function recordEncounterCardDealt(
   ctx: Ctx,
   playerId: PlayerId,
   id: InstanceId,
   source: EncounterDealSource,
-): void {
-  if (!listensForEncounterDealt(ctx.deps)) return;
+): boolean {
+  if (!listensForEncounterDealt(ctx.deps)) return false;
   ctx.state = {
     ...ctx.state,
     pendingEncounterDealt: [...(ctx.state.pendingEncounterDealt ?? []), { playerId, instanceId: id, source }],
   };
+  return true;
 }
 
 /**
  * Takes the top card of the encounter deck and puts it facedown in front of `playerId` (RRG 1.8 "Deal, Deal an
  * Encounter Card", p. 15). `source`: what dealt it, announced as `encounterCardDealt` when an ability listens
- * (`recordEncounterCardDealt`). `null`: the caller reveals the card at once and is not heard as a deal — the surge
- * keyword's card and a reveal's "reveal another card" (an obligation that cannot be given, a cancelled reveal).
+ * (`recordEncounterCardDealt`). `null`: the rules have the player reveal another card, with no deal, and the caller
+ * reveals it at once: "reveal an additional encounter card" for an obligation that cannot be given (RRG 1.8
+ * "Obligation", p. 30) and this engine's same handling of a card the unique rule turned away. The surge keyword's
+ * card is a deal (`surge`; RRG 1.8 "Surge", p. 42; docs/phase7-wave9.md §4.1 Q19).
  */
 export function dealEncounterCardTo(
   ctx: Ctx,

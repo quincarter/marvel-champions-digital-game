@@ -513,6 +513,9 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
     if (kinds.includes("cardBeingTucked"))
       problems.push("cardBeingTucked is interrupt-only: a tuck about to happen has no response window");
+    // Nor has a discard from a hand or a deck about to happen (docs/phase7-wave9.md §4.1 Q20).
+    if (kinds.includes("cardBeingDiscarded"))
+      problems.push("cardBeingDiscarded is interrupt-only: a discard about to happen has no response window");
   }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {

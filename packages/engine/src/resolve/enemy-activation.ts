@@ -144,7 +144,7 @@ export const BOOST_SOURCE_ZONES: ReadonlySet<ZoneId["kind"]> = new Set<ZoneId["k
  */
 export function beingRevealed(state: GameState, id: InstanceId): boolean {
   if (locateCard(state, id)?.kind !== "dealtEncounter") return false;
-  return state.stack.some((frame) => frame.kind === "reveal" && frame.instanceId === id);
+  return state.stack.some((frame) => frame.kind === "reveal" && frame.instanceId === id && !frame.afterDeal);
 }
 
 /**

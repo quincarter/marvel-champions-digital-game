@@ -78,8 +78,8 @@ const YOUR_WEB_WARRIOR_CARDS = query("character", { trait: WEB_WARRIOR, controll
  *
  * **52015.not-today-interrupt**: the same card as Rogue's 38016 (a reprint under a new code), aliased.
  *
- * **52016.stop-hitting-yourself-response**: "(attack)": the damage is an attack by the hero (guard does not apply, the
- * enemy's retaliate does) equal to the hero's DEF as it is when the response is played (ruling December 17, 2025 -
+ * **52016.stop-hitting-yourself-response**: "(attack)": the damage is an attack by the hero (guard applies: it is not
+ * offered against a villain while a guard minion is engaged, RRG "Guard" p. 21; the enemy's retaliate answers) equal to the hero's DEF as it is when the response is played (ruling December 17, 2025 -
  * Ruling 2: 4 with Not Today!).
  *
  * **52017.dr-sinclair-action**: "Any player may trigger this ability" is `triggerableBy: eachPlayer`; the triggering

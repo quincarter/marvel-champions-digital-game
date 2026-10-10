@@ -20,6 +20,7 @@ import {
   addLastingEffect,
   applyLeavePatch,
   defeatFromPlay,
+  discardFromHand,
   discardFromPlay,
   endGame,
   leavePlay,
@@ -51,6 +52,7 @@ import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } fro
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import { resolveTuck, tuckInsteadOfLeaving, tuckOrAnnounce } from "./tuck.js";
+import { listensForWouldDiscard, pickRandomFromHand, splitWouldDiscard } from "./would-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive, usesKeyword } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
@@ -1384,13 +1386,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Only the `random` form lands here; the choosing form stops for a choice per player in `effects-frame.ts`.
       const amount = value(effect.amount);
       const filter = effect.filter;
+      const waiting: TriggerEvent[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         // A filter narrows the pool the random pick draws from, by excluding everything that doesn't match.
         const excluded = filter
           ? mustPlayer(ctx.state, playerId).hand.filter((id) => !matchesQuery(ctx.state, id, filter, context))
           : [];
-        discardRandomFromHand(ctx, playerId, amount, excluded);
+        if (!listensForWouldDiscard(ctx.deps)) {
+          discardRandomFromHand(ctx, playerId, amount, excluded);
+          continue;
+        }
+        // With an ability that hears "would discard a card you control" in the game (docs/phase7-wave9.md §4.1 Q20):
+        // the cards are picked first, then each is discarded, or announced when that ability hears it.
+        const split = splitWouldDiscard(
+          ctx,
+          pickRandomFromHand(ctx, playerId, amount, excluded),
+          { sourceInstanceId: frame.selfInstanceId, sourceCardId: leaveSourceOf(ctx, frame) },
+          { kind: "hand", random: true },
+        );
+        for (const id of split.now) discardFromHand(ctx, playerId, id);
+        waiting.push(...split.waiting);
       }
+      if (waiting.length > 0) pushEvents(ctx, waiting);
       return;
     }
     case "revealTopOfEncounterDeck": {
@@ -2867,12 +2884,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.into && !into) return;
       // A card this discards from a player's deck is announced as that (docs/phase7-wave7.md §3.55), discarded by this
       // frame's card, and counted in `bind` unless a response takes it away (§4.1 Q32).
-      moveCardsTo(ctx, ids, effect.to, into, leaveSourceOf(ctx, frame), {
-        sourceInstanceId: frame.selfInstanceId,
-        ...(effect.bind ? { boundOn: { frameId: frame.frameId, slot: effect.bind } } : {}),
-      });
+      const boundOn = effect.bind ? { boundOn: { frameId: frame.frameId, slot: effect.bind } } : {};
+      const sourceCardId = leaveSourceOf(ctx, frame);
+      // A card of a hand or a deck this would discard is announced first when an ability hears that ("when … would
+      // discard a card you control", docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`): its discard waits
+      // for that window, behind the cards moved now, and a replaced one leaves the bound set.
+      const { now, waiting } =
+        effect.to === "discard"
+          ? splitWouldDiscard(
+              ctx,
+              ids,
+              { sourceInstanceId: frame.selfInstanceId, sourceCardId },
+              { kind: "moveCards", ...boundOn },
+            )
+          : { now: ids, waiting: [] };
+      moveCardsTo(ctx, now, effect.to, into, sourceCardId, { sourceInstanceId: frame.selfInstanceId, ...boundOn });
       // An icon of a card this discarded from a deck may count more than once (docs/phase7-wave7.md §3.56).
       if (effect.bind) recountDeckDiscardIcons(ctx, frame.frameId, effect.bind);
+      if (waiting.length > 0) pushEvents(ctx, waiting);
       return;
     }
     case "shuffleDeck":

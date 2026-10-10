@@ -2820,6 +2820,22 @@ export const on = {
       eventIs: { to: "discard", ...(opts.by === undefined ? {} : { by: opts.by }) },
     }),
   /**
+   * "When an encounter card effect would discard **a card you control**" in full (Front Organization, `aos` 50028;
+   * docs/phase7-wave9.md §4.1 Q20 = B): a card in play (`playerCardDiscardedFromPlay`, `cardLeavesPlay`) and a card in
+   * a hand or a deck (`cardBeingDiscarded`), since RRG 1.8 "Ownership and Control" (p. 31) has a player control "the
+   * cards in their own out-of-play areas (such as the hand, the deck, and the discard pile)". Use it in a `would`
+   * interrupt with `instead(...)`: the replaced card stays where it was, in play, in the hand or on the deck.
+   *
+   * `who` and `by` are `playerCardDiscardedFromPlay`'s, read the same way for both events; with `by` only a card
+   * ability's effect matches, never a cost or the game's own discard. From a hand or a deck the engine announces
+   * `EffectSpec discardFromHand` (a random card once it is picked) and a `moveCards` to the discard pile, one event
+   * per card; "discard cards from the top of your deck until …" (`discardDeckUntil`) is not announced.
+   */
+  cardYouControlDiscarded: (opts: { readonly who?: Who; readonly by?: LeaveCauseSide } = {}): EventPattern =>
+    pattern(["cardLeavesPlay", "cardBeingDiscarded"], opts.who === undefined ? {} : asTarget(opts.who), {
+      eventIs: { to: "discard", ...(opts.by === undefined ? {} : { by: opts.by }) },
+    }),
+  /**
    * "When a SHOW environment would be discarded" (Across the Mojoverse 1B, `mojo` 39015b; docs/phase7-wave6.md §3.66):
    * the encounter-card sibling of `playerCardDiscardedFromPlay`, a card `who` names leaving play for the encounter
    * discard pile or a scenario deck's own (RRG 1.8 "Discard", p. 16), by any route. With `forcedInterrupt` and
@@ -2846,10 +2862,11 @@ export const on = {
    * "After **a player** is dealt an encounter card" (Intelligence, `aos` 50051; docs/phase7-wave9.md §3.12): any
    * player's, named with `eventPlayer`; the facedown card is `eventTarget`. Heard for every deal (RRG 1.8 "Deal, Deal
    * an Encounter Card", p. 15): step three of the villain phase and its hazard cards, a card ability's deal (an effect
-   * or a cost, a card dealt "as a facedown encounter card" included) and a player deck that ran out. `source` narrows
-   * it. One event per card, but the cards one step or one effect dealt share one response window, so step three asks
-   * once, after every card is dealt and before any is revealed. Response only; "would be dealt" is another event
-   * (docs/phase7-wave9.md §3.45). The surge keyword's card is not heard.
+   * or a cost, a card dealt "as a facedown encounter card" included), a player deck that ran out and the card the
+   * surge keyword deals (RRG 1.8 "Surge", p. 42; docs/phase7-wave9.md §4.1 Q19), heard before that card is revealed.
+   * `source` narrows it. One event per card, but the cards one step or one effect dealt share one response window, so
+   * step three asks once, after every card is dealt and before any is revealed. Response only; "would be dealt" is
+   * another event (docs/phase7-wave9.md §3.45). "Reveal the top card of the encounter deck" is not a deal.
    */
   aPlayerIsDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
     pattern("encounterCardDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),

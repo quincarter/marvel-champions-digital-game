@@ -48,6 +48,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   cardEntersHand: "a card entering a hand",
   encounterCardDealt: "an encounter card dealt",
   cardBeingTucked: "a card about to be tucked",
+  cardBeingDiscarded: "a card about to be discarded",
   tuckedCardDiscarded: "a tucked card discarded",
   cardDiscardedFromDeck: "a card discarded from a deck",
   cardLeavesPlay: "a card leaving play",

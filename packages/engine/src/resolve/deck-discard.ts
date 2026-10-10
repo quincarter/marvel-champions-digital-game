@@ -144,26 +144,38 @@ export function settleDeckDiscards(ctx: Ctx): void {
     // Each set of the frame that holds the card: its "discarded this way" slot, and a `discardDeckUntil`'s set of
     // every card it discarded (`DeckDiscard.boundOn.also`, docs/phase7-wave8.md §3.71).
     for (const slot of [discard.boundOn.slot, ...(discard.boundOn.also ?? [])]) {
-      const frame = findFrame(ctx.state, frameId);
-      if (!frame || (frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard")) break;
-      const bound = frame.bindings[slot];
-      if (!bound?.includes(discard.instanceId)) continue;
-      const left = bound.filter((id) => id !== discard.instanceId);
-      // The card is no longer one the frame discarded from a deck either (`deckDiscardsSlot`).
-      const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings, [slot]: left };
-      for (const [key, ids] of Object.entries(bindings)) {
-        if (key.startsWith(DECK_DISCARDS_PREFIX)) bindings[key] = ids.filter((id) => id !== discard.instanceId);
-      }
-      const totals = boundCardTotals(ctx, slot, left, bindings);
-      updateFrame(ctx, frameId, (f) => {
-        if (f.kind !== "effects" && f.kind !== "ability" && f.kind !== "playCard") return f;
-        // Only the totals this set already reports: a cost's slot reports none (its cards are counted where they are
-        // read, `ValueSpec totalPrintedResources`), a "discard until" only its count.
-        const vars: Record<string, number> = { ...f.vars };
-        for (const [key, amount] of Object.entries(totals)) if (key in vars) vars[key] = amount;
-        return { ...f, bindings, vars };
-      });
+      if (!dropFromBoundSet(ctx, frameId, slot, discard.instanceId)) continue;
       emit(ctx, { type: "deckDiscardNotCounted", playerId: discard.playerId, instanceId: discard.instanceId, slot });
     }
   }
+}
+
+/**
+ * Takes `instanceId` out of the set frame `frameId` keeps in `slot` of the cards it discarded "this way", and reads the
+ * set's totals again from the cards left in it (`boundCardTotals`); a `<slot>.count` on its own is the number left.
+ * False when the frame is gone or the card is not in that set. Used for a card a response took away from where its
+ * discard left it (`settleDeckDiscards`) and for one whose discard was replaced before it happened
+ * (`resolve/would-discard.ts`).
+ */
+export function dropFromBoundSet(ctx: Ctx, frameId: FrameId, slot: string, instanceId: InstanceId): boolean {
+  const frame = findFrame(ctx.state, frameId);
+  if (!frame || (frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard")) return false;
+  const bound = frame.bindings[slot];
+  if (!bound?.includes(instanceId)) return false;
+  const left = bound.filter((id) => id !== instanceId);
+  // The card is no longer one the frame discarded from a deck either (`deckDiscardsSlot`).
+  const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings, [slot]: left };
+  for (const [key, ids] of Object.entries(bindings)) {
+    if (key.startsWith(DECK_DISCARDS_PREFIX)) bindings[key] = ids.filter((id) => id !== instanceId);
+  }
+  const totals = boundCardTotals(ctx, slot, left, bindings);
+  updateFrame(ctx, frameId, (f) => {
+    if (f.kind !== "effects" && f.kind !== "ability" && f.kind !== "playCard") return f;
+    // Only the totals this set already reports: a cost's slot reports none (its cards are counted where they are
+    // read, `ValueSpec totalPrintedResources`), a "discard until" only its count.
+    const vars: Record<string, number> = { ...f.vars };
+    for (const [key, amount] of Object.entries(totals)) if (key in vars) vars[key] = amount;
+    return { ...f, bindings, vars };
+  });
+  return true;
 }

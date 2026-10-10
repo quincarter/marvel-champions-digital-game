@@ -1392,7 +1392,12 @@ describe("50028.front-organization-interrupt: when an encounter card effect woul
         kind: "interrupt",
         forced: false,
         would: true,
-        on: { on: "cardLeavesPlay", eventIs: { to: "discard", by: "encounterCard" } },
+        on: {
+          // A card in play, and a card in a hand or a deck (spec §4.1 Q20 = B).
+          on: ["cardLeavesPlay", "cardBeingDiscarded"],
+          targetIs: { controller: "you", self: false },
+          eventIs: { to: "discard", by: "encounterCard" },
+        },
       },
     });
     expect(REGISTRY[ID]!.cost).toBeUndefined();
@@ -1445,6 +1450,143 @@ describe("50028.front-organization-interrupt: when an encounter card effect woul
     };
     const out = settle(run(stackEncounterDeck(ally.state, "01186", "01186"), endTurn(P1)), pick, undefined, DEPS);
     expect(inDiscard(out, ally.id)).toBe(true);
+    expect(inPlayArea(out, org.id)).toBe(true);
+  });
+});
+
+describe("50028.front-organization-interrupt: a card you control in your hand or deck (spec §4.1 Q20 = B; RRG 1.8 'Ownership and Control', p. 31)", () => {
+  const ID = "50028.front-organization-interrupt";
+  const VENGEANCE = "01122"; // Klaw's Vengeance: "When Revealed (Alter-Ego): Discard 1 card at random from your hand."
+  const INVASIVE = "01149"; // Invasive AI: "When Revealed: Each player discards the top 3 cards of their deck."
+  const deckOf = (s: GameState, p: PlayerId = P1) => playerOf(s, p).deck;
+  const handOf = (s: GameState, p: PlayerId = P1) => playerOf(s, p).hand;
+  const pileOf = (s: GameState, p: PlayerId = P1) => playerOf(s, p).discard;
+  /**
+   * The encounter deck with a boost filler (an Advance) for each player on top, then a spare "I'm Tough!" reprinted as
+   * `code` (Rhino's deck holds neither card), dealt to P1 in step three.
+   */
+  const dealt = (state: GameState, code: string): GameState => {
+    const [deckId, piles] = Object.entries(state.encounterDecks)[0]!;
+    const of = (wanted: string) => piles.deck.filter((id) => inst(state, id).cardId === cardId(wanted));
+    const boosts = of("01186").slice(0, state.players.length);
+    // "I'm Tough!" for every other player's card: it touches no player card.
+    const [spare, ...harmless] = of("01105");
+    const top = [...boosts, spare!, ...harmless.slice(0, state.players.length - 1)];
+    return {
+      ...patchInstance(state, spare!, { cardId: cardId(code) }),
+      encounterDecks: {
+        ...state.encounterDecks,
+        [deckId]: { ...piles, deck: [...top, ...piles.deck.filter((id) => !top.includes(id))] },
+      },
+    };
+  };
+  /**
+   * Every player ends their turn; each offer of Front Organization is answered from `accept` in order (declined once
+   * it runs out). Returns the final state and the state at each offer.
+   */
+  const round = (state: GameState, accept: readonly boolean[]) => {
+    const offers: GameState[] = [];
+    const out = settle(
+      state.players.reduce((s, p) => run(s, endTurn(p.playerId)), state),
+      (s) => {
+        const choice = s.pendingChoice!;
+        const row = choice.options.find((o) => (o.optionId as string).includes(ID));
+        if (choice.prompt.kind !== "chooseTriggers" || !row) return firstLegal(s);
+        offers.push(s);
+        return accept[offers.length - 1] ? [row.optionId] : firstLegal(s);
+      },
+      undefined,
+      DEPS,
+    );
+    return { out, offers };
+  };
+
+  it("a random discard from your hand by a treachery: the card is picked, then Front Organization is discarded instead and the card stays in hand", () => {
+    const org = placed(aspectGame(), FRONT_ORG);
+    const state = dealt(org.state, VENGEANCE);
+    const declined = round(state, [false]);
+    expect(declined.offers).toHaveLength(1);
+    expect(inPlayArea(declined.out, org.id)).toBe(true);
+    // The card the treachery picked is the one in the discard pile that was in hand when the offer was made.
+    const picked = pileOf(declined.out).filter((id) => handOf(declined.offers[0]!).includes(id));
+    expect(picked).toHaveLength(1);
+
+    const saved = round(state, [true]);
+    expect(saved.offers).toHaveLength(1);
+    expect(inDiscard(saved.out, org.id)).toBe(true);
+    expect(inPlayArea(saved.out, org.id)).toBe(false);
+    // The same card was picked (the same seed) and it is still in hand; nothing else left the hand.
+    expect(handOf(saved.out)).toContain(picked[0]);
+    expect(pileOf(saved.out)).not.toContain(picked[0]);
+    expect(handOf(saved.out)).toHaveLength(handOf(declined.out).length + 1);
+  });
+  it("the top 3 cards of your deck (Invasive AI), declined for the first and used for the second: the second stays on top, the third is not offered", () => {
+    const org = placed(aspectGame(), FRONT_ORG);
+    const { out, offers } = round(dealt(org.state, INVASIVE), [false, true]);
+    expect(offers).toHaveLength(2);
+    const [first, second, third, fourth] = deckOf(offers[0]!) as [InstanceId, InstanceId, InstanceId, InstanceId];
+    // By the second offer the first card has been discarded and the second is the top of the deck.
+    expect(deckOf(offers[1]!)[0]).toBe(second);
+    expect(pileOf(offers[1]!)).toContain(first);
+    expect(deckOf(out).slice(0, 2)).toEqual([second, fourth]);
+    expect(pileOf(out)).toEqual(expect.arrayContaining([first, third, org.id]));
+    expect(pileOf(out)).not.toContain(second);
+    expect(inPlayArea(out, org.id)).toBe(false);
+  });
+  it("the top 3 cards of your deck, declined each time: offered once per card, all 3 discarded, Front Organization stays", () => {
+    const org = placed(aspectGame(), FRONT_ORG);
+    const { out, offers } = round(dealt(org.state, INVASIVE), []);
+    expect(offers).toHaveLength(3);
+    const top = deckOf(offers[0]!).slice(0, 3);
+    expect(pileOf(out)).toEqual(expect.arrayContaining(top));
+    expect(deckOf(out)).not.toEqual(expect.arrayContaining(top));
+    expect(inPlayArea(out, org.id)).toBe(true);
+  });
+  it("another player's Front Organization is not offered for a card in your hand or your deck, but is for theirs", () => {
+    const base = placed(aspectGame({ players: 2 }), FRONT_ORG);
+    const moved: GameState = {
+      ...base.state,
+      players: base.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, playArea: p.playArea.filter((i) => i !== base.id) }
+          : { ...p, playArea: [...p.playArea, base.id] },
+      ),
+    };
+    const state = patchInstance(moved, base.id, { controllerId: P2 });
+    // Klaw's Vengeance, revealed by P1: P1's hand card is not P2's to protect.
+    const hand = round(dealt(state, VENGEANCE), [true]);
+    expect(hand.offers).toHaveLength(0);
+    expect(inPlayArea(hand.out, base.id, P2)).toBe(true);
+    // Invasive AI discards from each player's deck: only P2's 3 cards are offered to P2's Front Organization.
+    const decks = round(dealt(state, INVASIVE), []);
+    expect(decks.offers).toHaveLength(3);
+    for (const offer of decks.offers) expect(offer.pendingChoice!.playerId).toBe(P2);
+    const mine = deckOf(decks.offers[0]!, P1);
+    const theirs = deckOf(decks.offers[0]!, P2).slice(0, 3);
+    expect(pileOf(decks.out, P2)).toEqual(expect.arrayContaining(theirs));
+    // P1's 3 were discarded before P2's first offer.
+    expect(pileOf(decks.offers[0]!, P1)).toHaveLength(pileOf(state, P1).length + 3);
+    expect(mine).toHaveLength(deckOf(decks.out, P1).length);
+  });
+  it("the end-of-phase discard from your hand is the game's rule: not offered", () => {
+    const org = placed(aspectGame(), FRONT_ORG);
+    let offers = 0;
+    let discarded: InstanceId | undefined;
+    const out = settle(
+      run(org.state, endTurn(P1)),
+      (s) => {
+        const choice = s.pendingChoice!;
+        if (choice.options.some((o) => (o.optionId as string).includes(ID))) offers += 1;
+        if (choice.prompt.kind !== "discardDownToHandSize" || discarded) return firstLegal(s);
+        discarded = choice.options[0]!.optionId as InstanceId;
+        return [discarded];
+      },
+      undefined,
+      DEPS,
+    );
+    expect(discarded).toBeDefined();
+    expect(pileOf(out)).toContain(discarded);
+    expect(offers).toBe(0);
     expect(inPlayArea(out, org.id)).toBe(true);
   });
 });
@@ -2235,6 +2377,102 @@ describe("50051.intelligence-response: after a player is dealt an encounter card
     // Its discard is the cost: choosing both rows resolved it once, and it was offered in 1 prompt.
     expect(offers).toBe(1);
     expect(inDiscard(out, intel)).toBe(true);
+  });
+  describe("the card a surge deals (spec §4.1 Q19 = B; RRG 1.8 'Surge', p. 42)", () => {
+    const KREE = "01178"; // Kree Manipulator, a treachery: "Surge. When Revealed: Place 1 threat on the main scheme."
+    /**
+     * Intelligence attached; the deck stacked with a boost filler, a Kree Manipulator for step three (a spare Advance
+     * reprinted as one: Rhino's standard deck holds no surge card), the Hydra Mercenary its surge deals and an "I'm
+     * Tough!" under it.
+     */
+    const surging = () => {
+      const intel = attachedUpgrade(nfGame(), INTELLIGENCE);
+      const [boost, spare] = deckOf(intel.state).filter((id) => inst(intel.state, id).cardId === cardId("01186"));
+      const kree = spare as InstanceId;
+      const stacked = stackEncounterDeck(patchInstance(intel.state, kree, { cardId: cardId(KREE) }), MERCENARY, TOUGH);
+      const [mercenary, tough] = deckOf(stacked) as [InstanceId, InstanceId];
+      const rest = deckOf(stacked).filter((id) => ![boost, kree, mercenary, tough].includes(id));
+      const [deckId, piles] = Object.entries(stacked.encounterDecks)[0]!;
+      const state: GameState = {
+        ...stacked,
+        encounterDecks: {
+          ...stacked.encounterDecks,
+          [deckId]: { ...piles, deck: [boost!, kree, mercenary, tough, ...rest] },
+        },
+      };
+      return { state, intel: intel.id, kree, mercenary, tough };
+    };
+    /** Ends the turn, answering Intelligence's `n`th offer (1-based) and declining the others; stops at the look. */
+    const answering = (state: GameState, nth: number, seen: GameState[] = []) =>
+      settle(
+        run(state, endTurn(P1)),
+        (s) => {
+          const choice = s.pendingChoice!;
+          const row = choice.options.find((o) => (o.optionId as string).includes(ID));
+          if (choice.prompt.kind !== "chooseTriggers" || !row) return firstLegal(s);
+          seen.push(s);
+          return seen.length === nth ? [row.optionId] : firstLegal(s);
+        },
+        atRearrange,
+        DEPS,
+      );
+
+    it("declined in step three, used on the surge's deal: you look at the facedown surge card and the deck top, and the card swapped in is revealed", () => {
+      const { state, intel, kree, mercenary, tough } = surging();
+      const offers: GameState[] = [];
+      const asked = answering(state, 2, offers);
+      expect(offers).toHaveLength(2);
+      // The first offer is step three's deal; the second comes once the Kree Manipulator has resolved and its surge
+      // has dealt the mercenary, which is still facedown in front of P1.
+      expect(dealtTo(offers[0]!)).toEqual([kree]);
+      expect(dealtTo(offers[1]!)).toEqual([mercenary]);
+      expect(inst(offers[1]!, mercenary).faceup).toBe(false);
+      expect(discardedEncounter(offers[1]!, kree)).toBe(true);
+
+      expect(inDiscard(asked, intel)).toBe(true);
+      expect(asked.pendingChoice!.options.map((o) => o.optionId)).toEqual([mercenary, tough]);
+      const out = settle(answer(asked, [tough, mercenary], DEPS), firstLegal, undefined, DEPS);
+      // "I'm Tough!" took the surge card's place and was revealed; the mercenary is the deck's top card, unrevealed.
+      expect(discardedEncounter(out, tough)).toBe(true);
+      expect(deckOf(out)[0]).toBe(mercenary);
+      expect(inst(out, mercenary).engagedWith ?? null).toBeNull();
+      expect(dealtTo(out)).toEqual([]);
+    });
+    it("used on the surge's deal with no swap: the surge card is revealed as dealt", () => {
+      const { state, intel, mercenary, tough } = surging();
+      const asked = answering(state, 2);
+      const out = settle(answer(asked, [mercenary, tough], DEPS), firstLegal, undefined, DEPS);
+      expect(inDiscard(out, intel)).toBe(true);
+      expect(inst(out, mercenary).engagedWith).toBe(P1);
+      expect(deckOf(out)[0]).toBe(tough);
+    });
+    it("used in step three: it is gone, so the surge's deal is not offered it", () => {
+      const { state, intel, kree, mercenary, tough } = surging();
+      const offers: GameState[] = [];
+      const asked = answering(state, 1, offers);
+      expect(asked.pendingChoice!.options.map((o) => o.optionId)).toEqual([kree, mercenary]);
+      const out = settle(
+        answer(asked, [kree, mercenary], DEPS),
+        (s) => {
+          if (s.pendingChoice!.options.some((o) => (o.optionId as string).includes(ID))) offers.push(s);
+          return firstLegal(s);
+        },
+        undefined,
+        DEPS,
+      );
+      expect(offers).toHaveLength(1);
+      expect(inDiscard(out, intel)).toBe(true);
+      expect(inst(out, mercenary).engagedWith).toBe(P1);
+      expect(deckOf(out)[0]).toBe(tough);
+    });
+    it("declined both times: offered twice in the round, Intelligence stays attached", () => {
+      const { state, intel, mercenary } = surging();
+      const offers: GameState[] = [];
+      const out = answering(state, 0, offers);
+      expect(offers).toHaveLength(2);
+      expect(inst(out, intel).attachedTo).toBe(identityOf(out));
+      expect(inst(out, mercenary).engagedWith).toBe(P1);
+    });
   });
   it("another player's deal alone (their deck runs out) is 'a player is dealt an encounter card'", () => {
     const intel = attachedUpgrade(nfGame({ players: 2 }), INTELLIGENCE);

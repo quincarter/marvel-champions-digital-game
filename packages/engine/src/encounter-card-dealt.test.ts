@@ -9,9 +9,16 @@
  * dealt in player order."; "Player Deck" (p. 33): a player whose deck ran out "deals themself one facedown encounter
  * card".
  *
- * Not heard, and pinned here as the engine's present reading rather than as a ruling: the surge keyword's card. RRG 1.8
- * "Surge" (p. 42) words it as "deals themself a facedown encounter card", while docs/phase7-wave9.md §3.45 reads a
- * surge as a reveal; the engine takes that card and reveals it in one step (`dealEncounterCardTo` with no source).
+ * The surge keyword's card is a deal too (the owner's decision, docs/phase7-wave9.md §4.1 Q19 = B): RRG 1.8 "Surge"
+ * (p. 42), "the player resolving the card deals themself a facedown encounter card from the top of the encounter deck",
+ * the keyword being "equivalent to … 'When Revealed: Deal yourself 1 facedown encounter card.'" (ruling August 3, 2026,
+ * Ruling 3, treats it as a When Revealed ability). Its event carries `source: "surge"` and its window opens once the
+ * card is dealt and before it is revealed, in or out of the villain phase, once per surge of a chain; a card swapped
+ * into the dealt card's place in that window is the card the surge reveals.
+ *
+ * Not a deal: "reveal the top card of the encounter deck" (`EffectSpec revealEncounterCard`; RRG 1.8 "Reveal", p. 38:
+ * "If a player is instructed by card text to reveal an encounter card from the encounter deck or any other game area,
+ * this same resolution procedure applies", with no card dealt).
  *
  * Synthetic cards only: a witness that counts each deal it hears, and the things that deal.
  */
@@ -25,14 +32,14 @@ import { mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { runCommands } from "./testing/drive.js";
+import { runCommands, runCommandsPicking } from "./testing/drive.js";
+import { defaultPick } from "./testing/scenario.js";
 import { stubEvent, stubMinion, stubSideScheme, stubSupport, stubTreachery } from "./testing/fixtures.js";
 import {
   copiesOf,
   encounterCardInVillainArea,
   gameAtFirstTurn,
   minionEngagedWith,
-  onTopOfEncounterDeck,
   P1,
   P2,
   playerCardIntoPlay,
@@ -72,19 +79,48 @@ const TAKE_GRUNT = event("take-grunt", [
 ]);
 // "Draw 1 card."
 const DRAW = event("draw", [{ kind: "draw", player: you, amount: n(1) }]);
-const EVENTS = [DEAL, DEAL_ALL, PAY, TAKE_GRUNT, DRAW];
+// "Reveal the top card of the encounter deck."
+const REVEAL_TOP = event("reveal-top", [{ kind: "revealEncounterCard", player: you }]);
+const EVENTS = [DEAL, DEAL_ALL, PAY, TAKE_GRUNT, DRAW, REVEAL_TOP];
+
+const SWAPPER_ID = "swapper.response";
+/**
+ * "Forced Response: After a surge deals a player an encounter card, look at each encounter card dealt to each player
+ * and the top card of the encounter deck. You may swap any number of those cards."
+ */
+const SWAPPER_RESPONSE = stubAbility(SWAPPER_ID, {
+  trigger: { kind: "response", forced: true, on: { on: "encounterCardDealt", eventIs: { source: "surge" } } },
+  effects: [
+    {
+      kind: "lookAt",
+      cards: {
+        kind: "anyOf",
+        of: [
+          { kind: "dealtEncounter", player: { kind: "each" } },
+          { kind: "encounter", zones: ["deck"], top: n(1) },
+        ],
+      },
+      viewer: you,
+      rearrange: true,
+      bind: "seen",
+    },
+  ],
+});
+const SWAPPER = stubSupport({ id: "swapper", cost: 0, abilities: [SWAPPER_RESPONSE.ref] });
 
 const HEARD: EngineDeps = depsOf(WITNESS_RESPONSE, ...EVENTS.map((e) => e.ability));
 /** The same registry without the listener. */
 const UNHEARD: EngineDeps = depsOf(...EVENTS.map((e) => e.ability));
+/** A registry whose only listener is the swapper. */
+const SWAPPING: EngineDeps = depsOf(SWAPPER_RESPONSE, ...EVENTS.map((e) => e.ability));
 
 function start(deps: EngineDeps, players: 1 | 2 = 1): GameState {
   return gameAtFirstTurn({
     players,
-    cards: [WITNESS, LOOKOUT, RUSH, GRUNT, FILLER, ...EVENTS.map((e) => e.card)],
+    cards: [WITNESS, SWAPPER, LOOKOUT, RUSH, GRUNT, FILLER, ...EVENTS.map((e) => e.card)],
     deps,
-    deck: [WITNESS.id, ...EVENTS.map((e) => e.card.id)],
-    encounter: [...copiesOf(FILLER.id, 26), LOOKOUT.id, RUSH.id, GRUNT.id],
+    deck: [WITNESS.id, SWAPPER.id, ...EVENTS.map((e) => e.card.id)],
+    encounter: [...copiesOf(FILLER.id, 26), LOOKOUT.id, RUSH.id, RUSH.id, GRUNT.id],
   });
 }
 
@@ -225,16 +261,135 @@ describe("encounterCardDealt: after a player is dealt an encounter card", () => 
     expect(counted(state, t.witness)).toBe(1);
   });
 
-  it("the surge keyword's card is revealed, not announced as a deal (see the file comment)", () => {
+  /** The encounter deck with a card of each of `codes` on top, the first of them topmost (test surgery). */
+  const stacked = (state: GameState, ...codes: readonly string[]): GameState => {
+    const [deckId, piles] = Object.entries(state.encounterDecks)[0]!;
+    const rest = [...piles.deck];
+    const top = codes.map((code) => {
+      const at = rest.findIndex((id) => mustInstance(state, id).cardId === code);
+      if (at < 0) throw new Error(`no ${code} left in the encounter deck`);
+      return rest.splice(at, 1)[0]!;
+    });
+    return { ...state, encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: [...top, ...rest] } } };
+  };
+  const revealed = (events: readonly GameEvent[]) =>
+    events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.cardId as string] : []));
+  /** The log index of each `type` event about a deal: the cards reaching a player's dealt cards, the windows, the reveals. */
+  const indexes = (events: readonly GameEvent[], match: (e: GameEvent) => boolean) =>
+    events.flatMap((e, index) => (match(e) ? [index] : []));
+  const dealMoves = (events: readonly GameEvent[]) =>
+    indexes(events, (e) => e.type === "cardMoved" && e.to.kind === "dealtEncounter");
+  const dealWindows = (events: readonly GameEvent[]) =>
+    indexes(events, (e) => e.type === "windowOpened" && e.event.kind === "encounterCardDealt");
+  const reveals = (events: readonly GameEvent[]) => indexes(events, (e) => e.type === "encounterCardRevealed");
+
+  it("1 surge in step four: 1 more event and 1 more window, after the surge card is dealt and before it is revealed", () => {
     const t = table();
-    // A filler on top for the villain's boost card, then the surge card for step three.
-    const stacked = onTopOfEncounterDeck(onTopOfEncounterDeck(t.state, RUSH.id), FILLER.id);
-    const { state, events } = playRound(stacked, HEARD);
-    expect(events.some((e) => e.type === "surgeTriggered")).toBe(true);
-    // Two cards reached P1's dealt cards (step three's and the surge's); only step three's was heard.
+    // A filler on top for the villain's boost card, then the surge card for step three, then the card it deals.
+    const { state, events, session } = playRound(stacked(t.state, FILLER.id, RUSH.id, FILLER.id), HEARD);
+    expect(events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
     expect(moved(events)).toBe(2);
-    expect(deals(events)).toEqual([[P1, "villainPhase"]]);
+    expect(deals(events)).toEqual([
+      [P1, "villainPhase"],
+      [P1, "surge"],
+    ]);
+    expect(windows(events)).toBe(2);
+    expect(counted(state, t.witness)).toBe(2);
+    expect(revealed(events)).toEqual([RUSH.id, FILLER.id]);
+    // Step three's card, its window, the surging card's reveal; then the surge's card, its window, its reveal.
+    const [, surgeDeal] = dealMoves(events) as [number, number];
+    const [, surgeWindow] = dealWindows(events) as [number, number];
+    const [surging, surgeReveal] = reveals(events) as [number, number];
+    expect(surgeDeal).toBeGreaterThan(surging);
+    expect(surgeWindow).toBeGreaterThan(surgeDeal);
+    expect(surgeReveal).toBeGreaterThan(surgeWindow);
+    expect(mustPlayer(state, P1).dealtEncounter).toEqual([]);
+    expect(state.pendingEncounterDealt).toBeUndefined();
+    expectReplays(session, HEARD);
+  });
+
+  it("a chain of 2 surges: 2 more events and 2 more windows, each between its card's deal and its reveal", () => {
+    const t = table();
+    const { state, events, session } = playRound(stacked(t.state, FILLER.id, RUSH.id, RUSH.id, FILLER.id), HEARD);
+    expect(events.filter((e) => e.type === "surgeTriggered")).toHaveLength(2);
+    expect(moved(events)).toBe(3);
+    expect(deals(events)).toEqual([
+      [P1, "villainPhase"],
+      [P1, "surge"],
+      [P1, "surge"],
+    ]);
+    expect(windows(events)).toBe(3);
+    expect(counted(state, t.witness)).toBe(3);
+    expect(revealed(events)).toEqual([RUSH.id, RUSH.id, FILLER.id]);
+    const moves = dealMoves(events);
+    const opened = dealWindows(events);
+    const turned = reveals(events);
+    for (const i of [0, 1, 2]) {
+      expect(opened[i]).toBeGreaterThan(moves[i]!);
+      expect(turned[i]).toBeGreaterThan(opened[i]!);
+      if (i > 0) expect(moves[i]).toBeGreaterThan(turned[i - 1]!);
+    }
+    expectReplays(session, HEARD);
+  });
+
+  it("a surging card revealed in the player phase: the reveal is not a deal, the surge's card is (1 event, 1 window), and it is revealed then", () => {
+    const t = table();
+    const { state, events, session } = playFree(stacked(t.state, RUSH.id, FILLER.id), HEARD, REVEAL_TOP.card.id);
+    expect(state.step.phase).toBe("player");
+    // Both cards passed through P1's dealt cards; only the surge's was dealt.
+    expect(moved(events)).toBe(2);
+    expect(deals(events)).toEqual([[P1, "surge"]]);
+    expect(windows(events)).toBe(1);
     expect(counted(state, t.witness)).toBe(1);
+    expect(revealed(events)).toEqual([RUSH.id, FILLER.id]);
+    const [window] = dealWindows(events) as [number];
+    expect(window).toBeGreaterThan(dealMoves(events)[1]!);
+    expect(reveals(events)[1]).toBeGreaterThan(window);
+    expect(mustPlayer(state, P1).dealtEncounter).toEqual([]);
+    expectReplays(session, HEARD);
+  });
+
+  it("the surge card swapped with the deck top in that window: the surge reveals the card now in its place", () => {
+    const swapper = playerCardIntoPlay(start(SWAPPING), SWAPPER.id);
+    // Boost filler, the surging card for step three, the minion the surge deals, and a filler under it.
+    const state = stacked(swapper.state, FILLER.id, RUSH.id, GRUNT.id, FILLER.id);
+    const swap = (s: GameState) =>
+      s.pendingChoice?.prompt.kind === "rearrange"
+        ? s.pendingChoice.options.map((o) => o.optionId).reverse()
+        : defaultPick(s);
+    const out = runCommandsPicking(state, SWAPPING, swap, { type: "endTurn", playerId: P1 });
+    // Step three's window is not the swapper's (its source is the villain phase): 1 look, of 2 cards.
+    const looks = out.events.filter((e) => e.type === "cardsRearranged");
+    expect(looks).toHaveLength(1);
+    expect(looks[0]).toMatchObject({ moved: 2 });
+    expect(revealed(out.events)).toEqual([RUSH.id, FILLER.id]);
+    // The minion went to the top of the encounter deck, facedown, and engaged nobody.
+    const deck = Object.values(out.state.encounterDecks)[0]!.deck;
+    expect(mustInstance(out.state, deck[0]!).cardId).toBe(GRUNT.id);
+    expect(mustInstance(out.state, deck[0]!).engagedWith ?? null).toBeNull();
+    expect(mustPlayer(out.state, P1).dealtEncounter).toEqual([]);
+    expect(out.state.stack).toEqual([]);
+    expectReplays(out.session, SWAPPING);
+
+    // Not swapped: the minion is revealed and engages P1.
+    const kept = runCommands(state, SWAPPING, { type: "endTurn", playerId: P1 });
+    expect(revealed(kept.events)).toEqual([RUSH.id, GRUNT.id]);
+    expect(kept.events.filter((e) => e.type === "cardsRearranged")).toMatchObject([{ moved: 0 }]);
+  });
+
+  it("a surge with no listener in the registry, or one out of play: the same log and state, nothing announced", () => {
+    const surging = (deps: EngineDeps) => playRound(stacked(start(deps), FILLER.id, RUSH.id, RUSH.id, FILLER.id), deps);
+    const unheard = surging(UNHEARD);
+    const heard = surging(HEARD);
+    expect(unheard.events.filter((e) => e.type === "surgeTriggered")).toHaveLength(2);
+    expect(revealed(unheard.events)).toEqual([RUSH.id, RUSH.id, FILLER.id]);
+    expect(unheard.events).toEqual(heard.events);
+    expect(unheard.state).toEqual(heard.state);
+    expect(deals(unheard.events)).toEqual([]);
+    expect(windows(unheard.events)).toBe(0);
+    expect("pendingEncounterDealt" in unheard.state).toBe(false);
+    expectReplays(unheard.session, UNHEARD);
+    expectReplays(heard.session, HEARD);
   });
 
   it("a listener in the registry but not in play: nothing announced, no window, nothing left pending", () => {

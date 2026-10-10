@@ -149,7 +149,8 @@ import { upgradeHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
-import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { abilityFrame, addFrameVars, eventFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { splitWouldDiscard } from "./would-discard.js";
 import { hasKeyword, keywordTotal, statusCapacity, wouldDiscardAsVulnerable } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
@@ -1339,8 +1340,25 @@ function executeDiscardFromHand(
   let index = vars[`${DISCARD_HAND}index`] ?? 0;
   if (frame.answer !== null) {
     const answering = players[index];
-    if (answering) for (const optionId of frame.answer) discardFromHand(ctx, answering, asInstanceId(optionId));
     index += 1;
+    if (answering) {
+      // A chosen card whose discard an ability hears ("when … would discard a card you control",
+      // docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`) waits for that window; the next player is asked
+      // once those have resolved, when this effect is run again.
+      const self = frame.selfInstanceId;
+      const { now, waiting } = splitWouldDiscard(
+        ctx,
+        frame.answer.map((optionId) => asInstanceId(optionId)),
+        { sourceInstanceId: self, sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined },
+        { kind: "hand" },
+      );
+      for (const id of now) discardFromHand(ctx, answering, id);
+      if (waiting.length > 0) {
+        setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
+        pushEvents(ctx, waiting);
+        return;
+      }
+    }
   }
   for (; index < players.length; index++) {
     const playerId = players[index];
@@ -2671,13 +2689,15 @@ function executeResolveSpecials(
     addFrameVars(ctx, attack?.frameId, { [labeledResolvedVar("preparation")]: ordered.length });
   }
   const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
-  for (const id of [...surges].reverse()) {
-    pushEffects(ctx, {
-      effects: [{ kind: "revealEncounterCard", player: { kind: "controller" } }],
-      selfInstanceId: id,
-      controllerId: whoFor(id),
-    });
-  }
+  // Each surge on its own frame, as a reveal's does when an ability hears it (`surgeResolving`, `resolveSurge`): the
+  // keyword deals its player a facedown encounter card, a deal like any other (docs/phase7-wave9.md §4.1 Q19).
+  pushFrames(
+    ctx,
+    surges.flatMap((id) => {
+      const playerId = whoFor(id);
+      return playerId ? [eventFrame(ctx, { kind: "surgeResolving", instanceId: id, playerId })] : [];
+    }),
+  );
   // With `bind`, what each Special's effects bind comes back as `<bind>.<slot>` (docs/phase7-wave5.md §3.7).
   const returnTo = effect.bind ? { returnBindingsTo: { frameId: frame.frameId, prefix: effect.bind } } : {};
   // A When Defeated resolved on demand (Zeal for the Cause, docs/phase7-wave6.md §3.17) reads its defeat from its frame's

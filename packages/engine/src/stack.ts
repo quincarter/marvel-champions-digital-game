@@ -580,6 +580,15 @@ export type StackFrame =
        */
       readonly source?: RevealSource;
       /**
+       * The reveal of the card the surge keyword just dealt, waiting under the response window of that deal ("after a
+       * player is dealt an encounter card"; docs/phase7-wave9.md §4.1 Q19): it has not begun, so its card is still a
+       * facedown dealt card like any other (`rearrangeable`), and it reveals whichever card holds that place when it
+       * begins (`rearrangeCards` re-points it at a card swapped in; a card no longer facedown among `playerId`'s dealt
+       * cards is not revealed). Set only when the deal was recorded (an ability in the registry listens to
+       * `encounterCardDealt`) and cleared as the reveal begins. Absent on every other reveal.
+       */
+      readonly afterDeal?: true;
+      /**
        * A card already in play whose new face is revealed: a villain's flip or next stage (FAQ "Dial M for Mojo (#35)",
        * RRG 1.8 p. 64: "When Spiral flips, her new face is revealed"; docs/phase7-wave6.md §3.65, §4.1 Q36). It goes
        * through the whole reveal (the "when revealed" windows, incite, When Revealed, peril, surge) but never enters

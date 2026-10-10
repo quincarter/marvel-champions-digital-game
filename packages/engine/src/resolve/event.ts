@@ -3,6 +3,7 @@
 import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { resolveTuck } from "./tuck.js";
+import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
 import {
@@ -290,6 +291,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (openJoinedResponses(ctx, frame)) return;
         // RRG "Cancel": the canceled effect is not considered to have occurred, so no responses.
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
+        // A replaced discard from a hand or a deck did not discard its card (docs/phase7-wave9.md §4.1 Q20).
+        if (frame.event.kind === "cardBeingDiscarded") wouldDiscardNotMade(ctx, frame.event);
         reportResults(ctx, frame, false);
         expireEventLastingEffects(ctx, frame.frameId);
         // An attachment's leaving that carried its host's change: the change still happens (only this card's leaving
@@ -697,6 +700,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       // Its interrupts resolved with the card where it was; it goes under its host now (docs/phase7-wave9.md §3.40).
       resolveTuck(ctx, event, event.hostInstanceId);
       return;
+    case "cardBeingDiscarded":
+      // Its interrupts resolved with the card in the hand or on the deck; it is discarded now (§4.1 Q20).
+      return applyWouldDiscard(ctx, event);
     case "formChanging": {
       // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.
       const changed = setForm(ctx, event.playerId, event.to, event.voluntary, event.heroFormIndex);

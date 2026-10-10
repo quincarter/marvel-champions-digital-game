@@ -598,6 +598,8 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "formChanging") return [];
   // A tuck about to happen is interrupt-only ("would", RRG 1.8 p. 48; docs/phase7-wave9.md §3.40).
   if (timing === "response" && event.kind === "cardBeingTucked") return [];
+  // So is a discard from a hand or a deck about to happen (docs/phase7-wave9.md §4.1 Q20).
+  if (timing === "response" && event.kind === "cardBeingDiscarded") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).

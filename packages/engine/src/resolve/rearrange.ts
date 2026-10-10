@@ -11,7 +11,7 @@
  */
 
 import type { CardPosition } from "../choices.js";
-import { type Ctx, emit, placeAt, relocateCard } from "../ctx.js";
+import { type Ctx, emit, placeAt, relocateCard, setFrame } from "../ctx.js";
 import { holdDeckTops } from "../deck-top.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { getInstance, locateCard, zoneContents } from "../query.js";
@@ -29,14 +29,15 @@ const REARRANGEABLE: ReadonlySet<ZoneId["kind"]> = new Set([
 
 /**
  * Whether a looked-at card holds a position cards can be rearranged over: out of play and facedown, among a player's
- * dealt encounter cards (not one whose reveal has begun, which is parked there while it resolves) or in a deck.
+ * dealt encounter cards (not one whose reveal has begun, which is parked there while it resolves) or in a deck. The
+ * card a surge just dealt, whose reveal waits for the responses to that deal (`afterDeal`), has not begun.
  */
 export function rearrangeable(state: GameState, id: InstanceId): boolean {
   const zone = locateCard(state, id);
   const instance = getInstance(state, id);
   if (!zone || !instance || !REARRANGEABLE.has(zone.kind)) return false;
   if (zone.kind !== "dealtEncounter") return true;
-  return !instance.faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id);
+  return !instance.faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id && !f.afterDeal);
 }
 
 /** Where each card is now: its zone and its index there (0 is the top of a deck, the front of a dealt queue). */
@@ -51,6 +52,10 @@ export function positionsOf(state: GameState, ids: readonly InstanceId[]): reado
  * Puts `arrangement[i]` at the position `cards[i]` holds, for every `i`; `arrangement` is the same cards in any order.
  * Logged as one `cardsRearranged` after the `cardMoved` of each card that changed zones. Returns how many cards are
  * somewhere new.
+ *
+ * A reveal waiting to begin on one of the cards (the surge keyword's card, `afterDeal`) reveals the card that takes
+ * its place: the surge reveals the card the player holds for it, whichever that now is (RRG 1.8 "Surge", p. 42;
+ * "'Swap'", p. 42).
  *
  * The moves are `relocateCard`s, not `moveCard`s: `moveCard` resets a deck the moment its last card leaves it, and here
  * the card that replaces it is already on its way. A one-card encounter deck is therefore not emptied by a swap of its
@@ -80,6 +85,13 @@ export function rearrangeCards(
       const byIndex = arrangement.map((id, i) => ({ id, index: positions[i]!.index }));
       for (const { id, index } of byIndex.sort((a, b) => a.index - b.index)) placeAt(ctx, id, index);
     });
+    for (const waiting of ctx.state.stack) {
+      if (waiting.kind !== "reveal" || !waiting.afterDeal) continue;
+      const taker = arrangement[cards.indexOf(waiting.instanceId)];
+      if (taker === undefined || taker === waiting.instanceId) continue;
+      const fromDeck = getInstance(ctx.state, taker)?.dealtFromEncounterDeck === true;
+      setFrame(ctx, { ...waiting, instanceId: taker, source: fromDeck ? "encounterDeck" : "elsewhere" });
+    }
   }
   emit(ctx, { type: "cardsRearranged", playerId, positions, instanceIds: arrangement, moved });
   return moved;
