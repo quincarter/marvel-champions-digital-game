@@ -84,10 +84,10 @@ describe("Maria Hill registry", () => {
     expect(def.trigger).toMatchObject({ kind: "action" });
     expect(def.cost).toEqual({ exhaustIdentity: true });
   });
-  it("all four printed refs are accounted for: three registered, the deck-building rule skipped with a reason", () => {
-    expect(Object.keys(MARIA_HILL_IDENTITY).sort()).toEqual([CONSTANT, REASSIGNMENT, SEARCH].sort());
-    expect(Object.keys(MARIA_HILL_IDENTITY_SKIPPED)).toEqual([ALTER_CONSTANT]);
-    expect(MARIA_HILL_IDENTITY_SKIPPED[ALTER_CONSTANT]).toMatch(/offAspectPackages/);
+  it("all four printed refs are registered; the deck-building rule is an empty constant the engine's deck check covers", () => {
+    expect(Object.keys(MARIA_HILL_IDENTITY).sort()).toEqual([ALTER_CONSTANT, CONSTANT, REASSIGNMENT, SEARCH].sort());
+    expect(Object.keys(MARIA_HILL_IDENTITY_SKIPPED)).toEqual([]);
+    expect(MARIA_HILL_IDENTITY[ALTER_CONSTANT]).toEqual({ trigger: { kind: "constant" }, effects: [] });
     const printed = [...IDENTITY.hero.abilities, ...IDENTITY.alterEgo.abilities].map((a) => a.id as string);
     expect(printed.sort()).toEqual([ALTER_CONSTANT, CONSTANT, REASSIGNMENT, SEARCH].sort());
   });

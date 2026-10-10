@@ -10,6 +10,7 @@ import {
   chosen,
   constant,
   cards,
+  coveredByEngineRule,
   defineAbilities,
   exhaustYourHero,
   gainsTrait,
@@ -64,6 +65,9 @@ const CAN_REASSIGN = allOf(
  * (`deckbuilding.offAspectPackages`, checked in `engine/src/deck.ts`; docs/phase7-wave9.md 3.10), not by an ability.
  */
 export const MARIA_HILL_IDENTITY: AbilityRegistry = defineAbilities({
+  // Deck-building rule, not an ability: carried by the card's `deckbuilding.offAspectPackages` data (checked in
+  // engine/src/deck.ts). Registered so a Maria Hill deck is not reported as holding an unscripted card.
+  "50001b.maria-hill-constant": coveredByEngineRule(),
   "50001a.maria-hill-constant": constant(gainsTrait(SHIELD, query("ally", { controller: "you" }))),
 
   "50001a.reassignment": action(
@@ -82,7 +86,4 @@ export const MARIA_HILL_IDENTITY: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const MARIA_HILL_IDENTITY_SKIPPED: Readonly<Record<string, string>> = {
-  "50001b.maria-hill-constant":
-    "Deck-building rule, not an ability: carried by the card's `deckbuilding.offAspectPackages` data (docs/phase7-wave9.md 3.10; checked in engine/src/deck.ts).",
-};
+export const MARIA_HILL_IDENTITY_SKIPPED: Readonly<Record<string, string>> = {};
