@@ -75,6 +75,10 @@ import { WINTER_ABILITIES } from "./winter/index.js";
 import { WINTER_SOLDIER_EVENTS, WINTER_SOLDIER_EVENTS_SKIPPED } from "./winter/winter-soldier/events.js";
 import { WINTER_SOLDIER_IDENTITY, WINTER_SOLDIER_IDENTITY_SKIPPED } from "./winter/winter-soldier/identity.js";
 import {
+  WINTER_SOLDIER_OBLIGATION_NEMESIS,
+  WINTER_SOLDIER_OBLIGATION_NEMESIS_SKIPPED,
+} from "./winter/winter-soldier/obligation-nemesis.js";
+import {
   WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES,
   WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./winter/winter-soldier/support-upgrades-allies.js";
@@ -352,6 +356,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["54002", "54003", "54007", "54008", "54009", "54010", "54011"],
       registry: WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES,
       skipped: WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+    },
+    {
+      module: "winter-soldier/obligation-nemesis",
+      cardIds: ["54027", "54028", "54029", "54030", "54031"],
+      registry: WINTER_SOLDIER_OBLIGATION_NEMESIS,
+      skipped: WINTER_SOLDIER_OBLIGATION_NEMESIS_SKIPPED,
     },
   ],
 };
