@@ -14,6 +14,7 @@ import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
+import { BATROC, BATROC_SKIPPED } from "./aos/batroc.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
 import {
   BLACK_WIDOW,
@@ -162,6 +163,12 @@ const SCRIPTED_MODULES: Readonly<
       registry: BLACK_WIDOW,
       skipped: BLACK_WIDOW_SKIPPED,
       registryOnly: [GOGGLES_GRANTED_PREPARATION, DEFENSES_GRANTED_PREPARATION],
+    },
+    {
+      module: "batroc",
+      cardIds: ["50086a", "50087a", "50090a", "50091", "50092", "50093", "50094", "50095", "50096", "50097"],
+      registry: BATROC,
+      skipped: BATROC_SKIPPED,
     },
     {
       module: "batrocs-brigade",

@@ -1,9 +1,99 @@
+import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
-import { defineAbilities } from "../../dsl/index.js";
+import {
+  advanceMainScheme,
+  after,
+  chooseOneBy,
+  chooseTarget,
+  chosen,
+  chosenPlayer,
+  choosePlayer,
+  constant,
+  dealEncounterCard,
+  defineAbilities,
+  eachPlayer,
+  encounterCards,
+  encounterSetAside,
+  endGame,
+  exists,
+  exhaust,
+  firstPlayer,
+  flipCard,
+  forcedInterrupt,
+  forcedResponse,
+  gainsKeyword,
+  gets,
+  hasTrait,
+  heroAction,
+  ifThen,
+  inMode,
+  instead,
+  named,
+  not,
+  on,
+  option,
+  perHero,
+  placeThreat,
+  putIntoPlay,
+  query,
+  removeThreat,
+  resetHitPoints,
+  retargetAttack,
+  selectCards,
+  self,
+  setup,
+  shuffleEncounterDeck,
+  spend,
+  stateCheck,
+  stateCheckFromEntering,
+  theMainScheme,
+  threatAtLeast,
+  threatOn,
+  whenRevealed,
+} from "../../dsl/index.js";
+
+const ALERT_LEVEL = named("Alert Level");
+const RESCUED_CAPTIVE = query("ally", { name: "Rescued Captive" });
+const BATROC_VILLAIN = query("villain", { name: "Batroc" });
 
 /**
- * Wave 9 scripting module `aos/batroc` (docs/phase7-wave9.md section 8.4). Not started: the registry is empty and nothing is
- * skipped. `card-groups.ts` maps this module to the ids below; keep the two in step.
+ * "Forced Interrupt: When Batroc would be defeated, reset his hit points to N instead. Then, remove 6 threat from the
+ * main scheme." The villain is never defeated (MC50 p. 4, "Non-Scaling Villain HP": the interrupt replaces the defeat),
+ * so nothing that reads a defeat answers. The removal is the villain's own (not a thwart, no crisis check) and can take
+ * the last threat of a stage (the stage's own "last threat removed" answer then advances it).
+ */
+const batrocForcedInterrupt = () =>
+  forcedInterrupt(on.defeated("self"), { would: true }, instead(resetHitPoints(self)), removeThreat(6, theMainScheme));
+
+/** "[star] Forced Response: After Batroc attacks, place 1 threat on Alert Level." */
+const batrocForcedResponse = () => forcedResponse(after.enemyAttacks("self"), placeThreat(1, ALERT_LEVEL));
+
+/** Both faces of Alert Level: "Forced Response: After a character is defeated except by consequential damage, place 1 threat here." */
+const alertForcedResponse = () =>
+  forcedResponse(on.defeated({ categories: ["ally", "minion"] }, { consequential: false }), placeThreat(1, self));
+
+/** Both faces of Alert Level: "Hero Action: Spend 1 resource of any type -> remove 1 threat from here." */
+const alertAction = () => heroAction({ cost: spend(1) }, removeThreat(1, self));
+
+/** "At least 4[per_hero] threat here": the threshold of both faces. */
+const atAlertThreshold = () => threatAtLeast(self, perHero(4));
+
+/**
+ * Batroc (MC50 p. 11; docs/phase7-wave9.md section 2.3, 3.5, 3.13 to 3.16), first half: the villain 50086a (standard,
+ * 8 hit points) and 50086b (expert, 12; hit points are fixed, not per player), the three main scheme stages
+ * 50087a/b to 50089a/b and the Alert Level environment 50090a/b. The second half (50091 to 50097) is not started.
+ *
+ * **Stage advances.** "When the last threat is removed from this scheme" is scripted as a forced response to the
+ * removal (`on.lastThreatRemoved`), the reading `gmw/escape-the-museum.ts` documents: the removal must have applied
+ * before "the last threat" is true. Stage 1 and 2 are left that way, never by completion (`completionLoses` is data).
+ * Stage 2B puts a set-aside Rescued Captive into play exhausted under a player the first player chooses, then the
+ * first player chooses between advancing and 3[per_hero] threat more. With no captive left set aside none enters.
+ * Stage 3B redirects every enemy attack to a Rescued Captive the first player chooses (a state check ends the game
+ * with none in play, and a win at no threat).
+ *
+ * **Alert Level.** Threat on an environment is only tokens (section 3.7 (a)). Both faces hold threat, flip at 4
+ * [per_hero] (Low) or lose the game at it (High), and gain threat from any ally or minion defeated except by its own
+ * consequential damage. The flip keeps every token (RRG "Flip", p. 20) and is not a reveal.
  *
  * Cards (10):
  * - 50086a Batroc (villain)
@@ -17,7 +107,97 @@ import { defineAbilities } from "../../dsl/index.js";
  * - 50096 Leaping Kick (treachery)
  * - 50097 Security Cameras (treachery)
  */
-export const BATROC: AbilityRegistry = defineAbilities({});
+export const BATROC: AbilityRegistry = defineAbilities({
+  // Batroc (A / B): the same two abilities; the fixed hit points are data.
+  "50086a.batroc-forced-response": batrocForcedResponse(),
+  "50086a.batroc-forced-interrupt": batrocForcedInterrupt(),
+  "50086b.batroc-forced-response": batrocForcedResponse(),
+  "50086b.batroc-forced-interrupt": batrocForcedInterrupt(),
+
+  // 1A Setup: the Rescued Captives are set aside by the scenario builder (`SETASIDE_BY_SCENARIO` in wave9/setup.ts);
+  // put Alert Level into play on its Low (front) face, and in expert mode place 2[per_hero] threat on it.
+  "50087a.setup": setup(
+    selectCards("alert", encounterCards(["deck"], { name: "Alert Level" })),
+    putIntoPlay(chosen("alert"), firstPlayer),
+    shuffleEncounterDeck(),
+    ifThen(inMode("expert"), placeThreat(perHero(2), ALERT_LEVEL)),
+  ),
+  // 1B: advance to stage 2A when the last threat is removed.
+  "50087b.infiltrate-aim-island-embassy-forced-interrupt": forcedResponse(
+    on.lastThreatRemoved("self"),
+    advanceMainScheme({ to: { stageNumber: 2 } }),
+  ),
+
+  // 2B: a captive enters exhausted under a player the first player chooses; the first player chooses to advance or not.
+  "50088b.locate-missing-person-forced-interrupt": forcedResponse(
+    on.lastThreatRemoved("self"),
+    selectCards("captive", encounterSetAside({ name: "Rescued Captive" }, { random: 1 })),
+    choosePlayer("controller", firstPlayer),
+    putIntoPlay(chosen("captive"), chosenPlayer("controller")),
+    exhaust(chosen("captive")),
+    chooseOneBy(
+      firstPlayer,
+      option("Advance to stage 3A", advanceMainScheme({ to: { stageNumber: 3 } })),
+      option("Do not advance: place 3[per_hero] threat here", placeThreat(perHero(3), self)),
+    ),
+  ),
+
+  // 3A When Revealed: on High, deal each player a facedown encounter card; otherwise remove all threat from Alert
+  // Level and flip it to High. In either case, in expert mode, place 2[per_hero] threat on Alert Level.
+  "50089a.when-revealed": whenRevealed(
+    ifThen(hasTrait(ALERT_LEVEL, trait("HIGH")), dealEncounterCard(eachPlayer), [
+      removeThreat(threatOn(ALERT_LEVEL), ALERT_LEVEL),
+      flipCard(ALERT_LEVEL),
+    ]),
+    ifThen(inMode("expert"), placeThreat(perHero(2), ALERT_LEVEL)),
+  ),
+  // 3B: "In expert mode, each minion gains quickstrike."
+  "50089b.extract-captives-constant": constant(
+    gainsKeyword({ name: "quickstrike" }, query("minion"), { while: inMode("expert") }),
+  ),
+  // 3B Forced Interrupt: when an enemy attacks, it attacks a Rescued Captive instead (the first player chooses which).
+  "50089b.extract-captives-forced-interrupt": forcedInterrupt(
+    { on: "enemyAttack" },
+    ifThen(exists(RESCUED_CAPTIVE), [
+      chooseTarget("captive", RESCUED_CAPTIVE, { chooser: firstPlayer }),
+      retargetAttack(chosen("captive")),
+    ]),
+  ),
+  // 3B: "If there is no threat here, the players win the game."
+  "50089b.extract-captives-constant-2": stateCheck(not(threatAtLeast(self, 1)), endGame("win")),
+  // 3B: "If this stage is completed [`completionLoses`, data] or there are no Rescued Captive allies in play, the players lose."
+  // `stateCheckFromEntering`: a 3B that turns up with no captive in play is lost at once ("will need at least 1 Rescued
+  // Captive to survive"), not only when the last one goes.
+  "50089b.extract-captives-constant-3": stateCheckFromEntering(not(exists(RESCUED_CAPTIVE)), endGame("loss")),
+
+  // Alert Level, Low side (50090a): at the threshold remove all threat and flip.
+  "50090a.alert-level-constant": stateCheck(atAlertThreshold(), removeThreat(threatOn(self), self), flipCard(self)),
+  "50090a.alert-level-forced-response": alertForcedResponse(),
+  "50090a.alert-level-action": alertAction(),
+
+  // Alert Level, High side (50090b): Batroc gets +1 SCH and +1 ATK; at the threshold the players lose.
+  "50090b.alert-level-constant": constant(gets("sch", 1, BATROC_VILLAIN), gets("atk", 1, BATROC_VILLAIN)),
+  "50090b.alert-level-constant-2": stateCheck(atAlertThreshold(), endGame("loss")),
+  "50090b.alert-level-forced-response": alertForcedResponse(),
+  "50090b.alert-level-action": alertAction(),
+});
+
+const SECOND_HALF = "second half of the module, not started";
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const BATROC_SKIPPED: Readonly<Record<string, string>> = {};
+export const BATROC_SKIPPED: Readonly<Record<string, string>> = {
+  "50091.rescued-captive-action": SECOND_HALF,
+  "50091.rescued-captive-constant": SECOND_HALF,
+  "50092.boost": SECOND_HALF,
+  "50092.heightened-reflexes-forced-interrupt": SECOND_HALF,
+  "50093.embassy-guard-constant": SECOND_HALF,
+  "50093.when-defeated": SECOND_HALF,
+  "50094.embassy-patrol-constant": SECOND_HALF,
+  "50094.when-defeated": SECOND_HALF,
+  "50095.when-defeated": SECOND_HALF,
+  "50095.when-revealed": SECOND_HALF,
+  "50096.when-revealed-alter-ego": SECOND_HALF,
+  "50096.when-revealed-hero": SECOND_HALF,
+  "50097.when-revealed-alter-ego": SECOND_HALF,
+  "50097.when-revealed-hero": SECOND_HALF,
+};
