@@ -658,6 +658,25 @@ export const printedHpOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", o
  */
 export const printedHpNumeralOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", of, numeral: true });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
+/**
+ * "The Board Member environment with the fewest secret counters" (S.H.I.E.L.D. Agent 50172, Zemo's Sword 50170, `aos`;
+ * docs/phase7-wave9.md §3.27): `superlative` measured by each candidate's counters of `counterType` (`"any"`: of any
+ * type). A card holding none counts as 0, so it is the fewest. Ties resolve to every tied card, as any `superlative`:
+ * bind it and let the right player pick, `bindTargets("tied", withFewestCounters(each(BOARD_MEMBERS), "secret"))` then
+ * `chooseTarget("board", { inSlot: "tied" }, { chooser: firstPlayer })` on an encounter card (RRG 1.8 "First Player",
+ * p. 19).
+ */
+export const withFewestCounters = (
+  among: TargetRef,
+  counterType: string,
+  opts: { readonly ties?: "all" | "first" } = {},
+): TargetRef => superlative("lowest", among, countersOn(chosen("candidate"), counterType), opts);
+/** "The [card] with the most [type] counters": see `withFewestCounters`. */
+export const withMostCounters = (
+  among: TargetRef,
+  counterType: string,
+  opts: { readonly ties?: "all" | "first" } = {},
+): TargetRef => superlative("highest", among, countersOn(chosen("candidate"), counterType), opts);
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
 /**

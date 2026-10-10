@@ -2745,6 +2745,28 @@ export const on = {
       opts.by === "you" ? { playerIs: "controller" } : {},
     ),
   /**
+   * "When attached enemy would gain a confused or stunned status card" (Solid Sound Constructs, `aos` 50144;
+   * docs/phase7-wave9.md §3.33; RRG 1.8 "'Would'", p. 48): a status card about to be given to `who` (absent: any
+   * character) by an effect (`giveStatus`, a `divide` of status cards). `statuses`: one type or several (absent:
+   * any). Interrupt only, once per status card, before it is on the character: `instead(...)` or `cancelIt()` leaves
+   * it ungiven (a vulnerable character is then not discarded, and "status cards given this way" does not count it);
+   * otherwise it lands after the interrupt. Not heard for a card the character has no room for (it already holds
+   * one, stalwart: RRG 1.8 "Status Cards", p. 41), nor for one given as a cost, by the toughness keyword or by a
+   * constant. The character is `eventTarget`, the giving card `eventSource`. `by: "you"`: only cards this card's
+   * controller's ability gives.
+   */
+  wouldGainStatus: (
+    who?: Who,
+    statuses?: StatusName | readonly StatusName[],
+    opts: { readonly by?: "you" } = {},
+  ): EventPattern =>
+    pattern(
+      "statusBeingGiven",
+      statuses === undefined ? {} : { eventIs: { status: statuses } },
+      who === undefined ? {} : asTarget(who),
+      opts.by === "you" ? { playerIs: "controller" } : {},
+    ),
+  /**
    * "After MaGog's hit points are reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006): `who` (absent:
    * any character) set to its maximum hit points by `setRemainingHitPoints` (docs/phase7-wave6.md §3.67), MaGog's
    * "reset his hit points instead" with `printedHpOf`/max. Response only; a villain's next stage is not a reset.

@@ -2,6 +2,7 @@
 
 import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
+import { applyStatusBeingGiven, statusStillToGive } from "./status-being-given.js";
 import { resolveTuck } from "./tuck.js";
 import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
@@ -147,6 +148,13 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         frame.event.kind === "cardEntersPlay" &&
         !cardsInPlay(ctx.state).includes(frame.event.instanceId)
       ) {
+        popFrame(ctx);
+        return;
+      }
+      // A status card its character no longer has room for (an earlier give of the same effect landed first, or the
+      // character left play) is not about to be given: no "would gain" window, and nothing is logged, as for a give
+      // that places nothing (docs/phase7-wave9.md §3.33; RRG 1.8 "Status Cards", p. 41).
+      if (frame.event.kind === "statusBeingGiven" && !statusStillToGive(ctx, frame.event)) {
         popFrame(ctx);
         return;
       }
@@ -703,6 +711,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardBeingDiscarded":
       // Its interrupts resolved with the card in the hand or on the deck; it is discarded now (§4.1 Q20).
       return applyWouldDiscard(ctx, event);
+    case "statusBeingGiven":
+      // Its interrupts resolved with the status card not yet given; it is placed now (docs/phase7-wave9.md §3.33).
+      return applyStatusBeingGiven(ctx, event);
     case "formChanging": {
       // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.
       const changed = setForm(ctx, event.playerId, event.to, event.voluntary, event.heroFormIndex);

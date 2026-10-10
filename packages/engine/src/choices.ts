@@ -363,10 +363,15 @@ export type ChoicePrompt =
    *
    * `eachAtLeast`: every card among the options gets at least this many points (a divided basic power's shares, each
    * "at least 1": `basicPowerBy`); `resolveChoice` refuses a selection that leaves one short.
+   *
+   * `what: "counters"` (docs/phase7-wave9.md §3.27): `amount` counters of `counterType` (`"any"`: of any type) are
+   * removed, already no more than the options' cards hold; a card has one option per counter on it, up to `amount`.
    */
   | {
       readonly kind: "divide";
-      readonly what: "damage" | "threat" | "heal" | StatusName;
+      readonly what: "damage" | "threat" | "heal" | "counters" | StatusName;
+      /** With `what: "counters"`: the counter type being removed. */
+      readonly counterType?: string;
       readonly amount: number;
       readonly maxTargets?: number;
       readonly caps?: Readonly<Record<string, number>>;

@@ -728,6 +728,40 @@ export type TriggerEventBody =
       readonly playerId: PlayerId | null;
     }
   /**
+   * A status card is about to be given to a character (docs/phase7-wave9.md §3.33): "Forced Interrupt: When attached
+   * enemy would gain a confused or stunned status card, discard this card instead" (Solid Sound Constructs, `aos`
+   * 50144). The "would" twin of `statusPlaced`: interrupt only (RRG 1.8 "Interrupt", p. 25: a "would" interrupt
+   * resolves "before its triggering condition initiates, when that condition becomes imminent"), one per status card, pushed by an effect
+   * that gives one (`EffectSpec giveStatus`, a `divide` of status cards; `giveStatusOrAnnounce`) only when an ability
+   * hears it, so a game with no such ability, or one whose ability does not match this give, keeps its log, its state
+   * and its replay. The card is not on the character yet. A give the character has no room for is not imminent and
+   * opens no window (RRG 1.8 "Status Cards", p. 41; stalwart, p. 40): the room is read when the give is announced and
+   * again as its window would open, so the second of two stuns given to one character is not asked about once the
+   * first has landed.
+   *
+   * Uncancelled, the card is given as the event applies, through `giveStatus` like any other: `statusPlaced` is
+   * announced, and a vulnerable character is discarded (RRG 1.8 "Vulnerable", p. 48). Cancelled or replaced
+   * (`cancelTriggeringEvent`, `replaceTriggeringEvent`; RRG 1.8 "Replacement Effect", p. 37), no card is given: the
+   * character did not become stunned or confused, so vulnerable does not read it, nothing is announced as placed, and
+   * the giving effect's `<bind>.amount` does not count it.
+   *
+   * `sourceInstanceId` and `playerId` are `statusPlaced`'s: the card whose effect gives it, and the player whose
+   * ability it is ("you"), null for an encounter card's forced ability. `countOn` names the frame variable the giving
+   * effect reads as "status cards given this way" (`EffectSpec giveStatus.bind`), raised by one if the card lands.
+   *
+   * Not announced: a status card given as a cost (`CostSpec giveStatus`; every cost is paid at once, RRG 1.8 "Cost",
+   * p. 13), by the toughness keyword as a character enters play (p. 45), or by a constant's refill (`RuleSpec
+   * keepsGivingStatus`): those keep placing their card at once.
+   */
+  | {
+      readonly kind: "statusBeingGiven";
+      readonly instanceId: InstanceId;
+      readonly status: StatusName;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly countOn?: { readonly frameId: FrameId; readonly name: string };
+    }
+  /**
    * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
    * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
    * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
@@ -1651,6 +1685,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardBeingTucked":
     // "When … would discard a card you control" from a hand or a deck (§4.1 Q20): the discard is still to come.
     case "cardBeingDiscarded":
+    // "When X would gain a stunned status card" (docs/phase7-wave9.md §3.33): the give is still to come.
+    case "statusBeingGiven":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1834,6 +1870,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // The character it was placed on is the target ("on Mister Sinister"); the placing card and player are the source
     // and "you".
     case "statusPlaced":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The character about to get it is the target ("attached enemy"); the giving card and player the source and "you".
+    case "statusBeingGiven":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The attached card is the source ("a Frostbite upgrade"), its host the target ("to an enemy"), the attacher "you".
     case "cardAttached":

@@ -29,7 +29,6 @@ import {
   drawUpTo,
   drawEncounterCard,
   exhaustCard,
-  giveStatus,
   healDamage,
   removeAccelerationToken,
   removeCounters,
@@ -52,6 +51,7 @@ import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } fro
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import { resolveTuck, tuckInsteadOfLeaving, tuckOrAnnounce } from "./tuck.js";
+import { giveStatusOrAnnounce } from "./status-being-given.js";
 import { listensForWouldDiscard, pickRandomFromHand, splitWouldDiscard } from "./would-discard.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive, usesKeyword } from "../keywords.js";
@@ -1433,12 +1433,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       return;
     case "giveStatus": {
-      let given = 0;
       // Whose effect placed it (`TriggerEvent statusPlaced`, docs/phase7-wave7.md §3.27).
       const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
-      for (const id of targets(effect.target)) if (giveStatus(ctx, id, effect.status, by)) given += 1;
-      // docs/phase7-wave4.md §3.60: "If no tough status card was given this way" reads `<bind>.amount`.
-      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
+      // docs/phase7-wave4.md §3.60: "If no tough status card was given this way" reads `<bind>.amount`. A card that
+      // waits for its "would gain a status card" window (docs/phase7-wave9.md §3.33) counts once it lands.
+      const countOn = effect.bind ? { frameId: frame.frameId, name: `${effect.bind}.amount` } : undefined;
+      const gives = targets(effect.target).map((instanceId) => ({ instanceId, count: 1 }));
+      const given = giveStatusOrAnnounce(ctx, gives, effect.status, by, countOn);
+      if (countOn) addFrameVars(ctx, frame.frameId, { [countOn.name]: given });
       return;
     }
     case "removeStatus": {

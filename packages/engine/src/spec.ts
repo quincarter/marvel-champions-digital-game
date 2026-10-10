@@ -2590,8 +2590,24 @@ export type EffectSpec =
        * is split, and none is asked when there is nothing to choose (one candidate, or enough for every candidate to
        * be healed in full). `upTo` lets the chooser heal fewer points, at least 1. Each share is its own `healDamage`
        * event, in the order chosen; `<bind>.amount` is the damage healed in all.
+       *
+       * `{ counters: type }`, with `mode: "remove"`: "Remove 3 secret counters from among Board Member environments"
+       * (Baron Zemo 50165a, Seize Power 50173, `aos`; docs/phase7-wave9.md §3.27). Each point is one counter of that
+       * type taken off a card; `"any"` is a counter of any type (RRG 1.8 "All-Purpose Counter", p. 6). A card gives up
+       * at most the counters it holds, so one holding none is no candidate (RRG 1.8 "Target", p. 43). As with healing,
+       * the whole amount is removed whenever the candidates hold that many and every counter they hold when they hold
+       * fewer; the choice is only the split, from 0 to `amount` on each card within what it holds, and none is asked
+       * when there is nothing to choose (one candidate, or all of every candidate's counters go). `upTo` lets the
+       * chooser remove fewer, at least 1. On an encounter card the chooser is the first player (RRG 1.8 "First
+       * Player", p. 19: "a choice to be made but does not specify which player should act"). Each card's share is
+       * then removed as `EffectSpec removeCounters` removes it, in the order chosen: `countersRemoved` where an
+       * ability hears it, a uses card discarded with its last counter, and for `"any"` on a card holding several
+       * types the resolving player's pick of which (`ChoicePrompt chooseCounters`). `<bind>.amount` is the counters
+       * removed in all and `<bind>.amount.<instanceId>` each card's.
        */
-      readonly what: "damage" | "threat" | "heal" | StatusName;
+      readonly what: "damage" | "threat" | "heal" | StatusName | { readonly counters: string };
+      /** What a division of counters does with each point. Only `"remove"` today; required with `what.counters`. */
+      readonly mode?: "remove";
       readonly amount: ValueSpec;
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;

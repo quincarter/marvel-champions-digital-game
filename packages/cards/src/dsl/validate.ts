@@ -72,6 +72,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkPlays(definition, problems);
   checkTuckReplacement(definition, problems);
   checkLeaveReplacement(definition, problems);
+  checkCounterDivision(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -517,6 +518,9 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     // Nor has a discard from a hand or a deck about to happen (docs/phase7-wave9.md §4.1 Q20).
     if (kinds.includes("cardBeingDiscarded"))
       problems.push("cardBeingDiscarded is interrupt-only: a discard about to happen has no response window");
+    // Nor has a status card about to be given (docs/phase7-wave9.md §3.33): "after" answers `statusPlaced`.
+    if (kinds.includes("statusBeingGiven"))
+      problems.push("statusBeingGiven is interrupt-only: after a status card is placed is on.statusPlaced");
   }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {
@@ -600,6 +604,25 @@ function checkTuckReplacement(definition: AbilityDefinition, problems: string[])
     problems.push(
       "replaceTuckHost needs an interrupt on a tuck about to happen (interrupt(on.cardWouldBeTucked(…), …))",
     );
+}
+
+/**
+ * A `divide` of counters (docs/phase7-wave9.md §3.27) says what happens to each point (`mode`; only `"remove"` exists),
+ * names a counter type, and no other division takes a `mode`. `"allPurpose"` is the word for a counter placed; one
+ * taken is `"any"` (`counter-types.ts`).
+ */
+function checkCounterDivision(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "divide") continue;
+    if (typeof effect.what !== "object") {
+      if (effect.mode !== undefined) problems.push("divide: mode is for a division of counters ({ counters: type })");
+      continue;
+    }
+    if (effect.mode !== "remove") problems.push('divide: a division of counters needs mode "remove"');
+    if (effect.what.counters === "") problems.push("divide: a division of counters names a counter type");
+    if (effect.what.counters === "allPurpose")
+      problems.push('divide: counters of any type are removed as "any", not "allPurpose"');
+  }
 }
 
 /**

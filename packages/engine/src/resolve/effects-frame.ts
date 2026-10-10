@@ -39,6 +39,7 @@ import {
   anyCounterPickMadeVar,
   anyCounterPickVar,
   anyCounterTake,
+  countersOfType,
 } from "../counter-types.js";
 import {
   mostCardsUnderTotal,
@@ -66,7 +67,6 @@ import {
   dealEncounterCardTo,
   discardFromHand,
   expirePaidForEffects,
-  giveStatus,
   changeIdentityForm,
   settleAwaitingAttackEffects,
   shuffleZone,
@@ -150,6 +150,7 @@ import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, eventFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { giveStatusOrAnnounce } from "./status-being-given.js";
 import { splitWouldDiscard } from "./would-discard.js";
 import { hasKeyword, keywordTotal, statusCapacity, wouldDiscardAsVulnerable } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
@@ -763,6 +764,7 @@ function executeDivide(
   context: EffectContext,
 ): void {
   if (effect.what === "heal") return executeHealDivide(ctx, frame, effect, context);
+  if (typeof effect.what === "object") return executeCounterDivide(ctx, frame, effect, effect.what.counters, context);
   if (effect.what !== "damage" && effect.what !== "threat") {
     return executeStatusDivide(ctx, frame, effect, effect.what, context);
   }
@@ -992,6 +994,96 @@ function executeHealDivide(
   );
 }
 
+/** The slot a divided removal binds one card to, for the `removeCounters` that takes its share (`executeCounterDivide`). */
+const dividedCountersSlot = (frameId: string, cursor: number, id: InstanceId): string =>
+  `_dividedCounters.${frameId}.${cursor}.${id}`;
+
+/**
+ * `EffectSpec divide` of counters ("Remove 3 secret counters from among Board Member environments", `aos` 50165a;
+ * docs/phase7-wave9.md §3.27): see `EffectSpec divide.what`. A candidate's cap is the counters of the type it holds;
+ * `total` is what will be removed. Once the split is settled this effect is replaced, in the frame's own list, by one
+ * `removeCounters` per card with a share, in the order chosen, so a divided removal is announced, counted (`bind`) and
+ * followed up (a uses card's discard, the pick among several types for `"any"`) exactly as a plain one.
+ */
+function executeCounterDivide(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "divide" }>,
+  counterType: string,
+  context: EffectContext,
+): void {
+  const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  const caps = new Map<InstanceId, number>();
+  for (const id of selectTargets(ctx.state, effect.among, context)) {
+    const cap = Math.min(amount, countersOfType(ctx.state, id, counterType));
+    if (cap > 0) caps.set(id, cap);
+  }
+  const candidates = [...caps.keys()];
+  const held = [...caps.values()].reduce((sum, cap) => sum + cap, 0);
+  const total = Math.min(amount, held);
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  // Nothing to choose when every candidate gives up all it holds (one candidate included), unless "up to" leaves how
+  // many to the chooser (docs/phase7-wave3.md §3.41, §4 Q16: at least 1), as for a division of healing.
+  const asks = effect.upTo === true ? candidates.length > 0 : candidates.length > 1 && held > amount;
+  if (frame.answer === null && asks && chooser) {
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+      prompt: {
+        kind: "divide",
+        what: "counters",
+        counterType,
+        amount: total,
+        ...(effect.maxTargets !== undefined ? { maxTargets: effect.maxTargets } : {}),
+      },
+      options: candidates.flatMap((id) =>
+        Array.from({ length: caps.get(id) ?? 0 }, (_, n) => ({
+          optionId: `${id}#${n + 1}`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
+      ),
+      minSelections: effect.upTo ? 1 : total,
+      maxSelections: total,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const shares = new Map<InstanceId, number>();
+  if (frame.answer !== null) {
+    for (const optionId of frame.answer) {
+      const id = asInstanceId(optionId.slice(0, optionId.lastIndexOf("#")));
+      if (caps.has(id)) shares.set(id, (shares.get(id) ?? 0) + 1);
+    }
+  } else {
+    // Nobody was asked: all of it, or with no player to ask, the candidates in order until `total` is reached.
+    let left = total;
+    for (const [id, cap] of caps) {
+      const share = Math.min(cap, left);
+      if (share > 0) shares.set(id, share);
+      left -= share;
+    }
+  }
+  const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings };
+  const removals = [...shares].map(([id, share]): EffectSpec => {
+    const slot = dividedCountersSlot(frame.frameId, frame.cursor, id);
+    bindings[slot] = [id];
+    return {
+      kind: "removeCounters",
+      target: { kind: "slot", slot },
+      counterType,
+      amount: { kind: "const", value: share },
+      ...(effect.bind ? { bind: effect.bind } : {}),
+    };
+  });
+  setFrame(ctx, {
+    ...frame,
+    answer: null,
+    bindings,
+    effects: [...frame.effects.slice(0, frame.cursor), ...removals, ...frame.effects.slice(frame.cursor + 1)],
+  });
+}
+
 /**
  * `EffectSpec divide` of status cards ("place a total of 2 stun status cards on up to 2 enemies", Thwip Thwip!, `spdr`
  * 31017): see `EffectSpec divide.what`. Each candidate's room is its `statusCapacity` less what it holds (RRG 1.8
@@ -1050,12 +1142,12 @@ function executeStatusDivide(
     shares.set(candidates[0], caps[candidates[0]] ?? 0);
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-  let given = 0;
   const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
-  for (const [id, count] of shares) {
-    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status, by)) given += 1;
-  }
-  if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
+  // Each card through its "would gain a status card" window when an ability hears it (docs/phase7-wave9.md §3.33).
+  const countOn = effect.bind ? { frameId: frame.frameId, name: `${effect.bind}.amount` } : undefined;
+  const gives = [...shares].map(([instanceId, count]) => ({ instanceId, count }));
+  const given = giveStatusOrAnnounce(ctx, gives, status, by, countOn);
+  if (countOn) addFrameVars(ctx, frame.frameId, { [countOn.name]: given });
 }
 
 const HERO_FORM = "_heroForm.";

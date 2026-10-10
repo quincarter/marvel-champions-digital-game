@@ -2098,10 +2098,11 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
  * characters you control" (Compassion, `mut_gen` 32182) is `divide("heal", 3, query("character", { controller: "you"
  * }))`, no character healed of more than the damage on it. Threat divided by a "(thwart)"-labeled ability is thwarted:
  * the shares are instances of one thwart by your identity (RRG 1.8 "Labeled Ability", p. 26; "Thwart", p. 44), so
- * "after you thwart" answers the whole division once.
+ * "after you thwart" answers the whole division once. `{ counters: type }` divides a removal of counters; write it
+ * with `removeCountersAmong`.
  */
 export const divide = (
-  what: "damage" | "threat" | "heal" | StatusName,
+  what: "damage" | "threat" | "heal" | StatusName | { readonly counters: string },
   n: Amount,
   among: TargetQuery,
   opts: {
@@ -2118,6 +2119,7 @@ export const divide = (
 ): EffectSpec => ({
   kind: "divide",
   what,
+  ...(typeof what === "object" ? { mode: "remove" as const } : {}),
   amount: amount(n),
   among,
   chooser: opts.chooser ?? you,
@@ -2125,6 +2127,22 @@ export const divide = (
   ...(opts.upTo ? { upTo: true as const } : {}),
   ...(opts.maxTargets !== undefined ? { maxTargets: opts.maxTargets } : {}),
 });
+
+/**
+ * "Remove N [type] counters from among X" (docs/phase7-wave9.md §3.27): "Remove 3 secret counters from among Board
+ * Member environments" (Baron Zemo, `aos` 50165a) is `removeCountersAmong("secret", 3, BOARD_MEMBERS, { chooser:
+ * firstPlayer })`. As many as `n` are removed, fewer when the cards hold fewer; the chooser splits them, from 0 to `n`
+ * on each card within what it holds, and is not asked when there is nothing to choose. `counterType` `"any"`: counters
+ * of any type (RRG 1.8 "All-Purpose Counter", p. 6). On an encounter card pass `chooser: firstPlayer` (RRG 1.8 "First
+ * Player", p. 19); the default is this card's controller. `upTo`: the chooser may remove fewer, at least 1. `bind`:
+ * `<bind>.amount` counters removed in all, `<bind>.amount.<instanceId>` from each card.
+ */
+export const removeCountersAmong = (
+  counterType: string,
+  n: Amount,
+  among: TargetQuery,
+  opts: { readonly chooser?: PlayerRef; readonly bind?: string; readonly upTo?: boolean } = {},
+): EffectSpec => divide({ counters: counterType }, n, among, opts);
 
 /**
  * "Choose two of the following (you may choose the same option twice)" (Double Time, `qsv`/`scw`): the plural form

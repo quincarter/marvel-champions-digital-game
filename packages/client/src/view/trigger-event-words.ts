@@ -37,6 +37,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   countersPlaced: "counters placed",
   statusDiscarded: "a status discarded",
   statusPlaced: "a status placed",
+  statusBeingGiven: "a status about to be given",
   hitPointsReset: "hit points reset",
   cardAttached: "a card attached",
   keywordIgnored: "a keyword ignored",
