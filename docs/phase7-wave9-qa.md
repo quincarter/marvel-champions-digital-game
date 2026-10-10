@@ -64,3 +64,77 @@ Rifle (aliases of earlier scripts), Klaw, the two M.U.S.I.C. cards, Joystick, En
   ruling found, not tested.
 - **Quickstrike on a minion Infiltration 51015 puts into play** is owner question 25 (it attacks); not re-tested here.
 - No FFG ruling in the file names a bp card or Special-based mechanic, and no conflict between the RRG and a ruling was found for this pack.
+
+## Silk (silk)
+
+Scope: 52001a/b to 52038 (scripts in `packages/cards/src/wave9/silk/`, data in `packages/content/src/data/silk/cards.ts`). Every script was read
+against the printed text in the data. Regression tests: `packages/cards/src/wave9/silk/rulings.qa.test.ts` (15 tests, none of them `it.fails`).
+The module tests are thorough (about 400 cases, including the Q7 cases for Cindy Moon, Swinging Silk Kick, Wallcrawl and the four-card cap);
+this file holds only interactions they do not assert.
+
+### Findings
+
+None. Every case written against an RRG entry, a ruling or an owner decision passed on the first run after the test setup was right (three
+early failures were mistakes in the test staging, not in the game: a filler card that was in Rhino's set, a defeat staged out of turn, and a
+picker that named the same card for two different prompts).
+
+### Checked, no findings
+
+- **Stun and Confuse against labeled events and basic-power upgrades (RRG "Labeled Ability", "Stun, Stunned", "Confuse, Confused"; ruling
+  Aug 13, 2026 (1)).** A stunned hero playing Swinging Silk Kick 52003 loses the whole ability: no damage, and the optional discard of a tucked
+  card is not made (it is part of the effect, not a cost), while the event is still played. A confused hero playing Wallcrawl 52004 removes
+  neither the 2 nor the 3 threat and keeps the tucked card. A stunned hero's basic attack and a confused hero's basic thwart are replaced by
+  discarding the status card, so Spider Claws 52011 and Outwit 52010 are not offered and stay ready ("not considered to have attacked").
+- **Silk Sense 52001a through events and Overkill.** Swinging Silk Kick with a matching tucked card defeats Sandman (4 hit points) with 9
+  damage: the 5 excess damage goes to Rhino (RRG "Overkill") and Silk Sense is offered for the defeat and tucks Sandman. Wallcrawl removing the
+  last threat from a side scheme is Silk's defeat, and the response is offered.
+- **Response timing inside an event (RRG "Initiating Abilities" step 7; FAQ "Tigra (#51)").** Silk Sense is offered immediately after the
+  side scheme is defeated by Wallcrawl's first sentence, before its second sentence resolves, so the side scheme just tucked is a legal card
+  to discard for the 3 additional threat when it shares an encounter set with the chosen scheme. This follows the FAQ's "immediately after"
+  reading; recorded here because it is a surprising consequence for a player.
+- **Silk Sense and another player.** In a two-player game, the other player's basic attack that defeats a minion does not offer Silk Sense
+  to the Silk player, and nothing is tucked.
+- **Silk Sense on a treachery that tucks itself.** Hunting the Spider-Bride 52031 revealed with Silk Sense accepted: the card is tucked once
+  (by its own When Revealed), is not in the encounter discard pile, and is not tucked a second time.
+- **Eidetic Memory 52008 (erratum, RRG p. 70).** A boost card of the tucked card's encounter set is flipped, not revealed, so the interrupt
+  is not offered (control: the same card dealt to Silk is offered). In a two-player game a card the other player reveals does not open
+  Silk's interrupt ("when you reveal"). Ruling April 30, 2026, Ruling 3 (3) (flipping an environment is not a reveal) is a scenario case
+  (Wheel of Genres, Alert Level) outside this pack's fixtures; `docs/phase7-wave9.md` section 3.16 already carries it.
+- **Spider Reflexes 52012 under Silk Sense Overload 52028.** The after-the-attack tuck is a player card's (an upgrade), so the encounter
+  card goes under the obligation, and nothing goes under Silk. The module tests cover Albert Moon, Smooth as Silk, Get the Scoop and an
+  encounter card's own tuck.
+- **Organic Webbing 52009 discarding a Hunting the Spider-Bride (owner decision Q7 = A).** The discard is a cost of a player card's
+  ability, so the 2 damage is dealt to Silk, the Bride goes to the encounter discard pile and Webbing is exhausted. The module tests cover the
+  same for Cindy Moon's action.
+- **"Stop Hitting Yourself" 52016 with a tough status card (RRG "Tough").** Silk defending an attack that would deal 1 damage after her DEF
+  and absorbing it with a tough status card "is not considered to have taken damage", so the response is offered (control: with 1 damage
+  taken it is not).
+- **Wallcrawl 52004 and the crisis icon (RRG "Crisis Icon").** With Crowd Control (crisis) in play, the 2 threat comes off Crowd Control but
+  the 3 aimed at the main scheme is not removed.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: both faces of the four-card cap (a state check, the
+controller picks the four that stay), Cindy Moon's discard cost and once-per-round limit, Smooth as Silk (until-discard, empty deck fulfills
+the effect, RRG "Encounter Deck"), Get the Scoop (any player, `triggerableBy`, the Cindy Moon player tucks), Albert Moon, J. Jonah Jameson,
+the Outwit/Spider Claws counts by encounter set with piercing, Spider Reflexes' DEF, Morlun's constant and When Defeated, The Great Hunt,
+Silk Sense Overload's redirect and "then", Hunting the Spider-Bride (Q7), the Growing Strong set (Atlas, Grow Invulnerable, Growing Strong,
+Titanic Proportions) and the basic cards (reprints of Rogue's Not Today!, Spider-Man 27049 and Across the Spider-Verse 27018 are aliases of
+those scripts; Quick Quip is the wave 5 script).
+
+### Thin coverage and open points
+
+- **Stunned or confused Atlas against Growing Strong 52037.** The text gains surge "if no enemy activated this way", and RRG "Stun, Stunned"
+  says a stunned enemy "is not considered to have attacked" (RRG "Activation": attacking or scheming is activating), so a stunned Atlas
+  should leave surge in place. Not tested: an Atlas already in play activates in the villain phase's step 2 and spends the stun before the
+  encounter card is revealed, and the harness has no way to stop between steps. Needs a stepwise driver or a reveal outside the villain phase.
+- **Wallcrawl when the removal is prevented.** With the 3 threat prevented by a crisis icon, the tucked card is still discarded (the
+  discard is "may ... to remove"). No ruling found; not pinned.
+- **Albert Moon's heal option with nothing tucked** (heals 0): no ruling on offering an option that does nothing; not tested.
+- **Eliminated player.** RRG "Elimination" moves an eliminated player's minions with their tucked cards; what happens to cards tucked under
+  an eliminated identity (an identity that leaves play discards them, RRG "Tuck") is not tested, nor is the Spider-Bride's "that identity
+  takes 2 damage" for it.
+- No FFG ruling in the file names a silk card except Ruling April 30, 2026, Ruling 3 (3) (Eidetic Memory) and Ruling December 17, 2025,
+  Ruling 2 ("Stop Hitting Yourself"'s DEF), both already asserted by the module tests; no conflict between the RRG and a ruling was found
+  for this pack. The RRG's own wording on responses ("may be resolved after the specified triggering condition occurs") and on step 7 of
+  "Initiating Abilities" agree with the FAQ's Tigra answer.
