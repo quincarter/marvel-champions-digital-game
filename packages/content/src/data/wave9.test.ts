@@ -350,6 +350,16 @@ describe("wave 9 data: scan corrections (docs/phase7-wave9.md section 1.14)", ()
     }
   });
 
+  it("Disavowed (50180) prints no trait line (the S.H.I.E.L.D. footer is the set name)", () => {
+    const card = find(AOS_CARDS, "50180") as { traits: readonly unknown[] } | undefined;
+    expect(card?.traits).toEqual([]);
+  });
+
+  it("Arrest Warrant (50179) keeps its printed S.H.I.E.L.D. trait", () => {
+    const card = find(AOS_CARDS, "50179") as { traits: readonly unknown[] } | undefined;
+    expect(card?.traits).toEqual(["S.H.I.E.L.D."]);
+  });
+
   it("the M.O.D.O.K. set title keeps its last period", () => {
     expect(AOS_ENCOUNTER_SETS.find((e) => (e.id as string) === "m.o.d.o.k.")?.name).toBe("M.O.D.O.K.");
   });

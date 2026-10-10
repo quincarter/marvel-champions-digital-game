@@ -161,6 +161,14 @@ export const AOS_CURATION: PackCuration = {
         'Survey section 4.5 (raw typo; the possessive "Batroc\'s" is the set name `batrocs_brigade` / "Batroc\'s Brigade"). The scan 50087a.png is a main scheme side with the same line.',
       textReplace: { find: "Batrocs's Brigade", replace: "Batroc's Brigade" },
     },
+    {
+      code: "50180",
+      reason:
+        'MarvelCDB sends `traits: "S.H.I.E.L.D."` for Disavowed; it took the encounter set name (the footer "S.H.I.E.L.D. (5/5)") for a trait. The card prints no trait line, and its own text counts each S.H.I.E.L.D. card in play, so a wrong trait would count the scheme itself.',
+      evidence:
+        "Scan 50180.png (read 2026-10-09): the text box runs from the italic flavor text straight to the rules text with no bold italic trait line; the only S.H.I.E.L.D. outside the rules text is the set footer. Arrest Warrant 50179 does print a S.H.I.E.L.D. trait line (scan 50179.png), which is why the raw data differs between the two.",
+      traits: [],
+    },
   ],
 
   encounterSets: {

@@ -46,8 +46,8 @@ const SHIELD_MINION = query("minion", { trait: SHIELD_TRAIT });
  * (it engages them). "Discard this card" follows however the search ended (no minion to find included).
  *
  * **Disavowed (50180)**: each S.H.I.E.L.D. card costs 1 more to play, whoever plays it, while the scheme is in play.
- * When Revealed: 1 threat here for each S.H.I.E.L.D. card in play (the scheme itself counts: it is in play and has the
- * trait), on top of its printed starting threat.
+ * When Revealed: 1 threat here for each S.H.I.E.L.D. card in play, on top of its printed starting threat. The scheme
+ * does not count itself: it prints no trait line (the "S.H.I.E.L.D." in its footer is the encounter set name).
  *
  * Cards (3):
  * - 50178 S.H.I.E.L.D. Trooper (minion)

@@ -651,7 +651,14 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("50177"), cardSetCode: "baron_zemo", marvelcdbCodes: ["50177"], corrections: [] },
   { cardId: cardId("50178"), cardSetCode: "s.h.i.e.l.d.", marvelcdbCodes: ["50178"], corrections: [] },
   { cardId: cardId("50179"), cardSetCode: "s.h.i.e.l.d.", marvelcdbCodes: ["50179"], corrections: [] },
-  { cardId: cardId("50180"), cardSetCode: "s.h.i.e.l.d.", marvelcdbCodes: ["50180"], corrections: [] },
+  {
+    cardId: cardId("50180"),
+    cardSetCode: "s.h.i.e.l.d.",
+    marvelcdbCodes: ["50180"],
+    corrections: [
+      "50180: MarvelCDB sends `traits: \"S.H.I.E.L.D.\"` for Disavowed; it took the encounter set name (the footer \"S.H.I.E.L.D. (5/5)\") for a trait. The card prints no trait line, and its own text counts each S.H.I.E.L.D. card in play, so a wrong trait would count the scheme itself. [evidence: Scan 50180.png (read 2026-10-09): the text box runs from the italic flavor text straight to the rules text with no bold italic trait line; the only S.H.I.E.L.D. outside the rules text is the set footer. Arrest Warrant 50179 does print a S.H.I.E.L.D. trait line (scan 50179.png), which is why the raw data differs between the two.]",
+    ],
+  },
   {
     cardId: cardId("50181a"),
     cardSetCode: "s.h.i.e.l.d._executive_board",

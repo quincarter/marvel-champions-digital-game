@@ -4675,7 +4675,7 @@ export const AOS_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 2, perPlayer: 0 },
     icons: ["hazard"],
     boostIcons: 3,
-    traits: [trait("S.H.I.E.L.D.")],
+    traits: [],
     keywords: [],
     text: {
       printed: "Increase the resource cost to play each S.H.I.E.L.D. card by 1.\nWhen Revealed: Place 1 threat here for each S.H.I.E.L.D. card in play.",

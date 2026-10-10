@@ -266,14 +266,14 @@ describe("Arrest Warrant (50179)", () => {
 });
 
 describe("Disavowed (50180)", () => {
-  it("is data: a S.H.I.E.L.D. side scheme, 2 starting threat flat, a hazard icon, 3 boost icons", () => {
+  it("is data: a side scheme with no printed trait, 2 starting threat flat, a hazard icon, 3 boost icons", () => {
     const card = dataOf(DISAVOWED);
     expect([card.type, card.startingThreat, card.icons, card.boostIcons, card.traits]).toEqual([
       "side_scheme",
       { base: 2, perPlayer: 0 },
       ["hazard"],
       3,
-      ["S.H.I.E.L.D."],
+      [],
     ]);
   });
 
@@ -281,8 +281,8 @@ describe("Disavowed (50180)", () => {
     const { state } = controlling(setupGame(), MARIA_HILL_ALLY);
     const run = villainPhase(heroForm(state), [BLANK, DISAVOWED, FILLER_A]);
     const id = inPlayCard(run.state, DISAVOWED)!;
-    // Maria Hill and Disavowed itself: 2 S.H.I.E.L.D. cards in play.
-    expect(inst(run.state, id).threat).toBe(2 + 2);
+    // Maria Hill is the only S.H.I.E.L.D. card in play: Disavowed prints no trait line, so it does not count itself.
+    expect(inst(run.state, id).threat).toBe(2 + 1);
   });
 
   it("the cost modifier: each S.H.I.E.L.D. ally, support and event costs 1 more, an unaffected card is unchanged", () => {
