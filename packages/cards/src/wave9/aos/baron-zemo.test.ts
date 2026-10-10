@@ -224,13 +224,7 @@ describe("registry", () => {
 
   it("skips only the refs that wait on the engine (the encounter cards are tested in baron-zemo-encounter.test.ts)", () => {
     expect(Object.keys(BARON_ZEMO_SKIPPED).sort()).toEqual(
-      [
-        "50171.reluctant-foe-constant",
-        "50171.when-defeated",
-        "50171.when-revealed",
-        "50173.divided-loyalties-constant",
-        "50175.when-revealed",
-      ].sort(),
+      ["50171.reluctant-foe-constant", "50171.when-defeated", "50171.when-revealed", "50175.when-revealed"].sort(),
     );
   });
 

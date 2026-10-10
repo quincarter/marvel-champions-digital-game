@@ -26,6 +26,7 @@ import {
 } from "../testing/harness.js";
 import { driveEventsPicking, withForm } from "../testing/staging.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
+import { withoutBackFaces } from "./setup.js";
 
 /**
  * Shared scenario helpers for the wave 9 encounter-set tests (Rhino from Core against a Core starter deck, a
@@ -155,7 +156,8 @@ export function setKit(setId: string, module: AbilityRegistry) {
       cardPool: [...CORE_CARDS, ...AOS_CARDS],
     });
     const cards = AOS_CARDS.filter((c) => "encounterSetIds" in c && c.encounterSetIds.includes(encounterSetId(setId)));
-    const copies = cards.flatMap((c) => Array.from({ length: c.quantityInSet }, () => c.id));
+    // A double-sided card is dealt once, as its front face (the builder's rule, `withoutBackFaces`).
+    const copies = withoutBackFaces(cards.flatMap((c) => Array.from({ length: c.quantityInSet }, () => c.id)));
     const created = createGame({ ...config, encounterDeck: [...config.encounterDeck, ...copies] }, deps);
     if (!created.ok) throw new Error(created.error.message);
     return settle(created.state, firstLegal, (s) => s.step.phase === "player", deps);

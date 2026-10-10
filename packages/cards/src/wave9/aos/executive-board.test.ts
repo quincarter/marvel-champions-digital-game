@@ -149,7 +149,13 @@ describe("registry", () => {
 
   it("Setup puts the three Board Member environments in play, with no secret counters, and the other faces in the deck", () => {
     const s = setupGame();
-    expect(s.villainArea.map((id) => codeOf(s, id)).filter((c) => ENVIRONMENTS.includes(c))).toEqual(ENVIRONMENTS);
+    // The deal order is seed-dependent, so compare sorted.
+    expect(
+      s.villainArea
+        .map((id) => codeOf(s, id))
+        .filter((c) => ENVIRONMENTS.includes(c))
+        .sort(),
+    ).toEqual([...ENVIRONMENTS].sort());
     for (const c of ENVIRONMENTS) expect(secretsOn(s, idOf(s, c))).toBe(0);
   });
 

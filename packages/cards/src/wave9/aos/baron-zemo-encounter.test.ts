@@ -1,4 +1,11 @@
-import { activeEncounterDeckId, createGame, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  applyCommand,
+  createGame,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { mergeRegistries } from "../../dsl/index.js";
 import { validateDefinition } from "../../dsl/validate.js";
@@ -42,7 +49,7 @@ vi.setConfig({ testTimeout: 300_000 });
  * The encounter cards of the Baron Zemo set (50170 to 50177; docs/phase7-wave9.md sections 3.27, 3.30, 3.31, owner
  * answer Q28 = A). The real Zemo scenario with the Executive Board, driven by real turns: the encounter deck is stacked
  * top first (Zemo's boost card, then the cards the players are dealt). Battle of Wits (no engine hook), Reluctant Foe
- * (engine task 21) and Divided Loyalties' constant (engine task 22) are skipped.
+ * (engine task 21) are skipped.
  */
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, BARON_ZEMO, EXECUTIVE_BOARD) };
 
@@ -73,6 +80,7 @@ const REFS = [
   "50170.baron-zemos-sword-forced-response",
   "50170.baron-zemos-sword-action",
   "50172.shield-agent-forced-interrupt",
+  "50173.divided-loyalties-constant",
   "50173.when-defeated",
   "50174.undermine-support-constant",
   "50174.when-defeated",
@@ -81,13 +89,7 @@ const REFS = [
   "50177.when-revealed",
 ];
 
-const SKIPPED = [
-  "50171.reluctant-foe-constant",
-  "50171.when-defeated",
-  "50171.when-revealed",
-  "50173.divided-loyalties-constant",
-  "50175.when-revealed",
-];
+const SKIPPED = ["50171.reluctant-foe-constant", "50171.when-defeated", "50171.when-revealed", "50175.when-revealed"];
 
 function open(players: readonly (typeof SPIDER_MAN | typeof IRON_MAN)[] = [SPIDER_MAN], hero = true): GameState {
   const created = createGame(wave9Scenario("baron-zemo", { players, seed: 1, difficulty: "standard" }), DEPS);
@@ -182,10 +184,9 @@ describe("registry", () => {
     for (const [id, def] of Object.entries(BARON_ZEMO)) expect(validateDefinition(def), id).toEqual([]);
   });
 
-  it("skips exactly Reluctant Foe, Divided Loyalties' constant and Battle of Wits, each with its reason", () => {
+  it("skips exactly Reluctant Foe and Battle of Wits, each with its reason", () => {
     expect(Object.keys(BARON_ZEMO_SKIPPED).sort()).toEqual([...SKIPPED].sort());
     expect(BARON_ZEMO_SKIPPED["50171.when-revealed"]).toContain("engine task 21");
-    expect(BARON_ZEMO_SKIPPED["50173.divided-loyalties-constant"]).toContain("engine task 22");
     expect(BARON_ZEMO_SKIPPED["50175.when-revealed"]).toContain("no engine hook");
     for (const id of SKIPPED) expect(BARON_ZEMO[id]).toBeUndefined();
   });
@@ -358,6 +359,112 @@ describe("Might Makes Right (50176)", () => {
     expect(run.events.filter((e) => e.type === "attackResolved")).toHaveLength(1);
     expect(inst(run.state, identity).damage).toBe(0);
     expect(total(run.state)).toBe(total(start) - 3);
+  });
+});
+
+describe("Divided Loyalties (50173): an ally's attack, thwart and defense cost 1 more resource", () => {
+  /** Spider-Man with Black Cat (an ally) in play and the side scheme in the villain area. */
+  function loyal(withScheme = true) {
+    const base = withCounters(open());
+    const cat = playFromHand(DEPS, base, "01002", 2);
+    const staged = withScheme ? encounterCardInVillainArea(cat.state, "50173", 3) : { state: cat.state, id: undefined };
+    return { state: staged.state, cat: cat.id, scheme: staged.id! };
+  }
+  const handOf = (s: GameState) => playerOf(s, P1).hand;
+  const attackBy = (s: GameState, cat: InstanceId, payment?: readonly { fromHand: InstanceId }[]) =>
+    applyCommand(
+      s,
+      {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: cat,
+        targetInstanceId: villainOf(s),
+        ...(payment ? { payment } : {}),
+      },
+      DEPS,
+    );
+  const thwartBy = (s: GameState, cat: InstanceId, scheme: InstanceId, payment?: readonly { fromHand: InstanceId }[]) =>
+    applyCommand(
+      s,
+      {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: cat,
+        schemeInstanceId: scheme,
+        ...(payment ? { payment } : {}),
+      },
+      DEPS,
+    );
+
+  it("an ally's basic attack pays 1 resource from the hand, and the attack resolves", () => {
+    const { state, cat } = loyal();
+    const [card] = handOf(state);
+    const result = attackBy(state, cat, [{ fromHand: card! }]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(handOf(result.state)).toHaveLength(handOf(state).length - 1);
+    expect(playerOf(result.state, P1).discard).toContain(card);
+    expect(inst(result.state, cat).exhausted).toBe(true);
+    expect(inst(result.state, villainOf(state)).damage).toBeGreaterThan(0);
+  });
+
+  it("an ally's basic thwart pays 1 resource from the hand", () => {
+    const { state, cat, scheme } = loyal();
+    const [card] = handOf(state);
+    const result = thwartBy(state, cat, scheme, [{ fromHand: card! }]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(handOf(result.state)).toHaveLength(handOf(state).length - 1);
+    expect(inst(result.state, cat).exhausted).toBe(true);
+    expect(inst(result.state, scheme).threat).toBeLessThan(3);
+  });
+
+  it("unpaid, the ally's attack and thwart are refused and it stays ready", () => {
+    const { state, cat, scheme } = loyal();
+    for (const result of [attackBy(state, cat), thwartBy(state, cat, scheme)]) {
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("insufficient_resources");
+    }
+    expect(inst(state, cat).exhausted).toBe(false);
+  });
+
+  it("the hero's own attack and thwart cost nothing", () => {
+    const { state, scheme } = loyal();
+    const hand = handOf(state);
+    const attack = heroAttacks(DEPS, state, villainOf(state));
+    expect(handOf(attack.state)).toEqual(hand);
+    expect(inst(attack.state, villainOf(state)).damage).toBeGreaterThan(0);
+    const thwart = heroThwarts(DEPS, state, scheme);
+    expect(handOf(thwart.state)).toEqual(hand);
+    expect(inst(thwart.state, scheme).threat).toBeLessThan(3);
+  });
+
+  it("an ally defending pays 1 resource; an ally that is not paid for does not defend", () => {
+    const { state, cat } = loyal();
+    const paid = villainPhase(state, [BLANK, ONE_ICON], scripted({ defender: cat, pay: 1 }));
+    expect(paid.events.some((e) => e.type === "characterDefeated" && e.instanceId === cat)).toBe(true);
+    expect(paid.events.some((e) => e.type === "additionalPowerCostPaid" && e.power === "defend")).toBe(true);
+    const unpaid = villainPhase(state, [BLANK, ONE_ICON], scripted({ defender: cat, pay: 0 }));
+    expect(unpaid.events.some((e) => e.type === "characterDefeated" && e.instanceId === cat)).toBe(false);
+    expect(unpaid.events.some((e) => e.type === "additionalPowerCostPaid")).toBe(false);
+  });
+
+  it("the cost ends when Divided Loyalties leaves play", () => {
+    const { state, cat, scheme } = loyal();
+    expect(attackBy(state, cat).ok).toBe(false);
+    const thin = patchInstance(state, scheme, { threat: 1 });
+    const gone = heroThwarts(DEPS, thin, scheme);
+    expect(piles(gone.state).discard).toContain(scheme);
+    const [card] = handOf(gone.state);
+    const free = attackBy(gone.state, cat);
+    expect(free.ok).toBe(true);
+    if (free.ok) expect(handOf(free.state)).toEqual(handOf(gone.state));
+    expect(card).toBeDefined();
+  });
+
+  it("without the side scheme an ally attacks for free", () => {
+    const { state, cat } = loyal(false);
+    expect(attackBy(state, cat).ok).toBe(true);
   });
 });
 

@@ -6,6 +6,7 @@ import {
   accusedWrong,
   addCounters,
   additionalCostToReady,
+  additionalPowerCost,
   advanceMainScheme,
   allOf,
   bindTargets,
@@ -185,7 +186,7 @@ const swordPayment = (type: "physical" | "energy") =>
  * - 50170 Baron Zemo's Sword (attachment)
  * - 50171 Reluctant Foe (attachment; skipped, engine task 21)
  * - 50172 S.H.I.E.L.D. Agent (minion)
- * - 50173 Divided Loyalties (side_scheme; its constant is skipped, engine task 22)
+ * - 50173 Divided Loyalties (side_scheme)
  * - 50174 Undermine Support (side_scheme)
  * - 50175 Battle of Wits (treachery; skipped, no engine hook)
  * - 50176 Might Makes Right (treachery)
@@ -274,7 +275,8 @@ export const BARON_ZEMO: AbilityRegistry = defineAbilities({
     ...placeOnFewest(1),
   ),
 
-  // Divided Loyalties' "additional cost for an ally" waits on engine task 22 (BARON_ZEMO_SKIPPED); Hinder is data.
+  // Divided Loyalties: Hinder is data; every ally's attack, thwart and defense costs its player 1 more resource.
+  "50173.divided-loyalties-constant": constant(additionalPowerCost(query("ally"), ["attack", "thwart", "defend"], 1)),
   "50173.when-defeated": removePerHero(),
 
   // Undermine Support: readying a support costs its readier 1 resource of any type (RRG "Ready", p. 36: may decline).
@@ -318,8 +320,6 @@ export const BARON_ZEMO_SKIPPED: Readonly<Record<string, string>> = {
   "50171.reluctant-foe-constant": "waits on engine task 21 (an identity card from the collection treated as a minion)",
   "50171.when-defeated": "waits on engine task 21 (removing the hero and the attachment from the game)",
   "50171.when-revealed": "waits on engine task 21 (the collection search for a hero and putting it into play)",
-  "50173.divided-loyalties-constant":
-    "waits on engine task 22 (additionalPowerCost over allies' attack, thwart and defense)",
   "50175.when-revealed":
     "no engine hook: 'If this activation would place any threat on the main scheme, you may spend X mental resources to prevent X' needs a way for the revealing treachery (not in play, so its triggers are not gathered) to interrupt the scheme activation it starts; enemyScheme has divert/schBonus but no payment-and-prevent option",
 };

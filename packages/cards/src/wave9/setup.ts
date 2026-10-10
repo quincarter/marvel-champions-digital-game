@@ -65,7 +65,7 @@ const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
 };
 
 /** A double-sided encounter card whose two faces are both in one deck is one card: its front face. */
-function withoutBackFaces(deck: readonly CardId[]): CardId[] {
+export function withoutBackFaces(deck: readonly CardId[]): CardId[] {
   const inDeck = new Set<string>(deck);
   return deck.filter((id) => {
     const other = cardsById.get(id)?.otherFaceId;
