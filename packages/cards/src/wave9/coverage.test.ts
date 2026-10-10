@@ -49,6 +49,7 @@ import {
   NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./aos/nick-fury/support-upgrades-allies.js";
 import { PALE_LITTLE_SPIDER, PALE_LITTLE_SPIDER_SKIPPED } from "./aos/pale-little-spider.js";
+import { BP_ASPECT_BASIC, BP_ASPECT_BASIC_SKIPPED } from "./bp/aspect-basic.js";
 import { BLACK_PANTHER_EVENTS, BLACK_PANTHER_EVENTS_SKIPPED } from "./bp/black-panther/events.js";
 import { BLACK_PANTHER_IDENTITY, BLACK_PANTHER_IDENTITY_SKIPPED } from "./bp/black-panther/identity.js";
 import {
@@ -265,6 +266,33 @@ const SCRIPTED_MODULES: Readonly<
     },
   ],
   bp: [
+    {
+      module: "aspect-basic",
+      cardIds: [
+        "51014",
+        "51015",
+        "51016",
+        "51017",
+        "51018",
+        "51019",
+        "51020",
+        "51021",
+        "51022",
+        "51023",
+        "51024",
+        "51025",
+        "51026",
+        "51027",
+        "51028",
+        "51029",
+        "51030",
+        "51036",
+        "51037",
+        "51038",
+      ],
+      registry: BP_ASPECT_BASIC,
+      skipped: BP_ASPECT_BASIC_SKIPPED,
+    },
     {
       module: "black-panther/identity",
       cardIds: ["51001a"],
