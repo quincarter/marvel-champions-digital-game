@@ -66,7 +66,11 @@ import {
 } from "./bp/black-panther/obligation-nemesis.js";
 import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
-import { FALCON_ASPECT_BASIC, FALCON_ASPECT_BASIC_SKIPPED } from "./falcon/aspect-basic.js";
+import {
+  FALCON_ASPECT_BASIC,
+  FALCON_ASPECT_BASIC_SKIPPED,
+  FLIGHT_SQUADRON_GRANTED_RESPONSE,
+} from "./falcon/aspect-basic.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./falcon/falcon/identity.js";
 import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
@@ -124,7 +128,7 @@ const SCRIPTED_MODULES: Readonly<
       readonly cardIds: readonly string[];
       readonly registry: AbilityRegistry;
       readonly skipped: Readonly<Record<string, string>>;
-      /** Registry entries listed on no card: an ability a rule grants (Night Vision Goggles 50070). */
+      /** Registry entries listed on no card: an ability a rule grants (Night Vision Goggles 50070) or a quoted one a card gives itself (Flight Squadron 53020). */
       readonly registryOnly?: readonly string[];
     }>
   >
@@ -464,6 +468,7 @@ const SCRIPTED_MODULES: Readonly<
       ],
       registry: FALCON_ASPECT_BASIC,
       skipped: FALCON_ASPECT_BASIC_SKIPPED,
+      registryOnly: [FLIGHT_SQUADRON_GRANTED_RESPONSE],
     },
     {
       module: "falcon/identity",

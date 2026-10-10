@@ -1,11 +1,14 @@
-import { createGame, type EngineDeps, type GameState } from "@mc/engine";
+import { abilityId, cardId } from "@mc/content";
+import { createGame, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { coreScenario } from "../../core/setup.js";
 import { mergeRegistries } from "../../dsl/index.js";
 import { firstLegal, settle } from "../../testing/harness.js";
 import { withForm } from "../../testing/staging.js";
+import { wave1StarterDeckSetup } from "../../wave1/setup.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
-import { FALCON_ASPECT_BASIC } from "./aspect-basic.js";
+import { wave9StarterDeckSetup } from "../setup.js";
+import { FALCON_ASPECT_BASIC, FLIGHT_SQUADRON_GRANTED_RESPONSE } from "./aspect-basic.js";
 import { falconSeat } from "./testing.js";
 
 /**
@@ -20,7 +23,20 @@ export const ASPECT_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILIT
  * of a card by another (the deck is then not legal, so legality is unchecked).
  */
 export function aspectGame(
-  opts: { readonly seed?: number; readonly second?: boolean; readonly swap?: Readonly<Record<string, string>> } = {},
+  opts: {
+    readonly seed?: number;
+    readonly second?: boolean;
+    /** The second seat is Core's Captain America (Steve Rogers, `cap-leadership`) instead of Spider-Man. */
+    readonly steve?: boolean;
+    /** The second seat is the Winter Soldier precon (`winter-aggression`; Bucky Barnes in alter-ego form). */
+    readonly bucky?: boolean;
+    /**
+     * Flight Squadron 53020 lists its gained response as a second ref in this game's card pool. The real data lists one
+     * ref, which the engine reads: the registry-only response is unreachable until the data names it.
+     */
+    readonly squadronResponse?: boolean;
+    readonly swap?: Readonly<Record<string, string>>;
+  } = {},
 ): GameState {
   const seed = opts.seed ?? 1;
   const base = coreScenario("rhino", {
@@ -30,14 +46,30 @@ export function aspectGame(
     modularSetIds: [],
     cardPool: WAVE9_CARDS,
   } as never);
-  const second = coreScenario("rhino", {
-    players: [{ starterDeckId: "core-spider-man-justice" }],
-    seed,
-    modularSetIds: [],
-  }).players[0]!;
+  const second = opts.bucky
+    ? wave9StarterDeckSetup("winter-aggression")
+    : opts.steve
+      ? wave1StarterDeckSetup("cap-leadership")
+      : coreScenario("rhino", {
+          players: [{ starterDeckId: "core-spider-man-justice" }],
+          seed,
+          modularSetIds: [],
+        }).players[0]!;
   const seat = falconSeat(opts.swap);
+  const cards = opts.squadronResponse
+    ? base.cards.map((c) =>
+        c.id === cardId("53020") && "abilities" in c
+          ? { ...c, abilities: [...c.abilities, { id: abilityId(FLIGHT_SQUADRON_GRANTED_RESPONSE) }] }
+          : c,
+      )
+    : base.cards;
   const created = createGame(
-    { ...base, players: opts.second ? [seat, second] : [seat], requireLegalDecks: false },
+    {
+      ...base,
+      cards,
+      players: opts.second || opts.steve || opts.bucky ? [seat, second] : [seat],
+      requireLegalDecks: false,
+    },
     ASPECT_DEPS,
   );
   if (!created.ok) throw new Error(created.error.message);
@@ -47,3 +79,27 @@ export function aspectGame(
 /** The same game with Falcon in hero form. */
 export const aspectHero = (opts: Parameters<typeof aspectGame>[0] = {}): GameState =>
   withForm(aspectGame(opts), { heroForm: 0 });
+
+/**
+ * Test surgery: Captain America's Shield 53034 set aside the way the linked keyword asks (RRG 1.8 "Linked", p. 27): a
+ * faceup copy owned and controlled by nobody in the encounter set-aside area. Setup does not do this for the Falcon
+ * precon today (its keyword names the title "Captain America upgrade", which no card is named), so a game stages it.
+ */
+export function withLinkedShield(
+  state: GameState,
+  name = "linked-shield",
+): { readonly state: GameState; readonly id: InstanceId } {
+  const id = name as InstanceId;
+  const donor = state.instances[state.players[0]!.deck[0]!]!;
+  return {
+    id,
+    state: {
+      ...state,
+      encounterSetAside: [...state.encounterSetAside, id],
+      instances: {
+        ...state.instances,
+        [id]: { ...donor, instanceId: id, cardId: cardId("53034"), ownerId: null, controllerId: null, faceup: true },
+      },
+    },
+  };
+}
