@@ -2489,7 +2489,8 @@ export function resolveValue(
       // One counting function for every read (docs/phase7-wave2.md §3.6): printed icons plus boost icon modifiers,
       // summed over every card the ref names ("the number of boost icons discarded this way"), as `starIcons` does
       // (docs/phase7-wave5.md §4.1 Q56).
-      const deps = context.deps;
+      // `printed`: "for each printed icon" (docs/phase7-wave9.md §3.44), the card's own number and no modifier.
+      const deps = value.printed ? undefined : context.deps;
       return resolveRef(state, value.of, context).reduce((sum, id) => {
         if (deps) return sum + boostIconsFor(state, deps, id);
         const card = cardOf(state, id);

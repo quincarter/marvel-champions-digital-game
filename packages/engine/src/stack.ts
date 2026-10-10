@@ -535,6 +535,12 @@ export type StackFrame =
       readonly eventFrameId: FrameId | null;
       /** No boost card for this attack (`TriggerEvent.noBoost`). */
       readonly noBoost?: boolean;
+      /**
+       * How many boost cards the give-boost step has given so far, in a game where an ability hears each one
+       * (`TriggerEvent boostCardGiven`, docs/phase7-wave9.md §3.44): the step is then taken one card at a time.
+       * Absent in every other game, and once the step is over.
+       */
+      readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
     })
   /** RRG "Scheme (Enemy Activation)". */
@@ -546,6 +552,8 @@ export type StackFrame =
       readonly stage: "giveBoost" | "flipBoosts" | "placeThreat" | "done";
       readonly eventFrameId: FrameId | null;
       readonly noBoost?: boolean;
+      /** As `Frame<"enemyAttack">.boostsGiven`. */
+      readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
     })
   /** RRG "Reveal" steps 1–4. */

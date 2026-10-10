@@ -47,7 +47,7 @@ import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
-import { carriedByEvent, eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, eventSubjects, hearsEncounterDeckDiscard, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
@@ -184,6 +184,10 @@ function matchesOwnFields(
 ): boolean {
   const kinds: readonly TriggerEvent["kind"][] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
   if (!kinds.includes(event.kind)) return false;
+  // A card discarded from an encounter deck is heard only by a pattern that asks for one (docs/phase7-wave9.md §3.43
+  // (b)), so "after you discard a card from the top of your deck" stays a player deck's.
+  if (event.kind === "cardDiscardedFromDeck" && event.deck === "encounter" && !hearsEncounterDeckDiscard(pattern))
+    return false;
   // The same attack resolved against another player doesn't re-trigger the attacker's own "when it attacks".
   if (event.kind === "enemyAttack" && event.additionalResolution && event.enemyInstanceId === selfId) return false;
   if (event.kind === "attack" && event.additionalResolution && event.attackerInstanceId === selfId) return false;
@@ -792,7 +796,8 @@ function deckDiscardCandidates(
   timing: WindowTiming,
   forced: boolean,
 ): readonly TriggerCandidate[] {
-  if (event.kind !== "cardDiscardedFromDeck") return [];
+  // A player's deck only: no card answers its own discard from an encounter deck (docs/phase7-wave9.md §3.43 (b)).
+  if (event.kind !== "cardDiscardedFromDeck" || event.playerId === null) return [];
   const id = event.instanceId;
   const card = cardOf(state, id);
   if (!card || !("abilities" in card)) return [];

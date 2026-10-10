@@ -118,13 +118,28 @@ export type GameEvent =
       readonly at: "discard" | "deck";
     }
   /**
+   * A card was discarded from the top of encounter deck `deckId` by card `by`'s effect or cost (`how`), after the
+   * `cardMoved` that carried it (docs/phase7-wave9.md §3.43 (b)). Logged only in a game whose registry has an ability
+   * that triggers on such a discard (`listensForEncounterDeckDiscard`), so every other game's log is unchanged.
+   * `at: "deck"`: the discard emptied the deck, and its reset has shuffled the card into the new one.
+   */
+  | {
+      readonly type: "cardDiscardedFromEncounterDeck";
+      readonly deckId: EncounterDeckId;
+      readonly instanceId: InstanceId;
+      readonly by: InstanceId | null;
+      readonly how: "effect" | "cost";
+      readonly at: "discard" | "deck";
+    }
+  /**
    * A response to its discard from `playerId`'s deck took the card away from where the discard put it, so the ability
    * that discarded it no longer counts it among the cards "discarded this way" (ruling, April 30, 2026 - Ruling 4,
    * answer 1; docs/phase7-wave7.md §4.1 Q32). `slot`: the bound set it was dropped from.
    */
   | {
       readonly type: "deckDiscardNotCounted";
-      readonly playerId: PlayerId;
+      /** Whose deck it was discarded from; null for an encounter deck (docs/phase7-wave9.md §3.43 (b)). */
+      readonly playerId: PlayerId | null;
       readonly instanceId: InstanceId;
       readonly slot: string;
     }

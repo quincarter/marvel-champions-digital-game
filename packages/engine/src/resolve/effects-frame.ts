@@ -1848,6 +1848,28 @@ function executeChooseCards(
  * makes a deck card face-visible (`visibility.ts` `offeredByOpenChoice`); the empty answer resumes past it. With
  * nothing to look at, or nobody to look, there is no choice: the look simply finds nothing.
  */
+/**
+ * `lookAt.bindAt` (docs/phase7-wave9.md §3.44): slot `names[i]` is the card at the `i`th looked-at position, `cards[i]`;
+ * a name with no card is bound empty, so a later read finds nothing instead of an unbound slot.
+ */
+function bindLookedPositions(
+  ctx: Ctx,
+  frameId: FrameId,
+  names: readonly string[] | undefined,
+  cards: readonly InstanceId[],
+): void {
+  if (!names || names.length === 0) return;
+  updateFrame(ctx, frameId, (f) => {
+    if (f.kind !== "effects") return f;
+    const bindings: Record<string, readonly InstanceId[]> = { ...f.bindings };
+    names.forEach((name, i) => {
+      const id = cards[i];
+      bindings[name] = id === undefined ? [] : [id];
+    });
+    return { ...f, bindings };
+  });
+}
+
 /** The cards a `lookAt` with `rearrange` showed, kept on its frame while its prompt is open (not a card's slot). */
 const REARRANGE_SLOT = "$lookAt.rearrange";
 
@@ -1864,7 +1886,11 @@ function executeLookAt(
     const arrangement = frame.answer as readonly InstanceId[];
     setFrame(ctx, { ...frame, bindings, answer: null, cursor: frame.cursor + 1 });
     const [by] = looked ? resolvePlayers(ctx.state, effect.viewer, context) : [];
-    if (looked && by && arrangement.length === looked.length) rearrangeCards(ctx, by, looked, arrangement);
+    if (looked && by && arrangement.length === looked.length) {
+      rearrangeCards(ctx, by, looked, arrangement);
+      // Selection `i` is the card now at the `i`th looked-at position (`lookAt.bindAt`).
+      bindLookedPositions(ctx, frame.frameId, effect.bindAt, arrangement);
+    }
     return;
   }
   const [viewer] = resolvePlayers(ctx.state, effect.viewer, context);
@@ -1879,6 +1905,7 @@ function executeLookAt(
     : {};
   if (!viewer || ids.length === 0) {
     setFrame(ctx, { ...frame, ...bound, cursor: frame.cursor + 1 });
+    bindLookedPositions(ctx, frame.frameId, effect.bindAt, []);
     // The same "then" gate as a `selectCards` over a deck that found nothing (RRG 1.8 "'Then'", p. 44).
     if (readsDeck(effect.cards)) markPreThenUnresolved(ctx, frame.frameId, "lookFoundNothing");
     return;
@@ -1891,6 +1918,8 @@ function executeLookAt(
     ...bound,
     ...(rearranges ? { bindings: { ...(bound.bindings ?? frame.bindings), [REARRANGE_SLOT]: ids } } : {}),
   });
+  // With one card there is nothing to swap: each position holds the card it held.
+  if (!rearranges) bindLookedPositions(ctx, frame.frameId, effect.bindAt, ids);
   emit(ctx, { type: "cardsLookedAt", playerId: viewer, instanceIds: ids });
   requestChoice(ctx, {
     playerId: viewer,

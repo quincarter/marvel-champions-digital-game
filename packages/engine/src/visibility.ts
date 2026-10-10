@@ -21,8 +21,9 @@
  *    player deciding ("add one set-aside ally to your hand": they choose among faces), as a card offered out of a
  *    deck is;
  *  - a facedown encounter card dealt to a player is closed, except while a look offers it ("look at each encounter
- *    card dealt to each player", docs/phase7-wave9.md §3.12), and then to the looking player alone;
- *  - everything else is open exactly when it is faceup, which covers a facedown boost card, a tucked card and a
+ *    card dealt to each player", docs/phase7-wave9.md §3.12), and then to the looking player alone; a facedown boost
+ *    card on an enemy is the same ("look at that card and the top card of the encounter deck", §3.44);
+ *  - everything else is open exactly when it is faceup, which covers a tucked card and a
  *    set-aside nemesis set without naming any of them. Being offered by a decision does not open any of these: only
  *    the deck, dealt-card and set-aside arms read the open decision.
  *
@@ -212,6 +213,10 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
     case "dealtEncounter":
       // Facedown until revealed; a look shows it to the looking player alone (docs/phase7-wave9.md §3.12). No other
       // decision opens it: being passed or chosen as a facedown card does not turn it over.
+      return instance.faceup || (openLook(state) && offeredToViewer(state, id, view));
+    case "boost":
+      // Facedown until the activation turns it up; a look shows it to the looking player alone ("look at that card
+      // and the top card of the encounter deck", docs/phase7-wave9.md §3.44). No other decision opens it.
       return instance.faceup || (openLook(state) && offeredToViewer(state, id, view));
     case "attachment":
       // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may

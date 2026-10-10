@@ -1804,16 +1804,25 @@ export const dealtEncounterCards = (player: PlayerRef = eachPlayer, filter?: Tar
  * them back to the same positions in any arrangement (a `rearrange` prompt), the one that swaps nothing included.
  * Every position keeps a card and the cards stay facedown; nothing is revealed, dealt or shuffled. `from` names
  * facedown dealt cards and deck cards only (validated). `bind`: the cards and `<bind>.count`, as `lookAt`.
+ *
+ * "Look at that card and the top card of the encounter deck. You may swap those cards. Draw 1 card for each printed
+ * icon … in the (current) boost card's boost area" (Up, Up, and Away, `falcon` 53005; docs/phase7-wave9.md §3.44), in a
+ * response to `on.boostCardGiven`: `lookAtAndRearrange(anyOfCards(cards(eventTarget), encounterCards(["deck"],
+ * undefined, 1)), { bindAt: ["boost", "top"] })`, then `draw(printedBoostAreaIconsOn(chosen("boost")))`. The facedown
+ * boost card is a position like a dealt card: the card put in its place is the boost card the activation turns up,
+ * and the one put on the deck is its top card, facedown unless a rule shows it. `bindAt`: a slot for each looked-at
+ * position, in the order `from` names them, holding the card at that position once the look is over, swapped or not.
  */
 export const lookAtAndRearrange = (
   from: CardSelector,
-  opts: { readonly bind?: string; readonly viewer?: PlayerRef } = {},
+  opts: { readonly bind?: string; readonly viewer?: PlayerRef; readonly bindAt?: readonly string[] } = {},
 ): EffectSpec => ({
   kind: "lookAt",
   cards: from,
   viewer: opts.viewer ?? you,
   ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
   rearrange: true,
+  ...(opts.bindAt !== undefined ? { bindAt: opts.bindAt } : {}),
 });
 export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({
   kind: "revealCard",

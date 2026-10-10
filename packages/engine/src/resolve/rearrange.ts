@@ -5,7 +5,12 @@
  * over the same positions (RRG 1.8 "'Swap'", p. 42: each card takes the place of the other).
  *
  * Every position keeps a card, so every player keeps the number of facedown encounter cards they were dealt, in the
- * same places of their queue (RRG 1.8 "Deal, Deal an Encounter Card", p. 15), and no deck gains or loses a card.
+ * same places of their queue (RRG 1.8 "Deal, Deal an Encounter Card", p. 15), no deck gains or loses a card, and an
+ * enemy keeps the number of facedown boost cards it was given, in the order they will be turned up
+ * (docs/phase7-wave9.md §3.44). A card that takes a boost card's place is that boost card: facedown there, turned up
+ * and resolved by the activation, with no "given a boost card" of its own. The card that leaves it for the top of a
+ * deck is facedown there, or showing when a rule keeps that top faceup (`RuleSpec topOfDeckFaceup`, §3.42): "swapped
+ * cards maintain the orientation … of the original card" (RRG 1.8 "'Swap'", p. 42).
  * Nothing is revealed, turned faceup or shuffled, and nothing is dealt: a card that comes to a player this way was
  * not "dealt" to them by this effect, so no "after a player is dealt an encounter card" hears it.
  */
@@ -15,11 +20,14 @@ import { type Ctx, emit, placeAt, relocateCard, setFrame } from "../ctx.js";
 import { holdDeckTops } from "../deck-top.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { getInstance, locateCard, zoneContents } from "../query.js";
+import type { StackFrame } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
+import type { TriggerEvent } from "../trigger-events.js";
 
 const sameZone = (a: ZoneId, b: ZoneId): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 const REARRANGEABLE: ReadonlySet<ZoneId["kind"]> = new Set([
+  "boost",
   "dealtEncounter",
   "encounterDeck",
   "deck",
@@ -29,13 +37,16 @@ const REARRANGEABLE: ReadonlySet<ZoneId["kind"]> = new Set([
 
 /**
  * Whether a looked-at card holds a position cards can be rearranged over: out of play and facedown, among a player's
- * dealt encounter cards (not one whose reveal has begun, which is parked there while it resolves) or in a deck. The
- * card a surge just dealt, whose reveal waits for the responses to that deal (`afterDeal`), has not begun.
+ * dealt encounter cards (not one whose reveal has begun, which is parked there while it resolves), in a deck, or on an
+ * enemy as a boost card not yet turned up (docs/phase7-wave9.md §3.44: "look at that card and the top card of the
+ * encounter deck. You may swap those cards"; one turned faceup is being resolved, RRG 1.8 "Boost, Boost Icon",
+ * p. 11). The card a surge just dealt, whose reveal waits for the responses to that deal (`afterDeal`), has not begun.
  */
 export function rearrangeable(state: GameState, id: InstanceId): boolean {
   const zone = locateCard(state, id);
   const instance = getInstance(state, id);
   if (!zone || !instance || !REARRANGEABLE.has(zone.kind)) return false;
+  if (zone.kind === "boost") return !instance.faceup;
   if (zone.kind !== "dealtEncounter") return true;
   return !instance.faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id && !f.afterDeal);
 }
@@ -46,6 +57,36 @@ export function positionsOf(state: GameState, ids: readonly InstanceId[]): reado
     const zone = locateCard(state, id)!;
     return { zone, index: zoneContents(state, zone).indexOf(id) };
   });
+}
+
+/**
+ * `taker` took the place of facedown boost card `was` (a swap, RRG 1.8 "'Swap'", p. 42): it is now the boost card that
+ * was given (docs/phase7-wave9.md §3.44). So "that card" of a `boostCardGiven` still being answered, or still to be
+ * announced, is `taker`: another response in the same window (a second copy, RRG 1.8 "Triggering Condition", p. 45)
+ * looks at the card that is the boost card now, as a waiting reveal reveals the card that took its card's place
+ * (`rearrangeCards`). Every frame of the stack holding that event is told, the resolving ability's included, so its
+ * `eventTarget` after the swap is "the (current) boost card". Nothing happens when `zone` is not a boost card's place.
+ */
+export function boostCardReplaced(ctx: Ctx, zone: ZoneId, was: InstanceId, taker: InstanceId): void {
+  if (zone.kind !== "boost" || was === taker) return;
+  const enemyId = zone.hostInstanceId;
+  const names = (event: TriggerEvent | null | undefined): event is Extract<TriggerEvent, { kind: "boostCardGiven" }> =>
+    event?.kind === "boostCardGiven" && event.enemyInstanceId === enemyId && event.boostInstanceId === was;
+  for (const frame of ctx.state.stack) {
+    if (!("event" in frame) || !names(frame.event)) continue;
+    setFrame(ctx, { ...frame, event: { ...frame.event, boostInstanceId: taker } } as StackFrame);
+  }
+  const pending = ctx.state.pendingBoostGiven;
+  if (pending?.some((given) => given.enemyInstanceId === enemyId && given.boostInstanceId === was)) {
+    ctx.state = {
+      ...ctx.state,
+      pendingBoostGiven: pending.map((given) =>
+        given.enemyInstanceId === enemyId && given.boostInstanceId === was
+          ? { ...given, boostInstanceId: taker }
+          : given,
+      ),
+    };
+  }
 }
 
 /**
@@ -85,6 +126,7 @@ export function rearrangeCards(
       const byIndex = arrangement.map((id, i) => ({ id, index: positions[i]!.index }));
       for (const { id, index } of byIndex.sort((a, b) => a.index - b.index)) placeAt(ctx, id, index);
     });
+    arrangement.forEach((taker, i) => boostCardReplaced(ctx, positions[i]!.zone, cards[i]!, taker));
     for (const waiting of ctx.state.stack) {
       if (waiting.kind !== "reveal" || !waiting.afterDeal) continue;
       const taker = arrangement[cards.indexOf(waiting.instanceId)];

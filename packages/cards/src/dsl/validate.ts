@@ -3,6 +3,7 @@ import {
   inPlayPicksOf,
   tuckedPickOf,
   isResourcesChoice,
+  hearsEncounterDeckDiscard,
   MOMENT_PREFIX,
   TOGETHER_TARGETS_SLOT,
   UNRESOLVED_VAR,
@@ -63,6 +64,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkLabels(definition, problems);
   checkBoostCards(definition, problems);
   checkMoments(definition, problems);
+  checkEncounterDeckDiscard(definition, problems);
   checkSchemeDivert(definition, problems);
   checkCardTotals(definition, problems);
   checkPreparations(definition, problems);
@@ -120,6 +122,22 @@ function checkMoments(definition: AbilityDefinition, problems: string[]): void {
   // The moment is announced once what it names is done: it has a response window and nothing left to interrupt.
   if (trigger.kind === "interrupt" && kindsOfPattern(trigger.on).includes("momentRaised"))
     problems.push("an interrupt cannot answer momentRaised: a raised moment has already happened; use a response");
+}
+
+/**
+ * "After a card is discarded from the top of the encounter deck" (docs/phase7-wave9.md §3.43 (b)): the engine gives it
+ * a response window only, the deck is no player's (so `playerIs` never matches), and no card answers its own discard
+ * from an encounter deck (`inDiscard` is a player deck's).
+ */
+function checkEncounterDeckDiscard(definition: AbilityDefinition, problems: string[]): void {
+  const trigger = definition.trigger;
+  if ((trigger.kind !== "interrupt" && trigger.kind !== "response") || !trigger.on) return;
+  if (!hearsEncounterDeckDiscard(trigger.on)) return;
+  const told = "a pattern on a discard from the encounter deck";
+  if (trigger.kind === "interrupt") problems.push(`${told} is a response: the card has already been discarded`);
+  if (trigger.on.playerIs !== undefined) problems.push(`${told} cannot ask playerIs: the deck is no player's`);
+  if (definition.activeIn === "discard")
+    problems.push(`${told} is heard by a card in play: inDiscard answers a player deck's discard only`);
 }
 
 const kindsOfPattern = (pattern: EventPattern): readonly string[] =>
@@ -683,11 +701,21 @@ function checkPlays(definition: AbilityDefinition, problems: string[]): void {
 /**
  * `lookAt` with `rearrange` (docs/phase7-wave9.md §3.12): the cards are assigned back over the positions they hold, so
  * the selector names positions that hold a facedown card out of play: dealt encounter cards and decks. The engine
- * leaves any other card out of the look, which would silently drop what the text names.
+ * leaves any other card out of the look, which would silently drop what the text names. In an answer to a boost card
+ * being given, "that card" (`eventTarget`) is a position too: the facedown boost card (docs/phase7-wave9.md §3.44).
+ *
+ * `bindAt` names the looked-at positions, so it belongs to a look that rearranges them.
  */
 function checkRearranges(definition: AbilityDefinition, problems: string[]): void {
+  const trigger = definition.trigger;
+  const answersBoostGiven =
+    (trigger.kind === "interrupt" || trigger.kind === "response") &&
+    trigger.on !== undefined &&
+    kindsOfPattern(trigger.on).includes("boostCardGiven");
   const positional = (selector: CardSelector): boolean => {
     switch (selector.kind) {
+      case "ref":
+        return answersBoostGiven && selector.ref.kind === "eventTarget" && selector.filter === undefined;
       case "anyOf":
         return selector.of.every(positional);
       case "atMost":
@@ -706,9 +734,23 @@ function checkRearranges(definition: AbilityDefinition, problems: string[]): voi
     }
   };
   for (const effect of allEffects(definition.effects)) {
-    if (effect.kind !== "lookAt" || !effect.rearrange) continue;
+    if (effect.kind !== "lookAt") continue;
+    if (effect.bindAt && !effect.rearrange)
+      problems.push("lookAt bindAt: names the positions of a look that rearranges them (lookAtAndRearrange)");
+    if (!effect.rearrange) continue;
     if (!positional(effect.cards))
-      problems.push("lookAt rearrange: the cards are dealt encounter cards (dealtEncounterCards) and deck cards only");
+      problems.push(
+        "lookAt rearrange: the cards are dealt encounter cards (dealtEncounterCards), deck cards and, answering on.boostCardGiven, the boost card given (eventTarget) only",
+      );
+  }
+  // "After an enemy is given a facedown boost card" (docs/phase7-wave9.md §3.44): already given, and facedown.
+  if ((trigger.kind === "interrupt" || trigger.kind === "response") && answersBoostGiven) {
+    if (trigger.kind === "interrupt")
+      problems.push("a pattern on boostCardGiven is a response: the boost card has already been given");
+    if (trigger.on?.targetIs !== undefined)
+      problems.push(
+        "a pattern on boostCardGiven cannot ask targetIs: the boost card is facedown, its face nobody's to read",
+      );
   }
 }
 
@@ -962,6 +1004,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
         scope.slots.add(effect.bind);
         scope.vars.add(`${effect.bind}.count`);
       }
+      // The card at each looked-at position once the look is over (docs/phase7-wave9.md §3.44).
+      if (effect.kind === "lookAt") for (const name of effect.bindAt ?? []) scope.slots.add(name);
       return;
     // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
     // `addVillain` binds the same shape (the villains now in play, and how many): "If no villain was put into play
@@ -1147,6 +1191,9 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   // read as `moment.<slot>`, slot and vars: bound by the engine from the event, never by the ability.
   const trigger = definition.trigger;
   if (trigger.kind === "response" && trigger.on && kindsOfPattern(trigger.on).includes("momentRaised"))
+    scope.prefixes.add(MOMENT_PREFIX);
+  // So are the slots of the ability whose resolution it answers (`abilityResolved.carried`, wave 9 §3.43 (c)).
+  if (trigger.kind === "response" && trigger.on && kindsOfPattern(trigger.on).includes("abilityResolved"))
     scope.prefixes.add(MOMENT_PREFIX);
   // An ability that answers an occurrence once (`EventPattern.together`) reads every condition's target from a slot
   // the engine binds as it is initiated.

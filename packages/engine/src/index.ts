@@ -393,8 +393,10 @@ export {
   carriedByEvent,
   damageTakenKey,
   eventSubjects,
+  hearsEncounterDeckDiscard,
   isAnnouncement,
   MOMENT_PREFIX,
+  TAKEN_AWAY_SUFFIX,
   TOTAL_ATK_RESULT,
 } from "./trigger-events.js";
 

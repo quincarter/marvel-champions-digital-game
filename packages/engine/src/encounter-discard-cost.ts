@@ -23,7 +23,7 @@
 import type { EncounterDeckDiscardCost } from "./abilities.js";
 import { COST_NOT_PAID_VAR } from "./cost-damage.js";
 import { type Ctx, emit, moveCard, setFrame, updateInstance } from "./ctx.js";
-import { drawEncounterCard } from "./effects.js";
+import { drawEncounterCard, type EncounterDeckDiscarder, recordEncounterDeckDiscard } from "./effects.js";
 import type { EncounterDeckId, InstanceId } from "./ids.js";
 import { boostIconsFor } from "./modifiers.js";
 import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, hasStarIcon, showingResources } from "./query.js";
@@ -60,10 +60,14 @@ export interface EncounterTopDiscard {
  * (`resetEncounterDeckIfEmpty`, docs/phase7-wave6.md §3.60), with that card in the new deck, so the last card is known
  * before it moves. A deck that was already empty is reset first (`drawEncounterCard`) and discarded from. While the
  * top card is kept faceup (§3.42) each card that comes to the top is logged as it does (`announceDeckTops`).
+ *
+ * `by`: the card whose effect or cost this is, and the set it keeps of these cards, for the announcement of each
+ * discard (`recordEncounterDeckDiscard`, §3.43 (b)); recorded only in a game with an ability that hears one.
  */
 export function discardTopOfEncounterDeck(
   ctx: Ctx,
   count: number,
+  by: EncounterDeckDiscarder,
   deckId: EncounterDeckId = activeEncounterDeckId(ctx.state),
 ): EncounterTopDiscard {
   const discarded: InstanceId[] = [];
@@ -80,6 +84,7 @@ export function discardTopOfEncounterDeck(
     if (hasStarIcon(ctx.state, id)) starIcons += 1;
     resources = addPools(resources, showingResources(ctx.state, id));
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    recordEncounterDeckDiscard(ctx, deckId, id, by);
     discarded.push(id);
     if (last) {
       deckEmptied = true;
@@ -164,7 +169,13 @@ export function executePayEncounterDeckDiscard(
 ): void {
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   const chosen = frame.vars[`${effect.chosen}.amount`] ?? 0;
-  const taken = discardTopOfEncounterDeck(ctx, Math.max(0, chosen));
+  // The paid-for frame's `slot` is the set of the cards "discarded this way": a card a response to its discard takes
+  // away is dropped from it before the ability's effects resolve (`settleDeckDiscards`, docs/phase7-wave7.md §4.1 Q32).
+  const taken = discardTopOfEncounterDeck(ctx, Math.max(0, chosen), {
+    sourceInstanceId: frame.selfInstanceId,
+    how: "cost",
+    ...(effect.paidFor ? { boundOn: { frameId: effect.paidFor, slot: effect.slot } } : {}),
+  });
   addFrameSlots(ctx, effect.paidFor, { [effect.slot]: taken.discarded });
   addFrameVars(ctx, effect.paidFor, {
     ...encounterTopDiscardVars(effect.slot, taken),

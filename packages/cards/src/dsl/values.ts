@@ -634,6 +634,21 @@ export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => 
   ...(icons ? { icons } : {}),
 });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
+/** The star icons (★) in the boost areas of the cards `cards` names: 1 for each card that prints one. */
+export const starIconsOn = (cards: TargetRef): ValueSpec => ({ kind: "starIcons", cards });
+/**
+ * "For each icon (★ and boost) in [that card]'s boost area" (Talon Line, `falcon` 53012; docs/phase7-wave9.md §3.43):
+ * the boost icons and the star of the cards `cards` names, read from the cards where they are now. A star is counted
+ * apart from the boost icons (RRG 1.8 "Boost, Boost Icon", p. 11), so this is their sum.
+ */
+export const boostAreaIconsOn = (cards: TargetRef): ValueSpec => sum(boostIconsOn(cards), starIconsOn(cards));
+/**
+ * "For each printed icon (★ and boost) in [that card]'s boost area" (Up, Up, and Away, `falcon` 53005;
+ * docs/phase7-wave9.md §3.44): as `boostAreaIconsOn`, with the boost icons the card prints and no modifier ("this card
+ * gets +1 boost icon if …", an amplify icon). A star is printed or it is not.
+ */
+export const printedBoostAreaIconsOn = (cards: TargetRef): ValueSpec =>
+  sum({ kind: "boostIcons", of: cards, printed: true }, starIconsOn(cards));
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /**
  * "A minion with fewer remaining hit points than M" (M, `magneto` 49012): `query("minion", remainingHpCompare("lt",

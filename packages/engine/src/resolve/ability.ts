@@ -9,7 +9,7 @@ import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
 import { abilityIgnored } from "../select.js";
 import type { GameState } from "../state.js";
-import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { eventSubjects, slotsCarriedByResolved, type TriggerEvent } from "../trigger-events.js";
 import { declareWildTypes } from "./declare-wilds.js";
 import { declareLabeledDefense, declaresDefender, recordDefenseLabel } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
@@ -134,12 +134,16 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   if (definition.label?.includes("defense") && frame.controllerId && !declaresDefender(definition))
     declareLabeledDefense(ctx, frame.controllerId);
   // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
-  // something could respond ("After you resolve the ability of a Preparation card you control").
+  // something could respond ("After you resolve the ability of a Preparation card you control"). It carries the
+  // ability's slots, what its costs bound among them (docs/phase7-wave9.md §3.43 (c)): "After you resolve Falcon's
+  // 'Eagle-Eyed' ability, … for each icon in the discarded card's boost area" reads the card that cost discarded.
+  const carried = slotsCarriedByResolved(frame.bindings);
   const resolved: TriggerEvent = {
     kind: "abilityResolved",
     instanceId: frame.instanceId,
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
+    ...(carried ? { carried } : {}),
   };
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
   // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).

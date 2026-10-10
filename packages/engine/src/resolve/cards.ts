@@ -21,9 +21,11 @@ import {
   leavePlay,
   leavingWithHost,
   listensForDeckDiscard,
+  listensForEncounterDeckDiscard,
   moveDestinationKind,
   permanentStopsLeaving,
   recordDeckDiscard,
+  recordEncounterDeckDiscard,
   shuffleZone,
   recordEncounterCardDealt,
   recordTuckedDiscard,
@@ -479,8 +481,18 @@ export function moveCardsTo(
       // A tucked card sent to a discard pile is a discard "from under" its host (docs/phase7-wave9.md §3.40 (b)),
       // an effect's and a cost's alike; the host is read before the move, and only when an ability hears one.
       const tuckedUnder = discarding ? tuckedHostToRecord(ctx, id) : null;
+      // From an encounter deck to a discard pile: a discard from that deck (docs/phase7-wave9.md §3.43 (b)). Looked
+      // for only when an ability hears one.
+      const fromEncounterDeck =
+        destination === "discard" && listensForEncounterDeckDiscard(ctx.deps) ? locateCard(ctx.state, id) : null;
       moveCard(ctx, id, to, position);
       if (fromDeckOf !== null) recordDeckDiscard(ctx, fromDeckOf, id, deckDiscardBy);
+      if (fromEncounterDeck?.kind === "encounterDeck")
+        recordEncounterDeckDiscard(ctx, fromEncounterDeck.deckId, id, {
+          sourceInstanceId: deckDiscardBy.sourceInstanceId,
+          how: asCost ? "cost" : "effect",
+          ...(deckDiscardBy.boundOn ? { boundOn: deckDiscardBy.boundOn } : {}),
+        });
       recordTuckedDiscard(ctx, id, tuckedUnder, {
         sourceInstanceId: deckDiscardBy.sourceInstanceId,
         ...(sourceCardId !== undefined ? { sourceCardId } : {}),

@@ -3013,11 +3013,69 @@ export const on = {
    */
   youDiscardFromYourDeck: (): EventPattern => pattern("cardDiscardedFromDeck", { playerIs: "controller" }),
   /**
+   * "After a [card] is discarded from the top of the encounter deck" (Serpent Solutions, `falcon` 53031;
+   * docs/phase7-wave9.md §3.43 (b)): each card an effect or a cost discards off the top of an encounter deck, by any
+   * card: `discardEncounterCards`, `discardEncounterUntil`, a `discardTopOfEncounterDeckCost` or
+   * `encounterLookDiscardCost` cost, a `moveCards` from the deck. Not a boost card discarded after an activation, which
+   * leaves play (RRG 1.8 "Boost, Boost Icon", p. 11). `card` narrows the discarded card ("a Serpent Society minion"),
+   * which is `eventTarget` ("that minion"); `how` and `by` narrow the cause ("a player card's cost"). There is no
+   * `eventPlayer`: the deck is no player's.
+   *
+   * A response only, on a card in play. The cards one effect or cost discarded share one response window (RRG 1.8
+   * "Triggering Condition", p. 45), which resolves before the discarding ability's next effect, or before its effects
+   * for a cost. A card the response moves is no longer among that ability's cards "discarded this way" (wave 7 §4.1
+   * Q32), and no other response is offered for it. The card whose discard emptied the deck is in the new deck when
+   * the response resolves (RRG 1.8 "Encounter Deck", p. 17), and is taken from there.
+   */
+  discardedFromEncounterDeck: (
+    card: TargetQuery = {},
+    opts: { readonly how?: "effect" | "cost"; readonly by?: LeaveCauseSide } = {},
+  ): EventPattern =>
+    pattern("cardDiscardedFromDeck", Object.keys(card).length > 0 ? { targetIs: card } : {}, {
+      eventIs: {
+        deck: "encounter",
+        ...(opts.how ? { how: opts.how } : {}),
+        ...(opts.by ? { by: opts.by } : {}),
+      },
+    }),
+  /**
+   * "After you resolve [card]'s '[Name]' ability" (Talon Line, `falcon` 53012: "After you resolve Falcon's
+   * 'Eagle-Eyed' ability"; docs/phase7-wave9.md §3.43 (c)): the ability with that id resolved, its controller being
+   * "you". The slots that ability held as it began to resolve, what its costs bound among them, are this ability's as
+   * `moment.<slot>`: "the discarded card" of a `discardTopOfEncounterDeckCost(1, "discarded")` is
+   * `chosen("moment.discarded")`, read where the card now is (`boostIcons`, `starIcons`). A card a response to its
+   * discard took away is still in that set here. Vars are not handed over.
+   */
+  youResolveAbility: (abilityId: string): EventPattern =>
+    pattern("abilityResolved", { playerIs: "controller" }, { eventIs: { abilityId } }),
+  /**
    * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
    * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"
    * `eventPlayer`.
    */
   boostCardResolved: (during: Who): EventPattern => pattern("boostCardResolved", asSource(during)),
+  /**
+   * "After [an attacking enemy] is given a facedown boost card" (Up, Up, and Away, `falcon` 53005;
+   * docs/phase7-wave9.md §3.44): each facedown boost card given, one event and one response window per card: the
+   * activation's own, each additional one, and one a card ability gives. `activation: "attack"` is "an attacking
+   * enemy", `"scheme"` a scheming one; left out, any boost card, one given outside an activation included. `to`
+   * narrows who is given it ("the villain"); `againstYou`: the activation is against you. "That card" is
+   * `eventTarget`, facedown: look at it with `lookAt` or `lookAtAndRearrange`, never narrow the pattern by it. The
+   * enemy is `eventSource`.
+   *
+   * A response only. During its own activation an enemy is given its boost cards one at a time, each window resolved
+   * before the next card leaves the deck. A second copy may answer the same boost card (RRG 1.8 "Triggering
+   * Condition", p. 45); once a swap has put another card in its place, `eventTarget` is that card.
+   */
+  boostCardGiven: (
+    opts: { readonly activation?: "attack" | "scheme"; readonly to?: Who; readonly againstYou?: boolean } = {},
+  ): EventPattern =>
+    pattern(
+      "boostCardGiven",
+      opts.to !== undefined ? asSource(opts.to) : {},
+      opts.activation ? { activation: opts.activation } : {},
+      opts.againstYou ? { playerIs: "controller" } : {},
+    ),
   /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
   yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
   /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */

@@ -17,6 +17,7 @@ import {
 import { canTakeStatus, hasKeyword, isPermanent, usesKeyword, vulnerableTo } from "./keywords.js";
 import {
   activeEncounterDeckId,
+  encounterDeckDiscardAt,
   discardZoneFor,
   encounterDeckOf,
   getInstance,
@@ -32,14 +33,15 @@ import {
   mustVillain,
 } from "./query.js";
 import type { StatusDiscardCause } from "./events.js";
-import type {
-  EncounterDealSource,
-  HostStep,
-  LeaveCauseSide,
-  LeavePatch,
-  LeaveRequest,
-  TriggerEvent,
-  TuckHostKind,
+import {
+  type EncounterDealSource,
+  hearsEncounterDeckDiscard,
+  type HostStep,
+  type LeaveCauseSide,
+  type LeavePatch,
+  type LeaveRequest,
+  type TriggerEvent,
+  type TuckHostKind,
 } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
@@ -987,6 +989,84 @@ export function recordDeckDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, 
     instanceId: id,
     sourceInstanceId: by.sourceInstanceId,
     at,
+    ...(by.boundOn ? { boundOn: by.boundOn } : {}),
+  };
+  ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };
+}
+
+const LISTENS_FOR_ENCOUNTER_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on a card discarded from the top of an encounter deck
+ * (docs/phase7-wave9.md §3.43 (b)); cached per registry. Encounter cards are discarded from the deck in most games, so
+ * nothing is recorded, logged or announced for a registry with no such ability: its games keep their state and their
+ * log, a registry that listens for a player deck's discards included.
+ */
+export function listensForEncounterDeckDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENCOUNTER_DECK_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    return "on" in trigger && trigger.on !== undefined && hearsEncounterDeckDiscard(trigger.on);
+  });
+  LISTENS_FOR_ENCOUNTER_DECK_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/**
+ * What discarded a card from the top of an encounter deck (`TriggerEvent cardDiscardedFromDeck`, `deck: "encounter"`):
+ * the card whose effect or cost did (`how`), and the bound set the discarding ability keeps of the cards "discarded
+ * this way", if it keeps one (`DeckDiscard.boundOn`).
+ */
+export interface EncounterDeckDiscarder {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly how: "effect" | "cost";
+  readonly boundOn?: DeckDiscard["boundOn"];
+}
+
+/**
+ * The one place a discard from the top of an encounter deck is recorded for its `cardDiscardedFromDeck` announcement
+ * (docs/phase7-wave9.md §3.43 (b); `GameState.pendingDeckDiscards`, announced between frames by
+ * `announceDeckDiscards`, in the same list and the same shared window as a player deck's). Every path that discards
+ * off the top of an encounter deck calls it right after the move, with the deck the card was in:
+ * `discardTopOfEncounterDeck`, `EffectSpec discardEncounterUntil`, the `encounterLookDiscard` cost and `moveCardsTo`.
+ *
+ * Where the card is now says what the discard did: in a discard pile (its own: the deck's, or its owner's for a
+ * player card that was in the deck, `discardZoneFor`), or, when it was the deck's last card, in the new deck the
+ * reset made at that move (`resetEncounterDeckIfEmpty`; `at: "deck"`). Anywhere else it was not discarded, and nothing
+ * is recorded. Nothing is recorded either in a game with no ability that hears one
+ * (`listensForEncounterDeckDiscard`).
+ *
+ * `by` on the record is the side of the source card, for a cost too (`leaveCauseSide` leaves a cost's side out for
+ * "an encounter card ability discards …"; here `how` says which it was, as on `tuckedCardDiscarded`).
+ */
+export function recordEncounterDeckDiscard(
+  ctx: Ctx,
+  deckId: EncounterDeckId,
+  id: InstanceId,
+  by: EncounterDeckDiscarder,
+): void {
+  if (!listensForEncounterDeckDiscard(ctx.deps)) return;
+  const at = encounterDeckDiscardAt(ctx.state, deckId, id);
+  if (at === null) return;
+  const source = by.sourceInstanceId ? getInstance(ctx.state, by.sourceInstanceId) : undefined;
+  const side = leaveCauseSide(ctx.state, source?.cardId);
+  emit(ctx, {
+    type: "cardDiscardedFromEncounterDeck",
+    deckId,
+    instanceId: id,
+    by: by.sourceInstanceId,
+    how: by.how,
+    at,
+  });
+  const discard: DeckDiscard = {
+    playerId: null,
+    encounterDeckId: deckId,
+    instanceId: id,
+    sourceInstanceId: by.sourceInstanceId,
+    at,
+    ...(side ? { by: side } : {}),
+    how: by.how,
     ...(by.boundOn ? { boundOn: by.boundOn } : {}),
   };
   ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };

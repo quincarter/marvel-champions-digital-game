@@ -44,6 +44,7 @@ import {
   swapIdentity,
   playerDeckResets,
   recordDeckDiscard,
+  recordEncounterDeckDiscard,
   takeTopOfDeck,
   settleAwaitingAttackEffects,
   turnToFlipSide,
@@ -3262,6 +3263,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const last = encounterDeckOf(ctx.state, deckId).deck.length === 1;
         updateInstance(ctx, id, (inst) => ({ ...inst, faceup: true }));
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+        // Each card passed over is a discard from the deck too (docs/phase7-wave9.md §3.43 (b)); only the match is in
+        // `bind`, which drops it if a response to its discard takes it away (docs/phase7-wave7.md §4.1 Q32).
+        recordEncounterDeckDiscard(ctx, deckId, id, {
+          sourceInstanceId: frame.selfInstanceId,
+          how: "effect",
+          boundOn: { frameId: frame.frameId, slot: effect.bind },
+        });
         if (matchesQuery(ctx.state, id, effect.filter, context)) found = id;
         if (last) break;
       }
@@ -3350,7 +3358,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "For each star icon in the boost area discarded this way" (Slipping Sanity, `scw`) is counted over exactly the
       // same cards, separately: RRG 1.8 "Boost, Boost Icon" (p. 11), "A star icon is not itself considered a boost
       // icon". Printed data, never the ability registry (§18.6).
-      const taken = discardTopOfEncounterDeck(ctx, Math.max(0, value(effect.count)));
+      const taken = discardTopOfEncounterDeck(ctx, Math.max(0, value(effect.count)), {
+        sourceInstanceId: frame.selfInstanceId,
+        how: "effect",
+        ...(effect.bind ? { boundOn: { frameId: frame.frameId, slot: effect.bind } } : {}),
+      });
       const discarded = taken.discarded;
       const bind = effect.bind;
       if (bind) {

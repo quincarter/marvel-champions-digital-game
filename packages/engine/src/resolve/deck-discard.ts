@@ -6,13 +6,13 @@
 import { type Ctx, emit, findFrame, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId } from "../ids.js";
 import { boostIconsFor } from "../modifiers.js";
-import { deckDiscardStillThere, hasStarIcon, showingResources } from "../query.js";
+import { deckDiscardStillThere, encounterDeckDiscardAt, hasStarIcon, showingResources } from "../query.js";
 import { addPools, EMPTY_POOL, type ResourcePool } from "../resources.js";
 import { countedResourcesOf, DECK_DISCARDS_PREFIX } from "../select.js";
 import type { Bindings } from "../stack.js";
 import type { DeckDiscard } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
-import { pushEventsSharingResponses } from "./frames.js";
+import { TAKEN_AWAY_SUFFIX, type TriggerEvent } from "../trigger-events.js";
+import { addFrameSlots, pushEventsSharingResponses } from "./frames.js";
 import { heard } from "./triggers.js";
 
 /**
@@ -81,10 +81,28 @@ const eventOf = (discard: DeckDiscard): TriggerEvent => ({
   kind: "cardDiscardedFromDeck",
   instanceId: discard.instanceId,
   playerId: discard.playerId,
+  deck: discard.encounterDeckId === undefined ? "player" : "encounter",
   fromTop: true,
   sourceInstanceId: discard.sourceInstanceId,
   at: discard.at,
+  // An encounter deck's (docs/phase7-wave9.md §3.43 (b)): the deck, the side of the discarding card, effect or cost.
+  ...(discard.encounterDeckId !== undefined ? { encounterDeckId: discard.encounterDeckId } : {}),
+  ...(discard.by ? { by: discard.by } : {}),
+  ...(discard.how ? { how: discard.how } : {}),
 });
+
+/**
+ * An encounter deck's discard as it stands when it is announced (docs/phase7-wave9.md §3.43 (b)). A later discard of
+ * the same effect or cost may have emptied the deck, whose reset shuffled the discard pile, this card in it, into the
+ * new deck (RRG 1.8 "Encounter Deck", p. 17): the card was discarded all the same, and it is answered where the reset
+ * left it (`at: "deck"`), as the deck's last card is (docs/phase7-wave7.md §4.1 Q33). No response has resolved
+ * between the discard and this look, so only the reset can have moved it. A player deck's discard is left as recorded.
+ */
+function whereResetLeft(ctx: Ctx, discard: DeckDiscard): DeckDiscard {
+  if (discard.encounterDeckId === undefined) return discard;
+  const at = encounterDeckDiscardAt(ctx.state, discard.encounterDeckId, discard.instanceId);
+  return at === null || at === discard.at ? discard : { ...discard, at };
+}
 
 /**
  * Announces each card discarded from a player's deck since the last look (recorded by `recordDeckDiscard`), when an
@@ -96,10 +114,11 @@ const eventOf = (discard: DeckDiscard): TriggerEvent => ({
  * Returns true when it pushed a frame.
  */
 export function announceDeckDiscards(ctx: Ctx): boolean {
-  const pending = ctx.state.pendingDeckDiscards;
-  if (!pending || pending.length === 0) return false;
+  const recorded = ctx.state.pendingDeckDiscards;
+  if (!recorded || recorded.length === 0) return false;
   const { pendingDeckDiscards: _, ...rest } = ctx.state;
   ctx.state = rest;
+  const pending = recorded.map((discard) => whereResetLeft(ctx, discard));
   const events = pending
     .filter((discard) => deckDiscardStillThere(ctx.state, discard))
     .map(eventOf)
@@ -145,6 +164,9 @@ export function settleDeckDiscards(ctx: Ctx): void {
     // every card it discarded (`DeckDiscard.boundOn.also`, docs/phase7-wave8.md §3.71).
     for (const slot of [discard.boundOn.slot, ...(discard.boundOn.also ?? [])]) {
       if (!dropFromBoundSet(ctx, frameId, slot, discard.instanceId)) continue;
+      // Kept beside the set: no longer counted, and still a card this ability discarded (`abilityResolved.carried`,
+      // docs/phase7-wave9.md §3.43 (c)).
+      addFrameSlots(ctx, frameId, { [`${slot}${TAKEN_AWAY_SUFFIX}`]: [discard.instanceId] });
       emit(ctx, { type: "deckDiscardNotCounted", playerId: discard.playerId, instanceId: discard.instanceId, slot });
     }
   }

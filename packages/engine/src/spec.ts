@@ -1041,7 +1041,7 @@ export type ValueSpec =
    */
   | { readonly kind: "mainSchemeStageNumber" }
   /** Boost icons printed on a card: "1 more than the number of boost icons on the discarded card" (with `scaled`). */
-  | { readonly kind: "boostIcons"; readonly of: TargetRef }
+  | { readonly kind: "boostIcons"; readonly of: TargetRef; readonly printed?: true }
   /**
    * How many of the cards a ref names print a star icon (★) in the boost area, wherever they are: "For each star icon
    * in the boost area discarded this way, place 1 threat on the main scheme" (Slipping Sanity 15023, `scw`).
@@ -3076,6 +3076,14 @@ export type EffectSpec =
    * dealt or shuffled, and a deck whose only card is swapped is not reset. Logged `cardsLookedAt`, then
    * `cardsRearranged`. With fewer than two such cards there is nothing to swap and the look is the plain one.
    * `<bind>` keeps naming the same cards afterward, wherever they now are.
+   *
+   * A facedown boost card on an enemy is such a position too (docs/phase7-wave9.md §3.44): "look at that card and the
+   * top card of the encounter deck. You may swap those cards" (Up, Up, and Away, `falcon` 53005). The card that takes
+   * its place is the boost card the activation turns up.
+   *
+   * `bindAt` (with `rearrange`): one slot name for each looked-at position, in the order `cards` names them. Once the
+   * look is over, slot `i` holds the card now at the position the `i`th looked-at card held, swapped or not: "the
+   * (current) boost card" after "you may swap those cards". A name past the cards looked at is bound empty.
    */
   | {
       readonly kind: "lookAt";
@@ -3083,6 +3091,7 @@ export type EffectSpec =
       readonly viewer: PlayerRef;
       readonly bind?: string;
       readonly rearrange?: true;
+      readonly bindAt?: readonly string[];
     }
   /**
    * "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is.

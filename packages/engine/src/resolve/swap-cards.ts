@@ -15,7 +15,10 @@
  *   read against the swapping ability's card, RRG 1.8 "Permanent", p. 32), into the other card's exact place with the
  *   other card's orientation; the incoming card takes the outgoing card's place, faceup if it was, under its controller,
  *   and its `cardEntersPlay` is announced (the enter-play keywords are that event's apply step).
- * Two out-of-play cards (Eidetic Memory, `silk`, erratum RRG 1.8 p. 70) just exchange places and orientations. A card
+ * Two out-of-play cards (Eidetic Memory, `silk`, erratum RRG 1.8 p. 70) just exchange places and orientations: a
+ * facedown boost card on an enemy and the top card of the encounter deck among them (Up, Up, and Away, `falcon` 53005;
+ * docs/phase7-wave9.md §3.44), where the card swapped in is the boost card the activation turns up
+ * (`boostCardReplaced`) and the one swapped out is the deck's top card, facedown unless a rule shows it. A card
  * swapped out of a reveal in progress is still that reveal's card: ending it is `revealCard.instead`
  * (docs/phase7-wave9.md §3.41).
  *
@@ -30,7 +33,16 @@
  */
 
 import type { CardId } from "@mc/content";
-import { type Ctx, emit, moveCard, placeAt, syncSeparateDeckTop, updateInstance } from "../ctx.js";
+import {
+  type Ctx,
+  emit,
+  moveCard,
+  placeAt,
+  relocateCard,
+  settlePlayerDecks,
+  syncSeparateDeckTop,
+  updateInstance,
+} from "../ctx.js";
 import { holdDeckTops } from "../deck-top.js";
 import { leaveDestinationKind, leavePlay, permanentStopsLeaving, waitsForLeaveInterrupts } from "../effects.js";
 import type { GameEvent } from "../events.js";
@@ -41,6 +53,7 @@ import { cardsInPlay, controllerOf } from "../select.js";
 import type { ZoneId } from "../state.js";
 import { matchingCardInPlay } from "../unique.js";
 import { pushEvents } from "./frames.js";
+import { boostCardReplaced } from "./rearrange.js";
 import { markPreThenUnresolved } from "./then.js";
 
 /** How a swap ended: done, waiting for the outgoing card's "when it leaves play" interrupts, or not completed. */
@@ -192,8 +205,13 @@ function exchangeOutOfPlay(ctx: Ctx, a: InstanceId, b: InstanceId): SwapOutcome 
   const bt = placeOf(ctx, b)!;
   const { faceup: aFaceup, facedownAs: aRole } = mustInstance(ctx.state, a);
   const { faceup: bFaceup, facedownAs: bRole } = mustInstance(ctx.state, b);
-  moveCard(ctx, a, bt.zone);
-  moveCard(ctx, b, at.zone);
+  // Both cards move before either move is settled: a deck whose only card is swapped away is never without a card
+  // (the other is on its way), so it is not reset and takes no acceleration token (RRG 1.8 "Encounter Deck", p. 17,
+  // resets a deck that "is empty"; as `rearrangeCards`).
+  const aFrom = relocateCard(ctx, a, bt.zone);
+  const bFrom = relocateCard(ctx, b, at.zone);
+  settlePlayerDecks(ctx, aFrom, bt.zone, a);
+  settlePlayerDecks(ctx, bFrom, at.zone, b);
   // In one zone, placing the lower index first leaves the higher one where it belongs.
   const placements: [InstanceId, number][] = [
     [a, bt.index],
@@ -201,6 +219,9 @@ function exchangeOutOfPlay(ctx: Ctx, a: InstanceId, b: InstanceId): SwapOutcome 
   ];
   placements.sort((x, y) => x[1] - y[1]);
   for (const [id, index] of placements) placeAt(ctx, id, index);
+  // A card that took a facedown boost card's place is the boost card that was given (docs/phase7-wave9.md §3.44).
+  boostCardReplaced(ctx, at.zone, a, b);
+  boostCardReplaced(ctx, bt.zone, b, a);
   // A facedown attachment's orientation is its blank role as well as its face (`isFacedownAttachment`).
   for (const [id, faceup, facedownAs] of [
     [a, bFaceup, bRole],

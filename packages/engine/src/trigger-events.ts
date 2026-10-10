@@ -1,4 +1,5 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
+import type { EventPattern } from "./abilities.js";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
 import type { CardDestination, Predicate, StatName, StatusName, TargetCategory } from "./spec.js";
@@ -342,6 +343,32 @@ export type TriggerEventBody =
       readonly noBoost?: boolean;
       /** `EffectSpec enemyScheme.divert` (docs/phase7-wave9.md §3.9), read at this activation's place-threat step. */
       readonly divert?: SchemeThreatDivert;
+    }
+  /**
+   * An enemy was given a facedown boost card (docs/phase7-wave9.md §3.44): "Hero Response (defense): After an
+   * attacking enemy is given a facedown boost card, look at that card and the top card of the encounter deck. You may
+   * swap those cards" (Up, Up, and Away, `falcon` 53005). An announcement: the card is on the enemy, facedown, and
+   * nothing has been turned up (RRG 1.8 "Attack (Enemy Activation)" step 1, p. 8, "Scheme (Enemy Activation)" step 1,
+   * "Boost, Boost Icon", p. 11). One event, with a response window of its own, for each boost card: the activation's
+   * own card, each additional one, and a card a card ability gives ("give the villain a facedown boost card"). Only
+   * recorded when an ability in the registry listens (`recordBoostGiven`), and announced between frames
+   * (`announceBoostCardsGiven`).
+   *
+   * `enemyInstanceId` is the event's source and `boostInstanceId` its target ("that card"), whose face no player may
+   * read: a pattern must not narrow by it. `activation`: the activation of that enemy in progress as it was given the
+   * card ("an attacking enemy" is `activation: "attack"`), null when it is not activating (the card waits facedown,
+   * p. 11). `playerId`: the player that activation is against ("you"), null with no activation.
+   *
+   * During its own activation an enemy is given its boost cards one at a time in a game that listens, each window
+   * resolved before the next card is taken off the deck, so the card a response swapped onto the top of the deck is
+   * the next boost card given.
+   */
+  | {
+      readonly kind: "boostCardGiven";
+      readonly enemyInstanceId: InstanceId;
+      readonly boostInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme" | null;
+      readonly playerId: PlayerId | null;
     }
   /**
    * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
@@ -1053,14 +1080,37 @@ export type TriggerEventBody =
    * still resolves, on the card in the new deck (owner decision, 2026-10-05, §4.1 Q33): "add it to your hand" and "put
    * her into play" take it from there. A "shuffle it back into your deck" has already been done by the reset (MC40
    * p. 21), which its pattern says with `eventIs: { at: "discard" }`.
+   *
+   * **The encounter deck** (`deck: "encounter"`, docs/phase7-wave9.md §3.43 (b)): "Forced Response: After a Serpent
+   * Society minion is discarded from the top of the encounter deck, deal that minion to the first player as a
+   * facedown encounter card" (Serpent Solutions, `falcon` 53031). `playerId` is null (the deck is no player's, so
+   * `playerIs` never matches), `encounterDeckId` names the deck, `how` says whether an effect or a cost discarded the
+   * card and `by` which side's card that was (the source card's side for a cost too, as `tuckedCardDiscarded.by`).
+   * Heard only by a pattern that asks for it, `eventIs: { deck: "encounter" }` (`hearsEncounterDeckDiscard`): every
+   * pattern written for a player's deck keeps hearing a player's deck alone, and a registry with no such pattern
+   * records nothing (`listensForEncounterDeckDiscard`). Recorded by `recordEncounterDeckDiscard` from every path that
+   * discards off the top of an encounter deck: `discardTopOfEncounterDeck` (`EffectSpec discardEncounterCards`,
+   * `AbilityCost.discardFromEncounterDeck`), `EffectSpec discardEncounterUntil`, `AbilityCost.encounterLookDiscard`
+   * (the looked-at cards "are still considered part of that deck", RRG 1.8 "Look, Looked-At", p. 27) and a
+   * `moveCards` from the deck to its discard pile. A boost card discarded after an activation leaves play, not the
+   * deck (RRG 1.8 "Boost, Boost Icon", p. 11: "After applying a boost card to an activation, discard it"), and is
+   * not one; neither is a revealed or dealt card. Everything above holds as written: one event per card in discard
+   * order, the cards one effect or cost discarded sharing one response window (RRG 1.8 "Triggering Condition",
+   * p. 45), `at: "deck"` for the card whose discard emptied the deck (RRG 1.8 "Encounter Deck", p. 17: the discard
+   * pile is "immediately shuffled" into a new deck, that card in it), and a card a response took away is neither
+   * offered to another response nor counted by the discarding ability (§4.1 Q32).
    */
   | {
       readonly kind: "cardDiscardedFromDeck";
       readonly instanceId: InstanceId;
-      readonly playerId: PlayerId;
+      readonly playerId: PlayerId | null;
+      readonly deck: "player" | "encounter";
       readonly fromTop: true;
       readonly sourceInstanceId: InstanceId | null;
       readonly at: "discard" | "deck";
+      readonly encounterDeckId?: EncounterDeckId;
+      readonly by?: LeaveCauseSide;
+      readonly how?: "effect" | "cost";
     }
   /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
@@ -1260,12 +1310,24 @@ export type TriggerEventBody =
   /**
    * An ability resolved: it was triggered and its effects resolved (RRG 1.8 "Resolve", p. 37). "After you resolve the
    * ability of a Preparation card you control" (Black Widow; Synth-Suit too, ruling Feb 28, 2026 (2)).
+   *
+   * `carried` (docs/phase7-wave9.md §3.43 (c)): the slots the ability held as it began to resolve, by its own names:
+   * what its costs bound (`AbilityCost.discardFromEncounterDeck.slot`, `encounterLookDiscard.slot`, …), its chosen
+   * targets, the slots its own event gave it. An answering ability reads them as `moment.<slot>` (`carriedByEvent`),
+   * so "After you resolve Falcon's 'Eagle-Eyed' ability, … for each icon in the discarded card's boost area" (Talon
+   * Line, `falcon` 53012) reads `moment.<slot>`, the card Eagle-Eyed's cost discarded, where that card now is. A
+   * card a response took away from a "discarded this way" set (§4.1 Q32) is still in the carried set: the resolved
+   * ability no longer counts it, but it is the card that was discarded. Slots only: a var of the set
+   * (`<slot>.boostIcons`) says what the resolved ability counted, not what the card prints, so an answering ability
+   * reads the card (`ValueSpec boostIcons`, `starIcons`). Absent when the ability held no slot. A slot the
+   * ability's effects bind later is not carried: the event is made before they resolve.
    */
   | {
       readonly kind: "abilityResolved";
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly controllerId: PlayerId | null;
+      readonly carried?: Readonly<Record<string, readonly InstanceId[]>>;
     }
   /**
    * A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened.
@@ -1843,6 +1905,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
       return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
+    case "boostCardGiven":
+      return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostCardResolved":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":
@@ -1923,7 +1987,45 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
   }
 }
 
-/** The prefix an ability answering a moment reads its carried slots and vars under (`EffectSpec raiseMoment.carry`). */
+/**
+ * Whether a pattern on `cardDiscardedFromDeck` asks for the encounter deck's discards: `eventIs: { deck: "encounter" }`
+ * (or a list holding it). The one test of it, for the registry's gate (`listensForEncounterDeckDiscard`) and for the
+ * match itself (`resolve/triggers.ts`), so a pattern that does not ask never hears one in any game.
+ */
+export function hearsEncounterDeckDiscard(pattern: EventPattern): boolean {
+  const kinds = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+  if (!kinds.includes("cardDiscardedFromDeck")) return false;
+  const deck = pattern.eventIs?.deck;
+  return deck === "encounter" || (Array.isArray(deck) && deck.includes("encounter"));
+}
+
+/**
+ * The suffix of the slot that keeps, beside a set of cards "discarded this way", the cards a response to their discard
+ * took away from it (`settleDeckDiscards`, docs/phase7-wave7.md §4.1 Q32): `<slot>.takenAway`. The discarding ability
+ * no longer counts them, and they are still the cards it discarded (`abilityResolved.carried`).
+ */
+export const TAKEN_AWAY_SUFFIX = ".takenAway";
+
+/**
+ * The slots an ability hands to the abilities that answer its resolution (`abilityResolved.carried`,
+ * docs/phase7-wave9.md §3.43 (c)): its own, each set of discarded cards whole again (`TAKEN_AWAY_SUFFIX`).
+ * Undefined when it holds none.
+ */
+export function slotsCarriedByResolved(
+  bindings: Bindings,
+): Readonly<Record<string, readonly InstanceId[]>> | undefined {
+  const carried: Record<string, readonly InstanceId[]> = {};
+  for (const [slot, ids] of Object.entries(bindings)) {
+    if (slot.endsWith(TAKEN_AWAY_SUFFIX)) continue;
+    carried[slot] = [...ids, ...(bindings[`${slot}${TAKEN_AWAY_SUFFIX}`] ?? [])];
+  }
+  return Object.keys(carried).length > 0 ? carried : undefined;
+}
+
+/**
+ * The prefix an ability answering a moment reads its carried slots and vars under (`EffectSpec raiseMoment.carry`), and
+ * one answering `abilityResolved` the resolved ability's slots (`abilityResolved.carried`).
+ */
 export const MOMENT_PREFIX = "moment.";
 
 const NOTHING_CARRIED: {
@@ -1935,14 +2037,17 @@ const NOTHING_CARRIED: {
  * What the event an ability answers hands to that ability's slots and vars (docs/phase7-wave8.md §3.71): the slots and
  * vars a `momentRaised` carries, each under `MOMENT_PREFIX`, so the raising ability's `pulled` is the answering
  * ability's `moment.pulled` and `pulled.count` its `moment.pulled.count`. The prefix keeps them apart from the
- * answering ability's own slots and cost results. Every other event, and a moment that carries nothing, gives nothing.
+ * answering ability's own slots and cost results. An `abilityResolved` hands over the resolved ability's slots the
+ * same way (docs/phase7-wave9.md §3.43 (c)), and no vars. Every other event, and one that carries nothing, gives
+ * nothing.
  *
  * Read wherever an ability is judged or resolved against its event: its condition and targets (`resolve/triggers.ts`,
  * `target-validity.ts`), its cost (`actions.ts`) and its frame (`abilityFrame`).
  */
 export function carriedByEvent(event: TriggerEvent | null | undefined): typeof NOTHING_CARRIED {
-  if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   const prefixed = <T>(record: Readonly<Record<string, T>> | undefined): Record<string, T> =>
     Object.fromEntries(Object.entries(record ?? {}).map(([key, item]) => [`${MOMENT_PREFIX}${key}`, item]));
+  if (event?.kind === "abilityResolved" && event.carried) return { bindings: prefixed(event.carried), vars: {} };
+  if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
 }

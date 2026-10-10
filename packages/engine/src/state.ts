@@ -427,13 +427,31 @@ export interface EncounterFromDeck {
  * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
  * `settleDeckDiscards`). `also`: further slots of that frame holding the card (`discardDeckUntil.bindAll`,
  * docs/phase7-wave8.md §3.71), which drop it the same way.
+ *
+ * A card discarded from the top of an encounter deck is one too (docs/phase7-wave9.md §3.43 (b)): `playerId` is null
+ * (the deck is no player's), `encounterDeckId` names the deck, `how` says whether an effect or a cost discarded it and
+ * `by` which side's card that was.
  */
 export interface DeckDiscard {
-  readonly playerId: PlayerId;
+  readonly playerId: PlayerId | null;
   readonly instanceId: InstanceId;
   readonly sourceInstanceId: InstanceId | null;
   readonly at: "discard" | "deck";
+  readonly encounterDeckId?: EncounterDeckId;
+  readonly by?: LeaveCauseSide;
+  readonly how?: "effect" | "cost";
   readonly boundOn?: { readonly frameId: FrameId; readonly slot: string; readonly also?: readonly string[] };
+}
+
+/**
+ * A facedown boost card given to an enemy, waiting to be announced (`TriggerEvent boostCardGiven`, whose fields these
+ * are; docs/phase7-wave9.md §3.44).
+ */
+export interface BoostGiven {
+  readonly enemyInstanceId: InstanceId;
+  readonly boostInstanceId: InstanceId;
+  readonly activation: "attack" | "scheme" | null;
+  readonly playerId: PlayerId | null;
 }
 
 /**
@@ -971,6 +989,12 @@ export interface GameState {
    * shared response window, and empties the list. Absent until one is first recorded. docs/phase7-wave9.md §3.40.
    */
   readonly pendingTuckedDiscards?: readonly TuckedDiscard[];
+  /**
+   * Facedown boost cards given since the flow last looked, oldest first, recorded by `recordBoostGiven` only when some
+   * ability in the registry triggers on it: the flow announces each as `boostCardGiven` between frames, with a
+   * response window of its own, and empties the list. Absent until one is first recorded. docs/phase7-wave9.md §3.44.
+   */
+  readonly pendingBoostGiven?: readonly BoostGiven[];
   /**
    * Announced deck discards whose response window has not finished, each with the frame whose bound set it would leave
    * (`DeckDiscardWindow`). Absent when there is none. docs/phase7-wave7.md §3.55, §4.1 Q32.
