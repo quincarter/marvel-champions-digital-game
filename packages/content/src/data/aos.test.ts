@@ -234,3 +234,25 @@ describe("aos data: starter decks (MC50 p. 7)", () => {
     expect(size(nick) - (qty(nick, "50035a") ?? 0)).toBe(40);
   });
 });
+
+describe("aos data: the S.H.I.E.L.D. Executive Board set (MC50 p. 6)", () => {
+  const board = AOS_ENCOUNTER_SETS.find((set) => (set.id as string) === "s.h.i.e.l.d._executive_board");
+
+  it("is an extra, uncounted modular set", () => {
+    expect(board?.extraModular).toBe(true);
+    expect(board?.classification).toBeUndefined();
+    expect(board?.campaignSpecific).toBeUndefined();
+  });
+
+  it("is the only extra set of the pack, and Executive Board Evidence is not one", () => {
+    const extras = AOS_ENCOUNTER_SETS.filter((set) => set.extraModular).map((set) => set.id as string);
+    expect(extras).toEqual(["s.h.i.e.l.d._executive_board"]);
+  });
+
+  it("stays a required set of the Baron Zemo scenario (MC50 p. 18) and is no recommended modular set", () => {
+    const zemo = AOS_SCENARIOS.find((scenario) => (scenario.id as string) === "baron-zemo");
+    expect(zemo?.encounterSetIds.map(String)).toContain("s.h.i.e.l.d._executive_board");
+    for (const scenario of AOS_SCENARIOS)
+      expect(scenario.recommendedModularSetIds.map(String)).not.toContain("s.h.i.e.l.d._executive_board");
+  });
+});

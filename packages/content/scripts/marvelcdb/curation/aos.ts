@@ -246,6 +246,13 @@ export const AOS_CURATION: PackCuration = {
     // Set title: scans 50103a/b, 50104a/b and 50108b print "M.O.D.O.K." (the box's own title "M.O.D.O.K." with the last
     // period); MarvelCDB's `card_set_name` drops it. Spec docs/phase7-wave9.md section 1.14 item 6.
     "m.o.d.o.k.": { name: "M.O.D.O.K." },
+    // MC50 p. 6 ("THE S.H.I.E.L.D. EXECUTIVE BOARD", Modular Set): the set "can be used outside of the Agents of
+    // S.H.I.E.L.D. campaign as a modular encounter set. When used this way, place two secret counters on each Board
+    // Member environment during setup. This set does not count toward the required number of modular encounter sets for
+    // a scenario." An extra, uncounted set (the Longshot rule). The two secret counters are setup behavior, not set
+    // data: the schema holds no counter count on a set, so the cards-side builder places them (docs/phase7-wave9.md
+    // section 1.10). In the Baron Zemo scenario the set is required (MC50 p. 18), so it stays in that record's own sets.
+    "s.h.i.e.l.d._executive_board": { extraModular: true },
   },
 
   errata: [

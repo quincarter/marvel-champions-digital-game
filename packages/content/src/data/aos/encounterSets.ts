@@ -48,6 +48,7 @@ export const AOS_ENCOUNTER_SETS: readonly EncounterSet[] = [
     id: encounterSetId("s.h.i.e.l.d._executive_board"),
     name: "S.H.I.E.L.D. Executive Board",
     packCodes: [setCode("aos")],
+    extraModular: true,
   },
   { id: encounterSetId("scientist_supreme"), name: "Scientist Supreme", packCodes: [setCode("aos")] },
   { id: encounterSetId("supersonic"), name: "Supersonic", packCodes: [setCode("aos")] },
