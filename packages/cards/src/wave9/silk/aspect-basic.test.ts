@@ -30,13 +30,16 @@ import {
 import { driveEventsPicking, withForm } from "../../testing/staging.js";
 import { ROGUE_EVENTS } from "../../wave6/rogue/rogue/events.js";
 import { BLANK, CHARGE, ONE_ICON, onlyDeck, piles, types } from "../testing.js";
+import { GHOST_SPIDER_EVENTS_B } from "../../wave5/sm/ghost-spider/events-b.js";
+import { SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS } from "../../wave5/sm/spider-man-morales/precon-player-cards.js";
+import { SILK_QUICK_QUIP } from "../../wave5/silk/quick-quip.js";
 import { SILK_ASPECT_BASIC as REGISTRY, SILK_ASPECT_BASIC_SKIPPED as SKIPPED } from "./aspect-basic.js";
 import { ASPECT_DEPS as DEPS, aspectGame, aspectHero, engaged, placed } from "./aspect-basic.testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * Wave 9 `silk/aspect-basic`, first half (52013 to 52021), docs/phase7-wave9.md sections 3.51 and 3.52. The Silk
+ * Wave 9 `silk/aspect-basic`, first half (52013 to 52021) and second half (52022 to 52027, 52032 to 52034), docs/phase7-wave9.md sections 3.51 and 3.52. The Silk
  * Protection precon (it holds every card of the half) against Core's Rhino (ATK 2, SCH 1); Silk is DEF 3 and ATK 2 in
  * hero form, Cindy Moon has REC 3 in alter-ego form. Only Core's cards and this module are scripted here.
  */
@@ -217,7 +220,7 @@ describe("registry", () => {
     expect(printed).toHaveLength(Object.keys(REGISTRY).length + Object.keys(SKIPPED).length);
     for (const ref of printed) expect(ref in REGISTRY !== ref in SKIPPED, ref).toBe(true);
   });
-  it("registers exactly these nine refs of 52013 to 52021", () => {
+  it("registers exactly these fourteen refs of the module (52034 is skipped: wave 5 registered it)", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([
       "52013.scarlet-spider-interrupt",
       "52014.spider-byte-constant",
@@ -228,18 +231,17 @@ describe("registry", () => {
       "52019.ready-for-a-fight-interrupt",
       "52020.stun-gun-action",
       "52021.madame-web-response",
-    ]);
-  });
-  it("skips the second half (52022 to 52027, 52032 to 52034) as not started, nothing else", () => {
-    expect(Object.keys(SKIPPED).sort()).toEqual([
       "52022.spider-man-response",
       "52023.across-the-spider-verse-action",
       "52024.investigative-journalism-interrupt",
       "52032.spider-man-2099-response",
       "52033.spider-woman-response",
-      "52034.quick-quip-action",
     ]);
-    for (const reason of Object.values(SKIPPED)) expect(reason).toBe("second half of the module, not started");
+  });
+  it("skips only Quick Quip 52034, which wave 5 already registered (an id defined twice is an error)", () => {
+    expect(Object.keys(SKIPPED)).toEqual(["52034.quick-quip-action"]);
+    expect(SKIPPED["52034.quick-quip-action"]).toMatch(/already registered by wave 5/);
+    expect(DEPS.abilities["52034.quick-quip-action"]).toBe(SILK_QUICK_QUIP["52034.quick-quip-action"]);
   });
   it("trigger kinds, forms, labels and costs", () => {
     expect(REGISTRY["52013.scarlet-spider-interrupt"]!.trigger).toMatchObject({ kind: "interrupt", forced: false });
@@ -265,6 +267,11 @@ describe("registry", () => {
       cost: { exhaustSelf: true, spendCounters: { counterType: "charge", amount: 2, upTo: true } },
     });
     expect(REGISTRY["52021.madame-web-response"]!.trigger).toMatchObject({ kind: "response", forced: false });
+    expect(REGISTRY["52024.investigative-journalism-interrupt"]).toMatchObject({
+      trigger: { kind: "interrupt", forced: false, would: true, form: "alterEgo" },
+    });
+    expect(REGISTRY["52032.spider-man-2099-response"]!.trigger).toMatchObject({ kind: "response", forced: false });
+    expect(REGISTRY["52033.spider-woman-response"]!.trigger).toMatchObject({ kind: "response", forced: false });
   });
   it("Not Today! aliases Rogue's 38016 script, and the source's name, cost and text are the same", () => {
     expect(REGISTRY["52015.not-today-interrupt"]).toBe(ROGUE_EVENTS["38016.not-today-interrupt"]);
@@ -1104,5 +1111,672 @@ describe("52019.ready-for-a-fight-interrupt: when an enemy would scheme, discard
     const r = villainPhase(worn.state, { deck, accept: [REF] });
     expect(r.offered()).toBe(0);
     expect(inst(r.state, worn.id).attachedTo).toBe(identityOf(r.state));
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Second half (52022 to 52027, 52032 to 52034)
+// ---------------------------------------------------------------------------------------------------------------
+
+const SPIDER_MAN = "52022";
+const ACROSS = "52023";
+const JOURNALISM = "52024";
+const ENERGY = "52025";
+const GENIUS = "52026";
+const STRENGTH = "52027";
+const S2099 = "52032";
+const WOMAN = "52033";
+const QUIP = "52034";
+
+/**
+ * Settled run of `commands` with a scripted player: a trigger whose id ends with an entry of `accept` is taken (every
+ * other optional thing is declined), chooseTarget / chooseCards prompts take the first listed `target` they offer,
+ * chooseOption prompts take `option` (index) and spendResources prompts take `spend`. Records what each prompt offered.
+ */
+function scripted(
+  state: GameState,
+  commands: readonly Command[],
+  opts: {
+    readonly accept?: readonly string[];
+    readonly target?: readonly (InstanceId | string)[];
+    readonly option?: readonly string[];
+    readonly spend?: readonly InstanceId[];
+  } = {},
+) {
+  const offers: Record<string, string[]> = {};
+  const kinds: string[] = [];
+  let options = 0;
+  let triggers = 0;
+  const result = driveEventsPicking(
+    DEPS,
+    state,
+    (s) => {
+      const open = s.pendingChoice!;
+      const ids = open.options.map((o) => o.optionId as string);
+      kinds.push(open.prompt.kind);
+      offers[open.prompt.kind] = ids;
+      if (open.prompt.kind === "chooseTriggers") {
+        const hit = ids.find((o) => (opts.accept ?? []).some((a) => o.endsWith(a)));
+        if (hit) {
+          triggers++;
+          return [hit];
+        }
+        return firstLegal(s);
+      }
+      if (["chooseTarget", "chooseCards", "choosePlayer"].includes(open.prompt.kind)) {
+        const hits = (opts.target ?? []).filter((t) => ids.includes(t as string));
+        if (hits.length > 0) return [hits[0] as string];
+      }
+      if (open.prompt.kind === "chooseOption") return [opts.option?.[options++] ?? ids[ids.length - 1]!];
+      if (open.prompt.kind === "spendResources" && opts.spend) {
+        return opts.spend.map((i) => ids.find((o) => o === `hand:${i}`) ?? ids.find((o) => o.includes(i))!);
+      }
+      return firstLegal(s);
+    },
+    ...commands,
+  );
+  return { ...result, offers, kinds, taken: () => triggers };
+}
+const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({
+  type: "basicAttack",
+  playerId: P1,
+  attackerInstanceId: attacker,
+  targetInstanceId: target,
+});
+const basicThwart = (thwarter: InstanceId, scheme: InstanceId): Command => ({
+  type: "basicThwart",
+  playerId: P1,
+  thwarterInstanceId: thwarter,
+  schemeInstanceId: scheme,
+});
+const exhaust = (s: GameState, id: InstanceId): GameState => patchInstance(s, id, { exhausted: true });
+/** Puts the first copy of `code` (owned and controlled by `player`) into their discard pile. */
+function discarded(state: GameState, code: string, player: PlayerId = P1) {
+  const given = moveToHand(state, player, code);
+  const id = given.ids[0]!;
+  return {
+    id,
+    state: {
+      ...given.state,
+      players: given.state.players.map((p) =>
+        p.playerId === player ? { ...p, hand: p.hand.filter((i) => i !== id), discard: [...p.discard, id] } : p,
+      ),
+    } as GameState,
+  };
+}
+const BLACK_CAT_ALLY = "01002";
+const damageOfCard = (s: GameState, id: InstanceId): number => inst(s, id).damage;
+/** The Silk Protection deck with 52032 / 52033 / 52034 swapped in for the cards of the precon that are not used here. */
+const swapped = (...codes: string[]): Parameters<typeof aspectGame>[0] => ({
+  swap: Object.fromEntries(codes.map((code, i) => [["52005", "52006", "52007"][i]!, code])),
+});
+const inHand = (s: GameState, id: InstanceId, p: PlayerId = P1): boolean => playerOf(s, p).hand.includes(id);
+
+describe("printed data of the second half", () => {
+  it("Spider-Man: unique Basic ally, cost 3, ATK 2, THW 2, HP 3, consequential 1/1, WEB-WARRIOR, [mental], Requirement (energy mental physical)", () => {
+    const c = card<AllyCard>(SPIDER_MAN);
+    expect([c.name, c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([
+      "Spider-Man",
+      3,
+      2,
+      2,
+      3,
+      "basic",
+      true,
+      1,
+    ]);
+    expect((c as unknown as { subtitle: string }).subtitle).toBe("Peter Parker");
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(traitsOf(SPIDER_MAN)).toEqual(["WEB-WARRIOR"]);
+    expect(card<WithIcons>(SPIDER_MAN).resourceIcons).toEqual({ mental: 1 });
+    expect((c as unknown as { keywords: unknown }).keywords).toEqual([
+      { name: "requirement", resources: { energy: 1, mental: 1, physical: 1 } },
+    ]);
+  });
+  it("Spider-Man is Sm's 27049 reprinted: the same script object, stats, keywords and text", () => {
+    expect(REGISTRY["52022.spider-man-response"]).toBe(
+      SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS["27049.spider-man-response"],
+    );
+    const source = PLAYABLE_CARDS.find((c) => c.id === cardId("27049")) as unknown as AllyCard & WithText;
+    const mine = card<AllyCard & WithText>(SPIDER_MAN);
+    for (const key of ["name", "subtitle", "cost", "atk", "thw", "hp", "consequentialDamage", "keywords", "traits"]) {
+      expect((mine as never)[key], key).toEqual((source as never)[key]);
+    }
+    expect(mine.text.current).toBe(source.text.current);
+  });
+  it("Across the Spider-Verse: Basic event, cost 2, [wild], no traits, max 1 per deck; Sm's 27018 reprinted (script and text)", () => {
+    const c = card<EventCard>(ACROSS);
+    expect([c.name, c.cost, c.aspect, c.deckLimit]).toEqual(["Across the Spider-Verse", 2, "basic", 1]);
+    expect(traitsOf(ACROSS)).toEqual([]);
+    expect(card<WithIcons>(ACROSS).resourceIcons).toEqual({ wild: 1 });
+    expect(REGISTRY["52023.across-the-spider-verse-action"]).toBe(
+      GHOST_SPIDER_EVENTS_B["27018.across-the-spider-verse-action"],
+    );
+    const source = PLAYABLE_CARDS.find((c) => c.id === cardId("27018")) as unknown as EventCard & WithText;
+    expect(card<WithText>(ACROSS).text.current).toBe(source.text.current);
+    expect([source.name, source.cost, source.deckLimit]).toEqual([c.name, c.cost, c.deckLimit]);
+  });
+  it("Investigative Journalism: Basic SKILL event, cost 2, [wild], Team-Up (Cindy Moon and Peter Parker), max 1 per deck", () => {
+    const c = card<EventCard>(JOURNALISM);
+    expect([c.name, c.cost, c.aspect, c.deckLimit]).toEqual(["Investigative Journalism", 2, "basic", 1]);
+    expect(traitsOf(JOURNALISM)).toEqual(["SKILL"]);
+    expect(card<WithIcons>(JOURNALISM).resourceIcons).toEqual({ wild: 1 });
+    expect((c as unknown as { keywords: unknown }).keywords).toEqual([
+      { name: "teamUp", names: ["Cindy Moon", "Peter Parker"] },
+    ]);
+  });
+  it("Energy, Genius, Strength: Basic resources with no ability, two icons of one type each, max 1 per deck", () => {
+    const icons = { [ENERGY]: "energy", [GENIUS]: "mental", [STRENGTH]: "physical" } as const;
+    const names = { [ENERGY]: "Energy", [GENIUS]: "Genius", [STRENGTH]: "Strength" } as const;
+    for (const code of [ENERGY, GENIUS, STRENGTH] as const) {
+      const c = card<WithIcons & WithAbilities>(code);
+      expect(c.type, code).toBe("resource");
+      expect(c.name, code).toBe(names[code]);
+      expect(c.producesIcons, code).toEqual({ [icons[code]]: 2 });
+      expect(c.abilities, code).toEqual([]);
+      expect((c as unknown as { aspect: string; deckLimit: number }).aspect).toBe("basic");
+      expect((c as unknown as { deckLimit: number }).deckLimit).toBe(1);
+      expect(Object.keys(REGISTRY).filter((k) => k.startsWith(code))).toEqual([]);
+    }
+  });
+  it("Spider-Man 2099: unique Leadership AERIAL WEB-WARRIOR ally, cost 4, ATK 2, THW 2, HP 3, consequential 1/1, [energy]", () => {
+    const c = card<AllyCard>(S2099);
+    expect([c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([4, 2, 2, 3, "leadership", true, 1]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(traitsOf(S2099)).toEqual(["AERIAL", "WEB-WARRIOR"]);
+    expect(card<WithIcons>(S2099).resourceIcons).toEqual({ energy: 1 });
+  });
+  it("Spider-Woman: unique Aggression S.H.I.E.L.D. WEB-WARRIOR ally, cost 3, ATK 2, THW 1, HP 3, consequential 1/1, [physical]", () => {
+    const c = card<AllyCard>(WOMAN);
+    expect([c.cost, c.atk, c.thw, c.hp, c.aspect, c.unique, c.deckLimit]).toEqual([3, 2, 1, 3, "aggression", true, 1]);
+    expect(c.consequentialDamage).toEqual({ attack: 1, thwart: 1 });
+    expect(traitsOf(WOMAN)).toEqual(["S.H.I.E.L.D.", "WEB-WARRIOR"]);
+    expect(card<WithIcons>(WOMAN).resourceIcons).toEqual({ physical: 1 });
+  });
+  it("Quick Quip: Justice SKILL event, cost 2, [mental], Requirement ([mental]), up to 3 copies; wave 5's script", () => {
+    const c = card<EventCard>(QUIP);
+    expect([c.cost, c.aspect, c.deckLimit]).toEqual([2, "justice", 3]);
+    expect(traitsOf(QUIP)).toEqual(["SKILL"]);
+    expect(card<WithIcons>(QUIP).resourceIcons).toEqual({ mental: 1 });
+    expect((c as unknown as { keywords: unknown }).keywords).toEqual([{ name: "requirement", icon: "mental" }]);
+    expect(DEPS.abilities["52034.quick-quip-action"]).toMatchObject({
+      trigger: { kind: "action", form: "hero" },
+    });
+  });
+  it("the resource cards pay their icons: Energy pays two [energy], Genius two [mental], Strength two [physical]", () => {
+    const given = moveToHand(aspectGame(), P1, ENERGY, GENIUS, STRENGTH);
+    expect(given.ids.map((i) => iconsOfCard(given.state, i))).toEqual([{ energy: 2 }, { mental: 2 }, { physical: 2 }]);
+  });
+});
+
+describe("52022.spider-man-response: after Spider-Man attacks or thwarts, ready another Web-Warrior character", () => {
+  const REF = "52022.spider-man-response";
+  /** Spider-Man in play next to an exhausted Scarlet Spider; Silk (hero form) exhausted too. */
+  const stage = (opts: Parameters<typeof aspectHero>[0] = {}) => {
+    const man = placed(hero(opts), SPIDER_MAN);
+    const scarlet = placed(man.state, SCARLET);
+    const state = exhaust(exhaust(scarlet.state, scarlet.id), identityOf(scarlet.state));
+    return { state, man: man.id, scarlet: scarlet.id, silk: identityOf(state) };
+  };
+
+  it("costs 3 and needs energy, mental and physical: [energy][mental][physical] pays, three of one type is refused", () => {
+    const given = moveToHand(hero(), P1, SPIDER_MAN, ENERGY, GENIUS, STRENGTH);
+    const [id, energy, mental, physical] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    expect(() => run(given.state, play(P1, id, [energy, mental]))).toThrow();
+    const out = drive(run(given.state, play(P1, id, [energy, mental, physical])));
+    expect(inPlayArea(out, id)).toBe(true);
+    expect(inst(out, id).exhausted).toBe(false);
+    expect(handSize(out)).toBe(handSize(given.state) - 4);
+    const noPhysical = moveToHand(hero(), P1, SPIDER_MAN, ENERGY, GENIUS);
+    expect(() =>
+      run(
+        noPhysical.state,
+        play(P1, noPhysical.ids[0]!, [noPhysical.ids[1]!, noPhysical.ids[2]!, handOther(noPhysical)]),
+      ),
+    ).toThrow();
+    function handOther(g: typeof noPhysical): InstanceId {
+      return playerOf(g.state, P1).hand.find((h) => !g.ids.includes(h) && !(iconsOfCard(g.state, h).physical ?? 0))!;
+    }
+  });
+  it("attacking readies the chosen exhausted ally, and the attack still hits: Rhino takes 2, Spider-Man takes 1 consequential", () => {
+    const { state, man, scarlet } = stage();
+    const villain = villainOf(state);
+    const r = scripted(state, [basicAttack(man, villain)], { accept: [REF], target: [scarlet] });
+    expect(r.taken()).toBe(1);
+    expect(inst(r.state, scarlet).exhausted).toBe(false);
+    expect(inst(r.state, man).exhausted).toBe(true);
+    expect(damageOfCard(r.state, villain)).toBe(2);
+    expect(damageOfCard(r.state, man)).toBe(1);
+  });
+  it("thwarting triggers it too: the player picks Silk, who readies", () => {
+    const { state: base, man, silk } = stage();
+    const state = patchInstance(base, schemeOf(base), { threat: 3 });
+    const r = scripted(state, [basicThwart(man, schemeOf(state))], { accept: [REF], target: [silk] });
+    expect(r.taken()).toBe(1);
+    expect(inst(r.state, silk).exhausted).toBe(false);
+    expect(inst(r.state, man).exhausted).toBe(true);
+    expect(inst(r.state, schemeOf(r.state)).threat).toBe(1);
+  });
+  it("'another': Spider-Man is not offered; Silk and Scarlet Spider are; a non-Web-Warrior ally is not", () => {
+    const { state, man, scarlet, silk } = stage({ swap: { "52005": BLACK_CAT_ALLY } });
+    const cat = placed(state, BLACK_CAT_ALLY);
+    const r = scripted(cat.state, [basicAttack(man, villainOf(state))], { accept: [REF], target: [scarlet] });
+    expect([...r.offers.chooseTarget!].sort()).toEqual([scarlet, silk].sort());
+    expect(r.offers.chooseTarget).not.toContain(man);
+    expect(r.offers.chooseTarget).not.toContain(cat.id);
+  });
+  it("declined: nothing is readied", () => {
+    const { state, man, scarlet, silk } = stage();
+    const r = scripted(state, [basicAttack(man, villainOf(state))], {});
+    expect(inst(r.state, scarlet).exhausted).toBe(true);
+    expect(inst(r.state, silk).exhausted).toBe(true);
+  });
+  it("only Spider-Man's own attack or thwart: Scarlet Spider attacking does not offer it", () => {
+    const { state, scarlet, silk } = stage();
+    const ready = patchInstance(state, scarlet, { exhausted: false });
+    const r = scripted(ready, [basicAttack(scarlet, villainOf(state))], { accept: [REF], target: [silk] });
+    expect(r.taken()).toBe(0);
+    expect(inst(r.state, silk).exhausted).toBe(true);
+  });
+});
+
+describe("52023.across-the-spider-verse-action: exhaust a Web-Warrior card you control, put a Web-Warrior ally from your discard pile into play, a chosen player may pay 3 to repeat", () => {
+  const ID = "52023.across-the-spider-verse-action";
+  /** Scarlet Spider and Spider-Byte in the discard pile, Across in hand; Silk (hero form) ready. */
+  const stage = () => {
+    const a = discarded(hero(), SCARLET);
+    const b = discarded(a.state, BYTE);
+    const given = moveToHand(b.state, P1, ACROSS);
+    return { state: given.state, across: given.ids[0]!, scarlet: a.id, byte: b.id, silk: identityOf(given.state) };
+  };
+  const cast = (state: GameState, across: InstanceId, opts: Parameters<typeof scripted>[2]) =>
+    scripted(
+      state,
+      [
+        play(
+          P1,
+          across,
+          playerOf(state, P1)
+            .hand.filter((i) => i !== across)
+            .slice(0, 2),
+        ),
+      ],
+      opts,
+    );
+
+  it("costs 2: exhausts Silk, puts Scarlet Spider into play ready, and Across goes to the discard pile; declining the repeat ends it", () => {
+    const { state, across, scarlet, byte, silk } = stage();
+    const r = cast(state, across, { target: [silk, scarlet], option: ["1"] });
+    expect(inst(r.state, silk).exhausted).toBe(true);
+    expect(inPlayArea(r.state, scarlet)).toBe(true);
+    expect(inst(r.state, scarlet).exhausted).toBe(false);
+    expect(inDiscard(r.state, byte)).toBe(true);
+    expect(inDiscard(r.state, across)).toBe(true);
+    expect(handSize(r.state)).toBe(handSize(state) - 1 - 2);
+  });
+  it("only Web-Warrior allies of the discard pile are offered (not the event Across's cost cards)", () => {
+    const { state, across, scarlet, byte, silk } = stage();
+    const r = cast(state, across, { target: [silk, scarlet], option: ["1"] });
+    expect([...r.offers.chooseCards!].sort()).toEqual([byte, scarlet].sort());
+  });
+  it("the player picks which ally: Spider-Byte instead of Scarlet Spider", () => {
+    const { state, across, scarlet, byte, silk } = stage();
+    const r = cast(state, across, { target: [silk, byte], option: ["1"] });
+    expect(inPlayArea(r.state, byte)).toBe(true);
+    expect(inDiscard(r.state, scarlet)).toBe(true);
+  });
+  it("the Web-Warrior card to exhaust may be an ally already in play: Madame Web is exhausted, Silk stays ready", () => {
+    const { state, across, scarlet, silk } = stage();
+    const web = placed(state, WEB);
+    const r = cast(web.state, across, { target: [web.id, scarlet], option: ["1"] });
+    expect(inst(r.state, web.id).exhausted).toBe(true);
+    expect(inst(r.state, silk).exhausted).toBe(false);
+    expect(inPlayArea(r.state, scarlet)).toBe(true);
+  });
+  it("repeat: the chosen player (you) spends 3 resources, exhausts another Web-Warrior card and puts a second ally into play", () => {
+    const { state, across, scarlet, byte, silk } = stage();
+    const extra = moveToHand(state, P1, ENERGY, GENIUS, STRENGTH);
+    const r = scripted(
+      extra.state,
+      [
+        play(
+          P1,
+          across,
+          playerOf(extra.state, P1)
+            .hand.filter((i) => i !== across && !extra.ids.includes(i))
+            .slice(0, 2),
+        ),
+      ],
+      { target: [silk, scarlet, P1, byte], option: ["0", "1"], spend: extra.ids },
+    );
+    expect(r.kinds.filter((k) => k === "choosePlayer")).toHaveLength(2);
+    expect(inPlayArea(r.state, scarlet)).toBe(true);
+    expect(inPlayArea(r.state, byte)).toBe(true);
+    expect(inst(r.state, silk).exhausted).toBe(true);
+    for (const id of extra.ids) expect(inDiscard(r.state, id)).toBe(true);
+    expect(inDiscard(r.state, across)).toBe(true);
+  });
+  it("Hero Action: refused in alter-ego form", () => {
+    const given = moveToHand(aspectGame(), P1, ACROSS);
+    const pay = playerOf(given.state, P1)
+      .hand.filter((i) => i !== given.ids[0])
+      .slice(0, 2);
+    expect(() => run(given.state, play(P1, given.ids[0]!, pay))).toThrow();
+  });
+  // KNOWN GAP in the aliased wave 5 script (27018): "Exhaust a Web-Warrior card you control" is a cost on the card, so with
+  // nothing ready to exhaust it should be unplayable; the script exhausts inside the effect and the card plays anyway.
+  it.fails("no ready Web-Warrior card to exhaust (Silk exhausted, nothing else in play): the card is not playable", () => {
+    const { state, across } = stage();
+    const spent = exhaust(state, identityOf(state));
+    const pay = playerOf(spent, P1)
+      .hand.filter((i) => i !== across)
+      .slice(0, 2);
+    expect(() => run(spent, play(P1, across, pay))).toThrow();
+  });
+  it("is the ability id the data prints", () => {
+    expect(card<WithAbilities>(ACROSS).abilities.map((a) => a.id)).toEqual([ID]);
+  });
+});
+
+describe("52024.investigative-journalism-interrupt: Alter-Ego Interrupt, when an enemy would scheme, cancel that activation and confuse it", () => {
+  const REF = "52024.investigative-journalism-interrupt";
+  // Canceled, the activation draws no boost card, so the first card is the one dealt: an attachment that touches nobody
+  // (a treachery here would reveal and activate Rhino again, spending the status card).
+  const deck = [DEALT, "01098", "01099"];
+  const threatOfScheme = (s: GameState): number => inst(s, schemeOf(s)).threat;
+  /** Cindy Moon (alter-ego form) with Spider-Man (Peter Parker) in play: the Team-Up is met. */
+  const withPeter = () => placed(aspectGame(), SPIDER_MAN).state;
+  const baseline = () => villainPhase(withPeter(), { deck, hand: [JOURNALISM] });
+
+  it("accepted on Rhino's scheme: no threat is placed, Rhino is confused (1 status card), the event costs 2 and is discarded", () => {
+    const declined = baseline();
+    const r = villainPhase(withPeter(), { deck, hand: [JOURNALISM], accept: [REF] });
+    expect(r.offered()).toBe(1);
+    expect(threatOfScheme(declined.state) - threatOfScheme(r.state)).toBe(3); // declined: SCH 1 plus the boost card's 2 icons; canceled: no scheme, so no boost card
+    const rhino = villainOf(r.state);
+    expect(inst(r.state, rhino).statuses.confused).toBe(1);
+    expect(inst(r.state, rhino).statuses.stunned).toBe(0);
+    expect(inDiscard(r.state, r.given.ids[0]!)).toBe(true);
+    expect(handSize(r.state)).toBe(handSize(declined.state) - 1 - 2);
+  });
+  it("declined: Rhino schemes for 1 and is not confused", () => {
+    const r = baseline();
+    expect(inst(r.state, villainOf(r.state)).statuses.confused).toBe(0);
+    expect(inPlayArea(r.state, r.given.ids[0]!)).toBe(false);
+    expect(inDiscard(r.state, r.given.ids[0]!)).toBe(false);
+  });
+  it("the activation is canceled, not replaced: Rhino does not attack either, Cindy Moon takes no damage", () => {
+    const r = villainPhase(withPeter(), { deck, hand: [JOURNALISM], accept: [REF] });
+    expect(types(r.events, "attackResolved")).toHaveLength(0);
+    expect(damageOf(r.state, identityOf(r.state))).toBe(0);
+  });
+  it("any enemy: Sandman (a minion, SCH 2) is canceled and confused, Rhino (declined) schemes", () => {
+    const state = engaged(withPeter(), SANDMAN, "m-sandman");
+    const r = villainPhase(state, { deck: [BLANK, DEALT, "01104"], hand: [JOURNALISM], accept: [REF], on: [1] });
+    expect(r.offered()).toBe(2);
+    expect(inst(r.state, "m-sandman" as InstanceId).statuses.confused).toBe(1);
+    expect(inst(r.state, villainOf(r.state)).statuses.confused).toBe(0);
+  });
+  it("Team-Up (Cindy Moon and Peter Parker): without Peter Parker (Spider-Man) in play it is not offered", () => {
+    const r = villainPhase(aspectGame(), { deck, hand: [JOURNALISM], accept: [REF] });
+    expect(r.offered()).toBe(0);
+    expect(inst(r.state, villainOf(r.state)).statuses.confused).toBe(0);
+  });
+  it("Alter-Ego Interrupt: in hero form the enemy attacks rather than schemes, so it is not offered", () => {
+    const r = villainPhase(placed(hero(), SPIDER_MAN).state, { deck, hand: [JOURNALISM], accept: [REF] });
+    expect(r.offered()).toBe(0);
+  });
+  it("the confused status is spent by Rhino's next scheme: the next villain phase places no threat", () => {
+    const first = villainPhase(withPeter(), { deck, hand: [JOURNALISM], accept: [REF] });
+    expect(inst(first.state, villainOf(first.state)).statuses.confused).toBe(1);
+  });
+});
+
+describe("52032.spider-man-2099-response: after he uses a basic power, return a Web-Warrior ally in play to its owner's hand", () => {
+  const REF = "52032.spider-man-2099-response";
+  const stage = (extra: readonly string[] = [], second = false) => {
+    const game = aspectHero({ ...swapped(S2099, ...extra), second });
+    const man = placed(game, S2099);
+    const scarlet = placed(man.state, SCARLET);
+    return { state: scarlet.state, man: man.id, scarlet: scarlet.id };
+  };
+
+  it("costs 4 and enters play ready; the star response is an optional response, not a trigger on entering", () => {
+    const given = moveToHand(aspectHero(swapped(S2099)), P1, S2099);
+    const id = given.ids[0]!;
+    const pay = playerOf(given.state, P1)
+      .hand.filter((i) => i !== id)
+      .slice(0, 4);
+    const out = drive(run(given.state, play(P1, id, pay)));
+    expect(inPlayArea(out, id)).toBe(true);
+    expect(inst(out, id).exhausted).toBe(false);
+    expect(handSize(out)).toBe(handSize(given.state) - 1 - 4);
+  });
+  it("attacking: Rhino takes 2, he takes 1 consequential, and the chosen ally (Scarlet Spider) returns to hand", () => {
+    const { state, man, scarlet } = stage();
+    const r = scripted(state, [basicAttack(man, villainOf(state))], { accept: [REF], target: [scarlet] });
+    expect(r.taken()).toBe(1);
+    expect(inHand(r.state, scarlet)).toBe(true);
+    expect(inPlayArea(r.state, scarlet)).toBe(false);
+    expect(inPlayArea(r.state, man)).toBe(true);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(2);
+    expect(damageOf(r.state, man)).toBe(1);
+  });
+  it("thwarting also uses a basic power: the response is offered", () => {
+    const { state: base, man, scarlet } = stage();
+    const state = patchInstance(base, schemeOf(base), { threat: 3 });
+    const r = scripted(state, [basicThwart(man, schemeOf(state))], { accept: [REF], target: [scarlet] });
+    expect(inHand(r.state, scarlet)).toBe(true);
+    expect(inst(r.state, schemeOf(r.state)).threat).toBe(1);
+  });
+  it("he may return himself (a Web-Warrior ally in play): he goes to hand after the attack resolved", () => {
+    const { state, man } = stage();
+    const r = scripted(state, [basicAttack(man, villainOf(state))], { accept: [REF], target: [man] });
+    expect(inHand(r.state, man)).toBe(true);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(2);
+  });
+  it("only allies: Silk (a Web-Warrior character) and a non-Web-Warrior ally are not offered", () => {
+    const { state, man, scarlet } = stage([BLACK_CAT_ALLY]);
+    const cat = placed(state, BLACK_CAT_ALLY);
+    const r = scripted(cat.state, [basicAttack(man, villainOf(state))], { accept: [REF], target: [scarlet] });
+    expect([...r.offers.chooseTarget!].sort()).toEqual([man, scarlet].sort());
+    expect(r.offers.chooseTarget).not.toContain(cat.id);
+    expect(r.offers.chooseTarget).not.toContain(identityOf(state));
+  });
+  it("an ally controlled by another player returns to its owner's hand (P1's), not the controller's", () => {
+    const { state, man, scarlet } = stage([], true);
+    // Surgery: P1's Scarlet Spider is under P2's control.
+    const moved: GameState = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, playArea: p.playArea.filter((i) => i !== scarlet) }
+          : { ...p, playArea: [...p.playArea, scarlet] },
+      ),
+    };
+    const theirs = patchInstance(moved, scarlet, { controllerId: P2 });
+    const r = scripted(theirs, [basicAttack(man, villainOf(state))], { accept: [REF], target: [scarlet] });
+    expect(r.offers.chooseTarget).toContain(scarlet);
+    expect(inHand(r.state, scarlet, P1)).toBe(true);
+    expect(inHand(r.state, scarlet, P2)).toBe(false);
+    expect(playerOf(r.state, P2).playArea).not.toContain(scarlet);
+  });
+  it("declined: nothing returns", () => {
+    const { state, man, scarlet } = stage();
+    const r = scripted(state, [basicAttack(man, villainOf(state))], {});
+    expect(inPlayArea(r.state, scarlet)).toBe(true);
+  });
+  it("only his own basic powers: Scarlet Spider attacking does not offer it", () => {
+    const { state, scarlet } = stage();
+    const r = scripted(state, [basicAttack(scarlet, villainOf(state))], { accept: [REF], target: [scarlet] });
+    expect(r.taken()).toBe(0);
+    expect(inPlayArea(r.state, scarlet)).toBe(true);
+  });
+});
+
+describe("52033.spider-woman-response: after a Web-Warrior ally (including this one) enters play, deal 1 damage to an enemy", () => {
+  const REF = "52033.spider-woman-response";
+  const stage = (extra: readonly string[] = [], second = false) => {
+    const game = aspectHero({ ...swapped(WOMAN, ...extra), second });
+    const sw = placed(game, WOMAN);
+    return { state: sw.state, sw: sw.id };
+  };
+  /** Plays `code` from the hand (paid with spare cards) and takes Spider-Woman's response, aiming it at `target`. */
+  const playAlly = (state: GameState, code: string, target: InstanceId | undefined, accept = true) => {
+    const given = moveToHand(state, P1, code);
+    const id = given.ids[0]!;
+    const cost = (card<AllyCard>(code) ?? anyCard(code)).cost;
+    const pay = playerOf(given.state, P1)
+      .hand.filter((i) => i !== id)
+      .slice(0, cost);
+    const r = scripted(given.state, [play(P1, id, pay)], {
+      accept: accept ? [REF] : [],
+      target: target ? [target] : [],
+    });
+    return { ...r, id };
+  };
+
+  it("costs 3 and enters play ready; her own entering triggers it: Rhino takes exactly 1 damage", () => {
+    const base = aspectHero(swapped(WOMAN));
+    const given = moveToHand(base, P1, WOMAN);
+    const id = given.ids[0]!;
+    const pay = playerOf(given.state, P1)
+      .hand.filter((i) => i !== id)
+      .slice(0, 3);
+    const r = scripted(given.state, [play(P1, id, pay)], { accept: [REF] });
+    expect(inPlayArea(r.state, id)).toBe(true);
+    expect(inst(r.state, id).exhausted).toBe(false);
+    expect(handSize(r.state)).toBe(handSize(given.state) - 1 - 3);
+    expect(r.taken()).toBe(1);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(1);
+  });
+  it("another Web-Warrior ally entering (Scarlet Spider): 1 damage to the chosen enemy, a minion rather than the villain", () => {
+    const { state } = stage();
+    const withMinion = engaged(state, SANDMAN, "m-sandman");
+    const r = playAlly(withMinion, SCARLET, "m-sandman" as InstanceId);
+    expect(r.taken()).toBe(1);
+    expect(damageOf(r.state, "m-sandman" as InstanceId)).toBe(1);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+    expect([...r.offers.chooseTarget!].sort()).toEqual(["m-sandman", villainOf(r.state)].sort());
+  });
+  it("it is exactly 1 damage per ally entering: two allies played in turn deal 2 to Rhino", () => {
+    const { state } = stage();
+    const first = playAlly(state, SCARLET, undefined);
+    const second = playAlly(first.state, BYTE, undefined);
+    expect(damageOf(second.state, villainOf(second.state))).toBe(2);
+  });
+  it("declined: no damage", () => {
+    const { state } = stage();
+    const r = playAlly(state, SCARLET, undefined, false);
+    expect(inPlayArea(r.state, r.id)).toBe(true);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+  });
+  it("an ally without the trait entering does not trigger her", () => {
+    const { state } = stage([BLACK_CAT_ALLY]);
+    const r = playAlly(state, BLACK_CAT_ALLY, undefined);
+    expect(inPlayArea(r.state, r.id)).toBe(true);
+    expect(r.taken()).toBe(0);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+  });
+  it("a Web-Warrior card that is not an ally (an upgrade such as Energy Shield, a support) entering does not trigger her", () => {
+    const { state } = stage();
+    const given = moveToHand(state, P1, SHIELD);
+    const id = given.ids[0]!;
+    const r = scripted(given.state, [play(P1, id, [], { attachToInstanceId: identityOf(given.state) })], {
+      accept: [REF],
+    });
+    expect(r.taken()).toBe(0);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+  });
+  it("put into play rather than played counts: Across the Spider-Verse brings Scarlet Spider in, and she deals 1", () => {
+    const { state } = stage();
+    const gone = discarded(state, SCARLET);
+    const given = moveToHand(gone.state, P1, ACROSS);
+    const across = given.ids[0]!;
+    const pay = playerOf(given.state, P1)
+      .hand.filter((i) => i !== across)
+      .slice(0, 2);
+    const r = scripted(given.state, [play(P1, across, pay)], {
+      accept: [REF],
+      target: [identityOf(state), gone.id],
+      option: ["1"],
+    });
+    expect(inPlayArea(r.state, gone.id)).toBe(true);
+    expect(r.taken()).toBe(1);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(1);
+  });
+  it("another player's Web-Warrior ally entering also counts (any player's)", () => {
+    const { state } = stage([], true);
+    // P2 is a Core Spider-Man seat; Scarlet Spider is moved from P1's deck to P2's hand (owned by P1, played by P2).
+    const given = moveToHand(state, P1, SCARLET);
+    const id = given.ids[0]!;
+    const moved: GameState = {
+      ...given.state,
+      players: given.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: p.hand.filter((i) => i !== id) } : { ...p, hand: [...p.hand, id] },
+      ),
+    };
+    const patched = patchInstance(moved, id, { controllerId: P2 });
+    const pay = playerOf(patched, P2)
+      .hand.filter((i) => i !== id)
+      .slice(0, 3);
+    const r = scripted(patched, [endTurn(P1), play(P2, id, pay)], { accept: [REF] });
+    expect(r.state.players.find((p) => p.playerId === P2)!.playArea).toContain(id);
+    expect(r.taken()).toBe(1);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(1);
+  });
+});
+
+describe("52034.quick-quip-action: wave 5's script, exercised here on a Silk deck (Cindy Moon is in hero form a Web-Warrior)", () => {
+  const stage = () => {
+    const game = aspectHero(swapped(QUIP));
+    const state = engaged(game, SANDMAN, "m-sandman");
+    const given = moveToHand(state, P1, QUIP, GENIUS);
+    const [id, genius] = given.ids as [InstanceId, InstanceId];
+    const other = playerOf(given.state, P1).hand.find((h) => h !== id && h !== genius)!;
+    return { state: given.state, id, pay: [genius, other] };
+  };
+  const quip = (state: GameState, id: InstanceId, pay: readonly InstanceId[], picks: readonly string[]) =>
+    driveEventsPicking(
+      DEPS,
+      state,
+      (s) => {
+        const open = s.pendingChoice!;
+        if (open.prompt.kind === "divide") return picks.filter((p) => open.options.some((o) => o.optionId === p));
+        return firstLegal(s);
+      },
+      play(P1, id, pay),
+    ).state;
+
+  it("costs 2 with Requirement ([mental]): the hero takes exactly 1 damage and two enemies get 1 confused card each", () => {
+    const { state, id, pay } = stage();
+    const villain = villainOf(state);
+    const out = quip(state, id, pay, [`${villain}#1`, "m-sandman#1"]);
+    expect(damageOf(out, identityOf(out))).toBe(1);
+    expect(inst(out, villain).statuses.confused).toBe(1);
+    expect(inst(out, "m-sandman" as InstanceId).statuses.confused).toBe(1);
+    expect(inDiscard(out, id)).toBe(true);
+    expect(handSize(out)).toBe(handSize(state) - 3);
+  });
+  it("up to 2 enemies: choosing only one (ruling March 6, 2026, Ruling 2) confuses just that one", () => {
+    const { state, id, pay } = stage();
+    const out = quip(state, id, pay, ["m-sandman#1"]);
+    expect(inst(out, "m-sandman" as InstanceId).statuses.confused).toBe(1);
+    expect(inst(out, villainOf(out)).statuses.confused).toBe(0);
+    expect(damageOf(out, identityOf(out))).toBe(1);
+  });
+  it("Requirement ([mental]): paying with two cards that print no [mental] is refused", () => {
+    const { state, id } = stage();
+    const hand = playerOf(state, P1).hand.filter((h) => h !== id);
+    const noMental = hand.filter((h) => (iconsOfCard(state, h).mental ?? 0) + (iconsOfCard(state, h).wild ?? 0) === 0);
+    expect(noMental.length).toBeGreaterThanOrEqual(2);
+    expect(() => run(state, play(P1, id, noMental.slice(0, 2)))).toThrow();
+  });
+  it("Hero Action: refused in alter-ego form, where no Web-Warrior character is in play either", () => {
+    const game = aspectGame({ swap: { "52005": QUIP } });
+    const given = moveToHand(game, P1, QUIP, GENIUS);
+    const [id, genius] = given.ids as [InstanceId, InstanceId];
+    const other = playerOf(given.state, P1).hand.find((h) => h !== id && h !== genius)!;
+    expect(() => run(given.state, play(P1, id, [genius, other]))).toThrow();
   });
 });

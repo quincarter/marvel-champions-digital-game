@@ -3,6 +3,9 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   after,
   alterEgoAction,
+  alterEgoInterrupt,
+  cancelIt,
+  confuse,
   attack,
   cards,
   chooseCards,
@@ -53,6 +56,8 @@ import {
   changeForm,
   you,
 } from "../../dsl/index.js";
+import { GHOST_SPIDER_EVENTS_B } from "../../wave5/sm/ghost-spider/events-b.js";
+import { SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS } from "../../wave5/sm/spider-man-morales/precon-player-cards.js";
 import { ROGUE_EVENTS } from "../../wave6/rogue/rogue/events.js";
 
 const WEB_WARRIOR = trait("WEB-WARRIOR");
@@ -63,8 +68,7 @@ const YOUR_WEB_WARRIOR_CARDS = query("character", { trait: WEB_WARRIOR, controll
 
 /**
  * Wave 9 scripting module `silk/aspect-basic` (docs/phase7-wave9.md section 8.4, 3.51, 3.52), first half (52013 to 52021).
- * `card-groups.ts` maps this module to the ids below; keep the two in step. The second half (52022 to 52027, 52032 to
- * 52034) is not started and every ref of it is in `SILK_ASPECT_BASIC_SKIPPED`.
+ * `card-groups.ts` maps this module to the ids below; keep the two in step.
  *
  * **52013.scarlet-spider-interrupt**: "another Web-Warrior character" is any character with the trait but Scarlet
  * Spider (a hero in hero form included, any player's); the damage is redirected as it is (`sourceFromEvent`, the
@@ -90,6 +94,21 @@ const YOUR_WEB_WARRIOR_CARDS = query("character", { trait: WEB_WARRIOR, controll
  * Removing the last counter discards the card (RRG "Uses").
  *
  * **52021.madame-web-response**: the count is read as the response starts, her own trait included.
+ *
+ * **52022.spider-man-response**: a reprint of Spider-Man 27049 (same name, subtitle, stats, Requirement and text), aliased.
+ * **52023.across-the-spider-verse-action**: a reprint of 27018 (same text), aliased.
+ *
+ * **52024.investigative-journalism-interrupt**: the mirror of Ready for a Fight: "would scheme" (`would`) is canceled
+ * (`cancelIt`, the whole activation) and that enemy is confused. Team-Up and "Max 1 per deck" are data.
+ *
+ * **52032.spider-man-2099-response**: any basic power he uses (`basicPowerUsed`, an ally's attack or thwart); the
+ * Web-Warrior ally returned may be any player's (and himself), going to its owner's hand (`moveCards` to the hand).
+ *
+ * **52033.spider-woman-response**: "(including this one)": the pattern is any Web-Warrior ally entering play, which her
+ * own entering matches; the enemy is the controller's choice.
+ *
+ * **52034.quick-quip-action**: scripted in wave 5 (`SILK_QUICK_QUIP`, wave5/silk/quick-quip.ts) ahead of this pack and
+ * already in the wave 8 registry, where an id defined twice is an error: skipped here, tested here.
  *
  * Cards (18):
  * - 52013 Scarlet Spider (ally)
@@ -182,16 +201,33 @@ export const SILK_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     moveCards(cards(chosen("discarded")), "discard"),
     reorderCards(cards(chosen("looked"), { excludeSlots: ["discarded"] })),
   ),
+
+  "52022.spider-man-response": SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS["27049.spider-man-response"]!,
+
+  "52023.across-the-spider-verse-action": GHOST_SPIDER_EVENTS_B["27018.across-the-spider-verse-action"]!,
+
+  "52024.investigative-journalism-interrupt": alterEgoInterrupt(
+    on.enemySchemes(query("enemy")),
+    { would: true },
+    confuse(eventSource),
+    cancelIt(),
+  ),
+
+  "52032.spider-man-2099-response": response(
+    after.basicPowerUsed("self"),
+    chooseTarget("ally", query("ally", { trait: WEB_WARRIOR })),
+    moveCards(cards(chosen("ally")), "hand"),
+  ),
+
+  "52033.spider-woman-response": response(
+    after.entersPlay(query("ally", { trait: WEB_WARRIOR })),
+    chooseTarget("enemy", query("enemy")),
+    dealDamage(1, chosen("enemy")),
+  ),
 });
 
-const NOT_STARTED = "second half of the module, not started";
-
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
+/** Refs of this module's cards deliberately left out of the registry, each with its written reason. */
 export const SILK_ASPECT_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "52022.spider-man-response": NOT_STARTED,
-  "52023.across-the-spider-verse-action": NOT_STARTED,
-  "52024.investigative-journalism-interrupt": NOT_STARTED,
-  "52032.spider-man-2099-response": NOT_STARTED,
-  "52033.spider-woman-response": NOT_STARTED,
-  "52034.quick-quip-action": NOT_STARTED,
+  "52034.quick-quip-action":
+    "already registered by wave 5 (SILK_QUICK_QUIP, wave5/silk/quick-quip.ts); a second definition would be an id defined twice",
 };
