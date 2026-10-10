@@ -1087,6 +1087,8 @@ export type GameEvent =
   /**
    * A card whose other face is a card of its own turned over (`otherFaceId`, docs/phase7-wave4.md §3.10). `typeChanged`:
    * the new face is another card type, so its attachments, tucked cards, status cards and tokens were discarded.
+   * `keptCounters`: the counters it held through that change of type, by type (`flipCard.keepCounters`,
+   * docs/phase7-wave9.md §3.26); absent when it kept none.
    */
   | {
       readonly type: "cardFlippedToOtherFace";
@@ -1094,6 +1096,7 @@ export type GameEvent =
       readonly from: CardId;
       readonly to: CardId;
       readonly typeChanged: boolean;
+      readonly keptCounters?: Readonly<Record<string, number>>;
     }
   /** A player's ability tried to discard a card a `playersCannotDiscard` rule protects (docs/phase7-wave4.md §3.44). */
   | { readonly type: "discardRefused"; readonly instanceId: InstanceId }

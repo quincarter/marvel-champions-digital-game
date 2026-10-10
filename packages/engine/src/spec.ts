@@ -4239,12 +4239,22 @@ export type EffectSpec =
    * card type (`flipToOtherFace`): an ally, support or upgrade under their control, a minion engaged with them. The
    * first player the ref names; `choosePlayer` binds "any player" first. Absent, or naming nobody: the player resolving
    * the flip, else the first player. Read by no other kind of flip.
+   *
+   * `keepCounters` (docs/phase7-wave9.md §3.26, §4.1 Q1 = A, the owner's answer of 2026-10-10): the counter types an
+   * `otherFaceId` card keeps, with their counts, when its other face is another card type. RRG 1.8 "Flip" (p. 20)
+   * discards every token from such a card; a product's own rules can count on some staying (MC50 pp. 11 and 19 and
+   * stage 3B count the secret counters on a Board Member that has become an attachment), and what the cards and the
+   * insert say wins over the reference (RRG 1.8 "The Golden Rules", p. 4). Everything else the Flip rule discards is
+   * still discarded: attachments, tucked cards, status cards, damage, threat and every counter type not named. Kept
+   * counters are not placed, so no `countersPlaced` follows. A flip to the same card type keeps everything anyway,
+   * and no other kind of flip reads this.
    */
   | {
       readonly kind: "flipCard";
       readonly target: TargetRef;
       readonly reveal?: boolean;
       readonly controller?: PlayerRef;
+      readonly keepCounters?: readonly string[];
     }
   /**
    * "Change to Gamma energy form" / "flip that card faceup to change to that energy form" / "change energy forms" /

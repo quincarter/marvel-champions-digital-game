@@ -2701,15 +2701,26 @@ export const changeVillainForm = (
  * `{ controller }` (docs/phase7-wave9.md §3.17): "flip this card and put Flying Inhuman into play under any player's
  * control" (Holding Cell, `aos` 50105a) is `choosePlayer(slot, firstPlayer)` then
  * `flipCard(self, { controller: chosenPlayer(slot) })`: the player the other face goes to when it is another card type.
+ *
+ * `{ keepCounters }` (docs/phase7-wave9.md §3.26, §4.1 Q1 = A): the counter types the card keeps when its other face is
+ * another card type, where RRG 1.8 "Flip" (p. 20) would discard them with its other tokens. A Board Member environment
+ * that flips to its attachment face holds its secret counters (MC50 pp. 11 and 19; Chief Medical Officer, `aos`
+ * 50181a): `flipCard(self, { keepCounters: ["secret"] })`. An attachment face finds its host by its own "Attach to"
+ * text, with no reveal. An empty list is the plain flip.
  */
 export const flipCard = (
   target: TargetRef,
-  options: { readonly reveal?: boolean; readonly controller?: PlayerRef } = {},
+  options: {
+    readonly reveal?: boolean;
+    readonly controller?: PlayerRef;
+    readonly keepCounters?: readonly string[];
+  } = {},
 ): EffectSpec => ({
   kind: "flipCard",
   target,
   ...(options.reveal ? { reveal: true } : {}),
   ...(options.controller ? { controller: options.controller } : {}),
+  ...(options.keepCounters && options.keepCounters.length > 0 ? { keepCounters: [...options.keepCounters] } : {}),
 });
 /**
  * "Change to Gamma energy form" → `changeAdditionalForm("energy", { toName: "Gamma" })`; "flip that card faceup to change

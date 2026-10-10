@@ -1985,7 +1985,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // `controller`: "put [its other face] into play under any player's control" (docs/phase7-wave9.md §3.17).
           const [named] = effect.controller ? resolvePlayers(ctx.state, effect.controller, context) : [];
           const playerId = named ?? context.controllerId ?? ctx.state.firstPlayerId;
-          const turnedOver = flipToOtherFace(ctx, id, playerId, ctx.deps, effect.reveal === true, context.controllerId);
+          const turnedOver = flipToOtherFace(
+            ctx,
+            id,
+            playerId,
+            ctx.deps,
+            effect.reveal === true,
+            context.controllerId,
+            effect.keepCounters,
+          );
           if (turnedOver !== true) continue;
           // "Flip this card and reveal [its other face]": it pushed the reveal and the `cardFlipped` under it.
           if (effect.reveal) continue;

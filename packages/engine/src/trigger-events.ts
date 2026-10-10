@@ -1718,6 +1718,8 @@ export type HostStep =
       readonly reveal?: true;
       /** The player whose effect flipped it (`cardFlipped.playerId`), when it had one. */
       readonly flippedBy?: PlayerId;
+      /** `flipCard.keepCounters`: the counter types it keeps through the change of type. */
+      readonly keepCounters?: readonly string[];
     };
 
 /** The `cardFlipped` announcement for a card `by` flipped (`null` or absent: the flip had no "you"). */

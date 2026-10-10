@@ -466,6 +466,32 @@ describe("§3.44: Up, Up, and Away's shape", () => {
     expect(heard(events)).toHaveLength(1);
   });
 
+  it("a top card that came back from the discard pile still marked faceup is a facedown boost card once swapped in", () => {
+    // A deck reset shuffles discarded cards in as they are, and a deck's cards carry no orientation of their own; the
+    // card that takes the boost card's place takes its orientation (RRG 1.8 "'Swap'", p. 42), so the attack turns it up.
+    const table = start([ZERO, THREE], { away: 1 });
+    const [boost, top] = table.top as [InstanceId, InstanceId];
+    const stale: GameState = {
+      ...table.state,
+      instances: { ...table.state.instances, [top]: { ...mustInstance(table.state, top), faceup: true } },
+    };
+    const looking = run(
+      stale,
+      use(table, ATTACK),
+      answering([AWAY_RESPONSE], swapped),
+      deps,
+      (state) => state.pendingChoice?.prompt.kind === "declareDefender",
+    );
+    expect(mustInstance(looking.state, top).faceup).toBe(false);
+    const { state, events } = run(looking, null);
+    expect(flipped(events)).toEqual([top]);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "boostCardFlipped", instanceId: top, boostIcons: 3 }),
+    );
+    expect(deckOf(state)[0]).toBe(boost);
+    expect(damageTo(state)).toBe(5);
+  });
+
   it("not swapped: 0 cards drawn, and the attack turns up the card it was given", () => {
     const table = start([ZERO, THREE], { away: 1 });
     const [boost, top] = table.top as [InstanceId, InstanceId];

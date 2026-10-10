@@ -16,10 +16,10 @@
  */
 
 import type { CardPosition } from "../choices.js";
-import { type Ctx, emit, placeAt, relocateCard, setFrame } from "../ctx.js";
+import { type Ctx, emit, placeAt, relocateCard, setFrame, updateInstance } from "../ctx.js";
 import { holdDeckTops } from "../deck-top.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { getInstance, locateCard, zoneContents } from "../query.js";
+import { getInstance, locateCard, mustInstance, zoneContents } from "../query.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -121,6 +121,15 @@ export function rearrangeCards(
       arrangement.forEach((id) => placeAt(ctx, id, Number.MAX_SAFE_INTEGER));
       const byIndex = arrangement.map((id, i) => ({ id, index: positions[i]!.index }));
       for (const { id, index } of byIndex.sort((a, b) => a.index - b.index)) placeAt(ctx, id, index);
+    });
+    // "Swapped cards maintain the orientation … of the original card" (RRG 1.8 "'Swap'", p. 42): a card that takes a
+    // facedown boost card's or a facedown dealt card's place is facedown there. A deck's cards carry no orientation
+    // of their own (what shows on top is derived, `deck-top.ts`), and one shuffled in from a discard pile still has
+    // the `faceup` it was discarded with, which the activation would read as a boost card already turned up.
+    arrangement.forEach((taker, i) => {
+      const kind = positions[i]!.zone.kind;
+      if (taker === cards[i] || (kind !== "boost" && kind !== "dealtEncounter")) return;
+      if (mustInstance(ctx.state, taker).faceup) updateInstance(ctx, taker, (c) => ({ ...c, faceup: false }));
     });
     arrangement.forEach((taker, i) => boostCardReplaced(ctx, positions[i]!.zone, cards[i]!, taker));
   }

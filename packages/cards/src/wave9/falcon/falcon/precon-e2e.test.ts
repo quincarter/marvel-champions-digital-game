@@ -371,10 +371,9 @@ describe("Falcon (Leadership) precon against Rhino (standard, solo), seed 1", ()
     expect(state.pendingChoice).toBeNull();
   });
 
-  // NEW BUG (53005 Up, Up, and Away): swapping makes the swapped-in card the boost card (the draw reads its icons), but
-  // the engine never flips it, so Rhino's attack counts boostIcons 0 and no boostCardFlipped is logged. Expected: the
-  // new boost card (Enhanced Ivory Horn, 2 icons) flips and the attack is 2 + 2.
-  it.fails("round 2 villain phase, swap variant: the swapped-in boost card is flipped and counts in the attack", () => {
+  // 53005 Up, Up, and Away: the swapped-in card takes the boost card's place facedown (RRG 1.8 "Swap", p. 42), so it
+  // flips and counts: Enhanced Ivory Horn's 2 icons make the attack 2 + 2.
+  it("round 2 villain phase, swap variant: the swapped-in boost card is flipped and counts in the attack", () => {
     state = beforeVillain2;
     try {
       stack("01104", TWO);
