@@ -72,6 +72,7 @@ import {
   FLIGHT_SQUADRON_GRANTED_RESPONSE,
 } from "./falcon/aspect-basic.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
+import { FALCON_EVENTS, FALCON_EVENTS_SKIPPED } from "./falcon/falcon/events.js";
 import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./falcon/falcon/identity.js";
 import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
 import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js";
@@ -469,6 +470,12 @@ const SCRIPTED_MODULES: Readonly<
       registry: FALCON_ASPECT_BASIC,
       skipped: FALCON_ASPECT_BASIC_SKIPPED,
       registryOnly: [FLIGHT_SQUADRON_GRANTED_RESPONSE],
+    },
+    {
+      module: "falcon/events",
+      cardIds: ["53003", "53004", "53005"],
+      registry: FALCON_EVENTS,
+      skipped: FALCON_EVENTS_SKIPPED,
     },
     {
       module: "falcon/identity",
