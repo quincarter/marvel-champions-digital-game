@@ -38,6 +38,7 @@ import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-su
 import { SHIELD, SHIELD_SKIPPED } from "./aos/shield.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
+import { THE_LEAPER, THE_LEAPER_SKIPPED } from "./aos/the-leaper.js";
 import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
 import { NICK_FURY_EVENTS, NICK_FURY_EVENTS_SKIPPED } from "./aos/nick-fury/events.js";
 import { NICK_FURY_IDENTITY, NICK_FURY_IDENTITY_SKIPPED } from "./aos/nick-fury/identity.js";
@@ -297,6 +298,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50156", "50157", "50158", "50159", "50160"],
       registry: SUPERSONIC,
       skipped: SUPERSONIC_SKIPPED,
+    },
+    {
+      module: "the-leaper",
+      cardIds: ["50161", "50162", "50163", "50164"],
+      registry: THE_LEAPER,
+      skipped: THE_LEAPER_SKIPPED,
     },
   ],
   bp: [
