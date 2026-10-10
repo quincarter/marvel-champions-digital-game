@@ -11,7 +11,7 @@ import {
 } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { attackKeywordsOf, hasKeyword } from "./keywords.js";
-import type { AbilityId, AnyCard, CardId, SchemeIcon } from "@mc/content";
+import type { AnyCard, CardId, SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
@@ -36,6 +36,7 @@ import {
   categoriesOf,
   focusedMainSchemeId,
   gliderMainSchemeId,
+  type GrantedAbility,
   hitPointFloor,
   contextArea,
   controllerOf,
@@ -1627,11 +1628,7 @@ export function grantedIcons(
   return total;
 }
 
-/** One ability a card gains from a rule in effect, and the card whose constant gives it (null: no card, a scenario rule). */
-export interface GrantedAbility {
-  readonly abilityId: AbilityId;
-  readonly grantedBy: InstanceId | null;
-}
+export type { GrantedAbility } from "./select.js";
 
 /**
  * The abilities of one label a card gains from rules in effect (`RuleSpec grantsLabeledAbility`; docs/phase7-wave9.md

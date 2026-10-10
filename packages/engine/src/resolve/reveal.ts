@@ -3,7 +3,7 @@
 import { displayNameOf } from "../visibility.js";
 import type { AttachmentHost } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
-import { dealEncounterCardTo } from "../effects.js";
+import { dealEncounterCardTo, encounterDealAwaitingInterrupt } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -545,12 +545,39 @@ function revealWhereFound(ctx: Ctx, frame: Frame<"reveal">): void {
  * phase", which read onto the 1.8 wording of surge would leave a surge card dealt in the player phase facedown until
  * step four. Unchanged here and reported with docs/phase7-wave9.md §4.1 Q19.
  */
-export function surgeRevealFrame(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): Frame<"reveal"> | null {
+export function surgeRevealFrame(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): StackFrame | null {
+  // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): the surge's deal is a deal (Q19),
+  // so an ability that could interrupt it gets its window first. The frame returned is then that event's, and the
+  // deal and the reveal are its apply step (`dealSurgeCard`); replaced, no card is dealt and none is revealed.
+  const waiting = encounterDealAwaitingInterrupt(ctx, playerId, "surge", instanceId);
+  if (waiting) return eventFrame(ctx, waiting);
+  return dealSurgeCard(ctx, instanceId, playerId);
+}
+
+/** Deals the surge keyword's card to `playerId` now and returns the frame that reveals it (`surgeRevealFrame`). */
+export function dealSurgeCard(ctx: Ctx, instanceId: InstanceId, playerId: PlayerId): Frame<"reveal"> | null {
   const next = dealEncounterCardTo(ctx, playerId, "surge");
   if (!next) return null;
   emit(ctx, { type: "surgeTriggered", instanceId, playerId });
   const recorded = (ctx.state.pendingEncounterDealt ?? []).some((dealt) => dealt.instanceId === next);
   return { ...revealFrame(ctx, playerId, next), ...(recorded ? { afterDeal: true as const } : {}) };
+}
+
+/**
+ * An `encounterCardBeingDealt` whose interrupts have resolved (docs/phase7-wave9.md §3.45): the top card of the
+ * encounter deck is dealt now, as every deal is (`dealEncounterCardTo`, so `encounterCardDealt` follows when an
+ * ability listens). The surge keyword's card is then revealed by the frame pushed here, as `surgeRevealFrame` has it.
+ */
+export function applyEncounterCardBeingDealt(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "encounterCardBeingDealt" }>,
+): void {
+  if (event.source === "surge" && event.sourceInstanceId !== null) {
+    const next = dealSurgeCard(ctx, event.sourceInstanceId, event.playerId);
+    if (next) pushFrames(ctx, [next]);
+    return;
+  }
+  dealEncounterCardTo(ctx, event.playerId, event.source);
 }
 
 /** A surge resolved on its own frame (`TriggerEvent surgeResolving`): deals the card and queues its reveal. */

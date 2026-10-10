@@ -71,6 +71,7 @@ import {
   tuckedPickOf,
   fixedResourcesOf,
   resourcesChoiceOf,
+  usesPerPaidCard,
 } from "./abilities.js";
 import type { BasicPowerName, EffectSpec, StatName, TargetRef, ValueSpec } from "./spec.js";
 import { BASIC_POWER_STAT, cardFlippedEvent, carriedByEvent, type TriggerEvent } from "./trigger-events.js";
@@ -1621,6 +1622,12 @@ export function priceOf(
     // The same ability again: only a `repeatable` one, its cost paid once per use (docs/phase7-wave5.md §3.25).
     const uses = (abilityUses.get(key) ?? 0) + 1;
     abilityUses.set(key, uses);
+    // "(Limit once per card.)" (`AbilityLimit.per: "paidCard"`, docs/phase7-wave9.md §3.46 (a); RRG 1.8 "Limit",
+    // pp. 26-27): this payment is for one card, so its own uses are the count.
+    const perPaidCard = usesPerPaidCard(ctx.deps.abilities[abilityId]);
+    if (perPaidCard !== null && uses > perPaidCard) {
+      return { code: "limit_reached", message: `${abilityId} has reached its limit for this card` };
+    }
     if (!(uses > 1 && repeatsWithNewPicks(ctx.deps, abilityId))) {
       const repeatFault = repeatUsesFault(ctx.state, ctx.deps, instanceId, abilityId, spender, uses);
       if (repeatFault) return repeatFault;
@@ -1767,7 +1774,9 @@ export function paymentOptions(
       }
       // A `repeatable` ability (docs/phase7-wave5.md §3.25): one more option per further use its cost can pay for.
       if (!trigger.repeatable) continue;
-      for (let n = 2; n <= MAX_REPEAT_OPTIONS; n++) {
+      // No further than its limit for each card paid for (`per: "paidCard"`, docs/phase7-wave9.md §3.46 (a)).
+      const perPaidCard = usesPerPaidCard(ctx.deps.abilities[ref.id]) ?? MAX_REPEAT_OPTIONS;
+      for (let n = 2; n <= Math.min(perPaidCard, MAX_REPEAT_OPTIONS); n++) {
         if (repeatUsesFault(ctx.state, ctx.deps, id, ref.id, spender, n)) break;
         options.push({
           optionId: `ability:${id}:${ref.id}:${n}`,

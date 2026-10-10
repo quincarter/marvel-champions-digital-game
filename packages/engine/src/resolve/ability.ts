@@ -74,6 +74,8 @@ export function limitReached(
   playerId: PlayerId | null = null,
 ): boolean {
   if (!definition.limit) return false;
+  // "Limit once per card" (`per: "paidCard"`, docs/phase7-wave9.md §3.46 (a)): counted within each payment (`priceOf`).
+  if (definition.limit.per === "paidCard") return false;
   const key = limitKeyOf(state, id, abilityId, definition, event, playerId);
   return (state.abilityUses[key] ?? 0) >= definition.limit.count;
 }
@@ -203,6 +205,8 @@ export function recordAbilityUse(
   playerId: PlayerId | null = null,
 ): void {
   if (!definition.limit) return;
+  // A limit for each card paid for is the payment's own count: nothing is kept between payments (wave 9 §3.46 (a)).
+  if (definition.limit.per === "paidCard") return;
   const key = limitKeyOf(ctx.state, instanceId, abilityId, definition, event, playerId);
   const uses = (ctx.state.abilityUses[key] ?? 0) + 1;
   ctx.state = { ...ctx.state, abilityUses: { ...ctx.state.abilityUses, [key]: uses } };

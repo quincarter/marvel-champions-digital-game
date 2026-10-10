@@ -123,7 +123,7 @@ import {
 } from "./frames.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { continueActivation } from "../villain/phase.js";
-import { resolveSurge } from "./reveal.js";
+import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
@@ -649,6 +649,10 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return;
     case "surgeResolving":
       resolveSurge(ctx, event.instanceId, event.playerId);
+      return;
+    case "encounterCardBeingDealt":
+      // Its interrupts resolved with the card still on the deck; it is dealt now (docs/phase7-wave9.md §3.45).
+      applyEncounterCardBeingDealt(ctx, event);
       return;
     case "enemyAttack":
     case "enemyScheme": {

@@ -607,6 +607,8 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "cardBeingDiscarded") return [];
   // And a status card about to be given ("after a status card is placed" answers `statusPlaced`; wave 9 §3.33).
   if (timing === "response" && event.kind === "statusBeingGiven") return [];
+  // And an encounter card about to be dealt ("after a player is dealt" answers `encounterCardDealt`; wave 9 §3.45).
+  if (timing === "response" && event.kind === "encounterCardBeingDealt") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).

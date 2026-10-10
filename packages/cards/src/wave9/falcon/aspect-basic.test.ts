@@ -1,9 +1,13 @@
 import { FALCON_CARDS, PLAYABLE_CARDS, cardId, trait, type AllyCard, type AnyCard } from "@mc/content";
 import {
+  activeAbilityRefs,
   activeEncounterDeckId,
   allyLimitFor,
   applyCommand,
   keywordTotal,
+  replay,
+  sessionApply,
+  startSession,
   statBonus,
   type Command,
   type GameEvent,
@@ -894,8 +898,9 @@ describe("53020.flight-squadron-constant: if each of your allies has the Aerial 
 });
 
 describe("53020.flight-squadron-granted-response (registry-only): after you play an Aerial card, exhaust this card -> ready an ally you control", () => {
-  /** The game with the response listed on the card (the data does not list it; see the module header). */
-  const game = (swap: Readonly<Record<string, string>> = {}) => aspectHero({ squadronResponse: true, swap });
+  /** The real card data: 53020 lists its constant alone, whose `gainsAbility` rule gives the card the response. */
+  const game = (swap: Readonly<Record<string, string>> = {}) => aspectHero({ swap });
+  const live = (s: GameState, id: InstanceId) => activeAbilityRefs(s, id, DEPS).map((ref) => ref.id as string);
   /** Squadron and an exhausted Redwing in play, then Aero played from hand (an Aerial ally). */
   function afterPlaying(code: string, s0: GameState, plan: Plan = {}) {
     const squadron = stagedInPlay(s0, SQUADRON);
@@ -909,14 +914,30 @@ describe("53020.flight-squadron-granted-response (registry-only): after you play
     );
     return { ...out, squadron: squadron.id, redwing: tired.id, played: given.ids[0]! };
   }
-  it("is registered, validates, and is a response with the same condition as the constant", () => {
+  it("is registered, validates, and is granted to the card by its constant under the ally limit's condition", () => {
     expect(validateDefinition(REGISTRY[GRANTED]!)).toEqual([]);
+    expect(REGISTRY[GRANTED]).toMatchObject({ trigger: { kind: "response", forced: false } });
     const constant = REGISTRY["53020.flight-squadron-constant"] as unknown as {
-      trigger: { rules: { while: unknown }[] };
+      trigger: { rules: { kind: string; while: unknown; abilityId?: string; to?: unknown }[] };
     };
-    const granted = REGISTRY[GRANTED] as unknown as { trigger: { while: unknown } };
-    expect(granted.trigger.while).toBeDefined();
-    expect(granted.trigger.while).toEqual(constant.trigger.rules[0]!.while);
+    const [limit, grant] = constant.trigger.rules;
+    expect(limit).toMatchObject({ kind: "allyLimit", amount: 1 });
+    expect(grant).toMatchObject({ kind: "gainsAbility", abilityId: GRANTED });
+    expect(grant!.to).toBeUndefined(); // "this card gains"
+    expect(grant!.while).toBeDefined();
+    expect(grant!.while).toEqual(limit!.while);
+  });
+  it("on the real data the card lists one ref and has both abilities in play; out of play, or with a non-Aerial ally, only its own", () => {
+    expect(abilityRefIds(card(SQUADRON))).toEqual(["53020.flight-squadron-constant"]);
+    const squadron = stagedInPlay(game({ "53003": MARIA_HILL }), SQUADRON);
+    expect(live(squadron.state, squadron.id)).toEqual(["53020.flight-squadron-constant", GRANTED]);
+    const aero = stagedInPlay(squadron.state, AERO);
+    expect(live(aero.state, squadron.id)).toContain(GRANTED);
+    const maria = stagedInPlay(aero.state, MARIA_HILL);
+    expect(live(maria.state, squadron.id)).toEqual(["53020.flight-squadron-constant"]);
+    // A copy still in the deck gains nothing.
+    const inDeck = playerOf(game(), P1).deck.find((i) => codeOf(game(), i) === SQUADRON)!;
+    expect(live(game(), inDeck)).not.toContain(GRANTED);
   });
   it("only Aerial allies: playing an Aerial card offers it; taking it exhausts Flight Squadron and readies the chosen ally", () => {
     const s = game();
@@ -974,9 +995,49 @@ describe("53020.flight-squadron-granted-response (registry-only): after you play
     drive(given.state, { take: [GRANTED], seen }, play(P1, given.ids[0]!, [given.ids[1]!, given.ids[2]!]));
     expect(seen.some((p) => p.kind === "chooseTriggers" && p.options.some((o) => o.endsWith(GRANTED)))).toBe(false);
   });
-  it.todo(
-    "on the real data (53020 lists only its constant) the response is offered: needs the card's data to list a second ref or an engine grant to the card itself",
-  );
+  it("Flight Squadron leaving play takes the response with it: not offered for the next Aerial card", () => {
+    const s = game();
+    const squadron = stagedInPlay(s, SQUADRON);
+    const gone: GameState = {
+      ...squadron.state,
+      players: squadron.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, playArea: p.playArea.filter((i) => i !== squadron.id), discard: [squadron.id, ...p.discard] }
+          : p,
+      ),
+    };
+    const given = withHand(gone, [AERO, ENERGY, GENIUS]);
+    const seen: NonNullable<Plan["seen"]> = [];
+    drive(given.state, { take: [GRANTED], seen }, play(P1, given.ids[0]!, [given.ids[1]!, given.ids[2]!]));
+    expect(seen.some((p) => p.kind === "chooseTriggers" && p.options.some((o) => o.endsWith(GRANTED)))).toBe(false);
+    expect(live(given.state, squadron.id)).not.toContain(GRANTED);
+  });
+  it("a game that takes the response replays from its log to the same state", () => {
+    const squadron = stagedInPlay(game(), SQUADRON);
+    const tired = stagedInPlay(squadron.state, REDWING);
+    const given = withHand(patchInstance(tired.state, tired.id, { exhausted: true }), [AERO, ENERGY, GENIUS]);
+    let session = startSession(given.state);
+    const apply = (command: Command) => {
+      const result = sessionApply(session, command, DEPS);
+      if (!result.ok) throw new Error(result.error.message);
+      session = result.session;
+    };
+    apply(play(P1, given.ids[0]!, [given.ids[1]!, given.ids[2]!]));
+    const pick = planner({ take: [GRANTED], targets: [tired.id] });
+    while (session.state.pendingChoice) {
+      const choice = session.state.pendingChoice;
+      apply({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: pick(session.state),
+      });
+    }
+    expect(inst(session.state, squadron.id).exhausted).toBe(true);
+    expect(inst(session.state, tired.id).exhausted).toBe(false);
+    const replayed = replay(session.log, DEPS);
+    expect(replayed.ok && replayed.state).toEqual(session.state);
+  });
 });
 
 describe("53023.captain-america-constant: play only if you are the Bucky Barnes or Sam Wilson player", () => {

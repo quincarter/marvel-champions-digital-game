@@ -63,7 +63,7 @@ import type { CardDestination, CardSelector, ScenarioDeckSource, TargetQuery } f
 import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
-import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
+import { announce, eventFrame, type Frame, pushEvent, pushEvents, pushEventsSharingResponses } from "./frames.js";
 import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
 import {
@@ -666,7 +666,8 @@ const ENCOUNTER_CARDS_TAKEN_VAR = "$encounterCardsTaken";
 /**
  * Runs `take(index)` for each of the `total` encounter cards effect `frame.cursor` of `frame` takes, pausing after a
  * card whose move reset the encounter deck when a response to the reset is waiting and cards remain
- * (`encounterResetAwaitsResponse`): the frame is put back on this effect with the cards taken so far recorded, and the
+ * (`encounterResetAwaitsResponse`), and after a card `take` says waits on the stack (it returned true: a deal in its
+ * "would be dealt" window, `dealEncounterCardOrAnnounce`, docs/phase7-wave9.md §3.45): the frame is put back on this effect with the cards taken so far recorded, and the
  * flow runs it again once the response has resolved. `frame` is the frame as it was before the effect's cursor moved
  * on. Returns false when it paused.
  */
@@ -674,7 +675,7 @@ export function eachEncounterCard(
   ctx: Ctx,
   frame: Frame<"effects">,
   total: number,
-  take: (index: number) => void,
+  take: (index: number) => boolean | void,
 ): boolean {
   const from = frame.vars[ENCOUNTER_CARDS_TAKEN_VAR] ?? 0;
   if (from > 0) {
@@ -685,9 +686,9 @@ export function eachEncounterCard(
     });
   }
   for (let index = from; index < total; index++) {
-    take(index);
+    const waits = take(index) === true;
     if (ctx.state.outcome) return true;
-    if (index + 1 < total && encounterResetAwaitsResponse(ctx)) {
+    if (index + 1 < total && (waits || encounterResetAwaitsResponse(ctx))) {
       updateFrame(ctx, frame.frameId, (f) =>
         f.kind === "effects"
           ? {
@@ -857,6 +858,23 @@ export function dealUnhandledEncounterCard(ctx: Ctx, event: EncounterCardFromPla
   }
   if (dealAsEncounterCards(ctx, [event.instanceId], event.playerId).length === 0) return;
   drawCards(ctx, event.playerId, 1);
+}
+
+/**
+ * Puts each deal that waits for its "would be dealt" window on the stack (`TriggerEvent encounterCardBeingDealt`,
+ * docs/phase7-wave9.md §3.45; `GameState.pendingEncounterDeals`), oldest resolving first, and empties the list. The
+ * deal is each event's apply step. Returns true when it pushed a frame.
+ */
+export function announceEncounterDealsWaiting(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingEncounterDeals;
+  if (!pending || pending.length === 0) return false;
+  const { pendingEncounterDeals: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  pushEvents(
+    ctx,
+    pending.map((deal): TriggerEvent => ({ kind: "encounterCardBeingDealt", ...deal })),
+  );
+  return true;
 }
 
 /**

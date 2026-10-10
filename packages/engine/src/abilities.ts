@@ -835,6 +835,49 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "If each of your allies has the Aerial trait, … this card gains: 'Response: After you play an Aerial card, exhaust
+   * this card → ready an ally you control.'" (Flight Squadron, `falcon` 53020); "each ally you control gains:
+   * 'Response: …'". A constant's rule that names a second registry entry, `abilityId`: an ordinary triggered or
+   * action `AbilityDefinition`, listed on no card's own abilities, which a card in play has in addition to its
+   * printed ones while the rule is in effect.
+   *
+   * RRG 1.8 "'Gains'" (p. 21): "If a card gains a characteristic (such as a trait, keyword, or ability text), the
+   * card functions as if it possesses the gained characteristic. Gained characteristics are not considered to be
+   * printed on the card."
+   *
+   * - **Who gains it.** `to` omitted: the rule's own card ("this card gains"). `to`: every card in play the query
+   *   matches, read as the rule's card reads it (`you` is its speaker): "each ally you control gains". A facedown
+   *   card gains nothing.
+   * - **Where it is read** (`gainedAbilities`, select.ts): `activeAbilityRefs` joins the gained abilities to the
+   *   card's live printed ones, so every reader of a card's abilities has them: timing windows, the triggers of an
+   *   event, legal actions and `useAbility`, resource abilities, the limit and the uses counted under
+   *   `<instance>:<abilityId>`, costs, labels. Inside the gained ability `self` is the card that gained it and `you`
+   *   its controller, as for a printed ability. Its form, `while`, cost and limit are its own.
+   * - **Not printed.** A blank on the gaining card's text box does not take a gained ability away (only the granting
+   *   card's own blank does, by turning its constant off: one and the same for "this card gains"); "printed" readers
+   *   (`printedAbilityRefs`) never see it. `RuleSpec ignoreAbilities` naming its id does remove it.
+   * - **One of each.** A card that gains an ability it already has (two granting cards, or one it prints) has it
+   *   once: abilities are counted by id on a card, as their limits are.
+   * - **Never a constant.** A rule naming a constant ability, or an id the registry lacks, gives nothing: the rules a
+   *   card gives are read before the abilities it gains (`gainedAbilities` reads printed constants only, which is
+   *   also what lets its `while` and `to` be read with every granted trait and keyword in effect).
+   * - A constant like any other: off while its `while` is false, on a face that is not up, under a blank text box,
+   *   and once its card has left play (an ability already on the stack still resolves). Also given by a lasting
+   *   `applyRuleUntil` and by a scenario rule.
+   *
+   * How it relates to `grantsLabeledAbility` above: both name a registry-only ability from a constant. That one is
+   * for a labeled ability (a Preparation) of a card that is resolved on demand wherever the card is (an encounter
+   * card in the discard pile, `grantedLabeledAbilities`), with the granting card bound as `GRANTED_BY_SLOT`; this one
+   * is for the live abilities of a card in play. The card "this card gains: 'Interrupt: …'" as its only text needs
+   * neither: its one ref is the interrupt with the condition as its `while` (Agents of S.H.I.E.L.D., `aos` 50015).
+   */
+  | {
+      readonly kind: "gainsAbility";
+      readonly abilityId: AbilityId;
+      readonly to?: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the
@@ -2847,8 +2890,28 @@ export interface AbilityLimit {
    *   offered, a second copy picked with the first is left in hand unpaid, and a copy whose effects are canceled
    *   still counts (RRG 1.8 "Max, Maximum", p. 28). The maximum is for all players, as that entry says.
    */
-  readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent";
+  /**
+   * - `"paidCard"`: "Resource: … → generate a [energy] resource for an Aerial card. **(Limit once per card.)**"
+   *   (Falcon's Flock, `falcon` 53006; docs/phase7-wave9.md §3.46 (a)). RRG 1.8 "Limit" (pp. 26-27); "Resource
+   *   Ability" (p. 37). On a resource ability only: it may be used `count` times toward each card (or ability cost)
+   *   being paid for, any number of cards in a turn or a round. The count is the payment's own (`priceOf` counts the
+   *   uses a payment lists and refuses one past the limit with `limit_reached`; `paymentOptions` offers no use past
+   *   it), so nothing is kept in `GameState.abilityUses`: a payment that is refused, or a play that is aborted,
+   *   leaves nothing behind, and the next card paid for starts at zero. `period` is not read. With it a `repeatable`
+   *   ability ("remove 1 counter →", one use per counter) stops at `count` uses a payment; without `repeatable` a
+   *   resource ability is used once a payment already, and the limit names that rule as the card prints it.
+   *   NOT SETTLED by a ruling: whether "per card" also joins two payments made for one card (its play, and later the
+   *   cost of an ability it prints). Each payment is counted on its own here (the spec's reading, reported with it).
+   */
+  readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent" | "paidCard";
 }
+
+/**
+ * How many times `definition` may be used in one payment by its own limit (`AbilityLimit.per: "paidCard"`,
+ * docs/phase7-wave9.md §3.46 (a)), or null when it has no such limit.
+ */
+export const usesPerPaidCard = (definition: AbilityDefinition | undefined): number | null =>
+  definition?.limit?.per === "paidCard" ? definition.limit.count : null;
 
 /**
  * What a resource ability generates. A bare number is that many wild

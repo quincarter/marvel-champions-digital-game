@@ -802,6 +802,70 @@ export function dealEncounterCardTo(
   return id;
 }
 
+const LISTENS_FOR_ENCOUNTER_BEING_DEALT = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `encounterCardBeingDealt` (docs/phase7-wave9.md §3.45); cached per
+ * registry. Encounter cards are dealt every round of every game, so nothing is read or announced for a registry with
+ * no such ability.
+ */
+function listensForEncounterBeingDealt(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENCOUNTER_BEING_DEALT.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("encounterCardBeingDealt");
+  });
+  LISTENS_FOR_ENCOUNTER_BEING_DEALT.set(deps, listens);
+  return listens;
+}
+
+type EncounterCardBeingDealt = Extract<TriggerEvent, { kind: "encounterCardBeingDealt" }>;
+
+/**
+ * The "would be dealt an encounter card" event of a deal about to be made (`TriggerEvent encounterCardBeingDealt`,
+ * docs/phase7-wave9.md §3.45; RRG 1.8 "'Would'", p. 48), when an ability could react to it (`heard`); else null, and
+ * the caller deals at once. Like every other optional announcement, a game no ability of which can answer keeps its
+ * log, its state and its replay.
+ */
+export function encounterDealAwaitingInterrupt(
+  ctx: Ctx,
+  playerId: PlayerId,
+  source: EncounterDealSource,
+  sourceInstanceId: InstanceId | null,
+): EncounterCardBeingDealt | null {
+  if (!listensForEncounterBeingDealt(ctx.deps)) return null;
+  const event: EncounterCardBeingDealt = { kind: "encounterCardBeingDealt", playerId, source, sourceInstanceId };
+  return heard(ctx.state, ctx.deps, event) ? event : null;
+}
+
+/**
+ * Deals `playerId` the top card of the encounter deck (`dealEncounterCardTo`), through its "would be dealt" interrupt
+ * window when an ability could react (`encounterDealAwaitingInterrupt`): the event goes on the stack, its apply step
+ * makes the deal, and this returns true, for a caller that deals several cards to stop and deal the rest once that
+ * frame has left the stack. Each card has its own window (RRG 1.8 "Triggering Condition", p. 45), read against the
+ * game as the card before it left it. Returns false when the card was dealt at once (or there was none to deal).
+ *
+ * For the callers that own what is on top of the stack (a step, an effect being applied). A deal made in the middle
+ * of another move (`resetPlayerDeck`) is queued instead (`GameState.pendingEncounterDeals`).
+ */
+export function dealEncounterCardOrAnnounce(
+  ctx: Ctx,
+  playerId: PlayerId,
+  source: EncounterDealSource,
+  sourceInstanceId: InstanceId | null,
+): boolean {
+  const event = encounterDealAwaitingInterrupt(ctx, playerId, source, sourceInstanceId);
+  if (!event) {
+    dealEncounterCardTo(ctx, playerId, source);
+    return false;
+  }
+  pushEvent(ctx, event);
+  return true;
+}
+
 /** RRG "Player Deck": an emptied deck reshuffles and costs that player a facedown encounter card. */
 function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
   const player = mustPlayer(ctx.state, playerId);
@@ -816,7 +880,15 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
     ...ctx.state,
     pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "player", playerId }],
   };
-  dealEncounterCardTo(ctx, playerId, "deckReset");
+  // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): this runs in the middle of the move
+  // that emptied the deck, so a deal an ability could interrupt waits for the flow to put it on the stack
+  // (`announceEncounterDealsWaiting`), above the deck's own "after your deck runs out" announcement: the deal is part
+  // of the deck running out (RRG 1.8 "Player Deck", p. 33).
+  const waiting = encounterDealAwaitingInterrupt(ctx, playerId, "deckReset", null);
+  if (waiting) {
+    const { kind: _, ...deal } = waiting;
+    ctx.state = { ...ctx.state, pendingEncounterDeals: [...(ctx.state.pendingEncounterDeals ?? []), deal] };
+  } else dealEncounterCardTo(ctx, playerId, "deckReset");
   return true;
 }
 

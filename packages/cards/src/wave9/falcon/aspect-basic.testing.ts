@@ -1,4 +1,4 @@
-import { abilityId, cardId } from "@mc/content";
+import { cardId } from "@mc/content";
 import { createGame, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { coreScenario } from "../../core/setup.js";
 import { mergeRegistries } from "../../dsl/index.js";
@@ -8,7 +8,7 @@ import { wave1StarterDeckSetup } from "../../wave1/setup.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { WAVE9_CARDS } from "../cards.js";
 import { wave9StarterDeckSetup } from "../setup.js";
-import { FALCON_ASPECT_BASIC, FLIGHT_SQUADRON_GRANTED_RESPONSE } from "./aspect-basic.js";
+import { FALCON_ASPECT_BASIC } from "./aspect-basic.js";
 import { falconSeat } from "./testing.js";
 
 /**
@@ -30,11 +30,6 @@ export function aspectGame(
     readonly steve?: boolean;
     /** The second seat is the Winter Soldier precon (`winter-aggression`; Bucky Barnes in alter-ego form). */
     readonly bucky?: boolean;
-    /**
-     * Flight Squadron 53020 lists its gained response as a second ref in this game's card pool. The real data lists one
-     * ref, which the engine reads: the registry-only response is unreachable until the data names it.
-     */
-    readonly squadronResponse?: boolean;
     readonly swap?: Readonly<Record<string, string>>;
   } = {},
 ): GameState {
@@ -56,17 +51,9 @@ export function aspectGame(
           modularSetIds: [],
         }).players[0]!;
   const seat = falconSeat(opts.swap);
-  const cards = opts.squadronResponse
-    ? base.cards.map((c) =>
-        c.id === cardId("53020") && "abilities" in c
-          ? { ...c, abilities: [...c.abilities, { id: abilityId(FLIGHT_SQUADRON_GRANTED_RESPONSE) }] }
-          : c,
-      )
-    : base.cards;
   const created = createGame(
     {
       ...base,
-      cards,
       players: opts.second || opts.steve || opts.bucky ? [seat, second] : [seat],
       requireLegalDecks: false,
     },

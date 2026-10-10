@@ -855,6 +855,29 @@ export const grantsPreparation = (granted: string, opts: { readonly while?: Pred
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "… this card gains: 'Response: After you play an Aerial card, exhaust this card → ready an ally you control.'"
+ * (Flight Squadron, `falcon` 53020) → `constant(gainsAbility(GRANTED_ID, { while }))` beside the card's other constant
+ * parts, with the quoted text as a second registry entry under that id (a response, interrupt, action or resource
+ * ability, never a constant), listed on no card's own abilities: the data keeps one ref for a constant that quotes a
+ * gained ability. While the rule is in effect the card has that ability with its printed ones (RRG 1.8 "'Gains'",
+ * p. 21): it is offered in windows, listed in legal actions, and its cost and limit are its own, counted under its
+ * id. `to`: the cards that gain it instead of this card ("each ally you control gains: '…'" →
+ * `{ to: query("ally", { controller: "you" }) }`); inside the ability `self` is the card that gained it.
+ *
+ * Not needed when the gained ability is the card's whole text ("If …, this card gains: 'Interrupt: …'", Agents of
+ * S.H.I.E.L.D. `aos` 50015): script the one ref as that ability with the condition as its `while`.
+ */
+export const gainsAbility = (
+  granted: string,
+  opts: { readonly to?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "gainsAbility",
+    abilityId: abilityId(granted),
+    ...(opts.to ? { to: opts.to } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * The card a granted ability's text names: "Then, discard Night Vision Goggles" inside the Preparation that Night
  * Vision Goggles gives other cards (`aos` 50070; docs/phase7-wave9.md §3.3) → `discard(grantingCard)`. The card whose
  * `grantsPreparation` rule gave the resolving card this ability (engine `GRANTED_BY_SLOT`), not `self`, which is the
@@ -2318,6 +2341,15 @@ export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
  * Force, `psylocke` 41019; docs/phase7-wave7.md §3.69).
  */
 export const maxOnePerTriggeringInstance: AbilityLimit = { count: 1, period: "phase", per: "triggeringEvent" };
+/**
+ * "(Limit once per card.)" on a resource ability (Falcon's Flock, `falcon` 53006; docs/phase7-wave9.md §3.46 (a)):
+ * `count` uses toward each card (or ability cost) being paid for, any number of cards in a round. Counted within the
+ * payment, so nothing is used up by a play that is refused or aborted; `period` is not read. A count above 1 needs a
+ * `repeatable` ability (a fixed counter cost, one use per counter).
+ */
+export const limitPerPaidCard = (count = 1): AbilityLimit => ({ count, period: "round", per: "paidCard" });
+/** "(Limit once per card.)" */
+export const oncePerPaidCard: AbilityLimit = limitPerPaidCard(1);
 
 // ---------------------------------------------------------------------------
 // Event patterns: `when.*` for interrupts, `after.*` for responses
@@ -2924,6 +2956,20 @@ export const on = {
    */
   aPlayerIsDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
     pattern("encounterCardDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),
+  /**
+   * "When **a player** would be dealt an encounter card" (Aerial Recon, `falcon` 53009; docs/phase7-wave9.md §3.45;
+   * RRG 1.8 "'Would'", p. 48). Use it in a `would` interrupt: any player's deal, named with `eventPlayer`; the card
+   * whose ability or surge keyword deals it is `eventSource`. The card itself is not named: it is still on the
+   * encounter deck. One event and one window per card, before the card leaves the deck: step three of the villain
+   * phase and its hazard cards (each player's in player order), a card effect's deal, a player deck that ran out and
+   * the surge keyword's card (docs/phase7-wave9.md §4.1 Q19). `source` narrows it. `replaceTriggeringEvent(…)` is
+   * "… instead": the card stays on top of the encounter deck, that player is dealt nothing by that deal and a surge
+   * reveals nothing (RRG 1.8 "Replacement Effect", p. 37). Interrupt only; "after a player is dealt" is
+   * `aPlayerIsDealtAnEncounterCard`. Not heard: a deal paid as a cost (RRG 1.8 "Cost", p. 13) and a named card dealt
+   * "as a facedown encounter card".
+   */
+  aPlayerWouldBeDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
+    pattern("encounterCardBeingDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),
   /**
    * "When a card would be tucked **under your identity by a player card effect**" (Silk Sense Overload, `silk` 52028;
    * docs/phase7-wave9.md §3.40 (a); RRG 1.8 "Tuck", p. 45). Use it in a `would` interrupt: the card is `eventTarget`,

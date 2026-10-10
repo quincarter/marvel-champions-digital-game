@@ -64,7 +64,7 @@ import {
   addLastingEffect,
   areaCostReductionFor,
   expireNextVillainPhaseEffects,
-  dealEncounterCardTo,
+  dealEncounterCardOrAnnounce,
   discardFromHand,
   expirePaidForEffects,
   changeIdentityForm,
@@ -1574,7 +1574,8 @@ function executeDealEncounterCards(
   // the new deck, in the order already chosen (`eachEncounterCard`; RRG 1.8 "Encounter Deck", p. 17).
   eachEncounterCard(ctx, frame, order.length * count, (index) => {
     const playerId = order[Math.floor(index / count)];
-    if (playerId) dealEncounterCardTo(ctx, playerId, "ability");
+    // Each card through its own "would be dealt" window when an ability could react (docs/phase7-wave9.md §3.45).
+    return playerId ? dealEncounterCardOrAnnounce(ctx, playerId, "ability", frame.selfInstanceId) : false;
   });
 }
 

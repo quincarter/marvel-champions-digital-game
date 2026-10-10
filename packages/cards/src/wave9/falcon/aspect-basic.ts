@@ -18,6 +18,7 @@ import {
   exhaustCardsCost,
   exists,
   find,
+  gainsAbility,
   gainsKeyword,
   gets,
   heroAction,
@@ -89,14 +90,12 @@ const CAPTAINS_SHIELD = query("upgrade", { name: "Captain America's Shield" });
  * being offered. Each readied character is its own choice (RRG "'For Each'", p. 20), so one may be named twice.
  *
  * **53020.flight-squadron-constant / 53020.flight-squadron-granted-response**: "If each of your allies has the Aerial
- * trait, increase your ally limit by 1 and this card gains: 'Response: ...'". The constant is the ally limit (+1
- * while no ally you control lacks the trait; true with no allies). The quoted response is registered under the
- * registry-only id `FLIGHT_SQUADRON_GRANTED_RESPONSE` with the same condition as its `while`, as Night Vision Goggles
- * 50070 registers its granted Preparation (the data keeps one ref per constant, packages/content/src/data/wave9.test.ts).
- * **The engine cannot reach it today**: it reads a card's abilities from the card's data refs, and the one rule that
- * grants a registry-only ability (`grantsLabeledAbility`) gives only a Preparation, to encounter cards. Until the
- * card's data lists a second ref (or the engine grows a grant to the card itself) the response is never offered; the
- * tests run it with the id added to the card's refs in the test's own card pool.
+ * trait, increase your ally limit by 1 and this card gains: 'Response: ...'". One condition (no ally you control
+ * lacks the trait; true with no allies) over both halves of the constant: the ally limit (+1), and the grant of the
+ * quoted response to the card itself (`gainsAbility`; RRG 1.8 "'Gains'", p. 21). The response is registered under the
+ * registry-only id `FLIGHT_SQUADRON_GRANTED_RESPONSE`, as Night Vision Goggles 50070 registers its granted
+ * Preparation (the data keeps one ref per constant, packages/content/src/data/wave9.test.ts), and carries no
+ * condition of its own: while the constant's holds the card has it, with its cost (exhaust this card) its own.
  *
  * **53022.the-triskelion-constant / 53028.the-power-of-flight-constant**: reprints of Core's The Triskelion 01073 and
  * Angel's The Power of Flight 42022, same cost, icons, traits and text; aliased.
@@ -178,10 +177,11 @@ export const FALCON_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "53020.flight-squadron-constant": constant(
     rule({ kind: "allyLimit", amount: 1, while: EACH_OF_YOUR_ALLIES_IS_AERIAL }),
+    gainsAbility(FLIGHT_SQUADRON_GRANTED_RESPONSE, { while: EACH_OF_YOUR_ALLIES_IS_AERIAL }),
   ),
   [FLIGHT_SQUADRON_GRANTED_RESPONSE]: response(
     after.youPlayedCard(query([], { trait: AERIAL })),
-    { cost: exhaustThis, while: EACH_OF_YOUR_ALLIES_IS_AERIAL },
+    { cost: exhaustThis },
     chooseTarget("ally", query("ally", { controller: "you" })),
     ready(chosen("ally")),
   ),

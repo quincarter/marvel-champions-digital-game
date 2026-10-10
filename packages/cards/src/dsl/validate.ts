@@ -495,9 +495,19 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       cost.spendCounters.upTo ||
       cost.spendCounters.all ||
       others.length > 0 ||
-      definition.limit
+      // The one limit it may carry counts its uses toward one card paid for (docs/phase7-wave9.md §3.46 (a)).
+      (definition.limit && definition.limit.per !== "paidCard")
     )
-      problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
+      problems.push(
+        "a repeatable resource ability needs a fixed spendCounters cost only, and no limit but one per card paid for",
+      );
+  }
+  // docs/phase7-wave9.md §3.46 (a): "(Limit once per card.)" counts a resource ability's uses in one payment.
+  if (definition.limit?.per === "paidCard") {
+    if (trigger.kind !== "resource") problems.push("a limit per card paid for is a resource ability's");
+    else if (trigger.whenSpent) problems.push("a when-spent ability is used once with its card: no limit per card");
+    else if (definition.limit.count > 1 && !trigger.repeatable)
+      problems.push("a resource ability used more than once per card paid for must be repeatable");
   }
   // docs/phase7-wave7.md §3.50: the engine reads a constant's stat modifiers, trait grants, keyword grants and
   // `activeRules` rules from the victory display, and nothing else from there.
@@ -562,6 +572,9 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     // Nor has a status card about to be given (docs/phase7-wave9.md §3.33): "after" answers `statusPlaced`.
     if (kinds.includes("statusBeingGiven"))
       problems.push("statusBeingGiven is interrupt-only: after a status card is placed is on.statusPlaced");
+    // Nor has an encounter card about to be dealt (docs/phase7-wave9.md §3.45): "after" answers `encounterCardDealt`.
+    if (kinds.includes("encounterCardBeingDealt"))
+      problems.push("encounterCardBeingDealt is interrupt-only: after a player is dealt a card is encounterCardDealt");
   }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {

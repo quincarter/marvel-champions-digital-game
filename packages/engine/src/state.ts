@@ -403,6 +403,9 @@ export interface DealtEncounterCard {
   readonly source: EncounterDealSource;
 }
 
+/** A deal waiting for its "would be dealt" window: the fields of `TriggerEvent encounterCardBeingDealt`. */
+export type EncounterDealWaiting = Omit<Extract<TriggerEvent, { kind: "encounterCardBeingDealt" }>, "kind">;
+
 /** A card that entered a player's hand, waiting to be announced (`TriggerEvent cardEntersHand`, wave 6 §3.10). */
 export interface EnteredHand {
   readonly playerId: PlayerId;
@@ -774,7 +777,9 @@ export type GameStep =
       /**
        * How many of the step's cards have been dealt, set only while the deal is paused for a response to an encounter
        * deck reset it caused ("After the encounter deck resets", Wheel of Genres; RRG 1.8 "Encounter Deck", p. 17;
-       * docs/phase7-wave6.md §4.1 Q58). The step deals the rest once that response has resolved.
+       * docs/phase7-wave6.md §4.1 Q58), or for a card's "would be dealt" window (`TriggerEvent encounterCardBeingDealt`,
+       * docs/phase7-wave9.md §3.45; a deal that window replaced counts as dealt here: it is not made again). The step
+       * deals the rest once that frame has resolved.
        */
       readonly dealt?: number;
     }
@@ -963,6 +968,13 @@ export interface GameState {
    * response window, and empties the list. Absent until one is first dealt. docs/phase7-wave9.md §3.12.
    */
   readonly pendingEncounterDealt?: readonly DealtEncounterCard[];
+  /**
+   * Deals of the encounter deck's top card that an ability could interrupt ("When a player would be dealt an encounter
+   * card", `TriggerEvent encounterCardBeingDealt`, docs/phase7-wave9.md §3.45), made in the middle of another move (a
+   * player deck that ran out), oldest first: the flow puts each on the stack between frames and empties the list. The
+   * card is still on the deck until its event applies. Absent in a game with no such ability in reach.
+   */
+  readonly pendingEncounterDeals?: readonly EncounterDealWaiting[];
   /**
    * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
    * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent

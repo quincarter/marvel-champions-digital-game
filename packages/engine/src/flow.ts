@@ -43,6 +43,7 @@ import {
   announceCardsLeftPlay,
   announceDeckRunOuts,
   announceEncounterCardsDealt,
+  announceEncounterDealsWaiting,
   announceCardsEnteredHand,
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
@@ -93,6 +94,9 @@ export function runFlow(ctx: Ctx): void {
     if (announceEncounterCardsDealt(ctx)) continue;
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // "When a player would be dealt an encounter card" for a deck that ran out (docs/phase7-wave9.md §3.45). Looked at
+    // after the run-out, so the deal's frame sits above it and resolves first: the deal is part of running out.
+    if (announceEncounterDealsWaiting(ctx)) continue;
     // "After this card is discarded from the top of your deck" (docs/phase7-wave7.md §3.55). Looked at after the deck
     // run-outs, so when a discard emptied the deck its frame sits above the reset's and resolves first: the discard
     // came first. Announcements of the same step looked at below (a card entering a hand, leaving play) resolve

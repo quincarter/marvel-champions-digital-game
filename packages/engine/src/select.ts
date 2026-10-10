@@ -1,4 +1,4 @@
-import type { AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
+import type { AbilityId, AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
 import {
   type AbilityDefinition,
   type AbilityTriggerSpec,
@@ -3351,6 +3351,23 @@ export function activeAbilityRefs(
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly AbilityReference[] {
+  const printed = activePrintedAbilityRefs(state, id, deps);
+  // "This card gains: 'Response: …'" (`RuleSpec gainsAbility`): gained abilities join the printed ones. Not printed,
+  // so the card's own blank does not reach them (RRG 1.8 "'Gains'", p. 21); an `ignoreAbilities` rule does.
+  const gained = gainedAbilities(state, deps).get(id);
+  if (!gained) return printed;
+  const ignored = ignoredAbilities(state, deps).get(id);
+  const extra = gained.filter(
+    (grant, index) =>
+      !ignored?.has(grant.abilityId) &&
+      !printed.some((ref) => ref.id === grant.abilityId) &&
+      gained.findIndex((other) => other.abilityId === grant.abilityId) === index,
+  );
+  return extra.length === 0 ? printed : [...printed, ...extra.map((grant) => ({ id: grant.abilityId }))];
+}
+
+/** `activeAbilityRefs` less the abilities the card gains from rules: its live printed abilities. */
+function activePrintedAbilityRefs(state: GameState, id: InstanceId, deps: EngineDeps): readonly AbilityReference[] {
   const printed = unblankedAbilityRefs(state, id);
   if (printed.length === 0) return printed;
   if (textBoxBlankFor(state, id, deps)) return [];
@@ -3361,6 +3378,88 @@ export function activeAbilityRefs(
   const marked = victoryDisplayAbilityIds(deps);
   if (marked.size === 0 || state.victoryDisplay.includes(id) || !refs.some((ref) => marked.has(ref.id))) return refs;
   return refs.filter((ref) => !marked.has(ref.id));
+}
+
+/** One ability a card gains from a rule in effect, and the card whose constant gives it (null: a scenario rule). */
+export interface GrantedAbility {
+  readonly abilityId: AbilityId;
+  readonly grantedBy: InstanceId | null;
+}
+
+const NO_GAINED_ABILITIES: ReadonlyMap<InstanceId, readonly GrantedAbility[]> = new Map();
+const GAIN_RULE_IN_REGISTRY = new WeakMap<EngineDeps, boolean>();
+/** Per state and registry: the abilities gained, or null while they are being worked out. */
+const GAINED_BY_RULES = new WeakMap<
+  GameState,
+  WeakMap<EngineDeps, ReadonlyMap<InstanceId, readonly GrantedAbility[]> | null>
+>();
+
+/**
+ * The abilities cards in play gain from `gainsAbility` rules in effect, by the card that gains them (`RuleSpec
+ * gainsAbility`; RRG 1.8 "'Gains'", p. 21), one entry per rule that reaches the card, in the order `activeRules` reads
+ * them. Rules come from constants of cards in play (and the victory display's marked ones), lasting rule grants and
+ * the scenario, each with its `while` and `to` read in full: granted traits, keywords and stats count.
+ *
+ * That read asks for the abilities of the cards in play, which asks for this. The loop is cut here: while the answer
+ * for a state is being worked out, a card's abilities are its printed ones. Nothing a rule's `while` or `to` reads is
+ * lost by that, because a gained ability is never a constant (such a rule gives nothing), and constants are all those
+ * reads consult. So a `gainsAbility` rule cannot depend on a gained ability, and the answer is found in one pass.
+ *
+ * Cached per state like `blankedSets`; a game whose registry has no such rule and that holds no such lasting or
+ * scenario rule pays one lookup.
+ */
+export function gainedAbilities(
+  state: GameState,
+  deps: EngineDeps,
+): ReadonlyMap<InstanceId, readonly GrantedAbility[]> {
+  let inRegistry = GAIN_RULE_IN_REGISTRY.get(deps);
+  if (inRegistry === undefined) {
+    inRegistry = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.rules ?? []).some((rule) => rule.kind === "gainsAbility"),
+    );
+    GAIN_RULE_IN_REGISTRY.set(deps, inRegistry);
+  }
+  const isGain = (rule: RuleSpec): boolean => rule.kind === "gainsAbility";
+  if (
+    !inRegistry &&
+    !state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && isGain(effect.rule)) &&
+    !(state.scenarioRules.rules ?? []).some(isGain)
+  )
+    return NO_GAINED_ABILITIES;
+  let perDeps = GAINED_BY_RULES.get(state);
+  if (!perDeps) {
+    perDeps = new WeakMap();
+    GAINED_BY_RULES.set(state, perDeps);
+  }
+  const cached = perDeps.get(deps);
+  if (cached !== undefined) return cached ?? NO_GAINED_ABILITIES;
+  perDeps.set(deps, null);
+  try {
+    const found = new Map<InstanceId, GrantedAbility[]>();
+    const inPlay = cardsInPlay(state);
+    for (const { rule, context } of activeRules(state, deps, "gainsAbility")) {
+      const definition = deps.abilities[rule.abilityId];
+      if (!definition || definition.trigger.kind === "constant") continue;
+      const to = rule.to;
+      const gaining = to
+        ? inPlay.filter((id) => matchesQuery(state, id, to, context))
+        : inPlay.filter((id) => id === context.selfInstanceId);
+      for (const id of gaining) {
+        if (getInstance(state, id)?.facedownAs) continue;
+        const list = found.get(id) ?? [];
+        list.push({ abilityId: rule.abilityId, grantedBy: context.selfInstanceId });
+        found.set(id, list);
+      }
+    }
+    const result = found.size === 0 ? NO_GAINED_ABILITIES : found;
+    perDeps.set(deps, result);
+    return result;
+  } catch (error) {
+    perDeps.delete(deps);
+    throw error;
+  }
 }
 
 const NO_IGNORED_ABILITIES: ReadonlyMap<InstanceId, ReadonlySet<string>> = new Map();

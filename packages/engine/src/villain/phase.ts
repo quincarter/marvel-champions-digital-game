@@ -9,7 +9,7 @@
 import { displayNameOf } from "../visibility.js";
 import { emit, requestChoice, setStep, type Ctx } from "../ctx.js";
 import {
-  dealEncounterCardTo,
+  dealEncounterCardOrAnnounce,
   discardStatusCards,
   expireNextVillainPhaseEffects,
   setActiveVillain,
@@ -323,7 +323,17 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
   const total = order.length === 0 ? 0 : order.length + hazards;
   for (let index = step.dealt ?? 0; index < total; index++) {
     const player = order[index % order.length];
-    if (player) dealEncounterCardTo(ctx, player.playerId, index < order.length ? "villainPhase" : "hazard");
+    // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): each card has its own interrupt
+    // window, in the order the cards are dealt. The step is run again from `dealt` once that frame has left the stack
+    // (the card dealt, or the deal replaced and the card still on the deck for the next deal), the last card's too: it
+    // is dealt in step three, before the step ends.
+    const waits =
+      player !== undefined &&
+      dealEncounterCardOrAnnounce(ctx, player.playerId, index < order.length ? "villainPhase" : "hazard", null);
+    if (waits) {
+      setStep(ctx, { ...step, dealt: index + 1 });
+      return;
+    }
     // RRG 1.8 "Encounter Deck" (p. 17): "If the encounter deck empties during the resolution of any other type of game
     // effect (for example, the dealing of encounter cards), that effect finishes resolving after the encounter deck has
     // been reset." Owner decision, 2026-10-03 (docs/phase7-wave6.md §4.1 Q58): a response to the reset resolves right

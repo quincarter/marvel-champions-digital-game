@@ -926,14 +926,47 @@ export type TriggerEventBody =
    * among that player's dealt cards by then is not announced.
    *
    * The after-the-fact sibling of the "would be dealt" interrupt, `encounterCardBeingDealt` (docs/phase7-wave9.md
-   * §3.45, not built): that one is to open before each card is taken from the deck, and a deal it replaces is never
-   * announced here.
+   * §3.45): that one opens before each card is taken from the deck, and a deal it replaces is never announced here.
    */
   | {
       readonly kind: "encounterCardDealt";
       readonly playerId: PlayerId;
       readonly instanceId: InstanceId;
       readonly source: EncounterDealSource;
+    }
+  /**
+   * A player is about to be dealt the top card of the encounter deck, facedown: "Interrupt: When a player would be
+   * dealt an encounter card, remove 1 recon counter from here instead." (docs/phase7-wave9.md §3.45). RRG 1.8 "Deal,
+   * Deal an Encounter Card" (p. 15); "'Would'" (p. 48); "Replacement Effect" (p. 37): "When an effect is replaced, it
+   * is no longer considered imminent and no further interrupts or responses to that effect can be triggered."
+   *
+   * One event per card, before it leaves the deck: `playerId` the player it is to be dealt to ("a player",
+   * `PlayerRef eventPlayer`), `source` what deals it (`EncounterDealSource`, shared with `encounterCardDealt`) and
+   * `sourceInstanceId` the card whose ability or surge keyword deals it (`eventSource`), null for the game's own
+   * deals (step three of the villain phase, a hazard icon, a player deck that ran out). The card is not named: it is
+   * whatever is on top of the encounter deck when the event applies, and nothing is on the stack for it until then.
+   *
+   * Interrupt only: the deal is this event's apply step (`applyEncounterCardBeingDealt`), which deals as every deal
+   * does, so `encounterCardDealt` still follows a deal that was not replaced. Cancelled or replaced
+   * (`cancelTriggeringEvent`, `replaceTriggeringEvent`), no card is taken: the card stays on top of the encounter
+   * deck, the player is dealt nothing by that deal (or what the replacing ability says), a surge reveals nothing, and
+   * the next deal takes that same card. Each card has its own window (RRG 1.8 "Triggering Condition", p. 45): step
+   * three deals one card, and only then asks about the next player's.
+   *
+   * Pushed only when an ability could react (`dealEncounterCardOrAnnounce`, `heard`); otherwise the card is dealt at
+   * once, with the log, state and replay of a game that has no such ability.
+   *
+   * **Not** announced: a card dealt as a cost (`AbilityCost.dealEncounterCards`; every cost is paid at once, RRG 1.8
+   * "Cost", p. 13, as `cardBeingDiscarded` and `statusBeingGiven` have it), a named card dealt to a player ("deal
+   * that card to yourself as a facedown encounter card", `dealAsEncounterCards`: it is not taken from the deck), and
+   * "reveal an additional encounter card" for a card that could not be given or enter play (no deal; `source: null`
+   * of `dealEncounterCardTo`).
+   */
+  | {
+      readonly kind: "encounterCardBeingDealt";
+      readonly playerId: PlayerId;
+      readonly source: EncounterDealSource;
+      readonly sourceInstanceId: InstanceId | null;
     }
   /**
    * A card in a player's hand or deck is about to be discarded by the effect of a card's ability: "Interrupt: When an
@@ -1522,11 +1555,11 @@ export type TriggerEventKind = TriggerEvent["kind"];
 
 /**
  * What dealt a player a facedown encounter card (`TriggerEvent encounterCardDealt.source`; the "would be dealt"
- * interrupt of docs/phase7-wave9.md §3.45 is to carry the same): step three of the villain phase's one card each
- * (`villainPhase`) or its additional card for a hazard icon (`hazard`; RRG 1.8 "Villain Phase", p. 47), a card
- * ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), a player deck that ran out
- * (`deckReset`; "Player Deck", p. 33), or the surge keyword (`surge`; "Surge", p. 42: "the player resolving the card
- * deals themself a facedown encounter card from the top of the encounter deck"; docs/phase7-wave9.md §4.1 Q19).
+ * interrupt `encounterCardBeingDealt` carries the same, docs/phase7-wave9.md §3.45): step three of the villain
+ * phase's one card each (`villainPhase`) or its additional card for a hazard icon (`hazard`; RRG 1.8 "Villain Phase",
+ * p. 47), a card ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), a player deck that ran
+ * out (`deckReset`; "Player Deck", p. 33), or the surge keyword (`surge`; "Surge", p. 42: "the player resolving the
+ * card deals themself a facedown encounter card from the top of the encounter deck"; docs/phase7-wave9.md §4.1 Q19).
  */
 export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset" | "surge";
 
@@ -1751,6 +1784,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardBeingDiscarded":
     // "When X would gain a stunned status card" (docs/phase7-wave9.md §3.33): the give is still to come.
     case "statusBeingGiven":
+    // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): the deal is still to come.
+    case "encounterCardBeingDealt":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1890,6 +1925,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId]);
     case "encounterCardDealt":
       return of([], [event.instanceId], [event.playerId]);
+    // The card is still on the deck and is not named; the dealing card is the source, the player dealt to "you".
+    case "encounterCardBeingDealt":
+      return of([event.sourceInstanceId], [], [event.playerId]);
     // The card being tucked is the target ("it"), the tucking card the source, the host's player "you".
     case "cardBeingTucked":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);

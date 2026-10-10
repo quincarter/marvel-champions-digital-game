@@ -438,6 +438,7 @@ export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./
 export {
   abilityIgnored,
   activeAbilityRefs,
+  gainedAbilities,
   canAttack,
   cardsInPlay,
   facedownAttachments,
