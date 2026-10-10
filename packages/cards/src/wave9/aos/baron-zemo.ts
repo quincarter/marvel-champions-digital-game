@@ -5,47 +5,69 @@ import {
   accuse,
   accusedWrong,
   addCounters,
+  additionalCostToReady,
   advanceMainScheme,
   allOf,
+  bindTargets,
   chooseOne,
   chooseOneBy,
   chooseTarget,
   chosen,
   countersOn,
+  constant,
   coveredByEngineRule,
   dealHiddenPiles,
+  defeat,
   defineAbilities,
+  discard,
   each,
+  enemyAttack,
+  enemyScheme,
   exists,
   findCard,
   firstPlayer,
   flipCard,
   forEachCard,
   forcedInterrupt,
+  forcedResponse,
   gainFromHiddenPile,
+  heroAction,
   hiddenPileCount,
   identifyMole,
   ifThen,
   instead,
+  made,
   modifyAttack,
+  not,
   on,
   option,
   perHero,
   placeThreat,
+  printedCostOf,
   product,
   query,
+  remainingHpOf,
   removeCountersAmong,
+  removeCountersFrom,
   resetHitPoints,
   response,
   self,
   setup,
+  spendResources,
+  superlative,
   theAccused,
   theMainScheme,
   theMole,
   theVillain,
   valueAtLeast,
+  varAtLeast,
   when,
+  whenDefeated,
   whenRevealed,
+  whenRevealedAlterEgo,
+  whenRevealedHero,
+  withFewestCounters,
+  you,
 } from "../../dsl/index.js";
 
 const BOARD_MEMBER = trait("BOARD MEMBER");
@@ -96,8 +118,37 @@ const zemoForcedInterruptB = (counters: 1 | 2) =>
   );
 
 /**
+ * "Place N secret counters on the Board Member environment with the fewest secret counters" (50170, 50172, 50176): a
+ * card holding none is the fewest, and a tie goes to the first player (RRG 1.8 "First Player", p. 19; docs/phase7-wave9.md
+ * section 3.27).
+ */
+const placeOnFewest = (counters: number) => [
+  bindTargets("fewest", withFewestCounters(each(BOARD_MEMBER_ENVIRONMENTS), "secret")),
+  chooseTarget("board", { inSlot: "fewest" }, { chooser: firstPlayer }),
+  addCounters("secret", counters, chosen("board")),
+];
+
+/** "Remove 1[per_hero] secret counters from among Board Member environments" (the When Defeated of 50173 and 50174). */
+const removePerHero = () =>
+  whenDefeated(removeCountersAmong("secret", perHero(1), BOARD_MEMBER_ENVIRONMENTS, { chooser: firstPlayer }));
+
+/**
+ * The Sword's Hero Action cost, "[physical][physical][physical] or [energy][energy][energy]", as one option per type:
+ * the DSL has no alternative costs (a gap, reported), and a payment made as the chosen option is required in full and
+ * not offered to a player who cannot make it, which is a cost's behavior here as nothing else follows the payment.
+ */
+const swordPayment = (type: "physical" | "energy") =>
+  option(
+    `Spend three [${type}] resources`,
+    spendResources({ [type]: 3 }, "paid"),
+    chooseTarget("board", query("environment", { trait: BOARD_MEMBER, hasCounter: "secret" })),
+    removeCountersFrom(chosen("board"), "secret", 1),
+    discard(self),
+  );
+
+/**
  * Baron Zemo, the scenario frame (MC50 pp. 18 to 19; docs/phase7-wave9.md sections 3.26, 3.29 (a) and (b), 4.1 Q1, Q28
- * and Q30). The second half (the encounter cards 50170 to 50177) is scripted by a later pass in this file.
+ * and Q30). The encounter cards 50170 to 50177 follow the frame below.
  *
  * **The villain**: each of the two cards (A for standard, B for expert) has a masked face, whose Forced Interrupt
  * resets his hit points (12, 16) and removes 3 secret counters from among the Board Member environments, and an Unmasked
@@ -121,16 +172,22 @@ const zemoForcedInterruptB = (counters: 1 | 2) =>
  * flipped it) to its attachment face, which keeps its secret counters (Q1 = A), and places 1[per_hero] threat per
  * secret counter on each Board Member attachment, one placement per attachment.
  *
+ * **The encounter deck (50170 to 50177)**: the Sword's Forced Response answers an attack by its host that defeats a
+ * character; S.H.I.E.L.D. Agent's Forced Interrupt answers its own activation or defeat; Undermine Support taxes
+ * readying a support; both side schemes remove 1[per_hero] secret counters when defeated; Might Makes Right and The
+ * Ends Justify the Means finish with secret counters removed from among the Board Member environments (the first
+ * player splits them, Q28 = A). The unscripted refs are in `BARON_ZEMO_SKIPPED`.
+ *
  * Cards (11):
  * - 50165a Baron Zemo (villain)
  * - 50166a Baron Zemo (villain)
  * - 50167a Zemo's Manipulations (main_scheme)
  * - 50170 Baron Zemo's Sword (attachment)
- * - 50171 Reluctant Foe (attachment)
+ * - 50171 Reluctant Foe (attachment; skipped, engine task 21)
  * - 50172 S.H.I.E.L.D. Agent (minion)
- * - 50173 Divided Loyalties (side_scheme)
+ * - 50173 Divided Loyalties (side_scheme; its constant is skipped, engine task 22)
  * - 50174 Undermine Support (side_scheme)
- * - 50175 Battle of Wits (treachery)
+ * - 50175 Battle of Wits (treachery; skipped, no engine hook)
  * - 50176 Might Makes Right (treachery)
  * - 50177 The Ends Justify the Means (treachery)
  */
@@ -204,24 +261,65 @@ export const BARON_ZEMO: AbilityRegistry = defineAbilities({
       placeThreat(product(perHero(1), countersOn(chosen("member"), "secret")), theMainScheme),
     ),
   ),
-});
+  // The Sword: "After Baron Zemo attacks and defeats a character" (an attack by the host that defeated something).
+  "50170.baron-zemos-sword-forced-response": forcedResponse(
+    { ...on.enemyAttacks("host"), requireResults: { defeated: 1 } },
+    ...placeOnFewest(1),
+  ),
+  "50170.baron-zemos-sword-action": heroAction(chooseOne(swordPayment("physical"), swordPayment("energy"))),
 
-const SECOND_HALF = "second half, not scripted yet";
+  // S.H.I.E.L.D. Agent: Quickstrike and Vulnerable are data.
+  "50172.shield-agent-forced-interrupt": forcedInterrupt(
+    on.either(when.enemyActivates("self"), on.defeated("self")),
+    ...placeOnFewest(1),
+  ),
+
+  // Divided Loyalties' "additional cost for an ally" waits on engine task 22 (BARON_ZEMO_SKIPPED); Hinder is data.
+  "50173.when-defeated": removePerHero(),
+
+  // Undermine Support: readying a support costs its readier 1 resource of any type (RRG "Ready", p. 36: may decline).
+  "50174.undermine-support-constant": constant(additionalCostToReady(query("support"), 1)),
+  "50174.when-defeated": removePerHero(),
+
+  "50176.when-revealed-alter-ego": whenRevealedAlterEgo(...placeOnFewest(2)),
+  "50176.when-revealed-hero": whenRevealedHero(
+    enemyAttack(theVillain, { against: you, bind: "attack" }),
+    ifThen(
+      allOf(made("attack"), not(varAtLeast("attack.damage"))),
+      removeCountersAmong("secret", 3, BOARD_MEMBER_ENVIRONMENTS, { chooser: firstPlayer }),
+    ),
+  ),
+
+  // The Ends Justify the Means: the revealing player chooses. The tie for "fewest remaining hit points" and the split of
+  // the counters are the first player's.
+  "50177.when-revealed": whenRevealed(
+    chooseOne(
+      option(
+        "Baron Zemo defeats the minion with the fewest remaining hit points and schemes",
+        bindTargets("fewest", superlative("lowest", each(query("minion")), remainingHpOf(chosen("candidate")))),
+        chooseTarget("minion", { inSlot: "fewest" }, { chooser: firstPlayer }),
+        defeat(chosen("minion")),
+        enemyScheme(theVillain),
+      ),
+      option(
+        "Discard an ally or support you control to remove secret counters equal to its printed cost",
+        chooseTarget("card", query(["ally", "support"], { controller: "you" })),
+        discard(chosen("card")),
+        removeCountersAmong("secret", printedCostOf(chosen("card")), BOARD_MEMBER_ENVIRONMENTS, {
+          chooser: firstPlayer,
+        }),
+      ),
+    ),
+  ),
+});
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
 export const BARON_ZEMO_SKIPPED: Readonly<Record<string, string>> = {
-  "50170.baron-zemos-sword-forced-response": SECOND_HALF,
-  "50170.baron-zemos-sword-action": SECOND_HALF,
-  "50171.reluctant-foe-constant": `${SECOND_HALF}: waits on engine task 21`,
-  "50171.when-defeated": `${SECOND_HALF}: waits on engine task 21`,
-  "50171.when-revealed": `${SECOND_HALF}: waits on engine task 21`,
-  "50172.shield-agent-forced-interrupt": SECOND_HALF,
-  "50173.divided-loyalties-constant": `${SECOND_HALF}: waits on engine task 22`,
-  "50173.when-defeated": `${SECOND_HALF}: waits on engine task 22`,
-  "50174.undermine-support-constant": SECOND_HALF,
-  "50174.when-defeated": SECOND_HALF,
-  "50175.when-revealed": SECOND_HALF,
-  "50176.when-revealed-alter-ego": SECOND_HALF,
-  "50176.when-revealed-hero": SECOND_HALF,
-  "50177.when-revealed": SECOND_HALF,
+  "50171.reluctant-foe-constant": "waits on engine task 21 (an identity card from the collection treated as a minion)",
+  "50171.when-defeated": "waits on engine task 21 (removing the hero and the attachment from the game)",
+  "50171.when-revealed": "waits on engine task 21 (the collection search for a hero and putting it into play)",
+  "50173.divided-loyalties-constant":
+    "waits on engine task 22 (additionalPowerCost over allies' attack, thwart and defense)",
+  "50175.when-revealed":
+    "no engine hook: 'If this activation would place any threat on the main scheme, you may spend X mental resources to prevent X' needs a way for the revealing treachery (not in play, so its triggers are not gathered) to interrupt the scheme activation it starts; enemyScheme has divert/schBonus but no payment-and-prevent option",
 };

@@ -208,7 +208,11 @@ const stage = (s: GameState): number => s.mainScheme.stageIndex + 1;
 
 describe("registry", () => {
   it("registers the fourteen refs of the frame, each a valid definition", () => {
-    expect(Object.keys(BARON_ZEMO).sort()).toEqual([...REFS].sort());
+    expect(
+      Object.keys(BARON_ZEMO)
+        .filter((id) => /^5016[5-9]/.test(id))
+        .sort(),
+    ).toEqual([...REFS].sort());
     for (const [id, def] of Object.entries(BARON_ZEMO)) expect(validateDefinition(def), id).toEqual([]);
   });
 
@@ -218,28 +222,16 @@ describe("registry", () => {
     }
   });
 
-  it("skips exactly the second half, each ref with a reason", () => {
+  it("skips only the refs that wait on the engine (the encounter cards are tested in baron-zemo-encounter.test.ts)", () => {
     expect(Object.keys(BARON_ZEMO_SKIPPED).sort()).toEqual(
       [
-        "50170.baron-zemos-sword-forced-response",
-        "50170.baron-zemos-sword-action",
         "50171.reluctant-foe-constant",
         "50171.when-defeated",
         "50171.when-revealed",
-        "50172.shield-agent-forced-interrupt",
         "50173.divided-loyalties-constant",
-        "50173.when-defeated",
-        "50174.undermine-support-constant",
-        "50174.when-defeated",
         "50175.when-revealed",
-        "50176.when-revealed-alter-ego",
-        "50176.when-revealed-hero",
-        "50177.when-revealed",
       ].sort(),
     );
-    for (const reason of Object.values(BARON_ZEMO_SKIPPED)) expect(reason).toContain("second half, not scripted yet");
-    expect(BARON_ZEMO_SKIPPED["50171.when-revealed"]).toContain("waits on engine task 21");
-    expect(BARON_ZEMO_SKIPPED["50173.when-defeated"]).toContain("waits on engine task 22");
   });
 
   it("the data names these refs for the villain faces and the main scheme", () => {
