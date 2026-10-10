@@ -22,6 +22,7 @@ import {
   getInstance,
   heroFacesOf,
   isPlayerCardType,
+  locateCard,
   mainSchemeStates,
   mustCard,
   mustCardOf,
@@ -38,6 +39,7 @@ import type {
   LeavePatch,
   LeaveRequest,
   TriggerEvent,
+  TuckHostKind,
 } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
@@ -71,7 +73,7 @@ import {
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import type { CardDestination, StatusName } from "./spec.js";
-import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
+import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
@@ -846,6 +848,89 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
 export interface DeckDiscarder {
   readonly sourceInstanceId: InstanceId | null;
   readonly boundOn?: DeckDiscard["boundOn"];
+}
+
+const LISTENS_FOR_TUCKED_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `tuckedCardDiscarded` (docs/phase7-wave9.md §3.40 (b)); cached per
+ * registry. Nothing is read, recorded or announced for a registry with no such ability: its games keep their state
+ * and their log.
+ */
+export function listensForTuckedDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_TUCKED_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("tuckedCardDiscarded");
+  });
+  LISTENS_FOR_TUCKED_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/** What a host of tucked cards is (`TuckHostKind`): an identity card, hero or alter-ego side up, or any other card. */
+export function tuckHostKind(state: GameState, hostId: InstanceId): TuckHostKind {
+  const host = getInstance(state, hostId);
+  return host && state.cardPool[host.cardId]?.type === "hero_identity" ? "identity" : "other";
+}
+
+/**
+ * The player a host of tucked cards speaks to: its controller, or the "you" the rules give an uncontrolled card (an
+ * obligation, an attachment on a player card: `uncontrolledYouOf`). Null for any other card (a scheme, an enemy).
+ */
+export const tuckHostPlayer = (state: GameState, hostId: InstanceId): PlayerId | null =>
+  controllerOf(state, hostId) ?? uncontrolledYouOf(state, hostId);
+
+/**
+ * The card `id` is tucked under, when an ability in the registry hears a tucked card's discard
+ * (`listensForTuckedDiscard`); else null, unread. Called before a move that may discard it, for `recordTuckedDiscard`.
+ */
+export function tuckedHostToRecord(ctx: Ctx, id: InstanceId): InstanceId | null {
+  if (!listensForTuckedDiscard(ctx.deps)) return null;
+  const zone = locateCard(ctx.state, id);
+  return zone?.kind === "tucked" ? zone.hostInstanceId : null;
+}
+
+/**
+ * The one place a tucked card's discard is recorded for its `tuckedCardDiscarded` announcement
+ * (docs/phase7-wave9.md §3.40 (b); `GameState.pendingTuckedDiscards`, announced between frames by
+ * `announceTuckedDiscards`). Called right after the move by every path that discards a tucked card, with the host it
+ * was under (`tuckedHostToRecord`, read before the move): `moveCardsTo` to a discard pile (an effect's `moveCards` and
+ * the `discardTucked` cost alike, so both are heard with one notion of the cause), and the game's own discards of the
+ * cards under a card that leaves play (`leaveNow`, `removeDefeatedVillain`) or flips to another type
+ * (`flipToOtherFace`).
+ *
+ * `sourceCardId` and `asCost` are what the move's caller already passes for `leaveCauseSide`. The side recorded is the
+ * source card's, for a cost too (`TriggerEvent tuckedCardDiscarded.by`; §4.1 Q7), with `how` saying which it was. A
+ * card that did not reach a discard pile (a scenario deck with none sends its card home) was not discarded, and
+ * nothing is recorded.
+ */
+export function recordTuckedDiscard(
+  ctx: Ctx,
+  id: InstanceId,
+  hostId: InstanceId | null,
+  cause: {
+    readonly sourceInstanceId?: InstanceId | null;
+    readonly sourceCardId?: CardId;
+    readonly asCost?: boolean;
+  } = {},
+): void {
+  if (hostId === null || !listensForTuckedDiscard(ctx.deps)) return;
+  const at = locateCard(ctx.state, id)?.kind;
+  if (at !== "discard" && at !== "encounterDiscard" && at !== "separateDiscard" && at !== "scenarioDiscard") return;
+  const by = leaveCauseSide(ctx.state, cause.sourceCardId);
+  const discard: TuckedDiscard = {
+    instanceId: id,
+    hostInstanceId: hostId,
+    sourceInstanceId: cause.sourceInstanceId ?? null,
+    playerId: tuckHostPlayer(ctx.state, hostId),
+    under: tuckHostKind(ctx.state, hostId),
+    ...(by ? { by } : {}),
+    how: cause.sourceCardId === undefined ? "rule" : cause.asCost ? "cost" : "effect",
+  };
+  ctx.state = { ...ctx.state, pendingTuckedDiscards: [...(ctx.state.pendingTuckedDiscards ?? []), discard] };
 }
 
 const LISTENS_FOR_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
@@ -1709,6 +1794,8 @@ function leaveNow(
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tuckedId, (i) => ({ ...i, faceup: true }));
     moveCard(ctx, tuckedId, discardZoneFor(ctx.state, tuckedId), "top");
+    // The game's discard, whatever made the host leave (`TuckedDiscardCause` "rule"; docs/phase7-wave9.md §3.40).
+    recordTuckedDiscard(ctx, tuckedId, id);
   }
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");

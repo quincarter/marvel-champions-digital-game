@@ -155,6 +155,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   pendingLeftPlay: "game",
   pendingStatusPlaced: "game",
   pendingDeckDiscards: "game",
+  pendingTuckedDiscards: "game",
   deckDiscardWindows: "game",
   villainArea: "game",
   victoryDisplay: "game",

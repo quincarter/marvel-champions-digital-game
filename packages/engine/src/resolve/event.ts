@@ -2,6 +2,7 @@
 
 import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
+import { tuckCardUnder } from "./tuck.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
 import {
@@ -691,6 +692,10 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     }
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId, event.sourceInstanceId ?? null);
+      return;
+    case "cardBeingTucked":
+      // Its interrupts resolved with the card where it was; it goes under its host now (docs/phase7-wave9.md §3.40).
+      tuckCardUnder(ctx, event.instanceId, event.hostInstanceId, event.facedown === true, event.sourceCardId);
       return;
     case "formChanging": {
       // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.

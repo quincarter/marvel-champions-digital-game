@@ -1807,6 +1807,13 @@ export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false
   under,
   ...(facedown ? { facedown: true } : {}),
 });
+/**
+ * "… tuck it under here instead." (Silk Sense Overload, `silk` 52028; docs/phase7-wave9.md §3.40 (a)): in a `would`
+ * interrupt to `on.cardWouldBeTucked(...)`, the pending tuck is replaced (RRG 1.8 "Replacement Effect", p. 37) and its
+ * card goes under the first card `to` names instead, at once, so a `then(...)` after it counts the card
+ * (`tuckedCount(self)`). The tuck under `to` is not announced again. `validateDefinition` rejects it anywhere else.
+ */
+export const replaceTuckHost = (to: TargetRef): EffectSpec => ({ kind: "replaceTuckHost", to });
 export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef = you): EffectSpec => ({
   kind: "assignDamage",
   amount: amount(n),

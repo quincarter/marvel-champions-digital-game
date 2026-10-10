@@ -50,6 +50,7 @@ import {
 import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } from "../counter-types.js";
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
+import { tuckCardUnder, tuckOrAnnounce } from "./tuck.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { printedFormTypes, statusActive, usesKeyword } from "../keywords.js";
 import { activationVarsOf } from "../defend-preview.js";
@@ -2550,6 +2551,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       return;
     }
+    case "replaceTuckHost": {
+      // RRG 1.8 "Replacement Effect" (p. 37): the replaced tuck "is no longer considered imminent", so its event is
+      // cancelled (no further interrupt answers it, and its apply step tucks nothing) and the card is tucked under
+      // the other host now, by the same ability, source and face. Now, so the text after it reads the host with the
+      // card under it ("Then, if there are 2 tucked cards here"). It is the same tuck sent elsewhere, not a second
+      // one: no `cardBeingTucked` is announced for it.
+      const pending = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      const [to] = targets(effect.to);
+      if (pending?.kind !== "event" || pending.event.kind !== "cardBeingTucked" || pending.cancelled || !to) {
+        markPreThenUnresolved(ctx, frame.frameId, "tuckNotReplaced");
+        return;
+      }
+      const tuck = pending.event;
+      setFrame(ctx, { ...pending, cancelled: true });
+      tuckCardUnder(ctx, tuck.instanceId, to, tuck.facedown === true, tuck.sourceCardId);
+      return;
+    }
     case "replaceTriggeringEvent": {
       if (!frame.eventFrameId) return;
       updateFrame(ctx, frame.eventFrameId, (target) =>
@@ -3311,7 +3329,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "tuckCards": {
       const [host] = targets(effect.under);
       if (!host) return;
-      const inPlay = cardsInPlay(ctx.state);
+      const tucking: InstanceId[] = [];
       for (const id of selectCards(ctx, effect.cards, context)) {
         // "After the villain is defeated, put it under here" (docs/phase7-wave7.md §3.7): only a villain's defeated last
         // stage is a card that can go under another. A villain still in play, one whose defeated stage revealed its
@@ -3324,21 +3342,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // another's (RRG 1.8 "Villain Defeat", p. 47).
         if (villain)
           updateInstance(ctx, id, (i) => ({ ...i, damage: 0, statuses: NO_STATUSES, counters: {}, exhausted: false }));
-        // A card tucked out of play leaves play properly: its attachments are discarded and it is a new copy (RRG 1.8
-        // "Leaves Play", p. 27): Marked for Death "tucks her faceup beneath this card" (docs/phase7-wave2.md §3.10).
-        const patch = {
-          faceup: effect.facedown !== true,
-          controllerId: getInstance(ctx.state, id)?.ownerId ?? null,
-          attachedTo: null,
-        };
-        // A card waiting for "when it leaves play" interrupts gets `patch` once it has left (§4.1 Q17 of wave 5).
-        if (inPlay.includes(id)) {
-          const source = leaveSourceOf(ctx, frame);
-          if (leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host }, "top", false, patch, source) === "waiting")
-            continue;
-        } else moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
-        updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
+        tucking.push(id);
       }
+      // Each tuck opens its "would be tucked" window when an ability hears it (docs/phase7-wave9.md §3.40 (a)).
+      tuckOrAnnounce(ctx, tucking, host, {
+        sourceInstanceId: frame.selfInstanceId,
+        sourceCardId: leaveSourceOf(ctx, frame),
+        facedown: effect.facedown === true,
+      });
       return;
     }
     case "putIntoPlayFacedown": {

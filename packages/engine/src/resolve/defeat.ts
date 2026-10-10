@@ -9,6 +9,7 @@ import {
   applyToughness,
   leavePlay,
   leavePlayAtOnce,
+  recordTuckedDiscard,
   setActiveVillain,
   updateMainSchemeState,
   waitsForHostStep,
@@ -900,6 +901,7 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tucked, (i) => ({ ...i, faceup: true }));
     moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
+    recordTuckedDiscard(ctx, tucked, villainId);
   }
 
   const scheme = villain.signatureSideSchemeId;

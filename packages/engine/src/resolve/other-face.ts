@@ -22,7 +22,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
-import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
+import { leavePlay, leavePlayAtOnce, recordTuckedDiscard, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import {
@@ -75,7 +75,9 @@ export function flipToOtherFace(
         leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
     }
     for (const card of before.tucked) {
-      if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
+      if (!ctx.state.instances[card]) continue;
+      moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
+      recordTuckedDiscard(ctx, card, id);
     }
   }
   // What the discard left stays attached, since the card flips but stays in play: an attachment whose own leaving was

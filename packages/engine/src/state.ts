@@ -8,7 +8,7 @@ import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
 import type { RuleSpec } from "./abilities.js";
 import type { EffectSpec, StatusName } from "./spec.js";
-import type { EncounterDealSource, LeaveCauseSide } from "./trigger-events.js";
+import type { EncounterDealSource, LeaveCauseSide, TriggerEvent } from "./trigger-events.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -372,6 +372,9 @@ export interface ScenarioDeckState {
    */
   readonly buildAtSetup?: true;
 }
+
+/** A tucked card that was discarded, waiting to be announced: the fields of `TriggerEvent tuckedCardDiscarded`. */
+export type TuckedDiscard = Omit<Extract<TriggerEvent, { kind: "tuckedCardDiscarded" }>, "kind">;
 
 /** A facedown encounter card dealt to a player, waiting to be announced (`TriggerEvent encounterCardDealt`). */
 export interface DealtEncounterCard {
@@ -942,6 +945,12 @@ export interface GameState {
    * docs/phase7-wave7.md §3.55.
    */
   readonly pendingDeckDiscards?: readonly DeckDiscard[];
+  /**
+   * Tucked cards discarded since the flow last looked, oldest first, recorded by `recordTuckedDiscard` only when some
+   * ability in the registry triggers on it: the flow announces them as `tuckedCardDiscarded` between frames, in one
+   * shared response window, and empties the list. Absent until one is first recorded. docs/phase7-wave9.md §3.40.
+   */
+  readonly pendingTuckedDiscards?: readonly TuckedDiscard[];
   /**
    * Announced deck discards whose response window has not finished, each with the frame whose bound set it would leave
    * (`DeckDiscardWindow`). Absent when there is none. docs/phase7-wave7.md §3.55, §4.1 Q32.

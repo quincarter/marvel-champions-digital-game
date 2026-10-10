@@ -596,6 +596,8 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "villainStepStarting") return [];
   // A change of form about to happen is interrupt-only: "after you change form" answers `formChanged`.
   if (timing === "response" && event.kind === "formChanging") return [];
+  // A tuck about to happen is interrupt-only ("would", RRG 1.8 p. 48; docs/phase7-wave9.md §3.40).
+  if (timing === "response" && event.kind === "cardBeingTucked") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
@@ -619,7 +621,9 @@ function gatherCandidates(
       if (definition.playCostReduction) continue;
       // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13), nor does one a card
       // makes from where its discard from a deck left it (docs/phase7-wave7.md §3.55).
-      if (definition.activeIn === "hand" || definition.activeIn === "discard") continue;
+      // Nor one a card makes to its own discard from under another card (docs/phase7-wave9.md §3.40).
+      if (definition.activeIn === "hand" || definition.activeIn === "discard" || definition.activeIn === "tucked")
+        continue;
       // "Only the player who controls Robert Kelly can trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
       // §3.11): each player it names is offered the ability as its "you".
       const named = forced ? null : triggeringPlayers(state, deps, id, trigger, event);
@@ -666,6 +670,7 @@ function gatherCandidates(
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
   found.push(...deckDiscardCandidates(state, deps, event, timing, forced));
+  found.push(...tuckedDiscardCandidates(state, deps, event, timing, forced));
   found.push(...inHandCandidates(state, deps, event, timing, forced));
   return found;
 }
@@ -794,6 +799,45 @@ function deckDiscardCandidates(
     if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
     if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
     if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId)) continue;
+    if (!forced && abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) continue;
+    if (definition.cost) continue;
+    found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
+  }
+  return found;
+}
+
+/**
+ * "Forced Response: After a player card effect discards this card from under an identity, …"
+ * (`AbilityDefinition.activeIn: "tucked"`, docs/phase7-wave9.md §3.40 (b)): the discarded card answers its own
+ * `tuckedCardDiscarded` from the discard pile it went to. RRG 1.8 "In Play and Out of Play" (p. 23): only an ability
+ * that "specifically refer[s] to being used from an out-of-play area" works there, so only the card's abilities marked
+ * that way, on that event, with itself as the target. "You" is the player its host spoke to (the identity's
+ * controller), who resolves it; for a host that spoke to no one a forced ability still resolves, with no "you". A cost
+ * is paid from play, so an ability with one is not offered.
+ */
+function tuckedDiscardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  if (event.kind !== "tuckedCardDiscarded") return [];
+  const id = event.instanceId;
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return [];
+  const controllerId = event.playerId;
+  const found: TriggerCandidate[] = [];
+  for (const ref of card.abilities) {
+    const definition = deps.abilities[ref.id];
+    if (!definition || definition.activeIn !== "tucked") continue;
+    const trigger = definition.trigger;
+    if (trigger.kind !== timing || trigger.forced !== forced) continue;
+    if (trigger.on.selfIs !== "target") continue;
+    if (!formSatisfied(state, controllerId, trigger.form)) continue;
+    if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
+    if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
+    if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId ?? undefined)) continue;
     if (!forced && abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) continue;
     if (definition.cost) continue;
     found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
@@ -973,7 +1017,8 @@ export function hearersOf(
   for (const id of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
-      if (definition?.activeIn === "hand" || definition?.activeIn === "discard") continue;
+      if (definition?.activeIn === "hand" || definition?.activeIn === "discard" || definition?.activeIn === "tucked")
+        continue;
       if (listens(definition)) found.push(hearerKey(id, ref.id, sharedIndex));
     }
   }
@@ -1100,9 +1145,10 @@ export function stillOffered(
 
 /**
  * A card whose abilities answer this event from out of play: `spentCardCandidates`, `leftCardCandidates`,
- * `deckDiscardCandidates`.
+ * `deckDiscardCandidates`, `tuckedDiscardCandidates`.
  */
 const answersFromOutOfPlay = (event: TriggerEvent, id: InstanceId): boolean =>
   (event.kind === "resourcesSpent" && event.cardInstanceIds.includes(id)) ||
   (event.kind === "cardLeavesPlay" && event.instanceId === id) ||
-  (event.kind === "cardDiscardedFromDeck" && event.instanceId === id);
+  (event.kind === "cardDiscardedFromDeck" && event.instanceId === id) ||
+  (event.kind === "tuckedCardDiscarded" && event.instanceId === id);

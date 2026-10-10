@@ -3247,6 +3247,19 @@ export type EffectSpec =
    */
   | { readonly kind: "tuckCards"; readonly cards: CardSelector; readonly under: TargetRef; readonly facedown?: boolean }
   /**
+   * "When a card would be tucked under your identity by a player card effect, tuck it under here instead." (Silk Sense
+   * Overload, `silk` 52028; docs/phase7-wave9.md §3.40 (a)). In an interrupt to `cardBeingTucked`: the pending tuck is
+   * replaced (RRG 1.8 "Replacement Effect", p. 37; "'Would'", p. 48) and its card is tucked under the first card `to`
+   * names instead, at once, with the face the replaced tuck gave it and as the same ability's tuck (the same source
+   * for a card that leaves play). The original event is cancelled, so no later interrupt answers it, and the tuck under
+   * `to` is announced to no one: it is the replaced tuck, not a new one. The effects after this one read `to` with the
+   * card already under it.
+   *
+   * With no pending tuck (another interrupt replaced it first) or no card for `to`, nothing changes and the text
+   * before a "Then" did not resolve (`preThenUnresolved`, cause `tuckNotReplaced`; RRG 1.8 "'Then'", p. 44).
+   */
+  | { readonly kind: "replaceTuckHost"; readonly to: TargetRef }
+  /**
    * "Assign each of the discarded cards to a different ally at the mission. If a resource icon on the ally matches a
    * resource icon on the card assigned to it, that ally participates." (MC45 p. 6, steps 1 and 2 of a mission attempt;
    * docs/phase7-wave8.md §3.36.) `chooser` assigns each card `cards` names to a different card `with` matches, in one

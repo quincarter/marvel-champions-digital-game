@@ -69,6 +69,7 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkAttackPrevention(definition, problems);
   checkRearranges(definition, problems);
   checkPlays(definition, problems);
+  checkTuckReplacement(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
@@ -490,6 +491,28 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       );
     if (definition.cost) problems.push("an ability used from the discard pile has no cost");
   }
+  // docs/phase7-wave9.md §3.40 (b): the engine offers a card that was tucked only its response to its own discard
+  // from under a card, and nothing out of play pays a cost.
+  if (definition.activeIn === "tucked") {
+    const kinds =
+      trigger.kind === "response" ? (typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) : [];
+    if (
+      trigger.kind !== "response" ||
+      kinds.length !== 1 ||
+      kinds[0] !== "tuckedCardDiscarded" ||
+      trigger.on.selfIs !== "target"
+    )
+      problems.push(
+        "only a response to the card's own discard from under a card works for a tucked card (whileTucked needs response(on.thisDiscardedFromUnder(), …))",
+      );
+    if (definition.cost) problems.push("an ability of a tucked card has no cost");
+  }
+  // A tuck about to happen has no response window (docs/phase7-wave9.md §3.40 (a)): "after" has nothing to answer.
+  if (trigger.kind === "response") {
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    if (kinds.includes("cardBeingTucked"))
+      problems.push("cardBeingTucked is interrupt-only: a tuck about to happen has no response window");
+  }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {
     if (trigger.kind !== "whenRevealed")
@@ -557,6 +580,21 @@ function checkAttackPrevention(definition: AbilityDefinition, problems: string[]
     if (!effect.preventAllDamage)
       problems.push("modifyAttack: bind reports what preventAllDamage stops; it needs preventAllDamage");
   }
+}
+
+/**
+ * `replaceTuckHost` changes the tuck its ability interrupts (docs/phase7-wave9.md §3.40 (a)), so it is read only in an
+ * interrupt whose one triggering condition is `cardBeingTucked`; anywhere else it would find no pending tuck.
+ */
+function checkTuckReplacement(definition: AbilityDefinition, problems: string[]): void {
+  if (!allEffects(definition.effects).some((effect) => effect.kind === "replaceTuckHost")) return;
+  const trigger = definition.trigger;
+  const kinds =
+    trigger.kind === "interrupt" ? (typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) : [];
+  if (kinds.length !== 1 || kinds[0] !== "cardBeingTucked")
+    problems.push(
+      "replaceTuckHost needs an interrupt on a tuck about to happen (interrupt(on.cardWouldBeTucked(…), …))",
+    );
 }
 
 /**

@@ -26,6 +26,8 @@ import {
   recordDeckDiscard,
   shuffleZone,
   recordEncounterCardDealt,
+  recordTuckedDiscard,
+  tuckedHostToRecord,
   waitsForLeaveInterrupts,
 } from "../effects.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "../ids.js";
@@ -283,7 +285,9 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
  * whose ability moves them, if any; a permanent card in play that it cannot move stays as it is (`permanentStopsLeaving`,
  * docs/phase7-wave5.md §4.1 Q46). `deckDiscardBy`: what a card this discards from a player's deck was discarded by
  * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55). `asCost`: `sourceCardId`'s ability moves them as its cost, so a
- * card in play leaves by no card effect (`leaveCauseSide`).
+ * card in play leaves by no card effect (`leaveCauseSide`). A tucked card this discards is recorded as that
+ * (`recordTuckedDiscard`, docs/phase7-wave9.md §3.40 (b)), with `sourceCardId`, `asCost` and `deckDiscardBy`'s source
+ * as its cause.
  */
 export function moveCardsTo(
   ctx: Ctx,
@@ -461,8 +465,16 @@ export function moveCardsTo(
         getPlayer(ctx.state, to.playerId)?.deck.includes(id) === true
           ? to.playerId
           : null;
+      // A tucked card sent to a discard pile is a discard "from under" its host (docs/phase7-wave9.md §3.40 (b)),
+      // an effect's and a cost's alike; the host is read before the move, and only when an ability hears one.
+      const tuckedUnder = discarding ? tuckedHostToRecord(ctx, id) : null;
       moveCard(ctx, id, to, position);
       if (fromDeckOf !== null) recordDeckDiscard(ctx, fromDeckOf, id, deckDiscardBy);
+      recordTuckedDiscard(ctx, id, tuckedUnder, {
+        sourceInstanceId: deckDiscardBy.sourceInstanceId,
+        ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+        asCost,
+      });
     }
     // Once it is in a named scenario deck (a card that cannot leave play is not), that deck is its home when it has a
     // discard pile of its own or none, as `buildScenarioDeck` makes it; a card of an `encounter` deck keeps the home it

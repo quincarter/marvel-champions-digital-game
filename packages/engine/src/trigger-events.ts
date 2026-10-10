@@ -871,6 +871,73 @@ export type TriggerEventBody =
       readonly source: EncounterDealSource;
     }
   /**
+   * A card is about to be tucked under another (docs/phase7-wave9.md §3.40; RRG 1.8 "Tuck", p. 45: "When a player is
+   * instructed to tuck a card under another card"): "Forced Interrupt: When a card would be tucked under your identity
+   * by a player card effect, tuck it under here instead." (Silk Sense Overload, `silk` 52028). `instanceId` is the card
+   * (`eventTarget`), `hostInstanceId` the card it is to go under, `sourceInstanceId` the card whose ability tucks it
+   * (`eventSource`), and `playerId` the player the host speaks to (its controller, or the "you" of an uncontrolled
+   * card; `eventPlayer`, `playerIs`), null for a host with none. `under` says what the host is, so "under your
+   * identity" is `eventIs: { under: "identity" }` with `playerIs: "controller"`.
+   *
+   * `by`: the side of the card whose effect tucks it (`LeaveCauseSide`, `leaveCauseSide`): "by a player card effect"
+   * is `eventIs: { by: "playerCard" }`, and a treachery that tucks itself is an encounter card's. The same notion as
+   * `cardLeavesPlay.by`, read by the same function from the same source card. Absent with no source card.
+   *
+   * Interrupt only ("would", RRG 1.8 p. 48): the tuck is this event's apply step (`tuckCardUnder`), and
+   * `EffectSpec replaceTuckHost` replaces it (RRG 1.8 "Replacement Effect", p. 37). Pushed only when an ability
+   * hears it (`tuckOrAnnounce`); otherwise the card is tucked at once, with the log and state of a game that has no
+   * such ability. Announced by `EffectSpec tuckCards` only: a swap with a tucked card (`swapCards`, RRG 1.8 "Swap",
+   * p. 42) instructs no one to tuck, so it is not heard here.
+   */
+  | {
+      readonly kind: "cardBeingTucked";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly under: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      /** The card whose ability tucks it, as `leavePlay` reads it (the Permanent keyword's same-set exception). */
+      readonly sourceCardId?: CardId;
+      /** `EffectSpec tuckCards.facedown`. */
+      readonly facedown?: true;
+    }
+  /**
+   * A card tucked under another was discarded (docs/phase7-wave9.md §3.40 (b)): "Forced Response: After a player card
+   * effect discards this card from under an identity, that identity takes 2 damage." (Hunting the Spider-Bride,
+   * `silk` 52031), read from the card itself where the discard left it (`AbilityDefinition.activeIn: "tucked"`).
+   * `instanceId` is the discarded card ("this card", `eventTarget`), `hostInstanceId` the card it was under,
+   * `sourceInstanceId` the card whose ability discarded it (`eventSource`; null when none did), and `playerId` the
+   * player the host speaks to (`eventPlayer`: "that identity" is `identityOf(eventPlayer)` when `under` is
+   * `"identity"`), null for a host with none.
+   *
+   * The cause is two fields. `by` is the side of the card whose ability discarded it (`LeaveCauseSide`, read by
+   * `leaveCauseSide` from the source card's printed type), **whether as that ability's effect or as its cost**; `how`
+   * says which (`TuckedDiscardCause`). `cardLeavesPlay.by` is the same notion narrowed to effects: it is this event's
+   * `by` when `how` is `"effect"` and absent otherwise. They are kept apart here because of owner decision §4.1 Q7 = A
+   * (provisional): "a player card effect" on 52031 is any discard a player card causes, so its pattern is
+   * `eventIs: { by: "playerCard" }` with no `how`; under answer B it would add `how: "effect"`. A constant's discard
+   * (an identity's "discard all but 4", a state check) is an effect of its card's ability (RRG 1.8 "Ability", p. 4;
+   * "Player Card", p. 33: identity cards are player cards). `how: "rule"` has no `by`: the cards under a card that
+   * leaves play, or flips to another card type, are discarded by the game (RRG 1.8 "Tuck", p. 45; "Flip", p. 19).
+   *
+   * Response only: announced after the card has reached its discard pile, between frames
+   * (`announceTuckedDiscards`), the cards one effect or one cost discarded sharing one response window (RRG 1.8
+   * "Triggering Condition", p. 45). Recorded (`recordTuckedDiscard`) only when an ability in the registry listens. A
+   * tucked card that stops being tucked any other way (swapped out, returned to a hand, shuffled into a deck, removed
+   * from the game, played from under its host) was not discarded and is not heard.
+   */
+  | {
+      readonly kind: "tuckedCardDiscarded";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly under: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      readonly how: TuckedDiscardCause;
+    }
+  /**
    * A card was discarded from the top of a player's deck (docs/phase7-wave7.md §3.55): "Response: After this card is
    * discarded from the top of your deck, shuffle it back into your deck" / "add it to your hand" / "put her into play
    * under your control" (`next_evol` 40043, 40060, 40057), read from the card itself in the discard pile
@@ -1327,6 +1394,20 @@ export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckR
 export type LeaveCauseSide = "encounterCard" | "playerCard";
 
 /**
+ * What a tucked card's host is (`TriggerEvent cardBeingTucked.under`, `tuckedCardDiscarded.under`): an identity card
+ * ("under your identity", "from under an identity") or any other card. Read when the event is made.
+ */
+export type TuckHostKind = "identity" | "other";
+
+/**
+ * How a tucked card came to be discarded (`TriggerEvent tuckedCardDiscarded.how`): as the `effect` of a card's ability
+ * (a triggered ability, an action, a When Revealed or a constant alike), as an ability's `cost` (RRG 1.8 "Cost",
+ * p. 13: the arrow "distinguishes a cost from an effect"), or by a `rule` of the game with no card's ability behind it
+ * (its host left play, RRG 1.8 "Tuck", p. 45).
+ */
+export type TuckedDiscardCause = "effect" | "cost" | "rule";
+
+/**
  * The move a `cardLeavesPlay` event with an interrupt window performs when it applies (docs/phase7-wave5.md §4.1 Q17),
  * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
  * for what its caller sets on the card afterwards), one card of a `moveCards` effect, an ally's or minion's defeat
@@ -1494,6 +1575,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "turnEnding":
     // "Interrupt: When you change to hero form" (`formChanging`): the change is still to come.
     case "formChanging":
+    // "When a card would be tucked" (docs/phase7-wave9.md §3.40): the tuck is still to come.
+    case "cardBeingTucked":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1633,6 +1716,12 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId]);
     case "encounterCardDealt":
       return of([], [event.instanceId], [event.playerId]);
+    // The card being tucked is the target ("it"), the tucking card the source, the host's player "you".
+    case "cardBeingTucked":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The discarded card is the target ("this card"), the discarding card the source, the host's player "you".
+    case "tuckedCardDiscarded":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The discarded card is the target ("this card", "that card"); the deck's player is "you"; the discarding card the
     // source.
     case "cardDiscardedFromDeck":

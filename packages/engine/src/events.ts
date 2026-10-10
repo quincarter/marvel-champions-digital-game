@@ -50,7 +50,12 @@ export type PreThenFailure =
    * A card `passEncounterCard` named was not passed: it is not facedown in front of the player passing it, or there
    * is no other player to pass it to (docs/phase7-wave8.md §3.75).
    */
-  | "cardNotPassed";
+  | "cardNotPassed"
+  /**
+   * A `replaceTuckHost` found no pending tuck to send elsewhere, or no card to send it under
+   * (docs/phase7-wave9.md §3.40).
+   */
+  | "tuckNotReplaced";
 
 export type GameEvent =
   | {

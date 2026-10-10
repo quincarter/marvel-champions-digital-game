@@ -28,6 +28,8 @@ import type {
   TargetCategory,
   TargetQuery,
   TargetRef,
+  TuckedDiscardCause,
+  TuckHostKind,
   ValueSpec,
   InPlayCostPick,
   PaidTypesRead,
@@ -1283,6 +1285,19 @@ export const inVictoryDisplay = (definition: AbilityDefinition): AbilityDefiniti
  */
 export const inDiscard = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "discard" });
 /**
+ * "Forced Response: After a player card effect discards this card from under an identity, that identity takes 2
+ * damage." (Hunting the Spider-Bride, `silk` 52031): the response is the card's own answer to its discard from under
+ * another card, read from the card where that discard left it, and nowhere else (`AbilityDefinition.activeIn`,
+ * docs/phase7-wave9.md §3.40 (b); RRG 1.8 "Tuck", p. 45, and "In Play and Out of Play", p. 23).
+ * `whileTucked(forcedResponse(on.thisDiscardedFromUnder({ … }), …))`. "You" is the player the host spoke to (the
+ * identity's controller, `eventPlayer`). `validateDefinition` rejects anything but a response to the card's own
+ * discard from under a card, and a cost.
+ */
+export const whileTucked = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  activeIn: "tucked",
+});
+/**
  * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
  * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
  * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
@@ -2283,6 +2298,19 @@ const asSource = (who: Who): Partial<EventPattern> =>
   who === "self" ? { selfIs: "source" } : who === "host" ? { sourceIs: { hostOfSelf: true } } : { sourceIs: who };
 const asTarget = (who: Who): Partial<EventPattern> =>
   who === "self" ? { selfIs: "target" } : who === "host" ? { targetIs: { hostOfSelf: true } } : { targetIs: who };
+/** The `eventIs` part of a `tuckedCardDiscarded` pattern (`on.thisDiscardedFromUnder`); nothing when it asks nothing. */
+const tuckedDiscardIs = (opts: {
+  readonly fromUnder?: TuckHostKind;
+  readonly by?: LeaveCauseSide;
+  readonly how?: TuckedDiscardCause | readonly TuckedDiscardCause[];
+}): Partial<EventPattern> => {
+  const eventIs = {
+    ...(opts.fromUnder === undefined ? {} : { under: opts.fromUnder }),
+    ...(opts.by === undefined ? {} : { by: opts.by }),
+    ...(opts.how === undefined ? {} : { how: opts.how }),
+  };
+  return Object.keys(eventIs).length > 0 ? { eventIs } : {};
+};
 const pattern = (
   on: TriggerEventKind | readonly TriggerEventKind[],
   ...parts: readonly Partial<EventPattern>[]
@@ -2825,6 +2853,63 @@ export const on = {
    */
   aPlayerIsDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
     pattern("encounterCardDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),
+  /**
+   * "When a card would be tucked **under your identity by a player card effect**" (Silk Sense Overload, `silk` 52028;
+   * docs/phase7-wave9.md §3.40 (a); RRG 1.8 "Tuck", p. 45). Use it in a `would` interrupt: the card is `eventTarget`,
+   * the card whose ability tucks it `eventSource`, and `replaceTuckHost(self)` is "tuck it under here instead".
+   * `under: "yourIdentity"`: the host is an identity and its controller is this card's "you" (on an obligation, the
+   * player it was given to); `"identity"`: any player's identity; absent: any host. `by`: the side of the card whose
+   * effect tucks it (`TriggerEvent cardBeingTucked.by`; RRG 1.8 "Card Types", p. 12): `"playerCard"` is an identity,
+   * an upgrade or a player side scheme alike, and a treachery tucking itself is an `"encounterCard"`'s. A swap with a
+   * tucked card (RRG 1.8 "Swap", p. 42) is no tuck and is not heard. Interrupt only.
+   */
+  cardWouldBeTucked: (
+    opts: { readonly under?: "yourIdentity" | "identity"; readonly by?: LeaveCauseSide } = {},
+  ): EventPattern => {
+    const eventIs = {
+      ...(opts.under === undefined ? {} : { under: "identity" satisfies TuckHostKind }),
+      ...(opts.by === undefined ? {} : { by: opts.by }),
+    };
+    return pattern(
+      "cardBeingTucked",
+      opts.under === "yourIdentity" ? { playerIs: "controller" } : {},
+      Object.keys(eventIs).length > 0 ? { eventIs } : {},
+    );
+  },
+  /**
+   * "After **a player card effect** discards this card **from under an identity**" (Hunting the Spider-Bride, `silk`
+   * 52031; docs/phase7-wave9.md §3.40 (b)). Pair with `whileTucked(forcedResponse(...))`: the card answers from the
+   * discard pile it went to, "that identity" is `identityOf(eventPlayer)` and the discarding card `eventSource`.
+   *
+   * `fromUnder: "identity"`: only from under an identity card. `by`: the side of the card whose ability discarded it,
+   * **as an effect or as a cost** (`TriggerEvent tuckedCardDiscarded.by`). Owner decision §4.1 Q7 = A (provisional):
+   * "a player card effect" is any discard a player card causes, so 52031 is `{ fromUnder: "identity", by:
+   * "playerCard" }` and hears Cindy Moon's cost and the identity's four-card cap as well as an event's effect. `how`
+   * narrows it (answer B would be `how: "effect"`): `"effect"`, `"cost"` (RRG 1.8 "Cost", p. 13), or `"rule"`, the
+   * game's discard of the cards under a card that leaves play (RRG 1.8 "Tuck", p. 45), which has no `by`. A card
+   * that stops being tucked without a discard (swapped, returned to a hand) is not heard. Response only.
+   */
+  thisDiscardedFromUnder: (
+    opts: {
+      readonly fromUnder?: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      readonly how?: TuckedDiscardCause | readonly TuckedDiscardCause[];
+    } = {},
+  ): EventPattern => pattern("tuckedCardDiscarded", { selfIs: "target" }, tuckedDiscardIs(opts)),
+  /**
+   * "After a card is discarded from under [a card]": the same event heard by a card in play, any tucked card's
+   * discard (`eventTarget`), with the options of `thisDiscardedFromUnder`. `yours`: only from under a card that
+   * speaks to this card's controller (their identity, a card they control).
+   */
+  tuckedCardDiscarded: (
+    opts: {
+      readonly fromUnder?: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      readonly how?: TuckedDiscardCause | readonly TuckedDiscardCause[];
+      readonly yours?: boolean;
+    } = {},
+  ): EventPattern =>
+    pattern("tuckedCardDiscarded", opts.yours ? { playerIs: "controller" } : {}, tuckedDiscardIs(opts)),
   /**
    * "After this card enters your hand" (Infiltration, Shapeshifter Surprise, `mut_gen` 32082-32083;
    * docs/phase7-wave6.md §3.10): however it enters a hand (drawn, searched for, returned, moved there). Pair with

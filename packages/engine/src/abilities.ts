@@ -2896,8 +2896,19 @@ export interface AbilityDefinition {
    * player controls the cards in their own out-of-play areas"), once per discard, in that discard's response window (`TriggerEvent cardDiscardedFromDeck`, `selfIs: "target"`), optional
    * unless printed Forced; it has no cost (nothing out of play pays one). Only such a response: the DSL's
    * `validateDefinition` rejects any other ability marked this way.
+   *
+   * `"tucked"`: a response the card itself makes to its own discard from under another card, read from the card where
+   * that discard left it ("Forced Response: After a player card effect discards this card from under an identity,
+   * that identity takes 2 damage"; docs/phase7-wave9.md §3.40 (b)). A tucked card is out of play (RRG 1.8 "Tuck",
+   * p. 45), and this text "specifically refer[s] to being used from an out-of-play area" (RRG 1.8 "In Play and Out of
+   * Play", p. 23), so the ability is on for a card that was tucked and nowhere else: not in play, not in hand, and not
+   * for a card that reached a discard pile any other way. It answers `TriggerEvent tuckedCardDiscarded` with itself as
+   * the target (`selfIs: "target"`), once per discard, in that discard's response window. "You" is the player its host
+   * spoke to (the identity's controller; `tuckedCardDiscarded.playerId`), who resolves it; a host that speaks to no
+   * player leaves a forced one to resolve with no "you". It has no cost (nothing out of play pays one). Only such a
+   * response: the DSL's `validateDefinition` rejects any other ability marked this way.
    */
-  readonly activeIn?: "hand" | "victoryDisplay" | "discard";
+  readonly activeIn?: "hand" | "victoryDisplay" | "discard" | "tucked";
   /**
    * "This effect cannot be canceled." on a "When Revealed" ability (the Cosmic Entities, `mts` 21042/21048/21054/21060:
    * "When Revealed: Deal 2 damage to the villain and remove this card from the game. This effect cannot be canceled.";
