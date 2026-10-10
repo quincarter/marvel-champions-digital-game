@@ -72,7 +72,12 @@ import {
 } from "./silk/silk/support-upgrades-allies.js";
 import { TT_ABILITIES } from "./tt/index.js";
 import { WINTER_ABILITIES } from "./winter/index.js";
+import { WINTER_SOLDIER_EVENTS, WINTER_SOLDIER_EVENTS_SKIPPED } from "./winter/winter-soldier/events.js";
 import { WINTER_SOLDIER_IDENTITY, WINTER_SOLDIER_IDENTITY_SKIPPED } from "./winter/winter-soldier/identity.js";
+import {
+  WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES,
+  WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
+} from "./winter/winter-soldier/support-upgrades-allies.js";
 
 describe("wave 9 ability registry", () => {
   it("includes every wave 8 (Core through cycle 8) script, the same definition object", () => {
@@ -335,6 +340,18 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["54001a"],
       registry: WINTER_SOLDIER_IDENTITY,
       skipped: WINTER_SOLDIER_IDENTITY_SKIPPED,
+    },
+    {
+      module: "winter-soldier/events",
+      cardIds: ["54004", "54005", "54006"],
+      registry: WINTER_SOLDIER_EVENTS,
+      skipped: WINTER_SOLDIER_EVENTS_SKIPPED,
+    },
+    {
+      module: "winter-soldier/support-upgrades-allies",
+      cardIds: ["54002", "54003", "54007", "54008", "54009", "54010", "54011"],
+      registry: WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES,
+      skipped: WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES_SKIPPED,
     },
   ],
 };
