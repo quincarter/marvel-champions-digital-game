@@ -3537,8 +3537,18 @@ export type EffectSpec =
        * no player, keeping its damage, counters, status cards and attachments, attacked and targeted by every player,
        * never activating, defeated as any minion, and taken off the host by `engage`. A card that is not a minion is
        * attached as without it. Not with `facedown`.
+       *
+       * `"captive"`: "Attach 1 Rescued ally faceup here. Attached ally is under no player's control. (Attached ally is
+       * still in play.)" (Hostage Situation, `aos` 50121; docs/phase7-wave9.md §3.19). An ally a player controls is
+       * attached and its controller cleared (`releaseControlOfCaptive`, logged `controlReleased`), which makes it a
+       * captive ally (`isCaptiveAlly`, docs/phase7-wave6.md §3.75): in play, a character and an ally, friendly to
+       * nobody, in no play area, counted by no ally limit, used by no player (no attack, thwart, defense or ability
+       * of its own triggered by a player), readied by nobody. It keeps its owner, its damage, counters, status cards,
+       * attachments and its ready or exhausted state (RRG 1.8 "Ownership and Control", p. 31: a character that changes
+       * control "remains in the same state"). `detach` gives it a controller again. A card that is not an ally, or one
+       * that could not be attached, keeps its controller. Not with `facedown`.
        */
-      readonly as?: "heldMinion";
+      readonly as?: "heldMinion" | "captive";
     }
   /**
    * `defeated`: the card leaves play because it was defeated, so Victory X sends it (and any Victory X attachment on it)
@@ -3645,8 +3655,19 @@ export type EffectSpec =
    * points minus `amount`. It is not healing — the card does not say "heal" — so no heal event and no "after you heal"
    * response; logged as `hitPointsSet`. Engine reading, flagged in docs/phase7-wave1.md §3.13. Setting a character to
    * its maximum hit points ("reset his hit points") also announces `TriggerEvent hitPointsReset` (wave 6 §3.67).
+   *
+   * `reset` (docs/phase7-wave9.md §3.5, owner decision Q3 = A): "reset his hit points to 10 instead" sets the dial to
+   * the printed number and is a reset whatever the character's maximum is, so `hitPointsReset` is announced even when
+   * a "+X hit points" modifier leaves the dial below the maximum (10 of 15: 5 sustained damage). When that modifier
+   * later leaves, the dial drops by X (RRG 1.8 "Hit Points", p. 22: "If that ability later ceases to be in effect,
+   * reduce that character's hit point dial by X"), which the sustained damage kept here already gives.
    */
-  | { readonly kind: "setRemainingHitPoints"; readonly target: TargetRef; readonly amount: ValueSpec }
+  | {
+      readonly kind: "setRemainingHitPoints";
+      readonly target: TargetRef;
+      readonly amount: ValueSpec;
+      readonly reset?: true;
+    }
   /**
    * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…the amount of threat that event removes by
    * 2" (Shrink). RRG 1.8 "Event" (p. 19): "If an effect modifies the amount of damage an event deals … and that event
@@ -4196,7 +4217,9 @@ export type EffectSpec =
    * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
    * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).
    * Each attached card `card` names moves into `controller`'s play area under their control. It stays in play, so nothing
-   * enters or leaves play. docs/phase7-wave4.md §3.8.
+   * enters or leaves play. docs/phase7-wave4.md §3.8. "When Defeated: The defeating player takes control of attached
+   * ally" (Hostage Situation, `aos` 50121; docs/phase7-wave9.md §3.19) is this effect too: it undoes `attach` with
+   * `as: "captive"`, the ally ready or exhausted as it was, and the taker's ally limit then counts it (RRG 1.8 p. 7).
    */
   | { readonly kind: "detach"; readonly card: TargetRef; readonly controller: PlayerRef }
   /**

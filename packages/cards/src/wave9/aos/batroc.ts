@@ -85,10 +85,16 @@ const alertIsHigh = () => hasTrait(ALERT_LEVEL, trait("HIGH"));
  * "Forced Interrupt: When Batroc would be defeated, reset his hit points to N instead. Then, remove 6 threat from the
  * main scheme." The villain is never defeated (MC50 p. 4, "Non-Scaling Villain HP": the interrupt replaces the defeat),
  * so nothing that reads a defeat answers. The removal is the villain's own (not a thwart, no crisis check) and can take
- * the last threat of a stage (the stage's own "last threat removed" answer then advances it).
+ * the last threat of a stage (the stage's own "last threat removed" answer then advances it). The reset sets the printed
+ * number (8, 12 in expert mode), not his maximum (owner decision Q3 = A; no card of his scenario modifies his hit points).
  */
-const batrocForcedInterrupt = () =>
-  forcedInterrupt(on.defeated("self"), { would: true }, instead(resetHitPoints(self)), removeThreat(6, theMainScheme));
+const batrocForcedInterrupt = (to: 8 | 12) =>
+  forcedInterrupt(
+    on.defeated("self"),
+    { would: true },
+    instead(resetHitPoints(self, { to })),
+    removeThreat(6, theMainScheme),
+  );
 
 /** "[star] Forced Response: After Batroc attacks, place 1 threat on Alert Level." */
 const batrocForcedResponse = () => forcedResponse(after.enemyAttacks("self"), placeThreat(1, ALERT_LEVEL));
@@ -146,9 +152,9 @@ const atAlertThreshold = () => threatAtLeast(self, perHero(4));
 export const BATROC: AbilityRegistry = defineAbilities({
   // Batroc (A / B): the same two abilities; the fixed hit points are data.
   "50086a.batroc-forced-response": batrocForcedResponse(),
-  "50086a.batroc-forced-interrupt": batrocForcedInterrupt(),
+  "50086a.batroc-forced-interrupt": batrocForcedInterrupt(8),
   "50086b.batroc-forced-response": batrocForcedResponse(),
-  "50086b.batroc-forced-interrupt": batrocForcedInterrupt(),
+  "50086b.batroc-forced-interrupt": batrocForcedInterrupt(12),
 
   // 1A Setup: the Rescued Captives are set aside by the scenario builder (`SETASIDE_BY_SCENARIO` in wave9/setup.ts);
   // put Alert Level into play on its Low (front) face, and in expert mode place 2[per_hero] threat on it.

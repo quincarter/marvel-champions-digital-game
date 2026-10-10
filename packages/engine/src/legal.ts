@@ -81,6 +81,7 @@ import {
   cardsInPlay,
   controllerOf,
   isAlly,
+  isCaptiveAlly,
   matchesQuery,
   triggeringPlayers,
   type EffectContext,
@@ -1069,6 +1070,8 @@ function actionAbilities(
       // otherwise the card's controller, or any player on a card nobody controls (an encounter card).
       const named = inHand ? null : triggeringPlayers(state, deps, id, trigger, null);
       if (named ? !named.includes(playerId) : controller !== null && controller !== playerId) continue;
+      // An ally under no player's control is used by nobody (docs/phase7-wave9.md §3.19; `isCaptiveAlly`).
+      if (!named && isCaptiveAlly(state, id)) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
       found.push({ instanceId: id, abilityId: ref.id });

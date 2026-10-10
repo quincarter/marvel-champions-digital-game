@@ -765,7 +765,9 @@ export type TriggerEventBody =
    * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
    * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
    * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
-   * when an ability listens. A dial set below the maximum is not a reset, and neither is a villain's next stage.
+   * when an ability listens. A dial set below the maximum is not a reset, and neither is a villain's next stage. The
+   * exception is a set flagged `reset` ("reset his hit points to 10 instead", docs/phase7-wave9.md §3.5), announced at
+   * whatever number it sets.
    */
   | { readonly kind: "hitPointsReset"; readonly instanceId: InstanceId }
   /**

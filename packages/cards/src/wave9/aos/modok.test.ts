@@ -3,8 +3,11 @@ import {
   activeEncounterDeckId,
   cardsInPlay,
   createGame,
+  applyCommand,
   hasKeyword,
+  isCaptiveAlly,
   keywordsOf,
+  legalActions,
   maxHitPoints,
   remainingHitPoints,
   statBonus,
@@ -121,6 +124,7 @@ const REGISTERED = [
   "50119.reverse-engineering-forced-response",
   "50120.when-revealed",
   "50121.hostage-situation-constant",
+  "50121.when-revealed",
   "50121.when-defeated",
   "50122.boost",
   "50123.when-revealed",
@@ -173,11 +177,10 @@ const villainPhase = (s: GameState, pick: Picker = firstLegal, ...stack: string[
   );
 
 describe("registry", () => {
-  it("registers every ref of the module's 26 cards but one, each a valid definition; Hostage Situation's When Revealed is skipped with a reason", () => {
+  it("registers every ref of the module's 26 cards, each a valid definition; nothing is skipped", () => {
     expect(Object.keys(MODOK).sort()).toEqual([...REGISTERED].sort());
     for (const [id, def] of Object.entries(MODOK)) expect(validateDefinition(def), id).toEqual([]);
-    expect(Object.keys(MODOK_SKIPPED)).toEqual(["50121.when-revealed"]);
-    expect(MODOK_SKIPPED["50121.when-revealed"]).toMatch(/no player's control/);
+    expect(Object.keys(MODOK_SKIPPED)).toEqual([]);
   });
 
   it("the data names exactly the registered refs for the module's cards", () => {
@@ -1225,7 +1228,7 @@ describe("the attachments (50114 to 50119): data", () => {
     for (const code of ["50114", "50115", "50116", "50117", "50118", "50119"]) {
       const card = dataFor(code);
       expect(card.type, code).toBe("attachment");
-      expect(card.attachesTo, code).toEqual({ kind: "namedCard", name: "M.O.D.O.K" });
+      expect(card.attachesTo, code).toEqual({ kind: "namedCard", name: "M.O.D.O.K." });
       expect(card.quantityInSet, code).toBe(1);
       expect(card.keywords, code).toEqual([]);
       // No ability is a Hero Action: each card is removed only by the ability naming the hit point reset (or the
@@ -1255,7 +1258,22 @@ describe("the attachments (50114 to 50119): data", () => {
     expect([field.statModifiers, field.boostIcons, field.starIcon]).toEqual([undefined, 0, true]);
     const machetes = dataFor("50118");
     expect([machetes.statModifiers, machetes.boostIcons, machetes.starIcon]).toEqual([{ atk: 1 }, 1, true]);
-    expect(dataFor("50119").boostIcons).toBe(2);
+    // Reverse Engineering prints +X ATK and +X SCH: no flat modifier in the data, X is the script's.
+    expect([dataFor("50119").statModifiers, dataFor("50119").boostIcons]).toEqual([undefined, 2]);
+  });
+
+  it("a revealed attachment attaches to M.O.D.O.K. (each of the six, dealt and revealed in a villain phase)", () => {
+    for (const code of ["50114", "50115", "50116", "50117", "50118", "50119"]) {
+      const { state } = dealtPhase(game(1), firstLegal, code);
+      expect(attachedCodes(state, villainOf(state)), code).toEqual([code]);
+      const [id] = inst(state, villainOf(state)).attachments;
+      expect(inst(state, id!).attachedTo, code).toBe(villainOf(state));
+      expect(cardsInPlay(state), code).toContain(id);
+      expect(
+        piles(state).discard.map((i) => codeOf(state, i)),
+        code,
+      ).not.toContain(code);
+    }
   });
 });
 
@@ -1292,19 +1310,79 @@ describe("Automated Mobile Unit (50114) and the hit point reset (owner decision 
     expect(maxHitPoints(state, villainOf(state), DEPS)).toBe(14);
   });
 
-  // Q3 = A (docs/phase7-wave9.md section 4.1): the dial is set to the printed 10 (14) and, the attachment gone, he drops
-  // to 5 (9). The engine's `resetHitPoints` sets the dial to his maximum, 15 (19), which the attachment's departure
-  // lowers to 10 (14): the outcome of option B. A literal "set to N" that still announces `hitPointsReset` does not
-  // exist (`setRemainingHitPoints` announces only a dial at its maximum, resolve/apply-effect.ts), so the dial value
-  // below is left pending rather than worked around.
-  it.todo(
-    "Q3 = A: with 50114 on him, remaining hit points end at 5 (9 in expert mode), not 10 (14): needs an engine reset that sets the dial to a number and announces hitPointsReset",
-  );
+  // Q3 = A (docs/phase7-wave9.md section 4.1): the dial is set to the printed 10 (14) with the +5 still on him (10 of
+  // 15), then the attachment leaves and the dial drops by 5 (RRG 1.8 "Hit Points", p. 22: "If that ability later ceases
+  // to be in effect, reduce that character's hit point dial by X").
+  it("Q3 = A, standard: reset to 10 of 15, the attachment leaves, he ends at 5 remaining of 10 (5 damage)", () => {
+    const { state: staged } = attachTo(game(2), "50114");
+    const state = defeatWithAttack(DEPS, staged, villainOf(staged));
+    expect(maxHitPoints(state, villainOf(state), DEPS)).toBe(10);
+    expect(remainingHitPoints(state, villainOf(state), DEPS)).toBe(5);
+    expect(inst(state, villainOf(state)).damage).toBe(5);
+    expect(state.villains[0]!.defeated).toBe(false);
+    expect(state.outcome).toBeNull();
+  });
 
-  it("without the attachment the reset ends at the printed 10", () => {
-    const s = game(2);
-    const state = defeatWithAttack(DEPS, s, villainOf(s));
-    expect(remainingHitPoints(state, villainOf(state), DEPS)).toBe(10);
+  it("Q3 = A, expert: reset to 14 of 19, the attachment leaves, he ends at 9 remaining of 14", () => {
+    const { state: staged } = attachTo(game(2, "expert"), "50114");
+    const state = defeatWithAttack(DEPS, staged, villainOf(staged));
+    expect(maxHitPoints(state, villainOf(state), DEPS)).toBe(14);
+    expect(remainingHitPoints(state, villainOf(state), DEPS)).toBe(9);
+    expect(inst(state, villainOf(state)).damage).toBe(5);
+  });
+
+  it("Q3 = A: the dial reads 10 (14) at the reset itself, before the attachment leaves", () => {
+    for (const [mode, printed] of [
+      ["standard", 10],
+      ["expert", 14],
+    ] as const) {
+      const { state: staged } = attachTo(game(2, mode), "50114");
+      const events = driveEventsPicking(
+        DEPS,
+        patchInstance(staged, villainOf(staged), { damage: 999 }),
+        firstLegal,
+        attackOn(staged, identityOf(staged, P1), villainOf(staged)),
+      ).events;
+      expect(events.filter((e) => e.type === "hitPointsSet")).toEqual([
+        { type: "hitPointsSet", instanceId: villainOf(staged), remaining: printed, damage: 5 },
+      ]);
+    }
+  });
+
+  it("Q3 = A, revealed rather than placed: Automated Mobile Unit dealt in a villain phase attaches (15), and the reset ends at 5", () => {
+    const { state: revealed } = dealtPhase(game(1), firstLegal, "50114");
+    expect(attachedCodes(revealed, villainOf(revealed))).toEqual(["50114"]);
+    expect(maxHitPoints(revealed, villainOf(revealed), DEPS)).toBe(15);
+    const state = defeatWithAttack(DEPS, ready(revealed), villainOf(revealed));
+    expect(attachedCodes(state, villainOf(state))).toEqual([]);
+    expect(maxHitPoints(state, villainOf(state), DEPS)).toBe(10);
+    expect(remainingHitPoints(state, villainOf(state), DEPS)).toBe(5);
+  });
+
+  it("Q3 = A: the next reset, with nothing attached, takes him from 5 back to the printed 10; 2 more lock counters go", () => {
+    const { state: staged } = attachTo(game(2), "50114");
+    const first = defeatWithAttack(DEPS, staged, villainOf(staged));
+    expect(remainingHitPoints(first, villainOf(first), DEPS)).toBe(5);
+    expect(lock(first, cellOf(staged))).toBe(2);
+    const second = defeatWithAttack(DEPS, ready(first), villainOf(first));
+    expect(remainingHitPoints(second, villainOf(second), DEPS)).toBe(10);
+    expect(inst(second, villainOf(second)).damage).toBe(0);
+    expect(second.outcome).toBeNull();
+    // Both counters of the first cell are gone: it flipped to its ally and the next cell came up with its own 4.
+    expect(cellOf(second)).not.toBe(cellOf(staged));
+    expect(lock(second, cellOf(second))).toBe(4);
+  });
+
+  it("without the attachment the reset ends at the printed 10 (14 in expert mode), with no damage", () => {
+    for (const [mode, printed] of [
+      ["standard", 10],
+      ["expert", 14],
+    ] as const) {
+      const s = game(2, mode);
+      const state = defeatWithAttack(DEPS, s, villainOf(s));
+      expect(remainingHitPoints(state, villainOf(state), DEPS)).toBe(printed);
+      expect(inst(state, villainOf(state)).damage).toBe(0);
+    }
   });
 
   it("the attachment is not discarded by a heal or damage, only by the reset", () => {
@@ -1505,9 +1583,8 @@ describe("Psionic Machetes (50118)", () => {
 });
 
 /**
- * Data defect, reported: all six M.O.D.O.K. attachments carry `attachesTo: { kind: "namedCard", name: "M.O.D.O.K" }`
- * (no final period) while the villain is titled "M.O.D.O.K.", so a revealed one finds no host and is discarded. The
- * tests below put them on him by surgery (`attachTo`); the engine's boost attach (Force Field) is not affected.
+ * The six attachments attach to M.O.D.O.K. when revealed ("the attachments: data" above). Where a test needs one on
+ * him with nothing else going on it is put there directly (`attachTo`), which skips the villain phase.
  */
 describe("Reverse Engineering (50119)", () => {
   /** A Core ally of printed cost 3: stands in for the top card of P1's deck. */
@@ -1571,11 +1648,21 @@ describe("Reverse Engineering (50119)", () => {
     expect(playerOf(run.state, P1).deck[0]).toBe(top);
   });
 
-  it("CONSTANT: X is the printed cost of the tucked card (3): +3 ATK, +3 SCH on M.O.D.O.K. (data carries -1 SCH, see header)", () => {
+  it("CONSTANT: X is the printed cost of the tucked card (3): +3 ATK, +3 SCH on M.O.D.O.K.", () => {
     const { state } = engineered();
-    const dataSch = dataFor("50119").statModifiers?.sch ?? 0;
     expect(statBonus(state, DEPS, villainOf(state), "atk")).toBe(3);
-    expect(statBonus(state, DEPS, villainOf(state), "sch")).toBe(3 + dataSch);
+    expect(statBonus(state, DEPS, villainOf(state), "sch")).toBe(3);
+  });
+
+  it("REVEALED: attached to M.O.D.O.K. with the deck's top card (cost 3) tucked: +3 ATK, +3 SCH", () => {
+    const s = game(1);
+    const top = playerOf(s, P1).deck[0]!;
+    const run = dealtPhase(patchInstance(s, top, { cardId: costThree as never }), firstLegal, "50119");
+    const id = instanceOf(run.state, "50119");
+    expect(inst(run.state, id).attachedTo).toBe(villainOf(run.state));
+    expect(inst(run.state, id).tucked).toEqual([top]);
+    expect(statBonus(run.state, DEPS, villainOf(run.state), "atk")).toBe(3);
+    expect(statBonus(run.state, DEPS, villainOf(run.state), "sch")).toBe(3);
   });
 
   it("CONSTANT: with nothing tucked here X is 0", () => {
@@ -1590,10 +1677,6 @@ describe("Reverse Engineering (50119)", () => {
     expect(inEncounterDiscard(state, id)).toBe(true);
     expect(playerOf(state, P1).discard).toContain(top);
   });
-
-  it.todo(
-    "a revealed M.O.D.O.K. attachment attaches to him: blocked by the data's attachesTo name 'M.O.D.O.K' (no period) in packages/content",
-  );
 });
 
 describe("the reset discards every attachment that answers it, and only those", () => {
@@ -1605,6 +1688,11 @@ describe("the reset discards every attachment that answers it, and only those", 
     );
     const after = defeatWithAttack(DEPS, state, villainOf(state));
     expect(attachedCodes(after, villainOf(after))).toEqual(["50117"]);
+    // Q3 = A: reset to 10 of 15, then Automated Mobile Unit's +5 leaves with the others: 5 remaining of 10.
+    expect([maxHitPoints(after, villainOf(after), DEPS), remainingHitPoints(after, villainOf(after), DEPS)]).toEqual([
+      10, 5,
+    ]);
+    expect(lock(after, cellOf(state))).toBe(2);
     expect(after.villains[0]!.defeated).toBe(false);
     expect(after.outcome).toBeNull();
   });
@@ -1720,18 +1808,22 @@ describe("Hostage Situation (50121)", () => {
   /** Hostage Situation dealt to P1, revealed in a phase with nothing else going on. */
   const reveal = (s: GameState, pick: Picker = firstLegal) => dealtPhase(s, pick, "50121", HARMLESS);
   const scheme = (s: GameState) => s.villainArea.find((i) => codeOf(s, i) === "50121")!;
-  /** `ally` held by `host` by surgery: attached, in play, under nobody's control (what the skipped When Revealed would do). */
-  function held(state: GameState, host: InstanceId, ally: InstanceId): GameState {
-    const moved = patchInstance(state, ally, {
-      attachedTo: host,
-      controllerId: null,
-      home: { kind: "attachment", hostInstanceId: host } as never,
-    });
-    return {
-      ...patchInstance(moved, host, { attachments: [...inst(moved, host).attachments, ally] }),
-      players: moved.players.map((p) => ({ ...p, playArea: p.playArea.filter((i) => i !== ally) })),
+  /** A picker that answers a target prompt with `ally`, noting who was asked to choose among which cards. */
+  const choosing = (ally: InstanceId, asked: { player: PlayerId; among: InstanceId[] }[] = []): Picker => {
+    const pick = picking(ally);
+    return (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget")
+        asked.push({
+          player: choice.playerId,
+          among: choice.options.flatMap((o) => (o.ref.kind === "card" ? [o.ref.instanceId] : [])),
+        });
+      return pick(s);
     };
-  }
+  };
+  /** The scheme's threat set to 1, so one basic thwart defeats it. */
+  const nearlyDone = (s: GameState) => patchInstance(s, scheme(s), { threat: 1 });
+  const activeOf = (s: GameState) => (s.step as { activePlayerId: PlayerId }).activePlayerId;
 
   it("data: a side scheme with 0 + 3 per player threat, no icons, 2 boost icons, no keywords", () => {
     const card = dataFor("50121");
@@ -1774,36 +1866,135 @@ describe("Hostage Situation (50121)", () => {
     expect(inst(state, villainOf(state)).damage).toBeGreaterThan(0);
   });
 
-  it("WHEN DEFEATED: the defeating player (P1) takes control of the attached ally; it stays in play with its damage", () => {
-    const base = withFreedAllies(game(2), P2);
-    const [b] = base.allies as [InstanceId];
-    const { state: withScheme, id: hostage } = encounterCardInVillainArea(
-      patchInstance(base.state, b, { damage: 2 }),
-      "50121",
-      1,
-    );
-    const staged = ready(held(withScheme, hostage, b));
-    expect(cardsInPlay(staged)).toContain(b);
-    const { state } = heroThwarts(DEPS, staged, hostage, { player: P1 });
-    expect(inst(state, hostage).attachments).not.toContain(b);
-    expect(inst(state, b).attachedTo).toBeNull();
-    expect(inst(state, b).controllerId).toBe(P1);
-    expect(playerOf(state, P1).playArea).toContain(b);
-    expect(inst(state, b).damage).toBe(2);
-    expect(cardsInPlay(state)).toContain(b);
-    expect(cardsInPlay(state)).not.toContain(hostage);
+  it("WHEN REVEALED, no Rescued ally in play: nothing is attached, nobody is asked, the scheme stays with its 6 threat", () => {
+    const asked: { player: PlayerId; among: InstanceId[] }[] = [];
+    const { state, events } = reveal(game(2), choosing("none" as InstanceId, asked));
+    expect(cardsInPlay(state)).toContain(scheme(state));
+    expect(inst(state, scheme(state)).attachments).toEqual([]);
+    expect(inst(state, scheme(state)).threat).toBe(6);
+    expect(asked).toEqual([]);
+    expect(events.filter((e) => e.type === "controlReleased")).toEqual([]);
+    // The card prints no alternative and no surge: the two dealt cards are the only ones revealed.
+    expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(2);
   });
 
-  it("WHEN DEFEATED by P2 (after P1 ends their turn): P2 takes control, though P1 freed the ally before", () => {
-    const base = withFreedAllies(game(2), P1);
+  it("WHEN REVEALED, one Rescued ally (P2's, with 2 damage): attached faceup, in play, under no player's control", () => {
+    const base = withFreedAllies(game(2), P2);
+    const [b] = base.allies as [InstanceId];
+    const { state, events } = reveal(patchInstance(base.state, b, { damage: 2 }));
+    const hostage = inst(state, b);
+    expect([hostage.attachedTo, hostage.controllerId, hostage.faceup, hostage.damage]).toEqual([
+      scheme(state),
+      null,
+      true,
+      2,
+    ]);
+    expect(inst(state, scheme(state)).attachments).toEqual([b]);
+    expect(cardsInPlay(state)).toContain(b);
+    expect(isCaptiveAlly(state, b)).toBe(true);
+    for (const p of [P1, P2]) expect(playerOf(state, p).playArea).not.toContain(b);
+    expect(events.filter((e) => e.type === "controlReleased")).toEqual([
+      { type: "controlReleased", instanceId: b, hostInstanceId: scheme(state), from: P2 },
+    ]);
+    // It did not leave play: it is not back under the Holding Cell deck.
+    expect(deckOf(state)).not.toContain(b);
+  });
+
+  it("WHEN REVEALED, several Rescued allies: the first player (P1) chooses among them, whoever controls them", () => {
+    const base = withFreedAllies(game(2), P1, P2);
+    const [a, b] = base.allies as [InstanceId, InstanceId];
+    expect(base.state.firstPlayerId).toBe(P1);
+    for (const [taken, kept, keeper] of [
+      [a, b, P2],
+      [b, a, P1],
+    ] as const) {
+      const asked: { player: PlayerId; among: InstanceId[] }[] = [];
+      const { state } = reveal(base.state, choosing(taken, asked));
+      expect(asked).toEqual([{ player: P1, among: expect.arrayContaining([a, b]) }]);
+      expect(asked[0]!.among).toHaveLength(2);
+      expect(inst(state, scheme(state)).attachments).toEqual([taken]);
+      expect(inst(state, taken).controllerId).toBeNull();
+      expect(inst(state, kept).controllerId).toBe(keeper);
+      expect(inst(state, kept).attachedTo).toBeNull();
+    }
+  });
+
+  it("the hostage is nobody's: no legal action names it, and its old controller's attack and thwart with it are refused", () => {
+    const base = withFreedAllies(game(2), P1, P2);
+    const [a, b] = base.allies as [InstanceId, InstanceId];
+    const { state } = reveal(base.state, choosing(a));
+    const active = activeOf(state);
+    const names = (id: InstanceId) => JSON.stringify(legalActions(state, active, DEPS)).includes(`"${id}"`);
+    const mine = active === P1 ? a : b;
+    // With `a` held, the active player's own ally is offered only if it is not the hostage.
+    expect(names(a)).toBe(false);
+    if (mine !== a) expect(names(mine)).toBe(true);
+    for (const playerId of [P1, P2]) {
+      expect(
+        applyCommand(
+          state,
+          { type: "basicAttack", playerId, attackerInstanceId: a, targetInstanceId: villainOf(state) },
+          DEPS,
+        ).ok,
+      ).toBe(false);
+      expect(
+        applyCommand(
+          state,
+          { type: "basicThwart", playerId, thwarterInstanceId: a, schemeInstanceId: state.mainScheme.instanceId },
+          DEPS,
+        ).ok,
+      ).toBe(false);
+    }
+  });
+
+  it("A.I.M. Jailer does not attack the hostage (no player to attack): with no other Rescued ally, the Otherwise places 1 lock counter", () => {
+    const base = withFreedAllies(game(1), P1);
     const [a] = base.allies as [InstanceId];
-    const { state: withScheme, id: hostage } = encounterCardInVillainArea(base.state, "50121", 1);
-    const staged = held(withScheme, hostage, a);
-    const atP2 = driveEventsPicking(DEPS, staged, firstLegal, endTurn(P1)).state;
-    const { state } = heroThwarts(DEPS, atP2, hostage, { player: P2 });
-    expect(inst(state, a).controllerId).toBe(P2);
-    expect(playerOf(state, P2).playArea).toContain(a);
-    expect(playerOf(state, P1).playArea).not.toContain(a);
+    const taken = dealtPhase(base.state, firstLegal, "50121").state;
+    expect(inst(taken, a).controllerId).toBeNull();
+    const cell = cellOf(taken);
+    const before = lock(taken, cell);
+    const { state, events } = dealtPhase(taken, undefended(), "50120", FILL);
+    expect(attackedBy(state, events, "50120")).toEqual([]);
+    expect(inst(state, a).damage).toBe(0);
+    expect(lock(state, cell)).toBe(before + 1);
+  });
+
+  it("WHEN DEFEATED: the defeating player takes control of the attached ally; it stays in play with its damage, ready as it was", () => {
+    const base = withFreedAllies(game(2), P2);
+    const [b] = base.allies as [InstanceId];
+    const taken = nearlyDone(reveal(patchInstance(base.state, b, { damage: 2 })).state);
+    const hostage = scheme(taken);
+    const defeater = activeOf(taken);
+    expect(inst(taken, b).exhausted).toBe(false);
+    const { state, events } = heroThwarts(DEPS, taken, hostage, { player: defeater });
+    expect(cardsInPlay(state)).not.toContain(hostage);
+    expect(inst(state, b).attachedTo).toBeNull();
+    expect(inst(state, b).controllerId).toBe(defeater);
+    expect(playerOf(state, defeater).playArea).toContain(b);
+    expect([inst(state, b).damage, inst(state, b).exhausted]).toEqual([2, false]);
+    expect(cardsInPlay(state)).toContain(b);
+    expect(events.filter((e) => e.type === "controllerChanged")).toEqual([
+      { type: "controllerChanged", instanceId: b, from: null, to: defeater, reason: "effect" },
+    ]);
+    // Its new controller can use it at once.
+    expect(JSON.stringify(legalActions(state, defeater, DEPS)).includes(`"${b}"`)).toBe(true);
+  });
+
+  it("WHEN DEFEATED by the other player: they take control, though another player freed the ally; taken exhausted, it is handed over exhausted", () => {
+    const base = withFreedAllies(game(2), P1, P2);
+    const [a, b] = base.allies as [InstanceId, InstanceId];
+    const revealed = reveal(base.state, choosing(a)).state;
+    const first = activeOf(revealed);
+    const second = first === P1 ? P2 : P1;
+    const taken = nearlyDone(patchInstance(revealed, a, { exhausted: true }));
+    const atSecond = driveEventsPicking(DEPS, taken, firstLegal, endTurn(first)).state;
+    const { state } = heroThwarts(DEPS, atSecond, scheme(atSecond), { player: second });
+    expect(inst(state, a).controllerId).toBe(second);
+    expect(inst(state, a).exhausted).toBe(true);
+    expect(playerOf(state, second).playArea).toContain(a);
+    expect(playerOf(state, first).playArea).not.toContain(a);
+    expect(inst(state, b).attachedTo).toBeNull();
   });
 
   it("WHEN DEFEATED with nothing attached: nothing happens beyond the defeat", () => {
@@ -1811,10 +2002,6 @@ describe("Hostage Situation (50121)", () => {
     const { state } = heroThwarts(DEPS, withScheme, hostage, { player: P1 });
     expect(cardsInPlay(state)).not.toContain(hostage);
   });
-
-  it.todo(
-    "WHEN REVEALED: the first player attaches 1 Rescued ally faceup, in play, under no player's control: skipped (engine cannot release an attached ally's controller)",
-  );
 });
 
 describe("Psionic Enhancement (50122)", () => {

@@ -395,6 +395,17 @@ export type GameEvent =
       readonly toCardId: CardId;
       readonly reason: "swap" | "advance";
     }
+  /**
+   * An ally a player controlled is now under no player's control, attached to `hostInstanceId` (`EffectSpec attach`
+   * with `as: "captive"`; `isCaptiveAlly`; docs/phase7-wave9.md §3.19), logged after the `cardMoved` that put it there.
+   * `from` is the player who controlled it. Control given back is a `controllerChanged` (`EffectSpec detach`).
+   */
+  | {
+      readonly type: "controlReleased";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly from: PlayerId;
+    }
   /** An attached card was detached into a play area (`EffectSpec detach`, docs/phase7-wave4.md §3.8). */
   | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */

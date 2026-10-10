@@ -124,7 +124,7 @@ import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { swapCards } from "./swap-cards.js";
 import { applyFindCard, findToDeal, findToReveal, shuffleSearchedDecks } from "./find.js";
-import { announcesAttaching, attachCardBy, settleUpgradeControl } from "./attach.js";
+import { announcesAttaching, attachCardBy, releaseControlOfCaptive, settleUpgradeControl } from "./attach.js";
 import { flipToOtherFace } from "./other-face.js";
 import {
   buildScenarioDeck,
@@ -1561,17 +1561,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "cannot have cards attached" (Odin, docs/phase7-wave4.md §3.8) leaves the card where it was (`attachCard`).
       // "After you attach …" (`TriggerEvent cardAttached`): each card that landed, once the effect has attached them all.
       // A card attached from out of play enters play by it: that announcement is always made (`attachCardBy`).
+      // `as: "captive"`: the attached ally is then under no player's control (docs/phase7-wave9.md §3.19).
       const attached = targets(effect.card)
-        .flatMap((id) =>
-          attachCardBy(
+        .flatMap((id) => {
+          const events = attachCardBy(
             ctx,
             id,
             host,
             context.controllerId ?? null,
             effect.facedown === true,
             effect.as === "heldMinion",
-          ),
-        )
+          );
+          if (effect.as === "captive") releaseControlOfCaptive(ctx, id, host);
+          return events;
+        })
         .filter((event) => announcesAttaching(event, (e) => heard(ctx.state, ctx.deps, e)));
       if (attached.length > 0) pushEvents(ctx, attached);
       return;
@@ -1613,7 +1616,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         updateInstance(ctx, id, (instance) => ({ ...instance, damage }));
         emit(ctx, { type: "hitPointsSet", instanceId: id, remaining: Math.min(remaining, max), damage });
         // Set to its maximum, the dial is reset (docs/phase7-wave6.md §3.67): "After MaGog's hit points are reset".
-        if (damage === 0) reset.push({ kind: "hitPointsReset", instanceId: id });
+        // "Reset his hit points to 10" is a reset at any number (docs/phase7-wave9.md §3.5), below the maximum too.
+        if (damage === 0 || effect.reset) reset.push({ kind: "hitPointsReset", instanceId: id });
       }
       pushHeard(reset);
       return;

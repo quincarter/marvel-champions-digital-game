@@ -40,6 +40,7 @@ import {
   sourcePlayerOf,
   triggeringPlayers,
   uncontrolledYouOf,
+  isCaptiveAlly,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
 import { snapshotTitledAs } from "../titles.js";
@@ -641,6 +642,10 @@ function gatherCandidates(
         }
         continue;
       }
+      // An ally under no player's control (`isCaptiveAlly`; docs/phase7-wave9.md §3.19): its optional Interrupt or
+      // Response is its controller's to trigger, and it has none, so it is offered to nobody. Its forced abilities
+      // still resolve, as any card's in play do.
+      if (!forced && isCaptiveAlly(state, id)) continue;
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
       if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;

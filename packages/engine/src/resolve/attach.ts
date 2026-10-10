@@ -90,6 +90,24 @@ export function attachCard(ctx: Ctx, id: InstanceId, host: InstanceId, facedown 
 }
 
 /**
+ * "Attached ally is under no player's control. (Attached ally is still in play.)" (`EffectSpec attach` with
+ * `as: "captive"`; docs/phase7-wave9.md §3.19): clears the controller of an ally attached to `host`, which makes it a
+ * captive ally (`isCaptiveAlly`). Nothing else on it changes (RRG 1.8 "Ownership and Control", p. 31: a character that
+ * changes control "remains in the same state (i.e., readied or exhausted, damaged or not, etc.)"), and it keeps its
+ * owner. An upgrade on it is on a card no player controls, so the rule that ties an upgrade's control to its host's
+ * controller does not decide and the upgrade keeps its controller (`hostedUpgradeController`). No-op for a card that is
+ * not an ally, is not on `host` (the attach was refused), is facedown, or already has no controller.
+ */
+export function releaseControlOfCaptive(ctx: Ctx, id: InstanceId, host: InstanceId): void {
+  const instance = getInstance(ctx.state, id);
+  if (!instance || instance.attachedTo !== host || !instance.faceup) return;
+  const from = instance.controllerId;
+  if (from === null || cardOf(ctx.state, id)?.type !== "ally") return;
+  updateInstance(ctx, id, (i) => ({ ...i, controllerId: null }));
+  emit(ctx, { type: "controlReleased", instanceId: id, hostInstanceId: host, from });
+}
+
+/**
  * `attachCard`, reporting what to announce: none when the card could not be attached or was already on that host;
  * otherwise a `TriggerEvent cardAttached`, which the caller pushes when an ability listens, preceded by a
  * `cardEntersPlay` when the attaching is how the card entered play.

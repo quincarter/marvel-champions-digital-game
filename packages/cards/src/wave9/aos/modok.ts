@@ -99,21 +99,21 @@ import {
  * Wave 9 scripting module `aos/modok` (docs/phase7-wave9.md section 8.4). `card-groups.ts` maps this module to the ids
  * below; keep the two in step.
  *
- * **The reset and the "+5 hit points" attachment (owner decision Q3 = A, still open in the engine).** M.O.D.O.K.'s
- * interrupt resets his hit points with `resetHitPoints`, which sets the dial to his maximum, Automated Mobile Unit's
- * +5 included (15); each attachment then answers "After M.O.D.O.K.'s hit points are reset" by leaving, so he ends at his
- * printed 10 (14) with no damage. Q3 = A wants the dial set to the printed 10 (14) and then dropped to 5 (9) as the
- * attachment leaves; that needs a reset effect that sets a number and still announces `hitPointsReset`, which the engine
- * lacks (`setRemainingHitPoints` announces only a dial set to its maximum). Reported, not worked around.
+ * **The reset and the "+5 hit points" attachment (owner decision Q3 = A).** M.O.D.O.K.'s interrupt resets his hit
+ * points to the printed 10 (14) with `resetHitPoints(self, { to })`: with Automated Mobile Unit's +5 on him that is 10
+ * of 15. Each attachment then answers "After M.O.D.O.K.'s hit points are reset" by leaving, and the +5 ending lowers
+ * the dial by 5 (RRG 1.8 "Hit Points", p. 22), so he ends at 5 (9) of 10 (14). With no such attachment he ends at 10 (14).
  *
  * **Reverse Engineering (50119)**: X (the printed cost of the card tucked here) is added to both ATK and SCH
- * (provenance: the scan prints +X SCH and +X ATK). The data file still carries `statModifiers: { sch: -1 }` from
- * MarvelCDB's X marker, which this script cannot correct (packages/content is not this module's).
+ * (provenance: the scan prints +X SCH and +X ATK); the data carries no flat modifier for it.
  *
  * **A.I.M. Jailer (50120)**: the first player picks among the Rescued allies tied for the fewest remaining hit points
  * (RRG 1.8 "First Player", p. 19); the attack is an ordinary enemy attack on that ally, answered for the ally's
- * controller (owner decision Q5 = A). **Hostage Situation (50121)**: its When Revealed is skipped (an attached ally
- * cannot be put under no player's control); the "cannot take damage" constant and the When Defeated hand-over stand.
+ * controller (owner decision Q5 = A); the hostage below is no candidate. **Hostage Situation (50121)**: the first
+ * player attaches a Rescued ally a player controls (`attachCard` with `as: "captive"`): it stays in play on the scheme
+ * under no player's control, used and readied by nobody, until the defeating player takes control of it. The card's
+ * constant protects M.O.D.O.K. only: the hostage can still be damaged and defeated (it then returns to the Holding
+ * Cell deck by its own Forced Response).
  *
  * Cards (26):
  * - 50103a M.O.D.O.K. (villain)
@@ -156,13 +156,13 @@ const ADAPTOID_ENVIRONMENT = query("environment", { trait: trait("ADAPTOID") });
  * reset M.O.D.O.K.'s hit points to N instead. Otherwise, the players win the game." The villain is never defeated while
  * a cell is in play (MC50 p. 4, "Non-Scaling Villain HP"); with no cell in play the defeat stands and the players win.
  */
-const modokForcedInterrupt = () =>
+const modokForcedInterrupt = (to: 10 | 14) =>
   forcedInterrupt(
     on.defeated("self"),
     { would: true },
     ifThen(
       exists(query("environment", { name: "Holding Cell" })),
-      [instead(resetHitPoints(self)), removeCountersFrom(HOLDING_CELL, "lock", 2)],
+      [instead(resetHitPoints(self, { to })), removeCountersFrom(HOLDING_CELL, "lock", 2)],
       endGame("win"),
     ),
   );
@@ -193,8 +193,12 @@ const inhumanLeaves = () =>
 
 /** The card an attachment is attached to: "attached enemy", "M.O.D.O.K." (the attachments attach to him by data). */
 const HOST_ENEMY = query("enemy", { hostOfSelf: true });
-/** The Rescued allies in play. */
-const RESCUED = query("ally", { trait: trait("RESCUED") });
+/**
+ * The Rescued allies a player controls: a friendly-character query (identity or ally) never matches an ally no player
+ * controls, such as the hostage of Hostage Situation (`isCaptiveAlly`; ruling Jun 25, 2026 (4) #5), and no identity has
+ * the Rescued trait.
+ */
+const RESCUED_CONTROLLED = query(["identity", "ally"], { trait: trait("RESCUED") });
 
 /** "Forced Response: After M.O.D.O.K.'s hit points are reset, discard this card." (50114, 50115, 50116, 50118, 50119) */
 const discardAfterReset = () => forcedResponse(on.hitPointsReset("host"), discard(self));
@@ -206,8 +210,8 @@ const discardAfterReset = () => forcedResponse(on.hitPointsReset("host"), discar
  * player chooses; the ally leaving play goes back under the deck as a cell (an empty deck puts it into play at once).
  */
 export const MODOK: AbilityRegistry = defineAbilities({
-  "50103a.modok-forced-interrupt": modokForcedInterrupt(),
-  "50103b.modok-forced-interrupt": modokForcedInterrupt(),
+  "50103a.modok-forced-interrupt": modokForcedInterrupt(10),
+  "50103b.modok-forced-interrupt": modokForcedInterrupt(14),
 
   // 1A Setup: the deck, the random upgrade(s) (the others are already set aside by the builder), then each player
   // searches for a copy of Adaptoid and reveals it (the upgrades are in play first, so they apply as it enters).
@@ -331,12 +335,14 @@ export const MODOK: AbilityRegistry = defineAbilities({
   "50119.reverse-engineering-forced-response": discardAfterReset(),
 
   // A.I.M. Jailer: Guard is data. The Rescued ally with the fewest remaining hit points (the first player breaks a
-  // tie) is attacked; with none, a lock counter goes on the Holding Cell.
+  // tie) is attacked; with none, a lock counter goes on the Holding Cell. An enemy attack is made against a player
+  // (RRG 1.8 "Attack (Enemy Activation)", p. 8), so the hostage of Hostage Situation, which no player controls, is not
+  // a candidate (docs/phase7-wave9.md section 3.19, as read): with only the hostage in play the "Otherwise" applies.
   "50120.when-revealed": whenRevealed(
     ifThen(
-      exists(RESCUED),
+      exists(RESCUED_CONTROLLED),
       [
-        bindTargets("fewest", superlative("lowest", each(RESCUED), remainingHpOf(chosen("candidate")))),
+        bindTargets("fewest", superlative("lowest", each(RESCUED_CONTROLLED), remainingHpOf(chosen("candidate")))),
         chooseTarget("victim", { inSlot: "fewest" }, { chooser: firstPlayer }),
         enemyAttack(self, { targetCharacter: chosen("victim") }),
       ],
@@ -344,9 +350,14 @@ export const MODOK: AbilityRegistry = defineAbilities({
     ),
   ),
 
-  // Hostage Situation: "Attached ally is under no player's control" has no engine support (see MODOK_SKIPPED), so
-  // "50121.when-revealed" is not registered; the constant and When Defeated stand alone.
+  // Hostage Situation. The text names no chooser, so the first player picks the ally (RRG 1.8 "First Player", p. 19);
+  // with no Rescued ally in play nothing is attached and the scheme stays, still stopping the damage (the card prints
+  // no alternative). `as: "captive"` leaves the ally in play on the scheme under no player's control.
   "50121.hostage-situation-constant": constant(preventAllDamageTo(query("villain", { name: "M.O.D.O.K." }))),
+  "50121.when-revealed": whenRevealed(
+    chooseTarget("hostage", RESCUED_CONTROLLED, { chooser: firstPlayer }),
+    attachCard(chosen("hostage"), self, { as: "captive" }),
+  ),
   "50121.when-defeated": whenDefeated(detach(each(query("ally", { host: self })), defeatingPlayer)),
 
   "50122.boost": boost(modifyAttack({ extraBoostCards: 1 })),
@@ -373,12 +384,5 @@ export const MODOK: AbilityRegistry = defineAbilities({
   ),
 });
 
-/** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const MODOK_SKIPPED: Readonly<Record<string, string>> = {
-  "50121.when-revealed":
-    "Needs an ally attached to a side scheme to be under no player's control. `attach` (resolve/attach.ts attachCard) " +
-    "keeps the ally's controllerId, and no effect clears a card's controller (`detach` only gives one), so a scripted " +
-    "attach would leave the hostage usable by its old controller. Wanted: an `attach` option (or a `releaseControl` " +
-    "effect) that leaves the card in play, attached, with no controller; then: chooseTarget among the Rescued allies " +
-    "(first player), attachCard(chosen, self).",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const MODOK_SKIPPED: Readonly<Record<string, string>> = {};

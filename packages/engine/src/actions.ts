@@ -208,6 +208,7 @@ import {
   controllerOf,
   evaluate,
   isAlly,
+  isCaptiveAlly,
   matchesQuery,
   printedAbilityRefs,
   printedResourcesOf,
@@ -4942,6 +4943,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (!named && controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);
+  }
+  // An ally attached to a card under no player's control (`isCaptiveAlly`; "Attached ally is under no player's
+  // control", docs/phase7-wave9.md §3.19) is not an encounter card any player may trigger: its Action is nobody's.
+  if (!named && isCaptiveAlly(ctx.state, command.cardInstanceId)) {
+    return engineError("no_valid_target", "no player controls that ally", command);
   }
   // An encounter card may be triggered by any player (RRG 1.8 "Action", p. 6), except one attached to a player's card:
   // RRG 1.8 "Attachment" (p. 8), "Only the player who controls the card to which that attachment is attached can

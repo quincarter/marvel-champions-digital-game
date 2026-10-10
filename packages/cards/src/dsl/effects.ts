@@ -183,8 +183,15 @@ export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec 
  * "Reset his hit points" (MaGog, `mojo`; docs/phase7-wave6.md §3.67): the dial set to the character's maximum hit
  * points, whatever modifies them. `setRemainingHitPoints` caps the amount at the maximum, so this sets no damage, and
  * announces `hitPointsReset` ("After MaGog's hit points are reset", `on.hitPointsReset`).
+ *
+ * `to` (docs/phase7-wave9.md §3.5, owner decision Q3 = A): "reset his hit points to 10 instead" sets the dial to the
+ * printed number, not the maximum, and still announces `hitPointsReset`. With a "+5 hit points" attachment that is 10
+ * of 15; when the attachment leaves, the dial drops to 5 (RRG 1.8 "Hit Points", p. 22).
  */
-export const resetHitPoints = (target: TargetRef): EffectSpec => setRemainingHitPoints(Number.MAX_SAFE_INTEGER, target);
+export const resetHitPoints = (target: TargetRef, opts: { readonly to?: Amount } = {}): EffectSpec =>
+  opts.to === undefined
+    ? setRemainingHitPoints(Number.MAX_SAFE_INTEGER, target)
+    : { kind: "setRemainingHitPoints", target, amount: amount(opts.to), reset: true };
 /**
  * "…get +N to that power for this use" (Rapid Growth 13005, Venom's Pistol; docs/phase7-wave2.md §17.4): a bonus to
  * whichever basic power is being used, read off the `basicPowerUsing` event on the stack (`on.basicPowerUsing`
@@ -2715,12 +2722,14 @@ export const countBoostIcons = (cards: TargetRef, bind: string): EffectSpec => (
 
 /**
  * "Attach 1 card from your hand facedown here" (`facedown` for a facedown attach). `as: "heldMinion"`: the host holds
- * the minion (`holdMinion`).
+ * the minion (`holdMinion`). `as: "captive"`: "Attach 1 Rescued ally faceup here. Attached ally is under no player's
+ * control." (Hostage Situation, `aos` 50121; docs/phase7-wave9.md §3.19): the ally stays in play on the host with no
+ * controller, used and readied by nobody and counted by no ally limit, until `detach` hands it to a player.
  */
 export const attachCard = (
   card: TargetRef,
   to: TargetRef,
-  opts: { readonly facedown?: boolean; readonly as?: "heldMinion" } = {},
+  opts: { readonly facedown?: boolean; readonly as?: "heldMinion" | "captive" } = {},
 ): EffectSpec => ({
   kind: "attach",
   card,
