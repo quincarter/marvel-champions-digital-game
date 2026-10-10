@@ -54,13 +54,14 @@ const cardsById = new Map<string, AnyCard>(WAVE9_CARDS.map((card) => [card.id, c
  * Cards a scenario's own Setup sets aside that its record does not list in `Scenario.setAsideCardIds` (the data agent
  * has not added them yet): `quantityInSet` copies of each stay out of the encounter deck until a card asks for them.
  * docs/phase7-wave9.md section 1.10 (`setAsideCardIds`). Rescued Captive 50091 has no encounter set, so only its place
- * in `setAside` matters; the Holding Cell cards (50105a to 50108a) and the four Adaptoid upgrade environments carry
- * the `m.o.d.o.k.` set and are taken out of its deck. The Thunderbolt minions chosen at setup (section 2.5) are not
+ * in `setAside` matters; the four Adaptoid upgrade environments (50109 to 50112) carry the `m.o.d.o.k.` set and are
+ * taken out of its deck. The Holding Cell a-sides (50105a to 50108a) stay in it: the record's `separateDecks` entry
+ * names them and the engine builds the Holding Cell deck from them at Setup. The Thunderbolt minions chosen at setup (section 2.5) are not
  * set aside here; that waits on the Thunderbolts script.
  */
 const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
   batroc: [cardId("50091")],
-  modok: ["50105a", "50106a", "50107a", "50108a", "50109", "50110", "50111", "50112"].map(cardId),
+  modok: ["50109", "50110", "50111", "50112"].map(cardId),
 };
 
 /** A double-sided encounter card whose two faces are both in one deck is one card: its front face. */

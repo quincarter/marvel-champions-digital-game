@@ -315,6 +315,8 @@ export interface ScenarioSeparateDeckCuration {
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
   /** `ScenarioSeparateDeck.closedToPlayerCards` (wave 6 §3.66: the show deck, MojoMania insert p. 11). */
   readonly closedToPlayerCards?: true;
+  /** `ScenarioSeparateDeck.topCardInPlay` (wave 9, docs/phase7-wave9.md section 3.17: the Holding Cell deck). */
+  readonly topCardInPlay?: true;
 }
 
 /**

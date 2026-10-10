@@ -322,6 +322,17 @@ export const AOS_CURATION: PackCuration = {
       expertSetCodes: ["expert"],
       villainStages: { standard: [1, 1], expert: [2, 2] },
       modularSetCount: 1,
+      // MC50 p. 13: the four double-sided Holding Cell cards, shuffled, Holding Cell side faceup, "The top card of this deck
+      // is in play". By id: the a-sides only (a set plus card type would also catch the Adaptoid environments 50109-50112).
+      separateDecks: [
+        {
+          name: "Holding Cell",
+          contents: { cardCodes: ["50105a", "50106a", "50107a", "50108a"] },
+          discardPile: "none",
+          whenEmpty: "remainsEmpty",
+          topCardInPlay: true,
+        },
+      ],
       evidence:
         'MC50 p. 13 and 50104a Contents: "Villain Deck: M.O.D.O.K. (A). Flip M.O.D.O.K. (A) to M.O.D.O.K. (B) for expert mode. Main Scheme Deck: Upgrading Adaptoids. Encounter Deck: M.O.D.O.K., Scientist Supreme, and Standard." Scientist Supreme can be removed. The Holding Cell deck and the Adaptoid environments are built by 50104a Setup (scripting). 50103a: M.O.D.O.K. is defeated only when no Holding Cell is in play.',
     },

@@ -50,13 +50,25 @@ describe("wave9Scenario", () => {
     expect(wave9Scenario("baron-zemo", { players: SEATS, seed: 1, difficulty: "expert" }).villainCardId).toBe("50166a");
   });
 
-  it("sets aside the Rescued Captives (Batroc) and the Holding Cell cards (M.O.D.O.K.) out of their decks", () => {
+  it("sets aside the Rescued Captives (Batroc) and the Adaptoid environments (M.O.D.O.K.) out of their decks", () => {
     const batroc = wave9Scenario("batroc", { players: SEATS, seed: 1 });
     expect(batroc.setAside).toEqual(["50091", "50091", "50091", "50091"]);
     expect(batroc.encounterDeck).not.toContain("50091");
     const modok = wave9Scenario("modok", { players: SEATS, seed: 1 });
-    expect(modok.setAside).toEqual(expect.arrayContaining(["50105a", "50112"]));
+    expect(modok.setAside).toEqual(expect.arrayContaining(["50109", "50112"]));
     for (const id of modok.setAside ?? []) expect(modok.encounterDeck).not.toContain(id);
+  });
+
+  it("M.O.D.O.K.'s Holding Cell a-sides stay in the encounter deck, once each, for the separate deck; the b-sides do not", () => {
+    const modok = wave9Scenario("modok", { players: SEATS, seed: 1 });
+    expect(modok.scenarioDecks).toEqual([
+      expect.objectContaining({ name: "Holding Cell", topCardInPlay: true, discardPile: "none" }),
+    ]);
+    for (const id of ["50105a", "50106a", "50107a", "50108a"]) {
+      expect(modok.setAside ?? []).not.toContain(id);
+      expect(modok.encounterDeck.filter((c) => c === id)).toHaveLength(1);
+    }
+    for (const id of ["50105b", "50106b", "50107b", "50108b"]) expect(modok.encounterDeck).not.toContain(id);
   });
 
   it("Thunderbolts sets aside one modular set plus one per player, from its restricted pool", () => {

@@ -47,6 +47,17 @@ export const AOS_SCENARIOS: readonly Scenario[] = [
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 1], expert: [2, 2] },
     modularSetCount: 1,
+    separateDecks: [
+      {
+        name: "Holding Cell",
+        contents: {
+          cardIds: [cardId("50105a"), cardId("50106a"), cardId("50107a"), cardId("50108a")],
+        },
+        discardPile: "none",
+        whenEmpty: "remainsEmpty",
+        topCardInPlay: true,
+      },
+    ],
   },
   {
     id: scenarioId("thunderbolts"),
