@@ -51,6 +51,7 @@ import {
   NICK_FURY_SUPPORT_UPGRADES_ALLIES_SKIPPED,
 } from "./aos/nick-fury/support-upgrades-allies.js";
 import { PALE_LITTLE_SPIDER, PALE_LITTLE_SPIDER_SKIPPED } from "./aos/pale-little-spider.js";
+import { THUNDERBOLTS, THUNDERBOLTS_SKIPPED } from "./aos/thunderbolts.js";
 import { BP_ASPECT_BASIC, BP_ASPECT_BASIC_SKIPPED } from "./bp/aspect-basic.js";
 import { BLACK_PANTHER_EVENTS, BLACK_PANTHER_EVENTS_SKIPPED } from "./bp/black-panther/events.js";
 import { BLACK_PANTHER_IDENTITY, BLACK_PANTHER_IDENTITY_SKIPPED } from "./bp/black-panther/identity.js";
@@ -238,6 +239,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50098", "50099", "50100", "50101", "50102"],
       registry: BATROCS_BRIGADE,
       skipped: BATROCS_BRIGADE_SKIPPED,
+    },
+    {
+      module: "thunderbolts",
+      cardIds: ["50129a", "50130a", "50131a", "50132", "50133", "50134", "50135", "50136", "50137", "50138"],
+      registry: THUNDERBOLTS,
+      skipped: THUNDERBOLTS_SKIPPED,
     },
     {
       module: "gravitational-pull",
