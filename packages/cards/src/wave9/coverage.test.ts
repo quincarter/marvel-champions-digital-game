@@ -74,6 +74,7 @@ import {
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { FALCON_EVENTS, FALCON_EVENTS_SKIPPED } from "./falcon/falcon/events.js";
 import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./falcon/falcon/identity.js";
+import { FALCON_OBLIGATION_NEMESIS, FALCON_OBLIGATION_NEMESIS_SKIPPED } from "./falcon/falcon/obligation-nemesis.js";
 import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
 import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js";
 import { SILK_ABILITIES } from "./silk/index.js";
@@ -482,6 +483,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["53001a"],
       registry: FALCON_IDENTITY,
       skipped: FALCON_IDENTITY_SKIPPED,
+    },
+    {
+      module: "falcon/obligation-nemesis",
+      cardIds: ["53029", "53030", "53031", "53032", "53033"],
+      registry: FALCON_OBLIGATION_NEMESIS,
+      skipped: FALCON_OBLIGATION_NEMESIS_SKIPPED,
     },
   ],
   winter: [
