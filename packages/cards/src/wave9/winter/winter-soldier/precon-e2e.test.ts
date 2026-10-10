@@ -52,7 +52,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * - Overkill, Piercing, Ranged, Stun, Confuse, Toughness, Quickstrike, Steady (Keywords, pp. 29-41): see each step.
  * - Cost (p. 13): a wild counts as any type, so Cybernetic Arm paying for Electrical Discharge would stun.
  * - Response (p. 40): responses to one triggering condition resolve in any order, once the effect that caused it has
- *   finished, so Firepower's two defeating hits are answered after the whole event.
+ *   finished, so Firepower's two defeating assignments are one attack, answered once after the whole event.
  * - Villain phase (Appendix II, pp. 51-52): step 1 threat, step 2 the villain then the minions activate (a stunned
  *   enemy loses its attack instead), step 4 reveal; a minion that engages during the reveal with Quickstrike attacks.
  * - End of player phase: discard, draw up to hand size, ready all cards, so an Arm exhausted in the villain phase
@@ -442,11 +442,11 @@ describe("Winter Soldier (Aggression) precon against Rhino (standard, solo), see
     expect(damageOn(dl)).toBe(1);
   });
 
-  it("round 4: Firepower exhausting Rifle and Bambino: two 3-damage ranged hits defeat Crossbones and then Rhino (I); Lethal Protector answers each defeating hit", () => {
+  it("round 4: Firepower exhausting Rifle and Bambino: one attack with two 3-damage ranged assignments defeats Crossbones and then Rhino (I); Lethal Protector answers once", () => {
     const rifle = inPlayOf("54011")!;
     const bambino = inPlayOf("54018")!;
     const events = act(
-      { take: [LETHAL, MASK], targets: [crossbones, villain(), mainScheme(), hitSquad] },
+      { take: [LETHAL, MASK], targets: [crossbones, villain(), mainScheme()] },
       playFrom("54014", [handOf("54005")[0]!], { costChoices: { exhausted: [rifle, bambino] } as never }),
     );
     expect(cardsOf(events)).toMatchObject([{ resourcesPaid: 1 }]);
@@ -461,13 +461,10 @@ describe("Winter Soldier (Aggression) precon against Rhino (standard, solo), see
     expect(ofType(events, "villainStageAdvanced")).toMatchObject([{ stageIndex: 1 }]);
     expect(damageOn(villain())).toBe(0);
     expect(maxHitPoints(state, villain(), DEPS)).toBe(15);
-    // OWNER QUESTION (observed, not judged): Firepower is built as one attack per weapon, so Lethal Protector was
-    // offered once for each defeating hit: 2 threat off the main scheme, then 2 off Hydra Hit Squad.
-    expect(ofType(events, "threatRemoved")).toMatchObject([
-      { schemeInstanceId: mainScheme(), amount: 2 },
-      { schemeInstanceId: hitSquad, amount: 2 },
-    ]);
-    expect(inst(state, hitSquad).threat).toBe(1);
+    // Firepower is ONE attack (docs/phase7-wave9.md section 4.1 row 21 = B): Lethal Protector is offered once for
+    // the two defeats, so 2 threat comes off the main scheme and Hydra Hit Squad is untouched.
+    expect(ofType(events, "threatRemoved")).toMatchObject([{ schemeInstanceId: mainScheme(), amount: 2 }]);
+    expect(inst(state, hitSquad).threat).toBe(3);
     // Winter Mask (exhaust -> draw 1) was answered once only: it is tired after the first.
     expect(ofType(events, "cardDrawn")).toHaveLength(1);
     expect(inst(state, inPlayOf("54010")!).exhausted).toBe(true);
@@ -549,7 +546,7 @@ describe("interactions the Rhino game cannot reach, staged by surgery on the sam
     expect(inst(state, villain()).statuses.stunned).toBe(1);
   });
 
-  it("OWNER QUESTION (observed): Firepower with three Weapons against three 2-hit-point minions offers Lethal Protector after each of the three defeating hits", () => {
+  it("Firepower with three Weapons against three 2-hit-point minions is one attack: Lethal Protector is offered once for the three defeats", () => {
     let s = wsHeroGame();
     for (const weapon of ["54020", "54011", "54018"]) s = stagedInPlay(s, weapon, { attach: true }).state;
     for (const slot of ["b1", "b2", "b3"]) s = engageMinion(s, "01110", slot);
@@ -562,7 +559,7 @@ describe("interactions the Rhino game cannot reach, staged by surgery on the sam
       playFrom("54014", [handOf("54016")[0]!], { costChoices: { exhausted: weapons } as never }),
     );
     expect(ofType(events, "characterDefeated")).toHaveLength(3);
-    expect(ofType(events, "threatRemoved")).toMatchObject([{ amount: 2 }, { amount: 2 }, { amount: 2 }]);
-    expect(mainThreat()).toBe(4);
+    expect(ofType(events, "threatRemoved")).toMatchObject([{ amount: 2 }]);
+    expect(mainThreat()).toBe(8);
   });
 });

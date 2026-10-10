@@ -14,7 +14,11 @@ import {
   maxHitPoints,
   restrictedStanding,
   traitsOf as traitsInPlay,
+  activeEncounterDeckId,
+  cardsInPlay,
+  createGame,
   type Command,
+  type EngineDeps,
   type GameEvent,
   type GameState,
   type InstanceId,
@@ -22,6 +26,9 @@ import {
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../ability-refs.js";
+import { mergeRegistries } from "../../dsl/index.js";
+import { wave9Scenario, wave9StarterDeckSetup } from "../setup.js";
+import { BLACK_WIDOW } from "../aos/black-widow.js";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
@@ -34,15 +41,18 @@ import {
   patchInstance,
   play,
   playerOf,
+  settle,
   stackEncounterDeck,
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEventsPicking } from "../../testing/staging.js";
+import { driveEventsPicking, withForm } from "../../testing/staging.js";
 import { NOVA_EVENTS } from "../../wave5/nova/events.js";
 import { BLANK, ONE_ICON, piles } from "../testing.js";
 import { AOS_ASPECT_BASIC } from "../aos/aspect-basic.js";
 import { WINTER_ASPECT_BASIC as REGISTRY, WINTER_ASPECT_BASIC_SKIPPED as SKIPPED } from "./aspect-basic.js";
+import { WINTER_SOLDIER_IDENTITY } from "./winter-soldier/identity.js";
+import { WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES } from "./winter-soldier/support-upgrades-allies.js";
 import { ASPECT_DEPS as DEPS, aspectGame, aspectHero, engaged, placed } from "./aspect-basic.testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -578,13 +588,22 @@ describe("54014.firepower-action: Hero Action (attack), exhaust up to 3 Weapon u
     }
     return { state: s, ids };
   };
-  const fire = (s: GameState, weaponIds: readonly InstanceId[], plan: Plan = {}) => {
+  // Winter Soldier's own identity (Lethal Protector) and Cybernetic Arm, which the aspect module's DEPS leave out.
+  const FULL: EngineDeps = {
+    abilities: mergeRegistries(DEPS.abilities, WINTER_SOLDIER_IDENTITY, WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES),
+  };
+  const fire = (s: GameState, weaponIds: readonly InstanceId[], plan: Plan = {}, deps: EngineDeps = FULL) => {
     const given = inHand(s, FIREPOWER);
     const pay = hand(given.state)
       .filter((i) => i !== given.id)
       .slice(0, 1);
     return {
-      ...drive(given.state, plan, play(P1, given.id, pay, { costChoices: { exhausted: weaponIds } })),
+      ...driveEventsPicking(
+        deps,
+        given.state,
+        planner(plan),
+        play(P1, given.id, pay, { costChoices: { exhausted: weaponIds } }),
+      ),
       id: given.id,
       before: hand(given.state).length,
     };
@@ -726,6 +745,169 @@ describe("54014.firepower-action: Hero Action (attack), exhaust up to 3 Weapon u
     fire(state, ids, { seen });
     const enemyPrompt = seen.find((o) => o.includes("m-mercenary"))!;
     expect(enemyPrompt).not.toContain(villainOf(base));
+  });
+  // One attack with up to three damage assignments (docs/phase7-wave9.md section 4.1 row 21 = B).
+  const WEAPONS = [SIDEARM, RIFLE, BAMBINO];
+  const villainDamage = (n: number, take = n) => {
+    const { state, ids } = withWeapons(WEAPONS.slice(0, n));
+    const out = fire(state, ids, { targets: Array(take).fill(villainOf(state)) });
+    return damageOn(out.state, villainOf(out.state));
+  };
+  it("exact damage: 1, 2 and 3 Weapons deal 3, 6 and 9 to the same enemy (one assignment each)", () => {
+    expect([villainDamage(1), villainDamage(2), villainDamage(3)]).toEqual([3, 6, 9]);
+  });
+  it("three different enemies each take 3, and each assignment chose its own", () => {
+    let base = engaged(hero(), SANDMAN, "m-a");
+    base = engaged(base, SANDMAN, "m-b");
+    const { state, ids } = withWeapons(WEAPONS, base);
+    const out = fire(state, ids, { targets: ["m-a", "m-b", villainOf(base)] as InstanceId[] });
+    const hits = ofType(out.events, "damageDealt").map((e) => [e.targetInstanceId, e.amount]);
+    expect(hits.map(([t]) => t)).toEqual(["m-a", "m-b", villainOf(base)]);
+    expect(hits.map(([, a]) => a)).toEqual([3, 3, 3]);
+  });
+  it("ranged covers every assignment: a Retaliate 1 minion hit and left standing deals nothing back", () => {
+    const base = engaged(hero(), WHIPLASH, "m-whiplash");
+    const { state, ids } = withWeapons(WEAPONS, base);
+    const out = fire(state, ids, { targets: ["m-whiplash" as InstanceId, villainOf(base), villainOf(base)] });
+    expect(damageOn(out.state, "m-whiplash" as InstanceId)).toBe(3);
+    expect(damageOn(out.state, identityOf(out.state))).toBe(0);
+  });
+  it("a Whiplash defeated by two assignments and another left standing by one: no Retaliate reaches the hero", () => {
+    let base = engaged(hero(), WHIPLASH, "m-w1");
+    base = engaged(base, WHIPLASH, "m-w2");
+    const { state, ids } = withWeapons(WEAPONS, base);
+    const out = fire(state, ids, { targets: ["m-w1", "m-w1", "m-w2"] as InstanceId[] });
+    expect(gone(out.state, "m-w1")).toBe(true);
+    expect(damageOn(out.state, "m-w2" as InstanceId)).toBe(3);
+    expect(damageOn(out.state, identityOf(out.state))).toBe(0);
+  });
+  describe("Lethal Protector (after you attack and defeat an enemy) is offered once per Firepower", () => {
+    const lethal = (shockers: number, weapons: number, targets: readonly string[]) => {
+      let base = hero();
+      for (let i = 1; i <= shockers; i++) base = engaged(base, SHOCKER, `m-s${i}`);
+      base = patchInstance(base, base.mainScheme.instanceId, { threat: 10 });
+      const { state, ids } = withWeapons(WEAPONS.slice(0, weapons), base);
+      const out = fire(state, ids, {
+        take: ["lethal-protector"],
+        targets: targets.map((t) => (t === "villain" ? villainOf(base) : t)) as InstanceId[],
+      });
+      return {
+        out,
+        removals: ofType(out.events, "threatRemoved").filter((e) => e.amount === 2),
+        defeated: ofType(out.events, "characterDefeated").length,
+      };
+    };
+    it("one enemy defeated: once", () => {
+      const r = lethal(1, 1, ["m-s1"]);
+      expect([r.defeated, r.removals.length]).toEqual([1, 1]);
+    });
+    it("two enemies defeated: still once", () => {
+      const r = lethal(2, 2, ["m-s1", "m-s2"]);
+      expect([r.defeated, r.removals.length]).toEqual([2, 1]);
+    });
+    it("three enemies defeated: still once", () => {
+      const r = lethal(3, 3, ["m-s1", "m-s2", "m-s3"]);
+      expect([r.defeated, r.removals.length]).toEqual([3, 1]);
+    });
+    it("one defeated and two assignments at the villain: once", () => {
+      const r = lethal(1, 3, ["m-s1", "villain", "villain"]);
+      expect([r.defeated, r.removals.length]).toEqual([1, 1]);
+    });
+    it("nothing defeated: not offered", () => {
+      const base = patchInstance(hero(), hero().mainScheme.instanceId, { threat: 10 });
+      const { state, ids } = withWeapons(WEAPONS, base);
+      const out = fire(state, ids, { take: ["lethal-protector"] });
+      expect(ofType(out.events, "characterDefeated")).toHaveLength(0);
+      expect(ofType(out.events, "threatRemoved").filter((e) => e.amount === 2)).toHaveLength(0);
+    });
+  });
+  it("guard: with a Guard minion engaged no assignment may choose the villain while it stands", () => {
+    let base = engaged(hero(), MERCENARY, "m-mercenary");
+    base = engaged(base, SHOCKER, "m-shocker");
+    const { state, ids } = withWeapons(WEAPONS, base);
+    const seen: string[][] = [];
+    fire(state, ids, { targets: ["m-shocker", "m-shocker", "m-shocker"] as InstanceId[], seen });
+    const prompts = seen.filter((o) => o.includes("m-mercenary"));
+    expect(prompts.length).toBeGreaterThanOrEqual(1);
+    for (const p of prompts) expect(p).not.toContain(villainOf(base));
+  });
+  it("guard: defeating the Guard minion with one assignment lets the next assignment choose the villain (RRG 'For Each', p. 20)", () => {
+    const base = engaged(hero(), MERCENARY, "m-mercenary");
+    const { state, ids } = withWeapons(WEAPONS.slice(0, 2), base);
+    const seen: string[][] = [];
+    const out = fire(state, ids, { targets: ["m-mercenary" as InstanceId, villainOf(base)], seen });
+    const prompts = seen.filter((o) => o.includes(villainOf(base)) || o.includes("m-mercenary"));
+    expect(prompts[0]).not.toContain(villainOf(base));
+    expect(prompts[1]).toContain(villainOf(base));
+    expect(gone(out.state, "m-mercenary")).toBe(true);
+    expect(damageOn(out.state, villainOf(out.state))).toBe(3);
+  });
+  it("Cybernetic Arm paying (+1 damage to the event) adds 1 to each assignment: three assignments deal 4 each (RRG 'For Each', p. 20)", () => {
+    const withArm = placed(withWeapons(WEAPONS).state, "54002", { attach: true });
+    const weapons = inst(withArm.state, identityOf(withArm.state)).attachments.filter((i) =>
+      WEAPONS.includes(codeOf(withArm.state, i)),
+    );
+    const given = inHand(withArm.state, FIREPOWER);
+    const out = driveEventsPicking(
+      FULL,
+      given.state,
+      planner({ targets: Array(3).fill(villainOf(given.state)) }),
+      play(P1, given.id, [], {
+        costChoices: { exhausted: weapons },
+        abilities: [{ ability: { instanceId: withArm.id, abilityId: "54002.cybernetic-arm-resource" as never } }],
+      } as never),
+    );
+    expect(ofType(out.events, "damageDealt").map((e) => e.amount)).toEqual([4, 4, 4]);
+  });
+  it("a Black Widow Preparation that prevents all damage from 'this attack' (Night Vision Goggles) prevents all three assignments", () => {
+    const BW_DEPS: EngineDeps = { abilities: mergeRegistries(FULL.abilities, BLACK_WIDOW) };
+    const config = wave9Scenario("black-widow", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+      difficulty: "standard",
+    });
+    const seat = wave9StarterDeckSetup("winter-aggression");
+    const created = createGame({ ...config, players: [seat], requireLegalDecks: false }, BW_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    let state = settle(created.state, firstLegal, (x) => x.step.phase === "player", BW_DEPS);
+    // The setup minions are put away so no Guard stands between the hero and the villain.
+    const minions = cardsInPlay(state).filter((i) => state.instances[i]!.engagedWith !== undefined);
+    const deckId = activeEncounterDeckId(state);
+    const pile = state.encounterDecks[deckId]!;
+    state = {
+      ...state,
+      encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, discard: [...pile.discard, ...minions] } },
+      players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((i) => !minions.includes(i)) })),
+      instances: Object.fromEntries(
+        Object.entries(state.instances).map(([id, i]) => [
+          id,
+          minions.includes(id as InstanceId) ? { ...i, engagedWith: undefined } : i,
+        ]),
+      ) as GameState["instances"],
+    };
+    state = withForm(state, { heroForm: 0 });
+    // Night Vision Goggles attached to Black Widow, a blank card on top: its granted Preparation prevents the attack.
+    state = stackEncounterDeck(state, "01186");
+    const pool = state.encounterDecks[deckId]!;
+    const goggles = [...pool.deck, ...pool.discard].find((i) => codeOf(state, i) === "50070")!;
+    const widow = state.villains[0]!.instanceId;
+    state = {
+      ...state,
+      encounterDecks: {
+        ...state.encounterDecks,
+        [deckId]: { deck: pool.deck.filter((i) => i !== goggles), discard: pool.discard.filter((i) => i !== goggles) },
+      },
+      instances: {
+        ...state.instances,
+        [goggles]: { ...state.instances[goggles]!, faceup: true, attachedTo: widow },
+        [widow]: { ...state.instances[widow]!, attachments: [...inst(state, widow).attachments, goggles] },
+      },
+    };
+    const { state: armed, ids } = withWeapons(WEAPONS, state);
+    const out = fire(armed, ids, { targets: Array(3).fill(widow) }, BW_DEPS);
+    expect(damageOn(out.state, widow)).toBe(0);
+    expect(ofType(out.events, "damageDealt").filter((e) => e.targetInstanceId === widow)).toEqual([]);
+    expect(ofType(out.events, "damagePrevented").map((e) => e.amount)).toEqual([3, 3, 3]);
   });
   it("Hero Action: refused in alter-ego form", () => {
     const base = aspectGame();

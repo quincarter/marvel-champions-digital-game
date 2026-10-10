@@ -15,6 +15,7 @@ import {
   discardEncounterUntil,
   attackAnEnemy,
   damageAnEnemy,
+  dealDamage,
   discardThis,
   exhaustCardsCost,
   exhaustThis,
@@ -25,6 +26,7 @@ import {
   gets,
   giveStatus,
   heal,
+  ifThen,
   heroAction,
   heroResponse,
   interrupt,
@@ -37,12 +39,11 @@ import {
   ready,
   reduceNextCardCost,
   removeCounter,
-  repeatTimes,
   response,
   self,
   shuffleDeck,
   teamUpCharacters,
-  varOf,
+  varAtLeast,
   yourIdentity,
   you,
   zone,
@@ -69,10 +70,15 @@ const SIDEARM = "S.H.I.E.L.D. Sidearm";
  * where it was found, which is how it enters play (RRG "Enters Play", p. 18), so it arrives with its 3 ammo counters; a
  * Sidearm already on the identity changes nothing (tested). The deck is shuffled (also when nothing was found).
  *
- * **54014.firepower-action**: "up to 3" in a cost is 1 to 3 (RRG "Cost", p. 13). One attack by the hero for each weapon
- * upgrade exhausted: each pass chooses its own enemy and deals 3 damage, and "this attack gains ranged" is read for
- * every one of them. Flagged: the card does not say whether the passes are one attack or several; scripted as several,
- * each an instance of its own (RRG "'For Each'", p. 20), so guard and retaliate are checked per pass.
+ * **54014.firepower-action**: "up to 3" in a cost is 1 to 3 (RRG "Cost", p. 13). ONE attack with up to three damage
+ * assignments (owner, docs/phase7-wave9.md section 4.1 row 21 = B): the first assignment is the `attack` effect, the
+ * second and third (when 2 or 3 Weapons were exhausted, `n`) are `dealDamage` to an enemy chosen for each, which the
+ * engine counts as that attack's damage (attack-ability.ts). So it is one attack for "after you attack" and "attacks
+ * and defeats" (offered once), "this attack gains ranged" covers every assignment and every target (no retaliate), the
+ * same enemy may be chosen again, and a modifier to the event applies to each assignment (RRG "'For Each'", p. 20).
+ * Guard: each assignment's choice is made when it resolves and offers only enemies you may attack then (RRG "'For
+ * Each'" p. 20: a guard minion defeated by one instance makes the villain a valid target for the next); there is no
+ * overkill.
  *
  * **54015.one-by-one-action**: a reprint of One by One 28014 (same text), aliased.
  *
@@ -145,7 +151,10 @@ export const WINTER_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "54014.firepower-action": heroAction(
     { label: "attack", cost: exhaustCardsCost(query("upgrade", { trait: WEAPON }), { min: 1, max: 3, bind: "n" }) },
-    repeatTimes(varOf("n"), anAttackableEnemy("enemy"), attack(3, chosen("enemy"), { keywords: ["ranged"] })),
+    anAttackableEnemy("enemy"),
+    attack(3, chosen("enemy"), { keywords: ["ranged"] }),
+    ifThen(varAtLeast("n", 2), [anAttackableEnemy("enemy2"), dealDamage(3, chosen("enemy2"))]),
+    ifThen(varAtLeast("n", 3), [anAttackableEnemy("enemy3"), dealDamage(3, chosen("enemy3"))]),
   ),
 
   "54015.one-by-one-action": NOVA_EVENTS["28014.one-by-one-action"]!,
