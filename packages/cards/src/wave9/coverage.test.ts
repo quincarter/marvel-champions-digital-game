@@ -33,6 +33,7 @@ import {
   MARIA_HILL_OBLIGATION_NEMESIS_SKIPPED,
 } from "./aos/maria-hill/obligation-nemesis.js";
 import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-supreme.js";
+import { SHIELD, SHIELD_SKIPPED } from "./aos/shield.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
 import { POWER_OF_THE_ATOM, POWER_OF_THE_ATOM_SKIPPED } from "./aos/power-of-the-atom.js";
@@ -223,6 +224,12 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["50125", "50126", "50127", "50128"],
       registry: SCIENTIST_SUPREME,
       skipped: SCIENTIST_SUPREME_SKIPPED,
+    },
+    {
+      module: "shield",
+      cardIds: ["50178", "50179", "50180"],
+      registry: SHIELD,
+      skipped: SHIELD_SKIPPED,
     },
     {
       module: "supersonic",
