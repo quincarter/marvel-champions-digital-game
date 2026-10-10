@@ -1,7 +1,7 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
-import type { CardDestination, Predicate, StatName, StatusName } from "./spec.js";
+import type { CardDestination, Predicate, StatName, StatusName, TargetCategory } from "./spec.js";
 import type { Bindings, Vars } from "./stack.js";
 import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
@@ -32,6 +32,23 @@ export interface TargetSnapshot {
    * tough card this damage is about to use is counted, and one a piercing attack discarded first is not.
    */
   readonly statuses?: StatusCounts;
+}
+
+/**
+ * What a defeated character was as its defeat was initiated, read while it was still in play (`characterDefeated.
+ * asDefeated`). By the response window an ally or minion has left play and is its printed self again: a player card
+ * in play facedown as a minion (`CardInstance.facedownAs`) is an event or an upgrade in a discard pile, an ally an
+ * attachment treated as a minion (`treatedAs`) is an ally, and a trait a card in play gave it is gone. A response
+ * reads the game as its triggering condition happened (the family of `cardLeavesPlay.traits`), so a pattern's
+ * `targetIs` reads these in place of the live card (`resolve/triggers.ts`).
+ */
+export interface DefeatedSnapshot {
+  /** Its categories (`categoriesOf`, with any a `countsAs` rule added): `TargetQuery.categories`. */
+  readonly categories: readonly TargetCategory[];
+  /** Its traits, granted ones included (`traitsOf`): `TargetQuery.trait`, `withoutTrait`, `anyTrait`. */
+  readonly traits: readonly Trait[];
+  /** Whether it was in play facedown as something else (`CardInstance.facedownAs`): `TargetQuery.facedown`. */
+  readonly facedown: boolean;
 }
 
 export type TriggerEventBody =
@@ -569,6 +586,13 @@ export type TriggerEventBody =
        * for any other character.
        */
       readonly villainStageNumber?: number;
+      /**
+       * What the character was when its defeat was initiated, set as the event goes on the stack (`eventFrame`): "After
+       * a Controlled minion is defeated" answers a player card that was in play facedown as a Controlled minion and
+       * is itself again in its owner's discard pile (docs/phase7-wave9.md §3.32). Read by a pattern's `targetIs`
+       * (`DefeatedSnapshot`). Absent on an event stamped before the field existed, which reads the live card.
+       */
+      readonly asDefeated?: DefeatedSnapshot;
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }

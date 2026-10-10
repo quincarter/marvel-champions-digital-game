@@ -25,6 +25,7 @@ import {
   ifThen,
   inPlay,
   on,
+  placeThreat,
   putIntoPlay,
   putIntoPlayFacedown,
   query,
@@ -33,6 +34,7 @@ import {
   selectCards,
   setAside,
   shuffleEncounterDeck,
+  theMainScheme,
   whenDefeated,
   whenRevealed,
   you,
@@ -73,9 +75,12 @@ const controlledFromDeck = putIntoPlayFacedown(you, { kind: "minion", traits: [C
  * support of their choice (counter by counter, so they may be spread). Written as a loop over the minions left in
  * play because the DSL has no "once per card discarded" count.
  *
- * **Controlled Innocents (50032)**: facedown Controlled minions have base SCH, ATK and hit points of 1. Its Forced
- * Response (after a Controlled minion is defeated: 1 threat on the main scheme) is SKIPPED, see the reason below;
- * "place that card in its owner's discard pile" is the engine's rule for a facedown top-of-deck card leaving play.
+ * **Controlled Innocents (50032)**: facedown Controlled minions have base SCH, ATK and hit points of 1. Forced
+ * Response: "After a Controlled minion is defeated, place that card in its owner's discard pile and place 1 threat on
+ * the main scheme." The defeat is matched against what the card was in play (a minion with the Controlled trait; by
+ * the response it is a player card in a discard pile again, engine `characterDefeated.asDefeated`, section 3.32), once
+ * per defeated minion. Only a defeat answers it: a discard (Army of the Controlled) is not one. "Place that card in
+ * its owner's discard pile" is the engine's rule for a facedown top-of-deck card leaving play.
  *
  * **Diabolical Discs (50033)**: Surge is data. When Revealed: remove 1 all-purpose counter from a support (when one
  * holds any), then with Controlled Innocents in play, a facedown Controlled minion engaged with you.
@@ -128,6 +133,10 @@ export const MARIA_HILL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
     gets("atk", 1, FACEDOWN_CONTROLLED, { setBase: true }),
     gets("hp", 1, FACEDOWN_CONTROLLED, { setBase: true }),
   ),
+  "50032.controlled-innocents-forced-response": forcedResponse(
+    on.defeated(CONTROLLED_MINIONS),
+    placeThreat(1, theMainScheme),
+  ),
 
   "50033.when-revealed": whenRevealed(
     chooseTarget("support", SUPPORT_WITH_COUNTER),
@@ -137,7 +146,4 @@ export const MARIA_HILL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const MARIA_HILL_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {
-  "50032.controlled-innocents-forced-response":
-    'Needs an engine change (packages/engine, resolve/triggers.ts + trigger-events.ts): a response "after a Controlled minion is defeated" must match the defeated facedown card by its facedown role, but a facedown card is itself again (facedownAs null, its printed card type and traits) once it has left play, and the characterDefeated event carries no traits or role snapshot (only cardLeavesPlay carries traits, and it also fires for a discard, which Army of the Controlled\'s When Defeated must not answer). Fix: stamp the facedown role\'s kind and traits on characterDefeated and let the targetIs lastKnown branch read them. The "place that card in its owner\'s discard pile" half already happens (engine rule, tested); the missing half is 1 threat on the main scheme.',
-};
+export const MARIA_HILL_OBLIGATION_NEMESIS_SKIPPED: Readonly<Record<string, string>> = {};

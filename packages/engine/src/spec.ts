@@ -2226,6 +2226,19 @@ export type EffectSpec =
    * `REPEAT_LIMIT` repetitions as a guard against a script that never stops (docs/phase7-wave4.md §3.54).
    */
   | { readonly kind: "repeatWhile"; readonly effects: readonly EffectSpec[]; readonly while: Predicate }
+  /**
+   * "**For each** [countable game element], choose: …" (RRG 1.8 "'For Each'", p. 20: "'For each' indicates an effect is
+   * repeated based on the number of a countable game element"): `effects` resolve `times` times, one pass after the
+   * other. `times` is read once, as the effect starts, so a pass that changes the count does not change the number of
+   * passes; 0 or less resolves nothing, and `REPEAT_LIMIT` caps it.
+   *
+   * Each pass is its own instance (p. 20: "each iteration of that choice is considered a separate instance of that
+   * effect, even if the same target is chosen multiple times"; "The game state updates after each instance"): it starts
+   * from the bindings the ability held when the repetition began, so what one pass chooses or binds is not seen by the
+   * next, and nothing stops a later pass choosing the same target again. A pass whose choice has nothing left to
+   * choose resolves as far as it can and the next pass still runs.
+   */
+  | { readonly kind: "repeatTimes"; readonly times: ValueSpec; readonly effects: readonly EffectSpec[] }
   /** Interrupt to threat being placed: "prevent 1 of that threat" (Jennifer Walters). `amount` absent = all. */
   | { readonly kind: "preventThreat"; readonly amount?: ValueSpec }
   /**

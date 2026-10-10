@@ -4,9 +4,12 @@ import {
   action,
   addCounters,
   afterNextCardPlayed,
+  anEnemy,
   ANY_NUMBER,
+  aScheme,
   bindTargets,
   chooseCards,
+  chooseOne,
   chosen,
   cards,
   countOf,
@@ -17,9 +20,12 @@ import {
   eventTarget,
   heroAction,
   on,
+  option,
   printedCostOf,
   query,
   ready,
+  removeThreat,
+  repeatTimes,
   response,
   valueAtLeast,
   you,
@@ -34,6 +40,14 @@ const EXHAUSTED_SHIELD_SUPPORTS = query("support", { trait: SHIELD, exhausted: t
 /**
  * Wave 9 scripting module `aos/maria-hill/events` (docs/phase7-wave9.md section 8.4, 3.6, 3.11).
  * `card-groups.ts` maps this module to the ids below; keep the two in step.
+ *
+ * **50003.all-points-bulletin-action**: "Hero Action: For each S.H.I.E.L.D. support you control, choose: Remove 1
+ * threat from a scheme. Deal 1 damage to an enemy." One choice per support, counted once as the event resolves, each
+ * its own instance of 1 threat or 1 damage. Nothing makes the choices differ: MC50 p. 22, "Q. How many schemes or
+ * enemies can be chosen as targets for All-Points Bulletin? A. You can choose a different scheme or enemy to target for
+ * each S.H.I.E.L.D. support you control", gives a permission, and RRG 1.8 "'For Each'" (p. 20) says "each iteration of
+ * that choice is considered a separate instance of that effect, even if the same target is chosen multiple times". So
+ * the same enemy or scheme may be chosen every time. With no S.H.I.E.L.D. support it resolves to nothing.
  *
  * **50004.on-the-double-action**: "Action: Ready any number of S.H.I.E.L.D. supports with a combined printed cost of 6
  * or less." Any player's supports. Section 3.11: it cannot be played while no S.H.I.E.L.D. support is exhausted
@@ -53,16 +67,24 @@ const EXHAUSTED_SHIELD_SUPPORTS = query("support", { trait: SHIELD, exhausted: t
  * for, so it binds that support and defers the counter to the end of that play (the `afterNextCardPlayed` timing point
  * is after the card has entered play).
  *
- * Skipped: 50003 All-Points Bulletin (see `MARIA_HILL_EVENTS_SKIPPED`).
- *
  * Cards (5):
- * - 50003 All-Points Bulletin (event) -- skipped
+ * - 50003 All-Points Bulletin (event)
  * - 50004 On the Double (event)
  * - 50005 Reinforcements (event)
  * - 50006 The Hard Call (event)
  * - 50007 Special Funding (resource)
  */
 export const MARIA_HILL_EVENTS: AbilityRegistry = defineAbilities({
+  "50003.all-points-bulletin-action": heroAction(
+    repeatTimes(
+      countOf(query("support", { trait: SHIELD, controller: "you" })),
+      chooseOne(
+        option("Remove 1 threat from a scheme", aScheme(), removeThreat(1, chosen("scheme"))),
+        option("Deal 1 damage to an enemy", anEnemy(), dealDamage(1, chosen("enemy"))),
+      ),
+    ),
+  ),
+
   "50004.on-the-double-action": action(
     { while: valueAtLeast(countOf(EXHAUSTED_SHIELD_SUPPORTS), 1) },
     chooseCards("readied", cards(each(EXHAUSTED_SHIELD_SUPPORTS)), {
@@ -91,12 +113,4 @@ export const MARIA_HILL_EVENTS: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const MARIA_HILL_EVENTS_SKIPPED: Readonly<Record<string, string>> = {
-  "50003.all-points-bulletin-action":
-    'Hero Action: "For each S.H.I.E.L.D. support you control, choose: remove 1 threat from a scheme, or deal 1 damage to an enemy" ' +
-    "(a different target for each choice, spec section 8.4 table and MC50 p. 22). The DSL has no repeat-by-count: " +
-    "`chooseCards.max` and `repeatWhile` take a fixed number or a condition, `repeatWhile` clears its own bindings on every " +
-    "pass (engine/resolve/apply-effect.ts `repeatWhile`), so a pass cannot exclude the targets earlier passes chose " +
-    "(`excludeSlots` reads a slot bound in the same effect list). Needs a primitive such as `repeatForEach(count, " +
-    "effects, { distinctTargets })` or `chooseCards.max` as a ValueSpec; an unrolled fixed cap would be a hack.",
-};
+export const MARIA_HILL_EVENTS_SKIPPED: Readonly<Record<string, string>> = {};

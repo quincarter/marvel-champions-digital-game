@@ -906,6 +906,18 @@ export const repeatWhile = (condition: Predicate, ...effects: readonly EffectArg
   effects: flatten(effects),
   while: condition,
 });
+/**
+ * "**For each** S.H.I.E.L.D. support you control, choose: remove 1 threat from a scheme, or deal 1 damage to an enemy"
+ * (All-Points Bulletin, `aos` 50003): `effects` resolve `times` times, the count read once as the effect starts. Each
+ * pass is a separate instance with its own choices, and a later pass may choose the same target again (RRG 1.8 "'For
+ * Each'", p. 20). `repeatTimes(countOf(query(…)), chooseOne(option(…), option(…)))`. A "for each" with no "choose" is
+ * a single instance instead: `dealDamage(countOf(…), target)`.
+ */
+export const repeatTimes = (times: Amount, ...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "repeatTimes",
+  times: amount(times),
+  effects: flatten(effects),
+});
 export const preventThreat = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventThreat" } : { kind: "preventThreat", amount: amount(n) };
 /** "… instead": the interrupted event doesn't happen; these resolve in its place (RRG "Replacement Effect"). */

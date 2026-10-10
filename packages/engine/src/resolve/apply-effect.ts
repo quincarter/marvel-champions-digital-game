@@ -2522,6 +2522,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       });
       return;
     }
+    case "repeatTimes": {
+      // "For each …, choose" (RRG 1.8 "'For Each'", p. 20): the count is read once, here; each pass is a frame of its
+      // own holding the bindings as they are now, so a pass never sees what an earlier one chose and the game state
+      // updates between passes (a minion one pass defeats is no target for the next).
+      const times = Math.min(value(effect.times), REPEAT_LIMIT);
+      for (let pass = 0; pass < times; pass++) {
+        pushEffects(ctx, {
+          effects: effect.effects,
+          selfInstanceId: frame.selfInstanceId,
+          abilityId: frame.abilityId,
+          instruction: frame.instruction,
+          controllerId: frame.controllerId,
+          event: frame.event,
+          eventFrameId: frame.eventFrameId,
+          bindings: frame.bindings,
+          vars: frame.vars,
+          scopedPlayerId: frame.scopedPlayerId,
+          byPlayer: frame.byPlayer === true,
+        });
+      }
+      return;
+    }
     case "replaceTriggeringEvent": {
       if (!frame.eventFrameId) return;
       updateFrame(ctx, frame.eventFrameId, (target) =>

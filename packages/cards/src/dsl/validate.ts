@@ -621,6 +621,7 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
     case "replaceTriggeringEvent":
       return [effect.with];
     case "repeatWhile":
+    case "repeatTimes":
       return [effect.effects];
     default:
       return [];
@@ -877,6 +878,21 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
     if (effect.kind === "repeatWhile") {
       walk(effect.effects, scope, `${where}/0`, problems);
       checkRefs(effect.while, scope, `${where} while`, problems);
+      return;
+    }
+    // "For each …, choose" (RRG 1.8 "'For Each'", p. 20): each pass is its own instance, so what the repeated effects
+    // bind is read inside them only. The engine hands nothing a pass bound to the effects after the repetition.
+    if (effect.kind === "repeatTimes") {
+      if (effect.times.kind === "const" && !(Number.isInteger(effect.times.value) && effect.times.value >= 1))
+        problems.push(`${where}: times must be a whole number of at least 1`);
+      if (effect.effects.length === 0) problems.push(`${where}: repeats no effects`);
+      checkRefs(effect.times, scope, `${where} times`, problems);
+      const pass: Scope = {
+        slots: new Set(scope.slots),
+        vars: new Set(scope.vars),
+        prefixes: new Set(scope.prefixes),
+      };
+      walk(effect.effects, pass, `${where}/0`, problems);
       return;
     }
     if (

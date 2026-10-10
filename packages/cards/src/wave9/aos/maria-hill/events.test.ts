@@ -1,21 +1,35 @@
 import { AOS_CARDS, cardId, type EventCard, type ResourceCard } from "@mc/content";
-import { applyCommand, type EngineDeps, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  createGame,
+  type EngineDeps,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerSetup,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
+import { coreScenario } from "../../../core/setup.js";
 import { mergeRegistries } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
+  P2,
   firstLegal,
   inst,
+  mainThreat,
   moveToHand,
   patchInstance,
   payWith,
   play,
   playerOf,
+  settle,
   type Picker,
 } from "../../../testing/harness.js";
-import { driveEventsPicking } from "../../../testing/staging.js";
+import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { WAVE8_ABILITIES } from "../../../wave8/index.js";
+import { WAVE9_CARDS } from "../../cards.js";
+import { wave9StarterDeckSetup } from "../../setup.js";
 import { MARIA_HILL_EVENTS, MARIA_HILL_EVENTS_SKIPPED } from "./events.js";
 import { MARIA_HILL_IDENTITY } from "./identity.js";
 import { engageHillMinion, inPlay, mariaGame, mariaHeroGame } from "./testing.js";
@@ -119,12 +133,11 @@ function playable(state: GameState, code: string, cost: number): boolean {
 }
 
 describe("Maria Hill events registry", () => {
-  it("registers the four scripted refs, each validating, and skips only All-Points Bulletin", () => {
-    expect(Object.keys(MARIA_HILL_EVENTS).sort()).toEqual([DOUBLE, REINFORCE, CALL, FUNDING].sort());
+  it("registers the five scripted refs, each validating, and skips none", () => {
+    expect(Object.keys(MARIA_HILL_EVENTS).sort()).toEqual([BULLETIN, DOUBLE, REINFORCE, CALL, FUNDING].sort());
     for (const ref of Object.keys(MARIA_HILL_EVENTS))
       expect(validateDefinition(MARIA_HILL_EVENTS[ref]!), ref).toEqual([]);
-    expect(Object.keys(MARIA_HILL_EVENTS_SKIPPED)).toEqual([BULLETIN]);
-    expect(MARIA_HILL_EVENTS_SKIPPED[BULLETIN]).toMatch(/repeat/);
+    expect(MARIA_HILL_EVENTS_SKIPPED).toEqual({});
   });
   it("registered and skipped refs together are exactly the refs the five cards print", () => {
     const printed = ["50003", "50004", "50005", "50006", "50007"].flatMap((code) =>
@@ -134,7 +147,8 @@ describe("Maria Hill events registry", () => {
       [...printed].sort(),
     );
   });
-  it("triggers: On the Double and Reinforcements are Actions, The Hard Call a Hero Action, Special Funding a Response", () => {
+  it("triggers: On the Double and Reinforcements are Actions, the other two events Hero Actions, Special Funding a Response", () => {
+    expect(MARIA_HILL_EVENTS[BULLETIN]!.trigger).toMatchObject({ kind: "action", form: "hero" });
     expect(MARIA_HILL_EVENTS[DOUBLE]!.trigger).toMatchObject({ kind: "action" });
     expect(MARIA_HILL_EVENTS[DOUBLE]!.trigger).not.toHaveProperty("form");
     expect(MARIA_HILL_EVENTS[REINFORCE]!.trigger).toMatchObject({ kind: "action" });
@@ -153,6 +167,150 @@ describe("Maria Hill events registry", () => {
       expect(cardOf<EventCard>(code).resourceIcons, code).toEqual(icons);
     }
     expect(cardOf<ResourceCard>("50007").producesIcons).toEqual({ mental: 1, physical: 1 });
+  });
+});
+
+describe(`${BULLETIN} (All-Points Bulletin 50003): one choice of 1 threat or 1 damage per S.H.I.E.L.D. support you control`, () => {
+  const REMOVE = "Remove 1 threat from a scheme";
+  const DAMAGE = "Deal 1 damage to an enemy";
+  /** The game with 5 threat on the main scheme, so a removal always shows. */
+  const withThreat = (s: GameState): GameState => patchInstance(s, s.mainScheme.instanceId, { threat: 5 });
+  /** `count` S.H.I.E.L.D. supports under Maria's control: Support Staff, Command Team, The Iliad, in that order. */
+  function withSupports(state: GameState, count: number): GameState {
+    const all: readonly (readonly [string, Readonly<Record<string, number>>])[] = [
+      [STAFF, { staff: 3 }],
+      [COMMAND, { command: 3 }],
+      [ILIAD, { mission: 3 }],
+    ];
+    return all.slice(0, count).reduce((s, [code, counters]) => inPlay(s, code, counters).state, state);
+  }
+  /**
+   * Plays the event answering each option prompt with the next of `labels` and each target prompt with the next of
+   * `targets` that it offers (else the first offered). `asked` holds the labels offered by each option prompt.
+   */
+  function playBulletin(state: GameState, labels: readonly string[] = [], targets: readonly InstanceId[] = []) {
+    const asked: string[][] = [];
+    const nextLabels = [...labels];
+    const nextTargets = [...targets];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      const offered = choice.options.map((o) => o.optionId as string);
+      if (choice.prompt.kind === "chooseOption") {
+        asked.push(choice.options.map((o) => o.label ?? ""));
+        const label = nextLabels.shift();
+        const hit = choice.options.find((o) => o.label === label);
+        return [hit ? (hit.optionId as string) : offered[0]!];
+      }
+      if (choice.prompt.kind === "chooseTarget") {
+        // A target is used up only by a prompt that offers it (the scheme prompt offers no enemy).
+        const target = nextTargets[0];
+        if (target === undefined || !offered.includes(target)) return [offered[0]!];
+        nextTargets.shift();
+        return [target];
+      }
+      return firstLegal(s);
+    };
+    return { ...playEvent(state, "50003", 2, pick), asked };
+  }
+  const dealt = (events: readonly GameEvent[]) => events.filter((e) => e.type === "damageDealt");
+
+  it("costs 2: two other cards are discarded for it and the event goes to the discard pile", () => {
+    const { state, handGiven } = playBulletin(withSupports(withThreat(heroGame()), 1), [DAMAGE]);
+    expect(playerOf(state, P1).hand).toHaveLength(handGiven - 3);
+    expect(discardCodes(state)).toContain("50003");
+  });
+  it("0 S.H.I.E.L.D. supports: no choice is offered, no damage and no threat removed, and the event is spent", () => {
+    const { state, asked } = playBulletin(withThreat(heroGame()));
+    expect(asked).toEqual([]);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
+    expect(mainThreat(state)).toBe(5);
+    expect(discardCodes(state)).toContain("50003");
+  });
+  it("1 S.H.I.E.L.D. support: one choice of the two options; damage puts 1 on Rhino", () => {
+    const { state, asked } = playBulletin(withSupports(withThreat(heroGame()), 1), [DAMAGE]);
+    expect(asked).toEqual([[REMOVE, DAMAGE]]);
+    expect(inst(state, villainOf(state)).damage).toBe(1);
+    expect(mainThreat(state)).toBe(5);
+  });
+  it("1 S.H.I.E.L.D. support: the threat option takes the main scheme from 5 to 4", () => {
+    const { state } = playBulletin(withSupports(withThreat(heroGame()), 1), [REMOVE]);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
+    expect(mainThreat(state)).toBe(4);
+  });
+  it("3 S.H.I.E.L.D. supports, Rhino chosen each time: three separate instances of 1 damage, 3 on Rhino", () => {
+    const staged = withSupports(withThreat(heroGame()), 3);
+    const rhino = villainOf(staged);
+    const { state, events, asked } = playBulletin(staged, [DAMAGE, DAMAGE, DAMAGE], [rhino, rhino, rhino]);
+    expect(asked).toHaveLength(3);
+    expect(inst(state, rhino).damage).toBe(3);
+    expect(dealt(events)).toHaveLength(3);
+    for (const event of dealt(events)) expect(event).toMatchObject({ targetInstanceId: rhino, amount: 1 });
+  });
+  it("3 S.H.I.E.L.D. supports, the main scheme chosen each time: 5 threat to 2", () => {
+    const { state } = playBulletin(withSupports(withThreat(heroGame()), 3), [REMOVE, REMOVE, REMOVE]);
+    expect(mainThreat(state)).toBe(2);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
+  });
+  it("3 S.H.I.E.L.D. supports, mixed and on different targets: 1 on Rhino, 1 on Shocker, 1 threat removed", () => {
+    const staged = engageHillMinion(withSupports(withThreat(heroGame()), 3), SHOCKER, "shocker");
+    const { state } = playBulletin(staged, [DAMAGE, REMOVE, DAMAGE], [villainOf(staged), "shocker" as InstanceId]);
+    expect(inst(state, villainOf(state)).damage).toBe(1);
+    expect(inst(state, "shocker" as InstanceId).damage).toBe(1);
+    expect(mainThreat(state)).toBe(4);
+  });
+  it("3 damage on Shocker (3 hit points) defeats it with the third instance", () => {
+    const staged = engageHillMinion(withSupports(withThreat(heroGame()), 3), SHOCKER, "shocker");
+    const shocker = "shocker" as InstanceId;
+    const { state } = playBulletin(staged, [DAMAGE, DAMAGE, DAMAGE], [shocker, shocker, shocker]);
+    expect(playerOf(state, P1).playArea).not.toContain(shocker);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
+  });
+  it("a support without the S.H.I.E.L.D. trait does not count: Support Staff and a Front Organization make 1 choice", () => {
+    const front = inPlay(withSupports(withThreat(heroGame()), 1), FRONT);
+    const { state, asked } = playBulletin(front.state, [DAMAGE, DAMAGE]);
+    expect(asked).toHaveLength(1);
+    expect(inst(state, villainOf(state)).damage).toBe(1);
+  });
+  it("another player's S.H.I.E.L.D. support does not count: only the one Maria controls makes a choice", () => {
+    const base = coreScenario("rhino", {
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+      difficulty: "standard",
+      modularSetIds: [],
+      cardPool: WAVE9_CARDS,
+    } as never);
+    const maria: PlayerSetup = wave9StarterDeckSetup("maria-hill-leadership");
+    const created = createGame({ ...base, players: [maria, base.players[1]!], requireLegalDecks: false }, DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    const table = withForm(
+      settle(created.state, firstLegal, (s) => s.step.phase === "player", DEPS),
+      { heroForm: 0 },
+    );
+    // Command Team and The Iliad are handed to the second player (surgery): theirs to control, in their play area.
+    const theirs = [COMMAND, ILIAD].reduce((s, code) => {
+      const placed = inPlay(s, code);
+      const moved: GameState = {
+        ...placed.state,
+        players: placed.state.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, playArea: p.playArea.filter((id) => id !== placed.id) }
+            : { ...p, playArea: [...p.playArea, placed.id] },
+        ),
+      };
+      return patchInstance(moved, placed.id, { controllerId: P2 });
+    }, table);
+    expect(playerOf(theirs, P2).playArea.filter((id) => inst(theirs, id).controllerId === P2)).toHaveLength(2);
+    const none = playBulletin(withThreat(theirs));
+    expect(none.asked).toEqual([]);
+    expect(inst(none.state, villainOf(none.state)).damage).toBe(0);
+    const one = playBulletin(withSupports(withThreat(theirs), 1), [DAMAGE, DAMAGE, DAMAGE]);
+    expect(one.asked).toHaveLength(1);
+    expect(inst(one.state, villainOf(one.state)).damage).toBe(1);
+  });
+  it("is a Hero Action: refused in alter-ego form, playable in hero form, with or without a support", () => {
+    expect(playable(withSupports(egoGame(), 3), "50003", 2)).toBe(false);
+    expect(playable(withSupports(heroGame(), 3), "50003", 2)).toBe(true);
+    expect(playable(heroGame(), "50003", 2)).toBe(true);
   });
 });
 

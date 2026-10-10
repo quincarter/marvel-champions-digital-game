@@ -703,6 +703,7 @@ function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
       return [effect.then, effect.otherwise ?? []];
     case "then":
     case "repeatWhile":
+    case "repeatTimes":
     case "forEachPlayer":
       return [effect.effects];
     case "chooseOne":

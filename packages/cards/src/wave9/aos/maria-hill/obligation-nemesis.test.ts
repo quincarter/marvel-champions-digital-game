@@ -60,6 +60,7 @@ const REFS = [
   "50031.when-revealed",
   "50031.when-defeated",
   "50032.controlled-innocents-constant",
+  "50032.controlled-innocents-forced-response",
   "50033.when-revealed",
 ];
 
@@ -189,11 +190,11 @@ function withControlledMinion() {
 const controlledMinions = (s: GameState): InstanceId[] => cardsInPlay(s).filter((i) => inst(s, i).facedownAs != null);
 
 describe("registry", () => {
-  it("registers every ref of the five cards; only the Controlled Innocents forced response is skipped (an engine gap)", () => {
+  it("registers every ref of the five cards and skips none", () => {
     const refs = AOS_CARDS.filter((c) => (c.id as string) >= PRESS && (c.id as string) <= DISCS).flatMap(abilityRefIds);
-    expect([...refs].sort()).toEqual([...REFS, "50032.controlled-innocents-forced-response"].sort());
+    expect([...refs].sort()).toEqual([...REFS].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(SKIPPED)).toEqual(["50032.controlled-innocents-forced-response"]);
+    expect(SKIPPED).toEqual({});
   });
   it.each([...REFS])("%s validates", (id) => {
     expect(validateDefinition(REGISTRY[id as never]!)).toEqual([]);
@@ -211,6 +212,10 @@ describe("registry", () => {
       trigger: { kind: "action", form: "alterEgo" },
     });
     expect(REGISTRY["50031.when-defeated" as never]!.trigger).toMatchObject({ kind: "whenDefeated" });
+    expect(REGISTRY["50032.controlled-innocents-forced-response" as never]!.trigger).toMatchObject({
+      kind: "response",
+      forced: true,
+    });
   });
 });
 
@@ -451,20 +456,56 @@ describe("50032 Controlled Innocents", () => {
     const profile = profileOf(state, minions[0]!);
     expect([profile.atk, profile.sch, profile.maxHp]).toEqual([1, 1, 1]);
   });
-  it("a defeated Controlled minion is placed in its owner's discard pile (engine rule)", () => {
+  it("forced response: a defeated Controlled minion goes to its owner's discard pile, faceup, and 1 threat is placed on the main scheme", () => {
     const { minions, state: staged } = withControlledMinion();
-    const { state } = run(staged, picker(), attackCommand(staged, minions[0]!));
+    const before = mainThreat(staged);
+    const { state, events } = run(staged, picker(), attackCommand(staged, minions[0]!));
+    expect(ofType(events, "characterDefeated").map((e) => e.instanceId)).toEqual([minions[0]]);
     expect(cardsInPlay(state)).not.toContain(minions[0]);
     expect(playerOf(state, P1).discard).toContain(minions[0]);
+    expect(encounterCodes(state, "discard")).not.toContain(codeOf(state, minions[0]!));
+    expect(inst(state, minions[0]!)).toMatchObject({ facedownAs: null, faceup: true });
+    expect(mainThreat(state)).toBe(before + 1);
   });
-  // The threat half of the forced response is skipped (SKIPPED, engine gap): the defeat event cannot see the facedown
-  // role. The test to turn on once the engine stamps it: the minion's defeat adds exactly 1 threat to the main scheme.
-  it.todo("forced response: after a Controlled minion is defeated, 1 threat is placed on the main scheme");
+  it("forced response: two Controlled minions defeated one after the other place 1 threat each, 2 in all", () => {
+    const first = withControlledMinion();
+    const { state: revealed } = reveal(withForm(first.state, "alterEgo"), DISCS);
+    const staged = withForm(revealed, { heroForm: 0 });
+    const minions = controlledMinions(staged);
+    expect(minions).toHaveLength(2);
+    const before = mainThreat(staged);
+    const one = run(staged, picker(), attackCommand(staged, minions[0]!));
+    expect(mainThreat(one.state)).toBe(before + 1);
+    const readied = patchInstance(one.state, identityOf(one.state), { exhausted: false });
+    const two = run(readied, picker(), attackCommand(readied, minions[1]!));
+    expect(mainThreat(two.state)).toBe(before + 2);
+    for (const m of minions) expect(playerOf(two.state, P1).discard).toContain(m);
+  });
+  it("a Controlled minion that is discarded, not defeated, places no threat", () => {
+    const first = withControlledMinion();
+    const { state: staged, id } = sideScheme(first.state, ARMY, 1);
+    const before = mainThreat(staged);
+    const { state, events } = run(staged, picker(), {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: identityOf(staged),
+      schemeInstanceId: id,
+    });
+    expect(controlledMinions(state)).toEqual([]);
+    expect(playerOf(state, P1).discard).toContain(first.minions[0]);
+    expect(ofType(events, "characterDefeated")).toEqual([]);
+    expect(mainThreat(state)).toBe(before);
+  });
   it("a Core minion defeated places no threat (only Controlled minions)", () => {
     const { state: s0 } = withControlledMinion();
-    const hero = engageHillMinion(s0, "01110", "probe-minion");
+    const probe = "probe-minion" as InstanceId;
+    const engagedWithProbe = engageHillMinion(s0, "01110", probe);
+    // Left at 1 remaining hit point, so the basic attack is sure to defeat it.
+    const hero = patchInstance(engagedWithProbe, probe, { damage: profileOf(engagedWithProbe, probe).maxHp - 1 });
     const before = mainThreat(hero);
-    const { state } = run(hero, picker(), attackCommand(hero, "probe-minion" as InstanceId));
+    const { state, events } = run(hero, picker(), attackCommand(hero, probe));
+    expect(ofType(events, "characterDefeated").map((e) => e.instanceId)).toEqual([probe]);
+    expect(cardsInPlay(state)).not.toContain(probe);
     expect(mainThreat(state)).toBe(before);
   });
 });
