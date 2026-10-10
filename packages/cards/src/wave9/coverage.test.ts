@@ -12,6 +12,7 @@ import { abilityRefIds } from "../ability-refs.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
 import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
+import { AIM_ABDUCTION, AIM_ABDUCTION_SKIPPED } from "./aos/aim-abduction.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { AOS_ASPECT_BASIC, AOS_ASPECT_BASIC_SKIPPED } from "./aos/aspect-basic.js";
 import { BATROC, BATROC_SKIPPED } from "./aos/batroc.js";
@@ -155,6 +156,12 @@ const SCRIPTED_MODULES: Readonly<
       ],
       registry: AOS_ASPECT_BASIC,
       skipped: AOS_ASPECT_BASIC_SKIPPED,
+    },
+    {
+      module: "aim-abduction",
+      cardIds: ["50080", "50081", "50082"],
+      registry: AIM_ABDUCTION,
+      skipped: AIM_ABDUCTION_SKIPPED,
     },
     {
       module: "aim-science",
