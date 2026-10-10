@@ -67,6 +67,7 @@ import {
 import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
+import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./falcon/falcon/identity.js";
 import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
 import { GROWING_STRONG, GROWING_STRONG_SKIPPED } from "./silk/growing-strong.js";
 import { SILK_ABILITIES } from "./silk/index.js";
@@ -434,6 +435,14 @@ const SCRIPTED_MODULES: Readonly<
       cardIds: ["52035", "52036", "52037", "52038"],
       registry: GROWING_STRONG,
       skipped: GROWING_STRONG_SKIPPED,
+    },
+  ],
+  falcon: [
+    {
+      module: "falcon/identity",
+      cardIds: ["53001a"],
+      registry: FALCON_IDENTITY,
+      skipped: FALCON_IDENTITY_SKIPPED,
     },
   ],
   winter: [
