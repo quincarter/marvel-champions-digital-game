@@ -14,6 +14,7 @@ import { WAVE9_ABILITIES } from "./index.js";
 import { AOS_ABILITIES } from "./aos/index.js";
 import { AIM_SCIENCE, AIM_SCIENCE_SKIPPED } from "./aos/aim-science.js";
 import { BATROCS_BRIGADE, BATROCS_BRIGADE_SKIPPED } from "./aos/batrocs-brigade.js";
+import { MARIA_HILL_IDENTITY, MARIA_HILL_IDENTITY_SKIPPED } from "./aos/maria-hill/identity.js";
 import { SCIENTIST_SUPREME, SCIENTIST_SUPREME_SKIPPED } from "./aos/scientist-supreme.js";
 import { GRAVITATIONAL_PULL, GRAVITATIONAL_PULL_SKIPPED } from "./aos/gravitational-pull.js";
 import { SUPERSONIC, SUPERSONIC_SKIPPED } from "./aos/supersonic.js";
@@ -74,6 +75,12 @@ const SCRIPTED_MODULES: Readonly<
 > = {
   // Agents of S.H.I.E.L.D. is scripted module by module; the pack stays "not started" until every module is in.
   aos: [
+    {
+      module: "maria-hill/identity",
+      cardIds: ["50001a"],
+      registry: MARIA_HILL_IDENTITY,
+      skipped: MARIA_HILL_IDENTITY_SKIPPED,
+    },
     {
       module: "aim-science",
       cardIds: ["50083", "50084", "50085"],
