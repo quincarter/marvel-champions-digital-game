@@ -341,13 +341,14 @@ describe(`${SPRAY} (Spray Fire 50039): choose a player; 3 damage to the villain 
     expect(inst(state, villainOf(state)).damage).toBe(3);
   });
   it("no target is chosen, so no prompt follows the player choice; Hydra Mercenary (guard, 3 hit points) is defeated", () => {
-    // Open question for the owner (reported with this module): whether guard should stop the villain from being a
-    // target of a multi-target attack. The engine's guard check keeps Rhino undamaged here; that is not pinned.
+    // Owner decision Q16 = A (docs/phase7-wave9.md section 4.1): guard keeps the villain from taking this attack's
+    // damage, and the damage is simultaneous, so defeating the guard minion does not let the same attack reach him.
     const s = engageMinion(furyHeroGame(), MERCENARY, "merc");
     const rec = recording(firstLegal);
     const { state } = playEvent(s, "50039", 3, rec.picker);
     expect(rec.seen.map((p) => p[0])).toEqual(["choosePlayer"]);
     expect(inPlay(state, "merc")).toBe(false);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
   });
   it("two players: choosing P2 damages the villain and only the minions engaged with P2", () => {
     let s = furyDuoGame();
