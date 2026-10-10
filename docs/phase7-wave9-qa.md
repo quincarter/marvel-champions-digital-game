@@ -316,3 +316,110 @@ Hugin & Munin, Misty Knight, Ops Room, Wingman, Winter Soldier, Captain America'
 - No FFG ruling in the file names a `falcon` card outside Rulings December 17, 2025 - Ruling 1 (2), January 17, 2026 - Ruling 3 (2), January 26,
   2026 - Ruling 6, March 6, 2026 - Ruling 1 (2), March 19, 2026 - Ruling 5, June 25, 2026 - Ruling 1 and July 9, 2026 - Ruling 2, all of them
   asserted by the module tests or this file's. No conflict between the RRG and a ruling was found for this pack.
+
+## Agents of S.H.I.E.L.D.: Maria Hill, Nick Fury and the box's player cards (aos)
+
+Scope: 50001a/b to 50011 (Maria Hill's identity, events, supports, upgrades and ally; `packages/cards/src/wave9/aos/maria-hill/`), 50034a/b to
+50046 (Nick Fury's identity, events, suit form, upgrades and ally; `aos/nick-fury/`), the obligations and nemesis sets 50029 to 50033 and 50059
+to 50063 (read against the printed text; their interactions with the heroes' cards are covered below) and `aos/aspect-basic.ts` (50012 to 50028
+and 50047 to 50058). The scenarios and the other encounter sets are a later audit. Data: `packages/content/src/data/aos/cards.ts`. Every
+script was read against the printed text in the data. Regression tests: `packages/cards/src/wave9/aos/heroes-rulings.qa.test.ts` (32 tests, none
+of them `it.fails`). The module tests are thorough (about 700 cases across the five Maria Hill and Nick Fury files and `aspect-basic.test.ts`,
+including the owner's Q16 to Q20 and Q22 and Q23 cases); this file holds only interactions they do not assert.
+
+### Findings
+
+None. Every case written against an RRG entry, a ruling or an owner decision passed once the test staging was right (the early failures were
+mistakes in the staging, not in the game: a second player's turn that was never ended, an encounter card dealt at random to the second player
+that discarded the support under test, a `take` list that overwrote the interrupt being tested, and two schemes standing in for the one the
+test meant to aim at). Two source conflicts and one open rules point are recorded below rather than picked.
+
+### Checked, no findings
+
+- **A stunned or confused Nick Fury (RRG "Stun, Stunned" p. 41, "Confuse, Confused" p. 13, "Replacement Effect" p. 37, "Interrupt" p. 25;
+  ruling August 13, 2026 - Ruling 1 (1)).** The stun and confuse cards are replacement effects, so no interrupt or response to the replaced
+  attack or thwart is heard. A stunned Fury in Stealth who makes a basic attack spends the stun, Break Cover does not fire (the suit stays on
+  Stealth) and Assault is not offered; the same stunned Fury playing Concentrated Fire 50037 or Spray Fire 50039 still plays the event (spent,
+  discarded) with no damage, no choice and no form change. A confused Fury's basic thwart offers no Gather Intel, and a confused Maria Hill ally's
+  thwart offers no "when Maria Hill thwarts" interrupt, so nothing reaches the suit. A stunned Fury's Covert Surveillance (thwart) works in full
+  (stun cancels only an attack); a confused Fury's cancels the whole labeled ability (RRG "Labeled Ability" p. 26), including the optional
+  change to Stealth.
+- **The crisis icon (RRG "Crisis Icon" p. 14).** With Crowd Control in play the main scheme is not offered as a target of All-Points Bulletin,
+  Covert Surveillance or Secret Agent's move (the side scheme is), and the main scheme keeps its threat. (The Douglass 50019 ignoring crisis is
+  asserted by the module tests.)
+- **Stealth 50035b and the attack it replaces (RRG "Replacement Effect" p. 37, "Interrupt" p. 25).** With Life Model Decoy attached, Rhino's
+  attack becomes a scheme and the Decoy is not offered (further interrupts to the replaced attack cannot trigger). With Eyepatch Camera
+  attached, the camera is asked about the 1 threat Stealth left for the main scheme (a range of 0 to 1), not the activation's full 2.
+- **Two-player cases (ruling December 17, 2025 - Ruling 3; RRG "Attack (Enemy Activation)" p. 8).** Stealth makes Rhino scheme against Fury only:
+  the attack on the second player's hero still lands. Fury's Life Model Decoy is offered for the attack on Fury and not again for the attack on
+  the second player. Secret Agent does not hear a Preparation card the second player resolves (Prism Dust attached to their identity), while
+  Prism Dust itself is offered to its own controller. Press Conference 50029 (given to the Maria Hill player) removes a counter only from that
+  player's supports; the Nick Fury player's Support Staff keeps its three.
+- **Life Model Decoy 50010 and an ally defender (RRG p. 8).** The Decoy is used when the attack initiates, before a defender is declared; with a
+  Maria Hill ally declared as defender afterwards, the ally takes no damage either ("prevent all damage from that attack").
+- **Prism Dust 50052 is labeled (attack) (RRG "Labeled Ability" p. 26, "Stun" p. 41).** A stunned Fury pays the discard cost, but the whole
+  ability is canceled: the minion that entered play is neither confused nor damaged, and the stun card is spent.
+- **Concentrated Fire 50037 at a tough minion (RRG "Tough" p. 44, "Defeat" p. 15).** The 4 damage is prevented, the tough card is spent, the
+  minion stays in play and no "defeats an enemy" choice follows.
+- **Intelligence Analysis 50045 (RRG "Cancel" p. 11, "Surge" p. 42; ruling August 3, 2026 - Ruling 3).** Canceling Kree Manipulator (Surge) cancels
+  its effects and its surge together: only one encounter card is revealed (a control run reveals two), and the threat it would place is not
+  placed. The canceled treachery is still "revealed", so Grant Ward 50022's "after you reveal a treachery" Forced Response still answers it; and
+  Analysis's own ability still resolves, so Secret Agent 50046 is offered afterward (it moves 1 threat from the main scheme to the suit).
+- **Maria Hill's trait grant (card text 50001a).** Sky-Destroyer's "after you play a S.H.I.E.L.D. card" answers a Core ally played in hero
+  form (the ally has the trait by the time the response window opens) and does not in alter-ego form. Agents of S.H.I.E.L.D. 50015 is not
+  offered to alter-ego Maria Hill who controls a Core ally.
+- **Printed cost (RRG "Printed" p. 35).** The Hard Call discarding Jemma Simmons deals 3 (her printed cost), not the 1 she cost to play. On the
+  Double sums printed costs: Jemma (3) with Sky-Destroyer (3) is accepted, Jemma with Command Team (2) and Sky-Destroyer is refused (8).
+- **Two Special Funding 50007 on one support.** Sky-Destroyer (cost 3) paid with two copies gets two counters (each copy is its own response).
+- **A confused minion's scheme (RRG "Confuse" p. 13, "Replacement Effect" p. 37).** Informant 50050 and Quake 50048 hear nothing when a
+  confused minion's scheme is replaced by removing the status card.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: Maria Hill's trait grant and Reassignment (limit, retyping,
+a uses support emptied), her search; Nick Fury's Gather Intel, Break Cover, Suit Up and Infiltrate; All-Points Bulletin, On the Double (the
+spec 3.11 gate), Reinforcements, Special Funding; Support Staff, The Iliad, Life Model Decoy, S.H.I.E.L.D. Director; Concentrated Fire, Covert
+Surveillance and Spray Fire (owner question 16, Guard); Assault (owner question 17), Stealth, Maria Hill 50036, Fury's Flying Car, Safe House
+#221, EM Shield, Eyepatch Camera, Fury's Watch, Intelligence Analysis, Secret Agent; every card of `aspect-basic.ts` (Front Organization
+under owner question 20 = B, Intelligence under question 19 = B, Organizational Support, Super Spies under question 18 = A, the reprints
+aliased to their sources); Press Conference, Controller, Army of the Controlled, Controlled Innocents, Diabolical Discs, Discovered, Orion,
+Acquire Infinity Formula, Leviathan Soldier and Cold Storage.
+
+### Open point (pinned, not an `it.fails`)
+
+- **Practiced Plan 50058 and a Preparation card discarded from the hand.** Owner question 20 = B reads "a card you control" as including the
+  hand and deck (RRG "Ownership and Control" p. 31) for Front Organization. Practiced Plan says "After you discard a Preparation card you
+  control". The script hears only a Preparation card leaving play to the discard pile, so a Preparation card discarded from the hand (by the
+  hand-size discard, or at random by Klaw's Vengeance) is not heard. No ruling says whether that is "you discard". Pinned as today's behavior;
+  if the owner wants the question 20 reading here too, the change is in the script's trigger (a `cardBeingDiscarded` listener beside
+  `cardLeavesPlay`), not the engine.
+
+### Source conflicts (flagged, not picked)
+
+- **"When/After [enemy] attacks you": player or character.** RRG 1.8 "Attack (Enemy Activation)" (p. 8) and "Attacks Against Allies" (p. 8) say abilities that trigger "When/After [enemy] attacks you" resolve when a player is attacked, "regardless of which
+  character they control was attacked". The ruling of December 17, 2025 - Ruling 3 says the exception covers "After [enemy] attacks you"
+  only and that Nick Fury's Stealth Suit ("when an enemy would attack") "only triggers when Nick Fury would be attacked". They disagree on
+  "When" wording (Life Model Decoy 50010 is "When an enemy attacks you", Stealth "When an enemy would attack you"). The scripts follow the
+  character reading for "would attack" and the player reading for "after" (owner question 5 = A). The tests here assert only cases both
+  sources agree on (an attack on another player; an ally defending after the Decoy was used).
+- **Surge when a treachery's When Revealed is canceled.** The FAQ for Spider-Man Noir (RRG FAQ, p. 63) says a keyword
+  "like surge or incite X" still resolves when the When Revealed ability is canceled, so his response can trigger. RRG 1.8 "Surge" (p. 42, revised
+  in 1.8) defines surge as the When Revealed ability "Deal yourself 1 facedown encounter card", and the ruling of August 3, 2026 - Ruling 3 says
+  surge "is treated as a When Revealed ability and can be cancelled". The game follows the later ruling (Intelligence Analysis cancels the surge
+  too); the Noir FAQ predates the revised definition and was not changed. Worth confirming that the Noir entry is superseded.
+
+### Thin coverage and open points
+
+- **"After [hero] uses a basic power" under a replaced action (Nick Fury 50002 and Melinda May 50023).** Whether a confused ally's thwart or a
+  stunned ally's attack is "a basic power used" is not stated for these wordings (RRG "Stun" says the character "is not considered to have
+  attacked", with no matching line under "Confuse"); not tested.
+- **Dum Dum Dugan 50021 stunned or confused.** His interrupt is "when you use one of his basic powers"; whether it is offered when the power's
+  effect is then replaced is not stated and not tested.
+- **Informant 50050 and Stealth on the same minion scheme.** Both change where the activation's threat goes (Informant removes it, Stealth
+  diverts 1 of it); the order and the result are not pinned by any source and were not tested.
+- **Orion 50060 and Acquire Infinity Formula 50061 against EM Shield 50042 in one villain phase.** Prevented damage is not "taken", so Orion
+  should gain nothing from the prevented hit; module tests cover each card alone, no test combines them with a second attacker.
+- **Two Maria Hill or two Nick Fury players.** Not staged; the suit form, Press Conference and the obligations all key on the identity name or the
+  controller.
+- No FFG ruling in the file names Maria Hill or the other cards of this box outside Rulings December 17, 2025 - Ruling 3 (Stealth Suit, above)
+  and the August 13 and August 3, 2026 rulings used here for the stun and surge cases.
