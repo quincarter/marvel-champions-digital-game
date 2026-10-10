@@ -66,6 +66,7 @@ import {
 } from "./bp/black-panther/obligation-nemesis.js";
 import { EXTREME_RISK, EXTREME_RISK_SKIPPED } from "./bp/extreme-risk.js";
 import { BP_ABILITIES } from "./bp/index.js";
+import { FALCON_ASPECT_BASIC, FALCON_ASPECT_BASIC_SKIPPED } from "./falcon/aspect-basic.js";
 import { FALCON_ABILITIES } from "./falcon/index.js";
 import { FALCON_IDENTITY, FALCON_IDENTITY_SKIPPED } from "./falcon/falcon/identity.js";
 import { SILK_ASPECT_BASIC, SILK_ASPECT_BASIC_SKIPPED } from "./silk/aspect-basic.js";
@@ -438,6 +439,32 @@ const SCRIPTED_MODULES: Readonly<
     },
   ],
   falcon: [
+    {
+      module: "falcon/aspect-basic",
+      cardIds: [
+        "53014",
+        "53015",
+        "53016",
+        "53017",
+        "53018",
+        "53019",
+        "53020",
+        "53021",
+        "53022",
+        "53023",
+        "53024",
+        "53025",
+        "53026",
+        "53027",
+        "53028",
+        "53034",
+        "53035",
+        "53036",
+        "53037",
+      ],
+      registry: FALCON_ASPECT_BASIC,
+      skipped: FALCON_ASPECT_BASIC_SKIPPED,
+    },
     {
       module: "falcon/identity",
       cardIds: ["53001a"],
