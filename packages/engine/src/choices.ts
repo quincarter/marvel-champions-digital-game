@@ -1,10 +1,10 @@
-import type { AbilityId, CardId } from "@mc/content";
+import type { AbilityId, CardId, EvidenceCombination } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
 import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
 import type { PairLimit, StatusName } from "./spec.js";
-import type { Form } from "./state.js";
+import type { Form, ZoneId } from "./state.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -16,6 +16,12 @@ export interface AttackInProgress {
   readonly enemyInstanceId: InstanceId;
   readonly targetPlayerId: PlayerId;
   readonly targetCharacterInstanceId: InstanceId;
+}
+
+/** A place a card holds: its zone and its index there (0 is the top of a deck, the front of a dealt queue). */
+export interface CardPosition {
+  readonly zone: ZoneId;
+  readonly index: number;
 }
 
 /** What a `chooseFromList` prompt enumerates. `cardType`: the fifteen card types (RRG 1.8 "Card Types", p. 12). */
@@ -68,14 +74,37 @@ export type ChoicePrompt =
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }
   | { readonly kind: "chooseAttachmentTarget"; readonly instanceId: InstanceId }
-  /** Cards outside play (a look at the top of a deck, a search, a discard pile). */
-  | { readonly kind: "chooseCards"; readonly slot: string }
+  /**
+   * Cards outside play (a look at the top of a deck, a search, a discard pile), or any cards a ref names.
+   *
+   * `maxTotal` (`EffectSpec chooseCards.maxTotal`, docs/phase7-wave9.md §3.11): the selected cards' `values` (by
+   * option id; `of` says what they are) sum to at most `atMost`. Every offered card fits on its own, and
+   * `maxSelections` is the most that fit together; a selection over the limit is refused (`cardTotalFault`).
+   */
+  | {
+      readonly kind: "chooseCards";
+      readonly slot: string;
+      readonly maxTotal?: {
+        readonly of: "printedCost";
+        readonly atMost: number;
+        readonly values: Readonly<Record<string, number>>;
+      };
+    }
   /**
    * `EffectSpec lookAt`: the options are cards the player is looking at (RRG 1.8 "Look, Looked-At", p. 27), offered
    * only so they are face-visible to them. Nothing can be selected (`minSelections` = `maxSelections` = 0): the only
    * answer is the empty one, an acknowledge.
    */
   | { readonly kind: "lookAt" }
+  /**
+   * `EffectSpec lookAt` with `rearrange` (docs/phase7-wave9.md §3.12): "look at each encounter card dealt to each
+   * player and the top card of the encounter deck. You may swap any number of those cards." The options are the cards
+   * the player is looking at, face-visible to them alone (`visibility.ts`), and option `i` is the card now at
+   * `positions[i]`. The answer is every option exactly once, in order (`minSelections` = `maxSelections` = the number
+   * of options): selection `i` is the card that goes to `positions[i]`. The options in the order offered is the
+   * arrangement that swaps nothing, which is always allowed.
+   */
+  | { readonly kind: "rearrange"; readonly positions: readonly CardPosition[] }
   /**
    * "Choose one" among labeled options; option ids are the option indexes. Also where a card an effect plays goes
    * when the rules give a choice of place (`EffectSpec playFromHand`): its option ids are `PLAY_TO_OWN_AREA` and
@@ -146,6 +175,21 @@ export type ChoicePrompt =
       readonly min: number;
       readonly max: number;
     }
+  /**
+   * "Remove 1 all-purpose counter from [a card]" / "move 1 all-purpose counter" (`counterType: "any"`,
+   * docs/phase7-wave9.md §3.6) from a card that holds counters of several types, with fewer taken than it holds: the
+   * player resolving the effect picks which. RRG 1.8 "All-Purpose Counter" (p. 6): such an ability "can refer to any
+   * all-purpose counter, regardless of what other types that counter might have". One option per counter that could
+   * go (at most `amount` of a type), its `optionId` `<type>#<n>` and its label the type; exactly `amount` are
+   * selected. `byType` is what the card holds. Not asked when the card holds one type or every counter goes.
+   */
+  | {
+      readonly kind: "chooseCounters";
+      readonly instanceId: InstanceId;
+      readonly amount: number;
+      readonly reason: "remove" | "move";
+      readonly byType: Readonly<Record<string, number>>;
+    }
   /** Paying for an interrupt/response event played from hand inside a timing window. */
   | {
       readonly kind: "payForCard";
@@ -176,6 +220,12 @@ export type ChoicePrompt =
   /**
    * An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines.
    *
+   * `required` (`EffectSpec spendResources.required`): the player already chose to spend, so there is no declining: a
+   * selection that does not pay `requirement` (and `distinctTypes`) in full is refused by `resolveChoice` and the
+   * choice stays pending. It is only asked of a player who can pay. The choice's options then list a payment in full
+   * from the fewest of them first, and `minSelections` is that many (`fewestSpend`): no payment holds fewer, and the
+   * first `minSelections` options are a legal answer, as for any choice.
+   *
    * `distinctTypes` (docs/phase7-wave6.md §3.69, "spend 2 different resources"): present only when the effect asks for
    * it. The payment must also hold this many resource types, a wild being any one type; fewer declines.
    */
@@ -183,6 +233,7 @@ export type ChoicePrompt =
       readonly kind: "spendResources";
       readonly requirement: ResourceRequirement;
       readonly distinctTypes?: number;
+      readonly required?: true;
       /**
        * The payment is an additional cost to change form, asked as a player card's effect changes the player's form
        * (`RuleSpec formChangeCost`; docs/phase7-wave8.md §3.63): the form being changed to and the cards the cost is
@@ -257,6 +308,18 @@ export type ChoicePrompt =
    */
   | { readonly kind: "searchCollection"; readonly slot: string }
   /**
+   * `EffectSpec accuse` (docs/phase7-wave9.md §3.29 (b); MC50 p. 19, "The Accusation"): choose one combination of the
+   * grid that is not crossed out. `grid` is every row, for drawing the whole grid; `crossedOut` is the evidence cards
+   * the players hold faceup, each of which crosses out the rows it is in (MC50 p. 18). One option per row left, in the
+   * grid's order: its `optionId` is `evidenceRowId(row)` (`<means>+<motive>+<opportunity>`, card ids), its `ref` the
+   * card definition of the row's board member. Exactly one is selected.
+   */
+  | {
+      readonly kind: "accuse";
+      readonly grid: readonly EvidenceCombination[];
+      readonly crossedOut: readonly CardId[];
+    }
+  /**
    * `EffectSpec reportFact` (docs/phase7-wave7.md §3.83): `playerId` reports a fact from outside the game, and only
    * that player may answer. Exactly one selection.
    *
@@ -319,10 +382,15 @@ export type ChoicePrompt =
    *
    * `eachAtLeast`: every card among the options gets at least this many points (a divided basic power's shares, each
    * "at least 1": `basicPowerBy`); `resolveChoice` refuses a selection that leaves one short.
+   *
+   * `what: "counters"` (docs/phase7-wave9.md §3.27): `amount` counters of `counterType` (`"any"`: of any type) are
+   * removed, already no more than the options' cards hold; a card has one option per counter on it, up to `amount`.
    */
   | {
       readonly kind: "divide";
-      readonly what: "damage" | "threat" | "heal" | StatusName;
+      readonly what: "damage" | "threat" | "heal" | "counters" | StatusName;
+      /** With `what: "counters"`: the counter type being removed. */
+      readonly counterType?: string;
       readonly amount: number;
       readonly maxTargets?: number;
       readonly caps?: Readonly<Record<string, number>>;
@@ -336,6 +404,32 @@ export type ChoiceRef =
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
   | { readonly kind: "none" };
+
+type CardTotal = NonNullable<Extract<ChoicePrompt, { kind: "chooseCards" }>["maxTotal"]>;
+
+/** What the selected cards of a `chooseCards` choice with `maxTotal` add up to. */
+export const cardTotalOf = (limit: CardTotal, selected: readonly string[]): number =>
+  selected.reduce((sum, optionId) => sum + (limit.values[optionId] ?? 0), 0);
+
+/** Why a selection breaks a `chooseCards` choice's `maxTotal`, or null (docs/phase7-wave9.md §3.11). */
+export function cardTotalFault(limit: CardTotal, selected: readonly string[]): string | null {
+  const total = cardTotalOf(limit, selected);
+  return total > limit.atMost
+    ? `the cards chosen have a combined printed cost of ${total}; the most allowed is ${limit.atMost}`
+    : null;
+}
+
+/** The most cards of `values` that fit under `atMost` together: the cheapest first. */
+export function mostCardsUnderTotal(values: readonly number[], atMost: number): number {
+  let total = 0;
+  let count = 0;
+  for (const value of [...values].sort((a, b) => a - b)) {
+    if (total + value > atMost) break;
+    total += value;
+    count++;
+  }
+  return count;
+}
 
 /** The option of an effect play's destination choice that plays the card to its player's own play area. */
 export const PLAY_TO_OWN_AREA = "playTo:ownArea";

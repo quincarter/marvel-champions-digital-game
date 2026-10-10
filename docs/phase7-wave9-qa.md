@@ -1,0 +1,660 @@
+# Phase 7 wave 9 rules-QA pass
+
+`rules-qa-engineer`, 2026-10-10, branch `feature/wave-9`. Definition of done step 4 ("Rules QA", `docs/wave-definition-of-done.md`):
+each pack audited against its card text, RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`) and the FFG rulings
+(`marvel-champions-rulings-post-rrg-1-7.md`). Owner answers are `docs/phase7-wave9.md` section 4.1 and are not reopened here. No script,
+engine or data file was changed; findings are reported for the owning specialist.
+
+## Black Panther (bp)
+
+Scope: 51001a/b to 51042 (scripts in `packages/cards/src/wave9/bp/`, data in `packages/content/src/data/bp/cards.ts`). Every script was read
+against the printed text in the data. Regression tests: `packages/cards/src/wave9/bp/rulings.qa.test.ts` (16 tests, 1 of them `it.fails`
+pinning the findings below, each with a companion test that pins today's behavior). The module tests are thorough (about 320 cases); this file
+holds only interactions they do not assert.
+
+### Findings
+
+| Card id                    | Expected (source)                                                                                                                                                                                                                                                                                                                                      | Actual                                                                                                                                                                                                                                                          | Severity   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 51025 Heart of the Panther | "Resolve the Special on up to 4 Black Panther upgrades": at least 1 must be chosen when one can resolve (owner decision wave 3 Q16, `docs/phase7-wave3.md` section 4; restated in `docs/phase7-wave9.md` 3.36). No printed "may".                                                                                                                      | Was `chooseCards(min 0, max 4)`. **Fixed**: the script now takes 1 to 4, and `aspect-basic.test.ts` asserts it.                                                                                                                                                 | Low, fixed |
+| 51018 The Raft             | Printed "tuck it under here from the encounter discard pile" is before the cost arrow, so it is a cost; a cost that cannot be paid cannot be initiated (RRG 1.8 "Cost"). A minion with Victory (Joystick 51039) that leaves play goes to the victory display (RRG "Victory X"), not the encounter discard pile, so the response should not be offered. | The response is offered for any minion that leaves play and then does nothing (nothing tucked, no threat removed, no deal). Already documented in the script's header as a known deviation (no tuck cost exists in the engine); recorded here so it is tracked. | Low        |
+
+The Raft is pinned: `it.fails` for the expected behavior and a passing test for today's. When it is fixed, flip the `it.fails` to `it` and
+delete its companion.
+
+### Checked, no findings
+
+- **Stun and Confuse against labeled abilities (RRG "Labeled Ability", "Stun, Stunned", "Confuse, Confused"; ruling Aug 13, 2026 (1)).** A stunned
+  hero playing Clawed Strike 51003 loses the whole ability (no 4 damage, no Special), the stun card is discarded and the event is still played;
+  a confused hero playing On the Prowl 51004 likewise. Wakanda Forever! 51005 with a stunned hero: Panther Claws' (attack) Special is canceled
+  and uses up the stun while Kimoyo Beads' (thwart) Special still resolves. A stunned White Wolf 51037 attack is "not considered to have
+  attacked", so his Forced Response places no threat.
+- **T'Challa's Shadow 51031.** At the last doubt counter the card is discarded to the victory display (RRG "Uses", "Victory X"), not the discard
+  pile, and its +1 cost ends. A (thwart) event counts as "you thwart" and removes a counter (RRG "Labeled Ability"); a stunned hero's replaced
+  basic attack does not. (Existing tests cover basic thwart, attack, defense, and that an ally's attack is not "you".)
+- **Spider Bites 51012** choosing the other player in a two-player game: the villain and only that player's minion take 1 and are stunned; the
+  first player's own minion is untouched.
+- **Vibranium Suit 51013** on a hero that already has a tough status card: the hero keeps one, per RRG "Status Cards" ("cannot have more than one
+  status card of each type"). Note the RRG's own "Tough" entry has a bullet about "multiple tough status cards"; it grants nothing, so the
+  engine's single-card cap is right, but the two entries read oddly together (not a conflict with any ruling).
+- **Queen Ramonda 51008**: another player's T'Challa in hero form is not an alter-ego and is not healed.
+- **Target Spotter 51038 with Quickstrike (RRG "Activation", "Quickstrike"; FAQ "Target Spotter (#38)", RRG p. 65).** A Quickstrike minion (Vulture)
+  dealt to another player and Spotted onto the Spotter's player engages them and does not attack (a Quickstrike attack is an activation, and
+  "cannot activate" holds until the end of the phase).
+- **The Scream 51035 as a boost card** when an ally defends: "you are stunned" is the player's identity; the defending ally is not stunned.
+- **Extreme Risk 51042 as a boost card on a scheme activation** (Shuri in alter-ego form): the extra boost card is dealt and flipped and its
+  icons count (SCH 1 + 2 + 1).
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: the Inventor search and reduction (51001b, owner Q15: the
+search is compulsory), Black Panther and T'Challa responses (a Special resolved this way is not a basic power, so no chain), Panther Claws'
+single instance of 5 with piercing, Kimoyo Beads, the Elephant's Trunk (FAQ p. 65), Aja-Adanna, Manifold, Infiltration, Going Undercover,
+Show of Empathy and Redemption, Invisibility Gear, Sting Operation, the Dora Milaje allies and support, White Wolf, Build Support and Sonic
+Rifle (aliases of earlier scripts), Klaw, the two M.U.S.I.C. cards, Joystick, Energy Truncheon and Playing for Keeps.
+
+### Thin coverage and open points
+
+- **Cost-modifier order, unverified.** Shuri's Inventor "reduce its resource cost by 2" together with T'Challa's Shadow's "+1 to each card you
+  play" on a card whose printed cost is 1 (Invisibility Gear) gives 0 or 1 depending on whether the reduction is applied before the increase.
+  RRG 1.8 "Cost" and "Ignore" and the rulings file give no order, so no test was written; ask the owner or FFG before pinning it.
+- **Klaw and Playing for Keeps together** (Klaw gets one boost card from his own Forced Interrupt and one from Playing for Keeps; text says "in
+  addition to any other boost cards"): each is tested alone, the pair is not.
+- **Energy Truncheon's Hero Action under Invisibility Gear** (the attack becomes a scheme: is "after this attack, discard this card" met?): no
+  ruling found, not tested.
+- **Quickstrike on a minion Infiltration 51015 puts into play** is owner question 25 (it attacks); not re-tested here.
+- No FFG ruling in the file names a bp card or Special-based mechanic, and no conflict between the RRG and a ruling was found for this pack.
+
+## Silk (silk)
+
+Scope: 52001a/b to 52038 (scripts in `packages/cards/src/wave9/silk/`, data in `packages/content/src/data/silk/cards.ts`). Every script was read
+against the printed text in the data. Regression tests: `packages/cards/src/wave9/silk/rulings.qa.test.ts` (15 tests, none of them `it.fails`).
+The module tests are thorough (about 400 cases, including the Q7 cases for Cindy Moon, Swinging Silk Kick, Wallcrawl and the four-card cap);
+this file holds only interactions they do not assert.
+
+### Findings
+
+None. Every case written against an RRG entry, a ruling or an owner decision passed on the first run after the test setup was right (three
+early failures were mistakes in the test staging, not in the game: a filler card that was in Rhino's set, a defeat staged out of turn, and a
+picker that named the same card for two different prompts).
+
+### Checked, no findings
+
+- **Stun and Confuse against labeled events and basic-power upgrades (RRG "Labeled Ability", "Stun, Stunned", "Confuse, Confused"; ruling
+  Aug 13, 2026 (1)).** A stunned hero playing Swinging Silk Kick 52003 loses the whole ability: no damage, and the optional discard of a tucked
+  card is not made (it is part of the effect, not a cost), while the event is still played. A confused hero playing Wallcrawl 52004 removes
+  neither the 2 nor the 3 threat and keeps the tucked card. A stunned hero's basic attack and a confused hero's basic thwart are replaced by
+  discarding the status card, so Spider Claws 52011 and Outwit 52010 are not offered and stay ready ("not considered to have attacked").
+- **Silk Sense 52001a through events and Overkill.** Swinging Silk Kick with a matching tucked card defeats Sandman (4 hit points) with 9
+  damage: the 5 excess damage goes to Rhino (RRG "Overkill") and Silk Sense is offered for the defeat and tucks Sandman. Wallcrawl removing the
+  last threat from a side scheme is Silk's defeat, and the response is offered.
+- **Response timing inside an event (RRG "Initiating Abilities" step 7; FAQ "Tigra (#51)").** Silk Sense is offered immediately after the
+  side scheme is defeated by Wallcrawl's first sentence, before its second sentence resolves, so the side scheme just tucked is a legal card
+  to discard for the 3 additional threat when it shares an encounter set with the chosen scheme. This follows the FAQ's "immediately after"
+  reading; recorded here because it is a surprising consequence for a player.
+- **Silk Sense and another player.** In a two-player game, the other player's basic attack that defeats a minion does not offer Silk Sense
+  to the Silk player, and nothing is tucked.
+- **Silk Sense on a treachery that tucks itself.** Hunting the Spider-Bride 52031 revealed with Silk Sense accepted: the card is tucked once
+  (by its own When Revealed), is not in the encounter discard pile, and is not tucked a second time.
+- **Eidetic Memory 52008 (erratum, RRG p. 70).** A boost card of the tucked card's encounter set is flipped, not revealed, so the interrupt
+  is not offered (control: the same card dealt to Silk is offered). In a two-player game a card the other player reveals does not open
+  Silk's interrupt ("when you reveal"). Ruling April 30, 2026, Ruling 3 (3) (flipping an environment is not a reveal) is a scenario case
+  (Wheel of Genres, Alert Level) outside this pack's fixtures; `docs/phase7-wave9.md` section 3.16 already carries it.
+- **Spider Reflexes 52012 under Silk Sense Overload 52028.** The after-the-attack tuck is a player card's (an upgrade), so the encounter
+  card goes under the obligation, and nothing goes under Silk. The module tests cover Albert Moon, Smooth as Silk, Get the Scoop and an
+  encounter card's own tuck.
+- **Organic Webbing 52009 discarding a Hunting the Spider-Bride (owner decision Q7 = A).** The discard is a cost of a player card's
+  ability, so the 2 damage is dealt to Silk, the Bride goes to the encounter discard pile and Webbing is exhausted. The module tests cover the
+  same for Cindy Moon's action.
+- **"Stop Hitting Yourself" 52016 with a tough status card (RRG "Tough").** Silk defending an attack that would deal 1 damage after her DEF
+  and absorbing it with a tough status card "is not considered to have taken damage", so the response is offered (control: with 1 damage
+  taken it is not).
+- **Wallcrawl 52004 and the crisis icon (RRG "Crisis Icon").** With Crowd Control (crisis) in play, the 2 threat comes off Crowd Control but
+  the 3 aimed at the main scheme is not removed.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: both faces of the four-card cap (a state check, the
+controller picks the four that stay), Cindy Moon's discard cost and once-per-round limit, Smooth as Silk (until-discard, empty deck fulfills
+the effect, RRG "Encounter Deck"), Get the Scoop (any player, `triggerableBy`, the Cindy Moon player tucks), Albert Moon, J. Jonah Jameson,
+the Outwit/Spider Claws counts by encounter set with piercing, Spider Reflexes' DEF, Morlun's constant and When Defeated, The Great Hunt,
+Silk Sense Overload's redirect and "then", Hunting the Spider-Bride (Q7), the Growing Strong set (Atlas, Grow Invulnerable, Growing Strong,
+Titanic Proportions) and the basic cards (reprints of Rogue's Not Today!, Spider-Man 27049 and Across the Spider-Verse 27018 are aliases of
+those scripts; Quick Quip is the wave 5 script).
+
+### Thin coverage and open points
+
+- **Stunned or confused Atlas against Growing Strong 52037.** The text gains surge "if no enemy activated this way", and RRG "Stun, Stunned"
+  says a stunned enemy "is not considered to have attacked" (RRG "Activation": attacking or scheming is activating), so a stunned Atlas
+  should leave surge in place. Not tested: an Atlas already in play activates in the villain phase's step 2 and spends the stun before the
+  encounter card is revealed, and the harness has no way to stop between steps. Needs a stepwise driver or a reveal outside the villain phase.
+- **Wallcrawl when the removal is prevented.** With the 3 threat prevented by a crisis icon, the tucked card is still discarded (the
+  discard is "may ... to remove"). No ruling found; not pinned.
+- **Albert Moon's heal option with nothing tucked** (heals 0): no ruling on offering an option that does nothing; not tested.
+- **Eliminated player.** RRG "Elimination" moves an eliminated player's minions with their tucked cards; what happens to cards tucked under
+  an eliminated identity (an identity that leaves play discards them, RRG "Tuck") is not tested, nor is the Spider-Bride's "that identity
+  takes 2 damage" for it.
+- No FFG ruling in the file names a silk card except Ruling April 30, 2026, Ruling 3 (3) (Eidetic Memory) and Ruling December 17, 2025,
+  Ruling 2 ("Stop Hitting Yourself"'s DEF), both already asserted by the module tests; no conflict between the RRG and a ruling was found
+  for this pack. The RRG's own wording on responses ("may be resolved after the specified triggering condition occurs") and on step 7 of
+  "Initiating Abilities" agree with the FAQ's Tigra answer.
+
+## Winter Soldier (winter)
+
+Scope: 54001a/b to 54033 (scripts in `packages/cards/src/wave9/winter/`: the hero's identity, events, support-upgrades-allies and
+obligation-nemesis modules and `aspect-basic.ts`; data in `packages/content/src/data/winter/cards.ts`). Whiteout, Blizzard 54034, Encased in Ice
+54035 and Slippery Conditions 54036 are not scripted yet and were not audited. Every script was read against the printed text in the data.
+Regression tests: `packages/cards/src/wave9/winter/rulings.qa.test.ts` (25 tests, none of them `it.fails`). The module tests are thorough
+(about 350 cases, including the owner's Q21 Firepower cases and the Arm Block cases for ruling January 17, 2026 - Ruling 2); this file holds
+only interactions they do not assert.
+
+### Findings
+
+None. Every case written against an RRG entry, a ruling or an owner decision passed once the test staging was right (the early failures were
+mistakes in the staging, not in the game: a main scheme at 0 threat when Lethal Protector removes 2, a second player thwarting out of turn and
+in alter-ego form, and a stunned Rhino that is dealt no boost card, so the stacked "Assault" was dealt to the player and attacked).
+One case is an open rules point rather than a finding (see below).
+
+### Checked, no findings
+
+- **A stunned hero and Winter Soldier's attack events (RRG "Labeled Ability" p. 26, "Stun, Stunned" p. 41; ruling August 13, 2026 - Ruling 1
+  (1)).** Metal Punch 54005 paid with Cybernetic Arm, Electrical Discharge 54006, Super-Soldiers 54022 and Firepower 54014 (Sidearm exhausted
+  as its cost) are all played, their costs paid (the Arm and the Weapon end exhausted), and the whole ability is canceled: no damage, no stun
+  on the enemy, no tough cards for Captain America and Winter Soldier, and the stun card is removed.
+- **Arm Block 54004 (attack/defense) with status cards.** A stunned hero: the whole ability is canceled, so there is no 3 damage and no
+  defense, and the hero takes Rhino's 2 damage ("the entire ability ... is canceled", "each status card ... that cancels any of the labeled
+  ability's types is removed"). A confused hero: confuse cancels only a thwart, so Arm Block deals 3, defends, and the confused card stays.
+  A stunned Rhino makes no attack ("not considered to have attacked"), so "When an enemy attacks" never happens and Arm Block is not offered.
+- **Winter Armor 54009 and Steady (RRG "Steady" p. 41).** One stunned status card on the armored hero does not resolve: the basic attack is made
+  and the card stays. Two do resolve: the attack is replaced and both are removed.
+- **One basic attack with Winter Rifle 54011, Bambino 54018 and the defeat responses (RRG "Piercing" p. 32, "Overkill" p. 31, "Tough" p. 44,
+  "Restricted" p. 38; ruling January 17, 2026 - Ruling 3 (2); ruling March 6, 2026 - Ruling 1 (2)).** On a tough Shocker the Rifle's piercing
+  discards the tough card first, so ATK 4 + 3 = 7 defeats it and 4 spill to Rhino through Bambino's overkill; Lethal Protector then removes
+  2 threat; two restricted cards stay within the limit. Bambino alone against the tough card: all damage is prevented, nothing spills, and the
+  ammo counter is still spent. Lethal Protector, Winter Mask and Silent Infiltration all answer one defeat: threat 2 removed, 1 card drawn,
+  the hero readied, an enemy confused.
+- **Cybernetic Arm 54002 with the events it pays for (RRG "Event" p. 19; owner answer Q53; "Wild Resource").** One by One 54015 paid with
+  the Arm: both instances of damage are +1 (3 to the Shocker, then 3 to the villain). Electrical Discharge paid with the Arm's wild resource
+  and a [mental] card stuns (the wild counts as [energy]) and deals 4 + 1. Metal Punch with the Arm against a tough Shocker: prevented in
+  full, no overkill excess reaches Rhino.
+- **Team-Up with another player's character (RRG "Team-Up" p. 43).** In a two-player game Super-Soldiers is playable with the other
+  player's Captain America in play ("a friendly character in play"), and he receives the tough status card.
+- **Safe House #30 54007 finding Crossbones (RRG "Quickstrike" p. 36, "Engage" p. 18).** In alter-ego form the Quickstrike minion engages
+  Bucky Barnes and does not attack (Quickstrike needs a player in hero form); the "then" card is drawn.
+- **Crossbones 54028 and Hydra Hit Squad 54029 (RRG "Hit Points" p. 22, "Tough" p. 44).** The side scheme's +1 ATK makes his attack (3) defeat
+  a full-health Black Widow and the Forced Response places 2 threat (without it she survives with 2 damage). A tough Captain America hit for
+  3 is not defeated and the response does not trigger (control: without tough, it does). When the side scheme is defeated the +2 hit points
+  end and a Hydra minion with 4 damage is defeated at once (Hit Points: a "+X hit points" that ceases to be in effect). In a two-player game
+  the player who thwarts it gets the found Hydra minion engaged with them.
+- **High-Tech Armament 54030's Hero Action cost.** With the identity exhausted and no other character the action is refused; with a ready
+  ally, the ally is exhausted to pay it and the card is discarded.
+- **Man on the Wall 54019.** A reduction not used in the hero phase is gone the next round: Winter Rifle (cost 3) paid with 2 cards is
+  refused, and accepted with 3.
+- **Spoiling for a Fight 54016 with no minion (RRG "Encounter Deck" p. 17).** The discard runs out the deck and is "considered to be
+  fulfilled": no minion enters play and the hero is still readied. The module comment's "everything before the arrow is a cost" does not make
+  the event unplayable here, and the RRG sentence says it should not.
+
+### Open point (pinned, not an `it.fails`)
+
+- **54023 Winter, Widow, Soldier, Spy putting a second Aggressive Stance 54017 ("Max 1 per player") into play while one is attached.**
+  **Answered: owner 37 = A (2026-10-10), built in the engine: the second copy does not enter play and stays where it was.** As found:
+  RRG "Play, Put into Play" (p. 32): a card put into play bypasses "any restrictions or prohibitions regarding playing that card". RRG "Max":
+  "A player cannot take control of another copy of a 'Max 1 per player' card they already control." The RRG does not say which wins, and no
+  ruling in `marvel-champions-rulings-post-rrg-1-7.md` names it. Today both copies end up attached to the identity (put into play wins).
+  Needs an owner answer; if the Max entry should win, the fix is in the engine's put-into-play path (one check), not in the script.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: Lethal Protector (an own attack that defeats; 2 threat removed,
+not thwarted), Cybernetically Enhanced (cost, compulsory search of deck and discard, shuffle), Black Widow's response (played from the hand,
+Attack events only), Silent Infiltration, Winter Mask's Spy trait and draw, Winter Rifle (basic attacks by the hero only, +2 ATK, piercing and
+ranged), Metal Punch and Arm Block (the Arm's note), Electrical Discharge's energy stun, Red Room Programming (highest printed cost, ties, an
+empty hand), Crossbones' Quickstrike and Forced Response, Hydra Hit Squad's stats and When Defeated, High-Tech Armament's attachment target and
+activation, Captain America's and Deathlok's responses, Firepower (owner answer Q21 = B: one attack, up to three assignments, guard re-read per
+assignment), One by One (a reprint of 28014), Aggressive Stance, Bambino, Man on the Wall's reduction, Sidearm, Nick Fury, Sr. (a reprint of
+50054), Super-Soldiers and Winter, Widow, Soldier, Spy, White Widow's `abilityResolved` heal and S.H.I.E.L.D. Deputy (erratum, RRG p. 70).
+
+### Thin coverage and open points
+
+- **Winter Armor 54009 leaving play with damage.** RRG "Hit Points": when "+X hit points" ceases to be in effect the dial is reduced by X, so a
+  hero with 11 or more damage whose Armor is discarded is defeated. Not tested: nothing in the pack discards an upgrade, and surgery would skip
+  the engine path under test. The module tests cover only the back-to-11 case with no damage over it.
+- **Sidearm 54020 defeating the attack's target before the attack.** A Shocker with 1 hit point left, a basic attack declared against it, and
+  the Sidearm interrupt's 1 damage defeats it first. Whether the attack is canceled and whether "attack and defeat" responses (Lethal Protector)
+  are offered is not stated by the RRG or any ruling found; not tested.
+- **High-Tech Armament 54030 revealed to an enemy that is stunned or confused.** "That enemy activates against you" should spend the status
+  card (RRG "Stun, Stunned"), but Armament is dealt after the villain and the minions have activated, so the status cards are spent first and
+  the harness cannot stop between steps. Needs a stepwise driver (`driveStepwise`) with surgery at the moment the card is revealed. The
+  interaction with Fixer 53038 is `it.todo` in the module test (engine task 35).
+- **Red Room Programming 54027 in a two-player game** (given to the Bucky Barnes player) and the choice of where to put indirect damage with an
+  ally in play are not tested.
+- **Cybernetic Arm and Super-Soldiers/Firepower together with Team-Up in a game with Captain America under the other player's control**: only
+  Super-Soldiers with the Arm absent is tested.
+- No FFG ruling in the file names a `winter` card except Ruling January 17, 2026 - Ruling 2 and Ruling March 6, 2026 - Ruling 1 (1) (Arm
+  Block, both already asserted by the module tests). No conflict between the RRG and a ruling was found for this pack. The RRG's "Encounter Deck"
+  sentence on emptied discards and the module comment on Spoiling for a Fight ("a cost") read differently; the game follows the RRG sentence.
+
+## Falcon (falcon)
+
+Scope: 53001a/b to 53037 (scripts in `packages/cards/src/wave9/falcon/`: the hero's identity, events, support-upgrades-allies and
+obligation-nemesis modules and `aspect-basic.ts`; data in `packages/content/src/data/falcon/cards.ts`). The `techno` module is not scripted and
+was not audited. Every script was read against the printed text in the data. Regression tests: `packages/cards/src/wave9/falcon/rulings.qa.test.ts`
+(19 tests, 1 of them `it.fails` pinning the finding below, with a companion test that pins today's behavior). The module tests are thorough
+(about 400 cases, including the owner's Q6, Q34 and Q35 cases and the Redwing FAQ cases of rulings January 26 and March 19, 2026); this file holds
+only interactions they do not assert. Already-recorded gaps (Aerial Recon's action, Talon Line in a real game, Redwing's exhaust cost, Captain
+America's Shield set-aside, Strength in Diversity, and the swapped-in boost card of Up, Up, and Away) were not re-reported.
+
+### Findings
+
+| Card id                                      | Expected (source)                                                                                                                                                                                                                                                                                                                                                                                                                                            | Actual                                                                                                                                                                                                                                                                                                                               | Severity |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| 53009 Aerial Recon / 53031 Serpent Solutions | "Interrupt: When a player would be dealt an encounter card, remove 1 recon counter from here instead." `docs/phase7-wave9.md` section 3.45 says the interrupt hears every deal to any player, "a card's 'deal ... as a facedown encounter card' (Serpent Solutions, The Raft)", and lists "Serpent Solutions' deal of a discarded minion replaced: the minion stays in the encounter discard pile" as a test (RRG 1.8 "Deal, Deal an Encounter Card" p. 15). | Aerial Recon is never offered for Serpent Solutions' deal: the engine does not announce a named-card deal (`trigger-events.ts`, `TriggerEvent encounterCardBeingDealt`, "Not announced: ... a named card dealt to a player"), so the Soldier is dealt facedown to the first player and the recon counter stays. The script is right. | Medium   |
+
+The fix needs the engine (a "would be dealt" window in `dealAsEncounterCards`, whose replacement leaves the named card where it is, in the
+discard pile), not a script change; if the owner prefers the engine comment's reading (a named card is not "taken from the deck", so it is not a
+deal the interrupt hears), the spec's section 3.45 line and test list are what change. The same text names The Raft 51018 (Black Panther), which
+would be answered by the same fix. It is pinned: `it.fails` for the expected behavior and a passing test for today's. When it is fixed, flip the
+`it.fails` to `it` and delete its companion.
+
+### Checked, no findings
+
+- **A stunned or confused Falcon and Bird of Prey 53003 / Bird's-Eye View 53004 (RRG "Labeled Ability" p. 26, "Stun, Stunned" p. 41, "Confuse,
+  Confused" p. 13; ruling August 13, 2026 - Ruling 1 (1)).** Stunned plus Bird of Prey (attack): the event is played and spent and Eagle-Eyed is
+  still offered, but no damage is dealt, the stun card is removed and the optional discard does not happen (the top card stays on the deck: the
+  discard is part of the canceled effect, not a cost). Confused plus Bird of Prey: 4 + 3 damage, the confused card stays. Confused plus
+  Bird's-Eye View (thwart): nothing removed, the confused card goes, the top card stays. Stunned plus Bird's-Eye View: 3 + 3 threat removed, the
+  stunned card stays.
+- **Redwing 53002's action with status cards on Falcon (RRG FAQ "Redwing (#2)" p. 65).** The damage is neither an attack nor a thwart, so a
+  Falcon who is both stunned and confused uses it in full and both cards stay.
+- **Tough (RRG p. 44).** Bird of Prey at a tough minion: the top card is discarded and the +X read, but all the damage is prevented and the tough
+  card is spent. Redwing's "deal X damage" at a tough minion likewise (damage from an ability is damage).
+- **Aerial Evacuation 53008 and Overkill (ruling March 6, 2026 - Ruling 1 (2); RRG "Overkill" p. 31).** Control: Rhino with Charge (ATK 5,
+  overkill) against a defending Redwing defeats him and 3 excess lands on Falcon. With Evacuation the damage to Redwing is prevented, he is not
+  defeated, no excess reaches Falcon, and Falcon changes to alter-ego form.
+- **Vibranium Microweave 53013 with exactly 1 damage.** "Prevent 1 of that damage and deal 1 damage to an enemy": a 1-damage attack is prevented
+  in full (Falcon takes 0) and the 1 damage to the chosen minion is still dealt; the upgrade is exhausted.
+- **Draw Their Fire 53011 in a two-player game.** The rule covers Falcon only: the other player's hero attacked in the same villain phase still
+  exhausts to defend.
+- **Eagle-Eyed 53001a in a two-player game.** The other player playing an Aerial card does not offer it to Falcon's player and discards nothing
+  ("After _you_ play").
+- **Harlem's Protector 53029 with Falcon as the second seat.** Dealt to the first player (Spider-Man) and revealed, it is given to the Sam Wilson
+  player: it lands in P2's play area with 3 emergency counters and not in P1's. (The villain activates once against each player, so a two-player
+  villain phase turns two boost cards before the first deal.)
+- **Serpent Solutions 53031 and the first player.** With P2 as the first player, the Serpent Soldier Eagle-Eyed discards is dealt facedown to P2,
+  not to Falcon's player.
+- **Up, Up, and Away 53005 on an attack against another player (RRG "Labeled Ability" p. 26: a (defense) ability initiated during an attack makes
+  the identity the defender).** Offered for Rhino's attack on P2 as well as on Falcon (the card names no target); taking it makes Falcon the
+  defender, so that hit lands on Falcon. Declined both times, the two hits land on Falcon and on P2.
+- **Viper 53030 with a deck of three (RRG "Encounter Deck" p. 17).** Of the five cards, three are discarded, the deck is reset (one acceleration
+  token) and the discard stops: the other two are not taken from the new deck. The module header's "one at a time with the deck reset if it
+  empties" reads as if it continued; the game follows the RRG sentence.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: Falcon's constant (hero face, player phase only, hidden again
+in the villain phase), Eagle-Eyed (any Aerial card played, no limit), Birds of a Feather (cost, compulsory search of deck and discard, shuffle,
+limit across flips per ruling January 26, 2026 - Ruling 6 (2)), the Q6 = A switch shared by Bird of Prey, Bird's-Eye View, Redwing and
+Battlefield Awareness (a facedown top card per ruling March 19, 2026 - Ruling 5), Falcon's Flock (once per card paid, owner question 36 built on
+A), Soup Kitchen (heal equal to REC, the next ally or support), Draw Their Fire, Talon Line (stars count; Q35 = A), Aerial Recon's interrupt, Serpent
+Society cards, Adder-tisement, and the whole of `aspect-basic.ts` (reprints aliased to their sources; Spectrum, Resource Reserve, Flight Squadron,
+Hugin & Munin, Misty Knight, Ops Room, Wingman, Winter Soldier, Captain America's action).
+
+### Thin coverage and open points
+
+- **Piercing against Aerial Evacuation (ruling January 17, 2026 - Ruling 3 (2)).** Piercing removes a tough card before Evacuation prevents
+  the damage taken. Not tested: it needs an ally with a tough card defending a piercing attack, and no piercing enemy attack was staged; the engine's
+  Piercing and Tough are tested in the Winter Soldier file against Winter Rifle.
+- **Battlefield Awareness 53010 on a basic attack replaced by a stun or a confuse.** Whether "uses a basic power" is true when the stunned
+  Falcon's attack is canceled (RRG "Stun" says costs are still paid and he "is not considered to have attacked") is not stated for this wording and
+  no ruling names it; not tested.
+- **Misty Knight 53036 discarding the second of the top 2 cards when it is a Serpent Society minion with Serpent Solutions in play.** RRG
+  "Discard" (p. 16): cards looked at from the top and discarded "are considered to have been discarded from the top of that deck", so Solutions
+  should hear it; no test combines the two cards.
+- **Hugin & Munin 53017 searching the top 10 while the top card is faceup (Falcon's player phase).** The module tests cover the search; none
+  checks that the new top card is shown (and logged) afterward.
+- **Up, Up, and Away 53005 on a minion's boost card against another player.** The test staging used Rhino's attacks (the minion engaged with P2
+  was not dealt a boost card in the harness); the offer for a minion's attack is covered only for the single-player case by the module tests.
+- No FFG ruling in the file names a `falcon` card outside Rulings December 17, 2025 - Ruling 1 (2), January 17, 2026 - Ruling 3 (2), January 26,
+  2026 - Ruling 6, March 6, 2026 - Ruling 1 (2), March 19, 2026 - Ruling 5, June 25, 2026 - Ruling 1 and July 9, 2026 - Ruling 2, all of them
+  asserted by the module tests or this file's. No conflict between the RRG and a ruling was found for this pack.
+
+## Agents of S.H.I.E.L.D.: Maria Hill, Nick Fury and the box's player cards (aos)
+
+Scope: 50001a/b to 50011 (Maria Hill's identity, events, supports, upgrades and ally; `packages/cards/src/wave9/aos/maria-hill/`), 50034a/b to
+50046 (Nick Fury's identity, events, suit form, upgrades and ally; `aos/nick-fury/`), the obligations and nemesis sets 50029 to 50033 and 50059
+to 50063 (read against the printed text; their interactions with the heroes' cards are covered below) and `aos/aspect-basic.ts` (50012 to 50028
+and 50047 to 50058). The scenarios and the other encounter sets are a later audit. Data: `packages/content/src/data/aos/cards.ts`. Every
+script was read against the printed text in the data. Regression tests: `packages/cards/src/wave9/aos/heroes-rulings.qa.test.ts` (32 tests, none
+of them `it.fails`). The module tests are thorough (about 700 cases across the five Maria Hill and Nick Fury files and `aspect-basic.test.ts`,
+including the owner's Q16 to Q20 and Q22 and Q23 cases); this file holds only interactions they do not assert.
+
+### Findings
+
+None. Every case written against an RRG entry, a ruling or an owner decision passed once the test staging was right (the early failures were
+mistakes in the staging, not in the game: a second player's turn that was never ended, an encounter card dealt at random to the second player
+that discarded the support under test, a `take` list that overwrote the interrupt being tested, and two schemes standing in for the one the
+test meant to aim at). Two source conflicts and one open rules point are recorded below rather than picked.
+
+### Checked, no findings
+
+- **A stunned or confused Nick Fury (RRG "Stun, Stunned" p. 41, "Confuse, Confused" p. 13, "Replacement Effect" p. 37, "Interrupt" p. 25;
+  ruling August 13, 2026 - Ruling 1 (1)).** The stun and confuse cards are replacement effects, so no interrupt or response to the replaced
+  attack or thwart is heard. A stunned Fury in Stealth who makes a basic attack spends the stun, Break Cover does not fire (the suit stays on
+  Stealth) and Assault is not offered; the same stunned Fury playing Concentrated Fire 50037 or Spray Fire 50039 still plays the event (spent,
+  discarded) with no damage, no choice and no form change. A confused Fury's basic thwart offers no Gather Intel, and a confused Maria Hill ally's
+  thwart offers no "when Maria Hill thwarts" interrupt, so nothing reaches the suit. A stunned Fury's Covert Surveillance (thwart) works in full
+  (stun cancels only an attack); a confused Fury's cancels the whole labeled ability (RRG "Labeled Ability" p. 26), including the optional
+  change to Stealth.
+- **The crisis icon (RRG "Crisis Icon" p. 14).** With Crowd Control in play the main scheme is not offered as a target of All-Points Bulletin,
+  Covert Surveillance or Secret Agent's move (the side scheme is), and the main scheme keeps its threat. (The Douglass 50019 ignoring crisis is
+  asserted by the module tests.)
+- **Stealth 50035b and the attack it replaces (RRG "Replacement Effect" p. 37, "Interrupt" p. 25).** With Life Model Decoy attached, Rhino's
+  attack becomes a scheme and the Decoy is not offered (further interrupts to the replaced attack cannot trigger). With Eyepatch Camera
+  attached, the camera is asked about the 1 threat Stealth left for the main scheme (a range of 0 to 1), not the activation's full 2.
+- **Two-player cases (ruling December 17, 2025 - Ruling 3; RRG "Attack (Enemy Activation)" p. 8).** Stealth makes Rhino scheme against Fury only:
+  the attack on the second player's hero still lands. Fury's Life Model Decoy is offered for the attack on Fury and not again for the attack on
+  the second player. Secret Agent does not hear a Preparation card the second player resolves (Prism Dust attached to their identity), while
+  Prism Dust itself is offered to its own controller. Press Conference 50029 (given to the Maria Hill player) removes a counter only from that
+  player's supports; the Nick Fury player's Support Staff keeps its three.
+- **Life Model Decoy 50010 and an ally defender (RRG p. 8).** The Decoy is used when the attack initiates, before a defender is declared; with a
+  Maria Hill ally declared as defender afterwards, the ally takes no damage either ("prevent all damage from that attack").
+- **Prism Dust 50052 is labeled (attack) (RRG "Labeled Ability" p. 26, "Stun" p. 41).** A stunned Fury pays the discard cost, but the whole
+  ability is canceled: the minion that entered play is neither confused nor damaged, and the stun card is spent.
+- **Concentrated Fire 50037 at a tough minion (RRG "Tough" p. 44, "Defeat" p. 15).** The 4 damage is prevented, the tough card is spent, the
+  minion stays in play and no "defeats an enemy" choice follows.
+- **Intelligence Analysis 50045 (RRG "Cancel" p. 11, "Surge" p. 42; ruling August 3, 2026 - Ruling 3).** Canceling Kree Manipulator (Surge) cancels
+  its effects and its surge together: only one encounter card is revealed (a control run reveals two), and the threat it would place is not
+  placed. The canceled treachery is still "revealed", so Grant Ward 50022's "after you reveal a treachery" Forced Response still answers it; and
+  Analysis's own ability still resolves, so Secret Agent 50046 is offered afterward (it moves 1 threat from the main scheme to the suit).
+- **Maria Hill's trait grant (card text 50001a).** Sky-Destroyer's "after you play a S.H.I.E.L.D. card" answers a Core ally played in hero
+  form (the ally has the trait by the time the response window opens) and does not in alter-ego form. Agents of S.H.I.E.L.D. 50015 is not
+  offered to alter-ego Maria Hill who controls a Core ally.
+- **Printed cost (RRG "Printed" p. 35).** The Hard Call discarding Jemma Simmons deals 3 (her printed cost), not the 1 she cost to play. On the
+  Double sums printed costs: Jemma (3) with Sky-Destroyer (3) is accepted, Jemma with Command Team (2) and Sky-Destroyer is refused (8).
+- **Two Special Funding 50007 on one support.** Sky-Destroyer (cost 3) paid with two copies gets two counters (each copy is its own response).
+- **A confused minion's scheme (RRG "Confuse" p. 13, "Replacement Effect" p. 37).** Informant 50050 and Quake 50048 hear nothing when a
+  confused minion's scheme is replaced by removing the status card.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests assert them: Maria Hill's trait grant and Reassignment (limit, retyping,
+a uses support emptied), her search; Nick Fury's Gather Intel, Break Cover, Suit Up and Infiltrate; All-Points Bulletin, On the Double (the
+spec 3.11 gate), Reinforcements, Special Funding; Support Staff, The Iliad, Life Model Decoy, S.H.I.E.L.D. Director; Concentrated Fire, Covert
+Surveillance and Spray Fire (owner question 16, Guard); Assault (owner question 17), Stealth, Maria Hill 50036, Fury's Flying Car, Safe House
+#221, EM Shield, Eyepatch Camera, Fury's Watch, Intelligence Analysis, Secret Agent; every card of `aspect-basic.ts` (Front Organization
+under owner question 20 = B, Intelligence under question 19 = B, Organizational Support, Super Spies under question 18 = A, the reprints
+aliased to their sources); Press Conference, Controller, Army of the Controlled, Controlled Innocents, Diabolical Discs, Discovered, Orion,
+Acquire Infinity Formula, Leviathan Soldier and Cold Storage.
+
+### Open point (pinned, not an `it.fails`)
+
+- **Practiced Plan 50058 and a Preparation card discarded from the hand.** Owner question 20 = B reads "a card you control" as including the
+  hand and deck (RRG "Ownership and Control" p. 31) for Front Organization. Practiced Plan says "After you discard a Preparation card you
+  control". The script hears only a Preparation card leaving play to the discard pile, so a Preparation card discarded from the hand (by the
+  hand-size discard, or at random by Klaw's Vengeance) is not heard. No ruling says whether that is "you discard". Pinned as today's behavior;
+  if the owner wants the question 20 reading here too, the change is in the script's trigger (a `cardBeingDiscarded` listener beside
+  `cardLeavesPlay`), not the engine.
+
+### Source conflicts (flagged, not picked)
+
+- **"When/After [enemy] attacks you": player or character.** RRG 1.8 "Attack (Enemy Activation)" (p. 8) and "Attacks Against Allies" (p. 8) say abilities that trigger "When/After [enemy] attacks you" resolve when a player is attacked, "regardless of which
+  character they control was attacked". The ruling of December 17, 2025 - Ruling 3 says the exception covers "After [enemy] attacks you"
+  only and that Nick Fury's Stealth Suit ("when an enemy would attack") "only triggers when Nick Fury would be attacked". They disagree on
+  "When" wording (Life Model Decoy 50010 is "When an enemy attacks you", Stealth "When an enemy would attack you"). The scripts follow the
+  character reading for "would attack" and the player reading for "after" (owner question 5 = A). The tests here assert only cases both
+  sources agree on (an attack on another player; an ally defending after the Decoy was used).
+- **Surge when a treachery's When Revealed is canceled.** The FAQ for Spider-Man Noir (RRG FAQ, p. 63) says a keyword
+  "like surge or incite X" still resolves when the When Revealed ability is canceled, so his response can trigger. RRG 1.8 "Surge" (p. 42, revised
+  in 1.8) defines surge as the When Revealed ability "Deal yourself 1 facedown encounter card", and the ruling of August 3, 2026 - Ruling 3 says
+  surge "is treated as a When Revealed ability and can be cancelled". The game follows the later ruling (Intelligence Analysis cancels the surge
+  too); the Noir FAQ predates the revised definition and was not changed. Worth confirming that the Noir entry is superseded.
+
+### Thin coverage and open points
+
+- **"After [hero] uses a basic power" under a replaced action (Nick Fury 50002 and Melinda May 50023).** Whether a confused ally's thwart or a
+  stunned ally's attack is "a basic power used" is not stated for these wordings (RRG "Stun" says the character "is not considered to have
+  attacked", with no matching line under "Confuse"); not tested.
+- **Dum Dum Dugan 50021 stunned or confused.** His interrupt is "when you use one of his basic powers"; whether it is offered when the power's
+  effect is then replaced is not stated and not tested.
+- **Informant 50050 and Stealth on the same minion scheme.** Both change where the activation's threat goes (Informant removes it, Stealth
+  diverts 1 of it); the order and the result are not pinned by any source and were not tested.
+- **Orion 50060 and Acquire Infinity Formula 50061 against EM Shield 50042 in one villain phase.** Prevented damage is not "taken", so Orion
+  should gain nothing from the prevented hit; module tests cover each card alone, no test combines them with a second attacker.
+- **Two Maria Hill or two Nick Fury players.** Not staged; the suit form, Press Conference and the obligations all key on the identity name or the
+  controller.
+- No FFG ruling in the file names Maria Hill or the other cards of this box outside Rulings December 17, 2025 - Ruling 3 (Stealth Suit, above)
+  and the August 13 and August 3, 2026 rulings used here for the stun and surge cases.
+
+## Agents of S.H.I.E.L.D.: Black Widow, Batroc and M.O.D.O.K. scenarios (aos)
+
+Scope: the first three scenarios of the box and their sets. Black Widow 50064 to 50079 (`aos/black-widow.ts`), A.I.M. Abduction 50080 to 50082
+(`aim-abduction.ts`), A.I.M. Science 50083 to 50085 (`aim-science.ts`), Batroc 50086 to 50097 (`batroc.ts`), Batroc's Brigade 50098 to 50102
+(`batrocs-brigade.ts`), M.O.D.O.K. 50103 to 50124 (`modok.ts`), Scientist Supreme 50125 to 50128 (`scientist-supreme.ts`) and S.H.I.E.L.D. 50178
+to 50180 (`shield.ts`). Thunderbolts, Baron Zemo, the Executive Board and the Thunderbolt minion sets are a later audit. Data:
+`packages/content/src/data/aos/cards.ts`. Every script was read against the printed text in the data and the box rulebook
+(`docs/campaign-modes/markdown/mc50_agents_of_shield.md`, pp. 9, 11, 13 and the FAQ on p. 22). Regression tests:
+`packages/cards/src/wave9/aos/scenarios-rulings.qa.test.ts` (37 tests, 1 of them `it.fails` pinning the open finding below, each with a companion test
+that pins today's behavior; the Grunt, Attacrobatics and hero-defeat cases). The module tests and the scenario games are thorough (the eleven
+`aos` module and scenario files hold about 900 cases, including the owner's Q3, Q4 (single target), Q5, Q24, Q25 and Q33 cases); this file holds
+only interactions they do not assert: status cards on the villain (stunned, steady, stalwart), crisis icons against the box's own allies and
+villains, an attack with several targets, expert mode at stage 3B, villain stage changes, two-player attacker and "engaged player" cases, and
+Maria Hill's trait grant against the S.H.I.E.L.D. set.
+
+### Findings
+
+| Card id                                                                                   | Expected (source)                                                                                                                                                                                                                                                                                                                                                                                                                        | Actual                                                                                                                                                                                                                                                                                                                                  | Fix                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Black Widow 1: 50073 A.I.M. Grunt with 50039 Spray Fire (any attack with several targets) | Owner Q4 = A (`docs/phase7-wave9.md` 4.1, provisional; 3.4 spells it out): "this attack" is the whole attack, so "resolve this attack against A.I.M. Grunt instead" makes the Grunt "its only target, for 3 damage once". Spray Fire on her with a minion engaged and the Grunt discarded: the Grunt takes 3, she takes 0, the other minion takes 0 (MC50 p. 9; ruling January 17, 2026 - Ruling 2 for the single-target case).          | Only her share moves: the Grunt takes 3, the other minion still takes its own 3, and the Grunt, which is now also a minion engaged with the chosen player, takes its own 3 too: 6 in all, defeated (5 hit points). She takes 0. The single-target case (the scenario games) is right.                                                   | Engine (`retargetPlayerAttack` / the retarget of a player attack with several targets must leave the new minion the only target). Not a script change. |
+| Black Widow 2: 50076 Attacrobatics (expert) with Spray Fire                               | "Prevent all damage from this attack. In expert mode, deal that much damage to the attacking character." Under Q4 = A the attack is all of Spray Fire and all its damage to every target is prevented (the game does this, tested), so "that much" is 3 for her plus 3 for the minion: the attacker takes 6.                                                                                                                             | The attacker takes 3: the script reads `attackPreventedAmount("prevented")`, the share aimed at her. **Fixed** (one line in the script; the test now asserts the expected behavior).                                                                                                                                                    | Fixed                                                                                                                                                  |
+| Batroc 1: 50090a/b Alert Level                                                            | "After a character is defeated except by consequential damage, place 1 threat here." A hero is a character (RRG 1.8 "Character" p. 12: identities, allies, villains and minions) and an identity at zero hit points is defeated (RRG "Defeat" p. 15). In a two-player game the second hero defeated by Batroc's attack puts 1 threat on Alert Level: 3 with the two attacks' threat. No ruling in the file names Alert Level and a hero. | The script listens for `ally` and `minion` only (`alertForcedResponse`): 2 threat, the attacks'. The hero's elimination (`playerEliminated`) adds nothing. In a solo game the hero's defeat ends the game, so this shows only with two or more players. **Fixed** (one line in the script; the test now asserts the expected behavior). | Fixed                                                                                                                                                  |
+
+Each finding is pinned: `it.fails` for the expected behavior and a passing test for today's. When one is fixed, flip its `it.fails` to `it` and
+delete its companion.
+
+### Checked, no findings
+
+- **Spray Fire 50039 on Black Widow, the cases that agree with Q4 = A.** With no Preparation on top, she and the engaged minion each take 3 and her
+  interrupt fires once for the one attack (1 threat off the main scheme, one card discarded). With Night Vision Goggles attached and a card with
+  no printed Preparation on top, the granted Preparation prevents all the damage to every target, and the Goggles are discarded.
+- **Stun Net 50071 and Grappling Hook 50069 against attack events (RRG "Labeled Ability" p. 26: an (attack)-labeled ability is an attack made by
+  the identity; "Cancel" p. 11).** A hero wearing the Net cannot play Haymaker (an attack event); the same play without the Net is legal. A Hook on
+  Black Widow cancels a Haymaker aimed at her: the event is still played and discarded, her Forced Interrupt never fires (no threat removed, no
+  card discarded), and the Hook is discarded. An ally who attacks her wears the Net afterwards and cannot attack again; the hero is not netted.
+- **Black Widow's Gauntlet 50068.** With Night Vision Goggles attached and a card with no printed Preparation on top, the Goggles' granted
+  Preparation counts as "a Preparation ability was resolved": the Gauntlet stays (control: without the Goggles it may be discarded). In a
+  two-player game the response is offered to the attacking second player only and discards the Gauntlet when taken. The Gauntlet's retaliate 1
+  answers the stroke that defeats stage I, and the Gauntlet and her stunned status card are on stage II (RRG "Villain Defeat" p. 47: the new stage is
+  the same character and attachments and status cards carry over).
+- **Destroy Evidence 50075 (RRG "Incite X" p. 24: a revealed card).** A.I.M. Soldier revealed gains incite 1 (+1 threat); the Scientist it puts
+  into play was not revealed, so it gets no incite and its printed Surge does not reveal another card (only the Soldier is revealed).
+- **Batroc stunned (RRG "Stun, Stunned" p. 41: "not considered to have attacked"; MC50 p. 22).** His attack is replaced by removing the stun, nobody
+  is hurt and no threat goes on Alert Level (his Forced Response is "After Batroc attacks").
+- **Crisis icon (RRG "Crisis Icon" p. 14; "Card Types" p. 12: ally is a player card type).** Batroc's Forced Interrupt still removes its 6 threat from
+  the main scheme with a crisis side scheme in play (an encounter card's ability). A Rescued Captive's Hero Action cannot be used on the main
+  scheme under a crisis icon (the ability has no valid target) and removes 1 without one. Flying Inhuman's "remove 1 threat from another scheme"
+  after thwarting a crisis side scheme cannot take the main scheme (no main-scheme target is offered, its threat is unchanged).
+- **Extract Captives 3B in expert mode (card text 50089b; RRG "Quickstrike" p. 36; owner Q25 = A).** An Embassy Patrol revealed engages the hero in
+  hero form and its quickstrike attack is redirected to the Rescued Captive; the hero takes nothing.
+- **Batroc's Brigade 50101 and Soldiers of Fortune 50102.** A Mercenary found by Soldiers of Fortune and revealed offers the Brigade's Hero
+  Interrupt; taken (3 resources), Machete is discarded without entering play, Soldiers of Fortune gains surge ("if no minion entered play this
+  way") and the canceled Machete's own Surge does not reveal a second card. The interrupt is not offered to a player who cannot spend 3. The
+  Soldiers of Fortune boost does not offer "spend 1 resource" to a player with nothing to spend (owner Q33 = A): it gains its 3 icons with no choice.
+- **Zaran 50100 (RRG "Tuck" p. 45).** Defeated, the card tucked under him goes to its owner's discard pile, not the encounter discard pile or the
+  victory display.
+- **M.O.D.O.K.'s status cards.** A damage-proof M.O.D.O.K. (Hostage Situation in play) still draws retaliate 1 when attacked (RRG "Retaliate X"
+  p. 38: "after ... is attacked", no damage needed). Psionic Force Field gives stalwart: a Mockingbird stun cannot be placed on him (control: it
+  lands). Expert M.O.D.O.K. (steady, RRG "Steady" p. 41): one stunned card does not stop his attack and stays; two stop it and both are removed.
+- **Sarah Garza 50107b against a tough Adaptoid (ruling January 26, 2026 - Ruling 3: overkill counts damage taken).** The tough card absorbs
+  her 2 damage, the Adaptoid takes nothing, so nothing spills onto M.O.D.O.K. (control: without the card 1 spills).
+- **"It's Alive!" 50123 with Flying Upgrade 50109.** Each Adaptoid a player finds and reveals gains incite 1: two players, two more threat than
+  without the upgrade.
+- **A.I.M. Scientist 50083 against an attack with several targets.** With another minion engaged, Spray Fire leaves the Scientist out (no damage)
+  and the other minion and the villain take 3; engaged with the Scientist alone it is a target and is defeated (2 hit points).
+- **Maria Hill's trait grant against the S.H.I.E.L.D. set.** Disavowed 50180's When Revealed counts Hill's identity and a Core ally she controls
+  (2 starting + 2). A S.H.I.E.L.D. Trooper 50178 defeated while its player controls only a Core ally: the ally (a S.H.I.E.L.D. ally by the grant)
+  is discarded and no threat is placed. In a two-player game where the second player defeats a Trooper engaged with the first, the first player
+  (the engaged player) discards their S.H.I.E.L.D. support and the second keeps theirs.
+- **Disavowed 50180 and a Core ally in Hill's hand.** Black Cat in her hand costs 2, then 3 under Disavowed; a S.H.I.E.L.D. support (1 to 2)
+  likewise; a Core support (Aunt May) stays at 1. See the open point below.
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests and scenario games assert them: Black Widow's Forced Interrupt on all three
+stages (crisis, empty scheme, empty deck, second player), The Widow's Web (setup, X per hero), the four attachments, A.I.M. Commando (quickstrike
+after the attack) and Grunt (single-target retarget), Automated Defenses, the four treacheries; A.I.M. Abduction (Abductor, Abduct Superhumans,
+Nabbed!, the ally limit and the return); A.I.M. Science (Soldier, Mad Science, the Scientist's per-player lock); Batroc's reset and Forced
+Response, the three stages and Alert Level on both faces, Rescued Captive, Heightened Reflexes, Embassy Guard and Patrol, Commandeer Security
+Office, Leaping Kick, Security Cameras; Machete, Rapido, Zaran's ATK; M.O.D.O.K.'s reset (owner Q3 = A), Upgrading Adaptoids, the four Holding
+Cells and Inhumans (owner Q24 = A), the four upgrades, the six attachments, A.I.M. Jailer, Hostage Situation, Psionic Enhancement, Psionic
+Blast; Scientist Supreme, Monica Rappaccini, Diplomatic Immunity and Sanctions; Arrest Warrant. No new test was written for these.
+
+### Open point (pinned, not an `it.fails`)
+
+- **Maria Hill's grant for a card in her hand.** RRG "Ownership and Control" p. 31 says "a player controls the cards in their own out-of-play
+  areas", and Hill prints "Each ally you control gains the S.H.I.E.L.D. trait". Read literally, an ally in her hand is a S.H.I.E.L.D. card, and
+  that is what the game does (Black Cat costs 1 more under Disavowed in her hand). It is also how owner question 20 = B reads "a card you control".
+  No ruling covers Hill's grant; if the owner prefers "in play only", the cost modifier and the Practiced Plan reading would change together.
+
+### Source conflicts (flagged, not picked)
+
+- **Overkill and a replaced defeat.** MC50 p. 22 (the FAQ) says "Overkill damage is simultaneous with the damage from the attack" and uses that to
+  order M.O.D.O.K.'s "would be defeated" interrupt before the Adaptoid's When Defeated. Owner Q31 = A says that when the attacked minion's defeat is
+  replaced the excess is dealt "once the minion is defeated" (no spill), and rejects "strict simultaneity" as answer B. The two agree on the
+  M.O.D.O.K. case (tested by the module and the scenario game) and differ in wording for a replaced defeat. Worth confirming that the FAQ's
+  "simultaneous" is only about the order of the two abilities.
+- **Q4 against the RRG wording of Attacrobatics.** Nothing conflicts, but the owner marked Q4 provisional and the two Black Widow findings above are
+  both its consequences; if it flips to B, the Grunt test and the Attacrobatics expectation change with it.
+
+### Thin coverage and open points
+
+- **Heightened Reflexes 50092 on a tough Batroc.** Batroc's Brigade gives each enemy a tough status card (Batroc included). Whether the tough card
+  or Heightened Reflexes' interrupt acts first, and whether the leap counter is removed when the tough card prevented the damage, is not stated by
+  the RRG or a ruling; not tested.
+- **Q22 (a surge outside the villain phase) is not exercised by this scope.** The only player-phase reveal in these sets is Arrest Warrant, and
+  the S.H.I.E.L.D. Trooper it finds has no surge.
+- **Spray Fire against a Guard minion on Black Widow (owner Q16 = A).** Covered by the Nick Fury tests, not combined with her Preparations.
+- **The Grunt's retarget with an ally's attack.** Only a hero's attack is combined with the Grunt (scenario game C); the ally-attack variant is
+  not tested.
+- **A.I.M. Abductor's order (50080).** The printed text puts "If Abduct Superhumans is not in play, find it" last; the script finds it first
+  (documented in the script: nothing can be tucked under a scheme that is not there). Not changed here.
+- **Nabbed! with no ally in the deck (50082).** The script places the acceleration token though nothing was tucked (documented reading,
+  tested by the module); no source says either way.
+- **Psionic Upgrade (villainous) on a stunned Adaptoid.** Whether a replaced activation is "uses a basic power" and so is dealt a boost card is not
+  stated; not tested.
+- **Two-player Arrest Warrant and Disavowed.** Arrest Warrant held by the second player and Disavowed counting two players' cards are not staged.
+- **The Gauntlet's response is offered even when it will do nothing.** Its "if no Preparation ability was resolved" is read as a condition of the
+  effect, not of the trigger, so a player can take a response that discards nothing. Harmless; the RRG's "Triggering Condition" does not say
+  whether an "if" clause belongs to the trigger.
+- No FFG ruling in the file names a card of these scenarios beyond January 17, 2026 - Ruling 2 (Black Widow's interrupt and the Grunt, asserted by
+  the scenario game), January 26, 2026 - Ruling 4 and April 30, 2026 - Ruling 3 (flipping Alert Level is not a reveal, asserted by the Batroc
+  module) and January 26, 2026 - Ruling 3 (overkill counts damage taken, used above).
+
+## Agents of S.H.I.E.L.D.: Thunderbolts, the Thunderbolt minion sets and the Executive Board (aos, bp, silk)
+
+Scope: the Thunderbolts scenario 50129a to 50138 (`aos/thunderbolts.ts`), the six `aos` Thunderbolt minion sets Gravitational Pull 50139 to 50142,
+Hard Sound 50143 to 50147, Pale Little Spider 50148 to 50151, Power of the Atom 50152 to 50155, Supersonic 50156 to 50160 and The Leaper 50161 to
+50164, the two hero-pack sets Extreme Risk 51039 to 51042 (`bp/extreme-risk.ts`) and Growing Strong 52035 to 52038 (`silk/growing-strong.ts`),
+and the S.H.I.E.L.D. Executive Board 50181a to 50184c (`aos/executive-board.ts`). Baron Zemo is not in this audit. Data:
+`packages/content/src/data/{aos,bp,silk}/cards.ts`. Every script was read against the printed text in the data, RRG 1.8, the rulings file and the
+box rulebook (MC50 pp. 5 to 6, 15, 22). Regression tests: `packages/cards/src/wave9/aos/thunderbolts-rulings.qa.test.ts` (27 tests, 2 of them
+`it.fails` pinning the four open findings below, each with a passing companion that pins today's behavior). The module tests and the two
+Thunderbolts scenario games are thorough (about 500 cases for these sets); this file holds only interactions they do not assert: the held minion
+against its own set's treachery, a stunned minion under "activates against you", what the swap keeps and what its engage triggers, guard against an
+ally, "you" as the identity, a hard-coded chooser, a title two cards share, ranged from a boost, and the Executive Board's "then".
+
+### Findings
+
+| Card id                                                                                    | Expected (source)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Actual                                                                                                                                                                                                                                                                                                                                                                                                                     | Fix                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Thunderbolts 1: 50132 Citizen V's Sword and 50134 Innocent Bystanders ("After you attack") | RRG "You, Your" p. 49: for a trigger "after you attack and defeat an enemy" the identity must be the one that performed it; it triggers "after the controlling player's identity attacks ... but not when an ally under that player's control attacks". The only exception is "after [enemy] attacks you". So an ally's attack on Citizen V does not offer the Sword's discard response, and an ally's attack on an enemy removes no bystander counter and asks for no resource or threat.                  | Both scripts take `query(["identity", "ally"])` as the attacker with `byYou`, so Black Cat's attack offers the Sword response (spend two physical to discard it) and removes a bystander counter, as the identity's attack does. The repo's other "after you attack" cards use `YOUR_HERO` / `YOUR_IDENTITY` (core aggression, Thor, Winter Soldier). **Fixed** in the script; the test now asserts the expected behavior. | Script: one line each (`query("identity")`, or `YOUR_IDENTITY`, for the attacker in `50132.citizen-vs-sword-response` and in the first branch of `50134.innocent-bystanders-forced-response`). The second branch ("an enemy attacks you", Exception in "You, Your") is right as it is.                                                      |
+| Thunderbolts 2: 50184a/b/c A.I.M. Interference (who decides and pays)                      | Card text: "You may spend X [type] resources to prevent X of these counters". "You" is the player the card is resolved by (RRG "You, Your" p. 49, "Reveal" p. 38); "First Player" p. 19 gives the first player a choice only where the card "does not specify which player should act". Spec 3.28 says the same: "the player then picks", and for the boost "you is the player the enemy is activating against". With two players, the player who reveals it (or is attacked, as a boost) decides and pays. | `placeSecrets` asks `chooseOneBy(firstPlayer, ...)`: the first player is asked, and pays from their hand, for an A.I.M. Interference the second player revealed. One-player games are unaffected. **Fixed** in the script; the test now asserts the expected behavior.                                                                                                                                                     | Script: `placeSecrets` should choose by the revealing player (the player resolving the card; for the boost, the attacked player) instead of `firstPlayer`. Check that the payment then comes from that player's hand and resource abilities. The Board Member attachments' choices (no "you" printed) correctly stay with the first player. |
+| Thunderbolts 3: 50181a to 50183a Chief Officers' Hero Action with no secret counter        | "Spend ... -> remove 1 secret counter from here. Then, [effect]." RRG "'Then'" p. 44: the text before "then" must be fully resolved before the rest is; "if the pre-'then' text does not fully resolve, the post-'then' text does not attempt to resolve". With no secret counter to remove, nothing is healed (the action may also be refused). MC50 p. 5: a secret is uncovered to get the help.                                                                                                          | The cost is paid, nothing is removed, and the heal of 1 still happens (tested on the Medical Officer; the Surveillance and Tactical Officers share the same shape). `removeCounters` in `resolve/apply-effect.ts` skips a card holding none (`removing <= 0 → continue`) without marking the instruction unresolved, so `then` runs.                                                                                       | Engine, small: a removal of an `amount` the card cannot supply (nothing, or fewer than asked) should count as unresolved for a following `then`. Alternatively a script-only guard on each of the three actions (`ifThen(valueAtLeast(countersOn(self, "secret"), 1), ...)`), but the engine rule is the general one.                       |
+| Thunderbolts 4: 50163 Batroc the Leaper (and the same pattern in every set's treachery)    | "Find Batroc and reveal him. (If he is already in play, he engages you.) Batroc activates against you. If no enemy activated this way, this card gains surge." The Batroc found and revealed is the minion; in scenario two (villain "Batroc") a title shared by two cards is a referential ability, RRG "Referential Ability" p. 36. Intended: the minion activates once and the card does not surge. See the source gap below: the tie-break list is cut off in the repo's md copy.                       | `named(...)` (`select.ts`, case "named") returns the first card in play with the title, which is the villain: Batroc the villain attacks again for 4 and the minion he just revealed does not activate. The card then gains surge anyway ("If no enemy activated this way") although an enemy attacked.                                                                                                                    | Engine, small: `named` as the target of `enemyActivates` (and the other referential uses) should prefer the card the same ability just found or revealed, or a minion over a villain, per the referential list; plus a look at why `activated.made` stays 0 for the villain's activation.                                                   |
+
+Each finding is pinned: `it.fails` for the expected behavior and a passing test for today's. When one is fixed, flip its `it.fails` to `it` and
+delete its companion. Thunderbolts 1 is the strongest (the RRG text is explicit); Thunderbolts 4 depends on the referential list, which the md copy
+does not print past item 1, so it should be read against the PDF's p. 36 before it is fixed.
+
+### Checked, no findings
+
+- **The held minion against its own set's treachery (RRG "Find" p. 19, "Engage" p. 18; MC50 p. 15).** Gravitational Pull revealed while Moonstone is
+  the held minion finds her in play: she engages the revealer, is no longer held or attached, and attacks (a held minion cannot activate, so the
+  attack proves she left). The other four `find` treacheries share the pattern and were not staged one by one.
+- **Tap In against a stunned minion (RRG "Stun" p. 41, "Activation" p. 6).** The held minion Tap In engages is stunned: the stun is discarded, it
+  does not attack, and "if no minion activated this way" is true, so Citizen V activates against the player. Hard Sound against a stunned,
+  unengaged Songbird behaves the same: she engages, loses the stun, does not attack, and the card gains surge (the wave 4 reading for Waylay).
+- **Thunderbolt Backup's swap keeps what is on the minions (MC50 p. 15).** The minion sent under the environment keeps its confused and tough
+  status cards, its Blasters and its damage less the heal; the minion that comes out keeps its tough card and its attachment and engages the
+  player the other was engaged with.
+- **The swap's engage is an engage (RRG "Engage" p. 18).** With Coup de Foudre 50162 in play, the minion that comes out engages the player and the
+  Forced Interrupt discards the top 4 cards of that player's deck (4 boost icons).
+- **Guard from 50130b (RRG "Guard" p. 21).** A player's ally cannot attack Citizen V while a Thunderbolt minion is engaged with that player, and can
+  attack the minion.
+- **Apprehending Rogue Agents' Forced Response against an attack event and an ally.** Haymaker from the second player on the first player's
+  minion, and Black Cat from the first player on the second player's minion, both engage the minion with the attacker's player. No source says an
+  ally's attack is "a player attacks"; the rulebook (p. 15: "attacked by a player") and the script agree. Compare finding 1, where the RRG does
+  speak.
+- **Jolt 50133 and the victory display (RRG "Victory X" p. 46).** Jolt has no Victory keyword, so a defeated Jolt goes to the encounter discard pile,
+  the display stays empty, and Citizen V at lethal damage stays in play.
+- **A stunned hero and Innocent Bystanders (RRG "Stun" p. 41).** A stunned hero's attack is replaced by discarding the stun; it is not an attack,
+  deals nothing and removes no bystander counter.
+- **Hard Sound Bindings 50145 against an attack event (RRG "Attack (Player Ability Type)" p. 10).** Playing Haymaker with the Bindings on the hero:
+  the attack is replaced, the Bindings are discarded, the hero is stunned, no damage is dealt, and the event is still played and discarded.
+- **Pale Little Spider with two players.** Black Widow engaged with the second player schemes at them: only the second player is confused (no
+  Handspring to find). Handspring 50149 against an ally's attack: the damage is dealt to the ally (the attacking character), Retaliate 1 answers it
+  too, the minion takes nothing and the Handspring is discarded.
+- **Runaway Nuclear Reaction 50154 (ruling January 26, 2026 - Ruling 3: damage dealt is not damage within hit points).** Radioactive Man at 17 of
+  18 hit points takes a basic attack of 2 and is defeated; the scheme, still in play, answers and places the 2 dealt (5 to 7).
+- **Rule the Skies 50140 (RRG "Character" p. 12).** Captain Marvel with Cosmic Flight deals 1 more with a basic attack while it is in play;
+  without Cosmic Flight she does not.
+- **Aerial Dogfight 50159.** Supersonic's boost ("it gains overkill and ranged") makes Rhino's attack ranged before damage, so the reduction of 2
+  does not apply to the Aerial Captain Marvel (3 damage; a plain 1-icon boost is reduced to 1). A hero's basic attack reduced to 0 by Dogfight leaves
+  the Aerial MACH-IV's tough status card in place (RRG "Tough" p. 44, defender bullet: damage reduced to 0 does not use up a tough card).
+- **Executive Board.** A Hero Action cannot be used from the alter-ego form. A.I.M. Interference as a boost card places its counters but no
+  incite threat on the main scheme (RRG "Incite X" p. 24: incite is "when revealed"; a boost card is not revealed).
+
+### Read against the card text, not covered by a new test
+
+Script reads correct against the printed text, and the module tests and scenario games assert them: Citizen V's constant and interrupt on both faces
+(owner Q2 = A), the setup, the held minion's first reveal (owner Q26 = B), guard and the engage response, the swap (ties go to the new first player,
+MC50 p. 22), the Sword's data and activation, Jolt's parley, The Coming Storm and Rumbling Thunder, Down but Not Out (owner Q29 = B), Tap In;
+Moonstone's tough card, Rule the Skies, Gravitational Pull, Psychological Manipulation; Songbird, Solid Sound Constructs (stalwart and the
+status replacement), Hard Sound Bindings, Sonic Bubble, Hard Sound; Black Widow's search and confusion, Handspring, Pride of the Red Room, Pale
+Little Spider; Radioactive Man, Radiation Exposure (the RRG erratum on p. 69), Power of the Atom; MACH-IV's defender rule, Blasters, Heat-Seeking
+Missiles, the rest of Aerial Dogfight, Supersonic; Batroc's discard, Coup de Foudre, Batroc the Leaper, Parcours du Combattant; Joystick, Energy
+Truncheon, Playing for Keeps, Extreme Risk (the known card-made activation point excepted); Atlas, Grow Invulnerable, Growing Strong, Titanic
+Proportions; the three Chief Officers' flip (owner Q1 = A) and Aids. No new test was written for these.
+
+### Source conflicts (flagged, not picked)
+
+- **Secret counters on the flip.** RRG "Flip" p. 20 discards every token when the new face has a different card type; MC50 pp. 6 and 11 and owner
+  Q1 = A keep them. Already decided; the Board Member attachments are the only cards in the wave that rely on it.
+- **Citizen V and "activates against you" (MC50 p. 22).** The rulebook FAQ and owner Q2 = A agree with RRG "Stun" for a stunned Citizen V; no
+  conflict, noted because Tap In and the Sword activate him outside step two and so skip his interrupt (by the card text: "during step two").
+
+### Thin coverage and open points
+
+- **Referential list (RRG p. 36).** `mc_rulesreference_v18_compressed.md` prints only item 1 of the "Referential Ability" priority list; items 2
+  onward are cut. Finding 4 and any other shared title ("Black Widow" is a Thunderbolt minion, the villain of scenario one, and a hero of the
+  Black Widow pack; "Batroc" the minion and the villain) need the PDF's p. 36. Not tested: Pale Little Spider with the Black Widow hero or the
+  Black Widow scenario, where `named("Black Widow")` has the same shape.
+- **Tough and a replacement interrupt on the same damage.** Black Widow (expert: tough from Justice, Like Lightning) with Handspring attached, or
+  any tough enemy under Sonic Bubble: both "would take damage" interrupts apply; the RRG says the first player orders simultaneous effects
+  (p. 19) but gives no rule for tough against a card's own replacement, and no ruling covers it. Not tested.
+- **Overkill and Sonic Bubble.** Ruling January 26, 2026 - Ruling 3 (overkill counts damage taken) implies a Sonic Bubble that turns the damage into
+  threat removal leaves no excess for overkill; no overkill hero attack was staged.
+- **Blasters 50157 "highest ATK" ties.** With MACH-IV absent and several enemies at the same highest ATK, who picks (the first player, RRG
+  "First Player" p. 19) is not tested.
+- **A.I.M. Interference as a boost with two players.** Finding 2 is tested on the reveal; the boost path (`resolveWhenRevealedOf`) shares
+  `placeSecrets` and so the same chooser, not staged separately.
+- **Quickstrike, steady, patrol, toughness, overkill on a held minion.** None of these sets prints quickstrike, steady, patrol or toughness. The
+  Q25 quickstrike case is covered by the engine tests of the keyword, not by a card here.
+- **Four-player games.** The scenario games cover first-player tie choices and per-player numbers at four players; no new four-player case was
+  added here (the findings do not change with player count except finding 2, which needs two).
+- **Atlas, Backup and the round end.** Atlas's growth counter ("after the villain phase ends") and the Backup's interrupt ("when the round ends")
+  are different moments of step six; whether the heal sees Atlas before or after his new counter changes nothing except his hit point total, and no
+  test orders them.
+- No FFG ruling in the file names a card of these sets. Used here: December 17, 2025 - Ruling 1 and March 6, 2026 - Ruling 1 (damage prevention
+  reduces damage taken, which Dogfight's "takes" follows), January 26, 2026 - Ruling 3 (dealt against taken, Runaway Nuclear Reaction and
+  overkill) and January 17, 2026 - Ruling 3 (keywords act before triggered abilities, relevant to Truncheon's piercing and a tough card, covered
+  by the Extreme Risk module test).

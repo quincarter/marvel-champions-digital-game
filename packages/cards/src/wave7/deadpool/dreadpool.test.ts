@@ -643,10 +643,13 @@ describe("'Pool-ized (44041)", () => {
     expect(poolizedOn(twice, idOf(twice, DOGPOOL))).toHaveLength(1);
     expect(engagedWith(twice, idOf(twice, DOGPOOL))).toBe(P1);
   });
-  it("no ally in play: it is not attached, gains surge, and the next card is revealed (Metacidal Tendencies)", () => {
+  // Wave 9 Q22: the surge deals the next card facedown; outside step four it is not revealed at once.
+  it("no ally in play: it is not attached, gains surge, and the next card is dealt facedown (Metacidal Tendencies)", () => {
     const stacked = onTop(onTop(withoutHope(asHero(baseGame([POOL_SEAT]))), METACIDAL), POOLIZED);
     const revealed = revealBy(stacked, P1);
-    expect(revealedCodes(revealed.events)).toEqual([POOLIZED, METACIDAL]);
+    expect(revealedCodes(revealed.events)).toEqual([POOLIZED]);
+    expect(revealed.events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
+    expect(revealed.state.players[0]!.dealtEncounter).toEqual([idOf(revealed.state, METACIDAL)]);
     expect(poolizedOn(revealed.state, idOf(revealed.state, POOLIZED))).toEqual([]);
     expect(hostOf(revealed.state, idOf(revealed.state, POOLIZED))).toBeNull();
   });

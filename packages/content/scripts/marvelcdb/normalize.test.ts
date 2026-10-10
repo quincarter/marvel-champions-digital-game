@@ -4,6 +4,7 @@ import type { RawCard } from "./raw-types.ts";
 import { bareCuration } from "./curation/empty.ts";
 import type { AddedRecord, Correction, LinkOverride, PackCuration } from "./curation/types.ts";
 import { AOA_CURATION } from "./curation/aoa.ts";
+import { TT_CURATION } from "./curation/tt.ts";
 import { normalizePack } from "./normalize.ts";
 import { withLocalArt } from "./normalize/art.ts";
 import { createContext } from "./normalize/context.ts";
@@ -367,9 +368,11 @@ describe("a nested minion face in another encounter set is its own card (Oversee
     expect(hp("45129")).toEqual([3, undefined]);
   });
 
-  it("refuses a minion with per group hit points rather than emitting a flat value", () => {
+  it("reads a minion's per group hit points (raw health_per_group) as hpPerGroup, never as a flat or per player value", () => {
     const { ctx } = run([{ ...VELOCIRAPTOR, health_per_group: true }], [schemeCorrection]);
-    expect(ctx.errors).toEqual(["45129: minion health_per_group is not supported"]);
+    expect(ctx.errors).toEqual([]);
+    const card = ctx.cards.find((c) => c.id === "45129");
+    expect(card?.type === "minion" && [card.hp, card.hpPerGroup, card.hpPerPlayer]).toEqual([3, true, undefined]);
   });
 
   it("gives the Prelate face its own ATK, SCH, hit points, boost icons and Victory", () => {
@@ -1109,5 +1112,104 @@ describe("Correction.schemeIcons and Correction.startingThreatPerPlayer (side sc
     const without = run([THE_CRAZY_GANG]);
     expect(sideScheme(without.ctx, "48033").startingThreat).toEqual({ base: 2, perPlayer: 0 });
     expect(sideScheme(without.ctx, "48033").icons).toEqual(["acceleration"]);
+  });
+});
+
+describe("Trickster Takeover (`tt`), normalized from the real raw pack: per group values and the God of Lies shapes", () => {
+  const rawPack = JSON.parse(readFileSync(new URL("../../raw/marvelcdb/tt.json", import.meta.url), "utf8")) as {
+    cards: RawCard[];
+  };
+  const allCodes = new Set(rawPack.cards.flatMap((c) => [c.code, ...(c.linked_card ? [c.linked_card.code] : [])]));
+  const out = normalizePack(withLocalArt(rawPack.cards, allCodes), TT_CURATION);
+  const cardById = new Map(out.cards.map((c) => [c.id as string, c]));
+
+  it("normalizes with no errors (normalizePack throws on any)", () => {
+    expect(out.cards).toHaveLength(63);
+  });
+
+  it("per group values: 55028b target threat, 55041 hit points, 55046 starting threat; none emitted as per hero", () => {
+    const worlds = cardById.get("55028a");
+    expect(worlds?.type === "main_scheme" && worlds.stages[0]?.targetThreat).toEqual({
+      base: 0,
+      perPlayer: 0,
+      perGroup: 2,
+    });
+    const mangog = cardById.get("55041");
+    expect(mangog?.type === "minion" && [mangog.hp, mangog.hpPerGroup, mangog.hpPerPlayer]).toEqual([
+      10,
+      true,
+      undefined,
+    ]);
+    const door = cardById.get("55046");
+    expect(door?.type === "side_scheme" && door.startingThreat).toEqual({ base: 0, perPlayer: 0, perGroup: 7 });
+  });
+
+  it("a per hero value elsewhere in the pack carries no perGroup key", () => {
+    const loki = cardById.get("55027a");
+    expect(loki?.type === "villain" && loki.sides[0]?.stages[0]?.hp).toEqual({ base: 0, perPlayer: 20 });
+    const tango = cardById.get("55060");
+    expect(tango?.type === "side_scheme" && "perGroup" in tango.startingThreat).toBe(false);
+  });
+
+  it("Loki, God of Lies (digit labels 1 and 2) is one two-sided villain whose faces share a title", () => {
+    const loki = cardById.get("55027a");
+    if (loki?.type !== "villain") throw new Error("55027a is not a villain");
+    expect(loki.sides.map((s) => [s.side, s.name, s.stages.map((st) => st.stageNumber)])).toEqual([
+      ["A", "Loki, God of Lies", [1]],
+      ["B", "Loki, God of Lies", [1]],
+    ]);
+    expect(loki.sides[0]?.stages[0]?.stageLabel).toBeUndefined();
+  });
+
+  it("each Avatar of Loki is one two-sided villain, side A the Avatar and side B Fading Figment", () => {
+    for (const [code, name] of [
+      ["55029a", "Loki the Rascal"],
+      ["55030a", "Loki the Miscreant"],
+      ["55031a", "Loki the Knave"],
+      ["55032a", "Loki the Wretch"],
+    ] as const) {
+      const card = cardById.get(code);
+      if (card?.type !== "villain") throw new Error(`${code} is not a villain`);
+      expect(card.sides.map((s) => s.name)).toEqual([name, "Fading Figment"]);
+      expect(card.sides[1]?.stages[0]?.hp).toEqual({ base: 0, perPlayer: 0 });
+      expect(card.sides[1]?.stages[0]?.infiniteHp).toBe(true);
+    }
+  });
+
+  it("differing face titles are an error unless the curation opts in", () => {
+    expect(() =>
+      normalizePack(withLocalArt(rawPack.cards, allCodes), { ...TT_CURATION, villainFaceNamesMayDiffer: [] }),
+    ).toThrow(/villain face names differ/);
+  });
+
+  it("Worlds Collide (bare A/B labels) is its own one-stage main scheme beside Mischief and Mayhem's numbered chain", () => {
+    const worlds = cardById.get("55028a");
+    const mischief = cardById.get("55033a");
+    if (worlds?.type !== "main_scheme" || mischief?.type !== "main_scheme")
+      throw new Error("expected two main schemes");
+    expect(worlds.stages.map((s) => [s.stageNumber, s.stageLetter, s.dashedValues])).toEqual([
+      [1, "A", ["startingThreat", "acceleration"]],
+    ]);
+    expect(mischief.stages.map((s) => [s.stageNumber, s.name])).toEqual([[1, undefined]]);
+    expect(mischief.stages[0]?.startingThreat).toEqual({ base: 0, perPlayer: 0 });
+  });
+
+  it("attachments with no attach sentence take the curated host (Hypnotic Gaze to each identity; Intense Focus to the Avatar)", () => {
+    for (const code of ["55007a", "55008a", "55009a", "55010a", "55011a"]) {
+      const card = cardById.get(code);
+      expect(card?.type === "attachment" && card.attachesTo).toEqual({ kind: "yourIdentity" });
+    }
+    const focus = cardById.get("55034a");
+    expect(focus?.type === "attachment" && focus.attachesTo).toEqual({
+      kind: "qualified",
+      category: "villain",
+      trait: "AVATAR OF LOKI",
+    });
+    const scepter = cardById.get("55036");
+    expect(scepter?.type === "attachment" && scepter.attachesTo).toEqual({
+      kind: "qualified",
+      category: "villain",
+      trait: "AVATAR OF LOKI",
+    });
   });
 });

@@ -881,6 +881,18 @@ export function schemesInPlay(state: GameState): readonly InstanceId[] {
   return [...mainSchemeStates(state).map((scheme) => scheme.instanceId), ...sideSchemes];
 }
 
+/**
+ * Whether `id` is a scheme: a main scheme in play, or a side scheme or player side scheme card. Threat on any other
+ * card is only tokens (docs/phase7-wave6.md §3.59, docs/phase7-wave9.md §3.7): `CardInstance.threat` holds it there as
+ * it does on a scheme, and every rule about schemes and their threat (thwarting, a crisis icon, patrol, "threat cannot
+ * be removed", defeat at no threat, a main scheme's target) asks this first.
+ */
+export function isScheme(state: GameState, id: InstanceId): boolean {
+  if (mainSchemeStateOf(state, id) !== undefined) return true;
+  const type = cardOf(state, id)?.type;
+  return type === "side_scheme" || type === "player_side_scheme";
+}
+
 /** Two cards (or a player and a card) can interact: same area, or either is in every area (`null`). */
 export const sameGameArea = (a: GameAreaState | null, b: GameAreaState | null): boolean =>
   !a || !b || a.areaId === b.areaId;
@@ -943,6 +955,25 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
 }
 
 /**
+ * Where a discard from the top of encounter deck `deckId` left card `id` (docs/phase7-wave9.md §3.43 (b)): `"discard"`,
+ * a discard pile (the deck's own, another encounter deck's for a card whose home that is, or its owner's for a player
+ * card that was in the deck: `discardZoneFor`); `"deck"`, back in `deckId`, whose reset shuffled its last card into the
+ * new deck at the move that emptied it (RRG 1.8 "Encounter Deck", p. 17). Null anywhere else: it was not discarded, or
+ * something has since moved it.
+ */
+export function encounterDeckDiscardAt(
+  state: GameState,
+  deckId: EncounterDeckId,
+  id: InstanceId,
+): "discard" | "deck" | null {
+  const zone = locateCard(state, id);
+  if (!zone) return null;
+  if (zone.kind === "encounterDeck") return zone.deckId === deckId ? "deck" : null;
+  const piles: readonly ZoneId["kind"][] = ["encounterDiscard", "discard", "scenarioDiscard", "separateDiscard"];
+  return piles.includes(zone.kind) ? "discard" : null;
+}
+
+/**
  * Whether a card discarded from a player's deck is still where the discard left it: in that player's discard pile, or,
  * when the discard emptied the deck, in the new deck its reset shuffled it into (`at: "deck"`). False once a response
  * moved it: nothing more answers its discard, and the discarding ability no longer counts it (docs/phase7-wave7.md
@@ -950,8 +981,16 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
  */
 export function deckDiscardStillThere(
   state: GameState,
-  discard: { readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly at: "discard" | "deck" },
+  discard: {
+    readonly instanceId: InstanceId;
+    readonly playerId: PlayerId | null;
+    readonly at: "discard" | "deck";
+    readonly encounterDeckId?: EncounterDeckId;
+  },
 ): boolean {
+  // An encounter deck's card (docs/phase7-wave9.md §3.43 (b)): where `encounterDeckDiscardAt` found it.
+  if (discard.encounterDeckId !== undefined)
+    return encounterDeckDiscardAt(state, discard.encounterDeckId, discard.instanceId) === discard.at;
   const player = state.players.find((p) => p.playerId === discard.playerId);
   if (!player) return false;
   return (discard.at === "deck" ? player.deck : player.discard).includes(discard.instanceId);

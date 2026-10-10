@@ -310,6 +310,23 @@ export type AbilityTriggerSpec =
    * Ability", p. 37: triggered while generating resources to pay a cost; "Play Restrictions and Permissions", p. 33).
    * Read with "this card" as the ability's card and "you" as the player spending it. Its limit (RRG 1.8 "Limit",
    * pp. 26–27) counts uses as any resource ability's does, whether or not the condition was true in between.
+   *
+   * `whenSpent`: "**Interrupt**: When you spend this card, [cost] → generate …" on a card spent from hand (a resource
+   * card's own text, "active while using the card to generate resources": RRG 1.8 "Resource Card", p. 37). It is
+   * carried as a resource trigger because its effect is resources generated while a cost is being paid, which count
+   * toward that cost and may overpay it like any others (RRG 1.8 "Cost", p. 13), and because a payment's choices are
+   * all made up front (`Payment`). It differs from a "Resource" ability in three ways:
+   *
+   * - **Only with its own card's spending.** It is used by the payment entry that spends the card
+   *   (`Payment.whenSpent`), never as an `ability` entry and never from a card in play: no spending, no interrupt.
+   * - **Once per spending**, by the player spending the card ("you"): their form, their cards pay its cost, and "your
+   *   identity" is theirs.
+   * - **Its timing word is Interrupt** (`timingWordOf`), so a rule against resolving interrupt abilities stops it and
+   *   one against "Resource" abilities does not.
+   *
+   * Its cost is paid before the card is discarded (an interrupt resolves before its triggering condition, RRG 1.8
+   * "Interrupt", p. 25), and the resources are part of the same payment, generated with the card's own
+   * (FAQ "Pepper Potts (#33)", p. 58: a payment's resources are generated simultaneously).
    */
   | {
       readonly kind: "resource";
@@ -318,6 +335,7 @@ export type AbilityTriggerSpec =
       readonly forAnyPlayer?: boolean;
       readonly repeatable?: boolean;
       readonly spentAsIfResource?: boolean;
+      readonly whenSpent?: boolean;
     }
   /**
    * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
@@ -400,6 +418,15 @@ export type AbilityTriggerSpec =
   | { readonly kind: "cannotAttach" }
   /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
   | { readonly kind: "special" }
+  /**
+   * "Preparation:" (MC50 rulebook p. 9, "Preparation Abilities"): printed "in place of 'Boost' abilities" on the
+   * encounter cards of one villain's set. "These abilities are **not** resolved when the cards are turned faceup as
+   * boost cards. Instead, these abilities are only resolved by the 'Forced Interrupt'" on that villain: like a Special,
+   * it resolves only when another ability instructs it (`EffectSpec resolveSpecials` with `trigger: "preparation"`),
+   * usually on a card in the encounter discard pile. It is not a boost ability, so the boost step never reads it and
+   * the card has no star icon for it. docs/phase7-wave9.md §3.2.
+   */
+  | { readonly kind: "preparation" }
   /**
    * A forced ability that resolves when a condition becomes true, with no triggering event: "If there are no madness
    * counters here, flip Green Goblin and State of Madness." Checked between every two frames (as the RRG 1.8 "Uses"
@@ -777,6 +804,114 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Each encounter card without a printed 'Preparation' ability gains 'Preparation: Prevent all damage from this
+   * attack. Then, discard Night Vision Goggles.'" (`aos` 50070); "… gains 'Preparation: Deal 1 damage to the attacking
+   * character.'" (Automated Defenses, 50074). docs/phase7-wave9.md §3.3. A constant on the granting card that names a
+   * second registry entry, `abilityId`: an ordinary `AbilityDefinition` whose trigger is the `label`'s kind
+   * (`AbilityTriggerSpec preparation`), listed on no card's own abilities.
+   *
+   * - **Who gains it** (`to: "encounterCardsWithoutPrinted"`): a card of an encounter card type (RRG 1.8 "Encounter
+   *   Card", p. 17; never a player card type, whatever deck it is discarded from) that prints no ability of that label
+   *   anywhere on it. "Printed" is the physical card (RRG 1.8 "Printed", p. 35), so a blank text box does not make a
+   *   card that prints one gain another, and a gained ability "is not considered to be printed" (RRG 1.8 "'Gains'",
+   *   p. 21): a card gains from every such rule in effect, two granting cards give two abilities. The granting card
+   *   and the other cards of its set that print none gain it like any other (a second copy that is the discarded card).
+   * - **Where it is read** (`grantedLabeledAbilities`, rules.ts): by `EffectSpec resolveSpecials` with that `trigger`,
+   *   for each card it names, wherever that card is (the encounter discard pile). The granted abilities join the
+   *   card's printed ones: same resolving player, same triggering event, ordered together by that player, counted in
+   *   `<bind>.count` and in the attack's `labeledResolvedVar(label)`. Nothing else reads it: like a printed
+   *   Preparation it is never a boost ability.
+   * - **Inside the granted ability** "this card" (`self`) is the card that gained it, the discarded one, and the card
+   *   the text names ("discard Night Vision Goggles") is the granting card, bound to the slot `GRANTED_BY_SLOT`. The
+   *   two differ: discarding the named card discards the granting card in play, not the card in the discard pile.
+   * - A constant like any other: off while its `while` is false, on a face that is not up, under a blank text box, and
+   *   once its card has left play (an ability already on the stack still resolves).
+   */
+  | {
+      readonly kind: "grantsLabeledAbility";
+      readonly label: GrantableAbilityLabel;
+      readonly to: "encounterCardsWithoutPrinted";
+      readonly abilityId: AbilityId;
+      readonly while?: Predicate;
+    }
+  /**
+   * "If each of your allies has the Aerial trait, … this card gains: 'Response: After you play an Aerial card, exhaust
+   * this card → ready an ally you control.'" (Flight Squadron, `falcon` 53020); "each ally you control gains:
+   * 'Response: …'". A constant's rule that names a second registry entry, `abilityId`: an ordinary triggered or
+   * action `AbilityDefinition`, listed on no card's own abilities, which a card in play has in addition to its
+   * printed ones while the rule is in effect.
+   *
+   * RRG 1.8 "'Gains'" (p. 21): "If a card gains a characteristic (such as a trait, keyword, or ability text), the
+   * card functions as if it possesses the gained characteristic. Gained characteristics are not considered to be
+   * printed on the card."
+   *
+   * - **Who gains it.** `to` omitted: the rule's own card ("this card gains"). `to`: every card in play the query
+   *   matches, read as the rule's card reads it (`you` is its speaker): "each ally you control gains". A facedown
+   *   card gains nothing.
+   * - **Where it is read** (`gainedAbilities`, select.ts): `activeAbilityRefs` joins the gained abilities to the
+   *   card's live printed ones, so every reader of a card's abilities has them: timing windows, the triggers of an
+   *   event, legal actions and `useAbility`, resource abilities, the limit and the uses counted under
+   *   `<instance>:<abilityId>`, costs, labels. Inside the gained ability `self` is the card that gained it and `you`
+   *   its controller, as for a printed ability. Its form, `while`, cost and limit are its own.
+   * - **Not printed.** A blank on the gaining card's text box does not take a gained ability away (only the granting
+   *   card's own blank does, by turning its constant off: one and the same for "this card gains"); "printed" readers
+   *   (`printedAbilityRefs`) never see it. `RuleSpec ignoreAbilities` naming its id does remove it.
+   * - **One of each.** A card that gains an ability it already has (two granting cards, or one it prints) has it
+   *   once: abilities are counted by id on a card, as their limits are.
+   * - **Never a constant.** A rule naming a constant ability, or an id the registry lacks, gives nothing: the rules a
+   *   card gives are read before the abilities it gains (`gainedAbilities` reads printed constants only, which is
+   *   also what lets its `while` and `to` be read with every granted trait and keyword in effect).
+   * - A constant like any other: off while its `while` is false, on a face that is not up, under a blank text box,
+   *   and once its card has left play (an ability already on the stack still resolves). Also given by a lasting
+   *   `applyRuleUntil` and by a scenario rule.
+   *
+   * How it relates to `grantsLabeledAbility` above: both name a registry-only ability from a constant. That one is
+   * for a labeled ability (a Preparation) of a card that is resolved on demand wherever the card is (an encounter
+   * card in the discard pile, `grantedLabeledAbilities`), with the granting card bound as `GRANTED_BY_SLOT`; this one
+   * is for the live abilities of a card in play. The card "this card gains: 'Interrupt: …'" as its only text needs
+   * neither: its one ref is the interrupt with the condition as its `while` (Agents of S.H.I.E.L.D., `aos` 50015).
+   */
+  | {
+      readonly kind: "gainsAbility";
+      readonly abilityId: AbilityId;
+      readonly to?: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Any player may spend the resource card tucked here as if it were in their hand." (Resource Reserve, `falcon`
+   * 53021; docs/phase7-wave9.md §3.46 (c)). Each faceup card tucked under the rule's card that matches `cards`
+   * (absent: every one) is a payment source for each player `by` names, read as the rule's card reads them: it is
+   * named in a payment as a hand card is (`Payment.fromHand`) and the engine treats it as one for that spending.
+   *
+   * - **As if in hand** (RRG 1.8 "Cost", p. 13: resources come "by discarding cards from their hand"). It generates
+   *   what it would from the spender's hand, read with the spender as "you": its printed resources ("Resource Card",
+   *   p. 37), wild included, doubled by its own text for the card paid for (The Power of Flight), with its own "When
+   *   you spend this card" ability if it has one and "spend this card only in hero form" read for the spender. It is a
+   *   card that paid (`PAID_CARDS_SLOT`, `paid.cards.<cardType>`), and its spending is announced as the spender's
+   *   (`resourcesSpent`: "after you spend this card").
+   * - **Only spending.** The card is not in a hand: it is not counted in one, not a card "discarded from your hand"
+   *   for a discard cost or an effect, and cannot be played. A card that restricts what pays for it ("you can only
+   *   spend [physical] resources") is read as for any other source.
+   * - **Where it goes.** Spending it discards it from under its host to its owner's discard pile (RRG 1.8 "Tuck",
+   *   p. 45: a tucked card is out of play, so it does not leave play). Logged `tuckedCardSpent`; heard as a
+   *   `tuckedCardDiscarded` with `how: "cost"`, its host as the source and the host's side as `by`, when an ability
+   *   listens (`recordTuckedDiscard`): the discard pays a cost, and the host's rule is what let it be spent.
+   * - **Who.** `by` is read with the rule's speaker as "you" (`each`: any player). A player it does not name cannot
+   *   spend the card, alliance or not, except that a group payment (RRG 1.8 "Alliance", p. 6) takes it from a player
+   *   it does name, who is then the spender.
+   * - A constant like any other: off while its `while` is false, under a blank text box and once its card has left
+   *   play, when the cards under it are discarded by the game (RRG 1.8 "Tuck", p. 45).
+   *
+   * Read by `tuckedSpendSources` / `tuckedSpender` (`rules.ts`), which `priceOf`, `paymentOptions` and `payPayment`
+   * consult; everything that lists or suggests payments works from `paymentOptions`.
+   */
+  | {
+      readonly kind: "spendableFromTucked";
+      readonly cards?: TargetQuery;
+      readonly by: PlayerRef;
+      readonly while?: Predicate;
+    }
+  /**
    * "You take the first turn during the player phase. (When your turn is done, play proceeds in player order, starting
    * with the first player. You do not take another turn.)" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md
    * §3.27). Read once, as the player phase begins (§4.1 Q16): `player` (resolved like `cannotRecover`'s) takes the
@@ -1113,6 +1248,33 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Falcon does not exhaust to defend until the end of the phase." (Draw Their Fire, `falcon` 53011;
+   * docs/phase7-wave9.md §3.47), carried by `applyRuleUntil`, or a constant's "[this character] does not exhaust to
+   * defend". A character matching `character` (read with "you" as the rule's speaker) makes its basic defense without
+   * exhausting, at every Declare Defender step while the rule lasts:
+   *
+   * - **Offered ready or exhausted.** RRG 1.8 "Defend, Defense" (p. 15): "A hero must exhaust to use this power";
+   *   under the rule it does not, so being exhausted does not stop it: "A card ability that allows a hero to be
+   *   declared as a defender without exhausting can be used on an exhausted hero" (and the same sentence for an ally),
+   *   read for this wording (flagged, §4.2). An exhausted defender stays exhausted; a ready one stays ready.
+   * - **For each attack.** It is a state of the character, not one declaration (`EffectSpec declareDefender
+   *   { exhaust: false }` is that), so it may defend every attack of the phase, against any player.
+   * - **Nothing else changes.** It is a basic defense: the hero's DEF reduces the damage (p. 15), an ally takes the
+   *   damage, the defender's player becomes the target player, one defender per attack and one defending player at a
+   *   time (`defenseBarFor`), `defended` / `basicPowerUsed` are announced, so "after you defend" and "when your hero
+   *   defends" abilities resolve as for any defense. Stunned and confused status cards are untouched: they replace
+   *   attacks and thwarts (RRG 1.8 "Status Cards", p. 41), not a defense. A character that `cannotDefend` still
+   *   cannot, a hero in alter-ego form cannot (only a hero has the basic defense power), and an enemy that must be
+   *   defended by an ally (`mustDefendWithAlly`) is unchanged.
+   * - **Only the step's own exhaustion.** An ability that says "exhaust [it] and declare it the defender" exhausts as
+   *   its own instruction (`declareDefenderByEffect`), and a cost that exhausts the character is a cost.
+   *
+   * Logged on the declaration (`defenderDeclared.withoutExhausting`); the defend preview's `exhausts` is empty for it.
+   * The rule ending mid-phase (its `while`, its card leaving play, the lasting effect expiring) is read at the next
+   * declaration: a defense already declared stands.
+   */
+  | { readonly kind: "defendsWithoutExhausting"; readonly character: TargetQuery; readonly while?: Predicate }
+  /**
    * "When Wrecker schemes, place the threat on his side scheme instead of the main scheme" — printed as a constant ★
    * ability on each Wrecking Crew villain (docs/phase7-wave1.md §3.6). A scheme activation by a matching enemy places
    * its threat on that villain's signature side scheme while it is in play, else on the main scheme.
@@ -1292,6 +1454,14 @@ export type RuleSpec =
        * so pair it with `fromAttack` for "from each attack".
        */
       readonly exceptAttacker?: TargetQuery;
+      /**
+       * "… unless the attacker or attack has the [AERIAL] trait, or the attack has ranged." (docs/phase7-wave9.md
+       * §3.25): no reduction either when the card whose ability makes the attack matches (`exceptAttackCard`) or the
+       * attack has the keyword (`exceptAttackKeyword`), read exactly as `cannotTakeDamage`'s fields of the same names
+       * (`attackMeetsException`). Any one exception given that holds lifts the reduction.
+       */
+      readonly exceptAttackCard?: TargetQuery;
+      readonly exceptAttackKeyword?: AttackKeyword;
       /** Only an ally's consequential damage: "Cannonball takes -1 consequential damage after …" (§3.31). */
       readonly consequential?: ConsequentialDamageScope;
       readonly while?: Predicate;
@@ -1326,6 +1496,36 @@ export type RuleSpec =
       readonly scheme: TargetQuery;
       readonly resources?: ResourceRequirement;
       readonly indirectDamage?: number;
+      readonly while?: Predicate;
+    }
+  /**
+   * "As an additional cost for a player to attack, thwart, or defend with an ally, that player must spend 1 resource of
+   * any type." (Divided Loyalties, `aos` 50173; docs/phase7-wave9.md §3.31.) A cost a rule adds to other characters'
+   * basic powers: each basic attack, basic thwart or defense (`powers`) made with a character `character` matches asks
+   * the player making it for `resources` on top of the power's own costs. Several rules add up, and they add to a
+   * power's own additional cost (`basicPowerCosts`).
+   *
+   * RRG 1.8 "Cost" (p. 13): "A player must pay all additional costs simultaneously with the cost that is being added
+   * to … if they cannot pay for all of the costs at once, then they do not pay any of the costs and the effect
+   * associated with the costs does not occur." So the resources are paid with the exhaust, never apart from it:
+   * - **Basic attack and thwart**, the player's own or one a card instructs (`EffectSpec basicPowerBy`): the command
+   *   carries the payment and is refused unpaid, the character unexhausted (`additionalPowerCostFor`,
+   *   `actions.ts payBasicPowerCost`). `legalActions` offers the power only with a payment that works.
+   * - **Defense**, at the Declare Defender step: a character whose controller cannot pay is not offered as a defender;
+   *   declaring one asks its controller for the payment (`ChoicePrompt spendResources`), and a controller who does not
+   *   pay has not declared it: the character stays ready and the step is asked again without it.
+   *
+   * The payer is the player the power is made by: the character's controller. Not reached: an attack or thwart a
+   * character makes by a triggered ability of its own, and a defender a card ability declares (docs/phase7-wave9.md
+   * §3.31 covers the basic powers; whether the printed "attack, thwart, or defend with an ally" reaches those is an
+   * open rules question).
+   */
+  | {
+      readonly kind: "additionalPowerCost";
+      readonly character: TargetQuery;
+      readonly powers: readonly ("attack" | "thwart" | "defend")[];
+      /** A number is that many resources of any type. */
+      readonly resources: number | ResourceRequirement;
       readonly while?: Predicate;
     }
   /**
@@ -1799,7 +1999,29 @@ export type RuleSpec =
    * (RRG 1.8 "Text Box", p. 44). Off, the card is facedown again and satisfies no condition that reads it
    * (`Predicate topOfDeckFaceup`; owner decision §4.1 Q26 = B).
    */
-  | { readonly kind: "topOfDeckFaceup"; readonly player: PlayerRef; readonly while?: Predicate }
+  | {
+      readonly kind: "topOfDeckFaceup";
+      readonly deck?: "player";
+      readonly player: PlayerRef;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Play with the top card of the encounter deck faceup." (docs/phase7-wave9.md §3.42): the same rule over the
+   * encounter deck, which is no player's, so it names none. While it is in force the top card of the active villain's
+   * encounter deck (`activeEncounterDeck`: "the encounter deck" is the active villain's) is visible to every player
+   * (`faceVisible`, `shownEncounterTop`), derived from the deck's order and this rule each time it is asked; the
+   * card's own `faceup` stays false. Not a look, a reveal or a search (RRG 1.8 "Look, Looked-At", p. 27): nothing
+   * triggers, the deck's order does not change and the card is still in the deck (RRG 1.8 "Encounter Deck", p. 17).
+   * The log follows it with `encounterTopShown` / `encounterTopHidden` (`announceDeckTops`).
+   *
+   * "During the player phase" is the rule's `while` (`Predicate gameStep { phase: "player" }`), so the card is
+   * facedown again when the villain phase begins; on a hero face it is off in alter-ego form, and under a blank text
+   * box (RRG 1.8 "Text Box", p. 44). A card that leaves the deck while it is showing (dealt facedown, given as a boost
+   * card) is facedown where it lands: what the players remember of it is theirs, and the log's (ruling, March 19,
+   * 2026 – Ruling 5: "facedown but known"). Off, the card satisfies no condition that reads it
+   * (`Predicate topOfDeckFaceup`; wave 8 §4.1 Q26 = B).
+   */
+  | { readonly kind: "topOfDeckFaceup"; readonly deck: "encounter"; readonly while?: Predicate }
   /**
    * "Attached villain … is considered to have at least 1 hit point." (docs/phase7-wave8.md §3.10, owner decision §4.1
    * Q6 = A): a floor on what every reader sees as a matching character's remaining hit points. The dial and the damage
@@ -1926,9 +2148,58 @@ export interface DeckDiscardChoice {
   readonly choose: { readonly min: number; readonly max: number };
 }
 
+/**
+ * "Remove 1 threat from your suit form upgrade →" / "remove up to 3 threat from here →" (docs/phase7-wave9.md §3.7 (b);
+ * `remove-threat-cost.ts`): threat taken off a card in play as a cost.
+ *
+ * - **`from`** names the card, read when the cost is determined with the cost's earlier picks bound; the first card in
+ *   play it names. The card is usually not a scheme, its threat only tokens (§3.7 (a)); a scheme pays under its own
+ *   rules (a crisis icon or a "threat cannot be removed" rule leaves it unable to pay).
+ * - **`amount`**: a number is removed in full or the cost cannot be paid. `{ choose: { min, max } }` is the payer's
+ *   pick, made as the cost is paid in a `chooseNumber` choice from `min` to the smaller of `max` and the threat on
+ *   the card (a range of one number is not asked).
+ * - **A printed "up to N" is `min: 1`** (RRG 1.8 "Cost", p. 14: "A cost requiring 'any number' or 'up to' some number
+ *   of game elements requires a minimum of one such game element"). The engine honors a `min` of 0 as written (the
+ *   cost is then paid by removing none, and no removal is raised); nothing printed asks for it.
+ * - **The amount removed** is var `cost.removeThreat` for the text after the arrow ("for each threat removed this
+ *   way"). Less removed than chosen (the removal was cancelled) means the cost was not paid.
+ */
+export interface RemoveThreatCost {
+  readonly from: TargetRef;
+  readonly amount: number | { readonly choose: { readonly min: number; readonly max: number } };
+}
+
 /** "Take any amount of damage up to … →": the payer's choice of a `damageSelf` cost's amount (`AbilityCost.damageSelf`). */
 export interface DamageSelfChoice {
   readonly choose: { readonly min: ValueSpec; readonly max: ValueSpec };
+}
+
+/**
+ * "Discard the top card of the encounter deck →" (Redwing 53002, Battlefield Awareness 53010) and "Choose a number
+ * from 1 to 5. Discard that many cards from the top of the encounter deck →" (Infiltration 51015): docs/phase7-wave9.md
+ * §3.43 (a), `encounter-discard-cost.ts`.
+ *
+ * - **`amount`** is the number of cards owed: printed, or `{ choose: { min, max } }` for a number the payer chooses,
+ *   `min` at least 1 (RRG 1.8 "Cost", p. 14). The choice is made as the cost is paid, in a `chooseNumber` choice
+ *   logged as `numberChosen`, unless the command names it (`CostSelection.discardFromEncounterDeck`); a fixed amount
+ *   is not asked.
+ * - **Not cut to the deck's size.** RRG 1.8 "Encounter Deck" (p. 17): a discard of a specified number of cards that
+ *   empties the encounter deck "is considered to be fulfilled", and is not continued with the new deck. So a player
+ *   may choose 5 over a deck of 2: 2 are discarded, the deck is reset at once with its acceleration token, and the
+ *   cost is paid. It cannot be paid only with no card to discard (an empty deck and an empty discard pile).
+ * - **`slot`** binds the cards discarded on the frame being paid for, top first, with `<slot>.count` ("for each card
+ *   discarded this way"), `<slot>.boostIcons`, `<slot>.starIcons` (a separate count; "icons (★ and boost)" is their
+ *   sum) and the resource totals `EffectSpec discardEncounterCards` binds; `<slot>.chosen` is the number chosen. The
+ *   cards are read where they are when the effects resolve: in the encounter discard pile, or, after a discard that
+ *   emptied the deck, shuffled into the new deck.
+ * - Paid before the ability's effects (RRG 1.8 "Cost Arrow Icon", p. 14), and logged as
+ *   `encounterDiscardCostSettled`. The discard is a cost, not an effect of the card.
+ *
+ * Not on a resource ability, whose cost is paid inside another payment and asks nothing.
+ */
+export interface EncounterDeckDiscardCost {
+  readonly amount: number | { readonly choose: { readonly min: number; readonly max: number } };
+  readonly slot: string;
 }
 
 /**
@@ -2190,6 +2461,13 @@ export interface AbilityCost {
    *   hit points" is the card's `max`, not an engine cap.
    */
   readonly damageSelf?: number | ValueSpec | DamageSelfChoice;
+  /**
+   * "Discard the top card of the encounter deck →", "choose a number from 1 to 5, discard that many cards from the top
+   * of the encounter deck →" (`EncounterDeckDiscardCost`, docs/phase7-wave9.md §3.43 (a)).
+   */
+  readonly discardFromEncounterDeck?: EncounterDeckDiscardCost;
+  /** "Remove [up to] N threat from [a card] →" (`RemoveThreatCost`, docs/phase7-wave9.md §3.7 (b)). */
+  readonly removeThreat?: RemoveThreatCost;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
   readonly damageThisCard?: number;
   /**
@@ -2362,6 +2640,11 @@ export interface AbilityCost {
    */
   readonly discardCards?: InPlayCostPick;
   /**
+   * "Discard a card tucked here →" (Cindy Moon, `silk` 52001b; docs/phase7-wave9.md §3.39): cards tucked under a card
+   * discarded as part of the cost, the payer choosing which. See `TuckedCostPick`.
+   */
+  readonly discardTucked?: TuckedCostPick;
+  /**
    * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
    * the picked character(s) each take `amount` damage from this card as the cost. See `InPlayCostPick` for the pick.
    *
@@ -2457,16 +2740,41 @@ export interface AbilityCost {
   };
 }
 
+/** The kinds of printed ability `EffectSpec resolveSpecials` resolves on another card's instruction (its `trigger`). */
+export type ResolvableAbilityKind =
+  | "special"
+  | "whenRevealed"
+  | "whenDefeated"
+  | "forcedResponse"
+  | "forcedInterrupt"
+  | "preparation";
+
+/** The ability labels a `RuleSpec grantsLabeledAbility` can give to other cards (docs/phase7-wave9.md §3.3). */
+export type GrantableAbilityLabel = Extract<ResolvableAbilityKind, "preparation">;
+
+/**
+ * The binding slot a granted ability's frame names its granting card in (`RuleSpec grantsLabeledAbility`;
+ * docs/phase7-wave9.md §3.3): the card in play whose constant gave the resolving card this ability, the card its text
+ * names ("Then, discard Night Vision Goggles"). Bound by `resolveSpecials` as the ability is put on the stack, so the
+ * ability still names that card if it leaves play first. Absent on a printed ability.
+ */
+export const GRANTED_BY_SLOT = "_grantedBy";
+
+/**
+ * The result an attack records for the labeled abilities resolved during it (docs/phase7-wave9.md §3.2): how many
+ * "Preparation" abilities a `resolveSpecials` resolved while that attack was the innermost one on the stack. Kept in
+ * the attack's event frame `vars`, so it is in the event's `results` once its response window opens ("if no
+ * 'Preparation' ability was resolved"). Absent when none resolved.
+ */
+export const labeledResolvedVar = (label: GrantableAbilityLabel): string => `labeledResolved.${label}`;
+
 /**
  * Whether a printed ability is one `resolveSpecials` resolves for this `trigger` (`EffectSpec resolveSpecials`): a
  * "Forced Response" is a `response` trigger that is forced and a "Forced Interrupt" an `interrupt` trigger that is
  * forced; the others are named by their own trigger kind. A card's attach instruction is not one of its When Revealed
  * abilities (docs/phase7-wave7.md §3.35).
  */
-export function resolvableAs(
-  definition: AbilityDefinition | undefined,
-  trigger: "special" | "whenRevealed" | "whenDefeated" | "forcedResponse" | "forcedInterrupt",
-): boolean {
+export function resolvableAs(definition: AbilityDefinition | undefined, trigger: ResolvableAbilityKind): boolean {
   if (!definition || definition.attachInstruction) return false;
   if (trigger === "forcedResponse") return definition.trigger.kind === "response" && definition.trigger.forced;
   if (trigger === "forcedInterrupt") return definition.trigger.kind === "interrupt" && definition.trigger.forced;
@@ -2508,12 +2816,40 @@ export interface DamageCostPick extends InPlayCostPick {
   readonly amount: number;
 }
 
+/**
+ * `AbilityCost.discardTucked`: a pick among the cards tucked under `under`, each discarded as the cost. It is asked,
+ * defaulted, checked and bound as an `InPlayCostPick` in mode `discard` is (`costChoices[slot]`, `min`–`max`, `bind`,
+ * a forced pick paying itself), with these differences:
+ *
+ * - **Candidates.** The cards tucked under the one card `under` names (the ability's card as `self`, the payer as
+ *   `you`), in tuck order, that match `query` (`{}`: any of them). Tucked cards are out of play and nobody controls
+ *   them (RRG 1.8 "Tuck", p. 45), so it is the card they are under that the payer must control (RRG 1.8 "Cost", p. 14:
+ *   paid "with cards and/or game elements they control"); `under` naming no card, several, or a card of another
+ *   player leaves no candidate.
+ * - **Payable** only while at least `min` cards are there (RRG 1.8 "Cost", p. 13: paid in full or not at all;
+ *   "Initiating Abilities", p. 24, steps 3 and 5). Nothing stops a tucked card being discarded: it is not in play, so
+ *   "cannot leave play" and Permanent do not apply to it.
+ * - **Paid** by the same move as an effect that discards a tucked card (`moveCardsTo(…, "discard")`, with this
+ *   ability's card as the source): each goes to its owner's discard pile, an encounter card to the encounter discard
+ *   pile, and the log holds the same `cardMoved` out of the `tucked` zone. Whatever later answers a tucked card's
+ *   discard "by a player card effect" (docs/phase7-wave9.md §3.40, §4.1 Q7) hears a cost and an effect alike.
+ * - `each`, `includesSelf`, `superlative`, `bindHosts` and `snapshotStats` are for cards in play and are not read.
+ */
+export interface TuckedCostPick extends InPlayCostPick {
+  readonly under: TargetRef;
+}
+
+/** The pick as a `TuckedCostPick` when it is one (`AbilityCost.discardTucked`), else null. */
+export const tuckedPickOf = (pick: InPlayCostPick): TuckedCostPick | null =>
+  "under" in pick ? (pick as TuckedCostPick) : null;
+
 /** How an `InPlayCostPick` spends its cards. */
 export type InPlayCostMode = "exhaust" | "ready" | "return" | "discard" | "damage";
 
 /**
  * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the ready pick, the return
- * pick, the discard pick, the damage pick.
+ * pick, the discard pick, the tucked-card discard pick (mode `discard` too; told apart by `tuckedPickOf`), the damage
+ * pick.
  */
 export function inPlayPicksOf(
   cost: AbilityCost | undefined,
@@ -2526,6 +2862,7 @@ export function inPlayPicksOf(
     ...(cost.readyCards ? [{ mode: "ready" as const, pick: cost.readyCards }] : []),
     ...listOf(cost.returnToHand).map((pick) => ({ mode: "return" as const, pick })),
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
+    ...(cost.discardTucked ? [{ mode: "discard" as const, pick: cost.discardTucked }] : []),
     ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
   ];
 }
@@ -2597,6 +2934,23 @@ export interface InPlayCostPick {
    *   cost (RRG 1.8 "Cost", p. 13), so that cost would never be payable.
    */
   readonly each?: true;
+  /**
+   * "Exhaust [this card] and up to 2 other [Wakanda] allies and/or supports you control →" (The Elephant's Trunk, `bp`
+   * 51007): the ability's own card is one of the picks, always, and the rest are the payer's choice. RRG 1.8 FAQ
+   * "The Elephant's Trunk (#7)" (p. 65): "The Elephant's Trunk is itself a Wakanda support, so it satisfies the minimum
+   * of one Wakanda ally or support needed to pay its ability's cost."
+   *
+   * - **One pick, not two.** The card counts toward `min` and `max` and into `bind` ("for each card exhausted this
+   *   way (including this one)"), so "this and up to 2 others" is `min: 1, max: 3`: the minimum of one (RRG 1.8
+   *   "Cost", p. 14) is kept, and the card itself is what meets it.
+   * - **The card must match `query`** and be able to pay (ready, to exhaust it). When it does not, the cost is not
+   *   payable whatever else could pay: the text names this card. A card that is named beside a pick it is not one of
+   *   ("exhaust this support and up to 2 allies") is `exhaustSelf` plus a pick instead, which needs one of the others.
+   * - **Picking.** A command's `costChoices[slot]` must hold the card. `legalActions`' default pick is the card alone
+   *   (with `min` 1), and a timing window asks only for the others.
+   * - Not with `each`, and not beside another part of the cost that spends the same card (`exhaustSelf`).
+   */
+  readonly includesSelf?: true;
 }
 
 export interface AbilityLimit {
@@ -2627,8 +2981,28 @@ export interface AbilityLimit {
    *   offered, a second copy picked with the first is left in hand unpaid, and a copy whose effects are canceled
    *   still counts (RRG 1.8 "Max, Maximum", p. 28). The maximum is for all players, as that entry says.
    */
-  readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent";
+  /**
+   * - `"paidCard"`: "Resource: … → generate a [energy] resource for an Aerial card. **(Limit once per card.)**"
+   *   (Falcon's Flock, `falcon` 53006; docs/phase7-wave9.md §3.46 (a)). RRG 1.8 "Limit" (pp. 26-27); "Resource
+   *   Ability" (p. 37). On a resource ability only: it may be used `count` times toward each card (or ability cost)
+   *   being paid for, any number of cards in a turn or a round. The count is the payment's own (`priceOf` counts the
+   *   uses a payment lists and refuses one past the limit with `limit_reached`; `paymentOptions` offers no use past
+   *   it), so nothing is kept in `GameState.abilityUses`: a payment that is refused, or a play that is aborted,
+   *   leaves nothing behind, and the next card paid for starts at zero. `period` is not read. With it a `repeatable`
+   *   ability ("remove 1 counter →", one use per counter) stops at `count` uses a payment; without `repeatable` a
+   *   resource ability is used once a payment already, and the limit names that rule as the card prints it.
+   *   NOT SETTLED by a ruling: whether "per card" also joins two payments made for one card (its play, and later the
+   *   cost of an ability it prints). Each payment is counted on its own here (the spec's reading, reported with it).
+   */
+  readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent" | "paidCard";
 }
+
+/**
+ * How many times `definition` may be used in one payment by its own limit (`AbilityLimit.per: "paidCard"`,
+ * docs/phase7-wave9.md §3.46 (a)), or null when it has no such limit.
+ */
+export const usesPerPaidCard = (definition: AbilityDefinition | undefined): number | null =>
+  definition?.limit?.per === "paidCard" ? definition.limit.count : null;
 
 /**
  * What a resource ability generates. A bare number is that many wild
@@ -2731,8 +3105,19 @@ export interface AbilityDefinition {
    * player controls the cards in their own out-of-play areas"), once per discard, in that discard's response window (`TriggerEvent cardDiscardedFromDeck`, `selfIs: "target"`), optional
    * unless printed Forced; it has no cost (nothing out of play pays one). Only such a response: the DSL's
    * `validateDefinition` rejects any other ability marked this way.
+   *
+   * `"tucked"`: a response the card itself makes to its own discard from under another card, read from the card where
+   * that discard left it ("Forced Response: After a player card effect discards this card from under an identity,
+   * that identity takes 2 damage"; docs/phase7-wave9.md §3.40 (b)). A tucked card is out of play (RRG 1.8 "Tuck",
+   * p. 45), and this text "specifically refer[s] to being used from an out-of-play area" (RRG 1.8 "In Play and Out of
+   * Play", p. 23), so the ability is on for a card that was tucked and nowhere else: not in play, not in hand, and not
+   * for a card that reached a discard pile any other way. It answers `TriggerEvent tuckedCardDiscarded` with itself as
+   * the target (`selfIs: "target"`), once per discard, in that discard's response window. "You" is the player its host
+   * spoke to (the identity's controller; `tuckedCardDiscarded.playerId`), who resolves it; a host that speaks to no
+   * player leaves a forced one to resolve with no "you". It has no cost (nothing out of play pays one). Only such a
+   * response: the DSL's `validateDefinition` rejects any other ability marked this way.
    */
-  readonly activeIn?: "hand" | "victoryDisplay" | "discard";
+  readonly activeIn?: "hand" | "victoryDisplay" | "discard" | "tucked";
   /**
    * "This effect cannot be canceled." on a "When Revealed" ability (the Cosmic Entities, `mts` 21042/21048/21054/21060:
    * "When Revealed: Deal 2 damage to the villain and remove this card from the game. This effect cannot be canceled.";

@@ -2,7 +2,7 @@
 import type { AnyCard, CardImages, ImageRef } from "../../../src/schema/index.ts";
 import type { RawCard } from "../raw-types.ts";
 import { brand } from "./brand.ts";
-import { CORE_ART_BY_NAME } from "./core-raw.ts";
+import { ART_BY_CODE, CORE_ART_BY_NAME } from "./core-raw.ts";
 
 /** MarvelCDB nulls image fields freely, and a linked record may be absent entirely. */
 export type Src = string | null | undefined;
@@ -95,7 +95,10 @@ const RAW_TO_SCHEMA_TYPE: Readonly<Record<string, string>> = {
 export const reprintImages = (r: RawCard): CardImages | undefined => {
   const schemaType = RAW_TO_SCHEMA_TYPE[r.type_code];
   if (!schemaType) return undefined;
-  const src = CORE_ART_BY_NAME.get(`${r.type_code} ${r.name}`);
+  // The record's own `duplicate_of_code` target names the exact original; the name lookup is the fallback.
+  const src =
+    (r.duplicate_of_code ? ART_BY_CODE.get(r.duplicate_of_code) : undefined) ??
+    CORE_ART_BY_NAME.get(`${r.type_code} ${r.name}`);
   return src ? { front: brand("image", src) } : undefined;
 };
 

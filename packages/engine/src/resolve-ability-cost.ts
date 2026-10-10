@@ -114,7 +114,7 @@ const resolving = (cost: ResolveAbilityCost): EffectSpec => ({
  *
  * Bookkeeping: the stack and the open choice; the counters that name frames, choices and lasting effects; the
  * per-ability use counts ("Limit once per round" counts a resolution that did nothing); and the memory of what the
- * between-frames checks and the log last saw (`stateChecks`, `hitPointsSeen`, `deckTopsAnnounced`), none of which the
+ * between-frames checks and the log last saw (`stateChecks`, `hitPointsSeen`, `deckTopsAnnounced`, `encounterTopAnnounced`), none of which the
  * game is ever read from. The queues those checks drain (`pending…`) are game: a card left play or entered a hand.
  */
 export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" | "bookkeeping" } = {
@@ -127,6 +127,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   stateChecks: "bookkeeping",
   hitPointsSeen: "bookkeeping",
   deckTopsAnnounced: "bookkeeping",
+  encounterTopAnnounced: "bookkeeping",
   round: "game",
   step: "game",
   firstPlayerId: "game",
@@ -151,9 +152,13 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   pendingDeckRunOuts: "game",
   pendingEncounterFromDeck: "game",
   pendingEnteredHand: "game",
+  pendingEncounterDealt: "game",
+  pendingEncounterDeals: "game",
   pendingLeftPlay: "game",
   pendingStatusPlaced: "game",
   pendingDeckDiscards: "game",
+  pendingTuckedDiscards: "game",
+  pendingBoostGiven: "game",
   deckDiscardWindows: "game",
   villainArea: "game",
   victoryDisplay: "game",
@@ -174,6 +179,9 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   playedByPlayerThisPhase: "game",
   scenarioAreas: "game",
   scenarioPlayAreas: "game",
+  hiddenPiles: "game",
+  revealedPileCards: "game",
+  accusation: "game",
   campaign: "game",
   campaignWrites: "game",
   setupStack: "game",

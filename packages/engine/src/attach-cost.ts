@@ -12,7 +12,7 @@ import { type Ctx } from "./ctx.js";
 import type { EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { locateCard } from "./query.js";
-import { attachCardBy, canAttachTo } from "./resolve/attach.js";
+import { announcesAttaching, attachCardBy, canAttachTo } from "./resolve/attach.js";
 import { announceFound, shuffleSearchedDecks } from "./resolve/find.js";
 import { pushEvents } from "./resolve/frames.js";
 import { heard } from "./resolve/triggers.js";
@@ -212,7 +212,9 @@ export function payAttachCost(
     searched = decksSearchedByFind(ctx.state, ref.query, context, owners, { id: card, deck });
     announceFound(ctx, card, deck, ctx.state.instances[card]?.attachedTo === host);
   }
-  const attached = attachCardBy(ctx, card, host, playerId).filter((event) => heard(ctx.state, ctx.deps, event));
+  const attached = attachCardBy(ctx, card, host, playerId).filter((event) =>
+    announcesAttaching(event, (e) => heard(ctx.state, ctx.deps, e)),
+  );
   shuffleSearchedDecks(ctx, searched);
   if (attached.length > 0) pushEvents(ctx, attached);
 }

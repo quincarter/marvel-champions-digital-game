@@ -1001,6 +1001,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       contents: deck.contents,
       ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
       ...(deck.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
+      ...(deck.topCardInPlay ? { topCardInPlay: true as const } : {}),
     };
   }
   const setAsideModularSets: SetAsideModularSet[] = [];

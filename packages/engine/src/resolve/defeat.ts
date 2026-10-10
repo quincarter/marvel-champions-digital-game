@@ -9,6 +9,7 @@ import {
   applyToughness,
   leavePlay,
   leavePlayAtOnce,
+  recordTuckedDiscard,
   setActiveVillain,
   updateMainSchemeState,
   waitsForHostStep,
@@ -36,7 +37,7 @@ import {
 } from "../query.js";
 import { defeatHeldOff, leavingPlayLoses } from "../rules.js";
 import { nextInt, shuffle } from "../rng.js";
-import { cardsInPlay, isCaptiveAlly } from "../select.js";
+import { cardsInPlay, isCaptiveAlly, isHeldMinion } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import {
   NO_STATUSES,
@@ -534,7 +535,7 @@ interface DefeatHint {
  * damage to the engaged player's identity") sweeps again while the defeated card is still in play at zero remaining hit
  * points, and it must not be defeated a second time.
  */
-const defeatPending = (state: GameState, id: InstanceId): boolean =>
+export const defeatPending = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
     (f) =>
       (f.kind === "event" &&
@@ -681,7 +682,10 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // …then each in-play scenario area's cards: allies and minions no player controls or is engaged with, defeated at
   // zero hit points like any character in play (MC45 p. 5: "in play"; docs/phase7-wave8.md §3.33).
   const inScenarioAreas = Object.values(ctx.state.scenarioPlayAreas ?? {}).map((area) => area.cards);
-  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives, ...inScenarioAreas]) {
+  // …then each minion an environment holds, which is defeated as any minion in play (`isHeldMinion`, MC50 p. 15;
+  // docs/phase7-wave9.md §3.21).
+  const held = cardsInPlay(ctx.state).filter((id) => isHeldMinion(ctx.state, id));
+  for (const ids of [...playerOrder(ctx.state).map((player) => player.playArea), captives, ...inScenarioAreas, held]) {
     for (const id of [...ids]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
       const instance = getInstance(ctx.state, id);
@@ -900,6 +904,7 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tucked, (i) => ({ ...i, faceup: true }));
     moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
+    recordTuckedDiscard(ctx, tucked, villainId);
   }
 
   const scheme = villain.signatureSideSchemeId;

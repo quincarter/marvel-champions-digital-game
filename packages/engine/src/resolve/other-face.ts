@@ -17,12 +17,18 @@
  * is also revealed where it is (`revealNewFaceFrame`), after it has entered play as above, so a side scheme face holds
  * the threat the card kept plus its starting threat when its When Revealed resolves (§4.1 Q19). The flip then pushes
  * the `cardFlipped` event itself, under the reveal, and the caller pushes none.
+ *
+ * `keepCounters` (`flipCard.keepCounters`; docs/phase7-wave9.md §3.26, §4.1 Q1 = A): the counter types the card keeps
+ * through a change of type, where the Flip rule above would discard them with every other token. A product's own rules
+ * can count on them staying (a Board Member environment that flips to an attachment on the villain holds its secret
+ * counters, MC50 pp. 11 and 19), and the card data names which; RRG 1.8 "The Golden Rules" (p. 4). Nothing else the
+ * rule discards is kept, and the counters are not placed again (no `countersPlaced`).
  */
 
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
-import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
+import { leavePlay, leavePlayAtOnce, recordTuckedDiscard, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import {
@@ -51,6 +57,8 @@ export function flipToOtherFace(
   reveal = false,
   /** The player whose effect flipped the card (`cardFlipped.playerId`); `playerId` is who the new face goes to. */
   flippedBy: PlayerId | null = null,
+  /** The counter types kept through a change of card type (`flipCard.keepCounters`). */
+  keepCounters: readonly string[] = [],
 ): boolean | "waiting" {
   const from = cardOf(ctx.state, id);
   const otherId: CardId | undefined = from?.otherFaceId;
@@ -64,6 +72,7 @@ export function flipToOtherFace(
     playerId,
     ...(reveal ? { reveal: true } : {}),
     ...(flippedBy ? { flippedBy } : {}),
+    ...(keepCounters.length > 0 ? { keepCounters } : {}),
   };
   // Its attachments are discarded: their "when this leaves play" interrupts first, with it unflipped (§4.1 Q32 of
   // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
@@ -75,23 +84,36 @@ export function flipToOtherFace(
         leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
     }
     for (const card of before.tucked) {
-      if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
+      if (!ctx.state.instances[card]) continue;
+      moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
+      recordTuckedDiscard(ctx, card, id);
     }
   }
   // What the discard left stays attached, since the card flips but stays in play: an attachment whose own leaving was
   // cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip rule's
   // discard cannot move (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q50).
   const kept = mustInstance(ctx.state, id).attachments;
+  // Read now, not from `before`: an attachment's "when this leaves play" may have changed them on the way.
+  const held = mustInstance(ctx.state, id).counters;
+  const counters: Record<string, number> = {};
+  if (typeChanged) for (const type of keepCounters) if ((held[type] ?? 0) > 0) counters[type] = held[type]!;
   updateInstance(ctx, id, (i) => ({
     ...i,
     cardId: to.id,
     flipped: false,
     faceup: true,
     ...(typeChanged
-      ? { damage: 0, threat: 0, statuses: NO_STATUSES, counters: {}, tucked: [], attachments: kept, exhausted: false }
+      ? { damage: 0, threat: 0, statuses: NO_STATUSES, counters, tucked: [], attachments: kept, exhausted: false }
       : {}),
   }));
-  emit(ctx, { type: "cardFlippedToOtherFace", instanceId: id, from: from.id, to: to.id, typeChanged });
+  emit(ctx, {
+    type: "cardFlippedToOtherFace",
+    instanceId: id,
+    from: from.id,
+    to: to.id,
+    typeChanged,
+    ...(Object.keys(counters).length > 0 ? { keptCounters: counters } : {}),
+  });
   if (typeChanged) relocate(ctx, id, to, playerId, deps);
   const flippedFrame = reveal ? [eventFrame(ctx, cardFlippedEvent(id, flippedBy))] : [];
   if (!cardsInPlay(ctx.state).includes(id)) {

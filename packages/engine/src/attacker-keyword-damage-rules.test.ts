@@ -6,6 +6,9 @@
  *    (`cannotTakeDamage` with `exceptAttacker`, `exceptAttackCard`, `exceptAttackKeyword`)
  * 2. "Reduce the amount of damage this minion takes from each attack by 1 unless the attacker has the [TINY] trait."
  *    (`reduceDamageTaken` with `fromAttack` and `exceptAttacker`)
+ *    and, with all three of the first wording's exceptions, "Reduce the damage each [FLY] character takes from each
+ *    attack by 2 unless the attacker or attack has the [FLY] trait, or the attack has ranged." (docs/phase7-wave9.md
+ *    §3.25; `exceptAttackCard`, `exceptAttackKeyword` read by the same `attackMeetsException`)
  * 3. "This villain ignores the retaliate keyword while attacking a non-[FLY] character." (`characterIgnores` with
  *    `"retaliate"` and `against`)
  *
@@ -79,6 +82,19 @@ const SHRINKING = rules("shrinking.constant", {
   amount: 1,
   fromAttack: true,
   exceptAttacker: { trait: TINY },
+});
+/**
+ * The second wording with the first's three exceptions (docs/phase7-wave9.md §3.25): "Reduce the damage this minion
+ * takes from each attack by 2 unless the attacker or attack has the [FLY] trait, or the attack has ranged."
+ */
+const DOGFIGHT = rules("dogfight.constant", {
+  kind: "reduceDamageTaken",
+  target: { self: true },
+  amount: 2,
+  fromAttack: true,
+  exceptAttacker: { trait: FLY },
+  exceptAttackCard: { trait: FLY },
+  exceptAttackKeyword: "ranged",
 });
 /** The third wording. */
 const BOMBARD = rules("bombard.constant", {
@@ -157,7 +173,15 @@ const SPIKY = stubMinion({
   hp: 9,
   keywords: [{ name: "retaliate", value: 2 }],
 });
-const MINIONS = [DUMMY, HOVERER, SHRINKER, BIG_SHRINKER, SPIKY];
+const DOGFIGHTER = stubMinion({
+  id: "dogfighter",
+  atk: 1,
+  sch: 1,
+  boostIcons: 0,
+  hp: 10,
+  abilities: [DOGFIGHT.ref],
+});
+const MINIONS = [DUMMY, HOVERER, SHRINKER, BIG_SHRINKER, SPIKY, DOGFIGHTER];
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 
 const actionEvent = (id: string, effects: readonly EffectSpec[], traits: readonly (typeof FLY)[] = []) => {
@@ -200,6 +224,8 @@ const RANGED_SMASH = actionEvent("ranged-smash", attackMinion(6, { overkill: tru
 const TINY_SMASH = actionEvent("tiny-smash", attackMinion(6, { overkill: true }), [TINY]);
 const JAB = actionEvent("jab", attackMinion(3));
 const TAP = actionEvent("tap", attackMinion(1));
+const FLY_JAB = actionEvent("fly-jab", attackMinion(3), [FLY]);
+const RANGED_JAB = actionEvent("ranged-jab", attackMinion(4, { keywords: ["ranged"] }));
 const MINION_ZAP = actionEvent("minion-zap", [{ kind: "dealDamage", target: theMinion, amount: n(3) }]);
 const PROVOKE = actionEvent("provoke", [{ kind: "enemyAttack", enemies: theVillain, against: { kind: "controller" } }]);
 const EVENTS = [
@@ -218,6 +244,8 @@ const EVENTS = [
   TINY_SMASH,
   JAB,
   TAP,
+  FLY_JAB,
+  RANGED_JAB,
   MINION_ZAP,
   PROVOKE,
 ];
@@ -227,6 +255,7 @@ const deps: EngineDeps = depsOf(
   SHELTER,
   HOVERING,
   SHRINKING,
+  DOGFIGHT,
   BOMBARD,
   SLIPPERY,
   WINGS,
@@ -525,6 +554,62 @@ describe("§3.30 'reduce the damage taken from each attack by 1 unless the attac
     ]);
     expect(after.events.filter((e) => e.type === "characterDefeated")).toEqual([]);
     expect(mustInstance(after.state, t.ids[0]!).counters["excess"] ?? 0).toBe(0);
+  });
+});
+
+describe("wave 9 §3.25 'reduce the damage taken from each attack by 2 unless the attacker or attack has the trait, or the attack has ranged'", () => {
+  it("a plain attack by a hero without the trait is reduced: 3 is 1, and a basic attack of 2 is 0", () => {
+    const t = table(PLAIN_V, [RECORDER], DOGFIGHTER);
+    expect(damageOn(play(t, JAB).state, t.minion!)).toBe(1);
+    const basic = runCommands(t.state, deps, basicAttack(t.hero, t.minion!));
+    expect(damageOn(basic.state, t.minion!)).toBe(0);
+    expect(basic.events.filter((e) => e.type === "damagePrevented")).toEqual([
+      { type: "damagePrevented", targetInstanceId: t.minion!, amount: HERO_ATK, reason: "reduced" },
+    ]);
+  });
+
+  it("'the attacker has the trait': a hero with it deals the full 3 through a plain attack event", () => {
+    const t = table(PLAIN_V, [RECORDER, WINGS_S], DOGFIGHTER);
+    expect(damageOn(play(t, JAB).state, t.minion!)).toBe(3);
+  });
+
+  it("'the attack has the trait': an attack event with it deals the full 3, from a hero without it", () => {
+    const t = table(PLAIN_V, [RECORDER], DOGFIGHTER);
+    expect(damageOn(play(t, FLY_JAB).state, t.minion!)).toBe(3);
+  });
+
+  it("'the attack has ranged': a ranged attack event deals its 4, and a basic attack granted ranged its 2", () => {
+    const t = table(PLAIN_V, [RECORDER], DOGFIGHTER);
+    expect(damageOn(play(t, RANGED_JAB).state, t.minion!)).toBe(4);
+    const bow = table(PLAIN_V, [BOW_S], DOGFIGHTER);
+    expect(damageOn(runCommands(bow.state, deps, basicAttack(bow.hero, bow.minion!)).state, bow.minion!)).toBe(
+      HERO_ATK,
+    );
+  });
+
+  it("an ally's basic attack: one with the trait or printed ranged deals 2, a plain one 0", () => {
+    for (const [ally, dealt] of [
+      [FLY_ALLY, 2],
+      [RANGED_ALLY, 2],
+      [PLAIN_ALLY, 0],
+    ] as const) {
+      const t = table(PLAIN_V, [ally], DOGFIGHTER);
+      const after = runCommands(t.state, deps, basicAttack(t.ids[0]!, t.minion!));
+      expect(damageOn(after.state, t.minion!)).toBe(dealt);
+    }
+  });
+
+  it("each attack is reduced on its own: 3 and 3 are 1 and 1, then a ranged 4 makes 6", () => {
+    const t = table(PLAIN_V, [RECORDER], DOGFIGHTER);
+    const first = play(t, JAB);
+    const second = playFree(first.state, deps, JAB.card.id);
+    expect(damageOn(second.state, t.minion!)).toBe(2);
+    expect(damageOn(playFree(second.state, deps, RANGED_JAB.card.id).state, t.minion!)).toBe(6);
+  });
+
+  it("damage that is not from an attack is not reduced ('from each attack'): 3", () => {
+    const t = table(PLAIN_V, [RECORDER], DOGFIGHTER);
+    expect(damageOn(play(t, MINION_ZAP).state, t.minion!)).toBe(3);
   });
 });
 

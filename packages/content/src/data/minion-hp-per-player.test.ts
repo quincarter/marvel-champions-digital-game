@@ -9,6 +9,7 @@ import {
   WAVE6_CARDS,
   WAVE7_CARDS,
   WAVE8_CARDS,
+  WAVE9_CARDS,
 } from "./index.js";
 
 /**
@@ -54,6 +55,7 @@ describe("minions with hit points per player", () => {
       ...WAVE6_CARDS,
       ...WAVE7_CARDS,
       ...WAVE8_CARDS,
+      ...WAVE9_CARDS,
     ];
     const found: Record<string, number> = {};
     for (const card of all) if (card.type === "minion" && card.hpPerPlayer) found[card.id] = card.hp;

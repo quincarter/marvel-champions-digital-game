@@ -10,6 +10,8 @@ import {
   ownCardPlayFault,
   defaultHandDiscardPicks,
   defaultInPlayPicks,
+  isAlternativeAmount,
+  mostFromEachHandCard,
   isPriceFault,
   paymentOptions,
   paymentsFromOptionIds,
@@ -38,13 +40,14 @@ import {
   sourcePlayerOf,
   triggeringPlayers,
   uncontrolledYouOf,
+  isCaptiveAlly,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
 import { snapshotTitledAs } from "../titles.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
-import { carriedByEvent, eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { carriedByEvent, eventSubjects, hearsEncounterDeckDiscard, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
@@ -130,15 +133,18 @@ function costPayable(
   const ctx = createCtx(state, deps);
   const exclude = fromHand ? id : null;
   const payingFor = plan.payingFor ?? id;
+  // One use of a resource ability pays one amount: only the option for the most it generates counts toward the bound.
   const sources = paymentsFromOptionIds(
     paymentOptions(ctx, playerId, exclude, payingFor).map((option) => option.optionId),
-  );
+  ).filter((source) => !isAlternativeAmount(source));
+  // One card is spent once: each hand card counts as the most it could generate ("When you spend this card").
+  const mostEach = mostFromEachHandCard(ctx, playerId, sources, exclude, payingFor);
   // "Spend up to 3 resources →" (`ResourcesChoice`; docs/phase7-wave8.md §3.62): at least one resource (RRG 1.8 "Cost",
   // p. 14), and more than its maximum is overpaid (owner decision, 2026-10-08, §4.1 row 78; RRG p. 13), so the ability
   // is offered when some payment generates its minimum.
   if (chosenSize) return !chosenSizePayments(state, deps, playerId, sources, chosenSize, payingFor, true).next().done;
   let most = EMPTY_POOL;
-  for (const source of sources) {
+  for (const source of mostEach) {
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);
     if (pool) most = addPools(most, pool);
   }
@@ -178,6 +184,10 @@ function matchesOwnFields(
 ): boolean {
   const kinds: readonly TriggerEvent["kind"][] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
   if (!kinds.includes(event.kind)) return false;
+  // A card discarded from an encounter deck is heard only by a pattern that asks for one (docs/phase7-wave9.md §3.43
+  // (b)), so "after you discard a card from the top of your deck" stays a player deck's.
+  if (event.kind === "cardDiscardedFromDeck" && event.deck === "encounter" && !hearsEncounterDeckDiscard(pattern))
+    return false;
   // The same attack resolved against another player doesn't re-trigger the attacker's own "when it attacks".
   if (event.kind === "enemyAttack" && event.additionalResolution && event.enemyInstanceId === selfId) return false;
   if (event.kind === "attack" && event.additionalResolution && event.attackerInstanceId === selfId) return false;
@@ -275,6 +285,19 @@ function matchesRest(
       if (withoutTrait && traits.includes(withoutTrait)) return false;
       if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
       if (!matchesQuery(state, lastKnown.id, rest, context)) return false;
+    } else if (event.kind === "characterDefeated" && event.asDefeated !== undefined) {
+      // "After a Controlled minion is defeated": what the character was as its defeat was initiated (`DefeatedSnapshot`,
+      // docs/phase7-wave9.md §3.32). A player card in play facedown as a minion is itself again once it has left play,
+      // so its categories, its traits and whether it was facedown are read from the snapshot; the rest of the query,
+      // and a clause inside `anyOf`/`not`, read the card as it now is.
+      const was = event.asDefeated;
+      const { categories, trait, withoutTrait, anyTrait, facedown, ...rest } = query;
+      if (categories && !categories.some((category) => was.categories.includes(category))) return false;
+      if (trait && !was.traits.includes(trait)) return false;
+      if (withoutTrait && was.traits.includes(withoutTrait)) return false;
+      if (anyTrait && !anyTrait.some((wanted) => was.traits.includes(wanted))) return false;
+      if (facedown !== undefined && was.facedown !== facedown) return false;
+      if (!matchesQuery(state, event.instanceId, rest, context)) return false;
     } else if (
       (event.kind === "dealDamage" || event.kind === "attack") &&
       event.targetAsDamaged !== undefined &&
@@ -578,6 +601,14 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "villainStepStarting") return [];
   // A change of form about to happen is interrupt-only: "after you change form" answers `formChanged`.
   if (timing === "response" && event.kind === "formChanging") return [];
+  // A tuck about to happen is interrupt-only ("would", RRG 1.8 p. 48; docs/phase7-wave9.md §3.40).
+  if (timing === "response" && event.kind === "cardBeingTucked") return [];
+  // So is a discard from a hand or a deck about to happen (docs/phase7-wave9.md §4.1 Q20).
+  if (timing === "response" && event.kind === "cardBeingDiscarded") return [];
+  // And a status card about to be given ("after a status card is placed" answers `statusPlaced`; wave 9 §3.33).
+  if (timing === "response" && event.kind === "statusBeingGiven") return [];
+  // And an encounter card about to be dealt ("after a player is dealt" answers `encounterCardDealt`; wave 9 §3.45).
+  if (timing === "response" && event.kind === "encounterCardBeingDealt") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
@@ -601,7 +632,9 @@ function gatherCandidates(
       if (definition.playCostReduction) continue;
       // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13), nor does one a card
       // makes from where its discard from a deck left it (docs/phase7-wave7.md §3.55).
-      if (definition.activeIn === "hand" || definition.activeIn === "discard") continue;
+      // Nor one a card makes to its own discard from under another card (docs/phase7-wave9.md §3.40).
+      if (definition.activeIn === "hand" || definition.activeIn === "discard" || definition.activeIn === "tucked")
+        continue;
       // "Only the player who controls Robert Kelly can trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
       // §3.11): each player it names is offered the ability as its "you".
       const named = forced ? null : triggeringPlayers(state, deps, id, trigger, event);
@@ -615,6 +648,10 @@ function gatherCandidates(
         }
         continue;
       }
+      // An ally under no player's control (`isCaptiveAlly`; docs/phase7-wave9.md §3.19): its optional Interrupt or
+      // Response is its controller's to trigger, and it has none, so it is offered to nobody. Its forced abilities
+      // still resolve, as any card's in play do.
+      if (!forced && isCaptiveAlly(state, id)) continue;
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
       if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
@@ -648,6 +685,7 @@ function gatherCandidates(
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
   found.push(...deckDiscardCandidates(state, deps, event, timing, forced));
+  found.push(...tuckedDiscardCandidates(state, deps, event, timing, forced));
   found.push(...inHandCandidates(state, deps, event, timing, forced));
   return found;
 }
@@ -760,7 +798,8 @@ function deckDiscardCandidates(
   timing: WindowTiming,
   forced: boolean,
 ): readonly TriggerCandidate[] {
-  if (event.kind !== "cardDiscardedFromDeck") return [];
+  // A player's deck only: no card answers its own discard from an encounter deck (docs/phase7-wave9.md §3.43 (b)).
+  if (event.kind !== "cardDiscardedFromDeck" || event.playerId === null) return [];
   const id = event.instanceId;
   const card = cardOf(state, id);
   if (!card || !("abilities" in card)) return [];
@@ -776,6 +815,45 @@ function deckDiscardCandidates(
     if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
     if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
     if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId)) continue;
+    if (!forced && abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) continue;
+    if (definition.cost) continue;
+    found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
+  }
+  return found;
+}
+
+/**
+ * "Forced Response: After a player card effect discards this card from under an identity, …"
+ * (`AbilityDefinition.activeIn: "tucked"`, docs/phase7-wave9.md §3.40 (b)): the discarded card answers its own
+ * `tuckedCardDiscarded` from the discard pile it went to. RRG 1.8 "In Play and Out of Play" (p. 23): only an ability
+ * that "specifically refer[s] to being used from an out-of-play area" works there, so only the card's abilities marked
+ * that way, on that event, with itself as the target. "You" is the player its host spoke to (the identity's
+ * controller), who resolves it; for a host that spoke to no one a forced ability still resolves, with no "you". A cost
+ * is paid from play, so an ability with one is not offered.
+ */
+function tuckedDiscardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  if (event.kind !== "tuckedCardDiscarded") return [];
+  const id = event.instanceId;
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return [];
+  const controllerId = event.playerId;
+  const found: TriggerCandidate[] = [];
+  for (const ref of card.abilities) {
+    const definition = deps.abilities[ref.id];
+    if (!definition || definition.activeIn !== "tucked") continue;
+    const trigger = definition.trigger;
+    if (trigger.kind !== timing || trigger.forced !== forced) continue;
+    if (trigger.on.selfIs !== "target") continue;
+    if (!formSatisfied(state, controllerId, trigger.form)) continue;
+    if (!conditionHolds(state, deps, trigger, id, controllerId, event)) continue;
+    if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
+    if (!matchesPattern(state, trigger.on, event, timing, id, deps, controllerId ?? undefined)) continue;
     if (!forced && abilityLacksValidTarget(state, deps, definition, id, controllerId, event)) continue;
     if (definition.cost) continue;
     found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
@@ -955,7 +1033,8 @@ export function hearersOf(
   for (const id of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
-      if (definition?.activeIn === "hand" || definition?.activeIn === "discard") continue;
+      if (definition?.activeIn === "hand" || definition?.activeIn === "discard" || definition?.activeIn === "tucked")
+        continue;
       if (listens(definition)) found.push(hearerKey(id, ref.id, sharedIndex));
     }
   }
@@ -1082,9 +1161,10 @@ export function stillOffered(
 
 /**
  * A card whose abilities answer this event from out of play: `spentCardCandidates`, `leftCardCandidates`,
- * `deckDiscardCandidates`.
+ * `deckDiscardCandidates`, `tuckedDiscardCandidates`.
  */
 const answersFromOutOfPlay = (event: TriggerEvent, id: InstanceId): boolean =>
   (event.kind === "resourcesSpent" && event.cardInstanceIds.includes(id)) ||
   (event.kind === "cardLeavesPlay" && event.instanceId === id) ||
-  (event.kind === "cardDiscardedFromDeck" && event.instanceId === id);
+  (event.kind === "cardDiscardedFromDeck" && event.instanceId === id) ||
+  (event.kind === "tuckedCardDiscarded" && event.instanceId === id);

@@ -1,4 +1,5 @@
 import type { CampaignWindow } from "./campaign.js";
+import { displayNameOf } from "./visibility.js";
 import type { ChoiceOption } from "./choices.js";
 import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
 import {
@@ -25,15 +26,7 @@ import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import {
-  getPlayer,
-  handSize,
-  mustCardOf,
-  mustPlayer,
-  playerOrder,
-  scenarioPlayAreaOf,
-  undefeatedVillains,
-} from "./query.js";
+import { getPlayer, handSize, mustPlayer, playerOrder, scenarioPlayAreaOf, undefeatedVillains } from "./query.js";
 import {
   announce,
   announceStatusPlaced,
@@ -45,14 +38,19 @@ import {
   pushEvent,
 } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
+import { settleScenarioDeckTops } from "./resolve/scenario-deck-top.js";
 import {
   announceCardsLeftPlay,
   announceDeckRunOuts,
+  announceEncounterCardsDealt,
+  announceEncounterDealsWaiting,
   announceCardsEnteredHand,
   announceEncounterCardsFromDecks,
   resetEmptyScenarioDecks,
 } from "./resolve/cards.js";
 import { announceDeckDiscards, settleDeckDiscards } from "./resolve/deck-discard.js";
+import { announceTuckedDiscards } from "./resolve/tuck.js";
+import { announceBoostCardsGiven } from "./resolve/enemy-activation.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
@@ -83,16 +81,31 @@ export function runFlow(ctx: Ctx): void {
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
+    // "The top card of this deck is in play" (the Holding Cell deck, MC50 p. 13; docs/phase7-wave9.md §3.17): a top card
+    // that left play or flipped to a face the deck is not made of gives way to the next, whose entering play goes on
+    // the stack above whatever was about to resolve.
+    settleScenarioDeckTops(ctx);
     // A card a response took away from where its discard from a deck left it is no longer counted by the ability that
     // discarded it (docs/phase7-wave7.md §4.1 Q32), settled as soon as that response window has closed.
     settleDeckDiscards(ctx);
+    // "After a player is dealt an encounter card" (docs/phase7-wave9.md §3.12). Looked at first, so its frames sit under
+    // whatever else the same step announces and resolve last: being dealt a card is the last thing a deck that ran
+    // out does (RRG 1.8 "Player Deck", p. 33).
+    if (announceEncounterCardsDealt(ctx)) continue;
     // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
     if (announceDeckRunOuts(ctx)) continue;
+    // "When a player would be dealt an encounter card" for a deck that ran out (docs/phase7-wave9.md §3.45). Looked at
+    // after the run-out, so the deal's frame sits above it and resolves first: the deal is part of running out.
+    if (announceEncounterDealsWaiting(ctx)) continue;
     // "After this card is discarded from the top of your deck" (docs/phase7-wave7.md §3.55). Looked at after the deck
     // run-outs, so when a discard emptied the deck its frame sits above the reset's and resolves first: the discard
     // came first. Announcements of the same step looked at below (a card entering a hand, leaving play) resolve
     // before it.
     if (announceDeckDiscards(ctx)) continue;
+    // "After a player card effect discards this card from under an identity" (docs/phase7-wave9.md §3.40 (b)).
+    if (announceTuckedDiscards(ctx)) continue;
+    // "After an attacking enemy is given a facedown boost card" (docs/phase7-wave9.md §3.44).
+    if (announceBoostCardsGiven(ctx)) continue;
     // "After this card enters your hand" (docs/phase7-wave6.md §3.10). Looked at first, so its frame resolves after the
     // `encounterCardFromPlayerDeck` frame of the same draw, pushed on top of it next.
     if (announceCardsEnteredHand(ctx)) continue;
@@ -177,7 +190,7 @@ const handOptions = (ctx: Ctx, playerId: PlayerId): readonly ChoiceOption[] =>
     .hand.filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id))
     .map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id },
     }));
 

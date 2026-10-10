@@ -6,11 +6,36 @@ import type { ResourceType } from "./resources.js";
  * One source of resources toward a cost: a card discarded from hand, or a
  * "Resource" ability triggered while paying (RRG "Cost", "Resource Ability").
  *
+ * `fromHand` also names a card tucked under a card whose rule lets the paying player spend it "as if it were in their
+ * hand" (`RuleSpec spendableFromTucked`, Resource Reserve; docs/phase7-wave9.md §3.46 (c)): it is spent as a hand card
+ * is, from under its host.
+ *
  * A resource ability whose own cost picks cards ("Exhaust an [Interface] upgrade you control → generate that
  * upgrade's resources", SP//dr Suit's Sync Ratio) names its picks in `costChoices`, keyed by slot as for a command's
  * `CostChoices`. Absent, the pick pays itself only when it is forced (`InPlayCostPick`).
+ *
+ * A resource ability whose own cost leaves an amount to the player ("remove up to 2 threat from … → generate a
+ * resource for each threat you removed this way") names it in `costSelection`, so what the use generates is known
+ * when the payment is priced. Absent, it removes as much as it can.
  */
-export type Payment = { readonly fromHand: InstanceId } | { readonly ability: ResourceAbilityUse };
+export type Payment =
+  | {
+      readonly fromHand: InstanceId;
+      /**
+       * The card's own "Interrupt: When you spend this card, [cost] → generate …" used with this spending (a resource
+       * trigger with `whenSpent`): what it generates joins the payment with the card's resources. Absent, the card is
+       * spent without it. One card is spent once, so a payment holds one entry for it, with or without this.
+       */
+      readonly whenSpent?: SpentCardAbilityUse;
+    }
+  | { readonly ability: ResourceAbilityUse };
+
+/** The `whenSpent` ability a payment uses as it spends its card from hand (see `Payment`). */
+export interface SpentCardAbilityUse {
+  readonly abilityId: AbilityId;
+  /** The cards the ability's own cost picks, by slot (as `ResourceAbilityUse.costChoices`). */
+  readonly costChoices?: CostChoices;
+}
 
 /** One use of a resource ability in a payment (see `Payment`). */
 export interface ResourceAbilityUse {
@@ -18,6 +43,12 @@ export interface ResourceAbilityUse {
   readonly abilityId: AbilityId;
   /** The cards the ability's own cost picks, by slot; absent when the pick is forced or the cost picks nothing. */
   readonly costChoices?: CostChoices;
+  /**
+   * The amounts the ability's own cost leaves to the player (`CostSelection.removeThreat`; docs/phase7-wave9.md
+   * §3.7 (b)). A use in a payment is never asked as its cost is paid, so the amount is part of the payment: absent,
+   * a chosen-amount threat cost removes the most it can.
+   */
+  readonly costSelection?: CostSelection;
 }
 
 /**
@@ -44,6 +75,21 @@ export interface CostSelection {
    * payment generates, up to the cost's maximum.
    */
   readonly resources?: number;
+  /**
+   * How much threat a chosen-amount threat cost removes (`AbilityCost.removeThreat { choose }`; docs/phase7-wave9.md
+   * §3.7 (b)): a whole number in the cost's range, from its `min` to the smaller of its `max` and the threat on the
+   * card; anything else is refused. Named, the cost is paid with that amount and no `chooseNumber` choice is asked.
+   * Absent: the payer is asked as the cost is paid, except for a resource ability used in a payment
+   * (`ResourceAbilityUse.costSelection`), which removes the most it can. A fixed-amount threat cost ignores it.
+   */
+  readonly removeThreat?: number;
+  /**
+   * The number a chosen-size encounter deck discard cost discards (`AbilityCost.discardFromEncounterDeck { choose }`;
+   * docs/phase7-wave9.md §3.43 (a)): a whole number from the cost's `min` to its `max`; anything else is refused. It
+   * may be more than the deck holds (RRG 1.8 "Encounter Deck", p. 17). Named, no `chooseNumber` choice is asked.
+   * Absent: the payer is asked as the cost is paid. A fixed-amount cost ignores it.
+   */
+  readonly discardFromEncounterDeck?: number;
 }
 
 /**

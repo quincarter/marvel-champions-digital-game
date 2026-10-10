@@ -35,7 +35,9 @@ export const WINTER_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("54005"),
     cardSetCode: "winter_soldier",
     marvelcdbCodes: ["54005"],
-    corrections: [],
+    corrections: [
+      "54005: MarvelCDB's text reads \"Deal 7 damage to en enemy\"; the card prints \"Deal 7 damage to an enemy\". [evidence: Scan 54005.png (read 2026-10-09): \"Hero Action (attack): Deal 7 damage to an enemy. If you exhausted Cybernetic Arm to pay for this event, this attack gains overkill.\" Spec docs/phase7-wave9.md section 8.1 item 12.]",
+    ],
   },
   {
     cardId: cardId("54006"),
@@ -149,7 +151,14 @@ export const WINTER_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
   },
   { cardId: cardId("54032"), cardSetCode: "protection", marvelcdbCodes: ["54032"], corrections: [] },
-  { cardId: cardId("54033"), cardSetCode: "basic", marvelcdbCodes: ["54033"], corrections: [] },
+  {
+    cardId: cardId("54033"),
+    cardSetCode: "basic",
+    marvelcdbCodes: ["54033"],
+    corrections: [
+      "54033: errata RRG 1.8 — S.H.I.E.L.D. Deputy: \"Max 1 per character.\" was added after \"Attach to a friendly character.\" The print has no such line; the emitted `current` text and `playRestrictions.maxPerHost` carry it. [evidence: RRG 1.8, Winter Soldier Hero Pack errata (mc_rulesreference_v18_compressed.md line 5156 to 5158, p. 70): \"S.H.I.E.L.D. DEPUTY (#33) Should read: \"Attach to a friendly character. Max 1 per character.\" (Added \"Max 1 per character.\")\". Scan 54033.png (read 2026-10-09) prints \"Title. Play only if your identity has the S.H.I.E.L.D. trait. Attach to a friendly character. Attached character gets +1 hit point and gains the S.H.I.E.L.D. trait.\" with no max line; MarvelCDB's text is the print.]",
+    ],
+  },
   { cardId: cardId("54034"), cardSetCode: "whiteout", marvelcdbCodes: ["54034"], corrections: [] },
   { cardId: cardId("54035"), cardSetCode: "whiteout", marvelcdbCodes: ["54035"], corrections: [] },
   { cardId: cardId("54036"), cardSetCode: "whiteout", marvelcdbCodes: ["54036"], corrections: [] },

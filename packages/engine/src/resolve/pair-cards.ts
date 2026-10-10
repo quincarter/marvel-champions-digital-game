@@ -10,10 +10,11 @@
  * The engine knows no "mission": the cards are a slot, the characters a query.
  */
 
+import { displayNameOf } from "../visibility.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import { type Ctx, emit, requestChoice, setFrame } from "../ctx.js";
 import type { InstanceId } from "../ids.js";
-import { mustCardOf, showingResources } from "../query.js";
+import { showingResources } from "../query.js";
 import { RESOURCE_TYPES, type ResourcePool, type ResourceType } from "../resources.js";
 import { pairLimitFor, resourceIconsInPlay } from "../rules.js";
 import { type EffectContext, resolvePlayers, resolveRef, selectTargets } from "../select.js";
@@ -127,7 +128,7 @@ export function executePairCards(
     const options: ChoiceOption[] = cards.flatMap((card) =>
       characters.map((character) => ({
         optionId: pairOptionId(card, character),
-        label: `${mustCardOf(ctx.state, card).name} → ${mustCardOf(ctx.state, character).name}`,
+        label: `${displayNameOf(ctx.state, card)} → ${displayNameOf(ctx.state, character)}`,
         ref: { kind: "card", instanceId: character } as const,
       })),
     );

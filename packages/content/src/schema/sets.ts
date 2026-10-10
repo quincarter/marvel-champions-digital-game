@@ -1,6 +1,15 @@
 import type { Aspect, CoreAspect } from "./aspects.js";
 import type { Trait } from "./common.js";
-import type { CampaignId, CardId, CycleId, EncounterSetId, ScenarioId, SetCode, StarterDeckId } from "./ids.js";
+import type {
+  CampaignId,
+  CardId,
+  CycleId,
+  EncounterSetId,
+  ImageRef,
+  ScenarioId,
+  SetCode,
+  StarterDeckId,
+} from "./ids.js";
 
 /** A cycle groups packs the way FFG/Hall of Heroes group product releases (e.g. "Core", "The Rise of Red Skull"). */
 export interface Cycle {
@@ -301,6 +310,15 @@ export interface ScenarioSeparateDeck {
    * reorders or moves the cards in this deck, or puts a card into it. docs/phase7-wave6.md §3.66.
    */
   readonly closedToPlayerCards?: true;
+  /**
+   * "The top card of this deck is in play." (the Holding Cell deck, M.O.D.O.K., MC50 p. 13; docs/phase7-wave9.md
+   * §3.17): once the deck is built its top card enters play, faceup, without being revealed, and the cards under it
+   * stay in the deck, out of play. When that card stops being the deck's top card (it leaves play, or flips to a face
+   * the deck is not made of) the next card enters play; a card placed into the deck while it has no card in play
+   * enters play at once (MC50 p. 22). The deck is made of the faces `contents` names: a double-sided card put into it
+   * goes in showing that face ("Place this deck … with its Holding Cell side faceup").
+   */
+  readonly topCardInPlay?: true;
 }
 
 /**
@@ -467,6 +485,32 @@ export interface Scenario {
    * campaign's `setAsideCards` already joins. Villains use `setAsideVillainCardIds`. docs/phase7-wave6.md §1.8.
    */
   readonly setAsideCardIds?: readonly CardId[];
+  /**
+   * A villain and a main scheme that are in play in a game area of their own, neither the scenario's villain nor its
+   * main scheme (Loki, God of Lies 55027a and Worlds Collide 55028a, MC55 pp. 10 and 18: "These cards are not considered
+   * in your game area and can only be affected by cards that refer to them by name"; they "cannot be affected by any
+   * ability that refers to 'the villain' or 'the main scheme'"). `villainCardId` and `mainSchemeCardId` name what the
+   * players interact with. Absent: no such cards. The builder reads this into a neutral area; no engine code reads it
+   * yet. docs/phase7-wave9.md §1.15.
+   */
+  readonly neutralCards?: { readonly villainCardId: CardId; readonly mainSchemeCardId: CardId };
+  /**
+   * Printed rules or reference cards that ship with the scenario but have no card record (Trickster Takeover's Shatter
+   * the Illusion and Epic Multiplayer Reminder, MC55; docs/phase7-wave9.md section 1.15 item 9). For the client's
+   * Inspect; no engine rule reads them (the Shatter the Illusion steps are scripted inside each Fading Figment's When
+   * Revealed). `text` is the printed text; `image` is a repo-relative path to the owner's scan, not a MarvelCDB path.
+   */
+  readonly referenceCards?: readonly ScenarioReferenceCard[];
+}
+
+/** One `Scenario.referenceCards` entry: a printed rules card with no card record. */
+export interface ScenarioReferenceCard {
+  /** Kebab-case, unique within the scenario. */
+  readonly id: string;
+  readonly title: string;
+  /** The printed text, transcribed from the card. */
+  readonly text: string;
+  readonly image: ImageRef;
 }
 
 /**

@@ -7,6 +7,8 @@ export type { RngState } from "./rng.js";
 export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
 
 export type {
+  Accusation,
+  AccusationGuess,
   AttackRecord,
   RevealRecord,
   CardHome,
@@ -35,9 +37,17 @@ export type {
 export { NO_STATUSES } from "./state.js";
 
 export { cardTypeName, isRulesCardType, RULES_CARD_TYPES, type RulesCardType } from "./card-types.js";
+export {
+  ALL_PURPOSE_COUNTER,
+  ANY_COUNTER,
+  countersOfType,
+  definedCounterType,
+  definedCounterTypeOrNull,
+} from "./counter-types.js";
 
 export type {
   AttackInProgress,
+  CardPosition,
   ChoiceList,
   ChoiceOption,
   ChoicePrompt,
@@ -45,7 +55,14 @@ export type {
   DecisionAuthority,
   PendingChoice,
 } from "./choices.js";
-export { PLAY_TO_OWN_AREA, playDestinationOfOption, playToAreaOption } from "./choices.js";
+export {
+  cardTotalFault,
+  cardTotalOf,
+  mostCardsUnderTotal,
+  PLAY_TO_OWN_AREA,
+  playDestinationOfOption,
+  playToAreaOption,
+} from "./choices.js";
 
 export {
   effectChoiceAuthority,
@@ -79,7 +96,7 @@ export { legalActions, paymentFor, tryPayment } from "./legal.js";
 export type { PlayCost, PlayCostContribution } from "./actions.js";
 export { costAsDetermined, inPlayCostCandidates, playCostOf, playableOutsideHand } from "./actions.js";
 export { deckTopPermission, deckTopPlayOf, type DeckTopPermission } from "./actions.js";
-export type { Command, CommandType, Payment, ResourceAbilityUse } from "./commands.js";
+export type { Command, CommandType, Payment, ResourceAbilityUse, SpentCardAbilityUse } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
 
@@ -113,8 +130,11 @@ export type {
   AbilityCost,
   DamageSelfChoice,
   DeckDiscardChoice,
+  EncounterDeckDiscardCost,
+  RemoveThreatCost,
   DiscardCombined,
   InPlayCostPick,
+  TuckedCostPick,
   DamageCostPick,
   AttachCost,
   AbilityDefinition,
@@ -195,6 +215,7 @@ export {
   excessDamageBonus,
   formChangeCostsFor,
   grantedIcons,
+  grantedLabeledAbilities,
   iconsBlankedOn,
   iconsInPlay,
   iconsOn,
@@ -208,19 +229,22 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost } from "./rules.js";
+export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost, GrantedAbility } from "./rules.js";
 export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { pairOfOptionId, pairOptionId, pairSelectionFault, resourceIconsMatch } from "./resolve/pair-cards.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
-export { currentActivationFrameId } from "./stack.js";
+export { attackPreventedVars, currentActivationFrameId, PAID_CARDS_SLOT } from "./stack.js";
 export {
   abilityUseKey,
   DEFAULT_DEPS,
   fixedResourcesOf,
+  GRANTED_BY_SLOT,
   inPlayPicksOf,
+  tuckedPickOf,
+  labeledResolvedVar,
   isResourcesChoice,
   NO_ABILITIES,
   resourcesChoiceOf,
@@ -357,14 +381,24 @@ export {
   sameCampaignFace,
 } from "./campaign-state.js";
 
-export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
+export type {
+  EncounterDealSource,
+  LeaveCauseSide,
+  OutOfPlayDiscard,
+  TriggerEvent,
+  TriggerEventKind,
+  TuckedDiscardCause,
+  TuckHostKind,
+} from "./trigger-events.js";
 export {
   BASIC_POWER_STAT,
   carriedByEvent,
   damageTakenKey,
   eventSubjects,
+  hearsEncounterDeckDiscard,
   isAnnouncement,
   MOMENT_PREFIX,
+  TAKEN_AWAY_SUFFIX,
   TOTAL_ATK_RESULT,
 } from "./trigger-events.js";
 
@@ -386,7 +420,10 @@ export { stackEntries } from "./stack-view.js";
 export { frameCardId } from "./ctx.js";
 
 /** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
-export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+export { displayNameOf, faceHidden, faceVisible, lookedAtBy, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+export { hiddenPileViews, sealHiddenPiles, type HiddenPileView, type SealedGameState } from "./visibility.js";
+export { placeHiddenPiles, revealedPileCardsOf } from "./resolve/hidden-piles.js";
+export { evidenceRowId, openEvidenceRows, wrongGuessesOf } from "./accusation.js";
 export type { TableContext, ViewerContext } from "./visibility.js";
 
 /** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */
@@ -404,6 +441,7 @@ export type { EffectContext, PlayerCardClassification, QueryExclusion } from "./
 export {
   abilityIgnored,
   activeAbilityRefs,
+  gainedAbilities,
   canAttack,
   cardsInPlay,
   facedownAttachments,
@@ -416,13 +454,17 @@ export {
   consideredRemainingHitPoints,
   controllerOf,
   deckTopFaceupPlayers,
+  encounterTopFaceup,
   hitPointFloor,
   ignoredAbilities,
   explainQuery,
+  isCaptiveAlly,
+  isHeldMinion,
   matchesQuery,
   resolveValue,
   selectTargets,
   shownDeckTop,
+  shownEncounterTop,
   TOGETHER_TARGETS_SLOT,
   textBoxBlankFor,
   traitsOf,
@@ -516,6 +558,7 @@ export { legalDefenders } from "./resolve/enemy-activation.js";
 export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
 export { collectionCandidates } from "./resolve/collection.js";
+export { scenarioDeckCards, scenarioDeckWithTop } from "./resolve/scenario-deck-top.js";
 export {
   REPORT_NO,
   REPORT_YES,

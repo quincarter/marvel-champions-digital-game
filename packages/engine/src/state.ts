@@ -1,4 +1,4 @@
-import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
+import type { AnyCard, CardId, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
@@ -8,6 +8,7 @@ import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
 import type { RuleSpec } from "./abilities.js";
 import type { EffectSpec, StatusName } from "./spec.js";
+import type { EncounterDealSource, LeaveCauseSide, TriggerEvent } from "./trigger-events.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -188,6 +189,20 @@ export type CardHome =
    */
   | { readonly kind: "scenarioDeck"; readonly name: string };
 
+/** One of the four things an accusation guesses (MC50 p. 19: "means, motive, opportunity, and board member"). */
+export type AccusationGuess = "means" | "motive" | "opportunity" | "boardMember";
+
+/**
+ * `GameState.accusation` (docs/phase7-wave9.md §3.29 (b)). `accused`: the grid row the players chose, whose board
+ * member is the accused. `mole`: the row the hidden pile's cards make, whose board member is the mole. `wrong`: the
+ * guesses of `accused` that differ from `mole` (none to all four), present once the mole is identified.
+ */
+export interface Accusation {
+  readonly accused?: EvidenceCombination;
+  readonly mole?: EvidenceCombination;
+  readonly wrong?: readonly AccusationGuess[];
+}
+
 export interface CardInstance {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
@@ -213,6 +228,13 @@ export interface CardInstance {
   /** Absent or null on every card not treated as another card type (docs/phase7-wave4.md §3.9). */
   readonly treatedAs?: TreatedAs | null;
   readonly engagedWith: PlayerId | null;
+  /**
+   * A minion an environment holds (`EffectSpec attach` with `as: "heldMinion"`; `isHeldMinion`, docs/phase7-wave9.md
+   * §3.21): attached to that card, in play, engaged with no player, and still a minion that is defeated as any other.
+   * Set by `attachCard` and removed by every move off that host (`relocateCard`), so it is only ever present beside a
+   * non-null `attachedTo`; absent on every other instance, so their serialized state is unchanged.
+   */
+  readonly heldMinion?: true;
   /**
    * A double-sided encounter card showing its other face (`EncounterCardCommon.flipSide`; RRG 1.8 "Flip", p. 20).
    * A villain's face is `VillainState.side` instead. Always false out of play.
@@ -370,7 +392,33 @@ export interface ScenarioDeckState {
    * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.
    */
   readonly buildAtSetup?: true;
+  /**
+   * `ScenarioSeparateDeck.topCardInPlay` ("The top card of this deck is in play", the Holding Cell deck, MC50 p. 13;
+   * docs/phase7-wave9.md §3.17). The card in play is not in `deck`: it sits where its type lives (an environment in the
+   * villain's area, under no player's control) and `inPlayTopId` names it; `deck` holds the cards under it, out of
+   * play and facedown to every viewer. `scenarioDeckCards` reads the whole deck, top card first.
+   */
+  readonly topCardInPlay?: true;
+  /**
+   * The deck's top card, in play (`topCardInPlay`). Absent while the deck has no card in play: before it is built, and
+   * once every card has left it. Kept by `settleScenarioDeckTops` (`resolve/scenario-deck-top.ts`), which is the only
+   * writer.
+   */
+  readonly inPlayTopId?: InstanceId;
 }
+
+/** A tucked card that was discarded, waiting to be announced: the fields of `TriggerEvent tuckedCardDiscarded`. */
+export type TuckedDiscard = Omit<Extract<TriggerEvent, { kind: "tuckedCardDiscarded" }>, "kind">;
+
+/** A facedown encounter card dealt to a player, waiting to be announced (`TriggerEvent encounterCardDealt`). */
+export interface DealtEncounterCard {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly source: EncounterDealSource;
+}
+
+/** A deal waiting for its "would be dealt" window: the fields of `TriggerEvent encounterCardBeingDealt`. */
+export type EncounterDealWaiting = Omit<Extract<TriggerEvent, { kind: "encounterCardBeingDealt" }>, "kind">;
 
 /** A card that entered a player's hand, waiting to be announced (`TriggerEvent cardEntersHand`, wave 6 §3.10). */
 export interface EnteredHand {
@@ -396,13 +444,31 @@ export interface EncounterFromDeck {
  * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
  * `settleDeckDiscards`). `also`: further slots of that frame holding the card (`discardDeckUntil.bindAll`,
  * docs/phase7-wave8.md §3.71), which drop it the same way.
+ *
+ * A card discarded from the top of an encounter deck is one too (docs/phase7-wave9.md §3.43 (b)): `playerId` is null
+ * (the deck is no player's), `encounterDeckId` names the deck, `how` says whether an effect or a cost discarded it and
+ * `by` which side's card that was.
  */
 export interface DeckDiscard {
-  readonly playerId: PlayerId;
+  readonly playerId: PlayerId | null;
   readonly instanceId: InstanceId;
   readonly sourceInstanceId: InstanceId | null;
   readonly at: "discard" | "deck";
+  readonly encounterDeckId?: EncounterDeckId;
+  readonly by?: LeaveCauseSide;
+  readonly how?: "effect" | "cost";
   readonly boundOn?: { readonly frameId: FrameId; readonly slot: string; readonly also?: readonly string[] };
+}
+
+/**
+ * A facedown boost card given to an enemy, waiting to be announced (`TriggerEvent boostCardGiven`, whose fields these
+ * are; docs/phase7-wave9.md §3.44).
+ */
+export interface BoostGiven {
+  readonly enemyInstanceId: InstanceId;
+  readonly boostInstanceId: InstanceId;
+  readonly activation: "attack" | "scheme" | null;
+  readonly playerId: PlayerId | null;
 }
 
 /**
@@ -440,6 +506,8 @@ export interface LeftPlay {
   readonly traits: readonly Trait[];
   /** The attachments its leaving left in play, unattached (`TriggerEvent cardLeavesPlay.strandedAttachments`). */
   readonly strandedAttachments?: readonly InstanceId[];
+  /** Whose card effect moved it (`TriggerEvent cardLeavesPlay.by`); absent for a game rule or a cost. */
+  readonly by?: LeaveCauseSide;
   /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
   readonly interruptsResolved?: true;
 }
@@ -723,7 +791,9 @@ export type GameStep =
       /**
        * How many of the step's cards have been dealt, set only while the deal is paused for a response to an encounter
        * deck reset it caused ("After the encounter deck resets", Wheel of Genres; RRG 1.8 "Encounter Deck", p. 17;
-       * docs/phase7-wave6.md §4.1 Q58). The step deals the rest once that response has resolved.
+       * docs/phase7-wave6.md §4.1 Q58), or for a card's "would be dealt" window (`TriggerEvent encounterCardBeingDealt`,
+       * docs/phase7-wave9.md §3.45; a deal that window replaced counts as dealt here: it is not made again). The step
+       * deals the rest once that frame has resolved.
        */
       readonly dealt?: number;
     }
@@ -907,6 +977,19 @@ export interface GameState {
    */
   readonly pendingEnteredHand?: readonly EnteredHand[];
   /**
+   * Facedown encounter cards dealt to players since the flow last looked, oldest first, recorded only when some ability
+   * in the registry triggers on it: the flow announces them as `encounterCardDealt` between frames, sharing one
+   * response window, and empties the list. Absent until one is first dealt. docs/phase7-wave9.md §3.12.
+   */
+  readonly pendingEncounterDealt?: readonly DealtEncounterCard[];
+  /**
+   * Deals of the encounter deck's top card that an ability could interrupt ("When a player would be dealt an encounter
+   * card", `TriggerEvent encounterCardBeingDealt`, docs/phase7-wave9.md §3.45), made in the middle of another move (a
+   * player deck that ran out), oldest first: the flow puts each on the stack between frames and empties the list. The
+   * card is still on the deck until its event applies. Absent in a game with no such ability in reach.
+   */
+  readonly pendingEncounterDeals?: readonly EncounterDealWaiting[];
+  /**
    * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
    * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent
    * until one first leaves. docs/phase7-wave5.md §3.13. A card whose leaving an interrupt heard is not listed: its
@@ -926,6 +1009,18 @@ export interface GameState {
    * docs/phase7-wave7.md §3.55.
    */
   readonly pendingDeckDiscards?: readonly DeckDiscard[];
+  /**
+   * Tucked cards discarded since the flow last looked, oldest first, recorded by `recordTuckedDiscard` only when some
+   * ability in the registry triggers on it: the flow announces them as `tuckedCardDiscarded` between frames, in one
+   * shared response window, and empties the list. Absent until one is first recorded. docs/phase7-wave9.md §3.40.
+   */
+  readonly pendingTuckedDiscards?: readonly TuckedDiscard[];
+  /**
+   * Facedown boost cards given since the flow last looked, oldest first, recorded by `recordBoostGiven` only when some
+   * ability in the registry triggers on it: the flow announces each as `boostCardGiven` between frames, with a
+   * response window of its own, and empties the list. Absent until one is first recorded. docs/phase7-wave9.md §3.44.
+   */
+  readonly pendingBoostGiven?: readonly BoostGiven[];
   /**
    * Announced deck discards whose response window has not finished, each with the frame whose bound set it would leave
    * (`DeckDiscardWindow`). Absent when there is none. docs/phase7-wave7.md §3.55, §4.1 Q32.
@@ -980,6 +1075,13 @@ export interface GameState {
    * where no card is.
    */
   readonly deckTopsAnnounced?: Readonly<Record<string, InstanceId>>;
+  /**
+   * The card last logged as showing on top of the encounter deck under a `topOfDeckFaceup { deck: "encounter" }` rule
+   * (docs/phase7-wave9.md §3.42), so the log says `encounterTopShown` / `encounterTopHidden` once per change
+   * (`announceDeckTops`). The log's memory and nothing else, as `deckTopsAnnounced` is: which card is visible is
+   * derived (`shownEncounterTop`). Absent while no card is showing.
+   */
+  readonly encounterTopAnnounced?: InstanceId;
   /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
@@ -1070,6 +1172,35 @@ export interface GameState {
    * docs/phase7-wave8.md §3.33). Absent until a scenario creates one, so other games serialize as before.
    */
   readonly scenarioPlayAreas?: Readonly<Record<string, ScenarioPlayAreaState>>;
+  /**
+   * Piles of cards no player may look at, by name, each in the order it was put together (docs/phase7-wave9.md §3.29
+   * (a)): the A.I.M. and S.H.I.E.L.D. envelopes of MC50 p. 5, "Preparing the Evidence", whose cards go in "**without
+   * looking at them**". Card ids, not instances: a card in a pile is never in play, in a deck or in any zone (`ZoneId`
+   * has no arm for it), has no `CardInstance`, and so can be named by no ref, selector, choice or `cardMoved`. A
+   * pile's size is open; its contents are hidden from **every** player, whoever is asking, so nothing a player is
+   * shown may be built from this field: a client or a wire copy of the state reads `sealHiddenPiles` and
+   * `hiddenPileViews` (`visibility.ts`), the log carries sizes only (`GameEvent hiddenPilesDealt`), and `preview()`
+   * stops at an event that would name one of these cards. The engine itself reads it (it is the authority, and a save
+   * is this state). Written by `placeHiddenPiles` alone (`resolve/hidden-piles.ts`). **Absent** until a scenario
+   * prepares a pile, so every other game serializes as before.
+   */
+  readonly hiddenPiles?: Readonly<Record<string, readonly CardId[]>>;
+  /**
+   * The cards that have come out of a hidden pile faceup, by the pile each came out of, in the order they did
+   * (docs/phase7-wave9.md §3.29 (a)). MC50 p. 18: "When the players gain an evidence card, they turn it faceup", and
+   * the A.I.M. envelope's cards are taken out for the accusation (p. 19). Open information for every player from then
+   * on, and still not in play or in any zone. A card is in exactly one of `hiddenPiles` and this. **Absent** until a
+   * card is revealed.
+   */
+  readonly revealedPileCards?: Readonly<Record<string, readonly CardId[]>>;
+  /**
+   * The accusation the players made over an evidence grid, and the mole once the hidden pile named it
+   * (docs/phase7-wave9.md §3.29 (b); MC50 p. 19, "The Accusation"). Written by `EffectSpec accuse` and `identifyMole`
+   * alone (`resolve/accusation.ts`) and read by `TargetQuery accusation`, `ValueSpec accusationWrongGuesses` and
+   * `Predicate accusedWrong`, from any ability. Open information: the guess is the players' own, and `mole` is written
+   * only as its hidden pile is turned faceup. **Absent** until an accusation is made.
+   */
+  readonly accusation?: Accusation;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

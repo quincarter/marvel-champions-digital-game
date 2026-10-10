@@ -1,6 +1,7 @@
 import type { CardId, VillainSideLetter } from "@mc/content";
 import { announceDeckTops } from "./deck-top.js";
 import type { EngineDeps } from "./abilities.js";
+import { ALL_PURPOSE_COUNTER, ANY_COUNTER, anyCounterTake, definedCounterTypeOrNull } from "./counter-types.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import {
   emit,
@@ -13,13 +14,16 @@ import {
   updatePlayer,
   type Ctx,
 } from "./ctx.js";
-import { canTakeStatus, hasKeyword, isPermanent, usesKeyword } from "./keywords.js";
+import { canTakeStatus, hasKeyword, isPermanent, usesKeyword, vulnerableTo } from "./keywords.js";
 import {
   activeEncounterDeckId,
+  encounterDeckDiscardAt,
   discardZoneFor,
   encounterDeckOf,
   getInstance,
   heroFacesOf,
+  isPlayerCardType,
+  locateCard,
   mainSchemeStates,
   mustCard,
   mustCardOf,
@@ -29,7 +33,16 @@ import {
   mustVillain,
 } from "./query.js";
 import type { StatusDiscardCause } from "./events.js";
-import type { HostStep, LeavePatch, LeaveRequest, TriggerEvent } from "./trigger-events.js";
+import {
+  type EncounterDealSource,
+  hearsEncounterDeckDiscard,
+  type HostStep,
+  type LeaveCauseSide,
+  type LeavePatch,
+  type LeaveRequest,
+  type TriggerEvent,
+  type TuckHostKind,
+} from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
@@ -44,6 +57,7 @@ import {
 } from "./rules.js";
 import { addFrameSlots, eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
+import { staysInGameForScenarioDeck } from "./resolve/scenario-deck-top.js";
 import { flipSeparatedCard, separatedFlipWaits } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import { releaseTreatedBy } from "./treat-as.js";
@@ -62,7 +76,7 @@ import {
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import type { CardDestination, StatusName } from "./spec.js";
-import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
+import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
@@ -290,7 +304,27 @@ export function giveStatus(
     const placed = { instanceId: id, status, sourceInstanceId: by.sourceInstanceId, playerId: by.playerId };
     ctx.state = { ...ctx.state, pendingStatusPlaced: [...(ctx.state.pendingStatusPlaced ?? []), placed] };
   }
+  if (status !== "tough" && vulnerableTo(ctx.state, id, status, ctx.deps)) discardAsVulnerable(ctx, id, status);
   return true;
+}
+
+/**
+ * RRG 1.8 "Vulnerable" (p. 48; MC50 rulebook p. 3): the character that just became stunned or confused "is
+ * immediately discarded (without being defeated)". An ordinary discard from play (`discardFromPlay`): its owner's
+ * discard pile, its attachments with it, "leaves play" announced as usual. It is not a defeat, so there is no
+ * `characterDefeated`, no When Defeated, no victory display (the victory keyword reads a defeat, p. 46) and no
+ * defeating player. The keyword is the game's rule, with no source card, so a permanent character or one that
+ * "cannot leave play" stays and keeps the status card (RRG 1.8 "'Cannot'", p. 11; `leavePlayBlocked` is logged by
+ * `leavePlay`). Logged before the move so the log reads cause first.
+ */
+function discardAsVulnerable(ctx: Ctx, id: InstanceId, status: "stunned" | "confused"): void {
+  const stays =
+    permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) ||
+    cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true);
+  if (!stays) {
+    emit(ctx, { type: "vulnerableDiscarded", instanceId: id, cardId: mustInstance(ctx.state, id).cardId, status });
+  }
+  discardFromPlay(ctx, id);
 }
 
 /**
@@ -345,33 +379,53 @@ export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amoun
   emit(ctx, { type: "counterAdded", instanceId: id, counterType, amount });
 }
 
+/** What one type's worth of a move did: `amount` counters of `fromCounterType` arrived on `to` as `counterType`. */
+export interface MovedCounters {
+  readonly counterType: string;
+  readonly fromCounterType: string;
+  readonly amount: number;
+}
+
 /**
- * `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. Returns
- * the counters (not acceleration tokens, which have `accelerationTokenPlaced`) it moved, per type, for the
- * `countersPlaced` announcement (docs/phase7-wave6.md §3.2).
+ * `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`, or
+ * `options.amount` of them (docs/phase7-wave9.md §3.6). Returns the counters (not acceleration tokens, which have
+ * `accelerationTokenPlaced`) it moved, per type, for the `countersPlaced` announcement (docs/phase7-wave6.md §3.2).
+ *
+ * `counterType` `ANY_COUNTER`: `amount` counters in all, across the card's types (`anyCounterTake`; `options.pick` is
+ * the player's choice where there was one to make). Counters are stored on `to` under the type it defines (RRG 1.8
+ * "All-Purpose Counter", p. 6); see `EffectSpec moveCounters` for a destination that defines none. Nothing is discarded
+ * here: a uses card the move emptied is the caller's to discard (`discardEmptiedUsesCard`), since a flip that carries
+ * its counters across (`separated-identity.ts`) is not an effect that empties a card.
  */
 export function moveCounters(
   ctx: Ctx,
   from: InstanceId,
   to: InstanceId,
   counterType?: string,
-): readonly { readonly counterType: string; readonly amount: number }[] {
+  options: { readonly amount?: number; readonly pick?: Readonly<Record<string, number>> } = {},
+): readonly MovedCounters[] {
   if (from === to) return [];
-  const moved: { counterType: string; amount: number }[] = [];
+  const moved: MovedCounters[] = [];
+  const most = options.amount === undefined ? Number.POSITIVE_INFINITY : Math.max(0, options.amount);
   // Acceleration tokens (docs/phase7-wave5.md §3.4): a main scheme's are its `accelerationTokens`, any other card's its
   // `acceleration` counter; "Move … each acceleration token from here to the main scheme" moves them either way.
   if (counterType === undefined || counterType === ACCELERATION_COUNTER) {
     const fromScheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === from);
     const toScheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === to);
-    const tokens = fromScheme
+    const heldTokens = fromScheme
       ? fromScheme.accelerationTokens
       : (mustInstance(ctx.state, from).counters[ACCELERATION_COUNTER] ?? 0);
+    const tokens = Math.min(heldTokens, most);
     if (tokens > 0 && (fromScheme || toScheme)) {
-      if (fromScheme) updateMainSchemeState(ctx, from, (s) => ({ ...s, accelerationTokens: 0 }));
+      if (fromScheme)
+        updateMainSchemeState(ctx, from, (s) => ({ ...s, accelerationTokens: s.accelerationTokens - tokens }));
       else
         updateInstance(ctx, from, (i) => {
           const { [ACCELERATION_COUNTER]: _moved, ...rest } = i.counters;
-          return { ...i, counters: rest };
+          return {
+            ...i,
+            counters: tokens < heldTokens ? { ...rest, [ACCELERATION_COUNTER]: heldTokens - tokens } : rest,
+          };
         });
       if (toScheme)
         updateMainSchemeState(ctx, to, (s) => ({ ...s, accelerationTokens: s.accelerationTokens + tokens }));
@@ -384,17 +438,53 @@ export function moveCounters(
     }
   }
   const held = mustInstance(ctx.state, from).counters;
-  for (const [type, amount] of Object.entries(held)) {
-    if ((counterType !== undefined && type !== counterType) || amount <= 0) continue;
+  const going: readonly (readonly [string, number])[] =
+    counterType === ANY_COUNTER
+      ? anyCounterTake(ctx.state, from, options.amount, options.pick, ctx.deps).byType
+      : Object.entries(held)
+          .filter(([type]) => counterType === undefined || type === counterType)
+          .map(([type, amount]) => [type, Math.min(amount, most)] as const);
+  // The type the destination defines, read once: the counters arriving do not change it.
+  const defined = definedCounterTypeOrNull(ctx.state, to, ctx.deps);
+  for (const [type, amount] of going) {
+    if (amount <= 0) continue;
+    const arrivesAs =
+      type === ACCELERATION_COUNTER ? type : (defined ?? (counterType === ANY_COUNTER ? ALL_PURPOSE_COUNTER : type));
     updateInstance(ctx, from, (i) => {
-      const { [type]: _moved, ...rest } = i.counters;
-      return { ...i, counters: rest };
+      const { [type]: had = 0, ...rest } = i.counters;
+      return { ...i, counters: amount < had ? { ...rest, [type]: had - amount } : rest };
     });
-    updateInstance(ctx, to, (i) => ({ ...i, counters: { ...i.counters, [type]: (i.counters[type] ?? 0) + amount } }));
-    emit(ctx, { type: "countersMoved", from, to, counterType: type, amount });
-    if (type !== ACCELERATION_COUNTER) moved.push({ counterType: type, amount });
+    updateInstance(ctx, to, (i) => ({
+      ...i,
+      counters: { ...i.counters, [arrivesAs]: (i.counters[arrivesAs] ?? 0) + amount },
+    }));
+    emit(ctx, {
+      type: "countersMoved",
+      from,
+      to,
+      counterType: type,
+      amount,
+      ...(arrivesAs !== type ? { toCounterType: arrivesAs } : {}),
+    });
+    if (type !== ACCELERATION_COUNTER) moved.push({ counterType: arrivesAs, fromCounterType: type, amount });
   }
   return moved;
+}
+
+/**
+ * RRG 1.8 "Uses (X 'type')" (p. 46): the keyword "is equivalent to the following constant ability: 'This card enters
+ * play with X all-purpose counters. These are "type counters." If there are no all-purpose counters on this card,
+ * discard this card.'" So a uses card whose last counter was moved to another card is discarded as one whose last
+ * counter was removed is (`removeCounters`), or added to the victory display with Victory X (p. 46). Called once a
+ * move has finished, for a card it took counters of the keyword's type from. docs/phase7-wave9.md §3.6.
+ */
+export function discardEmptiedUsesCard(ctx: Ctx, id: InstanceId): boolean {
+  const uses = usesKeyword(ctx.state, id, ctx.deps);
+  if (!uses || (mustInstance(ctx.state, id).counters[uses.counterType] ?? 0) > 0) return false;
+  if (!cardsInPlay(ctx.state).includes(id)) return false;
+  if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  else discardFromPlay(ctx, id);
+  return true;
 }
 
 export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): number {
@@ -464,6 +554,8 @@ export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): bo
     ...ctx.state,
     encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
   };
+  // The new deck's top card shows at once when the deck is kept faceup (docs/phase7-wave9.md §3.42).
+  announceDeckTops(ctx);
   addAccelerationToken(ctx);
   if (listensForDeckRunOut(ctx.deps)) {
     ctx.state = {
@@ -649,12 +741,130 @@ export function removeAccelerationToken(ctx: Ctx): void {
   emit(ctx, { type: "accelerationTokenAdded", total: ctx.state.mainScheme.accelerationTokens });
 }
 
-export function dealEncounterCardTo(ctx: Ctx, playerId: PlayerId): InstanceId | null {
+const LISTENS_FOR_ENCOUNTER_DEALT = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `encounterCardDealt` (docs/phase7-wave9.md §3.12); cached per
+ * registry. Encounter cards are dealt every round of every game, so nothing is recorded, announced or logged for a
+ * registry with no such ability: its games keep their state and their log.
+ */
+function listensForEncounterDealt(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENCOUNTER_DEALT.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("encounterCardDealt");
+  });
+  LISTENS_FOR_ENCOUNTER_DEALT.set(deps, listens);
+  return listens;
+}
+
+/**
+ * Records that `playerId` was dealt the facedown encounter card `id`, for the flow to announce between frames
+ * (`TriggerEvent encounterCardDealt`, `announceEncounterCardsDealt`), when an ability listens. Called by every path
+ * that deals one: `dealEncounterCardTo` with a source, and a card's "deal [this card] to a player as a facedown
+ * encounter card" (`dealAsEncounterCards`, and `leaveNow` for one dealt from play). Returns whether it was recorded.
+ */
+export function recordEncounterCardDealt(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  source: EncounterDealSource,
+): boolean {
+  if (!listensForEncounterDealt(ctx.deps)) return false;
+  ctx.state = {
+    ...ctx.state,
+    pendingEncounterDealt: [...(ctx.state.pendingEncounterDealt ?? []), { playerId, instanceId: id, source }],
+  };
+  return true;
+}
+
+/**
+ * Takes the top card of the encounter deck and puts it facedown in front of `playerId` (RRG 1.8 "Deal, Deal an
+ * Encounter Card", p. 15). `source`: what dealt it, announced as `encounterCardDealt` when an ability listens
+ * (`recordEncounterCardDealt`). `null`: the rules have the player reveal another card, with no deal, and the caller
+ * reveals it at once: "reveal an additional encounter card" for an obligation that cannot be given (RRG 1.8
+ * "Obligation", p. 30). The surge keyword's card is a deal (`surge`; RRG 1.8 "Surge", p. 42; docs/phase7-wave9.md
+ * §4.1 Q19), and so is the card that replaces one the unique rule turned away (`uniqueRule`; "Unique Icon", p. 46;
+ * §4.1 Q38).
+ */
+export function dealEncounterCardTo(
+  ctx: Ctx,
+  playerId: PlayerId,
+  source: EncounterDealSource | null,
+): InstanceId | null {
   const id = drawEncounterCard(ctx);
   if (!id) return null;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
   moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+  if (source !== null) recordEncounterCardDealt(ctx, playerId, id, source);
   return id;
+}
+
+const LISTENS_FOR_ENCOUNTER_BEING_DEALT = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `encounterCardBeingDealt` (docs/phase7-wave9.md §3.45); cached per
+ * registry. Encounter cards are dealt every round of every game, so nothing is read or announced for a registry with
+ * no such ability.
+ */
+function listensForEncounterBeingDealt(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENCOUNTER_BEING_DEALT.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("encounterCardBeingDealt");
+  });
+  LISTENS_FOR_ENCOUNTER_BEING_DEALT.set(deps, listens);
+  return listens;
+}
+
+type EncounterCardBeingDealt = Extract<TriggerEvent, { kind: "encounterCardBeingDealt" }>;
+
+/**
+ * The "would be dealt an encounter card" event of a deal about to be made (`TriggerEvent encounterCardBeingDealt`,
+ * docs/phase7-wave9.md §3.45; RRG 1.8 "'Would'", p. 48), when an ability could react to it (`heard`); else null, and
+ * the caller deals at once. Like every other optional announcement, a game no ability of which can answer keeps its
+ * log, its state and its replay.
+ */
+export function encounterDealAwaitingInterrupt(
+  ctx: Ctx,
+  playerId: PlayerId,
+  source: EncounterDealSource,
+  sourceInstanceId: InstanceId | null,
+): EncounterCardBeingDealt | null {
+  if (!listensForEncounterBeingDealt(ctx.deps)) return null;
+  const event: EncounterCardBeingDealt = { kind: "encounterCardBeingDealt", playerId, source, sourceInstanceId };
+  return heard(ctx.state, ctx.deps, event) ? event : null;
+}
+
+/**
+ * Deals `playerId` the top card of the encounter deck (`dealEncounterCardTo`), through its "would be dealt" interrupt
+ * window when an ability could react (`encounterDealAwaitingInterrupt`): the event goes on the stack, its apply step
+ * makes the deal, and this returns true, for a caller that deals several cards to stop and deal the rest once that
+ * frame has left the stack. Each card has its own window (RRG 1.8 "Triggering Condition", p. 45), read against the
+ * game as the card before it left it. Returns false when the card was dealt at once (or there was none to deal).
+ *
+ * For the callers that own what is on top of the stack (a step, an effect being applied). A deal made in the middle
+ * of another move (`resetPlayerDeck`) is queued instead (`GameState.pendingEncounterDeals`).
+ */
+export function dealEncounterCardOrAnnounce(
+  ctx: Ctx,
+  playerId: PlayerId,
+  source: EncounterDealSource,
+  sourceInstanceId: InstanceId | null,
+): boolean {
+  const event = encounterDealAwaitingInterrupt(ctx, playerId, source, sourceInstanceId);
+  if (!event) {
+    dealEncounterCardTo(ctx, playerId, source);
+    return false;
+  }
+  pushEvent(ctx, event);
+  return true;
 }
 
 /** RRG "Player Deck": an emptied deck reshuffles and costs that player a facedown encounter card. */
@@ -671,7 +881,15 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
     ...ctx.state,
     pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "player", playerId }],
   };
-  dealEncounterCardTo(ctx, playerId);
+  // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): this runs in the middle of the move
+  // that emptied the deck, so a deal an ability could interrupt waits for the flow to put it on the stack
+  // (`announceEncounterDealsWaiting`), above the deck's own "after your deck runs out" announcement: the deal is part
+  // of the deck running out (RRG 1.8 "Player Deck", p. 33).
+  const waiting = encounterDealAwaitingInterrupt(ctx, playerId, "deckReset", null);
+  if (waiting) {
+    const { kind: _, ...deal } = waiting;
+    ctx.state = { ...ctx.state, pendingEncounterDeals: [...(ctx.state.pendingEncounterDeals ?? []), deal] };
+  } else dealEncounterCardTo(ctx, playerId, "deckReset");
   return true;
 }
 
@@ -711,6 +929,89 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
 export interface DeckDiscarder {
   readonly sourceInstanceId: InstanceId | null;
   readonly boundOn?: DeckDiscard["boundOn"];
+}
+
+const LISTENS_FOR_TUCKED_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `tuckedCardDiscarded` (docs/phase7-wave9.md §3.40 (b)); cached per
+ * registry. Nothing is read, recorded or announced for a registry with no such ability: its games keep their state
+ * and their log.
+ */
+export function listensForTuckedDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_TUCKED_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("tuckedCardDiscarded");
+  });
+  LISTENS_FOR_TUCKED_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/** What a host of tucked cards is (`TuckHostKind`): an identity card, hero or alter-ego side up, or any other card. */
+export function tuckHostKind(state: GameState, hostId: InstanceId): TuckHostKind {
+  const host = getInstance(state, hostId);
+  return host && state.cardPool[host.cardId]?.type === "hero_identity" ? "identity" : "other";
+}
+
+/**
+ * The player a host of tucked cards speaks to: its controller, or the "you" the rules give an uncontrolled card (an
+ * obligation, an attachment on a player card: `uncontrolledYouOf`). Null for any other card (a scheme, an enemy).
+ */
+export const tuckHostPlayer = (state: GameState, hostId: InstanceId): PlayerId | null =>
+  controllerOf(state, hostId) ?? uncontrolledYouOf(state, hostId);
+
+/**
+ * The card `id` is tucked under, when an ability in the registry hears a tucked card's discard
+ * (`listensForTuckedDiscard`); else null, unread. Called before a move that may discard it, for `recordTuckedDiscard`.
+ */
+export function tuckedHostToRecord(ctx: Ctx, id: InstanceId): InstanceId | null {
+  if (!listensForTuckedDiscard(ctx.deps)) return null;
+  const zone = locateCard(ctx.state, id);
+  return zone?.kind === "tucked" ? zone.hostInstanceId : null;
+}
+
+/**
+ * The one place a tucked card's discard is recorded for its `tuckedCardDiscarded` announcement
+ * (docs/phase7-wave9.md §3.40 (b); `GameState.pendingTuckedDiscards`, announced between frames by
+ * `announceTuckedDiscards`). Called right after the move by every path that discards a tucked card, with the host it
+ * was under (`tuckedHostToRecord`, read before the move): `moveCardsTo` to a discard pile (an effect's `moveCards` and
+ * the `discardTucked` cost alike, so both are heard with one notion of the cause), and the game's own discards of the
+ * cards under a card that leaves play (`leaveNow`, `removeDefeatedVillain`) or flips to another type
+ * (`flipToOtherFace`).
+ *
+ * `sourceCardId` and `asCost` are what the move's caller already passes for `leaveCauseSide`. The side recorded is the
+ * source card's, for a cost too (`TriggerEvent tuckedCardDiscarded.by`; §4.1 Q7), with `how` saying which it was. A
+ * card that did not reach a discard pile (a scenario deck with none sends its card home) was not discarded, and
+ * nothing is recorded.
+ */
+export function recordTuckedDiscard(
+  ctx: Ctx,
+  id: InstanceId,
+  hostId: InstanceId | null,
+  cause: {
+    readonly sourceInstanceId?: InstanceId | null;
+    readonly sourceCardId?: CardId;
+    readonly asCost?: boolean;
+  } = {},
+): void {
+  if (hostId === null || !listensForTuckedDiscard(ctx.deps)) return;
+  const at = locateCard(ctx.state, id)?.kind;
+  if (at !== "discard" && at !== "encounterDiscard" && at !== "separateDiscard" && at !== "scenarioDiscard") return;
+  const by = leaveCauseSide(ctx.state, cause.sourceCardId);
+  const discard: TuckedDiscard = {
+    instanceId: id,
+    hostInstanceId: hostId,
+    sourceInstanceId: cause.sourceInstanceId ?? null,
+    playerId: tuckHostPlayer(ctx.state, hostId),
+    under: tuckHostKind(ctx.state, hostId),
+    ...(by ? { by } : {}),
+    how: cause.sourceCardId === undefined ? "rule" : cause.asCost ? "cost" : "effect",
+  };
+  ctx.state = { ...ctx.state, pendingTuckedDiscards: [...(ctx.state.pendingTuckedDiscards ?? []), discard] };
 }
 
 const LISTENS_FOR_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
@@ -761,6 +1062,84 @@ export function recordDeckDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, 
     instanceId: id,
     sourceInstanceId: by.sourceInstanceId,
     at,
+    ...(by.boundOn ? { boundOn: by.boundOn } : {}),
+  };
+  ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };
+}
+
+const LISTENS_FOR_ENCOUNTER_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on a card discarded from the top of an encounter deck
+ * (docs/phase7-wave9.md §3.43 (b)); cached per registry. Encounter cards are discarded from the deck in most games, so
+ * nothing is recorded, logged or announced for a registry with no such ability: its games keep their state and their
+ * log, a registry that listens for a player deck's discards included.
+ */
+export function listensForEncounterDeckDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_ENCOUNTER_DECK_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    return "on" in trigger && trigger.on !== undefined && hearsEncounterDeckDiscard(trigger.on);
+  });
+  LISTENS_FOR_ENCOUNTER_DECK_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/**
+ * What discarded a card from the top of an encounter deck (`TriggerEvent cardDiscardedFromDeck`, `deck: "encounter"`):
+ * the card whose effect or cost did (`how`), and the bound set the discarding ability keeps of the cards "discarded
+ * this way", if it keeps one (`DeckDiscard.boundOn`).
+ */
+export interface EncounterDeckDiscarder {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly how: "effect" | "cost";
+  readonly boundOn?: DeckDiscard["boundOn"];
+}
+
+/**
+ * The one place a discard from the top of an encounter deck is recorded for its `cardDiscardedFromDeck` announcement
+ * (docs/phase7-wave9.md §3.43 (b); `GameState.pendingDeckDiscards`, announced between frames by
+ * `announceDeckDiscards`, in the same list and the same shared window as a player deck's). Every path that discards
+ * off the top of an encounter deck calls it right after the move, with the deck the card was in:
+ * `discardTopOfEncounterDeck`, `EffectSpec discardEncounterUntil`, the `encounterLookDiscard` cost and `moveCardsTo`.
+ *
+ * Where the card is now says what the discard did: in a discard pile (its own: the deck's, or its owner's for a
+ * player card that was in the deck, `discardZoneFor`), or, when it was the deck's last card, in the new deck the
+ * reset made at that move (`resetEncounterDeckIfEmpty`; `at: "deck"`). Anywhere else it was not discarded, and nothing
+ * is recorded. Nothing is recorded either in a game with no ability that hears one
+ * (`listensForEncounterDeckDiscard`).
+ *
+ * `by` on the record is the side of the source card, for a cost too (`leaveCauseSide` leaves a cost's side out for
+ * "an encounter card ability discards …"; here `how` says which it was, as on `tuckedCardDiscarded`).
+ */
+export function recordEncounterDeckDiscard(
+  ctx: Ctx,
+  deckId: EncounterDeckId,
+  id: InstanceId,
+  by: EncounterDeckDiscarder,
+): void {
+  if (!listensForEncounterDeckDiscard(ctx.deps)) return;
+  const at = encounterDeckDiscardAt(ctx.state, deckId, id);
+  if (at === null) return;
+  const source = by.sourceInstanceId ? getInstance(ctx.state, by.sourceInstanceId) : undefined;
+  const side = leaveCauseSide(ctx.state, source?.cardId);
+  emit(ctx, {
+    type: "cardDiscardedFromEncounterDeck",
+    deckId,
+    instanceId: id,
+    by: by.sourceInstanceId,
+    how: by.how,
+    at,
+  });
+  const discard: DeckDiscard = {
+    playerId: null,
+    encounterDeckId: deckId,
+    instanceId: id,
+    sourceInstanceId: by.sourceInstanceId,
+    at,
+    ...(side ? { by: side } : {}),
+    how: by.how,
     ...(by.boundOn ? { boundOn: by.boundOn } : {}),
   };
   ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };
@@ -912,10 +1291,10 @@ export function discardRandomFromHand(
 
 /**
  * Sends a card in play to the discard pile its `home` names (its owner's, or its encounter deck's). `sourceCardId`: the
- * card whose ability discards it, if any (`permanentStopsLeaving`).
+ * card whose ability discards it, if any (`permanentStopsLeaving`); `asCost`: as that ability's cost (`leaveCauseSide`).
  */
-export function discardFromPlay(ctx: Ctx, id: InstanceId, sourceCardId?: CardId): void {
-  leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true, undefined, sourceCardId);
+export function discardFromPlay(ctx: Ctx, id: InstanceId, sourceCardId?: CardId, asCost = false): void {
+  leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true, undefined, sourceCardId, asCost);
 }
 
 /**
@@ -1105,6 +1484,38 @@ function unattachInPlay(ctx: Ctx, id: InstanceId): void {
   moveCard(ctx, id, to);
 }
 
+/**
+ * Whose card effect a move out of play is (`LeaveCauseSide`, `TriggerEvent cardLeavesPlay.by`): the side of the source
+ * card the move's callers already pass for the Permanent keyword and "card abilities cannot remove" (`sourceCardId`),
+ * by its printed type. Undefined with no source card (the game's rule) and for a cost, which is its card's ability but
+ * not that ability's effect (RRG 1.8 "Cost", p. 13).
+ */
+export function leaveCauseSide(
+  state: GameState,
+  sourceCardId: CardId | undefined,
+  asCost = false,
+): LeaveCauseSide | undefined {
+  if (sourceCardId === undefined || asCost) return undefined;
+  const source = state.cardPool[sourceCardId];
+  if (!source) return undefined;
+  return isPlayerCardType(source) ? "playerCard" : "encounterCard";
+}
+
+/** The cause of the move a waiting leaving describes (`leaveCauseSide`); an attachment going with its host has none. */
+const requestCauseSide = (state: GameState, request: LeaveRequest): LeaveCauseSide | undefined => {
+  const made = leaveMadeBy(request);
+  return made.kind === "withHost"
+    ? undefined
+    : leaveCauseSide(state, made.sourceCardId, "asCost" in made && made.asCost === true);
+};
+
+/**
+ * The request that says what made a card leave: itself, or for one an interrupt sent under a card (`LeaveRequest
+ * tuck`, docs/phase7-wave9.md §3.20) the move that was replaced, whose source card and cost are still the cause.
+ */
+export const leaveMadeBy = (request: LeaveRequest): Exclude<LeaveRequest, { readonly kind: "tuck" }> =>
+  request.kind === "tuck" ? request.replaced : request;
+
 /** What a leaving card is, read while it is still in play (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13). */
 function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
   const controllerId = controllerOf(state, id);
@@ -1125,8 +1536,14 @@ function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
 /**
  * RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the victory
  * display or set-aside area, it is removed from the game."
+ *
+ * Not a card of a scenario deck whose top card is in play, while it shows its other face or goes back into a scenario
+ * deck (`staysInGameForScenarioDeck`; docs/phase7-wave9.md §3.17): MC50 p. 22 has a defeated Inhuman ally flip over and
+ * become a card of the Holding Cell deck.
  */
 function removedAsDoubleSided(state: GameState, id: InstanceId, requested: ZoneId["kind"]): boolean {
+  // A card of a deck kept one face up, whose own text takes it back there (docs/phase7-wave9.md §3.17; MC50 p. 22).
+  if (staysInGameForScenarioDeck(state, id, requested)) return false;
   const card = state.cardPool[mustInstance(state, id).cardId];
   // A card whose other face is emitted as its own card (`otherFaceId`, docs/phase7-wave4.md §1.7) is double-sided too.
   const doubleSided =
@@ -1236,7 +1653,8 @@ export function waitsForLeaveInterrupts(
   if (!listensForLeavingPlay(ctx.deps)) return false;
   if (!cardsInPlay(ctx.state).includes(id)) return false;
   // Blocked leaves are refused (and logged) by the caller's own path.
-  const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
+  const made = leaveMadeBy(request);
+  const sourceCardId = made.kind === "withHost" ? undefined : made.sourceCardId;
   if (
     permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) ||
     cannotLeavePlay(ctx.state, ctx.deps, id, sourceCardId, isDiscardRequest(request))
@@ -1244,10 +1662,12 @@ export function waitsForLeaveInterrupts(
     return false;
   const already = leavingFrameFor(ctx.state, id);
   if (already) return already.stage === "interrupts";
+  const by = requestCauseSide(ctx.state, request);
   const event: TriggerEvent = {
     kind: "cardLeavesPlay",
     ...leavingSnapshot(ctx.state, ctx.deps, id),
     to: going,
+    ...(by !== undefined ? { by } : {}),
     leaving: request,
   };
   const companions = leavingWithHost(ctx, id, request.kind === "defeat" ? "defeat" : "leaveNow");
@@ -1406,7 +1826,8 @@ export type LeaveOutcome = "left" | "waiting" | "stayed";
  * `sourceCardId` (`permanentStopsLeaving`).
  *
  * When a "when X leaves play" interrupt hears it, the card waits in play for that window (`waitsForLeaveInterrupts`)
- * and this returns `"waiting"`; `patch` is what the caller sets on the card once it has left, applied then.
+ * and this returns `"waiting"`; `patch` is what the caller sets on the card once it has left, applied then. `asCost`:
+ * `sourceCardId`'s ability moves it as its cost, so the leaving is no card effect's (`leaveCauseSide`).
  */
 export function leavePlay(
   ctx: Ctx,
@@ -1416,6 +1837,7 @@ export function leavePlay(
   discarded = false,
   patch?: LeavePatch,
   sourceCardId?: CardId,
+  asCost = false,
 ): LeaveOutcome {
   if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
@@ -1432,10 +1854,11 @@ export function leavePlay(
     discarded,
     ...(patch ? { patch } : {}),
     ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+    ...(asCost ? { asCost: true as const } : {}),
   };
   const going = leaveDestinationKind(ctx.state, ctx.deps, id, requested.kind, discarded);
   if (waitsForLeaveInterrupts(ctx, id, request, going)) return "waiting";
-  leaveNow(ctx, id, requested, position, discarded);
+  leaveNow(ctx, id, requested, position, discarded, false, leaveCauseSide(ctx.state, sourceCardId, asCost));
   if (patch) applyLeavePatch(ctx, id, patch);
   return "left";
 }
@@ -1486,6 +1909,7 @@ export function leavePlayAtOnce(
 /**
  * The move itself: the card leaves play now. `withHost`: it leaves because its host does (`leavePlayAtOnce`, the
  * attachment loop below), so a `withHost` leaving of its own on the stack is where the move is recorded (§4.1 Q32).
+ * `by`: whose card effect moves it (`leaveCauseSide`), for a leaving announced after the move.
  */
 function leaveNow(
   ctx: Ctx,
@@ -1494,6 +1918,7 @@ function leaveNow(
   position: "top" | "bottom",
   discarded: boolean,
   withHost = false,
+  by?: LeaveCauseSide,
 ): void {
   // A facedown attachment is out of play (RRG 1.8 "In Play and Out of Play", p. 23), so it does not leave play: it goes
   // where it is sent as a tucked card does, faceup into a discard pile, with no discard "from play", nothing to hear it
@@ -1523,6 +1948,7 @@ function leaveNow(
     listensForLeavingPlay(ctx.deps) && leaving?.stage !== "responses" && !movedWithHost
       ? {
           ...leavingSnapshot(ctx.state, ctx.deps, id),
+          ...(by !== undefined ? { by } : {}),
           ...(leaving?.stage === "apply" ? { interruptsResolved: true as const } : {}),
         }
       : null;
@@ -1543,10 +1969,14 @@ function leaveNow(
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tuckedId, (i) => ({ ...i, faceup: true }));
     moveCard(ctx, tuckedId, discardZoneFor(ctx.state, tuckedId), "top");
+    // The game's discard, whatever made the host leave (`TuckedDiscardCause` "rule"; docs/phase7-wave9.md §3.40).
+    recordTuckedDiscard(ctx, tuckedId, id);
   }
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
   moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
+  // A card in play dealt to a player as a facedown encounter card (`dealAsEncounterCards`): heard as any other deal.
+  if (to.kind === "dealtEncounter") recordEncounterCardDealt(ctx, to.playerId, id, "ability");
   // A card that re-enters play is a new instance of it: "this phase" starts over (docs/phase7-wave6.md §3.4).
   updateInstance(ctx, id, ({ damageTakenThisPhase: _tally, ...i }) => ({
     ...i,

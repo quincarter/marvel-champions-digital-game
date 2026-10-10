@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATA_ONLY_CARDS } from "@mc/content";
+import { SILK_CARDS } from "@mc/content";
 import { activeEncounterDeckId, applyCommand, legalActions, type GameState, type InstanceId } from "@mc/engine";
 import {
   firstLegal,
@@ -20,7 +20,7 @@ import { WAVE5_CARDS } from "../cards.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
 import { spdrScenarioWithExtras } from "../spdr/support.js";
 
-const QUICK_QUIP = DATA_ONLY_CARDS.find((card) => card.id === "52034")!;
+const QUICK_QUIP = SILK_CARDS.find((card) => card.id === "52034")!;
 
 /** SP//dr (her hero form is a Web-Warrior character) vs Rhino, with Quick Quip added to her deck and the card pool. */
 function spdrWithQuickQuip(): GameState {

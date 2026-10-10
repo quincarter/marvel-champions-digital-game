@@ -285,6 +285,14 @@ export type StackFrame =
        */
       readonly attackBegun?: true;
       /**
+       * On an attack whose damage is all prevented (`modifyAttack.preventAllDamage` with a `bind`,
+       * docs/phase7-wave9.md §3.4): where each instance the prevention stops is recorded, as this frame's vars
+       * `attackPreventedVars(bind)`. `targetInstanceId`: the character a player attack was against when the effect
+       * resolved, whose instances `<bind>.amount` counts; null counts every instance (an enemy attack, a player attack
+       * that had named no enemy yet).
+       */
+      readonly preventAllReports?: readonly { readonly bind: string; readonly targetInstanceId: InstanceId | null }[];
+      /**
        * On a `cardEntersPlay` event not yet initiated: a standing check of the card (`stateCheck.fromEntering`) resolved
        * the moment the card was in play, before this event's windows. If the card is out of play when the event's turn
        * comes, the event ends there: no interrupt, no enter-play keyword, no response (`resolve/state-checks.ts`).
@@ -367,6 +375,18 @@ export type StackFrame =
        * `optionalAtOpen` stands for it. Offered ones join `optionalAtOpen`, so none is offered twice.
        */
       readonly heardAtOpen?: readonly string[];
+      /**
+       * Interrupt windows only, and only when the window has forced interrupts to resolve: which face each
+       * double-sided card in play was showing as the window opened (`CardInstance.flipped`, by instance). A card
+       * here that shows its other face once the forced tier is done was turned faceup by this window's own forced
+       * interrupts, and that face's optional interrupts to the occurrence join the optional tier (docs/phase7-wave9.md
+       * §3.8: "Forced Interrupt: When you attack, change to Assault suit form" before Assault's own "Interrupt: When
+       * you attack"). RRG 1.8 "Interrupt" (p. 25): an interrupt resolves "immediately before that triggering condition
+       * resolves", so the attack is still to happen when the face turns up; forced before optional is "Ability",
+       * Simultaneous Timing Priority (p. 5). The rule of `optionalAtOpen` stands for everything else: a card that
+       * entered play or a hand during the forced tier, any response window, and the forced tier itself.
+       */
+      readonly facesAtOpen?: Readonly<Record<InstanceId, boolean>>;
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
@@ -490,6 +510,14 @@ export type StackFrame =
        * with it (owner decision, 2026-10-08, docs/phase7-wave8.md §4.1 row 65).
        */
       readonly attackCancelled?: true;
+      /**
+       * On the root frame of an "(attack)"-labeled ability: all damage of the attack it makes with its controller's
+       * identity is prevented (`modifyAttack.preventAllDamage` in the window of one of its `attack` events, the frame
+       * named here; `preventAbilityAttackDamage`, `resolve/attack-ability.ts`). The ability is one attack (RRG 1.8
+       * "Attack (Player Ability Type)", p. 10), so the damage of its other `attack` events and of its damage
+       * instructions is prevented too (owner decision, docs/phase7-wave9.md §4.1 Q4 = A).
+       */
+      readonly attackDamagePrevented?: FrameId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -503,10 +531,24 @@ export type StackFrame =
       readonly basicDefense: boolean;
       readonly boostIcons: number;
       readonly stage: "giveBoost" | "declareDefender" | "flipBoosts" | "dealDamage" | "done";
+      /**
+       * The Declare Defender step declared this character and its defense has an additional cost (`RuleSpec
+       * additionalPowerCost`, docs/phase7-wave9.md §3.31): its controller is being asked to pay it, and it is not
+       * exhausted or made the defender until they have.
+       */
+      readonly defenderCostFor?: InstanceId;
+      /** The characters whose additional cost to defend went unpaid during this step; not offered again in it. */
+      readonly defendersNotPaidFor?: readonly InstanceId[];
       /** The `enemyAttack` event frame this procedure belongs to. */
       readonly eventFrameId: FrameId | null;
       /** No boost card for this attack (`TriggerEvent.noBoost`). */
       readonly noBoost?: boolean;
+      /**
+       * How many boost cards the give-boost step has given so far, in a game where an ability hears each one
+       * (`TriggerEvent boostCardGiven`, docs/phase7-wave9.md §3.44): the step is then taken one card at a time.
+       * Absent in every other game, and once the step is over.
+       */
+      readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
     })
   /** RRG "Scheme (Enemy Activation)". */
@@ -518,6 +560,8 @@ export type StackFrame =
       readonly stage: "giveBoost" | "flipBoosts" | "placeThreat" | "done";
       readonly eventFrameId: FrameId | null;
       readonly noBoost?: boolean;
+      /** As `Frame<"enemyAttack">.boostsGiven`. */
+      readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
     })
   /** RRG "Reveal" steps 1–4. */
@@ -569,6 +613,12 @@ export type StackFrame =
       readonly foundInPlay?: true;
       /** With `foundInPlay`: the minion engaged the revealing player by this reveal (it was not engaged with them). */
       readonly engagedByReveal?: true;
+      /**
+       * The card that holds this minion once it is revealed (`EffectSpec revealCard.heldBy`; docs/phase7-wave9.md §4.1
+       * Q26): at the placement step the minion enters play attached to it as a held minion (`isHeldMinion`) instead
+       * of engaged with `playerId`, so nothing that follows from an engagement happens. Absent on every other reveal.
+       */
+      readonly heldBy?: InstanceId;
       /** With `stage: "uniqueCheck"`: the stage the reveal continues to when the card is let in. */
       readonly afterUnique?: "quickstrike" | "whenRevealed";
       /**
@@ -689,6 +739,37 @@ export function paymentVarsIn(vars: Vars): Vars {
   );
 }
 
+/**
+ * The slot holding the cards that paid for a play (docs/phase7-wave9.md §3.46 (b)): "tuck 1 card used to pay for her
+ * under her" (Spectrum, `falcon` 53018). The cards spent as cards to pay for the play, in payment order: the cards
+ * discarded from a hand (the paying player's, or another player's for an alliance card) and a tucked card spent "as if
+ * it were in their hand" (`RuleSpec spendableFromTucked`, §3.46 (c)). They are the same cards `paid.cards.<cardType>`
+ * counts, judged the same way (`cardsThatPaid` in `actions.ts`):
+ *
+ * - RRG 1.8 "Cost" (p. 13): resources come "by discarding cards from their hand or by using 'Resource' card
+ *   abilities". A resource ability generates a resource and is no card that paid, whatever card carries it; the card a
+ *   resource ability's own cost exhausts or discards is that ability's cost, not the play's.
+ * - RRG 1.8 "Cost" (p. 13): resources "generated beyond the specified cost … were not paid for that cost", so a card
+ *   whose every resource was overpaid is left out, and at a cost of 0 no card paid (docs/phase7-wave8.md §4.1 Q28 = A).
+ *
+ * Bound on the play's frame (`playFrameCost`), so the played card's own abilities read it while the play resolves
+ * (`playPaidCards`, an event's ability through the frame's bindings), and carried by the play's `cardBeingPlayed` and
+ * `cardPlayed` events to the abilities that answer them (`carriedByEvent`). Absent when no card paid: a play paid by
+ * resource abilities alone, a free play, a card put into play without being played. The slot holds instance ids; a
+ * reader finds each card where it is now (a discard pile, or wherever an answer to its spending moved it).
+ */
+export const PAID_CARDS_SLOT = "paid.cards";
+
+/**
+ * The cards that paid for the play of `instanceId` while that play is still resolving, as the bindings its own
+ * abilities start with (`PAID_CARDS_SLOT`); empty when none did or the card is not being played. The slot twin of
+ * `playPaymentVars`.
+ */
+export function playPaidCards(stack: readonly StackFrame[], instanceId: InstanceId): Bindings {
+  const paid = playFrameOf(stack, instanceId)?.bindings[PAID_CARDS_SLOT];
+  return paid && paid.length > 0 ? { [PAID_CARDS_SLOT]: paid } : {};
+}
+
 /** The var prefix of the paid resources by the type each was used as (`paid.as.<type>`; docs/phase7-wave8.md §3.62). */
 export const PAID_AS_PREFIX = "paid.as.";
 
@@ -729,6 +810,18 @@ export function paidForFrameId(stack: readonly StackFrame[], instanceId: Instanc
   const frame = stack.find((f) => (f.kind === "ability" || f.kind === "playCard") && f.instanceId === instanceId);
   return frame?.frameId ?? null;
 }
+
+/**
+ * The names of an attack frame's vars that record what `modifyAttack { preventAllDamage, bind }` stopped
+ * (docs/phase7-wave9.md §3.4; `EffectSpec modifyAttack.bind`), which are that attack's results once it resolves.
+ */
+export const attackPreventedVars = (
+  bind: string,
+): { readonly prevented: string; readonly amount: string; readonly total: string } => ({
+  prevented: `${bind}.prevented`,
+  amount: `${bind}.amount`,
+  total: `${bind}.total`,
+});
 
 /**
  * The event frame of the attack or activation currently resolving ("this

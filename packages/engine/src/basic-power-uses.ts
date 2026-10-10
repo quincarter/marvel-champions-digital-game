@@ -22,8 +22,8 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import { canPaySpend } from "./payable.js";
 import { cardOf, getInstance, getPlayer, isMinion, mainSchemeStates, undefeatedVillains } from "./query.js";
-import type { ResolvedRequirement } from "./resources.js";
-import { mayThwartWithAtk } from "./rules.js";
+import { combineRequirements, type ResolvedRequirement } from "./resources.js";
+import { additionalPowerCostFor, mayThwartWithAtk } from "./rules.js";
 import { activeAbilityRefs, cardsInPlay, isAlly } from "./select.js";
 import type { GameState } from "./state.js";
 
@@ -70,11 +70,15 @@ export function basicPowerCommand(
       };
 }
 
-/** A basic power's own additional cost (`basicPowerCosts`) as it would be paid on a card's instruction. */
+/**
+ * A basic power's additional costs as they would be paid on a card's instruction: its own (`basicPowerCosts`) and the
+ * resources a rule over the character adds (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md §3.31).
+ */
 export interface BasicPowerCostNeeds {
-  readonly cost: AbilityCost;
-  /** The ability the cost is printed on, which a prompt for the cost names. */
-  readonly abilityId: AbilityId;
+  /** The power's own cost; absent when only a rule over the character asks. */
+  readonly cost?: AbilityCost;
+  /** The ability the own cost is printed on, which a prompt for the cost names; null without an own cost. */
+  readonly abilityId: AbilityId | null;
   /** The resources the payment must cover, as `planCost` read them with `discard` picked. */
   readonly requirement: ResolvedRequirement;
   /** The cards from hand a "discard N cards from your hand" part is paid with; absent when the cost has none. */
@@ -101,20 +105,23 @@ export function basicPowerCostNeeds(
   discard?: readonly InstanceId[],
 ): BasicPowerCostNeeds | { readonly fault: string } | null {
   const cost = basicPowerCost(state, deps, characterId, power);
-  if (!cost) return null;
-  const abilityId = activeAbilityRefs(state, characterId, deps).find((ref) => {
-    const trigger = deps.abilities[ref.id]?.trigger;
-    return trigger?.kind === "constant" && trigger.basicPowerCosts?.some((entry) => entry.cost === cost);
-  })?.id;
+  const ruled = additionalPowerCostFor(state, deps, characterId, power);
+  if (!cost && !ruled) return null;
+  const abilityId = cost
+    ? activeAbilityRefs(state, characterId, deps).find((ref) => {
+        const trigger = deps.abilities[ref.id]?.trigger;
+        return trigger?.kind === "constant" && trigger.basicPowerCosts?.some((entry) => entry.cost === cost);
+      })?.id
+    : null;
   if (abilityId === undefined) return { fault: "no ability carries this basic power's cost" };
-  const picks = discard ?? defaultHandDiscardPicks(state, deps, characterId, playerId, cost);
+  const picks = discard ?? (cost ? defaultHandDiscardPicks(state, deps, characterId, playerId, cost) : undefined);
   const plan = planCost(state, deps, characterId, playerId, cost, picks ? { discard: picks } : {}, new Set());
   if (isPriceFault(plan)) return { fault: plan.message };
-  const part = cost.discardFromHand;
+  const part = cost?.discardFromHand;
   return {
-    cost,
+    ...(cost ? { cost } : {}),
     abilityId,
-    requirement: plan.requirement,
+    requirement: ruled ? combineRequirements(plan.requirement, ruled.resources) : plan.requirement,
     ...(picks ? { discard: picks } : {}),
     asksDiscard: part !== undefined && (part.min > 0 || part.combined !== undefined),
   };

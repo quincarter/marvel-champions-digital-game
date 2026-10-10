@@ -21,10 +21,15 @@ import {
   leavePlay,
   leavingWithHost,
   listensForDeckDiscard,
+  listensForEncounterDeckDiscard,
   moveDestinationKind,
   permanentStopsLeaving,
   recordDeckDiscard,
+  recordEncounterDeckDiscard,
   shuffleZone,
+  recordEncounterCardDealt,
+  recordTuckedDiscard,
+  tuckedHostToRecord,
   waitsForLeaveInterrupts,
 } from "../effects.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "../ids.js";
@@ -58,14 +63,40 @@ import type { CardDestination, CardSelector, ScenarioDeckSource, TargetQuery } f
 import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
-import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
+import { announce, eventFrame, type Frame, pushEvent, pushEvents, pushEventsSharingResponses } from "./frames.js";
 import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
+import {
+  scenarioDeckCards,
+  scenarioDeckIsMadeOf,
+  settleScenarioDeckTops,
+  showScenarioDeckFace,
+} from "./scenario-deck-top.js";
 import { swapCards } from "./swap-cards.js";
 import { hasCandidates } from "./triggers.js";
+import { tuckLeavingCard } from "./tuck.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
 import { cannotLeavePlay, staysInHand } from "../rules.js";
+
+/**
+ * `count` cards of `pool` at random, without replacement, in the order drawn; every card of a smaller pool, none of an
+ * empty one. Each pick is one draw on the game's seeded RNG (`GameState.rng`), which advances with it, so a replay of
+ * the command log picks the same cards; an empty pool or a count of zero draws nothing and leaves the RNG as it was.
+ * The one place a selector's `random` is resolved (`zone`, `encounter`, `encounterSetAside`, `victoryDisplay`,
+ * `tucked`).
+ */
+function pickAtRandom(ctx: Ctx, pool: readonly InstanceId[], count: number): InstanceId[] {
+  const left = [...pool];
+  const picked: InstanceId[] = [];
+  for (let i = 0; i < count && left.length > 0; i++) {
+    const [index, rng] = nextInt(ctx.state.rng, left.length);
+    ctx.state = { ...ctx.state, rng };
+    picked.push(left[index] as InstanceId);
+    left.splice(index, 1);
+  }
+  return picked;
+}
 
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
@@ -163,34 +194,20 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         ids.push(...(selector.topmostOnly ? pool.slice(0, 1) : pool));
       }
       if (!selector.random) return ids;
-      // Random picks draw on the game's seeded RNG, so a replay picks the same cards.
-      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
-      const picked: InstanceId[] = [];
-      for (let i = 0; i < count && ids.length > 0; i++) {
-        const [index, rng] = nextInt(ctx.state.rng, ids.length);
-        ctx.state = { ...ctx.state, rng };
-        picked.push(ids[index] as InstanceId);
-        ids.splice(index, 1);
-      }
-      return picked;
+      return pickAtRandom(ctx, ids, resolveValue(ctx.state, selector.random, context));
     }
     case "encounterSetAside": {
       const matching = [...filtered(state.encounterSetAside, selector.filter)];
       if (!selector.random) return matching;
-      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
-      const picked: InstanceId[] = [];
-      for (let i = 0; i < count && matching.length > 0; i++) {
-        const [index, rng] = nextInt(ctx.state.rng, matching.length);
-        ctx.state = { ...ctx.state, rng };
-        picked.push(matching[index] as InstanceId);
-        matching.splice(index, 1);
-      }
-      return picked;
+      return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
     }
     case "removedFromGame":
       return filtered(state.removedFromGame, selector.filter);
-    case "victoryDisplay":
-      return filtered(state.victoryDisplay, selector.filter);
+    case "victoryDisplay": {
+      const matching = [...filtered(state.victoryDisplay, selector.filter)];
+      if (!selector.random) return matching;
+      return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
+    }
     case "scenarioArea":
       return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
     case "scenarioDeck": {
@@ -204,9 +221,9 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         return [];
       }
       const zones = selector.zones ?? ["deck"];
-      const deck = selector.top
-        ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context)))
-        : piles.deck;
+      // A deck whose top card is in play counts that card first (`scenarioDeckCards`, docs/phase7-wave9.md §3.17).
+      const whole = scenarioDeckCards(state, selector.name);
+      const deck = selector.top ? whole.slice(0, Math.max(0, resolveValue(state, selector.top, context))) : whole;
       return filtered(
         [...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])],
         selector.filter,
@@ -216,8 +233,25 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
         filtered(mustPlayer(state, playerId).setAside, selector.filter),
       );
-    case "tucked":
-      return resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
+    case "tucked": {
+      const under = filtered(
+        resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []),
+        selector.filter,
+      );
+      if (!selector.random) return under;
+      return pickAtRandom(ctx, under, resolveValue(ctx.state, selector.random, context));
+    }
+    case "dealtEncounter":
+      // Facedown and not being revealed, as `passEncounterCards` reads a card that is still a dealt one.
+      return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
+        filtered(
+          mustPlayer(state, playerId).dealtEncounter.filter(
+            (id) =>
+              !mustInstance(state, id).faceup && !state.stack.some((f) => f.kind === "reveal" && f.instanceId === id),
+          ),
+          selector.filter,
+        ),
+      );
     case "separateDeck": {
       const zones = selector.zones ?? ["deck"];
       return resolvePlayers(state, selector.player, context).flatMap((playerId) => {
@@ -245,16 +279,7 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         }
         let matching = [...filtered(pool, selector.filter)];
         if (selector.random) {
-          // Random picks draw on the game's seeded RNG, so a replay picks the same cards.
-          const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
-          const picked: InstanceId[] = [];
-          for (let i = 0; i < count && matching.length > 0; i++) {
-            const [index, rng] = nextInt(ctx.state.rng, matching.length);
-            ctx.state = { ...ctx.state, rng };
-            picked.push(matching[index] as InstanceId);
-            matching.splice(index, 1);
-          }
-          matching = picked;
+          matching = pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
         }
         found.push(
           ...(selector.bottommostOnly ? matching.slice(-1) : selector.topmostOnly ? matching.slice(0, 1) : matching),
@@ -270,7 +295,10 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
  * `separate…` destinations follow each card's `home` separate deck and skip any other card. `sourceCardId`: the card
  * whose ability moves them, if any; a permanent card in play that it cannot move stays as it is (`permanentStopsLeaving`,
  * docs/phase7-wave5.md §4.1 Q46). `deckDiscardBy`: what a card this discards from a player's deck was discarded by
- * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55).
+ * (`recordDeckDiscard`, docs/phase7-wave7.md §3.55). `asCost`: `sourceCardId`'s ability moves them as its cost, so a
+ * card in play leaves by no card effect (`leaveCauseSide`). A tucked card this discards is recorded as that
+ * (`recordTuckedDiscard`, docs/phase7-wave9.md §3.40 (b)), with `sourceCardId`, `asCost` and `deckDiscardBy`'s source
+ * as its cause.
  */
 export function moveCardsTo(
   ctx: Ctx,
@@ -279,6 +307,7 @@ export function moveCardsTo(
   into?: PlayerId,
   sourceCardId?: CardId,
   deckDiscardBy: DeckDiscarder = { sourceInstanceId: null },
+  asCost = false,
 ): void {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
@@ -329,6 +358,7 @@ export function moveCardsTo(
         destination,
         ...(into !== undefined ? { into } : {}),
         ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+        ...(asCost ? { asCost: true as const } : {}),
       };
       if (waitsForLeaveInterrupts(ctx, id, request, moveDestinationKind(ctx.state, ctx.deps, id, destination)))
         continue;
@@ -336,7 +366,7 @@ export function moveCardsTo(
     // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
     if (typeof destination === "object" && "scenarioArea" in destination) {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
-      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId);
+      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId, asCost);
       else moveCard(ctx, id, area, "bottom");
       updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
       continue;
@@ -436,7 +466,7 @@ export function moveCardsTo(
     // docs/phase7-wave5.md).
     // The victory display is faceup too, like the other open out-of-play areas.
     if (discarding || destination === "victoryDisplay") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
+    if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId, asCost);
     else {
       // From a player's deck to that player's discard pile: a discard from the top of the deck (docs/phase7-wave7.md
       // §3.55), whichever card's effect this is. Looked for when an ability hears one or keeps a set of these cards.
@@ -446,8 +476,26 @@ export function moveCardsTo(
         getPlayer(ctx.state, to.playerId)?.deck.includes(id) === true
           ? to.playerId
           : null;
+      // A tucked card sent to a discard pile is a discard "from under" its host (docs/phase7-wave9.md §3.40 (b)),
+      // an effect's and a cost's alike; the host is read before the move, and only when an ability hears one.
+      const tuckedUnder = discarding ? tuckedHostToRecord(ctx, id) : null;
+      // From an encounter deck to a discard pile: a discard from that deck (docs/phase7-wave9.md §3.43 (b)). Looked
+      // for only when an ability hears one.
+      const fromEncounterDeck =
+        destination === "discard" && listensForEncounterDeckDiscard(ctx.deps) ? locateCard(ctx.state, id) : null;
       moveCard(ctx, id, to, position);
       if (fromDeckOf !== null) recordDeckDiscard(ctx, fromDeckOf, id, deckDiscardBy);
+      if (fromEncounterDeck?.kind === "encounterDeck")
+        recordEncounterDeckDiscard(ctx, fromEncounterDeck.deckId, id, {
+          sourceInstanceId: deckDiscardBy.sourceInstanceId,
+          how: asCost ? "cost" : "effect",
+          ...(deckDiscardBy.boundOn ? { boundOn: deckDiscardBy.boundOn } : {}),
+        });
+      recordTuckedDiscard(ctx, id, tuckedUnder, {
+        sourceInstanceId: deckDiscardBy.sourceInstanceId,
+        ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+        asCost,
+      });
     }
     // Once it is in a named scenario deck (a card that cannot leave play is not), that deck is its home when it has a
     // discard pile of its own or none, as `buildScenarioDeck` makes it; a card of an `encounter` deck keeps the home it
@@ -460,6 +508,9 @@ export function moveCardsTo(
       const home = { kind: "scenarioDeck" as const, name: destination.scenarioDeck };
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, home }));
     }
+    // A deck whose top card is in play is made of one face of its cards: a card put into it shows that face ("flip it
+    // and place it on the bottom of the Holding Cell deck"; docs/phase7-wave9.md §3.17).
+    if (typeof destination === "object") showScenarioDeckFace(ctx, id, destination.scenarioDeck);
     const keepsFace =
       typeof destination === "string" &&
       ["discard", "separateDiscard", "removedFromGame", "setAside", "victoryDisplay"].includes(destination);
@@ -486,6 +537,9 @@ export function moveCardsTo(
     if (destination === "separateDeckShuffle") shuffleSeparateDeck(ctx, playerId, name);
     else syncSeparateDeckTop(ctx, playerId, name);
   }
+  // A card put under a deck whose top card is in play, with no card left in it, is its top card and enters play at
+  // once (MC50 p. 22; docs/phase7-wave9.md §3.17); so does the next card when this move took the top card out of play.
+  settleScenarioDeckTops(ctx);
 }
 
 /** Shuffles an identity's separate deck, then shows its top card as its rules say. */
@@ -518,20 +572,9 @@ export function buildScenarioDeck(
 ): void {
   const piles = ctx.state.scenarioDecks[name];
   if (!piles) return;
-  const { encounterSetIds, cardType, trait, cardIds } = piles.contents;
-  // `cardIds` alone names every card of the deck; with other fields it adds to what they match (wave 6 §3.66).
-  const onlyByCardId = encounterSetIds === undefined && cardType === undefined && trait === undefined;
   const matches = (id: InstanceId): boolean => {
     const card = cardOf(ctx.state, id);
-    if (!card) return false;
-    if (cardIds?.includes(card.id)) return true;
-    if (onlyByCardId) return false;
-    if (cardType !== undefined && card.type !== cardType) return false;
-    if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) return false;
-    return (
-      encounterSetIds === undefined ||
-      ("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))
-    );
+    return card !== undefined && scenarioDeckIsMadeOf(ctx.state, name, card.id);
   };
   const candidates: InstanceId[] = [];
   for (const source of from) {
@@ -546,6 +589,8 @@ export function buildScenarioDeck(
       updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
   }
   shuffleScenarioDeck(ctx, name);
+  // "The top card of this deck is in play" (MC50 p. 13; docs/phase7-wave9.md §3.17): it enters play as the deck is made.
+  settleScenarioDeckTops(ctx);
 }
 
 /**
@@ -557,6 +602,8 @@ export function resetEmptyScenarioDecks(ctx: Ctx): void {
   for (const [name, piles] of Object.entries(ctx.state.scenarioDecks)) {
     if (piles.whenEmpty !== "reshuffleDiscardWithoutPenalty" || piles.deck.length > 0 || piles.discard.length === 0)
       continue;
+    // A deck whose top card is in play is not empty while that card is its top card (docs/phase7-wave9.md §3.17).
+    if (piles.inPlayTopId !== undefined) continue;
     for (const id of [...piles.discard]) {
       moveCard(ctx, id, { kind: "scenarioDeck", name });
       updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
@@ -617,7 +664,8 @@ const ENCOUNTER_CARDS_TAKEN_VAR = "$encounterCardsTaken";
 /**
  * Runs `take(index)` for each of the `total` encounter cards effect `frame.cursor` of `frame` takes, pausing after a
  * card whose move reset the encounter deck when a response to the reset is waiting and cards remain
- * (`encounterResetAwaitsResponse`): the frame is put back on this effect with the cards taken so far recorded, and the
+ * (`encounterResetAwaitsResponse`), and after a card `take` says waits on the stack (it returned true: a deal in its
+ * "would be dealt" window, `dealEncounterCardOrAnnounce`, docs/phase7-wave9.md §3.45): the frame is put back on this effect with the cards taken so far recorded, and the
  * flow runs it again once the response has resolved. `frame` is the frame as it was before the effect's cursor moved
  * on. Returns false when it paused.
  */
@@ -625,7 +673,7 @@ export function eachEncounterCard(
   ctx: Ctx,
   frame: Frame<"effects">,
   total: number,
-  take: (index: number) => void,
+  take: (index: number) => boolean | void,
 ): boolean {
   const from = frame.vars[ENCOUNTER_CARDS_TAKEN_VAR] ?? 0;
   if (from > 0) {
@@ -636,9 +684,9 @@ export function eachEncounterCard(
     });
   }
   for (let index = from; index < total; index++) {
-    take(index);
+    const waits = take(index) === true;
     if (ctx.state.outcome) return true;
-    if (index + 1 < total && encounterResetAwaitsResponse(ctx)) {
+    if (index + 1 < total && (waits || encounterResetAwaitsResponse(ctx))) {
       updateFrame(ctx, frame.frameId, (f) =>
         f.kind === "effects"
           ? {
@@ -753,6 +801,7 @@ export function dealAsEncounterCards(
     }
     updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
     moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+    recordEncounterCardDealt(ctx, playerId, id, "ability");
     dealt.push(id);
   }
   return dealt;
@@ -809,6 +858,48 @@ export function dealUnhandledEncounterCard(ctx: Ctx, event: EncounterCardFromPla
 }
 
 /**
+ * Puts each deal that waits for its "would be dealt" window on the stack (`TriggerEvent encounterCardBeingDealt`,
+ * docs/phase7-wave9.md §3.45; `GameState.pendingEncounterDeals`), oldest resolving first, and empties the list. The
+ * deal is each event's apply step. Returns true when it pushed a frame.
+ */
+export function announceEncounterDealsWaiting(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingEncounterDeals;
+  if (!pending || pending.length === 0) return false;
+  const { pendingEncounterDeals: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  pushEvents(
+    ctx,
+    pending.map((deal): TriggerEvent => ({ kind: "encounterCardBeingDealt", ...deal })),
+  );
+  return true;
+}
+
+/**
+ * Announces each facedown encounter card dealt to a player since the last look (`TriggerEvent encounterCardDealt`,
+ * docs/phase7-wave9.md §3.12), when an ability hears it, and empties the list. The cards dealt since the last look
+ * were dealt by one step or one effect (step three of the villain phase deals every player's card and the hazard
+ * cards without a frame in between), so their events share one response window (RRG 1.8 "Triggering Condition",
+ * p. 45), as cards leaving play from one step do. A card no longer among that player's dealt cards (revealed, passed
+ * or moved since) is skipped. Returns true when it pushed a frame.
+ */
+export function announceEncounterCardsDealt(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingEncounterDealt;
+  if (!pending || pending.length === 0) return false;
+  const { pendingEncounterDealt: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events = pending
+    .map((dealt): TriggerEvent => ({ kind: "encounterCardDealt", ...dealt }))
+    .filter((event) => {
+      if (event.kind !== "encounterCardDealt") return false;
+      const zone = locateCard(ctx.state, event.instanceId);
+      return zone?.kind === "dealtEncounter" && zone.playerId === event.playerId && heard(ctx.state, ctx.deps, event);
+    });
+  if (events.length === 0) return false;
+  pushEventsSharingResponses(ctx, events);
+  return true;
+}
+
+/**
  * Announces each card that left play since the last look (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13),
  * when an ability listens, and empties the list; the oldest resolves first. Cards that left since the last look left
  * from one step, so their leavings share one response window (docs/phase7-wave5.md §4.1 Q33, Q49; RRG 1.8 "Triggering
@@ -843,19 +934,32 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   if (request.kind === "withHost") return applyLeavingWithHost(ctx, frame.frameId, request.step);
   const inPlay = cardsInPlay(ctx.state).includes(id);
   if (inPlay) {
-    switch (request.kind) {
+    // Sent under a card by an interrupt (docs/phase7-wave9.md §3.20); with that card gone, the move it replaced.
+    const move = request.kind === "tuck" && !tuckLeavingCard(ctx, id, request) ? request.replaced : request;
+    switch (move.kind) {
       case "zone":
-        leavePlay(ctx, id, request.zone, request.position, request.discarded, request.patch, request.sourceCardId);
+        leavePlay(
+          ctx,
+          id,
+          move.zone,
+          move.position,
+          move.discarded,
+          move.patch,
+          move.sourceCardId,
+          move.asCost === true,
+        );
         break;
       case "moveCards":
-        moveCardsTo(ctx, [id], request.destination, request.into, request.sourceCardId);
+        moveCardsTo(ctx, [id], move.destination, move.into, move.sourceCardId, undefined, move.asCost);
         break;
       case "defeat":
-        defeatFromPlay(ctx, id, request.insteadTo, request.sourceCardId);
+        defeatFromPlay(ctx, id, move.insteadTo, move.sourceCardId);
+        break;
+      case "tuck":
         break;
       case "swap":
         // The swap completes now: this card takes the other's place as the other enters play (§3.47 of wave 6).
-        swapCards(ctx, id, request.with, request.sourceCardId);
+        swapCards(ctx, id, move.with, move.sourceCardId);
         break;
     }
   }
@@ -983,4 +1087,6 @@ export function shuffleEncounterDeck(ctx: Ctx, deckId: EncounterDeckId = activeE
     ...ctx.state,
     encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { ...encounterDeckOf(ctx.state, deckId), deck: order } },
   };
+  // A deck kept faceup shows its new top card (docs/phase7-wave9.md §3.42).
+  announceDeckTops(ctx);
 }

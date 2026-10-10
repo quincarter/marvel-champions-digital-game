@@ -6,6 +6,7 @@
 import type {
   AttachmentHost,
   CoreAspect,
+  EvidenceColor,
   IdentityDeckbuilding,
   MainSchemeThreatField,
   ResourceIconCounts,
@@ -61,6 +62,12 @@ export interface Correction {
    */
   readonly thwart?: number;
   /**
+   * A villain stage's printed hit points where MarvelCDB's `health` disagrees with the scan (wave 9, `aos` 50066 Black
+   * Widow III prints "HIT POINTS 20" with the per player icon; raw has `health: 13`). Replaces `health`; whether the
+   * value is per player stays MarvelCDB's `health_per_hero`. Villain stages only; never errata.
+   */
+  readonly hitPoints?: number;
+  /**
    * A minion's printed SCH where MarvelCDB sends no `scheme` at all (Velociraptor, `aoa` 45129, prints SCH 1; the scan
    * confirms it). Without it the normalizer needs a `cardNotes` entry, which records a dash or zero, not a number.
    */
@@ -84,6 +91,25 @@ export interface Correction {
    * Replaces `!base_threat_fixed`. Side schemes only; opt-in per card.
    */
   readonly startingThreatPerPlayer?: boolean;
+  /**
+   * An evidence card's printed icon and color, read from its scan (wave 9, `aos` 50185 to 50193; MarvelCDB does not
+   * record either). `icon` is the slug the combination grid is crossed off by (`EvidenceCard.evidenceIcon`).
+   * Evidence cards only; never errata.
+   */
+  readonly evidenceIcon?: { readonly icon: string; readonly color: EvidenceColor };
+  /**
+   * The counter types the card's own text defines without a `uses` keyword (`BaseCard.definedCounterTypes`; wave 9,
+   * docs/phase7-wave9.md section 1.6 and 1.16 item 4: `lock` on the Holding Cells, `secret` on the Board Members).
+   * Opt-in per card, so no other card's data changes. Never errata.
+   */
+  readonly definedCounterTypes?: readonly string[];
+  /**
+   * A villain face that prints infinite hit points (∞) where MarvelCDB's `health` is not the `0` the normalizer reads as
+   * infinite (wave 9, `tt` 55029b to 55032b, the Fading Figments: the scan prints "HIT POINTS ∞", raw has
+   * `health: 99`). Emits `VillainStage.infiniteHp: true` with `hp` `{ base: 0, perPlayer: 0 }`. Villain faces only;
+   * never errata.
+   */
+  readonly infiniteHp?: true;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
@@ -289,6 +315,8 @@ export interface ScenarioSeparateDeckCuration {
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
   /** `ScenarioSeparateDeck.closedToPlayerCards` (wave 6 §3.66: the show deck, MojoMania insert p. 11). */
   readonly closedToPlayerCards?: true;
+  /** `ScenarioSeparateDeck.topCardInPlay` (wave 9, docs/phase7-wave9.md section 3.17: the Holding Cell deck). */
+  readonly topCardInPlay?: true;
 }
 
 /**
@@ -298,6 +326,11 @@ export interface ScenarioSeparateDeckCuration {
  * single-villain restriction.
  */
 export interface EncounterSetCuration {
+  /**
+   * The printed set title where MarvelCDB's `card_set_name` differs (wave 9, `aos` `m.o.d.o.k.`: MarvelCDB reads
+   * "M.O.D.O.K"; the cards print "M.O.D.O.K."). Replaces `EncounterSet.name` only; never errata.
+   */
+  readonly name?: string;
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
   readonly singleVillainOnly?: true;
   /** `EncounterSet.extraModular` (docs/phase7-wave6.md §3.63, §4 Q43): Longshot's one-card set. */
@@ -387,6 +420,18 @@ export interface ScenarioCuration {
    * `Scenario.setAsideCardIds` (wave 6, docs/phase7-wave6.md §1.8 — Master Mold's Magneto ally 32172b). Absent = none.
    */
   readonly setAsideCardCodes?: readonly string[];
+  /**
+   * `Scenario.neutralCards`, with MarvelCDB codes (wave 9, docs/phase7-wave9.md section 1.15: Loki, God of Lies 55027a
+   * and Worlds Collide 55028a). Resolved to card ids. Absent = none.
+   */
+  readonly neutralCardCodes?: { readonly villainCardCode: string; readonly mainSchemeCardCode: string };
+  /** `Scenario.referenceCards` (wave 9, docs/phase7-wave9.md section 1.15 item 9), copied through. Absent = none. */
+  readonly referenceCards?: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly text: string;
+    readonly image: string;
+  }[];
   /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki; wave 7 §1.21 — On the Run). */
   readonly startingVillain?: "random" | "bySetup";
   /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
@@ -564,6 +609,12 @@ export interface PackCuration {
    * reads the top-level record as side B (Risky Business's Green Goblin face, docs/phase7-wave1.md \u00a71.3).
    */
   readonly villainFrontIsSideA?: readonly string[];
+  /**
+   * Villain sets whose double-sided mode+face or numbered cards may print a different title on each face (Trickster
+   * Takeover's four Avatars of Loki flip to Fading Figment, `tt` 55029 to 55032). Elsewhere differing face titles are an
+   * ingestion error (a typo). Absent = none.
+   */
+  readonly villainFaceNamesMayDiffer?: readonly string[];
   /**
    * An auxiliary `card_set_code` → the pack's hero identity's own (primary) `card_set_code`, for a hero-kit card
    * MarvelCDB files under a themed sub-set instead of the identity's own set — Storm's four Weather Deck supports

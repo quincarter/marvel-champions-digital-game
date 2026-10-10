@@ -92,7 +92,10 @@ describe("§3.11 'In expert mode, this card gains surge and cannot be canceled'"
     expect(revealCannotBeCanceled(state, deps, surpriseId(state))).toBe(true);
     const before = threat(state);
     const { events, state: after, session } = playFree(state, deps, REVEAL.card.id);
-    expect(revealed(events)).toBe(2);
+    // Q22: the surge deals 1 facedown card, which is not revealed in the player phase.
+    expect(revealed(events)).toBe(1);
+    expect(events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
+    expect(after.players[0]!.dealtEncounter).toHaveLength(1);
     expect(threat(after)).toBe(before + 1);
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);

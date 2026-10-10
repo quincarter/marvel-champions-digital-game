@@ -50,7 +50,15 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
     case "flipToOtherFace":
       // A revealing flip pushed its reveal and its `cardFlipped` itself.
       if (
-        flipToOtherFace(ctx, step.id, step.playerId, ctx.deps, step.reveal === true, step.flippedBy) === true &&
+        flipToOtherFace(
+          ctx,
+          step.id,
+          step.playerId,
+          ctx.deps,
+          step.reveal === true,
+          step.flippedBy,
+          step.keepCounters,
+        ) === true &&
         !step.reveal
       )
         pushFrames(ctx, [eventFrame(ctx, cardFlippedEvent(step.id, step.flippedBy))]);

@@ -1,4 +1,4 @@
-import { cardsInPlay, createGame } from "@mc/engine";
+import { cardsInPlay, createGame, remainingHitPoints } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -70,7 +70,9 @@ describe("Kang scenario", () => {
       undefined,
       WAVE2_DEPS,
     );
-    expect(inst(settled, villain).damage).toBeGreaterThanOrEqual(999);
+    // At zero: a hit point dial stops there (RRG 1.8 "Hit Points", p. 22; the engine's `settleDials`), so the damage on
+    // him is his maximum hit points, not the 999 of the surgery, which this line read until 2026-10-10.
+    expect(remainingHitPoints(settled, villain, WAVE2_DEPS)).toBe(0);
     // Still stage 1 immediately after defeat...
     expect(settled.mainScheme.stageIndex).toBe(0);
     // ...but stage 2 once the phase (the rest of this round) ends.

@@ -671,6 +671,87 @@ export const WAVE8_STARTER_DECKS: readonly StarterDeck[] = [
   ...MAGNETO_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 9 (PLAN.md Phase 7, docs/phase7-wave9.md): cycle 9, Agents of S.H.I.E.L.D. `aos` (the campaign box: Maria Hill
+// and Nick Fury, five scenarios), the four hero packs (`bp`, `silk`, `falcon`, `winter`) and the villain pack `tt`
+// (Trickster Takeover). Declared here (before `PLAYABLE_CARDS`, which reads `WAVE9_CARDS`) for the same source-order
+// reason as the earlier waves. Pool membership is not a claim that a pack is scripted: `unscriptedCards` keeps
+// unscripted precons from being seated. `AOS_CAMPAIGN` is registered in `CAMPAIGNS` below.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./aos/index.js";
+export * from "./bp/index.js";
+export * from "./silk/index.js";
+export * from "./falcon/index.js";
+export * from "./winter/index.js";
+export * from "./tt/index.js";
+
+import { AOS_CAMPAIGN } from "./aos/campaign.js";
+import { AOS_CARDS } from "./aos/cards.js";
+import { AOS_ENCOUNTER_SETS } from "./aos/encounterSets.js";
+import { AOS_SCENARIOS } from "./aos/scenarios.js";
+import { AOS_STARTER_DECKS } from "./aos/starterDecks.js";
+import { BP_CARDS } from "./bp/cards.js";
+import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
+import { BP_SCENARIOS } from "./bp/scenarios.js";
+import { BP_STARTER_DECKS } from "./bp/starterDecks.js";
+import { SILK_CARDS } from "./silk/cards.js";
+import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
+import { SILK_SCENARIOS } from "./silk/scenarios.js";
+import { SILK_STARTER_DECKS } from "./silk/starterDecks.js";
+import { FALCON_CARDS } from "./falcon/cards.js";
+import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
+import { FALCON_SCENARIOS } from "./falcon/scenarios.js";
+import { FALCON_STARTER_DECKS } from "./falcon/starterDecks.js";
+import { WINTER_CARDS } from "./winter/cards.js";
+import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
+import { WINTER_SCENARIOS } from "./winter/scenarios.js";
+import { WINTER_STARTER_DECKS } from "./winter/starterDecks.js";
+import { TT_CARDS } from "./tt/cards.js";
+import { TT_ENCOUNTER_SETS } from "./tt/encounterSets.js";
+import { TT_SCENARIOS } from "./tt/scenarios.js";
+import { TT_STARTER_DECKS } from "./tt/starterDecks.js";
+
+/** Every card in the wave 9 (cycle 9) pool: Core plus the six packs, in release order. A sibling pool that starts from Core, like `WAVE8_CARDS`. */
+export const WAVE9_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...AOS_CARDS,
+  ...BP_CARDS,
+  ...SILK_CARDS,
+  ...FALCON_CARDS,
+  ...WINTER_CARDS,
+  ...TT_CARDS,
+];
+
+/** Every wave 9 encounter set (Core's own villain sets are not included). */
+export const WAVE9_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...AOS_ENCOUNTER_SETS,
+  ...BP_ENCOUNTER_SETS,
+  ...SILK_ENCOUNTER_SETS,
+  ...FALCON_ENCOUNTER_SETS,
+  ...WINTER_ENCOUNTER_SETS,
+  ...TT_ENCOUNTER_SETS,
+];
+
+/** Every wave 9 scenario: Agents of S.H.I.E.L.D.'s five plus Trickster Takeover's two. */
+export const WAVE9_SCENARIOS: readonly Scenario[] = [
+  ...AOS_SCENARIOS,
+  ...BP_SCENARIOS,
+  ...SILK_SCENARIOS,
+  ...FALCON_SCENARIOS,
+  ...WINTER_SCENARIOS,
+  ...TT_SCENARIOS,
+];
+
+/** Every wave 9 starter deck: Maria Hill and Nick Fury (`aos`), plus the four hero packs' own. */
+export const WAVE9_STARTER_DECKS: readonly StarterDeck[] = [
+  ...AOS_STARTER_DECKS,
+  ...BP_STARTER_DECKS,
+  ...SILK_STARTER_DECKS,
+  ...FALCON_STARTER_DECKS,
+  ...WINTER_STARTER_DECKS,
+  ...TT_STARTER_DECKS,
+];
+
 /**
  * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle
  * 3 packs, then the five cycle 4 packs shipped so far (`sm`, `nova`, `ironheart`, `spiderham`, `spdr` — `silk`, also
@@ -691,6 +772,7 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE6_CARDS.slice(CORE_CARDS.length),
   ...WAVE7_CARDS.slice(CORE_CARDS.length),
   ...WAVE8_CARDS.slice(CORE_CARDS.length),
+  ...WAVE9_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**
@@ -719,6 +801,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   MOJO_CAMPAIGN,
   NEXT_EVOL_CAMPAIGN,
   AOA_CAMPAIGN,
+  AOS_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -732,25 +815,13 @@ export const CAMPAIGNS: readonly Campaign[] = [
 // `angel` (Part 6) needed genuinely zero curation, unlike most of the rest of this pool. `storm` (Part 6) was
 // fully curated already and unblocked by the `HostMeasure "thw"` parser mapping landing.
 // ---------------------------------------------------------------------------------------------------------------
-export * from "./bp/index.js";
-export * from "./winter/index.js";
-export * from "./falcon/index.js";
-export * from "./silk/index.js";
 export * from "./wonder_man/index.js";
 
-import { BP_CARDS } from "./bp/cards.js";
-import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
-import { WINTER_CARDS } from "./winter/cards.js";
-import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
-import { FALCON_CARDS } from "./falcon/cards.js";
-import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
-import { SILK_CARDS } from "./silk/cards.js";
-import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
 import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
 import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
 
 /**
- * Every card in the data-only pool: five packs across cycles 9 and 10, in pack-code alphabetical
+ * Every card in the data-only pool: one pack (`wonder_man`, cycle 10), formerly five across cycles 9 and 10, in pack-code alphabetical
  * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
  * `WAVE3_CARDS`/`WAVE4_CARDS`/`WAVE5_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/
  * `WAVE4_CARDS`/`WAVE5_CARDS`/`CORE_CARDS` — a client that wants "every known card, playable or not" concatenates
@@ -762,21 +833,10 @@ import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
  * `phoenix`, `wolv`, `storm`, `mojo`, `gambit` and `rogue` (cycle 6) moved into `WAVE6_*` once wave 6 scripted
  * them (docs/phase7-wave6.md); `psylocke`, `angel`, `x23` and `deadpool` (cycle 7) moved into `WAVE7_*` with
  * `next_evol` (docs/phase7-wave7.md); `iceman`, `jubilee`, `ncrawler` and `magneto` (cycle 8) moved into `WAVE8_*` with
- * `aoa` (docs/phase7-wave8.md).
+ * `aoa` (docs/phase7-wave8.md); `bp`, `silk`, `falcon` and `winter` (cycle 9) moved into `WAVE9_*` with `aos` and `tt`
+ * (docs/phase7-wave9.md).
  */
-export const DATA_ONLY_CARDS: readonly AnyCard[] = [
-  ...BP_CARDS,
-  ...WINTER_CARDS,
-  ...FALCON_CARDS,
-  ...SILK_CARDS,
-  ...WONDER_MAN_CARDS,
-];
+export const DATA_ONLY_CARDS: readonly AnyCard[] = [...WONDER_MAN_CARDS];
 
 /** Every data-only pool encounter set. */
-export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
-  ...BP_ENCOUNTER_SETS,
-  ...WINTER_ENCOUNTER_SETS,
-  ...FALCON_ENCOUNTER_SETS,
-  ...SILK_ENCOUNTER_SETS,
-  ...WONDER_MAN_ENCOUNTER_SETS,
-];
+export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [...WONDER_MAN_ENCOUNTER_SETS];

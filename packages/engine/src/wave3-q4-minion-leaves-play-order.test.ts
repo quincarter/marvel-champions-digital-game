@@ -5,7 +5,9 @@
  * 'When Defeated' ability is resolved, if any." A side scheme already worked this way (ruling, Jan 11, 2026 (1);
  * `victory-keyword.test.ts`). This file pinned the opposite order for a minion until that date.
  *
- * Overkill: the spill's amount is fixed by the damage that caused the defeat, and it is dealt after the card has left.
+ * Overkill: the spill's amount is fixed by the damage that caused the defeat, and it is dealt once the defeat has
+ * happened, before the When Defeated ability: "Overkill damage is simultaneous with the damage from the attack" (MC50
+ * rulebook FAQ, p. 22; `overkill-simultaneous.test.ts`). Until 2026-10-10 this file pinned the spill after the leaving.
  */
 
 import type { CardId } from "@mc/content";
@@ -112,11 +114,11 @@ describe("§4 Q4 (resolved): a defeated minion or ally leaves play after its own
     expect(state.players[0]!.discard).toContain(pal.id);
   });
 
-  it("overkill: When Defeated, then the minion leaves, then the excess measured at the defeat spills onto the villain", () => {
+  it("overkill: the excess measured at the defeat spills onto the villain, then When Defeated, then the minion leaves", () => {
     const grunt = minionEngagedWith(start(), GRUNT.id);
     const { state, events } = playFree(grunt.state, deps, CLEAVE.card.id);
     const villain = state.villains[0]!.instanceId;
-    expect(order(events, grunt.id, GRUNT_DEFEATED.ref.id, villain)).toEqual(["whenDefeated", "leftPlay", "spill"]);
+    expect(order(events, grunt.id, GRUNT_DEFEATED.ref.id, villain)).toEqual(["spill", "whenDefeated", "leftPlay"]);
     expect(mustInstance(state, villain).damage).toBe(3);
   });
 

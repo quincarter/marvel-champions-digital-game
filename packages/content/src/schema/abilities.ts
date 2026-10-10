@@ -9,7 +9,8 @@ import type { AbilityId } from "./ids.js";
  * optional and would have drifted from the registry).
  *
  * `id` convention (stable, never renumbered): `<cardCode>.<slug>`, e.g.
- * `01001a.spider-sense`, `01099.boost`, `01097a.setup`.
+ * `01001a.spider-sense`, `01099.boost`, `01097a.setup`, `50077.preparation` (a printed "Preparation:" ability, MC50
+ * rulebook p. 9: in place of a Boost ability, and never resolved from a boost card).
  */
 export interface AbilityReference {
   readonly id: AbilityId;

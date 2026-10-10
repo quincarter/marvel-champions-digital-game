@@ -9,12 +9,13 @@
  * Abilities", p. 24, steps 5–6; "Cost Arrow Icon", p. 14).
  */
 
+import { displayNameOf } from "./visibility.js";
 import { type Ctx, emit, moveCard, requestChoice, setFrame, updateInstance } from "./ctx.js";
-import { resetEncounterDeckIfEmpty } from "./effects.js";
+import { recordEncounterDeckDiscard, resetEncounterDeckIfEmpty } from "./effects.js";
 import { COST_NOT_PAID_VAR } from "./cost-damage.js";
 import { instanceId as asInstanceId, type InstanceId } from "./ids.js";
 import { boostIconsFor } from "./modifiers.js";
-import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, mustCardOf } from "./query.js";
+import { activeEncounterDeckId, discardZoneFor, encounterDeckOf } from "./query.js";
 import { addFrameSlots, addFrameVars, type Frame } from "./resolve/frames.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -98,7 +99,7 @@ export function executePayEncounterLookDiscard(
       prompt: { kind: "chooseCards", slot: effect.slot },
       options: lookedAt.map((id) => ({
         optionId: id,
-        label: mustCardOf(ctx.state, id).name,
+        label: displayNameOf(ctx.state, id),
         ref: { kind: "card", instanceId: id } as const,
       })),
       minSelections: effect.discard,
@@ -118,6 +119,13 @@ export function executePayEncounterLookDiscard(
     updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
     boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+    // A looked-at card is still part of the deck (RRG 1.8 "Look, Looked-At", p. 27), so this is a discard from it
+    // (docs/phase7-wave9.md §3.43 (b)), announced once the cost is paid.
+    recordEncounterDeckDiscard(ctx, deckId, id, {
+      sourceInstanceId: frame.selfInstanceId,
+      how: "cost",
+      ...(effect.paidFor ? { boundOn: { frameId: effect.paidFor, slot: effect.slot } } : {}),
+    });
   }
   emit(ctx, {
     type: "encounterLookCostSettled",

@@ -26,7 +26,7 @@ import {
   type HostMeasure,
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
-import { EVIDENCE_KINDS } from "./cards/evidence.js";
+import { EVIDENCE_COLORS, EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
 import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
@@ -58,10 +58,13 @@ function isCardTextAllowEmpty(value: unknown): value is { printed: string; curre
 const isPrintedStat = (value: unknown): boolean =>
   value === null || value === "X" || (typeof value === "number" && Number.isFinite(value) && value >= 0);
 
-function isScalingValue(value: unknown): value is { base: number; perPlayer: number } {
+function isScalingValue(value: unknown): value is { base: number; perPlayer: number; perGroup?: number } {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  return typeof v.base === "number" && typeof v.perPlayer === "number";
+  if (typeof v.base !== "number" || typeof v.perPlayer !== "number") return false;
+  // A per group value (`ScalingValue.perGroup`) is a positive whole number and has no flat or per player part.
+  if (v.perGroup === undefined) return true;
+  return Number.isInteger(v.perGroup) && (v.perGroup as number) > 0 && v.base === 0 && v.perPlayer === 0;
 }
 
 function isNonNegativeNumber(value: unknown): value is number {
@@ -915,6 +918,10 @@ export function validateMinionCard(card: MinionCard): ValidationResult {
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("minion hp must be a positive number");
   if (card.hpPerPlayer !== undefined && card.hpPerPlayer !== true)
     errors.push("minion hpPerPlayer must be true when present");
+  if (card.hpPerGroup !== undefined && card.hpPerGroup !== true)
+    errors.push("minion hpPerGroup must be true when present");
+  if (card.hpPerGroup === true && card.hpPerPlayer === true)
+    errors.push("minion cannot print its hit points both per player and per group");
   if (card.nemesisMinion !== undefined && typeof card.nemesisMinion !== "boolean")
     errors.push("minion nemesisMinion must be a boolean");
   return result(errors);
@@ -1072,6 +1079,8 @@ export function validateEvidenceCard(card: EvidenceCard): ValidationResult {
   errors.push(...abilityRefErrors(card.abilities, "evidence"));
   if (card.evidenceIcon !== undefined && !isNonEmptyString(card.evidenceIcon))
     errors.push("evidence evidenceIcon must be a non-empty string when present");
+  if (card.evidenceColor !== undefined && !EVIDENCE_COLORS.includes(card.evidenceColor))
+    errors.push(`evidence evidenceColor '${String(card.evidenceColor)}' is not a known evidence color`);
   return result(errors);
 }
 
@@ -1299,6 +1308,8 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
       errors.push(`${label} discardPile must be 'own', 'encounter' or 'none'`);
     if (deck?.closedToPlayerCards !== undefined && deck.closedToPlayerCards !== true)
       errors.push(`${label} closedToPlayerCards must be true when present`);
+    if (deck?.topCardInPlay !== undefined && deck.topCardInPlay !== true)
+      errors.push(`${label} topCardInPlay must be true when present`);
     if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
       errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
     }
@@ -1382,6 +1393,53 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
   }
   errors.push(...separateDeckListErrors(scenario.separateDecks, "scenario"));
   errors.push(...setAsideCardErrors(scenario));
+  errors.push(...neutralCardErrors(scenario));
+  errors.push(...referenceCardErrors(scenario));
+  return errors;
+}
+
+/**
+ * `Scenario.neutralCards` (docs/phase7-wave9.md §1.15): two cards in a game area of their own, so neither can be the
+ * scenario's villain, main scheme or one of its set-aside cards, and the two must differ.
+ */
+function neutralCardErrors(scenario: Scenario): string[] {
+  const neutral: unknown = scenario.neutralCards;
+  if (neutral === undefined) return [];
+  if (typeof neutral !== "object" || neutral === null) return ["scenario neutralCards must be an object when present"];
+  const { villainCardId, mainSchemeCardId } = neutral as { villainCardId?: unknown; mainSchemeCardId?: unknown };
+  if (!isNonEmptyString(villainCardId) || !isNonEmptyString(mainSchemeCardId))
+    return ["scenario neutralCards must name villainCardId and mainSchemeCardId"];
+  const errors: string[] = [];
+  if (villainCardId === mainSchemeCardId) errors.push("scenario neutralCards names one card twice");
+  const taken = new Set<string>([
+    scenario.villainCardId,
+    scenario.mainSchemeCardId,
+    ...(scenario.setAsideVillainCardIds ?? []),
+    ...(scenario.setAsideCardIds ?? []),
+    ...(scenario.expertVillains ? [scenario.expertVillains.villainCardId] : []),
+    ...(scenario.expertVillains?.setAsideVillainCardIds ?? []),
+  ]);
+  for (const id of [villainCardId, mainSchemeCardId])
+    if (taken.has(id)) errors.push(`scenario neutralCards lists ${id}, which the scenario already uses elsewhere`);
+  return errors;
+}
+
+/** `Scenario.referenceCards` (docs/phase7-wave9.md section 1.15 item 9): unique ids, and a title, text and image each. */
+function referenceCardErrors(scenario: Scenario): string[] {
+  const cards: unknown = scenario.referenceCards;
+  if (cards === undefined) return [];
+  if (!Array.isArray(cards) || cards.length === 0) return ["scenario referenceCards must be a non-empty array"];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  for (const [i, c] of (cards as unknown[]).entries()) {
+    const card = (typeof c === "object" && c !== null ? c : {}) as Record<string, unknown>;
+    for (const key of ["id", "title", "text", "image"])
+      if (!isNonEmptyString(card[key])) errors.push(`scenario referenceCards[${i}] needs a non-empty ${key}`);
+    if (isNonEmptyString(card.id)) {
+      if (seen.has(card.id)) errors.push(`scenario referenceCards repeats id ${card.id}`);
+      seen.add(card.id);
+    }
+  }
   return errors;
 }
 

@@ -51,7 +51,7 @@ import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import { defeatHeldOff, notDefeatedWithoutThreat } from "../rules.js";
 import { limitReached } from "./ability.js";
-import { atZero, checkDefeats } from "./defeat.js";
+import { atZero, checkDefeats, defeatPending } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
 import {
   checkAllyLimits,
@@ -136,6 +136,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   if (checkSchemeProtectionEnded(ctx)) return true;
   // …and a damaged character whose hit point bonus ended at or below its damage is defeated (RRG 1.8 p. 22).
   if (checkHitPointsFell(ctx)) return true;
+  // …and an identity or villain left standing past zero has a dial that reads zero (RRG 1.8 p. 22).
+  settleDials(ctx);
   // …and the top card of a deck kept faceup is logged when the rule itself turns on or off with nothing moved (a form
   // change, a blank text box; docs/phase7-wave8.md §3.48). Card moves log theirs as they happen.
   announceDeckTops(ctx);
@@ -511,6 +513,45 @@ function checkHitPointsFell(ctx: Ctx): boolean {
   const depth = ctx.state.stack.length;
   checkDefeats(ctx);
   return ctx.state.stack.length > depth || ctx.state.outcome !== null;
+}
+
+/**
+ * A hit point dial stops at zero. RRG 1.8 "Hit Points" (p. 22): "An identity's or villain's hit point dial represents
+ * their remaining hit points", damage is applied "by reducing that character's hit point dial by the specified
+ * amount", and a "+X hit points" that ends reduces the dial by X. A dial has no reading below zero, so an identity or
+ * villain that is still in play past zero (it "cannot be defeated", it is "considered to have at least 1 hit point",
+ * or its defeat was replaced by something that did not set the dial) keeps damage equal to its maximum hit points and
+ * no more: healing 4 then leaves 4 remaining, not 4 less whatever went past zero.
+ *
+ * Settled here, between frames, and never while the character's defeat is on the stack: the damage itself is applied
+ * and read in full first (the log's `damageDealt`, a damage event's `amount`, the excess of RRG 1.8 "Overkill",
+ * p. 31, and the defeat sweep all read the amount taken), and a defeat's own windows see the card as the damage left
+ * it. A villain stage that falls starts the next at full hit points, and a defeated villain or an eliminated player is
+ * out of the game, so only a character that stays is touched.
+ *
+ * An ally or minion is left alone: its damage is tokens, placed in "the specified value" (RRG 1.8 "Damage", p. 14)
+ * and counted past its hit points ("zero or fewer remaining hit points", p. 22; "any damage on that ally beyond its
+ * hit points", p. 31).
+ */
+function settleDials(ctx: Ctx): void {
+  if (ctx.state.outcome) return;
+  const dials = [
+    ...undefeatedVillains(ctx.state).map((villain) => villain.instanceId),
+    ...ctx.state.players.filter((player) => !player.eliminated).map((player) => player.identity.instanceId),
+  ];
+  for (const id of dials) {
+    const instance = ctx.state.instances[id];
+    const hp = instance ? maxHitPoints(ctx.state, id, ctx.deps) : undefined;
+    if (!instance || hp === undefined || instance.damage <= hp || defeatPending(ctx.state, id)) continue;
+    updateInstance(ctx, id, (i) => ({ ...i, damage: hp }));
+    emit(ctx, {
+      type: "damageBeyondZeroLost",
+      instanceId: id,
+      cardId: instance.cardId,
+      amount: instance.damage - hp,
+      damage: hp,
+    });
+  }
 }
 
 function sameNumbers(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {

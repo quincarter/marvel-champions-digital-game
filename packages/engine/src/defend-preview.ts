@@ -46,6 +46,7 @@ import {
   maxHitPoints,
   mustInstance,
 } from "./query.js";
+import { defendsWithoutExhausting } from "./rules.js";
 import { cardsInPlay, characterIgnores, controllerOf, printedAbilityRefs } from "./select.js";
 import type { StackFrame, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
@@ -177,7 +178,10 @@ export interface DefendOptionPreview {
   /** Who actually takes the damage. */
   readonly targetInstanceId: InstanceId;
   readonly targetPlayerId: PlayerId;
-  /** What declaring this defender exhausts (p. 9 step 2). */
+  /**
+   * What declaring this defender exhausts (p. 9 step 2): the defender, or nothing when a rule has it defend without
+   * exhausting (`RuleSpec defendsWithoutExhausting`), in which case the defender may be exhausted already.
+   */
   readonly exhausts: readonly InstanceId[];
   readonly baseAtk: number;
   readonly defenseReduction: number;
@@ -431,7 +435,9 @@ export function defendPreview(
       basicDefense,
       targetInstanceId,
       targetPlayerId,
-      exhausts: defenderInstanceId ? [defenderInstanceId] : [],
+      // Nothing under "does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47).
+      exhausts:
+        defenderInstanceId && !defendsWithoutExhausting(state, deps, defenderInstanceId) ? [defenderInstanceId] : [],
       baseAtk: planned?.baseAtk ?? 0,
       defenseReduction: planned?.defenseReduction ?? 0,
       boost,

@@ -344,6 +344,7 @@ const discarded = (id: InstanceId | undefined, by: InstanceId, at: "discard" | "
   kind: "cardDiscardedFromDeck",
   instanceId: id!,
   playerId: P1,
+  deck: "player",
   fromTop: true,
   sourceInstanceId: by,
   at,

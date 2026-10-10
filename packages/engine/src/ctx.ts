@@ -236,8 +236,13 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
   }
   if (to.kind === "encounterDiscard") resetEncounterDeckIfEmpty(ctx, to.deckId);
   // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
-  // announces it between frames.
-  if (from?.kind === "scenarioDeck" && ctx.state.scenarioDecks[from.name]?.deck.length === 0) {
+  // announces it between frames. A deck whose top card is in play (docs/phase7-wave9.md §3.17) has not run out while
+  // that card is its top card: `settleScenarioDeckTops` records the run-out when it leaves with no card under it.
+  if (
+    from?.kind === "scenarioDeck" &&
+    ctx.state.scenarioDecks[from.name]?.deck.length === 0 &&
+    ctx.state.scenarioDecks[from.name]?.inPlayTopId === undefined
+  ) {
     ctx.state = {
       ...ctx.state,
       pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "scenario", name: from.name }],
@@ -278,6 +283,14 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
   const attachedTo = to.kind === "attachment" ? to.hostInstanceId : null;
   if (instance.attachedTo !== attachedTo) {
     instance = { ...instance, attachedTo };
+    ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
+  }
+  // A minion an environment held is held no longer once it moves, wherever to (docs/phase7-wave9.md §3.21): `engage`
+  // puts it in a play area, a defeat or its host leaving play takes it out of play, and `attachCard` marks it again
+  // after a move onto a host that holds it.
+  if (instance.heldMinion) {
+    const { heldMinion: _held, ...rest } = instance;
+    instance = rest;
     ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
   }
   // A facedown attachment (out of play, RRG 1.8 "In Play and Out of Play", p. 23) is itself again once it is off its
@@ -326,7 +339,7 @@ export function placeAt(ctx: Ctx, id: InstanceId, index: number): void {
   const at = Math.max(0, Math.min(index, rest.length));
   ctx.state = setZone(ctx.state, zone, [...rest.slice(0, at), id, ...rest.slice(at)]);
   if (zone.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
-  if (zone.kind === "deck") announceDeckTops(ctx);
+  if (zone.kind === "deck" || zone.kind === "encounterDeck") announceDeckTops(ctx);
 }
 
 /**

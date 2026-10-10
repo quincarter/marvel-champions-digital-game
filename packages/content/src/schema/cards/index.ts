@@ -58,8 +58,8 @@ export type {
   SchemeIcon,
 } from "./schemes.js";
 export type { VillainCard, VillainDashStat, VillainSide, VillainSideLetter, VillainStage } from "./villain.js";
-export type { EvidenceCard, EvidenceKind } from "./evidence.js";
-export { EVIDENCE_KINDS } from "./evidence.js";
+export type { EvidenceCard, EvidenceColor, EvidenceCombination, EvidenceKind } from "./evidence.js";
+export { EVIDENCE_COLORS, EVIDENCE_KINDS } from "./evidence.js";
 
 import type { PlayerCard } from "./player-cards.js";
 import type { HeroIdentityCard } from "./identity.js";

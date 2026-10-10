@@ -606,6 +606,7 @@ Owner: `multiplayer-netcode-engineer`.
 - [ ] Authoritative game state (server or host-authoritative — pick based on Phase 0 stack) with clients as thin views + input senders.
 - [ ] 1–4 player co-op session flow: lobby/matchmaking-lite, turn order enforcement, simultaneous-action windows where the rules allow them (e.g. players may act in any order during their own turns but some effects have priority rules).
 - [ ] Reconnect/resume handling — a dropped player shouldn't corrupt or stall the game state.
+- [ ] Epic Multiplayer Mode (Trickster Takeover, Loki, God of Lies: several groups of 1–4 players in pods, one shared Loki): plan, rules, architecture (a pod coordinator over independent group engines) and wave 9 groundwork in [docs/epic-multiplayer-plan.md](docs/epic-multiplayer-plan.md).
 - [ ] Exit criteria: 2–4 players can complete a full scenario together over a network with correct turn/priority enforcement.
 
 ## Phase 6 — Rules QA & regression testing

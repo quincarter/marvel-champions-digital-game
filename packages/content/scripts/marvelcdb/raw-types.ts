@@ -84,6 +84,8 @@ export interface RawCard {
   readonly threat_per_group?: boolean;
   readonly escalation_threat?: number | null;
   readonly escalation_threat_fixed?: boolean;
+  /** Not yet sent by any cached pack; read like the other `*_per_group` fields (`scalingOf`). */
+  readonly escalation_threat_per_group?: boolean;
   readonly scheme_crisis?: number | null;
   readonly scheme_acceleration?: number | null;
   readonly scheme_hazard?: number | null;

@@ -86,7 +86,14 @@ export const BP_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
   },
   { cardId: cardId("51014"), cardSetCode: "justice", marvelcdbCodes: ["51014"], corrections: [] },
-  { cardId: cardId("51015"), cardSetCode: "justice", marvelcdbCodes: ["51015"], corrections: [] },
+  {
+    cardId: cardId("51015"),
+    cardSetCode: "justice",
+    marvelcdbCodes: ["51015"],
+    corrections: [
+      "51015: MarvelCDB's text reads \"remote 1 threat from a scheme\"; the card prints \"remove 1 threat from a scheme\". [evidence: Scan 51015.png (read 2026-10-09): \"Hero Action (thwart): Choose a number from 1 to 5. Discard that many cards from the top of the encounter deck → remove 1 threat from a scheme for each card discarded this way. Put 1 minion discarded this way into play engaged with you.\" Spec docs/phase7-wave9.md section 8.1 item 12.]",
+    ],
+  },
   { cardId: cardId("51016"), cardSetCode: "justice", marvelcdbCodes: ["51016"], corrections: [] },
   { cardId: cardId("51017"), cardSetCode: "justice", marvelcdbCodes: ["51017"], corrections: [] },
   { cardId: cardId("51018"), cardSetCode: "justice", marvelcdbCodes: ["51018"], corrections: [] },

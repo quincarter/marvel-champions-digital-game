@@ -1,8 +1,10 @@
 /** Stepping through an effects frame, including the effects that stop for a player choice. */
 
+import { displayNameOf } from "../visibility.js";
 import type { AbilityId } from "@mc/content";
 import { announceDeckTops } from "../deck-top.js";
-import { type EngineDeps, resolvableAs } from "../abilities.js";
+import { positionsOf, rearrangeable, rearrangeCards } from "./rearrange.js";
+import { type EngineDeps, GRANTED_BY_SLOT, labeledResolvedVar, resolvableAs } from "../abilities.js";
 import {
   cardsInPlayFromZone,
   hostChoicesForEffectPlay,
@@ -32,6 +34,15 @@ import {
 } from "../form-change-cost.js";
 import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
 import {
+  allPurposeCountersOn,
+  ANY_COUNTER,
+  anyCounterPickMadeVar,
+  anyCounterPickVar,
+  anyCounterTake,
+  countersOfType,
+} from "../counter-types.js";
+import {
+  mostCardsUnderTotal,
   PLAY_TO_OWN_AREA,
   playToAreaOption,
   type ChoiceList,
@@ -53,16 +64,21 @@ import {
   addLastingEffect,
   areaCostReductionFor,
   expireNextVillainPhaseEffects,
-  dealEncounterCardTo,
+  dealEncounterCardOrAnnounce,
   discardFromHand,
   expirePaidForEffects,
-  giveStatus,
   changeIdentityForm,
   settleAwaitingAttackEffects,
   shuffleZone,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import { cannotChangeForm, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "../rules.js";
+import {
+  cannotChangeForm,
+  formChangeCostsFor,
+  grantedLabeledAbilities,
+  playDestinationsOf,
+  type FormChangeCost,
+} from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
@@ -84,11 +100,12 @@ import {
   mustCardOf,
   mustPlayer,
   playerOrder,
+  printedCostOf,
   undefeatedVillains,
 } from "../query.js";
 import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
 import { combineRequirements, requirementTotal, type ResolvedRequirement } from "../resources.js";
-import { spendPays } from "../payable.js";
+import { canPaySpend, fewestSpend, spendPays } from "../payable.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -119,20 +136,25 @@ import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
 import { executeSettleEnemyAttackCost } from "../enemy-attack-cost.js";
 import { executeSettleResolveAbilityCost } from "../resolve-ability-cost.js";
 import { executePayDeckDiscardChoice } from "../deck-discard-choice-cost.js";
+import { executePayEncounterDeckDiscard } from "../encounter-discard-cost.js";
+import { executePayRemoveThreatCost } from "../remove-threat-cost.js";
 import { executeSettleReadyCardsCost } from "../ready-cards-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
 import { executeSearchCollection } from "./collection.js";
+import { executeAccuse } from "./accusation.js";
 import { executeReportFact } from "./report-fact.js";
 import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
-import { upgradeHostCandidates } from "./reveal.js";
+import { putIntoPlayHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { eachEncounterCard, selectCards } from "./cards.js";
-import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
-import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
+import { abilityFrame, addFrameVars, eventFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { giveStatusOrAnnounce } from "./status-being-given.js";
+import { splitWouldDiscard } from "./would-discard.js";
+import { hasKeyword, keywordTotal, statusCapacity, wouldDiscardAsVulnerable } from "../keywords.js";
 import { cardEffectBonus } from "../modifiers.js";
 import { candidateOption } from "./window.js";
 import { thwartBlockedOn } from "./event.js";
@@ -255,6 +277,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
+  // RRG 1.8 "Vulnerable" (p. 48): a status card that discards a vulnerable character resolves ahead of damage the same
+  // instruction deals to it.
+  if (statusAheadOfDamage(ctx, frame, effect, context)) return;
   // An "(attack)" ability with no attack effect is still one attack (owner ruling Q48). It begins as the ability
   // begins resolving, before its first instruction (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08,
   // row 61); one whose damage instructions are all inside a branch makes it as the branch reaches the first.
@@ -263,10 +288,13 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
+  if (effect.kind === "forEachCard" || effect.kind === "forEachCardPass")
+    return executeForEachCard(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
   if (effect.kind === "chooseNumber") return executeChooseNumber(ctx, frame, effect, context);
   if (effect.kind === "chooseCardType") return executeChooseCardType(ctx, frame, effect, context);
   if (effect.kind === "searchCollection") return executeSearchCollection(ctx, frame, effect, context);
+  if (effect.kind === "accuse") return executeAccuse(ctx, frame, effect, context);
   if (effect.kind === "reportFact") return executeReportFact(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "pairCards") return executePairCards(ctx, frame, effect, context);
@@ -298,6 +326,10 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "settleResolveAbilityCost") return executeSettleResolveAbilityCost(ctx, frame, effect);
   // docs/phase7-wave8.md §3.55: "discard up to 3 cards from the top of your deck →", after the payer's pick.
   if (effect.kind === "payDeckDiscardChoice") return executePayDeckDiscardChoice(ctx, frame, effect);
+  // docs/phase7-wave9.md §3.43 (a): "discard that many cards from the top of the encounter deck →", after the pick.
+  if (effect.kind === "payEncounterDeckDiscard") return executePayEncounterDeckDiscard(ctx, frame, effect);
+  // docs/phase7-wave9.md §3.7 (b): "remove up to 3 threat from here →", after the payer's pick.
+  if (effect.kind === "payRemoveThreatCost") return executePayRemoveThreatCost(ctx, frame, effect);
   // docs/phase7-wave8.md §3.54: "ready [a card] →", settled once the ready has resolved.
   if (effect.kind === "settleReadyCardsCost") return executeSettleReadyCardsCost(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.
@@ -331,9 +363,61 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     return;
 
   if (effect.kind === "putIntoPlay" && askPutIntoPlayHost(ctx, frame, effect, context)) return;
+  // docs/phase7-wave9.md §3.6: which of a card's counters "1 all-purpose counter" is, where its types differ.
+  if (
+    (effect.kind === "removeCounters" || effect.kind === "moveCounters") &&
+    askAnyCounters(ctx, frame, effect, context)
+  )
+    return;
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+/**
+ * RRG 1.8 "Vulnerable" (p. 48): "If a character with the vulnerable keyword would simultaneously take enough damage to
+ * defeat it and become either confused or stunned, it is discarded before the damage is applied and is not considered
+ * defeated." Effects joined by "and" resolve simultaneously (RRG 1.8 "'And'", p. 7), and the engine resolves a list in
+ * its written order, so "deal 2 damage to it and confuse it" written damage first would defeat the character before
+ * the status card arrived.
+ *
+ * So when `effect` deals damage (`dealDamage`, `attack`) and a later `giveStatus` of the same instruction (the effects
+ * up to the next `then`, docs/phase7-wave9.md §3.1) would discard, as vulnerable, a character that damage is aimed at
+ * (`wouldDiscardAsVulnerable`), that `giveStatus` is moved in front of `effect` in the frame's own list, and resolves
+ * first: the character is gone before the damage is applied, so the damage finds nobody, none is dealt and overkill
+ * has no excess. Returns true when it moved one (the frame is re-read). The move is the whole `giveStatus`, so its
+ * other targets get their card first too, which simultaneous effects allow. Nothing moves in a game without a
+ * vulnerable character, nor when the status is already written first.
+ *
+ * The list cannot tell "X and Y" from two sentences ("Deal 2 damage to an enemy. Stun that enemy."), which resolve in
+ * order (the first would defeat the character); §3.1 reads every list up to a `then` as one instruction.
+ */
+function statusAheadOfDamage(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec, context: EffectContext): boolean {
+  if (effect.kind !== "dealDamage" && effect.kind !== "attack") return false;
+  let damaged: readonly InstanceId[] | null = null;
+  for (let at = frame.cursor + 1; at < frame.effects.length; at++) {
+    const later = frame.effects[at];
+    if (!later || later.kind === "then") return false;
+    if (later.kind !== "giveStatus" || later.status === "tough") continue;
+    damaged ??= resolveRef(ctx.state, effect.target, context);
+    const aimedAt = damaged;
+    const status = later.status;
+    const discards = resolveRef(ctx.state, later.target, context).some(
+      (id) => aimedAt.includes(id) && wouldDiscardAsVulnerable(ctx.state, id, status, ctx.deps),
+    );
+    if (!discards) continue;
+    setFrame(ctx, {
+      ...frame,
+      effects: [
+        ...frame.effects.slice(0, frame.cursor),
+        later,
+        ...frame.effects.slice(frame.cursor, at),
+        ...frame.effects.slice(at + 1),
+      ],
+    });
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -356,7 +440,7 @@ function askPutIntoPlayHost(
   for (const id of resolveRef(ctx.state, effect.card, context)) {
     const slot = putIntoPlayHostSlot(id);
     if (frame.bindings[slot] || inPlay.includes(id)) continue;
-    const hosts = upgradeHostCandidates(ctx.state, ctx.deps, id, controller);
+    const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
     if (hosts.length < 2) continue;
     if (frame.answer === null) {
       requestChoice(ctx, {
@@ -533,7 +617,7 @@ function executePlayFromHand(
   if (step === 1 && places.length > 1 && frame.vars["_play.into"] === undefined) {
     const optionOf = (into: string | null): string => (into === null ? PLAY_TO_OWN_AREA : playToAreaOption(into));
     if (frame.answer === null) {
-      const name = mustCardOf(ctx.state, card).name;
+      const name = displayNameOf(ctx.state, card);
       requestChoice(ctx, {
         playerId,
         prompt: { kind: "chooseOption" },
@@ -685,6 +769,7 @@ function executeDivide(
   context: EffectContext,
 ): void {
   if (effect.what === "heal") return executeHealDivide(ctx, frame, effect, context);
+  if (typeof effect.what === "object") return executeCounterDivide(ctx, frame, effect, effect.what.counters, context);
   if (effect.what !== "damage" && effect.what !== "threat") {
     return executeStatusDivide(ctx, frame, effect, effect.what, context);
   }
@@ -730,7 +815,7 @@ function executeDivide(
       options: candidates.flatMap((id) =>
         Array.from({ length: amount }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -881,7 +966,7 @@ function executeHealDivide(
       options: candidates.flatMap((id) =>
         Array.from({ length: caps.get(id) ?? 0 }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -912,6 +997,96 @@ function executeHealDivide(
     })),
     effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
   );
+}
+
+/** The slot a divided removal binds one card to, for the `removeCounters` that takes its share (`executeCounterDivide`). */
+const dividedCountersSlot = (frameId: string, cursor: number, id: InstanceId): string =>
+  `_dividedCounters.${frameId}.${cursor}.${id}`;
+
+/**
+ * `EffectSpec divide` of counters ("Remove 3 secret counters from among Board Member environments", `aos` 50165a;
+ * docs/phase7-wave9.md §3.27): see `EffectSpec divide.what`. A candidate's cap is the counters of the type it holds;
+ * `total` is what will be removed. Once the split is settled this effect is replaced, in the frame's own list, by one
+ * `removeCounters` per card with a share, in the order chosen, so a divided removal is announced, counted (`bind`) and
+ * followed up (a uses card's discard, the pick among several types for `"any"`) exactly as a plain one.
+ */
+function executeCounterDivide(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "divide" }>,
+  counterType: string,
+  context: EffectContext,
+): void {
+  const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  const caps = new Map<InstanceId, number>();
+  for (const id of selectTargets(ctx.state, effect.among, context)) {
+    const cap = Math.min(amount, countersOfType(ctx.state, id, counterType));
+    if (cap > 0) caps.set(id, cap);
+  }
+  const candidates = [...caps.keys()];
+  const held = [...caps.values()].reduce((sum, cap) => sum + cap, 0);
+  const total = Math.min(amount, held);
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  // Nothing to choose when every candidate gives up all it holds (one candidate included), unless "up to" leaves how
+  // many to the chooser (docs/phase7-wave3.md §3.41, §4 Q16: at least 1), as for a division of healing.
+  const asks = effect.upTo === true ? candidates.length > 0 : candidates.length > 1 && held > amount;
+  if (frame.answer === null && asks && chooser) {
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+      prompt: {
+        kind: "divide",
+        what: "counters",
+        counterType,
+        amount: total,
+        ...(effect.maxTargets !== undefined ? { maxTargets: effect.maxTargets } : {}),
+      },
+      options: candidates.flatMap((id) =>
+        Array.from({ length: caps.get(id) ?? 0 }, (_, n) => ({
+          optionId: `${id}#${n + 1}`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
+      ),
+      minSelections: effect.upTo ? 1 : total,
+      maxSelections: total,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const shares = new Map<InstanceId, number>();
+  if (frame.answer !== null) {
+    for (const optionId of frame.answer) {
+      const id = asInstanceId(optionId.slice(0, optionId.lastIndexOf("#")));
+      if (caps.has(id)) shares.set(id, (shares.get(id) ?? 0) + 1);
+    }
+  } else {
+    // Nobody was asked: all of it, or with no player to ask, the candidates in order until `total` is reached.
+    let left = total;
+    for (const [id, cap] of caps) {
+      const share = Math.min(cap, left);
+      if (share > 0) shares.set(id, share);
+      left -= share;
+    }
+  }
+  const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings };
+  const removals = [...shares].map(([id, share]): EffectSpec => {
+    const slot = dividedCountersSlot(frame.frameId, frame.cursor, id);
+    bindings[slot] = [id];
+    return {
+      kind: "removeCounters",
+      target: { kind: "slot", slot },
+      counterType,
+      amount: { kind: "const", value: share },
+      ...(effect.bind ? { bind: effect.bind } : {}),
+    };
+  });
+  setFrame(ctx, {
+    ...frame,
+    answer: null,
+    bindings,
+    effects: [...frame.effects.slice(0, frame.cursor), ...removals, ...frame.effects.slice(frame.cursor + 1)],
+  });
 }
 
 /**
@@ -952,7 +1127,7 @@ function executeStatusDivide(
       options: candidates.flatMap((id) =>
         Array.from({ length: caps[id] ?? 0 }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -972,12 +1147,12 @@ function executeStatusDivide(
     shares.set(candidates[0], caps[candidates[0]] ?? 0);
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-  let given = 0;
   const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
-  for (const [id, count] of shares) {
-    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status, by)) given += 1;
-  }
-  if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
+  // Each card through its "would gain a status card" window when an ability hears it (docs/phase7-wave9.md §3.33).
+  const countOn = effect.bind ? { frameId: frame.frameId, name: `${effect.bind}.amount` } : undefined;
+  const gives = [...shares].map(([instanceId, count]) => ({ instanceId, count }));
+  const given = giveStatusOrAnnounce(ctx, gives, status, by, countOn);
+  if (countOn) addFrameVars(ctx, frame.frameId, { [countOn.name]: given });
 }
 
 const HERO_FORM = "_heroForm.";
@@ -1262,8 +1437,25 @@ function executeDiscardFromHand(
   let index = vars[`${DISCARD_HAND}index`] ?? 0;
   if (frame.answer !== null) {
     const answering = players[index];
-    if (answering) for (const optionId of frame.answer) discardFromHand(ctx, answering, asInstanceId(optionId));
     index += 1;
+    if (answering) {
+      // A chosen card whose discard an ability hears ("when … would discard a card you control",
+      // docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`) waits for that window; the next player is asked
+      // once those have resolved, when this effect is run again.
+      const self = frame.selfInstanceId;
+      const { now, waiting } = splitWouldDiscard(
+        ctx,
+        frame.answer.map((optionId) => asInstanceId(optionId)),
+        { sourceInstanceId: self, sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined },
+        { kind: "hand" },
+      );
+      for (const id of now) discardFromHand(ctx, answering, id);
+      if (waiting.length > 0) {
+        setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
+        pushEvents(ctx, waiting);
+        return;
+      }
+    }
   }
   for (; index < players.length; index++) {
     const playerId = players[index];
@@ -1384,7 +1576,8 @@ function executeDealEncounterCards(
   // the new deck, in the order already chosen (`eachEncounterCard`; RRG 1.8 "Encounter Deck", p. 17).
   eachEncounterCard(ctx, frame, order.length * count, (index) => {
     const playerId = order[Math.floor(index / count)];
-    if (playerId) dealEncounterCardTo(ctx, playerId);
+    // Each card through its own "would be dealt" window when an ability could react (docs/phase7-wave9.md §3.45).
+    return playerId ? dealEncounterCardOrAnnounce(ctx, playerId, "ability", frame.selfInstanceId) : false;
   });
 }
 
@@ -1561,7 +1754,7 @@ function placeTarget(
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
   ids.map((id) => ({
     optionId: id,
-    label: mustCardOf(ctx.state, id).name,
+    label: displayNameOf(ctx.state, id),
     ref: { kind: "card", instanceId: id } as const,
   }));
 
@@ -1612,13 +1805,26 @@ function executeChooseCards(
   if (effect.distinctNames) {
     const seen = new Set<string>();
     candidates = candidates.filter((id) => {
-      const name = cardOf(ctx.state, id)?.name ?? id;
+      const name = displayNameOf(ctx.state, id);
       if (seen.has(name)) return false;
       seen.add(name);
       return true;
     });
   }
-  const max = Math.min(effect.max, candidates.length);
+  // "With a combined printed cost of N or less" (docs/phase7-wave9.md §3.11): a card that does not fit on its own is
+  // no candidate, and no more can be chosen than fit together.
+  const limit = effect.maxTotal;
+  const values: Record<string, number> = {};
+  if (limit) {
+    candidates = candidates.filter((id) => {
+      const value = printedCostOf(ctx.state, cardOf(ctx.state, id));
+      if (value > limit.atMost) return false;
+      values[id] = value;
+      return true;
+    });
+  }
+  const fitting = limit ? mostCardsUnderTotal(Object.values(values), limit.atMost) : candidates.length;
+  const max = Math.min(effect.max, candidates.length, fitting);
   if (!chooser || max === 0) {
     choseNothing(ctx, frame, effect, candidates.length === 0);
     return;
@@ -1626,7 +1832,11 @@ function executeChooseCards(
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
-    prompt: { kind: "chooseCards", slot: effect.slot },
+    prompt: {
+      kind: "chooseCards",
+      slot: effect.slot,
+      ...(limit ? { maxTotal: { of: limit.of, atMost: limit.atMost, values } } : {}),
+    },
     // "Different cards" by name: the offered ids are one per name, so any selection is legal.
     options: cardOptions(ctx, candidates),
     minSelections: Math.min(effect.min, max),
@@ -1641,6 +1851,31 @@ function executeChooseCards(
  * makes a deck card face-visible (`visibility.ts` `offeredByOpenChoice`); the empty answer resumes past it. With
  * nothing to look at, or nobody to look, there is no choice: the look simply finds nothing.
  */
+/**
+ * `lookAt.bindAt` (docs/phase7-wave9.md §3.44): slot `names[i]` is the card at the `i`th looked-at position, `cards[i]`;
+ * a name with no card is bound empty, so a later read finds nothing instead of an unbound slot.
+ */
+function bindLookedPositions(
+  ctx: Ctx,
+  frameId: FrameId,
+  names: readonly string[] | undefined,
+  cards: readonly InstanceId[],
+): void {
+  if (!names || names.length === 0) return;
+  updateFrame(ctx, frameId, (f) => {
+    if (f.kind !== "effects") return f;
+    const bindings: Record<string, readonly InstanceId[]> = { ...f.bindings };
+    names.forEach((name, i) => {
+      const id = cards[i];
+      bindings[name] = id === undefined ? [] : [id];
+    });
+    return { ...f, bindings };
+  });
+}
+
+/** The cards a `lookAt` with `rearrange` showed, kept on its frame while its prompt is open (not a card's slot). */
+const REARRANGE_SLOT = "$lookAt.rearrange";
+
 function executeLookAt(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -1648,11 +1883,23 @@ function executeLookAt(
   context: EffectContext,
 ): void {
   if (frame.answer !== null) {
-    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+    // The answer to a `rearrange` prompt is the arrangement: selection `i` goes where the `i`th looked-at card is.
+    const looked = frame.bindings[REARRANGE_SLOT];
+    const { [REARRANGE_SLOT]: _looked, ...bindings } = frame.bindings;
+    const arrangement = frame.answer as readonly InstanceId[];
+    setFrame(ctx, { ...frame, bindings, answer: null, cursor: frame.cursor + 1 });
+    const [by] = looked ? resolvePlayers(ctx.state, effect.viewer, context) : [];
+    if (looked && by && arrangement.length === looked.length) {
+      rearrangeCards(ctx, by, looked, arrangement);
+      // Selection `i` is the card now at the `i`th looked-at position (`lookAt.bindAt`).
+      bindLookedPositions(ctx, frame.frameId, effect.bindAt, arrangement);
+    }
     return;
   }
   const [viewer] = resolvePlayers(ctx.state, effect.viewer, context);
-  const ids = viewer ? selectCards(ctx, effect.cards, context) : [];
+  const named = viewer ? selectCards(ctx, effect.cards, context) : [];
+  // A look that rearranges is over positions (docs/phase7-wave9.md §3.12): facedown dealt cards and deck cards only.
+  const ids = effect.rearrange ? named.filter((id) => rearrangeable(ctx.state, id)) : named;
   const bound = effect.bind
     ? {
         bindings: { ...frame.bindings, [effect.bind]: ids },
@@ -1661,20 +1908,117 @@ function executeLookAt(
     : {};
   if (!viewer || ids.length === 0) {
     setFrame(ctx, { ...frame, ...bound, cursor: frame.cursor + 1 });
+    bindLookedPositions(ctx, frame.frameId, effect.bindAt, []);
     // The same "then" gate as a `selectCards` over a deck that found nothing (RRG 1.8 "'Then'", p. 44).
     if (readsDeck(effect.cards)) markPreThenUnresolved(ctx, frame.frameId, "lookFoundNothing");
     return;
   }
-  setFrame(ctx, { ...frame, ...bound });
+  // With two or more cards to swap among, the look asks for their arrangement; the cards looked at are kept on the
+  // frame (`REARRANGE_SLOT`) until the answer, so the positions are the ones the prompt showed.
+  const rearranges = effect.rearrange === true && ids.length > 1;
+  setFrame(ctx, {
+    ...frame,
+    ...bound,
+    ...(rearranges ? { bindings: { ...(bound.bindings ?? frame.bindings), [REARRANGE_SLOT]: ids } } : {}),
+  });
+  // With one card there is nothing to swap: each position holds the card it held.
+  if (!rearranges) bindLookedPositions(ctx, frame.frameId, effect.bindAt, ids);
   emit(ctx, { type: "cardsLookedAt", playerId: viewer, instanceIds: ids });
   requestChoice(ctx, {
     playerId: viewer,
-    prompt: { kind: "lookAt" },
+    prompt: rearranges ? { kind: "rearrange", positions: positionsOf(ctx.state, ids) } : { kind: "lookAt" },
     options: cardOptions(ctx, ids),
-    minSelections: 0,
-    maxSelections: 0,
+    minSelections: rearranges ? ids.length : 0,
+    maxSelections: rearranges ? ids.length : 0,
     frameId: frame.frameId,
+    ...(rearranges ? { ordered: true } : {}),
   });
+}
+
+/** Where a card is, as one comparable string: a `forEachCard` skips a card that is no longer there. */
+const zoneKey = (state: GameState, id: InstanceId): string => JSON.stringify(locateCard(state, id));
+
+/**
+ * `EffectSpec forEachCard` (RRG 1.8 "'For Each'", p. 20): one pass of `effects` per card, that card bound to `slot`.
+ * The first visit fixes the set and replaces the frame's effect by a `forEachCardPass` holding the waiting cards with
+ * their zones. Every later visit (the frame is re-read after each pass, the cursor still here) drops the cards that
+ * are no longer in that zone, asks the chooser which of two or more waiting cards is next, and pushes that card's pass
+ * as a frame of its own that hands nothing back: a pass's bindings are its own instance's. The cursor moves on once
+ * no card is waiting.
+ */
+function executeForEachCard(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "forEachCard" | "forEachCardPass" }>,
+  context: EffectContext,
+): void {
+  const replaceWith = (pass: EffectSpec | null, answer: Frame<"effects">["answer"] = frame.answer) =>
+    setFrame(ctx, {
+      ...frame,
+      answer,
+      ...(pass
+        ? { effects: [...frame.effects.slice(0, frame.cursor), pass, ...frame.effects.slice(frame.cursor + 1)] }
+        : { cursor: frame.cursor + 1 }),
+    });
+  if (effect.kind === "forEachCard") {
+    const ids = [...new Set(resolveRef(ctx.state, effect.cards, context))];
+    const { cards: _cards, kind: _kind, ...rest } = effect;
+    replaceWith({
+      kind: "forEachCardPass",
+      ...rest,
+      waiting: ids.map((instanceId) => ({ instanceId, zone: zoneKey(ctx.state, instanceId) })),
+    });
+    return;
+  }
+  const waiting = effect.waiting.filter((card) => zoneKey(ctx.state, card.instanceId) === card.zone);
+  if (waiting.length === 0) return replaceWith(null, null);
+  const chooserRef = effect.chooser ?? { kind: "controller" };
+  const [chooser] = resolvePlayers(ctx.state, chooserRef, context);
+  if (chooser && waiting.length > 1 && frame.answer === null) {
+    if (waiting.length !== effect.waiting.length) replaceWith({ ...effect, waiting });
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, chooserRef),
+      prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
+      options: cardOptions(
+        ctx,
+        waiting.map((card) => card.instanceId),
+      ),
+      minSelections: 1,
+      maxSelections: 1,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const answered = frame.answer?.[0];
+  const next = waiting.find((card) => card.instanceId === answered) ?? waiting[0]!;
+  replaceWith({ ...effect, waiting: waiting.filter((card) => card !== next) }, null);
+  emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: [next.instanceId] });
+  pushEffects(ctx, {
+    effects: effect.effects,
+    selfInstanceId: frame.selfInstanceId,
+    abilityId: frame.abilityId,
+    instruction: frame.instruction,
+    controllerId: frame.controllerId,
+    event: frame.event,
+    eventFrameId: frame.eventFrameId,
+    bindings: { ...frame.bindings, [effect.slot]: [next.instanceId] },
+    vars: frame.vars,
+    scopedPlayerId: frame.scopedPlayerId,
+    byPlayer: frame.byPlayer === true,
+  });
+}
+
+/**
+ * False only for a `required` `spendResources` its player could not pay right now, from the payment options that
+ * spend would offer them (`canPaySpend`): the option holding it cannot be carried out, so `executeChooseOne` does not
+ * offer it, and the effect itself asks nobody. A spend that names no player is not judged here (nobody is asked, as
+ * for any spend).
+ */
+function requiredSpendPayable(ctx: Ctx, effect: EffectSpec, context: EffectContext): boolean {
+  if (effect.kind !== "spendResources" || effect.required !== true) return true;
+  const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+  return !playerId || canPaySpend(ctx.state, ctx.deps, playerId, effect.resources, effect.distinctTypes ?? 0);
 }
 
 function executeChooseOne(
@@ -1685,7 +2029,9 @@ function executeChooseOne(
 ): void {
   const available = effect.options
     .map((option, index) => ({ option, index }))
-    .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context));
+    .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context))
+    // An option to spend resources is offered only to a player who can pay it (`EffectSpec spendResources.required`).
+    .filter(({ option }) => option.effects.every((step) => requiredSpendPayable(ctx, step, context)));
   const count = effect.count ?? 1;
   if (count > 1) return executeChooseSeveral(ctx, frame, effect, context, available, count);
   const pickedIndex =
@@ -1795,6 +2141,68 @@ function executeChooseSeveral(
       byPlayer: frame.byPlayer === true,
     });
   }
+}
+
+/**
+ * "Remove / move N all-purpose counters" (`counterType: "any"`, docs/phase7-wave9.md §3.6) from a card holding several
+ * types, fewer than it holds: the player resolving the effect picks which (`ChoicePrompt chooseCounters`), one card at
+ * a time in target order. The answer is kept in the frame's vars under this effect's own place
+ * (`anyCounterPickVar`), where `applyEffect` reads it. Returns true while a choice is open or was just recorded (the
+ * frame is re-read). An effect no player resolves is not asked: `anyCounterTake`'s default order decides.
+ */
+function askAnyCounters(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "removeCounters" | "moveCounters" }>,
+  context: EffectContext,
+): boolean {
+  if (effect.counterType !== ANY_COUNTER) return false;
+  const playerId = context.controllerId ?? context.scopedPlayerId ?? null;
+  if (!playerId) return false;
+  const amount = effect.amount === undefined ? undefined : resolveValue(ctx.state, effect.amount, context, ctx.deps);
+  const sources = resolveRef(ctx.state, effect.kind === "removeCounters" ? effect.target : effect.from, context);
+  for (const id of sources) {
+    if (frame.vars[anyCounterPickMadeVar(frame.frameId, frame.cursor, id)] === 1) continue;
+    const { take, ambiguous } = anyCounterTake(ctx.state, id, amount, undefined, ctx.deps);
+    if (!ambiguous) continue;
+    const held = allPurposeCountersOn(ctx.state, id);
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId,
+        prompt: {
+          kind: "chooseCounters",
+          instanceId: id,
+          amount: take,
+          reason: effect.kind === "removeCounters" ? "remove" : "move",
+          byType: Object.fromEntries(held),
+        },
+        options: held.flatMap(([type, count]) =>
+          Array.from({ length: Math.min(count, take) }, (_, index) => ({
+            optionId: `${type}#${index + 1}`,
+            label: type,
+            ref: { kind: "none" } as const,
+          })),
+        ),
+        minSelections: take,
+        maxSelections: take,
+        frameId: frame.frameId,
+      });
+      return true;
+    }
+    const picked: Record<string, number> = {};
+    for (const optionId of frame.answer) {
+      const type = optionId.slice(0, optionId.lastIndexOf("#"));
+      picked[anyCounterPickVar(frame.frameId, frame.cursor, id, type)] =
+        (picked[anyCounterPickVar(frame.frameId, frame.cursor, id, type)] ?? 0) + 1;
+    }
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: { ...frame.vars, ...picked, [anyCounterPickMadeVar(frame.frameId, frame.cursor, id)]: 1 },
+    });
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1977,6 +2385,9 @@ function executeChoosePlayer(
  * usual payment options (hand cards, resource abilities). A payment that covers
  * the requirement is spent and `<bind>.made` is 1; selecting nothing or too
  * little spends nothing and `<bind>.made` is 0.
+ *
+ * `required` (the player chose the option to spend): asked only of a player who can pay, and then the choice takes
+ * nothing less than a payment in full (`resolveChoice` refuses it, `engine.ts`), so the answer read here always pays.
  */
 function executeSpendResources(
   ctx: Ctx,
@@ -1999,11 +2410,26 @@ function executeSpendResources(
   if (frame.answer === null) {
     const options = playerId ? paymentOptions(ctx, playerId, null) : [];
     if (!playerId || options.length === 0) return finish(false);
+    const required = effect.required === true;
+    if (required && !requiredSpendPayable(ctx, effect, context)) return finish(false);
+    // A payment in full from the fewest options goes first and sets the minimum (`fewestSpend`), so the first
+    // `minSelections` options are a legal answer here as for any choice.
+    const fewest = required ? fewestSpend(ctx.state, ctx.deps, playerId, effect.resources, distinctTypes) : null;
     requestChoice(ctx, {
       playerId,
-      prompt: { kind: "spendResources", requirement, ...(distinctTypes > 0 ? { distinctTypes } : {}) },
-      options,
-      minSelections: 0,
+      prompt: {
+        kind: "spendResources",
+        requirement,
+        ...(distinctTypes > 0 ? { distinctTypes } : {}),
+        ...(required ? { required } : {}),
+      },
+      options: fewest
+        ? [
+            ...options.filter((option) => fewest.includes(option.optionId)),
+            ...options.filter((option) => !fewest.includes(option.optionId)),
+          ]
+        : options,
+      minSelections: required ? (fewest?.length ?? 1) : 0,
       maxSelections: options.length,
       frameId: frame.frameId,
     });
@@ -2160,7 +2586,7 @@ function executeDealIndirectDamage(
       options: eligible.flatMap((id) =>
         Array.from({ length: caps[id] ?? 0 }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
-          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          label: `${displayNameOf(ctx.state, id)} (${n + 1})`,
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
@@ -2298,7 +2724,10 @@ function executeResolveSpecials(
   effect: Extract<EffectSpec, { kind: "resolveSpecials" }>,
   context: EffectContext,
 ): void {
-  const steps: TriggerCandidate[] = [];
+  // `grantedBy`: the step is an ability the card gains from a rule (`RuleSpec grantsLabeledAbility`), and this is the
+  // card whose constant gives it (null for a rule no card carries). Absent: one of the card's own abilities.
+  type Step = TriggerCandidate & { readonly grantedBy?: InstanceId | null };
+  const steps: Step[] = [];
   // Cards in play (`cards`), or cards a ref names wherever they are (`of`): an Invocation card resolves from its deck.
   const sources = effect.of
     ? resolveRef(ctx.state, effect.of, context).filter((id) => getInstance(ctx.state, id) !== undefined)
@@ -2335,17 +2764,45 @@ function executeResolveSpecials(
         fromHand: false,
       });
     }
+    // "Each encounter card without a printed 'Preparation' ability gains 'Preparation: …'" (`RuleSpec
+    // grantsLabeledAbility`, docs/phase7-wave9.md §3.3): the abilities this card gains join its own. The card has them
+    // (RRG 1.8 "'Gains'", p. 21), so each is its ability, resolved by the same player against the same event.
+    if (trigger !== "preparation") continue;
+    for (const granted of grantedLabeledAbilities(ctx.state, ctx.deps, id, trigger)) {
+      if (only && !only.has(granted.abilityId)) continue;
+      steps.push({
+        instanceId: id,
+        abilityId: granted.abilityId,
+        controllerId: controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId,
+        forced: true,
+        fromHand: false,
+        grantedBy: granted.grantedBy,
+      });
+    }
   }
-  const key = (c: TriggerCandidate) => `${c.instanceId}:${c.abilityId}`;
+  // Two copies of a granting card give one card the same ability twice: the granting card tells them apart.
+  const key = (c: Step) =>
+    c.grantedBy === undefined ? `${c.instanceId}:${c.abilityId}` : `${c.instanceId}:${c.abilityId}@${c.grantedBy}`;
+  // A granted ability is offered under its granting card, the card that prints its text.
+  const option = (c: Step): ChoiceOption => {
+    const printed = candidateOption(ctx.state)(c);
+    if (c.grantedBy === undefined) return printed;
+    if (c.grantedBy === null) return { ...printed, optionId: key(c) };
+    return {
+      optionId: key(c),
+      label: displayNameOf(ctx.state, c.grantedBy),
+      ref: { kind: "ability", instanceId: c.grantedBy, abilityId: c.abilityId },
+    };
+  };
   let ordered = steps;
   if (frame.answer !== null) {
     const byKey = new Map(steps.map((c) => [key(c), c]));
-    ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is TriggerCandidate => c !== undefined);
+    ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is Step => c !== undefined);
   } else if (steps.length > 1 && frame.controllerId) {
     requestChoice(ctx, {
       playerId: frame.controllerId,
       prompt: { kind: "orderSpecials" },
-      options: steps.map(candidateOption(ctx.state)),
+      options: steps.map(option),
       minSelections: steps.length,
       maxSelections: steps.length,
       frameId: frame.frameId,
@@ -2379,14 +2836,27 @@ function executeResolveSpecials(
   if (effect.bind) {
     addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: ordered.length + incites.length + surges.length });
   }
-  const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
-  for (const id of [...surges].reverse()) {
-    pushEffects(ctx, {
-      effects: [{ kind: "revealEncounterCard", player: { kind: "controller" } }],
-      selfInstanceId: id,
-      controllerId: whoFor(id),
-    });
+  // The attack in progress records how many Preparation abilities resolved during it (docs/phase7-wave9.md §3.2): the
+  // innermost attack on the stack, as `Predicate attackInProgress` reads it. Its frame's vars become the attack's
+  // `results` when its response window opens ("if no 'Preparation' ability was resolved").
+  if (trigger === "preparation" && ordered.length > 0) {
+    const attack = ctx.state.stack.find(
+      (f) =>
+        f.kind === "event" &&
+        (f.event.kind === "attack" || f.event.kind === "enemyAttack" || f.event.kind === "enemyAttacksEnemy"),
+    );
+    addFrameVars(ctx, attack?.frameId, { [labeledResolvedVar("preparation")]: ordered.length });
   }
+  const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
+  // Each surge on its own frame, as a reveal's does when an ability hears it (`surgeResolving`, `resolveSurge`): the
+  // keyword deals its player a facedown encounter card, a deal like any other (docs/phase7-wave9.md §4.1 Q19).
+  pushFrames(
+    ctx,
+    surges.flatMap((id) => {
+      const playerId = whoFor(id);
+      return playerId ? [eventFrame(ctx, { kind: "surgeResolving", instanceId: id, playerId })] : [];
+    }),
+  );
   // With `bind`, what each Special's effects bind comes back as `<bind>.<slot>` (docs/phase7-wave5.md §3.7).
   const returnTo = effect.bind ? { returnBindingsTo: { frameId: frame.frameId, prefix: effect.bind } } : {};
   // A When Defeated resolved on demand (Zeal for the Cause, docs/phase7-wave6.md §3.17) reads its defeat from its frame's
@@ -2421,7 +2891,8 @@ function executeResolveSpecials(
           step,
           eventFor(step),
           null,
-          {},
+          // "Then, discard [the granting card]": the card a granted ability names (`GRANTED_BY_SLOT`).
+          step.grantedBy ? { [GRANTED_BY_SLOT]: [step.grantedBy] } : {},
           { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
         ),
         ...returnTo,
@@ -2489,7 +2960,7 @@ function requestTargetChoice(
     prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
     options: legal.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     // "Up to X" chooses at least one (§4 Q16, the user's decision); only a printed "may" (`optional`) allows none.

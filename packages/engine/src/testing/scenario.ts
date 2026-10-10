@@ -241,6 +241,14 @@ export function defaultPick(state: GameState): readonly string[] {
     );
     return (legal ?? []).map((type, index) => wildTypeOptionId(index, type));
   }
+  // docs/phase7-wave9.md §3.11: under a combined-cost limit the cheapest cards are the ones sure to fit together.
+  if (choice.prompt.kind === "chooseCards" && choice.prompt.maxTotal) {
+    const { values } = choice.prompt.maxTotal;
+    return choice.options
+      .map((o) => o.optionId)
+      .sort((a, b) => (values[a] ?? 0) - (values[b] ?? 0))
+      .slice(0, choice.minSelections);
+  }
   return choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
 }
 

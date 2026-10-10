@@ -1,9 +1,10 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
+import type { EventPattern } from "./abilities.js";
 import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
-import type { CardDestination, StatName, StatusName } from "./spec.js";
-import type { Vars } from "./stack.js";
-import type { MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
+import type { CardDestination, Predicate, StatName, StatusName, TargetCategory } from "./spec.js";
+import { PAID_CARDS_SLOT, type Bindings, type Vars } from "./stack.js";
+import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -32,6 +33,23 @@ export interface TargetSnapshot {
    * tough card this damage is about to use is counted, and one a piercing attack discarded first is not.
    */
   readonly statuses?: StatusCounts;
+}
+
+/**
+ * What a defeated character was as its defeat was initiated, read while it was still in play (`characterDefeated.
+ * asDefeated`). By the response window an ally or minion has left play and is its printed self again: a player card
+ * in play facedown as a minion (`CardInstance.facedownAs`) is an event or an upgrade in a discard pile, an ally an
+ * attachment treated as a minion (`treatedAs`) is an ally, and a trait a card in play gave it is gone. A response
+ * reads the game as its triggering condition happened (the family of `cardLeavesPlay.traits`), so a pattern's
+ * `targetIs` reads these in place of the live card (`resolve/triggers.ts`).
+ */
+export interface DefeatedSnapshot {
+  /** Its categories (`categoriesOf`, with any a `countsAs` rule added): `TargetQuery.categories`. */
+  readonly categories: readonly TargetCategory[];
+  /** Its traits, granted ones included (`traitsOf`): `TargetQuery.trait`, `withoutTrait`, `anyTrait`. */
+  readonly traits: readonly Trait[];
+  /** Whether it was in play facedown as something else (`CardInstance.facedownAs`): `TargetQuery.facedown`. */
+  readonly facedown: boolean;
 }
 
 export type TriggerEventBody =
@@ -323,6 +341,34 @@ export type TriggerEventBody =
       readonly enemyInstanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly noBoost?: boolean;
+      /** `EffectSpec enemyScheme.divert` (docs/phase7-wave9.md §3.9), read at this activation's place-threat step. */
+      readonly divert?: SchemeThreatDivert;
+    }
+  /**
+   * An enemy was given a facedown boost card (docs/phase7-wave9.md §3.44): "Hero Response (defense): After an
+   * attacking enemy is given a facedown boost card, look at that card and the top card of the encounter deck. You may
+   * swap those cards" (Up, Up, and Away, `falcon` 53005). An announcement: the card is on the enemy, facedown, and
+   * nothing has been turned up (RRG 1.8 "Attack (Enemy Activation)" step 1, p. 8, "Scheme (Enemy Activation)" step 1,
+   * "Boost, Boost Icon", p. 11). One event, with a response window of its own, for each boost card: the activation's
+   * own card, each additional one, and a card a card ability gives ("give the villain a facedown boost card"). Only
+   * recorded when an ability in the registry listens (`recordBoostGiven`), and announced between frames
+   * (`announceBoostCardsGiven`).
+   *
+   * `enemyInstanceId` is the event's source and `boostInstanceId` its target ("that card"), whose face no player may
+   * read: a pattern must not narrow by it. `activation`: the activation of that enemy in progress as it was given the
+   * card ("an attacking enemy" is `activation: "attack"`), null when it is not activating (the card waits facedown,
+   * p. 11). `playerId`: the player that activation is against ("you"), null with no activation.
+   *
+   * During its own activation an enemy is given its boost cards one at a time in a game that listens, each window
+   * resolved before the next card is taken off the deck, so the card a response swapped onto the top of the deck is
+   * the next boost card given.
+   */
+  | {
+      readonly kind: "boostCardGiven";
+      readonly enemyInstanceId: InstanceId;
+      readonly boostInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme" | null;
+      readonly playerId: PlayerId | null;
     }
   /**
    * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
@@ -383,6 +429,11 @@ export type TriggerEventBody =
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
       readonly payment?: Vars;
+      /**
+       * The cards that paid for the play (`PAID_CARDS_SLOT`, docs/phase7-wave9.md §3.46 (b)), which an answering
+       * ability reads as slot `paid.cards` (`carriedByEvent`). Absent when no card paid.
+       */
+      readonly paidCards?: readonly InstanceId[];
     }
   /**
    * A card has been paid for and is about to resolve: "When you play an [Attack] event" (Embiggen!, Shrink). An
@@ -390,7 +441,13 @@ export type TriggerEventBody =
    * instance of damage the event deals. `cardPlayed` stays where it is — announced after the card has resolved — so
    * "after you play" responses are unaffected. Only put on the stack when an ability could react (`heard`).
    */
-  | { readonly kind: "cardBeingPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  | {
+      readonly kind: "cardBeingPlayed";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      /** The cards that paid for the play, as `cardPlayed.paidCards` has them; absent when no card paid. */
+      readonly paidCards?: readonly InstanceId[];
+    }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
    * A revealed treachery (or a revealed event) has **resolved**: "After you resolve a treachery, … attach that treachery
@@ -567,6 +624,13 @@ export type TriggerEventBody =
        * for any other character.
        */
       readonly villainStageNumber?: number;
+      /**
+       * What the character was when its defeat was initiated, set as the event goes on the stack (`eventFrame`): "After
+       * a Controlled minion is defeated" answers a player card that was in play facedown as a Controlled minion and
+       * is itself again in its owner's discard pile (docs/phase7-wave9.md §3.32). Read by a pattern's `targetIs`
+       * (`DefeatedSnapshot`). Absent on an event stamped before the field existed, which reads the live card.
+       */
+      readonly asDefeated?: DefeatedSnapshot;
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -702,10 +766,46 @@ export type TriggerEventBody =
       readonly playerId: PlayerId | null;
     }
   /**
+   * A status card is about to be given to a character (docs/phase7-wave9.md §3.33): "Forced Interrupt: When attached
+   * enemy would gain a confused or stunned status card, discard this card instead" (Solid Sound Constructs, `aos`
+   * 50144). The "would" twin of `statusPlaced`: interrupt only (RRG 1.8 "Interrupt", p. 25: a "would" interrupt
+   * resolves "before its triggering condition initiates, when that condition becomes imminent"), one per status card, pushed by an effect
+   * that gives one (`EffectSpec giveStatus`, a `divide` of status cards; `giveStatusOrAnnounce`) only when an ability
+   * hears it, so a game with no such ability, or one whose ability does not match this give, keeps its log, its state
+   * and its replay. The card is not on the character yet. A give the character has no room for is not imminent and
+   * opens no window (RRG 1.8 "Status Cards", p. 41; stalwart, p. 40): the room is read when the give is announced and
+   * again as its window would open, so the second of two stuns given to one character is not asked about once the
+   * first has landed.
+   *
+   * Uncancelled, the card is given as the event applies, through `giveStatus` like any other: `statusPlaced` is
+   * announced, and a vulnerable character is discarded (RRG 1.8 "Vulnerable", p. 48). Cancelled or replaced
+   * (`cancelTriggeringEvent`, `replaceTriggeringEvent`; RRG 1.8 "Replacement Effect", p. 37), no card is given: the
+   * character did not become stunned or confused, so vulnerable does not read it, nothing is announced as placed, and
+   * the giving effect's `<bind>.amount` does not count it.
+   *
+   * `sourceInstanceId` and `playerId` are `statusPlaced`'s: the card whose effect gives it, and the player whose
+   * ability it is ("you"), null for an encounter card's forced ability. `countOn` names the frame variable the giving
+   * effect reads as "status cards given this way" (`EffectSpec giveStatus.bind`), raised by one if the card lands.
+   *
+   * Not announced: a status card given as a cost (`CostSpec giveStatus`; every cost is paid at once, RRG 1.8 "Cost",
+   * p. 13), by the toughness keyword as a character enters play (p. 45), or by a constant's refill (`RuleSpec
+   * keepsGivingStatus`): those keep placing their card at once.
+   */
+  | {
+      readonly kind: "statusBeingGiven";
+      readonly instanceId: InstanceId;
+      readonly status: StatusName;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly countOn?: { readonly frameId: FrameId; readonly name: string };
+    }
+  /**
    * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are
    * reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006). An announcement (response only), pushed by
    * `EffectSpec setRemainingHitPoints` once per character it sets to its maximum hit points (no damage left), and only
-   * when an ability listens. A dial set below the maximum is not a reset, and neither is a villain's next stage.
+   * when an ability listens. A dial set below the maximum is not a reset, and neither is a villain's next stage. The
+   * exception is a set flagged `reset` ("reset his hit points to 10 instead", docs/phase7-wave9.md §3.5), announced at
+   * whatever number it sets.
    */
   | { readonly kind: "hitPointsReset"; readonly instanceId: InstanceId }
   /**
@@ -821,6 +921,180 @@ export type TriggerEventBody =
       readonly from: ZoneId["kind"] | null;
     }
   /**
+   * A player has been dealt a facedown encounter card: "Response: After a player is dealt an encounter card, …"
+   * (docs/phase7-wave9.md §3.12). RRG 1.8 "Deal, Deal an Encounter Card" (p. 15): step three of the villain phase, and
+   * "If a card ability instructs a player to be dealt an encounter card, the player takes the top card of the encounter
+   * deck and places it facedown in front of them"; "Villain Phase" (p. 47) step three with its hazard cards; "Player
+   * Deck" (p. 33), a deck that ran out; "Surge" (p. 42), the card the keyword deals, heard when it is dealt and before
+   * it is revealed (docs/phase7-wave9.md §4.1 Q19; `resolveSurge`). One event per card dealt, `playerId` the player it
+   * was dealt to ("a player", `PlayerRef eventPlayer`), `instanceId` the facedown card and `source` what dealt it
+   * (`EncounterDealSource`).
+   *
+   * Response only: the card is already in front of the player. Recorded as it is dealt (`recordEncounterCardDealt`)
+   * only when an ability in the registry listens, and announced between frames (`announceEncounterCardsDealt`): the
+   * cards one step or one effect dealt share one response window (RRG 1.8 "Triggering Condition", p. 45), so step
+   * three asks once, after every player's card and the hazard cards are dealt, not once per card. A card no longer
+   * among that player's dealt cards by then is not announced.
+   *
+   * The after-the-fact sibling of the "would be dealt" interrupt, `encounterCardBeingDealt` (docs/phase7-wave9.md
+   * §3.45): that one opens before each card is taken from the deck, and a deal it replaces is never announced here.
+   */
+  | {
+      readonly kind: "encounterCardDealt";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly source: EncounterDealSource;
+    }
+  /**
+   * A player is about to be dealt the top card of the encounter deck, facedown: "Interrupt: When a player would be
+   * dealt an encounter card, remove 1 recon counter from here instead." (docs/phase7-wave9.md §3.45). RRG 1.8 "Deal,
+   * Deal an Encounter Card" (p. 15); "'Would'" (p. 48); "Replacement Effect" (p. 37): "When an effect is replaced, it
+   * is no longer considered imminent and no further interrupts or responses to that effect can be triggered."
+   *
+   * One event per card, before it leaves the deck: `playerId` the player it is to be dealt to ("a player",
+   * `PlayerRef eventPlayer`), `source` what deals it (`EncounterDealSource`, shared with `encounterCardDealt`) and
+   * `sourceInstanceId` the card whose ability or surge keyword deals it (`eventSource`), null for the game's own
+   * deals (step three of the villain phase, a hazard icon, a player deck that ran out). The card is not named: it is
+   * whatever is on top of the encounter deck when the event applies, and nothing is on the stack for it until then.
+   *
+   * Interrupt only: the deal is this event's apply step (`applyEncounterCardBeingDealt`), which deals as every deal
+   * does, so `encounterCardDealt` still follows a deal that was not replaced. Cancelled or replaced
+   * (`cancelTriggeringEvent`, `replaceTriggeringEvent`), no card is taken: the card stays on top of the encounter
+   * deck, the player is dealt nothing by that deal (or what the replacing ability says), a surge reveals nothing, and
+   * the next deal takes that same card. Each card has its own window (RRG 1.8 "Triggering Condition", p. 45): step
+   * three deals one card, and only then asks about the next player's.
+   *
+   * Pushed only when an ability could react (`dealEncounterCardOrAnnounce`, `heard`); otherwise the card is dealt at
+   * once, with the log, state and replay of a game that has no such ability.
+   *
+   * **Not** announced: a card dealt as a cost (`AbilityCost.dealEncounterCards`; every cost is paid at once, RRG 1.8
+   * "Cost", p. 13, as `cardBeingDiscarded` and `statusBeingGiven` have it), a named card dealt to a player ("deal
+   * that card to yourself as a facedown encounter card", `dealAsEncounterCards`: it is not taken from the deck), and
+   * "reveal an additional encounter card" for a card that could not be given or enter play (no deal; `source: null`
+   * of `dealEncounterCardTo`).
+   */
+  | {
+      readonly kind: "encounterCardBeingDealt";
+      readonly playerId: PlayerId;
+      readonly source: EncounterDealSource;
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
+   * A card in a player's hand or deck is about to be discarded by the effect of a card's ability: "Interrupt: When an
+   * encounter card effect would discard a card you control, discard [this card] instead of discarding that card."
+   * (docs/phase7-wave9.md §4.1 Q20 = B). RRG 1.8 "Ownership and Control" (p. 31): "A player controls the cards in their
+   * own out-of-play areas (such as the hand, the deck, and the discard pile)", so "a card you control" reaches a hand
+   * and a deck; "Discard" (p. 16): "Discarding is the act of attempting to move a card from a non-discard-pile play
+   * area to a discard pile." The in-play half of the same text is `cardLeavesPlay` with `to: "discard"`.
+   *
+   * `instanceId` is the card (`eventTarget`), `playerId` the player whose hand or deck holds it, who controls it
+   * (`eventPlayer`), `from` which of the two, and `sourceInstanceId` the card whose ability discards it
+   * (`eventSource`). `to` is always `"discard"`, so one `eventIs: { to: "discard", by }` reads this event and
+   * `cardLeavesPlay` alike. `by`: the side of that card (`LeaveCauseSide`, `leaveCauseSide`), the same notion as
+   * `cardLeavesPlay.by`, read by the same function; absent with no source card.
+   *
+   * Interrupt only ("would", RRG 1.8 p. 48): the discard is this event's apply step (`discard`, `applyWouldDiscard`),
+   * and cancelling or replacing the event (`EffectSpec replaceTriggeringEvent`; RRG 1.8 "Replacement Effect", p. 37)
+   * leaves the card where it was, in the hand or on the deck. Pushed only when an ability hears it
+   * (`resolve/would-discard.ts`); otherwise the card is discarded at once, with the log, state and replay of a game
+   * that has no such ability.
+   *
+   * Announced for the effects that discard named or chosen cards: `EffectSpec discardFromHand` (chosen and `random`:
+   * a random card is picked first, then announced) and a `moveCards` to the discard pile of a card in a hand or a
+   * deck ("discard the top N cards of your deck"), each card its own event. **Not** announced: a cost (RRG 1.8 "Cost",
+   * p. 13: the arrow "distinguishes a cost from an effect"), whichever card prints it; the game's own discards (the
+   * end-of-phase discard down to hand size); and `EffectSpec discardDeckUntil` ("discard cards from the top of your
+   * deck until …"), whose next card depends on the one before (a replaced card would stay on top and be the next card
+   * again; reported with §4.1 Q20).
+   */
+  | {
+      readonly kind: "cardBeingDiscarded";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly from: "hand" | "deck";
+      readonly to: "discard";
+      readonly sourceInstanceId: InstanceId | null;
+      readonly by?: LeaveCauseSide;
+      /** The card whose ability discards it, as `moveCardsTo` reads it. */
+      readonly sourceCardId?: CardId;
+      /** The discard this event performs when it applies. */
+      readonly discard: OutOfPlayDiscard;
+    }
+  /**
+   * A card is about to be tucked under another (docs/phase7-wave9.md §3.40; RRG 1.8 "Tuck", p. 45: "When a player is
+   * instructed to tuck a card under another card"): "Forced Interrupt: When a card would be tucked under your identity
+   * by a player card effect, tuck it under here instead." (Silk Sense Overload, `silk` 52028). `instanceId` is the card
+   * (`eventTarget`), `hostInstanceId` the card it is to go under, `sourceInstanceId` the card whose ability tucks it
+   * (`eventSource`), and `playerId` the player the host speaks to (its controller, or the "you" of an uncontrolled
+   * card; `eventPlayer`, `playerIs`), null for a host with none. `under` says what the host is, so "under your
+   * identity" is `eventIs: { under: "identity" }` with `playerIs: "controller"`.
+   *
+   * `by`: the side of the card whose effect tucks it (`LeaveCauseSide`, `leaveCauseSide`): "by a player card effect"
+   * is `eventIs: { by: "playerCard" }`, and a treachery that tucks itself is an encounter card's. The same notion as
+   * `cardLeavesPlay.by`, read by the same function from the same source card. Absent with no source card.
+   *
+   * Interrupt only ("would", RRG 1.8 p. 48): the tuck is this event's apply step (`tuckCardUnder`), and
+   * `EffectSpec replaceTuckHost` replaces it (RRG 1.8 "Replacement Effect", p. 37). Pushed only when an ability
+   * hears it (`tuckOrAnnounce`); otherwise the card is tucked at once, with the log and state of a game that has no
+   * such ability. Announced by `EffectSpec tuckCards` only: a swap with a tucked card (`swapCards`, RRG 1.8 "Swap",
+   * p. 42) instructs no one to tuck, so it is not heard here.
+   */
+  | {
+      readonly kind: "cardBeingTucked";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly under: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      /** The card whose ability tucks it, as `leavePlay` reads it (the Permanent keyword's same-set exception). */
+      readonly sourceCardId?: CardId;
+      /** `EffectSpec tuckCards.facedown`. */
+      readonly facedown?: true;
+      /**
+       * The tuck is a leaving card's new destination (`EffectSpec replaceLeaveDestination`, docs/phase7-wave9.md
+       * §3.20): the frame of that card's waiting `cardLeavesPlay`. The card is still in play and leaves when that
+       * event applies, so this event's apply step (and a `replaceTuckHost`) records the host there (`LeaveRequest
+       * tuck`) instead of moving the card.
+       */
+      readonly leavingFrameId?: FrameId;
+    }
+  /**
+   * A card tucked under another was discarded (docs/phase7-wave9.md §3.40 (b)): "Forced Response: After a player card
+   * effect discards this card from under an identity, that identity takes 2 damage." (Hunting the Spider-Bride,
+   * `silk` 52031), read from the card itself where the discard left it (`AbilityDefinition.activeIn: "tucked"`).
+   * `instanceId` is the discarded card ("this card", `eventTarget`), `hostInstanceId` the card it was under,
+   * `sourceInstanceId` the card whose ability discarded it (`eventSource`; null when none did), and `playerId` the
+   * player the host speaks to (`eventPlayer`: "that identity" is `identityOf(eventPlayer)` when `under` is
+   * `"identity"`), null for a host with none.
+   *
+   * The cause is two fields. `by` is the side of the card whose ability discarded it (`LeaveCauseSide`, read by
+   * `leaveCauseSide` from the source card's printed type), **whether as that ability's effect or as its cost**; `how`
+   * says which (`TuckedDiscardCause`). `cardLeavesPlay.by` is the same notion narrowed to effects: it is this event's
+   * `by` when `how` is `"effect"` and absent otherwise. They are kept apart here because of owner decision §4.1 Q7 = A
+   * (provisional): "a player card effect" on 52031 is any discard a player card causes, so its pattern is
+   * `eventIs: { by: "playerCard" }` with no `how`; under answer B it would add `how: "effect"`. A constant's discard
+   * (an identity's "discard all but 4", a state check) is an effect of its card's ability (RRG 1.8 "Ability", p. 4;
+   * "Player Card", p. 33: identity cards are player cards). `how: "rule"` has no `by`: the cards under a card that
+   * leaves play, or flips to another card type, are discarded by the game (RRG 1.8 "Tuck", p. 45; "Flip", p. 19).
+   *
+   * Response only: announced after the card has reached its discard pile, between frames
+   * (`announceTuckedDiscards`), the cards one effect or one cost discarded sharing one response window (RRG 1.8
+   * "Triggering Condition", p. 45). Recorded (`recordTuckedDiscard`) only when an ability in the registry listens. A
+   * tucked card that stops being tucked any other way (swapped out, returned to a hand, shuffled into a deck, removed
+   * from the game, played from under its host) was not discarded and is not heard.
+   */
+  | {
+      readonly kind: "tuckedCardDiscarded";
+      readonly instanceId: InstanceId;
+      readonly hostInstanceId: InstanceId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly under: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      readonly how: TuckedDiscardCause;
+    }
+  /**
    * A card was discarded from the top of a player's deck (docs/phase7-wave7.md §3.55): "Response: After this card is
    * discarded from the top of your deck, shuffle it back into your deck" / "add it to your hand" / "put her into play
    * under your control" (`next_evol` 40043, 40060, 40057), read from the card itself in the discard pile
@@ -850,14 +1124,37 @@ export type TriggerEventBody =
    * still resolves, on the card in the new deck (owner decision, 2026-10-05, §4.1 Q33): "add it to your hand" and "put
    * her into play" take it from there. A "shuffle it back into your deck" has already been done by the reset (MC40
    * p. 21), which its pattern says with `eventIs: { at: "discard" }`.
+   *
+   * **The encounter deck** (`deck: "encounter"`, docs/phase7-wave9.md §3.43 (b)): "Forced Response: After a Serpent
+   * Society minion is discarded from the top of the encounter deck, deal that minion to the first player as a
+   * facedown encounter card" (Serpent Solutions, `falcon` 53031). `playerId` is null (the deck is no player's, so
+   * `playerIs` never matches), `encounterDeckId` names the deck, `how` says whether an effect or a cost discarded the
+   * card and `by` which side's card that was (the source card's side for a cost too, as `tuckedCardDiscarded.by`).
+   * Heard only by a pattern that asks for it, `eventIs: { deck: "encounter" }` (`hearsEncounterDeckDiscard`): every
+   * pattern written for a player's deck keeps hearing a player's deck alone, and a registry with no such pattern
+   * records nothing (`listensForEncounterDeckDiscard`). Recorded by `recordEncounterDeckDiscard` from every path that
+   * discards off the top of an encounter deck: `discardTopOfEncounterDeck` (`EffectSpec discardEncounterCards`,
+   * `AbilityCost.discardFromEncounterDeck`), `EffectSpec discardEncounterUntil`, `AbilityCost.encounterLookDiscard`
+   * (the looked-at cards "are still considered part of that deck", RRG 1.8 "Look, Looked-At", p. 27) and a
+   * `moveCards` from the deck to its discard pile. A boost card discarded after an activation leaves play, not the
+   * deck (RRG 1.8 "Boost, Boost Icon", p. 11: "After applying a boost card to an activation, discard it"), and is
+   * not one; neither is a revealed or dealt card. Everything above holds as written: one event per card in discard
+   * order, the cards one effect or cost discarded sharing one response window (RRG 1.8 "Triggering Condition",
+   * p. 45), `at: "deck"` for the card whose discard emptied the deck (RRG 1.8 "Encounter Deck", p. 17: the discard
+   * pile is "immediately shuffled" into a new deck, that card in it), and a card a response took away is neither
+   * offered to another response nor counted by the discarding ability (§4.1 Q32).
    */
   | {
       readonly kind: "cardDiscardedFromDeck";
       readonly instanceId: InstanceId;
-      readonly playerId: PlayerId;
+      readonly playerId: PlayerId | null;
+      readonly deck: "player" | "encounter";
       readonly fromTop: true;
       readonly sourceInstanceId: InstanceId | null;
       readonly at: "discard" | "deck";
+      readonly encounterDeckId?: EncounterDeckId;
+      readonly by?: LeaveCauseSide;
+      readonly how?: "effect" | "cost";
     }
   /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
@@ -904,6 +1201,13 @@ export type TriggerEventBody =
        * §3.61). Absent when there is none.
        */
       readonly strandedAttachments?: readonly InstanceId[];
+      /**
+       * Whose card effect made the card leave play (`LeaveCauseSide`, `leaveCauseSide`), read from the move's source
+       * card: "When an encounter card effect would discard a card you control" is `eventIs: { by: "encounterCard" }`
+       * with `to: "discard"`. Absent when no card effect moved it: a game rule (a defeat at zero hit points or zero
+       * threat, a uses card emptied, the ally limit, an attachment going with its host), or an ability's cost.
+       */
+      readonly by?: LeaveCauseSide;
       readonly leaving?: LeaveRequest;
       readonly interruptsResolved?: true;
     }
@@ -1050,12 +1354,24 @@ export type TriggerEventBody =
   /**
    * An ability resolved: it was triggered and its effects resolved (RRG 1.8 "Resolve", p. 37). "After you resolve the
    * ability of a Preparation card you control" (Black Widow; Synth-Suit too, ruling Feb 28, 2026 (2)).
+   *
+   * `carried` (docs/phase7-wave9.md §3.43 (c)): the slots the ability held as it began to resolve, by its own names:
+   * what its costs bound (`AbilityCost.discardFromEncounterDeck.slot`, `encounterLookDiscard.slot`, …), its chosen
+   * targets, the slots its own event gave it. An answering ability reads them as `moment.<slot>` (`carriedByEvent`),
+   * so "After you resolve Falcon's 'Eagle-Eyed' ability, … for each icon in the discarded card's boost area" (Talon
+   * Line, `falcon` 53012) reads `moment.<slot>`, the card Eagle-Eyed's cost discarded, where that card now is. A
+   * card a response took away from a "discarded this way" set (§4.1 Q32) is still in the carried set: the resolved
+   * ability no longer counts it, but it is the card that was discarded. Slots only: a var of the set
+   * (`<slot>.boostIcons`) says what the resolved ability counted, not what the card prints, so an answering ability
+   * reads the card (`ValueSpec boostIcons`, `starIcons`). Absent when the ability held no slot. A slot the
+   * ability's effects bind later is not carried: the event is made before they resolve.
    */
   | {
       readonly kind: "abilityResolved";
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly controllerId: PlayerId | null;
+      readonly carried?: Readonly<Record<string, readonly InstanceId[]>>;
     }
   /**
    * A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened.
@@ -1205,6 +1521,22 @@ export type TriggerEventBody =
     };
 
 /**
+ * Part of one scheme activation's threat placed on a card instead of on the main scheme (`EffectSpec
+ * enemyScheme.divert`, docs/phase7-wave9.md §3.9). `amount` and `toInstanceId` were fixed when the effect that
+ * initiated the activation resolved; `if` is evaluated at the place-threat step in the scope of that effect's ability
+ * (its card, its controller, its slots and vars), which is why they travel with the event.
+ */
+export interface SchemeThreatDivert {
+  readonly amount: number;
+  readonly toInstanceId: InstanceId;
+  readonly if?: Predicate;
+  readonly selfInstanceId: InstanceId | null;
+  readonly controllerId: PlayerId | null;
+  readonly bindings: Bindings;
+  readonly vars: Vars;
+}
+
+/**
  * `results` is attached when the event's response window opens: what the event
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
  * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
@@ -1233,6 +1565,55 @@ export const damageTakenKey = (instanceId: InstanceId): string => `damageTaken.$
 export type TriggerEventKind = TriggerEvent["kind"];
 
 /**
+ * What dealt a player a facedown encounter card (`TriggerEvent encounterCardDealt.source`; the "would be dealt"
+ * interrupt `encounterCardBeingDealt` carries the same, docs/phase7-wave9.md §3.45): step three of the villain
+ * phase's one card each (`villainPhase`) or its additional card for a hazard icon (`hazard`; RRG 1.8 "Villain Phase",
+ * p. 47), a card ability's effect or cost (`ability`; "Deal, Deal an Encounter Card", p. 15), a player deck that ran
+ * out (`deckReset`; "Player Deck", p. 33), the surge keyword (`surge`; "Surge", p. 42: "the player resolving the
+ * card deals themself a facedown encounter card from the top of the encounter deck"; docs/phase7-wave9.md §4.1 Q19),
+ * or the unique rule turning away an encounter card being revealed (`uniqueRule`; "Unique Icon", p. 46: "the player
+ * revealing it is dealt a facedown encounter card"; docs/phase7-wave9.md §4.1 Q38).
+ */
+export type EncounterDealSource = "villainPhase" | "hazard" | "ability" | "deckReset" | "surge" | "uniqueRule";
+
+/**
+ * Whose card effect makes a card leave play (`TriggerEvent cardLeavesPlay.by`): the side of the card whose ability's
+ * effect moves it, by that card's printed type (RRG 1.8 "Card Types", p. 12: attachment, environment, main scheme,
+ * minion, obligation, side scheme, treachery and villain cards are encounter cards; the rest are player cards). Any
+ * ability of such a card counts, a When Revealed, a Boost, a Forced Response or a constant one alike (RRG 1.8
+ * "Ability", p. 4). A cost is not an effect (RRG 1.8 "Cost", p. 13: the cost arrow "distinguishes a cost from an
+ * effect"), and a move the game's rules make has no card effect behind it, whatever card set it up: damage from an
+ * encounter card that leaves an ally at zero hit points defeats it by "Defeat" (p. 15), and a card's attachments go
+ * with it by "Leaves Play" (p. 27).
+ */
+export type LeaveCauseSide = "encounterCard" | "playerCard";
+
+/**
+ * The discard a `cardBeingDiscarded` event performs when it applies, as plain data so the stack stays serializable and
+ * replayable (as `LeaveRequest` is for a card in play): `hand`, a card of `EffectSpec discardFromHand` (`random`: it
+ * was picked at random), through `discardFromHand`; `moveCards`, one card of a `moveCards` to the discard pile,
+ * through `moveCardsTo`. `boundOn`: the set the discarding ability keeps of the cards "discarded this way"
+ * (`DeckDiscard.boundOn`); a card whose discard is replaced leaves it.
+ */
+export type OutOfPlayDiscard =
+  | { readonly kind: "hand"; readonly random?: true }
+  | { readonly kind: "moveCards"; readonly boundOn?: DeckDiscard["boundOn"] };
+
+/**
+ * What a tucked card's host is (`TriggerEvent cardBeingTucked.under`, `tuckedCardDiscarded.under`): an identity card
+ * ("under your identity", "from under an identity") or any other card. Read when the event is made.
+ */
+export type TuckHostKind = "identity" | "other";
+
+/**
+ * How a tucked card came to be discarded (`TriggerEvent tuckedCardDiscarded.how`): as the `effect` of a card's ability
+ * (a triggered ability, an action, a When Revealed or a constant alike), as an ability's `cost` (RRG 1.8 "Cost",
+ * p. 13: the arrow "distinguishes a cost from an effect"), or by a `rule` of the game with no card's ability behind it
+ * (its host left play, RRG 1.8 "Tuck", p. 45).
+ */
+export type TuckedDiscardCause = "effect" | "cost" | "rule";
+
+/**
  * The move a `cardLeavesPlay` event with an interrupt window performs when it applies (docs/phase7-wave5.md §4.1 Q17),
  * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
  * for what its caller sets on the card afterwards), one card of a `moveCards` effect, an ally's or minion's defeat
@@ -1240,7 +1621,7 @@ export type TriggerEventKind = TriggerEvent["kind"];
  *
  * `sourceCardId`: the card whose ability makes the card leave, if any, for the Permanent keyword's same-set exception
  * (RRG 1.8 "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46). Absent for a move
- * the game's rules make.
+ * the game's rules make. `asCost`: that ability moves the card as its cost, not as its effect (`LeaveCauseSide`).
  */
 export type LeaveRequest =
   | {
@@ -1250,12 +1631,14 @@ export type LeaveRequest =
       readonly discarded: boolean;
       readonly patch?: LeavePatch;
       readonly sourceCardId?: CardId;
+      readonly asCost?: true;
     }
   | {
       readonly kind: "moveCards";
       readonly destination: CardDestination;
       readonly into?: PlayerId;
       readonly sourceCardId?: CardId;
+      readonly asCost?: true;
     }
   | { readonly kind: "defeat"; readonly insteadTo?: CardDestination; readonly sourceCardId?: CardId }
   /**
@@ -1263,6 +1646,13 @@ export type LeaveRequest =
    * with `with` completes (`swapCards` again), taking the out-of-play card's place as that card enters play in its own.
    */
   | { readonly kind: "swap"; readonly with: InstanceId; readonly sourceCardId?: CardId }
+  /**
+   * A leaving an interrupt sent under a card (`EffectSpec replaceLeaveDestination`, docs/phase7-wave9.md §3.20): the
+   * card is tucked under `hostInstanceId` when the leaving applies, in place of the move `replaced` describes, which
+   * still says what made it leave (its source card, a cost, a defeat). `replaced` is performed after all when the
+   * host has left play by then.
+   */
+  | { readonly kind: "tuck"; readonly hostInstanceId: InstanceId; readonly replaced: ReplaceableLeave }
   /**
    * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
    * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
@@ -1275,6 +1665,9 @@ export type LeaveRequest =
       readonly step?: HostStep;
       readonly moved?: ZoneId["kind"];
     };
+
+/** The leavings whose destination `EffectSpec replaceLeaveDestination` can replace (`LeaveRequest tuck.replaced`). */
+export type ReplaceableLeave = Extract<LeaveRequest, { readonly kind: "zone" | "moveCards" | "defeat" }>;
 
 /**
  * A change to a card that is not itself leaving play but takes its attachments out of play, as plain data so that it
@@ -1327,6 +1720,8 @@ export type HostStep =
       readonly reveal?: true;
       /** The player whose effect flipped it (`cardFlipped.playerId`), when it had one. */
       readonly flippedBy?: PlayerId;
+      /** `flipCard.keepCounters`: the counter types it keeps through the change of type. */
+      readonly keepCounters?: readonly string[];
     };
 
 /** The `cardFlipped` announcement for a card `by` flipped (`null` or absent: the flip had no "you"). */
@@ -1398,6 +1793,14 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "turnEnding":
     // "Interrupt: When you change to hero form" (`formChanging`): the change is still to come.
     case "formChanging":
+    // "When a card would be tucked" (docs/phase7-wave9.md §3.40): the tuck is still to come.
+    case "cardBeingTucked":
+    // "When … would discard a card you control" from a hand or a deck (§4.1 Q20): the discard is still to come.
+    case "cardBeingDiscarded":
+    // "When X would gain a stunned status card" (docs/phase7-wave9.md §3.33): the give is still to come.
+    case "statusBeingGiven":
+    // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): the deal is still to come.
+    case "encounterCardBeingDealt":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -1535,12 +1938,28 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.playerId]);
     case "cardEntersHand":
       return of([], [event.instanceId], [event.playerId]);
+    case "encounterCardDealt":
+      return of([], [event.instanceId], [event.playerId]);
+    // The card is still on the deck and is not named; the dealing card is the source, the player dealt to "you".
+    case "encounterCardBeingDealt":
+      return of([event.sourceInstanceId], [], [event.playerId]);
+    // The card being tucked is the target ("it"), the tucking card the source, the host's player "you".
+    case "cardBeingTucked":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The card about to be discarded is the target ("that card"), the discarding card the source, its player "you".
+    case "cardBeingDiscarded":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The discarded card is the target ("this card"), the discarding card the source, the host's player "you".
+    case "tuckedCardDiscarded":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The discarded card is the target ("this card", "that card"); the deck's player is "you"; the discarding card the
     // source.
     case "cardDiscardedFromDeck":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
       return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
+    case "boostCardGiven":
+      return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostCardResolved":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":
@@ -1570,6 +1989,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // The character it was placed on is the target ("on Mister Sinister"); the placing card and player are the source
     // and "you".
     case "statusPlaced":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The character about to get it is the target ("attached enemy"); the giving card and player the source and "you".
+    case "statusBeingGiven":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     // The attached card is the source ("a Frostbite upgrade"), its host the target ("to an enemy"), the attacher "you".
     case "cardAttached":
@@ -1618,7 +2040,45 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
   }
 }
 
-/** The prefix an ability answering a moment reads its carried slots and vars under (`EffectSpec raiseMoment.carry`). */
+/**
+ * Whether a pattern on `cardDiscardedFromDeck` asks for the encounter deck's discards: `eventIs: { deck: "encounter" }`
+ * (or a list holding it). The one test of it, for the registry's gate (`listensForEncounterDeckDiscard`) and for the
+ * match itself (`resolve/triggers.ts`), so a pattern that does not ask never hears one in any game.
+ */
+export function hearsEncounterDeckDiscard(pattern: EventPattern): boolean {
+  const kinds = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+  if (!kinds.includes("cardDiscardedFromDeck")) return false;
+  const deck = pattern.eventIs?.deck;
+  return deck === "encounter" || (Array.isArray(deck) && deck.includes("encounter"));
+}
+
+/**
+ * The suffix of the slot that keeps, beside a set of cards "discarded this way", the cards a response to their discard
+ * took away from it (`settleDeckDiscards`, docs/phase7-wave7.md §4.1 Q32): `<slot>.takenAway`. The discarding ability
+ * no longer counts them, and they are still the cards it discarded (`abilityResolved.carried`).
+ */
+export const TAKEN_AWAY_SUFFIX = ".takenAway";
+
+/**
+ * The slots an ability hands to the abilities that answer its resolution (`abilityResolved.carried`,
+ * docs/phase7-wave9.md §3.43 (c)): its own, each set of discarded cards whole again (`TAKEN_AWAY_SUFFIX`).
+ * Undefined when it holds none.
+ */
+export function slotsCarriedByResolved(
+  bindings: Bindings,
+): Readonly<Record<string, readonly InstanceId[]>> | undefined {
+  const carried: Record<string, readonly InstanceId[]> = {};
+  for (const [slot, ids] of Object.entries(bindings)) {
+    if (slot.endsWith(TAKEN_AWAY_SUFFIX)) continue;
+    carried[slot] = [...ids, ...(bindings[`${slot}${TAKEN_AWAY_SUFFIX}`] ?? [])];
+  }
+  return Object.keys(carried).length > 0 ? carried : undefined;
+}
+
+/**
+ * The prefix an ability answering a moment reads its carried slots and vars under (`EffectSpec raiseMoment.carry`), and
+ * one answering `abilityResolved` the resolved ability's slots (`abilityResolved.carried`).
+ */
 export const MOMENT_PREFIX = "moment.";
 
 const NOTHING_CARRIED: {
@@ -1630,14 +2090,21 @@ const NOTHING_CARRIED: {
  * What the event an ability answers hands to that ability's slots and vars (docs/phase7-wave8.md §3.71): the slots and
  * vars a `momentRaised` carries, each under `MOMENT_PREFIX`, so the raising ability's `pulled` is the answering
  * ability's `moment.pulled` and `pulled.count` its `moment.pulled.count`. The prefix keeps them apart from the
- * answering ability's own slots and cost results. Every other event, and a moment that carries nothing, gives nothing.
+ * answering ability's own slots and cost results. An `abilityResolved` hands over the resolved ability's slots the
+ * same way (docs/phase7-wave9.md §3.43 (c)), and no vars. A play's `cardBeingPlayed` and `cardPlayed` hand over the
+ * cards that paid for it as slot `paid.cards` (`PAID_CARDS_SLOT`, §3.46 (b)). Every other event, and one that carries
+ * nothing, gives nothing.
  *
  * Read wherever an ability is judged or resolved against its event: its condition and targets (`resolve/triggers.ts`,
  * `target-validity.ts`), its cost (`actions.ts`) and its frame (`abilityFrame`).
  */
 export function carriedByEvent(event: TriggerEvent | null | undefined): typeof NOTHING_CARRIED {
-  if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   const prefixed = <T>(record: Readonly<Record<string, T>> | undefined): Record<string, T> =>
     Object.fromEntries(Object.entries(record ?? {}).map(([key, item]) => [`${MOMENT_PREFIX}${key}`, item]));
+  if (event?.kind === "abilityResolved" && event.carried) return { bindings: prefixed(event.carried), vars: {} };
+  // The cards that paid for a play, under the slot's own name: there is one play, so nothing to keep apart (§3.46 (b)).
+  if ((event?.kind === "cardPlayed" || event?.kind === "cardBeingPlayed") && event.paidCards?.length)
+    return { bindings: { [PAID_CARDS_SLOT]: event.paidCards }, vars: {} };
+  if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
 }

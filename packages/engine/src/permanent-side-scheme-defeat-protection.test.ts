@@ -383,14 +383,17 @@ describe("§3.34 a villain stage's defeat names its stage number", () => {
 });
 
 describe("§3.34 'the villain cannot be defeated' on a card in play (§4.1 Q21)", () => {
-  it("at zero and below zero hit points he is not defeated, keeps taking damage, and no When Defeated resolves", () => {
+  it("at zero hit points he is not defeated, keeps taking damage with his dial at zero, and no When Defeated resolves", () => {
     const bomb = withScheme(start(), BOMB, 3);
     const atZero = play(bomb.state, HIT_5.card.id);
     expect(foeDamage(atZero.state)).toBe(5);
     expect(foe(atZero.state).stageIndex).toBe(0);
     expect(atZero.state.heldAtZero).toEqual([foe(atZero.state).instanceId]);
     const below = play(atZero.state, HIT_7.card.id);
-    expect(foeDamage(below.state)).toBe(12);
+    // The 7 are dealt and taken; a hit point dial stops at zero, so the card keeps 5 (RRG 1.8 "Hit Points", p. 22;
+    // `settleDials`). It kept 12 until 2026-10-10.
+    expect(below.events.filter((e) => e.type === "damageDealt").map((e) => e.amount)).toEqual([7]);
+    expect(foeDamage(below.state)).toBe(5);
     expect(foe(below.state).stageIndex).toBe(0);
     expect(foeCounters(below.state)).toEqual({});
     expect(below.state.outcome).toBeNull();

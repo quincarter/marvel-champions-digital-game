@@ -268,6 +268,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/53011.jpg") },
     cost: 1,
+    costPerPlayer: true,
     resourceIcons: { energy: 1 },
     aspect: "hero:53001a",
     traits: [trait("AERIAL"), trait("PREPARATION")],
@@ -351,13 +352,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
       printed: "Response: After Adam Warlock attacks or thwarts, discard 1 card at random from your hand. If that card's printed resource has:\n[physical] – Remove 3 threat from a scheme.\n[energy] – Heal 3 damage from an identity.\n[mental] – Deal 3 damage to an enemy.\n[wild] – Choose one of the above.",
       current: "Response: After Adam Warlock attacks or thwarts, discard 1 card at random from your hand. If that card's printed resource has:\n[physical] – Remove 3 threat from a scheme.\n[energy] – Heal 3 damage from an identity.\n[mental] – Deal 3 damage to an enemy.\n[wild] – Choose one of the above.",
     },
-    abilities: [
-      { id: abilityId("53014.adam-warlock-response") },
-      { id: abilityId("53014.adam-warlock-constant") },
-      { id: abilityId("53014.adam-warlock-constant-2") },
-      { id: abilityId("53014.adam-warlock-constant-3") },
-      { id: abilityId("53014.adam-warlock-constant-4") },
-    ],
+    abilities: [{ id: abilityId("53014.adam-warlock-response") }],
   },
   {
     id: cardId("53015"),
@@ -465,13 +460,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
       printed: "Response: After you play Spectrum, tuck 1 card used to pay for her under her. If that card's printed resource has:\n[mental] – Spectrum gets +2 THW.\n[physical] – Spectrum gets +2 ATK.\n[energy] – Spectrum gets +2 hit points.\n[wild] – All of the above.",
       current: "Response: After you play Spectrum, tuck 1 card used to pay for her under her. If that card's printed resource has:\n[mental] – Spectrum gets +2 THW.\n[physical] – Spectrum gets +2 ATK.\n[energy] – Spectrum gets +2 hit points.\n[wild] – All of the above.",
     },
-    abilities: [
-      { id: abilityId("53018.spectrum-response") },
-      { id: abilityId("53018.spectrum-constant") },
-      { id: abilityId("53018.spectrum-constant-2") },
-      { id: abilityId("53018.spectrum-constant-3") },
-      { id: abilityId("53018.spectrum-constant-4") },
-    ],
+    abilities: [{ id: abilityId("53018.spectrum-response") }],
   },
   {
     id: cardId("53019"),
@@ -484,6 +473,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/53019.jpg") },
     cost: 2,
+    costPerPlayer: true,
     resourceIcons: { wild: 1 },
     aspect: "leadership",
     traits: [],
@@ -511,15 +501,15 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     traits: [trait("TEAM")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { requiresIdentityTrait: trait("AERIAL") },
+    playRestrictions: {
+      requiresIdentityTrait: trait("AERIAL"),
+      maxWithTrait: { trait: trait("TEAM"), per: "player", max: 1 },
+    },
     text: {
       printed: "Play only if your identity has the Aerial trait. Max 1 TEAM card per player.\nIf each of your allies has the Aerial trait, increase your ally limit by 1 and this card gains: \"Response: After you play an Aerial card, exhaust this card → ready an ally you control.\"",
       current: "Play only if your identity has the Aerial trait. Max 1 TEAM card per player.\nIf each of your allies has the Aerial trait, increase your ally limit by 1 and this card gains: \"Response: After you play an Aerial card, exhaust this card → ready an ally you control.\"",
     },
-    abilities: [
-      { id: abilityId("53020.flight-squadron-constant") },
-      { id: abilityId("53020.flight-squadron-constant-2") },
-    ],
+    abilities: [{ id: abilityId("53020.flight-squadron-constant") }],
   },
   {
     id: cardId("53021"),
@@ -704,6 +694,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/53029.jpg") },
+    schemeIcons: ["hazard"],
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
@@ -712,7 +703,10 @@ export const FALCON_CARDS: readonly AnyCard[] = [
       printed: "Give to the Sam Wilson player.\nUses (3 emergency counters). Victory 0.\nAlter-Ego Action: Spend 1 resource of any type → remove 1 emergency counter from here.",
       current: "Give to the Sam Wilson player.\nUses (3 emergency counters). Victory 0.\nAlter-Ego Action: Spend 1 resource of any type → remove 1 emergency counter from here.",
     },
-    abilities: [{ id: abilityId("53029.obligation") }],
+    abilities: [
+      { id: abilityId("53029.harlems-protector-constant") },
+      { id: abilityId("53029.harlems-protector-action") },
+    ],
   },
   {
     id: cardId("53030"),

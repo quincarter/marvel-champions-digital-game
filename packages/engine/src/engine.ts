@@ -10,7 +10,7 @@ import {
   useAbility,
 } from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
-import type { ChoicePrompt } from "./choices.js";
+import { cardTotalFault, type ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
 import { DEFENSE_BAR_MESSAGE } from "./defense-claim.js";
@@ -21,6 +21,7 @@ import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
+import { spendPays } from "./payable.js";
 import { getPlayer, handSize } from "./query.js";
 import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
@@ -165,6 +166,14 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       return engineError("invalid_choice", `spend from ${min} to ${max} resources; the selection is ${size}`, command);
     }
   }
+  // The player chose to spend (`EffectSpec spendResources.required`): the payment is made in full or not accepted, as
+  // a cost's is (RRG 1.8 "Cost", p. 13), and the choice stays open. Overpaying is legal.
+  if (choice.prompt.kind === "spendResources" && choice.prompt.required) {
+    const pool = priceOrNull(ctx, choice.playerId, paymentsFromOptionIds(selected), null, null);
+    if (pool === null || !spendPays(pool, requirementOf(choice.prompt.requirement), choice.prompt.distinctTypes ?? 0)) {
+      return engineError("invalid_choice", "the selection does not pay the resources this option spends", command);
+    }
+  }
   if (choice.prompt.kind === "divide") {
     const fault = divideSelectionFault(choice.prompt, selected);
     if (fault) return engineError("invalid_choice", fault, command);
@@ -174,6 +183,11 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       (card) => selected.filter((optionId) => cardOfOption(optionId) === card).length < least,
     );
     if (short) return engineError("invalid_choice", `give each of the cards at least ${least}`, command);
+  }
+  // docs/phase7-wave9.md §3.11: "with a combined printed cost of 6 or less".
+  if (choice.prompt.kind === "chooseCards" && choice.prompt.maxTotal) {
+    const fault = cardTotalFault(choice.prompt.maxTotal, selected);
+    if (fault) return engineError("invalid_choice", fault, command);
   }
   // docs/phase7-wave8.md §3.36: one card to one character, and any limit in force on the assignment.
   if (choice.prompt.kind === "pairCards") {

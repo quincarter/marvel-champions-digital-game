@@ -1,11 +1,13 @@
-import type {
-  AbilityCost,
-  AbilityRegistry,
-  AbilityTriggerSpec,
-  CardIcon,
-  ConsequentialDamageScope,
-  EngineDeps,
-  RuleSpec,
+import {
+  resolvableAs,
+  type AbilityCost,
+  type AbilityRegistry,
+  type AbilityTriggerSpec,
+  type CardIcon,
+  type ConsequentialDamageScope,
+  type EngineDeps,
+  type GrantableAbilityLabel,
+  type RuleSpec,
 } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { attackKeywordsOf, hasKeyword } from "./keywords.js";
@@ -17,6 +19,7 @@ import {
   encounterFace,
   getInstance,
   identityFace,
+  isPlayerCardType,
   mainSchemeFor,
   mainSchemeStageOf,
   mainSchemeStates,
@@ -33,6 +36,7 @@ import {
   categoriesOf,
   focusedMainSchemeId,
   gliderMainSchemeId,
+  type GrantedAbility,
   hitPointFloor,
   contextArea,
   controllerOf,
@@ -40,6 +44,8 @@ import {
   isAttachedMinion,
   isPlayerCard,
   matchesQuery,
+  printedAbilityRefs,
+  resolvePlayers,
   resolveRef,
   resolveValue,
   restrictedCardsOf,
@@ -57,6 +63,7 @@ import {
   combineRequirements,
   EMPTY_POOL,
   poolOf,
+  requirementTotal,
   type ResolvedRequirement,
   type ResourcePool,
 } from "./resources.js";
@@ -131,6 +138,34 @@ export interface DamageAttackInfo {
   readonly keywords: readonly AttackKeyword[];
 }
 
+/** The "unless the attacker or attack …" exceptions of a damage rule (`cannotTakeDamage`, `reduceDamageTaken`). */
+export interface AttackExceptions {
+  readonly exceptAttacker?: TargetQuery;
+  readonly exceptAttackCard?: TargetQuery;
+  readonly exceptAttackKeyword?: AttackKeyword;
+}
+
+/**
+ * Whether the attack a damage is from meets any exception the rule gives: "unless the attacker or attack has the [X]
+ * trait, or the attack has ranged" (docs/phase7-wave7.md §3.30; docs/phase7-wave9.md §3.25). The attacking character
+ * matches `exceptAttacker`, the card whose ability makes the attack matches `exceptAttackCard` (a basic attack and an
+ * enemy's activation have no such card), or the attack has `exceptAttackKeyword`. Damage that is not an attack's
+ * (`attack` absent) meets none (§4.1 Q17). Queries read "you" as the rule card's speaker (`context`).
+ */
+export function attackMeetsException(
+  state: GameState,
+  attack: DamageAttackInfo | undefined,
+  rule: AttackExceptions,
+  context: EffectContext,
+): boolean {
+  if (!attack) return false;
+  const matches = (id: InstanceId | null, query: TargetQuery | undefined): boolean =>
+    query !== undefined && id !== null && matchesQuery(state, id, query, context);
+  if (matches(attack.attackerInstanceId, rule.exceptAttacker)) return true;
+  if (matches(attack.cardInstanceId, rule.exceptAttackCard)) return true;
+  return rule.exceptAttackKeyword !== undefined && attack.keywords.includes(rule.exceptAttackKeyword);
+}
+
 /**
  * "X cannot take damage [while …] [from …]". `sources` are the damage's source and then the card it came through, if
  * any; `fromSource` matches either. `exceptFromSource` ("can only take damage from cards with a printed [physical]
@@ -148,18 +183,12 @@ export function cannotTakeDamage(
   attack?: DamageAttackInfo,
 ): boolean {
   const card = sources[1] ?? sources[0] ?? null;
-  const matches = (id: InstanceId | null, query: TargetQuery | undefined, context: EffectContext): boolean =>
-    query !== undefined && id !== null && matchesQuery(state, id, query, context);
   return activeRules(state, deps, "cannotTakeDamage").some(({ rule, context }) => {
     if (!matchesQuery(state, targetId, rule.target, context)) return false;
     if (rule.exceptFromSource && card !== null && matchesQuery(state, card, rule.exceptFromSource, context)) {
       return false;
     }
-    if (attack) {
-      if (matches(attack.attackerInstanceId, rule.exceptAttacker, context)) return false;
-      if (matches(attack.cardInstanceId, rule.exceptAttackCard, context)) return false;
-      if (rule.exceptAttackKeyword !== undefined && attack.keywords.includes(rule.exceptAttackKeyword)) return false;
-    }
+    if (attackMeetsException(state, attack, rule, context)) return false;
     if (!rule.fromSource) return true;
     const query = rule.fromSource;
     return sources.some((id) => id !== null && id !== undefined && matchesQuery(state, id, query, context));
@@ -471,6 +500,57 @@ export const cannotThwart = (
     return true;
   });
 
+/** A tucked card a player may spend as if it were in their hand, and the card it is tucked under. */
+export interface TuckedSpendSource {
+  readonly instanceId: InstanceId;
+  readonly hostInstanceId: InstanceId;
+}
+
+/**
+ * "Any player may spend the resource card tucked here as if it were in their hand" (`RuleSpec spendableFromTucked`,
+ * docs/phase7-wave9.md §3.46 (c)): the tucked cards `playerId` may spend right now, each once, hosts in the order the
+ * rules are read and cards in the order they were tucked. A facedown tucked card is no card to spend: it has no
+ * printed resources to read (RRG 1.8 "Tuck", p. 45: a tucked card is placed faceup unless a card says otherwise).
+ */
+export function tuckedSpendSources(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+): readonly TuckedSpendSource[] {
+  const found: TuckedSpendSource[] = [];
+  for (const active of activeRules(state, deps, "spendableFromTucked")) {
+    if (!resolvePlayers(state, active.rule.by, active.context).includes(playerId)) continue;
+    const hostInstanceId = active.context.selfInstanceId;
+    if (hostInstanceId === null) continue;
+    for (const instanceId of getInstance(state, hostInstanceId)?.tucked ?? []) {
+      const tucked = getInstance(state, instanceId);
+      if (!tucked || !tucked.faceup || tucked.facedownAs !== null) continue;
+      if (active.rule.cards && !matchesQuery(state, instanceId, active.rule.cards, active.context)) continue;
+      if (!found.some((source) => source.instanceId === instanceId)) found.push({ instanceId, hostInstanceId });
+    }
+  }
+  return found;
+}
+
+/**
+ * Who spends the tucked card `id` "as if it were in their hand" in a payment of `playerId`'s (`RuleSpec
+ * spendableFromTucked`): `playerId` when a rule names them; else, with `anyPlayer` (a group payment, RRG 1.8
+ * "Alliance", p. 6), the first player in player order a rule names. Null when nobody may, or the card is not tucked.
+ */
+export function tuckedSpender(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  playerId: PlayerId,
+  anyPlayer = false,
+): PlayerId | null {
+  const spends = (player: PlayerId): boolean =>
+    tuckedSpendSources(state, deps, player).some((source) => source.instanceId === id);
+  if (spends(playerId)) return playerId;
+  if (!anyPlayer) return null;
+  return state.players.find((p) => !p.eliminated && p.playerId !== playerId && spends(p.playerId))?.playerId ?? null;
+}
+
 /**
  * "Attached identity cannot … recover" (`RuleSpec cannotRecover`, docs/phase7-wave6.md §3.14): this player cannot make
  * a basic recovery.
@@ -569,6 +649,28 @@ export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: Instanc
   // A rule is always read off a card in play; the leaving card stands in if a context ever lacks one.
   return found ? (found.context.selfInstanceId ?? id) : null;
 };
+
+/**
+ * The card's printed "Max N per player" when `controllerId` already controls that many copies of it in play, or null
+ * when they may take control of this one. RRG 1.8 "Max, Maximum" (p. 28): "'Max 1 per player' is player specific, and
+ * restricts the number of copies of that card that each player may control in play at a given time", copies "by
+ * title"; "A player cannot take control of another copy of a 'Max 1 per player' card they already control." The card
+ * never counts against itself.
+ *
+ * It is a limit on control, not only on playing: the play command reads it, and so does an effect that puts the card
+ * into play (`resolve/apply-effect.ts admitUnderPlayerMax`; owner decision, docs/phase7-wave9.md §4.1 Q37 = A). "Play,
+ * Put into Play" (p. 32) lets a put into play bypass "any restrictions or prohibitions regarding playing that card",
+ * which this is not.
+ */
+export function maxPerPlayerReached(state: GameState, id: InstanceId, controllerId: PlayerId): number | null {
+  const card = cardOf(state, id);
+  const max = card && "playRestrictions" in card ? card.playRestrictions?.maxPerPlayer : undefined;
+  if (!card || max === undefined) return null;
+  const held = cardsInPlay(state).filter(
+    (other) => other !== id && controllerOf(state, other) === controllerId && cardOf(state, other)?.name === card.name,
+  ).length;
+  return held >= max ? max : null;
+}
 
 /**
  * Why `attachmentId` cannot attach to `hostId` under its own printed maximums, or null. RRG 1.8 "Max, Maximum" (p. 28):
@@ -795,6 +897,29 @@ export function thwartCostFor(
     indirectDamage += rule.indirectDamage ?? 0;
   }
   return any ? { resources, indirectDamage } : null;
+}
+
+/**
+ * The resources a player must spend, on top of the power's own costs, to make this basic power with this character
+ * (`RuleSpec additionalPowerCost`, docs/phase7-wave9.md §3.31): every applicable rule added together, or null when
+ * none applies. `sourceInstanceIds`: the cards whose rules ask, for the log.
+ */
+export function additionalPowerCostFor(
+  state: GameState,
+  deps: EngineDeps,
+  characterId: InstanceId,
+  power: "attack" | "thwart" | "defend",
+): { readonly resources: ResolvedRequirement; readonly sourceInstanceIds: readonly InstanceId[] } | null {
+  let resources: ResolvedRequirement | null = null;
+  const sourceInstanceIds: InstanceId[] = [];
+  for (const { rule, context } of activeRules(state, deps, "additionalPowerCost")) {
+    if (!rule.powers.includes(power) || !matchesQuery(state, characterId, rule.character, context)) continue;
+    resources = combineRequirements(resources ?? 0, rule.resources);
+    if (context.selfInstanceId !== null && !sourceInstanceIds.includes(context.selfInstanceId)) {
+      sourceInstanceIds.push(context.selfInstanceId);
+    }
+  }
+  return resources !== null && requirementTotal(resources) > 0 ? { resources, sourceInstanceIds } : null;
 }
 
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */
@@ -1185,11 +1310,9 @@ export function damageTakenBreakdown(
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
-    // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30).
-    const attacker = source?.attack?.attackerInstanceId ?? null;
-    if (rule.exceptAttacker && attacker !== null && matchesQuery(state, attacker, rule.exceptAttacker, context)) {
-      continue;
-    }
+    // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30); "… unless the attacker or attack has
+    // the [AERIAL] trait, or the attack has ranged" (docs/phase7-wave9.md §3.25).
+    if (attackMeetsException(state, source?.attack, rule, context)) continue;
     if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
   }
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).
@@ -1535,6 +1658,17 @@ export const cannotDefend = (
       (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
   );
 
+/**
+ * "[This character] does not exhaust to defend" (`RuleSpec defendsWithoutExhausting`, docs/phase7-wave9.md §3.47): its
+ * basic defense is declared without exhausting it, so it is offered ready or exhausted (RRG 1.8 "Defend, Defense",
+ * p. 15: an ability "that allows a hero to be declared as a defender without exhausting can be used on an exhausted
+ * hero"). Read by `legalDefenders`, the Declare Defender step and the defend preview.
+ */
+export const defendsWithoutExhausting = (state: GameState, deps: EngineDeps, characterId: InstanceId): boolean =>
+  activeRules(state, deps, "defendsWithoutExhausting").some(({ rule, context }) =>
+    matchesQuery(state, characterId, rule.character, context),
+  );
+
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
 export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
   activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>
@@ -1601,6 +1735,33 @@ export function grantedIcons(
     }
   }
   return total;
+}
+
+export type { GrantedAbility } from "./select.js";
+
+/**
+ * The abilities of one label a card gains from rules in effect (`RuleSpec grantsLabeledAbility`; docs/phase7-wave9.md
+ * §3.3): "Each encounter card without a printed 'Preparation' ability gains 'Preparation: …'". Read wherever the card
+ * is, since the card that gains a Preparation is in the encounter discard pile when it resolves. Empty for a card of a
+ * player card type (RRG 1.8 "Encounter Card", p. 17) and for a card that prints an ability of that label on any face,
+ * blank or not (RRG 1.8 "Printed", p. 35). One entry per rule in effect, in the order `activeRules` reads them, so two
+ * granting cards (or two copies of one) give two abilities. A rule naming an ability that is not of its label, or not
+ * in the registry, gives nothing.
+ */
+export function grantedLabeledAbilities(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  label: GrantableAbilityLabel,
+): readonly GrantedAbility[] {
+  const rules = activeRules(state, deps, "grantsLabeledAbility").filter(({ rule }) => rule.label === label);
+  if (rules.length === 0) return [];
+  const card = cardOf(state, id);
+  if (!card || isPlayerCardType(card)) return [];
+  if (printedAbilityRefs(card).some((ref) => resolvableAs(deps.abilities[ref.id], label))) return [];
+  return rules
+    .filter(({ rule }) => resolvableAs(deps.abilities[rule.abilityId], label))
+    .map(({ rule, context }) => ({ abilityId: rule.abilityId, grantedBy: context.selfInstanceId }));
 }
 
 /**

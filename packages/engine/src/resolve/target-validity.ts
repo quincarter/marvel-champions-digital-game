@@ -41,7 +41,7 @@ import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, isPermanent, statusActive } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
-import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
+import { areaOfPlayer, getInstance, getPlayer, isScheme } from "../query.js";
 import {
   cannotFlip,
   cannotLeavePlay,
@@ -288,7 +288,8 @@ function judgedCanAffect(
   if (effect.kind === "defeat") return !alreadyDefeated(state, id);
   if (effect.kind === "removeThreat") {
     // A "(thwart)"-labeled ability's removal is a thwart by its controller's identity (`EffectContext.thwartLabeled`).
-    if (context.thwartLabeled) return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
+    if (context.thwartLabeled && isScheme(state, id))
+      return canThwartScheme(state, deps, id, context, { ignoreCrisis: effect.ignoreCrisis });
     return canRemoveThreatFrom(state, deps, id, context.selfInstanceId, effect.ignoreCrisis === true);
   }
   return canThwartScheme(state, deps, id, context, effect);
@@ -591,6 +592,7 @@ export function abilityTargetFault(
   if (moves && moveThreatLacksSource(state, deps, effects, context)) return "moveSource";
   if (dead.length > 0 && !hasIndependentPart(effects, dead)) return "target";
   if (tuckNamesNoCard(state, deps, effects, context)) return "target";
+  if (gainNamesEmptyPile(state, effects)) return "target";
   if (judge && attackThreatRemovalInvalid(state, deps, effects, context)) return "target";
   if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return "target";
   if (context.attackLabeled && attackNamesNoAttackableEnemy(state, deps, effects, context)) return "target";
@@ -702,7 +704,10 @@ function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
       return [effect.then, effect.otherwise ?? []];
     case "then":
     case "repeatWhile":
+    case "repeatTimes":
     case "forEachPlayer":
+    case "forEachCard":
+    case "forEachCardPass":
       return [effect.effects];
     case "chooseOne":
       return effect.options.map((option) => option.effects);
@@ -919,6 +924,19 @@ function tuckNamesNoCard(
       effect.cards.ref.kind !== "slot" &&
       resolveRef(state, effect.cards.ref, context).length > 0 &&
       selectCards(createCtx(state, deps), effect.cards, context).length === 0,
+  );
+}
+
+/**
+ * "Gain 2 cards from the S.H.I.E.L.D. envelope" with the envelope empty (`EffectSpec gainFromHiddenPile`,
+ * docs/phase7-wave9.md §3.29 (a)): an ability that does nothing but gain cards from hidden piles has those piles as
+ * what it acts on, so with no card in any of them it cannot be initiated and no cost is paid (RRG 1.8 "Cost", p. 13).
+ * A pile's size is open information, so judging this reads nothing a player may not know.
+ */
+function gainNamesEmptyPile(state: GameState, effects: readonly EffectSpec[]): boolean {
+  if (effects.length === 0) return false;
+  return effects.every(
+    (effect) => effect.kind === "gainFromHiddenPile" && (state.hiddenPiles?.[effect.pile] ?? []).length === 0,
   );
 }
 

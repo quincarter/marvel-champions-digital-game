@@ -6,16 +6,20 @@ import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, villainOf, villainStageOf } from "../query.js";
 import {
   activeAbilityRefs,
+  categoriesOf,
   controllerOf,
+  countsAsExtras,
   ignoredAbilities,
   printedAbilityRefs,
   textBoxBlankFor,
   TOGETHER_TARGETS_SLOT,
+  traitsOf,
   withSelfHost,
 } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import {
   type Bindings,
+  playPaidCards,
   playPaymentVars,
   type ReportTarget,
   type SetupInstructionSource,
@@ -106,13 +110,34 @@ const interruptibleFlip = (ctx: Ctx, event: TriggerEvent): boolean =>
  *
  * A villain's defeat carries the number of the stage that falls the same way (`characterDefeated.villainStageNumber`,
  * docs/phase7-wave7.md §3.34): the sweep stamps its own before asking who hears it, and a defeat by effect gets it here.
+ *
+ * Every defeat carries what the character was (`characterDefeated.asDefeated`, docs/phase7-wave9.md §3.32): its
+ * categories, its traits and whether it was in play facedown as something else, all of which a card that has left play
+ * no longer shows.
  */
 function withDefeatSnapshot(ctx: Ctx, event: TriggerEvent): TriggerEvent {
   if (event.kind !== "characterDefeated") return event;
-  const staged =
+  const numbered =
     event.villainStageNumber === undefined && villainOf(ctx.state, event.instanceId)
       ? { ...event, villainStageNumber: villainStageOf(ctx.state, event.instanceId).stageNumber }
       : event;
+  const defeated = ctx.state.instances[event.instanceId];
+  const staged =
+    numbered.asDefeated === undefined && defeated !== undefined
+      ? {
+          ...numbered,
+          asDefeated: {
+            categories: [
+              ...new Set([
+                ...categoriesOf(ctx.state, event.instanceId),
+                ...(countsAsExtras(ctx.state, ctx.deps).get(event.instanceId)?.categories ?? []),
+              ]),
+            ],
+            traits: traitsOf(ctx.state, event.instanceId, ctx.deps),
+            facedown: defeated.facedownAs !== null,
+          },
+        }
+      : numbered;
   if (staged.attachedInstanceIds) return staged;
   const attached = ctx.state.instances[event.instanceId]?.attachments ?? [];
   return attached.length === 0 ? staged : { ...staged, attachedInstanceIds: [...attached] };
@@ -281,7 +306,9 @@ export function abilityFrame(
     eventFrameId,
     // Read before the cost is paid: "discard this card →" leaves the effect's "attached scheme" readable (`SELF_HOST`).
     // What the answered moment carries is the ability's to read as `moment.<slot>` (`carriedByEvent`, §3.71).
+    // The cards that paid for this card's own play, while it resolves (`playPaidCards`, docs/phase7-wave9.md §3.46 (b)).
     bindings: withSelfHost(ctx.state, candidate.instanceId, {
+      ...playPaidCards(ctx.state.stack, candidate.instanceId),
       ...carriedByEvent(event).bindings,
       // One answer for several conditions of the occurrence (`EventPattern.together`): each one's targets, once.
       ...(candidate.together

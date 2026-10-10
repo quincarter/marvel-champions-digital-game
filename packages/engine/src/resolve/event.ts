@@ -2,6 +2,9 @@
 
 import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
+import { applyStatusBeingGiven, statusStillToGive } from "./status-being-given.js";
+import { resolveTuck } from "./tuck.js";
+import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
 import {
@@ -33,6 +36,7 @@ import {
   areaOfCard,
   mainSchemeStateOf,
   turnInProgress,
+  isScheme,
 } from "../query.js";
 import type { EngineDeps } from "../abilities.js";
 import {
@@ -65,10 +69,10 @@ import {
 import {
   actingCharacterOf,
   canAttack,
+  cannotBeDefeatedAgain,
   cardsInPlay,
   characterIgnores,
   controllerOf,
-  isAttachedMinion,
   isProtectedMainScheme,
   sourcePlayerOf,
   thwartAmount,
@@ -119,15 +123,17 @@ import {
 } from "./frames.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { continueActivation } from "../villain/phase.js";
-import { resolveSurge } from "./reveal.js";
+import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import {
   attackAwaitsAbility,
+  attackPreventingDamage,
   cancelAbilityAttack,
   cancelledWithAbilityAttack,
   pushAttackedByAbility,
+  recordAttackDamagePrevented,
   waitBeneathAbility,
 } from "./attack-ability.js";
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
@@ -142,6 +148,13 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         frame.event.kind === "cardEntersPlay" &&
         !cardsInPlay(ctx.state).includes(frame.event.instanceId)
       ) {
+        popFrame(ctx);
+        return;
+      }
+      // A status card its character no longer has room for (an earlier give of the same effect landed first, or the
+      // character left play) is not about to be given: no "would gain" window, and nothing is logged, as for a give
+      // that places nothing (docs/phase7-wave9.md §3.33; RRG 1.8 "Status Cards", p. 41).
+      if (frame.event.kind === "statusBeingGiven" && !statusStillToGive(ctx, frame.event)) {
         popFrame(ctx);
         return;
       }
@@ -286,6 +299,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (openJoinedResponses(ctx, frame)) return;
         // RRG "Cancel": the canceled effect is not considered to have occurred, so no responses.
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
+        // A replaced discard from a hand or a deck did not discard its card (docs/phase7-wave9.md §4.1 Q20).
+        if (frame.event.kind === "cardBeingDiscarded") wouldDiscardNotMade(ctx, frame.event);
         reportResults(ctx, frame, false);
         expireEventLastingEffects(ctx, frame.frameId);
         // An attachment's leaving that carried its host's change: the change still happens (only this card's leaving
@@ -635,6 +650,10 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "surgeResolving":
       resolveSurge(ctx, event.instanceId, event.playerId);
       return;
+    case "encounterCardBeingDealt":
+      // Its interrupts resolved with the card still on the deck; it is dealt now (docs/phase7-wave9.md §3.45).
+      applyEncounterCardBeingDealt(ctx, event);
+      return;
     case "enemyAttack":
     case "enemyScheme": {
       const activation = event.kind === "enemyAttack" ? "attack" : "scheme";
@@ -689,6 +708,16 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId, event.sourceInstanceId ?? null);
       return;
+    case "cardBeingTucked":
+      // Its interrupts resolved with the card where it was; it goes under its host now (docs/phase7-wave9.md §3.40).
+      resolveTuck(ctx, event, event.hostInstanceId);
+      return;
+    case "cardBeingDiscarded":
+      // Its interrupts resolved with the card in the hand or on the deck; it is discarded now (§4.1 Q20).
+      return applyWouldDiscard(ctx, event);
+    case "statusBeingGiven":
+      // Its interrupts resolved with the status card not yet given; it is placed now (docs/phase7-wave9.md §3.33).
+      return applyStatusBeingGiven(ctx, event);
     case "formChanging": {
       // Its interrupts resolved with the old face showing; the identity turns now, and `formChanged` is announced.
       const changed = setForm(ctx, event.playerId, event.to, event.voluntary, event.heroFormIndex);
@@ -737,8 +766,16 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
  *
  * RRG 1.8 "When Defeated Abilities" (p. 48): "A defeated card leaves play after its 'When Defeated' ability is resolved,
  * if any." So the defeat happens here (logged, reported to the attack) but the card stays in play while its own When
- * Defeated abilities resolve, then leaves (`leaveAfterWhenDefeated`), then any overkill spill is dealt. The spill's
- * amount was fixed by the damage that caused the defeat (`applyDamage`), so it does not depend on where the card is.
+ * Defeated abilities resolve, then leaves (`leaveAfterWhenDefeated`).
+ *
+ * Any overkill spill is dealt as soon as the defeat has happened, before those When Defeated abilities (`applyDefeat`,
+ * `defeatedTogether`): "Overkill damage is simultaneous with the damage from the attack, so the 'Forced Interrupt' on
+ * M.O.D.O.K. resolves first because it uses the word 'would.' Then, the 'When Defeated' ability of the Adaptoid
+ * resolves" (MC50 rulebook FAQ, p. 22, on RRG 1.8 "Overkill", p. 31, and "Damage", p. 14: placing damage is step 5,
+ * "would be defeated" step 6, When Defeated step 7). The spill is still dealt only "if a minion is defeated by an
+ * attack with the overkill keyword" (p. 31), so it waits for this defeat's own interrupt window and no longer; its
+ * amount was fixed by the damage that caused the defeat (`applyDamage`). Before 2026-10-10 it was dealt after the
+ * defeated card left play.
  * A side scheme already worked this way (ruling, Jan 11, 2026 (1); `applySchemeDefeated`). Before 2026-09-25 an ally
  * or minion was discarded before its When Defeated resolved (docs/phase7-wave3.md §4 Q4).
  *
@@ -768,7 +805,8 @@ function beginOneDefeat(
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
   // A minion attached to a card "cannot be defeated again, even if she gains hit points or heals damage" (RRG 1.8 FAQ
   // "Malice (#199)", p. 64; `isAttachedMinion`): not at zero hit points, and not by an effect that says "defeat".
-  if (isAttachedMinion(ctx.state, id)) return false;
+  // A minion an environment holds is defeated as any minion (`isHeldMinion`, docs/phase7-wave9.md §3.21).
+  if (cannotBeDefeatedAgain(ctx.state, id)) return false;
   // Defeated already and still in play for its When Defeated abilities (RRG 1.8 p. 48): one defeat, not a second.
   if (alreadyDefeated(ctx.state, id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);
@@ -872,19 +910,21 @@ function defeatLeaveSpec(followUp: DefeatFollowUp): EffectSpec {
 }
 
 /**
- * The defeat of one character on its own: it happens (`beginDefeat`), then the card's When Defeated abilities, its
- * leaving step and any overkill spill go on the stack in that order. Allies and minions defeated by one effect resolve
- * together instead (`resolve/defeated-together.ts`, docs/phase7-wave5.md §4.1 Q49).
+ * The defeat of one character on its own: it happens (`beginDefeat`), then any overkill spill, the card's When Defeated
+ * abilities and its leaving step go on the stack in that order. The spill is a whole damage event, so a defeat it
+ * causes (its "would be defeated" interrupts, a villain stage falling, an identity eliminated) resolves before the
+ * When Defeated abilities of the card it spilled from (MC50 rulebook FAQ, p. 22; `beginDefeat`). Allies and minions
+ * defeated by one effect resolve together instead (`resolve/defeated-together.ts`, docs/phase7-wave5.md §4.1 Q49).
  */
 function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDefeated" }>): boolean {
   const begun = beginDefeat(ctx, event);
   if (typeof begun === "boolean") return begun;
   const id = event.instanceId;
   const frames: StackFrame[] = [
+    ...(begun.spill ? [eventFrame(ctx, begun.spill)] : []),
     ...gameAbilityFrames(ctx, id, ["whenDefeated"], event, undefined, begun.actingPlayerId),
     leaveAfterWhenDefeated(ctx, id, begun.printedId, defeatLeaveSpec(begun), begun.controllerId, begun.sourceCardId),
   ];
-  if (begun.spill) frames.push(eventFrame(ctx, begun.spill));
   pushFrames(ctx, frames);
   return true;
 }
@@ -1039,8 +1079,7 @@ function consequentialDamageOf(
 
 /** Whether the attack this damage belongs to is carrying a "prevent all damage from that attack" flag. */
 function preventedByAttackFlag(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
-  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
-  return parent?.kind === "event" && (parent.vars.preventAllDamage ?? 0) > 0;
+  return attackPreventingDamage(ctx.state, event) !== undefined;
 }
 
 /**
@@ -1226,6 +1265,8 @@ export function applyDamage(
       amount: event.amount,
       reason: "effect",
     });
+    // "Deal that much damage to the attacking character" (`modifyAttack.bind`, docs/phase7-wave9.md §3.4).
+    recordAttackDamagePrevented(ctx, event);
     return;
   }
   const target = getInstance(ctx.state, event.targetInstanceId);
@@ -1593,6 +1634,9 @@ export function threatRemovalBlocked(
   /** No player removes it although a player controls its source (`removeThreat.noPlayer`): no player-scoped rule applies. */
   noPlayer = false,
 ): "crisis" | "patrol" | "rule" | null {
+  // Threat on a card that is not a scheme is only tokens (docs/phase7-wave9.md §3.7 (a)): RRG 1.8 "Crisis Icon"
+  // (p. 14) and "Patrol" (p. 32) speak of the main scheme, and a "threat cannot be removed" rule of schemes.
+  if (!isScheme(state, schemeId)) return null;
   const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG 1.8 "Crisis Icon" (p. 14): "While at least one crisis icon is in play, threat cannot be removed from the main
   // scheme by player cards. … Abilities on encounter cards are not affected by the crisis icon." So a player using an

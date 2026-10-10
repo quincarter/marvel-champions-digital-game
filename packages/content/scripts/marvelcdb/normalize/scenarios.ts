@@ -35,11 +35,13 @@ export function normalizeScenarios(
       ...(s.additionalEncounterSetCodes ?? []),
       ...(s.multipleVillains?.villainSetCodes ?? []),
       ...(s.separateDecks?.flatMap((d) => d.contents.encounterSetCodes ?? []) ?? []),
-      ...(s.modularSetPool?.setCodes ?? []),
     ]) {
       if (!setNames.has(code) && !CORE_ENCOUNTER_SET_CODES.has(code))
         errors.push(`scenario ${s.id}: unknown encounter set ${code}`);
     }
+    // A restricted pool may name sets of other packs (wave 9: the Thunderbolts pool holds the four hero packs' sets
+    // beside the box's six), so its codes are not checked against this pack's own sets; a content test pins them to
+    // the sets that exist (`AOS_THUNDERBOLT_POOL_SET_IDS`).
     // Wave 2 (docs/phase7-wave2.md §1.8): Kang's villain set has no single villainIdBySet entry (several
     // single-stage villains collide on one card_set_code — normalize/villains.ts leaves the map unset for that
     // shape), so a scenario that hits it must name its villain card directly instead.
@@ -59,6 +61,23 @@ export function normalizeScenarios(
       .map((c) => resolveCardCode(c, `scenario ${s.id} setAsideCardCodes`))
       .filter((id): id is string => id !== undefined)
       .map((id) => brand("card", id));
+
+    const neutralCards = s.neutralCardCodes
+      ? {
+          villainCardId: brand(
+            "card",
+            resolveCardCode(s.neutralCardCodes.villainCardCode, `scenario ${s.id} neutralCardCodes.villainCardCode`) ??
+              "",
+          ),
+          mainSchemeCardId: brand(
+            "card",
+            resolveCardCode(
+              s.neutralCardCodes.mainSchemeCardCode,
+              `scenario ${s.id} neutralCardCodes.mainSchemeCardCode`,
+            ) ?? "",
+          ),
+        }
+      : undefined;
 
     const expertVillains = s.expertVillains
       ? {
@@ -93,6 +112,7 @@ export function normalizeScenarios(
       discardPile: d.discardPile,
       whenEmpty: d.whenEmpty,
       ...(d.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
+      ...(d.topCardInPlay ? { topCardInPlay: true as const } : {}),
     }));
 
     // Several villains at once (docs/phase7-wave1.md §1.1 — The Wrecking Crew; docs/phase7-wave4.md §1.6 — Tower
@@ -185,6 +205,10 @@ export function normalizeScenarios(
         : {}),
       ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
       ...(setAsideCardIds.length > 0 ? { setAsideCardIds } : {}),
+      ...(neutralCards ? { neutralCards } : {}),
+      ...(s.referenceCards
+        ? { referenceCards: s.referenceCards.map((r) => ({ ...r, image: brand("image", r.image) })) }
+        : {}),
       ...(expertVillains ? { expertVillains } : {}),
       ...(s.victory ? { victory: s.victory } : {}),
       ...(s.separateGameAreas ? { separateGameAreas: s.separateGameAreas } : {}),

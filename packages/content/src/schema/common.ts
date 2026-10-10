@@ -10,10 +10,26 @@ import type { ArtRef, ImageRef } from "./ids.js";
 export interface ScalingValue {
   readonly base: number;
   readonly perPlayer: number;
+  /**
+   * A value printed with the per group icon (Trickster Takeover's God of Lies scenario: Door Between Worlds 55046's
+   * starting threat "7 per group", Worlds Collide 55028b's target threat "2 per group"): the printed numeral times the
+   * number of groups. Absent on every other value (the committed data carries no `perGroup: 0`). When present, `base`
+   * and `perPlayer` are 0: a value is flat, per player or per group, never a mix.
+   *
+   * MC55 insert p. 4: "If the per group icon is on a card in a group's game area, that icon multiplies the value it
+   * is next to by the number of groups in the respective pod. If the icon is on a card that is not in a specific
+   * group's game area (such as the Worlds Collide main scheme), that icon multiplies the value it is next to by the
+   * total number of groups in the game." In single-table play (Single Group Mode, insert p. 10: "the only group in your
+   * pod is your own group") a group is the whole table, so the count of groups is 1 and `perGroup` is the numeral
+   * itself. Epic Multiplayer Mode (several groups) is not built.
+   */
+  readonly perGroup?: number;
 }
 
 export const flat = (base: number): ScalingValue => ({ base, perPlayer: 0 });
 export const perPlayerOnly = (perPlayer: number): ScalingValue => ({ base: 0, perPlayer });
+/** A value printed with the per group icon ("2 per group" → `perGroupOnly(2)`). */
+export const perGroupOnly = (perGroup: number): ScalingValue => ({ base: 0, perPlayer: 0, perGroup });
 /** A fixed part plus a per-player part, e.g. "2 + 1 per player" → `scaling(2, 1)`. */
 export const scaling = (base: number, perPlayer: number): ScalingValue => ({ base, perPlayer });
 

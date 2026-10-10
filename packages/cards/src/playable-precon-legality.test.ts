@@ -21,6 +21,7 @@ import {
   WAVE6_STARTER_DECKS,
   WAVE7_STARTER_DECKS,
   WAVE8_STARTER_DECKS,
+  WAVE9_STARTER_DECKS,
   type DeckContents,
   type HeroIdentityCard,
   type StarterDeck,
@@ -39,6 +40,7 @@ const PRECONS: readonly StarterDeck[] = [
   ...WAVE6_STARTER_DECKS,
   ...WAVE7_STARTER_DECKS,
   ...WAVE8_STARTER_DECKS,
+  ...WAVE9_STARTER_DECKS,
 ];
 
 /**
@@ -57,11 +59,18 @@ const UNSCRIPTED_WAVE7_PACKS: ReadonlySet<string> = new Set();
  */
 const UNSCRIPTED_WAVE8_PACKS: ReadonlySet<string> = new Set();
 
+/**
+ * Wave 9 packs in the pool whose kits are not scripted yet (docs/phase7-wave9.md): all of them (`tt` has no hero).
+ * Their precons are legal but cannot be seated.
+ */
+const UNSCRIPTED_WAVE9_PACKS: ReadonlySet<string> = new Set(["aos", "bp", "silk", "falcon", "winter", "tt"]);
+
 /** Every pack whose precons are legal but cannot be seated yet. */
 const UNSCRIPTED_PACKS: ReadonlySet<string> = new Set([
   ...UNSCRIPTED_WAVE6_PACKS,
   ...UNSCRIPTED_WAVE7_PACKS,
   ...UNSCRIPTED_WAVE8_PACKS,
+  ...UNSCRIPTED_WAVE9_PACKS,
 ]);
 
 /** Wave 6 precon cards left unscripted on purpose (wave6/coverage.test.ts `KNOWN_SKIPPED`): none. */

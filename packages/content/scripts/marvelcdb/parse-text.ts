@@ -11,7 +11,7 @@
  * Ability id convention (`<cardCode>.<slug>`, stable — never renumber):
  * - Printed ability name → slug of the name: `01001a.spider-sense`.
  * - Structural encounter/scenario timings → bare slug: `setup`, `boost`,
- *   `when-revealed`, `when-revealed-hero`, `when-revealed-alter-ego`,
+ *   `preparation`, `when-revealed`, `when-revealed-hero`, `when-revealed-alter-ego`,
  *   `when-defeated`, `obligation` (the whole obligation text).
  * - Everything else → `<card-name-slug>-<kind>`, kind ∈ action | resource |
  *   response | interrupt | forced-response | forced-interrupt | special |
@@ -52,6 +52,12 @@ export type AbilityKind =
   | "constant"
   | "setup"
   | "boost"
+  /**
+   * MC50 rulebook p. 9, "Preparation Abilities": printed "in place of 'Boost' abilities" on the encounter cards of
+   * Black Widow's set, and resolved only by the Forced Interrupt on her villain cards, never from a boost card. A kind
+   * of its own, so a card printing one gets no `starIcon` and no `.boost` ref.
+   */
+  | "preparation"
   | "when-revealed"
   | "when-revealed-hero"
   | "when-revealed-alter-ego"
@@ -62,6 +68,7 @@ export type AbilityKind =
 const STRUCTURAL_KINDS: ReadonlySet<AbilityKind> = new Set([
   "setup",
   "boost",
+  "preparation",
   "when-revealed",
   "when-revealed-hero",
   "when-revealed-alter-ego",
@@ -141,6 +148,8 @@ export interface ParseOptions {
   readonly obligation?: boolean;
   /** Names of villains in the pack, so "Attach to Rhino." maps to `{ kind: "villain" }`. */
   readonly villainNames: ReadonlySet<string>;
+  /** Every card title in the pack, so a host name that ends in an abbreviation period keeps it (see `parseAttach`). */
+  readonly titles?: ReadonlySet<string>;
   /**
    * Whether *this scenario* puts several villains in play at once (docs/phase7-wave1.md §1.6 — The Wrecking
    * Crew), so "Attach to Wrecker." maps to `{ kind: "namedVillain" }` instead of the single-villain `{ kind:
@@ -169,7 +178,7 @@ export interface ParseOptions {
   readonly preambleWhenRevealed?: string;
 }
 
-const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|Preparation|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -265,6 +274,8 @@ function kindOf(rawTrigger: string): KindResult {
       return { kind: "setup" };
     case "Boost":
       return { kind: "boost" };
+    case "Preparation":
+      return { kind: "preparation" };
     case "When Revealed":
       return { kind: "when-revealed" };
     case "When Revealed (Hero)":
@@ -474,11 +485,24 @@ function parseAttach(
   sentence: string,
   villainNames: ReadonlySet<string>,
   multiVillain: boolean,
+  titles?: ReadonlySet<string>,
 ): { host: AttachmentHost; villainName?: string } | undefined {
   const s = sentence.replace(/\.$/, "");
   const m = /^Attach to (.+)$/.exec(s);
   if (!m) return undefined;
-  const target = m[1] as string;
+  let target = m[1] as string;
+  // `splitSentences` does not split after an acronym-style period ("V."), so a following sentence can arrive glued
+  // to the host ("Attach to Citizen V. He activates against you."): when the text up to a ". " is a known card
+  // title (with or without its own final period), the host ends there.
+  if (titles) {
+    for (const dot of target.matchAll(/\. (?=[A-Z])/g)) {
+      const head = target.slice(0, dot.index);
+      if (titles.has(head) || titles.has(`${head}.`)) {
+        target = head;
+        break;
+      }
+    }
+  }
   // The host ends at the clause: leave the whole sentence unparsed here so the caller splits the clause off (below)
   // and parses the host alone, rather than reading "Apocalypse and heal 5 damage from him" as a card name.
   if (ATTACH_CLAUSE_VERB.test(target)) return undefined;
@@ -632,7 +656,7 @@ function parseAttach(
   // A plain category with only a "without X attached" suffix and no trait word at all: "an enemy without a copy
   // of Adamantium Upgrades attached" (Wolverine). Tried before the trait-qualified pattern below, since that
   // pattern requires a word between the article and the category noun and would otherwise never match here.
-  const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme";
+  const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme|villain";
   const bareWithoutRe = new RegExp(
     `^(?:an?|the) (${CATEGORY_NOUN})\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$`,
     "i",
@@ -790,7 +814,11 @@ function parseAttach(
   // letter, so this can't swallow an unrecognized common-noun phrase ("an identity-specific ally you control", "a
   // card with \"Spider\" in its title", "an enemy or scheme") that needs a real schema shape instead.
   if (/^[A-Z]/.test(target) && !/^(?:a|an|the|your)\b/.test(target)) {
-    return { host: { kind: "namedCard", name: target } };
+    // The sentence's own period was stripped above, which also strips the last period of a title that ends in an
+    // abbreviation ("Attach to M.O.D.O.K." names the card titled "M.O.D.O.K."): restore it when a card of that exact
+    // title exists and none matches without it.
+    const name = titles && !titles.has(target) && titles.has(`${target}.`) ? `${target}.` : target;
+    return { host: { kind: "namedCard", name } };
   }
   return undefined;
 }
@@ -1080,11 +1108,17 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (continuation && otherwiseAttach) {
           flushConstant();
           const preferredSentence = sentence.replace(/,\s*if able\.?$/i, ".");
-          const preferred = parseAttach(preferredSentence, options.villainNames, options.multipleVillains ?? false);
+          const preferred = parseAttach(
+            preferredSentence,
+            options.villainNames,
+            options.multipleVillains ?? false,
+            options.titles,
+          );
           const otherwise = parseAttach(
             `Attach to ${otherwiseAttach[1] as string}`,
             options.villainNames,
             options.multipleVillains ?? false,
+            options.titles,
           );
           if (preferred && otherwise) {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
@@ -1162,7 +1196,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (restriction.maxPerDeck !== undefined) maxPerDeckText = restriction.maxPerDeck;
         continue;
       }
-      const attach = parseAttach(sentence, options.villainNames, options.multipleVillains ?? false);
+      const attach = parseAttach(sentence, options.villainNames, options.multipleVillains ?? false, options.titles);
       if (attach) {
         flushConstant();
         if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
@@ -1186,6 +1220,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
             `${clauseSplit[1] as string}.`,
             options.villainNames,
             options.multipleVillains ?? false,
+            options.titles,
           );
           if (hostOnly) {
             flushConstant();
@@ -1267,7 +1302,12 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       if (!attachesTo) {
         const firstSentence = splitSentences(body.slice(h.length).trim())[0];
         if (firstSentence) {
-          const bodyAttach = parseAttach(firstSentence, options.villainNames, options.multipleVillains ?? false);
+          const bodyAttach = parseAttach(
+            firstSentence,
+            options.villainNames,
+            options.multipleVillains ?? false,
+            options.titles,
+          );
           if (bodyAttach) {
             attachesTo = bodyAttach.host;
             if (bodyAttach.villainName) attachesToVillainNamed = bodyAttach.villainName;
@@ -1284,6 +1324,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
                 `Attach to ${midSentence[1] as string}.`,
                 options.villainNames,
                 options.multipleVillains ?? false,
+                options.titles,
               );
               if (synthetic) {
                 attachesTo = synthetic.host;

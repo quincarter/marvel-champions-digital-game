@@ -20,8 +20,17 @@ export const CORE_ASPECTS: readonly CoreAspect[] = [
 ];
 export const PLAYER_TYPES = new Set(["ally", "event", "support", "upgrade", "resource", "player_side_scheme"]);
 
-export const scalingOf = (value: number, perPlayer: boolean): ScalingValue =>
-  perPlayer ? { base: 0, perPlayer: value } : { base: value, perPlayer: 0 };
+/**
+ * A printed value as a `ScalingValue`. `perGroup` (raw `health_per_group`, `base_threat_per_group`,
+ * `threat_per_group`, `escalation_threat_per_group`) wins over `perPlayer`: MarvelCDB sends `*_fixed: false` for a
+ * per group value too, so the caller's `!fixed` is true there and must not read it as "per hero".
+ */
+export const scalingOf = (value: number, perPlayer: boolean, perGroup = false): ScalingValue =>
+  perGroup
+    ? { base: 0, perPlayer: 0, perGroup: value }
+    : perPlayer
+      ? { base: 0, perPlayer: value }
+      : { base: value, perPlayer: 0 };
 
 export const stripQuotes = (s: string): string => s.replace(/^["“](.*)["”]$/, "$1");
 

@@ -1,7 +1,7 @@
 /** Resolving an ability frame, labeled-ability rules, and ability-limit bookkeeping. */
 
 import type { AbilityId } from "@mc/content";
-import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
+import { type AbilityDefinition, abilityUseKey, GRANTED_BY_SLOT } from "../abilities.js";
 import { COST_NOT_PAID_VAR } from "../cost-damage.js";
 import { type Ctx, emit, popFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -9,7 +9,7 @@ import { statusActive } from "../keywords.js";
 import { cardOf, getInstance, mustPlayer } from "../query.js";
 import { abilityIgnored } from "../select.js";
 import type { GameState } from "../state.js";
-import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
+import { eventSubjects, slotsCarriedByResolved, type TriggerEvent } from "../trigger-events.js";
 import { declareWildTypes } from "./declare-wilds.js";
 import { declareLabeledDefense, declaresDefender, recordDefenseLabel } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
@@ -74,6 +74,8 @@ export function limitReached(
   playerId: PlayerId | null = null,
 ): boolean {
   if (!definition.limit) return false;
+  // "Limit once per card" (`per: "paidCard"`, docs/phase7-wave9.md §3.46 (a)): counted within each payment (`priceOf`).
+  if (definition.limit.per === "paidCard") return false;
   const key = limitKeyOf(state, id, abilityId, definition, event, playerId);
   return (state.abilityUses[key] ?? 0) >= definition.limit.count;
 }
@@ -110,11 +112,13 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   if ((frame.vars[COST_NOT_PAID_VAR] ?? 0) > 0) return;
   if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId)) return;
   recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId);
+  const grantedBy = frame.bindings[GRANTED_BY_SLOT]?.[0];
   emit(ctx, {
     type: "abilityResolved",
     instanceId: frame.instanceId,
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
+    ...(grantedBy ? { grantedByInstanceId: grantedBy } : {}),
   });
   if (keyword) {
     emit(ctx, {
@@ -132,12 +136,16 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   if (definition.label?.includes("defense") && frame.controllerId && !declaresDefender(definition))
     declareLabeledDefense(ctx, frame.controllerId);
   // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
-  // something could respond ("After you resolve the ability of a Preparation card you control").
+  // something could respond ("After you resolve the ability of a Preparation card you control"). It carries the
+  // ability's slots, what its costs bound among them (docs/phase7-wave9.md §3.43 (c)): "After you resolve Falcon's
+  // 'Eagle-Eyed' ability, … for each icon in the discarded card's boost area" reads the card that cost discarded.
+  const carried = slotsCarriedByResolved(frame.bindings);
   const resolved: TriggerEvent = {
     kind: "abilityResolved",
     instanceId: frame.instanceId,
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
+    ...(carried ? { carried } : {}),
   };
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
   // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).
@@ -197,6 +205,8 @@ export function recordAbilityUse(
   playerId: PlayerId | null = null,
 ): void {
   if (!definition.limit) return;
+  // A limit for each card paid for is the payment's own count: nothing is kept between payments (wave 9 §3.46 (a)).
+  if (definition.limit.per === "paidCard") return;
   const key = limitKeyOf(ctx.state, instanceId, abilityId, definition, event, playerId);
   const uses = (ctx.state.abilityUses[key] ?? 0) + 1;
   ctx.state = { ...ctx.state, abilityUses: { ...ctx.state.abilityUses, [key]: uses } };

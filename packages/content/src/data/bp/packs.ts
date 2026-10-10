@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const BP_CYCLE: Cycle = { id: cycleId("cycle9"), name: "Cycle 9", order: 9 };
+export const BP_CYCLE: Cycle = { id: cycleId("cycle9"), name: "Agents of S.H.I.E.L.D.", order: 9 };
 
 /** Release date source: Hall of Heroes Black Panther/Shuri page (https://hallofheroeslcg.com/black-panther-shuri/): "Release date: May 2, 2025" */
 export const BP_PACK: Pack = {

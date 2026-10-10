@@ -1,0 +1,3 @@
+kind: Engine
+body: A minion can be held by an environment, engaged with nobody; engagement can rotate between players; a minion already in play that engages a player triggers quickstrike (wave 9 engine tasks 14 and 15)
+time: 2026-10-10T03:51:53.577131-04:00

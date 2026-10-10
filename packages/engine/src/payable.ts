@@ -11,7 +11,7 @@
  * resources →", docs/phase7-wave8.md §3.62): the payments that fit its range, for `legalActions` and a timing window
  * to tell whether the ability can be offered.
  */
-import { paymentOptions, paymentsFromOptionIds, priceOrNull } from "./actions.js";
+import { isWhenSpentUse, mostFromEachHandCard, paymentOptions, paymentsFromOptionIds, priceOrNull } from "./actions.js";
 import type { EngineDeps } from "./abilities.js";
 import { createCtx } from "./ctx.js";
 import type { Payment } from "./commands.js";
@@ -71,8 +71,14 @@ export function canPaySpend(
   if (needed === 0) return true;
   const options = paymentOptions(ctx, playerId, null).map((option) => option.optionId);
   if (options.length === 0) return false;
-  const whole = price(options);
-  if (whole !== null) return spendPays(whole, requirement, distinctTypes);
+  // One card is spent once: `paymentOptions` lists a card's plain spending and its "When you spend this card" uses.
+  const everything = paymentsFromOptionIds(options);
+  const plain = everything.filter((payment) => !isWhenSpentUse(payment));
+  const whole = priceOrNull(ctx, playerId, plain, null, null);
+  if (whole !== null && spendPays(whole, requirement, distinctTypes)) return true;
+  const most = priceOrNull(ctx, playerId, mostFromEachHandCard(ctx, playerId, everything, null, null), null, null);
+  if (most !== null && spendPays(most, requirement, distinctTypes)) return true;
+  if (whole !== null && plain.length === everything.length) return false;
   for (let size = 1; size <= Math.min(needed, options.length); size++) {
     let tried = 0;
     for (const ids of subsets(options, size)) {
@@ -81,6 +87,38 @@ export function canPaySpend(
     }
   }
   return false;
+}
+
+/**
+ * A payment of `resources` (with `distinctTypes`) from the fewest of the payment options a spend would offer
+ * `playerId` now, as their option ids in the order offered; the first found of that size. Null when there is none, or
+ * when the search was cut short (`MAX_SUBSETS`) and so cannot say which is the fewest.
+ *
+ * A `required` spend (`EffectSpec spendResources.required`) lists these options first and asks for at least that many
+ * selections: no payment in full holds fewer, and the choice keeps the property every other choice has, that its first
+ * `minSelections` options are a legal answer.
+ */
+export function fewestSpend(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  resources: ResourceRequirement,
+  distinctTypes = 0,
+): readonly string[] | null {
+  const ctx = createCtx(state, deps);
+  const requirement = combineRequirements(resources, 0);
+  const needed = Math.max(requirementTotal(requirement), distinctTypes);
+  if (needed === 0) return [];
+  const options = paymentOptions(ctx, playerId, null).map((option) => option.optionId);
+  for (let size = 1; size <= Math.min(needed, options.length); size++) {
+    let tried = 0;
+    for (const ids of subsets(options, size)) {
+      const pool = priceOrNull(ctx, playerId, paymentsFromOptionIds(ids), null, null);
+      if (pool !== null && spendPays(pool, requirement, distinctTypes)) return ids;
+      if (++tried >= MAX_SUBSETS) return null;
+    }
+  }
+  return null;
 }
 
 /**

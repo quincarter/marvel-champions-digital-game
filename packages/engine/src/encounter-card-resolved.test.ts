@@ -13,7 +13,7 @@ import type { CardId } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
-import { activeEncounterDeck, locateCard, mustInstance } from "./query.js";
+import { activeEncounterDeck, locateCard, mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -152,7 +152,8 @@ describe("encounterCardResolved (RRG 1.8 'Resolve', p. 37)", () => {
     expect(mustInstance(state, s.listener).attachments).toEqual([]);
   });
 
-  it("a keyword counts: a treachery with only surge resolved, and its response runs before the surge card is revealed (RRG 1.8 'Surge', p. 42)", () => {
+  // Q22: the surge's card is dealt facedown and not revealed here; the response still comes before that deal.
+  it("a keyword counts: a treachery with only surge resolved, and its response runs before the surge card is dealt (RRG 1.8 'Surge', p. 42)", () => {
     const s = staged(SURGE_ONLY.card.id);
     const { state, events } = reveal(s);
     const id = revealedId(state, SURGE_ONLY.card.id);
@@ -160,11 +161,11 @@ describe("encounterCardResolved (RRG 1.8 'Resolve', p. 37)", () => {
     const attachedAt = events.findIndex(
       (e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "attachment",
     );
-    const surgeRevealAt = events.findIndex(
-      (e, i) => i > events.findIndex((x) => x.type === "surgeTriggered") && e.type === "encounterCardRevealed",
-    );
+    const surgeDealtAt = events.findIndex((e) => e.type === "surgeTriggered");
     expect(attachedAt).toBeGreaterThan(-1);
-    expect(surgeRevealAt).toBeGreaterThan(attachedAt);
+    expect(surgeDealtAt).toBeGreaterThan(attachedAt);
+    expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(1);
+    expect(mustPlayer(state, P1).dealtEncounter).toHaveLength(1);
   });
 
   it("a treachery with no ability and no keyword has not resolved: nothing is announced", () => {

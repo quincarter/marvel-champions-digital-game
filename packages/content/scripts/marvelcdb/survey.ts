@@ -37,6 +37,8 @@ import { MSM_CURATION } from "./curation/msm.ts";
 import { MUT_GEN_CURATION } from "./curation/mut_gen.ts";
 import { NEXT_EVOL_CURATION } from "./curation/next_evol.ts";
 import { AOA_CURATION } from "./curation/aoa.ts";
+import { AOS_CURATION } from "./curation/aos.ts";
+import { TT_CURATION } from "./curation/tt.ts";
 import { THOR_CURATION } from "./curation/thor.ts";
 import { BKW_CURATION } from "./curation/bkw.ts";
 import { DRS_CURATION } from "./curation/drs.ts";
@@ -128,6 +130,8 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   mut_gen: MUT_GEN_CURATION,
   next_evol: NEXT_EVOL_CURATION,
   aoa: AOA_CURATION,
+  aos: AOS_CURATION,
+  tt: TT_CURATION,
   rogue: ROGUE_CURATION,
   wolv: WOLV_CURATION,
   hood: HOOD_CURATION,

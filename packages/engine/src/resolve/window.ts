@@ -1,5 +1,6 @@
 /** Timing windows: ordering, choosing, paying for and resolving triggered abilities. */
 
+import { displayNameOf } from "../visibility.js";
 import {
   announceResourcesSpent,
   commitPlay,
@@ -9,6 +10,7 @@ import {
   inPlayCostCandidates,
   isPriceFault,
   payCost,
+  handCardOfOptionId,
   paymentOptions,
   paymentsFromOptionIds,
   payPayment,
@@ -33,7 +35,7 @@ import { candidateDefenseBar, windowDefenseBar } from "../defense-claim.js";
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { cardOf, deckDiscardStillThere, mustCardOf, mustPlayer, playerOrder, printedCostOf } from "../query.js";
+import { cardOf, deckDiscardStillThere, getInstance, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { EngineDeps } from "../abilities.js";
@@ -153,6 +155,43 @@ function lateCandidates(ctx: Ctx, frame: Frame<"window">, would: boolean): reado
   if (waiting.length === 0) return [];
   const listening = new Set(waiting);
   return windowCandidates(ctx, frame, false, would).filter((candidate) => listening.has(keyOf(candidate)));
+}
+
+/** The faceup face of each double-sided card in play: `Frame<"window">.facesAtOpen`. */
+function facesInPlay(state: GameState): Readonly<Record<InstanceId, boolean>> {
+  const faces: Record<InstanceId, boolean> = {};
+  for (const id of cardsInPlay(state)) {
+    const card = cardOf(state, id);
+    const instance = getInstance(state, id);
+    if (card && instance && "flipSide" in card && card.flipSide) faces[id] = instance.flipped;
+  }
+  return faces;
+}
+
+/**
+ * The optional interrupts on a face the window's own forced tier turned faceup (`Frame<"window">.facesAtOpen`;
+ * docs/phase7-wave9.md §3.8): a double-sided card that was in play as the interrupt window opened and now shows its
+ * other face, whose ability was not live at the open (`heardAtOpen`, which has its own rule) and answers the
+ * occurrence now. The event has not resolved yet (RRG 1.8 "Interrupt", p. 25), so "Forced Interrupt: When you attack,
+ * change to [the other] form" can turn up a face whose "Interrupt: When you attack" is used on that same attack. None
+ * in a response window, whose occurrence is over (docs/phase7-wave6.md §3.79), none for a card that entered play or a
+ * hand since, and none when the card was turned back to the face it opened with.
+ */
+function turnedFaceupCandidates(ctx: Ctx, frame: Frame<"window">, would: boolean): readonly TriggerCandidate[] {
+  const atOpen = frame.facesAtOpen;
+  if (frame.timing !== "interrupt" || !atOpen) return [];
+  const turned = new Set<InstanceId>();
+  for (const id of cardsInPlay(ctx.state)) {
+    const before = atOpen[id];
+    if (before !== undefined && getInstance(ctx.state, id)?.flipped !== before) turned.add(id);
+  }
+  if (turned.size === 0) return [];
+  const keyOf = (candidate: TriggerCandidate): string =>
+    hearerKey(candidate.instanceId, candidate.abilityId, candidate.sharedEvent?.index);
+  const known = new Set([...(frame.heardAtOpen ?? []), ...(frame.optionalAtOpen ?? []).map(keyOf)]);
+  return windowCandidates(ctx, frame, false, would).filter(
+    (candidate) => !candidate.fromHand && turned.has(candidate.instanceId) && !known.has(keyOf(candidate)),
+  );
 }
 
 /** Whether the candidate's interrupt reads "would" (`trigger.would`): the window's earlier tier. */
@@ -325,7 +364,13 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       return;
     }
     if (would) {
-      const { wouldTier: _done, optionalAtOpen: _wouldOptional, heardAtOpen: _wouldHeard, ...rest } = frame;
+      const {
+        wouldTier: _done,
+        optionalAtOpen: _wouldOptional,
+        heardAtOpen: _wouldHeard,
+        facesAtOpen: _wouldFaces,
+        ...rest
+      } = frame;
       setFrame(ctx, rest);
       return;
     }
@@ -336,7 +381,8 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   // and optional together (docs/phase7-wave6.md §3.79). An optional one is still dropped if a forced ability left it
   // unable to be initiated (it left play, lost its text, its cost or target is gone: `stillOffered`), but an ability
   // the forced tier switched on is not offered for an occurrence it did not hear. The "would" tiers and the ordinary
-  // ones are each read as they open.
+  // ones are each read as they open. One exception, in an interrupt window only, whose event is still to resolve: an
+  // interrupt on the face of a card in play that the forced tier turned faceup (`turnedFaceupCandidates`).
   const atOpen = tierIndex === 0 ? windowCandidates(ctx, frame, false, would) : undefined;
   // Interrupt windows: who was listening as it opened (`heardAtOpen`), so a listener whose condition is completed
   // while the window is open can still be offered.
@@ -351,6 +397,8 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       : undefined;
   // A listener the forced tier completed the condition of joins the optional tier's first round.
   const late = forced ? [] : lateCandidates(ctx, frame, would);
+  // So does an interrupt on a face the forced tier turned faceup (`turnedFaceupCandidates`; interrupt windows only).
+  const turnedUp = forced ? [] : turnedFaceupCandidates(ctx, frame, would);
   const candidates = forced
     ? windowCandidates(ctx, frame, true, would)
     : [
@@ -360,14 +408,18 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
             stillOffered(ctx.state, ctx.deps, candidate, answered(frame, candidate).event),
         ),
         ...late,
+        ...turnedUp,
       ];
+  const joined = [...late, ...turnedUp];
   const advanced = {
     ...frame,
     ...(would ? { wouldTier: tierIndex + 1 } : { tierIndex: tierIndex + 1 }),
     pending: candidates,
     ...(atOpen ? { optionalAtOpen: atOpen } : {}),
-    ...(late.length > 0 ? { optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...late] } : {}),
+    ...(joined.length > 0 ? { optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...joined] } : {}),
     ...(heard ? { heardAtOpen: heard } : {}),
+    // Only a forced interrupt resolving in this window can turn a face up before the optional tier is read.
+    ...(heard && forced && candidates.length > 0 ? { facesAtOpen: facesInPlay(ctx.state) } : {}),
   };
   if (candidates.length === 0) {
     setFrame(ctx, advanced);
@@ -434,7 +486,7 @@ export const candidateOption =
   (state: GameState, among: readonly TriggerCandidate[] = []) =>
   (candidate: TriggerCandidate): ChoiceOption => ({
     optionId: optionIdOf(candidate, among),
-    label: cardOf(state, candidate.instanceId)?.name ?? candidate.instanceId,
+    label: displayNameOf(state, candidate.instanceId),
     ref: { kind: "ability", instanceId: candidate.instanceId, abilityId: candidate.abilityId },
   });
 
@@ -627,6 +679,10 @@ function askCostPick(
     );
     // An `each` pick takes every matching card (`InPlayCostPick.each`): nothing to ask.
     if (pick.each || candidates.length <= pick.min) continue;
+    // "This card and up to N others" (`InPlayCostPick.includesSelf`): the card itself is not a question, only the
+    // others are, and picking none of them pays with the card alone (`absorbCostPick` adds it).
+    const own = pick.includesSelf ? 1 : 0;
+    const offered = pick.includesSelf ? candidates.filter((id) => id !== candidate.instanceId) : candidates;
     setFrame(ctx, {
       ...frame,
       queue: rest,
@@ -643,13 +699,13 @@ function askCostPick(
         slot: pick.slot,
         mode,
       },
-      options: candidates.map((id) => ({
+      options: offered.map((id) => ({
         optionId: id,
-        label: mustCardOf(ctx.state, id).name,
+        label: displayNameOf(ctx.state, id),
         ref: { kind: "card", instanceId: id },
       })),
       minSelections: 0,
-      maxSelections: Math.min(candidates.length, pick.max ?? candidates.length),
+      maxSelections: Math.min(offered.length, (pick.max ?? candidates.length) - own),
       frameId: frame.frameId,
     });
     return true;
@@ -706,7 +762,7 @@ function askHandDiscard(
     },
     options: candidates.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id },
     })),
     minSelections: 0,
@@ -722,8 +778,12 @@ function withoutHandDiscards(
   candidate: TriggerCandidate,
   options: readonly ChoiceOption[],
 ): readonly ChoiceOption[] {
-  const picked = new Set((costChoicesFor(frame, candidate)[HAND_DISCARD_SLOT] ?? []).map((id) => `hand:${id}`));
-  return picked.size === 0 ? options : options.filter((option) => !picked.has(option.optionId));
+  const picked = new Set(costChoicesFor(frame, candidate)[HAND_DISCARD_SLOT] ?? []);
+  if (picked.size === 0) return options;
+  return options.filter((option) => {
+    const card = handCardOfOptionId(option.optionId);
+    return card === null || !picked.has(card);
+  });
 }
 
 /**
@@ -740,8 +800,11 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
     (slot === HAND_DISCARD_SLOT && cost?.discardFromHand
       ? { slot: HAND_DISCARD_SLOT, min: Math.max(cost.discardFromHand.min, 1) }
       : undefined);
-  if (!candidate || !pick || answer.length < pick.min) return setFrame(ctx, cleared);
-  const picked = answer.map((id) => id as InstanceId);
+  const chosen = answer.map((id) => id as InstanceId);
+  // "This card and up to N others" (`InPlayCostPick.includesSelf`): only the others were asked for.
+  const picked =
+    candidate && pick && "includesSelf" in pick && pick.includesSelf ? [candidate.instanceId, ...chosen] : chosen;
+  if (!candidate || !pick || picked.length < pick.min) return setFrame(ctx, cleared);
   setFrame(ctx, {
     ...cleared,
     queue: [candidate, ...frame.queue],

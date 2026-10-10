@@ -429,6 +429,8 @@ describe("§3.44 the attachment of the same family", () => {
     });
     const surged = play(onTopOfEncounterDeck(bare, POOLIZED.id), REVEAL);
     expect(surged.events.filter((e) => e.type === "surgeTriggered")).toHaveLength(1);
-    expect(surged.state.encounterDecks[Object.keys(surged.state.encounterDecks)[0]!]!.discard).toHaveLength(2);
+    // Q22: only the attachment is in the discard pile; the card its surge dealt waits facedown in front of P1.
+    expect(surged.state.encounterDecks[Object.keys(surged.state.encounterDecks)[0]!]!.discard).toHaveLength(1);
+    expect(surged.state.players[0]!.dealtEncounter).toHaveLength(1);
   });
 });

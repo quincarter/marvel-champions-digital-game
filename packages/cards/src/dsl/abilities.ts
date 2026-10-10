@@ -3,6 +3,7 @@ import type {
   AbilityCost,
   CardIcon,
   DiscardCombined,
+  EncounterDealSource,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
@@ -13,6 +14,7 @@ import type {
   EventPattern,
   Form,
   KeywordGrantSpec,
+  LeaveCauseSide,
   Predicate,
   ResourceGeneration,
   ResourceMultiplierSpec,
@@ -26,6 +28,8 @@ import type {
   TargetCategory,
   TargetQuery,
   TargetRef,
+  TuckedDiscardCause,
+  TuckHostKind,
   ValueSpec,
   InPlayCostPick,
   PaidTypesRead,
@@ -34,6 +38,7 @@ import type {
   TriggerEventKind,
   TypedResource,
 } from "@mc/engine";
+import { GRANTED_BY_SLOT } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
 import { amount, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
@@ -260,6 +265,28 @@ export const resource = (
   return generatesFor ? { ...definition, generatesFor } : definition;
 };
 /**
+ * "Interrupt: When you spend this card, [cost] → generate …" on a card spent from hand (Organizational Support, `aos`
+ * 50014: "exhaust up to 3 allies and/or supports you control that share a Trait with your identity → generate the
+ * printed resources on each card exhausted this way"). A resource trigger with `whenSpent`: used only by the payment
+ * entry that spends the card (`Payment.whenSpent`), once, by the player spending it, with what it generates joining
+ * that payment. `generates` may read the cost's picks by slot, as a resource ability's does
+ * (`printedResourcesOf(query(…, { inSlot: "exhausted" }))`).
+ */
+export const whenSpentGenerate = (
+  generates: ResourceGeneration,
+  options: AbilityOptions & { readonly form?: Form; readonly generatesFor?: TargetQuery } = {},
+  ...effects: readonly EffectArg[]
+): AbilityDefinition => {
+  const { form, generatesFor, ...rest } = options;
+  const definition = build(
+    { kind: "resource", whenSpent: true, ...(form ? { form } : {}), ...(rest.while ? { while: rest.while } : {}) },
+    rest,
+    effects,
+    generates,
+  );
+  return generatesFor ? { ...definition, generatesFor } : definition;
+};
+/**
  * "Each toon counter on Spider-Ham can be spent as if it were a [wild] resource." (`spiderham` 30001a;
  * docs/phase7-wave5.md §3.25): a `repeatable` resource ability whose cost removes one counter from this card, used
  * once per counter spent, as many times in one payment as there are counters. `generates` defaults to 1 wild. Spending
@@ -330,6 +357,14 @@ export const whenRevealedAlterEgo = (...effects: readonly EffectArg[]): AbilityD
   whenRevealed(ifThen(isAlterEgo(), effects));
 export const whenDefeated = (...effects: readonly EffectArg[]): AbilityDefinition =>
   build({ kind: "whenDefeated" }, {}, effects);
+/**
+ * "Preparation:" (MC50 rulebook p. 9; docs/phase7-wave9.md §3.2): printed in place of a Boost ability on the encounter
+ * cards of Black Widow's set. Never resolved from a boost card; only when another ability instructs it
+ * (`resolvePreparationsOf`), on a card that is usually in the encounter discard pile. `self` is that card, "you" the
+ * resolving player, and the triggering event the instructing ability's own ("this attack").
+ */
+export const preparation = (...effects: readonly EffectArg[]): AbilityDefinition =>
+  build({ kind: "preparation" }, {}, effects);
 /** "[star] Boost:" — "you" is the player the activation is against. */
 export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "boost" }, {}, effects);
 /**
@@ -802,6 +837,97 @@ export const schemeThreatOn = (
 ): ConstantPart =>
   rule({ kind: "schemeThreatDestination", enemy, scheme, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "Each encounter card without a printed 'Preparation' ability gains 'Preparation: Deal 1 damage to the attacking
+ * character.'" (Automated Defenses, `aos` 50074; Night Vision Goggles 50070; docs/phase7-wave9.md §3.3) →
+ * `constant(grantsPreparation("50074.automated-defenses-granted-preparation"))` on the granting card, with the quoted
+ * text as a second registry entry under that id: `preparation(...)`, listed on no card's own abilities (a card that
+ * listed it would print a Preparation). While the rule is in effect, each encounter card that prints no Preparation
+ * resolves the granted one when the villain's `resolvePreparationsOf` names it: in the order the resolving player
+ * chooses when another card grants one too, and counted in `<bind>.count`. Inside the granted ability `self` is the
+ * discarded card and `grantingCard` is this card.
+ */
+export const grantsPreparation = (granted: string, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({
+    kind: "grantsLabeledAbility",
+    label: "preparation",
+    to: "encounterCardsWithoutPrinted",
+    abilityId: abilityId(granted),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "… this card gains: 'Response: After you play an Aerial card, exhaust this card → ready an ally you control.'"
+ * (Flight Squadron, `falcon` 53020) → `constant(gainsAbility(GRANTED_ID, { while }))` beside the card's other constant
+ * parts, with the quoted text as a second registry entry under that id (a response, interrupt, action or resource
+ * ability, never a constant), listed on no card's own abilities: the data keeps one ref for a constant that quotes a
+ * gained ability. While the rule is in effect the card has that ability with its printed ones (RRG 1.8 "'Gains'",
+ * p. 21): it is offered in windows, listed in legal actions, and its cost and limit are its own, counted under its
+ * id. `to`: the cards that gain it instead of this card ("each ally you control gains: '…'" →
+ * `{ to: query("ally", { controller: "you" }) }`); inside the ability `self` is the card that gained it.
+ *
+ * Not needed when the gained ability is the card's whole text ("If …, this card gains: 'Interrupt: …'", Agents of
+ * S.H.I.E.L.D. `aos` 50015): script the one ref as that ability with the condition as its `while`.
+ */
+export const gainsAbility = (
+  granted: string,
+  opts: { readonly to?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "gainsAbility",
+    abilityId: abilityId(granted),
+    ...(opts.to ? { to: opts.to } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Any player may spend the resource card tucked here as if it were in their hand." (Resource Reserve, `falcon` 53021;
+ * docs/phase7-wave9.md §3.46 (c)) → `constant(spendableFromTucked())`. Each faceup resource card tucked under this
+ * card is a payment source for every player: it is offered with their hand cards, generates what it would from their
+ * hand (its printed resources, wild included; The Power of Flight doubles for an Aerial card), is a card that paid
+ * (`paidCards`), and spending it discards it from under this card to its owner's discard pile. Only spending: it is
+ * not a card in hand for a "discard a card from your hand" cost and cannot be played.
+ *
+ * `cards`: which tucked cards (default: resource cards, "the resource card tucked here"). `by`: who may spend them
+ * (default: any player; `you` for "you may spend …"), read with this card's controller as "you".
+ */
+export const spendableFromTucked = (
+  opts: { readonly cards?: TargetQuery; readonly by?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "spendableFromTucked",
+    cards: opts.cards ?? { categories: ["resource"] },
+    by: opts.by ?? { kind: "each" },
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Falcon does not exhaust to defend until the end of the phase." (Draw Their Fire, `falcon` 53011;
+ * docs/phase7-wave9.md §3.47): the rule itself, for `applyRuleUntil(doesNotExhaustToDefend(YOUR_HERO), "endOfPhase")`
+ * in an ability's effects. `character` is who it covers, read with the ability's controller as "you". While it lasts
+ * each matching character makes its basic defense without exhausting, attack after attack, ready or already exhausted
+ * (RRG 1.8 "Defend, Defense", p. 15: an ability that lets a character be declared the defender without exhausting "can
+ * be used on an exhausted hero"), and stays as it was. Everything else about the defense is unchanged: a hero's DEF
+ * comes off, "after you defend" abilities resolve, one defender per attack, and a hero in alter-ego form has no
+ * defense to make. `defendsWithoutExhausting(...)` is the same rule as a constant's part.
+ */
+export const doesNotExhaustToDefend = (
+  character: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): Extract<RuleSpec, { kind: "defendsWithoutExhausting" }> => ({
+  kind: "defendsWithoutExhausting",
+  character,
+  ...(opts.while ? { while: opts.while } : {}),
+});
+/** "[This character] does not exhaust to defend." as a constant's part: `constant(defendsWithoutExhausting(query))`. */
+export const defendsWithoutExhausting = (
+  character: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => rule(doesNotExhaustToDefend(character, opts));
+/**
+ * The card a granted ability's text names: "Then, discard Night Vision Goggles" inside the Preparation that Night
+ * Vision Goggles gives other cards (`aos` 50070; docs/phase7-wave9.md §3.3) → `discard(grantingCard)`. The card whose
+ * `grantsPreparation` rule gave the resolving card this ability (engine `GRANTED_BY_SLOT`), not `self`, which is the
+ * discarded card that gained it. No card outside a granted ability.
+ */
+export const grantingCard: TargetRef = { kind: "slot", slot: GRANTED_BY_SLOT };
+/**
  * "You take the first turn during the player phase" (Field Commander, `cyclops` 33004; docs/phase7-wave6.md §3.27) →
  * `constant(takesFirstTurn(you))`. Read as the player phase begins (§4.1 Q16): that player's turn first, then the rest
  * in player order from the first player. The first player token and every other "in player order" sequence stay.
@@ -827,6 +953,25 @@ export const additionalCostToReady = (
     ...(opts.player ? { player: opts.player } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
+/**
+ * "As an additional cost for a player to attack, thwart, or defend with an ally, that player must spend 1 resource of
+ * any type" (Divided Loyalties, `aos` 50173; docs/phase7-wave9.md §3.31) →
+ * `constant(additionalPowerCost(query("ally"), ["attack", "thwart", "defend"], 1))`. A number is that many resources of
+ * any type; a typed cost is `{ energy: 1 }`.
+ *
+ * Paid by the character's controller with the power's own costs (RRG 1.8 "Cost", p. 13): a basic attack or thwart
+ * carries the payment and is refused unpaid, the character unexhausted; at the Declare Defender step a character whose
+ * controller cannot pay is not offered, and one declared and then not paid for is not the defender and does not
+ * exhaust. Several rules add up. It reaches basic attacks, basic thwarts and the step's defenders only: not an attack
+ * or thwart a character makes by its own triggered ability, nor a defender a card ability declares.
+ */
+export const additionalPowerCost = (
+  character: TargetQuery,
+  powers: readonly ("attack" | "thwart" | "defend")[],
+  resources: number | ResourceRequirement,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({ kind: "additionalPowerCost", character, powers, resources, ...(opts.while ? { while: opts.while } : {}) });
 /**
  * "While there are no other [Symbiote] environments in play, this card is considered a [Symbiote] environment"
  * (Festering Mass, `sm` 27124; docs/phase7-wave5.md §3.9): `constant(countsAs({ self: true }, ["environment"], {
@@ -1010,12 +1155,19 @@ export const takesDamageOnlyFromAttacks = (
  * (`next_evol` 40182; docs/phase7-wave7.md §3.30): `constant(reducesAttackDamageTaken({ self: true }, 1, {
  * exceptAttacker: { trait: TINY } }))`, a `reduceDamageTaken` with `fromAttack`. Without `exceptAttacker` it is Wide
  * Stance's shape (docs/phase7-wave3.md §3.15). Excess damage is measured on the reduced amount (RRG 1.8 "Overkill",
- * p. 31).
+ * p. 31). "… unless the attacker or attack has the [AERIAL] trait, or the attack has ranged" (Aerial Dogfight, `aos`
+ * 50159; docs/phase7-wave9.md §3.25) adds `exceptAttackCard: { trait: AERIAL }, exceptAttackKeyword: "ranged"`, read
+ * as `takesDamageOnlyFromAttacks` reads its `attackCard` and `attackKeyword`.
  */
 export const reducesAttackDamageTaken = (
   target: TargetQuery,
   amount: number,
-  opts: { readonly exceptAttacker?: TargetQuery; readonly while?: Predicate } = {},
+  opts: {
+    readonly exceptAttacker?: TargetQuery;
+    readonly exceptAttackCard?: TargetQuery;
+    readonly exceptAttackKeyword?: AttackKeyword;
+    readonly while?: Predicate;
+  } = {},
 ): ConstantPart =>
   rule({
     kind: "reduceDamageTaken",
@@ -1023,6 +1175,8 @@ export const reducesAttackDamageTaken = (
     amount,
     fromAttack: true,
     ...(opts.exceptAttacker ? { exceptAttacker: opts.exceptAttacker } : {}),
+    ...(opts.exceptAttackCard ? { exceptAttackCard: opts.exceptAttackCard } : {}),
+    ...(opts.exceptAttackKeyword ? { exceptAttackKeyword: opts.exceptAttackKeyword } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
@@ -1215,6 +1369,19 @@ export const inVictoryDisplay = (definition: AbilityDefinition): AbilityDefiniti
  * the card's own discard, and a cost.
  */
 export const inDiscard = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "discard" });
+/**
+ * "Forced Response: After a player card effect discards this card from under an identity, that identity takes 2
+ * damage." (Hunting the Spider-Bride, `silk` 52031): the response is the card's own answer to its discard from under
+ * another card, read from the card where that discard left it, and nowhere else (`AbilityDefinition.activeIn`,
+ * docs/phase7-wave9.md §3.40 (b); RRG 1.8 "Tuck", p. 45, and "In Play and Out of Play", p. 23).
+ * `whileTucked(forcedResponse(on.thisDiscardedFromUnder({ … }), …))`. "You" is the player the host spoke to (the
+ * identity's controller, `eventPlayer`). `validateDefinition` rejects anything but a response to the card's own
+ * discard from under a card, and a cost.
+ */
+export const whileTucked = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  activeIn: "tucked",
+});
 /**
  * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
  * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
@@ -1549,6 +1716,15 @@ export const playWithTopOfDeckFaceup = (
   opts: { readonly while?: Predicate } = {},
 ): ConstantPart => rule({ kind: "topOfDeckFaceup", player, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "During the player phase, play with the top card of the encounter deck faceup." (Falcon 53001a;
+ * docs/phase7-wave9.md §3.42) → `constant(playWithTopOfEncounterDeckFaceup({ while: duringPlayerPhase }))` on the hero
+ * face. While the constant is active the top card of the encounter deck (the active villain's) is visible to every
+ * player and the log follows it (`encounterTopShown` / `encounterTopHidden`); nothing is looked at, revealed or moved.
+ * Off, the card is facedown again and no `topOfEncounterDeck…` condition is met (wave 8 §4.1 Q26 = B).
+ */
+export const playWithTopOfEncounterDeckFaceup = (opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "topOfDeckFaceup", deck: "encounter", ...(opts.while ? { while: opts.while } : {}) });
+/**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a
@@ -1809,6 +1985,29 @@ export const encounterLookDiscardCost = (look: number, discard: number, slot: st
   encounterLookDiscard: { look, discard, slot },
 });
 /**
+ * "Discard the top card of the encounter deck →" (Redwing 53002, Battlefield Awareness 53010; docs/phase7-wave9.md
+ * §3.43 (a)): the top `n` cards of the encounter deck are discarded as the cost, before the effects resolve, and bound
+ * to `slot` with `<slot>.count`, `<slot>.boostIcons` and `<slot>.starIcons` ("X is the number of icons (★ and boost)
+ * in the discarded card's boost area" is `sum(varOf("<slot>.boostIcons"), varOf("<slot>.starIcons"))`). A deck the
+ * discard empties is reset at once and the cost is paid with what was discarded (RRG 1.8 "Encounter Deck", p. 17).
+ */
+export const discardTopOfEncounterDeckCost = (slot: string, n = 1): AbilityCost => ({
+  discardFromEncounterDeck: { amount: n, slot },
+});
+/**
+ * "Choose a number from 1 to 5. Discard that many cards from the top of the encounter deck →" (Infiltration 51015;
+ * docs/phase7-wave9.md §3.43 (a)): the payer chooses the number as the cost is paid, from `min` to `max` whatever the
+ * deck holds (a deck the discard empties is reset and the cost is paid with what was discarded; RRG 1.8 "Encounter
+ * Deck", p. 17). "For each card discarded this way" is `varOf("<slot>.count")`; `varOf("<slot>.chosen")` is the number
+ * chosen; `chosen(slot)` the cards.
+ */
+export const discardChosenFromEncounterDeckCost = (
+  slot: string,
+  range: { readonly min: number; readonly max: number },
+): AbilityCost => ({
+  discardFromEncounterDeck: { amount: { choose: { min: range.min, max: range.max } }, slot },
+});
+/**
  * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33). Payable only if the
  * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
  * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).
@@ -1831,6 +2030,21 @@ export const discardTopOfDeckCost = (n: number | ValueSpec = 1, slot?: string): 
 export const discardUpToTopOfDeckCost = (max: number, slot?: string): AbilityCost => ({
   discardFromDeck: { choose: { min: 1, max } },
   ...(slot !== undefined ? { discardFromDeckSlot: slot } : {}),
+});
+/**
+ * "Remove 1 threat from your suit form upgrade →" (docs/phase7-wave9.md §3.7 (b)): `n` threat comes off the one card
+ * in play `from` names, all of it or the cost cannot be paid. The text after the arrow reads the amount removed as
+ * `varOf("cost.removeThreat")`.
+ */
+export const removeThreatCost = (from: TargetRef, n = 1): AbilityCost => ({ removeThreat: { from, amount: n } });
+/**
+ * "Remove up to 3 threat from here → … for each threat removed this way" (docs/phase7-wave9.md §3.7 (b)): the payer
+ * chooses how much, from 1 (RRG 1.8 "Cost", p. 14: "up to" still means at least one) to the smaller of `max` and the
+ * threat on the card, as the cost is paid. The text after the arrow reads the amount removed as
+ * `varOf("cost.removeThreat")`.
+ */
+export const removeThreatUpToCost = (from: TargetRef, max: number): AbilityCost => ({
+  removeThreat: { from, amount: { choose: { min: 1, max } } },
 });
 /**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
@@ -1994,11 +2208,20 @@ export interface InPlayCostOptions {
    * must match; `max` is not allowed.
    */
   readonly each?: true;
+  /**
+   * "Exhaust The Elephant's Trunk and up to 2 other [Wakanda] allies and/or supports you control →" (`bp` 51007): this
+   * card is one of the picks, always (`InPlayCostPick.includesSelf`), and counts toward `min`, `max` and `bind`, so
+   * that cost is `exhaustCardsCost(<Wakanda allies and supports>, { includingThis: true, max: 3, bind: "n" })` with no
+   * `exhaustThis` beside it. The query must match this card (RRG 1.8 FAQ p. 65: it is itself a Wakanda support, which
+   * is why it meets the minimum of one). Not with `each`.
+   */
+  readonly includingThis?: true;
 }
 
 const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string): InPlayCostPick => {
   if (opts.each) {
     if (opts.max !== undefined) throw new Error("an `each` cost takes every matching card: it has no max");
+    if (opts.includingThis) throw new Error("an `each` cost takes every matching card: `includingThis` is a pick");
     return {
       slot: opts.slot ?? defaultSlot,
       query: q,
@@ -2017,6 +2240,7 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
     query: q,
     min,
     ...(max !== "any" ? { max } : {}),
+    ...(opts.includingThis ? { includesSelf: true as const } : {}),
     ...(opts.bind ? { bind: opts.bind } : {}),
     ...(opts.hosts ? { bindHosts: opts.hosts } : {}),
     ...(opts.stats ? { snapshotStats: true as const } : {}),
@@ -2080,6 +2304,29 @@ export const returnEachToHandCost = (picks: Readonly<Record<string, TargetQuery>
 export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   discardCards: inPlayPick(q, opts, "discarded"),
 });
+/**
+ * "Discard a card tucked here →" (Cindy Moon, `silk` 52001b; docs/phase7-wave9.md §3.39): `min`–`max` (default 1) of
+ * the cards tucked under `under` (default: this card), the payer choosing which, discarded to pay. Payable only while
+ * that many are tucked there, under a card the payer controls. `filter` narrows which tucked cards can pay. The cards
+ * are bound to `"discarded"` (or `slot`), their count to `bind`. `AbilityCost.discardTucked`.
+ */
+export const discardTuckedCost = (
+  under: TargetRef = { kind: "self" },
+  opts: Pick<InPlayCostOptions, "min" | "max" | "slot" | "bind"> & { readonly filter?: TargetQuery } = {},
+): AbilityCost => {
+  const min = opts.min ?? 1;
+  const max = opts.max === undefined ? min : opts.max;
+  return {
+    discardTucked: {
+      slot: opts.slot ?? "discarded",
+      query: opts.filter ?? {},
+      under,
+      min,
+      ...(max !== "any" ? { max } : {}),
+      ...(opts.bind ? { bind: opts.bind } : {}),
+    },
+  };
+};
 /**
  * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
  * the picked character takes `amount` damage from this card, and the cost is payable only while a candidate could take
@@ -2156,6 +2403,15 @@ export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
  * Force, `psylocke` 41019; docs/phase7-wave7.md §3.69).
  */
 export const maxOnePerTriggeringInstance: AbilityLimit = { count: 1, period: "phase", per: "triggeringEvent" };
+/**
+ * "(Limit once per card.)" on a resource ability (Falcon's Flock, `falcon` 53006; docs/phase7-wave9.md §3.46 (a)):
+ * `count` uses toward each card (or ability cost) being paid for, any number of cards in a round. Counted within the
+ * payment, so nothing is used up by a play that is refused or aborted; `period` is not read. A count above 1 needs a
+ * `repeatable` ability (a fixed counter cost, one use per counter).
+ */
+export const limitPerPaidCard = (count = 1): AbilityLimit => ({ count, period: "round", per: "paidCard" });
+/** "(Limit once per card.)" */
+export const oncePerPaidCard: AbilityLimit = limitPerPaidCard(1);
 
 // ---------------------------------------------------------------------------
 // Event patterns: `when.*` for interrupts, `after.*` for responses
@@ -2168,6 +2424,19 @@ const asSource = (who: Who): Partial<EventPattern> =>
   who === "self" ? { selfIs: "source" } : who === "host" ? { sourceIs: { hostOfSelf: true } } : { sourceIs: who };
 const asTarget = (who: Who): Partial<EventPattern> =>
   who === "self" ? { selfIs: "target" } : who === "host" ? { targetIs: { hostOfSelf: true } } : { targetIs: who };
+/** The `eventIs` part of a `tuckedCardDiscarded` pattern (`on.thisDiscardedFromUnder`); nothing when it asks nothing. */
+const tuckedDiscardIs = (opts: {
+  readonly fromUnder?: TuckHostKind;
+  readonly by?: LeaveCauseSide;
+  readonly how?: TuckedDiscardCause | readonly TuckedDiscardCause[];
+}): Partial<EventPattern> => {
+  const eventIs = {
+    ...(opts.fromUnder === undefined ? {} : { under: opts.fromUnder }),
+    ...(opts.by === undefined ? {} : { by: opts.by }),
+    ...(opts.how === undefined ? {} : { how: opts.how }),
+  };
+  return Object.keys(eventIs).length > 0 ? { eventIs } : {};
+};
 const pattern = (
   on: TriggerEventKind | readonly TriggerEventKind[],
   ...parts: readonly Partial<EventPattern>[]
@@ -2602,6 +2871,28 @@ export const on = {
       opts.by === "you" ? { playerIs: "controller" } : {},
     ),
   /**
+   * "When attached enemy would gain a confused or stunned status card" (Solid Sound Constructs, `aos` 50144;
+   * docs/phase7-wave9.md §3.33; RRG 1.8 "'Would'", p. 48): a status card about to be given to `who` (absent: any
+   * character) by an effect (`giveStatus`, a `divide` of status cards). `statuses`: one type or several (absent:
+   * any). Interrupt only, once per status card, before it is on the character: `instead(...)` or `cancelIt()` leaves
+   * it ungiven (a vulnerable character is then not discarded, and "status cards given this way" does not count it);
+   * otherwise it lands after the interrupt. Not heard for a card the character has no room for (it already holds
+   * one, stalwart: RRG 1.8 "Status Cards", p. 41), nor for one given as a cost, by the toughness keyword or by a
+   * constant. The character is `eventTarget`, the giving card `eventSource`. `by: "you"`: only cards this card's
+   * controller's ability gives.
+   */
+  wouldGainStatus: (
+    who?: Who,
+    statuses?: StatusName | readonly StatusName[],
+    opts: { readonly by?: "you" } = {},
+  ): EventPattern =>
+    pattern(
+      "statusBeingGiven",
+      statuses === undefined ? {} : { eventIs: { status: statuses } },
+      who === undefined ? {} : asTarget(who),
+      opts.by === "you" ? { playerIs: "controller" } : {},
+    ),
+  /**
    * "After MaGog's hit points are reset" (Jolt of Adrenaline, Surge of Aggression, `mojo` 39005, 39006): `who` (absent:
    * any character) set to its maximum hit points by `setRemainingHitPoints` (docs/phase7-wave6.md §3.67), MaGog's
    * "reset his hit points instead" with `printedHpOf`/max. Response only; a villain's next stage is not a reset.
@@ -2663,8 +2954,35 @@ export const on = {
    * owner's discard pile, an encounter card to the encounter discard pile). Event cards never match: they resolve from
    * out of play and are never in play (RRG 1.8 "In Play and Out of Play", p. 23). With `instead(...)` it is a
    * replacement (RRG 1.8 "Replacement Effect", p. 37): the leaving is cancelled and the card moves where the effects say.
+   *
+   * `who`: which card ("a card **you control**": `query([], { controlledBy: you })`). `by`: whose card effect
+   * discards it (`TriggerEvent cardLeavesPlay.by`). `by: "encounterCard"` is "When **an encounter card effect** would
+   * discard a card you control" (Front Organization, `aos` 50028): the effect of any ability on a card of an encounter
+   * card type (RRG 1.8 "Card Types", p. 12), a When Revealed, a Boost or a minion's Forced Response alike. With `by`
+   * the routes that are no card's effect never match: a defeat at zero hit points, whatever dealt the damage ("Defeat",
+   * p. 15), an attachment going with its host ("Leaves Play", p. 27), a uses card emptied ("Uses", p. 46), the ally
+   * limit, and a cost ("Cost", p. 13: the arrow "distinguishes a cost from an effect").
    */
-  playerCardDiscardedFromPlay: (): EventPattern => pattern("cardLeavesPlay", { eventIs: { to: "discard" } }),
+  playerCardDiscardedFromPlay: (opts: { readonly who?: Who; readonly by?: LeaveCauseSide } = {}): EventPattern =>
+    pattern("cardLeavesPlay", opts.who === undefined ? {} : asTarget(opts.who), {
+      eventIs: { to: "discard", ...(opts.by === undefined ? {} : { by: opts.by }) },
+    }),
+  /**
+   * "When an encounter card effect would discard **a card you control**" in full (Front Organization, `aos` 50028;
+   * docs/phase7-wave9.md §4.1 Q20 = B): a card in play (`playerCardDiscardedFromPlay`, `cardLeavesPlay`) and a card in
+   * a hand or a deck (`cardBeingDiscarded`), since RRG 1.8 "Ownership and Control" (p. 31) has a player control "the
+   * cards in their own out-of-play areas (such as the hand, the deck, and the discard pile)". Use it in a `would`
+   * interrupt with `instead(...)`: the replaced card stays where it was, in play, in the hand or on the deck.
+   *
+   * `who` and `by` are `playerCardDiscardedFromPlay`'s, read the same way for both events; with `by` only a card
+   * ability's effect matches, never a cost or the game's own discard. From a hand or a deck the engine announces
+   * `EffectSpec discardFromHand` (a random card once it is picked) and a `moveCards` to the discard pile, one event
+   * per card; "discard cards from the top of your deck until …" (`discardDeckUntil`) is not announced.
+   */
+  cardYouControlDiscarded: (opts: { readonly who?: Who; readonly by?: LeaveCauseSide } = {}): EventPattern =>
+    pattern(["cardLeavesPlay", "cardBeingDiscarded"], opts.who === undefined ? {} : asTarget(opts.who), {
+      eventIs: { to: "discard", ...(opts.by === undefined ? {} : { by: opts.by }) },
+    }),
   /**
    * "When a SHOW environment would be discarded" (Across the Mojoverse 1B, `mojo` 39015b; docs/phase7-wave6.md §3.66):
    * the encounter-card sibling of `playerCardDiscardedFromPlay`, a card `who` names leaving play for the encounter
@@ -2688,6 +3006,89 @@ export const on = {
    */
   encounterCardFromPlayerDeck: (how?: "draw" | "discard"): EventPattern =>
     pattern("encounterCardFromPlayerDeck", ...(how ? [{ eventIs: { how } }] : [])),
+  /**
+   * "After **a player** is dealt an encounter card" (Intelligence, `aos` 50051; docs/phase7-wave9.md §3.12): any
+   * player's, named with `eventPlayer`; the facedown card is `eventTarget`. Heard for every deal (RRG 1.8 "Deal, Deal
+   * an Encounter Card", p. 15): step three of the villain phase and its hazard cards, a card ability's deal (an effect
+   * or a cost, a card dealt "as a facedown encounter card" included), a player deck that ran out and the card the
+   * surge keyword deals (RRG 1.8 "Surge", p. 42; docs/phase7-wave9.md §4.1 Q19), heard before that card is revealed.
+   * `source` narrows it. One event per card, but the cards one step or one effect dealt share one response window, so
+   * step three asks once, after every card is dealt and before any is revealed. Response only; "would be dealt" is
+   * another event (docs/phase7-wave9.md §3.45). "Reveal the top card of the encounter deck" is not a deal.
+   */
+  aPlayerIsDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
+    pattern("encounterCardDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),
+  /**
+   * "When **a player** would be dealt an encounter card" (Aerial Recon, `falcon` 53009; docs/phase7-wave9.md §3.45;
+   * RRG 1.8 "'Would'", p. 48). Use it in a `would` interrupt: any player's deal, named with `eventPlayer`; the card
+   * whose ability or surge keyword deals it is `eventSource`. The card itself is not named: it is still on the
+   * encounter deck. One event and one window per card, before the card leaves the deck: step three of the villain
+   * phase and its hazard cards (each player's in player order), a card effect's deal, a player deck that ran out and
+   * the surge keyword's card (docs/phase7-wave9.md §4.1 Q19). `source` narrows it. `replaceTriggeringEvent(…)` is
+   * "… instead": the card stays on top of the encounter deck, that player is dealt nothing by that deal and a surge
+   * reveals nothing (RRG 1.8 "Replacement Effect", p. 37). Interrupt only; "after a player is dealt" is
+   * `aPlayerIsDealtAnEncounterCard`. Not heard: a deal paid as a cost (RRG 1.8 "Cost", p. 13) and a named card dealt
+   * "as a facedown encounter card".
+   */
+  aPlayerWouldBeDealtAnEncounterCard: (source?: EncounterDealSource | readonly EncounterDealSource[]): EventPattern =>
+    pattern("encounterCardBeingDealt", ...(source === undefined ? [] : [{ eventIs: { source } }])),
+  /**
+   * "When a card would be tucked **under your identity by a player card effect**" (Silk Sense Overload, `silk` 52028;
+   * docs/phase7-wave9.md §3.40 (a); RRG 1.8 "Tuck", p. 45). Use it in a `would` interrupt: the card is `eventTarget`,
+   * the card whose ability tucks it `eventSource`, and `replaceTuckHost(self)` is "tuck it under here instead".
+   * `under: "yourIdentity"`: the host is an identity and its controller is this card's "you" (on an obligation, the
+   * player it was given to); `"identity"`: any player's identity; absent: any host. `by`: the side of the card whose
+   * effect tucks it (`TriggerEvent cardBeingTucked.by`; RRG 1.8 "Card Types", p. 12): `"playerCard"` is an identity,
+   * an upgrade or a player side scheme alike, and a treachery tucking itself is an `"encounterCard"`'s. A swap with a
+   * tucked card (RRG 1.8 "Swap", p. 42) is no tuck and is not heard. Interrupt only.
+   */
+  cardWouldBeTucked: (
+    opts: { readonly under?: "yourIdentity" | "identity"; readonly by?: LeaveCauseSide } = {},
+  ): EventPattern => {
+    const eventIs = {
+      ...(opts.under === undefined ? {} : { under: "identity" satisfies TuckHostKind }),
+      ...(opts.by === undefined ? {} : { by: opts.by }),
+    };
+    return pattern(
+      "cardBeingTucked",
+      opts.under === "yourIdentity" ? { playerIs: "controller" } : {},
+      Object.keys(eventIs).length > 0 ? { eventIs } : {},
+    );
+  },
+  /**
+   * "After **a player card effect** discards this card **from under an identity**" (Hunting the Spider-Bride, `silk`
+   * 52031; docs/phase7-wave9.md §3.40 (b)). Pair with `whileTucked(forcedResponse(...))`: the card answers from the
+   * discard pile it went to, "that identity" is `identityOf(eventPlayer)` and the discarding card `eventSource`.
+   *
+   * `fromUnder: "identity"`: only from under an identity card. `by`: the side of the card whose ability discarded it,
+   * **as an effect or as a cost** (`TriggerEvent tuckedCardDiscarded.by`). Owner decision §4.1 Q7 = A (provisional):
+   * "a player card effect" is any discard a player card causes, so 52031 is `{ fromUnder: "identity", by:
+   * "playerCard" }` and hears Cindy Moon's cost and the identity's four-card cap as well as an event's effect. `how`
+   * narrows it (answer B would be `how: "effect"`): `"effect"`, `"cost"` (RRG 1.8 "Cost", p. 13), or `"rule"`, the
+   * game's discard of the cards under a card that leaves play (RRG 1.8 "Tuck", p. 45), which has no `by`. A card
+   * that stops being tucked without a discard (swapped, returned to a hand) is not heard. Response only.
+   */
+  thisDiscardedFromUnder: (
+    opts: {
+      readonly fromUnder?: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      readonly how?: TuckedDiscardCause | readonly TuckedDiscardCause[];
+    } = {},
+  ): EventPattern => pattern("tuckedCardDiscarded", { selfIs: "target" }, tuckedDiscardIs(opts)),
+  /**
+   * "After a card is discarded from under [a card]": the same event heard by a card in play, any tucked card's
+   * discard (`eventTarget`), with the options of `thisDiscardedFromUnder`. `yours`: only from under a card that
+   * speaks to this card's controller (their identity, a card they control).
+   */
+  tuckedCardDiscarded: (
+    opts: {
+      readonly fromUnder?: TuckHostKind;
+      readonly by?: LeaveCauseSide;
+      readonly how?: TuckedDiscardCause | readonly TuckedDiscardCause[];
+      readonly yours?: boolean;
+    } = {},
+  ): EventPattern =>
+    pattern("tuckedCardDiscarded", opts.yours ? { playerIs: "controller" } : {}, tuckedDiscardIs(opts)),
   /**
    * "After this card enters your hand" (Infiltration, Shapeshifter Surprise, `mut_gen` 32082-32083;
    * docs/phase7-wave6.md §3.10): however it enters a hand (drawn, searched for, returned, moved there). Pair with
@@ -2720,11 +3121,69 @@ export const on = {
    */
   youDiscardFromYourDeck: (): EventPattern => pattern("cardDiscardedFromDeck", { playerIs: "controller" }),
   /**
+   * "After a [card] is discarded from the top of the encounter deck" (Serpent Solutions, `falcon` 53031;
+   * docs/phase7-wave9.md §3.43 (b)): each card an effect or a cost discards off the top of an encounter deck, by any
+   * card: `discardEncounterCards`, `discardEncounterUntil`, a `discardTopOfEncounterDeckCost` or
+   * `encounterLookDiscardCost` cost, a `moveCards` from the deck. Not a boost card discarded after an activation, which
+   * leaves play (RRG 1.8 "Boost, Boost Icon", p. 11). `card` narrows the discarded card ("a Serpent Society minion"),
+   * which is `eventTarget` ("that minion"); `how` and `by` narrow the cause ("a player card's cost"). There is no
+   * `eventPlayer`: the deck is no player's.
+   *
+   * A response only, on a card in play. The cards one effect or cost discarded share one response window (RRG 1.8
+   * "Triggering Condition", p. 45), which resolves before the discarding ability's next effect, or before its effects
+   * for a cost. A card the response moves is no longer among that ability's cards "discarded this way" (wave 7 §4.1
+   * Q32), and no other response is offered for it. The card whose discard emptied the deck is in the new deck when
+   * the response resolves (RRG 1.8 "Encounter Deck", p. 17), and is taken from there.
+   */
+  discardedFromEncounterDeck: (
+    card: TargetQuery = {},
+    opts: { readonly how?: "effect" | "cost"; readonly by?: LeaveCauseSide } = {},
+  ): EventPattern =>
+    pattern("cardDiscardedFromDeck", Object.keys(card).length > 0 ? { targetIs: card } : {}, {
+      eventIs: {
+        deck: "encounter",
+        ...(opts.how ? { how: opts.how } : {}),
+        ...(opts.by ? { by: opts.by } : {}),
+      },
+    }),
+  /**
+   * "After you resolve [card]'s '[Name]' ability" (Talon Line, `falcon` 53012: "After you resolve Falcon's
+   * 'Eagle-Eyed' ability"; docs/phase7-wave9.md §3.43 (c)): the ability with that id resolved, its controller being
+   * "you". The slots that ability held as it began to resolve, what its costs bound among them, are this ability's as
+   * `moment.<slot>`: "the discarded card" of a `discardTopOfEncounterDeckCost(1, "discarded")` is
+   * `chosen("moment.discarded")`, read where the card now is (`boostIcons`, `starIcons`). A card a response to its
+   * discard took away is still in that set here. Vars are not handed over.
+   */
+  youResolveAbility: (abilityId: string): EventPattern =>
+    pattern("abilityResolved", { playerIs: "controller" }, { eventIs: { abilityId } }),
+  /**
    * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
    * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"
    * `eventPlayer`.
    */
   boostCardResolved: (during: Who): EventPattern => pattern("boostCardResolved", asSource(during)),
+  /**
+   * "After [an attacking enemy] is given a facedown boost card" (Up, Up, and Away, `falcon` 53005;
+   * docs/phase7-wave9.md §3.44): each facedown boost card given, one event and one response window per card: the
+   * activation's own, each additional one, and one a card ability gives. `activation: "attack"` is "an attacking
+   * enemy", `"scheme"` a scheming one; left out, any boost card, one given outside an activation included. `to`
+   * narrows who is given it ("the villain"); `againstYou`: the activation is against you. "That card" is
+   * `eventTarget`, facedown: look at it with `lookAt` or `lookAtAndRearrange`, never narrow the pattern by it. The
+   * enemy is `eventSource`.
+   *
+   * A response only. During its own activation an enemy is given its boost cards one at a time, each window resolved
+   * before the next card leaves the deck. A second copy may answer the same boost card (RRG 1.8 "Triggering
+   * Condition", p. 45); once a swap has put another card in its place, `eventTarget` is that card.
+   */
+  boostCardGiven: (
+    opts: { readonly activation?: "attack" | "scheme"; readonly to?: Who; readonly againstYou?: boolean } = {},
+  ): EventPattern =>
+    pattern(
+      "boostCardGiven",
+      opts.to !== undefined ? asSource(opts.to) : {},
+      opts.activation ? { activation: opts.activation } : {},
+      opts.againstYou ? { playerIs: "controller" } : {},
+    ),
   /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
   yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
   /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */

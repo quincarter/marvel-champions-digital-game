@@ -969,6 +969,8 @@ export function triggerLabel(trigger: AbilityTriggerSpec): string {
       return "Setup";
     case "special":
       return "Special";
+    case "preparation":
+      return "Preparation";
     // "Attach to … If you cannot, …": the printed attach instruction, which has no header of its own.
     case "cannotAttach":
       return "Attach To";

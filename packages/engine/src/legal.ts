@@ -29,6 +29,11 @@ import {
   isActionEvent,
   usableEventActions,
   handCardResources,
+  isAlternativeAmount,
+  isWhenSpentUse,
+  mostFromEachHandCard,
+  spentCardOptionId,
+  priceOrNull,
   paidForMultiplied,
   paymentOptions,
   paymentsFromOptionIds,
@@ -52,14 +57,17 @@ import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
 import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
+import { encounterDiscardCostRange } from "./encounter-discard-cost.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
+  activeEncounterDeck,
   cardOf,
   cardZoneCandidates,
   getPlayer,
   heroFacesOf,
   isMinion,
+  locateCard,
   playerOrder,
   showingResources,
   undefeatedVillains,
@@ -68,7 +76,8 @@ import {
   scenarioPlayAreaOf,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { combineRequirements, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { addPools, combineRequirements, poolTotal, requirementTotal, type ResolvedRequirement } from "./resources.js";
+import { basicPowerCostNeeds } from "./basic-power-uses.js";
 import { attachmentReachOf, formChangeCostsFor, playDestinationsOf, type FormChangeCost } from "./rules.js";
 import { formChangeCostSources } from "./form-change-cost.js";
 import {
@@ -76,6 +85,7 @@ import {
   cardsInPlay,
   controllerOf,
   isAlly,
+  isCaptiveAlly,
   matchesQuery,
   triggeringPlayers,
   type EffectContext,
@@ -138,6 +148,15 @@ export interface LegalAction {
    * right now, sent as `costSelection.counters`. `example` removes the most. Absent for any other cost.
    */
   readonly costCounters?: { readonly min: number; readonly max: number };
+  /**
+   * A cost that discards from the top of the encounter deck (`AbilityCost.discardFromEncounterDeck`;
+   * docs/phase7-wave9.md §3.43 (a)): the numbers the player may choose from, `min` equal to `max` for a printed number,
+   * and `inDeck`, the cards the encounter deck holds now. A number above `inDeck` is legal: the deck's cards are
+   * discarded, the deck is reset with an acceleration token and the cost is paid (RRG 1.8 "Encounter Deck", p. 17).
+   * The client may send the number as `costSelection.discardFromEncounterDeck`; without it the engine asks as the cost
+   * is paid. Absent for any other cost.
+   */
+  readonly encounterDeckDiscard?: { readonly min: number; readonly max: number; readonly inDeck: number };
   /**
    * A resource cost whose size the player chooses ("spend up to 3 resources →"; docs/phase7-wave8.md §3.62): the
    * payment must generate at least `min` resources in all, a card with two icons counting two; up to `max` of them
@@ -259,6 +278,18 @@ function counterRange(
   return { min: 1, max: Math.min(counters.amount, held) };
 }
 
+/** The `encounterDeckDiscard` range of a cost that discards from the top of the encounter deck (wave 9 §3.43 (a)). */
+function encounterDiscardRange(
+  state: GameState,
+  cost: AbilityCost | undefined,
+): LegalAction["encounterDeckDiscard"] | undefined {
+  const component = [cost, ...(cost?.either ?? [])].find((part) => part?.discardFromEncounterDeck);
+  const range = component?.discardFromEncounterDeck
+    ? encounterDiscardCostRange(state, component.discardFromEncounterDeck)
+    : null;
+  return range ? { ...range, inDeck: activeEncounterDeck(state).deck.length } : undefined;
+}
+
 const withBranch = (branch: number | undefined): { readonly costSelection?: CostSelection } =>
   branch === undefined ? {} : { costSelection: { branch } };
 
@@ -291,8 +322,12 @@ function spendOrder(
   const payments = paymentsFromOptionIds(
     paymentOptions(createCtx(state, deps), playerId, null, payingFor).map((o) => o.optionId),
   );
-  const abilities = payments.filter((p) => "ability" in p);
-  const hand = payments.flatMap((p) => ("fromHand" in p && !reserved.has(p.fromHand) ? [p.fromHand] : []));
+  // One use of a resource ability pays one amount: the option for the most it generates (`isAlternativeAmount`).
+  const abilities = payments.filter((p) => "ability" in p && !isAlternativeAmount(p));
+  // One card is spent once: its plain spending here, its "When you spend this card" uses in `walletsWithWhenSpent`.
+  const hand = payments.flatMap((p) =>
+    "fromHand" in p && !isWhenSpentUse(p) && !reserved.has(p.fromHand) ? [p.fromHand] : [],
+  );
   hand.sort(
     (a, b) => resourceCount(state, b) - resourceCount(state, a) || isResourceCard(state, b) - isResourceCard(state, a),
   );
@@ -307,6 +342,46 @@ function spendOrder(
 function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   const handOnly = spend.filter((p) => "fromHand" in p);
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
+}
+
+/**
+ * `wallets(spend)`, then the same wallets with each hand card spent the way that generates the most: with its own
+ * "Interrupt: When you spend this card, [cost] → generate …" where it has one that can be used (`Payment.whenSpent`,
+ * `mostFromEachHandCard`). They come last, so `example` and `suggested` use such an ability only when the plain
+ * payments do not pay (its cost is cards the player may want ready), and an action that only it makes affordable is
+ * still listed. A wallet is built for each number of cards such a cost may pick, the fewest first, so the payment
+ * found exhausts no more cards than it needs; within a wallet the cards generating the most come first, so the
+ * shortest prefix that pays spends the fewest.
+ */
+function walletsWithWhenSpent(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  reserved: ReadonlySet<InstanceId>,
+  payingFor: InstanceId | null,
+  spend: readonly Payment[],
+): readonly (readonly Payment[])[] {
+  const plain = wallets(spend);
+  const ctx = createCtx(state, deps);
+  const uses = paymentsFromOptionIds(paymentOptions(ctx, playerId, null, payingFor).map((o) => o.optionId)).filter(
+    (p) => "fromHand" in p && isWhenSpentUse(p) && !reserved.has(p.fromHand),
+  );
+  if (uses.length === 0) return plain;
+  const total = (payment: Payment): number => {
+    const pool = priceOrNull(ctx, playerId, [payment], null, payingFor);
+    return pool ? poolTotal(pool) : 0;
+  };
+  const picksOf = (p: Payment): number =>
+    "fromHand" in p ? Object.values(p.whenSpent?.costChoices ?? {}).flat().length : 0;
+  const sizes = [...new Set(uses.map(picksOf))].sort((a, b) => a - b);
+  return [
+    ...plain,
+    ...sizes.flatMap((size) => {
+      const most = mostFromEachHandCard(ctx, playerId, [...spend, ...uses], null, payingFor, size);
+      const hand = most.filter((p) => "fromHand" in p).sort((a, b) => total(b) - total(a));
+      return wallets([...most.filter((p) => "ability" in p), ...hand]);
+    }),
+  ];
 }
 
 /** How many payments of a chosen-size cost `legalActions` probes before the usual wallets (`chosenSizeWallets`). */
@@ -400,7 +475,7 @@ function formChangeWithCost(
     reserved,
     spend,
     requirement,
-    tryWallets: [...exact, ...wallets(spend)],
+    tryWallets: [...exact, ...walletsWithWhenSpent(state, deps, playerId, reserved, null, spend)],
     build: (payment) => ({
       type: "changeForm",
       playerId,
@@ -408,6 +483,63 @@ function formChangeWithCost(
       payment,
       ...(costChoices ? { costChoices } : {}),
     }),
+  };
+}
+
+type BasicPowerRef = Extract<ActionRef, { kind: "basicAttack" | "basicThwart" }>;
+
+/**
+ * A basic attack or thwart whose additional costs ask for resources: the power's own (`basicPowerCosts`, "that hero
+ * must spend 1 of any resource") and a rule's over the character (`RuleSpec additionalPowerCost`,
+ * docs/phase7-wave9.md §3.31). As `formChangeWithCost`: the command carries the payment, the payments that generate
+ * exactly the total are tried first, then everything the player holds. Null when the power asks for no resources.
+ */
+function basicPowerWithCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: BasicPowerRef,
+  given?: CostChoices,
+): {
+  readonly costChoices: CostChoices | undefined;
+  readonly reserved: ReadonlySet<InstanceId>;
+  readonly requirement: ResolvedRequirement;
+  readonly tryWallets: readonly (readonly Payment[])[];
+} | null {
+  const power = action.kind === "basicAttack" ? "attack" : "thwart";
+  const character = action.instanceId;
+  const picks =
+    given?.discard ?? discardPicks(state, deps, playerId, character, basicPowerCost(state, deps, character, power));
+  const costChoices = mergeChoices(picks.length > 0 ? { discard: picks } : undefined, given);
+  const needs = basicPowerCostNeeds(state, deps, playerId, character, power, picks.length > 0 ? picks : undefined);
+  if (!needs || "fault" in needs) return null;
+  const total = requirementTotal(needs.requirement);
+  if (total === 0) return null;
+  const reserved = new Set(picks);
+  const spend = spendOrder(state, deps, playerId, reserved, null);
+  const exact = chosenSizeWallets(state, deps, playerId, spend, { min: total, max: total }, null, FORM_CHANGE_WALLETS);
+  return {
+    costChoices,
+    reserved,
+    requirement: needs.requirement,
+    tryWallets: [...exact, ...walletsWithWhenSpent(state, deps, playerId, reserved, null, spend)],
+  };
+}
+
+/** The basic attack or thwart command with its cost picks and payment filled in. */
+function basicPowerCommandWith(
+  playerId: PlayerId,
+  action: BasicPowerRef,
+  target: InstanceId,
+  costChoices: CostChoices | undefined,
+  payment: readonly Payment[],
+): Command {
+  const command = mustBasicCommand(playerId, action, target);
+  if (command.type !== "basicAttack" && command.type !== "basicThwart") return command;
+  return {
+    ...command,
+    ...(costChoices ? { costChoices } : {}),
+    ...(payment.length > 0 ? { payment } : {}),
   };
 }
 
@@ -757,7 +889,8 @@ function evaluatePlayOf(
 ): Evaluated {
   const cost = costAsDetermined(state, deps, id, playerId, ability?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
-  const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
+  const reserved = new Set([id, ...picks]);
+  const spend = spendOrder(state, deps, playerId, reserved, id);
   const context: EffectContext = {
     selfInstanceId: id,
     controllerId: playerId,
@@ -827,10 +960,18 @@ function evaluatePlayOf(
     instanceId: id,
     ...(deckTopPermission(state, deps, playerId)?.instanceId === id ? { from: "deckTop" as const } : {}),
   };
-  const tryWallets = withThwartCostWallets(state, deps, ability, leavingCardsToDiscard(wallets(spend), cost));
+  const tryWallets = withThwartCostWallets(
+    state,
+    deps,
+    ability,
+    leavingCardsToDiscard(walletsWithWhenSpent(state, deps, playerId, reserved, id, spend), cost),
+  );
   const own = evaluate(state, deps, action, variants, tryWallets);
   const ranged = (evaluated: Evaluated): Evaluated =>
-    withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost));
+    withEncounterDiscard(
+      withCounterRange(evaluated, counterRange(state, deps, playerId, id, cost)),
+      encounterDiscardRange(state, cost),
+    );
   if ("legal" in own) return withDestinations(state, deps, id, ranged(own));
   // Not playable to the player's own area. A reduction that reads the destination may still pay for it there
   // (docs/phase7-wave8.md §3.35): the same variants, each naming the area. An upgrade with "attach to" text has other
@@ -916,6 +1057,10 @@ const withCounterRange = (
   range: { readonly min: number; readonly max: number } | undefined,
 ): Evaluated => ("legal" in evaluated && range ? { legal: { ...evaluated.legal, costCounters: range } } : evaluated);
 
+/** Adds `encounterDeckDiscard` to a legal action whose cost discards from the encounter deck (wave 9 §3.43 (a)). */
+const withEncounterDiscard = (evaluated: Evaluated, range: LegalAction["encounterDeckDiscard"]): Evaluated =>
+  "legal" in evaluated && range ? { legal: { ...evaluated.legal, encounterDeckDiscard: range } } : evaluated;
+
 /** The `playCostReduction` abilities `playerId` could use on playing this card right now (docs/phase7-wave3.md §3.20). */
 function playCostReducers(
   state: GameState,
@@ -944,7 +1089,8 @@ function evaluateAbility(
 ): Evaluated {
   const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
-  const spend = spendOrder(state, deps, playerId, new Set(picks), null);
+  const reserved = new Set(picks);
+  const spend = spendOrder(state, deps, playerId, reserved, null);
   const chosenSize = resourcesChoiceOf(cost);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
     ({ costChoices, target }) =>
@@ -973,12 +1119,18 @@ function evaluateAbility(
       deps,
       deps.abilities[abilityId],
       leavingCardsToDiscard(
-        [...chosenSizeWallets(state, deps, playerId, spend, chosenSize, instanceId), ...wallets(spend)],
+        [
+          ...chosenSizeWallets(state, deps, playerId, spend, chosenSize, instanceId),
+          ...walletsWithWhenSpent(state, deps, playerId, reserved, null, spend),
+        ],
         cost,
       ),
     ),
   );
-  const ranged = withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost));
+  const ranged = withEncounterDiscard(
+    withCounterRange(evaluated, counterRange(state, deps, playerId, instanceId, cost)),
+    encounterDiscardRange(state, cost),
+  );
   return "legal" in ranged && chosenSize ? { legal: { ...ranged.legal, chosenResources: chosenSize } } : ranged;
 }
 
@@ -1010,6 +1162,8 @@ function actionAbilities(
       // otherwise the card's controller, or any player on a card nobody controls (an encounter card).
       const named = inHand ? null : triggeringPlayers(state, deps, id, trigger, null);
       if (named ? !named.includes(playerId) : controller !== null && controller !== playerId) continue;
+      // An ally under no player's control is used by nobody (docs/phase7-wave9.md §3.19; `isCaptiveAlly`).
+      if (!named && isCaptiveAlly(state, id)) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
       found.push({ instanceId: id, abilityId: ref.id });
@@ -1124,29 +1278,22 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
       return type === "side_scheme" || type === "player_side_scheme";
     }),
   ];
-  // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`).
-  const withPicks = (character: InstanceId, power: "attack" | "thwart", command: Command): Command => {
+  // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`);
+  // one whose additional costs ask for resources is tried with a payment (`basicPowerWithCost`).
+  const powerOf = (action: BasicPowerRef, targets: readonly InstanceId[]): Evaluated => {
+    const character = action.instanceId;
+    const power = action.kind === "basicAttack" ? "attack" : "thwart";
+    const costed = basicPowerWithCost(state, deps, playerId, action);
     const picks = discardPicks(state, deps, playerId, character, basicPowerCost(state, deps, character, power));
-    return picks.length > 0 && (command.type === "basicAttack" || command.type === "basicThwart")
-      ? { ...command, costChoices: { discard: picks } }
-      : command;
+    const costChoices = costed?.costChoices ?? (picks.length > 0 ? { discard: picks } : undefined);
+    const variants: Variant[] = targets.map((target) => ({
+      target,
+      build: (payment) => basicPowerCommandWith(playerId, action, target, costChoices, costed ? payment : []),
+    }));
+    return evaluate(state, deps, action, variants, costed?.tryWallets ?? NO_PAYMENT);
   };
-  for (const attacker of characters) {
-    const action: ActionRef = { kind: "basicAttack", instanceId: attacker };
-    const variants: Variant[] = enemies.map((target) => ({
-      target,
-      build: () => withPicks(attacker, "attack", mustBasicCommand(playerId, action, target)),
-    }));
-    results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
-  }
-  for (const thwarter of characters) {
-    const action: ActionRef = { kind: "basicThwart", instanceId: thwarter };
-    const variants: Variant[] = schemes.map((target) => ({
-      target,
-      build: () => withPicks(thwarter, "thwart", mustBasicCommand(playerId, action, target)),
-    }));
-    results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
-  }
+  for (const attacker of characters) results.push(powerOf({ kind: "basicAttack", instanceId: attacker }, enemies));
+  for (const thwarter of characters) results.push(powerOf({ kind: "basicThwart", instanceId: thwarter }, schemes));
   results.push(simple(state, deps, playerId, { kind: "basicRecover" }));
   const identityCard = cardOf(state, player.identity.instanceId);
   const faces = identityCard?.type === "hero_identity" ? heroFacesOf(identityCard).length : 1;
@@ -1184,7 +1331,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
 /** One thing the player can spend toward a cost. */
 export interface PaymentSource {
   /**
-   * The option-id shape `paymentOptions` produces: "hand:<id>" | "ability:<id>:<abilityId>", with ":<n>" for a
+   * The option-id shape `paymentOptions` produces: "hand:<id>" | "hand:<id>:<abilityId>" (`spendsHandCard`) |
+   * "ability:<id>:<abilityId>", with ":<n>" for a
    * repeated use and "@<slot>=<id>,…" for the cards a resource ability's own cost picks (`resourceAbilityOptionId`).
    */
   readonly optionId: string;
@@ -1204,6 +1352,25 @@ export interface PaymentSource {
   readonly pool: Readonly<Record<ResourceIconType, number>>;
   /** The cards this source's own cost picks, by slot (a resource ability's `ResourceAbilityUse.costChoices`). */
   readonly costChoices?: CostChoices;
+  /**
+   * The amount this source's own cost removes when the source is one amount of several ("remove up to 2 threat from …
+   * → generate a resource for each": a resource ability's `ResourceAbilityUse.costSelection`; docs/phase7-wave9.md
+   * §3.7 (b)). The source for the most it can remove has none. A payment may hold one source of the same ability.
+   */
+  readonly costSelection?: CostSelection;
+  /**
+   * This `resourceAbility` source is a card in hand spent with its own "Interrupt: When you spend this card, [cost] →
+   * generate …" (`Payment.whenSpent`; option id "hand:<id>:<abilityId>…"): `instanceId` is the hand card, choosing it
+   * discards that card, and `pool` is the card's resources and the ability's together. The card's plain `handCard`
+   * source is listed as well, and a payment holds one of the two (one card is spent once).
+   */
+  readonly spendsHandCard?: true;
+  /**
+   * This `handCard` source is not in the player's hand: it is tucked under this card, whose rule lets the player
+   * spend it "as if it were in their hand" (`RuleSpec spendableFromTucked`, Resource Reserve; docs/phase7-wave9.md
+   * §3.46 (c)). Its option id is a hand card's; choosing it discards it from under its host. Absent for a card in hand.
+   */
+  readonly tuckedUnder?: InstanceId;
 }
 
 export interface PaymentQuery {
@@ -1277,7 +1444,7 @@ const mergeChoices = (auto: CostChoices | undefined, given: CostChoices | undefi
 const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
   const uses = new Map<string, number>();
   return payment.map((entry) => {
-    if ("fromHand" in entry) return `hand:${entry.fromHand}`;
+    if ("fromHand" in entry) return spentCardOptionId(entry);
     const id = resourceAbilityOptionId(entry.ability);
     const n = (uses.get(id) ?? 0) + 1;
     uses.set(id, n);
@@ -1391,6 +1558,21 @@ function payableFor(
       ...(chosenResources ? { chosenResources } : {}),
     };
   }
+  if (action.kind === "basicAttack" || action.kind === "basicThwart") {
+    // Only a basic power whose additional costs ask for resources carries a payment (docs/phase7-wave9.md §3.31).
+    const costed = basicPowerWithCost(state, deps, playerId, action, options.costChoices);
+    const target = options.target;
+    if (!costed || !target) return null;
+    return {
+      build: (payment) => basicPowerCommandWith(playerId, action, target, costed.costChoices, payment),
+      excludeInstanceId: null,
+      reserved: costed.reserved,
+      payingFor: null,
+      requirement: costed.requirement,
+      spendable: true,
+      preferred: costed.tryWallets,
+    };
+  }
   if (action.kind === "changeForm") {
     // Only a change with an additional cost carries a payment (docs/phase7-wave8.md §3.63); a free one is a basic action.
     const costed = formChangeWithCost(state, deps, playerId, action.to, options.costChoices);
@@ -1411,7 +1593,8 @@ function payableFor(
 /**
  * What the player must pay for `action`, what they may pay it with, and the
  * payment the engine itself would make. Null when there is nothing to decide:
- * a basic action, a card that costs nothing and has no "spend X" cost, or a
+ * a basic action with no additional resource cost (a basic attack or thwart
+ * that has one is asked with its `target`), a card that costs nothing and has no "spend X" cost, or a
  * cost the engine refuses as configured (`tryPayment` then reports why).
  *
  * Pure, and cheap enough for the main thread: it prices the cost once, then
@@ -1436,6 +1619,8 @@ export function paymentFor(
       if (option.ref.kind === "card") {
         // A card the cost already claims cannot also be spent (RRG "Cost": each card pays once).
         if (payable.reserved.has(option.ref.instanceId)) return [];
+        // A card spent "as if it were in their hand" from under its host (`RuleSpec spendableFromTucked`).
+        const at = locateCard(state, option.ref.instanceId);
         return [
           {
             optionId: option.optionId,
@@ -1443,12 +1628,48 @@ export function paymentFor(
             instanceId: option.ref.instanceId,
             label: option.label,
             pool: handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+            ...(at?.kind === "tucked" ? { tuckedUnder: at.hostInstanceId } : {}),
           },
         ];
       }
       if (option.ref.kind !== "ability") return [];
+      const [spending] = paymentsFromOptionIds([option.optionId]);
+      // A hand card spent with its own "When you spend this card" ability (`Payment.whenSpent`): the card's resources
+      // and the ability's together, since choosing this source is choosing both.
+      if (spending && "fromHand" in spending && spending.whenSpent) {
+        if (payable.reserved.has(spending.fromHand)) return [];
+        const picks = spending.whenSpent.costChoices;
+        const use = { instanceId: spending.fromHand, abilityId: spending.whenSpent.abilityId };
+        return [
+          {
+            optionId: option.optionId,
+            kind: "resourceAbility",
+            instanceId: spending.fromHand,
+            label: option.label,
+            pool: addPools(
+              handCardResources(state, deps, spending.fromHand, playerId, payable.payingFor),
+              paidForMultiplied(
+                state,
+                deps,
+                payable.payingFor,
+                resourceAbilityGenerates(
+                  state,
+                  deps,
+                  { ...use, ...(picks ? { costChoices: picks } : {}) },
+                  playerId,
+                  discardTop,
+                ),
+                playerId,
+              ),
+            ),
+            spendsHandCard: true,
+            ...(picks ? { costChoices: picks } : {}),
+          },
+        ];
+      }
       const use = paymentsFromOptionIds([option.optionId]).find((entry) => "ability" in entry);
       const costChoices = use && "ability" in use ? use.ability.costChoices : undefined;
+      const costSelection = use && "ability" in use ? use.ability.costSelection : undefined;
       return [
         {
           optionId: option.optionId,
@@ -1466,6 +1687,7 @@ export function paymentFor(
                 instanceId: option.ref.instanceId,
                 abilityId: option.ref.abilityId,
                 ...(costChoices ? { costChoices } : {}),
+                ...(costSelection ? { costSelection } : {}),
               },
               playerId,
               discardTop,
@@ -1473,6 +1695,7 @@ export function paymentFor(
             playerId,
           ),
           ...(costChoices ? { costChoices } : {}),
+          ...(costSelection ? { costSelection } : {}),
         },
       ];
     },
@@ -1482,7 +1705,8 @@ export function paymentFor(
   const sized = payable.payingFor
     ? chosenSizeWallets(state, deps, playerId, spend, payable.chosenResources ?? null, payable.payingFor)
     : [];
-  for (const wallet of payable.preferred ?? [...sized, ...wallets(spend)]) {
+  const usual = walletsWithWhenSpent(state, deps, playerId, payable.reserved, payable.payingFor, spend);
+  for (const wallet of payable.preferred ?? [...sized, ...usual]) {
     if (!probe(state, deps, payable.build(wallet)).ok) continue;
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;

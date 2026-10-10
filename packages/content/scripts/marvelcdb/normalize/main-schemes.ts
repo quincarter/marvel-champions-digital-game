@@ -88,6 +88,7 @@ function normalizeLetteredSchemeChain(
       value: number | null | undefined,
       fixed: boolean | undefined,
       key: MainSchemeThreatField,
+      perGroup?: boolean,
     ): ScalingValue => {
       if (isFirst) {
         dashed.push(key);
@@ -98,11 +99,16 @@ function normalizeLetteredSchemeChain(
         else errors.push(`${ra.code}: missing ${key}`);
         return { base: 0, perPlayer: 0 };
       }
-      return scalingOf(value, !fixed);
+      return scalingOf(value, !fixed, perGroup);
     };
-    const startingThreat = field(ra.base_threat, ra.base_threat_fixed, "startingThreat");
-    const targetThreat = field(ra.threat, ra.threat_fixed, "targetThreat");
-    const acceleration = field(ra.escalation_threat, ra.escalation_threat_fixed, "acceleration");
+    const startingThreat = field(ra.base_threat, ra.base_threat_fixed, "startingThreat", ra.base_threat_per_group);
+    const targetThreat = field(ra.threat, ra.threat_fixed, "targetThreat", ra.threat_per_group);
+    const acceleration = field(
+      ra.escalation_threat,
+      ra.escalation_threat_fixed,
+      "acceleration",
+      ra.escalation_threat_per_group,
+    );
     const stageImage = imageOf(ra.imagesrc);
 
     stages.push({
@@ -176,7 +182,12 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       }
       const a = prepare(ctx, ra);
       const b = prepare(ctx, rb);
-      parts.push(a, b);
+      // A bare-letter pair ("A"/"B", Trickster Takeover's Worlds Collide `tt` 55028) is a one-stage main scheme of its
+      // own, not a stage of the set's numbered chain (its set also holds Mischief and Mayhem 1A/1B): both are in play
+      // at once, in different game areas (MC55 insert p. 10). It becomes its own card, below.
+      const solo = /^[A-Z]$/.test(ra.stage ?? "");
+      const ownParts: Prepared[] = solo ? [] : parts;
+      ownParts.push(a, b);
       const pa = parse(ctx, a);
       const pb = parse(ctx, b);
       for (const [p, parsed] of [
@@ -187,8 +198,11 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         expectNoAttach(ctx, p, parsed);
       }
       if (pa.keywords.length > 0) errors.push(`${ra.code}: keywords on a main scheme A side`);
-      const stageNumber = Number.parseInt(rb.stage ?? "", 10);
-      if (!Number.isInteger(stageNumber) || `${stageNumber}A` !== ra.stage) {
+      const stageNumber = solo ? 1 : Number.parseInt(rb.stage ?? "", 10);
+      if (solo) {
+        if (ra.stage !== "A" || rb.stage !== "B")
+          errors.push(`${ra.code}: stage "${String(ra.stage)}"/"${String(rb.stage)}" not an A/B pair`);
+      } else if (!Number.isInteger(stageNumber) || `${stageNumber}A` !== ra.stage) {
         errors.push(`${ra.code}: stage "${String(ra.stage)}"/"${String(rb.stage)}" not an NA/NB pair`);
       }
       // Dashed values (wave 2, docs/phase7-wave2.md §1.6): MarvelCDB gives a stage with no printed starting/target/
@@ -214,7 +228,7 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       missingOrDashed(rb.threat, rb.threat_fixed, "targetThreat", "target threat");
       missingOrDashed(rb.escalation_threat, rb.escalation_threat_fixed, "acceleration", "acceleration");
       // A later stage with its own title (Klaw's stage 2 is "Secret Rendezvous") keeps it.
-      const firstName = parts[0]?.name;
+      const firstName = solo ? a.name : parts[0]?.name;
       // The aggregate record carries the B side and the `…b` record the A side
       // (see `aggregateImage`). MarvelCDB's front/back for a main scheme is
       // "the side you play with" / "the side you set up from", not A / B.
@@ -244,19 +258,26 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         value: number | null | undefined,
         fixed: boolean | undefined,
         field: MainSchemeThreatField,
+        perGroup?: boolean,
       ): ScalingValue => {
         if (value === -1) {
           printedX.push(field);
           return { base: 0, perPlayer: 0 };
         }
-        return scalingOf(value ?? 0, !fixed);
+        return scalingOf(value ?? 0, !fixed, perGroup);
       };
-      stages.push({
+      const builtStage: MainSchemeStage = {
         stageNumber,
+        ...(solo ? { stageLetter: ra.stage as string } : {}),
         ...(firstName !== undefined && b.name !== firstName ? { name: b.name } : {}),
-        startingThreat: schemeField(rb.base_threat, rb.base_threat_fixed, "startingThreat"),
-        targetThreat: schemeField(rb.threat, rb.threat_fixed, "targetThreat"),
-        acceleration: schemeField(rb.escalation_threat, rb.escalation_threat_fixed, "acceleration"),
+        startingThreat: schemeField(rb.base_threat, rb.base_threat_fixed, "startingThreat", rb.base_threat_per_group),
+        targetThreat: schemeField(rb.threat, rb.threat_fixed, "targetThreat", rb.threat_per_group),
+        acceleration: schemeField(
+          rb.escalation_threat,
+          rb.escalation_threat_fixed,
+          "acceleration",
+          rb.escalation_threat_per_group,
+        ),
         ...(printedX.length > 0 ? { printedX } : {}),
         ...(dashedValues.length > 0 ? { dashedValues } : {}),
         icons: schemeIcons(rb),
@@ -279,8 +300,21 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
           // as the *linked* record's image (`01097b`).
           ...(aSideImage ? { image: aSideImage } : {}),
         },
-      });
+      };
       ctx.handled.add(ra.code).add(rb.code);
+      if (!solo) {
+        stages.push(builtStage);
+        continue;
+      }
+      // The one-stage card of a bare-letter pair. It is not in `mainSchemeIdBySet` (that map holds the set's numbered
+      // chain); a scenario names it by code (`setAsideCardCodes`).
+      const soloCard: MainSchemeCard = {
+        ...baseFields(ctx, a, ra.code, [ra.code, rb.code], null),
+        type: "main_scheme",
+        encounterSetIds: [brand("encounterSet", set)],
+        stages: [builtStage],
+      };
+      record(ctx, soloCard, set, ownParts);
     }
     const first = parts[0];
     const firstStage = stages[0];

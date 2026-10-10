@@ -1,10 +1,20 @@
 /** Keywords and limits that resolve as a card enters play. */
 
+import { displayNameOf } from "../visibility.js";
 import { type Ctx, emit, moveCard, requestChoice, updateInstance } from "../ctx.js";
 import { addCounters, applyToughness, leavingPlayPending, permanentStopsLeaving } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf, keywordTotal, unblankedPrintedKeywordsOf } from "../keywords.js";
-import { cardOf, getInstance, getPlayer, isMinion, mustCardOf, mustPlayer, startingThreatOf } from "../query.js";
+import {
+  cardOf,
+  getInstance,
+  getPlayer,
+  isMinion,
+  minionsEngagedWith,
+  mustPlayer,
+  playerOrder,
+  startingThreatOf,
+} from "../query.js";
 import {
   allyLimitFor,
   allyLimitMayBeReduced,
@@ -91,8 +101,21 @@ function placeHinder(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * A card a limit on cards in play neither counts nor offers, though it is still in a zone in play: one whose leaving
+ * play is on the stack while a "when this leaves play" interrupt resolves (`leavingPlayPending`; RRG 1.8 "Interrupt",
+ * p. 25, docs/phase7-wave5.md §4.1 Q17), and one already defeated that leaves once its When Defeated has resolved
+ * (`defeatedAwaitingLeave`; FAQ "Fabian Cortez (#159)", RRG 1.8 p. 64). The limit discard is itself a leaving ("choose
+ * and discard from play", RRG 1.8 "Ally Limit", p. 7; "Leaves Play", p. 27), so without this the check between frames
+ * would see the card just chosen still in play and ask for it again, forever (docs/phase7-wave9.md §3.20). A leaving
+ * an interrupt cancelled is not pending: that card stays, and it counts.
+ */
+const onItsWayOut = (state: GameState, id: InstanceId): boolean =>
+  leavingPlayPending(state, id) || defeatedAwaitingLeave(state, id);
+
+/**
  * RRG "Ally Limit": allies may be played past the limit, but the controller then
  * immediately discards down to it — before abilities that resolve on entering play.
+ * An ally already leaving play is not counted and not offered (`onItsWayOut`).
  * Returns true when it asked the player to discard.
  */
 function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
@@ -101,6 +124,7 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
     (id) =>
       isAlly(ctx.state, id) &&
       controllerOf(ctx.state, id) === playerId &&
+      !onItsWayOut(ctx.state, id) &&
       !excludedFromAllyLimit(ctx.state, ctx.deps, id),
   );
   // Unless something can reduce an ally limit ("Reduce your ally limit by 2", The Odd Couple), every rule is an increase
@@ -115,7 +139,7 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
     prompt: { kind: "discardOverAllyLimit", limit },
     options: allies.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: allies.length - limit,
@@ -191,8 +215,7 @@ function playerSideSchemesCounted(ctx: Ctx): readonly InstanceId[] {
       // One already defeated and waiting to leave play after its When Defeated is not seen by a rule counting cards in
       // play (`defeatedAwaitingLeave`, FAQ "Fabian Cortez (#159)", RRG 1.8 p. 64), nor is one whose discard is on the
       // stack waiting for a "when this leaves play" interrupt: asking again would discard a second scheme for it.
-      !defeatedAwaitingLeave(ctx.state, id) &&
-      !leavingPlayPending(ctx.state, id) &&
+      !onItsWayOut(ctx.state, id) &&
       !excludedFromPlayerSideSchemeLimit(ctx.state, ctx.deps, id),
   );
 }
@@ -256,7 +279,7 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
     prompt: { kind: "discardOverPlayerSideSchemeLimit", limit },
     options: options.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: over,
@@ -294,7 +317,19 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
 function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
   // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
-  const { load, limit, held } = restrictedStanding(ctx.state, ctx.deps, playerId);
+  const standing = restrictedStanding(ctx.state, ctx.deps, playerId);
+  if (standing.load <= standing.limit) return false;
+  // A restricted card already leaving play no longer weighs on the limit and is not offered again (`onItsWayOut`): its
+  // weight comes off the load, and the limit is read as it stands, the leaving card's own rules still applying until
+  // it has left.
+  const { limit } = standing;
+  const held = standing.held.filter((id) => !onItsWayOut(ctx.state, id));
+  let load = standing.load;
+  for (const id of cardsInPlay(ctx.state)) {
+    if (controllerOf(ctx.state, id) === playerId && onItsWayOut(ctx.state, id)) {
+      load -= restrictedWeightOf(ctx.state, id, ctx.deps);
+    }
+  }
   if (load <= limit) return false;
   const options = held.filter(
     (id) =>
@@ -308,7 +343,7 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
     prompt: { kind: "discardRestricted", limit },
     options: options.map((id) => ({
       optionId: id,
-      label: mustCardOf(ctx.state, id).name,
+      label: displayNameOf(ctx.state, id),
       ref: { kind: "card", instanceId: id } as const,
     })),
     minSelections: over,
@@ -446,6 +481,57 @@ export function resolveTeamwork(ctx: Ctx, id: InstanceId): void {
     activateEnemy(ctx, id, player.playerId);
     return;
   }
+}
+
+/**
+ * Every engaged minion changes players at once (`EffectSpec rotateEngagement`, docs/phase7-wave9.md §3.24): "Each
+ * player engages each minion engaged with the player clockwise from them" (The Coming Storm, Rumbling Thunder, Parcours
+ * du Combattant, `aos` 50135, 50136, 50164). The engagements are read once, then each minion engaged with a player
+ * moves to the player before them in player order (who is the one that player is clockwise from), with everything on
+ * it. Returns the minions that moved, grouped by their new player in player order, and logs one `engagementRotated`.
+ *
+ * Who moves: the minions in a player's play area (`minionsEngagedWith`). A minion engaged with nobody stays where it
+ * is: one an environment holds (`isHeldMinion`, §3.21), one attached to a card (FAQ "Malice (#199)", RRG 1.8 p. 64),
+ * one in a scenario area. Eliminated players are not in player order (RRG 1.8 "Player Elimination", p. 34), so the
+ * player clockwise from the last one left is nobody: with one player nothing moves and nothing is logged (RRG 1.8
+ * "Engage", p. 18: a minion cannot engage the player it is already engaged with).
+ */
+export function rotateEngagement(ctx: Ctx): readonly InstanceId[] {
+  const players = playerOrder(ctx.state).map((player) => player.playerId);
+  if (players.length < 2) return [];
+  // Read once: who takes whose minions. Player i takes the minions of the next player in player order.
+  const taken = players.map((to, index) => {
+    const from = players[(index + 1) % players.length]!;
+    return { from, to, minions: [...minionsEngagedWith(ctx.state, from)] };
+  });
+  const moves: { readonly instanceId: InstanceId; readonly from: PlayerId; readonly to: PlayerId }[] = [];
+  for (const { from, to, minions } of taken) {
+    for (const id of minions) if (engageInPlayMinion(ctx, id, to)) moves.push({ instanceId: id, from, to });
+  }
+  if (moves.length > 0) emit(ctx, { type: "engagementRotated", moves });
+  return moves.map((move) => move.instanceId);
+}
+
+/**
+ * What follows an in-play minion engaging a player (the `engage` and `rotateEngagement` effects): the engagement's own
+ * windows (`engagementFrame`), then its quickstrike attack. RRG 1.8 "Engage" (p. 18): "If a card ability instructs a
+ * player to engage a minion, that minion is also considered to have engaged that player"; "Quickstrike" (p. 36): "After
+ * a minion with the quickstrike keyword engages a player whose identity is in hero form, that minion attacks that
+ * player" (ruling Feb 28, 2026 (4) answer 2: "Quickstrike triggers upon engagement"). It did not enter play, so no
+ * enter-play keyword resolves (toughness, teamwork: RRG 1.8 p. 43, "enters play and engages").
+ *
+ * Engine reading: the attack is queued behind the engagement's whole event frame, so it follows an "after you engage"
+ * response where the minion's entering play puts quickstrike before them (`applyEffect`'s `putIntoPlay`). Both are
+ * responses to the one engagement; RRG 1.8 "Forced" (p. 20) puts a forced response first, which this differs from
+ * only when an optional response answers the same engagement.
+ */
+export function engagedInPlayFrames(ctx: Ctx, id: InstanceId): readonly StackFrame[] {
+  const frames: StackFrame[] = [];
+  const engaged = engagementFrame(ctx, id);
+  if (engaged) frames.push(engaged);
+  const quickstrike = quickstrikeAttack(ctx, id);
+  if (quickstrike) frames.push(eventFrame(ctx, quickstrike));
+  return frames;
 }
 
 type MinionEngaged = Extract<TriggerEvent, { kind: "minionEngaged" }>;

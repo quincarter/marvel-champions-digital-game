@@ -1,4 +1,4 @@
-import type { AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
+import type { AbilityId, AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
 import {
   type AbilityDefinition,
   type AbilityTriggerSpec,
@@ -8,6 +8,7 @@ import {
   type RuleSpec,
 } from "./abilities.js";
 import { isRulesCardType, type RulesCardType } from "./card-types.js";
+import { countersOfType } from "./counter-types.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
   activeFormType,
@@ -20,6 +21,7 @@ import {
   unblankedPrintedKeywordsOf,
 } from "./keywords.js";
 import {
+  activeEncounterDeck,
   activeVillain,
   baseStat,
   cardOf,
@@ -74,14 +76,21 @@ import {
 } from "./campaign-state.js";
 import { amplifyIconsInPlay, boostIconsFor } from "./modifiers.js";
 import { RESOURCE_TYPES, type ResourcePool } from "./resources.js";
-import { attachHostCandidates, hostAllowsCategory } from "./attachment-hosts.js";
+import {
+  attachHostCandidates,
+  hostAllowsCategory,
+  putIntoPlayHostCandidates,
+  upgradeHostCandidates,
+} from "./attachment-hosts.js";
 import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
+import { accusationWrongGuesses, accusedWrong, isAccusationBoardMember } from "./accusation.js";
 import {
   canHaveAttached,
   cannotEnterPlay,
+  maxPerPlayerReached,
   cannotFlip,
   canTakePlayerAttack,
   iconsInPlay,
@@ -494,6 +503,33 @@ export function isAttachedMinion(state: GameState, id: InstanceId): boolean {
   return getInstance(state, id)?.attachedTo != null && categoriesOf(state, id).includes("minion");
 }
 
+/**
+ * A minion an environment holds (`EffectSpec attach` with `as: "heldMinion"`; docs/phase7-wave9.md §3.21): Thunderbolt
+ * Backup, `aos` 50131b, "(The minion attached here is in play and can be targeted by attacks and abilities.)". MC50
+ * p. 15: "The attached minion is considered to be in play, retains all tokens, status cards, and attachments on it, and
+ * can be targeted by attacks and player card abilities. The attached minion does not activate because it is not engaged
+ * with any player."
+ *
+ * It is an attached minion (`isAttachedMinion`) in everything that follows from being engaged with nobody: it never
+ * activates (`cannotActivate`), its guard and patrol stop no player (RRG 1.8 "Guard", p. 21, and "Patrol", p. 32, both
+ * read "while a minion … is engaged with a player"), and it is no player's "minion engaged with you". Unlike the minion
+ * of FAQ "Malice (#199)" (p. 64), whose "cannot be defeated again" is that entry's own, it is defeated at zero hit
+ * points or by an effect as any minion is (`cannotBeDefeatedAgain`): the scenario is won by defeating these minions.
+ * `engage` takes it off its host into the engaging player's play area with everything on it (`engageInPlayMinion`).
+ * RRG 1.8 "Attach To" (p. 8) still governs the host: when it leaves play "the attached card is discarded", not defeated.
+ */
+export function isHeldMinion(state: GameState, id: InstanceId): boolean {
+  return getInstance(state, id)?.heldMinion === true && isAttachedMinion(state, id);
+}
+
+/**
+ * RRG 1.8 FAQ "Malice (#199)" (p. 64): a minion its own text attached to a card "cannot be defeated again, even if she
+ * gains hit points or heals damage". A minion an environment holds is not that minion (`isHeldMinion`).
+ */
+export function cannotBeDefeatedAgain(state: GameState, id: InstanceId): boolean {
+  return isAttachedMinion(state, id) && !isHeldMinion(state, id);
+}
+
 /** The printed timing word of an ability's trigger, or null for one with none (a constant, When Revealed, …; §3.33). */
 export function timingWordOf(trigger: AbilityTriggerSpec): AbilityTimingWord | null {
   const form = (base: "action" | "interrupt" | "response" | "resource", f: Form | undefined): AbilityTimingWord =>
@@ -504,8 +540,10 @@ export function timingWordOf(trigger: AbilityTriggerSpec): AbilityTimingWord | n
         : base;
   switch (trigger.kind) {
     case "action":
-    case "resource":
       return form(trigger.kind, trigger.form);
+    case "resource":
+      // "Interrupt: When you spend this card …" (`whenSpent`) is printed as an interrupt.
+      return form(trigger.whenSpent ? "interrupt" : "resource", trigger.form);
     case "interrupt":
       return trigger.forced ? "forcedInterrupt" : form("interrupt", trigger.form);
     case "response":
@@ -1121,6 +1159,9 @@ export function explainQuery(
     const chosen = chosenFromList(context.vars, query.cardTypeIs.chosen);
     if (chosen === null || cardTypeOf(state, id) !== chosen) return "wrongCategory";
   }
+  // docs/phase7-wave9.md §3.29 (b): the accused or the mole of the game's accusation, a card named by its printed id
+  // (either face), so the exclusion is the one `printedId` gives.
+  if (query.accusation !== undefined && !isAccusationBoardMember(state, id, query.accusation)) return "wrongPrintedId";
   if (query.controller) {
     const controller = controllerOf(state, id);
     if (query.controller === "encounter" && controller !== null) return "wrongController";
@@ -1241,6 +1282,18 @@ export function explainQuery(
     // Nor a card a rule keeps out of play (`RuleSpec cannotEnterPlay`, docs/phase7-wave8.md §3.43).
     if (!cardsInPlay(state).includes(id) && cannotEnterPlay(state, context.deps ?? DEFAULT_DEPS, id))
       return "cannotEnterPlay";
+    // Nor another copy of a "Max N per player" card that player already controls (RRG 1.8 "Max, Maximum", p. 28;
+    // docs/phase7-wave9.md §4.1 Q37 = A), as the effect itself refuses it (`admitUnderPlayerMax`): an upgrade when the
+    // maximum leaves it no host, any other card by the player it would enter play under.
+    if (forPlayer && !cardsInPlay(state).includes(id)) {
+      const deps = context.deps ?? DEFAULT_DEPS;
+      const overMax =
+        cardOf(state, id)?.type === "upgrade"
+          ? upgradeHostCandidates(state, deps, id, forPlayer).length > 0 &&
+            putIntoPlayHostCandidates(state, deps, id, forPlayer).length === 0
+          : maxPerPlayerReached(state, id, forPlayer) !== null;
+      if (overMax) return "cannotEnterPlay";
+    }
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
@@ -1277,7 +1330,7 @@ export function explainQuery(
     return query.exhausted ? "ready" : "exhausted";
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat)
     return query.hasThreat ? "noThreat" : "hasThreat";
-  if (query.hasCounter !== undefined && (instance.counters[query.hasCounter] ?? 0) <= 0) return "missingCounter";
+  if (query.hasCounter !== undefined && countersOfType(state, id, query.hasCounter) <= 0) return "missingCounter";
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged)
     return query.damaged ? "notDamaged" : "damaged";
   // The status cards of a card that has left play are its last known ones (`EffectContext.lastKnown`).
@@ -1783,6 +1836,7 @@ export function printedResourcesOf(state: GameState, id: InstanceId, deps: Engin
 export function deckTopFaceupPlayers(state: GameState, deps: EngineDeps): readonly PlayerId[] {
   const players: PlayerId[] = [];
   for (const active of activeRules(state, deps, "topOfDeckFaceup")) {
+    if (active.rule.deck === "encounter") continue;
     for (const playerId of rulePlayers(state, active.rule, active)) {
       if (!players.includes(playerId)) players.push(playerId);
     }
@@ -1835,6 +1889,25 @@ export function shownDeckTop(state: GameState, deps: EngineDeps, playerId: Playe
   const top = getPlayer(state, playerId)?.deck[0];
   if (top === undefined) return null;
   return deckTopFaceupPlayers(state, deps).includes(playerId) ? top : null;
+}
+
+/**
+ * Whether the top card of the encounter deck is kept faceup right now (`RuleSpec topOfDeckFaceup { deck: "encounter" }`,
+ * docs/phase7-wave9.md §3.42): one rule in force is enough, and a second adds nothing. Read from the rules in force,
+ * never from anything stored.
+ */
+export const encounterTopFaceup = (state: GameState, deps: EngineDeps): boolean =>
+  activeRules(state, deps, "topOfDeckFaceup").some((active) => active.rule.deck === "encounter");
+
+/**
+ * The card showing on top of the encounter deck under that rule: the first card of the active villain's encounter deck
+ * while the rule holds, null when it does not or the deck is empty. The single derivation `faceVisible`, the
+ * `topOfDeckFaceup` predicate and the log (`announceDeckTops`) agree on.
+ */
+export function shownEncounterTop(state: GameState, deps: EngineDeps): InstanceId | null {
+  const top = activeEncounterDeck(state).deck[0];
+  if (top === undefined) return null;
+  return encounterTopFaceup(state, deps) ? top : null;
 }
 
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker (`ActiveRule.context`). */
@@ -2353,7 +2426,7 @@ export function resolveValue(
     case "counters": {
       const [id] = resolveRef(state, value.of, context);
       if (!id) return 0;
-      return getInstance(state, id)?.counters[value.counterType] ?? 0;
+      return countersOfType(state, id, value.counterType);
     }
     case "eventAmount":
       return eventAmount(state, deps, context.event);
@@ -2438,7 +2511,8 @@ export function resolveValue(
       // One counting function for every read (docs/phase7-wave2.md §3.6): printed icons plus boost icon modifiers,
       // summed over every card the ref names ("the number of boost icons discarded this way"), as `starIcons` does
       // (docs/phase7-wave5.md §4.1 Q56).
-      const deps = context.deps;
+      // `printed`: "for each printed icon" (docs/phase7-wave9.md §3.44), the card's own number and no modifier.
+      const deps = value.printed ? undefined : context.deps;
       return resolveRef(state, value.of, context).reduce((sum, id) => {
         if (deps) return sum + boostIconsFor(state, deps, id);
         const card = cardOf(state, id);
@@ -2494,6 +2568,15 @@ export function resolveValue(
       return state.scenarioRules.victoryCondition ?? 0;
     case "setAsideModularSetCount":
       return (state.setAsideModularSets ?? []).length;
+    case "hiddenPileCount":
+      // A pile's size is open; its cards are not (docs/phase7-wave9.md §3.29 (a)).
+      return (state.hiddenPiles?.[value.pile] ?? []).length;
+    case "accusationWrongGuesses":
+      return accusationWrongGuesses(state);
+    case "revealedPileCardCount":
+      return value.pile === undefined
+        ? Object.values(state.revealedPileCards ?? {}).reduce((sum, ids) => sum + ids.length, 0)
+        : (state.revealedPileCards?.[value.pile] ?? []).length;
     case "victoryDisplayCount": {
       // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
       const filter = value.filter;
@@ -2667,7 +2750,7 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "counterAtLeast": {
       const [id] = resolveRef(state, predicate.of, context);
-      const counters = id ? (getInstance(state, id)?.counters[predicate.counterType] ?? 0) : 0;
+      const counters = id ? countersOfType(state, id, predicate.counterType) : 0;
       return counters >= predicate.amount;
     }
     case "damagedAtLeast": {
@@ -2682,6 +2765,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "varAtLeast":
       return (context.vars?.[predicate.name] ?? 0) >= predicate.amount;
+    case "accusedWrong":
+      return accusedWrong(state);
     // docs/phase7-wave7.md §3.83: setup input frozen in the state; absent is false.
     case "outsideFact": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
@@ -2868,6 +2953,19 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return state.gameAreas.length > 0;
     case "topOfDeckFaceup": {
       const deps = context.deps ?? DEFAULT_DEPS;
+      if (predicate.deck === "encounter") {
+        if (!encounterTopFaceup(state, deps)) return false;
+        const { matches, boostAreaIcons } = predicate;
+        if (matches === undefined && boostAreaIcons === undefined) return true;
+        // Only the card the rule shows is read (wave 8 §4.1 Q26 = B); an empty deck has none.
+        const top = activeEncounterDeck(state).deck[0];
+        if (top === undefined) return false;
+        if (matches !== undefined && !matchesQuery(state, top, matches, context)) return false;
+        if (boostAreaIcons === undefined) return true;
+        // Boost icons and the star together, the number a card reads as `<slot>.boostIcons + <slot>.starIcons`.
+        const icons = boostIconsFor(state, deps, top) + (hasStarIcon(state, top) ? 1 : 0);
+        return icons >= (boostAreaIcons.atLeast ?? 0) && icons <= (boostAreaIcons.atMost ?? Infinity);
+      }
       const faceup = deckTopFaceupPlayers(state, deps);
       return resolvePlayers(state, predicate.player, context).some((playerId) => {
         if (!faceup.includes(playerId)) return false;
@@ -3279,6 +3377,23 @@ export function activeAbilityRefs(
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly AbilityReference[] {
+  const printed = activePrintedAbilityRefs(state, id, deps);
+  // "This card gains: 'Response: …'" (`RuleSpec gainsAbility`): gained abilities join the printed ones. Not printed,
+  // so the card's own blank does not reach them (RRG 1.8 "'Gains'", p. 21); an `ignoreAbilities` rule does.
+  const gained = gainedAbilities(state, deps).get(id);
+  if (!gained) return printed;
+  const ignored = ignoredAbilities(state, deps).get(id);
+  const extra = gained.filter(
+    (grant, index) =>
+      !ignored?.has(grant.abilityId) &&
+      !printed.some((ref) => ref.id === grant.abilityId) &&
+      gained.findIndex((other) => other.abilityId === grant.abilityId) === index,
+  );
+  return extra.length === 0 ? printed : [...printed, ...extra.map((grant) => ({ id: grant.abilityId }))];
+}
+
+/** `activeAbilityRefs` less the abilities the card gains from rules: its live printed abilities. */
+function activePrintedAbilityRefs(state: GameState, id: InstanceId, deps: EngineDeps): readonly AbilityReference[] {
   const printed = unblankedAbilityRefs(state, id);
   if (printed.length === 0) return printed;
   if (textBoxBlankFor(state, id, deps)) return [];
@@ -3289,6 +3404,88 @@ export function activeAbilityRefs(
   const marked = victoryDisplayAbilityIds(deps);
   if (marked.size === 0 || state.victoryDisplay.includes(id) || !refs.some((ref) => marked.has(ref.id))) return refs;
   return refs.filter((ref) => !marked.has(ref.id));
+}
+
+/** One ability a card gains from a rule in effect, and the card whose constant gives it (null: a scenario rule). */
+export interface GrantedAbility {
+  readonly abilityId: AbilityId;
+  readonly grantedBy: InstanceId | null;
+}
+
+const NO_GAINED_ABILITIES: ReadonlyMap<InstanceId, readonly GrantedAbility[]> = new Map();
+const GAIN_RULE_IN_REGISTRY = new WeakMap<EngineDeps, boolean>();
+/** Per state and registry: the abilities gained, or null while they are being worked out. */
+const GAINED_BY_RULES = new WeakMap<
+  GameState,
+  WeakMap<EngineDeps, ReadonlyMap<InstanceId, readonly GrantedAbility[]> | null>
+>();
+
+/**
+ * The abilities cards in play gain from `gainsAbility` rules in effect, by the card that gains them (`RuleSpec
+ * gainsAbility`; RRG 1.8 "'Gains'", p. 21), one entry per rule that reaches the card, in the order `activeRules` reads
+ * them. Rules come from constants of cards in play (and the victory display's marked ones), lasting rule grants and
+ * the scenario, each with its `while` and `to` read in full: granted traits, keywords and stats count.
+ *
+ * That read asks for the abilities of the cards in play, which asks for this. The loop is cut here: while the answer
+ * for a state is being worked out, a card's abilities are its printed ones. Nothing a rule's `while` or `to` reads is
+ * lost by that, because a gained ability is never a constant (such a rule gives nothing), and constants are all those
+ * reads consult. So a `gainsAbility` rule cannot depend on a gained ability, and the answer is found in one pass.
+ *
+ * Cached per state like `blankedSets`; a game whose registry has no such rule and that holds no such lasting or
+ * scenario rule pays one lookup.
+ */
+export function gainedAbilities(
+  state: GameState,
+  deps: EngineDeps,
+): ReadonlyMap<InstanceId, readonly GrantedAbility[]> {
+  let inRegistry = GAIN_RULE_IN_REGISTRY.get(deps);
+  if (inRegistry === undefined) {
+    inRegistry = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.rules ?? []).some((rule) => rule.kind === "gainsAbility"),
+    );
+    GAIN_RULE_IN_REGISTRY.set(deps, inRegistry);
+  }
+  const isGain = (rule: RuleSpec): boolean => rule.kind === "gainsAbility";
+  if (
+    !inRegistry &&
+    !state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && isGain(effect.rule)) &&
+    !(state.scenarioRules.rules ?? []).some(isGain)
+  )
+    return NO_GAINED_ABILITIES;
+  let perDeps = GAINED_BY_RULES.get(state);
+  if (!perDeps) {
+    perDeps = new WeakMap();
+    GAINED_BY_RULES.set(state, perDeps);
+  }
+  const cached = perDeps.get(deps);
+  if (cached !== undefined) return cached ?? NO_GAINED_ABILITIES;
+  perDeps.set(deps, null);
+  try {
+    const found = new Map<InstanceId, GrantedAbility[]>();
+    const inPlay = cardsInPlay(state);
+    for (const { rule, context } of activeRules(state, deps, "gainsAbility")) {
+      const definition = deps.abilities[rule.abilityId];
+      if (!definition || definition.trigger.kind === "constant") continue;
+      const to = rule.to;
+      const gaining = to
+        ? inPlay.filter((id) => matchesQuery(state, id, to, context))
+        : inPlay.filter((id) => id === context.selfInstanceId);
+      for (const id of gaining) {
+        if (getInstance(state, id)?.facedownAs) continue;
+        const list = found.get(id) ?? [];
+        list.push({ abilityId: rule.abilityId, grantedBy: context.selfInstanceId });
+        found.set(id, list);
+      }
+    }
+    const result = found.size === 0 ? NO_GAINED_ABILITIES : found;
+    perDeps.set(deps, result);
+    return result;
+  } catch (error) {
+    perDeps.delete(deps);
+    throw error;
+  }
 }
 
 const NO_IGNORED_ABILITIES: ReadonlyMap<InstanceId, ReadonlySet<string>> = new Map();

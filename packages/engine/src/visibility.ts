@@ -11,16 +11,26 @@
  *    decision is offering out of it — an ability that instructs a player to look at or search a deck lets that player
  *    read those cards (p. 27 "Look, Looked-At"), and the shuffle afterwards is what keeps the order secret; and for
  *    the top card of a player deck kept faceup by a card ("Play with the top card of your deck faceup",
- *    `RuleSpec topOfDeckFaceup`, docs/phase7-wave8.md §3.48), which every player sees while that rule holds;
+ *    `RuleSpec topOfDeckFaceup`, docs/phase7-wave8.md §3.48), which every player sees while that rule holds, as they
+ *    do the top card of the encounter deck under the same rule ("Play with the top card of the encounter deck
+ *    faceup", `deck: "encounter"`, docs/phase7-wave9.md §3.42);
  *  - a card being played or resolving from out of play (a player's `resolving` area: an event while it resolves, RRG
  *    1.8 "Event", p. 19; a card played off the top of a deck; an Invocation whose Special is resolving) is on the table
  *    for every player to read, though nothing sets its `faceup` flag;
  *  - a set-aside card (the scenario's, or a player's nemesis set) that an open decision is offering is read by the
  *    player deciding ("add one set-aside ally to your hand": they choose among faces), as a card offered out of a
  *    deck is;
- *  - everything else is open exactly when it is faceup, which covers a facedown boost card, a dealt encounter card, a
- *    tucked card and a set-aside nemesis set without naming any of them. Being offered by a decision does not open any
- *    of these: only the deck and set-aside arms read the open decision.
+ *  - a facedown encounter card dealt to a player is closed, except while a look offers it ("look at each encounter
+ *    card dealt to each player", docs/phase7-wave9.md §3.12), and then to the looking player alone; a facedown boost
+ *    card on an enemy is the same ("look at that card and the top card of the encounter deck", §3.44);
+ *  - everything else is open exactly when it is faceup, which covers a tucked card and a
+ *    set-aside nemesis set without naming any of them. Being offered by a decision does not open any of these: only
+ *    the deck, dealt-card and set-aside arms read the open decision.
+ *
+ * **A look is one player's.** RRG 1.8 "Look, Looked-At" (p. 27): "only the player who is resolving the ability can
+ * look at those cards". So while the open decision is a look (`ChoicePrompt lookAt` or `rearrange`), a named viewer
+ * who is not the looking player sees none of its cards, in a deck or dealt. With no viewer named the deck arms keep
+ * the table's answer (see "Whose eyes"). `lookedAtBy` lists the cards an open look shows a player.
  *
  * This lives in the engine because two things need the same answer and must not fork: the client's card rendering
  * (`view/visibility.ts` delegates here) and `preview()`'s truncation rule, which is the thing that stops an outcome
@@ -42,15 +52,22 @@
  * one while one human holds every seat. A client that draws for one seat names that seat; one that draws the open
  * decision's own sheet names the decision's player or the table.
  *
+ * **Hidden piles are nobody's.** A card in `GameState.hiddenPiles` (docs/phase7-wave9.md §3.29 (a); MC50 p. 5: put in
+ * the envelope "**without looking at them**") is hidden from every player with no exception, and it is not an instance,
+ * so `faceVisible` is never asked about it. What a player may be shown of a pile is its size (`hiddenPileViews`); what
+ * a client holds or a server sends is the state with the piles' contents taken out (`sealHiddenPiles`). A card that
+ * has come out of a pile (`GameState.revealedPileCards`) is open to all.
+ *
  * A permission every player holds because of a rule on a card (the faceup top card of a deck) needs the rules read
  * but no viewer: a `TableContext` carries the deps alone. A caller that passes neither gets the answer of the zones
  * and the `faceup` flag only, in which that card is still closed.
  */
 
+import type { CardId } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
-import { activeEncounterDeck, getInstance, getPlayer, locateCard } from "./query.js";
+import { activeEncounterDeck, cardOf, getInstance, getPlayer, locateCard } from "./query.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { activeRules, rulePlayers, shownDeckTop } from "./select.js";
+import { activeRules, rulePlayers, shownDeckTop, shownEncounterTop } from "./select.js";
 import type { GameState, ZoneId } from "./state.js";
 
 /** Whose eyes: the player looking, and the deps that let their per-player permissions (rules on cards) be read. */
@@ -91,6 +108,28 @@ export const offeredByOpenChoice = (state: GameState, id: InstanceId): boolean =
 const offeredToViewer = (state: GameState, id: InstanceId, view: ViewerContext | TableContext | undefined): boolean =>
   offeredByOpenChoice(state, id) && (!view || !("viewer" in view) || state.pendingChoice?.playerId === view.viewer);
 
+/** The open decision is a look: its options are shown, not chosen among by what they are (p. 27). */
+const openLook = (state: GameState): boolean =>
+  state.pendingChoice?.prompt.kind === "lookAt" || state.pendingChoice?.prompt.kind === "rearrange";
+
+/**
+ * A deck card the open decision offers, as this viewer sees it: every offered card, unless the decision is a look and
+ * the viewer named is not the player looking (RRG 1.8 "Look, Looked-At", p. 27).
+ */
+const offeredFromDeck = (state: GameState, id: InstanceId, view: ViewerContext | TableContext | undefined): boolean =>
+  openLook(state) ? offeredToViewer(state, id, view) : offeredByOpenChoice(state, id);
+
+/**
+ * The cards an open look is showing `viewer`: the looked-at cards for the player looking, and none for anyone else
+ * (RRG 1.8 "Look, Looked-At", p. 27). Empty when no look is open. A client draws a look's sheet from this, so a seat
+ * that is not the looking player has no card of it to draw.
+ */
+export function lookedAtBy(state: GameState, viewer: PlayerId): readonly InstanceId[] {
+  const choice = state.pendingChoice;
+  if (!choice || !openLook(state) || choice.playerId !== viewer) return [];
+  return choice.options.flatMap((option) => (option.ref.kind === "card" ? [option.ref.instanceId] : []));
+}
+
 /**
  * "You may look at the top card of the encounter deck at any time" (`RuleSpec mayLookAtTopOfEncounterDeck`,
  * docs/phase7-wave5.md §3.28): the card is the active encounter deck's top card and one of the viewer's rules says so.
@@ -121,6 +160,20 @@ const shownOnTopOfDeck = (
   view !== undefined && getPlayer(state, playerId)?.deck[0] === id && shownDeckTop(state, view.deps, playerId) === id;
 
 /**
+ * "Play with the top card of the encounter deck faceup" (`RuleSpec topOfDeckFaceup { deck: "encounter" }`,
+ * docs/phase7-wave9.md §3.42): the card is the one that rule shows on top of the active villain's encounter deck
+ * (`shownEncounterTop`). The same for every viewer, so `view` is only read for its deps; another villain's deck (The
+ * Wrecking Crew) is not "the encounter deck" and stays closed.
+ */
+const shownOnTopOfEncounterDeck = (
+  state: GameState,
+  id: InstanceId,
+  view: ViewerContext | TableContext | undefined,
+): boolean =>
+  // The deck's order is asked first, so the rules are read for one card of the deck and not for each.
+  view !== undefined && activeEncounterDeck(state).deck[0] === id && shownEncounterTop(state, view.deps) === id;
+
+/**
  * Whether this table may read the card's face right now. `view` names the player looking, for the permissions only one
  * player holds, or the table (`TableContext`) for those a rule gives every player; without it the answer is the one
  * the zones and the `faceup` flag give.
@@ -143,15 +196,28 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
     case "setAside":
       return instance.faceup || offeredToViewer(state, id, view);
     case "encounterDeck":
-      return instance.faceup || offeredByOpenChoice(state, id) || viewerMayLookAtEncounterTop(state, id, view);
+      return (
+        instance.faceup ||
+        offeredFromDeck(state, id, view) ||
+        viewerMayLookAtEncounterTop(state, id, view) ||
+        shownOnTopOfEncounterDeck(state, id, view)
+      );
     case "deck":
-      return instance.faceup || offeredByOpenChoice(state, id) || shownOnTopOfDeck(state, id, zone.playerId, view);
+      return instance.faceup || offeredFromDeck(state, id, view) || shownOnTopOfDeck(state, id, zone.playerId, view);
     case "separateDeck":
     case "scenarioDeck":
       // A separate deck's top card can be faceup by its own rules (the Invocation deck), which `faceup` already says.
       // A scenario deck's card is seen only while a look offers it ("look at the top card of the show deck", Erratic
       // Teleportation, `mojo` 39019; docs/phase7-wave6.md §3.66).
-      return instance.faceup || offeredByOpenChoice(state, id);
+      return instance.faceup || offeredFromDeck(state, id, view);
+    case "dealtEncounter":
+      // Facedown until revealed; a look shows it to the looking player alone (docs/phase7-wave9.md §3.12). No other
+      // decision opens it: being passed or chosen as a facedown card does not turn it over.
+      return instance.faceup || (openLook(state) && offeredToViewer(state, id, view));
+    case "boost":
+      // Facedown until the activation turns it up; a look shows it to the looking player alone ("look at that card
+      // and the top card of the encounter deck", docs/phase7-wave9.md §3.44). No other decision opens it.
+      return instance.faceup || (openLook(state) && offeredToViewer(state, id, view));
     case "attachment":
       // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may
       // look at and play; table-wide today, as every hand is (see "Whose eyes" above).
@@ -180,3 +246,81 @@ export const faceHidden = (state: GameState, id: InstanceId): boolean => {
   const zone = locateCard(state, id);
   return zone !== null && !isDeckZone(zone) && !faceVisible(state, id);
 };
+
+/** What every player may know of one hidden pile: that it is there, and how many cards it holds. */
+export interface HiddenPileView {
+  readonly pile: string;
+  readonly size: number;
+}
+
+/**
+ * The hidden piles as a player sees them (docs/phase7-wave9.md §3.29 (a)): each pile's name and size, in the order the
+ * piles were prepared, and nothing of what is in them. The same for every viewer: no player may look into a pile (MC50
+ * p. 5, "without looking at them"), so there is no viewer to name. Empty in a game with no pile.
+ */
+export const hiddenPileViews = (state: GameState): readonly HiddenPileView[] =>
+  Object.entries(state.hiddenPiles ?? {}).map(([pile, cardIds]) => ({ pile, size: cardIds.length }));
+
+/**
+ * A game state with the contents of its hidden piles taken out: `hiddenPiles` is absent and `hiddenPileSizes` says how
+ * many cards each one holds. Everything else is the state as it is, `revealedPileCards` included.
+ */
+export type SealedGameState = Omit<GameState, "hiddenPiles"> & {
+  readonly hiddenPileSizes?: Readonly<Record<string, number>>;
+};
+
+/**
+ * The state a player's view is built from, or that is sent to a client: the same game with no hidden pile's card in
+ * it (docs/phase7-wave9.md §3.29 (a)). Not a state the engine can resume or replay from (the piles are gone): a save
+ * is the full `GameState`, held by whoever is the game's authority. Returns the state itself when it has no pile, so a
+ * game without one costs nothing.
+ *
+ * It closes the piles and nothing else. The cards of a deck or a hand are instances with a zone, and which of those a
+ * given seat may read is `faceVisible`'s question (see "Whose eyes").
+ */
+export function sealHiddenPiles(state: GameState): SealedGameState {
+  if (state.hiddenPiles === undefined) return state;
+  const { hiddenPiles, ...rest } = state;
+  return {
+    ...rest,
+    hiddenPileSizes: Object.fromEntries(Object.entries(hiddenPiles).map(([pile, cardIds]) => [pile, cardIds.length])),
+  };
+}
+
+/** Every card id that is in a hidden pile right now: what no event a player reads, and no preview, may name. */
+export const hiddenPileCardIds = (state: GameState): ReadonlySet<CardId> =>
+  new Set(Object.values(state.hiddenPiles ?? {}).flat());
+
+/** What a card in play facedown is called when it has no trait to be called by. */
+const FACEDOWN_MINION_NAME = "Facedown minion";
+const FACEDOWN_CARD_NAME = "Facedown card";
+
+/**
+ * The name the table calls a card by: what every option label, ref text and event field that names a card is built
+ * from. The printed name, except for a card that is in play facedown as something else (`CardInstance.facedownAs`)
+ * and whose face no player may read (`faceVisible` with no viewer): that one is named for what it is treated as, its
+ * role's traits and type ("Drone minion", "Controlled minion"), or "Facedown minion" / "Facedown card" when the role
+ * has no trait.
+ *
+ * RRG 1.8 "In Play and Out of Play" (p. 23): "If a card is double-sided, the facedown side is out of play", and a card
+ * out of play has inactive text. Ruling, Jan 26, 2026 (4) answer 5: "The facedown side of a Drone is not in play and
+ * does not matter." No rule lets a player look at a card put into play facedown off the top of a deck: "Look,
+ * Looked-At" (p. 27) needs an ability that says so, and the ruling of Jan 11, 2026 (1) on counting a deck forbids
+ * "inspect[ing] facedown cards". So the hidden printed name is nobody's to read, the controller's included, and the
+ * shared prompt and the log never carry it. Once the card leaves play it is itself again (`facedownAs` null) and its
+ * name is as public as its zone.
+ *
+ * A facedown card its owner may look at (a card attached facedown from their hand, `faceVisible`'s attachment arm)
+ * keeps its printed name here, because the table's answer is the owner's while one human holds every seat (see "Whose
+ * eyes" in the file comment); a per-viewer label for it is the view's job.
+ */
+export function displayNameOf(state: GameState, id: InstanceId): string {
+  const role = getInstance(state, id)?.facedownAs;
+  if (role && !faceVisible(state, id)) {
+    // Traits are stored in capitals (`trait()`); the cards print them as words ("as a Drone minion").
+    const traits = role.traits.map((t) => t.charAt(0) + t.slice(1).toLowerCase()).join(" ");
+    if (role.kind !== "minion") return traits || FACEDOWN_CARD_NAME;
+    return traits ? `${traits} minion` : FACEDOWN_MINION_NAME;
+  }
+  return cardOf(state, id)?.name ?? id;
+}

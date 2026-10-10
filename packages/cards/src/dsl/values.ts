@@ -1,5 +1,12 @@
 import { trait, type Trait } from "@mc/content";
-import { TOGETHER_TARGETS_SLOT, TOTAL_ATK_RESULT, UNRESOLVED_VAR } from "@mc/engine";
+import {
+  attackPreventedVars,
+  labeledResolvedVar,
+  PAID_CARDS_SLOT,
+  TOGETHER_TARGETS_SLOT,
+  TOTAL_ATK_RESULT,
+  UNRESOLVED_VAR,
+} from "@mc/engine";
 import type {
   BasicPowerName,
   CardIcon,
@@ -194,6 +201,20 @@ export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "iden
 export const yourIdentity: TargetRef = identityOf(you);
 /** The card(s) bound to a slot by an earlier choice. */
 export const chosen = (slot: string): TargetRef => ({ kind: "slot", slot });
+/**
+ * "A card used to pay for [this card]" (Spectrum, `falcon` 53018; docs/phase7-wave9.md §3.46 (b)): the cards that paid
+ * for a play, the engine's slot `paid.cards`. Read by the played card's own abilities while its play resolves, and by
+ * an interrupt or response to the play (`when.youPlayCard`, `after.youPlayedCard`, …). They are the cards spent as
+ * cards: discarded from a hand (another player's too, for an alliance card), or spent from under a Resource Reserve
+ * (§3.46 (c)); a resource a "Resource" ability generated is not one (RRG 1.8 "Cost", p. 13), a card whose every
+ * resource was overpaid is not one, and at a cost of 0 there is none. Each is read where it is now, usually a discard
+ * pile: count them with `refCount(paidCards)` or `countInRef`, read their icons with `totalPrintedResources`, choose
+ * among those still in a discard pile with `chooseCards(slot, zone("discard", eachPlayer, { filter: { inSlot: PAID_CARDS } }), …)`.
+ * Nothing paid, or the card was put into play without being played: the slot is empty.
+ */
+export const paidCards: TargetRef = { kind: "slot", slot: PAID_CARDS_SLOT };
+/** The slot `paidCards` reads, for a query's `inSlot`. */
+export const PAID_CARDS = PAID_CARDS_SLOT;
 /** The card that caused the triggering event ("that enemy" after it attacks). */
 export const eventSource: TargetRef = { kind: "eventSource" };
 /** The card the triggering event happened to ("that minion", "the attacked enemy"). */
@@ -628,6 +649,21 @@ export const encounterIconsInPlay = (icons?: readonly CardIcon[]): ValueSpec => 
   ...(icons ? { icons } : {}),
 });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
+/** The star icons (★) in the boost areas of the cards `cards` names: 1 for each card that prints one. */
+export const starIconsOn = (cards: TargetRef): ValueSpec => ({ kind: "starIcons", cards });
+/**
+ * "For each icon (★ and boost) in [that card]'s boost area" (Talon Line, `falcon` 53012; docs/phase7-wave9.md §3.43):
+ * the boost icons and the star of the cards `cards` names, read from the cards where they are now. A star is counted
+ * apart from the boost icons (RRG 1.8 "Boost, Boost Icon", p. 11), so this is their sum.
+ */
+export const boostAreaIconsOn = (cards: TargetRef): ValueSpec => sum(boostIconsOn(cards), starIconsOn(cards));
+/**
+ * "For each printed icon (★ and boost) in [that card]'s boost area" (Up, Up, and Away, `falcon` 53005;
+ * docs/phase7-wave9.md §3.44): as `boostAreaIconsOn`, with the boost icons the card prints and no modifier ("this card
+ * gets +1 boost icon if …", an amplify icon). A star is printed or it is not.
+ */
+export const printedBoostAreaIconsOn = (cards: TargetRef): ValueSpec =>
+  sum({ kind: "boostIcons", of: cards, printed: true }, starIconsOn(cards));
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /**
  * "A minion with fewer remaining hit points than M" (M, `magneto` 49012): `query("minion", remainingHpCompare("lt",
@@ -652,6 +688,25 @@ export const printedHpOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", o
  */
 export const printedHpNumeralOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", of, numeral: true });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
+/**
+ * "The Board Member environment with the fewest secret counters" (S.H.I.E.L.D. Agent 50172, Zemo's Sword 50170, `aos`;
+ * docs/phase7-wave9.md §3.27): `superlative` measured by each candidate's counters of `counterType` (`"any"`: of any
+ * type). A card holding none counts as 0, so it is the fewest. Ties resolve to every tied card, as any `superlative`:
+ * bind it and let the right player pick, `bindTargets("tied", withFewestCounters(each(BOARD_MEMBERS), "secret"))` then
+ * `chooseTarget("board", { inSlot: "tied" }, { chooser: firstPlayer })` on an encounter card (RRG 1.8 "First Player",
+ * p. 19).
+ */
+export const withFewestCounters = (
+  among: TargetRef,
+  counterType: string,
+  opts: { readonly ties?: "all" | "first" } = {},
+): TargetRef => superlative("lowest", among, countersOn(chosen("candidate"), counterType), opts);
+/** "The [card] with the most [type] counters": see `withFewestCounters`. */
+export const withMostCounters = (
+  among: TargetRef,
+  counterType: string,
+  opts: { readonly ties?: "all" | "first" } = {},
+): TargetRef => superlative("highest", among, countersOn(chosen("candidate"), counterType), opts);
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
 /**
@@ -713,6 +768,34 @@ export const scenarioAreaCount = (name: string, filter?: TargetQuery): ValueSpec
   kind: "scenarioAreaCount",
   name,
   ...(filter ? { filter } : {}),
+});
+/**
+ * How many cards a hidden pile holds (docs/phase7-wave9.md §3.29 (a)): the size of an envelope is open though its
+ * cards are not. "If the S.H.I.E.L.D. envelope is not empty" is `valueAtLeast(hiddenPileCount("shield"), 1)`.
+ */
+export const hiddenPileCount = (pile: string): ValueSpec => ({ kind: "hiddenPileCount", pile });
+/**
+ * "The accused" (The Accusation 2B, `aos` 50168b; docs/phase7-wave9.md §3.29 (b)): the board member of the row the
+ * players accused, on either face. `each(theAccused)`; no card before `accuse` has resolved.
+ */
+export const theAccused: Pick<TargetQuery, "accusation"> = { accusation: "accused" };
+/**
+ * "The mole" (Fighting Zemo 3B, `aos` 50169b; docs/phase7-wave9.md §3.29 (b)): the board member the hidden pile named,
+ * on either face. `flipCard(each(theMole), …)`; no card before `identifyMole` has resolved. Read from the game's state,
+ * so a later stage's ability names the same card.
+ */
+export const theMole: Pick<TargetQuery, "accusation"> = { accusation: "mole" };
+/**
+ * "For each guess you got wrong" (The Accusation 2B, `aos` 50168b; MC50 p. 19): how many of the four guesses (means,
+ * motive, opportunity, board member) differ from the mole's, 0 to 4; 0 before `identifyMole` has resolved.
+ */
+export const accusationWrongGuesses: ValueSpec = { kind: "accusationWrongGuesses" };
+/** "If you accused the wrong board member" (The Accusation 2B, `aos` 50168b); false before `identifyMole` has resolved. */
+export const accusedWrong: Predicate = { kind: "accusedWrong" };
+/** How many cards have come out of the hidden pile `pile` faceup, or out of every pile when none is named. */
+export const revealedPileCardCount = (pile?: string): ValueSpec => ({
+  kind: "revealedPileCardCount",
+  ...(pile !== undefined ? { pile } : {}),
 });
 /**
  * The cards in the victory display, optionally filtered: "Play only if there is a side scheme in the victory display"
@@ -875,6 +958,43 @@ export const topOfDeckMatches = (matches: TargetQuery, player: PlayerRef = you):
   player,
   matches,
 });
+/**
+ * The top card of the encounter deck is kept faceup right now by a `playWithTopOfEncounterDeckFaceup` constant
+ * (docs/phase7-wave9.md §3.42). False in the villain phase, in the other form and under a blank text box.
+ */
+export const topOfEncounterDeckIsFaceup: Predicate = { kind: "topOfDeckFaceup", deck: "encounter" };
+/**
+ * The faceup top card of the encounter deck matches `matches` (its type, a trait, a star icon). False when the card is
+ * facedown, whatever it is and whoever remembers it (wave 8 §4.1 Q26 = B; ruling, March 19, 2026 – Ruling 5), and on
+ * an empty deck.
+ */
+export const topOfEncounterDeckMatches = (matches: TargetQuery): Predicate => ({
+  kind: "topOfDeckFaceup",
+  deck: "encounter",
+  matches,
+});
+/**
+ * The faceup top card of the encounter deck prints this many icons in its boost area, boost icons and the star
+ * counted together ("the number of icons (★ and boost) in the discarded card's boost area", Redwing 53002;
+ * docs/phase7-wave9.md §3.43). False when the card is facedown.
+ */
+export const topOfEncounterDeckShowsIcons = (bound: {
+  readonly atLeast?: number;
+  readonly atMost?: number;
+}): Predicate => ({
+  kind: "topOfDeckFaceup",
+  deck: "encounter",
+  boostAreaIcons: bound,
+});
+/**
+ * The top card of the encounter deck is showing and prints no icon in its boost area: the state in which an ability
+ * whose whole effect is a number read from those icons "cannot be triggered" (Redwing 53002, Battlefield Awareness
+ * 53010; RRG 1.8 FAQ "Redwing (#2)", p. 65; ruling, January 26, 2026 – Ruling 6 (1)) → `condition:
+ * not(topOfEncounterDeckShowsNoIcons)`. False for a facedown card, so the ability is offered against a card nobody can
+ * see (ruling, March 19, 2026 – Ruling 5). Not for Bird of Prey 53003 or Bird's-Eye View 53004, whose optional discard
+ * is offered whatever the card shows (docs/phase7-wave9.md §4.1 Q6 = B).
+ */
+export const topOfEncounterDeckShowsNoIcons: Predicate = topOfEncounterDeckShowsIcons({ atMost: 0 });
 /**
  * "If the top card of your deck has a [physical] or [wild] resource icon" (Soulsword 45034, Soul Strike 45039; the
  * [mental] and [energy] siblings 45033, 45035, 45038, 45040; docs/phase7-wave8.md §3.50) → `topOfYourDeckHas(
@@ -1115,6 +1235,28 @@ export const basicPowerStatIs = (...stat: readonly StatName[]): Predicate => ({
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
 /**
+ * "If no 'Preparation' ability was resolved [during this attack]" → `not(attackResolvedLabeled("preparation"))`
+ * (Black Widow's Gauntlet, `aos` 50068; docs/phase7-wave9.md §3.4): at least `atLeast` abilities of that label were
+ * resolved by a `resolvePreparationsOf` while the triggering attack was the attack in progress. Read off the attack
+ * that triggered this ability, so it belongs in an "after … attacks" response (offered after the attacked
+ * character's retaliate has resolved) or an `atEndOfAttack` effect. The engine's `eventResultAtLeast` over the
+ * attack's `labeledResolvedVar(label)` result: no predicate of its own.
+ */
+export const attackResolvedLabeled = (label: "preparation", atLeast = 1): Predicate =>
+  eventDealt(labeledResolvedVar(label), atLeast);
+/**
+ * "Deal that much damage to the attacking character" after `modifyAttack({ preventAllDamage: true, bind })`
+ * (docs/phase7-wave9.md §3.4): the damage the triggering attack would have dealt to the character it was against
+ * when the prevention resolved, after the attack's own modifiers and before anything of that character's (a tough
+ * status card). Read at the end of the attack (`atEndOfAttack`) or in an "after … attacks" ability; 0 before the
+ * attack has dealt its damage.
+ */
+export const attackPreventedAmount = (bind: string): ValueSpec => eventResult(attackPreventedVars(bind).amount);
+/** `attackPreventedAmount` summed over every character the attack dealt damage to (an attack with several targets). */
+export const attackPreventedTotal = (bind: string): ValueSpec => eventResult(attackPreventedVars(bind).total);
+/** Whether `modifyAttack({ preventAllDamage: true, bind })` resolved for the triggering attack, read as the two above. */
+export const attackWasPrevented = (bind: string): Predicate => eventDealt(attackPreventedVars(bind).prevented);
+/**
  * "If your identity takes any amount of damage from that attack" → `eventDamageTaken(each(YOUR_IDENTITY))`: the triggering
  * attack/activation's damage actually taken by `of` (indirect shares and overkill spill included, prevented damage
  * not), read at its end (`atEndOfAttack`) or in its response window (docs/phase7-wave5.md §4.1 Q65).
@@ -1213,6 +1355,8 @@ export const characterDidThisPhase = (character: TargetQuery, did: "attack" | "t
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */
 export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
+/** "During the player phase" (Falcon 53001a): any step of it, whoever's turn it is. */
+export const duringPlayerPhase: Predicate = { kind: "gameStep", phase: "player" };
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
 /**
