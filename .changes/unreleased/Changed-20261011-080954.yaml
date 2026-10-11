@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Enchantress: Trance of Greed and Alluring Call now require the play when the card can be legally played and paid for (a new playFromHand mustPay flag makes the payment non-declinable); the damage or fallback applies only when no such play exists'
-time: 2026-10-11T08:09:54.453641-04:00

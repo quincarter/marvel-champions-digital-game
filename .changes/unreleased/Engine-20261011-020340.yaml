@@ -1,3 +1,0 @@
-kind: Engine
-body: The game state the client holds is sealed for hidden piles and the campaign log's sealed values as well as hidden reverses (the Agents of S.H.I.E.L.D. evidence envelopes no longer reach the client); engine queries and previews run on a sealed state count the piles right and stop at hidden information
-time: 2026-10-11T02:03:40.268705-04:00

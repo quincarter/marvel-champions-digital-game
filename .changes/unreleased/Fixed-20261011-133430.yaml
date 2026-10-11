@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'A hero defeated on their own turn no longer freezes the game: the turn ends and passes to the next player, a defeated identity''s hit points read 0 instead of a negative number, and your own defeated seat is shown as DEFEATED instead of a live "Your turn"'
-time: 2026-10-11T13:34:30.3222881-04:00

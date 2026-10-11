@@ -1,3 +1,0 @@
-kind: Changed
-body: Line endings are LF on every machine (.gitattributes, .editorconfig, oxfmt endOfLine), so a Windows checkout matches a Mac one
-time: 2026-10-11T15:34:46.6033467-04:00
