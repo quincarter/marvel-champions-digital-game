@@ -4,6 +4,10 @@ import { CW_SCENARIOS } from "@mc/content";
 import { POOL_SCENARIOS } from "../content/pool.js";
 import {
   BUILDER_TILE,
+  CIVIL_WAR_TITLE_LABEL,
+  civilWarTitleEntryOf,
+  lastBuilderOrigin,
+  setBuilderOrigin,
   NOT_IN_POOL_MESSAGE,
   builderTileShelfOf,
   customizeEntryOf,
@@ -97,5 +101,27 @@ describe("Start hands the draft to Take your seats, and stops short while the po
     const d = enterBuilder("customize", draftFor(IRON), IRON).draft;
     expect(handoffOf(d, new Set([IRON]))).toEqual({ kind: "seats", draft: d });
     expect(handoffOf(d, new Set(["rhino"]))).toEqual({ kind: "blocked", message: NOT_IN_POOL_MESSAGE });
+  });
+});
+
+describe("the Title's Civil War! entry", () => {
+  test("labeled exactly Civil War!", () => expect(CIVIL_WAR_TITLE_LABEL).toBe("Civil War!"));
+
+  test("absent while the box is locked, present (naming the first leader) once it is open", () => {
+    expect(
+      civilWarTitleEntryOf("Complete the Agents of S.H.I.E.L.D. campaign to unlock Civil War", POOL_SCENARIOS),
+    ).toBeNull();
+    expect(civilWarTitleEntryOf(null, POOL_SCENARIOS)?.scenarioId).toBe(IRON);
+  });
+
+  test("absent when no Civil War scenario is in the pool", () => {
+    expect(civilWarTitleEntryOf(null, [rhino])).toBeNull();
+  });
+
+  test("the builder's origin is remembered for the session", () => {
+    setBuilderOrigin("title");
+    expect(lastBuilderOrigin()).toBe("title");
+    setBuilderOrigin("scenarioSelect");
+    expect(lastBuilderOrigin()).toBe("scenarioSelect");
   });
 });

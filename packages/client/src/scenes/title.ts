@@ -46,6 +46,15 @@ import { appSession } from "../session.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { isFirstLaunch } from "../guide/guide-prefs.js";
 import { describeCivilWar } from "../view/civil-war-label.js";
+import {
+  CIVIL_WAR_CYCLE_ID,
+  CIVIL_WAR_TITLE_LABEL,
+  civilWarTitleEntryOf,
+  enterBuilder,
+  setBuilderOrigin,
+} from "../view/civil-war-entry.js";
+import { unlocks } from "../progression/progression.js";
+import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import { startTutorialGame } from "../guide/start-tutorial.js";
@@ -151,11 +160,13 @@ export class TitleScene extends Phaser.Scene {
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
+    const civilWar = civilWarTitleEntryOf(unlocks().waveLock(CIVIL_WAR_CYCLE_ID), POOL_SCENARIOS);
     const layout = titleMenuLayout({
       width,
       height,
       continuable: this.#continuable !== null,
       update: this.#update !== null,
+      civilWar: civilWar !== null,
     });
 
     // Ground: split desktop/tablet (ink art panel left, red rule, paper menu panel right); one ink ground on phone.
@@ -281,6 +292,29 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
 
+    // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
+    if (civilWar && layout.civilWar) {
+      const openCivilWar = (): void => {
+        const entry = enterBuilder("build", newGameDraft(), civilWar.scenarioId);
+        setBuilderOrigin("title");
+        this.scale.off("resize", this.#rebuild, this);
+        goToScreen(this, SCENES.civilWarBuilder, {
+          draft: entry.draft,
+          step: entry.step,
+        } satisfies CivilWarBuilderData);
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: menuKind,
+          label: CIVIL_WAR_TITLE_LABEL,
+          type: typeRole.menuButton,
+          rect: layout.civilWar,
+          onClick: openCivilWar,
+        }),
+      );
+      this.#stops.set("civil-war", { rect: layout.civilWar, activate: openCivilWar });
+    }
+
     const openExtras = (): void => {
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.extras);
@@ -375,7 +409,11 @@ export class TitleScene extends Phaser.Scene {
 
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
     this.#route?.set(
-      titleMenuFocusOrder({ continuable: this.#continuable !== null, updateActions: bannerStops }),
+      titleMenuFocusOrder({
+        continuable: this.#continuable !== null,
+        civilWar: civilWar !== null,
+        updateActions: bannerStops,
+      }),
       this.#stops,
     );
     this.#drawArt();

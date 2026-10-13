@@ -17,6 +17,14 @@ import type { AnyCard, EncounterSet, Scenario, VillainCard } from "@mc/content";
 import { scale } from "@mc/engine";
 import type { CorePlayer } from "@mc/cards";
 import type { SessionConfig } from "../engine/host.js";
+import {
+  cardsBySet,
+  faceRefOf,
+  setFacesOf,
+  setSheetOf,
+  type FaceRef,
+  type SetSheetView,
+} from "./civil-war-builder-art.js";
 import { BUILDER_STEP_COUNT, type BuilderStep } from "./civil-war-builder-layout.js";
 import { gameModeOptionsView, selectMode, type GameModeOptionRow } from "./game-mode-options.js";
 import { foeWord } from "./foe-words.js";
@@ -126,6 +134,8 @@ export interface SideChoice {
   readonly selected: boolean;
   /** The two leaders' names. */
   readonly leaderNames: readonly string[];
+  /** The two leaders, for their pictures (`art/scenarios/<scenarioId>/villain.*`, else the leader card's own scan). */
+  readonly leaders: readonly { readonly scenarioId: string; readonly cardId: string; readonly name: string }[];
 }
 
 export interface LeaderStageView {
@@ -133,6 +143,8 @@ export interface LeaderStageView {
   readonly hp: string;
   /** Hit points at 1, 2, 3 and 4 players. */
   readonly hpByPlayers: readonly number[];
+  /** The leader's own printed card for this stage: opens Inspect. Null when the card is not in the pool. */
+  readonly face: FaceRef | null;
 }
 
 export interface LeaderChoice {
@@ -159,6 +171,8 @@ export interface StageOptionView {
   readonly action: string;
   readonly selected: boolean;
   readonly recommended: boolean;
+  /** The stage's own printed card (`MainSchemeStage.printedCardId`, its B side: the one with the threat). */
+  readonly face: FaceRef | null;
 }
 
 export interface StageRowView {
@@ -179,6 +193,8 @@ export interface SetTileView {
   readonly selected: boolean;
   readonly recommended: boolean;
   readonly enabled: boolean;
+  /** Up to three faces from the set, most recognizable first (`setFacesOf`). */
+  readonly faces: readonly FaceRef[];
   /** Why a disabled tile cannot be picked (the offer's refusal, or "Four is the most (MC56 p. 4)"). Absent when enabled. */
   readonly disabledReason?: string;
 }
@@ -190,6 +206,21 @@ export interface SetSectionView {
   /** `otherSide` only: one collapsed line, the tiles show when expanded. */
   readonly collapsedLine?: string;
   readonly expanded?: boolean;
+}
+
+/** What the summary draws besides its text: the leader, the two stages and the chosen sets. A hidden item has no face. */
+export interface SummaryArt {
+  readonly leader: { readonly scenarioId: string; readonly cardId: string; readonly name: string };
+  readonly stages: readonly {
+    readonly label: string;
+    readonly name: string;
+    readonly face: FaceRef | null;
+    readonly hidden: boolean;
+  }[];
+  /** Blind: the sets are not named, only counted; the scene draws that many card backs. */
+  readonly setsHidden: boolean;
+  readonly sets: readonly { readonly id: string; readonly name: string; readonly faces: readonly FaceRef[] }[];
+  readonly setCount: number;
 }
 
 export interface ModularStepView {
@@ -231,6 +262,7 @@ export interface BuilderView {
   readonly isPreconstructed: boolean;
   readonly preconstructedEnabled: boolean;
   readonly summary: readonly string[];
+  readonly summaryArt: SummaryArt;
   /** Every problem the offer states, in its own words; `problems[0]` is what Start shows. */
   readonly problems: readonly string[];
   readonly canStart: boolean;
@@ -309,13 +341,36 @@ function leaderStages(
   const card = ctx.cards.get(scenario.villainCardId as string) as VillainCard | undefined;
   const numbers = difficulty === "expert" ? scenario.villainStages.expert : scenario.villainStages.standard;
   return numbers.map((n) => {
-    const stage = card?.sides[0].stages.find((s) => s.stageNumber === n);
+    const stageIndex = card?.sides[0].stages.findIndex((s) => s.stageNumber === n) ?? -1;
+    const stage = stageIndex >= 0 ? card?.sides[0].stages[stageIndex] : undefined;
     return {
+      face:
+        card && stageIndex >= 0
+          ? faceRefOf(
+              card,
+              { kind: "villainStage", sideIndex: 0, stageIndex },
+              `${card.name}, stage ${NUMERALS[n] ?? n}`,
+            )
+          : null,
       numeral: NUMERALS[n] ?? String(n),
       hp: stage ? formatScaling(stage.hp) : "",
       hpByPlayers: stage ? PLAYER_COUNTS.map((p) => scale(stage.hp, p)) : [],
     };
   });
+}
+
+/** A main scheme stage's own printed card, drawn as its B side (the one that carries the threat). */
+function stageFaceOf(ctx: BuilderContext, scenario: Scenario, printedCardId: string, name: string): FaceRef | null {
+  const card = ctx.cards.get(scenario.mainSchemeCardId as string);
+  if (card?.type !== "main_scheme") return null;
+  const stageIndex = card.stages.findIndex((stage) => stage.printedCardId === printedCardId);
+  return stageIndex < 0 ? null : faceRefOf(card, { kind: "mainSchemeStage", stageIndex, side: "B" }, name);
+}
+
+/** The "cards in this set" sheet for one modular set. */
+export function setSheetFor(ctx: Pick<BuilderContext, "cards" | "encounterSets">, setId: string): SetSheetView {
+  const name = ctx.encounterSets.find((s) => (s.id as string) === setId)?.name ?? setId;
+  return setSheetOf(setId, name, cardsBySet(ctx.cards).get(setId) ?? []);
 }
 
 function setNameOf(ctx: BuilderContext, id: string): string {
@@ -349,6 +404,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     action: `civil:side:${s.side}`,
     selected: s.side === mySide,
     leaderNames: s.leaders.map((l) => l.name),
+    leaders: s.leaders.map((l) => ({ scenarioId: l.scenarioId, cardId: l.leaderCardId, name: l.name })),
   }));
   const leaderChoices = (offer.sides.find((s) => s.side === mySide)?.leaders ?? []).map<LeaderChoice>((l) => {
     const rec = ctx.scenarios.find((x) => (x.id as string) === l.scenarioId);
@@ -386,6 +442,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
             action: `civil:stage:${row.stageNumber}:${o.printedCardId}`,
             selected: o.printedCardId === picked,
             recommended: o.printedCardId === offer.mainSchemeStages!.recommended[i],
+            face: stageFaceOf(ctx, scenario, o.printedCardId, o.name),
           })),
     };
   });
@@ -394,6 +451,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
   const stageSummary = blind ? "" : `${stage1}, then ${stage2}.`;
 
   // Modular sets (step 4).
+  const bySet = cardsBySet(ctx.cards);
   const tile = (s: ModularSetLegality): SetTileView => {
     const selected = chosenIds.includes(s.id);
     const reason = !s.ok ? s.problem : !selected ? atMax : null;
@@ -406,6 +464,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
       selected,
       recommended: s.recommended,
       enabled: reason === null,
+      faces: setFacesOf(bySet.get(s.id) ?? []),
       ...(reason !== null ? { disabledReason: reason } : {}),
     };
   };
@@ -485,6 +544,32 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     blind ? `${count} sets hidden` : `${count} set${count === 1 ? "" : "s"}`,
     ready ? "Ready-made" : "Custom",
   ];
+  const stageRowsFirst = stageRows[0];
+  const stageRowsSecond = stageRows[1];
+  const stageEntry = (
+    row: StageRowView | undefined,
+    number: number,
+    name: string,
+    hidden: boolean,
+  ): SummaryArt["stages"][number] => ({
+    label: `Stage ${number}`,
+    name: hidden ? "Hidden" : name,
+    face: hidden ? null : (row?.options.find((o) => o.selected)?.face ?? null),
+    hidden,
+  });
+  const summaryArt: SummaryArt = {
+    leader: { scenarioId: draft.scenarioId, cardId: scenario.villainCardId as string, name: leaderName },
+    stages: [stageEntry(stageRowsFirst, 1, stage1, false), stageEntry(stageRowsSecond, 2, stage2, blind)],
+    setsHidden: blind,
+    sets: blind
+      ? []
+      : chosenIds.map((id) => ({
+          id,
+          name: sets.find((x) => x.id === id)?.name ?? id,
+          faces: setFacesOf(bySet.get(id) ?? [], 1),
+        })),
+    setCount: count,
+  };
   const steps = Array.from({ length: BUILDER_STEP_COUNT }, (_, i): BuilderStepView => {
     const n = (i + 1) as BuilderStep;
     return {
@@ -557,6 +642,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     isPreconstructed: ready,
     preconstructedEnabled: !ready,
     summary,
+    summaryArt,
     problems,
     canStart,
     startProblem: problems[0] ?? null,

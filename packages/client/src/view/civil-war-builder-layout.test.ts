@@ -6,6 +6,16 @@ import {
   builderLayoutRects,
   civilWarBuilderLayout,
   MODULAR_TILE_HEIGHT,
+  leaderCardHeight,
+  leaderCardParts,
+  reviewBodyHeight,
+  setSheetLayout,
+  setTileParts,
+  sideCardParts,
+  stageCardHeight,
+  stageOptionParts,
+  summaryHeight,
+  summaryParts,
   type BuilderLayout,
   type BuilderStep,
 } from "./civil-war-builder-layout.js";
@@ -58,20 +68,21 @@ describe("civilWarBuilderLayout: exact numbers", () => {
     expect(l.start).toEqual({ x: 16, y: 752, width: 343, height: 52 });
   });
 
-  test("phone: stage cards stack 2 by 2", () => {
+  test("phone: stage cards stack 2 by 2, each tall enough for its face, text and Read strip", () => {
     const l = civilWarBuilderLayout({ width: 375, height: 812, step: 3 });
     const [row1, row2] = l.stageRows;
+    const h = stageCardHeight(167.5);
     expect(row1!.cards.map((c) => [c.x, c.y])).toEqual([
       [16, 98],
       [191.5, 98],
-      [16, 202],
-      [191.5, 202],
+      [16, 98 + h + 8],
+      [191.5, 98 + h + 8],
     ]);
     expect(row1!.cards[0]!.width).toBe(167.5);
-    expect(row2!.label.y).toBe(314);
-    expect(l.stageSummary.y).toBe(556);
-    expect(l.contentHeight).toBe(510);
-    expect(l.scrollable).toBe(false);
+    expect(row1!.cards[0]!.height).toBe(h);
+    expect(row2!.label.y).toBe(98 + 2 * h + 8 + 16);
+    expect(l.stageSummary.y).toBe(row2!.label.y + 26 + 2 * h + 8 + 16);
+    expect(l.scrollable).toBe(true);
   });
 
   test("tablet 768x1024: rail left, content right, stage rows of four, grid three tiles wide", () => {
@@ -84,8 +95,10 @@ describe("civilWarBuilderLayout: exact numbers", () => {
     expect(l.content).toEqual({ x: 248, y: 88, width: 496, height: 844 });
     expect(l.foot).toEqual({ x: 0, y: 956, width: 768, height: 68 });
     expect(l.start).toEqual({ x: 504, y: 964, width: 240, height: 52 });
-    expect(l.stageRows[0]!.cards.map((c) => c.y)).toEqual([114, 114, 114, 114]);
-    expect(l.stageRows[0]!.cards[0]!.width).toBe(118);
+    // 496 wide is under the 640 a row of four needs: two by two, so a card face stays big enough to read.
+    const h = stageCardHeight(244);
+    expect(l.stageRows[0]!.cards.map((c) => c.y)).toEqual([114, 114, 114 + h + 8, 114 + h + 8]);
+    expect(l.stageRows[0]!.cards[0]!.width).toBe(244);
     expect(l.modularColumns).toBe(3);
   });
 
@@ -131,9 +144,10 @@ describe("civilWarBuilderLayout: step 5 never repeats the review column's summar
       const l = civilWarBuilderLayout({ ...size, step: 5 });
       expect(l.review).toBeNull();
       expect(l.summaryInStep).toBe(true);
-      expect(l.reviewBody.height).toBe(240);
-      expect(l.preconstructed.y).toBe(l.reviewBody.y + 240 - 52);
-      expect(l.difficulty[0].y).toBe(l.reviewBody.y + 240 + 16);
+      const body = reviewBodyHeight(l.content.width);
+      expect(l.reviewBody.height).toBe(body);
+      expect(l.preconstructed.y).toBe(l.reviewBody.y + body - 52);
+      expect(l.difficulty[0].y).toBe(l.reviewBody.y + body + 16);
       expect(l.difficulty[0].height).toBe(76);
     }
   });
@@ -262,5 +276,104 @@ describe("civilWarBuilderLayout: scrolling and sections", () => {
     expect(l.back.y).toBeGreaterThanOrEqual(47);
     expect(l.start.y + l.start.height).toBe(812 - 34 - 8);
     expect(l.content.y).toBeGreaterThanOrEqual(111);
+  });
+});
+
+const within = (r: Rect, outer: Rect): boolean => inside(r, outer);
+
+describe("the insides of each card stay inside it and do not collide", () => {
+  const widths = [158, 175, 244, 358, 408];
+
+  test("Side card: shape, name, two pictures and their captions", () => {
+    for (const w of widths) {
+      const rect: Rect = { x: 10, y: 20, width: w, height: 204 };
+      const p = sideCardParts(rect);
+      for (const r of [p.shape, p.name, ...p.pictures, ...p.captions]) expect(within(r, rect)).toBe(true);
+      expect(rectsOverlap(p.pictures[0], p.pictures[1])).toBe(false);
+      expect(rectsOverlap(p.shape, p.name)).toBe(false);
+      expect(p.pictures[0].y + p.pictures[0].height).toBeLessThan(p.captions[0].y);
+    }
+  });
+
+  test("Leader card: picture, text column, two stage faces and the Always in line fit the card", () => {
+    for (const w of widths.filter((x) => x >= 244)) {
+      const rect: Rect = { x: 0, y: 0, width: w, height: leaderCardHeight(w) };
+      const p = leaderCardParts(rect);
+      const parts = [p.picture, p.name, p.word, p.stageLines, p.expertNote, ...p.faces, ...p.captions, p.alwaysIn];
+      for (const r of parts) expect(within(r, rect)).toBe(true);
+      expect(rectsOverlap(p.faces[0], p.faces[1])).toBe(false);
+      expect(rectsOverlap(p.picture, p.name)).toBe(false);
+      expect(rectsOverlap(p.picture, p.faces[0])).toBe(false);
+      expect(rectsOverlap(p.expertNote, p.faces[1])).toBe(false);
+      // The stage faces are portrait cards (a leader is printed like a hero).
+      expect(p.faces[0].height / p.faces[0].width).toBeCloseTo(1.4, 1);
+    }
+  });
+
+  test("Stage option: the face is a landscape card and the Read strip is a touch target at the foot", () => {
+    for (const w of [158, 167.5, 200, 244]) {
+      const rect: Rect = { x: 0, y: 0, width: w, height: stageCardHeight(w) };
+      const p = stageOptionParts(rect);
+      for (const r of [p.face, p.name, p.threat, p.gist, p.read]) expect(within(r, rect)).toBe(true);
+      expect(p.face.width / p.face.height).toBeCloseTo(1.4, 1);
+      expect(p.read.height).toBeGreaterThanOrEqual(32);
+      for (const r of [p.face, p.name, p.threat, p.gist]) expect(rectsOverlap(r, p.read)).toBe(false);
+    }
+  });
+
+  test("Set tile: the fan, name and count strip stack without overlap in the narrowest tile", () => {
+    const rect: Rect = { x: 0, y: 0, width: 150, height: MODULAR_TILE_HEIGHT };
+    const p = setTileParts(rect);
+    for (const r of [p.recommended, p.fan, p.name, p.strip]) expect(within(r, rect)).toBe(true);
+    expect(rectsOverlap(p.fan, p.name)).toBe(false);
+    expect(rectsOverlap(p.name, p.strip)).toBe(false);
+    expect(rectsOverlap(p.recommended, p.fan)).toBe(false);
+  });
+
+  test("Summary: everything fits the column or the step body it is given, desktop and phone width", () => {
+    for (const w of [300, 343, 496]) {
+      const rect: Rect = { x: 0, y: 0, width: w, height: summaryHeight(w) };
+      const p = summaryParts(rect);
+      const slots = p.setThumbs(4);
+      for (const r of [p.picture, p.beside, ...p.stageFaces, ...p.stageCaptions, ...slots, p.facts]) {
+        expect(within(r, rect)).toBe(true);
+      }
+      expect(rectsOverlap(p.picture, p.beside)).toBe(false);
+      expect(rectsOverlap(p.stageFaces[0], p.stageFaces[1])).toBe(false);
+      expect(p.stageCaptions[0].y).toBeGreaterThanOrEqual(p.stageFaces[0].y + p.stageFaces[0].height);
+      expect(slots[0]!.y).toBeGreaterThanOrEqual(p.stageCaptions[0].y + p.stageCaptions[0].height);
+      expect(p.facts.y).toBeGreaterThanOrEqual(slots[0]!.y + slots[0]!.height);
+    }
+    // The desktop review column holds the summary.
+    expect(summaryHeight(300)).toBeLessThan(540);
+  });
+});
+
+describe("setSheetLayout", () => {
+  for (const size of [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 },
+  ]) {
+    test(`${size.width}x${size.height}: panel inside the viewport, cards in the body, the pick button a primary target`, () => {
+      const l = setSheetLayout(size, 9);
+      expect(inside(l.panel, { x: 0, y: 0, ...size })).toBe(true);
+      for (const r of [l.header, l.close, l.body, l.footer, l.action]) expect(inside(r, l.panel)).toBe(true);
+      expect(rectsOverlap(l.body, l.footer)).toBe(false);
+      expect(rectsOverlap(l.body, l.header)).toBe(false);
+      expect(l.action.height).toBeGreaterThanOrEqual(hit.primary);
+      expect(l.close.height).toBeGreaterThanOrEqual(hit.target);
+      expect(l.cells).toHaveLength(9);
+      for (const c of l.cells) {
+        expect(c.x).toBeGreaterThanOrEqual(l.body.x - 0.01);
+        expect(c.x + c.width).toBeLessThanOrEqual(l.body.x + l.body.width + 0.01);
+      }
+      expect(l.columns).toBeGreaterThanOrEqual(2);
+      expect(l.contentHeight).toBeGreaterThan(0);
+    });
+  }
+
+  test("an empty set has no content", () => {
+    expect(setSheetLayout({ width: 390, height: 844 }, 0).contentHeight).toBe(0);
   });
 });

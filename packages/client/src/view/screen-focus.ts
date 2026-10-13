@@ -352,6 +352,8 @@ export function settingsFocusOrder(rowIds: readonly string[]): readonly string[]
  */
 export function titleMenuFocusOrder(input: {
   readonly continuable: boolean;
+  /** The Civil War box is open: "civil-war" follows Campaign. */
+  readonly civilWar?: boolean;
   /** The update banner's buttons, when it is drawn; last, so the menu's own first stop stays first. */
   readonly updateActions?: readonly string[];
 }): readonly string[] {
@@ -360,6 +362,7 @@ export function titleMenuFocusOrder(input: {
     "new-game",
     "decks",
     "campaign",
+    ...(input.civilWar ? ["civil-war"] : []),
     "extras",
     "how-to-play",
     "settings",

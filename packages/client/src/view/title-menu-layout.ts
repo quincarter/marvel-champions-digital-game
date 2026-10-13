@@ -98,6 +98,8 @@ export interface TitleMenuLayoutInput {
   readonly continuable: boolean;
   /** True when a newer release is on offer (`platform/update-check.ts`): reserves the update banner. */
   readonly update?: boolean;
+  /** The Civil War box is open: a "Civil War!" row directly under Campaign. */
+  readonly civilWar?: boolean;
 }
 
 export interface TitleMenuLayout {
@@ -122,6 +124,8 @@ export interface TitleMenuLayout {
   readonly newGame: Rect;
   readonly decks: Rect;
   readonly campaign: Rect;
+  /** "Civil War!", directly under Campaign; null until the Civil War box is unlocked. */
+  readonly civilWar: Rect | null;
   readonly extras: Rect;
   /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
   readonly howToPlay: Rect;
@@ -136,6 +140,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.newGame,
     layout.decks,
     layout.campaign,
+    ...(layout.civilWar ? [layout.civilWar] : []),
     layout.extras,
     layout.howToPlay,
     layout.settings,
@@ -191,6 +196,11 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   y += hit.target + gap;
   const campaign: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
+  let civilWar: Rect | null = null;
+  if (input.civilWar === true) {
+    civilWar = { x: left, y, width: column, height: hit.target };
+    y += hit.target + gap;
+  }
   const extras: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
   const howToPlay: Rect = { x: left, y, width: column, height: hit.target };
@@ -217,6 +227,7 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
     newGame,
     decks,
     campaign,
+    civilWar,
     extras,
     howToPlay,
     settings,

@@ -535,6 +535,14 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test('the Title menu: "civil-war" follows Campaign once the Civil War box is open, and is absent before', () => {
+    expect(titleMenuFocusOrder({ continuable: false })).not.toContain("civil-war");
+    expect(titleMenuFocusOrder({ continuable: false, civilWar: false })).not.toContain("civil-war");
+    const open = titleMenuFocusOrder({ continuable: true, civilWar: true });
+    expect(open.indexOf("civil-war")).toBe(open.indexOf("campaign") + 1);
+    expect(open[open.indexOf("civil-war") + 1]).toBe("extras");
+  });
+
   test("Scenario select: Customize sits just before next, only while it is drawn", () => {
     expect(scenarioSelectFocusOrder({ scenarioIds: ["civil-war-builder", "a"], customize: true })).toEqual([
       "back",

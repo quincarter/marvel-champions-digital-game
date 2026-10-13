@@ -40,6 +40,7 @@ import {
   BUILD_YOUR_OWN_TITLE,
   customizeEntryOf,
   enterBuilder,
+  setBuilderOrigin,
   isBuilderTile,
   shelvesWithBuilderTile,
   type RosterEntry,
@@ -872,6 +873,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** The builder scene on the draft: "Customize" (this scenario as printed) or "Build your own" (the last build, or the first leader). */
   #openBuilder(kind: "build" | "customize", scenarioId: string): void {
     const entry = enterBuilder(kind, this.#draft, scenarioId);
+    setBuilderOrigin("scenarioSelect");
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.civilWarBuilder, { draft: entry.draft, step: entry.step } satisfies CivilWarBuilderData);
   }

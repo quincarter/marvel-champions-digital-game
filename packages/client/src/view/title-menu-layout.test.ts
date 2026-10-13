@@ -49,6 +49,30 @@ describe("titleMenuLayout", () => {
     expect(layout.menuPanel).toEqual({ x: 0, y: 0, width: 390, height: 844 });
   });
 
+  test("Civil War! is one more row directly under Campaign, absent (null) until the box is open", () => {
+    const closed = titleMenuLayout({ width: 1280, height: 1000, continuable: false });
+    const open = titleMenuLayout({ width: 1280, height: 1000, continuable: false, civilWar: true });
+    expect(closed.civilWar).toBeNull();
+    expect(open.civilWar).not.toBeNull();
+    expect(open.civilWar!.y).toBeGreaterThan(open.campaign.y + open.campaign.height - 1);
+    expect(open.extras.y).toBeGreaterThan(open.civilWar!.y);
+    expect(titleMenuLayoutRects(closed)).toHaveLength(titleMenuLayoutRects(open).length - 1);
+  });
+
+  for (const size of [
+    { width: 390, height: 844 },
+    { width: 360, height: 800 },
+  ]) {
+    test(`a phone shows every row (Continue, Civil War!, the update banner) without overlap, footer on screen, at ${size.width}x${size.height}`, () => {
+      const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, update: true });
+      const rects = titleMenuLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      }
+      expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(size.height);
+    });
+  }
+
   test("continuable adds exactly one row above New game", () => {
     const without = titleMenuLayout({ width: 1280, height: 1000, continuable: false });
     const withContinue = titleMenuLayout({ width: 1280, height: 1000, continuable: true });

@@ -32,15 +32,38 @@ export const REVIEW_COLUMN_WIDTH = 300;
 export const SECTION_LABEL_HEIGHT = 26;
 export const SECTION_GAP = 16;
 export const ROW_GAP = 8;
-/** The large Side / Leader cards. */
-export const CHOICE_CARD_HEIGHT = 160;
-/** A stage card: small card face, name, target threat, one-line gist. */
-export const STAGE_CARD_HEIGHT = 96;
-export const MODULAR_TILE_HEIGHT = 64;
+/** The Side card: both leaders' pictures with their names. */
+export const SIDE_CARD_HEIGHT = 204;
+/** A Leader card: the leader's picture and facts, then its two stage cards as faces. */
+export function leaderCardHeight(width: number): number {
+  return 168 + stageFaceSize(width).height + 22 + 18 + 10;
+}
+/** A Leader card's stage faces: two portrait cards (leaders are printed portrait) side by side, capped so a wide card does not grow tall. */
+function stageFaceSize(width: number): { width: number; height: number } {
+  const w = Math.min(124, Math.floor((width - 32) / 2));
+  return { width: w, height: Math.round((w * 7) / 5) };
+}
+/** A main scheme stage choice: its card face (landscape), name, target threat, a short gist and a "Read card" strip. */
+export function stageCardHeight(width: number): number {
+  return 8 + Math.round(((width - 16) * 5) / 7) + 6 + 30 + 16 + 30 + 4 + READ_STRIP_HEIGHT;
+}
+export const READ_STRIP_HEIGHT = 32;
+/** A modular set tile: a fan of its cards, its name, and a strip with its card count that opens the set's sheet. */
+export const MODULAR_TILE_HEIGHT = 148;
+export const MODULAR_FAN_SIZE = 64;
 export const MODULAR_TILE_MIN_WIDTH = 150;
 export const MODULAR_MAX_COLUMNS = 5;
-/** The read-only body of the review step, above its option rows. */
-export const REVIEW_BODY_HEIGHT = 240;
+/** The summary's reserve for its text list under the pictures. */
+const SUMMARY_TEXT_RESERVE = 190;
+const SUMMARY_PIC = { width: 78, height: 110 } as const;
+const SUMMARY_SET_THUMB = 76;
+/** The summary (leader picture, two stage faces, the chosen sets' thumbnails, the facts) for a column `width` wide. */
+export function summaryHeight(width: number): number {
+  const face = Math.round(((width - 32) / 2) * (5 / 7));
+  return 10 + SUMMARY_PIC.height + 10 + face + 22 + 8 + SUMMARY_SET_THUMB + 8 + SUMMARY_TEXT_RESERVE;
+}
+/** The read-only body of the review step on phone and tablet: the summary, then room for the Preconstructed button. */
+export const reviewBodyHeight = (width: number): number => summaryHeight(width) + 52;
 /** A difficulty card: its name and a two-line description. */
 export const DIFFICULTY_HEIGHT = 76;
 /** The "Preconstructed" reset button. */
@@ -74,7 +97,7 @@ export interface BuilderLayoutInput {
 
 export interface StageRowLayout {
   readonly label: Rect;
-  /** Four cards: one row on tablet and desktop, 2 by 2 on phone. */
+  /** Four cards: one row where the region is wide (640 and up), else 2 by 2. */
   readonly cards: readonly Rect[];
 }
 
@@ -259,36 +282,34 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
   const cx = content.x;
   const cw = content.width;
   const stacked = cw < 480;
+  const choiceWidth = stacked ? cw : (cw - ROW_GAP) / 2;
+  const choiceH = step === 2 ? leaderCardHeight(choiceWidth) : SIDE_CARD_HEIGHT;
   const choiceCards: Rect[] = stacked
-    ? [0, 1].map((i) => ({
-        x: cx,
-        y: content.y + i * (CHOICE_CARD_HEIGHT + ROW_GAP),
-        width: cw,
-        height: CHOICE_CARD_HEIGHT,
-      }))
+    ? [0, 1].map((i) => ({ x: cx, y: content.y + i * (choiceH + ROW_GAP), width: cw, height: choiceH }))
     : [0, 1].map((i) => ({
-        x: cx + i * ((cw - ROW_GAP) / 2 + ROW_GAP),
+        x: cx + i * (choiceWidth + ROW_GAP),
         y: content.y,
-        width: (cw - ROW_GAP) / 2,
-        height: CHOICE_CARD_HEIGHT,
+        width: choiceWidth,
+        height: choiceH,
       }));
-  const choiceHeight = stacked ? CHOICE_CARD_HEIGHT * 2 + ROW_GAP : CHOICE_CARD_HEIGHT;
+  const choiceHeight = stacked ? choiceH * 2 + ROW_GAP : choiceH;
 
   // Step 3: two rows of four stage cards (one row on tablet / desktop, 2 by 2 on phone).
-  const perLine = mode === "phone" ? 2 : 4;
+  const perLine = cw >= 640 ? 4 : 2;
   const cardW = (cw - (perLine - 1) * ROW_GAP) / perLine;
+  const stageH = stageCardHeight(cardW);
   let sy = content.y;
   const stageRows: StageRowLayout[] = [0, 1].map(() => {
     const label: Rect = { x: cx, y: sy, width: cw, height: SECTION_LABEL_HEIGHT };
     const cardsTop = sy + SECTION_LABEL_HEIGHT;
     const cards = Array.from({ length: 4 }, (_, i) => ({
       x: cx + (i % perLine) * (cardW + ROW_GAP),
-      y: cardsTop + Math.floor(i / perLine) * (STAGE_CARD_HEIGHT + ROW_GAP),
+      y: cardsTop + Math.floor(i / perLine) * (stageH + ROW_GAP),
       width: cardW,
-      height: STAGE_CARD_HEIGHT,
+      height: stageH,
     }));
     const lines = 4 / perLine;
-    sy = cardsTop + lines * STAGE_CARD_HEIGHT + (lines - 1) * ROW_GAP + SECTION_GAP;
+    sy = cardsTop + lines * stageH + (lines - 1) * ROW_GAP + SECTION_GAP;
     return { label, cards };
   });
   const stageSummary: Rect = { x: cx, y: sy, width: cw, height: SECTION_LABEL_HEIGHT };
@@ -327,7 +348,7 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
     x: cx,
     y: content.y,
     width: cw,
-    height: summaryInStep ? REVIEW_BODY_HEIGHT : PRECONSTRUCTED_HEIGHT,
+    height: summaryInStep ? reviewBodyHeight(cw) : PRECONSTRUCTED_HEIGHT,
   };
   const preconstructed: Rect = summaryInStep
     ? {
@@ -385,4 +406,226 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
     gameMode,
     randomPins,
   };
+}
+
+// ---- the insides of each card (all pure, all inside the rect they are given) ----
+
+/** The Side card: shape and name on top, then one picture per leader, each with its name under it. */
+export interface SideCardParts {
+  readonly shape: Rect;
+  readonly name: Rect;
+  readonly pictures: readonly [Rect, Rect];
+  readonly captions: readonly [Rect, Rect];
+}
+
+export function sideCardParts(rect: Rect): SideCardParts {
+  const pad = 12;
+  const gap = 12;
+  const pictureW = (rect.width - pad * 2 - gap) / 2;
+  const top = rect.y + 52;
+  const picture = (i: number): Rect => ({
+    x: rect.x + pad + i * (pictureW + gap),
+    y: top,
+    width: pictureW,
+    height: 112,
+  });
+  const caption = (i: number): Rect => ({ x: picture(i).x, y: top + 112 + 6, width: pictureW, height: 18 });
+  return {
+    shape: { x: rect.x + 16, y: rect.y + 14, width: 22, height: 24 },
+    name: { x: rect.x + 50, y: rect.y + 14, width: rect.width - 50 - 40, height: 26 },
+    pictures: [picture(0), picture(1)],
+    captions: [caption(0), caption(1)],
+  };
+}
+
+/** The Leader card: picture left, name and facts right, the two stage faces under them, the "Always in" line last. */
+export interface LeaderCardParts {
+  readonly picture: Rect;
+  readonly name: Rect;
+  readonly word: Rect;
+  readonly stageLines: Rect;
+  readonly expertNote: Rect;
+  /** Two stage faces; each tap zone is the face and its caption together. */
+  readonly faces: readonly [Rect, Rect];
+  readonly captions: readonly [Rect, Rect];
+  readonly alwaysIn: Rect;
+}
+
+export function leaderCardParts(rect: Rect): LeaderCardParts {
+  const pad = 12;
+  const picture: Rect = { x: rect.x + pad, y: rect.y + pad, width: 104, height: 146 };
+  const textX = picture.x + picture.width + 12;
+  const textW = rect.x + rect.width - pad - textX - 28;
+  const size = stageFaceSize(rect.width);
+  const facesY = rect.y + 168;
+  const face = (i: number): Rect => ({
+    x: rect.x + pad + i * (size.width + 8),
+    y: facesY,
+    width: size.width,
+    height: size.height,
+  });
+  const caption = (i: number): Rect => ({ x: face(i).x, y: facesY + size.height + 2, width: size.width, height: 18 });
+  return {
+    picture,
+    name: { x: textX, y: rect.y + 12, width: textW, height: 26 },
+    word: { x: textX, y: rect.y + 40, width: textW + 28, height: 14 },
+    stageLines: { x: textX, y: rect.y + 62, width: textW + 28, height: 34 },
+    expertNote: { x: textX, y: rect.y + 100, width: textW + 28, height: 30 },
+    faces: [face(0), face(1)],
+    captions: [caption(0), caption(1)],
+    alwaysIn: { x: rect.x + pad, y: facesY + size.height + 24, width: rect.width - pad * 2, height: 18 },
+  };
+}
+
+/** A main scheme stage choice: the face, then name, threat, gist, and the "Read card" strip along the bottom. */
+export interface StageOptionParts {
+  readonly face: Rect;
+  readonly name: Rect;
+  readonly threat: Rect;
+  readonly gist: Rect;
+  readonly read: Rect;
+}
+
+export function stageOptionParts(rect: Rect): StageOptionParts {
+  const faceW = rect.width - 16;
+  const face: Rect = { x: rect.x + 8, y: rect.y + 8, width: faceW, height: Math.round((faceW * 5) / 7) };
+  const nameY = face.y + face.height + 6;
+  return {
+    face,
+    name: { x: rect.x + 8, y: nameY, width: rect.width - 16, height: 30 },
+    threat: { x: rect.x + 8, y: nameY + 30, width: rect.width - 16, height: 14 },
+    gist: { x: rect.x + 8, y: nameY + 46, width: rect.width - 16, height: 30 },
+    read: { x: rect.x, y: rect.y + rect.height - READ_STRIP_HEIGHT, width: rect.width, height: READ_STRIP_HEIGHT },
+  };
+}
+
+/** A modular set tile: "Recommended" line, the fan of faces, the name, and the strip (count, type, arrow) that opens the sheet. */
+export interface SetTileParts {
+  readonly recommended: Rect;
+  readonly fan: Rect;
+  readonly name: Rect;
+  readonly strip: Rect;
+}
+
+export function setTileParts(rect: Rect): SetTileParts {
+  return {
+    recommended: { x: rect.x + 8, y: rect.y + 4, width: rect.width - 40, height: 12 },
+    fan: { x: rect.x + 8, y: rect.y + 18, width: rect.width - 16, height: MODULAR_FAN_SIZE },
+    name: { x: rect.x + 8, y: rect.y + 18 + MODULAR_FAN_SIZE + 4, width: rect.width - 40, height: 30 },
+    strip: { x: rect.x, y: rect.y + rect.height - 30, width: rect.width, height: 30 },
+  };
+}
+
+/** The summary: leader picture with the first facts beside it, the two stage faces, the chosen sets thumbnails, then the rest of the facts. */
+export interface SummaryParts {
+  readonly picture: Rect;
+  readonly beside: Rect;
+  readonly stageFaces: readonly [Rect, Rect];
+  readonly stageCaptions: readonly [Rect, Rect];
+  readonly setThumbs: (count: number) => readonly Rect[];
+  readonly setCaption: Rect;
+  readonly facts: Rect;
+}
+
+export function summaryParts(rect: Rect): SummaryParts {
+  const pad = 12;
+  const picture: Rect = { x: rect.x + pad, y: rect.y + 10, width: SUMMARY_PIC.width, height: SUMMARY_PIC.height };
+  const stageW = (rect.width - pad * 2 - 8) / 2;
+  const stageH = Math.round((stageW * 5) / 7);
+  const stageY = picture.y + picture.height + 10;
+  const stageFace = (i: number): Rect => ({
+    x: rect.x + pad + i * (stageW + 8),
+    y: stageY,
+    width: stageW,
+    height: stageH,
+  });
+  const stageCaption = (i: number): Rect => ({ ...stageFace(i), y: stageY + stageH + 2, height: 16 });
+  const setsY = stageY + stageH + 22 + 8;
+  return {
+    picture,
+    beside: {
+      x: picture.x + picture.width + 10,
+      y: picture.y,
+      width: rect.x + rect.width - pad - (picture.x + picture.width + 10),
+      height: picture.height,
+    },
+    stageFaces: [stageFace(0), stageFace(1)],
+    stageCaptions: [stageCaption(0), stageCaption(1)],
+    setThumbs: (count) => {
+      const columns = Math.max(4, count);
+      const w = (rect.width - pad * 2 - (columns - 1) * 6) / columns;
+      return Array.from({ length: count }, (_, i) => ({
+        x: rect.x + pad + i * (w + 6),
+        y: setsY,
+        width: w,
+        height: SUMMARY_SET_THUMB,
+      }));
+    },
+    setCaption: { x: rect.x + pad, y: setsY, width: rect.width - pad * 2, height: SUMMARY_SET_THUMB },
+    facts: {
+      x: rect.x + pad,
+      y: setsY + SUMMARY_SET_THUMB + 8,
+      width: rect.width - pad * 2,
+      height: SUMMARY_TEXT_RESERVE,
+    },
+  };
+}
+
+/** The "cards in this set" sheet: a panel over a dimmed screen, a header with Close, a scrolling grid, a footer with the pick button. */
+export interface SetSheetLayout {
+  readonly panel: Rect;
+  readonly header: Rect;
+  readonly close: Rect;
+  readonly body: Rect;
+  readonly footer: Rect;
+  readonly action: Rect;
+  readonly columns: number;
+  /** Card cells in content space (from `body.y`, unscrolled). The image box is the cell minus its caption. */
+  readonly cells: readonly Rect[];
+  readonly imageHeight: number;
+  readonly contentHeight: number;
+}
+
+/** Under each card: its name (up to two lines) and its type line. */
+const SHEET_CAPTION = 46;
+
+export function setSheetLayout(viewport: { width: number; height: number }, count: number): SetSheetLayout {
+  const margin = viewport.width < 520 ? 8 : 24;
+  const width = Math.min(viewport.width - margin * 2, 760);
+  const maxHeight = Math.min(viewport.height - margin * 2, 640);
+  const headerHeight = 60;
+  const footerHeight = 68;
+  const bodyWidth = width - 24;
+  const gap = 10;
+  const columns = Math.max(2, Math.min(5, Math.floor((bodyWidth + gap) / (104 + gap))));
+  const cellW = (bodyWidth - (columns - 1) * gap) / columns;
+  const imageHeight = Math.round(cellW * 1.4);
+  const cellH = imageHeight + SHEET_CAPTION;
+  const rows = Math.ceil(count / columns);
+  const contentHeight = rows === 0 ? 0 : rows * cellH + (rows - 1) * gap;
+  // The panel is as tall as its cards need (a set of five does not get a screenful of empty parchment), up to the screen.
+  const height = Math.min(maxHeight, headerHeight + contentHeight + 4 + footerHeight + 8);
+  const panel: Rect = {
+    x: Math.round((viewport.width - width) / 2),
+    y: Math.round((viewport.height - height) / 2),
+    width,
+    height,
+  };
+  const header: Rect = { x: panel.x, y: panel.y, width, height: headerHeight };
+  const close: Rect = { x: panel.x + width - 12 - 96, y: panel.y + 8, width: 96, height: hit.target };
+  const footer: Rect = { x: panel.x, y: panel.y + height - footerHeight, width, height: footerHeight };
+  const action: Rect = { x: panel.x + 12, y: footer.y + 8, width: width - 24, height: hit.primary };
+  const body: Rect = {
+    x: panel.x + 12,
+    y: header.y + header.height,
+    width: bodyWidth,
+    height: footer.y - (header.y + header.height) - 4,
+  };
+  const cells = Array.from({ length: count }, (_, i) => ({
+    x: body.x + (i % columns) * (cellW + gap),
+    y: body.y + Math.floor(i / columns) * (cellH + gap),
+    width: cellW,
+    height: cellH,
+  }));
+  return { panel, header, close, body, footer, action, columns, cells, imageHeight, contentHeight };
 }

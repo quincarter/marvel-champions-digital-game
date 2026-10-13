@@ -147,3 +147,32 @@ export function handoffOf(draft: SetupDraft, poolScenarioIds: ReadonlySet<string
     ? { kind: "seats", draft }
     : { kind: "blocked", message: NOT_IN_POOL_MESSAGE };
 }
+
+/** The Title's own row for the box (owner, 2026-10-13): directly under Campaign. */
+export const CIVIL_WAR_TITLE_LABEL = "Civil War!";
+/** The unlock wave of the Civil War box (`progression/unlocks.ts`). */
+export const CIVIL_WAR_CYCLE_ID = "cycle10";
+
+/**
+ * The Title's "Civil War!" row: present once the box is open (`waveLock` null: the same wave lock that opens the Civil
+ * War shelf on Scenario select) and a Civil War scenario is in the pool; absent, never disabled, before. Names the
+ * leader the builder opens on when there is no remembered build.
+ */
+export function civilWarTitleEntryOf(
+  waveLock: string | null,
+  scenarios: readonly Scenario[],
+  offerFor: OfferLookup = defaultOffer,
+): { readonly scenarioId: string } | null {
+  if (waveLock !== null) return null;
+  const first = scenarios.find((s) => isCivilWarScenario(s, offerFor));
+  return first ? { scenarioId: first.id as string } : null;
+}
+
+/** Where the builder's Back leads: the screen the player came from. */
+export type BuilderOrigin = "title" | "scenarioSelect";
+let builderOrigin: BuilderOrigin = "scenarioSelect";
+/** Remembered for the session, so coming back from hero select (or Table setup) to the builder still backs out to the same place. */
+export const setBuilderOrigin = (origin: BuilderOrigin): void => {
+  builderOrigin = origin;
+};
+export const lastBuilderOrigin = (): BuilderOrigin => builderOrigin;

@@ -132,6 +132,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import { appSession, deckStorage } from "../session.js";
+import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -147,6 +148,8 @@ export interface SeatsData {
   readonly seedDecks?: readonly Deck[];
   /** Open the "Cards that can't be played" sheet on arrival (Deck check's Start game with a clash still open). */
   readonly promptConflicts?: boolean;
+  /** Back returns to the Civil War builder (the draft came from it) rather than to Scenario select. */
+  readonly backTo?: "civil-war-builder";
 }
 
 /** One quick-filter chip: an aspect (tinted with the aspect's own stamp color), a deck source, or "Playable now". */
@@ -285,9 +288,12 @@ export class SeatsScene extends Phaser.Scene {
   /** Open the conflict sheet once the saved decks have loaded (`SeatsData.promptConflicts`). */
   #promptOnOpen = false;
 
+  #backTo: SeatsData["backTo"] | null = null;
+
   init(data: SeatsData): void {
     this.#promptOnOpen = data.promptConflicts ?? false;
     this.#draft = data.draft;
+    this.#backTo = data.backTo ?? null;
     this.#seedDecks = data.seedDecks ?? [];
   }
 
@@ -383,6 +389,10 @@ export class SeatsScene extends Phaser.Scene {
 
   #back(): void {
     this.scale.off("resize", this.#rebuild, this);
+    if (this.#backTo === "civil-war-builder") {
+      goToScreen(this, SCENES.civilWarBuilder, { draft: this.#draft, step: 5 } satisfies CivilWarBuilderData);
+      return;
+    }
     goToScreen(this, SCENES.scenarioSelect, { draft: this.#draft } satisfies ScenarioSelectData);
   }
 

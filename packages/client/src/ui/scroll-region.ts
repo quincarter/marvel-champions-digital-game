@@ -40,6 +40,8 @@ export interface McScrollRegionOptions {
    * content is added.
    */
   readonly clipInteractive?: boolean;
+  /** False while something drawn above the region (a sheet) owns the wheel and the drag. Default: always on. */
+  readonly enabled?: () => boolean;
 }
 
 const SCROLLBAR_WIDTH = 4;
@@ -53,6 +55,7 @@ export class McScrollRegion {
   readonly #heights: readonly number[];
   readonly #onScroll: ((offsetPx: number) => void) | undefined;
   readonly #clipInteractive: boolean;
+  readonly #enabled: () => boolean;
   readonly #root: Phaser.GameObjects.Container;
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #track: Phaser.GameObjects.Rectangle;
@@ -70,6 +73,7 @@ export class McScrollRegion {
     this.#scroll = options.scroll;
     this.#onScroll = options.onScroll;
     this.#clipInteractive = options.clipInteractive ?? false;
+    this.#enabled = options.enabled ?? (() => true);
 
     this.content = scene.add.container(0, 0);
     this.#maskShape = scene.make.graphics({}, false);
@@ -165,7 +169,7 @@ export class McScrollRegion {
   }
 
   #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void {
-    if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
+    if (!this.#enabled() || !pointInRect(pointer.x, pointer.y, this.#rect)) return;
     const deltaMode = (pointer.event as WheelEvent | undefined)?.deltaMode ?? 1;
     const amount = deltaMode === 0 ? dy : dy * WHEEL_LINE_PX;
     if (amount === 0) return;
@@ -177,7 +181,8 @@ export class McScrollRegion {
   }
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
-    if (!pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x)) return;
+    if (!this.#enabled() || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
+      return;
     this.#momentum.stop();
     this.#drag.start(pointer.id, pointer.y, pointer.downTime);
     this.#dragSuppressed = false;

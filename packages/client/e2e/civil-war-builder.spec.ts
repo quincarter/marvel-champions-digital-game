@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, pressAt, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
@@ -42,6 +42,11 @@ interface View {
     options: readonly { name: string; action: string; selected: boolean; recommended: boolean }[];
   }[];
   readonly randomPins: readonly { action: string; label: string; on: boolean }[];
+  readonly summaryArt: {
+    readonly stages: readonly { hidden: boolean; face: unknown }[];
+    readonly setsHidden: boolean;
+    readonly sets: readonly unknown[];
+  };
 }
 
 const view = async (page: Page): Promise<View> =>
@@ -53,6 +58,13 @@ const act = async (page: Page, action: string): Promise<void> => {
   );
   await settle(page, { quietMs: 120, maxMs: 600 });
 };
+interface Thumbs {
+  readonly leader: { drawn: number; waiting: number };
+  readonly card: { drawn: number; waiting: number };
+  readonly back: { drawn: number; waiting: number };
+  readonly sheet: string | null;
+}
+const thumbs = (page: Page): Promise<Thumbs> => debug<Thumbs>(page, "thumbs");
 const debug = async <T>(page: Page, method: string): Promise<T> =>
   page.evaluate(
     (m) => (window as unknown as { __mcBuilderDebug: Record<string, () => unknown> }).__mcBuilderDebug[m]!() as never,
@@ -221,7 +233,19 @@ for (const size of sizes) {
       await act(page, "civil:step:2");
       const v = await view(page);
       const other = v.leaderChoices.find((l) => !l.selected)!;
-      await pressHookStop(page, "__mcBuilderDebug", `civil:leader:${other.scenarioId}`);
+      // Tap the card's header corner: its middle is a stage face, which reads the card (Inspect) instead of picking.
+      const readStop = async (): Promise<{ x: number; y: number; width: number }> =>
+        (await debug<{ key: string; x: number; y: number; width: number }[]>(page, "stops")).find(
+          (s) => s.key === `civil:leader:${other.scenarioId}`,
+        )!;
+      // On a phone the second card is below the fold (each card holds a picture and two stage faces): scroll to it.
+      for (let i = 0; i < 6 && (await readStop()).y + 40 > size.viewport.height - 220; i++) {
+        await page.mouse.move(size.viewport.width / 2, 300);
+        await page.mouse.wheel(0, 300);
+        await settle(page, { quietMs: 100, maxMs: 400 });
+      }
+      const stop = await readStop();
+      await pressAt(page, stop.x + stop.width - 24, stop.y + 28);
       await waitFor(
         async () => ((await view(page)).leaderChoices.find((l) => l.selected)?.name === other.name ? true : null),
         "the tapped leader is picked",
@@ -302,10 +326,66 @@ for (const size of sizes) {
       expect(errors).toEqual([]);
     });
 
+    test("every step draws the leader's picture and card faces, not boxes of text", async ({ page }) => {
+      const errors = await openBuilder(page);
+      const desktop = size.name === "desktop";
+      // Which steps show a leader picture: the side and leader steps themselves, the summary column on desktop, the review on phone.
+      const leaderOn = (step: number): boolean => step <= 2 || step === 5 || desktop;
+      for (const n of [1, 2, 3, 4, 5]) {
+        await act(page, `civil:step:${n}`);
+        await waitFor(
+          async () => {
+            const t = await thumbs(page);
+            const cardOk = t.card.drawn > 0;
+            const leaderOk = !leaderOn(n) || t.leader.drawn > 0;
+            return cardOk || n === 1 ? (leaderOk ? t : null) : null;
+          },
+          `step ${n} draws its pictures`,
+          15000,
+        );
+        const t = await thumbs(page);
+        if (leaderOn(n)) expect(t.leader.drawn, `leader picture on step ${n}`).toBeGreaterThan(0);
+        if (n >= 2) expect(t.card.drawn, `a card face on step ${n}`).toBeGreaterThan(0);
+      }
+      expect(errors).toEqual([]);
+    });
+
+    test("a set tile opens its cards sheet; the sheet picks the set, and Escape closes it", async ({ page }) => {
+      const errors = await openBuilder(page);
+      await act(page, "civil:step:4");
+      const v = await view(page);
+      const tile = v.modular.sections.flatMap((s) => s.tiles).find((t) => t.selected)!;
+      const stop = (
+        await debug<{ key: string; x: number; y: number; width: number; height: number }[]>(page, "stops")
+      ).find((s) => s.key === tile.action)!;
+      // The strip along the tile's foot opens the sheet; the tile itself still toggles the set.
+      await pressAt(page, stop.x + stop.width / 2, stop.y + stop.height - 12);
+      await waitFor(async () => ((await thumbs(page)).sheet === tile.id ? true : null), "the set sheet opens", 8000);
+      await waitFor(
+        async () => ((await thumbs(page)).card.drawn > 0 ? true : null),
+        "the sheet draws card faces",
+        15000,
+      );
+      const keys = (await debug<{ key: string }[]>(page, "stops")).map((s) => s.key);
+      expect(keys).toContain("civil:sheet:action");
+      expect(keys.some((k) => k.startsWith("civil:sheet:card:"))).toBe(true);
+      expect((await view(page)).modular.chosen).toBe(v.modular.chosen);
+      await page.keyboard.press("Escape");
+      await waitFor(async () => ((await thumbs(page)).sheet === null ? true : null), "the sheet closes", 8000);
+      expect((await activeScenes(page)).includes("CivilWarBuilder")).toBe(true);
+      expect(errors).toEqual([]);
+    });
+
     test("Random and blind masks stage 2 and the set list; Show reveals them and turns blind off", async ({ page }) => {
       const errors = await openBuilder(page);
       await act(page, "civil:random-blind");
+      // Hidden items are card backs, never faces: on the review the summary has backs, and only stage 1 shows a face.
+      await act(page, "civil:step:5");
+      await waitFor(async () => ((await thumbs(page)).back.drawn > 0 ? true : null), "card backs are drawn", 15000);
       let v = await view(page);
+      expect(v.summaryArt.stages[1]).toMatchObject({ hidden: true, face: null });
+      expect(v.summaryArt.setsHidden).toBe(true);
+      expect(v.summaryArt.sets).toEqual([]);
       expect(v.blind).toBe(true);
       expect(v.canStart).toBe(true);
       expect(v.summary).toContain("Stage 2: hidden");

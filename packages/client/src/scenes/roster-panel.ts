@@ -345,6 +345,30 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   return { objects: [placeholder] };
 }
 
+/** The baked face of `renderArtThumb`, as a spec: `fit` "contain" keeps a whole card visible instead of cropping it. */
+export function artThumbSpec(
+  rect: Rect,
+  artUrl: string | null,
+  focusY = 0.2,
+  fit: "cover" | "contain" = "cover",
+): CardFaceSpec {
+  return {
+    ...shelfCardSpec(rect, {
+      artUrl,
+      artFit: fit,
+      titleRole: typeRole.label,
+      title: "",
+      subtitle: "",
+      blockedBy: null,
+      warning: null,
+      tag: null,
+      selected: false,
+    }),
+    artFocusY: focusY,
+    artOnly: true,
+  };
+}
+
 /**
  * Just a picture, cover-cropped into `rect` with a thin border: the shelf card's art window on its own, baked the
  * same way (`CardFaceSpec.artOnly`), so a long list of thumbnails never decodes full-size hero art on the main
@@ -357,20 +381,7 @@ export function renderArtThumb(
   focusY = 0.2,
 ): Phaser.GameObjects.GameObject {
   const faces = cardFaces(scene);
-  const spec: CardFaceSpec = {
-    ...shelfCardSpec(rect, {
-      artUrl,
-      titleRole: typeRole.label,
-      title: "",
-      subtitle: "",
-      blockedBy: null,
-      warning: null,
-      tag: null,
-      selected: false,
-    }),
-    artFocusY: focusY,
-    artOnly: true,
-  };
+  const spec = artThumbSpec(rect, artUrl, focusY);
   const key = faces.request(spec);
   if (key) {
     const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
