@@ -2,6 +2,7 @@
  * The action bar: the four basic actions, Undo, End turn, and the advisory line.
  */
 
+import type Phaser from "phaser";
 import { appSession } from "../../session.js";
 import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
@@ -139,11 +140,14 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   const endTurnRect: Rect = stacked
     ? { x: rect.x + 10 + undoWidth + undoGap, y: rect.y + hit.target, width: endTurnWidth, height: hit.primary - 6 }
     : { x: rect.x + rect.width - endTurnWidth - 10, y: rect.y + 4, width: endTurnWidth, height: hit.primary - 10 };
+  controller.setUndoHover(false);
+  let why: Phaser.GameObjects.Container | null = null;
   if (undo) {
     const undoRect: Rect = stacked
       ? { x: rect.x + 10, y: endTurnRect.y, width: undoWidth, height: endTurnRect.height }
       : { x: endTurnRect.x - undoGap - undoWidth, y: rect.y + 4, width: undoWidth, height: hit.target - 8 };
     ctx.frame.focusRects.set(focusKey({ kind: "undo" }), undoRect);
+    why = drawUndoWhy(scene, rect, undoRect, undo.kind === "unavailable" ? undo.reason : null, controller.undoWhy());
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "onInk",
@@ -152,6 +156,13 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
         rect: undoRect,
         enabled: undo.kind === "available",
         ...(undo.kind === "unavailable" ? { reason: undo.reason } : {}),
+        // A greyed Undo says why on hover (pointer), on focus (keyboard) and on press (touch, Enter, Z): the label
+        // below is drawn hidden when there is nothing to say and toggled here without a redraw.
+        onHover: (over) => {
+          controller.setUndoHover(over);
+          why?.setVisible(controller.undoWhy() !== null);
+        },
+        onUnavailablePress: () => void controller.undo(),
         onClick: () => void controller.undo(),
       }),
     );
@@ -184,4 +195,36 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       .setOrigin(0, 0.5)
       .setMaxLines(1);
   }
+}
+
+/**
+ * The line that says why Undo is greyed (or what it just undid), as a small caution-ruled plate just above the button,
+ * clamped inside the bar's width. Always built when there is something to say, hidden until the pointer or focus is on
+ * the button; a notice (a press, Z, an undo) shows at once. Returns the container so hover can toggle it.
+ */
+function drawUndoWhy(
+  scene: Phaser.Scene,
+  bar: Rect,
+  button: Rect,
+  reason: string | null,
+  shown: string | null,
+): Phaser.GameObjects.Container {
+  const container = scene.add.container(0, 0).setDepth(900);
+  const line = shown ?? reason;
+  if (!line) return container;
+  const maxWidth = Math.min(bar.width - 16, 320);
+  const text = scene.add
+    .text(0, 0, line, { ...textStyle(typeRole.label, signal.caution.hex), wordWrap: { width: maxWidth - 16 } })
+    .setOrigin(0, 0);
+  const width = Math.min(maxWidth, text.width + 16);
+  const height = text.height + 10;
+  const x = Math.max(bar.x + 8, Math.min(button.x + button.width - width, bar.x + bar.width - width - 8));
+  const y = button.y - height - 4;
+  const plate = scene.add.graphics();
+  plate.fillStyle(surface.ink.hex, 1).fillRect(x, y, width, height);
+  plate.lineStyle(2, signal.caution.hex, 1).strokeRect(x + 1, y + 1, width - 2, height - 2);
+  text.setPosition(x + 8, y + 5);
+  container.add([plate, text]);
+  container.setVisible(shown !== null);
+  return container;
 }

@@ -3,6 +3,7 @@ import {
   CHIP_MIN_TILE_HEIGHT,
   chipLinesFor,
   engagedChipHeadroom,
+  engagedChipWords,
   engagedChipRows,
   engagedChipStackHeight,
   settleChipRoom,
@@ -26,6 +27,26 @@ describe("engagedChipRows", () => {
     const rows = engagedChipRows({ ...free, engagedName: "Spider-Man" });
     expect(rows[0]).toMatchObject({ words: "vs Spider-Man", bounded: false });
     expect(chipLinesFor(rows[0]!, 70)).toBe(1);
+  });
+});
+
+describe("engagedChipWords", () => {
+  it("keeps the whole name when it fits the tile", () => {
+    expect(engagedChipWords("Hercules", 85)).toBe("vs Hercules");
+    expect(engagedChipWords("Wonder Man", 160)).toBe("vs Wonder Man");
+    expect(engagedChipWords("Wonder Man", Infinity)).toBe("vs Wonder Man");
+  });
+
+  it("shortens a long name to initials but the last word, instead of ending in an ellipsis", () => {
+    expect(engagedChipWords("Wonder Man", 85)).toBe("vs W. Man");
+    expect(engagedChipWords("Captain Marvel", 85)).toBe("vs C. Marvel");
+    expect(engagedChipWords("Spider-Man", 85)).toBe("vs S.-Man");
+    expect(engagedChipWords("Doctor Strange", 360 / 4)).toBe("vs D. Strange");
+  });
+
+  it("reaches the row only through the tile width", () => {
+    const rows = engagedChipRows({ ...free, engagedName: "Wonder Man" }, Infinity, 85);
+    expect(rows[0]).toMatchObject({ words: "vs W. Man", bounded: false });
   });
 });
 

@@ -123,7 +123,7 @@ describe("titleMenuLayout", () => {
   });
 
   test("the banner's buttons are touch-sized, inside it, and leave the text its room", () => {
-    // 390 and 1280 fit one row; a 360 phone and a portrait tablet's art panel stack the buttons under the text.
+    // 1280 fits one row; a phone and a portrait tablet's art panel stack the buttons under the text.
     for (const [width, height] of [
       [390, 844],
       [360, 780],
@@ -142,6 +142,16 @@ describe("titleMenuLayout", () => {
           expect(button.y + button.height).toBeLessThanOrEqual(banner.y + banner.height);
         }
         if (actions === 2) expect(rectsOverlap(parts.buttons[0]!, parts.buttons[1]!)).toBe(false);
+        // The close button is touch-sized, inside the banner, and clear of the text and every action button.
+        const close = parts.dismiss;
+        expect(close.width).toBeGreaterThanOrEqual(44);
+        expect(close.height).toBeGreaterThanOrEqual(44);
+        expect(close.x).toBeGreaterThanOrEqual(banner.x);
+        expect(close.x + close.width).toBeLessThanOrEqual(banner.x + banner.width);
+        expect(close.y).toBeGreaterThanOrEqual(banner.y);
+        expect(close.y + close.height).toBeLessThanOrEqual(banner.y + banner.height);
+        for (const button of parts.buttons) expect(rectsOverlap(close, button), `${width}`).toBe(false);
+        expect(parts.text.x + parts.textWidth).toBeLessThanOrEqual(close.x);
         // The two lines of text (32px tall, 116 wide at most) clear every button.
         const text = { x: parts.text.x, y: parts.text.y, width: 116, height: 32 };
         expect(parts.textWidth).toBeGreaterThanOrEqual(text.width);

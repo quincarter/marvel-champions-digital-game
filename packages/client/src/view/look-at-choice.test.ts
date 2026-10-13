@@ -17,8 +17,9 @@ import {
   initialChoiceSelection,
   isAcknowledgeOnly,
 } from "./choice-focus.js";
+import { characterPanel } from "./board-model.js";
 import { choiceHeaderText } from "./choice-source.js";
-import { playerName } from "./names.js";
+import { seatFormName } from "./names.js";
 import { LOOK_AT_ADVISORY, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "./look-at-choice.js";
 
 async function jessicaDrewLooksAt(option: "0" | "1") {
@@ -97,7 +98,9 @@ describe("lookAt privacy gate (Q74)", () => {
     const gate = lookAtGateOf(two, choice);
     expect(gate?.headline).toMatch(/^Only .+ may look\.$/);
     expect(gate?.coverLabel).toBe(`${gate?.headline} Tap to reveal`);
-    expect(gate?.looker).toBe(playerName(solo, choice.playerId));
+    // One name for the seat on the sheet: the form its identity is in, as the header beside the cover prints it.
+    expect(gate?.looker).toBe(seatFormName(solo, choice.playerId));
+    expect(gate?.looker).toBe(characterPanel(solo, seat.identity.instanceId, POOL_DEPS).name);
     // The small print names the looking seat on a shared screen; alone it stays "you".
     expect(lookAtAdvisoryOf(solo, choice)).toBe(LOOK_AT_ADVISORY);
     expect(lookAtAdvisoryOf(two, choice)).toBe(`Only ${gate?.looker} can see this · it stays where it is`);

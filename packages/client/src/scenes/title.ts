@@ -31,7 +31,8 @@ import {
   POOL_VERSION,
 } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
-import { appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
+import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
+import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
@@ -147,7 +148,8 @@ export class TitleScene extends Phaser.Scene {
         this.#rebuild();
       });
     void checkForUpdate().then((update) => {
-      if (!update || !this.sys.isActive()) return;
+      // A banner the player closed for this very release stays closed; a newer release brings it back.
+      if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
       this.#update = update;
       this.#rebuild();
     });
@@ -455,6 +457,21 @@ export class TitleScene extends Phaser.Scene {
       );
       this.#stops.set(action.id, { rect, activate: open });
     });
+    const close = (): void => {
+      dismissUpdate(update.version);
+      this.#update = null;
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "×",
+        type: typeRole.rowTitle,
+        rect: parts.dismiss,
+        onClick: close,
+      }),
+    );
+    this.#stops.set(UPDATE_DISMISS_ID, { rect: parts.dismiss, activate: close });
     return actions.map((action) => action.id);
   }
 

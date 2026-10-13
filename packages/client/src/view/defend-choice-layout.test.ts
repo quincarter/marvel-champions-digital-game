@@ -3,6 +3,7 @@ import { rectsOverlap } from "./layout.js";
 import {
   defendChoiceLayout,
   defendMatchupLayout,
+  defendMiddleLayout,
   defendOptionFit,
   defendOptionPicture,
   defendOptionSlots,
@@ -189,6 +190,47 @@ describe("defendMatchupLayout", () => {
       expect(m.attacker.height).toBeGreaterThanOrEqual(60);
     });
   }
+});
+
+describe("defendMiddleLayout: the arrow never runs through a caption", () => {
+  // The middle column is about 60 px tall on a 360 phone, and grows with the summary on every wider screen.
+  const SIZES: readonly (readonly [number, number])[] = [
+    [360, 740],
+    [360, 640],
+    [390, 844],
+    [768, 1024],
+    [1440, 900],
+  ];
+  for (const [width, height] of SIZES) {
+    test(`${width}x${height}: number, arrow and boost caption are stacked without overlap`, () => {
+      const layout = defendChoiceLayout({ x: 0, y: 0, width, height });
+      const m = defendMatchupLayout(layout.summary, layout.formFactor);
+      const col = defendMiddleLayout(m.middle);
+      const arrowTop = col.arrowY - col.arrowHalf;
+      const arrowBottom = col.arrowY + col.arrowHalf;
+      expect(arrowBottom).toBeLessThanOrEqual(col.boostLabelY);
+      expect(col.atkY + col.atkSize).toBeLessThanOrEqual(arrowTop + 1);
+      if (col.baseLabelY !== null) expect(col.baseLabelY + 12).toBeLessThanOrEqual(col.atkY);
+      expect(col.boostLabelY + 12).toBeLessThanOrEqual(m.middle.y + m.middle.height);
+      expect(col.atkSize).toBeGreaterThanOrEqual(10);
+    });
+  }
+
+  test("heights from 56 up to a tall column all stack cleanly", () => {
+    for (let height = 56; height <= 160; height += 4) {
+      const col = defendMiddleLayout({ x: 0, y: 100, width: 100, height });
+      expect(col.arrowY + col.arrowHalf, `h=${height}`).toBeLessThanOrEqual(col.boostLabelY);
+      expect(col.atkY + col.atkSize, `h=${height}`).toBeLessThanOrEqual(col.arrowY - col.arrowHalf + 1);
+    }
+  });
+
+  test("a tall column keeps the layout it always had", () => {
+    const col = defendMiddleLayout({ x: 0, y: 0, width: 130, height: 150 });
+    expect(col.baseLabelY).toBe(2);
+    expect(col.atkY).toBe(15);
+    expect(col.arrowHalf).toBe(10);
+    expect(col.arrowY).toBe(15 + col.atkSize + 16);
+  });
 });
 
 describe("defendOptionPicture", () => {

@@ -18,7 +18,7 @@ test.use({
   userAgent: "Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 Chrome/141.0 Mobile Safari/537.36",
 });
 
-async function openAsAndroidApp(page: Page, assetUrls: readonly string[]): Promise<void> {
+async function openAsAndroidApp(page: Page, assetUrls: readonly string[], version = "999.0.0"): Promise<void> {
   await page.addInitScript(() => {
     const shell = window as unknown as { Capacitor: object; __opened: string[] };
     shell.Capacitor = { isNativePlatform: () => true };
@@ -31,7 +31,7 @@ async function openAsAndroidApp(page: Page, assetUrls: readonly string[]): Promi
   await page.route("https://api.github.com/**", (route) =>
     route.fulfill({
       json: {
-        tag_name: "v999.0.0",
+        tag_name: `v${version}`,
         html_url: NOTES_URL,
         draft: false,
         prerelease: false,
@@ -80,6 +80,48 @@ test("a newer release with no APK is not offered to an Android install", async (
   // The answer has arrived and been turned down; give a redraw the chance to happen before saying it didn't.
   await page.waitForTimeout(500);
   expect(await findText(page, "Update available", "Title")).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("the banner can be closed for that release: it stays closed on the next visit, and a newer release brings it back", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  await openAsAndroidApp(page, [APK_URL]);
+  await waitForText(page, "Update available", { sceneKey: "Title" });
+  expect(((await routeStops(page, "Title"))?.stops ?? []).map((stop) => stop.key)).toContain("update-dismiss");
+
+  await clickText(page, "×", {
+    sceneKey: "Title",
+    until: async () => (await findText(page, "Update available", "Title")).length === 0,
+    untilLabel: "the close button hides the banner",
+  });
+  expect(((await routeStops(page, "Title"))?.stops ?? []).map((stop) => stop.key)).not.toContain("update-dismiss");
+
+  // The next visit (a reload; the page asks GitHub again) leaves it closed.
+  const asked = page.waitForResponse("https://api.github.com/**");
+  await page.reload();
+  await asked;
+  await waitForText(page, "Release notes", { sceneKey: "Title" });
+  await page.waitForTimeout(500);
+  expect(await findText(page, "Update available", "Title")).toEqual([]);
+
+  // A newer release is a different version: the banner is back.
+  await page.unroute("https://api.github.com/**");
+  await page.route("https://api.github.com/**", (route) =>
+    route.fulfill({
+      json: {
+        tag_name: "v999.1.0",
+        html_url: NOTES_URL,
+        draft: false,
+        prerelease: false,
+        assets: [{ name: "marvel-champions-999.1.0.apk", browser_download_url: APK_URL }],
+      },
+    }),
+  );
+  await page.reload();
+  await waitForText(page, "Update available", { sceneKey: "Title" });
+  expect(await findText(page, "Version 999.1.0", "Title")).toHaveLength(1);
   expect(errors).toEqual([]);
 });
 

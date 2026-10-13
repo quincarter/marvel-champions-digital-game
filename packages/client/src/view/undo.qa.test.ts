@@ -197,13 +197,15 @@ describe("Undo: hidden information and randomness", () => {
     expect(picks.size).toBeGreaterThan(1);
   });
 
-  it.fails("Undo is not offered after a move that discarded a card AT RANDOM (Bulldozer's Helmet): the result could be re-rolled by reordering moves", () => {
+  it("Undo is not offered after a move that discarded a card AT RANDOM (Bulldozer's Helmet): the result could be re-rolled by reordering moves", () => {
     const { state, helmet, me } = helmetGame();
     const command = useHelmet(me, helmet);
     const used = applyCommand(state, command, POOL_DEPS);
     if (!used.ok) throw new Error(used.error.message);
     expect(used.events.some((e) => e.type === "cardDiscardedFromHand")).toBe(true);
-    const trail: BackOutTrailEntry[] = [{ playerId: me, command, events: used.events }];
+    // As the store records it: the engine's RNG draw count around the command.
+    const rngDraws = { before: state.rng.draws, after: used.state.rng.draws };
+    const trail: BackOutTrailEntry[] = [{ playerId: me, command, events: used.events, rngDraws }];
     expect(undoOf(trail, used.state, me)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.revealed });
   });
 });

@@ -156,12 +156,8 @@ describe("the unlock path", () => {
     expect(finished.heroLock(heroNamed("Tigra"))).toBeNull();
     expect(finished.heroLock(heroNamed("Hulkling"))).toBeNull();
     // The two hero-pack heroes stay locked until their leader is beaten.
-    expect(finished.heroLock(heroNamed("Wonder Man"))).toBe(
-      "Beat Iron Man (Registration: Iron Man) to unlock Wonder Man",
-    );
-    expect(finished.heroLock(heroNamed("Hercules"))).toBe(
-      "Beat Captain America (Resistance: Captain America) to unlock Hercules",
-    );
+    expect(finished.heroLock(heroNamed("Wonder Man"))).toBe("Beat Iron Man to unlock Wonder Man");
+    expect(finished.heroLock(heroNamed("Hercules"))).toBe("Beat Captain America to unlock Hercules");
     const beaten = make(won(["registration-iron-man"], ["aos"]));
     expect(beaten.heroLock(heroNamed("Wonder Man"))).toBeNull();
     expect(beaten.heroLock(heroNamed("Hercules"))).not.toBeNull();
@@ -170,6 +166,22 @@ describe("the unlock path", () => {
   it("names a villain by its scenario when they differ", () => {
     expect(villainLabelOf("rhino")).toBe("Rhino");
     expect(villainLabelOf("infiltrate-the-museum")).toMatch(/\(Infiltrate the Museum\)$/);
+  });
+
+  it('names a Civil War leader once, not as "Iron Man (Registration: Iron Man)"', () => {
+    expect(villainLabelOf("registration-iron-man")).toBe("Iron Man");
+    expect(villainLabelOf("registration-captain-marvel")).toBe("Captain Marvel");
+    expect(villainLabelOf("resistance-captain-america")).toBe("Captain America");
+    expect(villainLabelOf("resistance-spider-woman")).toBe("Spider-Woman");
+  });
+
+  it("keeps a hero lock line short enough to wrap in two lines on a 360 px tile", () => {
+    // The shelf tile keeps two caption lines of about 26 characters at 360 wide, then " · or N pts".
+    for (const hero of ["Wonder Man", "Hercules"]) {
+      const line = make(won([], ["aos"])).heroLock(heroNamed(hero)) ?? "";
+      expect(line).not.toContain("(");
+      expect(line.length).toBeLessThanOrEqual(40);
+    }
   });
 });
 

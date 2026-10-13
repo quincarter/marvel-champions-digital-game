@@ -172,7 +172,7 @@ function drawEngagedChip(
   // than broken or cut.
   // With the stack held to its primary chip (a short zone), the keyword tag only rides on a tile that has no chip of its
   // own: a second row would run past the headroom the row reserved.
-  const own = engagedChipRows(minion, maxRows);
+  const own = engagedChipRows(minion, maxRows, rect.width);
   const keepsTag = maxRows === Infinity || own.length < maxRows;
   const rows = [
     ...own.map((row, index) => ({ ...row, alpha: index === 0 ? 1 : ink.meta + 0.3 })),

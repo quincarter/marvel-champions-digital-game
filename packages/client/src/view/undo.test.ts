@@ -150,3 +150,55 @@ describe("Undo in a real game", () => {
     expect(offerAfter === null || offerAfter.kind === "unavailable").toBe(true);
   });
 });
+
+describe("undoOf: randomness and reveals beyond the old denylist", () => {
+  const withDraws = (
+    cmd: Command,
+    before: number,
+    after: number,
+    events: readonly GameEvent[] = [],
+  ): BackOutTrailEntry => ({
+    ...entry(cmd, events),
+    rngDraws: { before, after },
+  });
+
+  test("a move that spent the engine's randomness can't be taken back, whatever events it produced", () => {
+    const trail = [
+      withDraws(command("useAbility"), 4, 5, [event("cardDiscardedFromHand", { playerId: P1, instanceId: "x" })]),
+    ];
+    expect(undoOf(trail, turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.revealed });
+  });
+
+  test("a move that spent none is not stopped by the RNG gate", () => {
+    const trail = [withDraws(command("useAbility"), 4, 4, [event("damageDealt")])];
+    expect(undoOf(trail, turnOf(P1), P1)).toMatchObject({ kind: "available", target: 0 });
+  });
+
+  test("an answer inside the move that used randomness stops the whole move", () => {
+    const trail = [entry(command("playCard")), withDraws(command("resolveChoice"), 1, 2)];
+    expect(undoOf(trail, turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.revealed });
+  });
+
+  test.each([
+    "cardFound",
+    "deckTopShown",
+    "encounterTopShown",
+    "hiddenPileRevealed",
+    "revealedInPlay",
+    "cardsRearranged",
+    "cardsSwapped",
+    "revealedCardDiscarded",
+  ])("%s stops Undo", (type) => {
+    expect(undoOf([entry(command("useAbility"), [event(type)])], turnOf(P1), P1)).toEqual({
+      kind: "unavailable",
+      reason: UNDO_REASONS.revealed,
+    });
+  });
+
+  test("an event type nobody classified stops Undo rather than passing", () => {
+    expect(undoOf([entry(command("useAbility"), [event("aBrandNewEvent")])], turnOf(P1), P1)).toEqual({
+      kind: "unavailable",
+      reason: UNDO_REASONS.revealed,
+    });
+  });
+});

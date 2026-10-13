@@ -366,12 +366,15 @@ export const scenarioCycleOf = (scenario: Pick<Scenario, "packCode">): string | 
 export const heroCycleOf = (identityCardId: string): string | undefined =>
   CARDS_BY_ID.get(identityCardId)?.cycleId as string | undefined;
 
-/** "Rhino", or "Norman Osborn (Risky Business)" when the scenario isn't named for its villain. */
+/**
+ * "Rhino", or "Norman Osborn (Risky Business)" when the scenario isn't named for its villain. A scenario name that
+ * already contains the villain ("Registration: Iron Man") adds nothing, so the villain stands alone.
+ */
 export function villainLabelOf(scenarioId: string): string {
   const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId);
   if (!scenario) return scenarioId;
   const villain = CARDS_BY_ID.get(scenario.villainCardId as string)?.name ?? scenario.name;
-  return villain === scenario.name ? villain : `${villain} (${scenario.name})`;
+  return scenario.name.toLowerCase().includes(villain.toLowerCase()) ? villain : `${villain} (${scenario.name})`;
 }
 
 export interface UnlockHero {

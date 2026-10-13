@@ -7,8 +7,8 @@ import { boardText, playFromHand } from "./x-men-helpers.js";
 /**
  * QA finding (docs/qa-wave10-client.md, "X stepper at phone width"): at 390x844 and 360x740 the pay bar's X stepper
  * "+" control is drawn under the PAY button, so a tap on it does not raise X. Everywhere All at Once (58018) can then
- * only be played at its least X on a phone. Marked `test.fail()` until the bar gives the stepper room; remove the
- * marker when it does.
+ * only be played at its least X on a phone. Fixed: the bar stacks (`view/payment-bar-layout.ts`) and the stepper has
+ * its own row.
  */
 const EVERYWHERE = "58018";
 
@@ -20,7 +20,6 @@ for (const size of [
     test.use({ viewport: { width: size.width, height: size.height }, hasTouch: true, isMobile: true });
 
     test("tapping the X stepper's plus raises X to 2", async ({ page }) => {
-      test.fail();
       test.setTimeout(180_000);
       await installWave6Helpers(page);
       await openApp(page);

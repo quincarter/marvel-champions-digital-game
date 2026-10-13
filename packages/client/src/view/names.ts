@@ -111,6 +111,16 @@ export function playerName(state: GameState, id: PlayerId): string {
 }
 
 /**
+ * A seat named for the form its identity is in ("Greer Nelson" in alter-ego form, "Tigra" in hero form): the name
+ * the board's character panel and a choice sheet's seat header print, so a sheet that names the seat twice (its
+ * header and its privacy cover) says one name.
+ */
+export function seatFormName(state: GameState, id: PlayerId): string {
+  const player = getPlayer(state, id);
+  return player ? (identityNameOf(state, player.identity.instanceId) ?? playerName(state, id)) : id;
+}
+
+/**
  * A seat named by both faces of its identity — "Spider-Man / Peter Parker" —
  * for a decision that picks a seat. The identity card's own name alone reads
  * the same whichever face is up, and "p2" means nothing at the table.

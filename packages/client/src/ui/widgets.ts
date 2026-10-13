@@ -234,6 +234,10 @@ export interface McButtonOptions {
   readonly onClick: () => void;
   /** Shown as the "Why illegal?" line when the button is unavailable. */
   readonly reason?: string;
+  /** The pointer entered (true) or left (false) the button, whether or not it is available. */
+  readonly onHover?: (over: boolean) => void;
+  /** A press landed on the button while it is unavailable: say why (a touch has no hover to say it). */
+  readonly onUnavailablePress?: () => void;
   readonly enabled?: boolean;
   readonly selected?: boolean;
   /** Drawn beside the label, e.g. the "2" on the Attack button. */
@@ -317,6 +321,7 @@ export class McButton {
     this.#zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
       this.#hovered = true;
       this.redraw();
+      this.#options.onHover?.(true);
       if (pointer.wasTouch) this.#watchTouchHover(scene, pointer);
     });
     // A touch gets the tap slop: a finger that presses here, swipes the screen and lifts here again is a scroll, not
@@ -330,6 +335,7 @@ export class McButton {
       this.#hovered = false;
       this.#press.cancel();
       this.redraw();
+      this.#options.onHover?.(false);
     });
     this.#zone.on("pointerup", (pointer: Phaser.Input.Pointer) => this.#release(pointer));
 
@@ -359,7 +365,10 @@ export class McButton {
 
   /** The press is a tap on this button (seen by it, or completed by the tap router): run it if it is available. */
   #fire(pointer: Phaser.Input.Pointer): void {
-    if (this.#options.enabled === false) return;
+    if (this.#options.enabled === false) {
+      this.#options.onUnavailablePress?.();
+      return;
+    }
     if (this.#options.suppressClick?.()) return;
     const clip = this.#options.clip?.() ?? null;
     if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;

@@ -567,7 +567,10 @@ describe("screen focus routes", () => {
       "release-notes",
       "update-notes",
       "update-download",
+      "update-dismiss",
     ]);
+    // No banner, no close button stop.
+    expect(titleMenuFocusOrder({ continuable: false, updateActions: [] })).not.toContain("update-dismiss");
   });
 
   test("Scenario select: Back, search, chips, rows (or Clear), then next", () => {

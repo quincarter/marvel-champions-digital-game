@@ -4,8 +4,9 @@
 
 import { accent, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { McButton } from "../../ui/widgets.js";
+import { fitText, fitWrapped, McButton } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
+import { BAR_ROW, paymentBarLayout } from "../../view/payment-bar-layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
 import { focusKey } from "./selection.js";
@@ -20,70 +21,82 @@ import { focusKey } from "./selection.js";
  * cost, so auto-committing at the first sufficient selection would take that
  * choice away (docs/phase2-core-set.md §3, "Spend X").
  */
+/** The bar's lines start here and shrink only as far as they must to fit their rect. */
+const WORDS_SIZE = 13;
+
 export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: PaymentView): void {
   const { scene, controller } = ctx;
+  // Where each part sits is `view/payment-bar-layout.ts`'s decision. The bar's bottom row stays where the one-row bar
+  // sits; a bar with more rows (a phone's X stepper, the lock note) grows upward over the table above the hand.
+  const reductions = payment.costReductionOptions;
+  const picker = payment.xPicker;
+  // The order note is the touch path to what a hover shows on a mouse: the tabbed (phone) board has no hover.
+  const orderNote = ctx.tabbed ? payment.orderNote : null;
+  const layout = paymentBarLayout(rect.width, {
+    stepper: picker !== null,
+    reductions: reductions.length,
+    payLabel: payment.payLabel !== null,
+    overpaid: payment.overpaidNote !== null,
+    lock: payment.lockedNote !== null,
+    helperLines: payment.helperLines.length,
+    orderNote: orderNote !== null,
+  });
+  const originX = rect.x;
+  const originY = rect.y + BAR_ROW - layout.height;
+  const at = (r: Rect): Rect => ({ x: originX + r.x, y: originY + r.y, width: r.width, height: r.height });
   const g = scene.add.graphics();
-  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+  g.fillStyle(accent.heroRed.hex, 1).fillRect(originX, originY, rect.width, layout.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(originX, originY, rect.width, 3);
 
-  scene.add
-    .text(
-      rect.x + 12,
-      rect.y + rect.height / 2,
-      `PAYING ${payment.paid} / ${payment.required}`,
-      textStyle(typeRole.barTitle, surface.paper.hex),
-    )
-    .setOrigin(0, 0.5)
-    .setLetterSpacing(1);
+  const count = at(layout.count);
+  fitText(
+    scene.add
+      .text(
+        count.x,
+        count.y + count.height / 2,
+        `PAYING ${payment.paid} / ${payment.required}`,
+        textStyle(typeRole.barTitle, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(1),
+    count.width,
+    typeRole.barTitle.size,
+  );
 
-  const buttonWidth = Math.max(64, Math.min(120, rect.width * 0.16));
-  // "Play without overpaying" is long for a button: the Pay button grows to hold it.
-  const payWidth = payment.payLabel ? Math.max(buttonWidth, Math.min(200, rect.width * 0.3)) : buttonWidth;
-  const payCancelLeft = rect.x + rect.width - buttonWidth - payWidth - 18;
+  // A line of the bar's words in its own rect, shrunk to fit and never past `lines` lines.
+  const words = (r: Rect, text: string, lines: number): void => {
+    const box = at(r);
+    const t = scene.add
+      .text(box.x, box.y + box.height / 2, text, textStyle(typeRole.emphasis, surface.paper.hex))
+      .setOrigin(0, 0.5);
+    fitWrapped(t, box.width, lines, WORDS_SIZE);
+  };
 
   // A `playCostReduction` ability (docs/phase7-wave3.md §3.20; Star-Lord's "What could go wrong?") is never
   // guessed for the player — it costs its own price (dealing yourself a facedown encounter card, here), so it
   // sits beside Pay/Cancel as its own toggle, not folded into "tap cards to spend" the way an ordinary source is.
-  const reductions = payment.costReductionOptions;
-  const reductionWidth = reductions.length > 0 ? Math.max(90, Math.min(160, rect.width * 0.22)) : 0;
-  const reductionsLeft = reductionWidth > 0 ? payCancelLeft - reductionWidth - 8 : payCancelLeft;
-  const buttonsLeft = reductionsLeft;
+  reductions.forEach((option, index) => {
+    const chip = layout.reductions[index];
+    if (!chip) return;
+    const active = payment.reductions.some(
+      (r) => r.instanceId === option.instanceId && r.abilityId === option.abilityId,
+    );
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: active ? "primary" : "secondary",
+        label: active ? `Using ${option.label}` : `Use ${option.label}`,
+        type: typeRole.label,
+        rect: at(chip),
+        onClick: () => controller.toggleCostReduction(option),
+      }),
+    );
+  });
 
-  if (reductions.length > 0) {
-    const chipWidth = Math.max(56, reductionWidth / reductions.length - (reductions.length > 1 ? 4 : 0));
-    reductions.forEach((option, index) => {
-      const active = payment.reductions.some(
-        (r) => r.instanceId === option.instanceId && r.abilityId === option.abilityId,
-      );
-      ctx.frame.buttons.push(
-        new McButton(scene, {
-          kind: active ? "primary" : "secondary",
-          label: active ? `Using ${option.label}` : `Use ${option.label}`,
-          type: typeRole.label,
-          rect: {
-            x: reductionsLeft + index * (chipWidth + 4),
-            y: rect.y + 4,
-            width: chipWidth,
-            height: rect.height - 8,
-          },
-          onClick: () => controller.toggleCostReduction(option),
-        }),
-      );
-    });
-  }
-
-  // The line of prose is the first thing to go when the bar is narrow: the
-  // card being paid for already wears a "paying for" tag, so the sentence is
-  // repeating itself, and a sentence running under the Pay button is worse
-  // than no sentence.
-  // The X picker (a card printed with an X cost): minus, "X 2", plus, between the count and the prose.
-  const picker = payment.xPicker;
-  let pickerRight = rect.x + 170;
-  if (picker) {
-    const size = rect.height - 8;
-    const left = rect.x + 150;
-    const lessRect: Rect = { x: left, y: rect.y + 4, width: size, height: size };
-    const moreRect: Rect = { x: left + size + 56, y: rect.y + 4, width: size, height: size };
+  // The X picker (a card printed with an X cost): minus, "X 2", plus.
+  if (picker && layout.stepper) {
+    const lessRect = at(layout.stepper.less);
+    const moreRect = at(layout.stepper.more);
+    const labelRect = at(layout.stepper.label);
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "secondary",
@@ -104,41 +117,38 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
         onClick: () => controller.stepX(1),
       }),
     );
-    scene.add
-      .text(
-        left + size + 28,
-        rect.y + rect.height / 2,
-        `X ${picker.value}`,
-        textStyle(typeRole.barTitle, surface.paper.hex),
-      )
-      .setOrigin(0.5, 0.5);
+    fitText(
+      scene.add
+        .text(
+          labelRect.x + labelRect.width / 2,
+          labelRect.y + labelRect.height / 2,
+          `X ${picker.value}`,
+          textStyle(typeRole.barTitle, surface.paper.hex),
+        )
+        .setOrigin(0.5, 0.5),
+      labelRect.width - 4,
+      typeRole.barTitle.size,
+    );
     ctx.frame.focusRects.set(focusKey({ kind: "xLess" }), lessRect);
     ctx.frame.focusRects.set(focusKey({ kind: "xMore" }), moreRect);
-    pickerRight = moreRect.x + moreRect.width + 14;
   }
-  const headlineLeft = Math.max(rect.x + 170, pickerRight);
-  const headlineRoom = buttonsLeft - headlineLeft - 12;
-  if (headlineRoom > 90) {
-    const outstanding = payment.outstanding.length > 0 ? ` Still needs ${payment.outstanding.join(", ")}.` : "";
-    // The price note comes before the instruction: a denominator that isn't the number printed on the card is
-    // the first thing a player will question, and "tap cards to spend" can wait behind the answer.
-    const note = payment.priceNote ? ` ${payment.priceNote}.` : "";
-    // What the picks add beyond the cost, and who helped pay: counted from the engine's own query, never worked out here.
-    const over = payment.overpaidNote ? ` ${payment.overpaidNote}.` : "";
-    const held = payment.lockedNote ? ` ${payment.lockedNote}.` : "";
-    const helped = payment.helperLines.map((line) => ` ${line}.`).join("");
-    scene.add
-      .text(
-        headlineLeft,
-        rect.y + rect.height / 2,
-        `${payment.headline}.${note} Tap cards to spend.${outstanding}${over}${held}${helped}`,
-        textStyle(typeRole.emphasis, surface.paper.hex),
-      )
-      .setOrigin(0, 0.5)
-      .setWordWrapWidth(headlineRoom)
-      .setMaxLines(2);
-  }
-  const payRect: Rect = { x: buttonsLeft, y: rect.y + 4, width: payWidth, height: rect.height - 8 };
+
+  const outstanding = payment.outstanding.length > 0 ? ` Still needs ${payment.outstanding.join(", ")}.` : "";
+  // The price note comes before the instruction: a denominator that isn't the number printed on the card is
+  // the first thing a player will question, and "tap cards to spend" can wait behind the answer.
+  const note = payment.priceNote ? ` ${payment.priceNote}.` : "";
+  // What the picks add beyond the cost, and who helped pay: counted from the engine's own query, never worked out here.
+  const over = payment.overpaidNote ? ` ${payment.overpaidNote}.` : "";
+  const held = payment.lockedNote ? ` ${payment.lockedNote}.` : "";
+  const helped = payment.helperLines.map((line) => ` ${line}.`).join("");
+  const prose = `${payment.headline}.${note} Tap cards to spend.${outstanding}`;
+  words(layout.prose, layout.inlineNotes ? `${prose}${over}${held}${helped}` : prose, 2);
+  if (layout.over && payment.overpaidNote) words(layout.over, `${payment.overpaidNote}.`, 1);
+  if (layout.lock && payment.lockedNote) words(layout.lock, `${payment.lockedNote}.`, 2);
+  layout.helpers.forEach((row, index) => words(row, `${payment.helperLines[index] ?? ""}.`, 1));
+  if (layout.order && orderNote) words(layout.order, orderNote, 3);
+
+  const payRect = at(layout.pay);
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "secondary",
@@ -150,12 +160,7 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
       onClick: () => void controller.commitPayment(),
     }),
   );
-  const cancelRect: Rect = {
-    x: rect.x + rect.width - buttonWidth - 10,
-    y: rect.y + 4,
-    width: buttonWidth,
-    height: rect.height - 8,
-  };
+  const cancelRect = at(layout.cancel);
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "quiet",

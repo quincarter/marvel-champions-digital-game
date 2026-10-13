@@ -27,6 +27,7 @@ import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
 import {
   choiceHeaderInstanceId,
+  choiceHeaderOf,
   choiceHeaderText,
   choiceInstructionOf,
   choiceSourceOf,
@@ -562,5 +563,76 @@ describe("promptTitleOf: the end-of-phase discard", () => {
     expect(discardCountNoteOf(prompt, { minSelections: 2, maxSelections: 2 })).toBe("select at least 2");
     expect(discardCountNoteOf(prompt, { minSelections: 0, maxSelections: 5 })).toBe("select any number to discard");
     expect(discardCountNoteOf({ kind: "mulligan", handSize: 5 }, { minSelections: 0, maxSelections: 5 })).toBeNull();
+  });
+});
+
+describe("choiceHeaderOf: a card pick out of a deck", () => {
+  async function realState(): Promise<GameState> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    return store.state.game!;
+  }
+
+  const frame = (selfInstanceId: GameState["players"][number]["identity"]["instanceId"]) =>
+    ({
+      frameId: frameId("fd"),
+      answer: null,
+      kind: "effects",
+      effects: [],
+      cursor: 0,
+      bindings: {},
+      vars: {},
+      scopedPlayerId: null,
+      selfInstanceId,
+      controllerId: null,
+      event: null,
+      eventFrameId: null,
+    }) as StackFrame;
+
+  const pick = (state: GameState, ids: readonly string[], frameOf: StackFrame | null): PendingChoice => ({
+    choiceId: choiceId("c2"),
+    playerId: state.players[0]!.playerId,
+    minSelections: 1,
+    maxSelections: 1,
+    options: ids.map((id) => ({ optionId: id, label: "x", ref: { kind: "card", instanceId: id as never } })),
+    frameId: frameOf?.frameId ?? null,
+    ordered: false,
+    soleDecider: false,
+    authority: "player",
+    prompt: { kind: "chooseCards", slot: "found" } as ChoicePrompt,
+  });
+
+  test("an encounter-deck pick is titled by the action, the asking card is the subtitle", async () => {
+    const state = await realState();
+    const identity = state.players[0]!.identity.instanceId;
+    const asking = frame(identity);
+    const withFrame = { ...state, stack: [asking] };
+    const encounterTop = Object.values(withFrame.encounterDecks)[0]!.deck.slice(0, 2);
+    const header = choiceHeaderOf(withFrame, pick(withFrame, encounterTop, asking), POOL_DEPS, "Choose cards");
+    expect(header.title).toBe("Choose cards from the encounter deck");
+    expect(header.subtitle).toBe("Peter Parker — Scientist"); // the identity and its one live ability
+    expect(header.title).not.toContain("Spider-Man");
+  });
+
+  test("a pick from your own deck says your deck; one with no source has no subtitle", async () => {
+    const state = await realState();
+    const mine = state.players[0]!.deck.slice(0, 2);
+    const header = choiceHeaderOf(state, pick(state, mine, null), POOL_DEPS, "Choose cards");
+    expect(header).toEqual({ title: "Choose cards from your deck", subtitle: null });
+  });
+
+  test("any other choice keeps the one-line header with its source first", async () => {
+    const state = await realState();
+    const hand = state.players[0]!.hand.slice(0, 2);
+    const choice = pick(state, hand, null);
+    expect(choiceHeaderOf(state, choice, POOL_DEPS, "Choose cards")).toEqual({
+      title: "Choose cards",
+      subtitle: null,
+    });
   });
 });

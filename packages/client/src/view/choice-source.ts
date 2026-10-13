@@ -64,10 +64,10 @@ import type {
   SetupInstructionSource,
   StackFrame,
 } from "@mc/engine";
-import { activeAbilityRefs, playDestinationOfOption } from "@mc/engine";
+import { activeAbilityRefs, locateCard, playDestinationOfOption } from "@mc/engine";
 import { setupCallCopyFor } from "../campaign/story.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { cardName, formWords, numberWord } from "./names.js";
+import { cardName, formWords, numberWord, seatFormName } from "./names.js";
 
 /** The card (and, when unambiguous, the ability) a pending choice traces back to. */
 export interface ChoiceSource {
@@ -526,6 +526,60 @@ export function choiceHeaderText(
     return genericTitle;
   }
   return `${named}: ${genericTitle.charAt(0).toLowerCase()}${genericTitle.slice(1)}`;
+}
+
+/** The choice sheet's header: what the player is doing, and (when a card or setup instruction is asking) who is asking. */
+export interface ChoiceHeader {
+  readonly title: string;
+  readonly subtitle: string | null;
+}
+
+/**
+ * The deck every option of a card pick sits in, named for the title ("the encounter deck", "your deck", "Tigra's
+ * deck"), or null when the options are not all cards of one deck. The pick is the same whether the cards are the whole
+ * deck (a search) or its top few (a look), so the words say only where they are.
+ */
+function pickedFromDeck(state: GameState, choice: PendingChoice): string | null {
+  if (choice.prompt.kind !== "chooseCards" || choice.options.length === 0) return null;
+  let found: string | null = null;
+  for (const option of choice.options) {
+    if (option.ref.kind !== "card") return null;
+    const zone = locateCard(state, option.ref.instanceId);
+    let here: string | null = null;
+    if (zone?.kind === "encounterDeck") here = "the encounter deck";
+    else if (zone?.kind === "deck") {
+      here = zone.playerId === choice.playerId ? "your deck" : `${seatFormName(state, zone.playerId)}'s deck`;
+    }
+    if (here === null || (found !== null && found !== here)) return null;
+    found = here;
+  }
+  return found;
+}
+
+/**
+ * The sheet's header as two lines. A card pick out of a deck is titled by what the player is doing ("Choose cards from
+ * the encounter deck") with the card or setup instruction that asks as the subtitle, rather than "Iron Man: choose
+ * cards", which read as if Iron Man were the one choosing. Every other choice keeps 's one line,
+ * which already leads with its source, and has no subtitle.
+ */
+export function choiceHeaderOf(
+  state: GameState,
+  choice: PendingChoice,
+  deps: EngineDeps,
+  genericTitle: string,
+): ChoiceHeader {
+  const deck = pickedFromDeck(state, choice);
+  if (deck === null) return { title: choiceHeaderText(state, choice, deps, genericTitle), subtitle: null };
+  const source = choiceSourceOf(state, choice);
+  const instruction = source ? null : choiceInstructionOf(state, choice);
+  const subtitle = source
+    ? source.abilityId
+      ? abilityLabelOf(state, source.instanceId, source.abilityId, deps)
+      : cardName(state, source.instanceId)
+    : instruction
+      ? instructionHeaderName(instruction)
+      : null;
+  return { title: `Choose cards from ${deck}`, subtitle };
 }
 
 /** The card whose art the choice sheet should thumbnail beside the header — `choiceSourceOf`'s own instance, when there is one. */

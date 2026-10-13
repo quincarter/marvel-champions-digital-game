@@ -1,0 +1,3 @@
+kind: Fixed
+body: Duplicating a deck again numbers the copies ("Deck (copy)", "Deck (copy 2)") instead of stacking "(copy)" suffixes.
+time: 2026-10-13T15:56:06.7880377-04:00

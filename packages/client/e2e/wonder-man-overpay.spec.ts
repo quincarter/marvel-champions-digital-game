@@ -157,7 +157,12 @@ test("Wonder Man: Mr. Hollywood overpays only once the cost is covered, and Acti
   // A card that costs 1: Mr. Hollywood is tagged, and held until the cost is covered.
   const blast = (await handInstanceFor(page, BLAST))!;
   await playFromHand(page, phone, blast, async () => (await boardText(page, /^PAYING/i)) !== undefined);
-  await waitForBoardText(page, /^overpay only$/i, "Mr. Hollywood is tagged as an overpay-only source");
+  // A narrow phone tile says "extra" (the full words do not fit); the bar's note carries the rule at every width.
+  await waitForBoardText(
+    page,
+    phone ? /^extra$/i : /^overpay only$/i,
+    "Mr. Hollywood is tagged as an overpay-only source",
+  );
   await waitForBoardText(page, /Only to overpay/i, "the bar says why he is held");
   await pressCard(page, phone, hollywood!);
   expect((await sourcesNow(page)).find((s) => s.instanceId === hollywood)?.spent).toBe(false);
@@ -172,6 +177,9 @@ test("Wonder Man: Mr. Hollywood overpays only once the cost is covered, and Acti
   const pay = await waitForBoardText(page, /^pay$/i, "Pay is offered");
   await press(page, phone, pay.x, pay.y);
   if (await choiceUp(page)) await answerChoice(page, 0);
+  // Ionic Physiology can then offer its optional response (on the phone's full-screen sheet it is asked after the
+  // target): this test is about the payment, so it declines.
+  if (phone && (await choiceUp(page))) await clickText(page, "Decline", { sceneKey: "ChoiceOverlay" });
   await settle(page);
 
   // A cost-0 card that reads overpaid.*: the pay step is offered with the plain default, and Mr. Hollywood overpays it.

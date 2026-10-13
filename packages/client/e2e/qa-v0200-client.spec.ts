@@ -5,10 +5,11 @@ import { declineMulligans, openApp } from "./wave6-helpers-b.js";
 import { boardText, boardUp, facts, playFromHand } from "./x-men-helpers.js";
 
 /**
- * Two findings from the v0.20.0 client QA (docs/qa-v0.20.0-client.md), each pinned with `test.fail()`: delete the
+ * Findings from the v0.20.0 client QA (docs/qa-v0.20.0-client.md), the open ones pinned with `test.fail()`: delete the
  * marker when the finding is fixed.
- * - The pay step's X stepper has its "+" under the Pay button on a 390 px phone, so X cannot be raised there.
- * - Z (and the Undo button) while a payment is open cancels the payment and also takes back the move before it.
+ * - (Fixed) The pay step's X stepper had its "+" under the Pay button on a 390 px phone, so X could not be raised there.
+ * - (Fixed) Z (and the Undo button) while a payment is open cancelled the payment and also took back the move before it.
+ * - (Fixed) A greyed Undo never said why.
  * Wonder Man's starter deck against Rhino, as `x-cost.spec.ts` and `wonder-man-overpay.spec.ts` set it up.
  */
 
@@ -57,7 +58,6 @@ test.describe("v0.20.0 client QA findings", () => {
   test.describe("phone", () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     test("the X stepper's plus is clear of the Pay button on a phone", async ({ page }) => {
-      test.fail();
       test.setTimeout(240_000);
       await start(page);
       await dispatchKind(page, "changeForm");
@@ -87,7 +87,6 @@ test.describe("v0.20.0 client QA findings", () => {
   });
 
   test("Z with a payment open does not also take back the move before it", async ({ page }) => {
-    test.fail();
     test.setTimeout(240_000);
     await start(page, ["58009", "58003", "58023", "58004", "58016", "58017"]);
     await dispatchKind(page, "changeForm");
@@ -129,7 +128,6 @@ test.describe("v0.20.0 client QA findings", () => {
   });
 
   test("a greyed Undo tells the player why, on hover or press", async ({ page }) => {
-    test.fail();
     test.setTimeout(240_000);
     await start(page);
     const undo = (await focusRect(page, "undo"))!;

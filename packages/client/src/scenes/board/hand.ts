@@ -22,7 +22,8 @@ import type { IllegalReason } from "../../view/highlights.js";
 import { DEFENSE_LOCKOUT_TAG, isDefenseBarMessage } from "../../view/defense-lockout.js";
 import { handRow, type HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
-import { ON_TOP_NOTE, spentTagText, type PaymentView } from "../../view/payment-model.js";
+import { BAR_ROW } from "../../view/payment-bar-layout.js";
+import { isCompactTag, sourceTagText, spentTagText, type PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
 import {
   SOURCE_BAR_NOTE,
@@ -61,7 +62,7 @@ const HAND_CAPTION_HEIGHT = 20;
  * board is not rebuilt once per pointer move.
  */
 /** A mode bar: 44px controls with 4px above and below (`hit.target` is the floor for anything tapped). */
-const BAR_HEIGHT = hit.target + 8;
+const BAR_HEIGHT = BAR_ROW;
 
 export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene, hand, tabbed } = ctx;
@@ -283,21 +284,16 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
       const wash = scene.add.graphics();
       wash.fillStyle(surface.ink.hex, 0.3).fillRect(tile.x + 3, tile.y + 3, tile.width - 6, tile.height - 6);
     }
-    // A hand card spent through its own ability (Energy Siphon) says the amount it takes, one tile per amount.
-    const where =
-      source.helperName ??
-      source.amountNote ??
-      (source.overpayOnly ? "overpay only" : source.spendsHandCard ? "from hand" : "in play");
-    tableTag(
-      scene,
-      tile,
-      source.spent && source.amountNote === null ? spentTagText(source) : where,
-      surface.ink.hex,
-      "top",
-    );
+    // Both facts show, one tag over the other: where the card comes from (whose hand, the amount it takes, "overpay
+    // only"), and, once picked, its place in the payment ("spent 2 · on top"). A narrow tile gets the compact words.
+    const compact = isCompactTag(tile.width);
+    const where = sourceTagText(source, compact);
+    const ordered = source.spent && source.amountNote === null;
+    tableTag(scene, tile, where, surface.ink.hex, "top");
+    if (ordered) tableTag(scene, tile, spentTagText(source, compact), surface.ink.hex, "top", 1);
     tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
     ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: source.instanceId }), tile);
-    const onHover = onTopHover(scene, tile, source.instanceId, source.onTop);
+    const onHover = onTopHover(scene, tile, source.instanceId, source.orderNote);
     // By option, not by card: a card offering two resource abilities is two tiles.
     addTapTarget(scene, tile, {
       onTap: () => ctx.controller.togglePaymentOption(source.optionId),
@@ -367,12 +363,22 @@ function drawTableTile(
   }
 }
 
+/** One tag row's height, so a second tag stacks under the first without touching it. */
+const TAG_ROW = 18;
+
 /** A one-word tag inside a strip tile, the same chip the hand's cards carry. */
-function tableTag(scene: Phaser.Scene, tile: Rect, text: string, ground: number, edge: "top" | "bottom"): void {
+function tableTag(
+  scene: Phaser.Scene,
+  tile: Rect,
+  text: string,
+  ground: number,
+  edge: "top" | "bottom",
+  row = 0,
+): void {
   const tag = scene.add
     .text(
       tile.x + tile.width - 3,
-      edge === "top" ? tile.y + 4 : tile.y + tile.height - 4,
+      edge === "top" ? tile.y + 4 + row * TAG_ROW : tile.y + tile.height - 4,
       caseOf(typeRole.label, text),
       textStyle(typeRole.label, surface.paper.hex),
     )
@@ -482,7 +488,7 @@ function drawHandCard(
     ? subject
       ? { text: "paying for", ground: accent.heroRed.hex }
       : spent
-        ? { text: source ? spentTagText(source) : "spent", ground: surface.ink.hex }
+        ? { text: source ? spentTagText(source, isCompactTag(slot.width)) : "spent", ground: surface.ink.hex }
         : null
     : discard
       ? subject
@@ -501,7 +507,10 @@ function drawHandCard(
           // Not in your hand at all — say where it is, so an Arrow on the Quiver doesn't read as a card you hold.
           return card.from ? { text: card.from, ground: accent.heroRed.hex } : null;
         })();
-  if (tag && slot.width >= 70) {
+  // A narrow slot (a phone's) gets the compact tag, never none: the payment order is the point of it.
+  if (tag && (slot.width >= 70 || (payment && slot.width >= 36))) {
+    // The card being paid for keeps its printed name in view: on a narrow slot its tag sits on the bottom edge.
+    const atBottom = payment !== null && subject && isCompactTag(slot.width);
     // Inside the card during payment or a discard choice: that mode's own bar
     // sits directly above the hand, and a tag hung over the top edge disappears behind it.
     // Wrapped to the card's own width ("NOT AN / ACTION"), never wider than the card it names: on a crowded hand a
@@ -511,11 +520,11 @@ function drawHandCard(
     const tagText = scene.add
       .text(
         slot.x + slot.width - 3,
-        inside ? slot.y + 4 : slot.y + 6,
+        atBottom ? slot.y + slot.height - 4 : inside ? slot.y + 4 : slot.y + 6,
         caseOf(typeRole.label, tag.text),
         textStyle(typeRole.label, surface.paper.hex),
       )
-      .setOrigin(1, inside ? 0 : 1)
+      .setOrigin(1, atBottom || !inside ? 1 : 0)
       .setAlign("right")
       .setPadding(4, 2, 4, 2)
       .setBackgroundColor(cssOf(tag.ground));
@@ -532,7 +541,7 @@ function drawHandCard(
     wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x + 3, slot.y + 3, slot.width - 6, slot.height - 6);
   }
 
-  const onHover = onTopHover(scene, slot, card.instanceId, source?.onTop ?? false);
+  const onHover = onTopHover(scene, slot, card.instanceId, source?.orderNote ?? null);
   ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), ctx.hand.drag, onHover);
 }
 
@@ -549,9 +558,9 @@ function onTopHover(
   scene: Phaser.Scene,
   anchor: Rect,
   id: InstanceId,
-  onTop: boolean,
+  note: string | null,
 ): ((over: boolean) => void) | undefined {
-  if (onTop) return onTopNote(scene, anchor, id);
+  if (note !== null) return onTopNote(scene, anchor, id, note);
   if (hoveredOnTop === id) hoveredOnTop = null;
   return undefined;
 }
@@ -561,10 +570,10 @@ function onTopHover(
  * hidden after: a hover must never redraw the board, which would rebuild the card's own tap target under the mouse
  * (the team-up ring's label does the same, `team-up-badge.ts`). Returns the card's hover handler.
  */
-function onTopNote(scene: Phaser.Scene, anchor: Rect, id: InstanceId): (over: boolean) => void {
+function onTopNote(scene: Phaser.Scene, anchor: Rect, id: InstanceId, note: string): (over: boolean) => void {
   const viewport = scene.scale.gameSize;
   const text = scene.add
-    .text(0, 0, ON_TOP_NOTE, {
+    .text(0, 0, note, {
       ...textStyle({ ...typeRole.body, size: 13 }, surface.paper.hex),
       wordWrap: { width: ON_TOP_NOTE_WIDTH - 16, useAdvancedWrap: true },
     })

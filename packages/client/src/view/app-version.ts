@@ -29,6 +29,9 @@ export interface UpdateAction {
   readonly url: string;
 }
 
+/** The banner's close button: a focus stop and a button id, not a link (it hides the banner for that release). */
+export const UPDATE_DISMISS_ID = "update-dismiss";
+
 /**
  * What the update banner offers (`platform/update-check.ts`): the changelog and this install's own installer. When
  * the installer isn't known, one button to the release page, which has both.

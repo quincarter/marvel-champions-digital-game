@@ -38,7 +38,7 @@ const ART_PANEL_SHARE = 0.45;
 /**
  * The update banner. Wide enough, it is one row: two lines of text on the left, the buttons on the right. On a narrow
  * column (a small phone, a portrait tablet's art panel) the buttons would cover the text, so they drop to a row of
- * their own under it.
+ * their own under it. A close button ("not now", remembered for that release) takes the top-right corner either way.
  */
 const UPDATE_BANNER_PAD = 8;
 const UPDATE_BANNER_MAX_WIDTH = 520;
@@ -46,11 +46,17 @@ const UPDATE_BUTTON_WIDTH = 104;
 const UPDATE_TEXT_INSET = UPDATE_BANNER_PAD + 4;
 /** Room for "UPDATE AVAILABLE" over "Version 0.00.0". */
 const UPDATE_TEXT_WIDTH = 116;
-const UPDATE_TEXT_HEIGHT = 32;
+/** The close button: a touch-sized square at the banner's top-right (one row) or right end (inline). */
+const UPDATE_DISMISS_SIZE = hit.target;
 const UPDATE_BANNER_INLINE_WIDTH =
-  UPDATE_TEXT_INSET + UPDATE_TEXT_WIDTH + (UPDATE_BANNER_PAD + UPDATE_BUTTON_WIDTH) * 2 + UPDATE_BANNER_PAD;
+  UPDATE_TEXT_INSET +
+  UPDATE_TEXT_WIDTH +
+  (UPDATE_BANNER_PAD + UPDATE_BUTTON_WIDTH) * 2 +
+  (UPDATE_BANNER_PAD + UPDATE_DISMISS_SIZE) +
+  UPDATE_BANNER_PAD;
 const UPDATE_BANNER_HEIGHT = hit.target + UPDATE_BANNER_PAD * 2;
-const UPDATE_BANNER_STACKED_HEIGHT = UPDATE_BANNER_HEIGHT + UPDATE_TEXT_HEIGHT + UPDATE_BANNER_PAD;
+// Stacked: the text and the close button on one row, the action buttons on the next.
+const UPDATE_BANNER_STACKED_HEIGHT = UPDATE_BANNER_PAD * 3 + UPDATE_DISMISS_SIZE * 2;
 
 const updateBannerHeight = (width: number): number =>
   width >= UPDATE_BANNER_INLINE_WIDTH ? UPDATE_BANNER_HEIGHT : UPDATE_BANNER_STACKED_HEIGHT;
@@ -61,12 +67,15 @@ export interface UpdateBannerParts {
   readonly textWidth: number;
   /** One button per action, left to right. */
   readonly buttons: readonly Rect[];
+  /** The close button: dismisses the banner for this release. */
+  readonly dismiss: Rect;
 }
 
 /** The inside of the update banner, for `actions` buttons (one or two). */
 export function updateBannerParts(banner: Rect, actions: number): UpdateBannerParts {
   const textX = banner.x + UPDATE_TEXT_INSET;
   const buttonY = banner.y + banner.height - UPDATE_BANNER_PAD - hit.target;
+  const dismissRight = banner.x + banner.width - UPDATE_BANNER_PAD;
   if (banner.height > UPDATE_BANNER_HEIGHT) {
     // Stacked: the buttons share the full width of their own row.
     const inner = banner.width - UPDATE_BANNER_PAD * 2;
@@ -78,18 +87,30 @@ export function updateBannerParts(banner: Rect, actions: number): UpdateBannerPa
       height: hit.target,
     }));
     return {
-      text: { x: textX, y: banner.y + UPDATE_BANNER_PAD + 2 },
-      textWidth: banner.width - UPDATE_TEXT_INSET * 2,
+      text: { x: textX, y: banner.y + UPDATE_BANNER_PAD + 6 },
+      textWidth: banner.width - UPDATE_TEXT_INSET - UPDATE_BANNER_PAD * 2 - UPDATE_DISMISS_SIZE,
       buttons,
+      dismiss: {
+        x: dismissRight - UPDATE_DISMISS_SIZE,
+        y: banner.y + UPDATE_BANNER_PAD,
+        width: UPDATE_DISMISS_SIZE,
+        height: UPDATE_DISMISS_SIZE,
+      },
     };
   }
   const buttons: Rect[] = [];
-  let right = banner.x + banner.width - UPDATE_BANNER_PAD;
+  const dismiss: Rect = {
+    x: dismissRight - UPDATE_DISMISS_SIZE,
+    y: buttonY,
+    width: UPDATE_DISMISS_SIZE,
+    height: UPDATE_DISMISS_SIZE,
+  };
+  let right = dismiss.x - UPDATE_BANNER_PAD;
   for (let i = 0; i < actions; i++) {
     buttons.unshift({ x: right - UPDATE_BUTTON_WIDTH, y: buttonY, width: UPDATE_BUTTON_WIDTH, height: hit.target });
     right -= UPDATE_BUTTON_WIDTH + UPDATE_BANNER_PAD;
   }
-  return { text: { x: textX, y: banner.y + UPDATE_BANNER_PAD + 6 }, textWidth: right - textX, buttons };
+  return { text: { x: textX, y: banner.y + UPDATE_BANNER_PAD + 6 }, textWidth: right - textX, buttons, dismiss };
 }
 
 export interface TitleMenuLayoutInput {

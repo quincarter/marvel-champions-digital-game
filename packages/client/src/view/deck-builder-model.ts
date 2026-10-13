@@ -112,16 +112,30 @@ export function touch(deck: Deck, now: string): Deck {
   return { ...deck, updatedAt: now };
 }
 
+/** "Deck (copy)", "Deck (copy 2)", "Deck (copy 3)": the next copy's name, never "Deck (copy) (copy)". */
+export function copyNameOf(name: string, existingNames: readonly string[] = []): string {
+  const parsed = /^(.*?)\s*\(copy(?: (\d+))?\)\s*$/.exec(name);
+  const base = parsed ? parsed[1]! : name;
+  const taken = new Set(existingNames.map((existing) => existing.trim().toLowerCase()));
+  // Copying a copy continues its count; copying the original takes the first free number.
+  let n = parsed ? Number(parsed[2] ?? 1) + 1 : 1;
+  for (;;) {
+    const candidate = n === 1 ? `${base} (copy)` : `${base} (copy ${n})`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+    n += 1;
+  }
+}
+
 /**
  * "Duplicate" (W9): a new, independently-editable copy of `deck` — same identity, aspects and cards, a fresh id and
  * a name that says so. Always comes back `userBuilt`: duplicating a precon (never itself stored — `preconDecks`
  * derives it fresh every time) or an imported deck both produce a deck the player now owns and edits directly, not
  * a second copy still claiming to be that precon or that MarvelCDB import.
  */
-export function duplicateDeck(deck: Deck, id: string, now: string): Deck {
+export function duplicateDeck(deck: Deck, id: string, now: string, existingNames: readonly string[] = []): Deck {
   return {
     id: deckId(id),
-    name: `${deck.name} (copy)`,
+    name: copyNameOf(deck.name, existingNames),
     identityCardId: deck.identityCardId,
     aspects: deck.aspects,
     cards: deck.cards,

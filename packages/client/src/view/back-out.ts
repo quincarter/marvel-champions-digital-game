@@ -19,6 +19,11 @@ export interface BackOutTrailEntry {
   readonly playerId: PlayerId;
   readonly command: Command;
   readonly events: readonly GameEvent[];
+  /**
+   * The engine RNG's draw count (`GameState.rng.draws`) before and after the command, recorded by the store. A
+   * command that moved it used randomness (a random discard, a shuffle): Undo refuses it (`view/undo.ts`).
+   */
+  readonly rngDraws?: { readonly before: number; readonly after: number };
 }
 
 /**

@@ -185,18 +185,27 @@ export class SessionStore {
     if (this.#state.inFlight) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
+      const drawsBefore = this.#state.game?.rng.draws;
       const result = await this.#host.dispatch(command);
       if (!result.ok) {
         this.#set({ ...this.#state, inFlight: false, error: result.error.message });
         return false;
       }
+      const drawsAfter = this.#state.game?.rng.draws;
       // The host's update already landed through #absorb, which cleared inFlight; append this command to the
       // trail after, so it lines up with `commandTrail.length === version` the same way `#absorb` already holds.
       this.#set({
         ...this.#state,
         commandTrail: [
           ...this.#state.commandTrail,
-          { playerId: command.playerId, command, events: result.update.events },
+          {
+            playerId: command.playerId,
+            command,
+            events: result.update.events,
+            ...(drawsBefore !== undefined && drawsAfter !== undefined
+              ? { rngDraws: { before: drawsBefore, after: drawsAfter } }
+              : {}),
+          },
         ],
       });
       return true;

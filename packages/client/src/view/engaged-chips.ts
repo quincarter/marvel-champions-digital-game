@@ -19,6 +19,11 @@ const CHIP_CHAR_WIDTH = 5.8;
 export const CHIP_BAR = 4;
 export const CHIP_TEXT_PAD = 8;
 
+/** What one uppercase character of the engaged chip takes at the caption floor, tracking off, as measured on a desktop tile ("VS WONDER M…" was cut at 88 px). */
+const ENGAGED_CHAR_WIDTH = 7.4;
+/** The width an engaged chip may take on a tile: the tile less a margin, but never less than this. */
+export const ENGAGED_CHIP_MIN_ROOM = 88;
+
 export interface EngagedChipRow {
   readonly words: string;
   /** A row about this very tile never leaves it (wraps instead); "vs X" may be wider than a small tile. */
@@ -32,13 +37,36 @@ interface MinionChipFacts {
   readonly inactiveKeywords: readonly string[];
 }
 
+/**
+ * "vs Wonder Man", or its short form "vs W. Man" when the whole would be cut on a tile `tileWidth` wide: every word but
+ * the last becomes an initial ("Captain Marvel" is "C. Marvel", "Spider-Man" is "S.-Man"). A name that is one word, or
+ * still too long short, stays whole: the scene may cut it, but never a name that fits.
+ */
+export function engagedChipWords(name: string, tileWidth: number): string {
+  const room = Math.max(ENGAGED_CHIP_MIN_ROOM, tileWidth - 14);
+  const whole = `vs ${name}`;
+  if (whole.length * ENGAGED_CHAR_WIDTH <= room) return whole;
+  const parts = name.split(/([\s-]+)/);
+  const lastWord = parts.length - 1;
+  const short = parts
+    .map((part, index) => (index < lastWord && index % 2 === 0 && part !== "" ? `${part[0]}.` : part))
+    .join("");
+  return `vs ${short}`;
+}
+
 /** The rows a minion carries without counting a keyword tag a tile had no room for (that one is known only when drawn). */
-export function engagedChipRows(minion: MinionChipFacts, maxRows = Infinity): readonly EngagedChipRow[] {
+export function engagedChipRows(
+  minion: MinionChipFacts,
+  maxRows = Infinity,
+  tileWidth = Infinity,
+): readonly EngagedChipRow[] {
   const held = minion.heldBy;
   const words = held ? held.kind : minion.engagedName;
   const offNote = held ? inactiveKeywordNote(minion.inactiveKeywords) : null;
   return [
-    ...(words ? [{ words: held ? words : `vs ${words}`, bounded: held !== null, bar: held ? CHIP_BAR : 0 }] : []),
+    ...(words
+      ? [{ words: held ? words : engagedChipWords(words, tileWidth), bounded: held !== null, bar: held ? CHIP_BAR : 0 }]
+      : []),
     ...(offNote ? [{ words: offNote, bounded: true, bar: CHIP_BAR }] : []),
   ].slice(0, maxRows);
 }

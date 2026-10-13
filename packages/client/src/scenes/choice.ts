@@ -53,7 +53,7 @@ import {
   requiredPaymentNoteOf,
   type PaymentSheetView,
 } from "../view/payment-sheet.js";
-import { choiceHeaderText, choiceInstructionOf, discardCountNoteOf, promptTitleOf } from "../view/choice-source.js";
+import { choiceHeaderOf, choiceInstructionOf, discardCountNoteOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { keywordOrderTilesOf } from "../view/keyword-order-choice.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
@@ -71,6 +71,7 @@ import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice
 import {
   defendChoiceLayout,
   defendMatchupLayout,
+  defendMiddleLayout,
   defendOptionPicture,
   defendOptionFit,
   defendOptionSlots,
@@ -480,7 +481,13 @@ export class ChoiceOverlay extends Phaser.Scene {
       state.game.players.length > 1 && decider
         ? characterPanel(state.game, decider.identity.instanceId, POOL_DEPS)
         : null;
-    const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : 38 };
+    // A card pick out of a deck says what is being done in the title and who asks in a line beneath (`choiceHeaderOf`).
+    const genericTitle =
+      choice.prompt.kind === "lookAt"
+        ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
+        : promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game);
+    const header = choiceHeaderOf(state.game, choice, POOL_DEPS, genericTitle);
+    const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : header.subtitle ? 52 : 38 };
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
 
@@ -532,16 +539,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     // already shows it at readable size, in the rail or the strip below — drawing it a second time, smaller, next
     // to the text that already names it would read as two answers to the same question.
     const titleLeft = bar.x + 10;
-    const genericTitle =
-      choice.prompt.kind === "lookAt"
-        ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game);
-    const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
+    const titleText = header.title;
+    const titleY = header.subtitle ? bar.y + 17 : bar.y + bar.height / 2;
     const title = this.add
-      .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
+      .text(titleLeft, titleY, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
     fitBarTitle(title, Math.max(60, titleRight - titleLeft));
+    if (header.subtitle) {
+      const source = label(this, titleLeft, bar.y + 36, header.subtitle, typeRole.label, surface.paper.hex, ink.meta);
+      fitText(source, Math.max(60, titleRight - titleLeft), typeRole.label.size);
+    }
 
     if (backOutRect) {
       this.#buttons.push(
@@ -1095,27 +1103,28 @@ export class ChoiceOverlay extends Phaser.Scene {
     // Between them: ATK, an arrow pointing at the target, and one facedown back per boost card still to flip.
     const mid = matchup.middle;
     const midX = mid.x + mid.width / 2;
-    // Stacked top to bottom with every height taken from the column's own, so a phone's short column shrinks the
-    // number and drops the backs rather than letting them land on each other.
-    const atkSize = Math.min(44, Math.max(18, Math.round(mid.height * 0.24)));
-    label(this, midX, mid.y + 2, "base atk", typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
+    // Measured from the foot caption up (`defendMiddleLayout`), so a short column never runs the arrow through it.
+    const column = defendMiddleLayout(mid);
+    if (column.baseLabelY !== null)
+      label(this, midX, column.baseLabelY, "base atk", typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
     this.add
-      .text(midX, mid.y + 15, String(view.summary.baseAtk), textStyle(typeRole.stat, accent.heroRed.hex))
+      .text(midX, column.atkY, String(view.summary.baseAtk), textStyle(typeRole.stat, accent.heroRed.hex))
       .setOrigin(0.5, 0)
-      .setFontSize(atkSize);
-    const arrowY = mid.y + 15 + atkSize + 16;
+      .setFontSize(column.atkSize);
+    const arrowY = column.arrowY;
+    const half = column.arrowHalf;
     summaryG.fillStyle(accent.heroRed.hex, 1).fillRect(mid.x + 4, arrowY - 3, mid.width - 20, 6);
     summaryG.fillTriangle(
       mid.x + mid.width - 18,
-      arrowY - 10,
+      arrowY - half,
       mid.x + mid.width - 18,
-      arrowY + 10,
+      arrowY + half,
       mid.x + mid.width - 2,
       arrowY,
     );
-    const boostLabelY = mid.y + mid.height - 12;
+    const boostLabelY = column.boostLabelY;
     const boosts = Math.min(view.summary.facedownCount, 4);
-    const backHeight = Math.min(64, boostLabelY - 4 - (arrowY + 14));
+    const backHeight = column.backHeight;
     if (boosts > 0 && backHeight >= 22) {
       const backWidth = Math.round(backHeight * (63 / 88));
       const step = boosts > 1 ? Math.min(backWidth + 4, (mid.width - backWidth) / (boosts - 1)) : 0;
@@ -1124,7 +1133,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       for (let index = 0; index < boosts; index++) {
         const rect: Rect = {
           x: midX - rowWidth / 2 + index * step,
-          y: arrowY + 14,
+          y: column.backsY,
           width: backWidth,
           height: backHeight,
         };

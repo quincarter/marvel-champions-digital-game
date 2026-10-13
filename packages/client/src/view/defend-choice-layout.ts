@@ -314,3 +314,62 @@ export function defendOptionPicture(slot: Rect): Rect | null {
   if (height < 40 || slot.width - width - 30 < 120) return null;
   return { x: slot.x + 8, y: slot.y + 8, width, height };
 }
+
+/** Height of the one-line captions in the matchup's middle column ("base atk", "+1 boost"). */
+const MIDDLE_LABEL_HEIGHT = 12;
+/** A stat number's drawn height over its font size, with a little to spare for the glyphs' descent. */
+const STAT_HEIGHT_RATIO = 1.2;
+
+/**
+ * The matchup's middle column, top to bottom: "BASE ATK", the number, the arrow to the target, the facedown boost
+ * backs, "+N BOOST". On a tall column it is the layout the scene always drew; on the short one a phone's summary gives
+ * it (about 60 px at 360 wide) the arrow used to run through the "+1 BOOST" caption, so the stack is measured from
+ * the caption up: the arrow sits just above it, and the number gives up size, then the "BASE ATK" caption, then the
+ * arrow's own height, before anything overlaps.
+ */
+export interface DefendMiddleLayout {
+  /** Where "BASE ATK" goes, or null when the column is too short to spare the line. */
+  readonly baseLabelY: number | null;
+  readonly atkY: number;
+  readonly atkSize: number;
+  /** The arrow's centre line, and half its height (the head's). */
+  readonly arrowY: number;
+  readonly arrowHalf: number;
+  /** The facedown backs row's top, and the tallest a back may be drawn (the scene needs 22 to draw any). */
+  readonly backsY: number;
+  readonly backHeight: number;
+  readonly boostLabelY: number;
+}
+
+export function defendMiddleLayout(mid: Rect): DefendMiddleLayout {
+  const boostLabelY = mid.y + mid.height - MIDDLE_LABEL_HEIGHT;
+  const wanted = Math.min(44, Math.max(18, Math.round(mid.height * 0.24)));
+  const variants = [
+    { label: true, half: 10 },
+    { label: false, half: 10 },
+    { label: false, half: 6 },
+  ] as const;
+  let result: DefendMiddleLayout | null = null;
+  for (const [index, variant] of variants.entries()) {
+    const atkY = mid.y + (variant.label ? 15 : 2);
+    const limit = boostLabelY - 2 - variant.half;
+    const roomy = atkY + wanted + 16;
+    const arrowY = Math.min(roomy, limit);
+    // The number may shrink to what fits between its own top and the arrow's.
+    const fits = Math.floor((arrowY - variant.half - 2 - atkY) / STAT_HEIGHT_RATIO);
+    const atkSize = arrowY === roomy ? wanted : Math.min(wanted, fits);
+    const backsY = arrowY + 14;
+    result = {
+      baseLabelY: variant.label ? mid.y + 2 : null,
+      atkY,
+      atkSize: Math.max(10, atkSize),
+      arrowY,
+      arrowHalf: variant.half,
+      backsY,
+      backHeight: Math.min(64, boostLabelY - 4 - backsY),
+      boostLabelY,
+    };
+    if (atkSize >= 16 || index === variants.length - 1) break;
+  }
+  return result!;
+}

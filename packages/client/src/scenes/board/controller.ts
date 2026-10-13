@@ -56,7 +56,7 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
-import { undoOf, type UndoOffer } from "../../view/undo.js";
+import { undoOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
 import {
   abilityActionsFor,
   legalEntriesOf,
@@ -253,9 +253,20 @@ function thwartStat(state: GameState, action: LegalAction, id: InstanceId): stri
   return suffix === null ? statSuffix(state, id, "THW") : ` ${suffix}`;
 }
 
+/** How long a notice beside Undo stays, and the pause after an undo in which another is ignored. */
+const UNDO_NOTICE_MS = 3500;
+const UNDO_COOLDOWN_MS = 350;
+
 export class BoardController {
   readonly #host: BoardControllerHost;
   #selection: Selection = { kind: "idle" };
+  #undoHover = false;
+  #undoFocus = false;
+  #undoNotice: string | null = null;
+  #undoNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while an undo's rewind is in flight; `#undoSettledAt` is when the last one finished. */
+  #undoing = false;
+  #undoSettledAt = 0;
   /**
    * Set when the board is showing a replayed state rather than the live
    * session — the minimal safe seam S7 leaves for W4's "jump to a moment"
@@ -1460,15 +1471,64 @@ export class BoardController {
 
   /**
    * Undo (`view/undo.ts`): what the action bar's Undo button offers right now, or null when it isn't offered at all
-   * (someone else's turn, an off-turn seat on show, a choice open).
+   * (someone else's turn, an off-turn seat on show, a choice open). While any selection is open (a payment, a cost
+   * choice, the cost-help prompt, the consent walk, an aim, the X stepper, the Hunted sheet, a which-one sheet) it is
+   * offered greyed with the reason "finish or cancel what you're doing first": Escape / Cancel closes the selection
+   * and only that, so Undo never does both (the QA's F2: Z cancelled a payment and took the move before it back).
    */
   undoOffer(): UndoOffer | null {
     const { game, perspectiveId, commandTrail, offTurnSeat } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
-    return undoOf(commandTrail, game, perspectiveId);
+    const offer = undoOf(commandTrail, game, perspectiveId);
+    if (offer && this.#selection.kind !== "idle") return { kind: "unavailable", reason: UNDO_REASONS.selecting };
+    return offer;
   }
 
-  /** Takes back the active hero's last move this turn, when `undoOffer` allows it. Closes whatever mode was open. */
+  /**
+   * The line the board draws beside Undo, or null: the notice of a press / Z / an undo just made, else the reason
+   * Undo is greyed while the pointer is on it or the keyboard focus is.
+   */
+  undoWhy(): string | null {
+    if (this.#undoNotice) return this.#undoNotice;
+    if (!this.#undoHover && !this.#undoFocus) return null;
+    const offer = this.undoOffer();
+    return offer?.kind === "unavailable" ? offer.reason : null;
+  }
+
+  /** The pointer entered or left the Undo button. No redraw: the bar toggles its own label (a redraw would destroy the button under the pointer). */
+  setUndoHover(over: boolean): void {
+    this.#undoHover = over;
+  }
+
+  /** Keyboard focus moved onto or off the Undo button (the board redraws right after). */
+  setUndoFocus(on: boolean): void {
+    this.#undoFocus = on;
+  }
+
+  /** Shows `text` beside Undo for a few seconds. */
+  #noteUndo(text: string): void {
+    if (this.#undoNoticeTimer !== null) clearTimeout(this.#undoNoticeTimer);
+    this.#undoNotice = text;
+    this.#undoNoticeTimer = setTimeout(() => {
+      this.#undoNoticeTimer = null;
+      this.#undoNotice = null;
+      this.#host.redraw();
+    }, UNDO_NOTICE_MS);
+    this.#host.redraw();
+  }
+
+  /** Stops the notice timer when the board goes away. */
+  dispose(): void {
+    if (this.#undoNoticeTimer !== null) clearTimeout(this.#undoNoticeTimer);
+    this.#undoNoticeTimer = null;
+    this.#undoNotice = null;
+  }
+
+  /**
+   * Takes back the active hero's last move this turn, when `undoOffer` allows it, and says what it took back
+   * ("Undid: played Backflip"). A press (or Z, or Enter) while it is greyed says why instead. One undo at a time: a
+   * second press while one is in flight, or in the moment after one, is ignored, so two undos are two deliberate steps.
+   */
   async undo(): Promise<void> {
     if (this.#readOnly) return;
     // A guided step teaching one control keeps Undo inert, the same as any other control it doesn't name.
@@ -1477,9 +1537,21 @@ export class BoardController {
       return;
     }
     const offer = this.undoOffer();
-    if (offer?.kind !== "available") return;
-    this.#selection = { kind: "idle" };
-    await appSession().store.rewindTo(offer.target);
+    if (!offer) return;
+    if (offer.kind === "unavailable") {
+      this.#noteUndo(offer.reason);
+      return;
+    }
+    if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return;
+    this.#undoing = true;
+    try {
+      const { game } = appSession().store.state;
+      const what = game ? undoneSummary(offer.command, (id) => cardName(game, id)) : "last move";
+      if (await appSession().store.rewindTo(offer.target)) this.#noteUndo(`Undid: ${what}`);
+    } finally {
+      this.#undoing = false;
+      this.#undoSettledAt = Date.now();
+    }
   }
 
   async dispatchExample(kind: BasicAction): Promise<void> {

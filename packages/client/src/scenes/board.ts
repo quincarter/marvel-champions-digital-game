@@ -292,6 +292,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabBadges.clear();
     this.#tabChanged.clear();
     this.#focus = null;
+    this.#controller.setUndoFocus(false);
     this.#focusRegion = "board";
     this.#guideFocusOwner = null;
     this.#saveFailureAnnounced = false;
@@ -397,6 +398,7 @@ export class BoardScene extends Phaser.Scene {
     this.game.events.on("mc-use-ability", this.#onInspectUseAbility, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#controller.dispose();
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       this.#artUnsubscribe?.();
@@ -1342,6 +1344,8 @@ export class BoardScene extends Phaser.Scene {
     const at = order.findIndex((target) => sameTarget(target, this.#focus));
     const next = stepFocus(order, at, delta);
     this.#focus = next >= 0 ? (order[next] ?? null) : null;
+    // A greyed Undo says why while keyboard focus is on it (drawn by the next draw).
+    this.#controller.setUndoFocus(this.#focus?.kind === "undo");
     this.#draw();
   }
 
@@ -1358,6 +1362,7 @@ export class BoardScene extends Phaser.Scene {
     // rather than drawn somewhere stale.
     if (!this.#controller.focusOrder().some((target) => sameTarget(target, focus))) {
       this.#focus = null;
+      this.#controller.setUndoFocus(false);
       return;
     }
     const rect = this.#frame.focusRects.get(focusKey(focus));

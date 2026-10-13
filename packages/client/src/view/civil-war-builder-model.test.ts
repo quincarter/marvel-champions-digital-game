@@ -544,7 +544,9 @@ describe("the status line the scene shows", () => {
   });
 
   test("defaultStatusOf: the whole scenario in one sentence, or the problem", () => {
-    expect(defaultStatusOf(view(draftFor(IRON)))).toMatch(/^Iron Man, .+ then .+, 4 modular sets chosen of 3 to 4\.$/);
+    expect(defaultStatusOf(view(draftFor(IRON)))).toMatch(
+      /^Iron Man, .+ then .+, 4 modular sets \(3 or 4 allowed\)\.$/,
+    );
     const two = view(picks(draftFor(IRON), ["paladin", "cape_killer"]));
     expect(defaultStatusOf(two)).toBe(two.startProblem);
   });

@@ -96,6 +96,21 @@ describe("the real art/ folder", () => {
     expect(ART_CATALOG.scenarios.size).toBeGreaterThan(0);
   });
 
+  test("each Civil War leader has its own win and loss scene, so neither outcome falls back to a flat screen", () => {
+    for (const id of [
+      "registration-iron-man",
+      "registration-captain-marvel",
+      "resistance-captain-america",
+      "resistance-spider-woman",
+    ]) {
+      const slots = ART_CATALOG.scenarios.get(id);
+      expect(slots?.["villain-loses"].length, `${id} villain-loses`).toBeGreaterThan(0);
+      expect(slots?.["villain-wins"].length, `${id} villain-wins`).toBeGreaterThan(0);
+      expect(outcomeArtFor(ART_CATALOG, id, "win")?.key, id).toContain(`${id}/villain-loses`);
+      expect(outcomeArtFor(ART_CATALOG, id, "loss")?.key, id).toContain(`${id}/villain-wins`);
+    }
+  });
+
   test("every file fits a slot", () => {
     expect(ART_CATALOG.unrecognized).toEqual([]);
   });

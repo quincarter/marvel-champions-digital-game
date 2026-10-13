@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Undo takes back one move per press (a rapid double click no longer takes back two) and says what it undid, such as "Undid: played Backflip"'
+time: 2026-10-13T15:56:15.7018925-04:00

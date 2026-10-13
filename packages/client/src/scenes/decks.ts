@@ -2063,7 +2063,12 @@ export class DecksScene extends Phaser.Scene {
     this.#busy = true;
     void (async () => {
       const now = new Date().toISOString();
-      const copy = duplicateDeck(deck, crypto.randomUUID(), now);
+      const copy = duplicateDeck(
+        deck,
+        crypto.randomUUID(),
+        now,
+        this.#savedDecks.map((saved) => saved.name),
+      );
       await deckStorage().put(copy);
       this.#savedDecks = await deckStorage().list();
       this.#selectedDeckId = copy.id as string;

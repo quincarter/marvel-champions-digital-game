@@ -8,7 +8,7 @@
  */
 
 import { encounterDeckOf, getPlayer, locateCard, type GameState, type PendingChoice, type PlayerId } from "@mc/engine";
-import { playerName } from "./names.js";
+import { seatFormName } from "./names.js";
 
 /** Whose deck the cards are in, and at which positions — or null when they aren't all in one deck. */
 function deckOfOptions(
@@ -25,7 +25,7 @@ function deckOfOptions(
     if (zone?.kind === "encounterDeck") {
       here = { name: "the encounter deck", order: encounterDeckOf(state, zone.deckId).deck };
     } else if (zone?.kind === "deck") {
-      const whose = zone.playerId === perspectiveId ? "your deck" : `${playerName(state, zone.playerId)}'s deck`;
+      const whose = zone.playerId === perspectiveId ? "your deck" : `${seatFormName(state, zone.playerId)}'s deck`;
       here = { name: whose, order: getPlayer(state, zone.playerId)?.deck ?? [] };
     } else if (zone?.kind === "separateDeck") {
       const deck = getPlayer(state, zone.playerId)?.separateDecks[zone.name]?.deck ?? [];
@@ -106,7 +106,7 @@ export function lookAtGateOf(
 ): LookAtGate | null {
   if (state.players.length < 2) return null;
   if (choice.prompt.kind !== "lookAt" && !revealsDeckCards(state, choice)) return null;
-  const looker = playerName(state, choice.playerId);
+  const looker = seatFormName(state, choice.playerId);
   const headline = `Only ${looker} may look.`;
   return { looker, headline, coverLabel: `${headline} Tap to reveal` };
 }

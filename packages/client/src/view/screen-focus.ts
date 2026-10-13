@@ -8,6 +8,8 @@
  * A stop is a string key; the scene maps each key to the control it drew.
  */
 
+import { UPDATE_DISMISS_ID } from "./app-version.js";
+
 export interface TitleFocusInput {
   /** A saved game is offered as "Continue". */
   readonly continuable: boolean;
@@ -354,7 +356,7 @@ export function titleMenuFocusOrder(input: {
   readonly continuable: boolean;
   /** The Civil War box is open: "civil-war" follows Campaign. */
   readonly civilWar?: boolean;
-  /** The update banner's buttons, when it is drawn; last, so the menu's own first stop stays first. */
+  /** The update banner's link buttons, when it is drawn; last, so the menu's own first stop stays first. Its close button follows them. */
   readonly updateActions?: readonly string[];
 }): readonly string[] {
   return [
@@ -367,7 +369,7 @@ export function titleMenuFocusOrder(input: {
     "how-to-play",
     "settings",
     "release-notes",
-    ...(input.updateActions ?? []),
+    ...(input.updateActions && input.updateActions.length > 0 ? [...input.updateActions, UPDATE_DISMISS_ID] : []),
   ];
 }
 

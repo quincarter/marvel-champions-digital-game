@@ -859,7 +859,7 @@ export function refusalOf(view: BuilderView, action: string): string | null {
 
 /**
  * The status line when no notice is up: the engine's problem while Start is refused, else the one plain sentence that
- * reads the whole scenario ("Iron Man, Cut Off Support then Negative Zone Prison, 4 modular sets chosen of 3 to 4.").
+ * reads the whole scenario ("Iron Man, Cut Off Support then Negative Zone Prison, 4 modular sets (3 or 4 allowed).").
  */
 export function defaultStatusOf(view: BuilderView): string {
   if (view.startProblem) return view.startProblem;
@@ -868,8 +868,11 @@ export function defaultStatusOf(view: BuilderView): string {
   const [row1, row2] = view.stageRows;
   const schemes = view.blind || !row1 || !row2 ? "main scheme hidden" : `${pickOf(row1)} then ${pickOf(row2)}`;
   const range = /^(.*?) sets?\./.exec(view.modular.counterLine)?.[1] ?? "";
+  const span = /^(\d+) to (\d+)$/.exec(range);
+  // "3 to 4" reads as "3 or 4" when the two are neighbors; a wider range keeps "to".
+  const allowed = span && Number(span[2]) === Number(span[1]) + 1 ? `${span[1]} or ${span[2]}` : range;
   const sets = view.blind
     ? `${view.modular.chosen} modular sets hidden`
-    : `${view.modular.chosen} modular set${view.modular.chosen === 1 ? "" : "s"} chosen of ${range}`;
+    : `${view.modular.chosen} modular set${view.modular.chosen === 1 ? "" : "s"}${allowed ? ` (${allowed} allowed)` : ""}`;
   return `${leader}, ${schemes}, ${sets}.`;
 }

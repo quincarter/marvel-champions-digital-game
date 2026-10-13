@@ -17,6 +17,7 @@ import {
   stepChoice,
   withCycle,
   type PackInfo,
+  copyNameOf,
   duplicateDeck,
   identityOptions,
   legalityOf,
@@ -277,6 +278,32 @@ describe("duplicateDeck", () => {
     const copy = duplicateDeck(precon, "id-3", NOW);
     expect(copy.source.kind).toBe("userBuilt");
     expect(copy.cards).toEqual(precon.cards);
+  });
+});
+
+describe("copyNameOf: repeated Duplicate numbers the copies", () => {
+  test("the first copy is '(copy)', then '(copy 2)', '(copy 3)', never '(copy) (copy)'", () => {
+    expect(copyNameOf("Deck")).toBe("Deck (copy)");
+    expect(copyNameOf("Deck (copy)")).toBe("Deck (copy 2)");
+    expect(copyNameOf("Deck (copy 2)")).toBe("Deck (copy 3)");
+    expect(copyNameOf("Deck (copy 9)")).toBe("Deck (copy 10)");
+  });
+
+  test("duplicating the original again skips the names the player already has", () => {
+    expect(copyNameOf("Deck", ["Deck", "Deck (copy)"])).toBe("Deck (copy 2)");
+    expect(copyNameOf("Deck", ["Deck (copy)", "Deck (copy 2)"])).toBe("Deck (copy 3)");
+    expect(copyNameOf("Deck (copy)", ["Deck", "Deck (copy)", "Deck (copy 2)"])).toBe("Deck (copy 3)");
+    expect(copyNameOf("Deck", ["DECK (COPY)"])).toBe("Deck (copy 2)");
+  });
+
+  test("duplicateDeck over and over keeps one suffix", () => {
+    let deck = setName(newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW), "Deck");
+    const names = [deck.name];
+    for (let i = 2; i <= 4; i++) {
+      deck = duplicateDeck(deck, `id-${i}`, NOW, names);
+      names.push(deck.name);
+    }
+    expect(names).toEqual(["Deck", "Deck (copy)", "Deck (copy 2)", "Deck (copy 3)"]);
   });
 });
 

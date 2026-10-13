@@ -50,10 +50,13 @@ test.describe("payment order", () => {
     const hand = await facts(page, (game) => game.players[0].hand as string[]);
     const [first, second] = hand.filter((card) => card !== id);
     await pressCard(page, phone, first!);
-    await waitForBoardText(page, /^spent 1 · on top$/i, "the only picked card is on top");
+    // A phone's narrow tile carries the compact tag: the number, and a marker for the top card.
+    await waitForBoardText(page, phone ? /^1▲$/ : /^spent 1 · on top$/i, "the only picked card is on top");
     await pressCard(page, phone, second!);
-    await waitForBoardText(page, /^spent 2 · on top$/i, "the second pick is on top");
-    await waitForBoardText(page, /^spent 1$/i, "the first pick is numbered 1 and no longer on top");
+    await waitForBoardText(page, phone ? /^2▲$/ : /^spent 2 · on top$/i, "the second pick is on top");
+    await waitForBoardText(page, phone ? /^1$/ : /^spent 1$/i, "the first pick is numbered 1 and no longer on top");
+    // Where there is no hover, the bar says what the order means while an "on top" card is picked.
+    if (phone) await waitForBoardText(page, /^Picked last, so it ends up on top/, "the bar's note on the on-top card");
     await shot("1-picked");
 
     if (!phone) {
