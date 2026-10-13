@@ -14,22 +14,22 @@ import {
 const REPO = "https://github.com/quincarter/marvel-champions-digital-game";
 const download = (name: string) => ({ name, browser_download_url: `${REPO}/releases/download/v0.20.0/${name}` });
 
-/** The asset names release-on-merge.yml publishes (its `assetNamePattern`, and build-android.mjs for the APK). */
+/** The asset names release-on-merge.yml publishes (scripts/lib/release-collector.mjs). */
 const DOWNLOADS = {
-  apk: "MarvelChampions-0.20.0-android.apk",
-  nsis: "MarvelChampions-0.20.0-windows-x64-setup.exe",
-  msi: "MarvelChampions-0.20.0-windows-x64.msi",
-  "dmg-aarch64": "MarvelChampions-0.20.0-macos-apple-silicon.dmg",
-  "dmg-x64": "MarvelChampions-0.20.0-macos-intel.dmg",
-  appimage: "MarvelChampions-0.20.0-linux-x64.AppImage",
-  deb: "MarvelChampions-0.20.0-linux-x64.deb",
-  rpm: "MarvelChampions-0.20.0-linux-x64.rpm",
+  apk: "MarvelChampions-0.20.0-Android.apk",
+  nsis: "MarvelChampions-0.20.0-Windows-x64-Setup.exe",
+  msi: "MarvelChampions-0.20.0-Windows-x64-AllUsers.msi",
+  "dmg-aarch64": "MarvelChampions-0.20.0-macOS-AppleSilicon-arm64.dmg",
+  "dmg-x64": "MarvelChampions-0.20.0-macOS-Intel-x64.dmg",
+  appimage: "MarvelChampions-0.20.0-Linux-x64.AppImage",
+  deb: "MarvelChampions-0.20.0-Linux-x64.deb",
+  rpm: "MarvelChampions-0.20.0-Linux-x64.rpm",
 } as const satisfies Record<InstallerKind, string>;
 
 const ALL_ASSETS = [
   ...Object.values(DOWNLOADS),
-  "MarvelChampions-0.20.0-macos-apple-silicon.app.tar.gz",
-  "MarvelChampions-0.20.0-macos-intel.app.tar.gz",
+  "MarvelChampions-0.20.0-macOS-AppleSilicon-arm64.app.tar.gz",
+  "MarvelChampions-0.20.0-macOS-Intel-x64.app.tar.gz",
   "SHA256SUMS.txt",
 ];
 
@@ -97,14 +97,14 @@ describe("version comparison", () => {
 
 describe("parseLatestRelease", () => {
   it("reads the version, page and assets", () => {
-    const parsed = parseLatestRelease(githubJson(["MarvelChampions-0.20.0-android.apk"]));
+    const parsed = parseLatestRelease(githubJson(["MarvelChampions-0.20.0-Android.apk"]));
     expect(parsed).toEqual({
       version: "0.20.0",
       url: `${REPO}/releases/tag/v0.20.0`,
       assets: [
         {
-          name: "MarvelChampions-0.20.0-android.apk",
-          url: `${REPO}/releases/download/v0.20.0/MarvelChampions-0.20.0-android.apk`,
+          name: "MarvelChampions-0.20.0-Android.apk",
+          url: `${REPO}/releases/download/v0.20.0/MarvelChampions-0.20.0-Android.apk`,
         },
       ],
     });
@@ -157,7 +157,7 @@ describe("updateFor", () => {
 
   const osOf = { apk: "android", nsis: "windows", msi: "windows", appimage: "linux", deb: "linux", rpm: "linux" };
   for (const [naming, downloads] of [
-    ["platform-named", DOWNLOADS],
+    ["OS- and architecture-named", DOWNLOADS],
     ["Tauri-named", LEGACY_DOWNLOADS],
   ] as const) {
     it(`links the changelog and the installer this install came from (${naming} assets)`, () => {

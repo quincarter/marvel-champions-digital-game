@@ -42,15 +42,16 @@ export function getProjectVersion() {
 }
 
 /**
- * Release asset names say which platform and variant each file is for, so a player picks the right download from the
- * release page: `MarvelChampions-<version>-<platform>[-<arch>][-setup].<ext>`. The CI release job names its uploads
- * the same way through tauri-action's `assetNamePattern` (release-on-merge.yml), and the in-app update notice
- * matches these names (packages/client/src/platform/update-check.ts).
+ * Release asset names say which OS, architecture and kind of installer each file is, so a player picks the right
+ * download from the release page: `MarvelChampions-<version>-<OS>-<architecture>[-<kind>].<ext>`, e.g.
+ * `MarvelChampions-0.21.0-macOS-AppleSilicon-arm64.dmg`. Hyphens, not spaces: GitHub turns a space in an asset name
+ * into a dot. Both the CI release job (stage-release-assets.mjs) and local builds name files here, and the in-app
+ * update notice matches these names (packages/client/src/platform/update-check.ts).
  */
 export const ASSET_PREFIX = "MarvelChampions";
 
 export function androidApkName(version) {
-  return `${ASSET_PREFIX}-${version}-android.apk`;
+  return `${ASSET_PREFIX}-${version}-Android.apk`;
 }
 
 const DESKTOP_EXTENSIONS = [".app.tar.gz", ".dmg", ".msi", ".exe", ".deb", ".rpm", ".AppImage"];
@@ -63,11 +64,14 @@ export function desktopAssetName(fileName, fullPath, version) {
   const ext = DESKTOP_EXTENSIONS.find((e) => fileName.endsWith(e));
   if (ext === undefined) return null;
   const arm = /aarch64|arm64/i.test(fullPath) || (!/x86_64|x64|amd64/i.test(fullPath) && process.arch === "arm64");
+  const arch = arm ? "arm64" : "x64";
   let variant;
-  if (ext === ".dmg" || ext === ".app.tar.gz") variant = arm ? "macos-apple-silicon" : "macos-intel";
-  else if (ext === ".msi") variant = `windows-${arm ? "arm64" : "x64"}`;
-  else if (ext === ".exe") variant = `windows-${arm ? "arm64" : "x64"}-setup`;
-  else variant = `linux-${arm ? "arm64" : "x64"}`;
+  if (ext === ".dmg" || ext === ".app.tar.gz") variant = arm ? "macOS-AppleSilicon-arm64" : "macOS-Intel-x64";
+  // The NSIS setup.exe installs for the current user and needs no admin rights: what most players want. The .msi
+  // installs for every user of the machine, under Program Files.
+  else if (ext === ".exe") variant = `Windows-${arch}-Setup`;
+  else if (ext === ".msi") variant = `Windows-${arch}-AllUsers`;
+  else variant = `Linux-${arch}`;
   return `${ASSET_PREFIX}-${version}-${variant}${ext}`;
 }
 

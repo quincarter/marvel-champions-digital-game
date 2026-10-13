@@ -64,13 +64,11 @@ jobs:
           - name: macOS (Apple silicon)
             os: macos-latest
             artifact: macos-aarch64
-            asset-name: macos-apple-silicon
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
           - name: macOS (Intel)
             os: macos-latest
             artifact: macos-x64
-            asset-name: macos-intel
             args: --target x86_64-apple-darwin
             rust-targets: x86_64-apple-darwin
           - name: Linux (x86_64)
@@ -78,13 +76,11 @@ jobs:
             # older glibc too, not only on the newest distro.
             os: ubuntu-22.04
             artifact: linux-x64
-            asset-name: linux-x64
             args: ""
             rust-targets: ""
           - name: Windows 11 (x64)
             os: windows-latest
             artifact: windows-x64
-            asset-name: windows-x64
             args: ""
             rust-targets: ""
 
@@ -176,25 +172,13 @@ jobs:
         with:
           projectPath: packages/client
           args: ${{ matrix.args }}
-          # A release only for a tag; a manual run just uploads artifacts below.
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Marvel Champions {0}', github.ref_name) || '' }}
-          releaseDraft: true
-          prerelease: true
-          # Release assets name their platform and variant (scripts/lib/release-collector.mjs names local builds the
-          # same way, and update-check.ts matches them): MarvelChampions-0.21.0-windows-x64-setup.exe, -windows-x64.msi,
-          # -macos-apple-silicon.dmg, -macos-intel.dmg, -linux-x64.deb / .rpm / .AppImage.
-          assetNamePattern: MarvelChampions-[version]-${{ matrix.asset-name }}[setup][ext]
+
+      # The same names a release gives them (scripts/lib/release-collector.mjs).
+      - name: Stage installers under their release names
+        run: node scripts/stage-release-assets.mjs
 
       - uses: actions/upload-artifact@v4
         with:
           name: marvel-champions-${{ matrix.artifact }}
           if-no-files-found: error
-          path: |
-            packages/client/src-tauri/target/**/release/bundle/dmg/*.dmg
-            packages/client/src-tauri/target/**/release/bundle/macos/*.app.tar.gz
-            packages/client/src-tauri/target/**/release/bundle/deb/*.deb
-            packages/client/src-tauri/target/**/release/bundle/rpm/*.rpm
-            packages/client/src-tauri/target/**/release/bundle/appimage/*.AppImage
-            packages/client/src-tauri/target/**/release/bundle/msi/*.msi
-            packages/client/src-tauri/target/**/release/bundle/nsis/*.exe
+          path: release/*

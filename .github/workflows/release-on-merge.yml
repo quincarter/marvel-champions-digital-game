@@ -203,13 +203,18 @@ jobs:
           VERSION="${TAG#v}"
           echo "Releasing ${TAG}."
 
-          NOTES_FILE=".changes/${TAG}.md"
+          # The changelog, then a "Which download do I need?" table naming this version's files.
+          NOTES_FILE=""
+          if [ -f ".changes/${TAG}.md" ]; then
+            NOTES_FILE="$(mktemp)"
+            { cat ".changes/${TAG}.md"; sed "s/VERSION/${VERSION}/g" .github/release-downloads.md; } > "$NOTES_FILE"
+          fi
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists on GitHub."
-            if [ -f "$NOTES_FILE" ]; then gh release edit "${TAG}" --notes-file "$NOTES_FILE"; fi
+            if [ -n "$NOTES_FILE" ]; then gh release edit "${TAG}" --notes-file "$NOTES_FILE"; fi
           else
             GH_ARGS=(release create "${TAG}" --title "Marvel Champions ${TAG}" --draft --prerelease)
-            if [ -f "$NOTES_FILE" ]; then GH_ARGS+=(--notes-file "$NOTES_FILE"); else GH_ARGS+=(--generate-notes); fi
+            if [ -n "$NOTES_FILE" ]; then GH_ARGS+=(--notes-file "$NOTES_FILE"); else GH_ARGS+=(--generate-notes); fi
             gh "${GH_ARGS[@]}"
           fi
 
@@ -235,25 +240,21 @@ jobs:
           - name: macOS (Apple silicon)
             os: macos-latest
             artifact: macos-aarch64
-            asset-name: macos-apple-silicon
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
           - name: macOS (Intel)
             os: macos-latest
             artifact: macos-x64
-            asset-name: macos-intel
             args: --target x86_64-apple-darwin
             rust-targets: x86_64-apple-darwin
           - name: Linux (x86_64)
             os: ubuntu-22.04
             artifact: linux-x64
-            asset-name: linux-x64
             args: ""
             rust-targets: ""
           - name: Windows 11 (x64)
             os: windows-latest
             artifact: windows-x64
-            asset-name: windows-x64
             args: ""
             rust-targets: ""
     steps:
@@ -345,27 +346,24 @@ jobs:
         with:
           projectPath: packages/client
           args: ${{ matrix.args }}
-          tagName: ${{ needs.check-and-cut-release.outputs.tag }}
-          releaseName: Marvel Champions ${{ needs.check-and-cut-release.outputs.tag }}
-          releaseDraft: true
-          prerelease: true
-          # Release assets name their platform and variant (scripts/lib/release-collector.mjs names local builds the
-          # same way, and update-check.ts matches them): MarvelChampions-0.21.0-windows-x64-setup.exe, -windows-x64.msi,
-          # -macos-apple-silicon.dmg, -macos-intel.dmg, -linux-x64.deb / .rpm / .AppImage.
-          assetNamePattern: MarvelChampions-[version]-${{ matrix.asset-name }}[setup][ext]
+
+      # tauri-action only builds (no tagName): the release names each file itself, after its OS, architecture and kind
+      # of installer (scripts/lib/release-collector.mjs), which tauri-action's one-pattern-per-build naming can't do
+      # (the .msi and the setup.exe of one build need different names).
+      - name: Stage release assets under their release names
+        run: node scripts/stage-release-assets.mjs
+
+      - name: Upload to the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.check-and-cut-release.outputs.tag }}" release/* --clobber
 
       - uses: actions/upload-artifact@v4
         with:
           name: marvel-champions-${{ matrix.artifact }}
           if-no-files-found: warn
-          path: |
-            packages/client/src-tauri/target/**/release/bundle/dmg/*.dmg
-            packages/client/src-tauri/target/**/release/bundle/macos/*.app.tar.gz
-            packages/client/src-tauri/target/**/release/bundle/deb/*.deb
-            packages/client/src-tauri/target/**/release/bundle/rpm/*.rpm
-            packages/client/src-tauri/target/**/release/bundle/appimage/*.AppImage
-            packages/client/src-tauri/target/**/release/bundle/msi/*.msi
-            packages/client/src-tauri/target/**/release/bundle/nsis/*.exe
+          path: release/*
 
   android-build:
     name: Android Release APK
