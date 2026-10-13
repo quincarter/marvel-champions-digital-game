@@ -3,6 +3,7 @@ import {
   andThen,
   attachCard,
   boost,
+  cannotLeavePlay,
   chooseCards,
   chooseTarget,
   chosen,
@@ -16,6 +17,7 @@ import {
   defineAbilities,
   discard,
   eachPlayer,
+  exists,
   enemyAttack,
   enemyScheme,
   exhaust,
@@ -63,6 +65,7 @@ import { cardName } from "../names.js";
 const WEAPON = trait("WEAPON");
 const ELITE = trait("ELITE");
 const HYDRA = trait("HYDRA");
+const THE_SLEEPER = query("minion", { name: cardName("04130") });
 
 /**
  * The Red Skull scenario (`red_skull` encounter set, plus the required Hydra Assault/Hydra Patrol modular sets and
@@ -212,10 +215,16 @@ export const RED_SKULL_SET = defineAbilities({
     rule({ kind: "thwartWithAtk", scheme: query("sideScheme", { self: true }) }),
   ),
 
-  // The Sleeper Awakened — This scheme cannot leave play while The Sleeper is in play (data). When Revealed: put
-  // The Sleeper into play engaged with the first player. When The Sleeper is defeated, remove this card (data —
-  // the same "removed alongside" rule the card's own second sentence describes; no further ability ref for it).
-  "04140.the-sleeper-awakened-constant": coveredByEngineRule(),
+  // The Sleeper Awakened — This scheme cannot leave play while The Sleeper is in play. When Revealed: put The
+  // Sleeper into play engaged with the first player. When The Sleeper is defeated, remove this card from the game:
+  // a Response, not an Interrupt, because The Sleeper is still in play while its defeat is being interrupted and the
+  // first sentence would stop the scheme leaving (RRG 1.8 "'Cannot'", p. 11). The Sleeper's own When Defeated has
+  // removed it by the time this resolves.
+  "04140.the-sleeper-awakened-constant": constant(cannotLeavePlay({ self: true }, { while: exists(THE_SLEEPER) })),
+  "04140.the-sleeper-awakened-constant-2": forcedResponse(
+    on.defeated(THE_SLEEPER),
+    moveCards(cards(self), "removedFromGame"),
+  ),
   "04140.when-revealed": whenRevealed(
     selectCards("sleeper", { kind: "encounterSetAside", filter: query("minion", { name: cardName("04130") }) }),
     putIntoPlay(chosen("sleeper"), firstPlayer),

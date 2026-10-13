@@ -3383,7 +3383,11 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       current: "This scheme cannot leave play while The Sleeper is in play.\nWhen Revealed: Put The Sleeper into play engaged with the first player. When The Sleeper is defeated, remove this card from the game.",
     },
     flavor: "Rising from the Potomac River, The Sleeper has awakened to answer Red Skull's summons.",
-    abilities: [{ id: abilityId("04140.the-sleeper-awakened-constant") }, { id: abilityId("04140.when-revealed") }],
+    abilities: [
+      { id: abilityId("04140.the-sleeper-awakened-constant") },
+      { id: abilityId("04140.when-revealed") },
+      { id: abilityId("04140.the-sleeper-awakened-constant-2") },
+    ],
   },
   {
     id: cardId("04141"),
