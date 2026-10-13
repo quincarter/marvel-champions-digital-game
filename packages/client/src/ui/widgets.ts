@@ -154,6 +154,11 @@ export function paintThreatMeter(
         : `${reading} THREAT`
       : `${reading} / ${scheme.target} THREAT`,
   );
+  // The count's own face (see `typeRole.threatCount`): set once, then only fitted, so a count tween does not re-rasterize.
+  const face = fontFamilyOf(typeRole.threatCount);
+  if (meterText.style.fontFamily !== face) meterText.setFontFamily(face).setFontStyle(`${typeRole.threatCount.weight}`);
+  meterText.setLetterSpacing(typeRole.threatCount.letterSpacing);
+  fitText(meterText, meter.width - 12, typeRole.threatCount.size);
   // Ink on the red fill is hard to read, so the count sits on a parchment chip across the bar (the HP plate's
   // own parchment ground): legible over both the filled and the empty part, with the fill still showing either side.
   const chipWidth = Math.min(meter.width - 4, meterText.width + 10);

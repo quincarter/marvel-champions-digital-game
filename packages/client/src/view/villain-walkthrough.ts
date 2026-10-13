@@ -687,3 +687,29 @@ export function advanceReveal(revealed: number, total: number): number {
 export function readyToAutoClose(complete: boolean, revealed: number, total: number): boolean {
   return complete && revealed >= total;
 }
+
+/** Where the recap stands against an open decision sheet, and whether the recap takes clicks. */
+export interface RecapPlacement {
+  /** True when the recap is drawn above the decision sheet (so the sheet is hidden and inert); false when the sheet is above it. */
+  readonly recapOnTop: boolean;
+  /** True when the recap's own controls (Continue, Skip, the inline answer) take presses. */
+  readonly recapTakesInput: boolean;
+}
+
+/**
+ * The recap against an open decision. While the recap is still narrating a decision that the sheet answers, the sheet
+ * is above it and the recap takes no click, so nothing on the recap catches a press meant for the sheet. Once the
+ * recap is finished (Continue is showing) it keeps the top and its input whatever decision is open: a response that
+ * opens as the player phase begins is already pending behind the last step, and a Continue that did nothing there
+ * read as a hung game. Continue closes the recap, and the sheet is then the screen's top. The inline interrupt the
+ * recap answers itself also keeps the top.
+ */
+export function recapPlacementFor(input: {
+  readonly pending: boolean;
+  readonly inline: boolean;
+  readonly finished: boolean;
+}): RecapPlacement {
+  if (!input.pending) return { recapOnTop: true, recapTakesInput: true };
+  const onTop = input.inline || input.finished;
+  return { recapOnTop: onTop, recapTakesInput: onTop };
+}

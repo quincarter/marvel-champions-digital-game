@@ -45,7 +45,7 @@ import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { isFirstLaunch } from "../guide/guide-prefs.js";
-import { describeCivilWar } from "../view/civil-war-label.js";
+import { continueLabelOf } from "../view/continue-label.js";
 import {
   CIVIL_WAR_CYCLE_ID,
   CIVIL_WAR_TITLE_LABEL,
@@ -235,6 +235,8 @@ export class TitleScene extends Phaser.Scene {
         new McButton(this, {
           kind: "primary",
           label: continueLabel(save),
+          // A built game's label names its stages and sets: wrapped onto a second line rather than cut.
+          wrap: true,
           type: typeRole.menuButton,
           rect,
           enabled: !this.#starting,
@@ -591,23 +593,14 @@ const ART_SCRIM_DEPTH = -1;
 /** The picture the last Title visit showed, so the next visit shows a different one (`pickTitleArt`). */
 let lastTitleArtKey: string | null = null;
 
-/** "Continue — Rhino · Spider-Man · round 4". Names from content, never from the save's own text. */
+/** "Continue — Rhino · Spider-Man · round 4". See `view/continue-label.ts`. */
 function continueLabel(save: SaveMeta): string {
-  const scenario =
-    describeCivilWar(save.config) ??
-    POOL_SCENARIOS.find((candidate) => (candidate.id as string) === save.config.scenarioId)?.name ??
-    save.config.scenarioId;
-  const heroes = save.config.players
-    .map((player) => {
-      if (!("starterDeckId" in player)) {
-        const identity = CARDS_BY_ID.get(player.identityCardId as string);
-        return identity ? cardDisplayName(identity) : player.identityCardId;
-      }
-      return (
-        POOL_STARTER_DECKS.find((deck) => (deck.id as string) === player.starterDeckId)?.name.split(" — ")[0] ??
-        player.starterDeckId
-      );
-    })
-    .join(", ");
-  return `Continue — ${scenario} · ${heroes} · round ${save.round}`;
+  return continueLabelOf(save, {
+    scenarioName: (id) => POOL_SCENARIOS.find((candidate) => (candidate.id as string) === id)?.name,
+    identityName: (id) => {
+      const identity = CARDS_BY_ID.get(id);
+      return identity ? cardDisplayName(identity) : undefined;
+    },
+    starterDeckName: (id) => POOL_STARTER_DECKS.find((deck) => (deck.id as string) === id)?.name,
+  });
 }

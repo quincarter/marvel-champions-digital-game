@@ -698,8 +698,13 @@ export function cardChoiceSlots(
   const gap = options.gap ?? 6;
   const row = cardRow(bounds, count, { gap });
   const rowWidth = row[0]?.width ?? 0;
-  let best: { cols: number; rows: number; width: number } = { cols: count, rows: 1, width: rowWidth };
-  if (count > 1 && row.length > 1 && row[1]!.x - row[0]!.x < row[0]!.width + gap - 0.5) {
+  const overlaps = count > 1 && row.length > 1 && row[1]!.x - row[0]!.x < row[0]!.width + gap - 0.5;
+  // An overlapped row shows only a sliver of each card, so what a card is worth in a row is the step to the next one
+  // (the card's own width counted the hidden part: at seven on a phone it read 40 px against a 30 px sliver, and no
+  // grid of whole cards beat it).
+  const shown = overlaps ? Math.max(0, row[1]!.x - row[0]!.x - gap) : rowWidth;
+  let best: { cols: number; rows: number; width: number } = { cols: count, rows: 1, width: shown };
+  if (overlaps) {
     // The row overlaps: look for a grid whose cards are bigger than the row's.
     for (let cols = 1; cols < count; cols++) {
       const rows = Math.ceil(count / cols);

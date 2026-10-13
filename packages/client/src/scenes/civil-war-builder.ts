@@ -21,6 +21,7 @@ import { cardFaces } from "../art/card-face-baker.js";
 import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
 import { artThumbSpec } from "./roster-panel.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { summaryWithin } from "../view/summary-fit.js";
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { onTap } from "../ui/tap.js";
@@ -484,9 +485,9 @@ export class CivilWarBuilderScene extends Phaser.Scene {
   }
 
   /** The face of a choice: white card, a thick ink border and a check when chosen, hatching and a padlock when disabled. */
-  #card(rect: Rect, state: { selected?: boolean; disabled?: boolean; fill?: number }): void {
+  #card(rect: Rect, state: { selected?: boolean; disabled?: boolean; capped?: boolean; fill?: number }): void {
     const g = this.add.graphics();
-    g.fillStyle(state.disabled ? surface.parchment.hex : (state.fill ?? surface.card.hex), 1).fillRect(
+    g.fillStyle(state.disabled || state.capped ? surface.parchment.hex : (state.fill ?? surface.card.hex), 1).fillRect(
       rect.x,
       rect.y,
       rect.width,
@@ -513,7 +514,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
         .text(rect.x + rect.width - 8, rect.y + 6, "✓", textStyle(typeRole.barTitle, surface.ink.hex))
         .setOrigin(1, 0);
     } else {
-      g.lineStyle(1.5, surface.ink.hex, state.disabled ? ink.disabled : ink.label).strokeRect(
+      g.lineStyle(1.5, surface.ink.hex, state.disabled || state.capped ? ink.disabled : ink.label).strokeRect(
         rect.x + 0.75,
         rect.y + 0.75,
         rect.width - 1.5,
@@ -774,7 +775,11 @@ export class CivilWarBuilderScene extends Phaser.Scene {
           { alpha: ink.secondary },
         );
         fitText(threat, parts.threat.width, typeRole.label.size);
-        this.#text(parts.gist.x, parts.gist.y, option.gist, DETAIL, {
+        // Ends at a sentence, or at a word with an ellipsis, never mid-clause at the clip.
+        const probe = this.#text(0, 0, "", DETAIL, { width: parts.gist.width });
+        const gist = summaryWithin(option.gist, 2, (candidate) => probe.setText(candidate).getWrappedText().length);
+        probe.destroy();
+        this.#text(parts.gist.x, parts.gist.y, gist, DETAIL, {
           width: parts.gist.width,
           maxLines: 2,
           alpha: ink.secondary,
@@ -800,11 +805,21 @@ export class CivilWarBuilderScene extends Phaser.Scene {
   }
 
   #drawTile(rect: Rect, tile: SetTileView, container: Phaser.GameObjects.Container): void {
-    this.#card(rect, { selected: tile.selected, disabled: !tile.enabled });
+    // At the cap the tile is dimmed with a "4 of 4 chosen" note; the hatching and padlock stay for sets that cannot be picked at all.
+    this.#card(rect, {
+      selected: tile.selected,
+      disabled: !tile.enabled && !tile.capNote,
+      capped: Boolean(tile.capNote),
+    });
     const parts = setTileParts(rect);
     // "Recommended" is its own line above the picture, so a narrow tile never cuts it.
-    if (tile.recommended)
-      this.#text(parts.recommended.x, parts.recommended.y, "Recommended", typeRole.label, { alpha: ink.secondary });
+    const topLine = [tile.recommended ? "Recommended" : null, tile.capNote ?? null].filter(Boolean).join(" · ");
+    if (topLine) {
+      const top = this.#text(parts.recommended.x, parts.recommended.y, topLine, typeRole.label, {
+        alpha: ink.secondary,
+      });
+      fitText(top, parts.recommended.width + 24, typeRole.label.size);
+    }
     // A set that cannot be picked (another product, not unlocked; the other side) shows its cards dimmed, not hidden.
     const alpha = tile.enabled ? 1 : 0.5;
     const rects = fanRects(parts.fan, tile.faces);

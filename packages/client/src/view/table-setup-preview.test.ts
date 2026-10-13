@@ -4,6 +4,7 @@ import { createGame, mainSchemeValue, scale } from "@mc/engine";
 import { blindRevealOf } from "./civil-war-blind.js";
 import { encounterDeckPreviewOf } from "./encounter-preview.js";
 import {
+  blindWhatsInThereRows,
   compositionRowsOf,
   difficultyCardsFor,
   gameSummaryRowsOf,
@@ -151,6 +152,13 @@ describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
     const rows = whatsInThereRowsOf(preview.encounterDeck);
     expect(rows.map((r) => r.label)).toEqual(["Minions", "Side schemes", "Treacheries", "Attachments", "Surge cards"]);
     for (const row of rows) expect(row.count).toBeGreaterThanOrEqual(0);
+  });
+
+  test('a blind build prints "hidden" where the type mix would show, labels kept', () => {
+    const rows = blindWhatsInThereRows(whatsInThereRowsOf(preview.encounterDeck));
+    expect(rows.map((r) => r.label)).toEqual(["Minions", "Side schemes", "Treacheries", "Attachments", "Surge cards"]);
+    for (const row of rows) expect(row.shown).toBe("hidden");
+    for (const row of whatsInThereRowsOf(preview.encounterDeck)) expect(row.shown).toBeUndefined();
   });
 
   test("nemesis standby names the real hero and totals a positive card count", () => {

@@ -197,6 +197,8 @@ export interface SetTileView {
   readonly faces: readonly FaceRef[];
   /** Why a disabled tile cannot be picked (the offer's refusal, or "Four is the most (MC56 p. 4)"). Absent when enabled. */
   readonly disabledReason?: string;
+  /** "4 of 4 chosen": present when the set is only unavailable because the cap is reached. The tile is dimmed, never padlocked. */
+  readonly capNote?: string;
 }
 
 export interface SetSectionView {
@@ -464,6 +466,8 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
       selected,
       recommended: s.recommended,
       enabled: reason === null,
+      // Only the cap is in the way: dimmed with a count, not the padlock a set that cannot be picked at all wears.
+      ...(s.ok && !selected && atMax ? { capNote: `${chosenIds.length} of ${range.max} chosen` } : {}),
       faces: setFacesOf(bySet.get(s.id) ?? []),
       ...(reason !== null ? { disabledReason: reason } : {}),
     };

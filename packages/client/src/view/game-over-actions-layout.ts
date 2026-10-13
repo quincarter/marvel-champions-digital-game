@@ -92,3 +92,23 @@ export function tallActionsLayout(input: TallActionsInput): GameOverActionsLayou
     overflow: Math.max(0, top - startY),
   };
 }
+
+/** The beats panel ("How it went" / "Where it went wrong"): the heading block, one row per beat, the provenance footer. */
+const BEATS_HEAD = 60;
+const BEATS_FOOT = 40;
+const BEATS_MIN_ROW = 26;
+const BEATS_ROW_GAP = 12;
+const BEATS_MIN = 100;
+
+/**
+ * The panel is as tall as what it holds, never taller than `available`: with one line it is a short strip and the
+ * leader's picture shows below it, rather than a black box that is mostly empty. `rowHeights` are the wrapped text
+ * heights of the beats that will be drawn, in order; an empty list is the one-line "nothing stood out" strip.
+ */
+export function beatsPanelHeight(rowHeights: readonly number[], available: number): number {
+  const rows =
+    rowHeights.length === 0
+      ? BEATS_MIN_ROW + BEATS_ROW_GAP
+      : rowHeights.reduce((sum, h) => sum + Math.max(BEATS_MIN_ROW, h) + BEATS_ROW_GAP, 0);
+  return Math.min(Math.max(0, available), Math.max(BEATS_MIN, BEATS_HEAD + rows + BEATS_FOOT));
+}

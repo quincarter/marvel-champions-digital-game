@@ -514,6 +514,10 @@ export class BoardScene extends Phaser.Scene {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
+      // A resumed game's first state carries the whole game so far: fold it first, so the panel opens on the recent lines.
+      if (state.resumedHistory.length > 0) {
+        this.#log = appendEvents(this.#log, state.resumedHistory, state.game, state.perspectiveId, POOL_DEPS);
+      }
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
       // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`).

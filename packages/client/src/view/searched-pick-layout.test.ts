@@ -40,3 +40,21 @@ describe("searchedPickLayout", () => {
     expect(Math.abs(t!.face.height / t!.face.width - 1.4)).toBeLessThan(0.02);
   });
 });
+
+describe("searchedPickLayout: the title beside Cancel (click-through F15)", () => {
+  const prompt = "Hunted: choose the minion to search for and attach it to";
+  for (const width of [360, 390, 600, 780, 1024, 1440]) {
+    test(`${width} px wide: the title may wrap to two lines inside its own box, clear of Cancel and the sheet`, () => {
+      const layout = searchedPickLayout({ x: 0, y: 0, width, height: 780 }, 3);
+      expect(layout.titleLines).toBe(2);
+      // Two lines of 16 px type at a 1.25 line height fit the box.
+      expect(layout.title.height).toBeGreaterThanOrEqual(layout.titleLines * 16 * 1.25);
+      expect(layout.title.x + layout.title.width).toBeLessThanOrEqual(layout.cancel.x);
+      expect(layout.title.x).toBeGreaterThanOrEqual(layout.sheet.x);
+      expect(layout.title.y).toBeGreaterThanOrEqual(layout.sheet.y);
+      // The longest prompt, at the narrowest width, still gets at least half of the words' worth of room per line:
+      // about 8 px a character at 16 px type, two lines.
+      expect(layout.title.width * layout.titleLines).toBeGreaterThanOrEqual(prompt.length * 7);
+    });
+  }
+});

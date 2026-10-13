@@ -53,7 +53,7 @@ import {
   requiredPaymentNoteOf,
   type PaymentSheetView,
 } from "../view/payment-sheet.js";
-import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
+import { choiceHeaderText, choiceInstructionOf, discardCountNoteOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { keywordOrderTilesOf } from "../view/keyword-order-choice.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
@@ -600,6 +600,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         : isBreakChoice(choice)
           ? ""
           : (chosenResourcesNoteOf(choice.prompt) ??
+            discardCountNoteOf(choice.prompt, choice) ??
             requiredPaymentNoteOf(state.game, choice) ??
             `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`),
       typeRole.label,

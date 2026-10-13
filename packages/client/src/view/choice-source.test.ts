@@ -32,6 +32,7 @@ import {
   choiceSourceOf,
   costCardsPromptTitleOf,
   promptTitleOf,
+  discardCountNoteOf,
 } from "./choice-source.js";
 
 describe("choiceSourceOf: a real Doctor Strange game", () => {
@@ -550,7 +551,16 @@ describe("promptTitleOf: the end-of-phase discard", () => {
     expect(promptTitleOf(prompt, POOL_DEPS, { minSelections: 0 })).toBe("Discard any cards?");
   });
 
-  test("N owed: 'Discard N to hand size'", () => {
-    expect(promptTitleOf(prompt, POOL_DEPS, { minSelections: 2 })).toBe("Discard 2 to hand size");
+  test("N owed: names the floor and the hand size, not a range", () => {
+    expect(promptTitleOf(prompt, POOL_DEPS, { minSelections: 2 })).toBe("Discard at least 2 (hand size 4)");
+  });
+
+  test("the count line says the owed number is a floor and that more may go (RRG p. 18: any number, then down to hand size)", () => {
+    expect(discardCountNoteOf(prompt, { minSelections: 2, maxSelections: 7 })).toBe(
+      "select at least 2 · you may discard more",
+    );
+    expect(discardCountNoteOf(prompt, { minSelections: 2, maxSelections: 2 })).toBe("select at least 2");
+    expect(discardCountNoteOf(prompt, { minSelections: 0, maxSelections: 5 })).toBe("select any number to discard");
+    expect(discardCountNoteOf({ kind: "mulligan", handSize: 5 }, { minSelections: 0, maxSelections: 5 })).toBeNull();
   });
 });

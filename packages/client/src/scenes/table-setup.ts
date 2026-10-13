@@ -67,6 +67,7 @@ import {
   nemesisStandbyOf,
   tableSetupPreviewOf,
   whatsInThereRowsOf,
+  blindWhatsInThereRows,
   type CompositionRow,
   type DifficultyCard,
   type GameSummaryRow,
@@ -358,6 +359,7 @@ export class TableSetupScene extends Phaser.Scene {
       );
       compositionRows = compositionRowsOf(preview.encounterDeck);
       whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
+      if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
       nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
       gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
       encounterDeckSize = preview.encounterDeckSize;
@@ -1422,7 +1424,12 @@ export class TableSetupScene extends Phaser.Scene {
       const rowLabel = this.add.text(rect.x + 12, y, row.label, textStyle(typeRole.body, color)).setMaxLines(1);
       fitText(rowLabel, rect.width - 80, typeRole.body.size);
       this.add
-        .text(rect.x + rect.width - 12, y, String(row.count), textStyle({ ...typeRole.emphasis, weight: 700 }, color))
+        .text(
+          rect.x + rect.width - 12,
+          y,
+          row.shown ?? String(row.count),
+          textStyle({ ...typeRole.emphasis, weight: 700 }, color),
+        )
         .setOrigin(1, 0);
       y += PANEL_ROW_HEIGHT;
     };
@@ -2346,7 +2353,12 @@ export class TableSetupScene extends Phaser.Scene {
         .setMaxLines(1);
       fitText(rowLabel, rect.width - 60, typeRole.body.size);
       this.add
-        .text(rect.x + rect.width - 10, y, String(row.count), textStyle({ ...typeRole.emphasis, weight: 700 }, color))
+        .text(
+          rect.x + rect.width - 10,
+          y,
+          row.shown ?? String(row.count),
+          textStyle({ ...typeRole.emphasis, weight: 700 }, color),
+        )
         .setOrigin(1, 0);
       y += PANEL_ROW_HEIGHT;
     }

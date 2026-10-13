@@ -156,7 +156,9 @@ import {
   livePicks,
   toggleInlinePick,
   readyToAutoClose,
+  recapPlacementFor,
   type ActivationBeat,
+  type RecapPlacement,
   type InlineInterruptOption,
   type Pause,
   type StepStatus,
@@ -300,7 +302,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // over both; while either is up it owns input — Escape used to skip the
     // walkthrough from under an open decision.
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.choice) || this.scene.isActive(SCENES.inspect),
+      blocked: () =>
+        (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) || this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#skip(),
     });
 
@@ -403,9 +406,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const manager = this.scene.manager;
     const mine = manager.getIndex(SCENES.villainPhase);
     const theirs = manager.getIndex(SCENES.choice);
-    // The one decision this screen answers itself (see the class doc comment)
-    // keeps *this* screen on top, so its own buttons take the click.
-    const inline = inlineInterruptFor(choice, state.perspectiveId) !== null;
+    // The one decision this screen answers itself (see the class doc comment), and a finished recap with its
+    // Continue showing, keep *this* screen on top, so its own buttons take the click.
+    const inline = this.#placement().recapOnTop;
     if (inline && mine < theirs) this.scene.moveAbove(SCENES.choice, SCENES.villainPhase);
     else if (!inline && theirs < mine) this.scene.moveAbove(SCENES.villainPhase, SCENES.choice);
   }
@@ -418,12 +421,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!this.#motion.leaving) this.input.enabled = !this.#choiceOwnsInput();
   }
 
-  /** True while an open decision is being answered on the choice sheet rather than inline on this screen. */
+  /** True while an open decision is being answered on the choice sheet rather than on this screen. */
   #choiceOwnsInput(): boolean {
+    if (!this.scene.isActive(SCENES.choice)) return false;
+    return !this.#placement().recapTakesInput;
+  }
+
+  /** Where this screen stands against the open decision (`recapPlacementFor`): a finished recap keeps its Continue live. */
+  #placement(): RecapPlacement {
     const state = this.#latest;
     const choice = state?.game?.pendingChoice;
-    if (!state || !choice || !this.scene.isActive(SCENES.choice)) return false;
-    return inlineInterruptFor(choice, state.perspectiveId) === null;
+    return recapPlacementFor({
+      pending: !!choice,
+      inline: !!choice && !!state && inlineInterruptFor(choice, state.perspectiveId) !== null,
+      finished: readyToAutoClose(this.#walkthrough.complete, this.#revealed, totalBeatsOf(this.#walkthrough)),
+    });
   }
 
   /** For the Ctrl+Shift+D diagnostic dump (`ui/debug-dump.ts`). */

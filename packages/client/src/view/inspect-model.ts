@@ -440,7 +440,7 @@ export function inspectModel(
     // stage and a main scheme's on its side, so asking for a front gets
     // nothing at all for exactly the cards a player most wants to read.
     art: artFor(card, face),
-    footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
+    footerLeft: footerLeftOf(card, face),
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
     status: statusOf(state, instanceId, legal, perspectiveId, payment, deps),
     abilities: usableAbilitiesOf(state, instanceId, legal, deps),
@@ -830,7 +830,7 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
     keywordChips,
     traits: printedTraitsOf(card, face),
     art: artFor(card, face),
-    footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
+    footerLeft: footerLeftOf(card, face),
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
     status: { playable: null, message: "", targets: [] },
     // No game behind this sheet, so there is no honest verdict on what's
@@ -875,6 +875,23 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
 }
 
 /** A hero identity names its two sides differently; everything else has one name. */
+/**
+ * "CW · 141A/141B". A main scheme that carries several stages (the Civil War ones interleave theirs: 141A/141B,
+ * 142A/142B, 172A/172B, ...) prints one A/B pair per stage, so the footer names only the inspected stage's own pair
+ * instead of the whole run, which overprinted the footer's other half. Everything else prints the card's number.
+ */
+export function footerLeftOf(card: AnyCard, face: CardFace): string {
+  const set = card.setCode as string;
+  if (card.type === "main_scheme" && face.kind === "mainSchemeStage") {
+    const numbers = card.collectorNumber.split("/");
+    if (card.stages.length > 1 && numbers.length === card.stages.length * 2) {
+      const at = face.stageIndex * 2;
+      return `${set} · ${numbers[at]}/${numbers[at + 1]}`;
+    }
+  }
+  return `${set} · ${card.collectorNumber}`;
+}
+
 function faceNameOf(card: AnyCard, face: CardFace): string {
   if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.name;
   if (card.type !== "hero_identity") return card.name;

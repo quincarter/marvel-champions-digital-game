@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap, type Rect } from "./layout.js";
-import { tallActionsLayout, wideActionsLayout, type GameOverActionsLayout } from "./game-over-actions-layout.js";
+import {
+  beatsPanelHeight,
+  tallActionsLayout,
+  wideActionsLayout,
+  type GameOverActionsLayout,
+} from "./game-over-actions-layout.js";
 
 /** Three rematch buttons (a Civil War game the builder's Random made) and Back to title. */
 const THREE = 3;
@@ -82,5 +87,22 @@ describe("tallActionsLayout with three rematch buttons", () => {
     const layout = tallActionsLayout({ pad: 16, column: 358, width: 390, height: 844, top: 400, actions: 2 });
     expect(layout.back.y).toBe(layout.actions[1]!.y);
     expectClean(layout, { width: 390, height: 844 });
+  });
+});
+
+describe("beatsPanelHeight", () => {
+  test("is a short strip for one line, grows with the lines and stops at the room it has", () => {
+    const one = beatsPanelHeight([14], 440);
+    const two = beatsPanelHeight([14, 14], 440);
+    expect(one).toBeLessThan(160);
+    expect(two).toBe(one + 26 + 12);
+    expect(
+      beatsPanelHeight(
+        Array.from({ length: 30 }, () => 14),
+        440,
+      ),
+    ).toBe(440);
+    expect(beatsPanelHeight([], 440)).toBe(beatsPanelHeight([14], 440));
+    expect(beatsPanelHeight([14], 80)).toBe(80);
   });
 });

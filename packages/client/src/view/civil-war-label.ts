@@ -29,6 +29,16 @@ const plural = (count: number, one: string): string => `${count} ${one}${count =
 const sameIds = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((id) => b.includes(id));
 
+/** "custom" or "random" for a Civil War game the player built or rolled; "ready" for a leader as printed; null for any other scenario. */
+export function civilWarKindOf(
+  config: LabelConfig,
+  offerFor: OfferLookup = defaultOffer,
+): "ready" | "custom" | "random" | null {
+  const label = describeCivilWar(config, offerFor);
+  if (label === null) return null;
+  return label.startsWith("Random") ? "random" : label.startsWith("Custom") ? "custom" : "ready";
+}
+
 export function describeCivilWar(config: LabelConfig, offerFor: OfferLookup = defaultOffer): string | null {
   const offer = offerFor(config.scenarioId);
   const stages = offer?.mainSchemeStages;

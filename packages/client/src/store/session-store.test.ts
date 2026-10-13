@@ -11,6 +11,8 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { EngineHost, SessionConfig } from "../engine/host.js";
 import { corePlayerFromDeck } from "../view/deck-seat.js";
+import { appendEvents, emptyLog } from "../view/log-lines.js";
+import { POOL_DEPS } from "../content/pool.js";
 import { SessionStore } from "./session-store.js";
 
 const RHINO_SOLO: SessionConfig = {
@@ -194,6 +196,26 @@ describe("SessionStore", () => {
     // A resumed game arrives at its position; it doesn't replay the animations of getting there.
     expect(after.lastEvents).toEqual([]);
     expect(after.saveError).toBeNull();
+  }, 60_000);
+
+  test("a resumed game carries the game so far, so the Board log opens on recent lines instead of empty", async () => {
+    const storage = new MemoryGameStorage();
+    const firstHost = new LocalEngineHost(storage);
+    const played = new SessionStore(firstHost);
+    await played.start(RHINO_SOLO);
+    await advance(played, 4);
+    await firstHost.flushed();
+    expect(played.state.resumedHistory).toEqual([]);
+
+    const reloaded = new SessionStore(new LocalEngineHost(storage));
+    await reloaded.resume((await reloaded.latestSave())!.id);
+    const { resumedHistory, game, perspectiveId } = reloaded.state;
+    expect(resumedHistory.length).toBeGreaterThan(0);
+    const folded = appendEvents(emptyLog(), resumedHistory, game!, perspectiveId, POOL_DEPS);
+    expect(folded.lines.length).toBeGreaterThan(0);
+    // The first command after the resume clears it: the history is only the resumed update's.
+    await advance(reloaded, 1);
+    expect(reloaded.state.resumedHistory).toEqual([]);
   }, 60_000);
 
   test("a resumed game keeps saving, so a second refresh picks up the newer position", async () => {

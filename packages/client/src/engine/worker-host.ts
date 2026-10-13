@@ -179,6 +179,7 @@ export class WorkerEngineHost implements EngineHost {
       record: snapshot.record,
       saveError: snapshot.saveError,
       config: snapshot.config,
+      ...(snapshot.history ? { history: snapshot.history } : {}),
     };
   }
 

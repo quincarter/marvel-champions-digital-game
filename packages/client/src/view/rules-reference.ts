@@ -282,16 +282,31 @@ const normalize = (text: string): string =>
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "");
 
-/** `entries`, narrowed to the ones matching `query` in their term, definition, or an associated card's name — case- and accent-insensitive. Empty query matches everything. */
+/**
+ * `entries`, narrowed to the ones matching `query` in their term, definition, or an associated card's name — case- and
+ * accent-insensitive. Empty query matches everything. A search ranks the term itself first: an entry named exactly the
+ * query, then one whose name starts with it, then one whose name contains it, then the ones that only mention it
+ * (searching "Stalwart" used to open on Gene Pool, whose text names it). Alphabetical order holds within a rank.
+ */
 function filterByQuery(entries: readonly RulesEntry[], query: string): readonly RulesEntry[] {
   const needle = normalize(query.trim());
   if (!needle) return entries;
-  return entries.filter(
-    (entry) =>
-      normalize(entry.displayName).includes(needle) ||
-      normalize(entry.definition).includes(needle) ||
-      entry.cardRefs.some((ref) => normalize(ref.name).includes(needle)),
-  );
+  const rankOf = (entry: RulesEntry): number => {
+    const name = normalize(entry.displayName).replace(/\s*\(.*\)$/, "");
+    if (name === needle) return 0;
+    if (name.startsWith(needle)) return 1;
+    return name.includes(needle) ? 2 : 3;
+  };
+  return entries
+    .filter(
+      (entry) =>
+        normalize(entry.displayName).includes(needle) ||
+        normalize(entry.definition).includes(needle) ||
+        entry.cardRefs.some((ref) => normalize(ref.name).includes(needle)),
+    )
+    .map((entry, index) => ({ entry, index, rank: rankOf(entry) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map(({ entry }) => entry);
 }
 
 /**

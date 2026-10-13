@@ -28,6 +28,7 @@ import {
 } from "../view/scenario-detail.js";
 import { foeWord } from "../view/foe-words.js";
 import { formatScaling } from "../view/scaling-text.js";
+import { selectionAmongVisible } from "../view/scenario-selection.js";
 import { scenarioProductsOf, withSelectionPinned } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
 import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
@@ -137,6 +138,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#tileDebug.clear();
       (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
         tiles: () => [...this.#tileDebug.values()],
+        selectedId: () => this.#draft.scenarioId,
         stops: () =>
           [...this.#stops].map(([key, stop]) => ({
             key,
@@ -226,8 +228,17 @@ export class ScenarioSelectScene extends Phaser.Scene {
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;
-    const scenario = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === this.#draft.scenarioId);
-    this.#draft = setScenario(this.#draft, scenario, this.#draft.scenarioId);
+    // The selection is always something the shelf shows: a chip or a search that hides it moves it to the first
+    // scenario still visible (`view/scenario-selection.ts`); with none visible, "Choose heroes" is disabled.
+    const shelves = this.#shelves();
+    const selection = selectionAmongVisible(
+      this.#draft.scenarioId,
+      flattenShelves(shelves)
+        .filter((entry): entry is Scenario => !isBuilderTile(entry))
+        .map((entry) => entry.id as string),
+    );
+    const scenario = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === selection.selectedId);
+    this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
 
     const chipDefs = scenarioProductsOf(POOL_SCENARIOS).map((code) => ({
       id: `product:${code}`,
@@ -325,7 +336,6 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     this.#drawSearchAndChips(layout, chipDefs, chipRows);
 
-    const shelves = this.#shelves();
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
     if (this.#drill.packId !== null) {
@@ -441,9 +451,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
         type: typeRole.barTitle,
         rect: layout.next,
         onClick: next,
+        enabled: selection.canContinue,
       }),
     );
-    this.#stops.set("next", { rect: layout.next, activate: next });
+    this.#stops.set("next", { rect: layout.next, activate: selection.canContinue ? next : () => {} });
     if (customize && layout.secondary) {
       const open = (): void => this.#openBuilder("customize", customize.scenarioId);
       this.#buttons.push(
@@ -880,9 +891,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   #renderEntry(entry: RosterEntry, rect: Rect): ReturnType<typeof renderShelfCard> {
     if (!isBuilderTile(entry)) return this.#renderScenarioCard(entry, rect);
+    // The box cover: Captain America against Iron Man over the flag, which says "pick a side" better than either
+    // leader's own picture or a split of the four (those read as four ready-made scenarios, not a builder).
+    const civilWar = POOL_SCENARIOS.find((s) => isCivilWarScenario(s));
+    const cover = civilWar ? this.#packCoverFor(civilWar.packCode as string) : null;
     return renderShelfCard(this, rect, {
-      artUrl: null,
-      artFocusY: 0,
+      artUrl: cover?.url ?? null,
+      artFocusY: 0.25,
       titleRole: typeRole.villainTitle,
       title: BUILD_YOUR_OWN_TITLE,
       subtitle: BUILD_YOUR_OWN_SUBTITLE,

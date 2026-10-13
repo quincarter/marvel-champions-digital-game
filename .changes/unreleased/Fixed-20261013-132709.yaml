@@ -1,0 +1,3 @@
+kind: Fixed
+body: The villain-phase recap's Continue always closes it and shows a response that opened with the player phase, instead of sitting dead while the prompt waited behind it
+time: 2026-10-13T13:27:09.7732144-04:00

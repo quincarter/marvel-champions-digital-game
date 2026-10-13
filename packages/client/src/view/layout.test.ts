@@ -317,6 +317,41 @@ describe("cardChoiceSlots", () => {
   });
 });
 
+describe("cardChoiceSlots: any count wraps instead of fanning (click-through F2)", () => {
+  // A phone sheet's card area (390x844) with and without the source strip over it, and two desktop widths.
+  const areas: readonly [string, Rect][] = [
+    ["phone", { x: 0, y: 0, width: 342, height: 330 }],
+    ["phone with the source strip", { x: 0, y: 0, width: 342, height: 250 }],
+    ["desktop", { x: 0, y: 0, width: 1100, height: 420 }],
+    ["desktop, short", { x: 0, y: 0, width: 900, height: 300 }],
+  ];
+  for (const [name, bounds] of areas) {
+    for (let count = 5; count <= 12; count++) {
+      test(`${count} cards on a ${name} sheet: whole, touchable, inside the area, none over another`, () => {
+        const slots = cardChoiceSlots(bounds, count, { gap: 6 });
+        expect(slots).toHaveLength(count);
+        for (const a of slots) {
+          // Wide enough to tap (the touch minimum), and a real card's shape.
+          expect(a.width).toBeGreaterThanOrEqual(hit.target);
+          expect(a.x).toBeGreaterThanOrEqual(bounds.x - 0.5);
+          expect(a.y).toBeGreaterThanOrEqual(bounds.y - 0.5);
+          expect(a.x + a.width).toBeLessThanOrEqual(bounds.x + bounds.width + 0.5);
+          expect(a.y + a.height).toBeLessThanOrEqual(bounds.y + bounds.height + 0.5);
+          for (const b of slots) {
+            if (a === b) continue;
+            const apart =
+              a.x + a.width <= b.x + 0.5 ||
+              b.x + b.width <= a.x + 0.5 ||
+              a.y + a.height <= b.y + 0.5 ||
+              b.y + b.height <= a.y + 0.5;
+            expect(apart).toBe(true);
+          }
+        }
+      });
+    }
+  }
+});
+
 describe("cardRow", () => {
   const bounds: Rect = { x: 0, y: 0, width: 400, height: 140 };
 

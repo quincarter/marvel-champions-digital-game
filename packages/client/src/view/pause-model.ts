@@ -8,7 +8,7 @@ import type { PlayableScenarioOffer } from "@mc/cards";
 import type { GameState, PlayerId } from "@mc/engine";
 import type { Scenario } from "@mc/content";
 import type { SessionConfig } from "../engine/host.js";
-import { describeCivilWar } from "./civil-war-label.js";
+import { civilWarKindOf, describeCivilWar } from "./civil-war-label.js";
 import { blindRevealOf, blindSheetLines } from "./civil-war-blind.js";
 import { playerName } from "./names.js";
 
@@ -23,6 +23,30 @@ export interface PauseStatus {
    * counted). Absent for every other game.
    */
   readonly blindSheet?: readonly string[];
+  /**
+   * A Civil War game the player built or rolled (not blind): what it was built from, as the same sheet's lines. The
+   * wide menu has no room for the one-line label ("Custom Civil War: Iron Man, A then B, 3 sets"), so it lists them.
+   */
+  readonly buildSheet?: readonly string[];
+}
+
+/**
+ * The Pause menu's lines for a built or rolled (not blind) Civil War game: "Custom Civil War" or "Random Civil
+ * War", the two stages and the sets by name, one to a line. Empty for a leader as printed and for every other scenario.
+ */
+export function buildSheetLines(config: SessionConfig | null, names: BlindSheetNames): readonly string[] {
+  if (!config || config.blind) return [];
+  const kind = civilWarKindOf(config);
+  if (kind !== "custom" && kind !== "random") return [];
+  const [stage1, stage2] = config.mainSchemeStageIds ?? [];
+  return [
+    `${kind === "random" ? "Random" : "Custom"} Civil War`,
+    ...(stage1 ? [`Stage 1: ${names.stage(stage1)}`] : []),
+    ...(stage2 ? [`Stage 2: ${names.stage(stage2)}`] : []),
+    "Modular sets:",
+    // One set to a line: the sheet reserves a fixed height per line, so a line must not wrap.
+    ...(config.modularSetIds ?? []).map((id) => `· ${names.set(id)}`),
+  ];
 }
 
 /** Printed names for the blind sheet. */
@@ -94,6 +118,9 @@ export function pauseStatusOf(
     seatLabel: playerName(game, perspectiveId),
     ...(reveal && blindNames
       ? { blindSheet: blindSheetLines(reveal, blindNames, config?.mainSchemeStageIds?.[0] ?? null) }
+      : {}),
+    ...(blindNames && buildSheetLines(config, blindNames).length > 0
+      ? { buildSheet: buildSheetLines(config, blindNames) }
       : {}),
   };
 }

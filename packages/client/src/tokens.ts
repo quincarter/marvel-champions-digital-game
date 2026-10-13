@@ -188,6 +188,12 @@ export const typeRole = {
   /** Every number the player reads at a glance. */
   stat: display(20, 0.9, 1),
   statSmall: display(17, 0.9, 1),
+  /**
+   * The count on a threat bar ("0 / 7 THREAT"). Public Sans, not Bangers: at the bar's 12 to 13 px Bangers draws a 7
+   * almost as a 1 (click-through F14: "0 / 7" read "0 / 1"), and a count the table is racing against must not be
+   * misread. Public Sans 800 keeps the 7's bar and a 1's flag apart.
+   */
+  threatCount: { family: font.body, size: 12, weight: 800, lineHeight: 1, letterSpacing: 0.5, uppercase: true },
   /** An aspect stamp ("JUSTICE") — on a hero card's art and on the aspect filter chips that match it. */
   stamp: display(15, 0.9, 1.2),
   /** Public Sans 9/800, 1.2px tracking, uppercase. */

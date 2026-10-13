@@ -6,8 +6,10 @@ import {
   cardFaceContentHeight,
   cardFaceLayout,
   cardMaxWidthFor,
+  compactRulesRect,
   inspectLayout,
   inspectLayoutRects,
+  rulesPanelMode,
   sheetPlayPayWidths,
   sheetTextColumn,
 } from "./inspect-layout.js";
@@ -313,5 +315,20 @@ describe("sheetPlayPayWidths", () => {
     const { play, pay } = sheetPlayPayWidths(4, 6);
     expect(play).toBeGreaterThanOrEqual(0);
     expect(pay).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("the compact Rules & state panel", () => {
+  test("an empty panel is compact beside a choice, absent without one on a printed card, and full otherwise", () => {
+    expect(rulesPanelMode(0, 0, true, true)).toBe("compact");
+    expect(rulesPanelMode(0, 0, false, true)).toBe("none");
+    expect(rulesPanelMode(0, 0, false, false)).toBe("full");
+    expect(rulesPanelMode(1, 0, true, true)).toBe("full");
+    expect(rulesPanelMode(0, 2, false, true)).toBe("full");
+  });
+  test("the strip sits at the foot of the panel and never exceeds it", () => {
+    const rules = { x: 700, y: 100, width: 440, height: 500 };
+    expect(compactRulesRect(rules, 22, 56)).toEqual({ x: 700, y: 100 + 500 - 100, width: 440, height: 100 });
+    expect(compactRulesRect({ ...rules, height: 60 }, 22, 56).height).toBe(60);
   });
 });

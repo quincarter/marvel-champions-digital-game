@@ -232,6 +232,8 @@ export interface EngineUpdate {
   readonly saveError: string | null;
   /** The setup this game came from, for a rematch. */
   readonly config: SessionConfig | null;
+  /** A resumed game's first update only: every event the replay produced, oldest first, for the board's log. */
+  readonly history?: readonly GameEvent[];
 }
 
 export type DispatchResult =

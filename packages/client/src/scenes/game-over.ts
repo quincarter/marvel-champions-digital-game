@@ -39,7 +39,7 @@ import {
   rematchConfigOf,
   type GameOverModel,
 } from "../view/game-over-model.js";
-import { tallActionsLayout, wideActionsLayout } from "../view/game-over-actions-layout.js";
+import { beatsPanelHeight, tallActionsLayout, wideActionsLayout } from "../view/game-over-actions-layout.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { rollSeed } from "../view/seed.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -305,7 +305,9 @@ export class GameOverScene extends Phaser.Scene {
 
     // The rounds where it turned.
     const beatsTop = bodyTop + cardHeight + 16;
-    this.#beatsPanel({ x: pad, y: beatsTop, width: mainWidth, height: Math.max(120, bodyBottom - beatsTop) }, model);
+    // As tall as its lines, so one line is a short strip and the leader's picture shows below it.
+    const beatsHeight = beatsPanelHeight(this.#beatRowHeights(model, mainWidth), Math.max(120, bodyBottom - beatsTop));
+    this.#beatsPanel({ x: pad, y: beatsTop, width: mainWidth, height: beatsHeight }, model);
 
     // Right column: the table, then the actions.
     const sideX = width - pad - sideWidth;
@@ -516,6 +518,19 @@ export class GameOverScene extends Phaser.Scene {
     this.#order.push(stop);
     this.#stops.set(stop, { rect, activate: open });
     return rect;
+  }
+
+  /** The wrapped height of each beat's text at this panel width, measured on throwaway text. */
+  #beatRowHeights(model: GameOverModel, panelWidth: number): readonly number[] {
+    return model.beats.map((beat) => {
+      const probe = this.add
+        .text(0, 0, beat.text, textStyle(typeRole.body, surface.paper.hex, 0.85))
+        .setFontSize(12)
+        .setWordWrapWidth(panelWidth - 40 - 64);
+      const height = probe.height;
+      probe.destroy();
+      return height;
+    });
   }
 
   #beatsPanel(rect: Rect, model: GameOverModel): void {

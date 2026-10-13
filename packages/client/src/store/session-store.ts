@@ -42,6 +42,11 @@ export interface SessionState {
   readonly game: SealedGameState | null;
   /** The events of the most recent command — what the Board scene animates. */
   readonly lastEvents: readonly GameEvent[];
+  /**
+   * A resumed game's first state only: every event of the game so far, oldest first, so the Board's log opens with
+   * the recent lines instead of empty. Empty for a new game and after the first command.
+   */
+  readonly resumedHistory: readonly GameEvent[];
   /** Prefetched legal actions for the player who must act. */
   readonly legal: LegalActionsFor | null;
   /**
@@ -101,6 +106,7 @@ const INITIAL: SessionState = {
   version: -1,
   game: null,
   lastEvents: [],
+  resumedHistory: [],
   legal: null,
   perspectiveId: null,
   offTurnSeats: [],
@@ -298,6 +304,7 @@ export class SessionStore {
       // Sealed again here, whatever host produced the update: idempotent.
       game: sealForTable(update.state),
       lastEvents: update.events,
+      resumedHistory: update.history ?? [],
       legal: update.legal,
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
       offTurnSeats: [],

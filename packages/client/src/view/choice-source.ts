@@ -398,9 +398,12 @@ export function promptTitleOf(
 ): string {
   const kind = prompt.kind;
   // RRG 1.8 "End of Player Phase" (p. 17): a player may discard any number, then must discard down to hand size.
-  // Title the question by what is owed: "Discard any cards?" when nothing is, "Discard 2 to hand size" when two are.
+  // Title the question by what is owed: "Discard any cards?" when nothing is, and when some are, the floor and why
+  // ("Discard at least 2 (hand size 5)"; the sheet's count line adds that more may go).
   if (kind === "discardDownToHandSize" && counts) {
-    return counts.minSelections > 0 ? `Discard ${counts.minSelections} to hand size` : "Discard any cards?";
+    return counts.minSelections > 0
+      ? `Discard at least ${counts.minSelections} (hand size ${prompt.handSize})`
+      : "Discard any cards?";
   }
   if (kind === "orderCards") {
     if (prompt.to === "playerDeckTop") return "Put the top of your deck back in order";
@@ -528,4 +531,19 @@ export function choiceHeaderText(
 /** The card whose art the choice sheet should thumbnail beside the header — `choiceSourceOf`'s own instance, when there is one. */
 export function choiceHeaderInstanceId(state: GameState, choice: PendingChoice): InstanceId | null {
   return choiceSourceOf(state, choice)?.instanceId ?? null;
+}
+
+/**
+ * The count line under the end-of-phase discard's title. A bare "select 2–7" reads as a range of how many to discard
+ * that the player must hit; the rule is a floor (RRG 1.8 "End of Player Phase", p. 18: "may discard any number ... and
+ * must discard down to their hand size"), so the line says "at least" and that more may go. Null for any other prompt.
+ */
+export function discardCountNoteOf(
+  prompt: ChoicePrompt,
+  counts: Pick<PendingChoice, "minSelections" | "maxSelections">,
+): string | null {
+  if (prompt.kind !== "discardDownToHandSize") return null;
+  if (counts.minSelections <= 0) return "select any number to discard";
+  const more = counts.maxSelections > counts.minSelections ? " · you may discard more" : "";
+  return `select at least ${counts.minSelections}${more}`;
 }

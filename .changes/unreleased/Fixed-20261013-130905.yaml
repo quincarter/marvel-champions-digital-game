@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Scenario select: picking a product chip or a search that hides the selected scenario now selects the first scenario still shown, so the side panel and Choose heroes never act on a scenario the shelf is not showing'
+time: 2026-10-13T13:09:05.2732811-04:00

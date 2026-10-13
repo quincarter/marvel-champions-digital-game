@@ -23,6 +23,7 @@ import {
   inlineInterruptFor,
   interruptActionLabel,
   pauseFor,
+  recapPlacementFor,
   readyToAutoClose,
   VILLAIN_STEPS,
   type Walkthrough,
@@ -828,5 +829,37 @@ describe("enemy team choices (MC56 p. 6, the grim rule)", () => {
     expect(pauseFor(enemy(played.viewer, null), played.state, played.viewer).label).toBe(
       "Auto-advance paused — as first player, you choose for the enemy team",
     );
+  });
+});
+
+describe("recapPlacementFor: the recap against an open decision (click-through F1)", () => {
+  test("with nothing open the recap takes its own clicks", () => {
+    expect(recapPlacementFor({ pending: false, inline: false, finished: false })).toEqual({
+      recapOnTop: true,
+      recapTakesInput: true,
+    });
+  });
+
+  test("a decision the sheet answers while the recap is still narrating: the sheet is above and the recap takes no click", () => {
+    expect(recapPlacementFor({ pending: true, inline: false, finished: false })).toEqual({
+      recapOnTop: false,
+      recapTakesInput: false,
+    });
+  });
+
+  test("the inline interrupt keeps the recap on top and answerable", () => {
+    expect(recapPlacementFor({ pending: true, inline: true, finished: false })).toEqual({
+      recapOnTop: true,
+      recapTakesInput: true,
+    });
+  });
+
+  test("a finished recap keeps Continue live whatever decision is pending behind it (a response as the player phase begins)", () => {
+    for (const inline of [true, false]) {
+      expect(recapPlacementFor({ pending: true, inline, finished: true })).toEqual({
+        recapOnTop: true,
+        recapTakesInput: true,
+      });
+    }
   });
 });

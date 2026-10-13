@@ -821,14 +821,15 @@ export class PauseOverlay extends Phaser.Scene {
 
   /**
    * A Civil War game played blind (docs/phase7-wave10-client.md 2.6): the stage pair and the modular sets as they stand,
-   * hidden pieces worded and counted. Empty for every other game.
+   * hidden pieces worded and counted; a built or rolled game (not blind) lists its stages and sets. Empty for every
+   * other game, and for a leader as printed.
    */
   #blindSheet(
     game: NonNullable<SessionState["game"]>,
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): readonly string[] {
-    if (!config?.blind) return [];
+    if (!config) return [];
     let offer = null;
     try {
       offer = playableScenarioOffer(config.scenarioId);
@@ -836,9 +837,8 @@ export class PauseOverlay extends Phaser.Scene {
       offer = null;
     }
     const setNames = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
-    return (
-      pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS, blindSheetNamesOf(offer, setNames)).blindSheet ?? []
-    );
+    const status = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS, blindSheetNamesOf(offer, setNames));
+    return status.blindSheet ?? status.buildSheet ?? [];
   }
 
   #drawBlindSheet(

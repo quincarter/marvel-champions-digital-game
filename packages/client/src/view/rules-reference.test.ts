@@ -304,3 +304,14 @@ describe("origin note (an entry added with a later box that Core cards already u
     expect(everyGlossaryEntry().find((e) => e.id === "touched")!.originNote).toBeUndefined();
   });
 });
+
+describe("searching the glossary ranks the term itself first", () => {
+  test.each(["Stalwart", "Villainous", "Permanent", "Restricted"])("%s opens on its own entry", (term) => {
+    const results = rulesGlossaryPoolOf(POOL_CARDS, term);
+    expect(results[0]?.displayName).toBe(term);
+  });
+  test("a prefix outranks a mention, and alphabetical order holds within a rank", () => {
+    const names = rulesGlossaryPoolOf(POOL_CARDS, "Retal").map((entry) => entry.displayName);
+    expect(names[0]).toMatch(/^Retaliate/);
+  });
+});

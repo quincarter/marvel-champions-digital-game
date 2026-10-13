@@ -87,11 +87,14 @@ export async function reachVillainRecap(page: Page, phone: boolean): Promise<voi
         }
         return null;
       }
+      // The recap's last step comes first: a response that opened with the player phase is already pending behind it
+      // (its sheet is running), and answering it here would skip the very thing under test.
+      if (await continueRect(page)) return true;
       if (scenes.includes("ChoiceOverlay")) {
         await answerChoiceSheet(page);
         return null;
       }
-      return (await continueRect(page)) ? true : null;
+      return null;
     },
     "the villain-phase recap's last step",
     90_000,

@@ -282,7 +282,7 @@ export interface AttachmentChip {
    * any more than the table's own picture of it does (`faceOf`'s own `back` branch).
    */
   readonly faceup: boolean;
-  /** "Hercules's Labor" for a Labor card hanging here (an encounter card a player owns); null for every other card. */
+  /** "Labor (Hercules)" for a Labor card hanging here (an encounter card a player owns; short, the chip is narrow); null for every other card. */
   readonly ownedBy: string | null;
   /**
    * Cards tucked under this attachment, faceup ones named (Ionic Physiology holds up to three events; RRG 1.8 "Tuck",
@@ -912,6 +912,10 @@ const possessiveName = (name: string): string => `${name}'s`;
  * The cards whose home is this encounter-card deck and that are out of it, in instance order, with where each is now.
  * A revealed card is `dealtEncounter` while it is revealed; one in play sits in a play area or hangs on a card; a
  * defeated or completed one is in the victory display (RRG 1.8 FAQ "Hercules Hero Pack - Labor Cards", p. 65).
+ *
+ * Each line leads with where the card is ("In play: Defeat the Hydra on Lernean Hydra"). It hangs under the pile's
+ * boxes, so a bare card name there read as the pile's own name (click-through F9: a card back captioned
+ * "DEFEAT THE HYDRA"); the place first says it is a card that left the deck, and a clipped tail loses only the host.
  */
 function outsideCardsOf(
   state: GameState,
@@ -930,11 +934,11 @@ function outsideCardsOf(
     const entry = (where: SeparateDeckOutsideCard["where"], line: string): void => {
       out.push({ instanceId: instance.instanceId, name, where, line });
     };
-    if (zone?.kind === "dealtEncounter") entry("revealed", `${name} - being revealed`);
-    else if (zone?.kind === "victoryDisplay") entry("victory display", `${name} - in the victory display`);
+    if (zone?.kind === "dealtEncounter") entry("revealed", `Revealing: ${name}`);
+    else if (zone?.kind === "victoryDisplay") entry("victory display", `Victory display: ${name}`);
     else if (zone?.kind === "attachment") {
-      entry("attached", `${name} - attached to ${faceUpName(state, zone.hostInstanceId)}`);
-    } else if (zone?.kind === "playArea") entry("in play", `${name} - in play`);
+      entry("attached", `In play: ${name} on ${faceUpName(state, zone.hostInstanceId)}`);
+    } else if (zone?.kind === "playArea") entry("in play", `In play: ${name}`);
   }
   return out;
 }
@@ -943,11 +947,14 @@ function outsideCardsOf(
  * "Hercules's Labor" for an encounter card a player owns (a Labor card; `isOwnedEncounterCard`), null for every other
  * card. An encounter card all the same, so no one controls it: the label says whose deck it came from.
  */
-export function ownedEncounterLabel(state: GameState, id: InstanceId): string | null {
+export function ownedEncounterLabel(state: GameState, id: InstanceId, short = false): string | null {
   if (!isOwnedEncounterCard(state, id)) return null;
   const instance = getInstance(state, id);
   if (!instance || instance.ownerId === null || instance.home.kind !== "separateDeck") return null;
-  return `${possessiveName(playerName(state, instance.ownerId))} ${instance.home.name}`;
+  const owner = playerName(state, instance.ownerId);
+  // The short form is for a chip on the card it hangs from, a narrow strip that wraps and clips a long possessive
+  // ("HERCULES'S..." cut the owner off): the kind of card first, the owner in brackets, "Labor (Hercules)".
+  return short ? `${instance.home.name} (${owner})` : `${possessiveName(owner)} ${instance.home.name}`;
 }
 
 /**
@@ -1680,7 +1687,7 @@ function attachmentChipsOf(state: GameState, instance: CardInstance, deps: Engin
       // A facedown card's text is hidden, so its threshold is too.
       damageThreshold: faceup ? breakPointOf(state, attachmentId, deps) : null,
       faceup,
-      ownedBy: ownedEncounterLabel(state, attachmentId),
+      ownedBy: ownedEncounterLabel(state, attachmentId, true),
       ...tuckFacts(state, attachmentId, deps),
       ...(faceup && Object.keys(counterGoalsOf(state, attachmentId, deps)).length > 0
         ? { counterGoals: counterGoalsOf(state, attachmentId, deps) }

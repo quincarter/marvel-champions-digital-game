@@ -93,7 +93,7 @@ describe("the Labor and Gift decks", () => {
     let state = leaveDeck(game, first, "Labor", { faceup: true, controllerId: null });
     state = { ...state, players: state.players.map((seat) => ({ ...seat, dealtEncounter: [first] })) };
     expect(pile(state, "Labor").outside).toEqual([
-      { instanceId: first, name: name(first), where: "revealed", line: `${name(first)} - being revealed` },
+      { instanceId: first, name: name(first), where: "revealed", line: `Revealing: ${name(first)}` },
     ]);
     // It then hangs on the villain (an attachment) ...
     state = {
@@ -107,7 +107,7 @@ describe("the Labor and Gift decks", () => {
     };
     const attached = pile(state, "Labor").outside[0]!;
     expect(attached.where).toBe("attached");
-    expect(attached.line).toBe(`${name(first)} - attached to ${cardOf(state, villain)!.name}`);
+    expect(attached.line).toBe(`In play: ${name(first)} on ${cardOf(state, villain)!.name}`);
     // ... and a second one reaches the victory display.
     state = leaveDeck(state, second, "Labor", { faceup: true, controllerId: null });
     state = { ...state, victoryDisplay: [second] };
@@ -136,11 +136,12 @@ describe("a Labor card in play wears its owner", () => {
       instances: { ...state.instances, [villain]: { ...state.instances[villain]!, attachments: [first] } },
     };
     const chip = boardModel(state, me, DEPS).villain.attachments.find((entry) => entry.instanceId === first)!;
-    expect(chip.ownedBy).toBe("Hercules's Labor");
+    // Short: the chip hangs on a narrow tile, and the full "Hercules's Labor" was cut to "HERCULES'S..." there.
+    expect(chip.ownedBy).toBe("Labor (Hercules)");
     expect(chip.name).toBe(cardOf(state, first)!.name);
     // The wording of the chip carries it in text, not colour.
     const boardChip = boardModel(state, me, DEPS).villain.attachments.find((entry) => entry.instanceId === first)!;
-    expect(`${boardChip.name} · ${boardChip.ownedBy}`).toBe(`${cardOf(state, first)!.name} · Hercules's Labor`);
+    expect(`${boardChip.name} · ${boardChip.ownedBy}`).toBe(`${cardOf(state, first)!.name} · Labor (Hercules)`);
     // An ordinary attachment (or any other card) names no owner.
     expect(boardModel(state, me, DEPS).me.attachments.every((entry) => entry.ownedBy === null)).toBe(true);
   });

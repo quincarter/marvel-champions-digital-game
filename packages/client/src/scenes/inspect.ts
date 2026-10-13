@@ -84,7 +84,9 @@ import {
   cardFaceContentHeight,
   DESKTOP_ART_ASPECT,
   cardFaceLayout,
+  compactRulesRect,
   inspectLayout,
+  rulesPanelMode,
   sheetPlayPayWidths,
   sheetTextColumn,
   type CardFaceContent,
@@ -1096,7 +1098,18 @@ export class InspectOverlay extends Phaser.Scene {
   }
 
   /** "Rules & state": the engine's verdict, timing, keywords, this card's own history, and the one useful action. */
-  #drawRulesPanel(rect: Rect, model: InspectModel): void {
+  #drawRulesPanel(fullRect: Rect, model: InspectModel): void {
+    // A card with nothing to say beside an open choice (a printed card in the Civil War builder) gets no heading and
+    // no tall empty box: only the choice buttons, in a strip at the card's foot.
+    const mode = rulesPanelMode(
+      this.#rulesSectionHeights(Math.max(1, fullRect.width - RULES_PAD * 2), model).length,
+      model.history.length,
+      Boolean(this.#choice) && !this.#note,
+      model.instanceId === ("" as InstanceId) && !this.#note,
+    );
+    if (mode === "none") return;
+    const compact = mode === "compact";
+    const rect = compact ? compactRulesRect(fullRect, RULES_PAD, hit.primary) : fullRect;
     this.#drawShadow(rect);
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -1106,22 +1119,24 @@ export class InspectOverlay extends Phaser.Scene {
     const pad = RULES_PAD;
     const inner = rect.width - pad * 2;
 
-    this.add
-      .text(rect.x + pad, rect.y + pad, caseOf(typeRole.barTitle, "Rules & state"), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "24px",
-      })
-      .setLetterSpacing(1);
-    const escWidth = 50;
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "Esc",
-        type: { ...typeRole.label, size: 11 },
-        rect: { x: rect.x + rect.width - pad - escWidth, y: rect.y + pad - 3, width: escWidth, height: 28 },
-        onClick: () => this.#close(),
-      }),
-    );
+    if (!compact) {
+      this.add
+        .text(rect.x + pad, rect.y + pad, caseOf(typeRole.barTitle, "Rules & state"), {
+          ...textStyle(typeRole.barTitle, surface.paper.hex),
+          fontSize: "24px",
+        })
+        .setLetterSpacing(1);
+      const escWidth = 50;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "Esc",
+          type: { ...typeRole.label, size: 11 },
+          rect: { x: rect.x + rect.width - pad - escWidth, y: rect.y + pad - 3, width: escWidth, height: 28 },
+          onClick: () => this.#close(),
+        }),
+      );
+    }
 
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;

@@ -75,6 +75,8 @@ export interface Snapshot {
    * player should be told rather than find out by losing it.
    */
   readonly saveError: string | null;
+  /** A resumed game only: every event the replay produced (setup, then each command), so the board's log can show the game so far. Absent otherwise. */
+  readonly history?: readonly GameEvent[];
 }
 
 export type CoreDispatch =
@@ -353,6 +355,7 @@ export class EngineSessionCore {
     // so a fresh setup emits the same ones (the scheme's starting threat among them).
     let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState);
     let state = initialState;
+    const history: GameEvent[] = [...baseline.setupEvents];
     for (const [index, command] of stored.commands.entries()) {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) {
@@ -363,6 +366,7 @@ export class EngineSessionCore {
       }
       state = result.state;
       record = recordEvents(record, result.events, state);
+      history.push(...result.events);
     }
 
     this.#session = { state, log: { initialState, commands: stored.commands } };
@@ -373,7 +377,7 @@ export class EngineSessionCore {
     this.#writes = Promise.resolve();
     this.#saveError = null;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
-    return { cardPool: initialState.cardPool, snapshot: this.#snapshot([]) };
+    return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history } };
   }
 
   /**

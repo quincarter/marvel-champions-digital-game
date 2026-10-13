@@ -185,6 +185,8 @@ export interface CompositionRow {
   readonly count: number;
   /** The one row this section draws in Hero Red text, never a fill (the screen's single red fill is "Deal it out") — the obligations row, since it's the one line in "what's shuffled in" that isn't a set the table chose. */
   readonly red: boolean;
+  /** Printed in place of the count: "hidden" for the type breakdown of a blind Civil War build. */
+  readonly shown?: string;
 }
 
 /**
@@ -240,6 +242,12 @@ export function whatsInThereRowsOf(encounterDeck: EncounterDeckPreview): readonl
   }));
   rows.push({ label: "Surge cards", count: surgeCount, red: false });
   return rows;
+}
+
+/** A blind build (owner answer 24A) hides the stage 2 scheme and the set list until each turns up; the deck's type mix would give the hidden sets away in part, so it reads "hidden" too. */
+export const BLIND_TYPE_MIX_SHOWN = "hidden";
+export function blindWhatsInThereRows(rows: readonly CompositionRow[]): readonly CompositionRow[] {
+  return rows.map((row) => ({ ...row, shown: BLIND_TYPE_MIX_SHOWN }));
 }
 
 export interface NemesisStandby {

@@ -7,7 +7,7 @@
 import { drawArt } from "../../art/card-art.js";
 import { accent, border, ink, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { fitText, McButton } from "../../ui/widgets.js";
+import { fitText, fitWrapped, McButton } from "../../ui/widgets.js";
 import { bindHoldTarget } from "../../ui/hold-target.js";
 import type { Rect } from "../../view/layout.js";
 import type { SearchedPickView } from "../../view/play-aim.js";
@@ -38,7 +38,7 @@ export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pic
       textStyle(typeRole.barTitle, surface.ink.hex),
     )
     .setOrigin(0, 0.5);
-  fitText(title, layout.title.width, typeRole.barTitle.size);
+  fitWrapped(title, layout.title.width, layout.titleLines, typeRole.barTitle.size);
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "quiet",

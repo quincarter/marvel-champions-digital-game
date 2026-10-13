@@ -248,6 +248,21 @@ describe("5. set toggling", () => {
     for (const t of tiles.filter((x) => x.selected)) expect(t.enabled).toBe(true);
   });
 
+  test("at the cap an unchosen tile says '4 of 4 chosen' (no padlock); a set that cannot be picked at all has no cap note", () => {
+    const v = view(picks(draftFor(IRON), [...THREE, "martial_law"]));
+    const tiles = v.modular.sections.filter((s) => s.key !== "otherSide").flatMap((s) => s.tiles);
+    for (const t of tiles.filter((x) => !x.selected)) {
+      expect(t.capNote, t.id).toBe("4 of 4 chosen");
+      expect(t.disabledReason, t.id).toBe("Four is the most (MC56 p. 4)");
+    }
+    for (const t of tiles.filter((x) => x.selected)) expect(t.capNote).toBeUndefined();
+    const other = v.modular.sections.find((s) => s.key === "otherSide")!;
+    for (const t of other.tiles) expect(t.capNote, t.id).toBeUndefined();
+    // Below the cap nothing carries the note.
+    const three = view(picks(draftFor(IRON), THREE));
+    for (const t of three.modular.sections.flatMap((s) => s.tiles)) expect(t.capNote).toBeUndefined();
+  });
+
   test("a fifth toggle changes nothing; deselect then select swaps", () => {
     const four = picks(draftFor(IRON), [...THREE, "martial_law"]);
     expect(act(four, "civil:set:mighty_avengers").draft).toBe(four);
