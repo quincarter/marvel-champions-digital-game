@@ -148,9 +148,40 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
   ];
 }
 
+/** The least a gap or the logo shrinks to when the menu is too tall for the screen; rows keep their touch height. */
+const GAP_FLOOR = 4;
+const TITLE_SIZE_FLOOR = 28;
+const GAP_STEP = 2;
+const TITLE_STEP = 4;
+
+/**
+ * Lays the menu out at the form factor's own spacing; when every row present would not fit above the footer (a 360x740
+ * phone, a 1024x768 tablet with Continue, Civil War! and the update banner), tightens the gaps and the logo a step at a
+ * time to their floors. Touch targets never shrink.
+ */
 export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   const { width, height } = input;
-  const { phone, short, pad, gap } = setupMetrics(width, height);
+  const { gap } = setupMetrics(width, height);
+  let tight = { gap, titleSize: null as number | null };
+  let layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize);
+  while (!layout.fits && (tight.gap > GAP_FLOOR || layout.titleSize > TITLE_SIZE_FLOOR)) {
+    tight = {
+      gap: Math.max(GAP_FLOOR, tight.gap - GAP_STEP),
+      titleSize: Math.max(TITLE_SIZE_FLOOR, layout.titleSize - (tight.gap > GAP_FLOOR ? 0 : TITLE_STEP)),
+    };
+    layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize);
+  }
+  const { fits: _fits, ...rest } = layout;
+  return rest;
+}
+
+function titleMenuLayoutAt(
+  input: TitleMenuLayoutInput,
+  gap: number,
+  titleOverride: number | null,
+): TitleMenuLayout & { readonly fits: boolean } {
+  const { width, height } = input;
+  const { phone, short, pad } = setupMetrics(width, height);
   const split = !phone;
 
   const artPanel: Rect | null = split ? { x: 0, y: 0, width: Math.round(width * ART_PANEL_SHARE), height } : null;
@@ -162,9 +193,9 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   const column = Math.min(menuPanel.width - pad * 2, 520);
   const left = menuPanel.x + (menuPanel.width - column) / 2;
 
-  const titleSize = phone
-    ? 44
-    : Math.min(72, Math.round(menuPanel.width / 7), Math.round(height * (short ? 0.075 : 0.1)));
+  const titleSize =
+    titleOverride ??
+    (phone ? 44 : Math.min(72, Math.round(menuPanel.width / 7), Math.round(height * (short ? 0.075 : 0.1))));
 
   let updateBanner: Rect | null = null;
   let y = pad + titleSize * 0.6;
@@ -209,9 +240,11 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   y += hit.target + gap;
 
   const footerY = Math.max(y, menuPanel.y + menuPanel.height - pad - hit.target);
+  const fits = footerY + hit.target <= menuPanel.y + menuPanel.height;
   const footer: Rect = { x: left, y: footerY, width: column, height: hit.target };
 
   return {
+    fits,
     split,
     pad,
     artPanel,

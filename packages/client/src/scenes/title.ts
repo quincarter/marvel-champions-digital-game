@@ -392,7 +392,8 @@ export class TitleScene extends Phaser.Scene {
     // A touch-sized target around the small label.
     const linkRect: Rect = {
       x: linkText.x - 6,
-      y: linkText.y + linkText.height / 2 - hit.target / 2,
+      // Hung from the footer's own top edge, so a tight menu's Settings row (just above) is never under it.
+      y: layout.footer.y,
       width: linkText.width + 12,
       height: hit.target,
     };

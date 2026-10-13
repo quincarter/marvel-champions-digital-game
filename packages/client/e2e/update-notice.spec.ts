@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickText, findText, trackPageErrors, waitForText } from "./helpers.js";
-import { openApp } from "./wave6-helpers-b.js";
+import { routeStops } from "./wave6-helpers-a.js";
+import { openApp, startGame } from "./wave6-helpers-b.js";
 
 /**
  * The native apps' update banner on Title (`platform/update-check.ts`): an install is told about a newer GitHub
@@ -81,3 +82,59 @@ test("a newer release with no APK is not offered to an Android install", async (
   expect(await findText(page, "Update available", "Title")).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+/**
+ * Every optional row at once (Continue, the update banner's two buttons, Civil War!) at the sizes the menu is
+ * squeezed at: no control leaves the screen or covers another. A saved game gives Continue (a game started through the
+ * store autosaves), `unlock=all` gives Civil War!, and the stubbed release gives the banner.
+ */
+const FIT_SIZES = [
+  { width: 360, height: 740 },
+  { width: 390, height: 844 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+] as const;
+
+for (const size of FIT_SIZES) {
+  test(`the Title with every row (Continue, Civil War!, the update banner) fits at ${size.width}x${size.height}`, async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    await page.setViewportSize(size);
+    await openAsAndroidApp(page, [APK_URL]);
+    await startGame(page, { scenarioId: "rhino", decks: ["core-spider-man-justice"], seed: 4 });
+    await page.reload();
+    await waitForText(page, "Update available", { sceneKey: "Title" });
+    await waitForText(page, "Continue", { sceneKey: "Title" });
+    await waitForText(page, "Civil War!", { sceneKey: "Title" });
+    await page.waitForTimeout(500);
+
+    const shots = process.env.TITLE_FIT_SHOTS;
+    if (shots) {
+      await page.screenshot({
+        path: `${shots}/wave10-title-fit-${size.width}x${size.height}-${process.env.TITLE_FIT_TAG}.png`,
+      });
+    }
+
+    const stops = (await routeStops(page, "Title"))?.stops ?? [];
+    const keys = stops.map((stop) => stop.key);
+    for (const key of ["continue", "new-game", "campaign", "civil-war", "settings", "release-notes"])
+      expect(keys, `${key} is a stop`).toContain(key);
+    for (const stop of stops) {
+      const r = stop.rect;
+      expect(r.x, `${stop.key} left`).toBeGreaterThanOrEqual(0);
+      expect(r.y, `${stop.key} top`).toBeGreaterThanOrEqual(0);
+      expect(r.x + r.width, `${stop.key} right`).toBeLessThanOrEqual(size.width);
+      expect(r.y + r.height, `${stop.key} bottom`).toBeLessThanOrEqual(size.height);
+    }
+    for (let i = 0; i < stops.length; i++) {
+      for (let j = i + 1; j < stops.length; j++) {
+        const a = stops[i]!.rect;
+        const b = stops[j]!.rect;
+        const apart = a.x >= b.x + b.width || b.x >= a.x + a.width || a.y >= b.y + b.height || b.y >= a.y + a.height;
+        expect(apart, `${stops[i]!.key} and ${stops[j]!.key} overlap`).toBe(true);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+}

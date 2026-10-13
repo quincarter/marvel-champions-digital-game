@@ -62,12 +62,21 @@ describe("titleMenuLayout", () => {
   for (const size of [
     { width: 390, height: 844 },
     { width: 360, height: 800 },
+    { width: 360, height: 740 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
   ]) {
-    test(`a phone shows every row (Continue, Civil War!, the update banner) without overlap, footer on screen, at ${size.width}x${size.height}`, () => {
+    test(`every row (Continue, Civil War!, the update banner) shows without overlap, on screen, at ${size.width}x${size.height}`, () => {
       const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, update: true });
       const rects = titleMenuLayoutRects(layout);
       for (let i = 0; i < rects.length; i++) {
         for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      }
+      for (const rect of rects) {
+        expect(rect.x).toBeGreaterThanOrEqual(0);
+        expect(rect.y).toBeGreaterThanOrEqual(0);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(size.width);
+        expect(rect.y + rect.height).toBeLessThanOrEqual(size.height);
       }
       expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(size.height);
     });
