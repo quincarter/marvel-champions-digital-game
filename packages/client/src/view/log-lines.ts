@@ -1416,6 +1416,19 @@ function describe(
         text: `${who(event.playerId)} ${verb(event.playerId, "spend", "spends")} ${card(event.instanceId)} from under ${card(event.hostInstanceId)}.`,
         voice: "player",
       };
+    // A card spent from a hand that is not the acting player's, while a card is played or an ability used: another
+    // player is helping pay (an Alliance card, Coordinated Effort's "any player may help pay"). Every other hand
+    // discard (a cost the player pays, an effect) stays silent here, as it always did.
+    case "cardDiscardedFromHand": {
+      const step = state.step;
+      const active = step.phase === "player" && step.kind === "turn" ? step.activePlayerId : null;
+      const paying = burst?.events.some((other) => other.type === "cardPlayed" || other.type === "abilityResolved");
+      if (!paying || active === null || event.playerId === active) return null;
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "discard", "discards")} ${card(event.instanceId)} to help pay.`,
+        voice: "player",
+      };
+    }
     // Hero packs H3.19: another player pays a part of a cost in the user's place (Coordinated Effort).
     case "costPartPaidBy": {
       const parts = {

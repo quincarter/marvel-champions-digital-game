@@ -90,11 +90,15 @@ export function drawAllianceHelpBar(ctx: BoardDrawContext, rect: Rect, help: All
   const countX = approveX - gap - countWidth;
 
   const spent = help.cardNames.length > 0 ? help.cardNames.join(", ") : "their cards";
+  const what =
+    help.partNames.length > 0
+      ? `approve paying ${[...help.partNames, ...help.cardNames].join(", ")}`
+      : `approve spending ${spent}`;
   const title = scene.add
     .text(
       rect.x + 12,
       rect.y + rect.height / 2,
-      `${help.heroName} — approve spending ${spent}?`,
+      `${help.heroName} — ${what}?`,
       textStyle(typeRole.barTitle, surface.paper.hex),
     )
     .setOrigin(0, 0.5)

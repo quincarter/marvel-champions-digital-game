@@ -1,0 +1,3 @@
+kind: Added
+body: 'Coordinated Effort on the board: a second player can help pay an ability''s cost. The player using it is asked who takes each shareable part (damage, a deck discard), the helper''s hand cards can be picked for a discard cost, each helper agrees in turn before their cards or hit points are used, the engine''s reason is shown when a player cannot take a part, and the log says who helped.'
+time: 2026-10-13T09:14:41.9265274-04:00

@@ -8,7 +8,15 @@ import type { CostSelection, GameEvent, GameState, LegalAction, PlayerId } from 
 import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS } from "../content/pool.js";
 import { EngineSessionCore } from "../engine/session-core.js";
-import { costHelpersOf, costHelpLines, costHelpPromptsFor, withCostHelper } from "./cost-help-model.js";
+import {
+  consentHelpersOf,
+  costHelpersOf,
+  costHelpLines,
+  costHelpPromptsFor,
+  withCostHelper,
+  withCostHelpAnswers,
+  withEntryPayers,
+} from "./cost-help-model.js";
 import { logLine } from "./log-lines.js";
 import { faceUpName, seatName } from "./names.js";
 import { paymentView, type PaymentState } from "./payment-model.js";
@@ -58,6 +66,7 @@ describe("costHelpPromptsFor", () => {
           { playerId: me, label: "You" },
           { playerId: other, label: otherName },
         ],
+        unavailable: [],
       },
     ]);
   });
@@ -126,5 +135,59 @@ describe("the words for the bar and the log", () => {
       `${seatName(state, other, me)} helps pay for ${scheme}: the damage.`,
     );
     expect(logLine(event, state, other, POOL_DEPS)?.text).toBe(`You help pay for ${scheme}: the damage.`);
+  });
+});
+
+describe("the answers, carried into the command", () => {
+  test("withCostHelpAnswers puts a helper's part in the example's paidBy and drops a part the user takes", () => {
+    const asked = entry([{ part: "damageSelf", payers: [me, other] }]);
+    const helped = withCostHelpAnswers(asked, [["damageSelf", other]]);
+    expect(helped.example).toMatchObject({ type: "useAbility", costSelection: { paidBy: { damageSelf: other } } });
+    expect(helped.costHelp).toEqual(asked.costHelp);
+    const back = withCostHelpAnswers(helped, [["damageSelf", me]]);
+    expect(back.example).not.toHaveProperty("costSelection");
+  });
+
+  test("withEntryPayers keeps the entry's helpers in a branch pick built from nothing", () => {
+    const helped = withCostHelpAnswers(entry([{ part: "damageSelf", payers: [me, other] }]), [["damageSelf", other]]);
+    expect(withEntryPayers(helped, { branch: 1 })).toEqual({ branch: 1, paidBy: { damageSelf: other } });
+    expect(withEntryPayers(helped, undefined)).toEqual({ paidBy: { damageSelf: other } });
+    expect(withEntryPayers(entry(undefined), { branch: 1 })).toEqual({ branch: 1 });
+  });
+});
+
+describe("consentHelpersOf", () => {
+  const command = (extra: object) =>
+    ({
+      type: "useAbility",
+      playerId: me,
+      cardInstanceId: state.mainScheme.instanceId,
+      abilityId: "x",
+      payment: [],
+      ...extra,
+    }) as never;
+
+  test("is empty for a command that takes only the user's own things", () => {
+    expect(consentHelpersOf(state, me, command({ costChoices: { discard: [state.players[0]!.hand[0]!] } }))).toEqual(
+      [],
+    );
+  });
+
+  test("names a helper whose hand card is discarded, and one handed a part of the cost", () => {
+    const card = state.players[1]!.hand[0]!;
+    expect(consentHelpersOf(state, me, command({ costChoices: { discard: [card] } }))).toEqual([
+      { playerId: other, instanceIds: [card], parts: [] },
+    ]);
+    expect(consentHelpersOf(state, me, command({ costSelection: { paidBy: { damageSelf: other } } }))).toEqual([
+      { playerId: other, instanceIds: [], parts: ["damageSelf"] },
+    ]);
+    expect(
+      consentHelpersOf(
+        state,
+        me,
+        command({ costChoices: { discard: [card] }, costSelection: { paidBy: { damageSelf: other } } }),
+        [{ playerId: other, instanceIds: [card] }],
+      ),
+    ).toEqual([{ playerId: other, instanceIds: [card], parts: ["damageSelf"] }]);
   });
 });

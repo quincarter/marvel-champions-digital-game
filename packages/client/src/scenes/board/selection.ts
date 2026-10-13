@@ -5,9 +5,18 @@
  */
 
 import { POOL_DEPS } from "../../content/pool.js";
-import type { Command, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type {
+  Command,
+  CostSelection,
+  DelegableCostPart,
+  GameState,
+  InstanceId,
+  LegalAction,
+  PlayerId,
+} from "@mc/engine";
 import { ink } from "../../tokens.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
+import type { ConsentHelper, CostHelpPrompt } from "../../view/cost-help-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
 import type { PowerKind, PowerSource } from "../../view/attacker-choice.js";
 import type { FormSource } from "../../view/change-form-choice.js";
@@ -122,17 +131,32 @@ export type Selection =
       readonly prompt: CostChoicePrompt;
     }
   /**
-   * An alliance card's payment (RRG 1.8 "Alliance", p. 6) spends at least one other seat's card; before the
-   * command goes to the engine, each contributing player approves their own contribution, one at a time, in seat
-   * order (docs/phase7-wave4.md §4 Q10, "USER DECISION 2026-09-25"). Hot-seat: this is a same-device,
-   * pass-the-controller prompt, not a network request (`view/payment-model.ts`'s `allianceHelpersOf` own doc
-   * comment). `approved` grows by one seat per approval; declining drops the whole flow and returns to `paying`
-   * with the same `payment`, so the payer can change what they picked rather than starting the play over.
+   * An ability whose cost any player may help pay (`LegalAction.costHelp`, Coordinated Effort) asks, before anything
+   * else, who pays each part another player can take over ("Who takes the damage?"). One prompt at a time, `index` of
+   * `prompts`; `answers` grow by one per answer and become `costSelection.paidBy` of the entry's command. `resume` is
+   * the step the answer goes back into: the hand play or the ability use that was interrupted.
+   */
+  | {
+      readonly kind: "choosingCostHelp";
+      readonly entry: LegalAction;
+      readonly prompts: readonly CostHelpPrompt[];
+      readonly answers: readonly (readonly [DelegableCostPart, PlayerId])[];
+      readonly resume: "ability" | { readonly play: { readonly confirmFree: boolean } };
+    }
+  /**
+   * A command that spends another seat's card or hands that seat a part of the cost (an alliance card's payment, RRG
+   * 1.8 "Alliance", p. 6; an ability on a card that any player may help pay, `costsPayableByAnyPlayer`) is first agreed
+   * to by each of those players, one at a time, in seat order (docs/phase7-wave4.md §4 Q10, "USER DECISION
+   * 2026-09-25"). Hot-seat: this is a same-device, pass-the-controller prompt, not a network request
+   * (`view/payment-model.ts`'s `allianceHelpersOf` own doc comment). `approved` grows by one seat per approval; declining
+   * drops the whole flow and returns to `paying` with the same `payment` (null when the command had no payment: then
+   * the play is simply dropped), so the payer can change what they picked rather than starting the play over.
    */
   | {
       readonly kind: "confirmingAllianceHelp";
-      readonly payment: PaymentState;
-      readonly helpers: readonly PlayerId[];
+      readonly payment: PaymentState | null;
+      readonly command: Command;
+      readonly helpers: readonly ConsentHelper[];
       readonly approved: readonly PlayerId[];
     };
 

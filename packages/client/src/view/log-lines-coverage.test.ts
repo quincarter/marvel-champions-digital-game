@@ -29,7 +29,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "campaignLogWritten",
   "cardDetached",
   "cardDiscardedFromDeck",
-  "cardDiscardedFromHand",
   "cardDrawn",
   "cardExhausted",
   "cardFound",

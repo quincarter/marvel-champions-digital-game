@@ -71,6 +71,7 @@ import {
   paymentView,
   toggleCostReduction,
   togglePayment,
+  type PaymentState,
   type PaymentView,
 } from "../../view/payment-model.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
@@ -88,12 +89,23 @@ import {
 } from "../../view/play-aim.js";
 import { actionAbilityCost } from "../../view/cost-choice-model.js";
 import {
+  consentHelpersOf,
+  costHelpPromptsFor,
+  costPartDid,
+  withCostHelpAnswers,
+  withEntryPayers,
+  type CostHelpPrompt,
+} from "../../view/cost-help-model.js";
+import {
   paymentIntoOf,
   playDestinationChoice,
   playInto,
   type PlayDestinationChoice,
   type PlayDestinationOption,
 } from "../../view/play-destination.js";
+
+const optionalSelection = (selection: CostSelection | undefined): { readonly costSelection?: CostSelection } =>
+  selection ? { costSelection: selection } : {};
 
 /** The scenario play area a hand play is aimed at (`playCard.into`), or undefined for the player's own area. */
 const intoOf = (entry: LegalAction): string | undefined =>
@@ -158,6 +170,8 @@ export interface AllianceHelpView {
   readonly playerId: PlayerId;
   readonly heroName: string;
   readonly cardNames: readonly string[];
+  /** The parts of the cost this helper is asked to pay ("the damage"); empty when only cards are used. */
+  readonly partNames: readonly string[];
   readonly remaining: number;
   readonly total: number;
 }
@@ -658,7 +672,7 @@ export class BoardController {
     // payment decision; only a free one goes straight to the engine.
     if (action.needsPayment && this.#openPayment(action, id)) return;
     const { game } = appSession().store.state;
-    await this.#dispatch(game ? retarget(game, action.example, id) : action.example);
+    await this.#send(game ? retarget(game, action.example, id) : action.example);
   }
 
   /**
@@ -774,6 +788,7 @@ export class BoardController {
   }
 
   async #playEntry(entry: LegalAction, confirmFree: boolean): Promise<void> {
+    if (this.#tryOpenCostHelp(entry, { play: { confirmFree } })) return;
     // "Discard X cards from your hand" (Shield Toss, `03006`) is a real
     // decision the engine's `example` only guessed the minimum answer to —
     // see `#tryOpenDiscardChoice`. Checked before the controller picker below
@@ -887,7 +902,7 @@ export class BoardController {
       return;
     }
     const aimed = target !== null && game ? retarget(game, entry.example, target) : entry.example;
-    await this.#dispatch(withController(aimed, controllerId));
+    await this.#send(withController(aimed, controllerId));
   }
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
@@ -923,6 +938,7 @@ export class BoardController {
    * `legalActions` and `paymentFor` already did.
    */
   #useAbility(entry: UsableAbilityAction): void {
+    if (this.#tryOpenCostHelp(entry, "ability")) return;
     if (this.#tryOpenDiscardChoice(entry)) return;
     if (entry.targets.length > 1) {
       const { game } = appSession().store.state;
@@ -944,7 +960,7 @@ export class BoardController {
     if (this.#tryOpenCostChoice(entry, target, null)) return;
     if (this.#tryOpenInPlayCost(entry, target, null)) return;
     if (entry.needsPayment && this.#openPayment(entry, target)) return;
-    void this.#dispatch(entry.example);
+    void this.#send(entry.example);
   }
 
   /**
@@ -1021,8 +1037,7 @@ export class BoardController {
     if (this.#readOnly) return;
     const view = this.discardChoiceView();
     if (!view?.command) return;
-    this.#selection = { kind: "idle" };
-    await this.#dispatch(view.command);
+    await this.#send(view.command);
   }
 
   /**
@@ -1047,7 +1062,7 @@ export class BoardController {
       target,
       POOL_DEPS,
       controllerId,
-      costSelection,
+      withEntryPayers(entry, costSelection),
       costChoices,
       entry.example.type === "playCard" ? entry.example.abilityId : undefined,
       intoOf(entry),
@@ -1147,13 +1162,13 @@ export class BoardController {
       {
         target,
         ...(controllerId ? { controllerId } : {}),
-        ...(costSelection ? { costSelection } : {}),
+        ...optionalSelection(withEntryPayers(action, costSelection)),
         costChoices,
         ...paymentIntoOf({ into: intoOf(action) ?? null }),
       },
       POOL_DEPS,
     );
-    if (attempt.ok) await this.#dispatch(attempt.command);
+    if (attempt.ok) await this.#send(attempt.command);
     else this.#host.redraw();
   }
 
@@ -1188,12 +1203,12 @@ export class BoardController {
       {
         target,
         ...(controllerId ? { controllerId } : {}),
-        costSelection,
+        ...optionalSelection(withEntryPayers(action, costSelection)),
         ...paymentIntoOf({ into: intoOf(action) ?? null }),
       },
       POOL_DEPS,
     );
-    if (attempt.ok) await this.#dispatch(attempt.command);
+    if (attempt.ok) await this.#send(attempt.command);
   }
 
   /** Tapping a card during payment spends it, if the engine listed it as spendable. */
@@ -1287,41 +1302,45 @@ export class BoardController {
     if (this.#selection.kind !== "paying") return;
     const payment = this.paymentView();
     if (!payment?.command) return;
-    // An alliance payment that spends another seat's card (RRG 1.8 "Alliance", p. 6): each of those players
-    // approves their own contribution before the command goes anywhere (docs/phase7-wave4.md §4 Q10). Hot-seat —
-    // `allianceHelpersOf`'s own doc comment on why this is a same-device prompt, not a network request.
-    const { store } = appSession();
-    const { game, perspectiveId } = store.state;
-    if (game && perspectiveId !== null) {
-      const helpers = allianceHelpersOf(game, perspectiveId, this.#selection.payment);
-      if (helpers.length > 0) {
-        this.#selection = {
-          kind: "confirmingAllianceHelp",
-          payment: this.#selection.payment,
-          helpers: helpers.map((helper) => helper.playerId),
-          approved: [],
-        };
-        this.#host.redraw();
-        return;
-      }
+    // A payment that spends another seat's card (RRG 1.8 "Alliance", p. 6) or hands one of them a part of the cost
+    // (`costSelection.paidBy`): each of those players agrees to their own share before the command goes anywhere
+    // (docs/phase7-wave4.md §4 Q10). Hot-seat: `allianceHelpersOf`'s own doc comment on why this is a same-device prompt.
+    await this.#send(payment.command, this.#selection.payment);
+  }
+
+  /**
+   * Sends a command, after each other player it takes something from has agreed: their hand or resource cards a
+   * payment spends (`allianceHelpersOf`), the cards it names as cost picks, and the parts of the cost handed to them
+   * (`consentHelpersOf`). A command that touches only the payer's own things goes straight out.
+   */
+  async #send(command: Command, payment: PaymentState | null = null): Promise<void> {
+    const { game, perspectiveId } = appSession().store.state;
+    const helpers =
+      game && perspectiveId !== null
+        ? consentHelpersOf(game, perspectiveId, command, payment ? allianceHelpersOf(game, perspectiveId, payment) : [])
+        : [];
+    if (helpers.length === 0) {
+      this.#selection = { kind: "idle" };
+      await this.#dispatch(command);
+      return;
     }
-    this.#selection = { kind: "idle" };
-    await this.#dispatch(payment.command);
+    this.#selection = { kind: "confirmingAllianceHelp", payment, command, helpers, approved: [] };
+    this.#host.redraw();
   }
 
   /** The helper currently being asked, or null outside that mode — `#drawAllianceHelpBar`'s own input. */
   allianceHelpView(): AllianceHelpView | null {
     if (this.#selection.kind !== "confirmingAllianceHelp") return null;
-    const { game, perspectiveId } = appSession().store.state;
-    if (!game || perspectiveId === null) return null;
-    const { payment, helpers, approved } = this.#selection;
-    const playerId = helpers[approved.length];
-    if (playerId === undefined) return null;
-    const contributions = allianceHelpersOf(game, perspectiveId, payment).find((h) => h.playerId === playerId);
+    const { game } = appSession().store.state;
+    if (!game) return null;
+    const { helpers, approved } = this.#selection;
+    const helper = helpers[approved.length];
+    if (helper === undefined) return null;
     return {
-      playerId,
-      heroName: seatIdentityName(game, playerId),
-      cardNames: (contributions?.instanceIds ?? []).map((id) => cardName(game, id)),
+      playerId: helper.playerId,
+      heroName: seatIdentityName(game, helper.playerId),
+      cardNames: helper.instanceIds.map((id) => cardName(game, id)),
+      partNames: helper.parts.map(costPartDid),
       remaining: helpers.length - approved.length,
       total: helpers.length,
     };
@@ -1330,37 +1349,77 @@ export class BoardController {
   /** The current helper hands the controller back: their contribution is approved. Sends the command once every helper has approved. */
   async approveAllianceHelp(): Promise<void> {
     if (this.#readOnly || this.#selection.kind !== "confirmingAllianceHelp") return;
-    const { payment, helpers, approved } = this.#selection;
-    const playerId = helpers[approved.length];
-    if (playerId === undefined) return;
-    const nextApproved = [...approved, playerId];
+    const { payment, command, helpers, approved } = this.#selection;
+    const helper = helpers[approved.length];
+    if (helper === undefined) return;
+    const nextApproved = [...approved, helper.playerId];
     if (nextApproved.length < helpers.length) {
-      this.#selection = { kind: "confirmingAllianceHelp", payment, helpers, approved: nextApproved };
+      this.#selection = { kind: "confirmingAllianceHelp", payment, command, helpers, approved: nextApproved };
       this.#host.redraw();
       return;
     }
-    const { store } = appSession();
-    const { game, perspectiveId } = store.state;
-    if (!game || perspectiveId === null) {
-      this.#selection = { kind: "idle" };
-      this.#host.redraw();
-      return;
-    }
-    const view = paymentView(game, perspectiveId, payment, "", POOL_DEPS);
     this.#selection = { kind: "idle" };
-    if (view.command) await this.#dispatch(view.command);
-    else this.#host.redraw();
+    await this.#dispatch(command);
   }
 
   /**
    * The current helper says no. RRG 1.8 "Alliance" (p. 6) makes each contribution that player's own choice, so
    * declining doesn't end the play — it returns the payer to payment selection with the same picks, so they can
-   * choose different cards to spend instead (docs/phase7-wave4.md §4 Q10).
+   * choose different cards to spend instead (docs/phase7-wave4.md §4 Q10). A command with no payment to go back to
+   * (an ability with no resource cost, a discard pick) is dropped, and the player starts the use again.
    */
   declineAllianceHelp(): void {
     if (this.#readOnly || this.#selection.kind !== "confirmingAllianceHelp") return;
-    this.#selection = { kind: "paying", payment: this.#selection.payment };
+    const { payment } = this.#selection;
+    this.#selection = payment ? { kind: "paying", payment } : { kind: "idle" };
     this.#host.redraw();
+  }
+
+  /**
+   * Opens the "who pays?" questions of an ability whose cost any player may help pay (`LegalAction.costHelp`). False
+   * when there is nothing to ask (no shareable part, or only the user can pay it), so the use goes on as before.
+   * The answered entry is what `#playEntry` / `#useAbility` continue with, so the question is asked once.
+   */
+  #tryOpenCostHelp(
+    entry: LegalAction,
+    resume: "ability" | { readonly play: { readonly confirmFree: boolean } },
+  ): boolean {
+    if (!entry.costHelp || this.#helpAnswered.has(entry)) return false;
+    const { game } = appSession().store.state;
+    if (!game) return false;
+    const prompts = costHelpPromptsFor(game, entry, POOL_DEPS);
+    if (prompts.length === 0) return false;
+    this.#selection = { kind: "choosingCostHelp", entry, prompts, answers: [], resume };
+    this.#host.redraw();
+    return true;
+  }
+
+  /** Entries whose questions are answered: asked once per use, not again at each later step. */
+  readonly #helpAnswered = new WeakSet<LegalAction>();
+
+  /** The question open now ("Who takes the damage?") with who can answer it, or null outside that mode. */
+  costHelpView(): CostHelpPrompt | null {
+    if (this.#selection.kind !== "choosingCostHelp") return null;
+    return this.#selection.prompts[this.#selection.answers.length] ?? null;
+  }
+
+  /** Answers the open question: `payerId` pays that part. The last answer carries the use on. */
+  async chooseCostHelper(payerId: PlayerId): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingCostHelp") return;
+    const { entry, prompts, answers, resume } = this.#selection;
+    const prompt = prompts[answers.length];
+    if (!prompt || !prompt.options.some((option) => option.playerId === payerId)) return;
+    const next = [...answers, [prompt.part, payerId] as const];
+    if (next.length < prompts.length) {
+      this.#selection = { ...this.#selection, answers: next };
+      this.#host.redraw();
+      return;
+    }
+    const answered = withCostHelpAnswers(entry, next);
+    this.#helpAnswered.add(answered);
+    this.#selection = { kind: "idle" };
+    if (resume === "ability") this.#useAbility(answered as UsableAbilityAction);
+    else await this.#playEntry(answered, resume.play.confirmFree);
   }
 
   /**

@@ -36,6 +36,7 @@ import {
   type LegalAction,
   type PlayerId,
 } from "@mc/engine";
+import { faceUpName } from "./names.js";
 
 /** A `discardFromHand` cost's shape, read straight off the ability registry. */
 export interface DiscardCostShape {
@@ -102,6 +103,37 @@ export function discardCandidates(state: GameState, playerId: PlayerId, sourceId
   return (getPlayer(state, playerId)?.hand ?? []).filter((id) => id !== sourceId);
 }
 
+/**
+ * Other players' hand cards the engine accepts for this cost: an ability on a card any player may help pay
+ * (`RuleSpec costsPayableByAnyPlayer`, Coordinated Effort) discards from a helper's hand too. The engine is asked, not
+ * the rule: a probe command discards the card with enough of the user's own to reach `min`, and the card is offered
+ * when `applyCommand` accepts it. Empty for a cost no one else may pay (every probe is refused) and for a solo game.
+ */
+export function helperDiscardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: LegalAction,
+  min: number,
+): readonly InstanceId[] {
+  const base = action.example;
+  if (base.type !== "useAbility" || state.players.length < 2) return [];
+  const own = discardCandidates(state, playerId, base.cardInstanceId);
+  const offered: InstanceId[] = [];
+  for (const player of state.players) {
+    if (player.playerId === playerId) continue;
+    for (const card of player.hand) {
+      const fillers = [...own, ...offered].filter((id) => id !== card);
+      const attempts = [[card], [card, ...fillers.slice(0, Math.max(0, min - 1))]];
+      const accepted = attempts.some(
+        (picks) => applyCommand(state, { ...base, costChoices: { ...base.costChoices, discard: picks } }, deps).ok,
+      );
+      if (accepted) offered.push(card);
+    }
+  }
+  return offered;
+}
+
 export interface DiscardChoiceState {
   readonly action: LegalAction;
   /** The card whose cost this is (Shield Toss itself) — never a candidate, ringed like a payment's subject when it's in hand. */
@@ -130,7 +162,9 @@ export function beginDiscardChoice(
   if (action.action.kind !== "playCard" && action.action.kind !== "useAbility") return null;
   const cost = discardCostOf(state, deps, playerId, action.action);
   if (!cost) return null;
-  const candidates = discardCandidates(state, playerId, action.action.instanceId);
+  const own = discardCandidates(state, playerId, action.action.instanceId);
+  const helpers = helperDiscardCandidates(state, deps, playerId, action, cost.min);
+  const candidates = [...own, ...helpers];
   if (candidates.length <= cost.min) return null;
   const max = cost.max ?? candidates.length;
   return { action, source: action.action.instanceId, min: cost.min, max, candidates, picked: [] };
@@ -149,6 +183,8 @@ export interface DiscardChoiceView {
   readonly min: number;
   readonly max: number;
   readonly candidates: readonly InstanceId[];
+  /** The candidates in another player's hand, with whose: drawn beside the hand, which shows only the user's own. */
+  readonly helperCards: readonly { readonly instanceId: InstanceId; readonly heroName: string }[];
   readonly picked: ReadonlySet<InstanceId>;
   /**
    * The command to send, when the engine accepts this exact selection —
@@ -181,6 +217,7 @@ export function discardChoiceView(state: GameState, choice: DiscardChoiceState, 
       min: choice.min,
       max: choice.max,
       candidates: choice.candidates,
+      helperCards: helperCardsOf(state, choice),
       picked,
       command: null,
       blockedBy: "not a discard cost",
@@ -193,8 +230,22 @@ export function discardChoiceView(state: GameState, choice: DiscardChoiceState, 
     min: choice.min,
     max: choice.max,
     candidates: choice.candidates,
+    helperCards: helperCardsOf(state, choice),
     picked,
     command: result.ok ? command : null,
     blockedBy: result.ok ? null : result.error.message,
   };
+}
+
+/** Whose hand each candidate outside the user's own sits in, by hero name. */
+function helperCardsOf(
+  state: GameState,
+  choice: DiscardChoiceState,
+): readonly { readonly instanceId: InstanceId; readonly heroName: string }[] {
+  const user = choice.action.example.playerId;
+  return choice.candidates.flatMap((instanceId) => {
+    const owner = state.players.find((player) => player.hand.includes(instanceId));
+    if (!owner || owner.playerId === user) return [];
+    return [{ instanceId, heroName: faceUpName(state, owner.identity.instanceId) ?? "Helper" }];
+  });
 }

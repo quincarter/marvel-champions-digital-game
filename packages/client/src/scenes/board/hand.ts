@@ -34,7 +34,7 @@ import {
   drawPlayConfirmBar,
   drawSourceBar,
 } from "./controller-bar.js";
-import { drawCostChoiceBar } from "./cost-choice-bar.js";
+import { COST_HELP_NOTE_ROW, drawCostChoiceBar, drawCostHelpBar } from "./cost-choice-bar.js";
 import { drawDiscardBar } from "./discard-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
 import { drawMyPiles } from "./piles.js";
@@ -77,6 +77,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const playConfirmation = ctx.controller.playConfirmation();
   const allianceHelp = ctx.controller.allianceHelpView();
   const costChoice = ctx.controller.costChoiceView();
+  const costHelp = ctx.controller.costHelpView();
   const sourceChoice = ctx.controller.sourceChoice();
   const formChoice = ctx.controller.formChoice();
   const abilityChoice = ctx.controller.abilityChoice();
@@ -108,6 +109,10 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   } else if (allianceHelp) {
     drawAllianceHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, allianceHelp);
     top = rect.y + BAR_HEIGHT + 4;
+  } else if (costHelp) {
+    const height = BAR_HEIGHT + (costHelp.unavailable.length > 0 ? COST_HELP_NOTE_ROW : 0);
+    drawCostHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, costHelp);
+    top = rect.y + height + 4;
   } else if (costChoice) {
     drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, costChoice);
     top = rect.y + BAR_HEIGHT + 4;
@@ -146,12 +151,13 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const fan: false | "expanded" = tabbed ? "expanded" : false;
   const row = handRow(inner, {
     handCount: model.hand.length,
-    tableTiles: payment ? paymentTileCount(payment) : 0,
+    tableTiles: payment ? paymentTileCount(payment) : (discard?.helperCards.length ?? 0),
     fan,
     piles: tabbed ? "stacked" : "flank",
   });
   const { slots } = row;
   if (payment) drawPaymentTable(ctx, row, payment);
+  else if (discard && discard.helperCards.length > 0) drawHelperDiscardTable(ctx, row, discard);
 
   const rowRight = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), row.cardArea.x);
   hand.measure(row.cardArea, rowRight);
@@ -309,6 +315,29 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
     const rule = scene.add.graphics();
     rule.fillStyle(surface.paper.hex, ink.meta).fillRect(row.rule.x, row.rule.y, row.rule.width, row.rule.height);
   }
+}
+
+/**
+ * A helper's hand cards that can pay a "discard from hand" cost, drawn at the head of the hand row the way a payment's
+ * table sources are: the hand shows only the user's own cards, and a tile says whose card it is. Tapping toggles the
+ * pick like a card of the user's hand.
+ */
+function drawHelperDiscardTable(ctx: BoardDrawContext, row: HandRowLayout, discard: DiscardChoiceView): void {
+  const { scene } = ctx;
+  const game = appSession().store.state.game;
+  if (!game) return;
+  discard.helperCards.forEach((card, index) => {
+    const tile = row.tiles[index];
+    if (!tile) return;
+    const picked = discard.picked.has(card.instanceId);
+    drawTableTile(ctx, tile, game, card.instanceId, picked ? "selected" : "rest");
+    tableTag(scene, tile, picked ? `${card.heroName}: discard` : card.heroName, surface.ink.hex, "top");
+    ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: card.instanceId }), tile);
+    addTapTarget(scene, tile, {
+      onTap: () => ctx.controller.toggleDiscardPick(card.instanceId),
+      onInspect: () => ctx.inspect(card.instanceId),
+    });
+  });
 }
 
 /** How many strip tiles a payment needs: the in-play subject (an ability's cost), then each table source. */
