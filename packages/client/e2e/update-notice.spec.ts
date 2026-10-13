@@ -9,9 +9,9 @@ import { openApp } from "./wave6-helpers-b.js";
  */
 
 const REPO = "https://github.com/quincarter/marvel-champions-digital-game";
-const APK_URL = `${REPO}/releases/download/v999.0.0/marvel-champions-999.0.0.apk`;
+const APK_URL = `${REPO}/releases/download/v999.0.0/MarvelChampions-999.0.0-android.apk`;
 const NOTES_URL = `${REPO}/releases/tag/v999.0.0`;
-const EXE_URL = `${REPO}/releases/download/v999.0.0/Marvel.Champions_999.0.0_x64-setup.exe`;
+const EXE_URL = `${REPO}/releases/download/v999.0.0/MarvelChampions-999.0.0-windows-x64-setup.exe`;
 
 test.use({
   userAgent: "Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 Chrome/141.0 Mobile Safari/537.36",

@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
+import { androidApkName, defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
 import { loadDotenv } from "./lib/env.mjs";
 import { pnpm, run } from "./lib/run.mjs";
 
@@ -221,12 +221,12 @@ const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1] ?? "0";
 const shareDir = path.join(repoRoot, "dist", "android");
 fs.mkdirSync(shareDir, { recursive: true });
 for (const stale of fs.readdirSync(shareDir)) if (stale.endsWith(".apk")) fs.rmSync(path.join(shareDir, stale));
-const shareApk = path.join(shareDir, `marvel-champions-${versionName}.apk`);
+const shareApk = path.join(shareDir, androidApkName(versionName));
 fs.copyFileSync(signedApk, shareApk);
 
 // Stage to the unified release/ directory
 fs.mkdirSync(defaultReleaseDir, { recursive: true });
-const releaseApk = path.join(defaultReleaseDir, `marvel-champions-${versionName}.apk`);
+const releaseApk = path.join(defaultReleaseDir, androidApkName(versionName));
 fs.copyFileSync(signedApk, releaseApk);
 writeChecksumManifest();
 

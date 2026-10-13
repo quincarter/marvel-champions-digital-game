@@ -235,21 +235,25 @@ jobs:
           - name: macOS (Apple silicon)
             os: macos-latest
             artifact: macos-aarch64
+            asset-name: macos-apple-silicon
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
           - name: macOS (Intel)
             os: macos-latest
             artifact: macos-x64
+            asset-name: macos-intel
             args: --target x86_64-apple-darwin
             rust-targets: x86_64-apple-darwin
           - name: Linux (x86_64)
             os: ubuntu-22.04
             artifact: linux-x64
+            asset-name: linux-x64
             args: ""
             rust-targets: ""
           - name: Windows 11 (x64)
             os: windows-latest
             artifact: windows-x64
+            asset-name: windows-x64
             args: ""
             rust-targets: ""
     steps:
@@ -345,6 +349,10 @@ jobs:
           releaseName: Marvel Champions ${{ needs.check-and-cut-release.outputs.tag }}
           releaseDraft: true
           prerelease: true
+          # Release assets name their platform and variant (scripts/lib/release-collector.mjs names local builds the
+          # same way, and update-check.ts matches them): MarvelChampions-0.21.0-windows-x64-setup.exe, -windows-x64.msi,
+          # -macos-apple-silicon.dmg, -macos-intel.dmg, -linux-x64.deb / .rpm / .AppImage.
+          assetNamePattern: MarvelChampions-[version]-${{ matrix.asset-name }}[setup][ext]
 
       - uses: actions/upload-artifact@v4
         with:
