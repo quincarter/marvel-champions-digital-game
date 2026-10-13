@@ -303,3 +303,65 @@ describe("H3.14 the payment query and legal actions", () => {
     expect(priceOrNull(ctx, P1, [use(t)], one)).toMatchObject({ energy: 0 });
   });
 });
+
+describe("a play with nothing to pay still has a pay step when overpaying matters", () => {
+  it("a cost-0 card reading overpaid.* gets a query, marked overpayMatters, with and without the resource", () => {
+    const withStar = table([ZERO.id]);
+    const [zero] = withStar.hand as [InstanceId];
+    const query = paymentFor(withStar.state, P1, { kind: "playCard", instanceId: zero }, {}, deps);
+    expect(query).toMatchObject({ overpayMatters: true, suggested: [] });
+    expect(query?.sources.some((s) => s.overpayOnly)).toBe(true);
+    // Paying nothing stays the default, and is accepted.
+    expect(tryPayment(withStar.state, P1, { kind: "playCard", instanceId: zero }, [], {}, deps).ok).toBe(true);
+    // The resource alone is accepted too, overpaying by 1.
+    expect(
+      tryPayment(withStar.state, P1, { kind: "playCard", instanceId: zero }, [starOption(withStar)], {}, deps).ok,
+    ).toBe(true);
+
+    const bare = gameAtFirstTurn({
+      cards: CARDS,
+      deps,
+      villain: QUIET_VILLAIN,
+      deck: CARDS.flatMap((c) => [c.id, c.id, c.id]),
+    });
+    const inHand = mustPlayer(bare, P1).deck.find((id) => mustInstance(bare, id).cardId === ZERO.id) as InstanceId;
+    const handed: GameState = {
+      ...bare,
+      players: bare.players.map((p) => (p.playerId === P1 ? { ...p, hand: [inHand] } : p)),
+    };
+    expect(paymentFor(handed, P1, { kind: "playCard", instanceId: inHand }, {}, deps)?.overpayMatters).toBe(true);
+  });
+
+  it("a cost-0 card that does not read overpaid.*, with no such resource in play, has no pay step", () => {
+    const t = table([GADGET.id], GADGET);
+    const [gadget] = t.hand as [InstanceId];
+    expect(paymentFor(t.state, P1, { kind: "playCard", instanceId: gadget }, {}, deps)).toBeNull();
+  });
+
+  it("a cost-0 card that does not read overpaid.* still gets the step while an overpay-only resource is in play", () => {
+    const t = table([GADGET.id]);
+    const [gadget] = t.hand as [InstanceId];
+    expect(paymentFor(t.state, P1, { kind: "playCard", instanceId: gadget }, {}, deps)?.overpayMatters).toBe(true);
+  });
+});
+
+describe("legalActions marks a cost-0 play whose overpaying matters as needing the pay step", () => {
+  const needsPaymentOf = (state: GameState, id: InstanceId): boolean | undefined => {
+    const listed = legalActions(state, P1, deps);
+    if (listed.kind !== "turn") throw new Error("expected P1's turn");
+    return listed.legal.find((a) => a.action.kind === "playCard" && a.action.instanceId === id)?.needsPayment;
+  };
+
+  it("a card reading overpaid.*, and any card while the overpay-only resource is in play", () => {
+    const t = table([ZERO.id, GADGET.id]);
+    const [zero, gadget] = t.hand as [InstanceId, InstanceId];
+    expect(needsPaymentOf(t.state, zero)).toBe(true);
+    expect(needsPaymentOf(t.state, gadget)).toBe(true);
+  });
+
+  it("a plain cost-0 card with no such resource in play stays a one-tap free play", () => {
+    const t = table([GADGET.id], GADGET);
+    const [gadget] = t.hand as [InstanceId];
+    expect(needsPaymentOf(t.state, gadget)).toBe(false);
+  });
+});

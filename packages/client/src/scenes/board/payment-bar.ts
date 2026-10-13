@@ -36,7 +36,9 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
     .setLetterSpacing(1);
 
   const buttonWidth = Math.max(64, Math.min(120, rect.width * 0.16));
-  const payCancelLeft = rect.x + rect.width - buttonWidth * 2 - 18;
+  // "Play without overpaying" is long for a button: the Pay button grows to hold it.
+  const payWidth = payment.payLabel ? Math.max(buttonWidth, Math.min(200, rect.width * 0.3)) : buttonWidth;
+  const payCancelLeft = rect.x + rect.width - buttonWidth - payWidth - 18;
 
   // A `playCostReduction` ability (docs/phase7-wave3.md §3.20; Star-Lord's "What could go wrong?") is never
   // guessed for the player — it costs its own price (dealing yourself a facedown encounter card, here), so it
@@ -82,23 +84,24 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
     const note = payment.priceNote ? ` ${payment.priceNote}.` : "";
     // What the picks add beyond the cost, and who helped pay: counted from the engine's own query, never worked out here.
     const over = payment.overpaidNote ? ` ${payment.overpaidNote}.` : "";
+    const held = payment.lockedNote ? ` ${payment.lockedNote}.` : "";
     const helped = payment.helperLines.map((line) => ` ${line}.`).join("");
     scene.add
       .text(
         headlineLeft,
         rect.y + rect.height / 2,
-        `${payment.headline}.${note} Tap cards to spend.${outstanding}${over}${helped}`,
+        `${payment.headline}.${note} Tap cards to spend.${outstanding}${over}${held}${helped}`,
         textStyle(typeRole.emphasis, surface.paper.hex),
       )
       .setOrigin(0, 0.5)
       .setWordWrapWidth(headlineRoom)
       .setMaxLines(2);
   }
-  const payRect: Rect = { x: buttonsLeft, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 };
+  const payRect: Rect = { x: buttonsLeft, y: rect.y + 4, width: payWidth, height: rect.height - 8 };
   ctx.frame.buttons.push(
     new McButton(scene, {
       kind: "secondary",
-      label: "Pay",
+      label: payment.payLabel ?? "Pay",
       type: typeRole.label,
       rect: payRect,
       enabled: payment.command !== null,

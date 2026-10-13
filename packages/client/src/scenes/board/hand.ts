@@ -278,12 +278,15 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
     const tile = tiles[index];
     if (!tile) return;
     drawTableTile(ctx, tile, game, source.instanceId, source.spent ? "selected" : "rest");
-    if (source.spent) {
+    if (source.spent || source.lockedReason) {
       const wash = scene.add.graphics();
       wash.fillStyle(surface.ink.hex, 0.3).fillRect(tile.x + 3, tile.y + 3, tile.width - 6, tile.height - 6);
     }
     // A hand card spent through its own ability (Energy Siphon) says the amount it takes, one tile per amount.
-    const where = source.helperName ?? source.amountNote ?? (source.spendsHandCard ? "from hand" : "in play");
+    const where =
+      source.helperName ??
+      source.amountNote ??
+      (source.overpayOnly ? "overpay only" : source.spendsHandCard ? "from hand" : "in play");
     tableTag(
       scene,
       tile,

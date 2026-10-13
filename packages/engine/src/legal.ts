@@ -107,6 +107,7 @@ import {
   isAlly,
   isCaptiveAlly,
   matchesQuery,
+  printedAbilityRefs,
   triggeringPlayers,
   type EffectContext,
 } from "./select.js";
@@ -156,7 +157,10 @@ export interface LegalAction {
   readonly blockedTargets: readonly BlockedTarget[];
   /** Players who may control the card, for "play under any player's control" cards. */
   readonly controllers?: readonly PlayerId[];
-  /** True when the action costs resources, so the client opens the payment step. */
+  /**
+   * True when the action costs resources, so the client opens the payment step. Also true for a play that costs
+   * nothing when overpaying matters for it (`PaymentQuery.overpayMatters`).
+   */
   readonly needsPayment: boolean;
   /**
    * An either/or cost ("Choose to either exhaust your hero or spend 2 resources of any type →"; docs/phase7-wave3.md
@@ -968,6 +972,7 @@ function evaluate(
     };
   }
   const payment = smallestPayment(state, deps, first.variant.build, first.wallet);
+  const example = first.variant.build(payment);
   const targets = [...new Set(working.flatMap((t) => (t.variant.target === null ? [] : [t.variant.target])))];
   const controllers = variants.some((v) => v.controllerId !== undefined)
     ? [...new Set(working.flatMap((t) => (t.variant.controllerId ? [t.variant.controllerId] : [])))]
@@ -986,11 +991,12 @@ function evaluate(
   return {
     legal: {
       action,
-      example: first.variant.build(payment),
+      example,
       targets,
       blockedTargets,
       ...(controllers ? { controllers } : {}),
-      needsPayment: payment.length > 0,
+      needsPayment:
+        payment.length > 0 || ("playerId" in example && overpayMatters(state, deps, example.playerId, action)),
       ...(costBranches ? { costBranches } : {}),
       ...(costHelp.length > 0 ? { costHelp } : {}),
     },
@@ -1634,6 +1640,12 @@ export interface PaymentQuery {
    * `requirement` is then what the rest of the cost asks (0).
    */
   readonly chosenResources?: { readonly min: number; readonly max: number };
+  /**
+   * Overpaying matters for this play: the card reads an `overpaid.*` value, or a resource that can only be overpaid
+   * (`PaymentSource.overpayOnly`) is on offer for it. Set only on a play with nothing to pay, where it is the whole
+   * reason the query exists; the cost is 0, so paying nothing is a legal default and anything spent is overpaid.
+   */
+  readonly overpayMatters?: true;
 }
 
 export type PaymentAttempt =
@@ -1842,6 +1854,34 @@ function payableFor(
 }
 
 /**
+ * A play with nothing to pay that still has a pay step: overpaying means something for it. The card reads an
+ * `overpaid.*` value, or a resource that can only be overpaid is on offer (`PaymentSource.overpayOnly`).
+ */
+function overpayMatters(state: GameState, deps: EngineDeps, playerId: PlayerId, action: ActionRef): boolean {
+  if (action.kind !== "playCard") return false;
+  if (readsOverpaid(state, deps, action)) return true;
+  return paymentOptions(createCtx(state, deps), playerId, action.instanceId, action.instanceId).some(
+    (option) => option.ref.kind === "ability" && deps.abilities[option.ref.abilityId]?.overpayOnly === true,
+  );
+}
+
+/** Whether a played card's printed abilities read an `overpaid.*` value anywhere in their text. */
+function readsOverpaid(state: GameState, deps: EngineDeps, action: ActionRef): boolean {
+  if (action.kind !== "playCard") return false;
+  const card = cardOf(state, action.instanceId);
+  return !!card && printedAbilityRefs(card).some((ref) => mentionsOverpaid(deps.abilities[ref.id]));
+}
+
+function mentionsOverpaid(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(mentionsOverpaid);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  const name = record.kind === "var" || record.kind === "varAtLeast" ? record.name : undefined;
+  if (typeof name === "string" && name.startsWith("overpaid.")) return true;
+  return Object.values(record).some(mentionsOverpaid);
+}
+
+/**
  * What the player must pay for `action`, what they may pay it with, and the
  * payment the engine itself would make. Null when there is nothing to decide:
  * a basic action with no additional resource cost (a basic attack or thwart
@@ -1862,7 +1902,10 @@ export function paymentFor(
 ): PaymentQuery | null {
   if (!getPlayer(state, playerId)) return null;
   const payable = payableFor(state, deps, playerId, action, options);
-  if (!payable || payable.requirement === null || !payable.spendable) return null;
+  if (!payable || payable.requirement === null) return null;
+  // A play with nothing to pay still has a pay step when overpaying means something for the card (checked below,
+  // once the sources are known).
+  if (!payable.spendable && action.kind !== "playCard") return null;
   const ctx = createCtx(state, deps);
   const discardTop = getPlayer(state, playerId)?.discard[0] ?? null;
   const sources = paymentOptions(ctx, playerId, payable.excludeInstanceId, payable.payingFor).flatMap<PaymentSource>(
@@ -1971,10 +2014,14 @@ export function paymentFor(
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;
   }
+  const overpayMatters =
+    !payable.spendable && (sources.some((source) => source.overpayOnly) || readsOverpaid(state, deps, action));
+  if (!payable.spendable && !overpayMatters) return null;
   return {
     requirement: payable.requirement,
     sources,
     suggested,
+    ...(overpayMatters ? { overpayMatters: true as const } : {}),
     ...(payable.chosenResources ? { chosenResources: payable.chosenResources } : {}),
   };
 }

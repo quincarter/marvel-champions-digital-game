@@ -116,6 +116,11 @@ export interface PaymentSourceView extends PaymentSource {
    * card of your discard pile" reads next (Pepper Potts, FAQ "Pepper Potts (#33)", RRG 1.8 p. 57).
    */
   readonly onTop: boolean;
+  /**
+   * Why this source cannot be picked yet, or null. A resource that can only be overpaid (`overpayOnly`: Mr.
+   * Hollywood) never makes the payment covered, so it is held until the rest of the picks cover the cost by themselves.
+   */
+  readonly lockedReason: string | null;
 }
 
 export interface PaymentView {
@@ -191,6 +196,10 @@ export interface PaymentView {
    * when it matters (`paidResourcesChosen`), so no type is named. 0 when nothing is over.
    */
   readonly overpaid: number;
+  /** Why an overpay-only source (Mr. Hollywood) is held, with its name: "Mr. Hollywood: only to overpay…"; null when none is. */
+  readonly lockedNote: string | null;
+  /** The Pay button's words when nothing is picked on a play that costs nothing but could be overpaid; else null. */
+  readonly payLabel: string | null;
   /** "Overpaid by 2", or null. What overpaying does for the card is not exposed by the engine, so it is not said. */
   readonly overpaidNote: string | null;
   /**
@@ -317,7 +326,15 @@ export function paymentView(
     else spendable.set(source.optionId, source);
   }
 
-  const paid = picked.reduce((total, optionId) => total + poolTotal(byOption.get(optionId)?.pool), 0);
+  const countsToCost = (optionId: string) => byOption.get(optionId)?.overpayOnly !== true;
+  const paid = picked.reduce(
+    (total, optionId) => total + (countsToCost(optionId) ? poolTotal(byOption.get(optionId)?.pool) : 0),
+    0,
+  );
+  const overpayOnlyPaid = picked.reduce(
+    (total, optionId) => total + (countsToCost(optionId) ? 0 : poolTotal(byOption.get(optionId)?.pool)),
+    0,
+  );
 
   const { action } = payment;
   const subject = action.kind === "playCard" || action.kind === "useAbility" ? action.instanceId : null;
@@ -325,13 +342,13 @@ export function paymentView(
     action.kind === "playCard" ? costReductionOptionsFor(state, playerId, action.instanceId, deps) : [];
   const reductionAmount = costReductionTotal(payment.reductions, deps);
 
-  const attempt =
+  const attemptWith = (ids: readonly string[]) =>
     action.kind === "playCard" && payment.reductions.length > 0
       ? tryReducedPlay(
           state,
           playerId,
           action.instanceId,
-          picked,
+          ids,
           query.sources,
           payment.reductions,
           deps,
@@ -345,7 +362,7 @@ export function paymentView(
           state,
           playerId,
           payment.action,
-          picked,
+          ids,
           paymentContext(
             payment.target,
             payment.controllerId,
@@ -356,6 +373,11 @@ export function paymentView(
           ),
           deps,
         );
+  const attempt = attemptWith(picked);
+  // The cost is covered when the picks that count toward it are accepted without the overpay-only ones.
+  const covered = query.sources.some((source) => source.overpayOnly)
+    ? attemptWith(picked.filter(countsToCost)).ok
+    : attempt.ok;
 
   const requirement =
     reductionAmount > 0
@@ -369,11 +391,15 @@ export function paymentView(
     amountNote: amountNoteOf(source),
     discardOrder: order.get(source.optionId)?.position ?? null,
     onTop: order.get(source.optionId)?.onTop ?? false,
+    lockedReason:
+      source.overpayOnly && !picked.includes(source.optionId) && !covered
+        ? "Only to overpay: pick what pays for the card first"
+        : null,
   }));
   // A chosen-size cost (`chosenResources`) spends up to `max` and overpays the rest; any other cost spends what it
   // requires. Only counted once the engine accepts the selection.
   const requiredTotal = poolTotal(requirement) + (query.chosenResources?.max ?? 0);
-  const overpaid = attempt.ok ? Math.max(0, paid - requiredTotal) : 0;
+  const overpaid = attempt.ok ? Math.max(0, paid - requiredTotal) + overpayOnlyPaid : 0;
   return {
     headline,
     subject,
@@ -389,6 +415,11 @@ export function paymentView(
     tableSources: sources.filter((source) => source.kind === "resourceAbility" || source.helperName !== null),
     subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     overpaid,
+    lockedNote: ((held) => (held ? `${held.label}: ${held.lockedReason}` : null))(
+      sources.find((source) => source.lockedReason !== null),
+    ),
+    payLabel:
+      picked.length === 0 && poolTotal(requirement) === 0 && query.overpayMatters ? "Play without overpaying" : null,
     overpaidNote: overpaid > 0 ? `Overpaid by ${overpaid}` : null,
     // A helper's cards, then the parts of the cost a helper pays in the user's place (`costSelection.paidBy`).
     helperLines: [...helperLinesOf(sources), ...costHelpLines(state, playerId, payment.costSelection)],

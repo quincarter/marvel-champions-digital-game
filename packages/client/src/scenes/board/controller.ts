@@ -1232,6 +1232,8 @@ export class BoardController {
   /** Spends or un-spends one source. The engine re-judges the whole selection. */
   #togglePayment(optionId: string): void {
     if (this.#selection.kind !== "paying") return;
+    // The view decides what is held (an overpay-only source before the cost is covered), never this scene.
+    if (this.paymentView()?.sources.find((source) => source.optionId === optionId)?.lockedReason) return;
     this.#selection = { kind: "paying", payment: togglePayment(this.#selection.payment, optionId) };
     this.#host.redraw();
   }
