@@ -1,3 +1,0 @@
-kind: Changed
-body: Update Capacitor, Tauri, Playwright, Vite, Vitest, oxlint, oxfmt and lint-staged to their latest releases, and @types/node to the Node 24 line
-time: 2026-10-13T01:10:00.000000+00:00

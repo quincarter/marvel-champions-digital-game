@@ -1,3 +1,0 @@
-kind: Added
-body: 'Undo beside End turn (or the Z key) takes back the hero''s own last move this turn; it stops at the start of the turn, at another player''s move, and at anything that drew, revealed or searched cards'
-time: 2026-10-12T22:44:26.000000000+00:00
