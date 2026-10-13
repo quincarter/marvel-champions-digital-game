@@ -89,6 +89,7 @@ import {
   type SearchedPickView,
 } from "../../view/play-aim.js";
 import { actionAbilityCost } from "../../view/cost-choice-model.js";
+import { refusedAbilityLine } from "../../view/ability-refusal.js";
 import {
   consentHelpersOf,
   costHelpPromptsFor,
@@ -998,6 +999,18 @@ export class BoardController {
         ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, POOL_DEPS) ?? "use")
         : `${abilities.length} abilities — tap to see`;
     return `▶ ${text}`;
+  }
+
+  /**
+   * Why an ability on this card cannot be used right now, one line each, for the abilities the engine refused because a
+   * printed condition is unmet (New Labors of Hercules with a Labor card in play). The card's own strips carry them.
+   */
+  refusedAbilityLines(instanceId: InstanceId): readonly string[] {
+    if (this.#readOnly) return [];
+    const ids = this.#host.marks()?.refusedAbilities?.get(instanceId);
+    const { game, perspectiveId } = appSession().store.state;
+    if (!ids || !game || perspectiveId === null) return [];
+    return ids.map((id) => refusedAbilityLine(game, instanceId, perspectiveId, id, POOL_DEPS, ids.length > 1));
   }
 
   /**

@@ -191,7 +191,14 @@ export function drawCharacter(
     top += 26;
   }
   top = drawStatusTags(ctx, left, top, textWidth, panel, dim, compact);
-  for (const effect of panel.effects) {
+  // The seat's lasting effects and Gift count, the Gift count a card reads, and an ability the engine refused with the
+  // part of its condition that failed (`view/ability-refusal.ts`): all notes in words.
+  const notes = [
+    ...panel.effects,
+    ...(panel.countNote ? [panel.countNote] : []),
+    ...controller.refusedAbilityLines(panel.instanceId),
+  ];
+  for (const effect of notes) {
     // A counter or effect line that does not fit one row wraps and its strip grows ("2 POWER COUNT…" is never drawn).
     const height = Math.max(16, footStripLayout(effect, textWidth).height);
     drawFootStrip(scene, { x: left, y: top, width: textWidth, height }, effect, "note", dim);
@@ -599,6 +606,10 @@ function drawCardShapedPanel(
   if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
   // A Labor card: an encounter card a player owns, so the table says whose deck it came from.
   if (panel.ownedBy && rect.height >= 40) strips.push({ text: panel.ownedBy, tone: "note" });
+  if (panel.countNote && rect.height >= 40) strips.push({ text: panel.countNote, tone: "note" });
+  if (rect.height >= 40) {
+    for (const line of controller.refusedAbilityLines(panel.instanceId)) strips.push({ text: line, tone: "note" });
+  }
   // What is tucked under this card (a minion with Energy Shield under it, an ally): the count, and a tap opens them.
   if (panel.tuckedCount > 0 && rect.height >= 40) {
     strips.push({

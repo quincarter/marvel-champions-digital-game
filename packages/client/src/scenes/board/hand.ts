@@ -3,6 +3,7 @@
  * card's face — a scan, or the generated fallback.
  */
 
+import { countChipText } from "../../view/gift-count.js";
 import { noTargetTag } from "../../view/hand-reason.js";
 import { teamUpTagFor, type TeamUpRole } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
@@ -29,7 +30,6 @@ import {
   drawAbilityBar,
   destinationQuestionRow,
   drawDestinationBar,
-  drawSearchedPickBar,
   drawFormBar,
   drawPlayConfirmBar,
   drawSourceBar,
@@ -82,7 +82,6 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const formChoice = ctx.controller.formChoice();
   const abilityChoice = ctx.controller.abilityChoice();
   const destinationChoice = ctx.controller.destinationChoice();
-  const searchedPick = ctx.controller.searchedPick();
   let top = rect.y + HAND_CAPTION_HEIGHT;
   if (sourceChoice) {
     const height = hit.target + SOURCE_BAR_NOTE;
@@ -98,10 +97,6 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     // On a narrow bar the question gets its own line above the buttons, so the bar is that much taller.
     const height = BAR_HEIGHT + destinationQuestionRow(rect.width);
     drawDestinationBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, destinationChoice);
-    top = rect.y + height + 4;
-  } else if (searchedPick) {
-    const height = BAR_HEIGHT + destinationQuestionRow(rect.width);
-    drawSearchedPickBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, searchedPick);
     top = rect.y + height + 4;
   } else if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, playConfirmation);
@@ -527,6 +522,7 @@ function drawHandCard(
     fitWrapped(tagText, slot.width - 6 - 8, 2, typeRole.label.size);
   }
   drawPriceChip(scene, inner, card, alpha);
+  drawCountChip(scene, inner, card, alpha);
   if (!payment && !discard) drawTeamUpTag(ctx, slot, card, tag !== null);
 
   if (spent) {
@@ -650,6 +646,29 @@ function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alp
     )
     .setOrigin(0.5);
   fitText(text, chip.width - 4, typeRole.statSmall.size);
+}
+
+/**
+ * "GIFT CARDS: 2" along the foot of a hand card that reads a count (The Gift of Battle, Wisdom of Athena, Son of Zeus),
+ * so the number the price or the effect turns on is on the card and not only in the log. Words and a number, never a
+ * color alone; the full sentence ("Counts Gift cards you control: 2") is in Inspect.
+ */
+function drawCountChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alpha: number): void {
+  if (!card.countNote || inner.width < 60) return;
+  const chip: Rect = { x: inner.x, y: inner.y + inner.height - 16, width: inner.width, height: 16 };
+  scene.add
+    .graphics()
+    .fillStyle(surface.ink.hex, 0.88 * alpha)
+    .fillRect(chip.x, chip.y, chip.width, chip.height);
+  const text = scene.add
+    .text(
+      chip.x + chip.width / 2,
+      chip.y + chip.height / 2,
+      caseOf(typeRole.label, countChipText(card.countNote)),
+      textStyle(typeRole.label, surface.paper.hex, alpha),
+    )
+    .setOrigin(0.5);
+  fitText(text, chip.width - 6, typeRole.label.size);
 }
 
 /**

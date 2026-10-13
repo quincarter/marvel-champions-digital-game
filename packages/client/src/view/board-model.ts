@@ -13,6 +13,7 @@ import {
   cardOf,
   cardsInPlay,
   characterProfile,
+  controllerOf,
   currentName,
   getInstance,
   isOwnedEncounterCard,
@@ -65,6 +66,7 @@ import {
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { breakPointOf } from "./break-point.js";
+import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
 import { counterLimitsOf } from "./counter-limit.js";
 import { otherFaceVisible } from "./hidden-reverse.js";
@@ -228,6 +230,8 @@ export interface CharacterPanel {
   readonly ownerName: string | null;
   /** "Hercules's Labor" on a Labor card in a play area (an encounter card a player owns); null for every other card. */
   readonly ownedBy: string | null;
+  /** "Counts Gift cards you control: 2" on a card that reads the Gift count (Olympus); null for every other card. */
+  readonly countNote: string | null;
   /** Lasting effects aimed at this identity's seat, as short notes ("next card costs 1 less"). */
   readonly effects: readonly string[];
   /**
@@ -606,6 +610,8 @@ export interface HandCardView {
    * reduction, which carries no source card of its own.
    */
   readonly costSources: readonly string[];
+  /** "Counts Gift cards you control: 2" on a hand card that reads the Gift count; null for every other card. */
+  readonly countNote: string | null;
   /** Current (errata'd) rules text; the table caps it, Inspect shows it whole. */
   readonly rulesText: string;
   /** The icons this card produces when spent as a resource. */
@@ -1221,7 +1227,8 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
         ? playerName(state, instance.ownerId)
         : null,
     ownedBy: ownedEncounterLabel(state, id),
-    effects: seatEffectsOf(state, state.players.find((seat) => seat.identity.instanceId === id)?.playerId ?? null),
+    countNote: giftReaderNote(state, id, controllerOf(state, id) ?? state.players[0]!.playerId, deps),
+    effects: seatNotesOf(state, state.players.find((seat) => seat.identity.instanceId === id)?.playerId ?? null, deps),
     tucked: tuckedCardsUnder(state, id),
     tuckedCount: instance.tucked.length,
     heldBy: heldByOf(state, id),
@@ -1276,6 +1283,12 @@ function heldCharacters(state: GameState): readonly InstanceId[] {
  * cost of the next card that player plays") otherwise leaves no trace on the
  * table that it happened, or to whom.
  */
+/** The seat's lasting effects and, for a hero with a Gift deck, the Gift count as the engine reads it. */
+function seatNotesOf(state: GameState, playerId: PlayerId | null, deps: EngineDeps): readonly string[] {
+  const gift = playerId === null ? null : giftSeatNote(state, playerId, deps);
+  return [...seatEffectsOf(state, playerId), ...(gift ? [gift] : [])];
+}
+
 function seatEffectsOf(state: GameState, playerId: PlayerId | null): readonly string[] {
   if (playerId === null) return [];
   const reduction = state.lastingEffects.reduce(
@@ -1950,6 +1963,7 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
       cost: null,
       currentCost: null,
       costSources: [],
+      countNote: null,
       rulesText: "",
       resourceIcons: [],
       art: null,
@@ -1969,6 +1983,7 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
     cost: price?.printed ?? null,
     currentCost: price?.current ?? null,
     costSources: price ? costSourceNames(state, price) : [],
+    countNote: giftReaderNote(state, id, playerId, deps),
     // `current`, not `printed`: the errata'd wording is what the game plays by.
     rulesText: "text" in card ? card.text.current : "",
     // What it generates right now, not only printed icons: Band Together (`mts` 21018) prints none and generates a

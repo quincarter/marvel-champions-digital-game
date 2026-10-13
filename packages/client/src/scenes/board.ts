@@ -75,6 +75,7 @@ import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js"
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
+import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
@@ -1101,6 +1102,8 @@ export class BoardScene extends Phaser.Scene {
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
     this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
+    const searchedPick = this.#controller.searchedPick();
+    if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
     this.#drawTargetRings();
     this.#drawFocusRing();
     // Turns the moves of a fresh state (if any landed) into travels, now that

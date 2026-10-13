@@ -19,6 +19,7 @@ import {
   type InstanceId,
   type LegalAction,
 } from "@mc/engine";
+import { artFor, defaultFaceFor, type ArtSource } from "../art/art-source.js";
 import { actionAbilityCost } from "./cost-choice-model.js";
 import { cardName } from "./names.js";
 
@@ -126,6 +127,16 @@ export interface SearchedPickOption {
   readonly name: string;
   /** "in the encounter deck" or "in the encounter discard": the area as words, so it is read without colour. */
   readonly area: string;
+  /** The card id, for Inspect: a card in the encounter deck is facedown on the table, but a search shows it. */
+  readonly cardId: string;
+  /** The printed front, shown because the search turned the candidates up (Inspect opens the same). Null without a scan. */
+  readonly art: ArtSource | null;
+  /** "ENCOUNTER DECK" / "ENCOUNTER DISCARD": the area tag drawn on the face, in words. */
+  readonly areaTag: string;
+  /** "Minion", for the line under the name. */
+  readonly typeWord: string;
+  /** "copy 2 of 3" when the same card (name and area) is listed more than once, else null. */
+  readonly copy: string | null;
   /** "Hellcat - in the encounter deck", numbered when two options would otherwise read the same. */
   readonly label: string;
 }
@@ -135,6 +146,11 @@ export interface SearchedPickView {
   readonly prompt: string;
   readonly options: readonly SearchedPickOption[];
 }
+
+const AREA_TAGS: Readonly<Record<string, string>> = {
+  encounterDeck: "ENCOUNTER DECK",
+  encounterDiscard: "ENCOUNTER DISCARD",
+};
 
 const AREA_WORDS: Readonly<Record<string, string>> = {
   encounterDeck: "in the encounter deck",
@@ -154,7 +170,17 @@ export function searchedPickFor(state: GameState, deps: EngineDeps, entry: Legal
     const name = cardOf(state, instanceId)?.name ?? "Card";
     const zone = locateCard(state, instanceId);
     const area = (zone && AREA_WORDS[zone.kind]) || "out of play";
-    return { instanceId, name, area, text: `${name} - ${area}` };
+    const card = cardOf(state, instanceId);
+    return {
+      instanceId,
+      name,
+      area,
+      cardId: (card?.id as string | undefined) ?? "",
+      art: card ? artFor(card, defaultFaceFor(card)) : null,
+      areaTag: (zone && AREA_TAGS[zone.kind]) || "OUT OF PLAY",
+      typeWord: card ? card.type.charAt(0).toUpperCase() + card.type.slice(1).replace(/_/g, " ") : "Card",
+      text: `${name} - ${area}`,
+    };
   });
   const total = new Map<string, number>();
   for (const option of base) total.set(option.text, (total.get(option.text) ?? 0) + 1);
@@ -162,7 +188,8 @@ export function searchedPickFor(state: GameState, deps: EngineDeps, entry: Legal
   const options = base.map(({ text, ...option }): SearchedPickOption => {
     const nth = (seen.get(text) ?? 0) + 1;
     seen.set(text, nth);
-    return { ...option, label: (total.get(text) ?? 0) > 1 ? `${text} (${nth})` : text };
+    const of = total.get(text) ?? 0;
+    return { ...option, label: of > 1 ? `${text} (${nth})` : text, copy: of > 1 ? `copy ${nth} of ${of}` : null };
   });
   return { prompt: playAimPrompt(state, deps, entry), options };
 }

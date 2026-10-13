@@ -135,6 +135,15 @@ describe("Tigra: Hunted's minion pick is a list with the area of each candidate"
     for (const option of pick!.options) {
       expect(option.label).toMatch(/ - in the encounter (deck|discard)( \(\d\))?$/);
       expect(option.area).toMatch(/^in the encounter (deck|discard)$/);
+      // The sheet shows the printed face, an area tag in words, and the card id Inspect opens.
+      expect(option.areaTag).toBe(option.area === "in the encounter deck" ? "ENCOUNTER DECK" : "ENCOUNTER DISCARD");
+      expect(option.typeWord).toBe("Minion");
+      // A card listed more than once says which copy it is; a unique one says nothing.
+      const same = pick!.options.filter(
+        (other) => other.label.replace(/ (d)$/, "") === option.label.replace(/ (d)$/, ""),
+      );
+      expect(option.copy === null).toBe(same.length === 1);
+      expect(option.cardId).toBe(state.instances[option.instanceId]!.cardId);
     }
     // Two candidates that read the same are told apart by number.
     const labels = pick!.options.map((option) => option.label);

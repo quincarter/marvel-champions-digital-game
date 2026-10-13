@@ -55,6 +55,7 @@ import {
 } from "../view/payment-sheet.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
+import { keywordOrderTilesOf } from "../view/keyword-order-choice.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
   railReserve,
@@ -1998,8 +1999,13 @@ export class ChoiceOverlay extends Phaser.Scene {
       width: slot.width - 6,
       height: slot.height - 6 - (bar ? barHeight + 6 : 0),
     };
+    // Which keyword resolves first: the minion is the one source card beside the sheet, so each option is its keyword
+    // in words, never a second copy of the same face (`view/keyword-order-choice.ts`).
+    const keywordTile = state?.pendingChoice
+      ? keywordOrderTilesOf(state.pendingChoice)?.get(option.optionId)
+      : undefined;
     const source =
-      state && instanceId
+      state && instanceId && !keywordTile
         ? artFor(
             state.cardPool[state.instances[instanceId]?.cardId ?? ""],
             abilityFaceOf(state, instanceId, option.ref.kind === "ability" ? option.ref.abilityId : null),
@@ -2015,7 +2021,27 @@ export class ChoiceOverlay extends Phaser.Scene {
      * and threat box outside the frame. For the portrait cards this slot usually
      * holds the two fits are identical, so nothing is lost by being safe.
      */
-    if (!drawArt(this, key, inner, { fit: "contain" })) {
+    if (keywordTile) {
+      const pad = 10;
+      const name = this.add
+        .text(inner.x + pad, inner.y + pad + 22, keywordTile.name, textStyle(typeRole.rowTitle, surface.ink.hex))
+        .setFontSize(20);
+      fitText(name, inner.width - pad * 2, 20);
+      const line = this.add
+        .text(
+          inner.x + pad,
+          name.y + name.height + 8,
+          keywordTile.line,
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        )
+        .setLineSpacing(2);
+      fitWrapped(
+        line,
+        inner.width - pad * 2,
+        Math.max(3, Math.floor((inner.y + inner.height - line.y - pad) / 16)),
+        14,
+      );
+    } else if (!drawArt(this, key, inner, { fit: "contain" })) {
       // No scan: the name is the option, exactly as the list form shows it.
       this.add
         .text(

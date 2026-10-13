@@ -9,7 +9,6 @@ import { textStyle } from "../../ui/theme.js";
 import { McButton, fitText } from "../../ui/widgets.js";
 import { sourceFocusKey } from "../../view/guide-source-override.js";
 import type { Rect } from "../../view/layout.js";
-import type { SearchedPickView } from "../../view/play-aim.js";
 import type { BoardDrawContext } from "./context.js";
 import type {
   AbilityChoiceView,
@@ -363,60 +362,6 @@ export function drawDestinationBar(ctx: BoardDrawContext, rect: Rect, choice: De
       }),
     );
     ctx.frame.focusRects.set(`destination:${index}`, rectOf);
-  });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
-      type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: buttonsY, width: cancelWidth, height: buttonsHeight },
-      onClick: () => controller.cancel(),
-    }),
-  );
-}
-
-/**
- * "Hunted: choose the minion to search for - Hellcat, in the encounter deck / Titania, in the encounter discard /
- * Cancel", over the hand. The candidates are not on the board, so they are listed with the area each was found in,
- * in words (never a colour alone).
- */
-export function drawSearchedPickBar(ctx: BoardDrawContext, rect: Rect, pick: SearchedPickView): void {
-  const { scene, controller } = ctx;
-  const g = scene.add.graphics();
-  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
-  const narrow = rect.width < 640;
-  const questionRow = destinationQuestionRow(rect.width);
-  const titleWidth = narrow ? 10 : Math.min(240, rect.width * 0.28);
-  const title = scene.add
-    .text(
-      rect.x + 12,
-      narrow ? rect.y + 8 : rect.y + rect.height / 2,
-      pick.prompt,
-      textStyle(narrow ? { ...typeRole.barTitle, size: 16 } : typeRole.barTitle, surface.paper.hex),
-    )
-    .setOrigin(0, narrow ? 0 : 0.5);
-  fitText(title, narrow ? rect.width - 24 : titleWidth - 16, narrow ? 16 : typeRole.barTitle.size);
-  const buttonsY = rect.y + 4 + questionRow;
-  const buttonsHeight = rect.height - 8 - questionRow;
-  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
-  const gap = 6;
-  const left = rect.x + titleWidth;
-  const right = rect.x + rect.width - cancelWidth - 10 - gap;
-  const count = Math.max(1, pick.options.length);
-  const width = Math.max(48, (right - left - gap * (count - 1)) / count);
-  pick.options.forEach((option, index) => {
-    const rectOf: Rect = { x: left + index * (width + gap), y: buttonsY, width, height: buttonsHeight };
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: `${index + 1} ${option.label}`,
-        type: typeRole.label,
-        rect: rectOf,
-        onClick: () => void controller.chooseSearched(option.instanceId),
-      }),
-    );
-    ctx.frame.focusRects.set(`searched:${index}`, rectOf);
   });
   ctx.frame.buttons.push(
     new McButton(scene, {
