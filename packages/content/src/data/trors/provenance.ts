@@ -390,7 +390,14 @@ export const TRORS_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("04137"), cardSetCode: "red_skull", marvelcdbCodes: ["04137"], corrections: [] },
   { cardId: cardId("04138"), cardSetCode: "red_skull", marvelcdbCodes: ["04138"], corrections: [] },
   { cardId: cardId("04139"), cardSetCode: "red_skull", marvelcdbCodes: ["04139"], corrections: [] },
-  { cardId: cardId("04140"), cardSetCode: "red_skull", marvelcdbCodes: ["04140"], corrections: [] },
+  {
+    cardId: cardId("04140"),
+    cardSetCode: "red_skull",
+    marvelcdbCodes: ["04140"],
+    corrections: [
+      "04140: The When Revealed paragraph is two abilities: putting The Sleeper into play, then a standing instruction that applies for as long as the scheme is in play (\"When The Sleeper is defeated, remove this card from the game.\"). With only the When Revealed ref nothing ever removed the scheme, so it needs its own ref. [evidence: raw (04140): \"When Revealed: Put The Sleeper into play engaged with the first player. When The Sleeper is defeated, remove this card from the game.\"]",
+    ],
+  },
   { cardId: cardId("04141"), cardSetCode: "red_skull", marvelcdbCodes: ["04141"], corrections: [] },
   { cardId: cardId("04142"), cardSetCode: "red_skull", marvelcdbCodes: ["04142"], corrections: [] },
   { cardId: cardId("04143"), cardSetCode: "red_skull", marvelcdbCodes: ["04143"], corrections: [] },

@@ -129,6 +129,66 @@ describe("Red Skull scenario", () => {
     expect(WAVE2_DEPS.abilities["04130.when-defeated"]).toBeDefined();
   });
 
+  // Issue #130: the scheme used to stay in play for the rest of the game, feeding Red Skull's +1 ATK per side scheme.
+  describe("The Sleeper Awakened (04140)", () => {
+    /** The Sleeper Awakened revealed from the side-scheme deck, The Sleeper engaged and one damage from defeat. */
+    const sleeperAwake = () => {
+      const stacked = stackSideSchemeDeck(runWave2(redSkullVsHeroes(), toHero()), "04140");
+      const revealed = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+      const sleeper = instancesOf(revealed, "04130").find((id) => inst(revealed, id).engagedWith === P1);
+      const scheme = instancesOf(revealed, "04140").find((id) => cardsInPlay(revealed).includes(id));
+      if (!sleeper || !scheme) throw new Error("The Sleeper Awakened did not put The Sleeper into play");
+      const profile = characterProfile(revealed, sleeper, WAVE2_DEPS);
+      if (profile?.kind !== "minion") throw new Error("The Sleeper has no minion profile");
+      const weakened = patchInstance(revealed, sleeper, {
+        damage: profile.maxHp - 1,
+        statuses: { ...inst(revealed, sleeper).statuses, tough: 0 },
+      });
+      // The hero defended Red Skull's attack; ready it to act.
+      const state = patchInstance(weakened, identityOf(weakened), { exhausted: false });
+      return { state, sleeper, scheme };
+    };
+
+    it("cannot leave play while The Sleeper is in play: thwarting its last threat leaves it in play", () => {
+      const { state, scheme } = sleeperAwake();
+      const withThreat = patchInstance(state, scheme, { threat: 1 });
+      const after = settle(
+        runWave2(withThreat, {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identityOf(withThreat),
+          schemeInstanceId: scheme,
+        }),
+        firstLegal,
+        undefined,
+        WAVE2_DEPS,
+      );
+      expect(inst(after, scheme).threat).toBe(0);
+      expect(cardsInPlay(after)).toContain(scheme);
+    });
+
+    it("is removed from the game when The Sleeper is defeated, and Red Skull loses its +1 ATK", () => {
+      const { state, sleeper, scheme } = sleeperAwake();
+      const villain = state.villains[0]!.instanceId;
+      const atkBefore = characterProfile(state, villain, WAVE2_DEPS)?.atk ?? 0;
+      const after = settle(
+        runWave2(state, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: identityOf(state),
+          targetInstanceId: sleeper,
+        }),
+        firstLegal,
+        undefined,
+        WAVE2_DEPS,
+      );
+      expect(after.removedFromGame).toContain(sleeper);
+      expect(after.removedFromGame).toContain(scheme);
+      expect(cardsInPlay(after)).not.toContain(scheme);
+      expect(characterProfile(after, villain, WAVE2_DEPS)?.atk).toBe(atkBefore - 1);
+    });
+  });
+
   it("The Red House: Red Skull cannot take damage, and a character may thwart it with ATK instead of THW", () => {
     expect(WAVE2_DEPS.abilities["04139.the-red-house-constant"]).toBeDefined();
     expect(WAVE2_DEPS.abilities["04139.the-red-house-interrupt"]).toBeDefined();

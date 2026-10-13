@@ -113,6 +113,14 @@ export const TRORS_CURATION: PackCuration = {
         'raw (04162a, cost: null); RRG 1.8 p. 15 "Dash (Value)"; docs/phase7-wave2.md §1.3/§5.1; card scans 04159a-04162b',
       specialCost: "dash",
     },
+    {
+      code: "04140",
+      reason:
+        'The When Revealed paragraph is two abilities: putting The Sleeper into play, then a standing instruction that applies for as long as the scheme is in play ("When The Sleeper is defeated, remove this card from the game."). With only the When Revealed ref nothing ever removed the scheme, so it needs its own ref.',
+      evidence:
+        'raw (04140): "When Revealed: Put The Sleeper into play engaged with the first player. When The Sleeper is defeated, remove this card from the game."',
+      extraConstantFrom: "When The Sleeper is defeated, remove this card from the game.",
+    },
   ],
   errata: [
     {
