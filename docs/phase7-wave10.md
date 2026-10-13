@@ -952,6 +952,21 @@ list):
   Cho does not search or shuffle Hercules' Labor and Gift decks. The player deck is shuffled if searched; the failed
   Labor card goes on the bottom of the Labor deck. (Every deck an ability does search is still shuffled.)
 
+**Answered 2026-10-13, after the full QA** (`56B 57A 58A 59A 60B`). The owner's principle: an effect that does nothing
+does not by itself make a play illegal; the Rules Reference asks for a legal target and a legal play (RRG 1.6 replaced
+"must change the game state" with valid-target requirements). Per-card tests, no blanket rule against no-op plays.
+
+- **56B.** Speed Cyclone 14006 ("Stun X enemies") and Lethal Intent 22010 ("Choose up to X technique upgrades you
+  control") stay playable at X = 0. Open as question 61: whether 52B (Everywhere All at Once 58018 needs X of at
+  least 1) still stands beside it; built as it stands.
+- **57A.** "Remove threat from each scheme" with no threat on any scheme is refused: an ability affecting each element
+  of a type needs at least one valid target (RRG 1.8 "Target", p. 42).
+- **58A.** A card with a removal of threat and an independently functional part (Command Authority 45008) stays
+  playable with no threat anywhere.
+- **59A.** A conditional removal is judged: when the branch that would run can only remove threat and none can be
+  removed, the play is refused (Natural Flight 42006, Giant Help 13003).
+- **60B.** The 20 stale card-data corrections of `docs/qa-card-data-staleness.md` go in a separate PR against `main`.
+
 Questions 23 to 27 are product choices, not rules (owner's note). Each B or C is recorded where its question lives:
 14 to 18 in `docs/phase7-wave10-box-heroes.md` B4, 19 to 22 in `docs/phase7-wave10-hero-packs.md` H4, 23 to 27 in
 `docs/phase7-wave10-client.md` §12.
