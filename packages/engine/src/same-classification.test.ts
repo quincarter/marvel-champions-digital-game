@@ -350,7 +350,16 @@ describe("§3.51 sameClassificationAs (Superpower Adaptation's search)", () => {
   it("a host with none of the three (a Captive ally's shape) finds nothing", () => {
     const start = board();
     const state = play(start.state, ATTACH_CAPTIVE.card);
-    expect(offered(state)).toEqual([]);
+    // Nothing to find, so the search has no valid target and the card cannot be played (RRG 1.8 "Choose (Game
+    // Element)", p. 12): the branch that would run is the one judged.
+    const given = giveCard(state, p1, ADAPT.card.id);
+    const refused = applyCommand(
+      given.state,
+      { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
   });
 
   it("an enemy host: the 'friendly character' condition fails, and the query alone matches nothing", () => {

@@ -1287,7 +1287,9 @@ describe("The Power of Justice (47017) and X-Gene (47020): the reprints work as 
     expect(inst(gene.state, gene.id).exhausted).toBe(false);
   });
   it("The Power of Justice doubles its resources for a Justice card: Three Steps Ahead (cost 3) is paid with it and one card", () => {
-    const g = heroGame(["47017", "47015", E]);
+    // Threat on the main scheme: Three Steps Ahead only removes threat, so with none it cannot be played.
+    const bare = heroGame(["47017", "47015", E]);
+    const g = patchInstance(bare, bare.mainScheme.instanceId, { threat: 6 });
     const staged = handOf(g, "47015", "47017", E);
     const [steps, justice, e] = staged.ids as [InstanceId, InstanceId, InstanceId];
     const doubled = applyCommand(

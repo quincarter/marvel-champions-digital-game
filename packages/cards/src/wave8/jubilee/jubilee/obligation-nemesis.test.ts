@@ -369,7 +369,9 @@ describe("Grounded (47023)", () => {
       return { state: withForm(state, { heroForm: 0 }, P1), grounded: ids[0]! };
     }
     function playEvent(code: string, cost: number, pick: Picker) {
-      const { state, grounded } = groundedInPlay();
+      const { state: bare, grounded } = groundedInPlay();
+      // Threat on the main scheme: Three Steps Ahead only removes threat, so with none it cannot be played.
+      const state = patchInstance(bare, bare.mainScheme.instanceId, { threat: 4 });
       // Paid with [energy] cards only: no wild is spent, so an event that reads its payment's types asks nothing.
       const typed = handOf(
         state,
