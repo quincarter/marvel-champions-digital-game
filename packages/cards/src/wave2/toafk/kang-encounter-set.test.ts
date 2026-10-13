@@ -30,12 +30,10 @@ const kangVsHeroes = (options: { readonly difficulty?: "standard" | "expert" } =
   );
 
 /**
- * The Kang/Temporal set's own four obligations (11018-11021) carry no `encounterSetIds` (a data gap flagged for
- * `card-data-pipeline`, `kang.test.ts`'s own module docblock precedent, and this file's Time-Travel Hijinks test
- * above), so none of them are ever actually shuffled into a real deck. Relabels an already-in-the-deck filler card
- * as `code` (`patchInstance`'s own "swap the data, keep the instance" convention) rather than routing around the
- * data gap, and reveals it during the villain phase. Index 1, not the top card: index 0 is dealt to Kang (I) as his
- * own boost card before any player's own reveal (RRG 1.8 "Villain Phase", p. 47).
+ * Stages one of the Kang set's obligations (11018-11021) as the card the player reveals this villain phase: relabels
+ * an already-in-the-deck filler card as `code` (`patchInstance`'s own "swap the data, keep the instance" convention).
+ * Index 1, not the top card: index 0 is dealt to Kang (I) as his own boost card before any player's own reveal (RRG
+ * 1.8 "Villain Phase", p. 47).
  */
 function revealAsObligation(state: GameState, code: string): GameState {
   const deckId = Object.keys(state.encounterDecks)[0]!;
@@ -58,12 +56,8 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     state = settle(runWave2(state, play(P1, allyId, resources)), firstLegal, undefined, WAVE2_DEPS);
     expect(playerOf(state, P1).playArea).toContain(allyId);
 
-    // Time-Travel Hijinks (11021) never surfaces in a real game today — see this file's own module docblock and
-    // the test suite comment above: the Kang/Temporal set's four obligations (11018-11021) carry no
-    // `encounterSetIds`, a data gap flagged for `card-data-pipeline`, so they're never shuffled into any deck.
-    // This test proves the *ability* is correct by relabeling an already-in-the-deck filler encounter card as
-    // 11021 (`patchInstance`'s own established "swap the data, keep the instance" convention) rather than
-    // routing around the data gap.
+    // Stages a copy of Time-Travel Hijinks (11021) where the player will reveal it, by relabeling an
+    // already-in-the-deck filler encounter card (`patchInstance`'s own "swap the data, keep the instance" convention).
     // Card at deck index 0 is dealt to Kang (I) as his own boost card before any player reveals theirs (RRG 1.8
     // "Villain Phase", p. 47: the active villain's activation, boost card included, precedes step 3's player
     // reveals) — relabel index 1, not the top card, so 11021 is what the player actually reveals.
@@ -87,8 +81,8 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
 
     // The ally is gone from play, tucked facedown under the obligation instead of sitting in the discard pile.
     expect(playerOf(state, P1).playArea).not.toContain(allyId);
-    const obligation = Object.values(state.instances).find((i) => i.cardId === "11021");
-    expect(obligation).toBeDefined();
+    const obligation = state.instances[fillerId];
+    expect(obligation?.cardId).toBe("11021");
     expect(obligation?.tucked).toContain(allyId);
   });
 

@@ -779,6 +779,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
       },
       abilities: [{ id: abilityId("32031b.phased-constant") }, { id: abilityId("32031b.phased-forced-response") }],
       image: imageRef("/bundles/cards/32031b.png"),
+      resourceIcons: { mental: 1 },
     },
   },
   {

@@ -157,7 +157,10 @@ describe("Kang (Master of Time), Ronan the Accuser and Mystique outside their ho
     const run = reveal(state, "90004");
     const codes = revealedCodes(run.events);
     expect(codes.indexOf("90004")).toBeGreaterThanOrEqual(0);
-    expect(codes.length).toBe(codes.indexOf("90004") + 1);
+    // Two cards are dealt, one for the round and one for the hazard icon on the Kree Command Ship (16108); a surge
+    // would add a third.
+    expect(run.events.filter((e) => e.type === "surgeTriggered" && e.instanceId === run.id)).toHaveLength(0);
+    expect(codes).toHaveLength(2);
   });
 
   it("Mystique's treacheries stay in the hand in a scenario that is not a Mutant Genesis one (MC32 p. 7)", () => {
@@ -258,9 +261,12 @@ describe("Setting environments and attach-to-the-villain cards across scenarios"
     "Pumpkin Bombs (02034, 'Attach to the villain') in %s attaches to a villain of the game",
     (host) => {
       const run = reveal(startPairing("goblin_gimmicks", host), "02034");
-      const attached = Object.values(run.state.instances).filter((i) => i.cardId === cardId("02034") && i.attachedTo);
-      expect(attached).toHaveLength(1);
-      expect(run.state.villains.map((v) => v.instanceId)).toContain(attached[0]!.attachedTo);
+      // Read from the move itself: a later card of the same deal can make the villain attack, which discards it.
+      const hosts = run.events.flatMap((e) =>
+        e.type === "cardMoved" && e.instanceId === run.id && e.to.kind === "attachment" ? [e.to.hostInstanceId] : [],
+      );
+      expect(hosts).toHaveLength(1);
+      expect(run.state.villains.map((v) => v.instanceId)).toContain(hosts[0]);
     },
   );
 

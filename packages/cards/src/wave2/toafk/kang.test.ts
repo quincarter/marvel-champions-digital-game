@@ -1,4 +1,4 @@
-import { cardsInPlay, createGame, remainingHitPoints } from "@mc/engine";
+import { createGame, remainingHitPoints } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -92,7 +92,7 @@ describe("Kang scenario", () => {
     expect(KANG_SET["11006.when-defeated"]).toBeDefined();
   });
 
-  it("Kang's Arrival 1A: removes every obligation-type card from the encounter deck and shuffles it", () => {
+  it("Kang's Arrival 1A: removes each player's obligation from the game; the Kang set's own obligations stay in the deck", () => {
     expect(KANG_SET["11007a.setup"]).toBeDefined();
     const config = wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 });
     const created = createGame(config, WAVE2_DEPS);
@@ -100,10 +100,13 @@ describe("Kang scenario", () => {
     const settled = settle(created.state, firstLegal, undefined, WAVE2_DEPS);
     const deckId = Object.keys(settled.encounterDecks)[0]!;
     const pile = settled.encounterDecks[deckId]!;
-    const obligations = [...pile.deck, ...pile.discard].filter((id) =>
-      settled.instances[id]?.cardId?.toString().match(/^1101[89]|^1102[01]/),
-    );
-    expect(obligations).toHaveLength(0);
+    const inPiles = (pattern: RegExp) =>
+      [...pile.deck, ...pile.discard].filter((id) => pattern.test(String(settled.instances[id]?.cardId)));
+    // Hawkeye's own obligation (04026) is removed from the game ...
+    expect(inPiles(/^04026$/)).toHaveLength(0);
+    expect(Object.values(settled.instances).some((i) => String(i.cardId) === "04026")).toBe(true);
+    // ... and the Kang set's obligations (11018-11021: "remove each player's obligation cards") are not.
+    expect(inPiles(/^1101[89]$|^1102[01]$/).length).toBeGreaterThanOrEqual(7);
   });
 
   it("Kang's Arrival 1B (11007b, MainSchemeStage.completionLoses): completing stage 1 loses the game instead of advancing to The Master of Time", () => {
@@ -133,7 +136,7 @@ describe("Kang scenario", () => {
     expect(KANG_SET["11009b.the-chronopolis-forced-response"]).toBeDefined();
   });
 
-  it("The Master of Time 2B / Kang's Wrath 4A: a full one-player split-and-rejoin — defeating Kang (I) creates a stage 3 area, defeating that area's Kang (II) removes the stage and rejoins the (now sole) central area, which then advances straight to 4A and reveals Kang (III) plus the tucked Kang's Dominion", () => {
+  it("The Master of Time 2B / Kang's Wrath 4A: a full one-player split-and-rejoin — defeating Kang (I) creates a stage 3 area, defeating that area's Kang (II) removes the stage and rejoins the (now sole) central area, which then advances straight to 4A and adds Kang (III)", () => {
     let state = runWave2(kangVsHeroes(), toHero());
     const kang1 = state.villains[0]!.instanceId;
 
@@ -162,12 +165,11 @@ describe("Kang scenario", () => {
 
     // The Master of Time 2B's own constant fired the instant the split ended ("when all the players have joined
     // this game area, advance to stage 4A", 11008b.the-master-of-time-constant) — no player action needed. Kang's
-    // Wrath 4A's own When Revealed (11013a) then added Kang (III) and revealed the facedown Kang's Dominion tucked
-    // there by the stage 3 area's own Forced Response.
+    // Wrath 4A's own When Revealed (11013a) then added Kang (III). No Kang's Dominion is tucked under the stage to
+    // reveal: one is tucked only when a stage 3 is completed (11009b to 11012b), and here its Kang (II) was defeated.
     // Stage index 6 in Kang's Arrival's own stage list (1, 2, four alternative 3s, 4) is "Kang's Wrath".
     expect(state.mainScheme.stageIndex).toBe(6);
     expect(state.villains.some((v) => v.cardId === "11006")).toBe(true);
-    expect(cardsInPlay(state).some((id) => state.instances[id]?.cardId === "11023")).toBe(true);
     // Kang's Wrath 4B's When Revealed (11013b): Hawkeye's nemesis minion, Crossfire (04027), the only minion of his
     // nemesis set and so printing no parenthetical, is found and put into play (docs/phase7-wave4.md §3.50).
     expect(instancesOf(state, "04027").some((id) => playerOf(state, P1).playArea.includes(id))).toBe(true);

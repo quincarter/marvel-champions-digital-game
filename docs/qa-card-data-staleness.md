@@ -1,6 +1,8 @@
 # QA: committed card data against a fresh emit (2026-10-13)
 
-Audit only; nothing was fixed. For each pack with a raw cache and a registered curation, `pnpm --filter @mc/content ingest -- --pack <p> --offline` was run alone, `git diff -- packages/content` captured, and the diff reversed with `git apply -R`. The working tree under `packages/content` was clean after every pack.
+**Status (2026-10-13):** the 20 class A-bug values below are corrected (owner answer 60B: in their own change against `main`) and each has a test in `packages/content/src/data/qa-staleness.qa.test.ts`. The corrections were taken hunk by hunk from a fresh emit; the A-neutral, A-regress and class B differences were left as they are, so a whole-pack re-emit still shows them. Found while re-running Kang's tests and not fixed here: all four copies of Kang's Dominion (11023) start in the encounter deck, where Kang's Arrival 1A sets them aside, so a stage 3's Forced Response finds none to tuck.
+
+The audit as written, when nothing had been fixed: For each pack with a raw cache and a registered curation, `pnpm --filter @mc/content ingest -- --pack <p> --offline` was run alone, `git diff -- packages/content` captured, and the diff reversed with `git apply -R`. The working tree under `packages/content` was clean after every pack.
 
 Packs: 62 raw caches. 58 audited. `fne`, `jj`, `luke_cage`, `synthezoid` have no curation (the ingest refuses them) and no data directory, so there is nothing to compare. 32 audited packs have no difference at all.
 

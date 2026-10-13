@@ -90,6 +90,7 @@ export const PHOENIX_CARDS: readonly AnyCard[] = [
         { id: abilityId("34002b.phoenix-force-forced-response") },
       ],
       image: imageRef("/bundles/cards/34002b.png"),
+      resourceIcons: { physical: 1 },
     },
   },
   {

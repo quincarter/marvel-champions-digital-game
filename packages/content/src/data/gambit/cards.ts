@@ -588,6 +588,7 @@ export const GAMBIT_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/37025.png") },
+    schemeIcons: ["hazard"],
     encounterSetIds: [],
     boostIcons: 2,
     traits: [],
