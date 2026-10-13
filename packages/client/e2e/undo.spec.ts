@@ -97,7 +97,14 @@ test("Undo takes back a hero's own move, and stops at the turn's start and at a 
     };
     const { store } = appSession();
     const deadpool = store.state.game.players[1];
-    if (!(await store.takeOffTurnSeat(deadpool.playerId))) return "no off-turn seat";
+    // The seat is refused while a command is in flight or the off-turn seats are still being worked out, so ask
+    // until the store has settled after the form change.
+    let seated = false;
+    for (let tries = 0; tries < 50 && !seated; tries++) {
+      seated = await store.takeOffTurnSeat(deadpool.playerId);
+      if (!seated) await new Promise((r) => setTimeout(r, 100));
+    }
+    if (!seated) return "no off-turn seat";
     const mulligan = deadpool.hand.find((id: string) => store.state.game.instances[id]?.cardId === "44048");
     const entry = store.state.legal.actions.legal.find(
       (e: any) => e.action.kind === "playCard" && e.action.instanceId === mulligan,
