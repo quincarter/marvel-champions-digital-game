@@ -69,6 +69,7 @@ import {
   allianceHelpersOf,
   beginPayment,
   paymentView,
+  setPaymentX,
   toggleCostReduction,
   togglePayment,
   type PaymentState,
@@ -338,7 +339,11 @@ export class BoardController {
     }
     if (this.#selection.kind === "paying") {
       return focusOrder(
-        { kind: "paying", sources: this.#selection.payment.query.sources.map((source) => source.instanceId) },
+        {
+          kind: "paying",
+          sources: this.#selection.payment.query.sources.map((source) => source.instanceId),
+          ...(this.#selection.payment.xRange ? { x: true as const } : {}),
+        },
         marks,
       );
     }
@@ -424,6 +429,10 @@ export class BoardController {
     }
     if (focus.kind === "confirm") {
       void this.confirmInPlayCost();
+      return;
+    }
+    if (focus.kind === "xLess" || focus.kind === "xMore") {
+      this.stepX(focus.kind === "xMore" ? 1 : -1);
       return;
     }
     if (focus.kind === "undo") {
@@ -1250,6 +1259,20 @@ export class BoardController {
     // The view decides what is held (an overpay-only source before the cost is covered), never this scene.
     if (this.paymentView()?.sources.find((source) => source.optionId === optionId)?.lockedReason) return;
     this.#selection = { kind: "paying", payment: togglePayment(this.#selection.payment, optionId) };
+    this.#host.redraw();
+  }
+
+  /** The X picker's minus (-1) and plus (+1): the payment is priced again at the new X, the picked sources kept where valid. */
+  stepX(delta: number): void {
+    if (this.#readOnly || this.#selection.kind !== "paying") return;
+    const { payment } = this.#selection;
+    if (payment.x === undefined) return;
+    const { game, perspectiveId } = appSession().store.state;
+    if (!game || perspectiveId === null) return;
+    this.#selection = {
+      kind: "paying",
+      payment: setPaymentX(game, perspectiveId, payment, payment.x + delta, POOL_DEPS),
+    };
     this.#host.redraw();
   }
 

@@ -170,4 +170,17 @@ describe("52B the least X of a printed X cost (AbilityDefinition.minX)", () => {
       reason: "invalid_choice",
     });
   });
+
+  it("a printed X cost always has a pay step, even when the least X costs nothing, so the player can name the X", () => {
+    const t = table(LOOSE.id);
+    const [loose] = t.ids as [InstanceId];
+    const query = paymentFor(t.state, P1, { kind: "playCard", instanceId: loose }, {}, deps);
+    expect(query).not.toBeNull();
+    expect(query?.requirement.generic).toBe(0);
+    const listed = legalActions(t.state, P1, deps);
+    if (listed.kind !== "turn") throw new Error("expected P1's turn");
+    const needs = (id: InstanceId) =>
+      listed.legal.find((a) => a.action.kind === "playCard" && a.action.instanceId === id)?.needsPayment;
+    expect(needs(loose)).toBe(true);
+  });
 });

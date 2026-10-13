@@ -243,7 +243,11 @@ export const focusKey = (target: FocusTarget): string =>
           ? "confirm"
           : target.kind === "undo"
             ? "undo"
-            : "cancel";
+            : target.kind === "xLess"
+              ? "xLess"
+              : target.kind === "xMore"
+                ? "xMore"
+                : "cancel";
 
 /**
  * Re-aims the engine's example command at the target the player picked. Only

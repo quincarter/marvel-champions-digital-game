@@ -159,6 +159,7 @@ export function tryReducedPlay(
   costSelection: CostSelection | undefined,
   costChoices?: CostChoices,
   abilityId?: AbilityId,
+  x?: number,
 ): PaymentAttempt {
   const command: Command = {
     type: "playCard",
@@ -170,6 +171,7 @@ export function tryReducedPlay(
     ...(costSelection ? { costSelection } : {}),
     ...(costChoices ? { costChoices } : {}),
     ...(abilityId ? { abilityId } : {}),
+    ...(x !== undefined && x > 0 ? { x } : {}),
     costReductionAbilities: reductions,
   };
   const result = applyCommand(state, command, deps);

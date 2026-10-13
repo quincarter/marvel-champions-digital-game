@@ -18,8 +18,10 @@
 
 import type { AbilityId, ResourceIconType } from "@mc/content";
 import {
+  cardOf,
   controllerOf,
   locateCard,
+  minimumChosenX,
   paymentFor,
   playCostOf,
   tryPayment,
@@ -62,6 +64,13 @@ export interface PaymentState {
   readonly costChoices?: CostChoices;
   /** The Action ability of a several-ability event the player chose (RRG 1.8 "Event", p. 18); each has its own cost. */
   readonly abilityId?: AbilityId;
+  /**
+   * The X the player named for a card printed with an X cost (`specialCost: "X"`), and the range the picker offers: from
+   * the engine's least (`minimumChosenX`) up to the most the player could pay for right now. Absent for every other
+   * action. `query` is always the one priced at this X.
+   */
+  readonly x?: number;
+  readonly xRange?: { readonly min: number; readonly max: number };
   /** The scenario play area an ally is played into (`view/play-destination.ts`); absent: the player's own area. */
   readonly into?: string;
   /** Why the play can only go to `into` ("Only payable at the mission"): the price note's words in place of the usual one. */
@@ -121,6 +130,15 @@ export interface PaymentSourceView extends PaymentSource {
    * Hollywood) never makes the payment covered, so it is held until the rest of the picks cover the cost by themselves.
    */
   readonly lockedReason: string | null;
+}
+
+/** The stepper beside the requirement: the chosen X and the range the engine allows right now. */
+export interface XPicker {
+  readonly value: number;
+  readonly min: number;
+  readonly max: number;
+  /** The words a screen reader and the focus label use: "X: 2 (1 to 3)". */
+  readonly label: string;
 }
 
 export interface PaymentView {
@@ -220,6 +238,8 @@ export interface PaymentView {
    * play — the overwhelmingly common case, which draws nothing extra.
    */
   readonly costReductionOptions: readonly CostReductionOption[];
+  /** The X picker ("X" with minus and plus) for a card printed with an X cost; null for every other payment. */
+  readonly xPicker: XPicker | null;
   /** Which of `costReductionOptions` are currently named on the play. */
   readonly reductions: readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[];
 }
@@ -246,14 +266,34 @@ export function beginPayment(
   abilityId?: AbilityId,
   into?: string,
 ): PaymentState | null {
+  const prints = printsXCost(state, action);
+  const least = prints && action.kind === "playCard" ? minimumChosenX(state, deps, action.instanceId, abilityId) : 0;
   const query = paymentFor(
     state,
     playerId,
     action,
-    paymentContext(target, controllerId, costSelection, costChoices, abilityId, into),
+    paymentContext(target, controllerId, costSelection, costChoices, abilityId, into, prints ? least : undefined),
     deps,
   );
   if (!query) return null;
+  const range = prints
+    ? {
+        min: least,
+        max: mostX(
+          state,
+          playerId,
+          action,
+          target,
+          controllerId,
+          costSelection,
+          costChoices,
+          abilityId,
+          into,
+          least,
+          deps,
+        ),
+      }
+    : null;
   return {
     action,
     target,
@@ -262,6 +302,7 @@ export function beginPayment(
     ...(costChoices ? { costChoices } : {}),
     ...(abilityId ? { abilityId } : {}),
     ...(into !== undefined ? { into } : {}),
+    ...(range ? { x: least, xRange: range } : {}),
     query,
     picked: [],
     reductions: [],
@@ -275,14 +316,89 @@ const paymentContext = (
   costChoices?: CostChoices,
   abilityId?: AbilityId,
   into?: string,
+  x?: number,
 ) => ({
   target,
+  ...(x !== undefined ? { x } : {}),
   ...(controllerId ? { controllerId } : {}),
   ...(costSelection ? { costSelection } : {}),
   ...(costChoices ? { costChoices } : {}),
   ...(abilityId ? { abilityId } : {}),
   ...(into !== undefined ? { into } : {}),
 });
+
+/** True for a play of a card printed with an X cost (`specialCost: "X"`), whose X the player names in the pay step. */
+export function printsXCost(state: GameState, action: ActionRef): boolean {
+  if (action.kind !== "playCard") return false;
+  const card = cardOf(state, action.instanceId);
+  return !!card && "specialCost" in card && card.specialCost === "X";
+}
+
+/** The most X anyone could pay for, found the way the engine says: raise X until its pay step has no payment. */
+function mostX(
+  state: GameState,
+  playerId: PlayerId,
+  action: ActionRef,
+  target: InstanceId | null,
+  controllerId: PlayerId | null,
+  costSelection: CostSelection | undefined,
+  costChoices: CostChoices | undefined,
+  abilityId: AbilityId | undefined,
+  into: string | undefined,
+  least: number,
+  deps: EngineDeps,
+): number {
+  let best = least;
+  for (let x = least + 1; x <= least + X_PROBE_LIMIT; x += 1) {
+    const query = paymentFor(
+      state,
+      playerId,
+      action,
+      paymentContext(target, controllerId, costSelection, costChoices, abilityId, into, x),
+      deps,
+    );
+    if (!query || (poolTotal(query.requirement) > 0 && query.suggested.length === 0)) break;
+    best = x;
+  }
+  return best;
+}
+
+/** More than any hand and table can pay for; the probe stops at the first X the engine cannot be paid for anyway. */
+const X_PROBE_LIMIT = 30;
+
+/**
+ * Names a different X. The payment is priced again at that X (the engine's `paymentFor`), and the sources the player
+ * already picked stay picked wherever the engine still offers them. Clamped to the range; a no-op off an X cost.
+ */
+export function setPaymentX(
+  state: GameState,
+  playerId: PlayerId,
+  payment: PaymentState,
+  x: number,
+  deps: EngineDeps,
+): PaymentState {
+  if (!payment.xRange) return payment;
+  const next = Math.max(payment.xRange.min, Math.min(payment.xRange.max, Math.trunc(x)));
+  if (next === payment.x) return payment;
+  const query = paymentFor(
+    state,
+    playerId,
+    payment.action,
+    paymentContext(
+      payment.target,
+      payment.controllerId,
+      payment.costSelection,
+      payment.costChoices,
+      payment.abilityId,
+      payment.into,
+      next,
+    ),
+    deps,
+  );
+  if (!query) return payment;
+  const offered = new Set(query.sources.map((source) => source.optionId));
+  return { ...payment, x: next, query, picked: payment.picked.filter((id) => offered.has(id)) };
+}
 
 /** Toggles one source in or out of the payment. */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
@@ -357,6 +473,7 @@ export function paymentView(
           payment.costSelection,
           payment.costChoices,
           payment.abilityId,
+          payment.x,
         )
       : tryPayment(
           state,
@@ -370,6 +487,7 @@ export function paymentView(
             payment.costChoices,
             payment.abilityId,
             payment.into,
+            payment.x,
           ),
           deps,
         );
@@ -426,6 +544,15 @@ export function paymentView(
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
     costReductionOptions,
+    xPicker:
+      payment.xRange && payment.x !== undefined
+        ? {
+            value: payment.x,
+            min: payment.xRange.min,
+            max: payment.xRange.max,
+            label: `X: ${payment.x} (${payment.xRange.min} to ${payment.xRange.max})`,
+          }
+        : null,
     reductions: payment.reductions,
   };
 }

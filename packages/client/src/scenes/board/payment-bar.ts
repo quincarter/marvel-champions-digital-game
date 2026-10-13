@@ -8,6 +8,7 @@ import { McButton } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
+import { focusKey } from "./selection.js";
 
 /**
  * "PAYING 1 / 3 — Photon Blast → Klaw. Tap cards to spend." on Hero Red, with
@@ -75,7 +76,47 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
   // card being paid for already wears a "paying for" tag, so the sentence is
   // repeating itself, and a sentence running under the Pay button is worse
   // than no sentence.
-  const headlineLeft = rect.x + 170;
+  // The X picker (a card printed with an X cost): minus, "X 2", plus, between the count and the prose.
+  const picker = payment.xPicker;
+  let pickerRight = rect.x + 170;
+  if (picker) {
+    const size = rect.height - 8;
+    const left = rect.x + 150;
+    const lessRect: Rect = { x: left, y: rect.y + 4, width: size, height: size };
+    const moreRect: Rect = { x: left + size + 56, y: rect.y + 4, width: size, height: size };
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "secondary",
+        label: "-",
+        type: typeRole.label,
+        rect: lessRect,
+        enabled: picker.value > picker.min,
+        reason: `X is at least ${picker.min}`,
+        onClick: () => controller.stepX(-1),
+      }),
+      new McButton(scene, {
+        kind: "secondary",
+        label: "+",
+        type: typeRole.label,
+        rect: moreRect,
+        enabled: picker.value < picker.max,
+        reason: `You cannot pay for more than X = ${picker.max}`,
+        onClick: () => controller.stepX(1),
+      }),
+    );
+    scene.add
+      .text(
+        left + size + 28,
+        rect.y + rect.height / 2,
+        `X ${picker.value}`,
+        textStyle(typeRole.barTitle, surface.paper.hex),
+      )
+      .setOrigin(0.5, 0.5);
+    ctx.frame.focusRects.set(focusKey({ kind: "xLess" }), lessRect);
+    ctx.frame.focusRects.set(focusKey({ kind: "xMore" }), moreRect);
+    pickerRight = moreRect.x + moreRect.width + 14;
+  }
+  const headlineLeft = Math.max(rect.x + 170, pickerRight);
   const headlineRoom = buttonsLeft - headlineLeft - 12;
   if (headlineRoom > 90) {
     const outstanding = payment.outstanding.length > 0 ? ` Still needs ${payment.outstanding.join(", ")}.` : "";

@@ -26,7 +26,10 @@ export type FocusTarget =
   /** A multi-pick panel's own Confirm (`view/in-play-cost-choice.ts`): Enter on it sends the picks, the tab stop for the pointer/pad control that does the same. */
   | { readonly kind: "confirm" }
   /** The action bar's Undo (`view/undo.ts`), beside End turn. */
-  | { readonly kind: "undo" };
+  | { readonly kind: "undo" }
+  /** The pay step's X picker (a card printed with an X cost): the minus and plus controls, after the sources. */
+  | { readonly kind: "xLess" }
+  | { readonly kind: "xMore" };
 
 /** What the board is currently asking for, which changes what is worth focusing. */
 export type FocusMode =
@@ -42,7 +45,7 @@ export type FocusMode =
   /** Only the legal targets are worth stepping through. */
   | { readonly kind: "targeting"; readonly targets: readonly InstanceId[]; readonly confirm?: true }
   /** Only the things that can pay are worth stepping through. */
-  | { readonly kind: "paying"; readonly sources: readonly InstanceId[] };
+  | { readonly kind: "paying"; readonly sources: readonly InstanceId[]; readonly x?: true };
 
 const BASICS: readonly BasicAction[] = ["attack", "thwart", "recover", "changeForm", "endTurn"];
 
@@ -63,7 +66,9 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
     ];
   }
   if (mode.kind === "paying") {
-    return mode.sources.map((instanceId) => ({ kind: "card", instanceId }));
+    const sources: FocusTarget[] = mode.sources.map((instanceId) => ({ kind: "card", instanceId }));
+    // The X picker leads the route: X is chosen first, because it changes what the sources must add up to.
+    return mode.x ? [{ kind: "xLess" }, { kind: "xMore" }, ...sources] : sources;
   }
 
   const cards: FocusTarget[] = mode.hand.map((instanceId) => ({ kind: "card", instanceId }));

@@ -160,3 +160,10 @@ describe("focus route and cards with no tile", () => {
     ]);
   });
 });
+
+describe("the X picker's stops", () => {
+  test("lead the paying route, before the sources", () => {
+    const order = focusOrder({ kind: "paying", sources: [id("r1")], x: true }, marksWith(["attack"]));
+    expect(order.map((target) => target.kind)).toEqual(["xLess", "xMore", "card"]);
+  });
+});

@@ -999,7 +999,9 @@ function evaluate(
       blockedTargets,
       ...(controllers ? { controllers } : {}),
       needsPayment:
-        payment.length > 0 || ("playerId" in example && overpayMatters(state, deps, example.playerId, action)),
+        payment.length > 0 ||
+        printsX(state, action) ||
+        ("playerId" in example && overpayMatters(state, deps, example.playerId, action)),
       ...(costBranches ? { costBranches } : {}),
       ...(costHelp.length > 0 ? { costHelp } : {}),
     },
@@ -1884,6 +1886,13 @@ function overpayMatters(state: GameState, deps: EngineDeps, playerId: PlayerId, 
   );
 }
 
+/** Whether the played card prints an X cost (`specialCost: "X"`), which the player names in the pay step (`PaymentContext.x`). */
+function printsX(state: GameState, action: ActionRef): boolean {
+  if (action.kind !== "playCard") return false;
+  const card = cardOf(state, action.instanceId);
+  return !!card && "specialCost" in card && card.specialCost === "X";
+}
+
 /** Whether a played card's printed abilities read an `overpaid.*` value anywhere in their text. */
 function readsOverpaid(state: GameState, deps: EngineDeps, action: ActionRef): boolean {
   if (action.kind !== "playCard") return false;
@@ -2035,7 +2044,8 @@ export function paymentFor(
   }
   const overpayMatters =
     !payable.spendable && (sources.some((source) => source.overpayOnly) || readsOverpaid(state, deps, action));
-  if (!payable.spendable && !overpayMatters) return null;
+  // A card printed with an X cost always has a pay step: the player names the X there, even when the least X costs 0.
+  if (!payable.spendable && !overpayMatters && !printsX(state, action)) return null;
   return {
     requirement: payable.requirement,
     sources,
