@@ -924,6 +924,34 @@ FFG ruling on these cards: 28A is the stronger rules conclusion, 29B a well-supp
 - **43B.** A card that was not in play when a triggering condition occurred does not answer it: All Versus All 59041,
   revealed by Hecate's When Defeated, does not respond to Hecate's defeat.
 
+**Answered 2026-10-13** (`44A 45A`, then `46A 47A 48B 49A 50A 51A 52B 53B 54B`; the questions are in the PR's folded
+list):
+
+- **44A.** Ant-Man (Hank Pym) 12011 and Yellowjacket (Hank Pym) 56019 have matching subtitles: under the unique rule
+  (RRG 1.8 "Unique Icon", pp. 45-46) they cannot both be in one deck or in play together.
+- **45A.** Progression: Wonder Man unlocks by beating Iron Man (`registration-iron-man`), Hercules by beating Captain
+  America (`resistance-captain-america`).
+- **46A.** Brother vs. Brother 58027: the discard is an additional cost of the attack, not an optional payment. An
+  attack on each enemy with a card in hand pays it and includes Grim Reaper; with none he is skipped.
+- **47A.** Coordinated Effort 58032: several players may each pay a different part of a cost and combine resources;
+  one instruction (take 2 damage, discard 2 cards from one deck) is not split between players. The owner marks this a
+  rules-based reading, not an FFG ruling on the card.
+- **48B.** Alliance (RRG 1.8 "Alliance", p. 5: players may contribute to paying the card's costs, not only its
+  resource cost): a helper may also pay an eligible non-resource part of an alliance card's costs. The wording of each
+  cost still decides what may be used; a part that names a specific player's card or deck stays with that player.
+- **49A.** Cameo 58031: the search, the discard and the removal are separate instructions; a failed search does not
+  cancel the other two. Whether a player may decline an available ally is a separate question (built: compulsory).
+- **50A.** Follow Through with only the damage dealt in excess (42B): the excess dealt goes up by 1 (Prince of Power
+  59017 heals 1 more); no excess is taken, so nothing more spills as overkill. A rules-based reading.
+- **51A.** Battlefield Benevolence 58016: the heal is before the cost arrow and must be paid in full; an enemy with
+  less than 2 damage cannot be chosen.
+- **52B.** Everywhere All at Once 58018 cannot be played with X = 0: it would choose no scheme and remove no threat.
+- **53B.** A resource generated only to overpay (Mr. Hollywood 58009) is not spent to pay the cost, so a "you can only
+  spend [type] resources" restriction does not refuse it (the owner cites the RRG's Crushing Blow FAQ).
+- **54B.** A Find looks only in the areas where the named card could be: Protect Humanity 59004 looking for Amadeus
+  Cho does not search or shuffle Hercules' Labor and Gift decks. The player deck is shuffled if searched; the failed
+  Labor card goes on the bottom of the Labor deck. (Every deck an ability does search is still shuffled.)
+
 Questions 23 to 27 are product choices, not rules (owner's note). Each B or C is recorded where its question lives:
 14 to 18 in `docs/phase7-wave10-box-heroes.md` B4, 19 to 22 in `docs/phase7-wave10-hero-packs.md` H4, 23 to 27 in
 `docs/phase7-wave10-client.md` §12.
