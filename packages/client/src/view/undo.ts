@@ -335,6 +335,15 @@ export function usedRandomness(entry: BackOutTrailEntry): boolean {
   return entry.rngDraws !== undefined && entry.rngDraws.after !== entry.rngDraws.before;
 }
 
+/**
+ * The one gate for rewinding a span of trail entries, shared by Undo (`undoOf`) and Back out (`backOutTargetOf`):
+ * safe only if the generator was not used by any entry and every event of every entry passes `eventStopsUndo` for
+ * `mover`. Keeping one rule means a reveal or random pick can't be escaped through whichever button is looser.
+ */
+export function isSafeToRewind(span: readonly BackOutTrailEntry[], mover: PlayerId): boolean {
+  return !span.some((entry) => usedRandomness(entry) || entry.events.some((event) => eventStopsUndo(event, mover)));
+}
+
 export type UndoOffer =
   /** `target` is the command count to rewind to (`SessionStore.rewindTo`), `command` the move it takes back. */
   | { readonly kind: "available"; readonly target: number; readonly command: Command }
@@ -383,9 +392,7 @@ export function undoOf(
   if (move.some((entry) => entry.events.some((event) => BOUNDARY_EVENT_TYPES.has(event.type)))) {
     return { kind: "unavailable", reason: UNDO_REASONS.boundary };
   }
-  if (
-    move.some((entry) => usedRandomness(entry) || entry.events.some((event) => eventStopsUndo(event, perspectiveId)))
-  ) {
+  if (!isSafeToRewind(move, perspectiveId)) {
     return { kind: "unavailable", reason: UNDO_REASONS.revealed };
   }
   return { kind: "available", target: start, command: opening.command };

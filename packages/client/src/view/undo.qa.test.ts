@@ -7,7 +7,15 @@
  * the game's, not the player's, so a take-back that lets the player choose a different order of moves first re-rolls it.
  */
 import { describe, expect, it } from "vitest";
-import { applyCommand, createGame, type Command, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  applyCommand,
+  createGame,
+  type Command,
+  type GameState,
+  type InstanceId,
+  type PendingChoice,
+  type PlayerId,
+} from "@mc/engine";
 import { cardId } from "@mc/content";
 import { POOL_DEPS, buildScenario } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -15,7 +23,7 @@ import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
 import { UNDO_REASONS, undoOf } from "./undo.js";
-import type { BackOutTrailEntry } from "./back-out.js";
+import { backOutTargetOf, type BackOutTrailEntry } from "./back-out.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -207,5 +215,16 @@ describe("Undo: hidden information and randomness", () => {
     const rngDraws = { before: state.rng.draws, after: used.state.rng.draws };
     const trail: BackOutTrailEntry[] = [{ playerId: me, command, events: used.events, rngDraws }];
     expect(undoOf(trail, used.state, me)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.revealed });
+  });
+
+  it("Back out is refused after the same random discard (it shares Undo's gate)", () => {
+    const { state, helmet, me } = helmetGame();
+    const command = useHelmet(me, helmet);
+    const used = applyCommand(state, command, POOL_DEPS);
+    if (!used.ok) throw new Error(used.error.message);
+    const rngDraws = { before: state.rng.draws, after: used.state.rng.draws };
+    const trail: BackOutTrailEntry[] = [{ playerId: me, command, events: used.events, rngDraws }];
+    const open = { playerId: me, prompt: { kind: "chooseOption" } } as unknown as PendingChoice;
+    expect(backOutTargetOf(trail, open, me)).toBeNull();
   });
 });

@@ -14,6 +14,7 @@
  * whole point is remembering exactly what was learned and when.
  */
 import type { Command, GameEvent, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
+import { isSafeToRewind } from "./undo.js";
 
 export interface BackOutTrailEntry {
   readonly playerId: PlayerId;
@@ -24,56 +25,6 @@ export interface BackOutTrailEntry {
    * command that moved it used randomness (a random discard, a shuffle): Undo refuses it (`view/undo.ts`).
    */
   readonly rngDraws?: { readonly before: number; readonly after: number };
-}
-
-/**
- * Event types that, on their own, always mean something not previously known became visible: a draw, a reveal, a
- * dealt encounter or boost card, or a reshuffle of a deck whose order was secret. Denylist, not allowlist, so a
- * future event type this hasn't been taught about is caught by `revealsHiddenInformation`'s own catch-all rather
- * than silently passing through.
- */
-const ALWAYS_REVEALING_EVENT_TYPES: ReadonlySet<GameEvent["type"]> = new Set([
-  "cardDrawn",
-  "drawnObligationPlaced",
-  "cardTurnedFaceup",
-  "encounterCardRevealed",
-  "boostCardDealt",
-  "boostCardFlipped",
-  "cardsLookedAt",
-  "deckShuffled",
-  "scenarioDeckReset",
-  "separateDeckReset",
-  "villainReplaced",
-]);
-
-/** `PendingChoice.prompt.kind`s that only ever exist to look at or search through a deck's hidden order. */
-const DECK_LOOKING_PROMPT_KINDS: ReadonlySet<PendingChoice["prompt"]["kind"]> = new Set([
-  "chooseCards",
-  "lookAt",
-  "chooseBottomCards",
-  "orderCards",
-]);
-
-const DECK_ZONE_KINDS = new Set(["deck", "encounterDeck", "separateDeck"]);
-
-/**
- * Whether one event, on its own, taught this table something about hidden information it didn't already have.
- * Deliberately over-inclusive: `cardMoved` out of a deck zone counts (a random discard off the top, an obligation
- * hitting play, anything that turns a deck's top card into open information), and `choiceRequested` counts for the
- * prompt kinds that exist only to look through or search a deck. Anything this hasn't been taught about explicitly
- * falls through to `false` only via one of the two allowlisted checks below — every other event type is silent
- * about hidden information by construction (damage, threat, exhaust/ready, resource generation, …), which is why
- * this is workable as a denylist rather than needing to enumerate every safe event too.
- */
-export function revealsHiddenInformation(event: GameEvent): boolean {
-  if (ALWAYS_REVEALING_EVENT_TYPES.has(event.type)) return true;
-  if (event.type === "cardMoved") {
-    return DECK_ZONE_KINDS.has(event.from.kind) && !DECK_ZONE_KINDS.has(event.to.kind);
-  }
-  if (event.type === "choiceRequested") {
-    return DECK_LOOKING_PROMPT_KINDS.has(event.choice.prompt.kind);
-  }
-  return false;
 }
 
 const INITIATING_COMMAND_TYPES: ReadonlySet<Command["type"]> = new Set(["playCard", "useAbility"]);
@@ -104,12 +55,11 @@ export function backOutTargetOf(
   if (cursor === 0) return null;
   const initiating = trail[cursor - 1]!;
   if (initiating.playerId !== perspectiveId || !INITIATING_COMMAND_TYPES.has(initiating.command.type)) return null;
-  // Every event from the initiating command onward, not just the resolveChoice answers': the initiating command's
+  // Every entry from the initiating command onward, not just the resolveChoice answers': the initiating command's
   // own resolution may itself have opened the choice by revealing something (an ability that draws, then asks what
-  // to discard from the drawn cards).
-  for (const entry of trail.slice(cursor - 1)) {
-    if (entry.events.some(revealsHiddenInformation)) return null;
-  }
+  // to discard from the drawn cards). The same gate as Undo's (`isSafeToRewind`): an allowlist of events plus the
+  // RNG draw count, so a random pick can't be re-rolled either.
+  if (!isSafeToRewind(trail.slice(cursor - 1), perspectiveId)) return null;
   return cursor - 1;
 }
 

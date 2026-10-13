@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Command, GameEvent, PendingChoice, PlayerId } from "@mc/engine";
-import { backOutTargetOf, backOutSubjectName, revealsHiddenInformation, type BackOutTrailEntry } from "./back-out.js";
+import { backOutTargetOf, backOutSubjectName, type BackOutTrailEntry } from "./back-out.js";
 
 const P1 = "p1" as PlayerId;
 const P2 = "p2" as PlayerId;
@@ -46,52 +46,63 @@ function entry(playerId: PlayerId, command: Command, events: readonly GameEvent[
 
 const drawn: GameEvent = { type: "cardDrawn", playerId: P1, instanceId: "drawn" } as unknown as GameEvent;
 
-describe("revealsHiddenInformation", () => {
-  test("a draw is always revealing", () => {
-    expect(revealsHiddenInformation(drawn)).toBe(true);
-  });
+const ev = (e: object): GameEvent => e as unknown as GameEvent;
+const choiceOf = (): PendingChoice => choice({ playerId: P1 });
 
-  test("a card leaving a deck zone is revealing", () => {
-    const moved: GameEvent = {
+describe("backOutTargetOf: the same gate as Undo", () => {
+  test("a draw, a card leaving a deck and a deck-looking prompt stop it", () => {
+    const moved = ev({
       type: "cardMoved",
       instanceId: "x",
       cardId: "01001",
       from: { kind: "deck", playerId: P1 },
       to: { kind: "discard", playerId: P1 },
-    } as unknown as GameEvent;
-    expect(revealsHiddenInformation(moved)).toBe(true);
+    });
+    const looking = ev({ type: "choiceRequested", choice: choice({ prompt: { kind: "chooseCards", slot: "look" } }) });
+    for (const event of [drawn, moved, looking]) {
+      expect(backOutTargetOf([entry(P1, playCard(P1), [event])], choiceOf(), P1)).toBeNull();
+    }
   });
 
-  test("a card moving between two non-deck zones is not revealing", () => {
-    const moved: GameEvent = {
-      type: "cardMoved",
-      instanceId: "x",
-      cardId: "01001",
-      from: { kind: "hand", playerId: P1 },
-      to: { kind: "playArea", playerId: P1 },
-    } as unknown as GameEvent;
-    expect(revealsHiddenInformation(moved)).toBe(false);
+  test.each([
+    "cardFound",
+    "deckTopShown",
+    "encounterTopShown",
+    "hiddenPileRevealed",
+    "revealedInPlay",
+    "cardsRearranged",
+    "cardsSwapped",
+    "revealedCardDiscarded",
+  ])("%s stops it, in the initiating command and in a later answer", (type) => {
+    const event = ev({ type });
+    expect(backOutTargetOf([entry(P1, playCard(P1), [event])], choiceOf(), P1)).toBeNull();
+    const later = [entry(P1, playCard(P1), []), entry(P1, resolveChoice(P1), [event])];
+    expect(backOutTargetOf(later, choiceOf(), P1)).toBeNull();
   });
 
-  test("a look/search choice prompt is revealing", () => {
-    const requested: GameEvent = {
-      type: "choiceRequested",
-      choice: choice({ prompt: { kind: "chooseCards", slot: "look" } }),
-    } as unknown as GameEvent;
-    expect(revealsHiddenInformation(requested)).toBe(true);
+  test("a command that moved the RNG (a random discard from hand) stops it, whatever its events", () => {
+    const discard = ev({ type: "cardDiscardedFromHand", playerId: P1, instanceId: "h1" });
+    const random: BackOutTrailEntry = { ...entry(P1, playCard(P1), [discard]), rngDraws: { before: 3, after: 4 } };
+    expect(backOutTargetOf([random], choiceOf(), P1)).toBeNull();
+    // The same discard, chosen by the player (no draw spent), is a plain visible move.
+    const chosen: BackOutTrailEntry = { ...entry(P1, playCard(P1), [discard]), rngDraws: { before: 3, after: 3 } };
+    expect(backOutTargetOf([chosen], choiceOf(), P1)).toBe(0);
   });
 
-  test("an ordinary choice prompt (e.g. choosing a target) is not revealing", () => {
-    const requested: GameEvent = {
-      type: "choiceRequested",
-      choice: choice({ prompt: { kind: "chooseTarget", slot: "x", abilityId: null } }),
-    } as unknown as GameEvent;
-    expect(revealsHiddenInformation(requested)).toBe(false);
-  });
-
-  test("damage/threat/exhaust events are not revealing", () => {
-    const damage: GameEvent = { type: "damageDealt", targetInstanceId: "x", amount: 3 } as unknown as GameEvent;
-    expect(revealsHiddenInformation(damage)).toBe(false);
+  test("a plain mis-click on a choice with only visible, deterministic events is allowed", () => {
+    const events = [
+      ev({
+        type: "cardMoved",
+        instanceId: "x",
+        cardId: "01001",
+        from: { kind: "hand", playerId: P1 },
+        to: { kind: "playArea", playerId: P1 },
+      }),
+      ev({ type: "damageDealt", targetInstanceId: "x", amount: 3 }),
+      ev({ type: "choiceRequested", choice: choice({ prompt: { kind: "chooseTarget", slot: "x", abilityId: null } }) }),
+    ];
+    const trail = [entry(P1, playCard(P1), events)];
+    expect(backOutTargetOf(trail, choiceOf(), P1)).toBe(0);
   });
 });
 
