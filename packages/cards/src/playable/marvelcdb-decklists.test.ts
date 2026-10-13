@@ -50,6 +50,12 @@ const WAVE9_FIXTURES = (import.meta as unknown as ImportMetaEnv).glob("../wave9/
   eager: true,
 }) as Record<string, string>;
 
+const WAVE10_FIXTURES = (import.meta as unknown as ImportMetaEnv).glob("../wave10/fixtures/decklists/*.json", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
 /**
  * Hero identity → MarvelCDB decklist id, its name on MarvelCDB, and its chosen aspect(s). A fifth entry names the
  * fixture of a wave that keeps its own (`../wave8/fixtures/decklists/<name>.json`).
@@ -61,6 +67,7 @@ const DECKLISTS: readonly (readonly [
   aspects: readonly string[],
   wave8Fixture?: string,
   wave9Fixture?: string,
+  wave10Fixture?: string,
 ])[] = [
   ["Spider-Man", "01001a", 103, ["leadership"]],
   ["Captain Marvel", "01010a", 577, ["leadership"]],
@@ -110,6 +117,10 @@ const DECKLISTS: readonly (readonly [
   ["Falcon", "53001a", 51168, ["pool"], "", "falcon-pool"],
   ["Winter Soldier", "54001a", 53541, ["pool"], "", "winter-soldier-pool"],
   ["Winter Soldier", "54001a", 51222, ["aggression"], "", "winter-soldier-aggression"],
+  ["Tigra", "56001a", 55436, ["protection"], "", "", "tigra-protection"],
+  ["Hulkling", "56029a", 55325, ["leadership"], "", "", "hulkling-leadership"],
+  ["Wonder Man", "58001a", 60267, ["leadership"], "", "", "wonder-man-leadership"],
+  ["Hercules", "59001a", 59846, ["aggression"], "", "", "hercules-aggression"],
 ];
 
 /** The Core villains, rotated so the games don't all run against one. */
@@ -118,14 +129,19 @@ const SCENARIOS = ["rhino", "klaw", "ultron"] as const;
 const WAVE8_FIXTURE_OF = new Map(DECKLISTS.filter((row) => row[4]).map((row) => [row[2], row[4]!]));
 const WAVE9_FIXTURE_OF = new Map(DECKLISTS.filter((row) => row[5]).map((row) => [row[2], row[5]!]));
 
+const WAVE10_FIXTURE_OF = new Map(DECKLISTS.filter((row) => row[6]).map((row) => [row[2], row[6]!]));
+
 const parse = (id: number) => {
+  const wave10 = WAVE10_FIXTURE_OF.get(id);
   const wave8 = WAVE8_FIXTURE_OF.get(id);
   const wave9 = WAVE9_FIXTURE_OF.get(id);
-  const text = wave9
-    ? WAVE9_FIXTURES[`../wave9/fixtures/decklists/${wave9}.json`]
-    : wave8
-      ? WAVE8_FIXTURES[`../wave8/fixtures/decklists/${wave8}.json`]
-      : FIXTURES[`./fixtures/marvelcdb-decklist-${id}.json`];
+  const text = wave10
+    ? WAVE10_FIXTURES[`../wave10/fixtures/decklists/${wave10}.json`]
+    : wave9
+      ? WAVE9_FIXTURES[`../wave9/fixtures/decklists/${wave9}.json`]
+      : wave8
+        ? WAVE8_FIXTURES[`../wave8/fixtures/decklists/${wave8}.json`]
+        : FIXTURES[`./fixtures/marvelcdb-decklist-${id}.json`];
   if (text === undefined) throw new Error(`no fixture for decklist ${id}`);
   const result = parseMarvelCdbDeckJsonText(text, PLAYABLE_CARDS);
   if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));

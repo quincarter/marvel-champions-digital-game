@@ -298,6 +298,8 @@ const indexPool = (pool: CardPool): ReadonlyMap<string, AnyCard> =>
 const copies = (n: number): string => (n === 1 ? "1 copy" : `${n} copies`);
 
 const typeName = (card: AnyCard): string => card.type.replace(/_/g, " ");
+/** The type with its indefinite article: "an attachment", "a minion". */
+const aTypeName = (card: AnyCard): string => `${/^[aeiou]/.test(card.type) ? "an" : "a"} ${typeName(card)}`;
 
 const hasPlainKeyword = (card: PlayerCard, name: "permanent"): boolean => card.keywords.some((k) => k.name === name);
 
@@ -617,7 +619,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   } else if (identityCard.type !== "hero_identity") {
     add(
       "not_an_identity",
-      `${uniqueLabel(identityCard)} is a ${typeName(identityCard)} card, not an identity: a deck is built around exactly one hero identity.`,
+      `${uniqueLabel(identityCard)} is ${aTypeName(identityCard)} card, not an identity: a deck is built around exactly one hero identity.`,
       [deck.identityCardId],
     );
   } else {
@@ -738,7 +740,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       counted += entry.quantity;
       add(
         "not_a_player_card",
-        `${name} is a ${typeName(card)} card, not a player card: encounter cards (including obligations and nemesis cards, which setup adds for you) cannot be in a player deck.`,
+        `${name} is ${aTypeName(card)} card, not a player card: encounter cards (including obligations and nemesis cards, which setup adds for you) cannot be in a player deck.`,
         [card.id],
       );
       continue;

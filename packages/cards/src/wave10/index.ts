@@ -5,9 +5,9 @@
  * Every `cw` card belongs to one module file under `cw/` (see `card-groups.ts`); `modules.ts` lists them all. The
  * module files exist from the scaffold with an empty registry and every ref in its `_SKIPPED` map, so scripting a
  * module is editing that file and its test, nothing else. `setup.ts` builds any Civil War scenario (`wave10Scenario`);
- * `../playable/index.ts` routes a leader's id to it. `cw` is joined to the playable pool
- * (`../playable/index.ts`, `../modular-pool.ts`); Wonder Man is too (no starter deck yet); the Hercules pack is not (`hercules` is
- * listed unscripted in `../playable-precon-legality.test.ts`, their sets gated in `../playable/unscripted.ts`).
+ * `../playable/index.ts` routes a leader's id to it. `cw`, Wonder Man and Hercules are joined to the playable
+ * pool (`../playable/index.ts`, `../modular-pool.ts`) and each of the four heroes has a starter deck
+ * (`WAVE10_STARTER_DECKS`; Wonder Man's is the owner's stand-in listing, `verified: false`).
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";
