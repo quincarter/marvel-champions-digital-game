@@ -982,7 +982,9 @@ describe("Strength in Diversity (53019): Alliance and a tough enemy (RRG 1.8 'Al
   // resolving that card": the second player may pay part of the 2-per-player cost (4 at two players) and the first
   // player makes every choice.
   it("two players: the second player pays half of the cost from their hand and the first player alone makes the choices", () => {
-    const base = table([FALCON_SEAT, MARVEL]);
+    // Threat on the main scheme, so "Remove 1 threat from a scheme" can be chosen and each pass is a choice.
+    const calm = table([FALCON_SEAT, MARVEL]);
+    const base = patchInstance(calm, calm.mainScheme.instanceId, { threat: 5 });
     const given = moveToHand(base, P1, DIVERSITY);
     const mine = payWith(given.state, P1, 2, given.ids);
     const theirs = payWith(given.state, P2, 2);

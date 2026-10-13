@@ -75,7 +75,7 @@ export const THOR_KIT = defineAbilities({
   // "(thwart)" label belongs to the final "remove 3 threat" sentence, so only that uses the real `thwart` effect
   // (guard/confused/crisis apply to it, not to the earlier setup).
   "06003.defender-of-the-nine-realms-action": heroAction(
-    { label: "thwart" },
+    { label: "thwart", costEffects: 2 },
     discardEncounterUntil(query("minion"), "minion"),
     putIntoPlay(chosen("minion")),
     thwartAScheme(3),

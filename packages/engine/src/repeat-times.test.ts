@@ -299,11 +299,14 @@ describe("repeatTimes: the count is read once and each pass is its own choice (R
     expect(mustPlayer(result.state, P1).discard).toContain(result.played);
   });
 
-  it("3 passes of threat removal over 2 threat: the scheme ends at 0 and the game goes on", () => {
+  it("3 passes of threat removal over 2 threat: the scheme ends at 0, and the third pass has only the damage left to choose", () => {
     const { state } = start({ offices: 3, mainThreat: 2 });
     const result = playPicking(state, BULLETIN.card, [REMOVE, REMOVE, REMOVE]);
     expect(mainThreat(result.state)).toBe(0);
-    expect(villainDamage(result.state)).toBe(0);
+    // RRG 1.8 "Choose (Option)" (p. 12): with no threat on any scheme the removal cannot be chosen, so the third pass
+    // is asked nothing and resolves its one remaining option (`optionLacksValidTarget`).
+    expect(options(result.asked)).toHaveLength(2);
+    expect(villainDamage(result.state)).toBe(1);
     expect(result.state.pendingChoice).toBeNull();
   });
 

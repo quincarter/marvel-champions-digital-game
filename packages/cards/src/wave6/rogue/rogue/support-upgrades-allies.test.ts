@@ -633,7 +633,9 @@ describe("Rogue's supports, upgrades, allies and resources (38003, 38004, 38010-
 
     it("exhausts to generate a [wild] resource for an identity-specific event: 1 card pays for the cost-2 Goin' Rogue", () => {
       const played = xgene();
-      const given = give(fillHand(withForm(played.state, { heroForm: 0 }), 8), GOIN_ROGUE);
+      // Threat for Goin' Rogue to remove: with none, and no keyword on Rogue, it has no valid target.
+      const threatened = patchInstance(played.state, played.state.mainScheme.instanceId, { threat: 3 });
+      const given = give(fillHand(withForm(threatened, { heroForm: 0 }), 8), GOIN_ROGUE);
       const paying = payWith(given.state, P1, 1, [given.id]);
       const { state } = drive(
         given.state,

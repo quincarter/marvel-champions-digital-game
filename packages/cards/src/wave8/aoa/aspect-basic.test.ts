@@ -277,7 +277,9 @@ const picker =
       return [];
     }
     if (choice.prompt.kind === "declareDefender") return ["decline"];
-    if (choice.prompt.kind === "chooseOption") return [ids[opts.option ?? 0]!];
+    // By option id (the option's index in the script): an option that cannot be chosen is not offered, so the
+    // options' positions in the choice are not their indexes (RRG 1.8 "Choose (Option)", p. 12).
+    if (choice.prompt.kind === "chooseOption") return [String(opts.option ?? 0)];
     const wanted = (opts.pick ?? []).filter((w) => ids.includes(w));
     return wanted.length > 0 ? wanted.slice(0, choice.maxSelections) : firstLegal(s);
   };

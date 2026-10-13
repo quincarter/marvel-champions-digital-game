@@ -967,7 +967,10 @@ describe("Staged: Exorcism and Soul Strike read the live top card (45038, 45039)
   const soulStrike = (s: GameState): Command => playFromHandCommand(SOUL_STRIKE)(s);
 
   it.each(["mental", "!mental"] as const)("Exorcism with a %s top card", (type) => {
-    const s = withCard(EXORCISM, type);
+    // Threat on the main scheme: with none anywhere and no [mental] top card nothing of Exorcism could resolve, and
+    // it cannot be played (RRG 1.8 "Target", p. 42; docs/qa-wave10-engine-rules.md S2).
+    const staged = withCard(EXORCISM, type);
+    const s = patchInstance(staged, staged.mainScheme.instanceId, { threat: 5 });
     play(s, new Observer(`staged-exorcism-${type}`), { stopAtRound: 2, script: [exorcism] });
     expect(seen.exorcism.some((x) => x.startsWith(`staged-exorcism-${type}`))).toBe(true);
   });

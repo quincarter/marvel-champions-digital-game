@@ -47,6 +47,14 @@
  * has threat on it, remove 3 threat from it" affects the scheme only through its removal, and reading the scheme in a
  * condition does nothing to it (`partCanAffect`).
  *
+ * **What can affect nothing is read inside a branch and an option as at the top of an ability** (rules QA of
+ * 2026-10-13, docs/qa-wave10-engine-rules.md S2, S4, M2). An `if` is judged by the branch that would run now
+ * (`branchesThatCouldRun`; owner answer 59A, 2026-10-13): a removal with no threat to take is a
+ * lost part inside it too, a part of its own inside it keeps the ability initiable, and a branch whose condition is
+ * false now is no part at all. A "choose one" does not offer an option that requires a target and has none (RRG 1.8
+ * "Choose (Option)", p. 12; `optionLacksValidTarget`). A printed cost scripted as leading effects is no part of the
+ * effect (`AbilityDefinition.costEffects`; RRG 1.8 "Cost", p. 13).
+ *
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
  * `attack`, `discardFromPlay`, `flipCard`, `defeat` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
  * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
@@ -71,6 +79,7 @@ import {
 import {
   activeRules,
   canAttack,
+  evaluate,
   isAttackTarget,
   cardsInPlay,
   type EffectContext,
@@ -570,42 +579,194 @@ function readsBindings(value: unknown): boolean {
 const isChoice = (effect: EffectSpec): effect is Choice =>
   effect.kind === "chooseTarget" || effect.kind === "chooseCards";
 
+/** What the judgment of an effect list reads: the game, and the context of the ability the list belongs to. */
+interface Judging {
+  readonly state: GameState;
+  readonly deps: EngineDeps;
+  readonly context: EffectContext;
+  /** Whether each candidate is judged by the effects naming it (`abilityTargetFault`'s `judge`). */
+  readonly judge: boolean;
+}
+
 /**
- * Whether the ability has a part of its own left once the opening choices in `dead` have nothing to choose: an effect
- * that names none of those slots and is not post-"then" text (`then`). "Shuffle a Spell card from your discard pile
- * into your deck and draw 1 card" (Sanctum Sanctorum) keeps its draw with no Spell to choose (RRG 1.8 "Choose (Game
- * Element)", p. 12: the ability cannot be initiated only if there are "no valid targets for any part of the ability";
- * "Target", p. 42: a draw has a valid target while its deck holds a card).
+ * Whether `value` reads what only the ability's own resolution decides, beyond the slots and vars `readsBindings`
+ * finds: how the card was paid for ("if you paid for this card using a [mental] resource"), a var an effect binds.
+ */
+function readsPayment(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(readsPayment);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (typeof record.kind === "string" && (record.kind.startsWith("paid") || record.kind === "varAtLeast")) return true;
+  return Object.values(record).some(readsPayment);
+}
+
+type Branching = Extract<EffectSpec, { kind: "if" }>;
+
+/**
+ * The branches of an `if` that could run, as far as can be told before the ability is initiated. A condition on the
+ * game as it stands is read now (`known`): the branch it picks is the one that would run, an absent `otherwise` being
+ * an empty one. A condition on what the ability's own resolution decides (how it was paid for, a value or a card one
+ * of its effects binds) cannot be told yet, so either branch could run.
+ */
+function branchesThatCouldRun(
+  judging: Judging,
+  effect: Branching,
+): { readonly known: boolean; readonly branches: readonly (readonly EffectSpec[])[] } {
+  const otherwise = effect.otherwise ?? [];
+  if (readsBindings(effect.condition) || readsPayment(effect.condition))
+    return { known: false, branches: [effect.then, otherwise] };
+  const holds = evaluate(judging.state, effect.condition, judging.context);
+  return { known: true, branches: [holds ? effect.then : otherwise] };
+}
+
+/**
+ * An effect that only moves the ability's own card ("return this card to your hand", "remove this card from the
+ * game"): where the card goes, not something the ability does to a target, so it is no part of its own. "Hero Action
+ * (thwart): Remove 3 threat from the main scheme. If this is the first card you have played this round, return this
+ * card to your hand" has one part, the removal (owner decision, 2026-10-03: "returning a card does not affect the
+ * scheme"; `attackThreatRemovalInvalid` and `moveThreatLacksSource` read such an effect the same way).
+ */
+const movesOnlyItself = (effect: EffectSpec): boolean =>
+  effect.kind === "moveCards" &&
+  effect.cards.kind === "ref" &&
+  effect.cards.ref.kind === "self" &&
+  effect.cards.filter === undefined;
+
+/**
+ * The parts of an effect list that can affect nothing right now (RRG 1.8 "Target", p. 42; "Choose (Game Element)",
+ * p. 12):
+ *
+ * - `dead`: the slots of its opening required choices with no valid candidate. Only the choices before the list's
+ *   first other effect are read, and only when the list itself opens its ability (`opening`): a later one chooses
+ *   among what the effects before it leave (a card one of them drew or discarded), which cannot be known until they
+ *   resolve, so it is judged as it resolves. A choice that reads what the cost binds (a var, a slot: Shield Toss's X)
+ *   is judged only as it resolves;
+ * - `spent`: its removals of threat with no threat to take (`spentRemovals`), each `if` whose every branch that could
+ *   run is lost (`branchLost`), and each "choose one" none of whose options can be chosen (`noOptionAvailable`).
+ */
+function lostParts(
+  judging: Judging,
+  effects: readonly EffectSpec[],
+  opening: boolean,
+): { readonly dead: readonly string[]; readonly spent: readonly EffectSpec[] } {
+  const { state, deps, context, judge } = judging;
+  const dead: string[] = [];
+  let leading = opening ? effects.length : 0;
+  for (let index = 0; index < leading; index++) {
+    const effect = effects[index];
+    if (effect?.kind !== "chooseTarget" && effect?.kind !== "chooseCards") {
+      leading = index;
+      break;
+    }
+    if (!isRequiredChoice(effect) || readsBindings(effect)) continue;
+    const rest = effects.slice(index + 1);
+    if (choiceCandidates(state, deps, effect, rest, context, judge).length === 0) dead.push(effect.slot);
+  }
+  const spent: EffectSpec[] = judge ? [...spentRemovals(state, deps, effects, context)] : [];
+  effects.forEach((effect, index) => {
+    // A branch opens its ability when nothing but choices comes before it.
+    if (effect.kind === "if" && branchLost(judging, effect, opening && index === leading)) spent.push(effect);
+    else if (effect.kind === "chooseOne" && noOptionAvailable(judging, effect)) spent.push(effect);
+  });
+  return { dead, spent };
+}
+
+/** Whether an effect list can do nothing right now: it has a lost part and no part of its own (`hasIndependentPart`). */
+function listLost(judging: Judging, effects: readonly EffectSpec[], opening: boolean): boolean {
+  const { dead, spent } = lostParts(judging, effects, opening);
+  return dead.length + spent.length > 0 && !hasIndependentPart(judging, effects, dead, spent, opening);
+}
+
+/**
+ * Whether an `if` is a part that can affect nothing right now: every branch that could run (`branchesThatCouldRun`)
+ * holds effects and is lost. "Exhaust → remove 1 threat from a scheme (from each scheme instead if you have the Aerial
+ * trait)" is a removal whichever branch runs, and "Remove 6 threat from the main scheme (ignoring the crisis icon if
+ * you paid with a [mental] resource)" is one however it is paid for. A branch with nothing in it (a condition that is
+ * false now, with no `otherwise`) is not a lost part: it is no part at all.
+ *
+ * Owner answer 59A (2026-10-13): the branch that would run is the one judged.
+ */
+function branchLost(judging: Judging, effect: Branching, opening: boolean): boolean {
+  return branchesThatCouldRun(judging, effect).branches.every(
+    (branch) => branch.length > 0 && listLost(judging, branch, opening),
+  );
+}
+
+/**
+ * Whether a "choose one" has options and none of them can be chosen right now, at least one for want of a valid target
+ * (`optionLacksValidTarget`; RRG 1.8 "Choose (Option)", p. 12). An option whose condition reads the game as it stands
+ * and is false is not offered either; one whose condition cannot be told yet counts as able.
+ */
+function noOptionAvailable(judging: Judging, effect: Extract<EffectSpec, { kind: "chooseOne" }>): boolean {
+  let targetless = false;
+  for (const option of effect.options) {
+    const condition = option.condition;
+    if (condition && !readsBindings(condition) && !readsPayment(condition)) {
+      if (!evaluate(judging.state, condition, judging.context)) continue;
+    }
+    if (!optionLacksValidTarget(judging.state, judging.deps, option.effects, judging.context)) return false;
+    targetless = true;
+  }
+  return targetless;
+}
+
+/**
+ * Whether the effect list has a part of its own left once the choices in `dead` have nothing to choose and the parts
+ * in `spent` nothing to affect: an effect that names none of those slots and is not post-"then" text (`then`). "Shuffle
+ * a Spell card from your discard pile into your deck and draw 1 card" (Sanctum Sanctorum) keeps its draw with no Spell
+ * to choose (RRG 1.8 "Choose (Game Element)", p. 12: the ability cannot be initiated only if there are "no valid
+ * targets for any part of the ability"; "Target", p. 42: a draw has a valid target while its deck holds a card).
  *
  * A choice is not a part by itself: choosing does nothing until an effect uses what was chosen, so "swap a card in
  * your hand with the top card of your deck" has one part, the swap, and it names both choices (RRG 1.8 "'Swap'",
  * p. 42: "you cannot 'swap a card in your hand with the top card of your deck' if you have no cards in hand"). An
- * effect that uses a later choice alone is still a part of its own.
+ * effect that uses a later choice alone is still a part of its own. Nor is the card's own move (`movesOnlyItself`).
+ *
+ * An `if` is read by the branch that would run (`branchesThatCouldRun`; owner question 59, default A, not yet
+ * answered): a branch whose condition is false now contributes no part, and one that would run is a part of its own
+ * only if something inside it is. So "Change to Photon energy form and remove 4 threat from a scheme" written as a
+ * branch keeps its change of form with no threat anywhere, and "If you control the ship, remove 1 threat from the main
+ * scheme" adds nothing to a removal that has nothing to remove. An `if` whose condition cannot be told yet (how the
+ * card was paid for) is a part of its own as a whole, as it was before branches were read, unless both its branches
+ * are lost (`branchLost`): "If you paid for this card with a resource card, draw 1 card" keeps a removal-only card
+ * playable (owner question 58, answer A).
  *
  * Engine reading: an effect that reads a value the choice's own effects bind (Into the Fray's excess damage) counts as
  * its own part, so such an ability still initiates and resolves to nothing, as it did before.
  */
 function hasIndependentPart(
+  judging: Judging,
   effects: readonly EffectSpec[],
   dead: readonly string[],
-  spent: readonly EffectSpec[] = [],
+  spent: readonly EffectSpec[],
+  opening: boolean,
+  unboundOutside: readonly string[] = [],
 ): boolean {
   // What a removal of threat with nothing to remove would have bound ("If this removes the last threat …" read from
   // the removal's own `bind`): an effect reading it is part of that removal, not a part of its own.
-  const unbound = effects.flatMap((effect) => {
-    if (effect.kind !== "removeThreat" && effect.kind !== "thwart" && effect.kind !== "divide") return [];
-    if (effect.kind === "divide" && effect.what !== "threat") return [];
-    const lost = spent.includes(effect) || dead.some((slot) => refersToSlot(effect, slot));
-    return lost && effect.bind !== undefined ? [effect.bind] : [];
+  const unbound = [
+    ...unboundOutside,
+    ...effects.flatMap((effect) => {
+      if (effect.kind !== "removeThreat" && effect.kind !== "thwart" && effect.kind !== "divide") return [];
+      if (effect.kind === "divide" && effect.what !== "threat") return [];
+      const lost = spent.includes(effect) || dead.some((slot) => refersToSlot(effect, slot));
+      return lost && effect.bind !== undefined ? [effect.bind] : [];
+    }),
+  ];
+  const firstOther = effects.findIndex((effect) => !isChoice(effect));
+  return effects.some((effect, index) => {
+    if (effect.kind === "then" || isChoice(effect) || spent.includes(effect) || movesOnlyItself(effect)) return false;
+    if (effect.kind === "if") {
+      const { known, branches } = branchesThatCouldRun(judging, effect);
+      const [branch] = branches;
+      if (known && branch !== undefined) {
+        const opens = opening && index === firstOther;
+        const inner = lostParts(judging, branch, opens);
+        return hasIndependentPart(judging, branch, [...dead, ...inner.dead], inner.spent, opens, unbound);
+      }
+    }
+    return !dead.some((slot) => refersToSlot(effect, slot)) && !readsVarOf(effect, unbound);
   });
-  return effects.some(
-    (effect) =>
-      effect.kind !== "then" &&
-      !isChoice(effect) &&
-      !spent.includes(effect) &&
-      !dead.some((slot) => refersToSlot(effect, slot)) &&
-      !readsVarOf(effect, unbound),
-  );
 }
 
 /** Whether `value` reads a var one of these `bind` names holds (`<bind>` or `<bind>.…`). */
@@ -639,6 +800,11 @@ function removesThreat(effects: readonly EffectSpec[]): boolean {
  * post-"then" text may not resolve), and only what can be told now: a removal aimed at a slot is its choice's to
  * judge, one that reads a binding is judged as it resolves, and a ref that names nothing is left alone. A confused
  * thwarter's thwart is never spent ("Confuse, Confused", p. 13).
+ *
+ * "Remove 1 threat from each scheme" with no threat on any scheme is spent like "from a scheme" (owner answer 57A,
+ * 2026-10-13: an ability affecting each element of a type needs at least one valid target; RRG 1.8 "Target", p. 42).
+ * Every shape of it is read the same way here: alone, behind a cost, and with a conditional removal after it
+ * (`hasIndependentPart`).
  */
 function spentRemovals(
   state: GameState,
@@ -749,36 +915,45 @@ export function abilityTargetFault(
     ...(definition.label?.includes("thwart") && playerId !== null ? { thwartLabeled: true } : {}),
     ...(definition.label?.includes("attack") && playerId !== null ? { attackLabeled: true } : {}),
   };
+  return effectsTargetFault(state, deps, definition.effects, context, playerId, definition.costEffects ?? 0);
+}
+
+/**
+ * `abilityTargetFault` for an effect list read in the context it resolves in: an ability's own effects, or those of
+ * one option of a "choose one" (`optionLacksValidTarget`). `costEffects`: how many of the leading effects are the
+ * ability's printed cost (`AbilityDefinition.costEffects`).
+ */
+function effectsTargetFault(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+  playerId: PlayerId | null,
+  costEffects = 0,
+): TargetFault | null {
   // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
   // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
   // docs/phase7-wave5.md §4.1 Q48, Q50).
-  if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return null;
+  if (playerId !== null && namesConfusedThwarter(state, deps, effects, context)) return null;
   // And for an unlabeled ability whose attack effect names a stunned character as attacking (an ally's own "it
   // attacks"): the attempt discards the stunned card instead (`attack` in `apply-effect.ts`).
-  if (playerId !== null && namesStunnedAttacker(state, deps, definition.effects, context)) return null;
-  const effects = definition.effects;
+  if (playerId !== null && namesStunnedAttacker(state, deps, effects, context)) return null;
   // A move's source is judged whatever is in play: a scheme with no threat is no source.
   const moves = effects.some((effect) => effect.kind === "moveThreat");
   // An "(attack)" ability's named enemy can be one its player may not attack (guard): judged whatever else is in play.
   // A removal of threat is judged whatever is in play: a scheme with no threat is no target for it.
   const judge =
     moves || context.attackLabeled === true || removesThreat(effects) || targetsCanBeInvalid(state, deps, playerId);
-  // The opening choices that are required and have nothing to choose. Only the choices before the ability's first
-  // other effect are read: a later one chooses among what the effects before it leave (a card one of them drew or
-  // discarded), which cannot be known until they resolve, so it is judged as it resolves.
-  const dead: string[] = [];
-  for (let index = 0; index < effects.length; index++) {
-    const effect = effects[index];
-    if (effect?.kind !== "chooseTarget" && effect?.kind !== "chooseCards") break;
-    // A choice that reads what the cost binds (a var, a slot: Shield Toss's X) is judged only as it resolves.
-    if (!isRequiredChoice(effect) || readsBindings(effect)) continue;
-    const rest = effects.slice(index + 1);
-    if (choiceCandidates(state, deps, effect, rest, context, judge).length === 0) dead.push(effect.slot);
-  }
+  const judging: Judging = { state, deps, context, judge };
+  // What follows the printed cost is the effect (RRG 1.8 "Cost", p. 13: "An ability's cost cannot be paid if that
+  // ability's effect requires one or more targets and there is not at least one valid target"): a cost scripted as
+  // leading effects is no part of it, and its opening choices are read as if the cost had been paid.
+  const effect = costEffects > 0 ? effects.slice(costEffects) : effects;
+  // The opening choices that are required and have nothing to choose, and the parts with nothing to affect.
+  const { dead, spent } = lostParts(judging, effect, true);
   // Read before the dead choices so a move with no source says so (`TARGET_FAULT_MESSAGE`).
   if (moves && moveThreatLacksSource(state, deps, effects, context)) return "moveSource";
-  const spent = judge ? spentRemovals(state, deps, effects, context) : [];
-  if (dead.length + spent.length > 0 && !hasIndependentPart(effects, dead, spent)) return "target";
+  if (dead.length + spent.length > 0 && !hasIndependentPart(judging, effect, dead, spent, true)) return "target";
   if (tuckNamesNoCard(state, deps, effects, context)) return "target";
   if (tuckUnderFullHost(state, deps, effects, context)) return "tuckFull";
   if (gainNamesEmptyPile(state, effects)) return "target";
@@ -786,6 +961,30 @@ export function abilityTargetFault(
   if (judge && context.thwartLabeled && thwartNamesNoValidScheme(state, deps, effects, context)) return "target";
   if (context.attackLabeled && attackNamesNoAttackableEnemy(state, deps, effects, context)) return "target";
   return judge && fixedTargetsAllInvalid(state, deps, effects, context) ? "target" : null;
+}
+
+/**
+ * Whether one option of a "choose one" cannot be chosen for want of a valid target, read as the option would resolve
+ * (`context`: the resolving ability's, with what it has bound so far). RRG 1.8 "Choose (Option)" (p. 12): "When a
+ * player card requires a player to choose an option, they cannot choose an option that cannot be at least partially
+ * resolved. This includes options that … Require one or more targets and there are no valid targets", and "When an
+ * encounter card requires a player to choose an option, they cannot choose an option that requires one or more targets
+ * if there are no valid targets for that option." So "Remove 2 threat from a scheme" is no option while no scheme
+ * holds threat (`holdsThreat`).
+ *
+ * The option's effects are judged as a whole ability's are (`abilityTargetFault`): an option with a part of its own
+ * can be partially resolved and stays, for an encounter card as for a player card (the encounter sentence does not
+ * say "partially"; an option that still does something is kept rather than hidden on that silence). Nothing is hidden
+ * on a guess: an effect this module cannot judge counts as able, and so does a choice that reads what the ability has
+ * bound.
+ */
+export function optionLacksValidTarget(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  return effectsTargetFault(state, deps, effects, context, context.controllerId ?? null) !== null;
 }
 
 /** Whether this player-initiated ability cannot be initiated for want of a valid target (`abilityTargetFault`). */

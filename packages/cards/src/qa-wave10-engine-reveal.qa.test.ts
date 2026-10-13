@@ -57,7 +57,7 @@ describe("a minion put into play without a reveal keeps its order (owner answer 
     return { staged, iceman: base.id, vulture: staged.ids[0]! };
   };
 
-  it("Looking for Trouble 16043 puts Vulture into play: Iceman's response is heard BEFORE the Quickstrike attack (38A, as built)", () => {
+  it("Looking for Trouble 16043 puts Vulture into play: Iceman's response is heard BEFORE the Quickstrike attack (38A, as built), so its stun replaces that attack", () => {
     const { staged, iceman, vulture } = lookingForTrouble(true);
     const given = conjure(staged.state, "16043");
     const done = driveWith(
@@ -67,16 +67,19 @@ describe("a minion put into play without a reveal keeps its order (owner answer 
     );
     expect(done.accepted, done.refusal).toBe(true);
     expect(cardsInPlay(done.state)).toContain(vulture);
-    // The response fired first (it spent a counter and gave the stun) and the attack still resolved: see the BUG below.
+    // The response fired first (it spent a counter and gave the stun), so the Quickstrike attack is replaced by the
+    // removal of that stunned card (RRG 1.8 "Stun, Stunned", p. 41; finding S1, fixed).
     expect(inst(done.state, iceman as InstanceId).counters.freeze).toBe(2);
+    expect(damageTo(done.events, identityOf(done.state), vulture)).toEqual([]);
+    expect(inst(done.state, vulture).statuses.stunned).toBe(0);
   });
 
   // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead." The
-  // Quickstrike attack is an enemy attack. `quickstrikeAttack` (resolve/enter-play.ts) pushes the attack event straight
-  // away and never reads the minion's status, so a stunned Quickstrike minion attacks in full and keeps its stun card
-  // (an ordinary activation, villain/phase.ts, does discard it). Under the answer-38A order any response that stuns the
-  // minion as it enters play (Iceman, Hawkeye-like cards, Prism Dust) lands before the attack and should cancel it.
-  it.fails("a stunned minion put into play with Quickstrike does not attack: the stunned card is discarded instead", () => {
+  // Quickstrike attack is an enemy attack, and its minion's status is read as the attack would begin (finding S1,
+  // fixed: `quickstrikeFrame`, resolve/enter-play.ts), as an ordinary activation's is (villain/phase.ts). Under the
+  // answer-38A order any response that stuns the minion as it enters play (Iceman, Hawkeye-like cards, Prism Dust)
+  // lands before the attack and replaces it.
+  it("a stunned minion put into play with Quickstrike does not attack: the stunned card is discarded instead", () => {
     const { staged, vulture } = lookingForTrouble(false);
     const stunnedFirst = patchInstance(staged.state, vulture, {
       statuses: { ...inst(staged.state, vulture).statuses, stunned: 1 },

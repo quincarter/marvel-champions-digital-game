@@ -734,10 +734,13 @@ function expectTokenPasses(start: GameState, observer: Observer, result: GameRes
 }
 
 describe("Psylocke and Angel, two players", () => {
+  // Juggernaut seed 5 replaced seed 6 on 2026-10-13: Natural Flight can no longer be played with no threat on any
+  // scheme (RRG 1.8 "Target", p. 42; docs/qa-wave10-engine-rules.md S2), which Angel's player did in round 1 of seed 6;
+  // that game now ends in round 2.
   it.each([
     ["on-the-run", 2],
     ["on-the-run", 5],
-    ["juggernaut", 6],
+    ["juggernaut", 5],
   ] as const)("%s seed %i plays three full rounds", (scenario, seed) => {
     const observer = new Observer(`${scenario}#${seed}+angel`);
     const start = newGame(scenario, [PSYLOCKE, ANGEL], seed);

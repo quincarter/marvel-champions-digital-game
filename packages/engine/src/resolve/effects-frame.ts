@@ -194,6 +194,7 @@ import {
   divisionCanRemoveThreat,
   isRequiredChoice,
   isRequiredSearch,
+  optionLacksValidTarget,
   readsDeck,
   slotTargetValid,
   UNRESOLVED_VAR,
@@ -2159,7 +2160,13 @@ function executeChooseOne(
     .map((option, index) => ({ option, index }))
     .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context))
     // An option to spend resources is offered only to a player who can pay it (`EffectSpec spendResources.required`).
-    .filter(({ option }) => option.effects.every((step) => requiredSpendPayable(ctx, step, context)));
+    .filter(({ option }) => option.effects.every((step) => requiredSpendPayable(ctx, step, context)))
+    // RRG 1.8 "Choose (Option)" (p. 12): an option that requires a target and has no valid one cannot be chosen
+    // ("Remove 2 threat from a scheme" with no threat on any scheme). Read once, before the choice is asked: the
+    // answer is checked against the options that were offered.
+    .filter(
+      ({ option }) => frame.answer !== null || !optionLacksValidTarget(ctx.state, ctx.deps, option.effects, context),
+    );
   const count = effect.count ?? 1;
   if (count > 1) return executeChooseSeveral(ctx, frame, effect, context, available, count);
   const pickedIndex =
@@ -2221,7 +2228,8 @@ function executeChooseSeveral(
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   const picks = effect.allowRepeat ? count : Math.min(count, available.length);
   if (frame.answer === null) {
-    if (!chooser || picks === 0) {
+    // No option left to choose (none can be resolved, even partly): the choice resolves to nothing.
+    if (!chooser || picks === 0 || available.length === 0) {
       setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
       return;
     }

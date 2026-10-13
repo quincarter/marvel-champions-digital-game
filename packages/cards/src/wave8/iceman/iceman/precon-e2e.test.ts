@@ -597,7 +597,9 @@ describe("Iceman's printed deck", () => {
 });
 
 describe("Iceman precon vs Rhino with Sauron, one player", () => {
-  it.each([1, 2, 3, 4, 5, 6, 7, 8])("seed %i plays to an outcome with every invariant intact", (seed) => {
+  // Seed 9 is here for "its host left play": no earlier seed reaches it since Looking for Trouble is refused with no
+  // threat on the main scheme (RRG 1.8 "Cost", p. 13), which shifted every game that holds the card.
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])("seed %i plays to an outcome with every invariant intact", (seed) => {
     const start = started(rhinoSauron(seed));
     const result = play(start, new Observer(`rhino+sauron#${seed}`));
     expect(result.session.state.outcome).not.toBeNull();

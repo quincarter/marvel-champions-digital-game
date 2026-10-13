@@ -244,7 +244,7 @@ import {
   engagementOf,
   playerSideSchemeEntersPlay,
   engageInPlayMinion,
-  quickstrikeAttack,
+  quickstrikeFrame,
   rotateEngagement,
   teamworkFrame,
 } from "./enter-play.js";
@@ -1990,11 +1990,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           instanceId: id,
           playerId: attached.includes(id) ? (controllerOf(ctx.state, id) ?? controller) : controller,
         }));
-      for (const id of entering) {
-        const quickstrike = quickstrikeAttack(ctx, id);
-        if (quickstrike) entered.push(quickstrike);
-      }
       const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      for (const id of entering) {
+        const quickstrike = quickstrikeFrame(ctx, id);
+        if (quickstrike) frames.push(quickstrike);
+      }
       // Teamwork (trait) after quickstrike, checked as it resolves (docs/phase7-wave6.md §3.1, `resolveTeamwork`).
       for (const id of entering) {
         const teamwork = teamworkFrame(ctx, id);
@@ -2059,9 +2059,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       bound([id]);
       // Announced as the minion it now is (§4.1 Q43 = A), in the order `putIntoPlay` announces a minion.
       const entered: TriggerEvent[] = [{ kind: "cardEntersPlay", instanceId: id, playerId }];
-      const quickstrike = quickstrikeAttack(ctx, id);
-      if (quickstrike) entered.push(quickstrike);
       const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
+      const quickstrike = quickstrikeFrame(ctx, id);
+      if (quickstrike) frames.push(quickstrike);
       const teamwork = teamworkFrame(ctx, id);
       if (teamwork) frames.push(teamwork);
       frames.push(...engagedEvent(ctx, id).map((event) => eventFrame(ctx, event)));

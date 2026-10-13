@@ -439,6 +439,21 @@ export function quickstrikeAttack(ctx: Ctx, id: InstanceId): TriggerEvent | null
   };
 }
 
+/**
+ * The frame of a minion's quickstrike attack, or null when it makes none (`quickstrikeAttack`). The frame is queued as
+ * the minion engages and can resolve later (behind the responses to a put-into-play minion's entering play, the
+ * owner's answer 38A), so the status check an activation makes before it begins is made as this one would begin
+ * (`Frame<"event">.statusReplaces`). RRG 1.8 "Stun, Stunned" (p. 41): "When this character would attack, remove each
+ * stunned status card from it instead"; FAQ "Norman Osborn (#1A)" (p. 58): status cards take priority over all other
+ * abilities. Teamwork's activation asks the same as it resolves (`resolveTeamwork` through `activateEnemy`).
+ */
+export function quickstrikeFrame(ctx: Ctx, id: InstanceId): StackFrame | null {
+  const attack = quickstrikeAttack(ctx, id);
+  if (!attack) return null;
+  const frame = eventFrame(ctx, attack);
+  return frame.kind === "event" ? { ...frame, statusReplaces: true } : frame;
+}
+
 /*
  * RRG 1.8 "Teamwork (Trait)" (p. 43): "After a minion with teamwork enters play and engages a player, if there is at
  * least one other minion that shares the specified trait in play, the minion that just entered play activates against
@@ -556,8 +571,8 @@ export function engagedInPlayFrames(ctx: Ctx, id: InstanceId): readonly StackFra
   const frames: StackFrame[] = [];
   const engaged = engagementFrame(ctx, id);
   if (engaged) frames.push(engaged);
-  const quickstrike = quickstrikeAttack(ctx, id);
-  if (quickstrike) frames.push(eventFrame(ctx, quickstrike));
+  const quickstrike = quickstrikeFrame(ctx, id);
+  if (quickstrike) frames.push(quickstrike);
   return frames;
 }
 

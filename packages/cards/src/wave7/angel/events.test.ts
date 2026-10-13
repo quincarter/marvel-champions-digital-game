@@ -422,13 +422,15 @@ describe("Natural Flight (42006)", () => {
     const run = playEvent(base, "42006", 2, queue(mainId(base)));
     expect(threatOn(run.state, mainId(base))).toBe(2);
   });
-  it("as Angel: ignores the patrol keyword (Zero engaged); as Archangel the main scheme is not offered", () => {
+  it("as Angel: ignores the patrol keyword (Zero engaged); as Archangel the main scheme is no target, so the card cannot be played", () => {
     const angel = engageMinion(withoutSideSchemes(game(ANGEL)), "40174");
     expect(offeredSchemes(angel.state)).toContain(mainId(angel.state));
     const runA = playEvent(angel.state, "42006", 2, queue(mainId(angel.state)));
     expect(threatOn(runA.state, mainId(angel.state))).toBe(2);
+    // The branch that would run is the one judged (Archangel's, which does not ignore patrol): with the main scheme
+    // the only scheme in play there is no scheme to thwart (RRG 1.8 "Target", p. 43; owner decision, 2026-10-03).
     const arch = engageMinion(withoutSideSchemes(game(ARCHANGEL)), "40174");
-    expect(offeredSchemes(arch.state)).not.toContain(mainId(arch.state));
+    expect(refused(arch.state, "42006", 2)).toBe(true);
   });
   it("is refused as Warren", () => {
     expect(refused(game(WARREN), "42006", 2)).toBe(true);

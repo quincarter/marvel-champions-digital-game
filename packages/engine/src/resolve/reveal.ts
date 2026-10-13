@@ -34,6 +34,7 @@ import {
   enterPlay,
   playerSideSchemeEntersPlay,
   quickstrikeAttack,
+  quickstrikeFrame,
   schemeEntryThreat,
   teamworkFrame,
   teamworkWouldActivate,
@@ -490,8 +491,7 @@ function revealKeywordApplies(ctx: Ctx, frame: Frame<"reveal">, keyword: RevealK
 function revealKeywordFrame(ctx: Ctx, frame: Frame<"reveal">, keyword: RevealKeyword): StackFrame | null {
   if (!revealKeywordApplies(ctx, frame, keyword)) return null;
   if (keyword === "teamwork") return teamworkFrame(ctx, frame.instanceId);
-  const attack = quickstrikeAttack(ctx, frame.instanceId);
-  return attack ? eventFrame(ctx, attack) : null;
+  return quickstrikeFrame(ctx, frame.instanceId);
 }
 
 const REVEAL_KEYWORDS: readonly RevealKeyword[] = ["quickstrike", "teamwork"];

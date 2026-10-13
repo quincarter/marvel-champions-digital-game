@@ -2780,8 +2780,11 @@ export type EffectSpec =
   | { readonly kind: "drawUpTo"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
    * "Choose one: …" / "Choose to either … or …". Options whose `condition`
-   * fails aren't offered, nor is one holding a `required` `spendResources` its player cannot pay (see that effect);
-   * with one option left it resolves without asking.
+   * fails aren't offered, nor is one holding a `required` `spendResources` its player cannot pay (see that effect),
+   * nor one that requires a target and has no valid one ("Remove 2 threat from a scheme" with no threat on any
+   * scheme; RRG 1.8 "Choose (Option)", p. 12; `optionLacksValidTarget` in `resolve/target-validity.ts`). With one
+   * option left it resolves without asking, and with none it resolves to nothing; a player ability whose "choose
+   * one" has no option to choose, and which has no other part of its own, cannot be initiated.
    */
   | {
       readonly kind: "chooseOne";

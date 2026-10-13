@@ -297,14 +297,19 @@ describe("Spiral, ESCAPED (39012a-39014a)", () => {
     // Nick Fury's "Deal 4 damage to an enemy" is a bare damage effect; Heroic Strike deals damage and stuns.
     const base = heroForm();
     const fury = conjure(base, [FURY, ENERGY, ENERGY]);
+    // The enemies "Deal 4 damage to an enemy" (option 2) offers, or null when the option itself is not offered.
     const dealFour = (state: GameState, ids: readonly InstanceId[]) => {
       const played = applyCommand(state, play(P1, ids[0]!, payWith(state, P1, 2, [ids[0]!])), deps);
       expect(played.ok).toBe(true);
       if (!played.ok) return [];
-      const picked = settle(played.state, picking("2"), (s) => s.pendingChoice?.prompt.kind !== "chooseOption", deps);
+      const asked = settle(played.state, firstLegal, (s) => s.pendingChoice?.prompt.kind === "chooseOption", deps);
+      expect(asked.pendingChoice?.prompt.kind).toBe("chooseOption");
+      if (!asked.pendingChoice?.options.some((o) => o.optionId === "2")) return null;
+      const picked = settle(asked, picking("2"), (s) => s.pendingChoice?.prompt.kind !== "chooseOption", deps);
       return (picked.pendingChoice?.options ?? []).flatMap((o) => (o.ref.kind === "card" ? [o.ref.instanceId] : []));
     };
-    expect(dealFour(fury.state, fury.ids)).toEqual([]);
+    // She is the only enemy and no target for it, so the option cannot be chosen (RRG 1.8 "Choose (Option)", p. 12).
+    expect(dealFour(fury.state, fury.ids)).toBeNull();
     const cornered = withSpiral(base, { side: "B" });
     const furyCornered = conjure(cornered, [FURY, ENERGY, ENERGY]);
     expect(dealFour(furyCornered.state, furyCornered.ids)).toEqual([spiral(cornered)]);

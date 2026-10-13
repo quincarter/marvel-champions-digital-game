@@ -118,6 +118,14 @@ export interface AbilityOptions {
    * which at X = 0 would choose nothing and do nothing (the owner's answer 52B, 2026-10-13).
    */
   readonly minX?: number;
+  /**
+   * How many of the leading effects are the printed cost, written as effects because paying them resolves as effects
+   * do (`AbilityDefinition.costEffects`): `{ costEffects: 2 }` for "Discard cards from the top of the encounter deck
+   * until you discard a minion. Put that minion into play engaged with you → remove 3 threat from the main scheme"
+   * (Looking for Trouble 16043). They are no part of the effect, so they do not keep the card playable when the effect
+   * has no valid target (RRG 1.8 "Cost", p. 13).
+   */
+  readonly costEffects?: number;
 }
 type Args = readonly (AbilityOptions | EffectArg)[];
 
@@ -172,6 +180,7 @@ function build(
     ...(options.playCostReduction ? { playCostReduction: options.playCostReduction } : {}),
     ...(options.readsPaidTypes ? { readsPaidTypes: options.readsPaidTypes } : {}),
     ...(options.minX !== undefined ? { minX: options.minX } : {}),
+    ...(options.costEffects !== undefined ? { costEffects: options.costEffects } : {}),
   };
 }
 

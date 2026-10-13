@@ -52,23 +52,7 @@ describe("payment discard order (#122)", () => {
     expect(discard.slice(0, 3)).toEqual([eventId, b, a]);
   });
 
-  // The view model tags the last picked card "on top" for every play, events included. For an event that card ends one
-  // below the event itself, so Pepper Potts (top card of the discard pile) reads the event, not the tagged card.
-  it.fails("event play: the card the payment view tags 'on top' (last picked) is the top card of the discard pile", () => {
-    const event = stubEvent({ id: "two-cost-event", cost: 2 });
-    const extra = [MENTAL, event];
-    const state = newGame({
-      villain: VILLAIN,
-      mainScheme: SCHEME,
-      extraCards: extra,
-      deck: [...extra.flatMap((c) => copies(c.id)), ...copies(MENTAL.id, 8)],
-      deps: depsOf(),
-    });
-    const given = giveCards(state, p1, "two-cost-event", "mental", "mental");
-    const [eventId, a, b] = given.ids as [InstanceId, InstanceId, InstanceId];
-    const after = runWith(depsOf(), given.state, play(eventId, hand(a, b)));
-    expect(mustPlayer(after, p1).discard[0]).toBe(b);
-  });
+  // The client's payment view follows this: for an event the last picked card is tagged "under <event>", not "on top".
 
   it("an ability cost paid from hand discards in picked order, last on top", () => {
     const zap = stubAbility("zap", {

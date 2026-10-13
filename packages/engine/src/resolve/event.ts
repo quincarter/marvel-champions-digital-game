@@ -22,7 +22,7 @@ import {
   setForm,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
+import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, keywordTotal, statusActive } from "../keywords.js";
 import { titlesNaming } from "../titles.js";
 import { boostIconsFor } from "../modifiers.js";
 import {
@@ -228,6 +228,22 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
           playerId: frame.event.kind === "enemyAttack" ? frame.event.attackedPlayerId : frame.event.playerId,
         });
         setFrame(ctx, { ...frame, stage: "apply", cancelled: true });
+        return;
+      }
+      // An attack queued before anything asked about its attacker's status (`Frame<"event">.statusReplaces`): RRG 1.8
+      // "Stun, Stunned" (p. 41), "When this character would attack, remove each stunned status card from it instead."
+      // Before its interrupt window, as the villain phase's check is before the activation is initiated (FAQ "Norman
+      // Osborn (#1A)", p. 58): no boost card, no responses to an attack.
+      if (
+        frame.statusReplaces &&
+        frame.event.kind === "enemyAttack" &&
+        statusActive(ctx.state, frame.event.enemyInstanceId, "stunned", ctx.deps)
+      ) {
+        setFrame(ctx, { ...frame, stage: "apply", cancelled: true });
+        announceStatusDiscarded(
+          ctx,
+          discardStatusCards(ctx, frame.event.enemyInstanceId, "stunned", "cancelledAttack"),
+        );
         return;
       }
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });

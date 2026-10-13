@@ -3455,6 +3455,16 @@ export interface AbilityDefinition {
   readonly limit?: AbilityLimit;
   readonly label?: readonly AbilityLabel[];
   readonly effects: readonly EffectSpec[];
+  /**
+   * How many of the leading `effects` are the ability's printed cost, written as effects because paying them resolves
+   * as effects do: "Discard cards from the top of the encounter deck until a minion is discarded and put that minion
+   * into play engaged with you → remove 3 threat from the main scheme" has two. They resolve exactly as before; the
+   * number is read only where the rules tell a cost from an effect. RRG 1.8 "Cost" (p. 13): "An ability's cost cannot
+   * be paid if that ability's effect requires one or more targets and there is not at least one valid target", so a
+   * cost effect is no part of its own that could make the ability initiable (`abilityTargetFault`): with no threat on
+   * the scheme the ability cannot be initiated and the minion is not put into play. Absent: none.
+   */
+  readonly costEffects?: number;
   /** Resource abilities only. Defaults to 1 wild resource. */
   readonly generates?: ResourceGeneration;
   /** Resource abilities only: "generate a [wild] resource for an event" — usable only while paying for a matching card. */

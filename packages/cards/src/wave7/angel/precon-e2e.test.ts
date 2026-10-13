@@ -741,10 +741,14 @@ describe("Angel precon, Juggernaut, standard, one player", () => {
   // Seeds picked (by trying seeds 1-15) for games that last: rounds reached are 8, 6, 4, 4 and 4. The greedy driver
   // loses every Juggernaut game, so each is played to its loss; a loss is legitimate only if the outcome is one the rules
   // define, which `outcomeOf` shows.
+  //
+  // Seed 5 replaced seed 8 on 2026-10-13: Natural Flight can no longer be played with no threat on any scheme (RRG 1.8
+  // "Target", p. 42; docs/qa-wave10-engine-rules.md S2), which the driver did in round 1 of seed 8; it now plays
+  // other cards instead and that game ends in round 1.
   it.each([
     [4, 8],
+    [5, 4],
     [6, 6],
-    [8, 4],
     [10, 4],
     [13, 4],
   ])("seed %i plays to an outcome (round %i or later) with every invariant intact", (seed, rounds) => {
@@ -760,9 +764,13 @@ describe("Angel precon, a second scenario, one player", () => {
   // Stryfe seed 9 replaced seed 5 on 2026-10-06: Warpath's response now plays a Hero Action event in the villain phase
   // (owner ruling, docs/phase7-wave7.md §4.1), which in round 1 of seed 5 spends two cards on Natural Flight and ends
   // that game in round 4. Of seeds 1-15, 3 and 9 reach round 5.
+  //
+  // Morlock Siege seed 4 replaced seed 7 on 2026-10-13: Natural Flight can no longer be played with no threat on any
+  // scheme (docs/qa-wave10-engine-rules.md S2), which the driver did in round 1 of seed 7; that game now ends in round
+  // 3 by the hero's defeat (where a Morlock ally he controlled goes to his discard pile: reported, not pinned here).
   it.each([
     ["morlock-siege", 2, 6],
-    ["morlock-siege", 7, 7],
+    ["morlock-siege", 4, 7],
     ["stryfe", 3, 5],
     ["stryfe", 9, 5],
   ])("%s seed %i reaches round %i", (scenario, seed, rounds) => {

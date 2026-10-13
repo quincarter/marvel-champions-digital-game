@@ -280,7 +280,8 @@ describe("53002 Redwing", () => {
     expect(inst(state, identityOf(state)).damage).toBe(0);
   });
   it("costs are all paid before the choice: Redwing is already in hand and the card discarded when it is asked", () => {
-    const { state: s, id, top } = redwing([THREE]);
+    // Threat on the main scheme, so both options can be chosen and the choice is asked.
+    const { state: s, id, top } = redwing([THREE], withThreat(falconHeroGame(), 4));
     let atChoice: GameState | undefined;
     const pick: Picker = (st) => {
       if (st.pendingChoice!.prompt.kind === "chooseOption" && atChoice === undefined) atChoice = st;

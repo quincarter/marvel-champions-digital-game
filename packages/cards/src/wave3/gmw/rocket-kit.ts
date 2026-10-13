@@ -184,7 +184,7 @@ export const ROCKET_KIT = defineAbilities({
   // `putIntoPlay` auto-engages a minion with its controller (`resolve/apply-effect.ts`). Not playable while you cannot
   // thwart the main scheme (RRG 1.8 "Target", p. 43; owner decision, 2026-10-03), so nothing is discarded then.
   "16043.looking-for-trouble-action": heroAction(
-    { label: "thwart" },
+    { label: "thwart", costEffects: 2 },
     discardEncounterUntil(query("minion"), "found"),
     putIntoPlay(chosen("found")),
     removeThreat(3, theMainScheme),

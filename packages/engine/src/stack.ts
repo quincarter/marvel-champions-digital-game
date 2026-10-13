@@ -205,6 +205,13 @@ export type StackFrame =
        */
       readonly endedEarly?: true;
       /**
+       * An enemy attack queued ahead of the moment it is made (a keyword's attack waiting behind the responses to its
+       * minion's entering play, `quickstrikeFrame`), so nothing has yet asked whether a stunned status card replaces
+       * it: read as the attack would begin (RRG 1.8 "Stun, Stunned", p. 41; `resolve/event.ts`). The villain phase and
+       * the "X attacks" effects ask before they push their event and do not set this.
+       */
+      readonly statusReplaces?: true;
+      /**
        * Events whose *response* window was deferred to the end of this activation: RRG 1.8 "Defend, Defense" (p. 16),
        * "Abilities that trigger after a character defends an attack resolve after that attack ends." Only an
        * activation event frame (`enemyAttack`) carries these; `resolve/event.ts` opens them in its `done` stage.

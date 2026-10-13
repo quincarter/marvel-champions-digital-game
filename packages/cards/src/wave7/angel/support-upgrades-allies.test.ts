@@ -563,7 +563,7 @@ describe("Worthington Industries (42009)", () => {
     expect(handSize(state)).toBe(hand + 1);
   });
   it("only an AERIAL card is shuffled: with Taunt alone in the discard pile nothing moves", () => {
-    const { state: s0, id } = withIndustries(ANGEL_FACE, []);
+    const { state: s0, id } = withIndustries(WARREN, []);
     const taunt = moveToHand(s0, P1, TAUNT).ids[0]!;
     const s = {
       ...s0,
@@ -580,12 +580,18 @@ describe("Worthington Industries (42009)", () => {
     };
     const deck = deckCodes(s).length;
     const r = applyCommand(s, use(P1, id, WORTHINGTON), DEPS);
-    // The engine initiates it anyway (the alter-ego draw is another part of the ability): nothing is shuffled.
+    // In alter-ego form the engine initiates it anyway (the draw is another part of the ability): nothing is shuffled.
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(discardCodes(r.state)).toEqual([TAUNT]);
-      expect(deckCodes(r.state).length).toBe(deck);
+      expect(deckCodes(r.state).length).toBe(deck - 1);
     }
+    // In hero form the draw would not happen, so nothing of the ability could resolve: it cannot be used, and the
+    // support stays ready (RRG 1.8 "Choose (Game Element)", p. 12; a branch whose condition is false is no part).
+    const hero = withForm(s, ANGEL_FACE);
+    const refused = applyCommand(hero, use(P1, id, WORTHINGTON), DEPS);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
   });
   it("an exhausted Worthington Industries cannot be used", () => {
     const { state: s, id } = withIndustries(ANGEL_FACE, [VIGILANT]);

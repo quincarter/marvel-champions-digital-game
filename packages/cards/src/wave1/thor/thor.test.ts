@@ -44,7 +44,10 @@ describe("Thor kit", () => {
     const given = moveToHand(start, P1, "06003"); // Defender of the Nine Realms
     const [card] = given.ids as [never];
     const withGiants = stackFromSetAside(given.state, P1, "06029", "06029");
-    const stacked = stackEncounterDeck(withGiants, "06029", "06029");
+    // Threat on the main scheme: with none the card has no valid target and cannot be played (RRG 1.8 "Cost", p. 13).
+    const stacked = patchInstance(stackEncounterDeck(withGiants, "06029", "06029"), withGiants.mainScheme.instanceId, {
+      threat: 3,
+    });
     const hero = runThor(stacked, toHero());
     const identity = identityOf(hero);
     const handBefore = playerOf(hero, P1).hand.length; // includes the card about to be played
@@ -85,7 +88,10 @@ describe("Thor kit", () => {
     const given = moveToHand(start, P1, "06003");
     const [card] = given.ids as [never];
     const withGiants = stackFromSetAside(given.state, P1, "06029", "06029");
-    const stacked = stackEncounterDeck(withGiants, "06029", "06029"); // both copies of Frost Giant on top
+    // Both copies of Frost Giant on top, and threat for the card to remove.
+    const stacked = patchInstance(stackEncounterDeck(withGiants, "06029", "06029"), withGiants.mainScheme.instanceId, {
+      threat: 3,
+    });
     const hero = runThor(stacked, toHero());
     const before = activeEncounterDeck(hero).deck.length;
     const played = runThor(hero, play(P1, card, payWith(hero, P1, 0, [card])));
