@@ -112,6 +112,12 @@ export interface AbilityOptions {
    * declaration could change it. Without this the payment records no types and both readers read nothing.
    */
   readonly readsPaidTypes?: PaidTypesRead;
+  /**
+   * On the ability of a card with a printed X cost: the least X the player may name (`AbilityDefinition.minX`).
+   * `{ minX: 1 }` for "Choose X schemes. Remove 2 threat from each chosen scheme" (Everywhere All at Once 58018),
+   * which at X = 0 would choose nothing and do nothing (the owner's answer 52B, 2026-10-13).
+   */
+  readonly minX?: number;
 }
 type Args = readonly (AbilityOptions | EffectArg)[];
 
@@ -165,6 +171,7 @@ function build(
     ...(generates !== undefined ? { generates } : {}),
     ...(options.playCostReduction ? { playCostReduction: options.playCostReduction } : {}),
     ...(options.readsPaidTypes ? { readsPaidTypes: options.readsPaidTypes } : {}),
+    ...(options.minX !== undefined ? { minX: options.minX } : {}),
   };
 }
 

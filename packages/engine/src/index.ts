@@ -142,6 +142,7 @@ export {
   additionalPlayCostOf,
   costAsDetermined,
   inPlayCostCandidates,
+  minimumChosenX,
   playCostOf,
   playCostWith,
   playableOutsideHand,

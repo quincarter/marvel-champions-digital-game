@@ -462,7 +462,9 @@ describe("59002 Defeat the Hydra", () => {
       },
     ]);
     expect(ofType(events, "returnedToSeparateDeck").map((e) => e.cardId)).toEqual([DEFEAT_THE_HYDRA]);
-    expect(giftDeck(state)).toHaveLength(3);
+    // Answer 54B: a minion could be in the encounter deck, never in the Labor or Gift decks; neither is shuffled.
+    expect(ofType(events, "deckShuffled").map((e) => e.zone.kind)).toEqual(["encounterDeck"]);
+    expect(giftDeck(state)).toEqual(giftDeck(start));
     expect(giftsInPlay(state)).toEqual([]);
     // The action is open again at once and reveals the next card.
     const next = run(state, newLabors(state)).state;
@@ -663,8 +665,12 @@ describe("59004 Protect Humanity", () => {
       removedFromGame: [...start0.removedFromGame, cho],
       players: start0.players.map((p) => ({ ...p, deck: p.deck.filter((i) => i !== cho) })),
     };
-    const { state } = run(start, newLabors(start));
+    const { state, events } = run(start, newLabors(start));
     const labor = theCard(state, PROTECT_HUMANITY);
+    // Answer 54B (2026-10-13): the find for an ally looks through the player deck, not the Labor or Gift decks, so
+    // only the player deck is shuffled (RRG 1.8 "Find", p. 19; "Search", p. 39) and both special decks keep their order.
+    expect(ofType(events, "deckShuffled").map((e) => e.zone)).toEqual([{ kind: "deck", playerId: P1 }]);
+    expect(giftDeck(state)).toEqual(giftDeck(start));
     expect(laborCodes(state)).toEqual([DEFEAT_THE_HYDRA, EMBODY_PATHOS, PROTECT_HUMANITY]);
     expect(cardsInPlay(state)).not.toContain(labor);
     expect(playerOf(state, P1).playArea).not.toContain(labor);

@@ -344,11 +344,16 @@ describe("59001b New Labors of Hercules: a Labor card that fails to find its tar
     expect(ofType(run.events, "deckShuffled")).toHaveLength(1);
   });
   it("59004 Protect Humanity with Amadeus Cho removed from the game (nothing to find): 'a labor card fails to find a target when it is revealed' is discarded and goes to the bottom of the Labor deck, never into play (RRG 1.8 FAQ p. 65)", () => {
-    const { run } = protectHumanity("removed");
+    const { run, start } = protectHumanity("removed");
     const ph = theCard(run.state, PROTECT_HUMANITY);
     expect(cardsInPlay(run.state)).not.toContain(ph);
     expect(playerOf(run.state, P1).playArea).not.toContain(ph);
+    // Answer 54B (2026-10-13; RRG 'Find' p. 19, "each game area where that card could be found"): an ally could be in
+    // the player deck, which is searched and shuffled (RRG 'Search' p. 39), and in neither the Labor deck nor the Gift
+    // deck, which are not looked through and keep their order.
+    expect(ofType(run.events, "deckShuffled").map((e) => e.zone)).toEqual([{ kind: "deck", playerId: P1 }]);
     expect(laborCodes(run.state)).toEqual(["59002", "59003", "59004"]);
+    expect(playerOf(run.state, P1).separateDecks.Gift!.deck).toEqual(playerOf(start, P1).separateDecks.Gift!.deck);
   });
 });
 

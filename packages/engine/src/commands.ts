@@ -110,8 +110,10 @@ export interface CostSelection {
   /**
    * Another player paying a part of this cost in the user's place (`RuleSpec costsPayableByAnyPlayer`, "While paying
    * costs on attached card, any player may help pay those costs"; docs/phase7-wave10-hero-packs.md H3.19, owner answer
-   * 21B): the player who pays each part named, whole. A part left out, or given the user's own id, is paid by the
-   * user. Refused unless such a rule names the card the cost is printed on, the player is still in the game and the
+   * 21B), or of the costs of an alliance card being played (RRG 1.8 "Alliance", p. 6; owner answer 48B): the player
+   * who pays each part named, whole. A part left out, or given the user's own id, is paid by the user. Refused unless
+   * such a rule names the card the cost is printed on or that card is an alliance card being played
+   * (`costPartsPayableByAnyPlayer`), the player is still in the game and the
    * cost holds that part; then everything the part asks is checked against, and taken from, that player (their
    * identity takes the damage, their deck or hand is discarded from).
    *

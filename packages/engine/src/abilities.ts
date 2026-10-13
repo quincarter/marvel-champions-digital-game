@@ -3482,6 +3482,18 @@ export interface AbilityDefinition {
    */
   readonly overpayOnly?: true;
   /**
+   * On the ability a card with a printed X cost (`specialCost: "X"`) triggers when it is played: the least X the
+   * player may name (`playCard.x`). Absent: 0, the least value of any X (RRG 1.8 "Non-Numerical Variable", p. 30).
+   *
+   * Written where the ability does something to X chosen things and nothing else ("Choose X schemes. Remove 2 threat
+   * from each chosen scheme"): at X = 0 it would choose nothing and change nothing, so the card cannot be played that
+   * way (the owner's answer 52B, 2026-10-13, docs/phase7-wave10.md §4.0; RRG 1.8 "Choose (Game Element)", p. 12, and
+   * "Target", p. 42). A play that names a lower X, or none, is refused with `invalid_choice` (`pricePlay`), whoever
+   * starts it: a play command, a card played by an effect, an interrupt or response played in a window.
+   * `minimumChosenX` reads it for a client's X picker. A positive whole number, on an action, interrupt or response.
+   */
+  readonly minX?: number;
+  /**
    * Star-Lord, "What could go wrong?" (`stld` 17001a): "Interrupt: When you play a card from your hand, deal yourself 1
    * facedown encounter card → reduce the cost to play that card by 3. (Limit once per round.)" On an `interrupt` trigger
    * (its printed timing, `on: cardBeingPlayed`), this makes it a cost modifier the player opts into while playing a card

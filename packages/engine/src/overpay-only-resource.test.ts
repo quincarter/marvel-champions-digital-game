@@ -86,8 +86,16 @@ const PHYSICAL = stubResource({ id: "physical-card", icons: 1, produces: { physi
 const ENERGY = stubResource({ id: "energy-card", icons: 1, produces: { energy: 1 } });
 const QUIET_VILLAIN = stubVillain({ id: "quiet", stages: [{ hp: flat(90000000), atk: 0, sch: 0 }] });
 
-const CARDS = [ZERO, ONE, TWO, X_EVENT, STAR, WILD_STAR, GADGET, PHYSICAL, ENERGY];
-const deps: EngineDeps = depsOf(PROBE, X_PROBE, STAR_RESOURCE, WILD_STAR_RESOURCE, GADGET_ACTION);
+/** "You can only spend [physical] resources to pay for this card." */
+const ONLY_PHYSICAL = stubAbility("only-physical.constant", {
+  trigger: { kind: "constant", paymentOnly: ["physical"] },
+  effects: [],
+});
+const CRUSH = stubEvent({ id: "crush-1", cost: 1, abilities: [PROBE.ref, ONLY_PHYSICAL.ref] });
+const CRUSH_FREE = stubEvent({ id: "crush-0", cost: 0, abilities: [PROBE.ref, ONLY_PHYSICAL.ref] });
+
+const CARDS = [ZERO, ONE, TWO, X_EVENT, STAR, WILD_STAR, GADGET, PHYSICAL, ENERGY, CRUSH, CRUSH_FREE];
+const deps: EngineDeps = depsOf(PROBE, X_PROBE, STAR_RESOURCE, WILD_STAR_RESOURCE, GADGET_ACTION, ONLY_PHYSICAL);
 
 interface Table {
   readonly state: GameState;
@@ -222,6 +230,71 @@ describe("H3.14 a resource that can only be overpaid: always overpaid, never tow
       { amount: 1, pool: { energy: 1 } },
     ]);
     expect(events.find((e) => e.type === "cardPlayed")).toMatchObject({ resourcesPaid: 1, paid: { energy: 1 } });
+  });
+});
+
+/**
+ * The owner's answer 53B (2026-10-13, docs/phase7-wave10.md §4.0): "A resource generated only to overpay is not spent
+ * to pay the cost, so a 'you can only spend [type] resources' restriction does not refuse it." RRG 1.8 "Cost" (p. 13):
+ * resources generated beyond the cost "were not paid for that cost"; FAQ "Crushing Blow (#2)" (p. 60).
+ */
+describe("53B a 'you can only spend [physical] resources to pay for this card' restriction and a resource that can only be overpaid", () => {
+  it("cost 1 paid by a [physical] card, with the [energy] overpay-only resource on top: accepted, 1 [energy] overpaid", () => {
+    const t = table([CRUSH.id, PHYSICAL.id]);
+    const [crush, physical] = t.hand as [InstanceId, InstanceId];
+    // Resolved, 1 [energy] overpaid, 1 overpaid in all, 1 resource took the cost, 2 generated.
+    expect(dealt(t, play(crush, [fromHand(physical), use(t)]))).toBe(1 + 10 + 1000 + 10000 + 200000);
+    const tried = tryPayment(
+      t.state,
+      P1,
+      { kind: "playCard", instanceId: crush },
+      [`hand:${physical}`, starOption(t)],
+      {},
+      deps,
+    );
+    expect(tried.ok).toBe(true);
+  });
+
+  it("cost 0 with the [energy] overpay-only resource alone: accepted (a cost of 0 spends nothing to pay)", () => {
+    const t = table([CRUSH_FREE.id]);
+    const [crush] = t.hand as [InstanceId];
+    expect(dealt(t, play(crush, [use(t)]))).toBe(1 + 10 + 1000 + 100000);
+  });
+
+  it("the overpay-only resource still pays nothing: with no [physical] resource the cost of 1 is not covered", () => {
+    const t = table([CRUSH.id]);
+    const [crush] = t.hand as [InstanceId];
+    expect(refusal(t, play(crush, [use(t)]))).toBe("insufficient_resources");
+  });
+
+  it("an ordinary resource of another type is refused as before, paying or surplus, with or without the overpay-only one", () => {
+    const t = table([CRUSH.id, PHYSICAL.id, ENERGY.id]);
+    const [crush, physical, energy] = t.hand as [InstanceId, InstanceId, InstanceId];
+    // The [energy] card would have to pay.
+    expect(refusal(t, play(crush, [fromHand(energy)]))).toBe("insufficient_resources");
+    expect(refusal(t, play(crush, [fromHand(energy), use(t)]))).toBe("insufficient_resources");
+    // The [energy] card is surplus on a covered cost: still refused (the engine cannot say which ordinary resource
+    // was the surplus one; see `priceOf`).
+    expect(refusal(t, play(crush, [fromHand(physical), fromHand(energy)]))).toBe("insufficient_resources");
+    expect(refusal(t, play(crush, [fromHand(physical), fromHand(energy), use(t)]))).toBe("insufficient_resources");
+    const tried = tryPayment(
+      t.state,
+      P1,
+      { kind: "playCard", instanceId: crush },
+      [`hand:${physical}`, `hand:${energy}`],
+      {},
+      deps,
+    );
+    expect(tried).toMatchObject({ ok: false, reason: "insufficient_resources" });
+    if (!tried.ok) expect(tried.message).toMatch(/only physical resources can pay for this card/);
+    // The [physical] card alone pays.
+    expect(refusal(t, play(crush, [fromHand(physical)]))).toBeNull();
+  });
+
+  it("a [wild] generated only to overpay is not refused either", () => {
+    const t = table([CRUSH.id, PHYSICAL.id], WILD_STAR);
+    const [crush, physical] = t.hand as [InstanceId, InstanceId];
+    expect(refusal(t, play(crush, [fromHand(physical), use(t)]))).toBeNull();
   });
 });
 

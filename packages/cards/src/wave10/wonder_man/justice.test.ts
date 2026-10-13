@@ -2,8 +2,10 @@ import { WONDER_MAN_CARDS, cardId } from "@mc/content";
 import {
   activeEncounterDeck,
   activeEncounterDeckId,
+  applyCommand,
   characterProfile,
   locateCard,
+  minimumChosenX,
   type Command,
   type GameState,
   type InstanceId,
@@ -537,7 +539,7 @@ describe("58018 Everywhere All at Once", () => {
     expect(playerOf(out.state, P1).discard).toContain(t.id);
   });
 
-  it("no scheme holds threat: not playable at any X (RRG 'Target', p. 42), so the free X = 0 tuck and heal is closed", () => {
+  it("no scheme holds threat: not playable at any X (RRG 'Target', p. 42)", () => {
     const t = schemes([SIPHON]);
     const quiet = withMainThreat(patchInstance(t.state, t.side, { threat: 0 }), 0);
     for (const x of [0, 1, 2]) expect(() => run(quiet, pickBoth(t.main, t.side), playing(t.id, t.paying, x))).toThrow();
@@ -545,6 +547,31 @@ describe("58018 Everywhere All at Once", () => {
     const some = withMainThreat(patchInstance(t.state, t.side, { threat: 0 }), 2);
     const out = run(some, pickBoth(t.main), playing(t.id, t.paying, 1));
     expect(inst(out.state, t.main).threat).toBe(0);
+  });
+
+  it("52B: X = 0 is refused though schemes hold threat (it would choose no scheme and remove none); nothing is spent", () => {
+    const t = schemes([SIPHON]);
+    expect(REGISTRY[EVERYWHERE]).toMatchObject({ minX: 1 });
+    // The validator: a least X is a whole number of at least 1, on the ability a play triggers.
+    expect(validateDefinition({ ...REGISTRY[EVERYWHERE]!, minX: 0 }).join(" ")).toMatch(/minX is a whole number/);
+    expect(validateDefinition({ ...REGISTRY["58021.heroic-conditioning-constant"]!, minX: 1 }).join(" ")).toMatch(
+      /minX is read from the ability a played card triggers/,
+    );
+    expect(minimumChosenX(t.state, WAVE10_DEPS, t.id)).toBe(1);
+    // With the payer on top (overpaying a cost of 0), with nothing paid, and with no X named at all (absent is 0).
+    for (const command of [playing(t.id, t.paying, 0), playing(t.id, [], 0), playing(t.id, [])]) {
+      const refused = applyCommand(t.state, command, WAVE10_DEPS);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) {
+        expect(refused.error.code).toBe("invalid_choice");
+        expect(refused.error.message).toMatch(/X must be at least 1 to play Everywhere All at Once/);
+      }
+    }
+    expect(inst(t.state, t.main).threat).toBe(4);
+    expect(playerOf(t.state, P1).hand).toContain(t.id);
+    // X = 1 is the least that plays.
+    const out = run(t.state, pickBoth(t.main), playing(t.id, t.paying, 1));
+    expect(inst(out.state, t.main).threat).toBe(2);
   });
 
   it("alter-ego form: not playable (a Hero Action)", () => {

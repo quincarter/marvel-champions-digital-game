@@ -695,6 +695,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     else if (trigger.spentAsIfResource)
       problems.push("a counter spent as if it were a resource is not generated: it cannot be overpayOnly");
   }
+  // The least X of a printed X cost (the owner's answer 52B, 2026-10-13): read from the ability a play triggers.
+  if (definition.minX !== undefined) {
+    if (!Number.isInteger(definition.minX) || definition.minX < 1)
+      problems.push("minX is a whole number of at least 1 (leave it out for an X that may be 0)");
+    if (trigger.kind !== "action" && trigger.kind !== "interrupt" && trigger.kind !== "response")
+      problems.push("minX is read from the ability a played card triggers: an action, interrupt or response");
+  }
   // docs/phase7-wave7.md §3.50: the engine reads a constant's stat modifiers, trait grants, keyword grants and
   // `activeRules` rules from the victory display, and nothing else from there.
   if (definition.activeIn === "victoryDisplay") {

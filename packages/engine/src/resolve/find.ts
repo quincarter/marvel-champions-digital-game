@@ -8,7 +8,9 @@
  * by a game step or card ability, that deck is shuffled after the game step or card ability completes its resolution."
  * So each deck the find looked through is shuffled, whether or not the card was in it (the owner's decision,
  * 2026-10-03, docs/phase7-wave6.md §4.1 Q77); a card found in play or in an open area was found without searching any
- * deck, so no deck is shuffled (`decksSearchedByFind`, `select.ts`).
+ * deck, so no deck is shuffled (`decksSearchedByFind`, `select.ts`). Which decks a find looks through at all is decided
+ * there too: an identity's separate deck or a scenario deck only when the find can name one of that deck's own cards
+ * (the owner's answer 54B, 2026-10-13, docs/phase7-wave10.md §4.0).
  */
 
 import { type Ctx, emit, updateFrame, updatePlayer } from "../ctx.js";

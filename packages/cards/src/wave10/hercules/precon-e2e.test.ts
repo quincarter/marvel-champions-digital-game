@@ -772,22 +772,22 @@ describe("a Labor card that finds nothing to attach to (RRG 1.8 FAQ p. 65; March
     const first = drive(state, {}, newLabors(state));
     checkState(first.state, dealtTo, "after the failed reveal", state);
     expect(cardsInPlay(first.state)).not.toContain(copiesOf(first.state, PROTECT_HUMANITY)[0]!);
-    // (Find searched Hercules's decks for Cho and shuffled them, the Labor deck among them: the two cards left may
-    // come in either order; the failed card is placed at the bottom afterwards.)
-    expect(laborDeckCodes(first.state).slice(0, 2).sort()).toEqual([DEFEAT_THE_HYDRA, EMBODY_PATHOS].sort());
-    expect(laborDeckCodes(first.state)[2]).toBe(PROTECT_HUMANITY);
+    // Answer 54B (2026-10-13): the find looked for an ally, which could be in Hercules's player deck and in neither
+    // the Labor deck (encounter cards) nor the Gift deck (upgrades). Only the player deck was searched and shuffled
+    // (RRG "Search", p. 39); the two Labor cards left keep their order and the failed card goes under them.
+    expect(ofType(first.events, "deckShuffled").map((e) => e.zone)).toEqual([{ kind: "deck", playerId: P1 }]);
+    expect(laborDeckCodes(first.state)).toEqual([DEFEAT_THE_HYDRA, EMBODY_PATHOS, PROTECT_HUMANITY]);
+    expect(playerOf(first.state, P1).separateDecks.Gift!.deck).toEqual(playerOf(state, P1).separateDecks.Gift!.deck);
     expect(giftsInPlay(first.state)).toEqual([]);
     expect(first.state.victoryDisplay.map((i) => codeOf(first.state, i))).toEqual([]);
     seen.laborFoundNothing.push("staged Protect Humanity without Amadeus Cho");
     // The card was never in play, so New Labors is available again at once (the same form change round, new action).
     const second = drive(first.state, { cards: [copiesOf(first.state, HYDRA)[0]!] }, newLabors(first.state));
-    // One of the two cards left is now in play (which one is the shuffle's).
-    expect(
-      [DEFEAT_THE_HYDRA, EMBODY_PATHOS]
-        .flatMap((code) => copiesOf(second.state, code))
-        .filter((i) => cardsInPlay(second.state).includes(i)),
-    ).toHaveLength(1);
-    expect(laborDeckCodes(second.state)).toHaveLength(2);
+    // The next card down is Defeat the Hydra, now in play; its find for a minion left the Labor and Gift decks alone.
+    expect(cardsInPlay(second.state)).toContain(copiesOf(second.state, DEFEAT_THE_HYDRA)[0]!);
+    expect(laborDeckCodes(second.state)).toEqual([EMBODY_PATHOS, PROTECT_HUMANITY]);
+    expect(ofType(second.events, "deckShuffled").filter((e) => e.zone.kind === "separateDeck")).toEqual([]);
+    expect(playerOf(second.state, P1).separateDecks.Gift!.deck).toEqual(playerOf(state, P1).separateDecks.Gift!.deck);
     checkState(second.state, dealtTo, "after the second reveal", first.state);
   });
 });

@@ -1115,6 +1115,32 @@ export function paidAsGroup(state: GameState, deps: EngineDeps, ...cards: readon
 }
 
 /**
+ * Whether another player may pay a whole part of the costs printed on `sourceId` in the user's place
+ * (`CostSelection.paidBy`, the `DelegableCostPart` list). Two rules open it:
+ *
+ * - `RuleSpec costsPayableByAnyPlayer` naming the card, in play ("While paying costs on attached card, any player may
+ *   help pay those costs"; docs/phase7-wave10-hero-packs.md H3.19, owner answer 21B).
+ * - The alliance keyword on a card being played (RRG 1.8 "Alliance", p. 6: "When a player declares their intention to
+ *   play a card with the alliance keyword, any player(s) may help pay the costs for that card"; the owner's answer
+ *   48B, 2026-10-13, docs/phase7-wave10.md §4.0: the costs, not only the resource cost). The keyword speaks of playing
+ *   the card, so it is read while the card is out of play: its resource cost, its additional costs to play and, for
+ *   an event, the cost of the ability the play triggers. The cost of an ability used from an alliance card already in
+ *   play is not opened here (engine reading: no card in the pool prints one).
+ *
+ * What may be handed over is the same under both, and the wording of each cost still decides: a part that names the
+ * user's own card or identity stays with the user (`OWN_CARD_COST_PARTS`), and a part is paid whole by one player (the
+ * owner's answer 47A).
+ */
+export function costPartsPayableByAnyPlayer(state: GameState, deps: EngineDeps, sourceId: InstanceId): boolean {
+  if (costsPayableByAnyPlayer(state, deps, sourceId)) return true;
+  return (
+    getInstance(state, sourceId) !== undefined &&
+    hasKeyword(state, sourceId, "alliance", deps) &&
+    !cardsInPlay(state).includes(sourceId)
+  );
+}
+
+/**
  * Who spends a resource ability used in a payment by `playerId`: the paying player for their own card and for a card
  * that generates "for any player" (the Milano), and otherwise the card's controller, contributing to an alliance cost.
  * That player's form, limit and discard pile are the ones the ability reads, and they pay its own cost.
@@ -1957,8 +1983,20 @@ export function priceOf(
   const only = payingFor
     ? printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? [])
     : [];
-  if (only.length > 0 && TYPED_RESOURCES.some((type) => !only.includes(type) && pool[type] > 0)) {
-    return { code: "insufficient_resources", message: `only ${only.join(" / ")} resources can pay for this card` };
+  if (only.length > 0) {
+    // The restriction is on resources spent "to pay for this card". A resource generated only to overpay
+    // (`overpayOnlyPool`) never pays the cost (RRG 1.8 "Cost", p. 13: overpaid resources "were not paid for that
+    // cost"), so its type is not read here (the owner's answer 53B, 2026-10-13, docs/phase7-wave10.md §4.0).
+    //
+    // Every other resource of the payment is still read, a surplus one included: a hand card of another type spent
+    // on top of a covered cost is refused, as before. The owner's reasoning ("the restriction applies to resources
+    // actually paying that cost") might reach that surplus too; it is left as it is because the engine cannot say
+    // which of several ordinary resources was the surplus one. Only an overpay-only resource is surplus by its own
+    // text.
+    const paying = payingPool(pool, overpayOnlyPool(ctx, playerId, payment, payingFor));
+    if (TYPED_RESOURCES.some((type) => !only.includes(type) && paying[type] > 0)) {
+      return { code: "insufficient_resources", message: `only ${only.join(" / ")} resources can pay for this card` };
+    }
   }
   return pool;
 }
@@ -2615,8 +2653,8 @@ const OWN_CARD_COST_PARTS: Readonly<Record<string, string>> = {
  * The parts of `cost` another player pays in the user's place (`CostSelection.paidBy`), or why the command's naming of
  * them is refused. RRG 1.8 "Cost" (p. 14): a cost is paid with what its player controls, unless a card says otherwise;
  * `RuleSpec costsPayableByAnyPlayer` on the card the cost is printed on is what says otherwise
- * (docs/phase7-wave10-hero-packs.md H3.19, owner answer 21B). An entry naming the user is the user paying, and is
- * dropped.
+ * (docs/phase7-wave10-hero-packs.md H3.19, owner answer 21B), and so is the alliance keyword on a card being played
+ * (owner answer 48B; `costPartsPayableByAnyPlayer`). An entry naming the user is the user paying, and is dropped.
  */
 function costPartPayers(
   state: GameState,
@@ -2636,7 +2674,7 @@ function costPartPayers(
         message: own ? `another player cannot pay that part: ${own}` : `another player cannot pay the ${part} part`,
       };
     }
-    if (!costsPayableByAnyPlayer(state, deps, sourceId)) {
+    if (!costPartsPayableByAnyPlayer(state, deps, sourceId)) {
       return { code: "no_valid_target", message: "only the player using this ability can pay its costs" };
     }
     const helper = getPlayer(state, helperId);
@@ -4737,6 +4775,23 @@ export const playFrameCost = (priced: PricedPlay, bindings: Bindings = priced.pl
 });
 
 /**
+ * The least X a player may name when playing this card (`AbilityDefinition.minX`), for a card with a printed X cost
+ * (`specialCost: "X"`); 0 for every other card. Read from `abilityId`, the ability the play triggers, when it is
+ * known; otherwise from every ability printed on the card, the largest. A client's X picker starts here.
+ */
+export function minimumChosenX(
+  state: GameState,
+  deps: EngineDeps,
+  cardInstanceId: InstanceId,
+  abilityId?: AbilityId | null,
+): number {
+  const card = cardOf(state, cardInstanceId);
+  if (!card || !("specialCost" in card) || card.specialCost !== "X") return 0;
+  const ids = abilityId ? [abilityId] : card.abilities.map((ability) => ability.id);
+  return Math.max(0, ...ids.map((id) => deps.abilities[id]?.minX ?? 0));
+}
+
+/**
  * Prices playing a card: its printed cost (less any "reduce the cost of the
  * next card" effects) plus its ability's cost, paid from `payment`.
  */
@@ -4778,6 +4833,15 @@ export function pricePlay(
       message: "X is chosen only for a cost printed X, as a whole number of at least 0",
     };
   const xValue = printedX ? (x ?? 0) : 0;
+  // "Choose X schemes …": an ability that only acts on X chosen things cannot be played with an X that chooses none
+  // (`AbilityDefinition.minX`; the owner's answer 52B, 2026-10-13).
+  const minX = printedX ? minimumChosenX(ctx.state, ctx.deps, cardInstanceId, paidTypes.abilityId) : 0;
+  if (xValue < minX) {
+    return {
+      code: "invalid_choice",
+      message: `X must be at least ${minX} to play ${displayNameOf(ctx.state, cardInstanceId)}: with a lower X it would do nothing`,
+    };
+  }
   if (requirementUnmeetable(ctx.state, playerId, cardInstanceId, ctx.deps, attachTo, xValue, extraReduction)) {
     return {
       code: "insufficient_resources",

@@ -23,6 +23,7 @@ import {
 import {
   basicPowerCost,
   costAsDetermined,
+  costPartsPayableByAnyPlayer,
   playCostWith,
   counterCostHolder,
   eventActionForQuery,
@@ -32,6 +33,7 @@ import {
   handCardResources,
   isAlternativeAmount,
   isWhenSpentUse,
+  minimumChosenX,
   mostFromEachHandCard,
   whenSpentCostSize,
   spentCardOptionId,
@@ -226,7 +228,7 @@ export interface LegalAction {
   readonly formChangeCost?: { readonly sourceInstanceIds: readonly InstanceId[] };
   /**
    * An ability whose cost any player may help pay (`RuleSpec costsPayableByAnyPlayer`; docs/phase7-wave10-hero-packs.md
-   * H3.19) and that holds a part another player can take over whole (`DelegableCostPart`: "take 2 damage", "discard
+   * H3.19), or the play of an alliance card (RRG 1.8 "Alliance", p. 6; owner answer 48B), whose cost holds a part another player can take over whole (`DelegableCostPart`: "take 2 damage", "discard
    * the top card of your deck"): for each such part, the players who can pay it right now, the user first when they
    * can. The client asks who pays and sends a player other than the user as `costSelection.paidBy`; `example` has the
    * user pay every part they can, and names a helper only for a part the user cannot pay. Absent for every other cost.
@@ -344,7 +346,8 @@ const delegableParts = (cost: AbilityCost | undefined, branch: number | undefine
 };
 
 /**
- * Who could pay each delegable part of a cost any player may help pay (`RuleSpec costsPayableByAnyPlayer`): the user
+ * Who could pay each delegable part of a cost any player may help pay (`RuleSpec costsPayableByAnyPlayer`, or an
+ * alliance card being played: `costPartsPayableByAnyPlayer`): the user
  * paying everything first, then every other split, the helpers in player order. One entry, `undefined`, for a cost
  * nobody else may pay or with no such part, which keeps every other command exactly as it was.
  */
@@ -355,7 +358,7 @@ function partPayerSets(
   source: InstanceId,
   parts: readonly DelegableCostPart[],
 ): readonly (CostPartPayers | undefined)[] {
-  if (parts.length === 0 || !costsPayableByAnyPlayer(state, deps, source)) return [undefined];
+  if (parts.length === 0 || !costPartsPayableByAnyPlayer(state, deps, source)) return [undefined];
   const players = [playerId, ...playerOrder(state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))];
   // Nobody to help (a solo game): the command and what is listed stay exactly as without the rule.
   if (players.length < 2) return [undefined];
@@ -1084,6 +1087,8 @@ function evaluatePlayOf(
     [],
     ...reducers.map((reducer) => [reducer]),
   ];
+  // A printed X cost is probed at the least X the card may be played with (`AbilityDefinition.minX`; 0 for most).
+  const leastX = minimumChosenX(state, deps, id, abilityId);
   const variantsOver = (over: readonly (InstanceId | null)[]): Variant[] => {
     const variants: Variant[] = [];
     for (const reductions of reductionSets) for (const host of over) variants.push(...variantsOn(reductions, host));
@@ -1097,23 +1102,28 @@ function evaluatePlayOf(
     for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
       for (const controllerId of controllers) {
         for (const branch of branchSelections(cost)) {
-          variants.push({
-            target: host ?? target,
-            ...(controllerId ? { controllerId } : {}),
-            ...(branch === undefined ? {} : { branch }),
-            build: (payment) => ({
-              type: "playCard",
-              playerId,
-              cardInstanceId: id,
-              payment,
-              attachToInstanceId: host,
-              ...(costChoices ? { costChoices } : {}),
-              ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
-              ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
-              ...withBranch(branch),
-              ...(abilityId ? { abilityId } : {}),
-            }),
-          });
+          // An alliance card's delegable cost parts (RRG 1.8 "Alliance", p. 6; owner answer 48B): one variant per
+          // way of sharing them out, the user paying everything first. One `undefined` entry for every other card.
+          for (const partPayers of partPayerSets(state, deps, playerId, id, delegableParts(cost, branch)))
+            variants.push({
+              target: host ?? target,
+              ...(controllerId ? { controllerId } : {}),
+              ...(branch === undefined ? {} : { branch }),
+              ...(partPayers ? { partPayers } : {}),
+              build: (payment) => ({
+                type: "playCard",
+                playerId,
+                cardInstanceId: id,
+                payment,
+                attachToInstanceId: host,
+                ...(costChoices ? { costChoices } : {}),
+                ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
+                ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
+                ...withBranch(branch, paidByOf(playerId, partPayers)),
+                ...(abilityId ? { abilityId } : {}),
+                ...(leastX > 0 ? { x: leastX } : {}),
+              }),
+            });
         }
       }
     }
@@ -1669,6 +1679,12 @@ export interface PaymentContext {
    * (docs/phase7-wave8.md §3.35). Absent: the player's own play area.
    */
   readonly into?: string;
+  /**
+   * The X the player names for a cost printed "X" (`playCard.x`; RRG 1.8 "Non-Numerical Variable", p. 30). Absent:
+   * the least X the card may be played with (`minimumChosenX`: 0 unless its ability sets `minX`), which is also what
+   * `legalActions` probes the play at. Ignored by a card with no printed X.
+   */
+  readonly x?: number;
 }
 
 /** An action that carries a payment, resolved down to a single command shape. */
@@ -1758,6 +1774,8 @@ function payableFor(
     const selection = options.costSelection;
     const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
+    // The X of a printed X cost: the player's (`PaymentContext.x`), else the least the card may be played with.
+    const x = options.x ?? minimumChosenX(state, deps, id, abilityId);
     const requirement =
       card && planned
         ? playRequirement(
@@ -1767,7 +1785,7 @@ function payableFor(
             planned.requirement,
             deps,
             host,
-            0,
+            x,
             deckTopCostReduction(state, deps, playerId, id) +
               Math.max(0, areaCostReductionFor(state, deps, playerId, id, options.into ?? null)),
           )
@@ -1784,6 +1802,7 @@ function payableFor(
         ...(selection ? { costSelection: selection } : {}),
         ...(abilityId ? { abilityId } : {}),
         ...(options.into !== undefined ? { into: { scenarioPlayArea: options.into } } : {}),
+        ...(x > 0 ? { x } : {}),
       }),
       excludeInstanceId: id,
       reserved: new Set([id, ...picks]),
@@ -2050,6 +2069,25 @@ export function tryPayment(
   return result.ok ? { ok: true, command } : { ok: false, reason: result.error.code, message: result.error.message };
 }
 
+/** The cost a play of `id` pays besides its resource cost: its additional cost to play and its event Action's cost. */
+function playCostAsQueried(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+  abilityId: AbilityId | undefined,
+): AbilityCost | undefined {
+  const card = cardOf(state, id);
+  const query = card ? eventActionForQuery(createCtx(state, deps), card, id, playerId, abilityId) : null;
+  return costAsDetermined(
+    state,
+    deps,
+    id,
+    playerId,
+    playCostWith(state, deps, id, playerId, query?.action?.definition.cost),
+  );
+}
+
 /** Whether `helperId` can pay one delegable part of a cost for another player, and the engine's reason when not. */
 export type CostHelpAnswer =
   | { readonly part: DelegableCostPart; readonly ok: true }
@@ -2066,20 +2104,26 @@ export type CostHelpAnswer =
  * with the engine's own reason when they cannot: no rule lets another player pay ("only the player using this ability
  * can pay its costs"), or the part cannot be taken from them (their identity holds a tough status card, their deck is
  * short). Each part is judged alone, so the answer does not depend on what else the user can or cannot pay. Empty for a
- * cost with no such part, and for anything but a `useAbility`. The parts that name the user's own card are never
- * listed: no player can take those over (RRG 1.8 "Cost", p. 14; owner answer 21B).
+ * cost with no such part, and for anything but a `useAbility` or a `playCard` (the cost of playing the card with the
+ * event Action `options.abilityId` names, else its first; an alliance card's is the one a helper may pay, RRG 1.8
+ * "Alliance", p. 6, owner answer 48B). The parts that name the user's own card are never listed: no player can take
+ * those over (RRG 1.8 "Cost", p. 14; owner answer 21B).
  */
 export function costHelpFor(
   state: GameState,
   playerId: PlayerId,
   action: ActionRef,
   helperId: PlayerId,
-  options: Pick<PaymentContext, "costSelection"> = {},
+  options: Pick<PaymentContext, "costSelection" | "abilityId"> = {},
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly CostHelpAnswer[] {
-  if (action.kind !== "useAbility" || !getPlayer(state, playerId)) return [];
-  const { instanceId, abilityId } = action;
-  const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
+  if (!getPlayer(state, playerId)) return [];
+  if (action.kind !== "useAbility" && action.kind !== "playCard") return [];
+  const { instanceId } = action;
+  const cost =
+    action.kind === "useAbility"
+      ? costAsDetermined(state, deps, instanceId, playerId, deps.abilities[action.abilityId]?.cost)
+      : playCostAsQueried(state, deps, playerId, instanceId, options.abilityId);
   return delegableParts(cost, options.costSelection?.branch).map((part): CostHelpAnswer => {
     const paid = { ...cost, ...cost?.either?.[options.costSelection?.branch ?? -1] };
     const { branch: _branch, ...amounts } = options.costSelection ?? {};

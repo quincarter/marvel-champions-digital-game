@@ -1087,8 +1087,15 @@ function findDecks(
  * could be in its owner's deck and separate decks, since it goes back to its owner's out-of-play areas (RRG 1.8
  * "Ownership and Control", p. 31); an encounter card (no owner) in an encounter deck or a scenario deck. With `owners`
  * ("your Touched") the card is theirs. Without, it is read from the copies of the card this game has, wherever they
- * are now; a card with no copy in the game at all could be anywhere, so every deck is searched. An empty deck holds
- * nothing to look through and is not shuffled.
+ * are now; a card with no copy in the game at all could be in any player deck or encounter deck, so each of those is
+ * searched. An empty deck holds nothing to look through and is not shuffled.
+ *
+ * **A special deck** (an identity's separate deck, `PlayerState.separateDecks`; a scenario deck,
+ * `GameState.scenarioDecks`) is made of its own cards only, which every player knows, so the card "could be found"
+ * there only when the find can name one of that deck's own cards (`specialDeckCouldHold`): a find for an ally does not
+ * look through, or shuffle, a deck of encounter attachments or of Permanent upgrades (the owner's answer 54B,
+ * 2026-10-13, docs/phase7-wave10.md §4.0; RRG 1.8 "Find", p. 19: "each game area where that card could be found").
+ * A special deck the find does look through is shuffled like any other.
  */
 export function decksSearchedByFind(
   state: GameState,
@@ -1107,11 +1114,58 @@ export function decksSearchedByFind(
   const searched: ZoneId[] = [];
   for (const { zone, ids } of findDecks(state, context)) {
     const holds = found !== undefined && sameDeck(zone);
-    const couldHold = holders.size === 0 || holders.has("playerId" in zone ? zone.playerId : null);
+    const couldHold =
+      zone.kind === "separateDeck" || zone.kind === "scenarioDeck"
+        ? specialDeckCouldHold(state, zone, query, context, owners)
+        : holders.size === 0 || holders.has("playerId" in zone ? zone.playerId : null);
     if ((holds || couldHold) && ids.length > 0) searched.push(zone);
     if (holds) break;
   }
   return searched;
+}
+
+/**
+ * Whether a find for `query` could find its card in this special deck (answer 54B, see `decksSearchedByFind`): one of
+ * the deck's own cards matches the query (and is owned by one of `owners`, when the find names whose card it is).
+ *
+ * The deck's own cards, read from the game's instances and never from a card's name:
+ * - every card whose home is the deck (`CardInstance.home`: set when the deck is built, for an identity's separate
+ *   deck and for a scenario deck with its own discard pile or none), wherever it is now, since it is the only kind of
+ *   card that goes back there;
+ * - every card in the deck or in its own discard pile now (a scenario deck whose cards keep an encounter-deck home,
+ *   `ScenarioDeckState.discardPile: "encounter"`, and that deck's top card in play).
+ *
+ * Each is matched as it stands (`matchesQuery`), the same test the find itself applies to a card it turns over. So a
+ * query on a printed fact (name, type, trait, printed hit points) is decided by what the deck is made of.
+ */
+function specialDeckCouldHold(
+  state: GameState,
+  zone: Extract<ZoneId, { kind: "separateDeck" | "scenarioDeck" }>,
+  query: TargetQuery,
+  context: EffectContext,
+  owners: ReadonlySet<PlayerId> | null,
+): boolean {
+  const own = new Set<InstanceId>();
+  if (zone.kind === "separateDeck") {
+    const piles = getPlayer(state, zone.playerId)?.separateDecks[zone.name];
+    for (const id of [...(piles?.deck ?? []), ...(piles?.discard ?? [])]) own.add(id);
+  } else {
+    const piles = state.scenarioDecks[zone.name];
+    for (const id of [...(piles?.deck ?? []), ...(piles?.discard ?? [])]) own.add(id);
+    if (piles?.inPlayTopId !== undefined) own.add(piles.inPlayTopId);
+  }
+  for (const id of Object.keys(state.instances) as InstanceId[]) {
+    const instance = getInstance(state, id);
+    if (!instance || instance.home.kind !== zone.kind || instance.home.name !== zone.name) continue;
+    if (zone.kind === "separateDeck" && instance.ownerId !== zone.playerId) continue;
+    own.add(id);
+  }
+  for (const id of own) {
+    const owner = getInstance(state, id)?.ownerId ?? null;
+    if (owners !== null && (owner === null || !owners.has(owner))) continue;
+    if (matchesQuery(state, id, query, context)) return true;
+  }
+  return false;
 }
 
 /**

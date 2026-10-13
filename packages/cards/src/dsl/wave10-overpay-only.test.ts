@@ -10,6 +10,7 @@
  * not paid for that cost." Owner decision, 2026-10-12 (hero-packs Q20 = A): offered only while a card is being played.
  */
 
+import { cardId } from "@mc/content";
 import { applyCommand, paymentFor, type AbilityDefinition, type EngineDeps, type GameState } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { action, heroResource, oncePerPaidCard, resource, whenSpentGenerate } from "./abilities.js";
@@ -158,5 +159,54 @@ describe("H3.14 Mr. Hollywood pays for nothing and is always overpaid", () => {
       overpayOnly: true,
     });
     expect(query?.suggested).toEqual([`hand:${payer}`]);
+  });
+});
+
+/**
+ * The owner's answer 53B (2026-10-13, docs/phase7-wave10.md §4.0), with the real Crushing Blow 10002 ("You can only
+ * spend [physical] resources to pay for this card.", as `wave1/hlk/kit.ts` scripts it) retagged onto a card in Wonder
+ * Man's hand: Mr. Hollywood's [energy] is generated to overpay, so it is not spent to pay for the card and the
+ * restriction does not refuse it. RRG 1.8 "Cost" (p. 13); FAQ "Crushing Blow (#2)" (p. 60).
+ */
+describe("53B Mr. Hollywood overpays for a card that can only be paid for with [physical] resources", () => {
+  const CRUSHING_BLOW = "10002"; // cost 1: deal damage equal to your ATK
+  const ENERGY = "58023"; // Wonder Man's Energy resource card
+  /** Mr. Hollywood in play; in hand a Crushing Blow, Battlefield Benevolence ([physical]) and Energy. */
+  function withCrushingBlow() {
+    const at = staged(STRUCK, BENEVOLENCE, ENERGY);
+    const [blow, physical, energy] = at.hand as [Id, Id, Id];
+    return { ...at, state: patchInstance(at.state, blow, { cardId: cardId(CRUSHING_BLOW) }), blow, physical, energy };
+  }
+
+  it("the fixture is the printed card: cost 1, its payment restricted to [physical]", () => {
+    const at = withCrushingBlow();
+    expect(at.state.cardPool[cardId(CRUSHING_BLOW)]).toMatchObject({ name: "Crushing Blow", cost: 1 });
+    expect(DEPS.abilities["10002.crushing-blow-constant"]).toMatchObject({
+      trigger: { kind: "constant", paymentOnly: ["physical"] },
+    });
+  });
+
+  it("paid with a [physical] card, Mr. Hollywood's [energy] on top: played, and it deals its damage", () => {
+    const at = withCrushingBlow();
+    const before = villainOf(at.state).damage;
+    const run = played(at.state, play(P1, at.blow, [at.physical], { abilities: [at.overpay] }));
+    expect(run.ok).toBe(true);
+    if (run.ok) expect(villainOf(run.state).damage).toBeGreaterThan(before);
+  });
+
+  it("Mr. Hollywood alone does not pay for it", () => {
+    const at = withCrushingBlow();
+    expect(played(at.state, play(P1, at.blow, [], { abilities: [at.overpay] }))).toEqual({
+      ok: false,
+      code: "insufficient_resources",
+    });
+  });
+
+  it("an [energy] card from hand is still refused, paying or on top of the [physical] card", () => {
+    const at = withCrushingBlow();
+    const refused = { ok: false, code: "insufficient_resources" };
+    expect(played(at.state, play(P1, at.blow, [at.energy]))).toEqual(refused);
+    expect(played(at.state, play(P1, at.blow, [at.physical, at.energy]))).toEqual(refused);
+    expect(played(at.state, play(P1, at.blow, [at.physical, at.energy], { abilities: [at.overpay] }))).toEqual(refused);
   });
 });

@@ -364,6 +364,21 @@ describe("58018 Everywhere All at Once: 'Choose X schemes' (RRG 'Choose (Game El
     expect(playable(t.state, t.id)).toBe(false);
   });
 
+  // Audit F2 (the owner's answer 52B, 2026-10-13): X = 0 used to play for free and do nothing.
+  it("58018 with X = 0 is not a play: 'Choose X schemes' would choose none and remove no threat, so it is refused and nothing changes", () => {
+    const t = schemes(["58023"]);
+    for (const command of [playing(t.id, [], 0), playing(t.id, t.paying, 0), playing(t.id, [])]) {
+      const refused = applyCommand(t.state, command, DEPS);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error).toMatchObject({ code: "invalid_choice" });
+    }
+    expect(inst(t.state, t.main).threat).toBe(4);
+    expect(inst(t.state, t.side).threat).toBe(4);
+    // The card is still a legal action: X = 1 plays it.
+    expect(playable(t.state, t.id)).toBe(true);
+    expect(accepted(t.state, playing(t.id, t.paying, 1))).toBe(true);
+  });
+
   it("X = 3 with only two schemes in play: 'simultaneously choose as many as are available, to a maximum of the specified number', so both are chosen and thwarted for 2 each", () => {
     const t = schemes(["58023", SIPHON]);
     const seen: string[][] = [];
