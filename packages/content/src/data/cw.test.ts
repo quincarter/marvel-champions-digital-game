@@ -466,10 +466,11 @@ describe("cw: Standard PvP (two side-tagged printings, competitive only)", () =>
     }
   });
 
-  it("56128b and 56206a have no scan: no front image, listed as unavailable art (curation `artUnavailable`)", () => {
-    expect(get("56128b").images).toBeUndefined();
-    expect(get("56206a").images).toBeUndefined();
+  it("56128b and 56206a use stand-in scans from the other side's copy of the same card (no `artUnavailable`)", () => {
+    // Stand-ins until real scans arrive: 56206a.png is a copy of 56128a.png and 56128b.png a copy of 56206b.png.
     expect(get("56128a").images?.front).toBe("/bundles/cards/56128a.png");
+    expect(get("56128b").images?.front).toBe("/bundles/cards/56128b.png");
+    expect(get("56206a").images?.front).toBe("/bundles/cards/56206a.png");
     expect(get("56206b").images?.front).toBe("/bundles/cards/56206b.png");
   });
 });

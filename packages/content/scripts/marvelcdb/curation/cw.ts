@@ -293,15 +293,13 @@ export const CW_CURATION: PackCuration = {
       "Unregistered Super prints an acceleration icon on the obligation (scan 56106.png, read 2026-10-11: the icon sits beside the encounter-set footer); it counts while the card is in play (spec section 1.7). 56114 is the same card in Heroes for Hire.",
   },
 
-  // MC56 has no scan for the back of the registration copy of Choosing Sides or the front of the resistance copy
-  // (survey section 9): each side's other face has one. The two copies are the same card in two colors, so the
-  // sibling's scan is not reused.
-  artUnavailable: {
-    "56128b":
-      "No scan of Now It's Personal (the back of the registration copy of Choosing Sides) exists in assets/card-art/bundles/cards (checked 2026-10-11; survey section 9). MarvelCDB sends no image for it. The resistance copy's 56206b shows the same card in the other side's colors, so it is not reused. Owner supplies the scan (survey section 11 item 2).",
-    "56206a":
-      "No scan of Choosing Sides (the front of the resistance copy) exists in assets/card-art/bundles/cards (checked 2026-10-11; survey section 9). MarvelCDB sends no image for it. The registration copy's 56128a shows the same card in the other side's colors, so it is not reused. Owner supplies the scan (survey section 11 item 2).",
-  },
+  // MC56: 56128b (Now It's Personal, back of the registration copy) and 56206a (Choosing Sides, front of the
+  // resistance copy) have no scan of their own yet. assets/card-art/bundles/cards/56206a.png is a copy of 56128a and
+  // 56128b.png is a copy of 56206b, stand-ins taken from the other side's copy of the same card (2026-10-13): the
+  // printed text is identical, but the collector number in the corner differs (128A vs 206A, 206B vs 128B) and the
+  // art on the registration copy of Now It's Personal may differ (the resistance copy shows Captain America). Replace
+  // the two files when real scans arrive. No `artUnavailable` entry is needed: the ingest finds the files.
+  artUnavailable: {},
 
   scenarios: [
     fiveCardScenario({
