@@ -387,7 +387,7 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   "50047.agent-coulson-response": BKW_PACK_CARDS["08011.agent-coulson-response"]!,
   "50048.quake-response": BKW_PACK_CARDS["08012.quake-response"]!,
   "50049.global-logistics-action": SPIDER_MAN_MORALES_EVENTS["27043.global-logistics-action"]!,
-  "50053.under-surveillance-constant": THOR_PACK_CARDS["06031.under-surveillance-constant-2"]!,
+  "50053.under-surveillance-constant": THOR_PACK_CARDS["06031.under-surveillance-constant"]!,
   "50057.sky-destroyer-response": SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS["27055.sky-destroyer-response"]!,
 
   "50050.informant-interrupt": interrupt(

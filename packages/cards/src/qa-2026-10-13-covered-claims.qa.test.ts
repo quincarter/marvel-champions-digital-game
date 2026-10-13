@@ -17,7 +17,7 @@ import { WAVE1_DEPS } from "./wave1/testing.js";
 vi.setConfig({ testTimeout: 120_000 });
 
 describe("'covered by data' claims on 'Max 1 per scheme' (RRG 1.8 'Max, Maximum' p. 28)", () => {
-  it.fails("Under Surveillance (06031) 'Max 1 per scheme': a second copy cannot be attached to the same main scheme", () => {
+  it("Under Surveillance (06031) 'Max 1 per scheme': a second copy cannot be attached to the same main scheme", () => {
     const config = wave1Scenario("klaw", { players: [{ starterDeckId: "thor-aggression" }], seed: 11 });
     const patched: GameSetupConfig = {
       ...config,
@@ -51,7 +51,7 @@ describe("'covered by data' claims on 'Max 1 per scheme' (RRG 1.8 'Max, Maximum'
     ).toThrow();
   });
 
-  it.fails("every upgrade/attachment printed 'Max 1 per scheme' or 'per identity' carries playRestrictions.maxPerHost", () => {
+  it("every upgrade/attachment printed 'Max 1 per scheme' or 'per identity' carries playRestrictions.maxPerHost", () => {
     const missing = (PLAYABLE_CARDS as readonly any[])
       .filter((c) => /Max \d per (scheme|identity)/i.test(c.text?.printed ?? ""))
       .filter((c) => c.playRestrictions?.maxPerHost === undefined)
@@ -63,7 +63,7 @@ describe("'covered by data' claims on 'Max 1 per scheme' (RRG 1.8 'Max, Maximum'
 });
 
 describe("printed icons the data dropped", () => {
-  it.fails("Zola's Algorithm (04163) prints an acceleration icon (scan assets/card-art/bundles/cards/04163.png)", () => {
+  it("Zola's Algorithm (04163) prints an acceleration icon (scan assets/card-art/bundles/cards/04163.png)", () => {
     const card = (PLAYABLE_CARDS as readonly any[]).find((c) => c.id === "04163");
     expect(card.schemeIcons).toEqual(["acceleration"]);
   });

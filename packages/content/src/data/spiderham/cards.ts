@@ -454,11 +454,12 @@ export const SPIDERHAM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a side scheme. Max 1 per scheme.\nInterrupt: When attached scheme is defeated, deal 4 damage to an enemy.",
       current: "Attach to a side scheme. Max 1 per scheme.\nInterrupt: When attached scheme is defeated, deal 4 damage to an enemy.",
     },
-    abilities: [{ id: abilityId("30018.followed-constant") }, { id: abilityId("30018.followed-interrupt") }],
+    abilities: [{ id: abilityId("30018.followed-interrupt") }],
   },
   {
     id: cardId("30019"),
@@ -477,11 +478,12 @@ export const SPIDERHAM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a scheme. Max 1 per scheme.\nHero Interrupt: When any amount of threat is removed from attached scheme by a thwart, discard this card → remove an equal amount of threat from a different scheme.",
       current: "Attach to a scheme. Max 1 per scheme.\nHero Interrupt: When any amount of threat is removed from attached scheme by a thwart, discard this card → remove an equal amount of threat from a different scheme.",
     },
-    abilities: [{ id: abilityId("30019.overwatch-constant") }, { id: abilityId("30019.overwatch-interrupt") }],
+    abilities: [{ id: abilityId("30019.overwatch-interrupt") }],
   },
   {
     id: cardId("30020"),

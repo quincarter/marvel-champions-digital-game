@@ -3942,6 +3942,7 @@ export const MUT_GEN_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/32150.png") },
     attachesTo: { kind: "yourIdentity" },
+    playRestrictions: { maxPerHost: 1 },
     encounterSetIds: [encounterSetId("magneto_villain")],
     boostIcons: 2,
     traits: [trait("MAGNETIC")],

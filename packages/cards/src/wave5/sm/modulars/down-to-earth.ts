@@ -11,8 +11,11 @@ import {
   chooseTarget,
   chosen,
   constant,
+  costModifier,
   defineAbilities,
   dealDamage,
+  discard,
+  discardFromHandCost,
   discardAtRandom,
   draw,
   eachPlayer,
@@ -51,10 +54,11 @@ const CIVILIAN = trait("CIVILIAN");
  * Down to Earth (`sm` 27131/27133/27134/27135, docs/phase7-wave5.md §2.2): a modular set built around the
  * alter-ego's own civilian life rather than combat — Common Criminal is resolved with an Alter-Ego Action, Volunteer
  * Work cannot be thwarted at all (only paid down via its own Alter-Ego Action), and both treacheries pressure the
- * player's form choice. Friends and Family (27132, obligation) is part of this printed 7-card checklist
- * (`DOWN TO EARTH (2/7)`) but carries `encounterSetIds: []` — RRG 1.8 "Obligation" (p. 30): an identity-specific
- * obligation is linked from its hero's `HeroIdentityCard.obligationCardId`, not shuffled into this modular's own
- * deck — so it is scripted with its owning hero's kit, not here.
+ * player's form choice. Friends and Family (27132, obligation) is a member of this modular
+ * (`DOWN TO EARTH (2/7)`, encounter set `down_to_earth`): it belongs to no hero's kit, so it is shuffled into the
+ * encounter deck with the set and given to the player who reveals it (RRG 1.8 "Obligation", p. 30), and it is
+ * scripted here. (QA 2026-10-13 finding 6: an earlier emit left its `encounterSetIds` empty, which made it look
+ * unreachable.)
  *
  * **Loose Ends (27135)**: "Search the encounter deck, discard pile, set-aside area, and removed-from-game area for a
  * copy of your obligation, then reveal it" is one pool (`anyOfCards`) over the encounter deck and discard pile, both
@@ -106,6 +110,17 @@ export const DOWN_TO_EARTH = defineAbilities({
     { cost: spend(2) },
     removeThreat(statOf(yourIdentity, "rec"), self),
     ifThen(youHaveTrait(CIVILIAN), draw(1)),
+  ),
+
+  // Friends and Family (27132, obligation; boost icons are data) — While in hero form, increase the resource cost of
+  // each event you play by 1. ("You" on an obligation is the player it was given to.)
+  "27132.friends-and-family-constant": constant(
+    costModifier({ delta: 1, appliesTo: query("event", { controller: "you" }), while: isHero() }),
+  ),
+  // Alter-Ego Action: Discard 1 identity-specific card from your hand -> discard this obligation.
+  "27132.friends-and-family-action": alterEgoAction(
+    { cost: discardFromHandCost(1, 1, undefined, { identitySetOf: you }) },
+    discard(self),
   ),
 
   // "Threat or Menace?" (27134, treachery; no boost icons are data) — When Revealed: You may change form. If you

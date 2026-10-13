@@ -143,7 +143,10 @@ export const QSV_KIT = defineAbilities({
   ),
 
   // Speed Cyclone — Hero Action: Stun X Enemies (module docblock).
+  // `minX: 1`: owner ruling 52B, "a zero-target play is not meaningful" (owner question 56, default A, not yet
+  // answered), the way Everywhere All at Once 58018 has it.
   "14006.speed-cyclone-action": heroAction(
+    { minX: 1 },
     chooseTarget("enemies", query("enemy"), { count: varOf("x") }),
     stun(chosen("enemies")),
   ),

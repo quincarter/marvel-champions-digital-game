@@ -8,7 +8,6 @@ import {
   chooseTarget,
   chosen,
   constant,
-  coveredByEngineRule,
   defineAbilities,
   eachPlayer,
   exhaustThis,
@@ -133,7 +132,6 @@ export const VISION_PACK_CARDS = defineAbilities({
   // Chance Encounter (upgrade, 26034) — Attach to a side scheme. Max 1 per scheme (data). Interrupt: When attached
   // side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your
   // deck.
-  "26034.chance-encounter-constant": coveredByEngineRule(),
   // `schemeDefeated` has an interrupt window while the scheme and this attachment are still in play (docs/phase7-wave4.md
   // §3.37).
   "26034.chance-encounter-interrupt": interrupt(

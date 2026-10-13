@@ -555,7 +555,7 @@ describe("Vision justice card, from Spider-Man (Justice)'s own deck", () => {
     return { state: withChance, chance, scheme, hand: given.state };
   };
 
-  it("26034.chance-encounter-constant: attaches to a side scheme and is refused on the main scheme", () => {
+  it("26034.chance-encounter (data): attaches to a side scheme and is refused on the main scheme", () => {
     const { state, chance, scheme, hand } = attached();
     expect(inst(state, chance).attachedTo).toBe(scheme);
     const refusal = applyCommand(

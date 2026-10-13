@@ -356,7 +356,7 @@ describe("Thor's basic cards, from Spider-Man (Justice)'s own deck", () => {
 });
 
 describe("Thor's justice card, from Spider-Man (Justice)'s own deck", () => {
-  it("06031.under-surveillance-constant-2: attaches to the main scheme and raises its target threat by 4", () => {
+  it("06031.under-surveillance-constant: attaches to the main scheme and raises its target threat by 4", () => {
     const { state: opened, id } = openHandFor("06031", SPIDER_MAN);
     const scheme = opened.mainScheme;
     const targetBefore = mainSchemeValue(opened, "targetThreat", PLAYABLE_DEPS, scheme);

@@ -355,7 +355,7 @@ describe("Chance Encounter (upgrade, 26034)", () => {
     return { state: withChance, chance, scheme };
   };
 
-  it("26034.chance-encounter-constant: attaches to a side scheme (data-driven `attachesTo`)", () => {
+  it("26034.chance-encounter (data): attaches to a side scheme (data-driven `attachesTo`)", () => {
     const { state, chance, scheme } = attached();
     expect(inst(state, chance).attachedTo).toBe(scheme);
   });

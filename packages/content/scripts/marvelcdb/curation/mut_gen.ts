@@ -31,6 +31,13 @@ export const MUT_GEN_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "32150",
+      reason:
+        'Wrapped in Metal prints "Attach to your identity. Max 1 per identity." The parser reads the host but not a limit on an encounter attachment, so the per-host limit is data (`playRestrictions.maxPerHost`), which `attachLimitFault` reads. Never applied to text.',
+      evidence: `Raw text of 32150 (as quoted). RRG 1.8 "Max, Maximum" (p. 28): "'Max 1 per [game element]' restricts the number of copies of that card that can be attached to each indicated game element". docs/qa-v0.20.0-rules.md, finding on covered "Max 1 per" claims.`,
+      attachmentMaxPerHost: 1,
+    },
+    {
       code: "32048",
       subtitle: "Piotr Rasputin",
       reason:

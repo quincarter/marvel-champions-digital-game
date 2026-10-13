@@ -3993,6 +3993,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     quantityInSet: 4,
     unique: false,
     images: { front: imageRef("/bundles/cards/04163.png") },
+    schemeIcons: ["acceleration"],
     encounterSetIds: [encounterSetId("expcamp")],
     boostIcons: 0,
     traits: [],

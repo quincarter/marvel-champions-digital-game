@@ -151,10 +151,8 @@ export const SPIDERHAM_SUPPORT_UPGRADES = defineAbilities({
     gainTraitUntil(trait("AERIAL"), yourIdentity, "endOfPhase"),
   ),
 
-  "30018.followed-constant": CAP_PACK_CARDS["03032.followed-constant"]!,
   "30018.followed-interrupt": CAP_PACK_CARDS["03032.followed-interrupt"]!,
 
-  "30019.overwatch-constant": constant(),
   "30019.overwatch-interrupt": heroInterrupt(
     { on: "thwart", targetIs: { hostOfSelf: true } },
     { cost: discardThis },

@@ -768,11 +768,12 @@ export const CAP_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a side scheme. Max 1 per scheme.\nInterrupt: When attached scheme is defeated, deal 4 damage to an enemy.",
       current: "Attach to a side scheme. Max 1 per scheme.\nInterrupt: When attached scheme is defeated, deal 4 damage to an enemy.",
     },
-    abilities: [{ id: abilityId("03032.followed-constant") }, { id: abilityId("03032.followed-interrupt") }],
+    abilities: [{ id: abilityId("03032.followed-interrupt") }],
   },
   {
     id: cardId("03033"),

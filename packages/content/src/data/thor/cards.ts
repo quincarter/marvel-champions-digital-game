@@ -727,14 +727,12 @@ export const THOR_CARDS: readonly AnyCard[] = [
     traits: [trait("CONDITION")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to the main scheme. Max 1 per scheme.\nIncrease the target threat value of attached scheme by 4.",
       current: "Attach to the main scheme. Max 1 per scheme.\nIncrease the target threat value of attached scheme by 4.",
     },
-    abilities: [
-      { id: abilityId("06031.under-surveillance-constant") },
-      { id: abilityId("06031.under-surveillance-constant-2") },
-    ],
+    abilities: [{ id: abilityId("06031.under-surveillance-constant") }],
   },
   {
     id: cardId("06032"),

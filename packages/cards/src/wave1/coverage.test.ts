@@ -111,13 +111,13 @@ describe("wave 1 pack ability coverage", () => {
 describe("Captain America (cap) pack ability coverage", () => {
   const allRefs = CAP_CARDS.flatMap(abilityRefIds);
 
-  it("has 34 cards and 37 ability references, each id unique", () => {
+  it("has 34 cards and 36 ability references, each id unique", () => {
     expect(CAP_CARDS).toHaveLength(34);
-    expect(allRefs).toHaveLength(37);
+    expect(allRefs).toHaveLength(36);
     expect(new Set(allRefs).size).toBe(allRefs.length);
   });
 
-  it("8 of the 37 references are Core reprints (Hawkeye x2, Make the Call, The Power of Leadership, Mockingbird, Hydra Soldier — Energy/Genius/Strength print no ability)", () => {
+  it("8 of the 36 references are Core reprints (Hawkeye x2, Make the Call, The Power of Leadership, Mockingbird, Hydra Soldier — Energy/Genius/Strength print no ability)", () => {
     const reprintIds = [
       "03012.hawkeye-constant",
       "03012.hawkeye-response",

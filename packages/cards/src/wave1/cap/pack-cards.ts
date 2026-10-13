@@ -26,9 +26,7 @@ export const CAP_PACK_CARDS = defineAbilities({
     gets("consequentialAttack", 1, { hostOfSelf: true }),
   ),
 
-  // Followed — Attach to a side scheme (data; "Max 1 per scheme" is `playRestrictions.maxPerHost`). No separate
-  // effect: the printed text is only the attach restriction plus the interrupt below.
-  "03032.followed-constant": { trigger: { kind: "constant" }, effects: [] },
+  // Followed — Attach to a side scheme and "Max 1 per scheme" are data (`attachesTo`, `playRestrictions.maxPerHost`).
   // Followed — Interrupt: When attached scheme is defeated, deal 4 damage to an enemy.
   "03032.followed-interrupt": interrupt(when.schemeDefeated("host"), damageAnEnemy(4)),
 

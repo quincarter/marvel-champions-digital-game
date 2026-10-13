@@ -220,7 +220,13 @@ export const RED_SKULL_SET = defineAbilities({
   // a Response, not an Interrupt, because The Sleeper is still in play while its defeat is being interrupted and the
   // first sentence would stop the scheme leaving (RRG 1.8 "'Cannot'", p. 11). The Sleeper's own When Defeated has
   // removed it by the time this resolves.
-  "04140.the-sleeper-awakened-constant": constant(cannotLeavePlay({ self: true }, { while: exists(THE_SLEEPER) })),
+  // The second rule keeps the scheme at no threat in play while The Sleeper stands and is what the engine watches
+  // (`heldAtNoThreat`): when The Sleeper leaves play any way but being defeated, the held scheme is defeated at once
+  // (RRG 1.8 "Side Scheme": a side scheme with no threat is defeated), so it cannot sit at 0 threat forever.
+  "04140.the-sleeper-awakened-constant": constant(
+    cannotLeavePlay({ self: true }, { while: exists(THE_SLEEPER) }),
+    rule({ kind: "notDefeatedWithoutThreat", target: { self: true }, while: exists(THE_SLEEPER) }),
+  ),
   "04140.the-sleeper-awakened-constant-2": forcedResponse(
     on.defeated(THE_SLEEPER),
     moveCards(cards(self), "removedFromGame"),

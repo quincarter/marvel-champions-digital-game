@@ -129,7 +129,7 @@ describe("The Sleeper Awakened (04140): leaving play without a defeat", () => {
   // The scheme sits at 0 threat (held in play by the first sentence) and The Sleeper then leaves play without being
   // defeated. Nothing removes the scheme any more: the first sentence has lapsed, but no state check re-evaluates
   // "0 threat". Expected: a side scheme with no threat is not left lingering once nothing holds it.
-  it.fails("The Sleeper Awakened at 0 threat is discarded once The Sleeper leaves play undefeated (not stuck forever)", () => {
+  it("The Sleeper Awakened at 0 threat is discarded once The Sleeper leaves play undefeated (not stuck forever)", () => {
     const { state, sleeper, scheme } = awake();
     const held = thwart(patchInstance(state, scheme, { threat: 1 }), scheme);
     expect(cardsInPlay(held)).toContain(scheme);

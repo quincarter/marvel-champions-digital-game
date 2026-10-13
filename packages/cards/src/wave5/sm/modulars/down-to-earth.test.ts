@@ -3,6 +3,7 @@ import {
   activeEncounterDeck,
   applyCommand,
   createGame,
+  playCostOf,
   NO_STATUSES,
   replay,
   type Command,
@@ -424,5 +425,64 @@ describe("wave5Scenario with Down to Earth swapped in", () => {
         modularSetIds: [encounterSetId("down_to_earth")],
       }),
     ).not.toThrow();
+  });
+});
+
+describe("Friends and Family (27132)", () => {
+  const withObligation = () => {
+    const placed = encounterCardInVillainArea(game(), "27132");
+    return {
+      id: placed.id,
+      state: {
+        ...placed.state,
+        villainArea: placed.state.villainArea.filter((id) => id !== placed.id),
+        players: placed.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, playArea: [...p.playArea, placed.id] } : p,
+        ),
+      } as GameState,
+    };
+  };
+  const GHOST_KICK = "27002"; // an identity-specific event (cost 1)
+  const PARENTAL_GUIDANCE = "27003"; // an identity-specific event
+
+  it("is a member of the Down to Earth set, reachable through the encounter deck", () => {
+    const card = Object.values(game().cardPool).find((c) => c.id === cardId("27132"));
+    expect((card as { encounterSetIds?: unknown } | undefined)?.encounterSetIds).toEqual([
+      encounterSetId("down_to_earth"),
+    ]);
+  });
+
+  it("27132.friends-and-family-constant: in hero form, each event you play costs 1 more; in alter-ego form it does not", () => {
+    const { state } = withObligation();
+    const given = moveToHand(state, P1, GHOST_KICK);
+    const kick = given.ids[0]!;
+    const base = playCostOf(game(), P1, moveToHand(game(), P1, GHOST_KICK).ids[0]!, WAVE5_DEPS)!.current;
+    expect(playCostOf(given.state, P1, kick, WAVE5_DEPS)!.current).toBe(base);
+    const hero = runWave5(given.state, toHero(P1));
+    expect(playCostOf(hero, P1, kick, WAVE5_DEPS)!.current).toBe(base + 1);
+  });
+
+  it("27132.friends-and-family-action: discards 1 identity-specific card from your hand to discard this obligation (alter-ego only)", () => {
+    const { state, id } = withObligation();
+    const given = moveToHand(state, P1, PARENTAL_GUIDANCE);
+    const card = given.ids[0]!;
+    const after = settle(
+      runWave5(given.state, use(P1, id, "27132.friends-and-family-action", [], { discard: [card] })),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(playerOf(after, P1).hand).not.toContain(card);
+    expect(playerOf(after, P1).discard).toContain(card);
+    expect(playerOf(after, P1).playArea).not.toContain(id);
+  });
+
+  it("27132.friends-and-family-action: refused with no identity-specific card in hand", () => {
+    const { state, id } = withObligation();
+    const emptied = {
+      ...state,
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, hand: [] } : p)),
+    } as GameState;
+    expect(applyCommand(emptied, use(P1, id, "27132.friends-and-family-action"), WAVE5_DEPS).ok).toBe(false);
   });
 });

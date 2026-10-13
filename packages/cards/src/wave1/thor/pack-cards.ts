@@ -10,7 +10,6 @@ import {
   chooseCards,
   chooseTarget,
   chosen,
-  coveredByEngineRule,
   constant,
   costModifier,
   countOf,
@@ -136,11 +135,9 @@ export const THOR_PACK_CARDS = defineAbilities({
   // Invulnerability — Hero Action: Give your hero a tough status card.
   "06021.invulnerability-action": heroAction(giveTough(yourIdentity)),
 
-  // Under Surveillance — Attach to the main scheme. Max 1 per scheme (data, `attachesTo`/`playRestrictions`); no
-  // effect of its own beyond the attach restriction, already covered by engine rules.
-  "06031.under-surveillance-constant": coveredByEngineRule(),
-  // Under Surveillance — Increase the target threat value of attached scheme by 4.
-  "06031.under-surveillance-constant-2": constant(gets("targetThreat", 4, { hostOfSelf: true })),
+  // Under Surveillance — Attach to the main scheme. Max 1 per scheme is data (`attachesTo` and
+  // `playRestrictions.maxPerHost`). Increase the target threat value of attached scheme by 4.
+  "06031.under-surveillance-constant": constant(gets("targetThreat", 4, { hostOfSelf: true })),
 
   // Teamwork — Hero Interrupt: When you use your basic thwart power (THW) or basic attack power (ATK), exhaust an
   // ally you control → add that ally's matching power to your hero's power for this use. One `EventPattern`

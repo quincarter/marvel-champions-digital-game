@@ -3308,7 +3308,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/27132.png") },
-    encounterSetIds: [],
+    encounterSetIds: [encounterSetId("down_to_earth")],
     boostIcons: 3,
     traits: [],
     keywords: [],

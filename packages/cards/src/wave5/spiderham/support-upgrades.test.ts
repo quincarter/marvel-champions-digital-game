@@ -300,8 +300,7 @@ describe("Spider-Ham's supports, upgrades and resources (30008-30011, 30018-3001
   });
 
   describe("30018.followed", () => {
-    it("is aliased to `cap` 03032 verbatim", () => {
-      expect(SPIDERHAM_SUPPORT_UPGRADES["30018.followed-constant"]).toBe(CAP_PACK_CARDS["03032.followed-constant"]);
+    it("is aliased to `cap` 03032 verbatim (its interrupt)", () => {
       expect(SPIDERHAM_SUPPORT_UPGRADES["30018.followed-interrupt"]).toBe(CAP_PACK_CARDS["03032.followed-interrupt"]);
     });
 

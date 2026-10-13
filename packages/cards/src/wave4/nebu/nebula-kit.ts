@@ -20,6 +20,7 @@ import {
   draw,
   each,
   encounterCards,
+  exists,
   exhaustThis,
   forcedResponse,
   gainsKeyword,
@@ -192,7 +193,10 @@ export const NEBULA_KIT = defineAbilities({
   // Lethal Intent (event, 22010) — Hero Action: Choose up to X technique upgrades you control. Resolve each of
   // their "Special" abilities (in the order of your choice). `x` is the play's own bound var for the printed "X"
   // cost (`specialCost: "X"`, docs/phase7-wave2.md §3.8, the Speed Cyclone precedent, `wave2/qsv/kit.ts`).
+  // `minX: 1` and a technique upgrade in play to choose: owner ruling 52B, "a zero-target play is not meaningful"
+  // (owner question 56, default A, not yet answered).
   "22010.lethal-intent-action": heroAction(
+    { minX: 1, while: exists(YOUR_TECHNIQUE_UPGRADES) },
     chooseTarget("techs", YOUR_TECHNIQUE_UPGRADES, { count: varOf("x"), upTo: true }),
     resolveSpecialsOf(chosen("techs")),
   ),

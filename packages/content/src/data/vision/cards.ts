@@ -829,14 +829,12 @@ export const VISION_CARDS: readonly AnyCard[] = [
     traits: [trait("CONDITION")],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerHost: 1 },
     text: {
       printed: "Attach to a side scheme. Max 1 per scheme.\nInterrupt: When attached side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your deck.",
       current: "Attach to a side scheme. Max 1 per scheme.\nInterrupt: When attached side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your deck.",
     },
-    abilities: [
-      { id: abilityId("26034.chance-encounter-constant") },
-      { id: abilityId("26034.chance-encounter-interrupt") },
-    ],
+    abilities: [{ id: abilityId("26034.chance-encounter-interrupt") }],
   },
   {
     id: cardId("26035"),
