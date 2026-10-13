@@ -103,6 +103,12 @@ const PAID_RIDER = event("paid-rider", "thwart", [
   thwart(3, slot("scheme")),
   { kind: "if", condition: PAID_MENTAL, then: [draw] },
 ]);
+/** "(thwart): Remove 3 threat from a scheme. If you paid for this card with a [mental] resource, remove 3 threat from a scheme." */
+const PAID_REMOVAL = event("paid-removal", "thwart", [
+  aScheme,
+  thwart(3, slot("scheme")),
+  { kind: "if", condition: PAID_MENTAL, then: [{ ...aScheme, slot: "scheme2" }, thwart(3, slot("scheme2"))] },
+]);
 
 // -- M2: a part of its own inside the branch that holds the removal -------------------------------------------------------------
 
@@ -176,6 +182,7 @@ const EVENTS = [
   RIDER_HOLDS,
   RIDER_FAILS,
   PAID_RIDER,
+  PAID_REMOVAL,
   SHIFT,
   COST_MARKED,
   COST_UNMARKED,
@@ -313,6 +320,12 @@ describe("S2: a removal of threat inside a branch is judged by the branch that w
     expect(played.targets).toEqual([]);
     expect(count(played.events, "threatRemoved")).toBe(0);
     expect(played.state.pendingChoice).toBeNull();
+  });
+
+  it("a rider on how the card was paid for that is itself a removal keeps nothing playable (Rapid Deployment)", () => {
+    expect(refusal(table(0), PAID_REMOVAL)).toBe(REFUSED);
+    expect(offered(table(0), PAID_REMOVAL)).toBe(false);
+    expect(offered(table(4), PAID_REMOVAL)).toBe(true);
   });
 });
 

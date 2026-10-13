@@ -86,7 +86,7 @@ test.describe("v0.20.0 client QA findings", () => {
     });
   });
 
-  test("Z with a payment open does not also take back the move before it", async ({ page }) => {
+  test("Z with a payment open does not also take back the move before it", async ({ page }, info) => {
     test.setTimeout(240_000);
     await start(page, ["58009", "58003", "58023", "58004", "58016", "58017"]);
     await dispatchKind(page, "changeForm");
@@ -107,7 +107,8 @@ test.describe("v0.20.0 client QA findings", () => {
       ["58009", filler] as const,
     );
     await settle(page);
-    await playFromHand(page, false, blast, async () => (await boardText(page, /^PAYING/i)) !== undefined);
+    const phone = info.project.name === "phone";
+    await playFromHand(page, phone, blast, async () => (await boardText(page, /^PAYING/i)) !== undefined);
     const inPlay = () =>
       facts(
         page,

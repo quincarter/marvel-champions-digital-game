@@ -210,6 +210,16 @@ describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
     });
   });
 
+  it("31005 Rapid Deployment with no threat on any scheme: refused, its rider being a removal too (RRG 1.8 'Target', p. 42)", () => {
+    const hero = runWave5(spdrVsRhino(), toHero(P1));
+    const bare = patchInstance(hero, hero.mainScheme.instanceId, { threat: 0 });
+    const { state, ids } = moveToHand(bare, P1, "31005");
+    const id = ids[0]!;
+    const result = applyCommand(state, play(P1, id, payWith(state, P1, 2, [id])), WAVE5_DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+  });
+
   describe("31006.web-trap-action", () => {
     it("without Sync Ratio: deals 5 damage to an enemy and does not stun it", () => {
       const hero = runWave5(spdrVsRhino(), toHero(P1));
