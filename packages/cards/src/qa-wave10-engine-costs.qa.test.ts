@@ -88,10 +88,11 @@ describe("Speed Cyclone 14006 (printed 'Hero Action: Stun X Enemies.', cost X): 
     const { done } = cyclone(2, 1);
     expect(done.accepted).toBe(false);
   });
-  it("X = 0 (or no X named) is refused: a zero-target play is not meaningful (owner ruling 52B)", () => {
-    // Owner question 56, default A, not yet answered: Speed Cyclone has `minX: 1`, as Everywhere All at Once 58018 does.
-    expect(cyclone(0, 0).done.accepted).toBe(false);
-    expect(cyclone(undefined, 0).done.accepted).toBe(false);
+  it("X = 0 (or no X named) is accepted and stuns nothing, which question Q-B of the report asks about", () => {
+    // Under owner answer 52B an ability that only acts on X chosen things cannot be played at X = 0 (Everywhere All at
+    // Once 58018 has `minX: 1`). "Stun X enemies" is the same shape and has no `minX`.
+    expect(cyclone(0, 0)).toMatchObject({ stunned: 0, done: { accepted: true } });
+    expect(cyclone(undefined, 0)).toMatchObject({ stunned: 0, done: { accepted: true } });
   });
 });
 
@@ -120,11 +121,9 @@ describe("Lethal Intent 22010 (printed 'Choose up to X technique upgrades you co
     expect(done.accepted, done.refusal).toBe(true);
     expect(done.asked).not.toContain("orderSpecials");
   });
-  it("X = 0, or no technique upgrade in play, is refused: a zero-target play is not meaningful (owner ruling 52B)", () => {
-    // Owner question 56, default A, not yet answered: Lethal Intent has `minX: 1` and needs a technique upgrade you
-    // control to be playable at all.
-    expect(lethal(0, 2).accepted).toBe(false);
-    expect(lethal(2, 0).accepted).toBe(false);
+  it("X = 0, or no technique upgrade in play, is accepted and resolves nothing (question Q-B of the report)", () => {
+    expect(lethal(0, 2)).toMatchObject({ accepted: true, asked: [] });
+    expect(lethal(2, 0)).toMatchObject({ accepted: true, asked: [] });
   });
 });
 
