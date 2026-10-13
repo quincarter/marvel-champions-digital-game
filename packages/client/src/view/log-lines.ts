@@ -426,7 +426,7 @@ function describe(
       return { text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} a turn.`, voice: "player" };
     case "formChanged":
       return {
-        text: `${who(event.playerId)} ${event.byEffect ? "was flipped" : "flipped"} to ${event.to === "hero" ? "hero" : "alter-ego"} form.`,
+        text: `${who(event.playerId)} ${event.byEffect ? verb(event.playerId, "were flipped", "was flipped") : "flipped"} to ${event.to === "hero" ? "hero" : "alter-ego"} form.`,
         voice: "player",
       };
     case "cardPlayed":
