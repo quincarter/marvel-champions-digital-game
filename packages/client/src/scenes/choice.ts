@@ -222,12 +222,18 @@ export class ChoiceOverlay extends Phaser.Scene {
   override update(time: number): void {
     // Under the villain phase's inline interrupt window the sheet is hidden *and* inert (`sheetIsCovered`). Hidden
     // outright, not only drawn over: the docked phase leaves the table in view, and the sheet would show on it.
+    // Held every frame while covered, not only when it changes: a redraw's `OverlayMotion.enter` switches input back
+    // on, and the sheet's full-screen modal zone then swallowed every press and hover on the table beside the docked
+    // villain phase.
     const covered = this.#covered();
-    if (covered !== this.#wasCovered) {
-      this.#wasCovered = covered;
-      this.input.enabled = !covered && !this.#motion.leaving;
-      this.sys.setVisible(!covered);
+    if (covered) {
+      this.input.enabled = false;
+      this.sys.setVisible(false);
+    } else if (this.#wasCovered) {
+      this.input.enabled = !this.#motion.leaving;
+      this.sys.setVisible(true);
     }
+    this.#wasCovered = covered;
     const state = appSession().store.state;
     const pendingChoiceId = state.game?.pendingChoice?.choiceId ?? null;
     const idle =

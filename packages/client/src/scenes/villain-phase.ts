@@ -176,6 +176,8 @@ import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion, slideIn, slideOut } from "../ui/transitions.js";
+import { HoverPreview, hoverCardsOf, isMousePointer, resetHoverCards } from "../ui/card-hover-preview.js";
+import { villainHoverArea } from "../view/card-hover.js";
 import { slideOffset, villainSlideEdge, type VillainReview } from "../view/villain-review.js";
 import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-panel.js";
 import { villainRecapOf } from "../view/villain-recap.js";
@@ -292,6 +294,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #before: GameState | null = null;
   /** One scroll position per recap steps region, kept across redraws. */
   #recapScrolls: VariableListScroll[] = Array.from({ length: RECAP_SCROLL_SLOTS }, () => new VariableListScroll());
+  #hover: HoverPreview | null = null;
   /** When the docked phase began sliding in, for a redraw mid-slide (`ui/transitions.ts#slideIn`). */
   #slideStartedAt: number | null = null;
   /** Reopened from the Board's drawer handle: a finished phase's recap, read-only, with Close. */
@@ -361,7 +364,33 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onCancel: () => this.#skip(),
     });
 
+    // The desktop hover popover over the phase's own cards (the enemy, the revealed card, the interrupt card, the
+    // recap's thumbnails), as on the table: the cards' rects are noted as they are drawn (`noteHoverCard`).
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      cards: () => hoverCardsOf(this),
+      area: (pointer) => {
+        const { width, height } = this.scale.gameSize;
+        const overlays = Object.values(SCENES).filter(
+          (key) =>
+            key !== SCENES.board &&
+            key !== SCENES.music &&
+            key !== SCENES.villainPhase &&
+            key !== SCENES.choice &&
+            this.scene.isActive(key),
+        );
+        return villainHoverArea({
+          formFactor: formFactorFor(width, height),
+          mouse: isMousePointer(pointer),
+          scale: appSession().settings.cardHoverScale,
+          overlays,
+          viewport: { x: 0, y: 0, width, height },
+        });
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
       // Give the table its whole width and its own hand tags back, whatever closed the phase.
       this.#boardScene()?.setVillainDock(null);
       this.#boardScene()?.setVillainHandTags(null);
@@ -680,7 +709,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.scene.launch(SCENES.pause);
   }
 
+  /** Every draw empties the card rects the hover popover reads, draws, then lets the popover rebuild where the pointer is. */
   #draw(): void {
+    resetHoverCards(this);
+    this.#drawNow();
+    this.#hover?.onDraw();
+  }
+
+  #drawNow(): void {
     // Already fading out (Skip, Continue, Esc, or the auto-close timer) — a
     // beat arriving mid-fade must not redraw the panel out from under the tween.
     if (this.#motion.leaving) return;

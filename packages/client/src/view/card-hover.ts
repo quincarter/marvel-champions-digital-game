@@ -1,6 +1,6 @@
 /**
  * The card hover popover's rules (desktop mouse only): when it may show, how big the card is drawn, where it sits
- * against the pointer, and which words describe the card's state beside it. Pure and tested; `scenes/board/hover-preview.ts`
+ * against the pointer, and which words describe the card's state beside it. Pure and tested; `ui/card-hover-preview.ts`
  * draws what this decides. It reads state and never changes it: the popover takes no input.
  */
 import { cardHoverFactor, type CardHoverScale } from "../settings.js";
@@ -46,6 +46,23 @@ export function hoverArea(gate: HoverGate): Rect | null {
   if (!panel) return null;
   const right = Math.min(gate.viewport.x + gate.viewport.width, panel.x);
   return right > gate.viewport.x ? { ...gate.viewport, width: right - gate.viewport.x } : null;
+}
+
+/**
+ * The villain phase's own cards (the enemy, the revealed encounter card, the interrupt card, the recap's thumbnails):
+ * the same desktop-and-mouse rule, and nothing over the phase. The choice sheet does not count: while it is above the
+ * phase the phase takes no input, and while it is under the phase it is hidden. The popover may use the whole screen.
+ */
+export function villainHoverArea(gate: {
+  readonly formFactor: FormFactor;
+  readonly mouse: boolean;
+  readonly scale: CardHoverScale;
+  /** Keys of every scene running over the villain phase that is not the choice sheet. */
+  readonly overlays: readonly string[];
+  readonly viewport: Rect;
+}): Rect | null {
+  if (gate.formFactor !== "desktop" || !gate.mouse || cardHoverFactor(gate.scale) === null) return null;
+  return gate.overlays.length > 0 ? null : gate.viewport;
 }
 
 export function rectContains(rect: Rect, x: number, y: number): boolean {

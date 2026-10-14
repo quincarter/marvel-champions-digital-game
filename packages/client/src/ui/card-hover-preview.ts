@@ -1,34 +1,32 @@
 /**
- * The desktop card hover popover: rest a mouse on a card on the table and see it larger beside the pointer, with the
- * state it is in (exhausted, damage, threat, counters, attachments). The Board creates one, feeds it each draw, and
- * destroys it on shutdown (`scenes/board.ts`); nothing here changes the game.
+ * The desktop card hover popover: rest a mouse on a card and see it larger beside the pointer, with the state it is
+ * in (exhausted, damage, threat, counters, attachments). A scene that shows cards creates one, feeds it after each
+ * draw, and destroys it on shutdown: the Board for the table (`scenes/board.ts`), the villain phase for its own cards
+ * (`scenes/villain-phase.ts`). Nothing here changes the game.
  *
  * It takes no input: its objects are not interactive, so a click, a drag, a target pick or a hold goes to whatever
  * was under the pointer exactly as before. It listens to the scene's pointer moves instead of putting a listener on
- * every card, and reads where cards are from the draw's own hit rects (`BoardFrame.hitRects`). The rules for when it
- * may show, how big it is and where it sits are in `view/card-hover.ts`.
+ * every card, and reads where cards are from the scene's own rects for its last draw (`HoverPreviewDeps.cards`). The
+ * rules for when it may show, how big it is and where it sits are in `view/card-hover.ts`.
  */
 
 import Phaser from "phaser";
 import { getInstance, type InstanceId } from "@mc/engine";
-import { cardArt, drawArt } from "../../art/card-art.js";
-import { POOL_DEPS } from "../../content/pool.js";
-import { appSession } from "../../session.js";
-import { surface, typeRole } from "../../tokens.js";
-import { textStyle } from "../../ui/theme.js";
+import { cardArt, drawArt } from "../art/card-art.js";
+import { POOL_DEPS } from "../content/pool.js";
+import { appSession } from "../session.js";
+import { surface, typeRole } from "../tokens.js";
+import { textStyle } from "./theme.js";
 import {
   HOVER_DELAY_MS,
-  hoverArea,
   hoverCandidateAt,
   hoverCardSize,
   hoverPlacement,
   hoverStateLines,
   type Size,
-} from "../../view/card-hover.js";
-import { inspectModel, type InspectModel } from "../../view/inspect-model.js";
-import { formFactorFor, type Rect } from "../../view/layout.js";
-import { SCENES } from "../keys.js";
-import type { BoardFrame } from "./context.js";
+} from "../view/card-hover.js";
+import { inspectModel, type InspectModel } from "../view/inspect-model.js";
+import type { Rect } from "../view/layout.js";
 
 /** Above every other thing the Board draws (the phase band is 1150). */
 const HOVER_DEPTH = 2000;
@@ -36,10 +34,18 @@ const STRIP_GAP = 6;
 const FADE_MS = 90;
 
 export interface HoverPreviewDeps {
-  readonly frame: () => BoardFrame;
-  /** Where the docked villain phase panel draws; null when it is not docked (`Board.villainDockRects()?.panel`). */
-  readonly dockPanel: () => Rect | null;
+  /** Each card's rect as the scene last drew it, by instance. */
+  readonly cards: () => ReadonlyMap<InstanceId, Rect>;
+  /**
+   * The area the popover may use for this pointer, or null when it must not show at all (`view/card-hover.ts`
+   * `hoverArea` for the table, `villainHoverArea` for the villain phase).
+   */
+  readonly area: (pointer: Phaser.Input.Pointer) => Rect | null;
 }
+
+/** True when the pointer is a mouse (or pen): a touch has long-press Inspect instead. */
+export const isMousePointer = (pointer: Phaser.Input.Pointer): boolean =>
+  !pointer.wasTouch && (pointer.event as PointerEvent | undefined)?.pointerType !== "touch";
 
 export class HoverPreview {
   #pointer: Phaser.Input.Pointer | null = null;
@@ -123,20 +129,7 @@ export class HoverPreview {
 
   #area(): Rect | null {
     const pointer = this.#pointer;
-    if (!pointer) return null;
-    const { width, height } = this.scene.scale.gameSize;
-    const overlays = Object.values(SCENES).filter(
-      (key) => key !== SCENES.board && key !== SCENES.music && this.scene.scene.isActive(key),
-    );
-    return hoverArea({
-      formFactor: formFactorFor(width, height),
-      mouse: !pointer.wasTouch && (pointer.event as PointerEvent | undefined)?.pointerType !== "touch",
-      scale: appSession().settings.cardHoverScale,
-      overlays,
-      villainPhaseKey: SCENES.villainPhase,
-      dockPanel: this.deps.dockPanel(),
-      viewport: { x: 0, y: 0, width, height },
-    });
+    return pointer ? this.deps.area(pointer) : null;
   }
 
   /** The card the pointer is resting on, or null: outside the area, not over a card, or something else drawn on top. */
@@ -151,7 +144,7 @@ export class HoverPreview {
     return hoverCandidateAt(
       x,
       y,
-      this.deps.frame().hitRects,
+      this.deps.cards(),
       bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null,
     );
   }
@@ -185,7 +178,7 @@ export class HoverPreview {
       this.#clear();
       return;
     }
-    const rect = this.deps.frame().hitRects.get(id);
+    const rect = this.deps.cards().get(id);
     const built = rect ? this.#build(id, rect, area) : null;
     if (!built) {
       this.#clear();
@@ -310,4 +303,32 @@ export class HoverPreview {
     frame.add([name, type, rules]);
     return frame;
   }
+}
+
+const HOVER_CARDS_KEY = "mc-hover-cards";
+
+/**
+ * The card rects a scene's popover reads, kept on the scene itself so a drawing helper several calls deep (the
+ * villain phase's rail and recap) can note each card it draws without threading a map through every signature. The
+ * scene clears it before each draw (`resetHoverCards`); a scene with no popover has none, and noting is a no-op.
+ */
+export function noteHoverCard(scene: Phaser.Scene, id: InstanceId, rect: Rect): void {
+  (scene.data?.get(HOVER_CARDS_KEY) as Map<InstanceId, Rect> | undefined)?.set(id, rect);
+}
+
+/** The scene's hover card map, created empty on first use and emptied on every later call: call it before a draw. */
+export function resetHoverCards(scene: Phaser.Scene): Map<InstanceId, Rect> {
+  const existing = scene.data.get(HOVER_CARDS_KEY) as Map<InstanceId, Rect> | undefined;
+  if (existing) {
+    existing.clear();
+    return existing;
+  }
+  const created = new Map<InstanceId, Rect>();
+  scene.data.set(HOVER_CARDS_KEY, created);
+  return created;
+}
+
+/** The scene's hover card map as its last draw left it (empty before any draw). */
+export function hoverCardsOf(scene: Phaser.Scene): ReadonlyMap<InstanceId, Rect> {
+  return (scene.data.get(HOVER_CARDS_KEY) as Map<InstanceId, Rect> | undefined) ?? new Map();
 }

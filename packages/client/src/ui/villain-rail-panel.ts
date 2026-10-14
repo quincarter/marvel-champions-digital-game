@@ -31,6 +31,7 @@ import {
   type InlineInterruptOption,
   type Pause,
 } from "../view/villain-walkthrough.js";
+import { noteHoverCard } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
 import { McButton, fitText, label } from "./widgets.js";
@@ -326,6 +327,7 @@ function drawCard(
   source: ArtSource | null,
 ): void {
   if (rect.width <= 0 || rect.height <= 0) return;
+  noteHoverCard(scene, instanceId, rect);
   const g = scene.add.graphics();
   g.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   const art = cardArt(scene).request(scene, source);

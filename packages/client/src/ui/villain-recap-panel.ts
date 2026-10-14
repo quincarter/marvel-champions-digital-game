@@ -17,6 +17,7 @@ import type { FormFactor, Rect } from "../view/layout.js";
 import type { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { RecapChange, RecapColumn, RecapEntry, RecapResponse, VillainRecap } from "../view/villain-recap.js";
 import { villainRecapLayout, type VillainRecapLayout } from "../view/villain-recap-layout.js";
+import { noteHoverCard } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { McScrollRegion } from "./scroll-region.js";
 import { textStyle } from "./theme.js";
@@ -384,6 +385,7 @@ function drawResponse(
 
 /** A card thumbnail: its real scan, or the plain frame with a name label when there is none. Tap to inspect. */
 function drawThumb(scene: Phaser.Scene, rect: Rect, instanceId: InstanceId, game: GameState): void {
+  noteHoverCard(scene, instanceId, rect);
   const fill = scene.add.graphics();
   fill.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   fill.lineStyle(border.detail, surface.ink.hex, 1);

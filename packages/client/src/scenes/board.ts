@@ -46,13 +46,15 @@ import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
-import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
+import { boardLayout, formFactorFor, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
-import { HoverPreview } from "./board/hover-preview.js";
+import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
+import { hoverArea } from "../view/card-hover.js";
+import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
@@ -325,8 +327,33 @@ export class BoardScene extends Phaser.Scene {
     this.#tip = new BoardTipMount(this);
     // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
     this.#hover = new HoverPreview(this, {
-      frame: () => this.#frame,
-      dockPanel: () => this.#villainDockRects?.panel ?? null,
+      cards: () => this.#frame.hitRects,
+      area: (pointer) => {
+        const { width, height } = this.scale.gameSize;
+        // A choice sheet the docked villain phase covers is hidden and inert (`sheetIsCovered`): it is no overlay.
+        const manager = this.scene.manager;
+        const sheetCovered = sheetIsCovered({
+          coverActive: this.scene.isActive(SCENES.villainPhase),
+          coverIndex: manager.getIndex(SCENES.villainPhase),
+          sheetIndex: manager.getIndex(SCENES.choice),
+        });
+        const overlays = Object.values(SCENES).filter(
+          (key) =>
+            key !== SCENES.board &&
+            key !== SCENES.music &&
+            !(key === SCENES.choice && sheetCovered) &&
+            this.scene.isActive(key),
+        );
+        return hoverArea({
+          formFactor: formFactorFor(width, height),
+          mouse: isMousePointer(pointer),
+          scale: appSession().settings.cardHoverScale,
+          overlays,
+          villainPhaseKey: SCENES.villainPhase,
+          dockPanel: this.#villainDockRects?.panel ?? null,
+          viewport: { x: 0, y: 0, width, height },
+        });
+      },
     });
     // When the villain phase closes, the table draws again without it: its review handle (`#drawVillainReviewHandle`)
     // only shows once the phase is gone, and nothing else redraws the Board at that moment.
