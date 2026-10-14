@@ -28,6 +28,12 @@ describe("recentLogMoments", () => {
     expect(moments).toHaveLength(1);
   });
 
+  test("a line given a minimum height (an Undo moment's touch target) takes at least that much", () => {
+    const lines = [line("1", 1, "First thing."), line("2", 2, "Second thing.")];
+    const moments = recentLogMoments(lines, 1000, 400, (l) => (l.id === "1" ? 44 : 0));
+    expect(moments.map((m) => m.height)).toEqual([19, 44]);
+  });
+
   test("empty log: no moments", () => {
     expect(recentLogMoments([], 500, 400)).toHaveLength(0);
   });

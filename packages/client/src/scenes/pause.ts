@@ -41,7 +41,7 @@ import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
 import { playableScenarioOffer } from "@mc/cards";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
-import { accent, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
 import {
   McButton,
@@ -652,9 +652,12 @@ export class PauseOverlay extends Phaser.Scene {
     const footerHeight = 16;
     const textWidth = Math.max(1, boxRect.width - padX * 2 - 46);
     const available = Math.max(0, boxRect.height - padY * 2 - footerHeight - 6);
-    const moments = recentLogMoments(appSession().gameLog.lines, available, textWidth);
     // The moments Undo could get back to this turn: tapping one is pressing Undo that many times (`view/undo.ts`).
+    // Each is a full touch target tall, its words centred in it; the other lines stay at their text height.
     const undoable = this.#boardScene()?.undoMoments() ?? new Map<string, number>();
+    const moments = recentLogMoments(appSession().gameLog.lines, available, textWidth, (line) =>
+      undoable.has(line.id) ? hit.target : 0,
+    );
 
     if (moments.length === 0) {
       this.add
@@ -669,14 +672,18 @@ export class PauseOverlay extends Phaser.Scene {
       let y = boxRect.y + padY;
       for (const moment of moments) {
         const target = undoable.get(moment.line.id);
-        if (target !== undefined) this.#drawUndoMoment(moment.line.id, target, boxRect, y, moment.height, stops);
+        let textY = y;
+        if (target !== undefined) {
+          this.#drawUndoMoment(moment.line.id, target, boxRect, y, moment.height, stops);
+          textY = y + (moment.height - moment.textHeight) / 2;
+        }
         this.add
-          .text(boxRect.x + padX, y, moment.line.ref, textStyle(typeRole.mono, surface.ink.hex, ink.meta))
+          .text(boxRect.x + padX, textY, moment.line.ref, textStyle(typeRole.mono, surface.ink.hex, ink.meta))
           .setFontSize(9);
         this.add
           .text(
             boxRect.x + padX + 46,
-            y,
+            textY,
             logLineWords(moment.line),
             textStyle(typeRole.body, surface.ink.hex, ink.body),
           )
@@ -710,7 +717,9 @@ export class PauseOverlay extends Phaser.Scene {
     height: number,
     stops: Map<string, FocusStop>,
   ): void {
-    const rect: Rect = { x: boxRect.x + 4, y: y - 3, width: boxRect.width - 8, height: Math.max(1, height - 1) };
+    // The whole row is the target (`height` is at least `hit.target`, from `recentLogMoments`), less a 2 px seam so
+    // two undoable rows in a row read as two.
+    const rect: Rect = { x: boxRect.x + 4, y: y - 2, width: boxRect.width - 8, height: Math.max(1, height - 2) };
     const g = this.add.graphics();
     g.lineStyle(1, surface.ink.hex, 0.5).strokeRect(rect.x, rect.y, rect.width, rect.height);
     label(this, rect.x + rect.width - 10, rect.y + rect.height / 2, "↶", typeRole.rowTitle, surface.ink.hex, 1)

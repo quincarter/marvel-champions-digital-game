@@ -138,6 +138,9 @@ test("a log moment in Pause rewinds like Undo, and a swipe across one doesn't", 
     10000,
   );
   if (SHOT) await page.screenshot({ path: `${SHOT}/pause-undo-moment-${info.project.name}.png` });
+  // Each is a full touch target, not one line of small text.
+  for (const moment of moments)
+    expect(moment.rect.height, "a moment is a touch target tall").toBeGreaterThanOrEqual(40);
 
   if (phone) {
     // A finger pressed on a moment, scrolled past the tap slop and lifted on the other is a scroll: nothing rewinds.
@@ -153,9 +156,10 @@ test("a log moment in Pause rewinds like Undo, and a swipe across one doesn't", 
     expect(await isSceneUp(page, PAUSE), "and Pause stays open").toBe(true);
   }
 
-  // Tapping the oldest moment takes back both moves (and their answers) and returns to the table.
+  // Tapping the oldest moment, low in its row and well clear of its words, takes back both moves (and their answers)
+  // and returns to the table.
   const oldest = moments[1]!;
-  await press(page, phone, oldest.rect.x + oldest.rect.width / 2, oldest.rect.y + oldest.rect.height / 2);
+  await press(page, phone, oldest.rect.x + oldest.rect.width / 2, oldest.rect.y + oldest.rect.height - 5);
   await waitFor(
     async () => ((await version(page)) === start ? true : null),
     "the game is back at the turn's start",
