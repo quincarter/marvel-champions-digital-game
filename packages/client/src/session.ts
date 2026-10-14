@@ -6,6 +6,7 @@
  * dispatch" rule from PLAN.md Phase 4.
  */
 
+import type { VillainReview } from "./view/villain-review.js";
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CampaignDefinition } from "@mc/engine";
 import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
@@ -46,6 +47,12 @@ export interface AppSession {
    * Phaser scene instance across games).
    */
   gameLog: LogState;
+  /**
+   * The last villain phase, tucked away for review once its recap closed (`view/villain-review.ts`): the Board offers
+   * it on a drawer handle through the next player phase. Written by `scenes/villain-phase.ts`, cleared with the game
+   * log when the Board starts a fresh game.
+   */
+  villainReview: VillainReview | null;
   /**
    * True while the current game is a guided run — `scenes/board/guide-mount.ts` (guided mode G5c) mounts the guide
    * controller and its side panel on the Board only when this is set. A plain mutable flag rather than something
@@ -104,6 +111,7 @@ export function appSession(): AppSession {
         settingsStore.set(next);
       },
       gameLog: emptyLog(),
+      villainReview: null,
       guidedRun: false,
       guidedRunAlreadyDone: undefined,
       guidedRunKind: undefined,

@@ -35,6 +35,8 @@ export interface RecapPanelArgs {
   readonly onFullLog: () => void;
   readonly onToggle: () => void;
   readonly onStart: () => void;
+  /** The primary button's label: "Start player phase ▸", or "Close" when the recap is reopened for review. */
+  readonly ctaLabel?: string;
 }
 
 export interface RecapPanelResult {
@@ -148,7 +150,7 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
       .setWordWrapWidth(layout.hint.width)
       .setMaxLines(2);
   }
-  button("continue", "Start player phase ▸", layout.cta, "primary", typeRole.barTitle, args.onStart);
+  button("continue", args.ctaLabel ?? "Start player phase ▸", layout.cta, "primary", typeRole.barTitle, args.onStart);
 
   return { layout, stops };
 }

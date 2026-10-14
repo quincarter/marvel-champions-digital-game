@@ -94,6 +94,63 @@ export function enterOverlay(scene: Phaser.Scene, entrance: OverlayEntrance, ela
   }
 }
 
+type Movable = Phaser.GameObjects.GameObject & { x: number; y: number };
+
+const movables = (objects: readonly Phaser.GameObjects.GameObject[]): Movable[] =>
+  objects.filter(
+    (object): object is Movable =>
+      typeof (object as Movable).x === "number" && typeof (object as Movable).y === "number",
+  );
+
+/**
+ * A docked panel sliding in from off its edge: the objects start `from` away and travel home. Like `enterOverlay`, a
+ * redraw inside the window resumes from where the slide had got to (`elapsedMs` since it began). Nothing moves under
+ * reduced motion.
+ */
+export function slideIn(
+  scene: Phaser.Scene,
+  objects: readonly Phaser.GameObjects.GameObject[],
+  from: { readonly dx: number; readonly dy: number },
+  elapsedMs: number,
+  durationMs: number = motion.dockSlideInMs,
+): void {
+  if (reduced()) return;
+  const remaining = durationMs - elapsedMs;
+  if (remaining <= 0) return;
+  // Cubic ease-out, so the part already travelled matches the curve the tween finishes on.
+  const progress = 1 - Math.pow(1 - Math.min(1, Math.max(0, elapsedMs / durationMs)), 3);
+  for (const object of movables(objects)) {
+    const { x, y } = object;
+    object.x = x + from.dx * (1 - progress);
+    object.y = y + from.dy * (1 - progress);
+    scene.tweens.add({ targets: object, x, y, duration: remaining, ease: "Cubic.easeOut" });
+  }
+}
+
+/** Everything on the scene sliding `to` away (off its edge), then `done`. Immediate under reduced motion. */
+export function slideOut(
+  scene: Phaser.Scene,
+  to: { readonly dx: number; readonly dy: number },
+  done: () => void,
+  durationMs: number = motion.dockSlideOutMs,
+): void {
+  const targets = movables(scene.children.list);
+  if (reduced() || targets.length === 0) {
+    done();
+    return;
+  }
+  for (const object of targets) {
+    scene.tweens.add({
+      targets: object,
+      x: object.x + to.dx,
+      y: object.y + to.dy,
+      duration: durationMs,
+      ease: "Cubic.easeIn",
+    });
+  }
+  scene.time.delayedCall(durationMs, done);
+}
+
 /**
  * Fades everything currently on the scene's display list out, then calls
  * `done` (which is where the caller stops the scene). Immediate under reduced
@@ -144,7 +201,8 @@ export class OverlayMotion {
     enterOverlay(scene, entrance, now - this.#openedAt);
   }
 
-  exit(scene: Phaser.Scene, done: () => void, durationMs?: number): void {
+  /** `run` replaces the fade (a docked panel slides out instead); it must call `done` once, when it has finished. */
+  exit(scene: Phaser.Scene, done: () => void, durationMs?: number, run?: (done: () => void) => void): void {
     if (this.#leaving) return;
     this.#leaving = true;
     // A leaving overlay takes no input, from the moment it starts to go. It is fading, or (under reduced motion, or
@@ -155,7 +213,8 @@ export class OverlayMotion {
     scene.events.once("shutdown", () => {
       scene.input.enabled = true;
     });
-    exitOverlay(scene, done, durationMs);
+    if (run) run(done);
+    else exitOverlay(scene, done, durationMs);
   }
 }
 

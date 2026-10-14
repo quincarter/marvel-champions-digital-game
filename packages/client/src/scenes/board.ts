@@ -30,8 +30,8 @@ import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId 
 import type { VillainPhaseLaunchData } from "./villain-phase.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
-import { dotGrid, surface } from "../tokens.js";
-import { cssOf } from "../ui/theme.js";
+import { accent, dotGrid, surface, typeRole } from "../tokens.js";
+import { cssOf, textStyle } from "../ui/theme.js";
 import { McSelectionRing, McTabs, paintDotGrid } from "../ui/widgets.js";
 import { boardModel, type BoardModel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
@@ -49,6 +49,7 @@ import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
+import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { HoverPreview } from "./board/hover-preview.js";
@@ -115,6 +116,9 @@ import type { CampaignBeatData } from "./campaign/routes.js";
 
 /** Every Team-Up pair the card pool names; built once, since the pool never changes under a running game. */
 const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
+
+/** The villain-phase review handle: over the table, under the round band (`motion.ts`, 1150). */
+const HANDLE_DEPTH = 950;
 
 export class BoardScene extends Phaser.Scene {
   /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
@@ -294,6 +298,8 @@ export class BoardScene extends Phaser.Scene {
     this.#log = emptyLog();
     this.#cardHistory = emptyCardHistoryLog();
     appSession().gameLog = this.#log;
+    // A fresh game has no villain phase to look back on yet.
+    appSession().villainReview = null;
     this.#logPanel.reset();
     this.#version = -1;
     this.#previousGame = null;
@@ -322,6 +328,14 @@ export class BoardScene extends Phaser.Scene {
       frame: () => this.#frame,
       dockPanel: () => this.#villainDockRects?.panel ?? null,
     });
+    // When the villain phase closes, the table draws again without it: its review handle (`#drawVillainReviewHandle`)
+    // only shows once the phase is gone, and nothing else redraws the Board at that moment.
+    const villainPhase = this.scene.get(SCENES.villainPhase);
+    const afterVillainPhase = (): void => this.#draw();
+    villainPhase.events.on(Phaser.Scenes.Events.SHUTDOWN, afterVillainPhase);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+      villainPhase.events.off(Phaser.Scenes.Events.SHUTDOWN, afterVillainPhase),
+    );
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -1181,6 +1195,7 @@ export class BoardScene extends Phaser.Scene {
     // never sits under it.
     this.#tip?.draw(viewport, layout.tabbed, zones.actionBar, this.#tipBlocked());
     this.#syncGuideFocusRegion();
+    this.#drawVillainReviewHandle(layout, viewport);
     this.#hover?.onDraw();
   }
 
@@ -1539,6 +1554,45 @@ export class BoardScene extends Phaser.Scene {
   }
 
   #villainHandTags: ReadonlyMap<InstanceId, VillainHandTag> | null = null;
+
+  /**
+   * The last villain phase, tucked away (the owner's request, 2026-10-14): through the next player phase a drawer
+   * handle on the table's right edge reopens its recap for review (`view/villain-review.ts`). Hidden while any
+   * decision or the villain phase itself is up.
+   */
+  #drawVillainReviewHandle(layout: BoardLayout, viewport: Rect): void {
+    const review = appSession().villainReview;
+    const game = appSession().store.state.game ?? null;
+    if (!showReviewHandle(review, game) || this.#choiceOpen) return;
+    if (this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.inspect)) return;
+    const chrome = layout.zones.chrome;
+    const top = chrome ? chrome.y + chrome.height : viewport.y;
+    const bottom = layout.zones.hand?.y ?? viewport.y + viewport.height;
+    const rect = reviewHandleRect(viewport, top, bottom);
+    const g = this.add.graphics().setDepth(HANDLE_DEPTH);
+    g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width, rect.height - 2);
+    this.add
+      .text(
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+        `◂ ROUND ${review!.round} VILLAIN PHASE`,
+        textStyle({ ...typeRole.label, size: 10 }, surface.paper.hex),
+      )
+      .setOrigin(0.5)
+      .setAngle(-90)
+      .setDepth(HANDLE_DEPTH);
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(HANDLE_DEPTH);
+    zone.on("pointerup", () => {
+      if (this.scene.isActive(SCENES.villainPhase)) return;
+      this.scene.launch(SCENES.villainPhase, { before: null, review: review! } satisfies VillainPhaseLaunchData);
+    });
+    this.#frame.focusRects.set("villain-review", rect);
+  }
 
   /**
    * The villain phase's hand tags (PLAY NOW, WHEN HIT, …; `view/villain-hand-tags.ts`), or null to go back to the

@@ -308,6 +308,10 @@ export const motion = {
   overlayEnterMs: 180,
   /** The same overlay leaving. Shorter: the player has already decided. */
   overlayExitMs: 120,
+  /** The docked villain phase sliding in from its edge as the phase begins (rail, band, tab). */
+  dockSlideInMs: 320,
+  /** The villain phase sliding back out after its recap. */
+  dockSlideOutMs: 260,
   /** One full screen giving way to the next (Title → Scenario, Setup → Board). */
   screenFadeMs: 200,
 } as const;

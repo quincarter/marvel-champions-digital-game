@@ -175,7 +175,8 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { OverlayMotion } from "../ui/transitions.js";
+import { OverlayMotion, slideIn, slideOut } from "../ui/transitions.js";
+import { slideOffset, villainSlideEdge, type VillainReview } from "../view/villain-review.js";
 import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-panel.js";
 import { villainRecapOf } from "../view/villain-recap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -194,6 +195,8 @@ import { abilityName, drawInterruptAnswer, drawVillainRailPanel, type RailBody }
 /** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
 export interface VillainPhaseLaunchData {
   readonly before: GameState | null;
+  /** Reopen a finished phase's recap for review from the Board's drawer handle (`view/villain-review.ts`). */
+  readonly review?: VillainReview;
 }
 
 const totalBeatsOf = (walkthrough: Walkthrough): number =>
@@ -289,6 +292,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #before: GameState | null = null;
   /** One scroll position per recap steps region, kept across redraws. */
   #recapScrolls: VariableListScroll[] = Array.from({ length: RECAP_SCROLL_SLOTS }, () => new VariableListScroll());
+  /** When the docked phase began sliding in, for a redraw mid-slide (`ui/transitions.ts#slideIn`). */
+  #slideStartedAt: number | null = null;
+  /** Reopened from the Board's drawer handle: a finished phase's recap, read-only, with Close. */
+  #review: VillainReview | null = null;
   /** HIDE ▸ on the docked rail: the table takes the whole width and the phase keeps a handle to come back. */
   #hidden = false;
   /** The decision open when the player hid the rail; a new one of their own brings the rail back. */
@@ -316,6 +323,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#presentation = "full";
     this.#released = new Set();
     this.#peeking = false;
+    this.#slideStartedAt = null;
+    this.#review = data?.review ?? null;
+    if (this.#review) {
+      // A finished phase, read back: everything shown, nothing paced, nothing more to collect.
+      this.#walkthrough = this.#review.walkthrough;
+      this.#revealed = totalBeatsOf(this.#walkthrough);
+      this.#before = this.#review.before;
+    }
 
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -377,11 +392,38 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   #close(): void {
-    this.#motion.exit(this, () => {
-      this.#boardScene()?.setVillainDock(null);
-      this.#boardScene()?.setVillainHandTags(null);
-      this.scene.stop();
-    });
+    if (this.#motion.leaving) return;
+    this.#tuckAway();
+    const { width, height } = this.scale.gameSize;
+    const edge = villainSlideEdge(formFactorFor(width, height));
+    // Docked or recap: back out the way it came. A peek banner or the hidden handle just fades.
+    const slides = this.#presentation !== "peek" && this.#presentation !== "hidden";
+    this.#motion.exit(
+      this,
+      () => {
+        this.#boardScene()?.setVillainDock(null);
+        this.#boardScene()?.setVillainHandTags(null);
+        this.scene.stop();
+      },
+      undefined,
+      slides
+        ? (done) =>
+            slideOut(this, slideOffset(edge, { x: 0, y: 0, width, height }, { x: 0, y: 0, width, height }), done)
+        : undefined,
+    );
+  }
+
+  /** A finished phase, closing: kept for review on the Board's drawer handle through the next player phase. */
+  #tuckAway(): void {
+    const game = this.#latest?.game;
+    if (this.#review || !game || !this.#walkthrough.complete) return;
+    appSession().villainReview = {
+      round: this.#walkthrough.round,
+      walkthrough: this.#walkthrough,
+      before: this.#before,
+      after: game,
+      viewer: this.#latest?.perspectiveId ?? null,
+    };
   }
 
   /** The hand's tags for the board: what the open window offers is PLAY NOW. */
@@ -417,6 +459,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!state.game || state.game.outcome) {
       // No game, or the game just ended: Game Over owns the screen from here.
       this.#close();
+      return;
+    }
+    if (this.#review) {
+      // The review reads its own snapshot; the live game only decides whether it may stay open.
+      this.#latest = state;
+      this.#draw();
       return;
     }
 
@@ -524,6 +572,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   #syncTiming(): void {
+    // A review never paces or closes itself: the player opened it and closes it.
+    if (this.#review) return;
     const reducedMotion = appSession().settings.reducedMotion;
     const total = totalBeatsOf(this.#walkthrough);
 
@@ -607,6 +657,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** True when the finished phase is shown as the held-open recap rather than the walkthrough panel. */
   #recapShowing(reveal: Reveal): boolean {
+    if (this.#review) return true;
     if (!(this.#walkthrough.complete && reveal.caughtUp)) return false;
     // "on" skips the recap, except under reduced motion where nothing may close on a timer.
     return appSession().settings.villainAutoAdvance !== "on" || appSession().settings.reducedMotion;
@@ -725,7 +776,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const panelsFrom = this.children.list.length;
 
     if (recapNow) {
-      this.#drawRecap(bounds, formFactor, game, viewer);
+      // A review shows the phase as it ended, not the table as it is now.
+      if (this.#review) this.#drawRecap(bounds, formFactor, this.#review.after, this.#review.viewer);
+      else this.#drawRecap(bounds, formFactor, game, viewer);
       this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
       return;
     }
@@ -891,6 +944,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFullLog: () => this.#openFullLog(),
       onToggle: () => this.#toggleAutoAdvance(),
       onStart: () => this.#close(),
+      ...(this.#review ? { ctaLabel: "Close" } : {}),
     });
     // The recap is finished by definition, so Start player phase is first in the route.
     this.#route?.set(villainPhaseFocusOrder(true, [], undefined, true), stops);
@@ -1736,7 +1790,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         resolveRect: () => layout.interrupt?.resolve ?? null,
       };
     }
-    this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });
+    // Slides in from its edge as the phase begins (the right on desktop, the top on a tablet in landscape, the bottom
+    // on a phone or a tablet in portrait); a redraw mid-slide picks up where it had got to.
+    const objects = this.children.list.slice(panelsFrom);
+    this.#motion.enter(this, { scrim: [], panels: [] });
+    this.#slideStartedAt ??= this.time.now;
+    const { width, height } = this.scale.gameSize;
+    const edge = villainSlideEdge(formFactorFor(width, height));
+    const viewport: Rect = { x: 0, y: 0, width, height };
+    slideIn(this, objects, slideOffset(edge, panel, viewport), this.time.now - this.#slideStartedAt);
   }
 
   /** "Happening now" on the rail: the activation (the live one while paused, so the window never names a stale beat), else the latest narration. */
