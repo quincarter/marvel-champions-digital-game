@@ -126,6 +126,7 @@ import { deckStatusOf } from "../view/deck-status.js";
 import { cardTitleOf, deckAspectsText, deckMetaCandidates, SOURCE_LABEL } from "../view/deck-title.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
+import { cardSizeFactor } from "../settings.js";
 import {
   deckSourcesOf,
   heroAspectsOf,
@@ -1332,7 +1333,7 @@ export class DecksScene extends Phaser.Scene {
       return [];
     }
 
-    const geometry = poolGridGeometry(column, cards.length);
+    const geometry = poolGridGeometry(column, cards.length, false, cardSizeFactor(appSession().settings.cardSize));
     const gridRect: Rect = {
       x: left,
       y,

@@ -92,6 +92,8 @@ import { aspectLabelOf } from "../view/seat-slots.js";
 import { deckCheckFocusOrder } from "../view/screen-focus.js";
 import { deckCheckLayout, type DeckCheckTab } from "../view/deck-check-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
+import { appSession } from "../session.js";
+import { cardSizeFactor } from "../settings.js";
 import { CHIP_GAP, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -728,7 +730,12 @@ export class DeckCheckScene extends Phaser.Scene {
     }
 
     const totalCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
-    const geometry = poolGridGeometry(rect.width, totalCount, isDesktopType());
+    const geometry = poolGridGeometry(
+      rect.width,
+      totalCount,
+      isDesktopType(),
+      cardSizeFactor(appSession().settings.cardSize),
+    );
     const slots: CardGridSlot[] = [];
     for (const group of groups) {
       slots.push({ kind: "header", group });

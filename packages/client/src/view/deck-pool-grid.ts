@@ -43,14 +43,23 @@ export interface PoolGridGeometry {
   readonly rows: number;
 }
 
-/** How the pool grid divides a pane of `width` px holding `cardCount` cards. `columns` is always at least 1, even at a width narrower than `MIN_CELL_WIDTH` (a single, slightly-too-narrow column beats an empty grid). */
-export function poolGridGeometry(width: number, cardCount: number, onDesktop = false): PoolGridGeometry {
+/**
+ * How the pool grid divides a pane of `width` px holding `cardCount` cards. `cardScale` is the global Card size
+ * factor (1, 1.25 or 1.5): it scales the target and minimum cell width, so a larger setting gives fewer, bigger columns
+ * (and taller rows, since `artHeight` follows the width). The minimum is clamped to the pane and the column count to
+ * what fits at that minimum, so a cell is never wider than the pane and a row never spills past it. `columns` is always
+ * at least 1.
+ */
+export function poolGridGeometry(width: number, cardCount: number, onDesktop = false, cardScale = 1): PoolGridGeometry {
   const usable = Math.max(1, width);
+  const scale = cardScale > 0 ? cardScale : 1;
+  const minCell = Math.min(MIN_CELL_WIDTH * scale, usable);
+  const fitting = Math.max(1, Math.floor((usable + POOL_GRID_GAP) / (minCell + POOL_GRID_GAP)));
   const columns = Math.max(
     1,
-    Math.min(MAX_COLUMNS, Math.round((usable + POOL_GRID_GAP) / (TARGET_CELL_WIDTH + POOL_GRID_GAP))),
+    Math.min(MAX_COLUMNS, fitting, Math.round((usable + POOL_GRID_GAP) / (TARGET_CELL_WIDTH * scale + POOL_GRID_GAP))),
   );
-  const cellWidth = Math.max(MIN_CELL_WIDTH, (usable - (columns - 1) * POOL_GRID_GAP) / columns);
+  const cellWidth = Math.max(minCell, (usable - (columns - 1) * POOL_GRID_GAP) / columns);
   const artHeight = cellWidth * CARD_ASPECT;
   const captionHeight = onDesktop ? DESKTOP_CAPTION_HEIGHT : CAPTION_HEIGHT;
   const cellHeight = artHeight + captionHeight;

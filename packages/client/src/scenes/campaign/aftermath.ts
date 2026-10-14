@@ -39,6 +39,7 @@ import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { McVirtualList, type VirtualListRow } from "../../ui/virtual-list.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry } from "../../view/deck-pool-grid.js";
+import { cardSizeFactor } from "../../settings.js";
 import {
   collectionPickerAspects,
   collectionPickerRows,
@@ -921,7 +922,12 @@ export class CampaignAftermathScene extends Phaser.Scene {
     }
 
     const gridRect: Rect = { x: inner.x, y, width: inner.width, height: Math.max(1, inner.y + inner.height - y) };
-    const geometry = poolGridGeometry(gridRect.width, filtered.length, !phone);
+    const geometry = poolGridGeometry(
+      gridRect.width,
+      filtered.length,
+      !phone,
+      cardSizeFactor(appSession().settings.cardSize),
+    );
     const decision = group.decisions[currentSeat];
     const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow =>
       this.#renderPickerRow(rowRect, geometry, filtered, rowIndex, decision);

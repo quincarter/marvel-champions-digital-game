@@ -54,6 +54,42 @@ describe("poolGridGeometry", () => {
   });
 });
 
+describe("poolGridGeometry card scale", () => {
+  const SCALES = [1, 1.25, 1.5];
+
+  test("a larger scale gives fewer columns at a wide pane, never more", () => {
+    const standard = poolGridGeometry(1094, 60, false, 1);
+    const large = poolGridGeometry(1094, 60, false, 1.25);
+    const xlarge = poolGridGeometry(1094, 60, false, 1.5);
+    expect(large.columns).toBeLessThan(standard.columns);
+    expect(xlarge.columns).toBeLessThan(large.columns);
+    expect(xlarge.cellWidth).toBeGreaterThan(standard.cellWidth);
+  });
+
+  test("the default scale is 1", () => {
+    expect(poolGridGeometry(781, 30)).toEqual(poolGridGeometry(781, 30, false, 1));
+  });
+
+  test("rows grow as the scale grows, for the same cards", () => {
+    const standard = poolGridGeometry(1094, 60, false, 1);
+    const xlarge = poolGridGeometry(1094, 60, false, 1.5);
+    expect(xlarge.rows).toBeGreaterThan(standard.rows);
+    expect(xlarge.cellHeight).toBeGreaterThan(standard.cellHeight);
+  });
+
+  for (const scale of SCALES) {
+    for (const width of [320, 390, 480, 644, 781, 1094, 1440, 1600]) {
+      test(`scale ${scale}, width ${width}: every cell and the whole row stay inside the pane`, () => {
+        const geometry = poolGridGeometry(width, 40, false, scale);
+        expect(geometry.cellWidth).toBeLessThanOrEqual(width);
+        const rowRect: Rect = { x: 0, y: 0, width, height: geometry.cellHeight };
+        const last = poolCellRect(geometry, rowRect, geometry.columns - 1);
+        expect(last.x + last.width).toBeLessThanOrEqual(width + 1e-6);
+      });
+    }
+  }
+});
+
 describe("poolColumnAt", () => {
   test("finds the column under a pointer landing inside any real cell, matching poolCellRect", () => {
     const geometry = poolGridGeometry(781, 30);

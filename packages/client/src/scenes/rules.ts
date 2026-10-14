@@ -66,6 +66,7 @@ import { onTap } from "../ui/tap.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry } from "../view/deck-pool-grid.js";
+import { cardSizeFactor } from "../settings.js";
 import {
   glossaryCellRect,
   glossaryGridColumns,
@@ -837,7 +838,7 @@ export class RulesOverlay extends Phaser.Scene {
       return [];
     }
 
-    const geometry = poolGridGeometry(rect.width, 1, isDesktopType());
+    const geometry = poolGridGeometry(rect.width, 1, isDesktopType(), cardSizeFactor(appSession().settings.cardSize));
     const slots: CardListSlot[] = [];
     let sawInGame = false;
     let sawNotInGame = false;
