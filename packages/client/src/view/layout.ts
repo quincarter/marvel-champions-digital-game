@@ -188,6 +188,12 @@ export interface LayoutOptions {
    * every screen does today.
    */
   readonly guideRail?: { readonly side: "left" | "right"; readonly width: number };
+  /**
+   * The width the villain phase panel takes on the right while it is docked beside the table (desktop, D1/D2 in
+   * `artifacts/design-screenshots/villain-phase/`). Carved off after the guide rail, under the chrome band like it, so
+   * the table and the hand stay in view and live beside the phase. Omitted or 0 lays the board out as usual.
+   */
+  readonly villainDock?: number;
 }
 
 /** A physical card is 2.5″ × 3.5″; every card slot keeps that ratio. */
@@ -308,7 +314,10 @@ export function boardLayout(viewport: Rect, options: LayoutOptions): BoardLayout
   // ("RD1 · PLAYER/VILLAIN · MENU") always spans the full screen, and only the content below it — schemes,
   // enemies, the identity panel and so on — narrows to make room. So `chrome` is always laid out against the
   // real, full-width `viewport`; every other zone gets the inset one.
-  const boardViewport = options.guideRail ? insetForGuideRail(viewport, options.guideRail) : viewport;
+  const railed = options.guideRail ? insetForGuideRail(viewport, options.guideRail) : viewport;
+  const boardViewport = options.villainDock
+    ? insetForGuideRail(railed, { side: "right", width: options.villainDock })
+    : railed;
   const zones =
     formFactor === "phoneLandscape"
       ? phoneLandscapeZones(boardViewport, options, viewport)

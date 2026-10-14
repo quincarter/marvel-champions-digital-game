@@ -229,6 +229,26 @@ describe("boardLayout", () => {
     }
   });
 
+  describe("villainDock", () => {
+    test("the docked villain phase carves its width off the right below chrome, beside a left guide rail", () => {
+      const viewport = rectOf(REFERENCE_VIEWPORTS.desktop);
+      const dock = 480;
+      const layout = boardLayout(viewport, {
+        playerCount: 2,
+        guideRail: { side: "left", width: 300 },
+        villainDock: dock,
+      });
+      const plain = boardLayout(viewport, { playerCount: 2 });
+      expect(layout.zones.chrome).toEqual(plain.zones.chrome);
+      for (const name of ZONE_NAMES) {
+        const zone = layout.zones[name];
+        if (!zone || name === "chrome") continue;
+        expect(zone.x, name).toBeGreaterThanOrEqual(300);
+        expect(zone.x + zone.width, name).toBeLessThanOrEqual(viewport.width - dock + 0.5);
+      }
+    });
+  });
+
   describe("guideRail", () => {
     test.each([
       ["desktop", REFERENCE_VIEWPORTS.desktop],
