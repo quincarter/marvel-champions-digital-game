@@ -161,6 +161,13 @@ describe("parseSettingsOverrides", () => {
     });
   });
 
+  test("cardSize: only the three known values are read", () => {
+    expect(parseSettingsOverrides('{"cardSize":"xlarge"}')).toEqual({ cardSize: "xlarge" });
+    expect(parseSettingsOverrides('{"cardSize":"large"}')).toEqual({ cardSize: "large" });
+    expect(parseSettingsOverrides('{"cardSize":1.5}')).toEqual({});
+    expect(parseSettingsOverrides('{"cardSize":"huge"}')).toEqual({});
+  });
+
   test("cardHoverScale: only the five known values are read", () => {
     expect(parseSettingsOverrides('{"cardHoverScale":"2x"}')).toEqual({ cardHoverScale: "2x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });

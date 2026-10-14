@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { VILLAIN_RECAP_PAUSE_MS, defaultSettings, villainBeatIntervalMs, cardHoverFactor } from "./settings.js";
+import {
+  VILLAIN_RECAP_PAUSE_MS,
+  defaultSettings,
+  villainBeatIntervalMs,
+  cardHoverFactor,
+  cardSizeFactor,
+} from "./settings.js";
 
 describe("villain phase settings", () => {
   test("beat intervals get shorter as the speed rises", () => {
@@ -19,6 +25,13 @@ describe("villain phase settings", () => {
     expect(settings.villainBeatSpeed).toBe("normal");
     expect(settings.villainDockTable).toBe(true);
     expect(settings.cardHoverScale).toBe("3x");
+    expect(settings.cardSize).toBe("standard");
+  });
+
+  test("cardSizeFactor: standard 1, large 1.25, extra large 1.5", () => {
+    expect(cardSizeFactor("standard")).toBe(1);
+    expect(cardSizeFactor("large")).toBe(1.25);
+    expect(cardSizeFactor("xlarge")).toBe(1.5);
   });
 
   test("cardHoverFactor reads the multiplier, off is none", () => {

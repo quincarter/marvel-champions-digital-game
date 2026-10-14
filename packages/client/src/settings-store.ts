@@ -10,6 +10,7 @@
  */
 import {
   CARD_HOVER_SCALE_VALUES,
+  CARD_SIZE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
@@ -56,6 +57,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (beatSpeedValue !== undefined) out.villainBeatSpeed = beatSpeedValue;
   const hoverScaleValue = CARD_HOVER_SCALE_VALUES.find((value) => value === source["cardHoverScale"]);
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
+  const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);
+  if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

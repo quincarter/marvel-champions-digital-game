@@ -28,6 +28,7 @@ const BASE: Settings = {
   villainBeatSpeed: "normal",
   villainDockTable: true,
   cardHoverScale: "3x",
+  cardSize: "standard",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -44,6 +45,7 @@ describe("settingsRowInfoOf", () => {
       villainBeatSpeed: "normal",
       villainDockTable: true,
       cardHoverScale: "3x",
+      cardSize: "standard",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);

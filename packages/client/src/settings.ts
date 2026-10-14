@@ -51,6 +51,20 @@ export interface Settings {
    * "off". Desktop with a mouse only: a phone or tablet has long-press Inspect instead, and ignores this. Defaults 3x.
    */
   readonly cardHoverScale: CardHoverScale;
+  /**
+   * How large cards are drawn everywhere they are shown: the table (which then scrolls), the villain phase, and the
+   * deck and collection screens (whose grids take fewer columns and scroll). A player asked for the cards closer, to
+   * read them (2026-10-14). Defaults to standard, the size every screen was designed at.
+   */
+  readonly cardSize: CardSize;
+}
+
+export type CardSize = "standard" | "large" | "xlarge";
+export const CARD_SIZE_VALUES: readonly CardSize[] = ["standard", "large", "xlarge"];
+
+/** The multiplier a `cardSize` stands for: 1, 1.25 or 1.5. */
+export function cardSizeFactor(size: CardSize): number {
+  return size === "xlarge" ? 1.5 : size === "large" ? 1.25 : 1;
 }
 
 export type CardHoverScale = "off" | "2x" | "3x" | "4x" | "5x";
@@ -103,5 +117,6 @@ export function defaultSettings(): Settings {
     villainBeatSpeed: "normal",
     villainDockTable: true,
     cardHoverScale: "3x",
+    cardSize: "standard",
   };
 }
