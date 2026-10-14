@@ -14,7 +14,7 @@ import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js
 import type { Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt } from "../art/card-art.js";
-import { border, dotGrid, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, border, dotGrid, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
@@ -811,13 +811,18 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const tally = played
       ? `${record.combined.wins} win${record.combined.wins === 1 ? "" : "s"} · ${record.combined.losses} loss${record.combined.losses === 1 ? "" : "es"}`
       : "Not played yet";
-    const bestClear =
-      played && record.combined.bestClearRounds !== null
+    const beaten = played && record.combined.wins > 0;
+    const subline = !played
+      ? null
+      : record.combined.bestClearRounds !== null
         ? `Best clear: round ${record.combined.bestClearRounds}`
-        : null;
-    this.#recordText = played ? `Your record: ${tally}.${bestClear ? ` ${bestClear}.` : ""}` : "Not played yet.";
-    // The record is a filled band, not a dim body line (issue 141 follow-up): win-state green once the scenario has
-    // been played, the advisory yellow before, each at menu-button size so it reads from the couch.
+        : beaten
+          ? null
+          : "Not beaten yet";
+    this.#recordText = played ? `Your record: ${tally}.${subline ? ` ${subline}.` : ""}` : "Not played yet.";
+    // The record is a filled band, not a dim body line (issue 141 follow-up), at menu-button size so it reads from the
+    // couch: win-state green once beaten, a deep red (darker than the Hero Red CTA) when played but never won, the
+    // advisory yellow before it has been played.
     label(this, rect.x + 16, y, "Your record", typeRole.label, surface.paper.hex, ink.label);
     y += 16;
     const band = this.add.graphics();
@@ -825,14 +830,14 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const tallyNode = this.add.text(rect.x + 28, y + 10, tally, textStyle(typeRole.menuButton, textColor));
     tallyNode.setWordWrapWidth(rect.width - 56);
     let bandHeight = tallyNode.height + 20;
-    if (bestClear) {
-      const bestNode = this.add
-        .text(rect.x + 28, y + 10 + tallyNode.height + 2, bestClear, textStyle(typeRole.emphasis, textColor))
+    if (subline) {
+      const sublineNode = this.add
+        .text(rect.x + 28, y + 10 + tallyNode.height + 2, subline, textStyle(typeRole.emphasis, textColor))
         .setFontSize(13);
-      bandHeight += bestNode.height + 2;
+      bandHeight += sublineNode.height + 2;
     }
     band
-      .fillStyle(played ? signal.heal.hex : signal.caution.hex, 1)
+      .fillStyle(beaten ? signal.heal.hex : played ? accent.redDeep.hex : signal.caution.hex, 1)
       .fillRect(rect.x + 16, y, rect.width - 32, bandHeight)
       .lineStyle(border.detail, surface.ink.hex, 1)
       .strokeRect(rect.x + 16, y, rect.width - 32, bandHeight);

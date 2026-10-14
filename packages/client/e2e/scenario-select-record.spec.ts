@@ -5,7 +5,8 @@ import { openApp } from "./wave6-helpers-b.js";
 
 /**
  * Issue 141: Scenario select's "Your record" line follows the selected scenario. It used to be looked up once, for the
- * scenario selected on entry, so moving from a played Rhino to an unplayed Klaw kept showing Rhino's record.
+ * scenario selected on entry, so moving from a played Rhino to an unplayed Klaw kept showing Rhino's record. A scenario
+ * played but never beaten (Ultron here) reads its losses.
  */
 
 const debug = (page: Page): Promise<{ selectedId: string; recordText: string }> =>
@@ -43,8 +44,17 @@ test("the record line updates as the selection moves between scenarios", async (
       players: [{ starterDeckId: "core-spider-man-justice" }],
       seed: 1,
     });
-    const saved = (await appSession().store.listSaves())[0]!;
-    await new IdbGameStorage().setStatus(saved.id, "won");
+    const rhino = (await appSession().store.listSaves())[0]!;
+    await new IdbGameStorage().setStatus(rhino.id, "won");
+    // And one finished loss against Ultron, never beaten.
+    await appSession().store.start({
+      scenarioId: "ultron",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2,
+    });
+    const ultron = (await appSession().store.listSaves()).find((s) => s.id !== rhino.id)!;
+    await new IdbGameStorage().setStatus(ultron.id, "lost");
   });
 
   await waitForScene(page, "Title", 30000);
@@ -70,5 +80,12 @@ test("the record line updates as the selection moves between scenarios", async (
   await clickStop(page, "scenario:rhino", "ScenarioSelect");
   await settle(page);
   expect((await debug(page)).recordText).toMatch(/^Your record: 1 win · 0 losses\./);
+
+  await clickStop(page, "scenario:ultron", "ScenarioSelect");
+  await settle(page);
+  const ultron = await debug(page);
+  expect(ultron.selectedId).toBe("ultron");
+  expect(ultron.recordText).toMatch(/^Your record: 0 wins · 1 loss\. Not beaten yet\./);
+  await shot(page, "issue141-ultron-lost");
   expect(errors).toEqual([]);
 });
