@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
-import { villainBandLayout, villainRailLayout, type VillainRailInput } from "./villain-rail-layout.js";
+import {
+  villainBandLayout,
+  villainPeekLayout,
+  villainRailLayout,
+  villainTabLayout,
+  type VillainRailInput,
+} from "./villain-rail-layout.js";
 
 const inside = (inner: Rect, outer: Rect): boolean =>
   inner.x >= outer.x - 0.5 &&
@@ -145,5 +151,56 @@ describe("villainBandLayout", () => {
     expect(overlaps(layout.encounterStrip!, layout.toggle)).toBe(false);
     expect(layout.log.height).toBe(0);
     expect(layout.bodyArt.height).toBeGreaterThanOrEqual(150);
+  });
+});
+
+/** A 390×844 phone: the panel runs from the chrome to the hand; the action bar is the footer. */
+const PHONE = { panel: { x: 0, y: 40, width: 390, height: 540 }, footer: { x: 0, y: 748, width: 390, height: 96 } };
+/** A 768×1024 tablet in portrait. */
+const PORTRAIT = { panel: { x: 0, y: 44, width: 768, height: 676 }, footer: { x: 0, y: 930, width: 768, height: 94 } };
+
+describe("villainTabLayout", () => {
+  it.each([
+    ["phone", PHONE, {}],
+    ["phone, interrupt", PHONE, { interruptOptions: 1 }],
+    ["phone, revealing with interrupt", PHONE, { revealing: true, interruptOptions: 1 }],
+    ["phone, two options", PHONE, { interruptOptions: 2 }],
+    ["portrait, revealing", PORTRAIT, { revealing: true }],
+  ] as const)("keeps the panel's regions inside it and the answer in the action bar's place (%s)", (_n, at, input) => {
+    const layout = villainTabLayout({ ...at, revealing: false, interruptOptions: 0, ...input });
+    expect(layout.kind).toBe("tab");
+    expect(layout.toggle.width).toBe(0);
+    for (const region of [layout.title, layout.skip, layout.hide, ...layout.steps, layout.body, layout.log]) {
+      expect(inside(region, at.panel)).toBe(true);
+    }
+    expect(overlaps(layout.hide, layout.skip)).toBe(false);
+    expect(overlaps(layout.title, layout.hide)).toBe(false);
+    expect(layout.hide.height).toBeGreaterThanOrEqual(hit.target);
+    if (layout.interrupt) {
+      const w = layout.interrupt;
+      expect(inside(w.frame, at.panel)).toBe(true);
+      expect(overlaps(w.frame, layout.body)).toBe(false);
+      expect(inside(w.use, at.footer)).toBe(true);
+      expect(inside(w.resolve, at.footer)).toBe(true);
+      expect(overlaps(w.use, w.resolve)).toBe(false);
+      expect(inside(w.card, w.frame)).toBe(true);
+      for (const row of w.extraRows) expect(inside(row, w.frame)).toBe(true);
+    }
+  });
+
+  it("gives the revealed card most of the body on a phone (#128)", () => {
+    const layout = villainTabLayout({ ...PHONE, revealing: true, interruptOptions: 0 });
+    expect(layout.bodyArt.width).toBeGreaterThanOrEqual(150);
+  });
+});
+
+describe("villainPeekLayout", () => {
+  it("sits the banner just above the action bar, with BACK inside it at a touch target's size", () => {
+    const peek = villainPeekLayout(PHONE.footer);
+    expect(peek.banner.y + peek.banner.height).toBeLessThanOrEqual(PHONE.footer.y);
+    expect(inside(peek.back, peek.banner)).toBe(true);
+    expect(inside(peek.thumb, peek.banner)).toBe(true);
+    expect(peek.back.height).toBeGreaterThanOrEqual(hit.target);
+    expect(overlaps(peek.text, peek.back)).toBe(false);
   });
 });

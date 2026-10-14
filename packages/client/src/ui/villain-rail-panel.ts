@@ -100,7 +100,8 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     .text(
       layout.title.x,
       layout.title.y + layout.title.height / 2,
-      `VILLAIN PHASE — ROUND ${args.round}`,
+      // The tab's header is narrow, and the round is already in the chrome beside it ("RD 1", P1).
+      layout.kind === "tab" ? "VILLAIN PHASE" : `VILLAIN PHASE — ROUND ${args.round}`,
       textStyle({ ...typeRole.screenTitle }, accent.heroRed.hex),
     )
     .setOrigin(0, 0.5)
@@ -112,7 +113,7 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     stops.set(key, { rect, activate: onClick });
   };
   button("skip", "Skip", layout.skip, args.onSkip);
-  button("hide", "Hide ▸", layout.hide, args.onHide);
+  button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide);
 
   if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
 
@@ -125,7 +126,7 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
   if (args.interrupt && layout.interrupt) drawInterrupt(scene, layout.interrupt, args, args.interrupt, stops);
   drawLog(scene, layout.log, args.log);
   drawFooter(scene, layout, args.autoAdvance, args.onToggle);
-  stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
+  if (layout.toggle.width > 0) stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
   return stops;
 }
 
@@ -592,36 +593,67 @@ function drawInterrupt(
     });
   }
 
+  drawInterruptAnswer(scene, { use: layout.use, resolve: layout.resolve }, game, interrupt, args.buttons, stops, {
+    thumb: args.layout.kind === "tab",
+  });
+}
+
+/**
+ * The window's two answers: the yellow USE / PLAY (or, with several options to pick from, the one control that answers
+ * them), and LET IT RESOLVE ▸. `thumb` is the phone and tablet portrait shape, where they sit in the action bar's place
+ * (P1/P2/P3): a red RESOLVE ▸ in the design's display type.
+ */
+export function drawInterruptAnswer(
+  scene: Phaser.Scene,
+  rects: { readonly use: Rect; readonly resolve: Rect },
+  game: GameState,
+  interrupt: RailInterrupt,
+  buttons: McButton[],
+  stops: Map<string, FocusStop>,
+  options: { readonly thumb: boolean },
+): void {
+  const multi = !inlineSingle(interrupt.options);
+  const picks = interrupt.picks;
+  const first = interrupt.options[0]!;
+  if (options.thumb) {
+    // The action bar's place: cover the bar underneath so none of its buttons show around these two.
+    const ground = scene.add.graphics();
+    const top = Math.min(rects.use.y, rects.resolve.y) - 6;
+    const left = rects.use.x - 8;
+    const right = rects.resolve.x + rects.resolve.width + 8;
+    const bottom = Math.max(rects.use.y + rects.use.height, rects.resolve.y + rects.resolve.height) + 6;
+    ground.fillStyle(surface.ink.hex, 1).fillRect(left, top, right - left, bottom - top);
+  }
   const use = (): void => interrupt.onResolve(multi ? picks : [first.optionId]);
-  const useLabel = multi ? inlineConfirmLabel(game, options, picks) : interruptActionLabel(game, first);
-  args.buttons.push(
+  const useLabel = multi ? inlineConfirmLabel(game, interrupt.options, picks) : interruptActionLabel(game, first);
+  buttons.push(
     new McButton(scene, {
       kind: "primary",
       label: useLabel,
-      type: { ...typeRole.barTitle, size: 26 },
-      rect: layout.use,
+      type: { ...typeRole.barTitle, size: options.thumb ? 22 : 26 },
+      rect: rects.use,
       tint: { fill: signal.caution.hex, ink: surface.ink.hex },
       enabled: !multi || picks.length > 0,
       onClick: use,
     }),
   );
-  if (!multi) stops.set(`interrupt:${first.optionId}`, { rect: layout.use, activate: use });
-  else stops.set("confirm", { rect: layout.use, activate: use });
+  if (!multi) stops.set(`interrupt:${first.optionId}`, { rect: rects.use, activate: use });
+  else stops.set("confirm", { rect: rects.use, activate: use });
   const letItResolve = (): void => interrupt.onResolve([]);
-  args.buttons.push(
+  buttons.push(
     new McButton(scene, {
-      kind: "onInk",
-      label: "Let it resolve ▸",
-      type: { ...typeRole.label, size: 12 },
-      rect: layout.resolve,
+      kind: options.thumb ? "primary" : "onInk",
+      label: options.thumb ? "Resolve ▸" : "Let it resolve ▸",
+      type: options.thumb ? { ...typeRole.barTitle, size: 22 } : { ...typeRole.label, size: 12 },
+      rect: rects.resolve,
       onClick: letItResolve,
     }),
   );
-  stops.set("resolve", { rect: layout.resolve, activate: letItResolve });
+  stops.set("resolve", { rect: rects.resolve, activate: letItResolve });
 }
 
 /** "Spider-Sense": the printed name of the ability on offer, else the card's. */
-function abilityName(game: GameState, option: InlineInterruptOption): string {
+export function abilityName(game: GameState, option: InlineInterruptOption): string {
   const label = interruptActionLabel(game, option);
   return label.replace(/^(Use|Play) /, "");
 }
@@ -658,7 +690,7 @@ function drawFooter(
     g.fillStyle(surface.paper.hex, 0.25).fillRect(footer.x + border.object, footer.y, footer.width - border.object, 1);
     drawFooterText(scene, text, mode);
   }
-  drawToggle(scene, toggle, mode, onToggle);
+  if (toggle.width > 0) drawToggle(scene, toggle, mode, onToggle);
 }
 
 function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvance): void {

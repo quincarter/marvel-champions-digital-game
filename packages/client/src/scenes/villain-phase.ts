@@ -181,9 +181,14 @@ import { villainRecapOf } from "../view/villain-recap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { VILLAIN_RECAP_PAUSE_MS, villainBeatIntervalMs } from "../settings.js";
 import { villainDockWidthFor, villainPresentationFor, type VillainDockKind } from "../view/villain-dock.js";
-import { villainBandLayout, villainRailLayout } from "../view/villain-rail-layout.js";
+import {
+  villainBandLayout,
+  villainPeekLayout,
+  villainRailLayout,
+  villainTabLayout,
+} from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
-import { drawVillainRailPanel, type RailBody } from "../ui/villain-rail-panel.js";
+import { abilityName, drawInterruptAnswer, drawVillainRailPanel, type RailBody } from "../ui/villain-rail-panel.js";
 
 /** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
 export interface VillainPhaseLaunchData {
@@ -289,6 +294,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #hiddenChoice: string | null = null;
   /** How the phase was drawn last (`view/villain-dock.ts`), for the debug hook and the dump. */
   #presentation: VillainDockKind | "hidden" = "full";
+  /** PEEK AT TABLE on a phone or tablet in portrait (P3): the board's tabs show, the phase keeps a banner. */
+  #peeking = false;
   /** Encounter cards the player has moved past under "Hold encounter cards" (`#heldCard`). */
   #released = new Set<string>();
 
@@ -307,6 +314,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#hiddenChoice = null;
     this.#presentation = "full";
     this.#released = new Set();
+    this.#peeking = false;
 
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -371,6 +379,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#boardScene()?.setVillainDock(null);
       this.scene.stop();
     });
+  }
+
+  /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
+  #setPeeking(peeking: boolean): void {
+    this.#peeking = peeking;
+    this.#draw();
   }
 
   /** HIDE ▸: undock and keep only a handle; the handle brings the rail back. */
@@ -649,8 +663,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const kind = villainPresentationFor({
       formFactor,
       dockTable: appSession().settings.villainDockTable,
-      recap: recapNow,
-      peeking: false,
+      // A tutorial's bottom guide strip lives inside the full-screen panel on a tabbed layout, so a lesson keeps it.
+      recap: recapNow || guideStrip !== null,
+      peeking: this.#peeking,
     });
     if ((kind === "rail" || kind === "band") && boardScene) {
       const inlineChoice = pausedInline ? (game.pendingChoice?.choiceId ?? null) : null;
@@ -668,6 +683,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const panel = boardScene.villainDockRects()?.panel;
       if (panel) {
         this.#drawRail(kind, panel, reveal, game, viewer, viewerId);
+        return;
+      }
+    }
+    if ((kind === "tab" || kind === "peek") && boardScene) {
+      boardScene.setVillainDock(kind);
+      const rects = boardScene.villainDockRects();
+      if (rects?.footer && kind === "tab" && rects.panel) {
+        this.#drawRail("tab", rects.panel, reveal, game, viewer, viewerId, rects.footer);
+        return;
+      }
+      if (rects?.footer && kind === "peek") {
+        this.#drawPeek(rects.footer, reveal, game, viewer, viewerId);
         return;
       }
     }
@@ -1605,12 +1632,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * the panel only, so the table keeps its presses, and there is no scrim: the table is there to be read.
    */
   #drawRail(
-    kind: "rail" | "band",
+    kind: "rail" | "band" | "tab",
     panel: Rect,
     reveal: Reveal,
     game: GameState,
     viewer: PlayerId | null,
     viewerId: PlayerId,
+    footer: Rect | null = null,
   ): void {
     this.#presentation = kind;
     const pause = this.#walkthrough.pausedAt;
@@ -1618,9 +1646,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
     const input = { panel, revealing, interruptOptions: inline?.length ?? 0 };
-    const layout = kind === "rail" ? villainRailLayout(input) : villainBandLayout(input);
+    const layout =
+      kind === "rail"
+        ? villainRailLayout(input)
+        : kind === "band"
+          ? villainBandLayout(input)
+          : villainTabLayout({ ...input, footer: footer ?? panel });
 
     addPressShield(this, panel);
+    // On a phone the answer takes the action bar's place: the bar underneath must not take the press.
+    if (kind === "tab" && footer && inline) addPressShield(this, footer);
     const panelsFrom = this.children.list.length;
 
     const active = reveal.steps.find((step) => step.revealStatus === "active");
@@ -1669,7 +1704,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       autoAdvance: appSession().settings.villainAutoAdvance,
       buttons: this.#buttons,
       onSkip: () => this.#skip(),
-      onHide: () => this.#setHidden(true),
+      onHide: () => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true)),
       onToggle: () => this.#toggleAutoAdvance(),
       onInspect: (instanceId) => this.scene.launch(SCENES.inspect, { instanceId }),
     });
@@ -1680,6 +1715,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         continueRect: () => null,
         skipRect: () => layout.skip,
         hideRect: () => layout.hide,
+        peekRect: () => (kind === "tab" ? layout.hide : null),
         panelRect: () => panel,
         presentation: () => this.#presentation,
         useRect: () => layout.interrupt?.use ?? null,
@@ -1731,6 +1767,139 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       (instanceId) => cardName(game, instanceId),
       (playerId) => seatName(game, playerId, viewer),
     );
+  }
+
+  /**
+   * Peeking at the table (P3): the board and its tabs are the player's; the phase keeps a banner over the bottom of
+   * the board with what it waits on and BACK, and, when the decision is the player's own, its two answers in the
+   * action bar's place.
+   */
+  #drawPeek(footer: Rect, reveal: Reveal, game: GameState, viewer: PlayerId | null, viewerId: PlayerId): void {
+    this.#presentation = "peek";
+    const layout = villainPeekLayout(footer);
+    const pause = this.#walkthrough.pausedAt;
+    const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    addPressShield(this, layout.banner);
+    if (inline) addPressShield(this, footer);
+    const panelsFrom = this.children.list.length;
+    const stops = new Map<string, FocusStop>();
+
+    const g = this.add.graphics();
+    g.fillStyle(surface.ink.hex, 1).fillRect(
+      layout.banner.x,
+      layout.banner.y,
+      layout.banner.width,
+      layout.banner.height,
+    );
+    g.lineStyle(border.object, signal.caution.hex, 1);
+    g.strokeRect(layout.banner.x, layout.banner.y, layout.banner.width, layout.banner.height);
+
+    const strip = this.#encounterStrip(reveal, game, viewer);
+    const active = reveal.steps.find((step) => step.revealStatus === "active");
+    const position = active?.kind === "revealEncounterCards" && strip?.position ? strip.position : null;
+    const heading = [
+      "Villain phase",
+      active ? `Step ${active.number}` : null,
+      position ? `${position.index} of ${position.total}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    // What the phase waits on (the revealed card or the attacking enemy) and the card the player would answer with.
+    const subject =
+      position && strip?.current ? strip.current : (this.#walkthrough.activation?.enemyInstanceId ?? null);
+    const option = inline?.[0] ?? null;
+    const thumbOf = option?.instanceId ?? subject;
+    if (thumbOf) {
+      const fill = this.add.graphics();
+      fill
+        .fillStyle(surface.paper.hex, 1)
+        .fillRect(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height);
+      const art = inspectModel(game, thumbOf, null, viewerId, POOL_DEPS).art;
+      drawArt(this, cardArt(this).request(this, art), layout.thumb);
+      const frame = this.add.graphics();
+      frame.lineStyle(border.object, signal.caution.hex, 1);
+      frame.strokeRect(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height);
+    }
+    const textX = thumbOf ? layout.text.x : layout.thumb.x;
+    const textWidth = layout.text.x + layout.text.width - textX;
+    const headingText = label(
+      this,
+      textX,
+      layout.text.y,
+      heading,
+      { ...typeRole.label, size: 11 },
+      signal.caution.hex,
+      1,
+    );
+    fitText(headingText, textWidth, 11);
+    const line = inline
+      ? `${subject ? cardName(game, subject) : "The villain phase"} waits on your answer`
+      : (reveal.current?.text ?? "The villain phase is running.");
+    const main = this.add
+      .text(textX, layout.text.y + 20, line, textStyle({ ...typeRole.rowTitle, size: 16 }, surface.paper.hex))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(textWidth)
+      .setMaxLines(2);
+    if (option) {
+      const detail = label(
+        this,
+        textX,
+        main.y + main.height + 6,
+        `${abilityName(game, option)} · ${game.players.some((p) => p.hand.includes(option.instanceId)) ? "from your hand" : "in play"}`,
+        { ...typeRole.label, size: 10 },
+        surface.paper.hex,
+        ink.secondary,
+      );
+      fitText(detail, textWidth, 10);
+    }
+
+    const back = (): void => this.#setPeeking(false);
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Back ▴",
+        type: typeRole.label,
+        rect: layout.back,
+        onClick: back,
+      }),
+    );
+    stops.set("back", { rect: layout.back, activate: back });
+
+    if (inline && pause) {
+      const resolveWidth = Math.round((footer.width - 24) * 0.38);
+      const height = Math.max(hit.target, footer.height - 12);
+      drawInterruptAnswer(
+        this,
+        {
+          use: { x: footer.x + 8, y: footer.y + 6, width: footer.width - 24 - resolveWidth, height },
+          resolve: { x: footer.x + footer.width - 8 - resolveWidth, y: footer.y + 6, width: resolveWidth, height },
+        },
+        game,
+        {
+          options: inline,
+          pause,
+          picks: this.#livePicksFor(game, inline),
+          onPick: (optionId) => this.#togglePick(game, inline, optionId),
+          onResolve: (ids) => this.#resolve(ids),
+        },
+        this.#buttons,
+        stops,
+        { thumb: true },
+      );
+    }
+
+    this.#route?.set([...villainRailFocusOrder(inline?.map((o) => o.optionId) ?? []), "back"], stops);
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
+        continueRect: () => null,
+        skipRect: () => null,
+        backRect: () => layout.back,
+        presentation: () => this.#presentation,
+        useRect: () => stops.get(`interrupt:${inline?.[0]?.optionId}`)?.rect ?? stops.get("confirm")?.rect ?? null,
+        resolveRect: () => stops.get("resolve")?.rect ?? null,
+      };
+    }
+    this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });
   }
 
   /** The rail while hidden: a handle at the table's right edge that brings it back. */

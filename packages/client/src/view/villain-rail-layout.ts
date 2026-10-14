@@ -390,3 +390,165 @@ export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
     toggle,
   };
 }
+
+const TAB_PAD = 12;
+
+/**
+ * Phone and tablet portrait (P1/P2, T2): the phase takes everything between the chrome and the hand, which stays in
+ * view under it, and its own two buttons (USE / PLAY, and RESOLVE ▸) take the action bar's place at the thumb
+ * (`footer`, the action bar's rectangle). Top to bottom: the header (title, PEEK AT TABLE ▾ in HIDE's place, SKIP),
+ * the step chips, the encounter strip while revealing, the body, the interrupt window (its card and text; the buttons
+ * are in the footer), then the phase log in what is left. There is no AUTO-ADVANCE toggle here (it is in Settings
+ * and on the recap).
+ */
+export function villainTabLayout(input: VillainRailInput & { readonly footer: Rect }): VillainRailLayout {
+  const { panel, revealing, footer } = input;
+  const x = panel.x + TAB_PAD;
+  const width = Math.max(0, panel.width - TAB_PAD * 2);
+  const bottom = panel.y + panel.height - TAB_PAD;
+  const narrow = width < 500;
+
+  const headerHeight = hit.target;
+  const skipWidth = narrow ? 64 : 92;
+  const peekWidth = narrow ? 132 : 170;
+  const skip: Rect = { x: x + width - skipWidth, y: panel.y + TAB_PAD, width: skipWidth, height: headerHeight };
+  const hide: Rect = { x: skip.x - 8 - peekWidth, y: skip.y, width: peekWidth, height: headerHeight };
+  const title: Rect = { x, y: skip.y, width: Math.max(0, hide.x - 10 - x), height: headerHeight };
+
+  let cursor = title.y + title.height + 10;
+  const chipGap = 6;
+  const chipWidth = (width - chipGap * 4) / 5;
+  const steps: Rect[] = Array.from({ length: 5 }, (_, i) => ({
+    x: x + i * (chipWidth + chipGap),
+    y: cursor,
+    width: chipWidth,
+    height: 36,
+  }));
+  cursor += 36 + 10;
+
+  let encounterLabel: Rect | null = null;
+  let encounterStrip: Rect | null = null;
+  if (revealing) {
+    encounterLabel = { x, y: cursor, width, height: STRIP_LABEL_HEIGHT };
+    encounterStrip = { x, y: cursor + STRIP_LABEL_HEIGHT + 4, width, height: 52 };
+    cursor = encounterStrip.y + encounterStrip.height + 10;
+  }
+
+  const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
+  const interruptHeight = input.interruptOptions > 0 ? (narrow ? 196 : 220) + extras * hit.target : 0;
+  const room = Math.max(0, bottom - cursor - (interruptHeight > 0 ? interruptHeight + 10 : 0));
+  const bodyMax = revealing ? (narrow ? 250 : 380) : narrow ? 180 : 230;
+  const bodyHeight = Math.min(bodyMax, room);
+  const body: Rect = { x, y: cursor, width, height: bodyHeight };
+  const artShare = revealing ? 0.42 : 0.3;
+  const artWidth = Math.min(Math.round((body.height - 16) * CARD_RATIO), Math.round(width * artShare));
+  const bodyArt: Rect = { x: x + 8, y: body.y + 8, width: artWidth, height: Math.round(artWidth / CARD_RATIO) };
+  const bodyText: Rect = {
+    x: bodyArt.x + bodyArt.width + 14,
+    y: body.y + 8,
+    width: Math.max(0, x + width - 8 - (bodyArt.x + bodyArt.width + 14)),
+    height: Math.max(0, body.height - 16),
+  };
+  cursor = body.y + body.height + 10;
+
+  let interrupt: VillainRailInterruptLayout | null = null;
+  if (interruptHeight > 0) {
+    const frame: Rect = { x, y: cursor, width, height: interruptHeight };
+    const pad = 14;
+    const titleRect: Rect = { x: x + pad, y: frame.y + 12, width: width - pad * 2, height: 18 };
+    const cardTop = titleRect.y + titleRect.height + 10;
+    const cardBottom = frame.y + frame.height - pad - extras * hit.target;
+    const cardWidth = Math.min(Math.round((cardBottom - cardTop) * CARD_RATIO), Math.round(width * 0.3));
+    const card: Rect = { x: x + pad, y: cardTop, width: cardWidth, height: Math.round(cardWidth / CARD_RATIO) };
+    const textX = card.x + card.width + 14;
+    // The answer is the action bar's: USE / PLAY on the left, RESOLVE ▸ on the right, at the thumb.
+    const resolveWidth = Math.round((footer.width - 24) * 0.38);
+    interrupt = {
+      frame,
+      title: titleRect,
+      card,
+      text: { x: textX, y: cardTop, width: Math.max(0, x + width - pad - textX), height: cardBottom - cardTop },
+      extraRows: Array.from({ length: extras }, (_, i) => ({
+        x: x + pad,
+        y: cardBottom + i * hit.target,
+        width: width - pad * 2,
+        height: hit.target - 4,
+      })),
+      use: {
+        x: footer.x + 8,
+        y: footer.y + 6,
+        width: footer.width - 24 - resolveWidth,
+        height: Math.max(hit.target, footer.height - 12),
+      },
+      resolve: {
+        x: footer.x + footer.width - 8 - resolveWidth,
+        y: footer.y + 6,
+        width: resolveWidth,
+        height: Math.max(hit.target, footer.height - 12),
+      },
+    };
+    cursor += interruptHeight + 10;
+  }
+
+  const logHeight = Math.max(0, bottom - cursor);
+  const log: Rect = { x, y: cursor, width, height: logHeight >= LOG_MIN ? logHeight : 0 };
+
+  return {
+    kind: "tab",
+    panel,
+    title,
+    skip,
+    hide,
+    subtitle: { x, y: panel.y, width: 0, height: 0 },
+    steps,
+    stepMode: "chips",
+    encounterLabel,
+    encounterStrip,
+    body,
+    bodyArt,
+    bodyText,
+    interrupt,
+    log,
+    footer,
+    footerText: null,
+    toggle: { x: footer.x, y: footer.y, width: 0, height: 0 },
+  };
+}
+
+/** The peek banner (P3): over the bottom of the board, just above the action bar, while the phase waits. */
+export interface VillainPeekLayout {
+  readonly banner: Rect;
+  readonly thumb: Rect;
+  readonly text: Rect;
+  readonly back: Rect;
+}
+
+export function villainPeekLayout(footer: Rect): VillainPeekLayout {
+  const height = 112;
+  const banner: Rect = { x: footer.x + 8, y: footer.y - height - 8, width: footer.width - 16, height };
+  const thumbHeight = height - 24;
+  const thumb: Rect = {
+    x: banner.x + 12,
+    y: banner.y + 12,
+    width: Math.round(thumbHeight * CARD_RATIO),
+    height: thumbHeight,
+  };
+  const backWidth = Math.min(120, Math.round(banner.width * 0.26));
+  const back: Rect = {
+    x: banner.x + banner.width - 12 - backWidth,
+    y: banner.y + (height - 64) / 2,
+    width: backWidth,
+    height: 64,
+  };
+  return {
+    banner,
+    thumb,
+    text: {
+      x: thumb.x + thumb.width + 12,
+      y: banner.y + 12,
+      width: Math.max(0, back.x - 12 - (thumb.x + thumb.width + 12)),
+      height: height - 24,
+    },
+    back,
+  };
+}
