@@ -46,6 +46,19 @@ export interface Settings {
   readonly villainBeatSpeed: VillainBeatSpeed;
   /** Desktop and tablet dock the villain phase on the right with the table beside it; off draws it full screen. Defaults on. */
   readonly villainDockTable: boolean;
+  /**
+   * How much larger than its on-table size a card is drawn in the hover popover (`scenes/board/hover-preview.ts`), or
+   * "off". Desktop with a mouse only: a phone or tablet has long-press Inspect instead, and ignores this. Defaults 3x.
+   */
+  readonly cardHoverScale: CardHoverScale;
+}
+
+export type CardHoverScale = "off" | "2x" | "3x" | "4x" | "5x";
+export const CARD_HOVER_SCALE_VALUES: readonly CardHoverScale[] = ["off", "2x", "3x", "4x", "5x"];
+
+/** The size multiplier a `cardHoverScale` stands for; null for "off". */
+export function cardHoverFactor(scale: CardHoverScale): number | null {
+  return scale === "off" ? null : Number.parseInt(scale, 10);
 }
 
 export type VillainAutoAdvance = "off" | "afterPause" | "on";
@@ -89,5 +102,6 @@ export function defaultSettings(): Settings {
     holdEncounterCards: true,
     villainBeatSpeed: "normal",
     villainDockTable: true,
+    cardHoverScale: "3x",
   };
 }

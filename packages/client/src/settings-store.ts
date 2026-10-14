@@ -9,6 +9,7 @@
  * corrupt record is no record, and a newer `version` is read best-effort.
  */
 import {
+  CARD_HOVER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
@@ -53,6 +54,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   const beatSpeed = source["villainBeatSpeed"];
   const beatSpeedValue = VILLAIN_BEAT_SPEED_VALUES.find((value) => value === beatSpeed);
   if (beatSpeedValue !== undefined) out.villainBeatSpeed = beatSpeedValue;
+  const hoverScaleValue = CARD_HOVER_SCALE_VALUES.find((value) => value === source["cardHoverScale"]);
+  if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

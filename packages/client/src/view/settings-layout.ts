@@ -70,6 +70,7 @@ const STACK_TILES_BELOW = 560;
 const TILE_HEIGHT = 52;
 const TILE_GAP = 8;
 const SPEED_CONTROL_WIDTH = 204;
+const CARD_HOVER_CONTROL_WIDTH = 280;
 
 /** Every row this screen draws, in content space (`y` from the body's own top) — see this file's own doc comment. */
 export interface SettingsContentLayout {
@@ -78,6 +79,8 @@ export interface SettingsContentLayout {
   readonly rows: readonly Rect[];
   /** The Villain phase group, between the Table rows and Guide; absent when `settingsLayout` was given no villain details. */
   readonly villain: SettingsVillainLayout | null;
+  /** The "Card size on hover" row and its five-segment control, after the Table rows; null when not given a detail or off desktop (no mouse popover elsewhere). */
+  readonly cardHover: { readonly row: Rect; readonly control: Rect } | null;
   readonly guideHeading: Rect;
   readonly guideLevelRow: Rect;
   /** One rect per Guide row after the level row: "Play the tutorial", "Aspect lessons", then one per warning toggle. */
@@ -104,6 +107,7 @@ export function settingsLayout(
   rowDetails: readonly string[],
   guideRowDetails: readonly string[] = [],
   villainDetails?: SettingsVillainDetails,
+  cardHoverDetail?: string,
 ): SettingsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
   const contentX = body.x + 16;
@@ -122,10 +126,30 @@ export function settingsLayout(
   }
   const rowsBottom = rows.length > 0 ? rows[rows.length - 1]!.y + rows[rows.length - 1]!.height : rowsTop;
 
+  let cardHover: SettingsContentLayout["cardHover"] = null;
+  let tableBottom = rowsBottom;
+  if (cardHoverDetail !== undefined && onDesktop) {
+    const height = Math.max(
+      toggleRowHeight(cardHoverDetail, contentWidth - (CARD_HOVER_CONTROL_WIDTH - 84), onDesktop),
+      44,
+    );
+    const row: Rect = { x: contentX, y: rowsBottom + ROW_GAP, width: contentWidth, height };
+    cardHover = {
+      row,
+      control: {
+        x: row.x + row.width - CARD_HOVER_CONTROL_WIDTH - 2,
+        y: row.y + (row.height - 32) / 2,
+        width: CARD_HOVER_CONTROL_WIDTH,
+        height: 32,
+      },
+    };
+    tableBottom = row.y + row.height;
+  }
+
   let villain: SettingsVillainLayout | null = null;
-  let afterRowsBottom = rowsBottom;
+  let afterRowsBottom = tableBottom;
   if (villainDetails) {
-    const heading: Rect = { x: contentX, y: rowsBottom + GROUP_GAP, width: contentWidth, height: HEADING_HEIGHT };
+    const heading: Rect = { x: contentX, y: tableBottom + GROUP_GAP, width: contentWidth, height: HEADING_HEIGHT };
     const autoTop = heading.y + heading.height + 6;
     const stacked = contentWidth < STACK_TILES_BELOW;
     // The auto-advance detail runs the full row width (no control beside it), so size it as a toggle row with the
@@ -202,7 +226,7 @@ export function settingsLayout(
     panel,
     header,
     bodyViewport,
-    content: { tableHeading, rows, villain, guideHeading, guideLevelRow, guideRows, totalHeight },
+    content: { tableHeading, rows, villain, cardHover, guideHeading, guideLevelRow, guideRows, totalHeight },
   };
 }
 

@@ -50,6 +50,7 @@ import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
+import { HoverPreview } from "./board/hover-preview.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
@@ -197,6 +198,7 @@ export class BoardScene extends Phaser.Scene {
    * for *every* game with a perspective player, not only a guided tutorial run: an opportunistic tip at the Full
    * guide level is "the main use" in an ordinary game (`scenes/board/tip-mount.ts`'s own header). */
   #tip: BoardTipMount | null = null;
+  #hover: HoverPreview | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -314,6 +316,11 @@ export class BoardScene extends Phaser.Scene {
     // Fresh scheduler state for a fresh game (guided mode G10e part 2) — "Run it back"/"Continue" reuse this same
     // scene instance, and the opening-turn hold/one-per-turn cap must reset the same way `#guide` does above.
     this.#tip = new BoardTipMount(this);
+    // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
+    this.#hover = new HoverPreview(this, {
+      frame: () => this.#frame,
+      dockPanel: () => this.#villainDockRects?.panel ?? null,
+    });
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -403,6 +410,8 @@ export class BoardScene extends Phaser.Scene {
     // sheet reports which one was picked, and only the board ever dispatches.
     this.game.events.on("mc-use-ability", this.#onInspectUseAbility, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
       this.scale.off("resize", onResize, this);
       this.#controller.dispose();
       this.#unsubscribe?.();
@@ -1170,6 +1179,7 @@ export class BoardScene extends Phaser.Scene {
     // never sits under it.
     this.#tip?.draw(viewport, layout.tabbed, zones.actionBar, this.#tipBlocked());
     this.#syncGuideFocusRegion();
+    this.#hover?.onDraw();
   }
 
   /**

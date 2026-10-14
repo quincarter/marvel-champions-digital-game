@@ -30,17 +30,20 @@ import {
   guideRowInfoOf,
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
+  cardHoverRowInfoOf,
+  nextSettingsAfterCardHover,
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
   villainRowInfoOf,
+  type CardHoverRowInfo,
   type GuideRowInfo,
   type SettingsRowInfo,
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
-import type { VillainAutoAdvance, VillainBeatSpeed } from "../settings.js";
+import type { CardHoverScale, VillainAutoAdvance, VillainBeatSpeed } from "../settings.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, addRowTapZone, label, paintOnFrame } from "../ui/widgets.js";
@@ -199,6 +202,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const unlocksDetail = unlocksSummaryOf(unlocks());
     const guideRows = guideRowInfoOf(guidePrefs());
     const villain = villainRowInfoOf(appSession().settings);
+    const cardHover = cardHoverRowInfoOf(appSession().settings);
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
@@ -210,6 +214,7 @@ export class SettingsOverlay extends Phaser.Scene {
         speed: villain.beatSpeed.detail,
         dock: villain.dock.detail,
       },
+      cardHover.detail,
     );
 
     const scrim = this.add.graphics();
@@ -259,6 +264,7 @@ export class SettingsOverlay extends Phaser.Scene {
       unlocksDetail,
       guideRows,
       villain,
+      cardHover,
       stops,
     );
 
@@ -268,6 +274,7 @@ export class SettingsOverlay extends Phaser.Scene {
         UNLOCKS_ROW,
         SAVE_DATA_ROW,
         RULES_ROW,
+        ...(layout.content.cardHover ? cardHover.options.map((o) => `card-hover:${o.value}`) : []),
         ...VILLAIN_STOP_IDS(villain),
         ...guideStopIds,
       ]),
@@ -310,6 +317,7 @@ export class SettingsOverlay extends Phaser.Scene {
     unlocksDetail: string,
     guideRows: readonly GuideRowInfo[],
     villain: VillainRowsInfo,
+    cardHover: CardHoverRowInfo,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
     const levelRow = guideRows.find((row) => row.kind === "segmented");
@@ -318,9 +326,11 @@ export class SettingsOverlay extends Phaser.Scene {
     // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
     // further down it scrolls (`view/layout.ts`'s own doc comment).
     const v = content.villain;
+    const hover = content.cardHover;
     const heights = contentSlotHeights([
       content.tableHeading,
       ...content.rows,
+      ...(hover ? [hover.row] : []),
       ...(v ? [v.heading, v.auto, v.hold, v.speed, v.dock] : []),
       content.guideHeading,
       content.guideLevelRow,
@@ -368,6 +378,12 @@ export class SettingsOverlay extends Phaser.Scene {
     );
 
     let guideHeadingIndex = rulesIndex + 1;
+    if (hover) {
+      this.#captureInto(container, () =>
+        this.#drawCardHover(toScreen(hover.row), toScreen(hover.control), cardHover, guideHeadingIndex, stops),
+      );
+      guideHeadingIndex += 1;
+    }
     if (v) {
       const base = guideHeadingIndex;
       this.#captureInto(container, () =>
@@ -571,6 +587,37 @@ export class SettingsOverlay extends Phaser.Scene {
         { label: option.label, detail: option.detail, fill: signal.caution.hex },
       );
     });
+  }
+
+  #drawCardHover(
+    rect: Rect,
+    control: Rect,
+    info: CardHoverRowInfo,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): void {
+    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - control.width - 16);
+    const cellWidth = control.width / info.options.length;
+    info.options.forEach((option, i) => {
+      this.#drawChoiceCell(
+        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
+        info.selected === option.value,
+        index,
+        `card-hover:${option.value}`,
+        stops,
+        () => this.#setCardHover(option.value),
+        { label: option.label, fill: surface.paper.hex },
+      );
+    });
+  }
+
+  #setCardHover(value: CardHoverScale): void {
+    appSession().settings = nextSettingsAfterCardHover(appSession().settings, value);
+    this.#draw();
   }
 
   #drawVillainSpeed(

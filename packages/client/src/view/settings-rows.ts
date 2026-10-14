@@ -16,7 +16,9 @@ import {
   type SilencedWarningKey,
 } from "../guide/guide-prefs.js";
 import {
+  CARD_HOVER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
+  type CardHoverScale,
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
@@ -320,4 +322,39 @@ export function nextSettingsAfterVillainRow(
     case "villain-dock":
       return { ...settings, villainDockTable: !settings.villainDockTable };
   }
+}
+
+// ---------------------------------------------------------------------------
+// "Card size on hover": the desktop mouse popover (`scenes/board/hover-preview.ts`). A five-segment choice, drawn only
+// on a desktop-sized Settings screen (a phone or tablet has long-press Inspect and never shows the popover).
+// ---------------------------------------------------------------------------
+
+export const CARD_HOVER_SCALE_LABELS: Readonly<Record<CardHoverScale, string>> = {
+  off: "Off",
+  "2x": "2×",
+  "3x": "3×",
+  "4x": "4×",
+  "5x": "5×",
+};
+
+export interface CardHoverRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: CardHoverScale; readonly label: string }[];
+  readonly selected: CardHoverScale;
+}
+
+export function cardHoverRowInfoOf(settings: Settings): CardHoverRowInfo {
+  return {
+    title: "Card size on hover",
+    detail:
+      "With a mouse, rest on a card on the table to see it larger beside the pointer, with its state. Off turns the popover off.",
+    options: CARD_HOVER_SCALE_VALUES.map((value) => ({ value, label: CARD_HOVER_SCALE_LABELS[value] })),
+    selected: settings.cardHoverScale,
+  };
+}
+
+/** `settings` with the hover size set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterCardHover(settings: Settings, value: CardHoverScale): Settings {
+  return CARD_HOVER_SCALE_VALUES.includes(value) ? { ...settings, cardHoverScale: value } : settings;
 }

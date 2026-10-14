@@ -203,3 +203,35 @@ describe("settingsLayout villain group", () => {
     expect(settingsLayout({ x: 0, y: 0, width: 800, height: 600 }, ROW_DETAILS).content.villain).toBeNull();
   });
 });
+
+describe("settingsLayout card hover row", () => {
+  const DETAIL = "With a mouse, rest on a card on the table to see it larger beside the pointer, with its state.";
+  test("sits below the Table rows and above the villain group on desktop, control inside the row", () => {
+    const { content } = settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS, [], undefined, DETAIL);
+    const hover = content.cardHover!;
+    expect(hover.row.y).toBeGreaterThan(content.rows[content.rows.length - 1]!.y);
+    expect(rectsOverlap(hover.row, content.rows[content.rows.length - 1]!)).toBe(false);
+    expect(hover.control.x + hover.control.width).toBeLessThanOrEqual(hover.row.x + hover.row.width);
+    expect(hover.control.y).toBeGreaterThanOrEqual(hover.row.y);
+    expect(hover.control.y + hover.control.height).toBeLessThanOrEqual(hover.row.y + hover.row.height);
+  });
+
+  test("pushes the villain group down without overlapping it", () => {
+    const villain = { auto: "a", hold: "h", speed: "s", dock: "d" };
+    const { content } = settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS, [], villain, DETAIL);
+    expect(rectsOverlap(content.cardHover!.row, content.villain!.heading)).toBe(false);
+    expect(content.villain!.heading.y).toBeGreaterThan(content.cardHover!.row.y);
+  });
+
+  test("absent on a phone and a tablet, which have no mouse popover, and without a detail", () => {
+    for (const [width, height] of [
+      [390, 844],
+      [1024, 768],
+    ] as const) {
+      expect(
+        settingsLayout({ x: 0, y: 0, width, height }, ROW_DETAILS, [], undefined, DETAIL).content.cardHover,
+      ).toBeNull();
+    }
+    expect(settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS).content.cardHover).toBeNull();
+  });
+});
