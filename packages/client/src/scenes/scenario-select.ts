@@ -105,7 +105,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
   #drill: ShelfDrillState = ALL_PACKS;
-  #history: ScenarioRecord | null = null;
+  /** Every scenario's played record, keyed by scenario id, so the side panel reads the *current* selection's row on each redraw (issue 141). */
+  #history: ReadonlyMap<string, ScenarioRecord> = new Map();
+  /** The record line last drawn in the side panel, for the dev e2e hook only. */
+  #recordText = "";
   readonly #artCache = new Map<string, Picture | null>();
   /** Dev e2e hook only: every tile drawn so far (see `create`). */
   readonly #tileDebug = new Map<string, { id: string; title: string; villainArt: boolean; baked: boolean }>();
@@ -139,6 +142,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
         tiles: () => [...this.#tileDebug.values()],
         selectedId: () => this.#draft.scenarioId,
+        recordText: () => this.#recordText,
         stops: () =>
           [...this.#stops].map(([key, stop]) => ({
             key,
@@ -184,8 +188,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       .store.listSaves()
       .then((saves) => {
         if (!this.sys.isActive()) return;
-        const history = resultsHistoryOf(saves);
-        this.#history = history.scenarios.find((r) => r.scenarioId === this.#draft.scenarioId) ?? null;
+        this.#history = new Map(resultsHistoryOf(saves).scenarios.map((r) => [r.scenarioId, r]));
         this.#rebuild();
       });
   }
@@ -803,11 +806,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const rule = this.add.graphics();
     rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(rect.x + 16, y, rect.x + rect.width - 16, y);
     y += 12;
-    const record = this.#history;
+    const record = this.#history.get(this.#draft.scenarioId) ?? null;
     const recordText =
       record && record.combined.gamesPlayed > 0
         ? `Your record: ${record.combined.wins} win${record.combined.wins === 1 ? "" : "s"} · ${record.combined.losses} loss${record.combined.losses === 1 ? "" : "es"}.${record.combined.bestClearRounds !== null ? ` Best clear: round ${record.combined.bestClearRounds}.` : ""}`
         : "Not played yet.";
+    this.#recordText = recordText;
     const recordNode = this.add.text(
       rect.x + 16,
       y,
