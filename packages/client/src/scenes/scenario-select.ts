@@ -14,7 +14,7 @@ import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js
 import type { Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt } from "../art/card-art.js";
-import { dotGrid, ink, surface, typeRole } from "../tokens.js";
+import { border, dotGrid, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
@@ -802,24 +802,41 @@ export class ScenarioSelectScene extends Phaser.Scene {
       y += boxHeight + 8;
     }
     y += 8;
-    if (y + 40 > contentBottom) return;
+    if (y + 64 > contentBottom) return;
     const rule = this.add.graphics();
     rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(rect.x + 16, y, rect.x + rect.width - 16, y);
     y += 12;
     const record = this.#history.get(this.#draft.scenarioId) ?? null;
-    const recordText =
-      record && record.combined.gamesPlayed > 0
-        ? `Your record: ${record.combined.wins} win${record.combined.wins === 1 ? "" : "s"} · ${record.combined.losses} loss${record.combined.losses === 1 ? "" : "es"}.${record.combined.bestClearRounds !== null ? ` Best clear: round ${record.combined.bestClearRounds}.` : ""}`
-        : "Not played yet.";
-    this.#recordText = recordText;
-    const recordNode = this.add.text(
-      rect.x + 16,
-      y,
-      recordText,
-      textStyle(typeRole.body, surface.paper.hex, ink.label),
-    );
-    recordNode.setWordWrapWidth(rect.width - 32);
-    y += recordNode.height + 14;
+    const played = record !== null && record.combined.gamesPlayed > 0;
+    const tally = played
+      ? `${record.combined.wins} win${record.combined.wins === 1 ? "" : "s"} · ${record.combined.losses} loss${record.combined.losses === 1 ? "" : "es"}`
+      : "Not played yet";
+    const bestClear =
+      played && record.combined.bestClearRounds !== null
+        ? `Best clear: round ${record.combined.bestClearRounds}`
+        : null;
+    this.#recordText = played ? `Your record: ${tally}.${bestClear ? ` ${bestClear}.` : ""}` : "Not played yet.";
+    // The record is a filled band, not a dim body line (issue 141 follow-up): win-state green once the scenario has
+    // been played, the advisory yellow before, each at menu-button size so it reads from the couch.
+    label(this, rect.x + 16, y, "Your record", typeRole.label, surface.paper.hex, ink.label);
+    y += 16;
+    const band = this.add.graphics();
+    const textColor = played ? surface.paper.hex : surface.ink.hex;
+    const tallyNode = this.add.text(rect.x + 28, y + 10, tally, textStyle(typeRole.menuButton, textColor));
+    tallyNode.setWordWrapWidth(rect.width - 56);
+    let bandHeight = tallyNode.height + 20;
+    if (bestClear) {
+      const bestNode = this.add
+        .text(rect.x + 28, y + 10 + tallyNode.height + 2, bestClear, textStyle(typeRole.emphasis, textColor))
+        .setFontSize(13);
+      bandHeight += bestNode.height + 2;
+    }
+    band
+      .fillStyle(played ? signal.heal.hex : signal.caution.hex, 1)
+      .fillRect(rect.x + 16, y, rect.width - 32, bandHeight)
+      .lineStyle(border.detail, surface.ink.hex, 1)
+      .strokeRect(rect.x + 16, y, rect.width - 32, bandHeight);
+    y += bandHeight + 14;
     // "Encounter sets" / "Recommended modular" as label-over-value blocks (second-pass item 5), matching the
     // seats panel's own OBLIGATION / NEMESIS SET treatment — not the old plain-text dump of every
     // `scenarioDetailLines` line (a per-stage "Stage 1: 12 per player HP · ATK 0…" that duplicated the stage boxes
