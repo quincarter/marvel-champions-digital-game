@@ -231,7 +231,7 @@ const DECLINE_LABEL = /^(decline|don['’]t .+|no defender)$/i;
 export async function answerPreferDecline(page: Page): Promise<void> {
   // The villain phase's own interrupt window (a defense card on offer) draws "Let it resolve" over the sheet.
   const walk = await textsOf(page, "VillainPhaseOverlay");
-  const resolve = walk.find((t) => /^let it resolve$/i.test(t));
+  const resolve = walk.find((t) => /^(let it resolve|resolve) ?▸?$/i.test(t));
   if (resolve) {
     await clickText(page, resolve, { sceneKey: "VillainPhaseOverlay" });
     await settle(page, { quietMs: 200, maxMs: 1000 });

@@ -72,7 +72,7 @@ test.describe("v0.20.0 client QA findings", () => {
         }
       });
       for (let i = 0; i < 6 && (await activeScenes(page)).includes("VillainPhaseOverlay"); i++) {
-        await clickText(page, "Continue", { sceneKey: "VillainPhaseOverlay" });
+        await clickText(page, "Start player phase", { sceneKey: "VillainPhaseOverlay" });
         await settle(page);
       }
       const everywhere = (await handInstanceFor(page, "58018"))!;

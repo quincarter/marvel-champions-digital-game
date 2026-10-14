@@ -145,7 +145,7 @@ test("Wonder Man: Mr. Hollywood overpays only once the cost is covered, and Acti
   // The villain phase recap that ends round 1 comes up over the board; dismiss it.
   await waitFor(async () => ((await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null), "recap", 15000);
   await settle(page);
-  await clickText(page, "Continue", { sceneKey: "VillainPhaseOverlay" });
+  await clickText(page, "Start player phase", { sceneKey: "VillainPhaseOverlay" });
   await waitFor(
     async () => (!(await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null),
     "recap closes",

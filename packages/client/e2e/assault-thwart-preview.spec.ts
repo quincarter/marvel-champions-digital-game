@@ -52,7 +52,7 @@ test("a thwart with an assault side scheme and a normal side scheme both in play
   });
   await boardUp(page);
   const cont = (await visibleTexts(page)).find(
-    (t) => t.scene === "VillainPhaseOverlay" && /^continue$/i.test(t.text.trim()),
+    (t) => t.scene === "VillainPhaseOverlay" && /^(continue|start player phase( ▸)?)$/i.test(t.text.trim()),
   );
   if (cont) await press(page, phone, cont.x, cont.y);
   await settle(page, { quietMs: 600, maxMs: 3000 });

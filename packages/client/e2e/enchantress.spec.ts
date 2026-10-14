@@ -117,7 +117,7 @@ test.describe("Enchantress", () => {
       `const l = store.state.legal.actions; await store.dispatch(l.legal.find((x) => x.action.kind === "endTurn").example);`,
     );
     await settleChoices(page);
-    await clickText(page, "Continue", { sceneKey: "VillainPhase", timeoutMs: 30_000 }).catch(() => undefined);
+    await clickText(page, "Start player phase", { sceneKey: "VillainPhase", timeoutMs: 30_000 }).catch(() => undefined);
     await waitForText(page, "must use", { sceneKey: "Board", timeoutMs: 30_000 });
     const seduced = await withStore<string>(
       page,
@@ -143,7 +143,7 @@ test.describe("Enchantress", () => {
       `const l = store.state.legal.actions; await store.dispatch(l.legal.find((x) => x.action.kind === "endTurn").example);`,
     );
     await settleChoices(page);
-    await clickText(page, "Continue", { sceneKey: "VillainPhase", timeoutMs: 30_000 }).catch(() => undefined);
+    await clickText(page, "Start player phase", { sceneKey: "VillainPhase", timeoutMs: 30_000 }).catch(() => undefined);
     await waitForText(page, "must use", { sceneKey: "Board", timeoutMs: 30_000 });
     expect(await canEnd(page)).toBe(false);
     expect((await findText(page, "Trance of", "Board")).length).toBeGreaterThan(0);

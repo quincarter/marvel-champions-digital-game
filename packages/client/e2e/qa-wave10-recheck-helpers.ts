@@ -87,7 +87,7 @@ export async function wonderManRound2(page: Page, hand: string[], seed = 5801): 
   await settle(page);
   await waitFor(async () => ((await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null), "recap", 15000);
   await settle(page);
-  await clickText(page, "Continue", { sceneKey: "VillainPhaseOverlay" });
+  await clickText(page, "Start player phase", { sceneKey: "VillainPhaseOverlay" });
   await waitFor(async () => (!(await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null), "closes");
   await settle(page);
 }
@@ -129,7 +129,7 @@ export async function endRound(page: Page): Promise<void> {
   await settle(page);
   await waitFor(async () => ((await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null), "recap", 15000);
   await settle(page);
-  await clickText(page, "Continue", { sceneKey: "VillainPhaseOverlay" });
+  await clickText(page, "Start player phase", { sceneKey: "VillainPhaseOverlay" });
   await waitFor(async () => (!(await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null), "closes");
   await settle(page);
 }

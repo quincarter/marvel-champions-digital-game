@@ -159,7 +159,7 @@ const boardPress = async (page: Page, re: RegExp, scene = "Board", minY = 0): Pr
 /** Clears the villain phase recap that opens a game stopped after a villain phase. */
 const dismissRecap = async (page: Page): Promise<void> => {
   const cont = (await visibleTexts(page)).find(
-    (t) => t.scene === "VillainPhaseOverlay" && /^continue$/i.test(t.text.trim()),
+    (t) => t.scene === "VillainPhaseOverlay" && /^(continue|start player phase( ▸)?)$/i.test(t.text.trim()),
   );
   if (!cont) return;
   await press(page, false, cont.x, cont.y);

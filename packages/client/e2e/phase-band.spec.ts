@@ -95,7 +95,7 @@ test("the round 2 player phase band plays after the villain phase walkthrough, n
       continue;
     }
     if (scenes.includes("VillainPhaseOverlay")) {
-      const found = await findText(page, "Continue", "VillainPhaseOverlay");
+      const found = await findText(page, "Start player phase", "VillainPhaseOverlay");
       if (found.length > 0) continueButton = found[0]!;
     }
     if (!continueButton) await page.waitForTimeout(300); // loop pacing

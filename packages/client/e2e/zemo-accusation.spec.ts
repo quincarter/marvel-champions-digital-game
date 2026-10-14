@@ -9,6 +9,7 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
+import { skipVillainPhase } from "./wave6-helpers-a.js";
 
 /**
  * Baron Zemo's evidence and accusation (MC50 pp. 18 and 19), through the real prompts and real presses: the Evidence
@@ -107,10 +108,11 @@ test.describe("Baron Zemo: evidence and the accusation", () => {
     await waitFor(async () => (await pendingKind(page)) === null || null, "the round to go on");
     // The walkthrough covers the table until it is skipped.
     if (await isSceneUp(page, "VillainPhaseOverlay")) {
-      await clickText(page, "SKIP", {
-        sceneKey: "VillainPhaseOverlay",
-        until: async () => !(await isSceneUp(page, "VillainPhaseOverlay")),
-      });
+      // Skip mid-phase, or Start player phase on the recap: the phase's own way out either way.
+      for (let i = 0; i < 5 && (await isSceneUp(page, "VillainPhaseOverlay")); i++) {
+        await skipVillainPhase(page);
+        await settle(page);
+      }
     }
 
     // The Evidence view now: two cards faceup, four still in the S.H.I.E.L.D. envelope, rows crossed out.
@@ -187,10 +189,11 @@ test.describe("Baron Zemo: evidence and the accusation", () => {
       // Walk the villain phase out (the unmasked Zemo asks first), then read the answer in the Evidence view.
       for (let step = 0; step < 8 && (await pendingKind(page)); step++) await answer(page);
       if (await isSceneUp(page, "VillainPhaseOverlay")) {
-        await clickText(page, "SKIP", {
-          sceneKey: "VillainPhaseOverlay",
-          until: async () => !(await isSceneUp(page, "VillainPhaseOverlay")),
-        });
+        // Skip mid-phase, or Start player phase on the recap: the phase's own way out either way.
+        for (let i = 0; i < 5 && (await isSceneUp(page, "VillainPhaseOverlay")); i++) {
+          await skipVillainPhase(page);
+          await settle(page);
+        }
       }
       await clickText(page, evidenceButton, { sceneKey: "Board", until: () => isSceneUp(page, "EvidenceOverlay") });
       await settle(page, { quietMs: 400, maxMs: 2500 });

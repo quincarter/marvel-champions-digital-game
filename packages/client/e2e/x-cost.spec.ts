@@ -125,7 +125,7 @@ test("Everywhere All at Once: raise X to 2 in the pay step, pay, choose two sche
   await setup(page);
   await waitFor(async () => ((await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null), "recap", 15000);
   await settle(page);
-  await clickText(page, "Continue", { sceneKey: "VillainPhaseOverlay" });
+  await clickText(page, "Start player phase", { sceneKey: "VillainPhaseOverlay" });
   await waitFor(
     async () => (!(await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null),
     "recap closes",

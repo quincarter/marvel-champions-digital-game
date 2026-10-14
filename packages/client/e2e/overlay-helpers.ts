@@ -24,6 +24,16 @@ export const gameMarks = (page: Page): Promise<{ version: number; hand: number; 
     return { version: s.version, hand: me?.hand.length ?? -1, discard: me?.discard.length ?? -1 };
   });
 
+/** One of the villain phase's own control rects from its dev hook (`nextRect`, `resolveRect`, …), or null. */
+export const villainDebugRect = (page: Page, name: string): Promise<Rect | null> =>
+  page.evaluate(
+    (n) =>
+      (
+        window as unknown as { __mcVillainPhaseDebug?: Record<string, (() => Rect | null) | undefined> }
+      ).__mcVillainPhaseDebug?.[n]?.() ?? null,
+    name,
+  );
+
 export const continueRect = (page: Page): Promise<Rect | null> =>
   page.evaluate(
     () =>
@@ -90,6 +100,13 @@ export async function reachVillainRecap(page: Page, phone: boolean): Promise<voi
       // The recap's last step comes first: a response that opened with the player phase is already pending behind it
       // (its sheet is running), and answering it here would skip the very thing under test.
       if (await continueRect(page)) return true;
+      // "Hold encounter cards" (motion on): the docked phase waits on Next card before it moves to the next card.
+      const next = await villainDebugRect(page, "nextRect");
+      if (next) {
+        if (phone) await page.touchscreen.tap(next.x + next.width / 2, next.y + next.height / 2);
+        else await pressAt(page, next.x + next.width / 2, next.y + next.height / 2);
+        return null;
+      }
       if (scenes.includes("ChoiceOverlay")) {
         await answerChoiceSheet(page);
         return null;

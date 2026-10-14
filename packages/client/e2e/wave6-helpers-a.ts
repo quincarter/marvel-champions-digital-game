@@ -202,6 +202,18 @@ interface PendingChoiceView {
  * picked (`initialChoiceSelection`), so only Confirm is pressed then.
  */
 export async function answerChoiceSheet(page: Page): Promise<void> {
+  // The docked villain phase answers its own interrupt window (the sheet is hidden under it): let it resolve there.
+  const inlineResolve = await page.evaluate(
+    () =>
+      (
+        window as unknown as { __mcVillainPhaseDebug?: { resolveRect?: () => Rect | null } }
+      ).__mcVillainPhaseDebug?.resolveRect?.() ?? null,
+  );
+  if (inlineResolve) {
+    await pressAt(page, inlineResolve.x + inlineResolve.width / 2, inlineResolve.y + inlineResolve.height / 2);
+    await settle(page);
+    return;
+  }
   // In a game with more than one seat, cards from a deck wait behind the privacy cover until the looking player taps
   // it (a setup search of one's own deck included): tapped here the way that player would.
   const cover = (await visibleTexts(page)).find((t) => t.scene === "ChoiceOverlay" && /tap to reveal/i.test(t.text));
