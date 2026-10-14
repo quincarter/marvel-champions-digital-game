@@ -93,6 +93,7 @@ export default defineConfig({
         "wonder-man-overpay.spec.ts",
         "payment-order.spec.ts",
         "qa-v0200-client.spec.ts",
+        "card-size-scroll.spec.ts",
       ],
     },
   ],

@@ -265,6 +265,8 @@ export class BoardScene extends Phaser.Scene {
   /** A scroll (wheel, drag, reveal) asked for a redraw: `update` does it once a frame, however many events came. */
   #scrollDirty = false;
   readonly #tableDrag = new TableDrag();
+  /** A crowded play area row takes the wheel over it as a sideways scroll; a vertical drag over it still scrolls the table. */
+  #rowWheelRect: Rect | null = null;
   /** The Card size the last draw used: a change (Settings opened from Pause) redraws the table at the new size. */
   #drawnCardSize: string | null = null;
   /** The target set a reveal last ran for, so a target prompt scrolls its first target into view once, not every draw. */
@@ -1228,7 +1230,7 @@ export class BoardScene extends Phaser.Scene {
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
     if (zones.log && !logGate.locked) this.#frame.innerScroll.push(setAside?.log ?? zones.log);
-    if (zones.playArea && this.#playAreaScroll.row.canScroll) this.#frame.innerScroll.push(zones.playArea);
+    this.#rowWheelRect = zones.playArea && this.#playAreaScroll.row.canScroll ? zones.playArea : null;
     if (scrolling) {
       this.#drawScrollBands(layout);
       drawTopBand();
@@ -1534,14 +1536,16 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /** Whether the table may take a wheel or a drag at `pointer`: it scrolls, nothing covers it, and no region of its own owns that spot. */
-  #tableTakes(pointer: Phaser.Input.Pointer): boolean {
+  #tableTakes(pointer: Phaser.Input.Pointer, wheel = false): boolean {
     const layout = this.#layout;
     if (!layout || layout.maxScroll <= 0) return false;
     const win = layout.tableWindow;
     if (pointer.x < win.x || pointer.x > win.x + win.width || pointer.y < win.y || pointer.y > win.y + win.height)
       return false;
     if (this.#choiceOpen || this.#overlayCoversTable()) return false;
-    return !this.#frame.innerScroll.some(
+    const own =
+      wheel && this.#rowWheelRect ? [...this.#frame.innerScroll, this.#rowWheelRect] : this.#frame.innerScroll;
+    return !own.some(
       (r) => pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height,
     );
   }
@@ -1565,7 +1569,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   readonly #onTableWheel = (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void => {
-    if (!this.#tableTakes(pointer)) return;
+    if (!this.#tableTakes(pointer, true)) return;
     const mode = (pointer.event as WheelEvent | undefined)?.deltaMode ?? 0;
     this.#scrollTableTo(this.#layout!.scrollY + wheelPixels(dy, mode));
   };
